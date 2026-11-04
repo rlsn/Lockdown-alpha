@@ -25,6 +25,9 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Shield:
     case ELDDemoStatusId::CampReturning:
     case ELDDemoStatusId::RespawnProtection:
+    case ELDDemoStatusId::Slow:
+    case ELDDemoStatusId::StatBoost:
+    case ELDDemoStatusId::Exposed:
         return true;
     default:
         return false;
@@ -43,6 +46,7 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemPhaseAnchor:
     case ELDDemoEquipmentId::ItemArcaneBattery:
     case ELDDemoEquipmentId::ItemEchoMaul:
+    case ELDDemoEquipmentId::ItemSlingshot:
         return true;
     default:
         return false;

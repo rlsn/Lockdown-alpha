@@ -154,6 +154,19 @@ namespace LDTactical
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
+        if (Input.DamageAmplifyBp < 0)
+        {
+            return Fail(EError::Domain, TEXT("DamageAmplifyBp"), TEXT("Damage amplification cannot be negative"));
+        }
+        if (Input.DamageAmplifyBp > 0)
+        {
+            int64 Factor;
+            if (!Numbers.Add64(10000, Input.DamageAmplifyBp, Factor, TEXT("DamageAmplifyBp")))
+            {
+                return Fail(EError::Overflow, TEXT("DamageAmplifyBp"), MathError);
+            }
+            Damage = Numbers.Mul(Damage, Numbers.Value(Factor, 10000));
+        }
         int64 ResistanceDenominatorP2;
         if (!Numbers.Add64(Formulas.ResistanceScaleP2, Input.TargetResistanceP2.GetValue(),
             ResistanceDenominatorP2, TEXT("TargetResistanceP2")))
@@ -321,6 +334,93 @@ namespace LDTactical
             Result.bShieldChanged = true;
         }
         return Result;
+    }
+
+    bool ApplySlow(TArray<FLDCombatSlow>& Slows, const FLDCombatSlow& Instance, int64 AtMs)
+    {
+        if (!Instance.EffectId.IsValid() || Instance.ExpiresAtMs <= AtMs || Instance.RatioBp <= 0 || Instance.RatioBp >= 10000
+            || Slows.ContainsByPredicate([&Instance](const FLDCombatSlow& Slow) { return Slow.EffectId == Instance.EffectId; }))
+        {
+            return false;
+        }
+        Slows.Add(Instance);
+        return true;
+    }
+
+    int64 StrongestSlowBp(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        int64 Strongest = 0;
+        for (const auto& Slow : Slows)
+        {
+            if (Slow.ExpiresAtMs > AtMs) { Strongest = FMath::Max(Strongest, Slow.RatioBp); }
+        }
+        return Strongest;
+    }
+
+    int64 StrongestSlowUntilMs(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        const int64 Strongest = StrongestSlowBp(Slows, AtMs);
+        int64 Until = 0;
+        for (const auto& Slow : Slows)
+        {
+            if (Strongest > 0 && Slow.ExpiresAtMs > AtMs && Slow.RatioBp == Strongest) { Until = FMath::Max(Until, Slow.ExpiresAtMs); }
+        }
+        return Until;
+    }
+
+    void ApplyTimedBonus(TArray<FLDCombatTimedBonus>& Bonuses, const FLDCombatTimedBonus& Bonus)
+    {
+        Bonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Existing) { return Existing.SourceDefinition == Bonus.SourceDefinition; });
+        Bonuses.Add(Bonus);
+    }
+
+    void ApplyExposure(TArray<FLDCombatExposure>& Exposures, const FLDCombatExposure& Exposure)
+    {
+        Exposures.RemoveAll([&Exposure](const FLDCombatExposure& Existing) { return Existing.SourceEntity == Exposure.SourceEntity; });
+        Exposures.Add(Exposure);
+    }
+
+    int64 ExposureBp(const TArray<FLDCombatExposure>& Exposures, const FGuid& Source, int64 AtMs)
+    {
+        for (const auto& Exposure : Exposures)
+        {
+            if (Source.IsValid() && Exposure.SourceEntity == Source && Exposure.ExpiresAtMs > AtMs) { return Exposure.AmplifyBp; }
+        }
+        return 0;
+    }
+
+    bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
+        TArray<FLDCombatExposure>& Exposures, int64 AtMs)
+    {
+        const int32 Removed = Slows.RemoveAll([AtMs](const FLDCombatSlow& Slow) { return Slow.ExpiresAtMs <= AtMs; })
+            + Bonuses.RemoveAll([AtMs](const FLDCombatTimedBonus& Bonus) { return Bonus.ExpiresAtMs <= AtMs; })
+            + Exposures.RemoveAll([AtMs](const FLDCombatExposure& Exposure) { return Exposure.ExpiresAtMs <= AtMs; });
+        return Removed > 0;
+    }
+
+    bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp)
+    {
+        if (HPP2 <= 0 || MaxHPP2 <= 0 || ThresholdBp <= 0 || ThresholdBp >= 10000
+            || HPP2 > MAX_int64 / 10000 || MaxHPP2 > MAX_int64 / ThresholdBp) { return false; }
+        return HPP2 * 10000 < MaxHPP2 * ThresholdBp;
+    }
+
+    bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs)
+    {
+        return DelayMs > 0 && LastCombatAtMs <= MAX_int64 - DelayMs && AtMs >= LastCombatAtMs + DelayMs;
+    }
+
+    FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses, const TArray<FLDCombatSlow>& Slows,
+        const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs)
+    {
+        FLDTemporaryAttributeTerms Terms;
+        for (const auto& Bonus : Bonuses)
+        {
+            if (Bonus.ExpiresAtMs > AtMs) { Terms.Bonuses.Append(Bonus.Stats); }
+        }
+        if (LowHP.IsSet() && BelowHPThreshold(HPP2, MaxHPP2, LowHP->ThresholdBp)) { Terms.Bonuses.Append(LowHP->Stats); }
+        Terms.MoveSlowBp = StrongestSlowBp(Slows, AtMs);
+        return Terms;
     }
 
     bool IntegrateRegen(const FLDDemoRational& RatePerSec, int64 ElapsedMs, int64 MaxP2,

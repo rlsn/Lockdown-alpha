@@ -94,7 +94,10 @@ struct FLDAttributeContributions
     FLDAttributeTerms PermanentChoices;
     FLDAttributeTerms Passives;
     FLDAttributeTerms Equipment;
+    // Timed self bonuses, active conditional passives and the strongest slow (a negative ratio); zero in a build projection.
+    FLDAttributeTerms Temporary;
     // (Base + every Flat) x (1 + every AdditiveRatio), exact; only attack and move speed clamp.
+    // With temporary terms, point/basis-point attributes floor to their storage unit and every attribute clamps.
     FLDDemoRational Final;
     bool bClamped = false;
 };
@@ -105,6 +108,36 @@ struct FLDOutOfCombatRegenTerm
     uint8 Rank = 0;
     int64 DelayMs = 0;
     FLDDemoRational HPPerSec;
+};
+
+// Passive whose stats apply only while current HP is strictly below ThresholdBp of max HP.
+struct FLDLowHPBonusTerm
+{
+    FString AbilityId;
+    uint8 Rank = 0;
+    int64 ThresholdBp = 0;
+    TArray<FLDDemoStatBonus> Stats;
+};
+
+// Passive extra damage of the first damaging action committed after DelayMs out of combat.
+struct FLDAmbushDamageTerm
+{
+    FString AbilityId;
+    uint8 Rank = 0;
+    int64 DelayMs = 0;
+    int64 BaseP2 = 0;
+    int64 ADRatioBp = 0;
+    int64 APRatioBp = 0;
+    ELDDemoDamageType DamageType = ELDDemoDamageType::Magical;
+};
+
+// Passive amplification of the owner's damage against a body the owner controlled, for DurationMs after the control.
+struct FLDControlDamageAmpTerm
+{
+    FString AbilityId;
+    uint8 Rank = 0;
+    int64 RatioBp = 0;
+    int64 DurationMs = 0;
 };
 
 struct FLDEquipmentPassiveFamily
@@ -121,6 +154,10 @@ struct FLDAttributeProjection
     // One row per ELDProjectedAttribute, in enum order.
     TArray<FLDAttributeContributions> Contributions;
     TOptional<FLDOutOfCombatRegenTerm> OutOfCombatHPRegen;
+    // Conditional passive terms; Combat applies them from body state, the build projection never adds them.
+    TOptional<FLDLowHPBonusTerm> LowHPBonus;
+    TOptional<FLDAmbushDamageTerm> Ambush;
+    TOptional<FLDControlDamageAmpTerm> ControlAmp;
     // One entry per family, sorted by family.
     TArray<FLDEquipmentPassiveFamily> EquipmentPassives;
 };
@@ -131,6 +168,17 @@ struct FLDAttributeProjectionResult
     FLDAttributeProjectionFailure Error;
 
     bool IsSuccess() const { return Value.IsSet() && Error.Code == ELDAttributeProjectionError::None; }
+};
+
+// Temporary terms of one body at one instant: active timed bonuses, an active conditional passive and the strongest slow.
+struct FLDTemporaryAttributeTerms
+{
+    TArray<FLDDemoStatBonus> Bonuses;
+    int64 MoveSlowBp = 0;
+
+    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0; }
+    bool operator==(const FLDTemporaryAttributeTerms& Other) const;
+    bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };
 
 // Selects only the quantization policy: HP refuses positive-to-zero, MP accepts it.
@@ -164,6 +212,12 @@ namespace LDAttributeProjection
     // sources visible here and does not replace the growth domain's complete build validation.
     LOCKDOWN_API FLDAttributeProjectionResult Project(
         const FLDAttributeBuildValues& Build, const FLDDemoContentSnapshot& Catalog);
+    // The same formula over a build projection plus temporary terms: (Base + Flats + TemporaryFlat) x (1 + Ratios +
+    // TemporaryRatio - MoveSlow). Point and basis-point results floor; every attribute clamps to its catalog bounds
+    // (a temporary term never refuses). A projection without contribution rows (camp members) uses Final as its base.
+    // Resource maxima never take temporary terms.
+    LOCKDOWN_API FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
+        const FLDTemporaryAttributeTerms& Terms, const FLDDemoContentSnapshot& Catalog);
     // One final-maximum conversion, floor(OldCurrent x NewMax / OldMax); life eligibility stays with the caller.
     LOCKDOWN_API FLDResourceMaxChangeResult ResourceMaxChange(
         const FLDResourceMaxChangeInput& Input, const FLDDemoContentSnapshot& Catalog);

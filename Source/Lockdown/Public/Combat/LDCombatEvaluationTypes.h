@@ -33,6 +33,8 @@ struct FLDDamageEvaluationInput
     // A source attribute may be absent only when its resolved coefficient is zero.
     TOptional<int64> SourceADP2;
     TOptional<int64> SourceAPP2;
+    // Additive amplification of the pre-resistance amount (control damage amplification), basis points >= 0.
+    int64 DamageAmplifyBp = 0;
     // Resistance is the matching armor or magic-resist point value, not a reduction ratio.
     TOptional<int64> TargetResistanceP2;
     TOptional<int64> TargetHPP2;
@@ -72,6 +74,32 @@ struct FLDCombatShield
 {
     FGuid EffectId;
     FGuid SourceEntity;
+    int64 ExpiresAtMs = 0;
+};
+
+// One slow instance (EFFECT.Slow) on one target life; the strongest active instance projects into move speed.
+struct FLDCombatSlow
+{
+    FGuid EffectId;
+    FGuid SourceEntity;
+    int64 RatioBp = 0;
+    int64 ExpiresAtMs = 0;
+};
+
+// One timed self bonus (EFFECT.TimedStatBonus); a recast of the same source definition replaces it.
+struct FLDCombatTimedBonus
+{
+    FGuid EffectId;
+    FName SourceDefinition;
+    TArray<FLDDemoStatBonus> Stats;
+    int64 ExpiresAtMs = 0;
+};
+
+// Damage amplification the controlling source holds on this target life (EFFECT.ControlDamageAmp).
+struct FLDCombatExposure
+{
+    FGuid SourceEntity;
+    int64 AmplifyBp = 0;
     int64 ExpiresAtMs = 0;
 };
 

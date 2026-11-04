@@ -2,6 +2,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
 #include "Region/LDMapRegistry.h"
@@ -17,7 +18,7 @@ namespace LDCombatEffectsDetail
 
     enum class ESegmentSight : uint8 { Clear, Stopped, Fault };
 
-    struct FCleaveTarget
+    struct FAreaCandidate
     {
         FLDCombatBodyRef Body;
         FVector FootCm=FVector::ZeroVector;
@@ -127,6 +128,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Evaluation.TargetHPP2=Body->Resources.HpP2;
     Evaluation.TargetShieldP2=Body->Resources.ShieldP2;
     Evaluation.bTargetProtected=bProtected;
+    // The source's control damage amplification on this life (exact pre-resistance multiplier).
+    Evaluation.DamageAmplifyBp=LDTactical::ExposureBp(Body->Exposures,Hit.SourceEntity,NowMs);
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
     {
@@ -145,6 +148,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         RootInstance.SourceEntity=Hit.SourceEntity;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.RootDurationMs,RootInstance.ExpiresAtMs,Error)) { return false; }
     }
+    FLDCombatSlow SlowInstance;
+    const bool bSlows=Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !bProtected && Damage.RemainingHPP2>0;
+    if (bSlows)
+    {
+        SlowInstance.EffectId=Hit.EffectId;
+        SlowInstance.SourceEntity=Hit.SourceEntity;
+        SlowInstance.RatioBp=Hit.SlowBp;
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.SlowDurationMs,SlowInstance.ExpiresAtMs,Error)) { return false; }
+    }
     FLDBodyCombatState* Healed=nullptr;
     int64 HealP2=0;
     if (Hit.bLifesteal && Hit.HitClass==ELDCombatHitClass::BasicPrimary && Damage.HPLostP2>0)
@@ -159,44 +171,19 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Healed=FindBody(Hit.SourceBody);
         if (Healed && (Healed==Body || Healed->bPendingDeath || Healed->Resources.HpP2<=0)) { Healed=nullptr; }
     }
-    TArray<LDCombatEffectsDetail::FCleaveTarget> Cleaved;
+    TArray<FLDCombatBodyRef> Cleaved;
     if (Hit.bCleave && Hit.HitClass==ELDCombatHitClass::BasicPrimary && Damage.DamageP2>0)
     {
-        const UWorld* CurrentWorld=GetWorld();
-        const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-        if (!Mode->Vision || !Registry || Hit.CleaveRatioBp<0 || !FMath::IsFinite(Hit.CleaveRadiusCm) || Hit.CleaveRadiusCm<0)
+        if (Hit.CleaveRatioBp<0 || !FMath::IsFinite(Hit.CleaveRadiusCm) || Hit.CleaveRadiusCm<0)
         {
-            Error=TEXT("Cleave requires the observation owner, the registered world and a valid radius.");
+            Error=TEXT("Cleave requires a valid ratio and radius.");
             return false;
         }
         // The anchor is the primary target's foot at this hit, never re-read after that target dies.
-        const FVector Anchor=FootOf(*Actor);
-        const double ReachSquared=Hit.CleaveRadiusCm*Hit.CleaveRadiusCm;
-        TArray<LDCombatEffectsDetail::FCleaveTarget> InReach;
-        for (const auto& Pair : Bodies)
+        if (!CollectAreaTargets(FootOf(*Actor),Hit.CleaveRadiusCm,Body,Hit.SourceEntity,Cleaved,Error))
         {
-            const ALDCharacter* Other=Pair.Key.Get();
-            const FLDBodyCombatState& State=Pair.Value;
-            if (!Other || &State==Body || State.bPendingDeath || State.Victim.EntityId==Hit.SourceEntity
-                || (State.Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(State.Victim.EntityId)))
-            { continue; }
-            const FVector OtherFoot=FootOf(*Other);
-            if (FVector::DistSquared2D(Anchor,OtherFoot)>ReachSquared) { continue; }
-            LDCombatEffectsDetail::FCleaveTarget& Candidate=InReach.AddDefaulted_GetRef();
-            Candidate.Body={State.Victim,State.Identity};
-            Candidate.FootCm=OtherFoot;
-        }
-        InReach.Sort([](const LDCombatEffectsDetail::FCleaveTarget& Left, const LDCombatEffectsDetail::FCleaveTarget& Right)
-        { return Left.Body.Victim.EntityId<Right.Body.Victim.EntityId; });
-        for (const LDCombatEffectsDetail::FCleaveTarget& Candidate : InReach)
-        {
-            const ELDSightResult Sight=Mode->Vision->TraceSight(Anchor,Candidate.FootCm,Registry->Revision());
-            if (Sight==ELDSightResult::Visible) { Cleaved.Add(Candidate); }
-            else if (Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange)
-            {
-                Error=TEXT("Cleave sight failed on a registered body.");
-                return false;
-            }
+            Error=TEXT("Cleave: ")+Error;
+            return false;
         }
     }
 
@@ -208,14 +195,14 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
-    // A hit that harmed or rooted the body is its visible Hit cue (LDCombatCues).
-    if (Damage.DamageP2>0 || bRoots)
+    // A hit that harmed, rooted or slowed the body is its visible Hit cue (LDCombatCues).
+    if (Damage.DamageP2>0 || bRoots || bSlows)
     {
         Body->Cues.LastHitAtMs=NowMs;
         MarkViewChanged(Body->Victim.EntityId);
     }
     // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
-    if ((Damage.DamageP2>0 || bRoots) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
+    if ((Damage.DamageP2>0 || bRoots || bSlows) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
     {
         FLDCombatHostileContact& Contact=PendingContacts.AddDefaulted_GetRef();
         Contact.HitId=Hit.HitId;
@@ -225,6 +212,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Contact.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();
     }
     if (bRoots && LDTactical::ApplyRoot(Body->Roots,RootInstance,NowMs)) { ++Body->StateRevision; }
+    if (bRoots && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
+    if (bSlows && LDTactical::ApplySlow(Body->Slows,SlowInstance,NowMs)) { ++Body->StateRevision; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     if (Healed && HealP2>0)
     {
@@ -239,13 +228,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         }
     }
     // POLICY.BasicSecondaryTriggers=Disabled: secondaries never crit, heal, cleave or start another attack.
-    for (const LDCombatEffectsDetail::FCleaveTarget& Secondary : Cleaved)
+    for (const FLDCombatBodyRef& Secondary : Cleaved)
     {
         FLDCombatHit& Sweep=PendingHits.AddDefaulted_GetRef();
         Sweep.HitId=FGuid::NewGuid();
         Sweep.EffectId=Hit.EffectId;
         Sweep.Token=Hit.Token;
-        Sweep.Target=Secondary.Body;
+        Sweep.Target=Secondary;
         Sweep.SourceBody=Hit.SourceBody;
         Sweep.SourceEntity=Hit.SourceEntity;
         Sweep.CreditOwner=Hit.CreditOwner;
@@ -346,6 +335,22 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             Contact.SourceADP2=Projectile.SourceADP2;
             Contact.SourceAPP2=Projectile.SourceAPP2;
             Contact.bCritical=false;
+            Contact.SlowBp=Projectile.SlowBp;
+            Contact.SlowDurationMs=Projectile.SlowDurationMs;
+            Contact.ControlAmpBp=Projectile.ControlAmpBp;
+            Contact.ControlAmpDurationMs=Projectile.ControlAmpDurationMs;
+            if (Projectile.Ambush.IsSet())
+            {
+                // The ambush bonus is a separate instance of its own damage type against the same struck body.
+                FLDCombatHit Ambush=Contact;
+                Ambush.HitId=FGuid::NewGuid();
+                Ambush.BaseP2=Projectile.Ambush->BaseP2;
+                Ambush.ADRatioBp=Projectile.Ambush->ADRatioBp;
+                Ambush.APRatioBp=Projectile.Ambush->APRatioBp;
+                Ambush.DamageType=Projectile.Ambush->DamageType;
+                Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
+                PendingHits.Add(Ambush);
+            }
             Finished.Add(Index);
             continue;
         }
@@ -358,6 +363,143 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         Projectile.AdvancedThroughMs=NowMs;
     }
     for (int32 Position=Finished.Num()-1; Position>=0; --Position) { Projectiles.RemoveAt(Finished[Position]); }
+    return true;
+}
+
+bool ALDCombatDirector::CollectAreaTargets(const FVector& Anchor, double RadiusCm, const FLDBodyCombatState* Excluded,
+    const FGuid& SourceEntity, TArray<FLDCombatBodyRef>& Out, FString& Error) const
+{
+    Out.Reset();
+    const ALDGameMode* Mode=Core();
+    const UWorld* CurrentWorld=GetWorld();
+    const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
+    if (!Mode || !Mode->Vision || !Registry || !FMath::IsFinite(RadiusCm) || RadiusCm<0 || Anchor.ContainsNaN())
+    {
+        Error=TEXT("An area query requires the observation owner, the registered world and a valid radius.");
+        return false;
+    }
+    const double ReachSquared=RadiusCm*RadiusCm;
+    TArray<LDCombatEffectsDetail::FAreaCandidate> InReach;
+    for (const auto& Pair : Bodies)
+    {
+        const ALDCharacter* Other=Pair.Key.Get();
+        const FLDBodyCombatState& State=Pair.Value;
+        if (!Other || &State==Excluded || State.bPendingDeath || State.Victim.EntityId==SourceEntity
+            || (State.Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(State.Victim.EntityId)))
+        { continue; }
+        const FVector OtherFoot=FootOf(*Other);
+        if (FVector::DistSquared2D(Anchor,OtherFoot)>ReachSquared) { continue; }
+        LDCombatEffectsDetail::FAreaCandidate& Candidate=InReach.AddDefaulted_GetRef();
+        Candidate.Body={State.Victim,State.Identity};
+        Candidate.FootCm=OtherFoot;
+    }
+    InReach.Sort([](const LDCombatEffectsDetail::FAreaCandidate& Left, const LDCombatEffectsDetail::FAreaCandidate& Right)
+    { return Left.Body.Victim.EntityId<Right.Body.Victim.EntityId; });
+    for (const LDCombatEffectsDetail::FAreaCandidate& Candidate : InReach)
+    {
+        const ELDSightResult Sight=Mode->Vision->TraceSight(Anchor,Candidate.FootCm,Registry->Revision());
+        if (Sight==ELDSightResult::Visible) { Out.Add(Candidate.Body); }
+        else if (Sight!=ELDSightResult::Blocked && Sight!=ELDSightResult::OutOfRange)
+        {
+            Error=TEXT("Area sight failed on a registered body.");
+            return false;
+        }
+    }
+    return true;
+}
+
+bool ALDCombatDirector::MarkControlled(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
+{
+    if (Hit.ControlAmpBp<=0 || Hit.ControlAmpDurationMs<=0 || !Hit.SourceEntity.IsValid()
+        || Hit.SourceEntity==Target.Victim.EntityId)
+    { return true; }
+    FLDCombatExposure Exposure;
+    Exposure.SourceEntity=Hit.SourceEntity;
+    Exposure.AmplifyBp=Hit.ControlAmpBp;
+    if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.ControlAmpDurationMs,Exposure.ExpiresAtMs,Error)) { return false; }
+    LDTactical::ApplyExposure(Target.Exposures,Exposure);
+    ++Target.StateRevision;
+    MarkViewChanged(Target.Victim.EntityId);
+    return true;
+}
+
+bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error)
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content)
+    {
+        Error=TEXT("Temporary attributes require the approved Demo content.");
+        return false;
+    }
+    const FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
+        Body.BuildProjection.LowHPBonus,Body.Resources.HpP2,Body.Resources.MaxHpP2,NowMs);
+    const bool bAmbushReady=Body.BuildProjection.Ambush.IsSet() && !Body.bPendingDeath
+        && LDTactical::AmbushReady(Body.LastCombatAtMs,Body.BuildProjection.Ambush->DelayMs,NowMs);
+    if (bAmbushReady!=Body.bAmbushReadyShown)
+    {
+        Body.bAmbushReadyShown=bAmbushReady;
+        MarkViewChanged(Body.Victim.EntityId);
+    }
+    if (Terms==Body.AppliedTemporary) { return true; }
+    const FLDAttributeProjectionResult Applied=LDAttributeProjection::ApplyTemporary(Body.BuildProjection,Terms,*Content);
+    if (!Applied.IsSuccess())
+    {
+        Error=FString::Printf(TEXT("Temporary attributes of %s were refused: %s: %s"),
+            *Body.Victim.EntityId.ToString(),*Applied.Error.Field,*Applied.Error.Message);
+        return false;
+    }
+    const FLDDemoRational OldAttackSpeed=Body.AttributeProjection.Final.AttackSpeed;
+    Body.AttributeProjection=Applied.Value.GetValue();
+    Body.AppliedTemporary=Terms;
+    ++Body.AttributeRevision;
+    const FLDDemoRational& NewAttackSpeed=Body.AttributeProjection.Final.AttackSpeed;
+    // Contenders time each basic from the current attack speed; camp members keep their monster cadence.
+    if (Body.Victim.Kind==ELDVictimKind::Contender
+        && (OldAttackSpeed.Numerator!=NewAttackSpeed.Numerator || OldAttackSpeed.Denominator!=NewAttackSpeed.Denominator))
+    {
+        FLDBasicTimingInput TimingInput;
+        TimingInput.BaseAttackSpeed=Content->Get().Parameters.AttackSpeed.Base;
+        TimingInput.CurrentAttackSpeed=NewAttackSpeed;
+        TimingInput.BaseWindupMs=Content->Get().Parameters.BasicAttackWindupMs;
+        const FLDBasicTimingResult Timing=LDTactical::EvaluateBasicTiming(TimingInput,*Content);
+        if (!Timing.IsSuccess())
+        {
+            Error=TEXT("Temporary attack speed has no basic timing: ")+Timing.Error.Field+TEXT(": ")+Timing.Error.Message;
+            return false;
+        }
+        Body.BasicTiming=Timing.Value.GetValue();
+    }
+    const double Speed=Body.AttributeProjection.Final.MoveSpeedCmPerSec.Denominator>0
+        ? double(Body.AttributeProjection.Final.MoveSpeedCmPerSec.Numerator)/double(Body.AttributeProjection.Final.MoveSpeedCmPerSec.Denominator) : 0.;
+    if (Actor && Actor->GetCharacterMovement() && FMath::IsFinite(Speed) && Speed>0 && Speed<=MAX_flt)
+    { Actor->GetCharacterMovement()->MaxWalkSpeed=float(Speed); }
+    MarkViewChanged(Body.Victim.EntityId);
+    return true;
+}
+
+bool ALDCombatDirector::InstallBodyProjection(FLDBodyCombatState& Body, ALDCharacter* Actor,
+    const FLDAttributeProjection& Projection, int64 NowMs, FString& Error)
+{
+    Body.BuildProjection=Projection;
+    Body.AttributeProjection=Projection;
+    Body.AppliedTemporary={};
+    return RefreshTemporary(Body,Actor,NowMs,Error);
+}
+
+bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
+{
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        if (!Pair.Key.IsValid()) { continue; }
+        if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,Body.Exposures,NowMs))
+        {
+            ++Body.StateRevision;
+            MarkViewChanged(Body.Victim.EntityId);
+        }
+        if (Body.bPendingDeath) { continue; }
+        if (!RefreshTemporary(Body,Pair.Key.Get(),NowMs,Error)) { return false; }
+    }
     return true;
 }
 

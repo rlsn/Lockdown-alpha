@@ -23,6 +23,11 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Shield: return TEXT("shield");
     case ELDDemoStatusId::CampReturning: return TEXT("camp_returning");
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
+    case ELDDemoStatusId::Slow: return TEXT("slow");
+    case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");
+    case ELDDemoStatusId::Enraged: return TEXT("enraged");
+    case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
+    case ELDDemoStatusId::Exposed: return TEXT("exposed");
     default: return nullptr;
     }
 }
@@ -424,6 +429,7 @@ const TCHAR* HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::AttackSpeedBonusRatio: return TEXT("手速");
     case ELDDemoBonusStat::MoveSpeedBonusRatio: return TEXT("腿速");
     case ELDDemoBonusStat::CritChanceBonusRatio: return TEXT("正中要害率");
+    case ELDDemoBonusStat::ADBonusRatio: return TEXT("手劲");
     default: return nullptr;
     }
 }
@@ -443,6 +449,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return FString(Name)+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
+    case ELDDemoBonusStat::ADBonusRatio:
         return FString(Name)+TEXT(" +")+HudPercent(Stat.Amount);
     default: return FString(Name)+TEXT(" +")+HudPoints(Stat.Amount);
     }
@@ -467,6 +474,22 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::DashBoost:
         return TEXT("冲刺冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，冲刺距离 +")+HudPercent(Effect.DistanceBonusBp);
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
+    case ELDDemoEffectOp::Slow: return TEXT("减速：腿速 -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::TimedStatBonus:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        return Text+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    }
+    case ELDDemoEffectOp::SelfArea: return TEXT("范围：出手位置周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
+    case ELDDemoEffectOp::LowHpStatBonus:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        return TEXT("面子低于 ")+HudPercent(Effect.RatioBp)+TEXT(" 时：")+Text;
+    }
+    case ELDDemoEffectOp::AmbushDamage:
+        return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次弹脑瓜崩或伤害技能额外造成")
+            +(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
+    case ELDDemoEffectOp::ControlDamageAmp: return TEXT("定身敌人后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内，对其伤害 +")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -566,6 +589,12 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
         +TEXT(" · 装备 ")+Value(Row.Equipment);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
+    if(Row.Temporary.Denominator>0&&Row.Temporary.Numerator!=0){View.Breakdown+=TEXT(" · 临时 +")+Value(Row.Temporary);}
+    if(Row.TemporaryPercent.Denominator>0&&Row.TemporaryPercent.Numerator!=0)
+    {
+        const double Percent=100.*double(Row.TemporaryPercent.Numerator)/double(Row.TemporaryPercent.Denominator);
+        View.Breakdown+=TEXT(" · 临时百分比 ")+FString(Percent>0?TEXT("+"):TEXT(""))+HudDecimal(Percent)+TEXT("%");
+    }
     return View;
 }
 FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)

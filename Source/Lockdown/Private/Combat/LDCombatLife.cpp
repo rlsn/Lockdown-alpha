@@ -32,6 +32,14 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     { Out.Add({uint8(ELDDemoStatusId::Root),1,RootUntil}); }
     if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
     { Out.Add({uint8(ELDDemoStatusId::Shield),1,Body->Shield->ExpiresAtMs}); }
+    // A slow shows its strongest instance; timed bonuses and control marks show one cue each with the latest deadline.
+    if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
+    int64 BoostUntil=0, ExposedUntil=0;
+    for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
+    for (const auto& Exposure : Body->Exposures) { if (Exposure.ExpiresAtMs>NowMs) { ExposedUntil=FMath::Max(ExposedUntil,Exposure.ExpiresAtMs); } }
+    if (BoostUntil>0) { Out.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
+    if (ExposedUntil>0) { Out.Add({uint8(ELDDemoStatusId::Exposed),1,ExposedUntil}); }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -107,6 +115,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     State.Resources.MpP2=State.Resources.MaxMpP2=Attributes.MaxMPP2;
     State.Resources.Revision=1;
     State.BasicTiming=Timing.Value.GetValue();
+    State.BuildProjection=Projection;
     State.AttributeProjection=MoveTemp(Projection);
     State.AttributeRevision=1;
     State.PublicFacts=MoveTemp(Facts);
@@ -160,6 +169,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     Final.MPRegenPerSec=Monster->MPRegenPerSec;
     Final.CritChanceBp=Monster->CritChanceBp;
     Final.CooldownHasteP2=0;
+    State.BuildProjection=State.AttributeProjection;
     State.Resources.HpP2=State.Resources.MaxHpP2=Monster->HPP2;
     State.Resources.MpP2=State.Resources.MaxMpP2=Monster->MaxMPP2;
     State.Resources.Revision=1;
@@ -250,7 +260,10 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
-        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; });
+        // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
+        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; })
+            + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
+            + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; });
         if (Removed>0)
         {
             ++Body.StateRevision;

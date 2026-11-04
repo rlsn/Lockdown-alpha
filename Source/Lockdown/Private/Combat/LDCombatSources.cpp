@@ -879,8 +879,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     ++Record->SourceRevision;
     if (Body)
     {
-        Body->AttributeProjection=Prepared.Projection;
-        ++Body->AttributeRevision;
         Body->BasicTiming=Timing;
         Body->Resources.MaxHpP2=Prepared.NewMaxHPP2;
         Body->Resources.HpP2=Prepared.NewHPP2;
@@ -894,6 +892,14 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         Body->PublicFacts->Level=Prepared.Input.Level;
         Body->PublicFacts->Equipment=PublicSlots;
         Actor->GetCharacterMovement()->MaxWalkSpeed=WalkSpeed;
+        // The new build keeps this life's slows, timed bonuses and HP condition on top of it.
+        FString Error;
+        if (!InstallBodyProjection(*Body,Actor,Prepared.Projection,Mode->GetAuthorityNowMs(),Error))
+        {
+            Mode->FaultAuthority(FString::Printf(TEXT("Combat build install for %s lost its temporary attributes: %s"),
+                *Prepared.Contender.ToString(),*Error));
+            return;
+        }
     }
     MarkViewChanged(Prepared.Contender);
 }
@@ -1020,6 +1026,26 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 ShieldStatus.ExpiresAtMs=Body->Shield->ExpiresAtMs;
                 ShieldStatus.AmountP2=Body->Resources.ShieldP2;
             }
+            // Own temporary terms: the same public slow/boost/mark cues plus the conditional passives' active states.
+            TArray<FLDObservedStatus> Temporary;
+            if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
+            { Temporary.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
+            int64 BoostUntil=0, ExposedUntil=0;
+            for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
+            for (const auto& Exposure : Body->Exposures) { if (Exposure.ExpiresAtMs>NowMs) { ExposedUntil=FMath::Max(ExposedUntil,Exposure.ExpiresAtMs); } }
+            if (BoostUntil>0) { Temporary.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
+            if (ExposedUntil>0) { Temporary.Add({uint8(ELDDemoStatusId::Exposed),1,ExposedUntil}); }
+            if (Projection.LowHPBonus.IsSet()
+                && LDTactical::BelowHPThreshold(Body->Resources.HpP2,Body->Resources.MaxHpP2,Projection.LowHPBonus->ThresholdBp))
+            { Temporary.Add({uint8(ELDDemoStatusId::Enraged),1,0}); }
+            if (Projection.Ambush.IsSet() && LDTactical::AmbushReady(Body->LastCombatAtMs,Projection.Ambush->DelayMs,NowMs))
+            { Temporary.Add({uint8(ELDDemoStatusId::AmbushReady),1,0}); }
+            for (const FLDObservedStatus& Status : Temporary)
+            {
+                FLDCombatStatusView& View=Out.Statuses.AddDefaulted_GetRef();
+                View.StatusId=Status.StatusId;
+                View.ExpiresAtMs=Status.ExpiresAtServerMs;
+            }
             if (Body->Action.IsSet())
             {
                 Out.ActionEntry=Body->Action->Entry;
@@ -1056,6 +1082,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Choices=Row.PermanentChoices.Flat;
         RowView.Passives=Row.Passives.Flat;
         RowView.Equipment=Row.Equipment.Flat;
+        RowView.Temporary=Row.Temporary.Flat;
+        RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
         if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus)
@@ -1158,6 +1186,9 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
         return;
     }
     LDTactical::DispelRoots(Body->Roots);
+    Body->Slows.Reset();
+    Body->TimedBonuses.Reset();
+    Body->Exposures.Reset();
     Body->Shield.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;
@@ -1170,6 +1201,13 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->LastCombatAtMs=0;
     Body->MonsterNextAttackAtMs=0;
     Body->ResetThroughEpoch=Prepared.Input.ReturnEpoch;
+    FString Error;
+    if (!RefreshTemporary(*Body,nullptr,Mode->GetAuthorityNowMs(),Error))
+    {
+        Mode->FaultAuthority(FString::Printf(TEXT("Combat camp reset of %s could not restore its attributes: %s"),
+            *Prepared.Input.Body.Victim.EntityId.ToString(),*Error));
+        return;
+    }
     ++Body->Resources.Revision;
     ++Body->StateRevision;
     MarkViewChanged(Prepared.Input.Body.Victim.EntityId);

@@ -218,7 +218,9 @@ UENUM()
 enum class ELDDemoBonusStat : uint8
 {
     ADFlat, APFlat, MaxHPFlat, MaxMPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
-    AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio
+    AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio,
+    // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
+    ADBonusRatio
 };
 
 USTRUCT()
@@ -249,6 +251,8 @@ struct FLDDemoEffectDefinition
     GENERATED_BODY()
 
     // Opcode is checked against ELDDemoEffectOp; reservations are not battle handlers.
+    // Field use per op: Slow RatioBp+DurationMs; TimedStatBonus Stats+DurationMs; SelfArea RadiusCm;
+    // LowHpStatBonus RatioBp (HP threshold)+Stats; AmbushDamage DelayMs+damage terms; ControlDamageAmp RatioBp+DurationMs.
     UPROPERTY() uint8 Opcode = 0;
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;

@@ -904,7 +904,10 @@ bool RunEnvelope(FAutomationTestBase& Test)
             Multisets.Add(TArray<FString>{ItemIds[First], ItemIds[Second]});
         }
     }
-    bGood &= Test.TestEqual(TEXT("Empty, single and duplicate-allowed pairs give 36 equipment multisets"), Multisets.Num(), 36);
+    // 1 empty + n singles + n(n+1)/2 pairs, for the catalog's actual item count.
+    const int32 ItemCount = ItemIds.Num();
+    bGood &= Test.TestEqual(TEXT("Empty, single and duplicate-allowed pairs cover every equipment multiset"), Multisets.Num(),
+        1 + ItemCount + ItemCount * (ItemCount + 1) / 2);
     for (const uint8 Level : {uint8(1), uint8(10)})
     {
         for (const TArray<FString>& Items : Multisets)
@@ -1157,6 +1160,179 @@ bool RunResourceMaxChange(FAutomationTestBase& Test)
     }
     return bGood;
 }
+
+bool SameRational(const FLDDemoRational& Value, int64 Numerator, int64 Denominator)
+{
+    return Value.Denominator > 0 && Denominator > 0 && Value.Numerator * Denominator == Numerator * Value.Denominator;
+}
+
+FLDTemporaryAttributeTerms Terms(TArray<FLDDemoStatBonus> Bonuses, int64 SlowBp = 0)
+{
+    FLDTemporaryAttributeTerms Result;
+    Result.Bonuses = MoveTemp(Bonuses);
+    Result.MoveSlowBp = SlowBp;
+    return Result;
+}
+
+FLDDemoStatBonus TempBonus(ELDDemoBonusStat Stat, int64 Amount)
+{
+    FLDDemoStatBonus Bonus;
+    Bonus.Stat = Stat;
+    Bonus.Amount = Amount;
+    return Bonus;
+}
+
+bool Apply(FAutomationTestBase& Test, const FString& Label, const FLDAttributeProjection& Build,
+    const FLDTemporaryAttributeTerms& Temporary, const FLDDemoContentSnapshot& Catalog, FLDAttributeProjection& Out)
+{
+    const FLDAttributeProjectionResult Result = LDAttributeProjection::ApplyTemporary(Build, Temporary, Catalog);
+    if (!Test.TestTrue(Label + TEXT(": temporary projection succeeds"), Result.IsSuccess()))
+    {
+        Test.AddError(Label + TEXT(": ") + Result.Error.Field + TEXT(": ") + Result.Error.Message);
+        return false;
+    }
+    Out = Result.Value.GetValue();
+    return true;
+}
+
+bool RunTemporaryTerms(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadAttributeFixture(Test, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
+    const FLDDemoEquipmentDefinition* Sling = nullptr;
+    FString Error;
+    if (!Catalog->FindEquipment(TEXT("item_slingshot"), Sling, Error))
+    {
+        Test.AddError(Error);
+        return false;
+    }
+    const FLDDemoStatBonus* SlingSpeed = Sling->Stats.FindByPredicate([](const FLDDemoStatBonus& Stat)
+    { return Stat.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio; });
+    FLDAttributeProjection Build, Out;
+    if (!Test.TestNotNull(TEXT("The slingshot grants attack speed"), SlingSpeed)
+        || !ProjectBuild(Test, TEXT("Level 1 with a slingshot"), MakeBuild(1, {}, {}, {TEXT("item_slingshot")}), *Catalog, Build))
+    {
+        return false;
+    }
+    bool bGood = true;
+    const FLDDemoRational& BaseSpeed = P.MoveSpeedCmPerSec.Base;
+    const int32 MoveRow = int32(EAttribute::MoveSpeed);
+    if (!Apply(Test, TEXT("No terms"), Build, FLDTemporaryAttributeTerms(), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("Empty terms keep the build projection"),
+        Out.Final.ADP2 == Build.Final.ADP2 && SameRational(Out.Final.MoveSpeedCmPerSec, BaseSpeed.Numerator, BaseSpeed.Denominator));
+    if (!Apply(Test, TEXT("Slow 30%"), Build, Terms({}, 3000), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("A 30% slow is a negative term of the same move-speed formula"),
+        SameRational(Out.Final.MoveSpeedCmPerSec, BaseSpeed.Numerator * 7, BaseSpeed.Denominator * 10)
+        && SameRational(Out.Contributions[MoveRow].Temporary.AdditiveRatio, -3, 10)
+        && SameRational(Out.Contributions[MoveRow].Final, BaseSpeed.Numerator * 7, BaseSpeed.Denominator * 10));
+    bGood &= Test.TestTrue(TEXT("Other attributes are untouched by a slow"), Out.Final.ADP2 == Build.Final.ADP2
+        && SameRational(Out.Final.AttackSpeed, Build.Final.AttackSpeed.Numerator, Build.Final.AttackSpeed.Denominator));
+    if (!Apply(Test, TEXT("Haste 50% and slow 30%"), Build,
+        Terms({TempBonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 5000)}, 3000), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("Timed move speed and a slow add in one ratio"),
+        SameRational(Out.Final.MoveSpeedCmPerSec, BaseSpeed.Numerator * 12, BaseSpeed.Denominator * 10));
+    if (!Apply(Test, TEXT("Slow 99.99%"), Build, Terms({}, 9999), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("A slow never takes move speed below its catalog minimum"),
+        SameRational(Out.Final.MoveSpeedCmPerSec, P.MoveSpeedCmPerSec.Min.Numerator, P.MoveSpeedCmPerSec.Min.Denominator)
+        && Out.Contributions[MoveRow].bClamped);
+    if (!Apply(Test, TEXT("Attack speed 60%"), Build,
+        Terms({TempBonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 6000)}), *Catalog, Out)) { return false; }
+    const FLDDemoRational& BaseRate = P.AttackSpeed.Base;
+    bGood &= Test.TestTrue(TEXT("Timed attack speed adds to the equipment ratio"),
+        SameRational(Out.Final.AttackSpeed, BaseRate.Numerator * (10000 + SlingSpeed->Amount + 6000), BaseRate.Denominator * 10000));
+    if (!Apply(Test, TEXT("AD 22%"), Build, Terms({TempBonus(ELDDemoBonusStat::ADBonusRatio, 2200)}), *Catalog, Out)) { return false; }
+    bGood &= Test.TestEqual(TEXT("A percent AD bonus floors to P2"), Out.Final.ADP2, Build.Final.ADP2 * 12200 / 10000);
+    if (!Apply(Test, TEXT("Armor and resistance +20"), Build, Terms({TempBonus(ELDDemoBonusStat::ArmorFlat, 2000),
+        TempBonus(ELDDemoBonusStat::MagicResistFlat, 2000)}), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("Timed flat resistances add once"),
+        Out.Final.ArmorP2 == Build.Final.ArmorP2 + 2000 && Out.Final.MagicResistP2 == Build.Final.MagicResistP2 + 2000);
+    if (!Apply(Test, TEXT("Armor beyond the cap"), Build, Terms({TempBonus(ELDDemoBonusStat::ArmorFlat, P.Armor.MaxP2)}), *Catalog, Out))
+    {
+        return false;
+    }
+    bGood &= Test.TestTrue(TEXT("A temporary term clamps to the catalog bound instead of refusing"),
+        Out.Final.ArmorP2 == P.Armor.MaxP2 && Out.Contributions[int32(EAttribute::Armor)].bClamped);
+    const auto Refused = [&Test, &Build, &Catalog](const FString& Label, const FLDTemporaryAttributeTerms& Bad)
+    {
+        const FLDAttributeProjectionResult Result = LDAttributeProjection::ApplyTemporary(Build, Bad, *Catalog);
+        return Test.TestTrue(Label, !Result.IsSuccess() && !Result.Value.IsSet() && Result.Error.Code == EError::InputDomain);
+    };
+    bGood &= Refused(TEXT("A temporary resource maximum is refused"), Terms({TempBonus(ELDDemoBonusStat::MaxHPFlat, 100)}));
+    bGood &= Refused(TEXT("A negative temporary bonus is refused"), Terms({TempBonus(ELDDemoBonusStat::ADFlat, -1)}));
+    bGood &= Refused(TEXT("A full slow is refused"), Terms({}, 10000));
+    FLDAttributeProjection Camp;
+    Camp.Final.MoveSpeedCmPerSec = MakeRational(480);
+    Camp.Final.ADP2 = 1000;
+    if (!Apply(Test, TEXT("Camp member slow"), Camp, Terms({}, 3000), *Catalog, Out)) { return false; }
+    bGood &= Test.TestTrue(TEXT("A body without contribution rows slows from its final speed"),
+        SameRational(Out.Final.MoveSpeedCmPerSec, 336, 1) && Out.Final.ADP2 == 1000 && Out.Contributions.IsEmpty());
+    return bGood;
+}
+
+bool RunExpansionPassives(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadAttributeFixture(Test, Catalog))
+    {
+        return false;
+    }
+    FString Error;
+    const auto RankEffect = [&Catalog, &Error](const TCHAR* Id, int32 Rank) -> const FLDDemoEffectDefinition*
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        if (!Catalog->FindAbility(Id, Ability, Error)) { return nullptr; }
+        const FLDDemoRankDefinition* Row = Ability->Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R) { return R.Rank == Rank; });
+        return Row && Row->Effects.Num() == 1 ? &Row->Effects[0] : nullptr;
+    };
+    const FLDDemoEffectDefinition* Cornered = RankEffect(TEXT("passive_cornered"), 3);
+    const FLDDemoEffectDefinition* Lurking = RankEffect(TEXT("passive_lurking"), 2);
+    const FLDDemoEffectDefinition* Shame = RankEffect(TEXT("passive_public_shame"), 1);
+    const FLDDemoEffectDefinition* Eye = RankEffect(TEXT("passive_eagle_eye"), 3);
+    if (!Test.TestTrue(TEXT("Approved expansion passives have one effect per rank: ") + Error, Cornered && Lurking && Shame && Eye))
+    {
+        return false;
+    }
+    FLDAttributeProjection Plain, Projection;
+    if (!ProjectBuild(Test, TEXT("Level 6"), MakeBuild(6), *Catalog, Plain)
+        || !ProjectBuild(Test, TEXT("Level 6 expansion passives"), MakeBuild(6, {FLDLearnedPassiveValue(TEXT("passive_cornered"), 3),
+            FLDLearnedPassiveValue(TEXT("passive_lurking"), 2), FLDLearnedPassiveValue(TEXT("passive_public_shame"), 1)}),
+            *Catalog, Projection))
+    {
+        return false;
+    }
+    bool bGood = Test.TestEqual(TEXT("A conditional passive never changes the build AD"), Projection.Final.ADP2, Plain.Final.ADP2);
+    bGood &= Test.TestTrue(TEXT("The low-HP term carries its threshold and rank stats"), Projection.LowHPBonus.IsSet()
+        && Projection.LowHPBonus->ThresholdBp == Cornered->RatioBp && Projection.LowHPBonus->Rank == 3
+        && Projection.LowHPBonus->Stats.Num() == 1 && Projection.LowHPBonus->Stats[0].Stat == ELDDemoBonusStat::ADBonusRatio
+        && Projection.LowHPBonus->Stats[0].Amount == Cornered->Stats[0].Amount);
+    bGood &= Test.TestTrue(TEXT("The ambush term carries its delay and damage terms"), Projection.Ambush.IsSet()
+        && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2
+        && Projection.Ambush->ADRatioBp == Lurking->ADRatioBp && Projection.Ambush->APRatioBp == Lurking->APRatioBp
+        && Projection.Ambush->DamageType == Lurking->DamageType);
+    bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio and duration"), Projection.ControlAmp.IsSet()
+        && Projection.ControlAmp->RatioBp == Shame->RatioBp && Projection.ControlAmp->DurationMs == Shame->DurationMs);
+    bGood &= Test.TestTrue(TEXT("A plain build carries no conditional terms"),
+        !Plain.LowHPBonus.IsSet() && !Plain.Ambush.IsSet() && !Plain.ControlAmp.IsSet());
+    FLDAttributeProjection Enraged;
+    const FLDTemporaryAttributeTerms Low = LDTactical::TemporaryTerms({}, {}, Projection.LowHPBonus, 1, 100, 0);
+    if (!Apply(Test, TEXT("Below the threshold"), Projection, Low, *Catalog, Enraged)) { return false; }
+    bGood &= Test.TestEqual(TEXT("Below the threshold AD rises by the rank ratio (floored)"), Enraged.Final.ADP2,
+        Plain.Final.ADP2 * (10000 + Cornered->Stats[0].Amount) / 10000);
+    FLDAttributeProjection Eyed;
+    if (!ProjectBuild(Test, TEXT("Eagle eye rank 3"), MakeBuild(3, {FLDLearnedPassiveValue(TEXT("passive_eagle_eye"), 3)}), *Catalog, Eyed))
+    {
+        return false;
+    }
+    const FLDDemoRational& Range = Catalog->Get().Parameters.AttackRangeCm.Base;
+    bGood &= Test.TestTrue(TEXT("Eagle eye adds its rank range to the basic attack range"),
+        SameRational(Eyed.Final.AttackRangeCm, Range.Numerator * Eye->Stats[0].Cm.Denominator + Eye->Stats[0].Cm.Numerator * Range.Denominator,
+            Range.Denominator * Eye->Stats[0].Cm.Denominator));
+    return bGood;
+}
 }
 }
 
@@ -1208,6 +1384,24 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAttributeProjectionResourceMaxChangeTest
 bool FLDDemoAttributeProjectionResourceMaxChangeTest::RunTest(const FString& Parameters)
 {
     return LDAttributeProjectionTests::RunResourceMaxChange(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAttributeProjectionTemporaryTermsTest,
+    "Lockdown.Rules.DemoAttributeProjection.TemporaryTerms",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoAttributeProjectionTemporaryTermsTest::RunTest(const FString& Parameters)
+{
+    return LDAttributeProjectionTests::RunTemporaryTerms(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAttributeProjectionExpansionPassivesTest,
+    "Lockdown.Rules.DemoAttributeProjection.ExpansionPassives",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoAttributeProjectionExpansionPassivesTest::RunTest(const FString& Parameters)
+{
+    return LDAttributeProjectionTests::RunExpansionPassives(*this);
 }
 
 #endif

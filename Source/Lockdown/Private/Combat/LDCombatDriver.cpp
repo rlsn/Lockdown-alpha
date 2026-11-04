@@ -46,6 +46,12 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // D21: a contender's out-of-combat recovery starts on its own exact boundary.
         if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
         { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
+        // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
+        for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
+        for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
+        for (const auto& Exposure : Body.Exposures) { Consider(Exposure.ExpiresAtMs); }
+        if (Body.BuildProjection.Ambush.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.BuildProjection.Ambush->DelayMs)
+        { Consider(Body.LastCombatAtMs+Body.BuildProjection.Ambush->DelayMs); }
     }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
@@ -214,6 +220,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     { Error=TEXT("Combat actions require the current Actions permit."); return false; }
     // Regeneration of the elapsed interval settles before this boundary's actions can start combat.
     if (!Regenerate(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    // Lapsed temporary terms and HP-conditional bonuses are current before any action reads attributes.
+    if (!RefreshAllTemporary(Mode->GetAuthorityNowMs(),Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
     if (!Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
@@ -267,6 +275,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
         if (!ApplyHit(Hit,Error)) { return false; }
     }
     PendingHits.Reset();
+    // Slows and HP changes of this boundary reach the effective attributes before the next motion step.
+    if (!RefreshAllTemporary(Now,Error)) { return false; }
     if (PendingContacts.IsEmpty()) { return true; }
     if (!Mode->Camps) { Error=TEXT("Camp contacts require the camp owner of this match."); return false; }
     const TArray<FLDCombatHostileContact> Contacts=MoveTemp(PendingContacts);

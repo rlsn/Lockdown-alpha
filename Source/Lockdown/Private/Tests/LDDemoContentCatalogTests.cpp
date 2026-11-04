@@ -868,7 +868,11 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
-    TestEqual(TEXT("All 25 approved content and status identities are displayed"), Definitions.Display.Num(), 25);
+    // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
+    const int32 Statuses = int32(ELDDemoStatusId::Exposed);
+    TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
+        + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;

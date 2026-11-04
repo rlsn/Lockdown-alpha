@@ -107,6 +107,17 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
 
+临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
+`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、急了一类的条件增益与最强一个减速
+（负比例），点数类向下取整并夹紧到目录上下限；最大面子/胆量不接受临时项。`RefreshAllTemporary` 在 Actions
+（回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
+减速、限时增益和控制标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`ApplyTimedBonus`、`ApplyExposure`、`TemporaryTerms`）。
+技能命中载荷在释放时快照：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+的逐目标合法性与视线检查）各得一份；减速随命中施加，定身随命中经 `MarkControlled` 打开施放者的控制增伤标记，
+之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。暗中观察的附加伤害是独立的技能伤害实例：
+普攻在开始挥击时、伤害技能在释放时判定脱战窗口。施放者离局时 `CancelEntityEffects` 一并移除其减速与标记，
+营地回岗清空全部临时项。
+
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
 反射、死亡或替换来源不能重建免费预算或让旧投射物击中新 life。
@@ -131,7 +142,9 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
-攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
+低血线/暗中观察窗口与控制增伤标记的纯规则，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
+`DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。

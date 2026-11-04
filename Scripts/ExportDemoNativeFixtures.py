@@ -31,7 +31,7 @@ POLICIES = (
 )
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
-    "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
+    "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash")
 BUNDLE_PATHS = (
@@ -111,7 +111,7 @@ def effect(value):
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
-        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"),
+        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
     ):
         if source in value:
@@ -490,6 +490,14 @@ def export(output, *, rank_mutations=True):
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_active", lambda d: d["equipment"][0].update({"active": None}), "presence")
     bad_content("bad_passive_stat", lambda d: d["abilities"][3]["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
+            "duration": {"unit": "ms", "ms": 1500}}
+    bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
+    bad_content("full_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+        {**deepcopy(slow), "ratio": {"unit": "ratio", "bp": 10000}}), "integer outside")
+    bad_content("timed_resource_bonus", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(
+        {"op": "timed_stat_bonus", "opcode": ids_data["effect_ops"]["timed_stat_bonus"],
+         "stats": {"MaxHPFlat": {"unit": "hp", "p2": 100}}, "duration": {"unit": "ms", "ms": 1000}}), "resource maxima")
     bad_content("nonreduced_rational", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"numerator": 1000, "denominator": 2}), "not reduced")
     bad_content("zero_denominator", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"denominator": 0}), "integer outside")
     bad_content("wrong_monster", lambda d: d["camps"]["placements"][0].update({"monster_id": "monster_missing"}), "camp/monster")

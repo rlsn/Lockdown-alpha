@@ -407,7 +407,9 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Choices;
     UPROPERTY() FLDDemoRational Passives;
     UPROPERTY() FLDDemoRational Equipment;
-    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms
+    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build
+    UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
+    UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };

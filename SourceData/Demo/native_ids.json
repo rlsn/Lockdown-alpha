@@ -13,7 +13,15 @@
     "active_binding_snare": 64,
     "passive_battle_rhythm": 65,
     "passive_second_wind": 66,
-    "passive_precision": 67
+    "passive_precision": 67,
+    "active_slipper_throw": 68,
+    "active_fart_dash": 69,
+    "active_combo_flurry": 70,
+    "active_slick_moves": 71,
+    "passive_cornered": 72,
+    "passive_lurking": 73,
+    "passive_public_shame": 74,
+    "passive_eagle_eye": 75
   },
   "attributes": {
     "attr_might": 1,
@@ -29,7 +37,8 @@
     "item_siphon_emblem": 102,
     "item_phase_anchor": 103,
     "item_arcane_battery": 104,
-    "item_echo_maul": 105
+    "item_echo_maul": 105,
+    "item_slingshot": 106
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -39,7 +48,12 @@
     "root": 1,
     "shield": 2,
     "camp_returning": 3,
-    "respawn_protection": 4
+    "respawn_protection": 4,
+    "slow": 5,
+    "stat_boost": 6,
+    "enraged": 7,
+    "ambush_ready": 8,
+    "exposed": 9
   },
   "effect_ops": {
     "damage": 1,
@@ -52,6 +66,12 @@
     "dash": 8,
     "restore_mana": 9,
     "cleave": 10,
-    "dash_boost": 11
+    "dash_boost": 11,
+    "slow": 12,
+    "timed_stat_bonus": 13,
+    "self_area": 14,
+    "low_hp_stat_bonus": 15,
+    "ambush_damage": 16,
+    "control_damage_amp": 17
   }
 }

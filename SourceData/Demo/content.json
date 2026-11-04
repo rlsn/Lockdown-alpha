@@ -148,11 +148,11 @@
       "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 45}, "cooldown": {"unit": "s", "value": 6.4},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "damage_type": "Magical"}]},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "damage_type": "Physical"}]},
         {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 5.6},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 130}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "damage_type": "Magical"}]},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 130}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "damage_type": "Physical"}]},
         {"rank": 3, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 4.8},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 160}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.85}, "damage_type": "Magical"}]}
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 160}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.85}, "damage_type": "Physical"}]}
       ]
     },
     {
@@ -202,6 +202,85 @@
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.14}}}]},
         {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.20}}}]}
       ]
+    },    {
+      "id": "active_slipper_throw", "kind": "active", "cooldown_family": "cd_slipper_throw",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 95}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.8},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 125}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 155}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 1.5}}]}
+      ]
+    },
+    {
+      "id": "active_fart_dash", "kind": "active", "cooldown_family": "cd_fart_dash",
+      "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12.8},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 120}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 145}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 170}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]}
+      ]
+    },
+    {
+      "id": "active_combo_flurry", "kind": "active", "cooldown_family": "cd_combo_flurry",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 16},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.30}}, "duration": {"unit": "s", "value": 4}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 14},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.45}}, "duration": {"unit": "s", "value": 4}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.60}}, "duration": {"unit": "s", "value": 4}}]}
+      ]
+    },
+    {
+      "id": "active_slick_moves", "kind": "active", "cooldown_family": "cd_slick_moves",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 14},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.30}}, "duration": {"unit": "s", "value": 2}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 13},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.40}}, "duration": {"unit": "s", "value": 2}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 12},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.50}}, "duration": {"unit": "s", "value": 2}}]}
+      ]
+    },
+    {
+      "id": "passive_cornered", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.10}}}]},
+        {"rank": 2, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.16}}}]},
+        {"rank": 3, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.22}}}]}
+      ]
+    },
+    {
+      "id": "passive_lurking", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]},
+        {"rank": 2, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]},
+        {"rank": 3, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]}
+      ]
+    },
+    {
+      "id": "passive_public_shame", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.08}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 2, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.12}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 3, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.16}, "duration": {"unit": "s", "value": 3}}]}
+      ]
+    },
+    {
+      "id": "passive_eagle_eye", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 80}}}]},
+        {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 140}}}]},
+        {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 200}}}]}
+      ]
     }
   ],
   "attributes": [
@@ -224,7 +303,8 @@
                 "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 0}, "cooldown": {"unit": "s", "value": 40},
                          "effects": [{"op": "restore_mana", "ratio": {"unit": "ratio", "value": 0.25}}, {"op": "shield", "base": {"unit": "hp", "value": 120}, "ap_ratio": {"unit": "ratio", "value": 0.40}, "duration": {"unit": "s", "value": 2.5}}]}}},
     {"id": "item_echo_maul", "buy_price": 400, "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackRangeCmFlat": {"unit": "cm", "value": 40}}, "active": null,
-     "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}]}}
+     "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}]}},
+    {"id": "item_slingshot", "buy_price": 360, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null, "passive": null}
   ],
   "camps": {
     "monsters": [
@@ -267,12 +347,20 @@
   },
   "display": [
     {"id": "character_demo", "namespace": "DemoContent", "name_key": "character_demo.name", "name_text": "大一新生", "description_key": "character_demo.description", "description_text": "已成年的大一新生。开局只会弹脑瓜崩，升级后挑选技能或属性奖励，也能去小卖部买装备。", "icon_id": "icon_character_demo", "portrait_icon_id": "portrait_character_demo"},
-    {"id": "active_arc_bolt", "namespace": "DemoContent", "name_key": "active_arc_bolt.name", "name_text": "粉笔头", "description_key": "active_arc_bolt.description", "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成社死伤害。伤害随缺德值提高，不会正中要害。", "icon_id": "icon_active_arc_bolt"},
+    {"id": "active_arc_bolt", "namespace": "DemoContent", "name_key": "active_arc_bolt.name", "name_text": "粉笔头", "description_key": "active_arc_bolt.description", "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成皮肉伤，不会正中要害。", "icon_id": "icon_active_arc_bolt"},
     {"id": "active_guard_pulse", "namespace": "DemoContent", "name_key": "active_guard_pulse.name", "name_text": "假装无事发生", "description_key": "active_guard_pulse.description", "description_text": "给自己加上淡定，并立刻解除身上所有定身。淡定量随缺德值提高。", "icon_id": "icon_active_guard_pulse"},
     {"id": "active_binding_snare", "namespace": "DemoContent", "name_key": "active_binding_snare.name", "name_text": "扒裤衩", "description_key": "active_binding_snare.description", "description_text": "对一名看得见的敌人造成社死伤害并让其定身。伤害随缺德值提高，不会正中要害。", "icon_id": "icon_active_binding_snare"},
     {"id": "passive_battle_rhythm", "namespace": "DemoContent", "name_key": "passive_battle_rhythm.name", "name_text": "单身二十年的手速", "description_key": "passive_battle_rhythm.description", "description_text": "学会后持续提高手速。", "icon_id": "icon_passive_battle_rhythm"},
     {"id": "passive_second_wind", "namespace": "DemoContent", "name_key": "passive_second_wind.name", "name_text": "多喝热水", "description_key": "passive_second_wind.description", "description_text": "脱离战斗一段时间后，额外提高面子回复；一进入战斗，额外回复立刻停止。", "icon_id": "icon_passive_second_wind"},
     {"id": "passive_precision", "namespace": "DemoContent", "name_key": "passive_precision.name", "name_text": "正中要害", "description_key": "passive_precision.description", "description_text": "学会后提高弹脑瓜崩的正中要害率，对技能无效。", "icon_id": "icon_passive_precision"},
+    {"id": "active_slipper_throw", "namespace": "DemoContent", "name_key": "active_slipper_throw.name", "name_text": "老妈的拖鞋", "description_key": "active_slipper_throw.description", "description_text": "朝一名看得见的敌人甩出拖鞋，必定命中，造成皮肉伤并让其减速。伤害随手劲提高，不会正中要害。", "icon_id": "icon_active_slipper_throw"},
+    {"id": "active_fart_dash", "namespace": "DemoContent", "name_key": "active_fart_dash.name", "name_text": "屁遁", "description_key": "active_fart_dash.description", "description_text": "朝指定方向冲出一段距离，同时在出发点放个屁：周围的敌人受到社死伤害并减速。伤害随手劲和缺德值提高；被定身时不能使用。", "icon_id": "icon_active_fart_dash"},
+    {"id": "active_combo_flurry", "namespace": "DemoContent", "name_key": "active_combo_flurry.name", "name_text": "夺命连环掏", "description_key": "active_combo_flurry.description", "description_text": "短时间内大幅提高手速。", "icon_id": "icon_active_combo_flurry"},
+    {"id": "active_slick_moves", "namespace": "DemoContent", "name_key": "active_slick_moves.name", "name_text": "风骚走位", "description_key": "active_slick_moves.description", "description_text": "短时间内大幅提高腿速。", "icon_id": "icon_active_slick_moves"},
+    {"id": "passive_cornered", "namespace": "DemoContent", "name_key": "passive_cornered.name", "name_text": "急了", "description_key": "passive_cornered.description", "description_text": "面子低于一定比例时，手劲按比例提高；面子回升后恢复。", "icon_id": "icon_passive_cornered"},
+    {"id": "passive_lurking", "namespace": "DemoContent", "name_key": "passive_lurking.name", "name_text": "暗中观察", "description_key": "passive_lurking.description", "description_text": "脱离战斗一段时间后，下一次弹脑瓜崩或伤害技能额外造成社死伤害。伤害随手劲和缺德值提高。", "icon_id": "icon_passive_lurking"},
+    {"id": "passive_public_shame", "namespace": "DemoContent", "name_key": "passive_public_shame.name", "name_text": "社死现场", "description_key": "passive_public_shame.description", "description_text": "被你定身的敌人，之后一段时间内受到你的伤害提高。", "icon_id": "icon_passive_public_shame"},
+    {"id": "passive_eagle_eye", "namespace": "DemoContent", "name_key": "passive_eagle_eye.name", "name_text": "视力5.0", "description_key": "passive_eagle_eye.description", "description_text": "学会后提高弹脑瓜崩的攻击距离。", "icon_id": "icon_passive_eagle_eye"},
     {"id": "attr_might", "namespace": "DemoContent", "name_key": "attr_might.name", "name_text": "举铁", "description_key": "attr_might.description", "description_text": "本局永久提高手劲。", "icon_id": "icon_attr_might"},
     {"id": "attr_focus", "namespace": "DemoContent", "name_key": "attr_focus.name", "name_text": "刷整蛊视频", "description_key": "attr_focus.description", "description_text": "本局永久提高缺德值。", "icon_id": "icon_attr_focus"},
     {"id": "attr_vitality", "namespace": "DemoContent", "name_key": "attr_vitality.name", "name_text": "食堂加餐", "description_key": "attr_vitality.description", "description_text": "本局永久提高最大面子，当前面子按比例一起涨。", "icon_id": "icon_attr_vitality"},
@@ -285,11 +373,17 @@
     {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。被动「助跑」：穿着时冲刺的冷却缩短、冲得更远；两双同款只算一次。", "icon_id": "icon_item_phase_anchor"},
     {"id": "item_arcane_battery", "namespace": "DemoContent", "name_key": "item_arcane_battery.name", "name_text": "保温杯", "description_key": "item_arcane_battery.description", "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。", "icon_id": "icon_item_arcane_battery"},
     {"id": "item_echo_maul", "namespace": "DemoContent", "name_key": "item_echo_maul.name", "name_text": "值日扫帚", "description_key": "item_echo_maul.description", "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。", "icon_id": "icon_item_echo_maul"},
+    {"id": "item_slingshot", "namespace": "DemoContent", "name_key": "item_slingshot.name", "name_text": "弹弓", "description_key": "item_slingshot.description", "description_text": "提高攻击距离和手速。", "icon_id": "icon_item_slingshot"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "纪律委员", "description_key": "monster_scavenger.description", "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "体育老师", "description_key": "monster_guardian.description", "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。", "icon_id": "icon_monster_guardian"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "定身", "description_key": "root.description", "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。", "icon_id": "icon_root"},
     {"id": "shield", "namespace": "DemoContent", "name_key": "shield.name", "name_text": "淡定", "description_key": "shield.description", "description_text": "先替你挡下伤害，被打空或到时间就消失。", "icon_id": "icon_shield"},
     {"id": "camp_returning", "namespace": "DemoContent", "name_key": "camp_returning.name", "name_text": "回岗中", "description_key": "camp_returning.description", "description_text": "野怪正在回岗，途中不攻击也不换目标，但仍会挨打；回到岗位后恢复满面子。", "icon_id": "icon_camp_returning"},
-    {"id": "respawn_protection", "namespace": "DemoContent", "name_key": "respawn_protection.name", "name_text": "复活保护", "description_key": "respawn_protection.description", "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。", "icon_id": "icon_respawn_protection"}
+    {"id": "respawn_protection", "namespace": "DemoContent", "name_key": "respawn_protection.name", "name_text": "复活保护", "description_key": "respawn_protection.description", "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。", "icon_id": "icon_respawn_protection"},
+    {"id": "slow", "namespace": "DemoContent", "name_key": "slow.name", "name_text": "减速", "description_key": "slow.description", "description_text": "腿速暂时降低，到时间就恢复；同时中了多个减速只按最强的算。", "icon_id": "icon_slow"},
+    {"id": "stat_boost", "namespace": "DemoContent", "name_key": "stat_boost.name", "name_text": "来劲了", "description_key": "stat_boost.description", "description_text": "技能带来的属性提升，到时间就消失。", "icon_id": "icon_stat_boost"},
+    {"id": "enraged", "namespace": "DemoContent", "name_key": "enraged.name", "name_text": "上头", "description_key": "enraged.description", "description_text": "急了生效中：面子过低，手劲提高。", "icon_id": "icon_enraged"},
+    {"id": "ambush_ready", "namespace": "DemoContent", "name_key": "ambush_ready.name", "name_text": "伺机而动", "description_key": "ambush_ready.description", "description_text": "暗中观察已就绪：下一次弹脑瓜崩或伤害技能额外造成社死伤害。", "icon_id": "icon_ambush_ready"},
+    {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "当众出丑", "description_key": "exposed.description", "description_text": "刚被定身，一段时间内受到对方的伤害提高。", "icon_id": "icon_exposed"}
   ]
 }
