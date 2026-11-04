@@ -14,7 +14,7 @@
 → CharacterMovement**。真人通过拥有连接的 RPC 提交意图；对手 AI（`ALDOpponentController`）
 在服务器上直接调用同一组 `SubmitOrder/CancelOrder/QueryOrder` 与 Combat 入口，不伪造 LocalPlayer 或 RPC。
 
-本模块负责右键移动/追击/前往小卖部、A 攻击移动、Q/W、1/2 与 D 冲刺的准备与确认、S 停止、Esc 返回、
+本模块负责右键移动/追击/前往砍一刀小摊、A 攻击移动、Q/W、1/2 与 D 冲刺的准备与确认、S 停止、Esc 返回、
 镜头和可保存绑定。战斗域负责动作、资源、节拍、命中与效果；世界域负责地面/路径查询与观察权限；
 生命周期域负责身体、真实时间步、保护与占领。没有连招、指令队列、多单位框选、编队、
 团队命令或自由旋转镜头。
@@ -46,7 +46,7 @@
 | 右键地面 | 发送一个 `MoveGround`；同帧在点击点显示绿色收缩虚线圈，本地路线检查失败时改为红叉 | 服务器按点击点严格求完整路径，CMC 实际行走；partial path 不报告到达。 |
 | 按住右键拖动 | 指针地面点相对上次订单移动 ≥ 40 cm 时，最多每 0.125 s 再发一个普通 `MoveGround` | 每次重复都是带新身份的普通订单，仍受服务器激活节流与最新待受理替换约束；本地路线检查已失败的点直接跳过，不发送。 |
 | 右键当前可见单位 | 发送一个 `AttackUnit`；目标脚下显示红色收拢圈 | 服务器重查观察权限后接近、追击，在射程内逐次申请普攻（§4.2）。 |
-| 右键小卖部交互范围内的地面 | 发送一个 `ApproachShop` | 到达交互范围后由拥有客户端请求商店会话；到达本身不是购买（§4.3）。 |
+| 右键砍一刀小摊交互范围内的地面 | 发送一个 `ApproachShop` | 到达交互范围后由拥有客户端请求商店会话；到达本身不是购买（§4.3）。 |
 | 左键，未准备动作 | 检查指针下的当前可见单位；点空地清除检查对象 | 不移动、不攻击、不发送订单。 |
 | A，然后左键 | A 进入攻击移动准备；左键把指针下地面作为 `AttackMove` 目的地发送 | A 按下本身不攻击；指针下无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
@@ -62,8 +62,8 @@
 | Esc | 子确认/模态 → 准备态 → 普通主面板 → 菜单，每次只处理一层 | 不 Stop 已接受订单、不发世界命令。 |
 
 **鼠标取消规则：** 已有准备态（Q/W/1/2/D 或 A）时，右键只取消准备并消费这次点击，不移动、
-不攻击、不前往小卖部；再次右键才走普通分派（`ALDPlayerController::V05Pressed`）。
-右键分派顺序为：指针下的当前可见单位 → 小卖部交互范围 → 地面（`ULDNavigationComponent::ClickMove`）；
+不攻击、不前往砍一刀小摊；再次右键才走普通分派（`ALDPlayerController::V05Pressed`）。
+右键分派顺序为：指针下的当前可见单位 → 砍一刀小摊交互范围 → 地面（`ULDNavigationComponent::ClickMove`）；
 一次点击只产生一个类别的订单，被拒绝时不改发另一类订单。
 
 **指针反馈**（`ALDPointerFeedback`，仅拥有客户端本地生成，不复制、无碰撞、不参与寻路）：
@@ -74,7 +74,7 @@
 - 悬停：右键此刻会攻击的可见单位脚下显示红色悬停圈（与攻击标记同色，带近黑描边）。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
 - 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/D/A 准备态时为
-  Crosshairs；在小卖部交互范围内为 Hand；其他为默认。
+  Crosshairs；在砍一刀小摊交互范围内为 Hand；其他为默认。
 - `ULDNavigationComponent::ReadHovered` 返回当前悬停单位；`PointerPosition` 与 `GroundUnderPointer`
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
   构建中替代鼠标，其他构建无效。
@@ -83,7 +83,7 @@
 
 能力目标模式只由内容定义给出（`ELDDemoTargetMode`：`Self`、`Unit`、`DirectionProjectile`、`DirectionDash`），
 请求上的目标种类为 `ELDCombatTargetKind`：`Missing`、`Self`、`Unit`、`Direction`。
-地面点只用于移动、攻击移动和小卖部订单；没有以地面点为目标的能力。
+地面点只用于移动、攻击移动和砍一刀小摊订单；没有以地面点为目标的能力。
 
 | 目标模式 | 准备与确认 | 服务器处理 |
 | --- | --- | --- |
@@ -106,7 +106,7 @@ S、新生命或新局、输入被抑制或保留超过 1 s 时丢弃；超时�
 本地准备态被撤销（`ALDPlayerController::OnRep_CombatView`），需要重新准备；
 普通 HP/MP 修订变化不撤销准备。按钮可用性与冷却只读 Combat 的 owner view，客户端不维护槽位冷却；
 双持与来源丢失期间的冷却规则由 Combat 来源域实现，见[战斗手册](../systems/COMBAT_AND_GROWTH.md)。
-能力确认越距时直接由服务器拒绝，**不自动走近施法**；只有右键普攻、攻击移动和小卖部订单负责接近。
+能力确认越距时直接由服务器拒绝，**不自动走近施法**；只有右键普攻、攻击移动和砍一刀小摊订单负责接近。
 
 ## 3. 输入所有权、镜头与设置
 
@@ -237,7 +237,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 
 ### 4.3 商店接近
 
-右键落在小卖部交互范围（脚点到小卖部中心的 XY 距离不超过 `SHOP.InteractRadiusCm`）时发送
+右键落在砍一刀小摊交互范围（脚点到砍一刀小摊中心的 XY 距离不超过 `SHOP.InteractRadiusCm`）时发送
 `ApproachShop`，携带公共 POI ID，不扫描 Actor。服务器用 `ULDMapRegistry::FindPublicApproach`
 求接近点与完整路径，以 `QueryShopReach` 判断真实到达；到达交互半径后订单 `Completed`。
 路径终点在交互半径上，最后一段缓慢向内贴近直到判定到达，不放大交互半径。
@@ -362,7 +362,7 @@ D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion sourc
 | --- | --- |
 | `ULDMapRegistry::QueryGround` | 身体支持面：取身体原生 `CurrentFloor` 并映射到注册地面，不使用订单里的 hint；无合法 floor 为 `NotGrounded`。 |
 | `ULDMapRegistry::QueryCompletePath`（经 `LDPathSteering::PlanRoute`） | 地面与追击路线；partial path 明确失败。 |
-| `ULDMapRegistry::FindPublicApproach` / `QueryShopReach` | 小卖部接近点与真实到达判定。 |
+| `ULDMapRegistry::FindPublicApproach` / `QueryShopReach` | 砍一刀小摊接近点与真实到达判定。 |
 | `ALDVisionDirector::ResolveObservedUnit` | 新攻击订单、每次 AttackStart 与 A 候选的当前观察重查。 |
 | `ALDVisionDirector::EnumerateVisibleUnits` | A 的当前可见候选帧。 |
 | `ALDVisionDirector::BindObservedOrder` / `FindObservedTermination` | 订单与观察的绑定；授权观察到的死亡记录。 |
@@ -405,7 +405,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。圈判定、�
 | `STAT.AttackRangeCm` / `FORMULA.AttackRange` | AttackUnit/AttackMove 的射程，每次从 `ReadCombatBody` 读取当前值。 |
 | `TARGET.AttackMoveAcquireRadiusCm` | A 搜敌半径（内容公式按视野半径与当前射程计算）。 |
 | `VISION.RadiusCm` | 视野服务与 A 搜敌半径公式。 |
-| `SHOP.InteractRadiusCm` | 右键是否落在小卖部范围、`QueryShopReach` 判定。 |
+| `SHOP.InteractRadiusCm` | 右键是否落在砍一刀小摊范围、`QueryShopReach` 判定。 |
 | 各 `ABILITY.*` / `ITEM.*.Active` 的 `TargetMode` 等字段 | 决定 Q/W/1/2 的目标模式与几何；无主动的装备明确不可用。D 冲刺读 `character.dash` 与装备被动 `dash_boost`。 |
 
 **本地设置**（`ULDControlSettings`，只影响本机呈现，不影响世界距离、视野或角色速度）：
