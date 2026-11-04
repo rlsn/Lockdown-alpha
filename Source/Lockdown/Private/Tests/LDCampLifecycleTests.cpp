@@ -219,6 +219,14 @@ bool FLDCampLifecycleTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Clear and due times are the committed death millisecond plus the tier delay"),
         State.FindCamp(1)->ClearedAtMs == 1001 && State.FindCamp(1)->RespawnDueMs == 66001);
     TestEqual(TEXT("The earliest of several pending deadlines bounds the next step"), State.NextRespawnDueMs(), int64(50000));
+    // DEV test refresh (on a copy): both cleared camps become due at the DEV boundary, never-spawned camps stay untouched.
+    FLDCampMatchState DevState = State;
+    TestEqual(TEXT("A DEV refresh counts exactly the cleared camps"), DevState.DevRefreshNow(20000), 2);
+    TestTrue(TEXT("Both cleared camps are due at the DEV boundary and the driver stops there"),
+        DevState.IsRespawnDue(0, 20000) && DevState.IsRespawnDue(1, 20000) && DevState.NextRespawnDueMs() == 20000
+        && !DevState.IsRespawnDue(2, 20000));
+    TestTrue(TEXT("A later DEV refresh never postpones an earlier deadline"),
+        DevState.DevRefreshNow(60000) == 2 && DevState.NextRespawnDueMs() == 20000);
 
     TestTrue(TEXT("Group refresh commits the next life for every slot"), State.CommitSpawn(0, Spawned(State, 0, 1), 50, Error));
     TestEqual(TEXT("A committed refresh leaves only the other pending deadline"), State.NextRespawnDueMs(), int64(66001));

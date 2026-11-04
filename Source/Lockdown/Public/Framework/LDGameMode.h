@@ -167,6 +167,12 @@ public:
     bool ResetCombatMatch(const FLDMatchReset& Reset, FString& Error);
     // Camps: spawned and destroyed by the Camps match provider (World/LDCampDirector.cpp).
     UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV test session (Transactions permit, Development only): the capture circle opens at this boundary's Capture phase
+    // instead of after the full development time (FLDCaptureReducer::DevOpenAt); the hold and every capture rule stay.
+    // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
+    bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
+#endif
 private:
     friend class FLDDemoSessionTest;
     friend class FLDOwnerViewTeardownTest;

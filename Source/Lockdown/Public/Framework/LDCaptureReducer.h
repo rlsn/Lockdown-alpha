@@ -67,6 +67,11 @@ public:
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
     // A contender that joined the capture roster and has not left it.
     bool IsCommittedMember(const FGuid& ContenderId) const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV test session: moves a closed circle's opening forward to AtMs, a boundary that is not closed yet, so the next
+    // CloseBoundary opens it exactly like the scheduled opening. Refused when inactive, already open, or not earlier.
+    bool DevOpenAt(int64 AtMs, FString& Error);
+#endif
 
 private:
     struct FMember

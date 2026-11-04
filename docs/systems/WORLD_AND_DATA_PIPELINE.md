@@ -340,6 +340,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 圈内进出由 `World\LDCaptureCircle` 提取），不再保留独立 Objective Actor、HeartSensor、
 Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
 归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
+DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放圈的开放时刻提前到一个尚未关闭的边界，开放仍由 `CloseBoundary` 完成。
 
 ## 保存与复位边界
 

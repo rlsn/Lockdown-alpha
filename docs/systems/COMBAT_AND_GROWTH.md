@@ -82,6 +82,7 @@ Transactions 每步调用一次 `ProcessTransactions`。
 本步野怪请求随即与 Direct 请求一同准入；Effects 把营地成员受到的已提交敌对命中（伤害或控制）作为 `OnCombatHostileContact` 交给营地；
 DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `CommitDeathReward`；RespawnsAndWorld
 在参赛者复活后调 `AdvanceCamps`。初始出生在同一开局许可内、参赛者 Joined 之后调用 `SpawnInitialCamps`。
+DEV 测试会话的 `DevRefreshCleared`（Transactions）只把等待中的刷新截止提前，实际重生仍由下一个 `AdvanceCamps` 完成。
 任一营地入口返回 false 即为权威故障。
 
 修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。

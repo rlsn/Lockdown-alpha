@@ -2558,7 +2558,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
 
     // The gate: the rules run carries no -LDDevGrowthFixture switch, so the public entry admits nothing and says why.
     TestFalse(TEXT("The rules run carries no -LDDevGrowthFixture switch"), LDDevGrowthFixture::IsSwitchPresent());
-    const FLDDevTestResult Gated = Economy->QueueDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50));
+    const FLDDevTestResult Gated = Economy->QueueDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50), true);
     Status(TEXT("Without the switch a DEV test command is refused"), Gated, ELDAdmissionStatus::AdmissionRejected,
         ELDGrowthReason::NotAuthority);
     TestTrue(TEXT("The refusal names the switch and no stream was opened"),
@@ -2840,9 +2840,53 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("After the reset the card is learned once more"), Relearned && Development->FindBuild(Tester)->Cards.Num() == 1
         && Development->FindProgression(Tester)->ConsumedThrough == 1);
 
+    // ---- Match-wide ops: Listen Host connection only ----
+    TestTrue(TEXT("Camp refresh and early capture are the match-wide ops"), LDDevTest::IsMatchWide(ELDDevTestOp::RefreshCamps)
+        && LDDevTest::IsMatchWide(ELDDevTestOp::OpenCapture) && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantGold));
+    GrowthTestReason(*this, TEXT("A camp refresh names nothing"),
+        LDDevTest::ValidateShape(Command(Gen, 1, 1, ELDDevTestOp::RefreshCamps, 1)), ELDGrowthReason::NumericDomain);
+    Status(TEXT("A camp refresh from an owning client"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::RefreshCamps, 0)),
+        ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
+    Status(TEXT("An early capture from an owning client"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::OpenCapture, 0)),
+        ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
+    const auto HostCommit = [&](const TCHAR* What, const FLDDevTestCommand& Sent, ELDGrowthReason Expected) -> const FLDDevTestReceipt*
+    {
+        Status(What, Economy->AdmitDevTest(Tester, Sent, true), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
+        if (!RunTransactions()) { return nullptr; }
+        const FLDDevTestReceipt* Final = LastReceipt(Tester);
+        if (TestTrue(FString(What) + TEXT(" finalizes"), Final && Final->Header.RequestId == Sent.RequestId))
+        {
+            GrowthTestReason(*this, FString(What) + TEXT(" (commit)"), LDGrowthWire::Reason(Final->Header.Reason), Expected);
+            return Final;
+        }
+        return nullptr;
+    };
+    const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 17: the Host's camp refresh without a camp director"),
+        Command(Gen, 1, 17, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
+    TestTrue(TEXT("The refusal names the missing camps"), NoCamps && NoCamps->Detail.Contains(TEXT("camp director")));
+    if (!TestTrue(TEXT("The capture reducer begins far in the future"), Mode->CaptureReducer.Begin(1000000, 500, Error))) { return false; }
+    Mode->MatchPhase = ELDMatchPhase::CaptureOpen;
+    if (!HostCommit(TEXT("Request 18: an early capture outside development"), Command(Gen, 1, 18, ELDDevTestOp::OpenCapture, 0),
+        ELDGrowthReason::StaleContext)) { return false; }
+    TestEqual(TEXT("A refused early capture keeps the scheduled opening"), Mode->CaptureReducer.GetOpenAtMs(), int64(1000000));
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    if (!HostCommit(TEXT("Request 19: the Host's early capture during development"), Command(Gen, 1, 19, ELDDevTestOp::OpenCapture, 0),
+        ELDGrowthReason::None)) { return false; }
+    TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
+        Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen());
+    FLDCaptureReducer Circle;
+    FString CircleError;
+    TestFalse(TEXT("An inactive reducer opens nothing early"), Circle.DevOpenAt(10, CircleError));
+    TestTrue(TEXT("A pure reducer begins"), Circle.Begin(5000, 500, CircleError));
+    TestFalse(TEXT("An early opening must be earlier than the schedule"), Circle.DevOpenAt(5000, CircleError));
+    TOptional<FLDCaptureProposal> Proposal;
+    TestTrue(TEXT("An early opening is the next CloseBoundary's opening"), Circle.DevOpenAt(1200, CircleError)
+        && Circle.NextDueMs() == 1200 && Circle.CloseBoundary(1200, Proposal, CircleError) && Circle.IsOpen());
+    TestFalse(TEXT("An open circle opens nothing early"), Circle.DevOpenAt(1300, CircleError));
+
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 20, ELDDevTestOp::GrantGold, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
     Status(TEXT("A replay after the match closed"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);

@@ -20,6 +20,26 @@ bool FLDCaptureReducer::Begin(int64 OpenAtMs, int64 HoldMs, FString& Error)
     return true;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool FLDCaptureReducer::DevOpenAt(int64 AtMs, FString& Error)
+{
+    if (!bActive || bOpen)
+    {
+        Error = bActive ? TEXT("The capture circle is already open.") : TEXT("The capture reducer is not active.");
+        return false;
+    }
+    if (AtMs <= ClosedThrough || AtMs >= OpenAt)
+    {
+        Error = FString::Printf(TEXT("An early opening at %lld ms must follow the closed boundary %lld and precede the scheduled %lld."),
+            AtMs, ClosedThrough, OpenAt);
+        return false;
+    }
+    OpenAt = AtMs;
+    Error.Reset();
+    return true;
+}
+#endif
+
 void FLDCaptureReducer::Reset()
 {
     *this = FLDCaptureReducer();

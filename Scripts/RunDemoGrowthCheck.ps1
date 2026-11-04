@@ -193,7 +193,7 @@ try {
         @($third.devFixture.resets).Count -ne 2 -or [long]$buyer.final_gold -ne [long]$second.startingGold) {
         throw "The DEV-stage ledger does not list exactly the buyer's reset (one item, one gold change back to the start): $output"
     }
-    if (@($buyer.dev_test).Count -ne 14 -or @($hostReport.dev_test).Count -ne 1) {
+    if (@($buyer.dev_test).Count -ne 15 -or @($hostReport.dev_test).Count -ne 3) {
         throw "A DEV test step is missing from the reports: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
@@ -220,8 +220,9 @@ try {
         "and opened a fresh ledger under a new LedgerMatch (replayed). DEV test commands: the buyer through its remote owner RPC " +
         "(stale match, replay and conflict refused or answered without a second commit; gold grant, buy and sell away from the shop, " +
         "cooldown reset, refill, learn on the open opportunity, learn without one refused, a DEV AD term shown as its own row " +
-        "and cleared, a reset to the match start booked as DevReset entries) and the Host through its own as Listen " +
-        "Host; the DEV-stage ledger replayed with --dev-fixture lists exactly both owners' grants. " +
+        "and cleared, a reset to the match start booked as DevReset entries, a match-wide camp refresh refused) and the Host " +
+        "through its own as Listen Host (gold grant, camp refresh, early capture opening); " +
+        "the DEV-stage ledger replayed with --dev-fixture lists exactly both owners' grants. " +
         "Not camp lifecycle, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {

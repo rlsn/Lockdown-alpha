@@ -514,6 +514,7 @@ public:
     FDelegateHandle DevHandle;
     FLDDevTestCommand DevGoldCommand;
     int64 DevGrantGold = 0, Match2Gold = -1;
+    bool bDevOpenedInDevelopment = false;
     FName DevCardId;
     TArray<TSharedPtr<FJsonValue>> DevRows;
 
@@ -1896,6 +1897,14 @@ public:
                         && !Gear->Slots.ContainsByPredicate([](const FLDEquipmentSlotView& Slot) { return Slot.bOccupied; })
                         && AD->Choices.Numerator == 0 && AD->Equipment.Numerator == 0 && AD->Dev.Numerator == 0;
                 }));
+        case 14:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A match-wide DEV camp refresh from an owning client is refused as NotAuthority"),
+                    ELDDevTestOp::RefreshCamps, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::AdmissionRejected, ELDReceiptOutcome::None,
+                ELDGrowthReason::NotAuthority, [] { return true; }));
         default:
             if (Passed) { Mark(TEXT("Client1DevDone.json")); }
             return Finish();
@@ -1917,6 +1926,35 @@ public:
                 [&] { return GoldIs(Dev.GoldBefore + LDDemoGrowthScenario::GrowthProbeHostDevGold); }));
         }
         if (!Exists(TEXT("Client1DevDone.json"))) { return true; }
+        // The match-wide ops, through the Listen Host's own connection, after the buyer's DEV stage.
+        const ALDGameState* Public = PC.GetWorld()->GetGameState<ALDGameState>();
+        if (DevStep == 1)
+        {
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("The Listen Host's DEV camp refresh is accepted for the whole match"),
+                    ELDDevTestOp::RefreshCamps, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [] { return true; }));
+        }
+        if (DevStep == 2)
+        {
+            if (!Public) { return true; }
+            if (!Dev.bSent)
+            {
+                // Development lasts the approved MATCH.DevelopmentSec from the start; the stage normally ends inside it, and
+                // if it does not, the same command must be refused instead.
+                bDevOpenedInDevelopment = Public->PublicMatch.Phase == ELDMatchPhase::Development;
+                return SendDev(Now, PC, bDevOpenedInDevelopment
+                    ? TEXT("The Listen Host's DEV early capture opens the circle during development")
+                    : TEXT("The Listen Host's DEV early capture after development is refused as StaleContext"), ELDDevTestOp::OpenCapture, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final,
+                bDevOpenedInDevelopment ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected,
+                bDevOpenedInDevelopment ? ELDGrowthReason::None : ELDGrowthReason::StaleContext,
+                [Public] { return Public->PublicMatch.Phase == ELDMatchPhase::CaptureOpen; }));
+        }
         ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
         FString EvidenceText, ExportError;
         const bool bExported = Mode && Mode->Economy && Mode->Economy->ExportLedgerEvidence(EvidenceText, ExportError)

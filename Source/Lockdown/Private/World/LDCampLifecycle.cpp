@@ -174,6 +174,22 @@ bool FLDCampMatchState::IsRespawnDue(int32 Camp, int64 NowMs) const
     return Group && Group->bRespawnPending && NowMs >= Group->RespawnDueMs;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+int32 FLDCampMatchState::DevRefreshNow(int64 NowMs)
+{
+    int32 Waiting = 0;
+    for (FLDCampGroupState& Group : Camps)
+    {
+        if (IsActive() && Group.bRespawnPending)
+        {
+            Group.RespawnDueMs = FMath::Min(Group.RespawnDueMs, NowMs);
+            ++Waiting;
+        }
+    }
+    return Waiting;
+}
+#endif
+
 int64 FLDCampMatchState::NextRespawnDueMs() const
 {
     int64 Due = MAX_int64;

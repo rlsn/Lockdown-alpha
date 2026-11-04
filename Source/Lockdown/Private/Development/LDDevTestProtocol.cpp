@@ -22,6 +22,8 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::SetAttribute:
     case ELDDevTestOp::ClearAttributes:
     case ELDDevTestOp::ResetToMatchStart:
+    case ELDDevTestOp::RefreshCamps:
+    case ELDDevTestOp::OpenCapture:
         return true;
     default:
         return false;
@@ -42,8 +44,15 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::SetAttribute: return TEXT("SetAttribute");
     case ELDDevTestOp::ClearAttributes: return TEXT("ClearAttributes");
     case ELDDevTestOp::ResetToMatchStart: return TEXT("ResetToMatchStart");
+    case ELDDevTestOp::RefreshCamps: return TEXT("RefreshCamps");
+    case ELDDevTestOp::OpenCapture: return TEXT("OpenCapture");
     default: return TEXT("Unknown");
     }
+}
+
+bool LDDevTest::IsMatchWide(ELDDevTestOp Op)
+{
+    return Op == ELDDevTestOp::RefreshCamps || Op == ELDDevTestOp::OpenCapture;
 }
 
 ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)

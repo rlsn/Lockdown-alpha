@@ -93,7 +93,7 @@ jobs:
             '5. 测试模式：房主给 Lockdown.exe 加 -LDDevGrowthFixture（或 OpenPackaged.ps1 加 -DevTest）启动；对局中按 ~ 打开控制台，'
             '   输入 ld.Dev.List 查看 id；ld.Dev.XP/Gold <数量>、ld.Dev.Learn <id> [Q|W]、ld.Dev.Buy <id>、ld.Dev.Sell <1|2>、'
             '   ld.Dev.Refill、ld.Dev.ResetCooldowns、ld.Dev.Attr <属性> <数值>、ld.Dev.ClearAttr、ld.Dev.Reset，只作用于自己。'
-            '   测试模式的结果不算无作弊对局。'
+            '   房主另可用 ld.Dev.RefreshCamps 刷新已清空营地、ld.Dev.OpenCapture 在发育期提前开圈。测试模式的结果不算无作弊对局。'
             ''
             '说明'
             '- 本包在规则测试（RunTests.ps1）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'

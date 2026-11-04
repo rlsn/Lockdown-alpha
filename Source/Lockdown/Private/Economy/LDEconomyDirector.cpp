@@ -13,6 +13,7 @@
 #include "Inventory/LDVendorDirector.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/MemoryWriter.h"
+#include "World/LDCampDirector.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
@@ -877,17 +878,17 @@ bool ALDEconomyDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, F
     return true;
 }
 
-FLDDevTestResult ALDEconomyDirector::QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command)
+FLDDevTestResult ALDEconomyDirector::QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command, bool bHostConnection)
 {
     FString Error;
     if (!LDDevGrowthFixture::Admit(GetWorld(), Error))
     {
         return LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority, Error);
     }
-    return AdmitDevTest(ContenderId, Command);
+    return AdmitDevTest(ContenderId, Command, bHostConnection);
 }
 
-FLDDevTestResult ALDEconomyDirector::AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command)
+FLDDevTestResult ALDEconomyDirector::AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command, bool bHostConnection)
 {
     const ELDGrowthReason Shape = LDDevTest::ValidateShape(Command);
     if (Shape != ELDGrowthReason::None)
@@ -895,6 +896,11 @@ FLDDevTestResult ALDEconomyDirector::AdmitDevTest(const FGuid& ContenderId, cons
         return LDDevTest::Refused(Command, Shape, FString::Printf(
             TEXT("Op %u with amount %lld is not a DEV test command: grants need a positive amount, the other ops none."),
             uint32(Command.Op), Command.Amount));
+    }
+    if (LDDevTest::IsMatchWide(Command.Op) && !bHostConnection)
+    {
+        return LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority,
+            TEXT("Camp refreshes and an early capture opening change the match for everyone; only the Listen Host may send them."));
     }
     ALDGameMode* M = Mode();
     if (!M || !M->Development || !Ledger.IsInitialized())
@@ -1091,6 +1097,33 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
                 UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
                     *ContenderId.ToString(), Command.RequestId, *Detail);
                 return true;
+            }
+            break;
+        }
+        case ELDDevTestOp::RefreshCamps:
+        {
+            int32 Waiting = 0;
+            if (!M->Camps)
+            {
+                Reason = ELDGrowthReason::DataNotReady;
+                Detail = TEXT("This match has no camp director.");
+            }
+            else if (!M->Camps->DevRefreshCleared(Permit, Waiting, Detail))
+            {
+                Reason = ELDGrowthReason::AuthorityFault;
+            }
+            else
+            {
+                Detail = FString::Printf(TEXT("%d cleared camps refresh at the next boundary"), Waiting);
+            }
+            break;
+        }
+        case ELDDevTestOp::OpenCapture:
+        {
+            bool bOutsideDevelopment = false;
+            if (!M->DevOpenCaptureNow(Permit, bOutsideDevelopment, Detail))
+            {
+                Reason = bOutsideDevelopment ? ELDGrowthReason::StaleContext : ELDGrowthReason::DataInvalid;
             }
             break;
         }

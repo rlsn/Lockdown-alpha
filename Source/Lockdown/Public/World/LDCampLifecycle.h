@@ -118,6 +118,11 @@ public:
     // Earliest pending whole-group refresh deadline in authority ms, for the driver's exact step boundaries;
     // MAX_int64 when no camp is waiting. A deadline that already passed stays reported until its refresh commits.
     int64 NextRespawnDueMs() const;
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV test session: every cleared camp still waiting for its refresh becomes due at NowMs; the next due refresh then
+    // runs the ordinary whole-group spawn. Living camps are untouched. Returns the number of waiting camps.
+    int32 DevRefreshNow(int64 NowMs);
+#endif
     // Bodies are the core's committed refs for every slot, in slot order.
     bool CommitSpawn(int32 Camp, TArrayView<const FLDCombatBodyRef> Bodies, double AtSeconds, FString& Error);
 

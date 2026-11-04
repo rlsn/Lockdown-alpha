@@ -57,7 +57,8 @@ public:
     // DEV test command (LDDevTestProtocol.h) of ContenderId's own owning connection: refused unless the fixture admits
     // this authority, then admitted into that contender's DEV request stream. The pending command commits in the
     // Transactions phase in server arrival order (CommitPendingDevTest).
-    FLDDevTestResult QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command);
+    // bHostConnection: the command arrived through the Listen Host's own connection (match-wide ops need it).
+    FLDDevTestResult QueueDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command, bool bHostConnection);
 #endif
 
     // ---- Module internals ----
@@ -101,7 +102,7 @@ private:
     TArray<FDevGrant> DevGrants;
 
     // QueueDevTest after the fixture admitted this authority: shape, match, contender and the request stream.
-    FLDDevTestResult AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command);
+    FLDDevTestResult AdmitDevTest(const FGuid& ContenderId, const FLDDevTestCommand& Command, bool bHostConnection = false);
     // Commits or rejects this contender's pending DEV test command; false only on an authority fault. A retryable
     // reward refusal leaves the command pending for the next Transactions phase.
     bool CommitPendingDevTest(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);

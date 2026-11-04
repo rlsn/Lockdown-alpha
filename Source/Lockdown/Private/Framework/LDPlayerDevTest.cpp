@@ -23,6 +23,8 @@ const TCHAR* DevTestOpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
     case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");
     case ELDDevTestOp::ResetToMatchStart: return TEXT("重置到开局");
+    case ELDDevTestOp::RefreshCamps: return TEXT("刷新野怪");
+    case ELDDevTestOp::OpenCapture: return TEXT("提前开圈");
     default: return TEXT("未知操作");
     }
 }
@@ -71,8 +73,9 @@ void ALDPlayerController::ServerDevTestCommand_Implementation(const FLDDevTestCo
             TEXT("The authority has no growth domain or this connection is not a contender of the current match.")));
         return;
     }
-    // The command always acts on this connection's own contender; no field of it names another one.
-    ClientDevTestResult(Mode->Economy->QueueDevTest(Contender, Command));
+    // The command always acts on this connection's own contender; no field of it names another one. On the server only the
+    // Listen Host's own controller is local, which admits the match-wide ops.
+    ClientDevTestResult(Mode->Economy->QueueDevTest(Contender, Command, IsLocalController()));
 #else
     ClientDevTestResult(LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority,
         TEXT("DEV test commands are compiled out of this build.")));
@@ -403,6 +406,34 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestReset(
                 return;
             }
             DevTestSend(World, ELDDevTestOp::ResetToMatchStart, 0, Ar);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefreshCamps(
+    TEXT("ld.Dev.RefreshCamps"),
+    TEXT("DEV test session, Listen Host only: every cleared camp waiting for its refresh respawns at the next boundary."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (!Args.IsEmpty())
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.RefreshCamps (no arguments)"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::RefreshCamps, 0, Ar);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestOpenCapture(
+    TEXT("ld.Dev.OpenCapture"),
+    TEXT("DEV test session, Listen Host only, development phase: open the capture circle now instead of after the full development time."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (!Args.IsEmpty())
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.OpenCapture (no arguments)"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::OpenCapture, 0, Ar);
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefill(

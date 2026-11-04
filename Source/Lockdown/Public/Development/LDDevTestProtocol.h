@@ -41,6 +41,12 @@ enum class ELDDevTestOp : uint8
     // terms, the starting gold, the opening opportunity with a fresh opening offer, every cooldown ready and a living
     // body full. Items and gold change through DevReset ledger entries. Alive or Dead.
     ResetToMatchStart = 10,
+    // Match-wide, Listen Host connection only, nothing named: every cleared camp waiting for its refresh respawns at the
+    // next boundary through the ordinary whole-group refresh; living camps are untouched.
+    RefreshCamps = 11,
+    // Match-wide, Listen Host connection only, nothing named, Development only: the capture circle opens at this
+    // boundary instead of after the full development time; the hold and every capture rule stay.
+    OpenCapture = 12,
 };
 
 USTRUCT()
@@ -113,6 +119,8 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnDevTestResult, const FLDDevTestResult&)
 namespace LDDevTest
 {
     LOCKDOWN_API bool IsKnownOp(ELDDevTestOp Op);
+    // RefreshCamps and OpenCapture change the match for everyone; only the Listen Host's own connection may send them.
+    LOCKDOWN_API bool IsMatchWide(ELDDevTestOp Op);
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
     // Request shape only: a known op, a non-zero request id and the op's domain: grants an amount > 0 and nothing else;
     // LearnOption a definition and slot 0..2; BuyItem a definition and slot 0; SellItem slot 1..2 and no definition;

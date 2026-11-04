@@ -45,6 +45,11 @@ public:
     int64 NextRefreshDueMs() const { return State.NextRespawnDueMs(); }
     // Provider MatchReset: removes every camp body and forgets the match.
     void EndMatch();
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV test session (Transactions permit): FLDCampMatchState::DevRefreshNow at the permit boundary; the next
+    // RespawnsAndWorld refreshes them through AdvanceCamps. OutWaiting is the number of cleared camps.
+    bool DevRefreshCleared(const FLDGameplayWritePermit& Permit, int32& OutWaiting, FString& Error);
+#endif
 
     // Vision publication of a currently registered camp member; see FLDCampMatchState::AppendObservedFacts.
     bool AppendObservedFacts(const FLDMatchContext& Match, const FLDCombatBodyRef& Body,
