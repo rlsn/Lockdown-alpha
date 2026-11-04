@@ -170,9 +170,10 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 | 网络异常 / 拥有连接 | `RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分七段：Leave 中一名客户端经局内菜单离开，其余两人继续，Host 结束后结果表记其离局且无击杀/死亡；HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；HostLeave 中 Host 经局内菜单离开，房间在 Host 换图前向成员发出关闭，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败；HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗口相同，引擎走 PreExit 拆除世界而不是换图），Host 须以 0 退出且日志无 `LD_DEMO_AUTHORITY_FAULT`，客户端回到主菜单并显示“会话中断”，不出现结果表。全部在同机回环上运行，不代表跨机器局域网或公网直连 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
 
-### 按批联合测试
+### 合并前与里程碑检查
 
-模块交付只要求 `BuildEditor.ps1` 通过，并说明新测试名与联合测试要检查的点。集成分支攒批合入后跑一轮：
+每个 PR 至少要跑过 `BuildEditor.ps1` 和受影响的规则测试，并写明新增的测试名。
+改动较大的 PR，以及每个里程碑交付前，跑一轮下面的检查：
 
 ```powershell
 .\Scripts\BuildEditor.ps1 -FullUnity
@@ -184,8 +185,9 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
 ```
 
-其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）在发布冻结后的完整验收中在打包版上各跑一次。
-新增原生测试要同步登记到 `CheckRuleReport.py`；某个模块的检查需要真实对局时，优先补进满员场景，不另开场景。
+其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）放在里程碑或发布冻结后的完整验收里，在打包版上各跑一次。
+改到某个场景覆盖的系统时，PR 里也要跑那个场景。
+新增的原生测试要同步登记到 `CheckRuleReport.py`。如果某个模块的检查需要真实对局，优先补进满员场景，不另开新场景。
 
 ### 规则测试集合
 

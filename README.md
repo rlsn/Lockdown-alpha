@@ -63,14 +63,19 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 ## 协作流程
 
-1. 每个任务使用独立分支和工作区，按模块划分负责范围；共享接口、核心配置和地图改动先与负责人协调。
-2. **模块交付**：在自己的分支上完成改动，至少通过 `BuildEditor.ps1`；交付时说明新测试名和联合测试要检查的点。
-3. **集成按批联合测试**：集成分支攒批 `--no-ff` 合入，每批跑一轮——Editor/Game 的 `-FullUnity` 构建、
-   全量规则、Python 测试、Bootstrap 校验，以及一个满员场景（`RunDemoOpponentCheck.ps1`）
-   和一个截图场景（`RunDemoVisionCheck.ps1`）。失败按归属退回模块。
-4. **发布**：冻结后跑完整门禁、`VerifyCleanCheckout.ps1`、`PackageWin64.ps1`，再在包上跑全部场景；
-   通过后才替换唯一一份已知可用的包。
-5. 主分支通过 PR 集成。禁止 force push（包括 `--force-with-lease`），同步共享改动使用 merge。
+1. 所有工作都以 [GitHub Issue](https://github.com/rlsn/Lockdown-alpha/issues) 为单位，并按 Milestone 和
+   [看板](https://github.com/users/sinmentis/projects/4) 排期，详见 [AGENTS](AGENTS.md) 的“任务管理”一节。
+   共享接口、核心配置和地图改动，先与负责人协调。
+2. **每张票**：
+   1. 指派给自己；
+   2. 从最新的 `main` 建分支；
+   3. PR 至少通过 `BuildEditor.ps1` 和受影响的规则测试，描述写 `Fixes #N`；
+   4. 验证通过后合入 `main`，合并后删除分支。
+3. **里程碑与发布**：
+   1. 冻结后跑完整门禁、`VerifyCleanCheckout.ps1` 和 `PackageWin64.ps1`；
+   2. 在打包版上跑全部场景；
+   3. 全部通过后，才替换唯一一份已知可用的包。
+4. 禁止 force push，包括 `--force-with-lease`；同步共享改动用 merge。
 
 完整约束见 [AGENTS](AGENTS.md)。
 

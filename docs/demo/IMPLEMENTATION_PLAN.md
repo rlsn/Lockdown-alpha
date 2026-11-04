@@ -77,9 +77,10 @@ C3 资产/反射和 C4 有效配置/插件条件，不能沿用另一个闭包�
 
 ## 交付流程
 
-1. 模块在自己的分支交付，至少通过 `BuildEditor.ps1`，并说明新测试名与联合测试要检查的点。
-2. 集成分支攒批 `--no-ff` 合入，每批跑一轮：`-FullUnity` 构建、全量规则、Python 测试、Bootstrap 校验、
-   `RunDemoVisionCheck.ps1` 与 `RunDemoOpponentCheck.ps1`。失败按归属退回模块，能先合的先合。
-3. 冻结后跑完整门禁、`VerifyCleanCheckout.ps1`、`PackageWin64.ps1`，再在包上跑全部拥有连接场景、
-   网络模拟下的满员场景与有声运行检查；通过后替换唯一的已知可用包。
-4. 主分支通过 PR 集成，PR 说明实际范围、批准状态、检查结果与限制；未达到 App Spec 退出条件的部分在就绪评估中明确列出。
+工作以 GitHub Issue 为单位，按 Milestone 排期，规则见 [AGENTS](../../AGENTS.md) 的“任务管理”一节。
+
+1. 每张票从最新 `main` 建分支。PR 至少通过 `BuildEditor.ps1` 和受影响的规则测试，并写明新测试名。
+2. 改动较大的 PR 和每个里程碑交付前，跑[开发指南](../DEVELOPMENT.md#合并前与里程碑检查)里的一轮检查。失败的按归属建票修复。
+3. 冻结后依次跑完整门禁、`VerifyCleanCheckout.ps1`、`PackageWin64.ps1`。然后在包上跑全部拥有连接场景、
+   网络模拟下的满员场景和有声运行检查。全部通过后，才替换唯一的已知可用包。
+4. PR 说明里写清实际范围、批准状态、检查结果与限制。未达到 App Spec 退出条件的部分，在就绪评估中明确列出。
