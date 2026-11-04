@@ -393,7 +393,7 @@ void ULDNavigationComponent::ReleaseOrderLinks(const FActiveOrder& Order, bool b
     auto* Mode=AuthorityMode();
     if (!Mode) { return; }
     if (Order.Request.IsAggressive() && Mode->Combat)
-    { Mode->Combat->CancelNavAttack(Order.Body.Victim.EntityId,Order.Request.Identity); }
+    { Mode->Combat->CancelNavAttack(Order.Body.Victim.EntityId,Order.Request.Identity,KeptSwingTarget); }
     if (!Order.bPinned || !bReleasePin) { return; }
     FString Error;
     auto* PC=Controller();
@@ -470,7 +470,11 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
     }
     if (!ActiveOrder || !ActiveOrder->bForced || ActiveOrder->ForcedTarget!=Taunter || ActiveOrder->Body!=Self)
     {
-        if (ActiveOrder) { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true); }
+        if (ActiveOrder)
+        {
+            TGuardValue<FLDCombatBodyRef> Keep(KeptSwingTarget,Taunter);
+            EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true);
+        }
         if (Now<ForcedRetryAt) { return true; }
         if (ForcedSerial==MAX_uint32)
         {

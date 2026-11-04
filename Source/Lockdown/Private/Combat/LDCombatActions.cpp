@@ -419,11 +419,12 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     return Receipt;
 }
 
-void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move)
+void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep)
 {
     auto* Body=FindEntityBody(Entity);
     if (Body && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Basic
-        && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move)
+        && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move
+        && !(Keep.IsValid() && Body->Action->TargetBody==Keep))
     { FinishAction(*Body,ELDCombatReject::Cancelled,false); }
 }
 

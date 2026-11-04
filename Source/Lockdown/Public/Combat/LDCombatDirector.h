@@ -179,8 +179,9 @@ public:
     FLDCombatActionReceipt StartNavAttack(const FLDCombatCaller& Caller, const FLDCombatRequestKey& Key,
         const FLDCombatBodyRef& Target, const FGuid& Observed, uint32 ObservationEpoch,
         const FLDGameplayWritePermit& Permit);
-    // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept.
-    void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move);
+    // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
+    // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
+    void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());
     bool IsRooted(const ALDCharacter& Body) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
