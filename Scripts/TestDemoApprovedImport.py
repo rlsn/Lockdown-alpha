@@ -45,7 +45,7 @@ class ApprovedDemoData(unittest.TestCase):
             "active_arc_bolt", "active_binding_snare", "active_guard_pulse",
             "passive_battle_rhythm", "passive_precision", "passive_second_wind"])
         self.assertEqual(self.data["identity"]["projection_revision"], 3)
-        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1429)
+        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
 
@@ -54,7 +54,7 @@ class ApprovedDemoData(unittest.TestCase):
         for stat, unit, values in (
             ("MaxHP", "hp", ("620", "58", "1", "3000")),
             ("MaxMP", "mp", ("280", "22", "0", "800")),
-            ("AD", "points", ("54", "3.2", "0", "250")),
+            ("AD", "points", ("70", "3.2", "0", "250")),
             ("AP", "points", ("0", "0", "0", "250")),
             ("Armor", "points", ("18", "2", "0", "200")),
             ("MagicResist", "points", ("18", "2", "0", "200")),
@@ -64,17 +64,17 @@ class ApprovedDemoData(unittest.TestCase):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
                 expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
-            ("STAT.BaseAttackSpeed", "attacks/s", ".70"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
+            ("STAT.BaseAttackSpeed", "attacks/s", ".90"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.50"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
-            ("UNIT.MoveSpeedCmPerSec", "cm/s", "600"), ("STAT.MoveSpeed.Min", "cm/s", "300"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
+            ("UNIT.MoveSpeedCmPerSec", "cm/s", "520"), ("STAT.MoveSpeed.Min", "cm/s", "300"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "600"),
-            ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "16"),
-            ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "26"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "18"),
+            ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
@@ -85,7 +85,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("SHOP.StartingGold", 150), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("SHOP.StartingGold", 320), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
         ):
@@ -195,13 +195,13 @@ class ApprovedDemoData(unittest.TestCase):
         arc = self.catalog.definition("active_arc_bolt")
         self.assertEqual((amount(arc["target"]["range"]), amount(arc["target"]["projectile_radius"]),
                           amount(arc["target"]["projectile_speed"]), arc["windup"]["ms"]), (650, 45, 1600, 200))
-        for row, damage, ap, mana, cooldown in zip(arc["ranks"], (70, 100, 140), (6500, 7500, 8500), (45, 50, 55), (8, 7, 6)):
+        for row, damage, ap, mana, cooldown in zip(arc["ranks"], (100, 130, 160), (6500, 7500, 8500), (45, 50, 55), (6400, 5600, 4800)):
             self.assertEqual(row["effects"][0]["base"]["p2"], damage * 100)
             self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], ap)
-            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 0)
+            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 8000)
             self.assertEqual(row["effects"][0]["damage_type"], "Magical")
             self.assertEqual(row["mana_cost"]["p2"], mana * 100)
-            self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
+            self.assertEqual(row["cooldown"]["ms"], cooldown)
         guard = self.catalog.definition("active_guard_pulse")
         self.assertEqual((guard["target"]["mode"], guard["windup"]["ms"]), ("Self", 0))
         for row, shield, mana, cooldown in zip(guard["ranks"], (90, 150, 220), (50, 55, 60), (16, 14, 12)):
@@ -213,12 +213,14 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
         snare = self.catalog.definition("active_binding_snare")
         self.assertEqual((amount(snare["target"]["range"]), snare["windup"]["ms"]), (550, 200))
-        for row, damage, root_ms, mana, cooldown in zip(snare["ranks"], (20, 40, 60), (1000, 1300, 1600), (60, 65, 70), (14, 13, 12)):
+        for row, damage, root_ms, mana, cooldown in zip(snare["ranks"], (100, 120, 140), (1000, 1300, 1600), (60, 65, 70), (11200, 10400, 9600)):
             self.assertEqual(row["effects"][0]["base"]["p2"], damage * 100)
+            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 6000)
             self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], 3000)
+            self.assertEqual(row["effects"][0]["damage_type"], "Magical")
             self.assertEqual(row["effects"][1]["duration"]["ms"], root_ms)
             self.assertEqual(row["mana_cost"]["p2"], mana * 100)
-            self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
+            self.assertEqual(row["cooldown"]["ms"], cooldown)
 
     def test_passives_attributes_and_build_bounds(self):
         for identity, field in (("passive_battle_rhythm", "AttackSpeedBonusRatio"), ("passive_precision", "CritChanceBonusRatio")):
@@ -228,19 +230,19 @@ class ApprovedDemoData(unittest.TestCase):
                          [3, 5, 7])
         self.assertTrue(all(row["effects"][0]["delay"]["ms"] == 6000 for row in self.catalog.definition("passive_second_wind")["ranks"]))
         expected = {
-            "attr_might": {"ADFlat": 8}, "attr_focus": {"APFlat": 16}, "attr_vitality": {"MaxHPFlat": 100},
-            "attr_resolve": {"ArmorFlat": 6, "MagicResistFlat": 6}, "attr_reach": {"AttackRangeCmFlat": 40},
+            "attr_might": {"ADFlat": 8}, "attr_focus": {"APFlat": 16}, "attr_vitality": {"MaxHPFlat": 60},
+            "attr_resolve": {"ArmorFlat": 10, "MagicResistFlat": 10}, "attr_reach": {"AttackRangeCmFlat": 40},
         }
         for identity, stats in expected.items():
             self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
         # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
-        for stat, maximum in (("MaxHP", "2502"), ("MaxMP", "718"), ("AD", "202.8"), ("AP", "220"),
-                              ("Armor", "126"), ("MagicResist", "120")):
+        for stat, maximum in (("MaxHP", "2102"), ("MaxMP", "718"), ("AD", "218.8"), ("AP", "220"),
+                              ("Armor", "166"), ("MagicResist", "160")):
             field = stat + "Flat"
             base = amount(self.catalog.parameter("STAT." + stat + ".Base")) + 9 * amount(self.catalog.parameter("STAT." + stat + ".PerLevel"))
             equipment = max(amount(row["stats"][field]) if field in row["stats"] else Fraction(0) for row in self.data["equipment"])
             self.assertEqual(base + content._choice_bonus(self.data, field) + 2 * equipment, Fraction(maximum))
-        self.assertEqual(Fraction(7, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.106"))
+        self.assertEqual(Fraction(9, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.422"))
 
     def test_every_equipment_price_stat_and_effect(self):
         expected = {
@@ -272,8 +274,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
         self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 480, 900, 3000, 40000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 520, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 416, 900, 3000, 25000, 40, 30, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 451, 1100, 4000, 65000, 160, 120, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
