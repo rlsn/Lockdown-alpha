@@ -123,12 +123,12 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 `LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、他急了一类的条件增益与最强一个减速
 （负比例），点数类向下取整并夹紧到目录上下限；精神状态上限/电量上限不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
-减速、限时增益和控制标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`ApplyTimedBonus`、`ApplyExposure`、`TemporaryTerms`）。
+减速、限时增益、破防与吸血标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`DispelSlows`、`ApplyTimedBonus`、`ApplyBreach`/`HasBreach`/`BreachedResistanceP2`、
+`ApplyVampMark`/`VampMarkBp`、`TemporaryTerms`）；减速可带 `AttackRatioBp`（手速减成，取最强一个）。
 伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者精神状态上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带精神状态上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/精神状态上限）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
-的逐目标合法性与视线检查）各得一份；减速随命中施加，定身随命中经 `MarkControlled` 打开施放者的控制增伤标记，
-之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。潜水党的附加伤害是独立的技能伤害实例：
-普攻在开始挥击时、伤害技能在释放时判定脱战窗口。施放者离局时 `CancelEntityEffects` 一并移除其减速与标记，
-营地回工位清空全部临时项。
+的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。潜水党的附加伤害是独立的技能伤害实例：
+普攻在开始挥击时、伤害技能在释放时判定脱战窗口；冲刺或跳跃按 `DashCreditMs` 提前就绪（只对当前这段脱战有效，`AmbushReadyNow`）。
+施放者离局时 `CancelEntityEffects` 一并移除其减速、破防、吸血标记与路径扫掠，营地回工位清空全部临时项。
 
 ### 控制、背后判定、强化下一击、反伤与跳跃
 
@@ -145,15 +145,42 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
   身体的服务器朝向是最近的移动方向，普攻或技能被接受时转向其目标/方向/落点。`backstab` 让同一条目的伤害在背后命中时
   按 `RatioBp` 放大（`FLDDamageEvaluationInput::AmplifyBp`，在抗性之前）并附加眩晕。
 - **强化下一击**（`empower_basic`）：释放时武装一次（替换不叠加），由下一次已提交命中的普攻消费（`ConsumeEmpower`），
-  额外伤害是独立的技能类命中（不暴击、不吸血、不横扫）；到期在 Effects 阶段移除。
+  额外伤害在暴击采样前并入该次 `BasicPrimary`（吃暴击、吸血、横扫与命中特效）；`RefundMs` 让消费后返还武装来源的剩余冷却；
+  到期在 Effects 阶段移除。秦王绕柱 3 级的 `Momentum` 以同一方式并入。
 - **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（只记录等级，不产生属性项），装备被动按同名家族一次。
   命中后持有者仍存活、伤害为正、命中类别符合（主普攻，或允许时的技能命中）、距离不超过半径、非免疫的背后来袭，
-  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+嘴硬×比例（被暴击时乘
-  `CriticalMultiplierBp`），走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤。
+  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+嘴硬×比例+精神状态上限×比例
+  （`LDCombatControl::ThornsBaseP2`，被暴击时乘 `CriticalMultiplierBp`），可附手速/润速减成（`cripple_*`，按减速实例施加），
+  走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤，也不暴击、不吸血、不触发命中特效。
 - **跳到指定点**（目标 `GroundPoint`、效果 `jump`）：请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），
   距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与占领照常由运动链计算）；
   同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，潜水党就绪时各附一次附加伤害（体重即正义），
   死亡或换命丢弃落地。
+
+### 共用战斗原语（#112）
+
+- **唯一控制路径** `ALDCombatDirector::CommitControl(Victim, FLDControlApplication, NowMs, bApplied, Error)`：
+  `ELDControlKind { Root, Stun, Disarm, Taunt, Knockback, Slow }`。硬控（定身、眩晕、缴械、嘲讽）先经
+  `LDCombatControl::DiminishHardControl`（`FLDHardControlChain`：100%/60%/30%，最短 min(200ms, 原持续)，
+  窗口为最晚硬控结束后 2 秒）；只有实际落地的控制才推进计数与修订。嘲讽只作用于参赛者。击退由其所有者在本函数内提交。
+  每次实际提交的定身、眩晕、嘲讽、击退在此调用喷漆打断，每次实际提交的控制与减速在此记录助攻贡献。
+  `IsImpaired(Body, Now)` 判断任何控制或减速（已截图、掏蛋子 3 级使用）。
+- **命中特效**：`FLDCombatHit::OnHitScaleBp` 是该命中的特效系数（普攻主击 10000，技能按定义，附加伤害/反伤/副击为 0）；
+  `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在释放时快照吸血、横扫等来源，`ApplyHit` 内 `ApplyOnHitEffects` 按系数提交。
+  `bAddedDamage` 的命中不暴击、不触发命中特效；`MakeAmbushHit` 是附加伤害命中的唯一构造。
+- **伤害求值顺序**（`ApplyHit`）：技能暴击（`bCritIfImpaired`、`AbilityCritChanceBp`，倍率 `STAT.AbilityCritMultiplier`，
+  每命中一次）→ 破防后的抗性（`BreachedResistanceP2`：先减固定值再乘比例）→“造成伤害 +%”相加为一个系数（`ControlAmpBp`、
+  `DistanceAmpPer100Bp`）→ 背后倍率 → 目标暴击减伤（`crit_damage_reduction`）；吸血（命中特效吸血×系数、全能吸血、吸血标记）
+  相加后按 `HPLostP2` 回复。
+- **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
+  `ReduceLearnedCooldown`，都经纯函数 `LDCombatSourceRules::ReduceReadyAt`（不早于当前时刻；`MAX_int64` 表示立即就绪；
+  已就绪轨道不变）。
+- **位移强化**：`LDCombatSourceRules::SkillDisplacementBoost` 在释放时给出带冲刺/跳跃条目的基础冷却比例（整活频率之前）与距离加成；
+  `CastRangeCm` 统一给出技能施法距离（天外飞瓶的普攻距离加成、网线够长 3 级的 +80cm）。
+- **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动与装备被动（同名家族一次）的唯一读取口；
+  装备效果后续经 `LDDemoEquipment::Effective*` 取当前生效定义。
+- 其余 3 级状态：`Momentum`（秦王绕柱）、`Retaliation`（你瞅啥）、`DashSweeps`（一个滑铲路径减速）、`BasicHitRefund`（无影大比兜）、
+  `RegenSurgeUntilMs`（发疯文学）、`LowHPShieldReadyAtMs`（他急了），均在 `NextDueMs` 中登记截止时刻。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
@@ -180,9 +207,10 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 ## 检查入口
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
-`DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
+`DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值（含 `AbilityCrit`）、Root/屏障/回复/冷却规则、来源轨道回绑、
 攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
-低血线/潜水党窗口与控制增伤标记的纯规则，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
+低血线/潜水党窗口与破防/吸血标记的纯规则，`DemoCombatPrimitives.*` 覆盖硬控递减、`CommitControl`、剩余冷却缩减、破防叠加、
+手速减速与解除减速、回复翻倍窗口，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
 `DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
