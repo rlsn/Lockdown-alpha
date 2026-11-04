@@ -559,6 +559,12 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
         ClockOffset = LDObservedPresentation::TrackOffset(bClock, ClockOffset, Arrival - ClockUpdatedAt, Arrival, View.SampledAtServerSec);
         bClock = true;
         ClockUpdatedAt = Arrival;
+#if WITH_DEV_AUTOMATION_TESTS
+        if (DevOnAcceptedFrame)
+        {
+            if (const FLDWorldView* Accepted = Receiver.Read().Frame) { DevOnAcceptedFrame(*Accepted); }
+        }
+#endif
     }
     Present(Cleared);
 }

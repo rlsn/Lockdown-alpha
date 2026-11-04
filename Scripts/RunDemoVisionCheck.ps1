@@ -112,8 +112,10 @@ try {
     [ordered]@{ fixture = 'growth'; switch = $fixtureSwitch; roles = @('Host') } | ConvertTo-Json |
         Set-Content -LiteralPath (Join-Path $output 'DevFixture.json') -Encoding UTF8
     $stealth = foreach ($role in $roles) { foreach ($row in $reports[$role].stealth) {
-        "S$($row.trial) $($row.trigger) $role/$($row.role_kind): frames=$($row.frames_while_hidden)" +
-            $(if ($row.role_kind -eq 'near') { " rediscovered=$([math]::Round($row.rediscovered_cm))cm" } elseif ($row.role_kind -eq 'far') { " regained=$($row.expires_ms - $row.regained_sample_ms)ms-before-expiry" } else { " ended=$($row.expires_ms - $row.revealed_ms)ms-before-expiry" }) } }
+        "S$($row.trial) $($row.trigger) $role/$($row.role_kind):" +
+            $(if ($row.role_kind -eq 'near') { " frames=$($row.frames_while_hidden) rediscovered=$([math]::Round($row.rediscovered_cm))cm" }
+              elseif ($row.role_kind -eq 'far') { " frames=$($row.frames_while_hidden) regained=$($row.expires_ms - $row.regained_sample_ms)ms-before-expiry" }
+              else { " ended-by=$($row.expires_ms - $row.revealed_ms)ms-before-expiry" }) } }
     Write-Host ("Stealth trials: " + ($stealth -join '; '))
     Write-Host "DEV-only owned-connection observation scenario passed: rendered Listen Host plus two owning clients via the normal lobby. Covers checks #1/#9/#15/#23/#28, Listen Host presentation and the paper box stealth segment (#ST/#STH: no frame, handle, proxy or Host body leak beyond the reveal radius; lost lock and chase cancelled; fresh handle on rediscovery; reveal by attack, cast, hit and taunt). DEV growth fixture: Host only ($fixtureSwitch). HostSighted.png still needs presentation review. Not combat balance, death/termination, AI or full-match acceptance. Evidence: $output"
 }

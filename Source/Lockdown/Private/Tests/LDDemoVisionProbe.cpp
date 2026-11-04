@@ -6,7 +6,9 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDControlRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
@@ -113,18 +115,36 @@ bool HasStatus(const TArray<FLDObservedStatus>& Statuses, ELDDemoStatusId Id)
 // Per-trial runtime state of one role; reset before every trial.
 struct FLDStealthRun
 {
-    double At = 0, ActAt = 0, RevealSeenAt = 0;
-    int32 WalkAttempts = 0, Frames = 0, HomeSeen = -1;
+    // One accepted observation frame as this observer received it (the probe hooks every accepted frame).
+    struct FFrameRow
+    {
+        int64 SampleMs = 0;
+        bool bPresent = false, bPreHandle = false, bStealthStatus = false;
+        double Distance = -1;
+        FGuid Handle;
+        uint32 Epoch = 0;
+    };
+    double At = 0, ActAt = 0;
+    int32 WalkAttempts = 0, HomeSeen = -1, Cursor = 0;
     bool bHomeReady = false;
-    FGuid PreHandle, FoundHandle;
+    FGuid PreHandle;
     uint32 PreEpoch = 0;
     FLDMoveIdentity Chase;
     bool bChaseSent = false, bChaseCancelled = false, bChaseResumed = false;
-    bool bHidden = false, bConcealed = false, bFound = false, bActed = false, bStopped = false, bRegained = false;
-    bool bApproach = false, bEarly = false, bLate = false, bTaunted = false, bHurt = false;
-    int64 HiddenMs = 0, ExpiresMs = 0, RevealMs = 0, RegainedMs = 0, TargetHp = 0, OwnHp = 0;
-    double RegainedCm = -1, FoundCm = -1;
+    bool bHidden = false, bConcealed = false, bFound = false, bActed = false, bStopped = false;
+    bool bEarly = false, bLate = false, bTaunted = false, bHurt = false, bProxyChecked = false;
+    int64 HiddenMs = 0, ExpiresMs = 0, RevealMs = 0, TargetHp = 0, OwnHp = 0;
+    TArray<FFrameRow> Rows;
     FString Leaks;
+    // The authority end of the stealth as the Host saw it at each rendered tick: the last authority time it was still
+    // stealthed and the first at which it no longer was (same step granularity as the observation samples).
+    bool bEnded = false;
+    int64 LastStealthMs = 0, EndedMs = 0;
+    // Host only: the authority watch and its native-body presentation audit at every game tick.
+    bool bOracleSeen = false, bOracleEnded = false, bEndedMarked = false;
+    int64 OracleLastMs = 0, OracleEndMs = 0;
+    int32 HostTicks = 0;
+    FString HostDrawn;
 };
 
 struct FLDSeenUnit
@@ -246,6 +266,8 @@ public:
     int64 StealthDurationMs = 0;
     LDDemoVisionScenario::FLDStealthRun Run;
     TArray<TSharedPtr<FJsonValue>> StealthRows;
+    FDelegateHandle TrialTickHandle;
+    TWeakObjectPtr<ALDWorldViewRelay> HookedRelay;
 
     ~FLDDemoVisionProbe() { StopWatching(); }
 
@@ -324,6 +346,7 @@ public:
 
     void StopWatching()
     {
+        UnhookTrial();
         if (UWorld* Watched = World.Get(); Watched && SpawnHandle.IsValid()) { Watched->RemoveOnActorSpawnedHandler(SpawnHandle); }
         if (PostTickHandle.IsValid()) { FWorldDelegates::OnWorldPostActorTick.Remove(PostTickHandle); }
         SpawnHandle.Reset();
@@ -1050,10 +1073,113 @@ public:
         Run.ActAt = 0;
     }
 
+    // Installs this trial's watches: an observer audits every frame its relay accepts; the Host also follows the
+    // hider's authority stealth at every game tick and, while it observes, whether its own world draws the hider's body.
+    void HookTrial(ALDPlayerController& Owner, const FGuid& Hidden, bool bHider)
+    {
+        UnhookTrial();
+        TWeakPtr<FLDDemoVisionProbe> Weak = AsShared();
+        if (!bHider)
+        {
+            if (ALDWorldViewRelay* Relay = Owner.LocalView())
+            {
+                HookedRelay = Relay;
+                Relay->DevOnAcceptedFrame = [Weak, Hidden](const FLDWorldView& Frame)
+                {
+                    if (const TSharedPtr<FLDDemoVisionProbe> Probe = Weak.Pin()) { Probe->RecordFrame(Frame, Hidden); }
+                };
+            }
+        }
+        if (Role == TEXT("Host"))
+        {
+            TrialTickHandle = FWorldDelegates::OnWorldPostActorTick.AddLambda([Weak, Hidden, bHider](UWorld* Ticked, ELevelTick, float)
+            {
+                const TSharedPtr<FLDDemoVisionProbe> Probe = Weak.Pin();
+                if (Probe && Ticked && Ticked == Probe->World.Get()) { Probe->WatchAuthority(*Ticked, Hidden, bHider); }
+            });
+        }
+    }
+
+    void UnhookTrial()
+    {
+        if (ALDWorldViewRelay* Relay = HookedRelay.Get()) { Relay->DevOnAcceptedFrame = nullptr; }
+        HookedRelay.Reset();
+        if (TrialTickHandle.IsValid()) { FWorldDelegates::OnWorldPostActorTick.Remove(TrialTickHandle); }
+        TrialTickHandle.Reset();
+    }
+
+    void RecordFrame(const FLDWorldView& Frame, const FGuid& Hidden)
+    {
+        const ALDPlayerController* Owner = Controller.Get();
+        const APawn* Own = Owner ? Owner->GetPawn() : nullptr;
+        LDDemoVisionScenario::FLDStealthRun::FFrameRow Row;
+        Row.SampleMs = int64(FMath::RoundToDouble(Frame.SampledAtServerSec * 1000.0));
+        if (const FLDObservedUnitView* Unit = ContenderUnit(Frame, Hidden))
+        {
+            Row.bPresent = true;
+            Row.Distance = Own ? FVector::Dist2D(FVector(Unit->FeetCm), Own->GetNavAgentLocation()) : -1;
+            Row.bPreHandle = Unit->Handle == Run.PreHandle;
+            Row.bStealthStatus = HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth);
+            Row.Handle = Unit->Handle;
+            Row.Epoch = Unit->ObservationEpoch;
+        }
+        Run.Rows.Add(Row);
+    }
+
+    // Host: the test's timing reference for the stealth end, read from the authority it hosts (never shown to a player).
+    void WatchAuthority(UWorld& InWorld, const FGuid& Hidden, bool bHider)
+    {
+        const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+        const ALDPlayerController* HiderPC = Mode ? Mode->FindContenderController(Hidden) : nullptr;
+        const ALDCharacter* Body = HiderPC ? Cast<ALDCharacter>(HiderPC->GetPawn()) : nullptr;
+        const FLDBodyCombatState* State = Body && Mode->Combat ? Mode->Combat->StateFor(Body) : nullptr;
+        if (!State) { return; }
+        const int64 NowMs = Mode->GetAuthorityNowMs();
+        if (LDControl::IsStealthed(State->Stealth, NowMs))
+        {
+            Run.bOracleSeen = true;
+            Run.OracleLastMs = NowMs;
+        }
+        else if (Run.bOracleSeen && !Run.bOracleEnded)
+        {
+            Run.bOracleEnded = true;
+            Run.OracleEndMs = NowMs;
+        }
+        if (bHider) { return; }
+        ++Run.HostTicks;
+        FString Part;
+        if (HasPresentation(*Body, Part) && Run.HostDrawn.Len() < 500) { Run.HostDrawn += Part + TEXT(" "); }
+    }
+
+    // Host: publishes the authority stealth end once it is known, for every observer's classification of its frames.
+    bool TickOracle()
+    {
+        if (Role != TEXT("Host") || Run.bEndedMarked || !Run.bOracleEnded) { return true; }
+        auto Value = MakeShared<FJsonObject>();
+        Value->SetNumberField(TEXT("last_stealth_ms"), double(Run.OracleLastMs));
+        Value->SetNumberField(TEXT("ended_ms"), double(Run.OracleEndMs));
+        if (!Save(Value, TM(TEXT("Ended")))) { return Fail(TEXT("#ST"), TEXT("The Host could not publish the stealth end")); }
+        Run.bEndedMarked = true;
+        return true;
+    }
+
+    bool LoadEnded()
+    {
+        if (Run.bEnded) { return true; }
+        const TSharedPtr<FJsonObject> Marker = Load(TM(TEXT("Ended")));
+        double Last = 0, Ended = 0;
+        if (!Marker || !Marker->TryGetNumberField(TEXT("last_stealth_ms"), Last) || !Marker->TryGetNumberField(TEXT("ended_ms"), Ended)) { return false; }
+        Run.bEnded = true;
+        Run.LastStealthMs = int64(Last);
+        Run.EndedMs = int64(Ended);
+        return true;
+    }
+
     bool TickTrial(double Now, UWorld& InWorld, ALDPlayerController& Owner)
     {
         const LDDemoVisionScenario::FLDStealthTrial& T = StealthTrials[Trial];
         const bool bHider = Role == T.Stealther;
+        if (Phase == EPhase::Run && !TickOracle()) { return false; }
         switch (Phase)
         {
         case EPhase::Home: return TickTrialHome(Now, Owner, T, bHider);
@@ -1102,28 +1228,49 @@ public:
             Trial + 1, int32(bArrived), Run.HomeSeen, int32(Run.bHomeReady)));
     }
 
-    // Observers record the hider's current handle (the near one of the chase trial also orders an attack on it); the
-    // hider then opens its box through its 1/2 hotkey entry.
+    // Observers record the hider's current handle; the near one of the chase trial first holds an admitted attack order
+    // on it. The hider then opens its box through its 1/2 hotkey entry.
     bool TickTrialPre(double Now, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T, bool bHider)
     {
+        const FGuid Hidden = Ids[IndexOf(T.Stealther)];
         if (!bHider)
         {
-            const ALDWorldViewRelay* Relay = nullptr;
-            const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
-            const FLDObservedUnitView* Unit = Frame ? ContenderUnit(*Frame, Ids[IndexOf(T.Stealther)]) : nullptr;
-            if (!Unit)
+            if (!Run.PreHandle.IsValid())
             {
-                if (Now - Run.At <= 2.0) { return true; }
-                return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] This observer lost the hider before it hid"), Trial + 1));
+                const ALDWorldViewRelay* Relay = nullptr;
+                const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+                const FLDObservedUnitView* Unit = Frame ? ContenderUnit(*Frame, Hidden) : nullptr;
+                if (!Unit)
+                {
+                    if (Now - Run.At <= 2.0) { return true; }
+                    return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] This observer lost the hider before it hid"), Trial + 1));
+                }
+                Run.PreHandle = Unit->Handle;
+                Run.PreEpoch = Unit->ObservationEpoch;
+                if (T.bChase && Role == T.Near)
+                {
+                    Owner.Navigation->AttackUnit(Unit->Handle, Unit->ObservationEpoch);
+                    Run.Chase = Owner.Navigation->LocalIdentity();
+                    Run.bChaseSent = true;
+                }
             }
-            Run.PreHandle = Unit->Handle;
-            Run.PreEpoch = Unit->ObservationEpoch;
-            if (T.bChase && Role == T.Near)
+            if (Run.bChaseSent)
             {
-                Owner.Navigation->AttackUnit(Unit->Handle, Unit->ObservationEpoch);
-                Run.Chase = Owner.Navigation->LocalIdentity();
-                Run.bChaseSent = true;
+                // The hider may hide only once the server admitted the lock, so its loss is a cancellation, not a refusal.
+                const FLDOrderReceipt& Latest = Owner.Navigation->LatestReceipt();
+                const bool bOwn = Latest.Identity == Run.Chase;
+                if (!bOwn || (Latest.Status != ELDOrderStatus::Activated && Latest.Status != ELDOrderStatus::Progress))
+                {
+                    if (bOwn && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled
+                        || Latest.Status == ELDOrderStatus::Completed))
+                    {
+                        return Fail(TEXT("#ST"), TEXT("[S1] The attack order on the visible hider ended before it hid: ") + Owner.Navigation->Status);
+                    }
+                    if (Now - Run.At <= 3.0) { return true; }
+                    return Fail(TEXT("#ST"), TEXT("[S1] The attack order on the visible hider was never activated"));
+                }
             }
+            HookTrial(Owner, Hidden, false);
             if (!Mark(TM(TEXT("Pre"), Role))) { return Finish(); }
             BeginPhase(EPhase::Run, Now);
             return true;
@@ -1135,29 +1282,24 @@ public:
         }
         const FLDCombatEntryView* Box = EntryRow(Owner, StealthItem());
         if (!Box) { return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The hider no longer holds its paper box"), Trial + 1)); }
+        HookTrial(Owner, Hidden, true);
         Run.OwnHp = Owner.CombatView.HPP2;
         Owner.ActivateCombatEntry(Box->Entry);
         BeginPhase(EPhase::Run, Now);
         return true;
     }
 
-    bool FinishTrial(double Now, const FString& Kind)
+    bool FinishTrial(double Now, const FString& Kind, const TSharedRef<FJsonObject>& Row)
     {
-        auto Row = MakeShared<FJsonObject>();
+        UnhookTrial();
         Row->SetNumberField(TEXT("trial"), Trial + 1);
         Row->SetStringField(TEXT("trigger"), StealthTrials[Trial].Name);
         Row->SetStringField(TEXT("stealther"), StealthTrials[Trial].Stealther);
         Row->SetStringField(TEXT("role_kind"), Kind);
         Row->SetNumberField(TEXT("hidden_ms"), double(Run.HiddenMs));
         Row->SetNumberField(TEXT("expires_ms"), double(Run.ExpiresMs));
-        Row->SetNumberField(TEXT("frames_while_hidden"), Run.Frames);
-        Row->SetBoolField(TEXT("concealed_seen"), Run.bConcealed);
-        Row->SetBoolField(TEXT("rediscovered_fresh_handle"), Run.bFound);
-        Row->SetNumberField(TEXT("rediscovered_cm"), Run.FoundCm);
-        Row->SetBoolField(TEXT("chase_cancelled"), Run.bChaseCancelled);
-        Row->SetNumberField(TEXT("revealed_ms"), double(Run.RevealMs));
-        Row->SetNumberField(TEXT("regained_sample_ms"), double(Run.RegainedMs));
-        Row->SetNumberField(TEXT("regained_cm"), Run.RegainedCm);
+        Row->SetNumberField(TEXT("last_stealth_ms"), double(Run.LastStealthMs));
+        Row->SetNumberField(TEXT("ended_ms"), double(Run.EndedMs));
         Row->SetStringField(TEXT("leaks"), Run.Leaks);
         StealthRows.Add(MakeShared<FJsonValueObject>(Row));
         if (!Passed || !Mark(TM(TEXT("Done"), Role))) { return Finish(); }
@@ -1195,7 +1337,6 @@ public:
                 const FVector NearFeet = NearUnit->FeetCm;
                 const FVector Goal = NearFeet + (Body->GetNavAgentLocation() - NearFeet).GetSafeNormal2D() * StealthApproachCm;
                 Owner.Navigation->Navigate(FVector(Goal.X, Goal.Y, NearFeet.Z));
-                Run.bApproach = true;
             }
             return true;
         }
@@ -1205,6 +1346,7 @@ public:
         Run.bHurt |= CurrentCombatView(Owner) && Owner.CombatView.HPP2 < Run.OwnHp;
         if (CurrentCombatView(Owner) && !Stealth && !Run.bEarly && !Run.bLate)
         {
+            // The first own view without the stealth was composed no earlier than its end.
             Run.RevealMs = Owner.CombatView.AsOfMs;
             Run.bEarly = Owner.CombatView.AsOfMs < Run.ExpiresMs;
             Run.bLate = !Run.bEarly;
@@ -1237,51 +1379,35 @@ public:
         const bool bTriggerDone = T.Trigger == EStealthTrigger::Attack ? Run.bStopped
             : T.Trigger == EStealthTrigger::Cast ? Run.bActed
             : T.Trigger == EStealthTrigger::Hurt ? Run.bHurt : Run.bTaunted;
-        if ((Run.bEarly || Run.bLate) && bTriggerDone)
+        // The Host also owes every observer the authority end of this stealth before it leaves the trial.
+        if ((Run.bEarly || Run.bLate) && bTriggerDone && (Role != TEXT("Host") || Run.bEndedMarked))
         {
             StealthCheck(Run.bEarly, TEXT("#ST"), FString::Printf(
-                TEXT("The hider's own view shows its stealth ended at its %s before the expiry (ended %lld ms, expiry %lld ms)"),
+                TEXT("The hider's own view shows its stealth ended at its %s before the expiry (ended by %lld ms, expiry %lld ms)"),
                 T.Name, Run.RevealMs, Run.ExpiresMs));
             if (T.Trigger == EStealthTrigger::Hurt) { StealthCheck(Run.bHurt, TEXT("#ST"), TEXT("The stealthed body took the near observer's hit")); }
             if (T.Trigger == EStealthTrigger::Control) { StealthCheck(Run.bTaunted, TEXT("#ST"), TEXT("The near observer's taunt landed on the stealthed body as a control")); }
-            return FinishTrial(Now, TEXT("stealther"));
+            auto Row = MakeShared<FJsonObject>();
+            Row->SetNumberField(TEXT("revealed_ms"), double(Run.RevealMs));
+            return FinishTrial(Now, TEXT("stealther"), Row);
         }
         if (Now - Run.At <= StealthTrialSeconds) { return true; }
         return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The %s trial did not complete for the hider (early=%d late=%d acted=%d stopped=%d hurt=%d taunted=%d)"),
             Trial + 1, T.Name, int32(Run.bEarly), int32(Run.bLate), int32(Run.bActed), int32(Run.bStopped), int32(Run.bHurt), int32(Run.bTaunted)));
     }
 
-    // While hidden and before its reveal, every frame this observer receives may show the hider only inside the reveal
-    // radius, never under its old handle; no proxy or relay lookup keeps the old handle; the Listen Host never draws
-    // the hider's canonical body and a restricted client never holds it.
-    void AuditHidden(UWorld& InWorld, const ALDPlayerController& Owner, const ALDWorldViewRelay& Relay, const FLDObservedUnitView* Unit,
-        const FVector& Feet, const FGuid& Hidden)
+    // The relay and world state behind this observer's presentation: the old handle never resolves or keeps a proxy
+    // again once a frame sampled after the stealth began is current, and a restricted client never holds another body.
+    void AuditPresentation(UWorld& InWorld, const ALDPlayerController& Owner, const ALDWorldViewRelay& Relay)
     {
         const auto Leak = [this](const FString& Text) { if (Run.Leaks.Len() < 2000) { Run.Leaks += Text + TEXT("; "); } };
-        ++Run.Frames;
-        if (Unit)
-        {
-            const double Distance = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
-            if (Distance > RevealCm + StealthSlackCm) { Leak(FString::Printf(TEXT("presented at %.0f cm"), Distance)); }
-            if (Unit->Handle == Run.PreHandle) { Leak(TEXT("presented under its old handle")); }
-            if (HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth)) { Leak(TEXT("its owner-only stealth status reached this observer")); }
-        }
         FLDObservedUnitView Ignored;
         if (Relay.ReadUnit(Run.PreHandle, Run.PreEpoch, Ignored)) { Leak(TEXT("the old handle still resolves")); }
         for (TActorIterator<ALDObservedEntityProxy> It(&InWorld); It; ++It)
         {
             if (It->ObservedHandle == Run.PreHandle) { Leak(TEXT("a proxy still presents the old handle")); }
         }
-        if (Role == TEXT("Host"))
-        {
-            const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
-            const ALDPlayerController* HiderPC = Mode ? Mode->FindContenderController(Hidden) : nullptr;
-            const APawn* Body = HiderPC ? HiderPC->GetPawn() : nullptr;
-            FString Part;
-            if (!Body) { Leak(TEXT("the Host lost the hider's canonical body")); }
-            else if (HasPresentation(*Body, Part)) { Leak(TEXT("the Listen Host draws the canonical body: ") + Part); }
-        }
-        else
+        if (Role != TEXT("Host"))
         {
             int32 Pawns = 0;
             for (TActorIterator<APawn> It(&InWorld); It; ++It) { Pawns += *It != Owner.GetPawn() ? 1 : 0; }
@@ -1289,12 +1415,14 @@ public:
         }
     }
 
-    // An observer: concealment (and the chase cancellation), then rediscovery inside the radius under a fresh handle
-    // (near) or the hider back in view beyond the radius before its expiry (far).
+    // An observer. Live: every accepted frame is recorded as it arrives; concealment is announced and the near observer
+    // acts once it rediscovers the body inside the radius. Final, once the Host published the authority end: frames
+    // sampled while stealthed must never show it beyond the radius or under its old handle; frames sampled at or after
+    // the end must show it again (far observers) before it would have expired.
     bool TickWatcher(double Now, UWorld& InWorld, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T)
     {
+        using FFrameRow = LDDemoVisionScenario::FLDStealthRun::FFrameRow;
         const bool bNear = T.Near && Role == T.Near;
-        const FGuid Hidden = Ids[IndexOf(T.Stealther)];
         if (!Run.bHidden)
         {
             const TSharedPtr<FJsonObject> Marker = Load(TM(TEXT("Hidden")));
@@ -1309,113 +1437,146 @@ public:
             Run.ExpiresMs = int64(ExpiresMs);
             Run.At = Now;
         }
-        const ALDCharacter* Own = Cast<ALDCharacter>(Owner.GetPawn());
-        const FVector Feet = Own->GetNavAgentLocation();
-        const bool bRevealed = Exists(TM(TEXT("Reveal")));
-        if (bRevealed && Run.RevealSeenAt == 0) { Run.RevealSeenAt = Now; }
-        if (Run.bChaseSent)
+        LoadEnded();
+        const double Limit = RevealCm + StealthSlackCm;
+        // Losing sight cancels the admitted lock; nothing may resume it until the hider's stealth ended.
+        if (Run.bChaseSent && !Run.bEnded)
         {
             const FLDOrderReceipt& Latest = Owner.Navigation->LatestReceipt();
-            const bool bCancelled = Latest.Identity == Run.Chase && Latest.Status == ELDOrderStatus::Cancelled
-                && Latest.Failure == ELDOrderFailure::TargetUnavailable && !Owner.Navigation->HasMoveOrder();
-            Run.bChaseCancelled |= bCancelled;
-            Run.bChaseResumed |= Run.bChaseCancelled && Owner.Navigation->HasMoveOrder();
+            if (!Run.bChaseCancelled)
+            {
+                Run.bChaseCancelled = Latest.Identity == Run.Chase && Latest.Status == ELDOrderStatus::Cancelled
+                    && Latest.Failure == ELDOrderFailure::TargetUnavailable && !Owner.Navigation->HasMoveOrder();
+            }
+            else { Run.bChaseResumed |= Owner.Navigation->HasMoveOrder() || Latest.Identity != Run.Chase; }
         }
         const ALDWorldViewRelay* Relay = nullptr;
         const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
-        if (Frame && Relay)
+        if (Frame && Relay && int64(FMath::RoundToDouble(Frame->SampledAtServerSec * 1000.0)) >= Run.HiddenMs)
         {
-            const int64 SampleMs = int64(FMath::RoundToDouble(Frame->SampledAtServerSec * 1000.0));
-            const FLDObservedUnitView* Unit = ContenderUnit(*Frame, Hidden);
-            if (!bRevealed && SampleMs > Run.HiddenMs && SampleMs < Run.ExpiresMs)
+            AuditPresentation(InWorld, Owner, *Relay);
+            if (!Run.bProxyChecked && !Run.bEnded && !ContenderUnit(*Frame, Ids[IndexOf(T.Stealther)]))
             {
-                AuditHidden(InWorld, Owner, *Relay, Unit, Feet, Hidden);
-                if (!Unit && !Run.bConcealed)
+                Run.bProxyChecked = true;
+                FString Why;
+                StealthCheck(ProxiesMatchFrame(InWorld, *Relay, *Frame, Why), TEXT("#ST"),
+                    TEXT("Once the body hid, this owner's proxies match its current frame, which no longer lists the body (the minimap and floating numbers read only this frame)")
+                    + (Why.IsEmpty() ? FString() : TEXT(": ") + Why));
+            }
+        }
+        // Live pass over newly accepted frames, provisionally hidden until the Host published the end.
+        for (; Run.Cursor < Run.Rows.Num(); ++Run.Cursor)
+        {
+            const FFrameRow& Row = Run.Rows[Run.Cursor];
+            if (Row.SampleMs < Run.HiddenMs || Row.SampleMs >= Run.ExpiresMs || (Run.bEnded && Row.SampleMs > Run.LastStealthMs)) { continue; }
+            if (!Row.bPresent && !Run.bConcealed)
+            {
+                Run.bConcealed = true;
+                if (!Passed || !Mark(TM(TEXT("Concealed"), Role))) { return Finish(); }
+            }
+            if (bNear && Row.bPresent && Run.bConcealed && !Run.bFound && Row.Distance >= 0 && Row.Distance <= Limit)
+            {
+                Run.bFound = true;
+                if (!Mark(TM(TEXT("Found")))) { return Finish(); }
+                if (T.Trigger == EStealthTrigger::Hurt)
                 {
-                    Run.bConcealed = true;
-                    FString Why;
-                    StealthCheck(ProxiesMatchFrame(InWorld, *Relay, *Frame, Why), TEXT("#ST"),
-                        TEXT("The stealthed body left this owner's current frame and proxies while still in sight range (the minimap and floating numbers read only this frame)")
-                        + (Why.IsEmpty() ? FString() : TEXT(": ") + Why));
-                    if (Role == TEXT("Host"))
-                    {
-                        const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
-                        const ALDPlayerController* HiderPC = Mode ? Mode->FindContenderController(Hidden) : nullptr;
-                        const ALDCharacter* Body = HiderPC ? Cast<ALDCharacter>(HiderPC->GetPawn()) : nullptr;
-                        FString Part;
-                        StealthCheck(Body && !HasPresentation(*Body, Part) && Body->GetActorEnableCollision(), TEXT("#STH"),
-                            TEXT("The Listen Host keeps the stealthed remote body living and colliding, and draws neither it nor a proxy of it"));
-                    }
-                    if (!Passed || !Mark(TM(TEXT("Concealed"), Role))) { return Finish(); }
+                    if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+                    const FLDObservedUnitView* Unit = Frame ? ContenderUnit(*Frame, Ids[IndexOf(T.Stealther)]) : nullptr;
+                    Run.TargetHp = Unit ? Unit->Health.CurrentP2 : MAX_int64;
+                    Owner.Navigation->AttackUnit(Row.Handle, Row.Epoch);
+                    Run.bActed = true;
+                    Run.ActAt = Now;
                 }
-                if (bNear && Unit && !Run.bFound)
+                else if (T.Trigger == EStealthTrigger::Control)
                 {
-                    const double Distance = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
-                    if (!StealthCheck(Run.bConcealed, TEXT("#ST"), TEXT("The near observer saw the body concealed before it walked into the reveal radius")))
-                    { return Finish(); }
-                    Run.bFound = true;
-                    Run.FoundCm = Distance;
-                    Run.FoundHandle = Unit->Handle;
-                    StealthCheck(Unit->Handle != Run.PreHandle && Distance <= RevealCm + StealthSlackCm
-                        && !HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth), TEXT("#ST"), FString::Printf(
-                        TEXT("The still-stealthed body is rediscovered inside the reveal radius (%.0f cm) under a fresh handle, without its stealth status"), Distance));
-                    if (!Passed || !Mark(TM(TEXT("Found")))) { return Finish(); }
-                    if (T.Trigger == EStealthTrigger::Hurt)
-                    {
-                        if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
-                        Run.TargetHp = Unit->Health.CurrentP2;
-                        Owner.Navigation->AttackUnit(Unit->Handle, Unit->ObservationEpoch);
-                        Run.bActed = true;
-                        Run.ActAt = Now;
-                    }
-                    else if (T.Trigger == EStealthTrigger::Control)
-                    {
-                        const FLDCombatEntryView* Taunt = EntryRow(Owner, StealthTaunt());
-                        if (!Taunt) { return Fail(TEXT("#ST"), TEXT("[S4] The near observer holds no active_come_here")); }
-                        if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
-                        Owner.ActivateCombatEntry(Taunt->Entry);
-                        Run.bActed = true;
-                    }
+                    const FLDCombatEntryView* Taunt = EntryRow(Owner, StealthTaunt());
+                    if (!Taunt) { return Fail(TEXT("#ST"), TEXT("[S4] The near observer holds no active_come_here")); }
+                    if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+                    Owner.ActivateCombatEntry(Taunt->Entry);
+                    Run.bActed = true;
                 }
             }
-            if (bNear && Run.bActed && !Run.bStopped && T.Trigger == EStealthTrigger::Hurt
-                && ((Unit && Unit->Health.CurrentP2 < Run.TargetHp) || Now - Run.ActAt > 3.0))
+        }
+        if (bNear && Run.bActed && !Run.bStopped && T.Trigger == EStealthTrigger::Hurt)
+        {
+            const FLDObservedUnitView* Unit = Frame ? ContenderUnit(*Frame, Ids[IndexOf(T.Stealther)]) : nullptr;
+            if ((Unit && Unit->Health.CurrentP2 < Run.TargetHp) || Now - Run.ActAt > 3.0)
             {
                 Owner.StopCombatAndOrders();
                 Run.bStopped = true;
             }
-            if (!bNear && bRevealed && !Run.bRegained && Unit && SampleMs > Run.HiddenMs)
-            {
-                Run.bRegained = true;
-                Run.RegainedMs = SampleMs;
-                Run.RegainedCm = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
-                StealthCheck(Run.bConcealed && Unit->Handle != Run.PreHandle && SampleMs < Run.ExpiresMs && Run.RegainedCm > RevealCm + StealthSlackCm
-                    && !HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth), TEXT("#ST"), FString::Printf(
-                    TEXT("After the %s the body is back in this far observer's frame before its stealth would expire (sample %lld ms < %lld ms, %.0f cm away) under a fresh handle"),
-                    T.Name, SampleMs, Run.ExpiresMs, Run.RegainedCm));
-                if (!Passed) { return Finish(); }
-            }
         }
-        const bool bDone = bNear
-            ? Run.bFound && (!T.bChase || Run.bChaseCancelled) && (T.Trigger != EStealthTrigger::Hurt || Run.bStopped)
-                && (T.Trigger != EStealthTrigger::Control || Run.bActed)
-            : Run.bRegained;
-        if (bDone)
+        const FFrameRow* Regained = nullptr;
+        if (Run.bEnded && !bNear)
         {
-            StealthCheck(Run.Leaks.IsEmpty() && Run.Frames > 0, TEXT("#ST"), FString::Printf(
-                TEXT("No frame sampled while the body hid (%d checked) presented it beyond the reveal radius or under its old handle, resolved or proxied the old handle, or leaked its body%s"),
-                Run.Frames, *(Run.Leaks.IsEmpty() ? FString() : TEXT(": ") + Run.Leaks)));
-            if (T.bChase && bNear)
+            Regained = Run.Rows.FindByPredicate([this](const FFrameRow& Row) { return Row.SampleMs >= Run.EndedMs && Row.bPresent; });
+        }
+        const bool bNearDone = Run.bFound && (T.Trigger != EStealthTrigger::Hurt || Run.bStopped) && (T.Trigger != EStealthTrigger::Control || Run.bActed);
+        const bool bHostDone = Role != TEXT("Host") || Run.bEndedMarked;
+        if (!(Run.bEnded && bHostDone && (bNear ? bNearDone : Regained != nullptr)))
+        {
+            if (Now - Run.At <= StealthTrialSeconds) { return true; }
+            return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The %s trial did not complete for this %s observer (concealed=%d found=%d ended=%d regained=%d chase_cancelled=%d frames=%d)"),
+                Trial + 1, T.Name, bNear ? TEXT("near") : TEXT("far"), int32(Run.bConcealed), int32(Run.bFound), int32(Run.bEnded),
+                int32(Regained != nullptr), int32(Run.bChaseCancelled), Run.Rows.Num()));
+        }
+        // Final classification of every accepted frame by its authority sample time.
+        int32 HiddenFrames = 0, Unsettled = 0;
+        bool bConcealedFinal = false;
+        const FFrameRow* Found = nullptr;
+        for (const FFrameRow& Row : Run.Rows)
+        {
+            if (Row.SampleMs < Run.HiddenMs) { continue; }
+            if (Row.bPresent && Row.bPreHandle && Run.Leaks.Len() < 2000) { Run.Leaks += TEXT("the old handle came back; "); }
+            if (Row.SampleMs > Run.LastStealthMs)
+            {
+                // Between the last tick still stealthed and the first one no longer, a sample is neither proof nor leak.
+                Unsettled += Row.SampleMs < Run.EndedMs ? 1 : 0;
+                continue;
+            }
+            ++HiddenFrames;
+            bConcealedFinal |= !Row.bPresent;
+            if (!Row.bPresent) { continue; }
+            if ((Row.Distance < 0 || Row.Distance > Limit) && Run.Leaks.Len() < 2000) { Run.Leaks += FString::Printf(TEXT("presented at %.0f cm while stealthed; "), Row.Distance); }
+            if (Row.bStealthStatus && Run.Leaks.Len() < 2000) { Run.Leaks += TEXT("its owner-only stealth status reached this observer; "); }
+            if (!Found && bConcealedFinal) { Found = &Row; }
+        }
+        StealthCheck(Run.Leaks.IsEmpty() && HiddenFrames > 0 && bConcealedFinal, TEXT("#ST"), FString::Printf(
+            TEXT("Every frame this observer accepted while the body was stealthed (%d; %d inside the authority end's tick left unclassified) hid it beyond the reveal radius and never under its old handle; the old handle never resolved or kept a proxy%s"),
+            HiddenFrames, Unsettled, *(Run.Leaks.IsEmpty() ? FString() : TEXT(": ") + Run.Leaks)));
+        auto Row = MakeShared<FJsonObject>();
+        Row->SetNumberField(TEXT("frames_while_hidden"), HiddenFrames);
+        Row->SetNumberField(TEXT("frames_unclassified"), Unsettled);
+        if (bNear)
+        {
+            StealthCheck(Found && Found->Handle != Run.PreHandle && !Found->bStealthStatus, TEXT("#ST"), FString::Printf(
+                TEXT("The body, still stealthed, is rediscovered inside the reveal radius (%.0f cm) under a fresh handle, without its stealth status"),
+                Found ? Found->Distance : -1.0));
+            Row->SetNumberField(TEXT("rediscovered_cm"), Found ? Found->Distance : -1.0);
+            if (T.bChase)
             {
                 StealthCheck(Run.bChaseCancelled && !Run.bChaseResumed, TEXT("#ST"),
-                    TEXT("Losing sight cancelled this observer's attack lock and chase (TargetUnavailable) and rediscovery did not resume them"));
+                    TEXT("Losing sight cancelled this observer's admitted attack lock and chase (TargetUnavailable), and nothing resumed them until the stealth ended"));
+                Row->SetBoolField(TEXT("chase_cancelled"), Run.bChaseCancelled && !Run.bChaseResumed);
             }
-            return FinishTrial(Now, bNear ? TEXT("near") : TEXT("far"));
         }
-        if (Now - Run.At <= StealthTrialSeconds) { return true; }
-        return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The %s trial did not complete for this %s observer (concealed=%d found=%d regained=%d chase_cancelled=%d revealed=%d frames=%d)"),
-            Trial + 1, T.Name, bNear ? TEXT("near") : TEXT("far"), int32(Run.bConcealed), int32(Run.bFound), int32(Run.bRegained),
-            int32(Run.bChaseCancelled), int32(bRevealed), Run.Frames));
+        else
+        {
+            StealthCheck(Run.EndedMs < Run.ExpiresMs && Regained->Handle != Run.PreHandle && Regained->SampleMs < Run.ExpiresMs
+                && Regained->Distance > Limit && !Regained->bStealthStatus, TEXT("#ST"), FString::Printf(
+                TEXT("After the %s ended the stealth early (authority %lld ms < expiry %lld ms), the first frame showing the body again (sample %lld ms, %.0f cm away) uses a fresh handle"),
+                T.Name, Run.EndedMs, Run.ExpiresMs, Regained->SampleMs, Regained->Distance));
+            Row->SetNumberField(TEXT("regained_sample_ms"), double(Regained->SampleMs));
+            Row->SetNumberField(TEXT("regained_cm"), Regained->Distance);
+        }
+        if (Role == TEXT("Host"))
+        {
+            StealthCheck(Run.HostTicks > 0 && Run.HostDrawn.IsEmpty(), TEXT("#STH"), FString::Printf(
+                TEXT("The Listen Host's world drew the stealthed remote body at none of its %d game ticks of the trial%s"),
+                Run.HostTicks, *(Run.HostDrawn.IsEmpty() ? FString() : TEXT(": ") + Run.HostDrawn)));
+            Row->SetNumberField(TEXT("host_ticks"), Run.HostTicks);
+        }
+        return FinishTrial(Now, bNear ? TEXT("near") : TEXT("far"), Row);
     }
 
     bool TickReport()
