@@ -1093,7 +1093,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
         else if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
         {
-            if (Template.MaxHPRatioBp!=0) { Error=TEXT("A projectile cannot carry a max HP coefficient."); return false; }
             FLDCombatProjectile Projectile;
             Projectile.EffectId=EffectId;
             Projectile.Token=Action.Token;
@@ -1107,6 +1106,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Projectile.DamageType=Template.DamageType;
             Projectile.SourceADP2=Final.ADP2;
             Projectile.SourceAPP2=Final.APP2;
+            Projectile.MaxHPRatioBp=Template.MaxHPRatioBp;
+            Projectile.SourceMaxHPP2=Template.SourceMaxHPP2;
             Projectile.OriginCm=FootOf(Actor);
             Projectile.Direction=Action.Direction;
             Projectile.SpeedCmPerSec=LDCA::ToDouble(TargetDef.ProjectileSpeedCmPerSec);

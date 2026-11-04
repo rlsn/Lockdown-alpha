@@ -198,6 +198,7 @@ struct FLDCombatProjectile
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
+    int64 MaxHPRatioBp=0, SourceMaxHPP2=0;
     FVector OriginCm=FVector::ZeroVector;
     FVector Direction=FVector::ZeroVector;
     double SpeedCmPerSec=0, RangeCm=0, RadiusCm=0;

@@ -528,6 +528,8 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             Contact.DamageType=Projectile.DamageType;
             Contact.SourceADP2=Projectile.SourceADP2;
             Contact.SourceAPP2=Projectile.SourceAPP2;
+            Contact.MaxHPRatioBp=Projectile.MaxHPRatioBp;
+            Contact.SourceMaxHPP2=Projectile.SourceMaxHPP2;
             Contact.bCritical=false;
             Contact.SlowBp=Projectile.SlowBp;
             Contact.SlowDurationMs=Projectile.SlowDurationMs;
@@ -542,6 +544,7 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 Ambush.ADRatioBp=Projectile.Ambush->ADRatioBp;
                 Ambush.APRatioBp=Projectile.Ambush->APRatioBp;
                 Ambush.DamageType=Projectile.Ambush->DamageType;
+                Ambush.MaxHPRatioBp=0;
                 Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
                 PendingHits.Add(Ambush);
             }

@@ -505,8 +505,6 @@ def _validate_action(target, ranks, path):
                 quantities = [effect["base"], effect["ap_ratio"]]
                 if effect["op"] == "damage":
                     quantities += [effect["ad_ratio"], effect["max_hp_ratio"]]
-                    require(mode != "DirectionProjectile" or quantity(effect["max_hp_ratio"]) == 0, "TargetEffectMismatch", path,
-                            "a projectile does not snapshot its caster's max HP")
                 require(any(quantity(value) > 0 for value in quantities),
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
