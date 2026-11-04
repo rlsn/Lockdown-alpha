@@ -19,18 +19,31 @@
 
 ### 最终验收
 
-冻结提交 `6f8bca8` 的 Development 包是当前唯一的已知可用构建。证据保存在本机忽略的 `Artifacts` 中。
+提交 `3ae994d` 的 Development 包（2026-11-04 打包，manifest 记录该提交且无未提交改动）是当前唯一的已知可用构建，
+本次全部打包版场景在它上面运行并通过。证据保存在本机忽略的 `Artifacts` 中；此前冻结提交 `6f8bca8` 的包在本机已不存在，
+其旧验收结果不再作为当前验证。
 
 | 检查 | 结果 |
 | --- | --- |
-| `BuildEditor.ps1`、`BuildGame.ps1`（`-FullUnity`）、`RunTests.ps1`（147 项必需规则）、Python 测试、`BootstrapAssets.ps1`（含音效与美术目录校验） | 通过 |
-| `VerifyCleanCheckout.ps1` | 通过：隔离检出中的构建、Bootstrap 与规则 |
-| `PackageWin64.ps1` | 通过，manifest 记录该提交且无未提交改动 |
-| 打包版场景：Core、Combat（含操作手感数据与 9 张截图）、Growth（含第二局与账本独立复算）、SessionFault（六段） | 全部通过 |
-| 打包版场景：Camp、Capture（含第二局）、Vision（另重复 3 次）、Opponent 满员（3 真人 + 3 AI）、网络模拟下的满员、一次有声运行 | 全部通过；在产品代码相同的 `9167f8d` 包上运行，两包之间只差 DEV 夹具、probe、一个场景脚本的等待时间与文档 |
+| `BuildEditor.ps1`、`BuildGame.ps1`（均 `-FullUnity`）、`RunTests.ps1`（178 项必需规则）、Python 测试（146 项）、`BootstrapAssets.ps1`（Validate） | 通过 |
+| `PackageWin64.ps1` | 通过，manifest 记录 `3ae994d` 且无未提交改动 |
+| 打包版场景：Core、Combat（含操作手感数据与 9 张截图）、Growth（含第二局与账本复算）、Capture（含第二局）、Camp、Vision（含纸箱隐身段四轮）、Opponent 满员（3 真人 + 3 AI，AI 占领获胜）、SessionFault（七段） | 全部通过 |
+| 编辑器场景：Entry、Frontend、WorldRoom（这三个 runner 没有 `-PackageRoot`，只在编辑器中运行） | 全部通过 |
+| `VerifyCleanCheckout.ps1` | 通过：在 `bea6211`（`3ae994d` 之后只改文档）的隔离检出中构建、Bootstrap 与 178 项规则 |
+| 打包版网络模拟满员局（`-PktLag=40 -PktLagVariance=10 -PktLoss=1 -PktDup=1 -PktOrder=1`） | 通过；本局没有 AI 死亡，3 项死亡与复活检查报告为未覆盖（正常满员局已覆盖） |
+| 有声运行 | 本次未运行（场景均以 `-nosound` 运行） |
 
-有声运行确认三端的音频设备初始化、`LD_AUDIO_CATALOG_READY 15 cues` 与 `LD_AUDIO_MIX_APPLIED`，没有音效错误日志；
-这不代替人工试听。网络模拟满员局没有 AI 死亡，死亡与复活相关检查报告为未覆盖；正常满员局已覆盖这些检查。
+Vision 的隐身段（检查组 `#ST`/`#STH`）在打包版上确认：两个受限客户端与 Listen Host 各隐身一次（Client1 两次），
+隐身期间观察者的每一帧都没有在揭示半径外呈现隐身者、没有旧句柄、代理或 Host 原生身体；失视野取消锁定与追击；
+近处重新发现换新句柄；攻击、施法、受伤、受控四种现身后，远处观察者在隐身本应到期前 1.7–2.8 秒重新看到它。
+小地图点与飞字只读同一帧，本段在帧、句柄与代理层断言，不单独截图审阅。
+PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host 记录的权威隐身结束时刻给帧分类；
+`844d5e1` 的候选包上重跑打包版 Vision 通过（其余场景未在该候选包上重跑，候选包随后删除，已知可用构建仍为上面的包）。
+
+[#82](https://github.com/rlsn/Lockdown-alpha/issues/82) 的打包版实测项中，本次场景只能部分读到：
+满员局三个 AI 在开局约 0.8 秒都决定去商店，最终两个 AI 持有装备，另一个整局未开店；
+购买时间、AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景用 DEV 预置的开局选项）和 1 级普攻击杀时间都没有场景记录，
+仍需试玩或专门场景确认。
 
 ### 产品决定的落地状态
 
@@ -52,8 +65,8 @@
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
 | D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：基础物攻 70、攻速 0.90，离线复算约 11.4 秒 |
 | D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：粉笔头、扒裤衩加手劲加成并降冷却 20%；粉笔头改为皮肉伤（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
-| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 胆量，不受鬼点子影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 尚未运行；拥有连接场景未运行；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
-| D20 | 跑道钉鞋改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「助跑」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 尚未运行 |
+| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 胆量，不受鬼点子影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 已通过；拥有连接场景与打包版满员局都没有记录 AI 实际冲刺；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
+| D20 | 跑道钉鞋改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「助跑」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 已通过 |
 | D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；宿舍快回未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
 | D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒不变 |
 | D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始零花钱 320 |
