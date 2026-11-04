@@ -1,4 +1,5 @@
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDGrowthProtocol.h"
@@ -90,7 +91,7 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,20000,60000));
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,Self);
     Sample.OwnCombat=&Combat;Sample.Progression=&Growth;Sample.Equipment=&Purse;Sample.KillFeed=&Feed;Sample.Frame=&Frame;
-    Sample.RosterName=[Rival](const FGuid& Id){return Id==Rival?FString(TEXT("同学甲")):FString();};
+    Sample.RosterName=[Rival](const FGuid& Id){return Id==Rival?FString(TEXT("玩家甲")):FString();};
     TestTrue(TEXT("The first sample of a match only primes: nothing that happened before it is replayed"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     TestTrue(TEXT("An unchanged sample stays silent"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Combat.Revision=9;Combat.AsOfMs=20100;Combat.HPP2=29000;Purse.Gold=260;Growth.CumulativeXP=420;
@@ -123,7 +124,7 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     Combat.Revision=2;Combat.AsOfMs=600;Combat.HPP2=59000;Purse.Gold=350;Growth.CumulativeXP=30;
     const FWorldFeedbackTestEvents After=WorldFeedbackTestObserve(Tracker,Sample);
     TestTrue(TEXT("Foreign data moved neither the body nor the kill baseline; growth views of another match only re-prime"),
-        WorldFeedbackTestIs(After,{{EKind::DamageTaken,10},{EKind::Kill,1}})&&After[1].Name==TEXT("同学甲"));
+        WorldFeedbackTestIs(After,{{EKind::DamageTaken,10},{EKind::Kill,1}})&&After[1].Name==TEXT("玩家甲"));
     Purse.Gold=380;Growth.CumulativeXP=70;
     TestTrue(TEXT("The re-primed growth then reports the next reward"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
@@ -194,7 +195,7 @@ bool FLDWorldFeedbackShieldTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The first body view only primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Combat.Revision=2;Combat.AsOfMs=1100;Combat.ShieldP2=2000;Combat.Statuses={WorldFeedbackTestShield(2000,4000)};
     const FWorldFeedbackTestEvents Gain=WorldFeedbackTestObserve(Tracker,Sample);
-    TestTrue(TEXT("A new shield is a 淡定 gain"),WorldFeedbackTestIs(Gain,{{EKind::ShieldGain,20}})&&Gain[0].bOwn);
+    TestTrue(TEXT("A new shield is a shield gain"),WorldFeedbackTestIs(Gain,{{EKind::ShieldGain,20}})&&Gain[0].bOwn);
     Combat.Revision=3;Combat.AsOfMs=1200;Combat.ShieldP2=500;Combat.Statuses={WorldFeedbackTestShield(500,4000)};
     TestTrue(TEXT("Shield points lost while it is still listed were absorbed"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::ShieldAbsorbed,15}}));
     Combat.Revision=4;Combat.AsOfMs=1300;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.HPP2=49000;
@@ -368,15 +369,15 @@ bool FLDWorldFeedbackKillTest::RunTest(const FString& Parameters)
     const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid(),Unlisted=FGuid::NewGuid();
     FLDKillFeedView Feed;Feed.Generation=3;
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,Self);Sample.KillFeed=&Feed;
-    Sample.RosterName=[Rival,Other](const FGuid& Id){return Id==Rival?FString(TEXT("同学甲")):Id==Other?FString(TEXT("同学乙")):FString();};
+    Sample.RosterName=[Rival,Other](const FGuid& Id){return Id==Rival?FString(TEXT("玩家甲")):Id==Other?FString(TEXT("玩家乙")):FString();};
     TestTrue(TEXT("The first feed of a match only primes"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Feed.Notices.Add(WorldFeedbackTestNotice(1,Self,Rival,Sample.NowMs-500));
     const FWorldFeedbackTestEvents Kill=WorldFeedbackTestObserve(Tracker,Sample);
     TestTrue(TEXT("A fresh public notice of the own kill confirms it once"),WorldFeedbackTestIs(Kill,{{EKind::Kill,1}})&&Kill[0].bOwn);
     if(Kill.Num()==1)
     {
-        TestEqualSensitive(TEXT("The confirmation carries the victim's public roster name"),Kill[0].Name,FString(TEXT("同学甲")));
-        TestEqualSensitive(TEXT("The confirmation reads 击败 <name>！"),LDWorldFeedback::Text(Kill[0]),FString(TEXT("击败 同学甲！")));
+        TestEqualSensitive(TEXT("The confirmation carries the victim's public roster name"),Kill[0].Name,FString(TEXT("玩家甲")));
+        TestEqualSensitive(TEXT("The confirmation reads the glossary kill line"),LDWorldFeedback::Text(Kill[0]),LDTerms::KillFloat(TEXT("玩家甲")));
     }
     TestTrue(TEXT("A notice confirms only once"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Feed.Notices.Add(WorldFeedbackTestNotice(2,Self,Other,Sample.NowMs-LDWorldFeedback::FTracker::KillNoticeFreshMs-1));
@@ -392,9 +393,9 @@ bool FLDWorldFeedbackKillTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Several own kills confirm in serial order"),WorldFeedbackTestIs(Both,{{EKind::Kill,1},{EKind::Kill,1}}));
     if(Both.Num()==2)
     {
-        TestEqualSensitive(TEXT("The earlier serial comes first"),Both[0].Name,FString(TEXT("同学乙")));
+        TestEqualSensitive(TEXT("The earlier serial comes first"),Both[0].Name,FString(TEXT("玩家乙")));
         TestTrue(TEXT("A victim the roster does not list keeps an empty name, never an invented one"),Both[1].Name.IsEmpty());
-        TestEqualSensitive(TEXT("An unlisted victim reads as 对手"),LDWorldFeedback::Text(Both[1]),FString(TEXT("击败 对手！")));
+        TestEqualSensitive(TEXT("An unlisted victim reads as the glossary's unknown victim"),LDWorldFeedback::Text(Both[1]),LDTerms::KillFloat(LDTerms::UnknownVictim));
     }
     Sample.bClock=false;Feed.Notices.Add(WorldFeedbackTestNotice(8,Self,Rival,0));
     TestTrue(TEXT("Without an authority clock a new own kill is confirmed, like the HUD kill feed"),
@@ -420,23 +421,23 @@ bool FLDWorldFeedbackTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Damage on a visible unit"),LDWorldFeedback::Text(Make(EKind::UnitDamage,37)),FString(TEXT("-37")));
     TestEqualSensitive(TEXT("Heal"),LDWorldFeedback::Text(Make(EKind::Heal,12)),FString(TEXT("+12")));
     TestEqualSensitive(TEXT("Heal on a visible unit"),LDWorldFeedback::Text(Make(EKind::UnitHeal,12)),FString(TEXT("+12")));
-    TestEqualSensitive(TEXT("Shield gained"),LDWorldFeedback::Text(Make(EKind::ShieldGain,20)),FString(TEXT("+20 淡定")));
-    TestEqualSensitive(TEXT("Shield absorbed"),LDWorldFeedback::Text(Make(EKind::ShieldAbsorbed,15)),FString(TEXT("-15 淡定")));
-    TestEqualSensitive(TEXT("Gold"),LDWorldFeedback::Text(Make(EKind::Gold,45)),FString(TEXT("+45 零花钱")));
-    TestEqualSensitive(TEXT("Experience"),LDWorldFeedback::Text(Make(EKind::Experience,60)),FString(TEXT("+60 经验")));
+    TestEqualSensitive(TEXT("Shield gained"),LDWorldFeedback::Text(Make(EKind::ShieldGain,20)),FString::Printf(TEXT("+20 %s"),LDTerms::Shield));
+    TestEqualSensitive(TEXT("Shield absorbed"),LDWorldFeedback::Text(Make(EKind::ShieldAbsorbed,15)),FString::Printf(TEXT("-15 %s"),LDTerms::Shield));
+    TestEqualSensitive(TEXT("Gold"),LDWorldFeedback::Text(Make(EKind::Gold,45)),FString::Printf(TEXT("+45 %s"),LDTerms::Gold));
+    TestEqualSensitive(TEXT("Experience"),LDWorldFeedback::Text(Make(EKind::Experience,60)),FString::Printf(TEXT("+60 %s"),LDTerms::Experience));
     LDWorldFeedback::FEvent Up=Make(EKind::LevelUp,1);Up.Level=3;Up.bChoiceEarned=true;
-    TestEqualSensitive(TEXT("Level-up banner"),LDWorldFeedback::Text(Up),FString(TEXT("升到 3 级！")));
-    TestEqualSensitive(TEXT("Level-up subline for one earned choice"),LDWorldFeedback::Subline(Up),FString(TEXT("获得一次成长三选一")));
+    TestEqualSensitive(TEXT("Level-up banner"),LDWorldFeedback::Text(Up),LDTerms::LevelUp(3));
+    TestEqualSensitive(TEXT("Level-up subline for one earned choice"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(1));
     Up.Amount=2;Up.Level=4;
-    TestEqualSensitive(TEXT("Level-up subline for several earned choices"),LDWorldFeedback::Subline(Up),FString(TEXT("获得 2 次成长三选一")));
+    TestEqualSensitive(TEXT("Level-up subline for several earned choices"),LDWorldFeedback::Subline(Up),LDTerms::ChoicesEarned(2));
     Up.Amount=0;Up.bChoiceEarned=false;
     TestTrue(TEXT("A level-up without an earned choice has no subline"),LDWorldFeedback::Subline(Up).IsEmpty());
-    LDWorldFeedback::FEvent Kill=Make(EKind::Kill,1);Kill.Name=TEXT("同学甲");
-    TestEqualSensitive(TEXT("Kill banner"),LDWorldFeedback::Text(Kill),FString(TEXT("击败 同学甲！")));
+    LDWorldFeedback::FEvent Kill=Make(EKind::Kill,1);Kill.Name=TEXT("玩家甲");
+    TestEqualSensitive(TEXT("Kill banner"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(TEXT("玩家甲")));
     Kill.Name.Reset();
-    TestEqualSensitive(TEXT("Kill banner for an unlisted victim"),LDWorldFeedback::Text(Kill),FString(TEXT("击败 对手！")));
+    TestEqualSensitive(TEXT("Kill banner for an unlisted victim"),LDWorldFeedback::Text(Kill),LDTerms::KillFloat(LDTerms::UnknownVictim));
     TestTrue(TEXT("Only a level-up has a subline"),LDWorldFeedback::Subline(Kill).IsEmpty()&&LDWorldFeedback::Subline(Make(EKind::Gold,45)).IsEmpty());
-    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("同学甲");Number.Level=7;Number.bChoiceEarned=true;
+    LDWorldFeedback::FEvent Number=Make(EKind::UnitDamage,37);Number.Name=TEXT("玩家甲");Number.Level=7;Number.bChoiceEarned=true;
     TestEqualSensitive(TEXT("A number shows its amount only, never a name or level"),LDWorldFeedback::Text(Number),FString(TEXT("-37")));
     return true;
 }
@@ -449,7 +450,7 @@ bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Rival=WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,50000,60000);
     FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,1,10.);Frame.Units={Rival};
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Frame=&Frame;
-    Sample.CastName=[](uint8 Ability,uint8 Equipment){return Ability==7?FString(TEXT("扒裤衩")):Equipment==3?FString(TEXT("跑道钉鞋")):FString();};
+    Sample.CastName=[](uint8 Ability,uint8 Equipment){return Ability==7?FString(TEXT("技能甲")):Equipment==3?FString(TEXT("装备甲")):FString();};
     auto Step=[&Frame](uint32 Revision,ELDObservedActionCue Cue,uint16 AgeMs,uint8 Ability,uint8 Equipment)
     {
         Frame.Revision=Revision;Frame.SampledAtServerSec=10.+Revision*.1;
@@ -469,11 +470,11 @@ bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
     Step(4,ELDObservedActionCue::Cast,60,7,0);
     const TArray<LDWorldFeedback::FEvent> Named=Casts();
     TestTrue(TEXT("A new cast shows its source's display name once, on that unit, stamped with its frame"),Named.Num()==1&&!Named[0].bOwn
-        &&Named[0].Handle==Rival.Handle&&Named[0].SampledAtServerSec==Frame.SampledAtServerSec&&LDWorldFeedback::Text(Named[0])==TEXT("扒裤衩！"));
+        &&Named[0].Handle==Rival.Handle&&Named[0].SampledAtServerSec==Frame.SampledAtServerSec&&LDWorldFeedback::Text(Named[0])==TEXT("技能甲！"));
     Step(5,ELDObservedActionCue::Cast,20,0,3);
     const TArray<LDWorldFeedback::FEvent> Item=Casts();
     TestTrue(TEXT("A restarted cast with another source shows again: an equipment active reads by its equipment name"),
-        Item.Num()==1&&LDWorldFeedback::Text(Item[0])==TEXT("跑道钉鞋！"));
+        Item.Num()==1&&LDWorldFeedback::Text(Item[0])==TEXT("装备甲！"));
     Step(6,ELDObservedActionCue::Attack,10,0,0);
     TestTrue(TEXT("An attack or a hit never names anything"),Casts().IsEmpty());
     Step(7,ELDObservedActionCue::Cast,10,0,0);

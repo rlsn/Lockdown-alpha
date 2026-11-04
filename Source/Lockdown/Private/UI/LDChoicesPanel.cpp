@@ -1,5 +1,6 @@
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -132,8 +133,8 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(!MainPanel){return;}
     const bool bUsable=View.bValid&&View.Generation==Match&&View.Life==Life;
     const bool bOffer=bUsable&&View.bHasOffer&&View.Offer.Options.Num()==3;
-    ChoicesText(Header,!bUsable?FString(TEXT("成长三选一 · 成长数据同步中")):FString::Printf(TEXT("成长三选一 · 待选 %d 次%s"),View.PendingChoiceCount,
-        Phase==ELDLifePhase::Dead?TEXT(" · 社死中也可确认，只更新构筑"):TEXT("")));
+    const FString DeadNote=Phase==ELDLifePhase::Dead?FString(TEXT(" · "))+LDTerms::Dead+TEXT("也能开，只更新构筑"):FString();
+    ChoicesText(Header,!bUsable?FString(LDTerms::Choice)+TEXT(" · 成长数据同步中"):FString::Printf(TEXT("%s · 待选 %d 次%s"),LDTerms::Choice,View.PendingChoiceCount,*DeadNote));
     if(!bOffer||View.Offer.OfferId!=ShownOffer||View.Offer.OfferRevision!=ShownOfferRevision)
     {
         // A new offer replaces the cards. A revised offer of the same opportunity refreshes its guarded versions and keeps
@@ -151,7 +152,7 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
             FString Body=Shown.Description;for(const FString& Line:Shown.Lines){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n"))+Line;}
             ChoicesText(Card.Body,Body);
         }
-        if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?TEXT("暂无待选奖励。升级后会获得新的选择机会。"):TEXT("等待成长数据同步。"));}
+        if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}
     }
     else if(bReplacing&&ReplaceBuildRevision!=0&&View.BuildRevision!=ReplaceBuildRevision)
     {
@@ -244,7 +245,7 @@ void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;RefreshSelection();
     // A result that arrives after the panel was closed still reaches the player, without reopening the panel.
-    if(!bOpen&&Notify&&Feedback){Notify(TEXT("成长三选一：")+Feedback->GetText().ToString());}
+    if(!bOpen&&Notify&&Feedback){Notify(FString(LDTerms::Choice)+TEXT("：")+Feedback->GetText().ToString());}
 }
 void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
 {

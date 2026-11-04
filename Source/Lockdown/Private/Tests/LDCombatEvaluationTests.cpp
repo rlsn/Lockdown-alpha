@@ -571,7 +571,7 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.AmplifyBp = -1;
     CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
 
-    // 泰山压顶 (2026-11-04): base + 0.4 AD + 6% of the caster's max HP, the max-HP term beside AD/AP before one floor.
+    // active_body_slam (2026-11-04): base + 0.4 AD + 6% of the caster's max HP, the max-HP term beside AD/AP before one floor.
     FString Error;
     const FLDDemoAbilityDefinition* Slam = nullptr;
     if (!Catalog->FindAbility(TEXT("active_body_slam"), Slam, Error)) { AddError(Error); return false; }

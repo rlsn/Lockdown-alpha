@@ -150,6 +150,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDNextStep",
         "Lockdown.Rules.HUDChoicesFold",
         "Lockdown.Rules.HUDDevTestPanel",
+        "Lockdown.Rules.HUDTermsGlossary",
         "Lockdown.Rules.IssuedCommandLiveness",
         "Lockdown.Rules.LocalControlRegistryIsolation",
         "Lockdown.Rules.LocalDisplayBorderlessOnly",

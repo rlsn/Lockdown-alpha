@@ -8,6 +8,7 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
+#include "UI/LDTerms.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDWorldLabels.h"
@@ -77,8 +78,8 @@ namespace
         {
         case ELDMatchPhase::Lobby: return TEXT("房间等待开始");
         case ELDMatchPhase::Starting: return TEXT("准备开局…");
-        case ELDMatchPhase::Development: return TEXT("发育期");
-        case ELDMatchPhase::CaptureOpen: return TEXT("升旗台已开放");
+        case ELDMatchPhase::Development: return LDTerms::Development;
+        case ELDMatchPhase::CaptureOpen: return LDTerms::CaptureOpened;
         case ELDMatchPhase::Results: return TEXT("对局结束");
         case ELDMatchPhase::Resetting: return TEXT("正在返回房间…");
         case ELDMatchPhase::Closing: return TEXT("房间正在关闭…");
@@ -121,10 +122,10 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
     MainMenu=WidgetTree->ConstructWidget<UVerticalBox>();
     Add(Content,MainMenu,0);
-    UTextBlock* Title=Label(TEXT("谁是校园最强阴人王"),40,TitleColor);
+    UTextBlock* Title=Label(LDTerms::Title,40,TitleColor);
     Title->SetJustification(ETextJustify::Center);
     Add(MainMenu,Title,10);
-    UTextBlock* Tagline=Label(TEXT("大一新生自由混战 · 站上升旗台加冕阴人王"),18,MutedColor);
+    UTextBlock* Tagline=Label(LDTerms::Tagline,18,MutedColor);
     Tagline->SetJustification(ETextJustify::Center);
     Add(MainMenu,Tagline,4);
     StartButton=MakeButton(TEXT("开始"),TEXT("Start"),[this](){ShowStartPage(true);},22);
@@ -179,6 +180,14 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?TEXT("版本 ")+Version:TEXT("版本读取失败：")+VersionError,15,MutedColor);
     VersionLine->SetJustification(ETextJustify::Center);
     Add(Content,VersionLine,10);
+    // The slang note stays in the frontend's corner (#111) so the title's slang is never read as anything else.
+    UTextBlock* SlangNote=Label(LDTerms::SlangNote,14,MutedColor);
+    SlangNote->SetVisibility(ESlateVisibility::HitTestInvisible);
+    UCanvasPanelSlot* SlangSlot=Canvas.AddChildToCanvas(SlangNote);
+    SlangSlot->SetAnchors(FAnchors(0.f,1.f));
+    SlangSlot->SetAlignment(FVector2D(0.f,1.f));
+    SlangSlot->SetAutoSize(true);
+    SlangSlot->SetPosition(FVector2D(24.f,-18.f));
     bMenuOpen=true;
     SetFrontendPage(Draft&&Draft->bStartPage);
 }

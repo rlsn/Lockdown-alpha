@@ -9,7 +9,7 @@ class UBorder;
 class UVerticalBox;
 struct FLDDemoContentDefinitions;
 
-// 小卖部 (APP_SPEC 5, UI 3.2/3.3): a normal main panel over the current Opened shop session, not a full-viewport modal.
+// The shop (APP_SPEC 5, UI 3.2/3.3): a normal main panel over the current Opened shop session, not a full-viewport modal.
 // It only formats the server quote and the own equipment view, and submits Buy/Sell intents that carry the quote and
 // revisions it showed; range, eligibility, prices and cooldowns stay with the server. Selling needs the child
 // confirmation. Death and the end of the session, life or match close the panel; taking damage never does.

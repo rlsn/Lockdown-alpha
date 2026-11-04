@@ -1,6 +1,7 @@
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
+#include "UI/LDTerms.h"
 #include "UI/LDControlSettings.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -194,12 +195,12 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     {
     case EKind::DamageTaken: case EKind::UnitDamage: return FString::Printf(TEXT("-%lld"),Event.Amount);
     case EKind::Heal: case EKind::UnitHeal: return FString::Printf(TEXT("+%lld"),Event.Amount);
-    case EKind::ShieldGain: return FString::Printf(TEXT("+%lld 淡定"),Event.Amount);
-    case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld 淡定"),Event.Amount);
-    case EKind::Gold: return FString::Printf(TEXT("+%lld 零花钱"),Event.Amount);
-    case EKind::Experience: return FString::Printf(TEXT("+%lld 经验"),Event.Amount);
-    case EKind::LevelUp: return FString::Printf(TEXT("升到 %d 级！"),Event.Level);
-    case EKind::Kill: return FString::Printf(TEXT("击败 %s！"),Event.Name.IsEmpty()?TEXT("对手"):*Event.Name);
+    case EKind::ShieldGain: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Shield);
+    case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld %s"),Event.Amount,LDTerms::Shield);
+    case EKind::Gold: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Gold);
+    case EKind::Experience: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Experience);
+    case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
+    case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
     case EKind::UnitCast: return Event.Name.IsEmpty()?FString(TEXT("施法！")):Event.Name+TEXT("！");
     }
     return FString();
@@ -208,7 +209,7 @@ FString LDWorldFeedback::Text(const FEvent& Event)
 FString LDWorldFeedback::Subline(const FEvent& Event)
 {
     if(Event.Kind!=EKind::LevelUp||!Event.bChoiceEarned){return FString();}
-    return Event.Amount>1?FString::Printf(TEXT("获得 %lld 次成长三选一"),Event.Amount):FString(TEXT("获得一次成长三选一"));
+    return LDTerms::ChoicesEarned(Event.Amount);
 }
 
 LDWorldFeedback::EUnitHold LDWorldFeedback::UnitHold(bool bPresented,bool bPresentationClock,double PresentationAtServerSec,double SampledAtServerSec,double HeldSeconds)

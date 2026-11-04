@@ -3,6 +3,7 @@
 #include "Framework/LDCombatReceiptLog.h"
 #include "Misc/AutomationTest.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
 {
@@ -73,7 +74,7 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     Frame={Broke,Again,Foreign,Range};
     uint64 Told=0;
     TestEqualSensitive(TEXT("Each distinct notice of the frame is told once in arrival order"),LDHUD::CombatReceiptsNotice(Frame,4,1,Told),
-        TEXT("装备 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown)+TEXT(" · 复活保护已解除 · 角色技能 2 未执行：")
+        TEXT("装备 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown)+TEXT(" · ")+LDTerms::ProtectionRemoved()+TEXT(" · 角色技能 2 未执行：")
         +LDHUD::CombatRejectText(ELDCombatReject::OutOfRange));
     TestEqual(TEXT("The told protection is remembered"),Told,uint64(5));
     Frame={Broke};

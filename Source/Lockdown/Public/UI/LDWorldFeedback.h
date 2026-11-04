@@ -105,9 +105,10 @@ namespace LDWorldFeedback
         uint32 FrameRevision=0;
         TArray<FUnit> Units;
     };
-    // "-37", "+12", "+20 淡定", "-15 淡定", "+45 零花钱", "+60 经验", "升到 3 级！", "击败 同学甲！" (an unlisted victim reads 对手),
+    // "-37", "+12", then the LDTerms lines: shield gained/absorbed, gold, experience, level-up and kill (an unlisted victim reads
+    // LDTerms::UnknownVictim),
     LOCKDOWN_API FString Text(const FEvent& Event);
-    // Smaller second line of a level-up banner ("获得一次成长三选一"); empty for every other event.
+    // Smaller second line of a level-up banner (LDTerms::ChoicesEarned); empty for every other event.
     LOCKDOWN_API FString Subline(const FEvent& Event);
     // A visible unit's number waits for the relay's presentation clock to reach the frame that produced it, so it shows
     // with the proxy's delayed hit pose. It is released once the clock reaches its stamp, at once without a clock and
@@ -151,7 +152,7 @@ class LOCKDOWN_API ULDWorldFeedback : public UUserWidget
     GENERATED_BODY()
 public:
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV scenarios: every own reward line ("+45 零花钱", "+60 经验") this widget presented in the current match, in order.
+    // DEV scenarios: every own reward line ("+45 <LDTerms::Gold>", "+60 <LDTerms::Experience>") this widget presented in the current match, in order.
     const TArray<FString>& DevPresentedRewards() const { return DevRewards; }
 #endif
 protected:
