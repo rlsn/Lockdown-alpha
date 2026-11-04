@@ -1,0 +1,110 @@
+# Pull-request gate for ready (non-draft) PRs to main, in three jobs:
+# - scope (GitHub-hosted): Scripts/CIChangeScope.py reads the PR merge commit's diff. Any native input (Source,
+#   Config, SourceData, Content, PowerShell, or a Python script RunTests.ps1 loads) needs the native gate.
+# - python (GitHub-hosted Windows): the Scripts Python tests, for every PR. Needs no Unreal and no LFS content.
+# - native (the maintainer's self-hosted runner, only when scope says native and the branch is in this repository):
+#   incremental BuildEditor.ps1 and RunTests.ps1 (AGENTS: every PR passes BuildEditor.ps1 plus rule tests). It runs
+#   only while that runner is switched on (Scripts/CIRunner.ps1); a queued job waits up to 24 hours. The runner's
+#   job-started hook also refuses fork pull requests.
+name: PR check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to the same PR replaces its unfinished run.
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scope:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      scope: ${{ steps.scope.outputs.scope }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          # The PR merge commit and its base parent, to diff exactly what the PR changes.
+          fetch-depth: 2
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Choose gate
+        id: scope
+        run: |
+          result=$(python -B ./Scripts/CIChangeScope.py --base HEAD^1 --head HEAD)
+          line=$(printf '%s\n' "$result" | grep -xE 'scope=(native|python)' || true)
+          if [ -z "$line" ] || [ "$(printf '%s\n' "$line" | wc -l)" -ne 1 ]; then
+            echo "CIChangeScope.py printed no single scope: $result"
+            exit 1
+          fi
+          echo "$line" >> "$GITHUB_OUTPUT"
+          if [ "$line" = scope=python ]; then
+            echo 'Python-only change: the native build and rule tests are skipped.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+  python:
+    if: ${{ !github.event.pull_request.draft }}
+    # SyncDemoContentData and its tests use Windows file locking (msvcrt).
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.11'
+
+      - name: Script and data tests
+        shell: pwsh
+        run: |
+          python -B ./Scripts/RunPythonTests.py
+          if ($LASTEXITCODE -ne 0) { throw "Python tests failed with exit code $LASTEXITCODE." }
+
+  native:
+    needs: scope
+    if: needs.scope.outputs.scope == 'native' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, Windows, X64, lockdown-ue58]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+          # Keep ignored build output (Binaries, Intermediate) so the build is incremental.
+          clean: false
+
+      - name: Reset workspace
+        run: ./Scripts/CIResetWorkspace.ps1
+
+      - name: Build editor
+        run: ./Scripts/BuildEditor.ps1
+
+      - name: Rule tests
+        run: ./Scripts/RunTests.ps1
+
+      - name: Upload evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-${{ github.event.pull_request.number }}-evidence-${{ github.run_attempt }}
+          path: Artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
