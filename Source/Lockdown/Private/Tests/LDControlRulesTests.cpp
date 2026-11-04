@@ -281,7 +281,7 @@ bool FLDControlStealthObservationTest::RunTest(const FString& Parameters)
 {
     using namespace LDControlRulesTests;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!ReadApprovedFixture(*this, Content)) { return false; }
+    if (!LDControlRulesTests::ReadApprovedFixture(*this, Content)) { return false; }
     const FLDDemoEquipmentDefinition* Box = nullptr;
     const FLDDemoEffectDefinition* Effect = nullptr;
     if (!PaperBox(*this, *Content, Box, Effect)) { return false; }
@@ -357,7 +357,7 @@ bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
 {
     using namespace LDControlRulesTests;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!ReadApprovedFixture(*this, Content)) { return false; }
+    if (!LDControlRulesTests::ReadApprovedFixture(*this, Content)) { return false; }
     const FLDDemoEquipmentDefinition* Box = nullptr;
     const FLDDemoEffectDefinition* Effect = nullptr;
     if (!PaperBox(*this, *Content, Box, Effect)) { return false; }

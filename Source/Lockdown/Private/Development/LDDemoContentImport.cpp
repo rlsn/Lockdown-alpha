@@ -33,6 +33,8 @@ const FNativeId NativeIds[] =
     DEMO_ID("abilities", "active_thousand_year", ELDDemoAbilityId, ActiveThousandYear),
     DEMO_ID("abilities", "active_lunge", ELDDemoAbilityId, ActiveLunge),
     DEMO_ID("abilities", "passive_iron_crotch", ELDDemoAbilityId, PassiveIronCrotch),
+    DEMO_ID("abilities", "active_body_slam", ELDDemoAbilityId, ActiveBodySlam),
+    DEMO_ID("abilities", "active_come_here", ELDDemoAbilityId, ActiveComeHere),
     DEMO_ID("attributes", "attr_might", ELDDemoAttributeId, AttrMight),
     DEMO_ID("attributes", "attr_focus", ELDDemoAttributeId, AttrFocus),
     DEMO_ID("attributes", "attr_vitality", ELDDemoAttributeId, AttrVitality),
@@ -815,6 +817,14 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         Active = true; Mode = ELDDemoTargetMode::DirectionDash; ExpectedOps = OpBit(ELDDemoEffectOp::Dash) | OpBit(ELDDemoEffectOp::EmpowerBasic); break;
     case ELDDemoAbilityId::PassiveIronCrotch:
         ExpectedOps = OpBit(ELDDemoEffectOp::Thorns); break;
+    case ELDDemoAbilityId::ActiveBodySlam:
+        // The landing delivers the self-area hits around the landing foot.
+        Active = true; Mode = ELDDemoTargetMode::GroundPoint;
+        ExpectedOps = OpBit(ELDDemoEffectOp::Jump) | OpBit(ELDDemoEffectOp::SelfArea) | OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Slow);
+        break;
+    case ELDDemoAbilityId::ActiveComeHere:
+        Active = true; ExpectedOps = OpBit(ELDDemoEffectOp::Taunt) | OpBit(ELDDemoEffectOp::TimedStatBonus);
+        TimedStats = Bit(ELDDemoBonusStat::ArmorFlat) | Bit(ELDDemoBonusStat::MagicResistFlat); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented ability projection"));
     }

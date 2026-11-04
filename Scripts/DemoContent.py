@@ -54,8 +54,9 @@ HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio"))
-# Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off.
-JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "restore_mana"))
+# Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off: self effects,
+# and hit effects delivered to every legal body in the self_area around the landing foot.
+JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "restore_mana", "self_area", *HOSTILE_OPS))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -485,9 +486,9 @@ def _validate_action(target, ranks, path):
         require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
         require(signature is None or signature == ops, "RankShape", path, "ranks must use the same handlers")
         signature = ops
-        if mode in ("Self", "DirectionDash"):
+        if mode in ("Self", "DirectionDash", "GroundPoint"):
             require(("self_area" in ops) == bool(ops & HOSTILE_OPS), "TargetEffectMismatch", path,
-                    "hit effects of a self or dash action need exactly one self_area to name their targets")
+                    "hit effects of a self, dash or jump action need exactly one self_area to name their targets")
         if mode == "DirectionProjectile":
             require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
         require("backstab" not in ops or "damage" in ops, "MissingHandler", path, "a rear strike amplifies a damage effect")
@@ -552,8 +553,11 @@ def validate_definitions(data, ids):
         "active_monkey_peach": ("Unit", {"damage", "disarm"}),
         "active_thousand_year": ("Unit", {"damage", "backstab"}),
         "active_lunge": ("DirectionDash", {"dash", "empower_basic"}),
+        "active_body_slam": ("GroundPoint", {"jump", "self_area", "damage", "slow"}),
+        "active_come_here": ("Self", {"taunt", "timed_stat_bonus"}),
     }
-    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"}, "active_slick_moves": {"MoveSpeedBonusRatio"}}
+    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"}, "active_slick_moves": {"MoveSpeedBonusRatio"},
+                   "active_come_here": {"ArmorFlat", "MagicResistFlat"}}
     passive_contracts = {
         "passive_battle_rhythm": ("stat_bonus", {"AttackSpeedBonusRatio"}),
         "passive_second_wind": ("out_of_combat_regen", None),

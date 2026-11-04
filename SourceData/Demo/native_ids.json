@@ -25,7 +25,9 @@
     "active_monkey_peach": 76,
     "active_thousand_year": 77,
     "active_lunge": 78,
-    "passive_iron_crotch": 79
+    "passive_iron_crotch": 79,
+    "active_body_slam": 80,
+    "active_come_here": 81
   },
   "attributes": {
     "attr_might": 1,

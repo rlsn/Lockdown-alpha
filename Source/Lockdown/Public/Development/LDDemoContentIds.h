@@ -11,7 +11,8 @@ enum class ELDDemoAbilityId : uint8
     PassiveBattleRhythm=65, PassiveSecondWind=66, PassivePrecision=67,
     ActiveSlipperThrow=68, ActiveFartDash=69, ActiveComboFlurry=70, ActiveSlickMoves=71,
     PassiveCornered=72, PassiveLurking=73, PassivePublicShame=74, PassiveEagleEye=75,
-    ActiveMonkeyPeach=76, ActiveThousandYear=77, ActiveLunge=78, PassiveIronCrotch=79
+    ActiveMonkeyPeach=76, ActiveThousandYear=77, ActiveLunge=78, PassiveIronCrotch=79,
+    ActiveBodySlam=80, ActiveComeHere=81
 };
 enum class ELDDemoAttributeId : uint8
 {

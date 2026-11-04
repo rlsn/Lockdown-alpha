@@ -51,7 +51,7 @@
 | D13 | 校园补给箱 | 由 D26 的空投取代 |
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
 | D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：基础物攻 70、攻速 0.90，离线复算约 11.4 秒 |
-| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：粉笔头、扒裤衩加手劲加成并降冷却 20%，伤害类型未改（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：粉笔头、扒裤衩加手劲加成并降冷却 20%；粉笔头改为皮肉伤（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 胆量，不受鬼点子影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 尚未运行；拥有连接场景未运行；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
 | D20 | 跑道钉鞋改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「助跑」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 尚未运行 |
 | D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；宿舍快回未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
@@ -60,7 +60,7 @@
 | #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
 | #82 追加 | 属性卡：食堂加餐 +100→+60 面子，穿秋裤双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡（举铁、长臂猿、穿秋裤、食堂加餐，不含刷整蛊视频）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
-| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已决定，未实现（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值待用户批准（[内容报告 §15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与待批数值7781)），未做平衡测试与拥有连接场景验证；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
 | D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
 | D28 | 胜利条件不变 | 无需改动 |

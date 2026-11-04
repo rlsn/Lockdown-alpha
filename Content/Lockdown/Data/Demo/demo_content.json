@@ -255,6 +255,203 @@
       }
     },
     {
+      "cooldown_family": "cd_body_slam",
+      "id": "active_body_slam",
+      "kind": "active",
+      "native_id": 80,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 12800,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 400,
+                "unit": "ms"
+              },
+              "op": "jump",
+              "opcode": 23
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 11000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "slow",
+              "opcode": 12,
+              "ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 12000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 400,
+                "unit": "ms"
+              },
+              "op": "jump",
+              "opcode": 23
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 14500,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "slow",
+              "opcode": 12,
+              "ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 11200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 400,
+                "unit": "ms"
+              },
+              "op": "jump",
+              "opcode": 23
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 18000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "slow",
+              "opcode": 12,
+              "ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 7000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 400,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_combo_flurry",
       "id": "active_combo_flurry",
       "kind": "active",
@@ -337,6 +534,153 @@
           ],
           "mana_cost": {
             "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "target": {
+        "mode": "Self"
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown_family": "cd_come_here",
+      "id": "active_come_here",
+      "kind": "active",
+      "native_id": 81,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 18000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "taunt",
+              "opcode": 18,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "timed_stat_bonus",
+              "opcode": 13,
+              "stats": {
+                "ArmorFlat": {
+                  "p2": 1000,
+                  "unit": "points"
+                },
+                "MagicResistFlat": {
+                  "p2": 1000,
+                  "unit": "points"
+                }
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 16000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1250,
+                "unit": "ms"
+              },
+              "op": "taunt",
+              "opcode": 18,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "timed_stat_bonus",
+              "opcode": 13,
+              "stats": {
+                "ArmorFlat": {
+                  "p2": 1500,
+                  "unit": "points"
+                },
+                "MagicResistFlat": {
+                  "p2": 1500,
+                  "unit": "points"
+                }
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 14000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "taunt",
+              "opcode": 18,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "timed_stat_bonus",
+              "opcode": 13,
+              "stats": {
+                "ArmorFlat": {
+                  "p2": 2000,
+                  "unit": "points"
+                },
+                "MagicResistFlat": {
+                  "p2": 2000,
+                  "unit": "points"
+                }
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
             "unit": "mp"
           },
           "rank": 3
@@ -2220,12 +2564,30 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_body_slam.description",
+      "description_text": "跳向指定地点，落地时对周围的敌人造成皮肉伤并减速。伤害随手劲提高，不会正中要害。被定身时不能起跳。",
+      "icon_id": "icon_active_body_slam",
+      "id": "active_body_slam",
+      "name_key": "active_body_slam.name",
+      "name_text": "泰山压顶",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_combo_flurry.description",
       "description_text": "短时间内大幅提高手速。",
       "icon_id": "icon_active_combo_flurry",
       "id": "active_combo_flurry",
       "name_key": "active_combo_flurry.name",
       "name_text": "夺命连环掏",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_come_here.description",
+      "description_text": "嘲讽身边看得见你的敌人：他们只能追着你弹脑瓜崩，不能放技能、用装备或冲刺；同时短时间内提高自己的抗揍和脸皮。",
+      "icon_id": "icon_active_come_here",
+      "id": "active_come_here",
+      "name_key": "active_come_here.name",
+      "name_text": "你过来啊",
       "namespace": "DemoContent"
     },
     {

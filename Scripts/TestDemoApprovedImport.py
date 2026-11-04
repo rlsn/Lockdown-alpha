@@ -40,9 +40,10 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (18, 5, 10, 2))
+                          len(self.data["camps"]["monsters"])), (20, 5, 10, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
-            "active_arc_bolt", "active_binding_snare", "active_combo_flurry", "active_fart_dash", "active_guard_pulse",
+            "active_arc_bolt", "active_binding_snare", "active_body_slam", "active_combo_flurry", "active_come_here",
+            "active_fart_dash", "active_guard_pulse",
             "active_lunge", "active_monkey_peach", "active_slick_moves", "active_slipper_throw", "active_thousand_year",
             "passive_battle_rhythm", "passive_cornered", "passive_eagle_eye", "passive_iron_crotch", "passive_lurking",
             "passive_precision", "passive_public_shame", "passive_second_wind"])
@@ -153,6 +154,7 @@ class ApprovedDemoData(unittest.TestCase):
             "passive_public_shame": "社死现场", "passive_eagle_eye": "视力5.0", "item_slingshot": "弹弓",
             "active_monkey_peach": "猴子偷桃", "active_thousand_year": "千年杀", "active_lunge": "一个箭步",
             "passive_iron_crotch": "铁裆功", "item_nail_uniform": "钉子户校服",
+            "active_body_slam": "泰山压顶", "active_come_here": "你过来啊",
             "attr_might": "举铁", "attr_focus": "刷整蛊视频", "attr_vitality": "食堂加餐", "attr_resolve": "穿秋裤",
             "attr_reach": "长臂猿",
             "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
@@ -415,6 +417,39 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], thorns["critical_multiplier"]["bp"], thorns["trigger"],
                           thorns["rear_exempt"]), (2000, 1000, 10000, "Basic", False))
         self.assertEqual(amount(self.catalog.parameter("COMBAT.RearArcDeg")), 120)
+
+    def test_cross_batch_entries_pending_proposal_values(self):
+        # CONTENT_AND_BALANCE 15.9 proposal (pending user approval): the jump/area/slow and taunt/timed-bonus assemblies.
+        slam = self.catalog.definition("active_body_slam")
+        self.assertEqual((slam["target"]["mode"], amount(slam["target"]["range"]), slam["windup"]["ms"], slam["cooldown_family"]),
+                         ("GroundPoint", 400, 0, "cd_body_slam"))
+        for row, base, mana, cooldown in zip(slam["ranks"], (110, 145, 180), (60, 65, 70), (12800, 12000, 11200)):
+            self.assertEqual([effect["op"] for effect in row["effects"]], ["jump", "self_area", "damage", "slow"])
+            jump, area, damage, slowed = row["effects"]
+            self.assertEqual((jump["duration"]["ms"], amount(area["radius"])), (400, 200))
+            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["damage_type"]),
+                             (base * 100, 4000, 0, "Physical"))
+            self.assertEqual((slowed["ratio"]["bp"], slowed["duration"]["ms"]), (3000, 1500))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (mana * 100, cooldown))
+        come = self.catalog.definition("active_come_here")
+        self.assertEqual((come["target"]["mode"], come["windup"]["ms"], come["cooldown_family"]), ("Self", 0, "cd_come_here"))
+        for row, taunt_ms, bonus, cooldown in zip(come["ranks"], (1000, 1250, 1500), (10, 15, 20), (18000, 16000, 14000)):
+            taunt, boost = row["effects"]
+            self.assertEqual((taunt["op"], amount(taunt["radius"]), taunt["duration"]["ms"]), ("taunt", 300, taunt_ms))
+            self.assertEqual((boost["op"], boost["duration"]["ms"]), ("timed_stat_bonus", 3000))
+            self.assertEqual({key: amount(value) for key, value in boost["stats"].items()}, {"ArmorFlat": bonus, "MagicResistFlat": bonus})
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (6000, cooldown))
+
+    def test_cross_batch_entries_refuse_a_jump_without_its_area(self):
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        projected = schema.project(author)
+        slam = next(row for row in projected["abilities"] if row["id"] == "active_body_slam")
+        for rank in slam["ranks"]:
+            rank["effects"] = [effect for effect in rank["effects"] if effect["op"] != "self_area"]
+        with self.assertRaisesRegex(content.ContentError, "TargetEffectMismatch"):
+            content.validate_definitions(projected, ids)
 
     def test_build_expansion_b_contracts_reject_misplaced_mechanics(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
