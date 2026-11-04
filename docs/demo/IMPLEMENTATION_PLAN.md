@@ -35,7 +35,7 @@
 | [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md) | M6、M7、M8 | 死亡奖励、开局与升级三选一、替换、两装备与独立冷却债、账本复算、查询结果 |
 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md) | M9G、M9C、M10 | 单层坐标与模型、合法路径、十锚点、营地、单一稀疏观测与隐私 |
 | [对手 AI](OPPONENT_AI.md) | M12 | 受限快照、无连接 adapter、P0–P9 核心循环、同一命令/回执；参数来自内容表 |
-| [UI与设置](UI_AND_SETTINGS.md) | M11 | 单一输入层、全界面合法投影、设置保存与显示试用 |
+| [UI与设置](UI_AND_SETTINGS.md) | M11 | 单一输入层、全界面合法投影、设置保存与固定无边框窗口 |
 | [内容与数值](CONTENT_AND_BALANCE.md) | 各域内容输入 | 首版目录、公式/参数与依据、typed 生成和消费映射 |
 | [共享契约](SHARED_CONTRACTS.md) | 跨域接缝 | 所有权、身份、单位/取整、来源冷却、命令/事件/读模型和全生命周期的跨文件唯一解释 |
 | [就绪评估](READINESS.md) | 全部 Spec | 决定落地状态、§11 完成标准覆盖、未运行与未实现项 |

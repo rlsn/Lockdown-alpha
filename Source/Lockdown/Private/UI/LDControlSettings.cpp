@@ -14,85 +14,6 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 
-struct FLDDisplayConfigGuardData
-{
-    struct FValue
-    {
-        FString Section, Key, Value;
-        bool bPresent = false;
-    };
-    struct FFile
-    {
-        FString Filename;
-        bool bPreviousNoSave = false;
-        TArray<FValue> Values;
-    };
-    TArray<FFile> Files;
-};
-
-bool FLDDisplayConfigWriteGuard::Begin(FConfigCacheIni& Cache, const FString& SettingsFile,
-    const FString& QualityFile, const FString& SettingsSection, FString& Error)
-{
-    if (IsActive() || SettingsFile.IsEmpty() || QualityFile.IsEmpty() || SettingsSection.IsEmpty()
-        || !Cache.FindConfigFile(SettingsFile) || !Cache.FindConfigFile(QualityFile))
-    { Error = TEXT("显示配置不可用或已被保护，未开始显示试用。"); return false; }
-    auto Captured = MakeShared<FLDDisplayConfigGuardData>();
-    auto Capture = [&](const FString& Filename, const FString& Section, const TCHAR* Key)
-    {
-        auto* File = Captured->Files.FindByPredicate([&](const auto& Entry) { return Entry.Filename == Filename; });
-        if (!File)
-        {
-            FLDDisplayConfigGuardData::FFile Entry;
-            Entry.Filename = Filename;
-            Entry.bPreviousNoSave = Cache.FindConfigFile(Filename)->NoSave;
-            Captured->Files.Add(MoveTemp(Entry));
-            File = &Captured->Files.Last();
-        }
-        FLDDisplayConfigGuardData::FValue Value;
-        Value.Section = Section;
-        Value.Key = Key;
-        Value.bPresent = Cache.GetString(*Section, Key, Value.Value, Filename);
-        File->Values.Add(MoveTemp(Value));
-    };
-    for (const TCHAR* Key : { TEXT("ResolutionSizeX"), TEXT("ResolutionSizeY"),
-        TEXT("LastUserConfirmedResolutionSizeX"), TEXT("LastUserConfirmedResolutionSizeY"),
-        TEXT("FullscreenMode"), TEXT("LastConfirmedFullscreenMode"), TEXT("PreferredFullscreenMode"),
-        TEXT("LastUserConfirmedDisplayID"), TEXT("LastUserConfirmedDisplayIndex"), TEXT("bUseVSync") })
-    { Capture(SettingsFile, SettingsSection, Key); }
-    for (const TCHAR* Key : { TEXT("sg.ResolutionQuality"), TEXT("sg.ViewDistanceQuality"),
-        TEXT("sg.AntiAliasingQuality"), TEXT("sg.ShadowQuality"), TEXT("sg.GlobalIlluminationQuality"),
-        TEXT("sg.ReflectionQuality"), TEXT("sg.PostProcessQuality"), TEXT("sg.TextureQuality"),
-        TEXT("sg.EffectsQuality"), TEXT("sg.FoliageQuality"), TEXT("sg.ShadingQuality"), TEXT("sg.LandscapeQuality") })
-    { Capture(QualityFile, TEXT("ScalabilityGroups"), Key); }
-    for (const auto& File : Captured->Files) { Cache.FindConfigFile(File.Filename)->NoSave = true; }
-    Data = MoveTemp(Captured);
-    Error.Empty();
-    return true;
-}
-
-bool FLDDisplayConfigWriteGuard::Release(FConfigCacheIni& Cache, FString& Error)
-{
-    if (!Data) { Error.Empty(); return true; }
-    for (const auto& File : Data->Files)
-    {
-        if (!Cache.FindConfigFile(File.Filename))
-        { Error = TEXT("受保护的显示配置已不存在，显示设置仍禁止保存。"); return false; }
-    }
-    // Use cache mutators so UE's saved-layer change tracking also loses any automatic trial writes.
-    for (const auto& File : Data->Files)
-    {
-        for (const auto& Value : File.Values)
-        {
-            if (Value.bPresent) { Cache.SetString(*Value.Section, *Value.Key, *Value.Value, File.Filename); }
-            else { Cache.RemoveKey(*Value.Section, *Value.Key, File.Filename); }
-        }
-    }
-    for (const auto& File : Data->Files) { Cache.FindConfigFile(File.Filename)->NoSave = File.bPreviousNoSave; }
-    Data.Reset();
-    Error.Empty();
-    return true;
-}
-
 namespace
 {
     constexpr uint32 LocalSettingsMagic = 0x4C444353;
@@ -705,14 +626,11 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 FLDDisplaySettings FLDDisplaySettings::Read(const UGameUserSettings& Settings)
 {
     FLDDisplaySettings Result;
-    Result.Resolution = Settings.GetScreenResolution();
-    Result.WindowMode = Settings.GetFullscreenMode();
-    Result.PreferredFullscreenMode = Settings.GetPreferredFullscreenMode();
     Result.bVSync = Settings.IsVSyncEnabled();
     Result.Quality = Settings.ScalabilityQuality;
     return Result;
 }
-bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, const FIntPoint& Desktop, FLDDisplaySettings& Out, FString& Error)
+bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, FLDDisplaySettings& Out, FString& Error)
 {
     auto* VSync = IConsoleManager::Get().FindConsoleVariable(TEXT("r.VSync"));
     int32 DefaultVSync = 0;
@@ -721,54 +639,24 @@ bool FLDDisplaySettings::ProductDefaults(const UGameUserSettings& Live, const FI
     auto* EngineDefaults = NewObject<UGameUserSettings>(GetTransientPackage(), Live.GetClass(), NAME_None, RF_Transient);
     EngineDefaults->SetToDefaults();
     FLDDisplaySettings Result = Read(*EngineDefaults);
-    if (Result.Resolution.X <= 0 || Result.Resolution.Y <= 0 || Result.WindowMode == EWindowMode::WindowedFullscreen)
-    { Result.Resolution = Desktop; }
-    Result.PreferredFullscreenMode = Live.GetPreferredFullscreenMode();
     Result.bVSync = DefaultVSync != 0;
     if (!Result.IsValid())
-    { Error = TEXT("无法确定默认的分辨率、窗口模式或画质，显示与画质未恢复默认。"); return false; }
+    { Error = TEXT("无法确定默认画质，显示与画质未恢复默认。"); return false; }
     Out = Result;
     Error.Empty();
     return true;
 }
-bool FLDDisplaySettings::SameMode(const FLDDisplaySettings& Other) const
-{ return Resolution == Other.Resolution && WindowMode == Other.WindowMode; }
 bool FLDDisplaySettings::operator==(const FLDDisplaySettings& Other) const
-{ return SameMode(Other) && PreferredFullscreenMode == Other.PreferredFullscreenMode && bVSync == Other.bVSync && Quality == Other.Quality; }
+{ return bVSync == Other.bVSync && Quality == Other.Quality; }
 bool FLDDisplaySettings::IsValid() const
 {
-    if (Resolution.X <= 0 || Resolution.Y <= 0
-        || (WindowMode != EWindowMode::Windowed && WindowMode != EWindowMode::WindowedFullscreen && WindowMode != EWindowMode::Fullscreen)
-        || (PreferredFullscreenMode != EWindowMode::Fullscreen && PreferredFullscreenMode != EWindowMode::WindowedFullscreen)
-        || !FMath::IsFinite(Quality.ResolutionQuality) || Quality.ResolutionQuality < 0 || Quality.ResolutionQuality > 100) { return false; }
+    if (!FMath::IsFinite(Quality.ResolutionQuality) || Quality.ResolutionQuality < 0 || Quality.ResolutionQuality > 100) { return false; }
     for (int32 Value : { Quality.ViewDistanceQuality, Quality.AntiAliasingQuality, Quality.ShadowQuality,
         Quality.GlobalIlluminationQuality, Quality.ReflectionQuality, Quality.PostProcessQuality, Quality.TextureQuality,
         Quality.EffectsQuality, Quality.FoliageQuality, Quality.ShadingQuality, Quality.LandscapeQuality })
     { if (Value < 0 || Value > 4) { return false; } }
     return true;
 }
-
-uint64 FLDDisplayTrialState::Begin(const FLDDisplaySettings& Confirmed, const FLDDisplaySettings& Draft, double Now, double Duration)
-{
-    if (ActiveId || Sequence == MAX_uint64 || !Confirmed.IsValid() || !Draft.IsValid()
-        || !FMath::IsFinite(Now) || !FMath::IsFinite(Duration) || Duration <= 0 || !FMath::IsFinite(Now + Duration)) { return 0; }
-    Before = Confirmed;
-    Pending = Draft;
-    Deadline = Now + Duration;
-    ActiveId = ++Sequence;
-    return ActiveId;
-}
-bool FLDDisplayTrialState::IsExpired(double Now) const
-{ return ActiveId != 0 && (!FMath::IsFinite(Now) || Now >= Deadline); }
-bool FLDDisplayTrialState::Invalidate(uint64 Id)
-{
-    if (!IsCurrent(Id)) { return false; }
-    ActiveId = 0;
-    Deadline = 0;
-    return true;
-}
-double FLDDisplayTrialState::Remaining(double Now) const
-{ return ActiveId && FMath::IsFinite(Now) ? FMath::Max(0., Deadline - Now) : 0.; }
 
 bool LDLocalSettings::ResolveConfigDestination(FConfigCacheIni& Cache, const FString& ConfigId, FString& Filename, FString& Error)
 {
@@ -817,6 +705,15 @@ FLDLocalSettingsSaveResult LDLocalSettings::FlushAndVerifyDisplaySettingsFiles(
     return VerifyDisplaySettingsFile(PhysicalSettings, PhysicalQuality, SettingsSection, Expected);
 }
 
+void LDLocalSettings::HoldBorderlessDesktop(UGameUserSettings& Settings)
+{
+    const auto Quality = Settings.ScalabilityQuality;
+    Settings.SetFullscreenMode(EWindowMode::WindowedFullscreen);
+    Settings.SetScreenResolution(Settings.GetDesktopResolution());
+    Settings.ConfirmVideoMode();
+    Settings.ScalabilityQuality = Quality;
+}
+
 bool LDLocalSettings::ApplyRenderScale(IConsoleVariable& ScreenPercentage, float ResolutionQuality)
 {
     if (ResolutionQuality != 0.f) { return true; }
@@ -834,14 +731,7 @@ FLDLocalSettingsSaveResult LDLocalSettings::VerifyDisplaySettingsFile(
     { return { ELDLocalSettingsSaveStatus::ReadbackFailed, TEXT("显示改动已应用，但无法读取实际配置文件。请重试保存。") }; }
     FString VSync;
     const TCHAR* Section = *SettingsSection;
-    const bool DisplayMatches = IntMatches(Display, Section, TEXT("ResolutionSizeX"), Expected.Resolution.X)
-        && IntMatches(Display, Section, TEXT("ResolutionSizeY"), Expected.Resolution.Y)
-        && IntMatches(Display, Section, TEXT("LastUserConfirmedResolutionSizeX"), Expected.Resolution.X)
-        && IntMatches(Display, Section, TEXT("LastUserConfirmedResolutionSizeY"), Expected.Resolution.Y)
-        && IntMatches(Display, Section, TEXT("FullscreenMode"), int32(Expected.WindowMode))
-        && IntMatches(Display, Section, TEXT("LastConfirmedFullscreenMode"), int32(Expected.WindowMode))
-        && IntMatches(Display, Section, TEXT("PreferredFullscreenMode"), int32(Expected.PreferredFullscreenMode))
-        && Display.GetString(Section, TEXT("bUseVSync"), VSync)
+    const bool DisplayMatches = Display.GetString(Section, TEXT("bUseVSync"), VSync)
         && VSync.Equals(Expected.bVSync ? TEXT("True") : TEXT("False"), ESearchCase::IgnoreCase);
     const TCHAR* QualitySection = TEXT("ScalabilityGroups");
     const bool QualityMatches = IntMatches(Quality, QualitySection, TEXT("sg.ViewDistanceQuality"), Expected.Quality.ViewDistanceQuality)

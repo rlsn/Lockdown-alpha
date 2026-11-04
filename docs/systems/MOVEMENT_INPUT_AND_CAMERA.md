@@ -188,7 +188,7 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 本地按键、文字缩放与镜头偏好通过 `LDControlSettings` 保存，不能和对局金币、技能冷却等混为一份状态。
 保存失败需反馈，配置迁移不能默默给多个动作绑定同一个按键。
 
-## 本地设置与显示试用
+## 本地设置与显示
 
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
@@ -218,7 +218,7 @@ schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`Ca
 越界值使文件按 `Corrupt` 处理。设置页“小地图朝向”的三个按钮经 `SetAppliedMinimapOrientation` 应用，恢复默认还原为跟随镜头。
 设置页的“恢复默认”先列出全部范围（显示/画质、音量、按键、镜头/文字；名称与本局进度不变）再确认：
 本地偏好先还原并保存，显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
-分辨率或窗口模式变化仍走保留/回滚试用，VSync 与画质随该次应用生效；与当前显示相同时不发起试用。
+VSync 与画质随该次显示应用生效并保存；与当前显示相同时不应用。
 默认画质的渲染比例 `ResolutionQuality` 为 0（沿用项目的 `r.ScreenPercentage`），引擎对 0 不做任何事；
 `ULDGameInstance` 每次应用画质后经 `LDLocalSettings::ApplyRenderScale` 撤销 Scalability 优先级的旧比例，渲染比例立即回到项目默认，无需重启。
 `PlayerName` 为空表示尚未设置，绝不填入默认名；它不是比赛数据，恢复默认（`ResetLocalDefaults`/`ResetBindings`）也不删除它。
@@ -252,35 +252,33 @@ schema 4 是已退役的多注册表格式：读取时只校验完整性并列�
 测试必须使用 `Automation(FGuid)`，文件位于忽略的 `Artifacts/Automation/LocalSettings`，
 无效夹具不会回落到真实用户文件。无人值守/commandlet 的 GameInstance 未显式指定夹具时禁止用户文件写入。
 
-显示值仍只由引擎 `UGameUserSettings` 管理。`LDControlsPanel` 的显示草稿不写配置：
-分辨率/窗口模式通过 GameInstance 的 `BeginDisplayTrial` 试用，
-`ConfirmDisplayTrial` 和 `CancelDisplayTrial` 必须携原 TrialId；旧回调不能确认或撤销新试用。
-仅模式试用调用 `ApplyResolutionSettings`，并保留其 setter 可能调整的质量字段；
-VSync/画质在确认模式后才应用。`SaveSettings` 的 void 返回不代表成功，
+显示值仍只由引擎 `UGameUserSettings` 管理。游戏只有一种窗口：无边框全屏、桌面分辨率（#98，用户决定）。
+`ULDGameInstance::Init` 在 `UGameEngine::Init` 创建窗口之前经 `LDLocalSettings::HoldBorderlessDesktop`
+把旧存档中的窗口模式与分辨率改为无边框桌面分辨率并确认，再以 `ApplyResolutionSettings(true)` 请求窗口，
+所以第一帧就是无边框；编辑器 PIE 窗口归编辑器管理，不受影响。引擎的启动覆盖（`-windowed`、`-ResX/-ResY`）
+仍作用于这次请求，只给自动化场景和同机多开使用，存档中保持无边框。`DefaultInput.ini` 关闭 Alt+Enter/F11 切换全屏。
+设置页没有窗口模式、分辨率或保留/回滚试用。
+
+`LDControlsPanel` 的显示草稿只有 VSync 与整体画质，草稿不写配置；“应用显示草稿”经
+`ApplyDisplaySettings` 立即应用并保存。`SaveSettings` 的 void 返回不代表成功，
 核验从实际配置文件读入新的 `FConfigFile`，不从 GConfig 缓存读取；
 UE 5.8 的 `GGameUserSettingsIni` 等常量是缓存标识，不保证是物理路径。
 `ResolveConfigDestination` 从当前 `FConfigBranch::IniPath` 取得真实目标，缺失即失败；
 NoSave、mutator 和 Flush 继续使用原缓存标识，不能把标识拼到工作目录后假装完成磁盘回读。
-Editor 的独立质量配置必须在确认后的原生保存阶段显式 flush 后核对；
+Editor 的独立质量配置必须在原生保存阶段显式 flush 后核对；
 `Scalability::SaveState` 仅暂存该文件，不能依赖 `SaveSettings` 对另一个目标的 flush。
 已有 `NoSave` 禁令不被解除，失败保留 dirty 与重试入口。
-真实 viewport 应用失败与持久化未核验分开反馈。
-试用期间 `FLDDisplayConfigWriteGuard` 对实际目标配置启用临时 `NoSave`，阻止引擎窗口位置保存
-及 `UGameEngine::PreExit` 的提前自动保存；后者发生在 GameInstance Shutdown 之前。
-释放保护前通过配置缓存的正式 mutator 恢复试用前的显示字段，连同引擎 saved-layer 记录一起清除，
-不恢复无关字段或解除原有写禁令；正式确认后再由引擎写入新值并实际回读。
-模式回滚还恢复引擎隐式修改的 `PreferredFullscreenMode`，避免一次取消的试用改变之后的全屏快捷键行为；
-使用引擎已有的单属性配置重载方式，不修改引擎安装或另设显示存档。
-GameInstance 的窄 Slate 输入保护在试用/恢复期间消费 Alt+Enter、F11 与控制台入口，
-避免原生全屏快捷键绕过确认并调用 `ApplySettings`；它不创建第二份游戏按键注册表。
+VSync/画质应用失败与持久化未核验分开反馈。被拒绝的同一份草稿不能再次应用，直到玩家修改草稿；
+提示同时说明可以返回并放弃草稿，不让玩家反复重试同一个失败。
 
-试用安全计时使用 GameInstance 的 core ticker 与 `FPlatformTime`，不依赖 Widget 或旧世界 timer。
-Esc、强制关页、Widget 销毁、网络失败、旅行和退出先撤销试用，再保存已确认的本地值；
-恢复尚未完成或失败时禁止显示保存并提供重试，按键/镜头偏好不被显示回滚覆盖。
-`ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿。
+Esc、强制关页、Widget 销毁、网络失败、旅行和退出前保存已确认的本地值，显示 dirty 时重试显示保存。
+`ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿：
+有未应用草稿时第一次返回显示“应用显示并返回 / 放弃显示草稿并返回 / 继续编辑”，
+确认行显示时再按“返回”或 Esc 即放弃草稿并返回（#99），不会在提示的显示与隐藏之间循环。
+“应用显示并返回”失败时留在确认行并写明失败原因，默认焦点移到“放弃显示草稿并返回”。
 `Close`/`ClosePanel` 只在面板真正关闭时返回 true；供 Root 路由 Back 的 `HasChildConfirmation`/`CloseChildConfirmation`
-先结束按键捕获，或按“继续编辑/保持不变”关闭最上层确认，不应用也不丢弃任何值；显示试用提示返回 false，
-必须明确保留、恢复或等待超时。设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
+先结束按键捕获；未应用草稿确认行与“放弃显示草稿并返回”相同，其他确认按“保持不变”关闭，不应用也不丢弃任何值。
+设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
 主音量是设置的唯一音频消费链：GameInstance 每次加载或应用本地偏好后把 `MasterVolume` 交给 `ULDAudioSubsystem`；
 设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
@@ -300,7 +298,6 @@ UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
 schema 5–9 显式迁移与主音量、镜头平移速度、小地图朝向、快速施法保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
 小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
-产品显示默认（`LocalDisplayProductDefaults`）、
-损坏/越界拒绝与恢复、草稿隔离、旅行前 flush、
-试用 ID/截止边界、引擎配置自动写保护和显示配置实际回读；
-真实模式切换、恢复、VSync/画质及布局仍需非 nullrhi 的原生界面检查。
+产品显示默认（`LocalDisplayProductDefaults`）、只用无边框桌面分辨率（`LocalDisplayBorderlessOnly`）、
+损坏/越界拒绝与恢复、草稿隔离、旅行前 flush（`LocalSettingsTravelFlush`）和显示配置实际回读；
+真实窗口、VSync/画质应用及布局仍需非 nullrhi 的原生界面检查（`RunDemoFrontendCheck.ps1`）。

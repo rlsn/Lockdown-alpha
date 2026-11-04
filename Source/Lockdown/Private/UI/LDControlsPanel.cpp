@@ -34,6 +34,8 @@ namespace
         Button->SetIsEnabled(Enabled);Button->SetVisibility(bShown?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     }
     const TCHAR* ControlsOnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
+    // The unapplied-draft prompt names what Back does next, so it never just toggles the prompt away and back.
+    const TCHAR* CloseDraftText=TEXT("显示改动尚未应用。已应用的按键与镜头偏好会保留。再按“返回”或 Esc 放弃显示草稿并返回。");
     // One press of the camera pan speed buttons; the legal domain itself belongs to ULDControlSettings.
     constexpr float ControlsPanStepCmPerSec=300;
     constexpr ELDMinimapOrientation ControlsOrientations[]={ELDMinimapOrientation::Camera,ELDMinimapOrientation::Facing,ELDMinimapOrientation::North};
@@ -77,9 +79,9 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         auto* Frame=Canvas->AddChildToCanvas(Border);Frame->SetAnchors(FAnchors(.06f,.16f,.94f,.96f));Frame->SetOffsets(FMargin(0));
         auto* Main=WidgetTree->ConstructWidget<UVerticalBox>();Border->SetContent(Main);
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
-        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字、小地图与音量改动确认后立即应用；显示改动需要“应用显示草稿”，分辨率与窗口模式还要在倒计时内选择保留。")))->SetPadding(FMargin(0,8));
+        Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字、小地图与音量改动确认后立即应用；垂直同步与画质改动需要“应用显示草稿”。游戏始终以无边框全屏运行。")))->SetPadding(FMargin(0,8));
         Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
-        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（分辨率、窗口模式、垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度与小地图朝向）。名称与本局进度不变。分辨率或窗口模式改变时仍需在倒计时内选择保留，否则只恢复原显示模式。"));Main->AddChildToVerticalBox(ResetRows);
+        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度与小地图朝向）。名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
         Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ConfirmResetDefaults();});
         Choice(ResetRows,TEXT("保持当前设置"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
         RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字、小地图与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
@@ -87,11 +89,9 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         {ShowChild(EChildConfirmation::None);if(auto* Instance=SettingsInstance.Get()){Feedback->SetText(FText::FromString(Instance->ConfirmLocalSettingsRecovery().Message));}Populate();});
         Choice(RecoveryRows,TEXT("保持文件不变"),TEXT("KeepSettingsFile"),[this](){ShowChild(EChildConfirmation::None);});
         DisplayFeedback=LDWidgets::Text(WidgetTree,TEXT(""));Main->AddChildToVerticalBox(DisplayFeedback);
-        TrialRows=WidgetTree->ConstructWidget<UVerticalBox>();TrialRows->SetVisibility(ESlateVisibility::Collapsed);Main->AddChildToVerticalBox(TrialRows);
-        TrialRows->AddChildToVerticalBox(WrapButton(TEXT("保留此显示模式"),[this](){if(TrialId){ConfirmDisplay(TrialId);}},TEXT("KeepDisplayMode")))->SetPadding(FMargin(0,3));
-        TrialRows->AddChildToVerticalBox(WrapButton(TEXT("恢复原显示模式"),[this](){if(TrialId){CancelDisplay(TrialId);}},TEXT("RevertDisplayMode")))->SetPadding(FMargin(0,3));
-        CloseRows=ChildRows(TEXT("显示改动尚未应用。已应用的按键与镜头偏好会保留。"));Main->AddChildToVerticalBox(CloseRows);
-        Choice(CloseRows,TEXT("应用显示并返回"),TEXT("ApplyDisplayAndReturn"),[this](){ShowChild(EChildConfirmation::None);bCloseAfterConfirm=true;ApplyDisplay();});
+        CloseRows=ChildRows(CloseDraftText);Main->AddChildToVerticalBox(CloseRows);
+        CloseDraftPrompt=CastChecked<UTextBlock>(CloseRows->GetChildAt(0));
+        Choice(CloseRows,TEXT("应用显示并返回"),TEXT("ApplyDisplayAndReturn"),[this](){ApplyDisplayAndReturn();});
         Choice(CloseRows,TEXT("放弃显示草稿并返回"),TEXT("DiscardDisplayDraft"),[this](){ForceClose();});
         Choice(CloseRows,TEXT("继续编辑"),TEXT("ContinueEditing"),[this](){ShowChild(EChildConfirmation::None);});
         Preferences=LDWidgets::Text(WidgetTree,TEXT(""));Main->AddChildToVerticalBox(Preferences)->SetPadding(FMargin(0,6));
@@ -100,26 +100,12 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         Section(Content,TEXT("显示 / 画质"));
         DisplayRows=WidgetTree->ConstructWidget<UVerticalBox>();DisplayRows->SetVisibility(ESlateVisibility::Collapsed);Content->AddChildToVerticalBox(DisplayRows);
         auto DisplayRow=[&](FName Name,TFunction<void()> Action){DisplayRows->AddChildToVerticalBox(WrapButton(TEXT(""),MoveTemp(Action),Name))->SetPadding(FMargin(0,3));};
-        DisplayRow(TEXT("WindowModeDraft"),[this]()
-        {
-            DisplayDraft.WindowMode=DisplayDraft.WindowMode==EWindowMode::Windowed?EWindowMode::WindowedFullscreen
-                :DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?EWindowMode::Fullscreen:EWindowMode::Windowed;
-            if(DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen){DisplayDraft.Resolution=GEngine->GetGameUserSettings()->GetDesktopResolution();}
-            bDisplayDraftDirty=true;PopulateDisplay();
-        });
-        DisplayRow(TEXT("ResolutionDraft"),[this]()
-        {
-            if(Resolutions.IsEmpty()){DisplayFeedback->SetText(FText::FromString(TEXT("显卡驱动没有提供支持的分辨率，无法切换分辨率。")));return;}
-            const int32 Current=Resolutions.IndexOfByKey(DisplayDraft.Resolution);
-            DisplayDraft.Resolution=Resolutions[(Current+1)%Resolutions.Num()];
-            bDisplayDraftDirty=true;PopulateDisplay();
-        });
-        DisplayRow(TEXT("VSyncDraft"),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;bDisplayDraftDirty=true;PopulateDisplay();});
+        // Every draft edit is a new request, so an apply the instance refused may be tried again.
+        DisplayRow(TEXT("VSyncDraft"),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;EditDisplayDraft();});
         DisplayRow(TEXT("QualityDraft"),[this]()
-        {DisplayDraft.Quality.SetFromSingleQualityLevel((DisplayDraft.Quality.GetSingleQualityLevel()+1)%5);bDisplayDraftDirty=true;PopulateDisplay();});
+        {DisplayDraft.Quality.SetFromSingleQualityLevel((DisplayDraft.Quality.GetSingleQualityLevel()+1)%5);EditDisplayDraft();});
         DisplayRow(TEXT("ApplyDisplayDraft"),[this](){ApplyDisplay();});
         DisplayRow(TEXT("RetryDisplaySave"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplaySave().Message));PopulateDisplay();}});
-        DisplayRow(TEXT("RetryDisplayRestore"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplayRestore().Message));PopulateDisplay();}});
         Section(Content,TEXT("音量"));
         VolumeLabel=LDWidgets::Text(WidgetTree,TEXT("主音量 100%"));Content->AddChildToVerticalBox(VolumeLabel);
         VolumeSlider=WidgetTree->ConstructWidget<USlider>(USlider::StaticClass(),TEXT("MasterVolume"));
@@ -231,10 +217,11 @@ void ULDControlsPanel::PreviewMasterVolume()
 
 void ULDControlsPanel::ShowChild(EChildConfirmation Which)
 {
-    // Showing or dismissing a child confirmation never applies or discards a value; it only drops a pending "apply and return".
-    Child=Which;bCloseAfterConfirm=false;
+    // Showing or dismissing a child confirmation never applies or discards a value; the close prompt starts from its own text.
+    Child=Which;
     if(!CloseRows){return;}
     auto Show=[Which](UWidget* Box,EChildConfirmation Kind){Box->SetVisibility(Which==Kind?ESlateVisibility::Visible:ESlateVisibility::Collapsed);};
+    CloseDraftPrompt->SetText(FText::FromString(CloseDraftText));
     Show(ResetRows,EChildConfirmation::LocalReset);Show(RecoveryRows,EChildConfirmation::Recovery);Show(CloseRows,EChildConfirmation::CloseDraft);
 }
 
@@ -249,80 +236,61 @@ void ULDControlsPanel::ShowRecoveryConfirmation()
 void ULDControlsPanel::RefreshDisplayDraft()
 {
     auto* Instance=SettingsInstance.Get();
-    bDisplayAvailable=false;bDisplayDraftDirty=false;
-    Resolutions.Reset();
+    bDisplayAvailable=false;bDisplayDraftDirty=false;bDisplayDraftRejected=false;
     if(!Instance){DisplayFeedback->SetText(FText::FromString(TEXT("显示设置不可用：找不到本地设置的所有者。")));PopulateDisplay();return;}
     const auto Result=Instance->ReadDisplaySettings(DisplayDraft);
     bDisplayAvailable=Result.Status==ELDDisplaySettingsStatus::Loaded;
     DisplayFeedback->SetText(FText::FromString(Result.Message));
-    FString Error;
-    if(bDisplayAvailable&&!Instance->GetDisplayResolutions(Resolutions,Error))
-    {DisplayFeedback->SetText(FText::FromString(Error));}
     PopulateDisplay();
 }
+
+void ULDControlsPanel::EditDisplayDraft()
+{bDisplayDraftDirty=true;bDisplayDraftRejected=false;PopulateDisplay();}
 
 void ULDControlsPanel::PopulateDisplay()
 {
     if(!DisplayRows){return;}
     auto* Instance=SettingsInstance.Get();
     const bool Available=bDisplayAvailable&&Instance;
-    const bool Trial=Available&&TrialId!=0&&Instance->GetDisplayTrialId()==TrialId;
     DisplayRows->SetVisibility(Available?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    TrialRows->SetVisibility(Trial?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    // A refused draft is not offered again, from the section or from the close prompt, until it is edited.
+    const bool CanApply=Available&&bDisplayDraftDirty&&!bDisplayDraftRejected;
+    ControlsSetButton(WidgetTree,TEXT("ApplyDisplayAndReturn"),TEXT("应用显示并返回"),CanApply);
     if(!Available){return;}
-    const bool Editing=!Trial&&!Instance->IsDisplayRestorePending();
-    const TCHAR* Mode=DisplayDraft.WindowMode==EWindowMode::Fullscreen?TEXT("全屏"):DisplayDraft.WindowMode==EWindowMode::WindowedFullscreen?TEXT("无边框"):TEXT("窗口");
-    ControlsSetButton(WidgetTree,TEXT("WindowModeDraft"),FString::Printf(TEXT("窗口模式草稿：%s（点击切换）"),Mode),Editing);
-    ControlsSetButton(WidgetTree,TEXT("ResolutionDraft"),FString::Printf(TEXT("分辨率草稿：%d × %d（下一档支持尺寸）"),DisplayDraft.Resolution.X,DisplayDraft.Resolution.Y),
-        Editing&&!Resolutions.IsEmpty()&&DisplayDraft.WindowMode!=EWindowMode::WindowedFullscreen);
-    ControlsSetButton(WidgetTree,TEXT("VSyncDraft"),FString(TEXT("垂直同步草稿："))+ControlsOnOff(DisplayDraft.bVSync),Editing);
+    ControlsSetButton(WidgetTree,TEXT("VSyncDraft"),FString(TEXT("垂直同步草稿："))+ControlsOnOff(DisplayDraft.bVSync),true);
     const int32 Preset=DisplayDraft.Quality.GetSingleQualityLevel();
     const TCHAR* Names[]={TEXT("低"),TEXT("中"),TEXT("高"),TEXT("极高"),TEXT("电影级")};
-    ControlsSetButton(WidgetTree,TEXT("QualityDraft"),FString(TEXT("画质草稿："))+(Preset>=0&&Preset<5?Names[Preset]:TEXT("自定义"))+TEXT("（下一档预设）"),Editing);
-    ControlsSetButton(WidgetTree,TEXT("ApplyDisplayDraft"),TEXT("应用显示草稿"),Editing&&bDisplayDraftDirty);
-    ControlsSetButton(WidgetTree,TEXT("RetryDisplaySave"),TEXT("重试保存显示设置"),Editing,Instance->AreDisplaySettingsDirty());
-    ControlsSetButton(WidgetTree,TEXT("RetryDisplayRestore"),TEXT("重试恢复原显示模式"),true,Instance->IsDisplayRestorePending());
+    ControlsSetButton(WidgetTree,TEXT("QualityDraft"),FString(TEXT("画质草稿："))+(Preset>=0&&Preset<5?Names[Preset]:TEXT("自定义"))+TEXT("（下一档预设）"),true);
+    ControlsSetButton(WidgetTree,TEXT("ApplyDisplayDraft"),TEXT("应用显示草稿"),CanApply);
+    ControlsSetButton(WidgetTree,TEXT("RetryDisplaySave"),TEXT("重试保存显示设置"),true,Instance->AreDisplaySettingsDirty());
 }
 
-void ULDControlsPanel::ApplyDisplay()
+bool ULDControlsPanel::ApplyDisplay(FString& Message)
 {
-    if(auto* Instance=SettingsInstance.Get())
+    auto* Instance=SettingsInstance.Get();
+    if(!Instance){Message=TEXT("显示设置不可用：找不到本地设置的所有者。");bDisplayDraftRejected=true;}
+    else
     {
-        const auto Result=Instance->ApplyDisplaySettings(DisplayDraft,this);
-        DisplayFeedback->SetText(FText::FromString(Result.Message));
-        if(Result.Status==ELDDisplaySettingsStatus::TrialStarted){TrialId=Result.TrialId;}
-        else if(Result.Status==ELDDisplaySettingsStatus::PersistenceVerified||Result.Status==ELDDisplaySettingsStatus::PersistenceFailed)
-        {bDisplayDraftDirty=false;if(bCloseAfterConfirm){ForceClose();return;}}
-        PopulateDisplay();
+        const auto Result=Instance->ApplyDisplaySettings(DisplayDraft);
+        SeenDisplayStatus=Result.Status;Message=Result.Message;
+        // Applied means saved, or applied with only the save left to retry ("重试保存显示设置").
+        if(Result.Status==ELDDisplaySettingsStatus::PersistenceVerified||Result.Status==ELDDisplaySettingsStatus::PersistenceFailed)
+        {bDisplayDraftDirty=false;DisplayFeedback->SetText(FText::FromString(Message));PopulateDisplay();return true;}
+        bDisplayDraftRejected=true;
     }
+    DisplayFeedback->SetText(FText::FromString(Message+TEXT("\n修改草稿后才能再次应用；也可以返回并放弃显示草稿。")));
+    PopulateDisplay();
+    return false;
 }
-void ULDControlsPanel::ConfirmDisplay(uint64 Id)
+void ULDControlsPanel::ApplyDisplay(){FString Message;ApplyDisplay(Message);}
+void ULDControlsPanel::ApplyDisplayAndReturn()
 {
-    if(auto* Instance=SettingsInstance.Get())
-    {
-        const auto Result=Instance->ConfirmDisplayTrial(Id);
-        DisplayFeedback->SetText(FText::FromString(Result.Message));
-        if(!Instance->GetDisplayTrialId()&&TrialId==Id)
-        {
-            TrialId=0;bDisplayDraftDirty=Result.Status==ELDDisplaySettingsStatus::ApplyFailed;
-            if(Result.Status==ELDDisplaySettingsStatus::Cancelled||Result.Status==ELDDisplaySettingsStatus::RestorePending||Result.Status==ELDDisplaySettingsStatus::RestoreFailed)
-            {bCloseAfterConfirm=false;RefreshDisplayDraft();DisplayFeedback->SetText(FText::FromString(Result.Message));}
-            if(bCloseAfterConfirm&&(Result.Status==ELDDisplaySettingsStatus::PersistenceVerified||Result.Status==ELDDisplaySettingsStatus::PersistenceFailed))
-            {ForceClose();return;}
-        }
-        PopulateDisplay();
-    }
-}
-void ULDControlsPanel::CancelDisplay(uint64 Id)
-{
-    if(auto* Instance=SettingsInstance.Get())
-    {
-        const auto Result=Instance->CancelDisplayTrial(Id);
-        if(Result.Status==ELDDisplaySettingsStatus::StaleTrial){return;}
-        TrialId=0;bCloseAfterConfirm=false;
-        RefreshDisplayDraft();
-        DisplayFeedback->SetText(FText::FromString(Result.Message));
-    }
+    FString Message;
+    if(ApplyDisplay(Message)){ForceClose();return;}
+    // The failure is stated on the confirmation row itself, whose default choice becomes leaving without the draft.
+    ShowChild(EChildConfirmation::CloseDraft);
+    CloseDraftPrompt->SetText(FText::FromString(FString::Printf(TEXT("显示草稿没有应用：%s\n可以放弃显示草稿并返回（再按“返回”或 Esc 也会放弃），或继续编辑。"),*Message)));
+    CastChecked<UButton>(WidgetTree->FindWidget(TEXT("DiscardDisplayDraft")))->SetKeyboardFocus();
 }
 
 void ULDControlsPanel::ConfirmResetDefaults()
@@ -330,9 +298,6 @@ void ULDControlsPanel::ConfirmResetDefaults()
     ShowChild(EChildConfirmation::None);
     auto* Instance=SettingsInstance.Get();
     if(!Instance){Feedback->SetText(FText::FromString(TEXT("本地设置的所有者不可用，没有恢复任何默认值。")));return;}
-    // The display part needs the trial path; while another trial or restore runs, nothing is reset rather than half of it.
-    if(TrialId||Instance->GetDisplayTrialId()||Instance->IsDisplayRestorePending())
-    {Feedback->SetText(FText::FromString(TEXT("显示试用或恢复仍在进行：请先保留或恢复显示模式，再恢复默认。没有恢复任何设置。")));return;}
     auto* Draft=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls->CreateDraft();
     Draft->ResetLocalDefaults();
     Feedback->SetText(FText::FromString(TEXT("恢复按键、镜头、文字、小地图与音量默认值：")+Instance->ApplyLocalSettings(*Draft).Message));
@@ -347,13 +312,12 @@ void ULDControlsPanel::RestoreDisplayDefaults(ULDGameInstance& Instance)
     const auto Read=Instance.ReadDisplaySettings(Current);
     if(Read.Status!=ELDDisplaySettingsStatus::Loaded||!LiveSettings)
     {DisplayFeedback->SetText(FText::FromString(TEXT("显示与画质未恢复默认：")+Read.Message));return;}
-    if(!FLDDisplaySettings::ProductDefaults(*LiveSettings,LiveSettings->GetDesktopResolution(),Defaults,Error))
+    if(!FLDDisplaySettings::ProductDefaults(*LiveSettings,Defaults,Error))
     {DisplayFeedback->SetText(FText::FromString(Error));return;}
-    // Availability and the supported list come from the live display; the confirmed reset replaces any unapplied draft.
+    // The confirmed reset replaces any unapplied draft.
     RefreshDisplayDraft();
     if(Defaults==Current)
-    {DisplayFeedback->SetText(FText::FromString(TEXT("显示与画质已是默认值，没有开始显示试用。")));return;}
-    // A resolution or window mode change starts the keep/revert trial; VSync and quality apply with that display apply.
+    {DisplayFeedback->SetText(FText::FromString(TEXT("显示与画质已是默认值。")));return;}
     DisplayDraft=Defaults;bDisplayDraftDirty=true;
     ApplyDisplay();
 }
@@ -376,26 +340,28 @@ bool ULDControlsPanel::Close()
 {
     if(!bOpen){return true;}
     if(!Capture.IsNone()){EndCapture();return false;}
-    if(TrialId){CancelDisplay(TrialId);return false;}
+    // Back while the unapplied-draft prompt shows leaves without the draft, as the prompt says.
+    if(Child==EChildConfirmation::CloseDraft){ForceClose();return true;}
     if(Child!=EChildConfirmation::None){ShowChild(EChildConfirmation::None);return false;}
     if(bDisplayDraftDirty){ShowChild(EChildConfirmation::CloseDraft);return false;}
     ForceClose();return true;
 }
 bool ULDControlsPanel::HasChildConfirmation() const
-{return bOpen&&(!Capture.IsNone()||TrialId!=0||Child!=EChildConfirmation::None);}
+{return bOpen&&(!Capture.IsNone()||Child!=EChildConfirmation::None);}
 bool ULDControlsPanel::CloseChildConfirmation()
 {
     if(!bOpen){return false;}
     if(!Capture.IsNone()){EndCapture();return true;}
-    // Same as the visible "continue editing" / "keep unchanged" choices: nothing is applied or discarded.
+    // Back on the unapplied-draft prompt is the same as its "discard and return" choice, so it can never loop.
+    if(Child==EChildConfirmation::CloseDraft){ForceClose();return true;}
+    // Same as the visible "keep unchanged" choices: nothing is applied or discarded.
     if(Child!=EChildConfirmation::None){ShowChild(EChildConfirmation::None);return true;}
-    // A display trial prompt is not dismissible here: it must be kept, reverted or allowed to time out explicitly.
     return false;
 }
 void ULDControlsPanel::ForceClose()
 {
-    if(auto* Instance=SettingsInstance.Get()){Instance->CancelDisplayTrial(TrialId);Instance->FlushLocalSettings();}
-    TrialId=0;Capture=NAME_None;bOpen=false;bDisplayDraftDirty=false;ShowChild(EChildConfirmation::None);
+    if(auto* Instance=SettingsInstance.Get()){Instance->FlushLocalSettings();}
+    Capture=NAME_None;bOpen=false;bDisplayDraftDirty=false;bDisplayDraftRejected=false;ShowChild(EChildConfirmation::None);
     // The flush above already settled any pending volume save; a capture still open on the hidden slider ends silently.
     bVolumeSavePending=false;bVolumeMouseCapture=false;bVolumeControllerCapture=false;
     SetVisibility(ESlateVisibility::Collapsed);
@@ -407,8 +373,8 @@ void ULDControlsPanel::ForceClose()
 }
 void ULDControlsPanel::NativeDestruct()
 {
-    if(auto* Instance=SettingsInstance.Get()){Instance->CancelDisplayTrial(TrialId);Instance->FlushLocalSettings();}
-    TrialId=0;bOpen=false;
+    if(auto* Instance=SettingsInstance.Get()){Instance->FlushLocalSettings();}
+    bOpen=false;
     Super::NativeDestruct();
 }
 void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
@@ -416,12 +382,9 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     Super::NativeTick(Geometry,Delta);
     auto* Instance=SettingsInstance.Get();
     if(!bOpen||!Instance){return;}
+    // A save retried elsewhere (travel, exit) reports here; the panel's own applies already recorded their status.
     const auto& Result=Instance->GetDisplaySettingsResult();
-    if(TrialId&&Instance->GetDisplayTrialId()!=TrialId)
-    {TrialId=0;bCloseAfterConfirm=false;RefreshDisplayDraft();DisplayFeedback->SetText(FText::FromString(Result.Message));}
-    if(TrialId)
-    {DisplayFeedback->SetText(FText::FromString(FString::Printf(TEXT("%s\n%d 秒后自动恢复，除非选择保留。"),*Result.Message,FMath::CeilToInt32(Instance->GetDisplayTrialRemaining()))));}
-    else if(Result.Status!=SeenDisplayStatus)
+    if(Result.Status!=SeenDisplayStatus)
     {DisplayFeedback->SetText(FText::FromString(Result.Message));PopulateDisplay();}
     SeenDisplayStatus=Result.Status;
     if(bVolumeSavePending&&!Instance->IsLocalSettingsFlushPending())

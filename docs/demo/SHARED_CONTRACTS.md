@@ -424,10 +424,9 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 不能让Armed越过模态，也不隐式Stop订单、发RPC或消费Offer。完整本地边界见
 [UI §4](UI_AND_SETTINGS.md) 与 [操作 §3](CONTROLS_AND_TARGETING.md)。
 
-本地显示试用不是玩法时钟：GameInstance持有短期TrialId和单调超时，
-只试分辨率/窗口模式，VSync/画质在确认后应用；终局/HostLost/旅行/销毁先恢复未确认试用再flush。
-仅已确认应用且可核验的本地值可保存，不把草稿/试用或局内数据持久化。
-完整应用、回滚与保存验证由 [UI §8](UI_AND_SETTINGS.md) 单点定义。
+游戏窗口固定为无边框桌面分辨率，没有窗口模式、分辨率或显示试用；VSync/画质在明确 Apply 后应用。
+仅已确认应用且可核验的本地值可保存，不把草稿或局内数据持久化。
+完整应用与保存验证由 [UI §8](UI_AND_SETTINGS.md) 单点定义。
 
 领域接口新增或变更时，在对应领域文档中说明下列对接信息：
 
@@ -456,5 +455,5 @@ Back按编辑/捕获→子确认/模态→未消费Armed→普通面板→Settin
 | AI M12 | [AI报告](OPPONENT_AI.md) §3/§7 | `ALDOpponentController` 使用核心注册绑定、ReadAISelf/ReadPublicMatch 和授权 World 帧，再交 Nav/Combat/成长命令；Publish 后只为下一实际边界产意图，不持有写 permit；AI 叶参数只在唯一内容表中定义 |
 | 战斗 M4 | [战斗报告](COMBAT_AND_ATTRIBUTES.md) §3/§7 | 统一Submit/Cancel/Query、准入后Token、Prepare/ApplyBuildChange及营地回位重置（`FLDCampResetKey`）；正文区分持久来源与独立已释放效果，不复用旧family-max |
 | 成长 M6/M7/M8 | [成长报告](PROGRESSION_EQUIPMENT_ECONOMY.md) §4/§7/§8 | CommitDeathReward/Choice/Shop复合提交、专用QueryResult、双IssuedCooldownId债优先回绑、独立journal及AccountRetire；不把查询或NoReward当失败成功回退 |
-| UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地显示trial生命周期；普通Choices不阻整个世界，子模态不穿透 |
+| UI M11 | [UI报告](UI_AND_SETTINGS.md) §4–8 | 唯一TopInputLayer、本人的const投影/Relay合法帧、原键查询和本地设置应用/保存；普通Choices不阻整个世界，子模态不穿透 |
 | 内容与数值 | [内容报告](CONTENT_AND_BALANCE.md) §3–12 | 单一首轮目录/参数/公式、Decimal前置校验、定点原生树、根manifest、typed字段到消费者/行为测试；旧内容链已全部退出（内容报告 §11）；现有数值与精度已获用户批准并生成运行输入，不是平衡测试结果 |

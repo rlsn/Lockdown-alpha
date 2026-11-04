@@ -41,16 +41,9 @@ public:
     const FString& GetLocalSettingsMessage() const { return LocalSettingsMessage; }
 
     FLDDisplaySettingsResult ReadDisplaySettings(FLDDisplaySettings& Out) const;
-    bool GetDisplayResolutions(TArray<FIntPoint>& Out, FString& Error) const;
-    FLDDisplaySettingsResult ApplyDisplaySettings(const FLDDisplaySettings& Draft, UObject* TrialOwner);
-    FLDDisplaySettingsResult BeginDisplayTrial(const FLDDisplaySettings& Draft, UObject* TrialOwner);
-    FLDDisplaySettingsResult ConfirmDisplayTrial(uint64 TrialId);
-    FLDDisplaySettingsResult CancelDisplayTrial(uint64 TrialId);
-    FLDDisplaySettingsResult RetryDisplayRestore();
+    // Applies VSync and overall quality now, then saves and reads the engine settings files back.
+    FLDDisplaySettingsResult ApplyDisplaySettings(const FLDDisplaySettings& Draft);
     FLDDisplaySettingsResult RetryDisplaySave();
-    uint64 GetDisplayTrialId() const { return DisplayTrial.Id(); }
-    double GetDisplayTrialRemaining() const;
-    bool IsDisplayRestorePending() const { return bDisplayRestorePending; }
     bool AreDisplaySettingsDirty() const { return bDisplaySettingsDirty; }
     const FLDDisplaySettingsResult& GetDisplaySettingsResult() const { return DisplayResult; }
 private:
@@ -77,20 +70,10 @@ private:
     // Pushes the applied master volume to the audio subsystem, which is absent on a game instance that never ran Init.
     void ApplyAudioPreferences();
 
-    FLDDisplayTrialState DisplayTrial;
-    FLDDisplayConfigWriteGuard DisplayConfigGuard;
-    TSharedPtr<class IInputProcessor> DisplayInputGuard;
-    UPROPERTY(Transient) TObjectPtr<UGameUserSettings> DisplaySettingsDuringTrial;
-    TWeakObjectPtr<UObject> DisplayTrialOwner;
-    FLDDisplaySettings RestoreDisplay;
     FLDDisplaySettingsResult DisplayResult;
     bool bDisplaySettingsDirty = false;
-    bool bDisplayRestorePending = false;
-    double DisplayRestoreStartedAt = 0;
+    // Forces the borderless desktop-resolution window before the engine creates it.
+    void UseBorderlessWindow();
     UGameUserSettings* DisplaySettingsOwner() const;
-    bool InstallDisplayInputGuard();
-    bool ReleaseDisplayConfigGuard();
-    bool DisplayModeApplied(const FLDDisplaySettings& Expected) const;
-    FLDDisplaySettingsResult SetDisplayResult(ELDDisplaySettingsStatus Status, const FString& Message, uint64 Id=0);
-    FLDDisplaySettingsResult ApplyNonResolutionAndSave(const FLDDisplaySettings& Draft);
+    FLDDisplaySettingsResult SetDisplayResult(ELDDisplaySettingsStatus Status, const FString& Message);
 };

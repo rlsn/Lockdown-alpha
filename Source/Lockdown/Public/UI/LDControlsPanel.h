@@ -41,10 +41,10 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Preferences;
     UPROPERTY() TObjectPtr<UVerticalBox> Rows;
     UPROPERTY() TObjectPtr<UVerticalBox> DisplayRows;
-    UPROPERTY() TObjectPtr<UVerticalBox> TrialRows;
     UPROPERTY() TObjectPtr<UVerticalBox> ResetRows;
     UPROPERTY() TObjectPtr<UVerticalBox> RecoveryRows;
     UPROPERTY() TObjectPtr<UVerticalBox> CloseRows;
+    UPROPERTY() TObjectPtr<UTextBlock> CloseDraftPrompt;
     UPROPERTY() TObjectPtr<UTextBlock> DisplayFeedback;
     UPROPERTY() TObjectPtr<USlider> VolumeSlider;
     UPROPERTY() TObjectPtr<UTextBlock> VolumeLabel;
@@ -54,11 +54,10 @@ private:
     FSlateColor ChoiceRestTint;
     TWeakObjectPtr<ULDGameInstance> SettingsInstance;
     FLDDisplaySettings DisplayDraft;
-    TArray<FIntPoint> Resolutions;
-    uint64 TrialId = 0;
     bool bDisplayAvailable = false;
     bool bDisplayDraftDirty = false;
-    bool bCloseAfterConfirm = false;
+    // The instance refused this exact draft; applying it again would only repeat the failure, so Apply waits for an edit.
+    bool bDisplayDraftRejected = false;
     // Mouse and controller captures are tracked apart: grabbing the handle with the mouse ends a controller capture first.
     bool bVolumeMouseCapture=false;
     bool bVolumeControllerCapture=false;
@@ -71,15 +70,18 @@ private:
     void PopulatePreferences();
     void PopulateDisplay();
     void RefreshDisplayDraft();
+    void EditDisplayDraft();
     void ChangePreference(TFunction<void(ULDControlSettings&)> Change);
     void ShowChild(EChildConfirmation Which);
     void ShowRecoveryConfirmation();
     void EndCapture();
+    // True when the draft was applied (saved, or only its save failed); a refusal is shown and disables Apply until an edit.
+    bool ApplyDisplay(FString& Message);
     void ApplyDisplay();
-    void ConfirmDisplay(uint64 Id);
-    void CancelDisplay(uint64 Id);
+    // A refusal keeps the close prompt open with the failure and focuses "discard and return".
+    void ApplyDisplayAndReturn();
     // Restore defaults (UI_AND_SETTINGS 8): the local preferences apply at once, then the display draft becomes the product
-    // defaults and goes through the normal display apply, so a mode change still needs the keep/revert trial.
+    // defaults and goes through the normal display apply.
     void ConfirmResetDefaults();
     void RestoreDisplayDefaults(ULDGameInstance& Instance);
     FReply CaptureKey(FKey Key);

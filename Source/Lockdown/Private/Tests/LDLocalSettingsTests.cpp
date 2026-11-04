@@ -152,20 +152,14 @@ namespace
     FLDDisplaySettings DisplayFixture()
     {
         FLDDisplaySettings Result;
-        Result.Resolution = FIntPoint(1280, 720);
-        Result.WindowMode = EWindowMode::Windowed;
         Result.bVSync = false;
         Result.Quality.SetFromSingleQualityLevel(1);
         return Result;
     }
 
-    FString DisplayIni(const FLDDisplaySettings& Value, bool Confirmed = true)
+    FString DisplayIni(const FLDDisplaySettings& Value)
     {
-        return FString::Printf(TEXT("[/Script/Engine.GameUserSettings]\nResolutionSizeX=%d\nResolutionSizeY=%d\n")
-            TEXT("LastUserConfirmedResolutionSizeX=%d\nLastUserConfirmedResolutionSizeY=%d\n")
-            TEXT("FullscreenMode=%d\nLastConfirmedFullscreenMode=%d\nPreferredFullscreenMode=%d\nbUseVSync=%s\n"),
-            Value.Resolution.X, Value.Resolution.Y, Confirmed ? Value.Resolution.X : 1, Value.Resolution.Y,
-            int32(Value.WindowMode), int32(Value.WindowMode), int32(Value.PreferredFullscreenMode), Value.bVSync ? TEXT("True") : TEXT("False"));
+        return FString::Printf(TEXT("[/Script/Engine.GameUserSettings]\nbUseVSync=%s\n"), Value.bVSync ? TEXT("True") : TEXT("False"));
     }
 
     FString QualityIni(const FLDDisplaySettings& Value)
@@ -1010,40 +1004,16 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDisplayTrialTest, "Lockdown.Rules.LocalDisplayTrialLifecycle",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsTravelFlushTest, "Lockdown.Rules.LocalSettingsTravelFlush",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDLocalDisplayTrialTest::RunTest(const FString& Parameters)
+bool FLDLocalSettingsTravelFlushTest::RunTest(const FString& Parameters)
 {
     FLocalSettingsFixture Fixture(*this);
     auto* Instance = NewObject<ULDGameInstance>();
     auto* Applied = Instance->UseIsolatedLocalSettings(Fixture.Id);
-    auto Before = DisplayFixture(), Draft = Before;
-    Draft.Resolution = FIntPoint(1920, 1080);
-    Draft.bVSync = true;
-    Draft.Quality.SetFromSingleQualityLevel(3);
-    FLDDisplayTrialState Trial;
-    const uint64 First = Trial.Begin(Before, Draft, 10., 15.);
-    TestTrue(TEXT("A valid trial has an identity"), First != 0);
-    TestEqual(TEXT("A second trial cannot replace an active one"), Trial.Begin(Before, Draft, 11., 15.), uint64(0));
-    TestFalse(TEXT("No early timeout"), Trial.IsExpired(24.999));
-    TestTrue(TEXT("Timeout includes the exact deadline"), Trial.IsExpired(25.));
-    TestTrue(TEXT("Original VSync and every quality field are retained separately"),
-        Trial.Baseline() == Before && Trial.Candidate() == Draft);
     FString Error;
-    TestTrue(TEXT("A legal applied zoom during trial is retained"), Applied->SetAppliedZoom(1650, Error));
+    TestTrue(TEXT("A legal applied zoom is accepted"), Applied->SetAppliedZoom(1650, Error));
     Applied->SetAppliedFollowing(false);
-    TestTrue(TEXT("Cancel invalidates the trial once"), Trial.Invalidate(First));
-    TestFalse(TEXT("Repeated cancel is inert"), Trial.Invalidate(First));
-    const uint64 Second = Trial.Begin(Before, Draft, 30., 15.);
-    TestTrue(TEXT("Trial IDs never repeat"), Second > First);
-    TestFalse(TEXT("Old confirmation cannot target a newer trial"), Trial.IsCurrent(First));
-    TestFalse(TEXT("Old cancellation cannot cancel a newer trial"), Trial.Invalidate(First));
-    TestTrue(TEXT("New trial remains current after stale callbacks"), Trial.IsCurrent(Second));
-    TestFalse(TEXT("Old timeout does not expire a newer trial"), Trial.IsExpired(25.));
-    TestTrue(TEXT("Nonfinite clock is fail-closed"), Trial.IsExpired(std::numeric_limits<double>::quiet_NaN()));
-    Trial.Invalidate(Second);
-    TestEqual(TEXT("Nonfinite timeout cannot begin"), Trial.Begin(Before, Draft, 50., std::numeric_limits<double>::infinity()), uint64(0));
-    TestEqual(TEXT("Zero timeout cannot begin"), Trial.Begin(Before, Draft, 50., 0.), uint64(0));
     auto* LocalDraft = Applied->CreateDraft();
     LocalDraft->Zoom = 1100;
     Instance->RequestLocalSettingsFlush();
@@ -1054,10 +1024,40 @@ bool FLDLocalDisplayTrialTest::RunTest(const FString& Parameters)
         && Restarted.Settings->Zoom == 1650 && !Restarted.Settings->bStartFollowing);
     TestTrue(TEXT("An uncommitted draft remains unsavable after travel"),
         LocalDraft->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
-    TestTrue(TEXT("Isolated automation never claims a real display trial"),
-        Instance->BeginDisplayTrial(Draft, Instance).Status == ELDDisplaySettingsStatus::Unavailable);
-    TestTrue(TEXT("No trial cannot be confirmed as applied"),
-        Instance->ConfirmDisplayTrial(1).Status == ELDDisplaySettingsStatus::StaleTrial);
+    auto Draft = DisplayFixture();
+    Draft.bVSync = true;
+    TestTrue(TEXT("Isolated automation never applies or saves real display settings"),
+        Instance->ApplyDisplaySettings(Draft).Status == ELDDisplaySettingsStatus::Unavailable
+        && !Instance->AreDisplaySettingsDirty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDisplayBorderlessOnlyTest, "Lockdown.Rules.LocalDisplayBorderlessOnly",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalDisplayBorderlessOnlyTest::RunTest(const FString& Parameters)
+{
+    // Issue #98. A detached owner holding an older windowed save; no real viewport or window is touched.
+    auto* Settings = NewObject<UGameUserSettings>();
+    Settings->SetScreenResolution(FIntPoint(1280, 720));
+    Settings->SetFullscreenMode(EWindowMode::Windowed);
+    Settings->ConfirmVideoMode();
+    Settings->SetVSyncEnabled(true);
+    Settings->ScalabilityQuality.SetFromSingleQualityLevel(0);
+    Settings->ScalabilityQuality.ResolutionQuality = 50.f;
+    const auto Before = FLDDisplaySettings::Read(*Settings);
+    const FIntPoint Desktop = Settings->GetDesktopResolution();
+    if (!TestTrue(TEXT("The desktop resolution is known"), Desktop.X > 0 && Desktop.Y > 0)) { return false; }
+    LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    TestTrue(TEXT("An older windowed save becomes borderless"), Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen);
+    TestTrue(TEXT("The window uses the desktop resolution"), Settings->GetScreenResolution() == Desktop);
+    TestTrue(TEXT("It is the confirmed mode, so a later save writes no unconfirmed window"),
+        Settings->GetLastConfirmedFullscreenMode() == EWindowMode::WindowedFullscreen
+        && Settings->GetLastConfirmedScreenResolution() == Desktop);
+    TestTrue(TEXT("VSync, quality and render scale are untouched"), FLDDisplaySettings::Read(*Settings) == Before);
+    LDLocalSettings::HoldBorderlessDesktop(*Settings);
+    TestTrue(TEXT("Holding it again changes nothing"),
+        Settings->GetFullscreenMode() == EWindowMode::WindowedFullscreen && Settings->GetScreenResolution() == Desktop
+        && FLDDisplaySettings::Read(*Settings) == Before);
     return true;
 }
 
@@ -1071,21 +1071,14 @@ bool FLDLocalDisplayProductDefaultsTest::RunTest(const FString& Parameters)
         || !TestTrue(TEXT("The engine VSync default is a number"), LexTryParseString(EngineVSync, *VSync->GetDefaultValue()))) { return false; }
     // A detached live owner whose every restorable value differs from the product defaults; no real viewport is touched.
     auto* Live = NewObject<UGameUserSettings>();
-    Live->SetScreenResolution(FIntPoint(1280, 720));
-    Live->SetFullscreenMode(EWindowMode::Windowed);
-    Live->ConfirmVideoMode();
     Live->SetVSyncEnabled(EngineVSync == 0);
     Live->ScalabilityQuality.SetFromSingleQualityLevel(0);
     const auto Before = FLDDisplaySettings::Read(*Live);
-    const FIntPoint Desktop(2560, 1440);
     FLDDisplaySettings Defaults;
     FString Error;
-    if (!TestTrue(TEXT("Product defaults resolve for a known desktop size"),
-        FLDDisplaySettings::ProductDefaults(*Live, Desktop, Defaults, Error) && Error.IsEmpty())) { return false; }
-    TestTrue(TEXT("Computing the defaults never modifies the live settings owner"),
-        FLDDisplaySettings::Read(*Live) == Before && Live->GetLastConfirmedScreenResolution() == FIntPoint(1280, 720));
-    TestTrue(TEXT("The window mode is the engine default"), Defaults.WindowMode == UGameUserSettings::GetDefaultWindowMode());
-    TestTrue(TEXT("The unset default resolution in borderless mode is the desktop size"), Defaults.Resolution == Desktop);
+    if (!TestTrue(TEXT("Product defaults resolve"),
+        FLDDisplaySettings::ProductDefaults(*Live, Defaults, Error) && Error.IsEmpty())) { return false; }
+    TestTrue(TEXT("Computing the defaults never modifies the live settings owner"), FLDDisplaySettings::Read(*Live) == Before);
     TestTrue(TEXT("VSync is the engine's r.VSync default, not the live value"),
         Defaults.bVSync == (EngineVSync != 0) && Defaults.bVSync != Before.bVSync);
     Scalability::FQualityLevels EngineQuality;
@@ -1099,14 +1092,8 @@ bool FLDLocalDisplayProductDefaultsTest::RunTest(const FString& Parameters)
         && Q.FoliageQuality == EngineQuality.FoliageQuality && Q.ShadingQuality == EngineQuality.ShadingQuality
         && Q.LandscapeQuality == EngineQuality.LandscapeQuality);
     TestTrue(TEXT("The default quality is not the live Low preset"), Q != Before.Quality && Q.GetSingleQualityLevel() != 0);
-    TestTrue(TEXT("The fullscreen shortcut preference stays the live one"), Defaults.PreferredFullscreenMode == Before.PreferredFullscreenMode);
     TestTrue(TEXT("The product defaults are valid display settings"), Defaults.IsValid());
     TestFalse(TEXT("Product defaults are not the current values that ResetToCurrentSettings keeps"), Defaults == Before);
-    TestFalse(TEXT("Restoring this mode needs the keep/revert display trial"), Defaults.SameMode(Before));
-    auto Unchanged = Before;
-    TestFalse(TEXT("An unknown desktop size is refused instead of inventing a resolution"),
-        FLDDisplaySettings::ProductDefaults(*Live, FIntPoint::ZeroValue, Unchanged, Error));
-    TestTrue(TEXT("The refusal is explained and leaves the output untouched"), !Error.IsEmpty() && Unchanged == Before);
     return true;
 }
 
@@ -1186,8 +1173,6 @@ bool FLDLocalDisplayPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Modify disk without modifying the expected in-memory state"),
         FFileHelper::SaveStringToFile(DisplayIni(Changed), *Fixture.DisplayFile));
     TestTrue(TEXT("Readback does not trust stale cached VSync"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
-    TestTrue(TEXT("Write an unconfirmed mode fixture"), FFileHelper::SaveStringToFile(DisplayIni(Expected, false), *Fixture.DisplayFile));
-    TestTrue(TEXT("An unconfirmed mode is not persistence verified"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
     TestTrue(TEXT("Restore confirmed display fixture"), FFileHelper::SaveStringToFile(DisplayIni(Expected), *Fixture.DisplayFile));
     Changed = Expected;
     Changed.Quality.TextureQuality = 4;
@@ -1215,76 +1200,6 @@ bool FLDLocalDisplayPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Valid native scientific notation is persistence verified"), Verify().IsSaved());
     TestTrue(TEXT("Remove actual display fixture"), IFileManager::Get().Delete(*Fixture.DisplayFile, false, false, true));
     TestTrue(TEXT("A removed actual file cannot be verified from memory"), Verify().Status == ELDLocalSettingsSaveStatus::ReadbackFailed);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDisplayAutosaveGuardTest, "Lockdown.Rules.LocalDisplayAutosaveGuard",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDLocalDisplayAutosaveGuardTest::RunTest(const FString& Parameters)
-{
-    FLocalSettingsFixture Fixture(*this);
-    const auto Expected = DisplayFixture();
-    const FString OriginalDisplay = DisplayIni(Expected), OriginalQuality = QualityIni(Expected);
-    TestTrue(TEXT("Write confirmed display bytes"), FFileHelper::SaveStringToFile(OriginalDisplay, *Fixture.DisplayFile));
-    TestTrue(TEXT("Write confirmed quality bytes"), FFileHelper::SaveStringToFile(OriginalQuality, *Fixture.QualityFile));
-    FConfigCacheIni Cache(EConfigCacheType::DiskBacked);
-    FConfigFile Display, Quality;
-    Display.ProcessInputFileContents(OriginalDisplay, Fixture.DisplayFile);
-    Quality.ProcessInputFileContents(OriginalQuality, Fixture.QualityFile);
-    Cache.Add(Fixture.DisplayFile, Display);
-    Cache.Add(Fixture.QualityFile, Quality);
-    FLDDisplayConfigWriteGuard Guard;
-    FString Error;
-    TestTrue(TEXT("Acquire guard for the two actual engine-style configuration targets"),
-        Guard.Begin(Cache, Fixture.DisplayFile, Fixture.QualityFile, TEXT("/Script/Engine.GameUserSettings"), Error));
-    TestFalse(TEXT("Cannot replace an active guard"),
-        Guard.Begin(Cache, Fixture.DisplayFile, Fixture.QualityFile, TEXT("/Script/Engine.GameUserSettings"), Error));
-    Cache.SetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("ResolutionSizeX"), TEXT("1920"), Fixture.DisplayFile);
-    Cache.SetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("LastUserConfirmedResolutionSizeX"), TEXT("1920"), Fixture.DisplayFile);
-    Cache.SetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("PreferredFullscreenMode"), TEXT("0"), Fixture.DisplayFile);
-    Cache.SetString(TEXT("ScalabilityGroups"), TEXT("sg.TextureQuality"), TEXT("4"), Fixture.QualityFile);
-    Cache.SetString(TEXT("Unrelated"), TEXT("Marker"), TEXT("keep"), Fixture.DisplayFile);
-    Cache.Flush(false, Fixture.DisplayFile);
-    Cache.Flush(false, Fixture.QualityFile);
-    FString Readback;
-    TestTrue(TEXT("Automatic engine-style flush cannot persist trial display values"),
-        FFileHelper::LoadFileToString(Readback, *Fixture.DisplayFile) && Readback == OriginalDisplay);
-    TestTrue(TEXT("Automatic flush cannot persist trial quality values"),
-        FFileHelper::LoadFileToString(Readback, *Fixture.QualityFile) && Readback == OriginalQuality);
-    TestTrue(TEXT("Release restores pre-trial tracked values before allowing writes"), Guard.Release(Cache, Error));
-    TestFalse(TEXT("Original display write policy restored"), Cache.FindConfigFile(Fixture.DisplayFile)->NoSave);
-    TestFalse(TEXT("Original quality write policy restored"), Cache.FindConfigFile(Fixture.QualityFile)->NoSave);
-    TestTrue(TEXT("Unrelated settings are not rolled back"),
-        Cache.GetString(TEXT("Unrelated"), TEXT("Marker"), Readback, Fixture.DisplayFile) && Readback == TEXT("keep"));
-    TestTrue(TEXT("Cached confirmed resolution restored"),
-        Cache.GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("ResolutionSizeX"), Readback, Fixture.DisplayFile) && Readback == TEXT("1280"));
-    TestTrue(TEXT("Cached confirmed quality restored"),
-        Cache.GetString(TEXT("ScalabilityGroups"), TEXT("sg.TextureQuality"), Readback, Fixture.QualityFile) && Readback == TEXT("1"));
-    TestTrue(TEXT("Cached fullscreen shortcut preference restored"),
-        Cache.GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("PreferredFullscreenMode"), Readback, Fixture.DisplayFile) && Readback == TEXT("1"));
-    Cache.Flush(false, Fixture.DisplayFile);
-    Cache.Flush(false, Fixture.QualityFile);
-    FConfigFile ActualDisplay, ActualQuality;
-    TestTrue(TEXT("Read post-release display from disk"), FFileHelper::LoadFileToString(Readback, *Fixture.DisplayFile));
-    ActualDisplay.ProcessInputFileContents(Readback, Fixture.DisplayFile);
-    TestTrue(TEXT("Later flush cannot revive the cached trial resolution"),
-        ActualDisplay.GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("ResolutionSizeX"), Readback) && Readback == TEXT("1280"));
-    TestTrue(TEXT("Read post-release quality from disk"), FFileHelper::LoadFileToString(Readback, *Fixture.QualityFile));
-    ActualQuality.ProcessInputFileContents(Readback, Fixture.QualityFile);
-    TestTrue(TEXT("Later flush cannot revive cached trial quality"),
-        ActualQuality.GetString(TEXT("ScalabilityGroups"), TEXT("sg.TextureQuality"), Readback) && Readback == TEXT("1"));
-    Cache.SetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("ResolutionSizeX"), TEXT("1440"), Fixture.DisplayFile);
-    Cache.Flush(false, Fixture.DisplayFile);
-    TestTrue(TEXT("Read a subsequent permitted write"), FFileHelper::LoadFileToString(Readback, *Fixture.DisplayFile));
-    FConfigFile Subsequent;
-    Subsequent.ProcessInputFileContents(Readback, Fixture.DisplayFile);
-    TestTrue(TEXT("The guard did not leave normal future saves disabled"),
-        Subsequent.GetString(TEXT("/Script/Engine.GameUserSettings"), TEXT("ResolutionSizeX"), Readback) && Readback == TEXT("1440"));
-    Cache.FindConfigFile(Fixture.DisplayFile)->NoSave = true;
-    TestTrue(TEXT("Guard may coexist with a pre-existing write prohibition"),
-        Guard.Begin(Cache, Fixture.DisplayFile, Fixture.DisplayFile, TEXT("/Script/Engine.GameUserSettings"), Error));
-    TestTrue(TEXT("Repeated filename is guarded once"), Guard.Release(Cache, Error));
-    TestTrue(TEXT("Release never removes somebody else's NoSave flag"), Cache.FindConfigFile(Fixture.DisplayFile)->NoSave);
     return true;
 }
 
@@ -1388,9 +1303,6 @@ bool FLDLocalDisplayNativeSaveFlushTest::RunTest(const FString& Parameters)
     Cache.Add(Fixture.DisplayFile, Display);
     Cache.Add(Fixture.QualityFile, Quality);
     auto* Settings = NewObject<UGameUserSettings>();
-    Settings->SetScreenResolution(FIntPoint(1280, 720));
-    Settings->SetFullscreenMode(EWindowMode::Windowed);
-    Settings->ConfirmVideoMode();
     Settings->SetVSyncEnabled(false);
     Settings->ScalabilityQuality = Scalability::GetQualityLevels();
     auto Expected = FLDDisplaySettings::Read(*Settings);
