@@ -21,6 +21,14 @@ const FNativeId NativeIds[] =
     DEMO_ID("abilities", "passive_battle_rhythm", ELDDemoAbilityId, PassiveBattleRhythm),
     DEMO_ID("abilities", "passive_second_wind", ELDDemoAbilityId, PassiveSecondWind),
     DEMO_ID("abilities", "passive_precision", ELDDemoAbilityId, PassivePrecision),
+    DEMO_ID("abilities", "active_slipper_throw", ELDDemoAbilityId, ActiveSlipperThrow),
+    DEMO_ID("abilities", "active_fart_dash", ELDDemoAbilityId, ActiveFartDash),
+    DEMO_ID("abilities", "active_combo_flurry", ELDDemoAbilityId, ActiveComboFlurry),
+    DEMO_ID("abilities", "active_slick_moves", ELDDemoAbilityId, ActiveSlickMoves),
+    DEMO_ID("abilities", "passive_cornered", ELDDemoAbilityId, PassiveCornered),
+    DEMO_ID("abilities", "passive_lurking", ELDDemoAbilityId, PassiveLurking),
+    DEMO_ID("abilities", "passive_public_shame", ELDDemoAbilityId, PassivePublicShame),
+    DEMO_ID("abilities", "passive_eagle_eye", ELDDemoAbilityId, PassiveEagleEye),
     DEMO_ID("attributes", "attr_might", ELDDemoAttributeId, AttrMight),
     DEMO_ID("attributes", "attr_focus", ELDDemoAttributeId, AttrFocus),
     DEMO_ID("attributes", "attr_vitality", ELDDemoAttributeId, AttrVitality),
@@ -33,12 +41,18 @@ const FNativeId NativeIds[] =
     DEMO_ID("equipment", "item_phase_anchor", ELDDemoEquipmentId, ItemPhaseAnchor),
     DEMO_ID("equipment", "item_arcane_battery", ELDDemoEquipmentId, ItemArcaneBattery),
     DEMO_ID("equipment", "item_echo_maul", ELDDemoEquipmentId, ItemEchoMaul),
+    DEMO_ID("equipment", "item_slingshot", ELDDemoEquipmentId, ItemSlingshot),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
     DEMO_ID("statuses", "shield", ELDDemoStatusId, Shield),
     DEMO_ID("statuses", "camp_returning", ELDDemoStatusId, CampReturning),
     DEMO_ID("statuses", "respawn_protection", ELDDemoStatusId, RespawnProtection),
+    DEMO_ID("statuses", "slow", ELDDemoStatusId, Slow),
+    DEMO_ID("statuses", "stat_boost", ELDDemoStatusId, StatBoost),
+    DEMO_ID("statuses", "enraged", ELDDemoStatusId, Enraged),
+    DEMO_ID("statuses", "ambush_ready", ELDDemoStatusId, AmbushReady),
+    DEMO_ID("statuses", "exposed", ELDDemoStatusId, Exposed),
     DEMO_ID("effect_ops", "damage", ELDDemoEffectOp, Damage),
     DEMO_ID("effect_ops", "shield", ELDDemoEffectOp, Shield),
     DEMO_ID("effect_ops", "dispel_root", ELDDemoEffectOp, DispelRoot),
@@ -49,6 +63,12 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "dash", ELDDemoEffectOp, Dash),
     DEMO_ID("effect_ops", "restore_mana", ELDDemoEffectOp, RestoreMana),
     DEMO_ID("effect_ops", "cleave", ELDDemoEffectOp, Cleave),
+    DEMO_ID("effect_ops", "slow", ELDDemoEffectOp, Slow),
+    DEMO_ID("effect_ops", "timed_stat_bonus", ELDDemoEffectOp, TimedStatBonus),
+    DEMO_ID("effect_ops", "self_area", ELDDemoEffectOp, SelfArea),
+    DEMO_ID("effect_ops", "low_hp_stat_bonus", ELDDemoEffectOp, LowHpStatBonus),
+    DEMO_ID("effect_ops", "ambush_damage", ELDDemoEffectOp, AmbushDamage),
+    DEMO_ID("effect_ops", "control_damage_amp", ELDDemoEffectOp, ControlDamageAmp),
 };
 #undef DEMO_ID
 
@@ -332,10 +352,30 @@ const FBonusField BonusFields[] =
     {TEXT("AttackSpeedBonusRatio"), ELDDemoBonusStat::AttackSpeedBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("MoveSpeedBonusRatio"), ELDDemoBonusStat::MoveSpeedBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("CritChanceBonusRatio"), ELDDemoBonusStat::CritChanceBonusRatio, TEXT("ratio"), TEXT("bp")},
+    {TEXT("ADBonusRatio"), ELDDemoBonusStat::ADBonusRatio, TEXT("ratio"), TEXT("bp")},
 };
 
 constexpr uint32 Bit(ELDDemoBonusStat Stat) { return 1u << uint8(Stat); }
 constexpr uint32 OpBit(ELDDemoEffectOp Op) { return 1u << uint8(Op); }
+
+// Temporary and conditional bonuses never change resource maxima (no current-resource conversion exists for them).
+constexpr uint32 TemporaryStats = ~(Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::MaxMPFlat));
+
+bool DamageTerms(FFields& F, FLDDemoEffectDefinition& Out, FCheck& Check, const FString& Path)
+{
+    FString Type;
+    if (!F.Fixed(TEXT("base"), TEXT("points"), TEXT("p2"), Out.BaseP2)
+        || !F.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.ADRatioBp)
+        || !F.Fixed(TEXT("ap_ratio"), TEXT("ratio"), TEXT("bp"), Out.APRatioBp)
+        || !F.Text(TEXT("damage_type"), Type)
+        || !Check.Require(Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive)
+            || Type.Equals(TEXT("Magical"), ESearchCase::CaseSensitive), Path, TEXT("unknown damage type")))
+    {
+        return false;
+    }
+    Out.DamageType = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
+    return Check.Require(Out.BaseP2 > 0 || Out.APRatioBp > 0 || Out.ADRatioBp > 0, Path, TEXT("ineffective effect"));
+}
 
 uint32 StatMask(const TArray<FLDDemoStatBonus>& Stats)
 {
@@ -519,6 +559,50 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             return false;
         }
         break;
+    case ELDDemoEffectOp::Slow:
+        // A slow always leaves some move speed; the projection clamps the rest to STAT.MoveSpeed.Min.
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::TimedStatBonus:
+        if (!Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+            || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima"))
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::SelfArea:
+        if (!F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !Check.Require(Out.RadiusCm.Numerator > 0, Path, TEXT("area radius must be positive")))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::LowHpStatBonus:
+        if (!F.Fixed(TEXT("threshold"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 9999)
+            || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+            || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("conditional bonuses cannot change resource maxima")))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::AmbushDamage:
+        if (!F.Fixed(TEXT("delay"), TEXT("ms"), TEXT("ms"), Out.DelayMs, 1) || !DamageTerms(F, Out, Check, Path))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::ControlDamageAmp:
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -577,7 +661,7 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         return false;
     }
     ELDDemoTargetMode Mode = ELDDemoTargetMode::Self;
-    uint32 ExpectedOps = 0, ExpectedStats = 0;
+    uint32 ExpectedOps = 0, ExpectedStats = 0, TimedStats = 0;
     bool Active = false;
     switch (Out.GetNativeId())
     {
@@ -593,6 +677,24 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         ExpectedOps = OpBit(ELDDemoEffectOp::OutOfCombatRegen); break;
     case ELDDemoAbilityId::PassivePrecision:
         ExpectedOps = OpBit(ELDDemoEffectOp::StatBonus); ExpectedStats = Bit(ELDDemoBonusStat::CritChanceBonusRatio); break;
+    case ELDDemoAbilityId::ActiveSlipperThrow:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Slow); break;
+    case ELDDemoAbilityId::ActiveFartDash:
+        Active = true; Mode = ELDDemoTargetMode::DirectionDash;
+        ExpectedOps = OpBit(ELDDemoEffectOp::Dash) | OpBit(ELDDemoEffectOp::SelfArea) | OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Slow);
+        break;
+    case ELDDemoAbilityId::ActiveComboFlurry:
+        Active = true; ExpectedOps = OpBit(ELDDemoEffectOp::TimedStatBonus); TimedStats = Bit(ELDDemoBonusStat::AttackSpeedBonusRatio); break;
+    case ELDDemoAbilityId::ActiveSlickMoves:
+        Active = true; ExpectedOps = OpBit(ELDDemoEffectOp::TimedStatBonus); TimedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio); break;
+    case ELDDemoAbilityId::PassiveCornered:
+        ExpectedOps = OpBit(ELDDemoEffectOp::LowHpStatBonus); ExpectedStats = Bit(ELDDemoBonusStat::ADBonusRatio); break;
+    case ELDDemoAbilityId::PassiveLurking:
+        ExpectedOps = OpBit(ELDDemoEffectOp::AmbushDamage); break;
+    case ELDDemoAbilityId::PassivePublicShame:
+        ExpectedOps = OpBit(ELDDemoEffectOp::ControlDamageAmp); break;
+    case ELDDemoAbilityId::PassiveEagleEye:
+        ExpectedOps = OpBit(ELDDemoEffectOp::StatBonus); ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented ability projection"));
     }
@@ -623,6 +725,12 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         }
         if (ExpectedStats && !Check.Require(StatMask(Definition.Effects[0].Stats) == ExpectedStats,
             Path, TEXT("wrong passive stat definition")))
+        {
+            return false;
+        }
+        if (TimedStats && !Check.Require(Definition.Effects.ContainsByPredicate([TimedStats](const FLDDemoEffectDefinition& Effect)
+            { return Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus && StatMask(Effect.Stats) == TimedStats; }),
+            Path, TEXT("wrong timed stat definition")))
         {
             return false;
         }
@@ -685,6 +793,8 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
     case ELDDemoEquipmentId::ItemEchoMaul:
         ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::AttackRangeCmFlat);
         PassiveFamily = TEXT("passive_cleave"); PassiveOps = OpBit(ELDDemoEffectOp::Cleave); break;
+    case ELDDemoEquipmentId::ItemSlingshot:
+        ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat) | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented equipment projection"));
     }
@@ -911,9 +1021,9 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     if (!Basic.Literal(TEXT("target_mode"), TEXT("Unit")) || !Basic.Literal(TEXT("damage_type"), TEXT("Physical"))
         || !Basic.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.Character.BasicADRatioBp, 10000, 10000)
         || !Basic.Int(TEXT("interval_ms"), Out.Character.BasicIntervalMs, 1) || !Basic.Done() || !Character.Done()
-        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 6, Ability)
+        || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 20, Ability)
         || !Definitions(F.Take(TEXT("attributes")), Out.Attributes, Check, TEXT("content.attributes"), 3, 5, Attribute)
-        || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 7, Equipment)
+        || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 10, Equipment)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
         return false;

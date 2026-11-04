@@ -162,7 +162,9 @@ def content_fixture():
         "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_guardian"}
                        for identity in ("l1", "h1", "l2", "h2", "l3")],
     }
-    identities = ["character_demo", "root", "shield", "camp_returning", "respawn_protection"]
+    # Every native status needs one display row; read them so new statuses need no fixture edit.
+    statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
+    identities = ["character_demo", *statuses]
     identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",

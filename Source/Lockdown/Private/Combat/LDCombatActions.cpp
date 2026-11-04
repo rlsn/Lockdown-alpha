@@ -45,6 +45,30 @@ namespace LDCA
 
     const FLDDemoEffectDefinition* FindEffect(const FLDDemoRankDefinition& Rank, ELDDemoEffectOp Op)
     { return Rank.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); }
+
+    // The passive ambush bonus is its own damage instance against the same target; it never crits, roots or slows.
+    FLDCombatHit AmbushHit(const FLDCombatHit& Primary, const FLDAmbushDamageTerm& Term)
+    {
+        FLDCombatHit Hit=Primary;
+        Hit.HitId=FGuid::NewGuid();
+        Hit.HitClass=ELDCombatHitClass::Ability;
+        Hit.BaseP2=Term.BaseP2;
+        Hit.ADRatioBp=Term.ADRatioBp;
+        Hit.APRatioBp=Term.APRatioBp;
+        Hit.DamageType=Term.DamageType;
+        Hit.bCritical=false;
+        Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.ControlAmpBp=Hit.ControlAmpDurationMs=0;
+        Hit.bCleave=Hit.bLifesteal=false;
+        Hit.CleaveRatioBp=Hit.LifestealRatioBp=0;
+        Hit.CleaveRadiusCm=0;
+        return Hit;
+    }
+
+    void SnapshotControlAmp(const FLDAttributeProjection& Projection, int64& OutBp, int64& OutDurationMs)
+    {
+        OutBp=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->RatioBp : 0;
+        OutDurationMs=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->DurationMs : 0;
+    }
 }
 
 FLDCombatEntityRecord* ALDCombatDirector::FindRecord(const FGuid& Entity) { return Records.Find(Entity); }
@@ -402,6 +426,9 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     Action.TargetBody=Target;
     Action.StartedAtMs=Now;
     Action.ReleaseAtMs=ReleaseAt;
+    // Starting the swing enters combat, so the ambush window is read before LastCombatAt moves.
+    const auto& Ambush=Body->AttributeProjection.Ambush;
+    Action.bAmbush=Ambush.IsSet() && LDTactical::AmbushReady(Body->LastCombatAtMs,Ambush->DelayMs,Now);
     Body->Action=Action;
     Body->BasicTiming=Timing.Value.GetValue();
     Body->LastCombatAtMs=Now;
@@ -715,7 +742,10 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
             }
         }
     }
+    LDCA::SnapshotControlAmp(Body.AttributeProjection,Hit.ControlAmpBp,Hit.ControlAmpDurationMs);
     PendingHits.Add(Hit);
+    if (Action.bAmbush && Body.AttributeProjection.Ambush.IsSet())
+    { PendingHits.Add(LDCA::AmbushHit(Hit,Body.AttributeProjection.Ambush.GetValue())); }
     FinishAction(Body,ELDCombatReject::None,true);
     return true;
 }
@@ -764,6 +794,26 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     { Reject=ELDCombatReject::ControlBlocked; return true; }
     if (DashEffect && (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm)))
     { Reject=ELDCombatReject::Blocked; return true; }
+    // Hit effects name their targets before anything is paid: a unit, a projectile, or every legal body in a self area.
+    const FLDDemoEffectDefinition* DamageEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Damage);
+    const FLDDemoEffectDefinition* RootEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Root);
+    const FLDDemoEffectDefinition* SlowEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Slow);
+    const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::SelfArea);
+    const bool bHostile=DamageEffect || RootEffect || SlowEffect;
+    TArray<FLDCombatBodyRef> AreaTargets;
+    if (bHostile && (TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash))
+    {
+        // The origin is the caster's foot at release, before any dash of the same action moves it.
+        if (!AreaEffect)
+        {
+            Error=TEXT("A self or dash action with hit effects has no self_area to name its targets.");
+            return false;
+        }
+        if (!CollectAreaTargets(FootOf(Actor),LDCA::ToDouble(AreaEffect->RadiusCm),&Body,Body.Victim.EntityId,AreaTargets,Error))
+        { return false; }
+    }
+    const auto& AmbushTerm=Body.AttributeProjection.Ambush;
+    const bool bAmbush=DamageEffect && AmbushTerm.IsSet() && LDTactical::AmbushReady(Body.LastCombatAtMs,AmbushTerm->DelayMs,Now);
     // The duration is fixed at the actual release moment; later build changes never move this endpoint.
     int64 DurationMs=0, ReadyAt=0;
     if (!LDTactical::CooldownDurationMs(RankDef->CooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
@@ -778,58 +828,25 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FGuid EffectId=FGuid::NewGuid();
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};
     bool bDealsDamage=false;
-    const FLDDemoEffectDefinition* RootEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Root);
+    bool bTimedBonus=false;
     for (const auto& Effect : RankDef->Effects)
     {
         switch (Effect.GetOp())
         {
         case ELDDemoEffectOp::Damage:
             bDealsDamage=true;
-            if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
-            {
-                FLDCombatProjectile Projectile;
-                Projectile.EffectId=EffectId;
-                Projectile.Token=Action.Token;
-                Projectile.SourceBody=SelfRef;
-                Projectile.SourceEntity=Body.Victim.EntityId;
-                Projectile.CreditOwner=Body.Victim.EntityId;
-                Projectile.Source=Source;
-                Projectile.BaseP2=Effect.BaseP2;
-                Projectile.ADRatioBp=Effect.ADRatioBp;
-                Projectile.APRatioBp=Effect.APRatioBp;
-                Projectile.DamageType=Effect.DamageType;
-                Projectile.SourceADP2=Final.ADP2;
-                Projectile.SourceAPP2=Final.APP2;
-                Projectile.OriginCm=FootOf(Actor);
-                Projectile.Direction=Action.Direction;
-                Projectile.SpeedCmPerSec=LDCA::ToDouble(TargetDef.ProjectileSpeedCmPerSec);
-                Projectile.RangeCm=LDCA::ToDouble(TargetDef.RangeCm);
-                Projectile.RadiusCm=LDCA::ToDouble(TargetDef.ProjectileRadiusCm);
-                Projectile.AdvancedThroughMs=Now;
-                Projectiles.Add(Projectile);
-            }
-            else if (TargetDef.Mode==ELDDemoTargetMode::Unit)
-            {
-                FLDCombatHit Hit;
-                Hit.HitId=FGuid::NewGuid();
-                Hit.EffectId=EffectId;
-                Hit.Token=Action.Token;
-                Hit.Target=UnitTarget;
-                Hit.SourceBody=SelfRef;
-                Hit.SourceEntity=Body.Victim.EntityId;
-                Hit.CreditOwner=Body.Victim.EntityId;
-                Hit.Source=Source;
-                Hit.HitClass=ELDCombatHitClass::Ability;
-                Hit.BaseP2=Effect.BaseP2;
-                Hit.ADRatioBp=Effect.ADRatioBp;
-                Hit.APRatioBp=Effect.APRatioBp;
-                Hit.DamageType=Effect.DamageType;
-                Hit.SourceADP2=Final.ADP2;
-                Hit.SourceAPP2=Final.APP2;
-                Hit.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
-                PendingHits.Add(Hit);
-            }
             break;
+        case ELDDemoEffectOp::TimedStatBonus:
+        {
+            FLDCombatTimedBonus Bonus;
+            Bonus.EffectId=EffectId;
+            Bonus.SourceDefinition=Source.DefinitionId;
+            Bonus.Stats=Effect.Stats;
+            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Bonus.ExpiresAtMs,Error)) { return false; }
+            LDTactical::ApplyTimedBonus(Body.TimedBonuses,Bonus);
+            bTimedBonus=true;
+            break;
+        }
         case ELDDemoEffectOp::Shield:
         {
             if (Effect.APRatioBp<0 || Final.APP2<0 || (Effect.APRatioBp>0 && Final.APP2>MAX_int64/Effect.APRatioBp))
@@ -861,13 +878,77 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         }
         case ELDDemoEffectOp::Root:
+        case ELDDemoEffectOp::Slow:
+        case ELDDemoEffectOp::SelfArea:
+            // Delivered with the hits below.
             break;
         default:
             Error=FString::Printf(TEXT("Active effect opcode %u has no Combat handler."),Effect.Opcode);
             return false;
         }
     }
+    if (bHostile)
+    {
+        // One hit payload per target, snapshotted at release: damage terms, source AD/AP, controls and amplification.
+        FLDCombatHit Template;
+        Template.EffectId=EffectId;
+        Template.Token=Action.Token;
+        Template.SourceBody=SelfRef;
+        Template.SourceEntity=Body.Victim.EntityId;
+        Template.CreditOwner=Body.Victim.EntityId;
+        Template.Source=Source;
+        Template.HitClass=ELDCombatHitClass::Ability;
+        Template.BaseP2=DamageEffect ? DamageEffect->BaseP2 : 0;
+        Template.ADRatioBp=DamageEffect ? DamageEffect->ADRatioBp : 0;
+        Template.APRatioBp=DamageEffect ? DamageEffect->APRatioBp : 0;
+        Template.DamageType=DamageEffect ? DamageEffect->DamageType : ELDDemoDamageType::Physical;
+        Template.SourceADP2=Final.ADP2;
+        Template.SourceAPP2=Final.APP2;
+        Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
+        Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
+        Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
+        LDCA::SnapshotControlAmp(Body.AttributeProjection,Template.ControlAmpBp,Template.ControlAmpDurationMs);
+        const auto Deliver=[this,&Template,bAmbush,&AmbushTerm](const FLDCombatBodyRef& Target)
+        {
+            FLDCombatHit Hit=Template;
+            Hit.HitId=FGuid::NewGuid();
+            Hit.Target=Target;
+            PendingHits.Add(Hit);
+            if (bAmbush) { PendingHits.Add(LDCA::AmbushHit(Hit,AmbushTerm.GetValue())); }
+        };
+        if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
+        {
+            FLDCombatProjectile Projectile;
+            Projectile.EffectId=EffectId;
+            Projectile.Token=Action.Token;
+            Projectile.SourceBody=SelfRef;
+            Projectile.SourceEntity=Body.Victim.EntityId;
+            Projectile.CreditOwner=Body.Victim.EntityId;
+            Projectile.Source=Source;
+            Projectile.BaseP2=Template.BaseP2;
+            Projectile.ADRatioBp=Template.ADRatioBp;
+            Projectile.APRatioBp=Template.APRatioBp;
+            Projectile.DamageType=Template.DamageType;
+            Projectile.SourceADP2=Final.ADP2;
+            Projectile.SourceAPP2=Final.APP2;
+            Projectile.OriginCm=FootOf(Actor);
+            Projectile.Direction=Action.Direction;
+            Projectile.SpeedCmPerSec=LDCA::ToDouble(TargetDef.ProjectileSpeedCmPerSec);
+            Projectile.RangeCm=LDCA::ToDouble(TargetDef.RangeCm);
+            Projectile.RadiusCm=LDCA::ToDouble(TargetDef.ProjectileRadiusCm);
+            Projectile.AdvancedThroughMs=Now;
+            Projectile.SlowBp=Template.SlowBp;
+            Projectile.SlowDurationMs=Template.SlowDurationMs;
+            Projectile.ControlAmpBp=Template.ControlAmpBp;
+            Projectile.ControlAmpDurationMs=Template.ControlAmpDurationMs;
+            if (bAmbush) { Projectile.Ambush=AmbushTerm; }
+            Projectiles.Add(Projectile);
+        }
+        else if (TargetDef.Mode==ELDDemoTargetMode::Unit) { Deliver(UnitTarget); }
+        else { for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); } }
+    }
     if (bDealsDamage) { Body.LastCombatAtMs=Now; }
+    if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
     return true;

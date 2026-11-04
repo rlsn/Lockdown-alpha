@@ -33,6 +33,8 @@ struct FLDCombatAction
     int64 StartedAtMs=0;
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
+    // Basic attacks commit to combat when they start, so the ambush window is sampled at acceptance.
+    bool bAmbush=false;
 };
 
 struct FLDBodyCombatState
@@ -45,12 +47,23 @@ struct FLDBodyCombatState
         uint64 Revision=0;
     } Resources;
     FLDBasicTiming BasicTiming;
+    // Effective attributes: BuildProjection plus the temporary terms below (LDAttributeProjection::ApplyTemporary).
     FLDAttributeProjection AttributeProjection;
+    // The installed build (or monster) projection without temporary terms.
+    FLDAttributeProjection BuildProjection;
+    // The temporary terms AttributeProjection currently includes.
+    FLDTemporaryAttributeTerms AppliedTemporary;
     uint64 AttributeRevision=0;
     TOptional<FLDObservedPublicFacts> PublicFacts;
     FName MonsterId;                       // CampMember bodies only
     uint64 StateRevision=1;                // statuses/action changes; resources use Resources.Revision
     TArray<FLDCombatRoot> Roots;
+    TArray<FLDCombatSlow> Slows;
+    TArray<FLDCombatTimedBonus> TimedBonuses;
+    // Amplification marks other sources hold on this life (control damage amplification).
+    TArray<FLDCombatExposure> Exposures;
+    // Last published ambush-ready state, so the status changes the owner view exactly when the window opens.
+    bool bAmbushReadyShown=false;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
@@ -124,6 +137,9 @@ struct FLDCombatHit
     int64 SourceADP2=0, SourceAPP2=0;
     bool bCritical=false;
     int64 RootDurationMs=0;
+    int64 SlowBp=0, SlowDurationMs=0;
+    // Snapshot of the releasing source's control damage amplification, applied if this hit controls its target.
+    int64 ControlAmpBp=0, ControlAmpDurationMs=0;
     bool bCleave=false;
     int64 CleaveRatioBp=0;
     double CleaveRadiusCm=0;
@@ -148,6 +164,10 @@ struct FLDCombatProjectile
     double SpeedCmPerSec=0, RangeCm=0, RadiusCm=0;
     double TravelledCm=0;
     int64 AdvancedThroughMs=0;
+    int64 SlowBp=0, SlowDurationMs=0;
+    int64 ControlAmpBp=0, ControlAmpDurationMs=0;
+    // Ambush damage snapshotted at release; delivered with the first body this projectile strikes.
+    TOptional<FLDAmbushDamageTerm> Ambush;
 };
 
 UCLASS()
@@ -274,6 +294,20 @@ private:
     void ExpireStatuses(int64 NowMs);
     bool Regenerate(int64 NowMs, FString& Error);
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
+    // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
+    // excluding protected contenders and Excluded; sorted by entity. Shared by cleave and self-origin areas.
+    bool CollectAreaTargets(const FVector& Anchor, double RadiusCm, const FLDBodyCombatState* Excluded,
+        const FGuid& SourceEntity, TArray<FLDCombatBodyRef>& Out, FString& Error) const;
+    // A control the hit's source just applied to Target (Root now; stun or knock-up later) opens the source's
+    // control damage amplification on that life.
+    bool MarkControlled(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // Recomputes the effective projection from BuildProjection when the active temporary terms changed.
+    bool RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error);
+    // Ends lapsed slows, timed bonuses and exposures of every body and refreshes their effective projections.
+    bool RefreshAllTemporary(int64 NowMs, FString& Error);
+    // Installs a new build/monster projection on a body and reapplies its temporary terms.
+    bool InstallBodyProjection(FLDBodyCombatState& Body, ALDCharacter* Actor, const FLDAttributeProjection& Projection,
+        int64 NowMs, FString& Error);
 
     // ---- Sources (LDCombatSources.cpp).
     bool ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const;

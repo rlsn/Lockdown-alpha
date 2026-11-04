@@ -50,6 +50,7 @@ void ClassifyStat(const FLDDemoStatBonus& Stat, FLDOpponentUsage& Usage)
     switch (Stat.Stat)
     {
     case ELDDemoBonusStat::ADFlat:
+    case ELDDemoBonusStat::ADBonusRatio:
     case ELDDemoBonusStat::AttackSpeedBonusRatio:
     case ELDDemoBonusStat::AttackRangeCmFlat:
     case ELDDemoBonusStat::CritChanceBonusRatio:
@@ -71,7 +72,14 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     {
     case ELDDemoEffectOp::Damage:
     case ELDDemoEffectOp::Root:
+    case ELDDemoEffectOp::Slow:
         Usage.bEngage |= !bSelfTarget;
+        break;
+    case ELDDemoEffectOp::ControlDamageAmp:
+        Usage.bEngage = true;
+        break;
+    case ELDDemoEffectOp::AmbushDamage:
+        Usage.bBasicGrowth = true;
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
@@ -90,6 +98,8 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bBasicGrowth = true;
         break;
     case ELDDemoEffectOp::StatBonus:
+    case ELDDemoEffectOp::TimedStatBonus:
+    case ELDDemoEffectOp::LowHpStatBonus:
         for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
         break;
     default:

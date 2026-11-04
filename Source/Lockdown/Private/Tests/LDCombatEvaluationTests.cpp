@@ -219,16 +219,18 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
         Input.HitClass = ELDCombatHitClass::Ability;
         Input.SourceADP2.Reset();
         Input.SourceAPP2 = int64(2000);
-        Input.TargetResistanceP2 = Catalog->Get().Parameters.MagicResist.BaseP2;
+        // The chalk throw is Physical since #81, so it meets armor (same base points as magic resistance).
+        Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
+            ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
         if (!CheckDamage(*this, FString::Printf(TEXT("Compiled arc rank %d with 20 AP"), I + 1), Input, *Catalog,
             {ExpectedDamage[I], 0, ExpectedDamage[I], 0, 62000 - ExpectedDamage[I], 0})) { return false; }
         if (I == 0)
         {
             Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
-            if (!CheckDamage(*this, TEXT("70 magic damage against 18 points, not a ratio"), Input, *Catalog,
+            if (!CheckDamage(*this, TEXT("70 damage against 18 resistance points, not a ratio"), Input, *Catalog,
                 {5932, 0, 5932, 0, 56068, 0})) { return false; }
             Input.TargetResistanceP2 = int64(20000);
-            if (!CheckDamage(*this, TEXT("Magic resistance uses the same points formula"), Input, *Catalog,
+            if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
                 {2333, 0, 2333, 0, 59667, 0})) { return false; }
         }
     }
@@ -536,6 +538,39 @@ bool FLDDemoTimingDomainTest::RunTest(const FString& Parameters)
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Min;
     Input.BaseWindupMs = MAX_int64;
     CheckFailure(*this, TEXT("Scaled windup overflow does not wrap or become ready"), LDTactical::EvaluateBasicTiming(Input, *Catalog), EError::Overflow);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageControlAmplifyTest, "Lockdown.Rules.DemoCombatEvaluation.ControlAmplify",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto& Content = Catalog->Get();
+    FLDDamageEvaluationInput Input = PrimaryInput(*Catalog);
+    const int64 AD = Input.SourceADP2.GetValue(), Resist = Input.TargetResistanceP2.GetValue();
+    const int64 Scale = Content.Formulas.ResistanceScaleP2, HP = Input.TargetHPP2.GetValue();
+    // floor(AD x Scale / (Scale + Resist) x (10000 + Amp) / 10000), the amplification before one final floor.
+    const auto Expected = [AD, Resist, Scale](int64 AmpBp) { return AD * Scale * (10000 + AmpBp) / ((Scale + Resist) * 10000); };
+    const int64 Plain = Expected(0), Amplified = Expected(1600);
+    if (!CheckDamage(*this, TEXT("No amplification keeps the plain hit"), Input, *Catalog, {Plain, 0, Plain, 0, HP - Plain, 0}))
+    {
+        return false;
+    }
+    Input.DamageAmplifyBp = 1600;
+    if (!CheckDamage(*this, TEXT("A 16% control mark multiplies the pre-resistance amount once"), Input, *Catalog,
+        {Amplified, 0, Amplified, 0, HP - Amplified, 0}))
+    {
+        return false;
+    }
+    TestTrue(TEXT("The amplified hit is strictly larger"), Amplified > Plain);
+    Input.bTargetProtected = true;
+    CheckDamage(*this, TEXT("Protection still zeroes an amplified hit"), Input, *Catalog, {0, 0, 0, 0, HP, 0});
+    Input.bTargetProtected = false;
+    Input.DamageAmplifyBp = -1;
+    CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
     return true;
 }
 

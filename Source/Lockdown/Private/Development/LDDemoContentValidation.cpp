@@ -18,7 +18,8 @@ FExact StatBonus(const TArray<FLDDemoStatBonus>& Bonuses, int32 Stat, FNumbers& 
                 return N.Value(Bonus.Cm);
             }
             const bool Ratio = Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio;
+                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio;
             return N.Value(Bonus.Amount, Ratio ? 10000 : 100);
         }
     }
@@ -147,7 +148,8 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     }
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
-        if (Effect.GetOp() != ELDDemoEffectOp::Damage && Effect.GetOp() != ELDDemoEffectOp::Shield)
+        if (Effect.GetOp() != ELDDemoEffectOp::Damage && Effect.GetOp() != ELDDemoEffectOp::Shield
+            && Effect.GetOp() != ELDDemoEffectOp::AmbushDamage)
         {
             return true;
         }
@@ -157,7 +159,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             return false;
         }
-        return Effect.GetOp() != ELDDemoEffectOp::Damage
+        return Effect.GetOp() == ELDDemoEffectOp::Shield
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path));
     };
     for (const auto& Ability : D.Abilities)

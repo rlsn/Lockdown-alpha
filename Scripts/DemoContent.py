@@ -44,7 +44,15 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave"))
+                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave",
+                       "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
+                       "ambush_damage", "control_damage_amp"))
+# Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
+HOSTILE_OPS = frozenset(("damage", "root", "slow"))
+# Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
+TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+                             "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
+                             "CritChanceBonusRatio", "ADBonusRatio"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -453,10 +461,10 @@ def _positive_stats(stats, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "restore_mana")),
-        "Unit": frozenset(("damage", "root")),
-        "DirectionProjectile": frozenset(("damage",)),
-        "DirectionDash": frozenset(("dash",)),
+        "Self": frozenset(("shield", "dispel_root", "restore_mana", "timed_stat_bonus", "self_area", *HOSTILE_OPS)),
+        "Unit": frozenset(("damage", "root", "slow")),
+        "DirectionProjectile": frozenset(("damage", "slow")),
+        "DirectionDash": frozenset(("dash", "self_area", *HOSTILE_OPS)),
     }[mode]
     signature = None
     for rank in ranks:
@@ -464,6 +472,11 @@ def _validate_action(target, ranks, path):
         require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
         require(signature is None or signature == ops, "RankShape", path, "ranks must use the same handlers")
         signature = ops
+        if mode in ("Self", "DirectionDash"):
+            require(("self_area" in ops) == bool(ops & HOSTILE_OPS), "TargetEffectMismatch", path,
+                    "hit effects of a self or dash action need exactly one self_area to name their targets")
+        if mode == "DirectionProjectile":
+            require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
         for effect in rank["effects"]:
             if effect["op"] in ("dash", "cleave"):
                 field = "distance" if effect["op"] == "dash" else "radius"
@@ -476,6 +489,14 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
                 require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "restore ratio must be positive")
+            if effect["op"] == "slow":
+                require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
+            if effect["op"] == "self_area":
+                require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
+            if effect["op"] == "timed_stat_bonus":
+                require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path,
+                        "timed bonuses cannot change resource maxima")
+                _positive_stats(effect["stats"], path)
     if mode in ("Unit", "DirectionProjectile"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
@@ -499,11 +520,20 @@ def validate_definitions(data, ids):
         "active_arc_bolt": ("DirectionProjectile", {"damage"}),
         "active_guard_pulse": ("Self", {"shield", "dispel_root"}),
         "active_binding_snare": ("Unit", {"damage", "root"}),
+        "active_slipper_throw": ("Unit", {"damage", "slow"}),
+        "active_fart_dash": ("DirectionDash", {"dash", "self_area", "damage", "slow"}),
+        "active_combo_flurry": ("Self", {"timed_stat_bonus"}),
+        "active_slick_moves": ("Self", {"timed_stat_bonus"}),
     }
+    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"}, "active_slick_moves": {"MoveSpeedBonusRatio"}}
     passive_contracts = {
         "passive_battle_rhythm": ("stat_bonus", {"AttackSpeedBonusRatio"}),
         "passive_second_wind": ("out_of_combat_regen", None),
         "passive_precision": ("stat_bonus", {"CritChanceBonusRatio"}),
+        "passive_cornered": ("low_hp_stat_bonus", {"ADBonusRatio"}),
+        "passive_lurking": ("ambush_damage", None),
+        "passive_public_shame": ("control_damage_amp", None),
+        "passive_eagle_eye": ("stat_bonus", {"AttackRangeCmFlat"}),
     }
     cooldown_families = {}
     for ability in data["abilities"]:
@@ -517,6 +547,10 @@ def validate_definitions(data, ids):
             _validate_action(ability["target"], ability["ranks"], identity)
             require(all(_effect_set(rank["effects"], identity) == effects for rank in ability["ranks"]),
                     "MissingHandler", identity, "definition has missing or extra effects")
+            if identity in timed_stats:
+                require(all(set(effect["stats"]) == timed_stats[identity] for rank in ability["ranks"]
+                            for effect in rank["effects"] if effect["op"] == "timed_stat_bonus"),
+                        "UnknownField", identity, "wrong timed stat")
             family = "cd_" + identity.removeprefix("active_")
             require(ability["cooldown_family"] == family, "InvalidReference", identity, "wrong cooldown family")
             cooldown_families[family] = identity
@@ -530,8 +564,16 @@ def validate_definitions(data, ids):
                 if stat_fields is not None:
                     require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
                     _positive_stats(effect["stats"], identity)
-                else:
+                if operation == "low_hp_stat_bonus":
+                    require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", identity,
+                            "the HP threshold must lie strictly inside the pool")
+                elif operation == "out_of_combat_regen":
                     require(quantity(effect["rate"]) > 0, "NumericDomain", identity, "regen bonus must be positive")
+                elif operation == "ambush_damage":
+                    require(any(quantity(effect[field]) > 0 for field in ("base", "ad_ratio", "ap_ratio")),
+                            "IneffectiveEffect", identity, "effect has neither magnitude nor scaling")
+                elif operation == "control_damage_amp":
+                    require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
     attribute_stats = {
         "attr_might": {"ADFlat"}, "attr_focus": {"APFlat"}, "attr_vitality": {"MaxHPFlat"},
         "attr_resolve": {"ArmorFlat", "MagicResistFlat"}, "attr_reach": {"AttackRangeCmFlat"},
@@ -550,6 +592,7 @@ def validate_definitions(data, ids):
         "item_phase_anchor": {"MoveSpeedBonusRatio"},
         "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
         "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
+        "item_slingshot": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
     }
     item_actives = {
         "item_phase_anchor": ("DirectionDash", {"dash"}, "cd_phase_anchor"),
@@ -775,10 +818,10 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     for row in (*data["abilities"], *data["equipment"]):
         for effect in all_effects(row):
-            if effect["op"] in ("damage", "shield"):
+            if effect["op"] in ("damage", "shield", "ambush_damage"):
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
-                if effect["op"] == "damage":
+                if effect["op"] != "shield":
                     checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
 
 

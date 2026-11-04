@@ -40,6 +40,35 @@ bool NonnegativeRational(const FLDDemoRational& Value)
     return Value.Numerator >= 0 && Value.Denominator > 0;
 }
 
+// Maps one typed bonus to its projected attribute and term kind; false for an unsupported stat.
+bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool& bBasisPoints)
+{
+    bRatio = false;
+    bBasisPoints = false;
+    switch (Stat)
+    {
+    case ELDDemoBonusStat::ADFlat: Attribute = EAttribute::AD; return true;
+    case ELDDemoBonusStat::APFlat: Attribute = EAttribute::AP; return true;
+    case ELDDemoBonusStat::MaxHPFlat: Attribute = EAttribute::MaxHP; return true;
+    case ELDDemoBonusStat::MaxMPFlat: Attribute = EAttribute::MaxMP; return true;
+    case ELDDemoBonusStat::ArmorFlat: Attribute = EAttribute::Armor; return true;
+    case ELDDemoBonusStat::MagicResistFlat: Attribute = EAttribute::MagicResist; return true;
+    case ELDDemoBonusStat::CooldownHasteFlat: Attribute = EAttribute::CooldownHaste; return true;
+    case ELDDemoBonusStat::AttackRangeCmFlat: Attribute = EAttribute::AttackRange; return true;
+    case ELDDemoBonusStat::AttackSpeedBonusRatio: Attribute = EAttribute::AttackSpeed; bRatio = bBasisPoints = true; return true;
+    case ELDDemoBonusStat::MoveSpeedBonusRatio: Attribute = EAttribute::MoveSpeed; bRatio = bBasisPoints = true; return true;
+    case ELDDemoBonusStat::ADBonusRatio: Attribute = EAttribute::AD; bRatio = bBasisPoints = true; return true;
+    case ELDDemoBonusStat::CritChanceBonusRatio:
+        // Probability points add to the base chance; they are not a percentage of it.
+        Attribute = EAttribute::CritChance;
+        bBasisPoints = true;
+        return true;
+    default:
+        Attribute = EAttribute::Count;
+        return false;
+    }
+}
+
 struct FTermSum
 {
     FExact Flat;
@@ -260,34 +289,7 @@ private:
         EAttribute Attribute = EAttribute::Count;
         bool bRatio = false;
         bool bBasisPoints = false;
-        switch (Bonus.Stat)
-        {
-        case ELDDemoBonusStat::ADFlat: Attribute = EAttribute::AD; break;
-        case ELDDemoBonusStat::APFlat: Attribute = EAttribute::AP; break;
-        case ELDDemoBonusStat::MaxHPFlat: Attribute = EAttribute::MaxHP; break;
-        case ELDDemoBonusStat::MaxMPFlat: Attribute = EAttribute::MaxMP; break;
-        case ELDDemoBonusStat::ArmorFlat: Attribute = EAttribute::Armor; break;
-        case ELDDemoBonusStat::MagicResistFlat: Attribute = EAttribute::MagicResist; break;
-        case ELDDemoBonusStat::CooldownHasteFlat: Attribute = EAttribute::CooldownHaste; break;
-        case ELDDemoBonusStat::AttackRangeCmFlat: Attribute = EAttribute::AttackRange; break;
-        case ELDDemoBonusStat::AttackSpeedBonusRatio:
-            Attribute = EAttribute::AttackSpeed;
-            bRatio = true;
-            bBasisPoints = true;
-            break;
-        case ELDDemoBonusStat::MoveSpeedBonusRatio:
-            Attribute = EAttribute::MoveSpeed;
-            bRatio = true;
-            bBasisPoints = true;
-            break;
-        case ELDDemoBonusStat::CritChanceBonusRatio:
-            // Probability points add to the base chance; they are not a percentage of it.
-            Attribute = EAttribute::CritChance;
-            bBasisPoints = true;
-            break;
-        default:
-            break;
-        }
+        StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints);
         const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
         if (Attribute == EAttribute::Count || (bRange ? !NonnegativeRational(Bonus.Cm) : Bonus.Amount < 0))
         {
@@ -382,6 +384,57 @@ private:
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.DelayMs = Effect.DelayMs;
                     OutOfCombatRate = Numbers.Value(Effect.HPPerSec);
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::LowHpStatBonus)
+                {
+                    if (LowHP.IsSet())
+                    {
+                        return Refuse(EError::Aggregation, Field, TEXT("Several low-HP passives have no approved aggregation rule"));
+                    }
+                    if (Effect.RatioBp <= 0 || Effect.RatioBp >= 10000 || Effect.Stats.IsEmpty())
+                    {
+                        return Refuse(EError::Catalog, Field, TEXT("A low-HP passive requires a threshold inside the pool and stats"));
+                    }
+                    FLDLowHPBonusTerm& Term = LowHP.Emplace();
+                    Term.AbilityId = Passives[Index]->Id;
+                    Term.Rank = Build.LearnedPassives[Index].Rank;
+                    Term.ThresholdBp = Effect.RatioBp;
+                    Term.Stats = Effect.Stats;
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::AmbushDamage)
+                {
+                    if (Ambush.IsSet())
+                    {
+                        return Refuse(EError::Aggregation, Field, TEXT("Several ambush passives have no approved aggregation rule"));
+                    }
+                    if (Effect.DelayMs <= 0 || Effect.BaseP2 < 0 || Effect.ADRatioBp < 0 || Effect.APRatioBp < 0)
+                    {
+                        return Refuse(EError::Catalog, Field, TEXT("An ambush passive requires a positive delay and nonnegative terms"));
+                    }
+                    FLDAmbushDamageTerm& Term = Ambush.Emplace();
+                    Term.AbilityId = Passives[Index]->Id;
+                    Term.Rank = Build.LearnedPassives[Index].Rank;
+                    Term.DelayMs = Effect.DelayMs;
+                    Term.BaseP2 = Effect.BaseP2;
+                    Term.ADRatioBp = Effect.ADRatioBp;
+                    Term.APRatioBp = Effect.APRatioBp;
+                    Term.DamageType = Effect.DamageType;
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::ControlDamageAmp)
+                {
+                    if (ControlAmp.IsSet())
+                    {
+                        return Refuse(EError::Aggregation, Field, TEXT("Several control amplification passives have no approved aggregation rule"));
+                    }
+                    if (Effect.RatioBp <= 0 || Effect.DurationMs <= 0)
+                    {
+                        return Refuse(EError::Catalog, Field, TEXT("Control amplification requires a positive ratio and duration"));
+                    }
+                    FLDControlDamageAmpTerm& Term = ControlAmp.Emplace();
+                    Term.AbilityId = Passives[Index]->Id;
+                    Term.Rank = Build.LearnedPassives[Index].Rank;
+                    Term.RatioBp = Effect.RatioBp;
+                    Term.DurationMs = Effect.DurationMs;
                 }
                 else
                 {
@@ -556,6 +609,9 @@ private:
             }
             Out.OutOfCombatHPRegen = OutOfCombat;
         }
+        Out.LowHPBonus = LowHP;
+        Out.Ambush = Ambush;
+        Out.ControlAmp = ControlAmp;
         Out.EquipmentPassives = MoveTemp(Families);
         return true;
     }
@@ -574,7 +630,68 @@ private:
     TArray<FLDEquipmentPassiveFamily> Families;
     TOptional<FLDOutOfCombatRegenTerm> OutOfCombat;
     FExact OutOfCombatRate;
+    TOptional<FLDLowHPBonusTerm> LowHP;
+    TOptional<FLDAmbushDamageTerm> Ambush;
+    TOptional<FLDControlDamageAmpTerm> ControlAmp;
 };
+
+// Exact value of one projected attribute as stored in Final.
+FExact FinalValue(EAttribute Attribute, const FLDProjectedAttributes& Final, FNumbers& N)
+{
+    switch (Attribute)
+    {
+    case EAttribute::MaxHP: return N.Value(Final.MaxHPP2, 100);
+    case EAttribute::MaxMP: return N.Value(Final.MaxMPP2, 100);
+    case EAttribute::AD: return N.Value(Final.ADP2, 100);
+    case EAttribute::AP: return N.Value(Final.APP2, 100);
+    case EAttribute::Armor: return N.Value(Final.ArmorP2, 100);
+    case EAttribute::MagicResist: return N.Value(Final.MagicResistP2, 100);
+    case EAttribute::AttackSpeed: return N.Value(Final.AttackSpeed);
+    case EAttribute::MoveSpeed: return N.Value(Final.MoveSpeedCmPerSec);
+    case EAttribute::AttackRange: return N.Value(Final.AttackRangeCm);
+    case EAttribute::HPRegen: return N.Value(Final.HPRegenPerSec);
+    case EAttribute::MPRegen: return N.Value(Final.MPRegenPerSec);
+    case EAttribute::CritChance: return N.Value(Final.CritChanceBp, 10000);
+    case EAttribute::CooldownHaste: return N.Value(Final.CooldownHasteP2, 100);
+    default: return N.Value(0);
+    }
+}
+
+// Signed reduced pair; temporary ratios may be negative (a slow).
+bool SignedRational(const FExact& Value, FLDDemoRational& Out, FNumbers& N)
+{
+    FExact Magnitude = Value;
+    const bool bNegative = Magnitude.N.IsNegative();
+    if (bNegative) { Magnitude.N.Negate(); }
+    if (!N.NativePair(Magnitude, TEXT("TemporaryTerms"))) { return false; }
+    Out.Numerator = bNegative ? -Magnitude.N.ToInt() : Magnitude.N.ToInt();
+    Out.Denominator = Magnitude.D.ToInt();
+    return true;
+}
+
+// floor(Value x Scale) clamped to [Min, Max]; Value is nonnegative.
+bool FloorScaled(const FExact& Value, int64 Scale, int64 Min, int64 Max, int64& Out, bool& bClamped, FNumbers& N)
+{
+    const FExact Scaled = N.Mul(Value, N.Value(Scale));
+    FBig Quotient = Scaled.N;
+    FBig Remainder;
+    Quotient.DivideWithRemainder(Scaled.D, Remainder);
+    if (!N.NativePair({Quotient, FBig(1)}, TEXT("TemporaryTerms"))) { return false; }
+    const int64 Floored = Quotient.ToInt();
+    Out = FMath::Clamp(Floored, Min, Max);
+    bClamped = Out != Floored;
+    return true;
+}
+
+bool ClampRational(const FExact& Value, const FLDDemoRational& Min, const FLDDemoRational& Max, FLDDemoRational& Out,
+    bool& bClamped, FNumbers& N)
+{
+    FExact Clamped = Value;
+    if (N.LT(Clamped, N.Value(Min))) { Clamped = N.Value(Min); }
+    else if (N.LT(N.Value(Max), Clamped)) { Clamped = N.Value(Max); }
+    bClamped = !N.EQ(Clamped, Value);
+    return SignedRational(Clamped, Out, N);
+}
 }
 
 FLDAttributeProjectionResult Project(const FLDAttributeBuildValues& Build, const FLDDemoContentSnapshot& Catalog)
@@ -588,6 +705,128 @@ FLDAttributeProjectionResult Project(const FLDAttributeBuildValues& Build, const
         return Result;
     }
     Result.Value.Emplace(MoveTemp(Projection));
+    return Result;
+}
+
+FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build, const FLDTemporaryAttributeTerms& Terms,
+    const FLDDemoContentSnapshot& Catalog)
+{
+    FLDAttributeProjectionResult Result;
+    const auto Fail = [&Result](EError Code, const FString& Field, const FString& Message)
+    {
+        Result.Value.Reset();
+        Result.Error.Code = Code;
+        Result.Error.Field = Field;
+        Result.Error.Message = Message;
+        return Result;
+    };
+    FLDAttributeProjection Out = Build;
+    if (Terms.IsEmpty())
+    {
+        Result.Value.Emplace(MoveTemp(Out));
+        return Result;
+    }
+    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000)
+    {
+        return Fail(EError::InputDomain, TEXT("MoveSlowBp"), TEXT("A slow must keep some move speed"));
+    }
+    const bool bRows = Build.Contributions.Num() == AttributeCount;
+    if (!bRows && !Build.Contributions.IsEmpty())
+    {
+        return Fail(EError::InputDomain, TEXT("Contributions"), TEXT("A build projection has a partial contribution table"));
+    }
+    FString MathError;
+    LDDemoContent::FCheck Check(MathError);
+    FNumbers N(Check);
+    TArray<FTermSum> Temporary;
+    Temporary.SetNum(AttributeCount);
+    TArray<bool> Touched;
+    Touched.Init(false, AttributeCount);
+    for (int32 Index = 0; Index < Terms.Bonuses.Num(); ++Index)
+    {
+        const FLDDemoStatBonus& Bonus = Terms.Bonuses[Index];
+        const FString Field = FString::Printf(TEXT("Temporary[%d]"), Index);
+        EAttribute Attribute = EAttribute::Count;
+        bool bRatio = false, bBasisPoints = false;
+        const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+        if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Attribute == EAttribute::MaxHP || Attribute == EAttribute::MaxMP
+            || (bRange ? !NonnegativeRational(Bonus.Cm) : Bonus.Amount < 0))
+        {
+            return Fail(EError::InputDomain, Field, TEXT("A temporary bonus must be a nonnegative, non-resource stat"));
+        }
+        const FExact Amount = bRange ? N.Value(Bonus.Cm) : N.Value(Bonus.Amount, bBasisPoints ? 10000 : 100);
+        FTermSum& Sum = Temporary[int32(Attribute)];
+        (bRatio ? Sum.Ratio : Sum.Flat) = N.Add(bRatio ? Sum.Ratio : Sum.Flat, Amount);
+        Touched[int32(Attribute)] = true;
+    }
+    if (Terms.MoveSlowBp > 0)
+    {
+        FTermSum& Sum = Temporary[int32(EAttribute::MoveSpeed)];
+        Sum.Ratio = N.Sub(Sum.Ratio, N.Value(Terms.MoveSlowBp, 10000));
+        Touched[int32(EAttribute::MoveSpeed)] = true;
+    }
+    const FLDDemoContentParameters& P = Catalog.Get().Parameters;
+    const FExact One = N.Value(1);
+    for (int32 Index = 0; Index < AttributeCount; ++Index)
+    {
+        if (!Touched[Index]) { continue; }
+        const EAttribute Attribute = static_cast<EAttribute>(Index);
+        const FString Field = AttributeName(Attribute);
+        FExact Base, Flat = N.Value(0), Ratio = N.Value(0);
+        if (bRows)
+        {
+            const FLDAttributeContributions& Row = Build.Contributions[Index];
+            Base = N.Value(Row.Base);
+            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Equipment})
+            {
+                Flat = N.Add(Flat, N.Value(Terms2->Flat));
+                Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));
+            }
+        }
+        else
+        {
+            Base = FinalValue(Attribute, Build.Final, N);
+        }
+        FExact Value = N.Mul(N.Add(N.Add(Base, Flat), Temporary[Index].Flat), N.Add(N.Add(One, Ratio), Temporary[Index].Ratio));
+        if (N.LT(Value, N.Value(0))) { Value = N.Value(0); }
+        if (!Check.Good) { return Fail(EError::Overflow, Field, MathError); }
+        FLDProjectedAttributes& Final = Out.Final;
+        bool bClamped = false;
+        bool bStored = true;
+        switch (Attribute)
+        {
+        case EAttribute::AD: bStored = FloorScaled(Value, 100, P.AD.MinP2, P.AD.MaxP2, Final.ADP2, bClamped, N); break;
+        case EAttribute::AP: bStored = FloorScaled(Value, 100, P.AP.MinP2, P.AP.MaxP2, Final.APP2, bClamped, N); break;
+        case EAttribute::Armor: bStored = FloorScaled(Value, 100, P.Armor.MinP2, P.Armor.MaxP2, Final.ArmorP2, bClamped, N); break;
+        case EAttribute::MagicResist:
+            bStored = FloorScaled(Value, 100, P.MagicResist.MinP2, P.MagicResist.MaxP2, Final.MagicResistP2, bClamped, N); break;
+        case EAttribute::CooldownHaste:
+            bStored = FloorScaled(Value, 100, 0, P.CooldownHasteMaxP2, Final.CooldownHasteP2, bClamped, N); break;
+        case EAttribute::CritChance: bStored = FloorScaled(Value, 10000, 0, 10000, Final.CritChanceBp, bClamped, N); break;
+        case EAttribute::AttackSpeed:
+            bStored = ClampRational(Value, P.AttackSpeed.Min, P.AttackSpeed.Max, Final.AttackSpeed, bClamped, N); break;
+        case EAttribute::MoveSpeed:
+            bStored = ClampRational(Value, P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max, Final.MoveSpeedCmPerSec, bClamped, N); break;
+        case EAttribute::AttackRange:
+            bStored = ClampRational(Value, P.AttackRangeCm.Min, P.AttackRangeCm.Max, Final.AttackRangeCm, bClamped, N); break;
+        default:
+            return Fail(EError::InputDomain, Field, TEXT("This attribute takes no temporary term"));
+        }
+        if (!bStored || !Check.Good) { return Fail(EError::Overflow, Field, MathError); }
+        if (bRows)
+        {
+            FLDAttributeContributions& Row = Out.Contributions[Index];
+            const FExact Stored = FinalValue(Attribute, Out.Final, N);
+            if (!SignedRational(Temporary[Index].Flat, Row.Temporary.Flat, N)
+                || !SignedRational(Temporary[Index].Ratio, Row.Temporary.AdditiveRatio, N)
+                || !SignedRational(Stored, Row.Final, N))
+            {
+                return Fail(EError::Overflow, Field, MathError);
+            }
+            Row.bClamped = Row.bClamped || bClamped;
+        }
+    }
+    Result.Value.Emplace(MoveTemp(Out));
     return Result;
 }
 
@@ -668,4 +907,19 @@ FLDResourceMaxChangeResult ResourceMaxChange(const FLDResourceMaxChangeInput& In
     Result.Value.Emplace().NewCurrentP2 = NewCurrent;
     return Result;
 }
+}
+
+bool FLDTemporaryAttributeTerms::operator==(const FLDTemporaryAttributeTerms& Other) const
+{
+    if (MoveSlowBp != Other.MoveSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
+    for (int32 Index = 0; Index < Bonuses.Num(); ++Index)
+    {
+        const FLDDemoStatBonus& A = Bonuses[Index];
+        const FLDDemoStatBonus& B = Other.Bonuses[Index];
+        if (A.Stat != B.Stat || A.Amount != B.Amount || A.Cm.Numerator != B.Cm.Numerator || A.Cm.Denominator != B.Cm.Denominator)
+        {
+            return false;
+        }
+    }
+    return true;
 }
