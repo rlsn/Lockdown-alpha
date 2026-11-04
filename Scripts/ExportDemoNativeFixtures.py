@@ -12,6 +12,7 @@ from pathlib import Path
 from CatalogTools import encode
 import DemoContent as demo
 import DemoContentTestFixtures as fixtures
+import DemoWorld
 from SyncDemoContentData import write_outputs
 from SyncDemoWorldData import synchronize as synchronize_world
 
@@ -377,6 +378,12 @@ def _quantities(value, path=()):
 
 
 def export(output, *, rank_mutations=True):
+    # Most cases share the fixture world and its binding sections; validate each distinct pair once.
+    with DemoWorld.reuse_binding_reports():
+        return _export(output, rank_mutations=rank_mutations)
+
+
+def _export(output, *, rank_mutations):
     output = Path(output)
     resolved = output.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
