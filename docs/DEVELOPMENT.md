@@ -233,6 +233,42 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 保留的发布构建按 [AGENTS](../AGENTS.md) 的 known-working 规则管理；
 运行日志按本次问题取用，不提交大量快照到 docs，也不自动删除别人的工作产物。
 
+### PR 检查与每日试玩包
+
+`.github/workflows/pr-check.yml` 在指向 `main` 的非草稿 PR 每次推送（以及转为 Ready for review）时运行，
+失败时上传 Artifacts 证据；同一 PR 的新推送会取消未完成的旧运行。
+`Scripts/CIChangeScope.py` 按 PR 合并提交相对 base 的改动选择门槛：
+改到 `Source`、`Config`、`SourceData`、`Content`、PowerShell 脚本或 `RunTests.ps1` 加载的 Python 脚本
+（及其在 `Scripts` 内的全部 import）时，跑增量 `BuildEditor.ps1`、`RunTests.ps1` 与 Python 测试；
+只改其他 `Scripts/*.py` 或工作流时只跑 Python 测试。
+Python 测试由 `Scripts/RunPythonTests.py` 以最多 4 个进程并行执行（与 `unittest discover` 同一组测试和通过规则，
+带类级夹具的测试类整体留在一个进程里），并在同一任务内与编辑器构建、规则测试同时进行；
+各测试只写自己在 Artifacts 下的临时目录。本地也可直接运行 `python -B .\Scripts\RunPythonTests.py`。
+只改 `docs/**` 或 `*.md` 的推送不触发；草稿 PR 与 fork PR 不在这台 runner 上运行。
+它覆盖每个 PR 的最低门槛，不代替改到场景时应跑的 `RunDemo*Check`。
+
+`.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行。
+它只在维护者本机的自托管 runner（标签 `lockdown-ue58`）上执行：
+增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，然后上传 Archive、manifest、
+`Package.log` 与 `README.txt` 启动说明，Artifact 保留 7 天。定时运行时，若 `main` 与上次成功打包相同则跳过。
+该包不跑任何 `RunDemo*Check` 场景，不能代替里程碑验收。
+
+runner 不装成服务，只在手动打开期间接任务；关闭期间排队的运行在 GitHub 上最多等待 24 小时。
+一台 runner 同时只跑一个任务，Start 在本机已有任何 runner 进程时拒绝启动，
+所以这台机器上同一时间最多一个 CI 任务，其余在 GitHub 上排队。
+
+```powershell
+.\Scripts\CIRunner.ps1 Install -RunnerRoot <runner 目录>   # 每台机器一次，需要仓库管理员的 gh 登录
+.\Scripts\CIRunner.ps1 Start    # 以 BelowNormal 优先级打开，构建进程继承该优先级
+.\Scripts\CIRunner.ps1 Stop     # 立即关闭；正在跑的任务会被终止并记为失败
+.\Scripts\CIRunner.ps1 Status
+```
+
+仓库是公开的，Install 与每次 Start 会把 `CIJobGuard.ps1` 复制进 runner 目录，作为任务开始钩子：
+只接受本仓库的 `schedule`、`workflow_dispatch`，以及分支在本仓库内的 `pull_request`；
+fork PR、`pull_request_target` 等其他任务在第一步之前就被拒绝。
+仓库设置要求所有外部贡献者的 fork PR 工作流都需维护者批准。
+
 ## 文档维护与共同交付
 
 玩法决定改 App Spec，组件接口/约束改对应系统手册，工作状态与讨论放 Issue/PR。

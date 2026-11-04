@@ -1,0 +1,108 @@
+# Pull-request gate. Runs only on the maintainer's self-hosted runner while it is switched on (Scripts/CIRunner.ps1);
+# a run queued while it is off waits up to 24 hours. Only ready (non-draft) PRs from branches in this repository run;
+# the runner's job-started hook also refuses fork pull requests.
+# Scripts/CIChangeScope.py picks the gate: any native input (Source, Config, SourceData, Content, PowerShell, or a
+# Python script RunTests.ps1 loads) gets the editor build and native rule tests (AGENTS: BuildEditor.ps1 plus rule
+# tests); a change limited to other Scripts/*.py, workflows or docs gets only the Python tests.
+name: PR check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  # A new push to the same PR replaces its unfinished run.
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    if: github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft
+    runs-on: [self-hosted, Windows, X64, lockdown-ue58]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+          # The PR merge commit and its base parent, to diff exactly what the PR changes.
+          fetch-depth: 2
+          # Keep ignored build output (Binaries, Intermediate) so the build is incremental.
+          clean: false
+
+      - name: Reset workspace
+        run: |
+          git clean -ffd
+          if ($LASTEXITCODE -ne 0) { throw 'git clean failed.' }
+          # Earlier runs' outputs belong to this runner workspace only.
+          if (Test-Path Artifacts) { Get-ChildItem Artifacts -Force | Remove-Item -Recurse -Force }
+          if (-not $env:LD_UE_ROOT) { throw 'LD_UE_ROOT is not set in the runner .env (Scripts/CIRunner.ps1 Install writes it).' }
+
+      - name: Choose gate
+        id: scope
+        run: |
+          $result = python -B ./Scripts/CIChangeScope.py --base HEAD^1 --head HEAD
+          if ($LASTEXITCODE -ne 0) { throw "CIChangeScope.py failed with exit code $LASTEXITCODE." }
+          $line = @($result | Where-Object { $_ -match '^scope=(native|python)$' })
+          if ($line.Count -ne 1) { throw "CIChangeScope.py printed no scope: $result" }
+          $line[0] >> $env:GITHUB_OUTPUT
+          if ($line[0] -eq 'scope=python') { 'Python-only change: editor build and native rule tests skipped.' >> $env:GITHUB_STEP_SUMMARY }
+
+      # The Python tests only read the checkout and write their own temporary folders under Artifacts, so they run
+      # alongside the editor build and rule tests in this same job. The runner ends the process if the job stops early.
+      - name: Start script and data tests
+        id: python
+        run: |
+          New-Item -ItemType Directory -Path Artifacts -Force | Out-Null
+          $log = Join-Path $PWD 'Artifacts/PythonTests.log'
+          $exit = Join-Path $PWD 'Artifacts/PythonTests.exit'
+          $command = "python -B ./Scripts/RunPythonTests.py *> '$log'; Set-Content -LiteralPath '$exit' -Value `$LASTEXITCODE"
+          $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($command))
+          $process = Start-Process -FilePath pwsh -ArgumentList '-NoProfile', '-EncodedCommand', $encoded -WorkingDirectory $PWD -WindowStyle Hidden -PassThru
+          "pid=$($process.Id)" >> $env:GITHUB_OUTPUT
+
+      - name: Build editor
+        if: steps.scope.outputs.scope == 'native'
+        run: ./Scripts/BuildEditor.ps1
+
+      - name: Rule tests
+        if: steps.scope.outputs.scope == 'native'
+        run: ./Scripts/RunTests.ps1
+
+      - name: Script and data tests
+        # Report these even when the build or rule tests failed.
+        if: ${{ !cancelled() && steps.python.outcome == 'success' }}
+        run: |
+          $log = 'Artifacts/PythonTests.log'
+          $exit = 'Artifacts/PythonTests.exit'
+          $deadline = (Get-Date).AddMinutes(30)
+          while (-not (Test-Path $exit)) {
+            if (-not (Get-Process -Id ${{ steps.python.outputs.pid }} -ErrorAction SilentlyContinue) -and -not (Test-Path $exit)) {
+              if (Test-Path $log) { Get-Content $log }
+              throw 'The Python test process ended without recording an exit code.'
+            }
+            if ((Get-Date) -gt $deadline) { throw 'Python tests did not finish within 30 minutes.' }
+            Start-Sleep -Seconds 5
+          }
+          Get-Content $log
+          $code = [int](Get-Content $exit -Raw).Trim()
+          if ($code -ne 0) { throw "Python tests failed with exit code $code." }
+
+      - name: Upload evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr-${{ github.event.pull_request.number }}-evidence-${{ github.run_attempt }}
+          path: Artifacts/
+          retention-days: 7
+          if-no-files-found: ignore
