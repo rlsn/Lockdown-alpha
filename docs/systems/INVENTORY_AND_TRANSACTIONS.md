@@ -136,7 +136,8 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 投影把它作为单独的 `FLDAttributeContributions::Dev` 行（本人属性视图的 `Dev`/`DevPercent`、HUD 来源“测试”），
 最终值与临时项、隐身腿速一样把它计入加和；测试层与真实构筑合计越界时，那次真实选择或买卖同样按投影拒绝；新局重建 Combat 记录，测试层不带入下一局。
 控制台入口 `ld.Dev.XP <数量>`、`ld.Dev.Gold <数量>`、`ld.Dev.Refill`、`ld.Dev.ResetCooldowns`、`ld.Dev.Learn <id> [Q|W]`、
-`ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>`、`ld.Dev.Attr <属性> <数值>`、`ld.Dev.ClearAttr`、`ld.Dev.Reset`、`ld.Dev.RefreshCamps`、`ld.Dev.OpenCapture` 只是本地发送者（`ld.Dev.List` 打印本进程已加载的批准目录），
+`ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>`、`ld.Dev.Attr <属性> <数值>`、`ld.Dev.ClearAttr`、`ld.Dev.Reset`、`ld.Dev.RefreshCamps`、`ld.Dev.OpenCapture` 与 HUD 的测试面板（`UI/LDDevTestPanel.*`）
+都只是本地发送者，共用 `LDDevTest::StatFields`、`ParseAmount`、`ParseScaled` 与 `OpLabel`（`ld.Dev.List` 打印本进程已加载的批准目录），
 经验与金币只接受不超过 18 位的正十进制整数，测试属性按显示单位精确换算（点数与百分比至多两位小数，射程整厘米），不四舍五入；结果打 `LD_DEV_TEST_RESULT` 日志并在 HUD 提示行显示。
 `Lockdown.Rules.DemoDevTestCommands` 覆盖形状、开关拒绝、受理流、金币/经验提交、重放不重复提交、旧生命/离局/关局拒绝、
 冷却轨道重置、学习（阶段、非法 id、空槽替换、成功安装与 Combat 投影、无机会拒绝）、死亡时买入被拒与补满纯规则，
@@ -153,7 +154,10 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 （本人视图回到 1 级、0 经验、无卡、空槽、开局金币与一组开局 Offer）、整局的刷新营地被拒（`NotAuthority`），Listen Host 经本地拥有 RPC 给自己加金币，买方完成后刷新营地并提前开圈
 （仍在发育期时必须开放并看到 CaptureOpen；若已过发育期则必须以 `StaleContext` 拒绝）；
 随后导出的第三份账本以 `--dev-fixture` 复算，必须恰好列出两人各自的 DEV 铸币与买方重置的两条 DevReset，并与买方本人投影一致。
-测试面板尚未实现；刷新营地只在规则测试中验证到截止提前，场景只验证受理与回执，未在场景中观察营地实际重生。
+其中 Listen Host 的加金币与刷新营地、买方最后一步的清除测试属性都经 HUD“测试”入口与 `ULDDevTestPanel` 的按钮发送
+（买方先确认面板不显示房主专用操作、格式错误的经验数量在本地拒绝且不发送；Host 截一张打开面板的 `HostDevPanel.png` 供审阅）。
+面板的纯格式化（目录行、已有等级、替换条件、属性行、结果行）与输入解析由 `Lockdown.Rules.HUDDevTestPanel` 覆盖。
+刷新营地只在规则测试中验证到截止提前，场景只验证受理与回执，未在场景中观察营地实际重生。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
 在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，

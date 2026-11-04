@@ -19,6 +19,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
+#include "UI/LDDevTestPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDUIRoot.h"
@@ -26,7 +27,10 @@
 #include "UObject/UnrealType.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/EditableTextBox.h"
 #include "Containers/Ticker.h"
+#include "UnrealClient.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
@@ -1654,6 +1658,71 @@ public:
     }
 
     // A raw request through the owner RPC with its own ids: the stale, replayed and conflicting probes.
+    // The HUD's 测试 entry is shown and opens its panel; returns the panel, or nullptr after recording why not.
+    ULDDevTestPanel* OpenDevPanel(ALDPlayerController& PC, const FString& Name)
+    {
+        ULDHUD* Hud = PC.HUDUI.Get();
+        ULDDevTestPanel* Panel = Hud ? Hud->DevTestPanel.Get() : nullptr;
+        const UWidget* Entry = Hud && Hud->WidgetTree ? Hud->WidgetTree->FindWidget(TEXT("HUDDevTest")) : nullptr;
+        const bool bOpen = Panel && Entry && Entry->IsVisible() && PC.RootUI && PC.RootUI->ShowMainPanel(ELDUIMainPanel::DevTest)
+            && Panel->IsPanelOpen() && Panel->WidgetTree;
+        Check(bOpen, TEXT("DevTest"), Name + TEXT(": the HUD shows the 测试 entry of this DEV test room and opens its panel"));
+        return bOpen ? Panel : nullptr;
+    }
+
+    // Shown in the panel's tree: the widget and every ancestor visible.
+    static bool ShownInTree(const UWidget* Widget)
+    {
+        for (const UWidget* At = Widget; At; At = At->GetParent())
+        {
+            if (!At->IsVisible()) { return false; }
+        }
+        return Widget != nullptr;
+    }
+
+    // One DEV command through the panel's own button (and its entry field), the same path a tester clicks. The request id
+    // the panel got from the controller is recorded so the answer is matched like any other DEV call.
+    bool SendDevByPanel(double Now, ALDPlayerController& PC, const FString& Name, ELDDevTestOp Op, int64 Amount, FName Button,
+        FName Field = NAME_None, const FString& Text = FString())
+    {
+        ULDDevTestPanel* Panel = OpenDevPanel(PC, Name);
+        if (!Panel) { return Finish(); }
+        ULDCommandButton* Click = Cast<ULDCommandButton>(Panel->WidgetTree->FindWidget(Button));
+        UEditableTextBox* Box = Field.IsNone() ? nullptr : Cast<UEditableTextBox>(Panel->WidgetTree->FindWidget(Field));
+        if (!Check(Click && ShownInTree(Click) && (Field.IsNone() || Box), TEXT("DevTest"), Name + TEXT(": the panel shows its button")))
+        {
+            return Finish();
+        }
+        if (Box) { Box->SetText(FText::FromString(Text)); }
+        const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
+        Dev = FDevCall();
+        Dev.Name = Name;
+        Dev.ResultMark = DevResults.Num();
+        Dev.SentAt = Now;
+        Dev.GoldBefore = Equip ? Equip->Gold : -1;
+        Dev.Sent.Generation = PC.OwnerState.Match;
+        Dev.Sent.Life = PC.OwnerState.Life;
+        Dev.Sent.Op = Op;
+        Dev.Sent.Amount = Amount;
+        uint64 Captured = 0;
+        const TFunction<uint64(ELDDevTestOp, int64, ELDGrowthReason&, FName, uint8, uint8)> Original = Panel->Submit;
+        Panel->Submit = [&Captured, &Original](ELDDevTestOp O, int64 A, ELDGrowthReason& R, FName D, uint8 S, uint8 T)
+        {
+            Captured = Original ? Original(O, A, R, D, S, T) : 0;
+            return Captured;
+        };
+        // The id is known only once Submit returns, and a Listen Host answers inside it; the answer stays in DevResults.
+        Click->Execute();
+        Panel->Submit = Original;
+        if (!Check(Captured != 0, TEXT("DevTest"), Name + TEXT(" is sent by the panel button"), Panel->FeedbackText()))
+        {
+            return Finish();
+        }
+        Dev.Sent.RequestId = Captured;
+        Dev.bSent = true;
+        return true;
+    }
+
     bool SendDevDirect(double Now, ALDPlayerController& PC, const FString& Name, const FLDDevTestCommand& Raw)
     {
         const FLDEquipmentView* Equip = PC.ReadOwnEquipment();
@@ -1905,6 +1974,29 @@ public:
             }
             return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::AdmissionRejected, ELDReceiptOutcome::None,
                 ELDGrowthReason::NotAuthority, [] { return true; }));
+        case 15:
+            if (!Dev.bSent)
+            {
+                // The owning client's own 测试 panel: no Host-only action, a malformed entry sends nothing, and its button
+                // reaches the authority through the same owning connection.
+                ULDDevTestPanel* Panel = OpenDevPanel(PC, TEXT("The owning client's 测试 panel"));
+                if (!Panel) { return Finish(); }
+                const bool bHostHidden = !ShownInTree(Panel->WidgetTree->FindWidget(TEXT("DevTestRefreshCamps")))
+                    && !ShownInTree(Panel->WidgetTree->FindWidget(TEXT("DevTestOpenCapture")));
+                Check(bHostHidden, TEXT("DevTest"), TEXT("An owning client's 测试 panel hides the Host-only match-wide actions"));
+                UEditableTextBox* XP = Cast<UEditableTextBox>(Panel->WidgetTree->FindWidget(TEXT("DevTestXPAmount")));
+                ULDCommandButton* Grant = Cast<ULDCommandButton>(Panel->WidgetTree->FindWidget(TEXT("DevTestXP")));
+                const int32 Before = DevResults.Num();
+                if (XP && Grant) { XP->SetText(FText::FromString(TEXT("12a"))); Grant->Execute(); }
+                Check(XP && Grant && DevResults.Num() == Before && Panel->FeedbackText().Contains(TEXT("请输入正整数")), TEXT("DevTest"),
+                    TEXT("A malformed panel amount is refused locally and sends nothing"), Panel->FeedbackText());
+                if (!Passed) { return Finish(); }
+                return SendDevByPanel(Now, PC, TEXT("The owning client's 测试 panel button clears its DEV attributes through the server"),
+                    ELDDevTestOp::ClearAttributes, 0, TEXT("DevTestClearAttr"));
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&PC] { const ULDDevTestPanel* Panel = PC.HUDUI ? PC.HUDUI->DevTestPanel.Get() : nullptr;
+                    return Panel && Panel->FeedbackText().Contains(TEXT("已生效")); }));
         default:
             if (Passed) { Mark(TEXT("Client1DevDone.json")); }
             return Finish();
@@ -1918,12 +2010,22 @@ public:
         {
             if (!Dev.bSent)
             {
-                return SendDev(Now, PC, TEXT("The Listen Host's own DEV gold grant commits through its local owner RPC"),
-                    ELDDevTestOp::GrantGold, LDDemoGrowthScenario::GrowthProbeHostDevGold);
+                return SendDevByPanel(Now, PC, TEXT("The Listen Host's own DEV gold grant from its 测试 panel commits through its local owner RPC"),
+                    ELDDevTestOp::GrantGold, LDDemoGrowthScenario::GrowthProbeHostDevGold, TEXT("DevTestGold"), TEXT("DevTestGoldAmount"),
+                    FString::Printf(TEXT("%lld"), LDDemoGrowthScenario::GrowthProbeHostDevGold));
             }
             const auto GoldIs = [&PC](int64 Want) { const FLDEquipmentView* View = PC.ReadOwnEquipment(); return View && View->Gold == Want; };
-            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
-                [&] { return GoldIs(Dev.GoldBefore + LDDemoGrowthScenario::GrowthProbeHostDevGold); }));
+            const EDevWait Wait = AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore + LDDemoGrowthScenario::GrowthProbeHostDevGold); });
+            if (Wait == EDevWait::Done)
+            {
+                // Review evidence of the rendered Host (never a check): its open 测试 panel with the committed gold.
+                const ULDDevTestPanel* Panel = PC.HUDUI ? PC.HUDUI->DevTestPanel.Get() : nullptr;
+                Check(Panel && Panel->IsPanelOpen() && ShownInTree(Panel->WidgetTree->FindWidget(TEXT("DevTestRefreshCamps"))), TEXT("DevTest"),
+                    TEXT("The Listen Host's 测试 panel shows the Host-only match-wide actions"));
+                FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, TEXT("HostDevPanel.png")), true, false);
+            }
+            return AdvanceDev(Wait);
         }
         if (!Exists(TEXT("Client1DevDone.json"))) { return true; }
         // The match-wide ops, through the Listen Host's own connection, after the buyer's DEV stage.
@@ -1932,8 +2034,8 @@ public:
         {
             if (!Dev.bSent)
             {
-                return SendDev(Now, PC, TEXT("The Listen Host's DEV camp refresh is accepted for the whole match"),
-                    ELDDevTestOp::RefreshCamps, 0);
+                return SendDevByPanel(Now, PC, TEXT("The Listen Host's DEV camp refresh from its 测试 panel is accepted for the whole match"),
+                    ELDDevTestOp::RefreshCamps, 0, TEXT("DevTestRefreshCamps"));
             }
             return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
                 [] { return true; }));

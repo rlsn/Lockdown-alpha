@@ -39,11 +39,13 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
         {++ClockCount;TestTrue(TEXT("The authority clock carries only match generation, completed step and time"),ClockFields.Contains(It->GetFName()));TestNull(TEXT("The clock has no canonical object reference"),CastField<FObjectPropertyBase>(*It));}
         TestEqual(TEXT("Authority clock schema complete"),ClockCount,3);
     }
-    const TSet<FName> Lobby={TEXT("Generation"),TEXT("Phase"),TEXT("RosterRevision"),TEXT("PublicRevision"),TEXT("Members"),TEXT("AICount"),TEXT("CanStart"),TEXT("StartBlocker")};
+    const TSet<FName> Lobby={TEXT("Generation"),TEXT("Phase"),TEXT("RosterRevision"),TEXT("PublicRevision"),TEXT("Members"),TEXT("AICount"),TEXT("CanStart"),TEXT("StartBlocker"),
+        // Room facts: the Host runs a DEV test session / DEV content hot reload (#78); every member's screen marks it.
+        TEXT("DevTestSession"),TEXT("DevContentReload")};
     int32 LobbyCount=0;
     for(TFieldIterator<FProperty> It(FLDLobbyView::StaticStruct());It;++It)
     {++LobbyCount;TestTrue(TEXT("Demo Lobby contains only public room facts"),Lobby.Contains(It->GetFName()));TestNull(TEXT("Lobby cannot expose canonical objects"),CastField<FObjectPropertyBase>(*It));}
-    TestEqual(TEXT("Demo Lobby schema complete"),LobbyCount,8);
+    TestEqual(TEXT("Demo Lobby schema complete"),LobbyCount,10);
     const TSet<FName> Member={TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("Host"),TEXT("Ready")};
     int32 MemberCount=0;
     for(TFieldIterator<FProperty> It(FLDLobbyMember::StaticStruct());It;++It)

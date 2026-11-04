@@ -7,29 +7,6 @@
 #include "Framework/LDDemoEntry.h"
 #include "HAL/IConsoleManager.h"
 
-namespace
-{
-const TCHAR* DevTestOpLabel(ELDDevTestOp Op)
-{
-    switch (Op)
-    {
-    case ELDDevTestOp::GrantExperience: return TEXT("加经验");
-    case ELDDevTestOp::GrantGold: return TEXT("加零花钱");
-    case ELDDevTestOp::RefillResources: return TEXT("补满生命与法力");
-    case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
-    case ELDDevTestOp::LearnOption: return TEXT("选择卡牌");
-    case ELDDevTestOp::BuyItem: return TEXT("购买装备");
-    case ELDDevTestOp::SellItem: return TEXT("出售装备");
-    case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
-    case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");
-    case ELDDevTestOp::ResetToMatchStart: return TEXT("重置到开局");
-    case ELDDevTestOp::RefreshCamps: return TEXT("刷新野怪");
-    case ELDDevTestOp::OpenCapture: return TEXT("提前开圈");
-    default: return TEXT("未知操作");
-    }
-}
-}
-
 uint64 ALDPlayerController::SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition,
     uint8 Slot, uint8 Stat)
 {
@@ -102,8 +79,8 @@ void ALDPlayerController::ClientDevTestResult_Implementation(const FLDDevTestRes
         {
             const bool bApplied = Result.Receipt.Header.Outcome == ELDReceiptOutcome::Applied;
             PostIntentNotice(bApplied
-                ? FString::Printf(TEXT("测试模式：%s 已生效"), DevTestOpLabel(Op))
-                : FString::Printf(TEXT("测试模式：%s 被拒绝（%s）"), DevTestOpLabel(Op),
+                ? FString::Printf(TEXT("测试模式：%s 已生效"), LDDevTest::OpLabel(Op))
+                : FString::Printf(TEXT("测试模式：%s 被拒绝（%s）"), LDDevTest::OpLabel(Op),
                     LDGrowthWire::ReasonName(LDGrowthWire::Reason(Result.Receipt.Header.Reason))));
         }
     }
@@ -131,22 +108,13 @@ ALDPlayerController* DevTestLocalController(UWorld* World)
     return nullptr;
 }
 
-// A positive decimal integer of at most 18 digits; anything else is refused rather than truncated.
 bool DevTestParseAmount(const TArray<FString>& Args, int64& Out, FOutputDevice& Ar, const TCHAR* Usage)
 {
-    Out = 0;
-    const FString Text = Args.Num() == 1 ? Args[0].TrimStartAndEnd() : FString();
-    bool bDigits = !Text.IsEmpty() && Text.Len() <= 18;
-    for (const TCHAR Char : Text)
-    {
-        bDigits = bDigits && FChar::IsDigit(Char);
-    }
-    if (!bDigits)
+    if (Args.Num() != 1 || !LDDevTest::ParseAmount(Args[0], Out))
     {
         Ar.Logf(TEXT("LD_DEV_TEST_REFUSED usage: %s"), Usage);
         return false;
     }
-    Out = FCString::Atoi64(*Text);
     return true;
 }
 
@@ -170,62 +138,6 @@ void DevTestSend(UWorld* World, ELDDevTestOp Op, int64 Amount, FOutputDevice& Ar
         LDDevTest::OpName(Op), Amount, *Definition.ToString(), uint32(Slot), uint32(Stat), RequestId);
 }
 
-// One console name per permanent build stat, with its display scale: points and percents take up to two decimals and
-// travel as P2 / basis points, range takes whole cm.
-struct FDevTestStatName
-{
-    const TCHAR* Name;
-    ELDDemoBonusStat Stat;
-    int32 Decimals;
-    const TCHAR* Unit;
-};
-const FDevTestStatName DevTestStats[] =
-{
-    {TEXT("MaxHP"), ELDDemoBonusStat::MaxHPFlat, 2, TEXT("points")},
-    {TEXT("MaxMP"), ELDDemoBonusStat::MaxMPFlat, 2, TEXT("points")},
-    {TEXT("AD"), ELDDemoBonusStat::ADFlat, 2, TEXT("points")},
-    {TEXT("AP"), ELDDemoBonusStat::APFlat, 2, TEXT("points")},
-    {TEXT("Armor"), ELDDemoBonusStat::ArmorFlat, 2, TEXT("points")},
-    {TEXT("MR"), ELDDemoBonusStat::MagicResistFlat, 2, TEXT("points")},
-    {TEXT("Haste"), ELDDemoBonusStat::CooldownHasteFlat, 2, TEXT("points")},
-    {TEXT("Range"), ELDDemoBonusStat::AttackRangeCmFlat, 0, TEXT("cm")},
-    {TEXT("AttackSpeed"), ELDDemoBonusStat::AttackSpeedBonusRatio, 2, TEXT("% of base")},
-    {TEXT("MoveSpeed"), ELDDemoBonusStat::MoveSpeedBonusRatio, 2, TEXT("% of base")},
-    {TEXT("Crit"), ELDDemoBonusStat::CritChanceBonusRatio, 2, TEXT("percentage points")},
-};
-
-// A nonnegative decimal with at most Decimals fraction digits, scaled exactly by 10^Decimals; nothing is rounded.
-bool DevTestParseScaled(const FString& Raw, int32 Decimals, int64& Out)
-{
-    Out = 0;
-    const FString Text = Raw.TrimStartAndEnd();
-    FString Whole, Fraction;
-    if (!Text.Split(TEXT("."), &Whole, &Fraction))
-    {
-        Whole = Text;
-    }
-    else if (Fraction.IsEmpty())
-    {
-        return false;
-    }
-    if (Whole.IsEmpty() || Whole.Len() > 15 || Fraction.Len() > Decimals)
-    {
-        return false;
-    }
-    for (const TCHAR Char : Whole + Fraction)
-    {
-        if (!FChar::IsDigit(Char))
-        {
-            return false;
-        }
-    }
-    while (Fraction.Len() < Decimals)
-    {
-        Fraction += TEXT("0");
-    }
-    Out = FCString::Atoi64(*(Whole + Fraction));
-    return true;
-}
 
 // The approved runtime catalog this process loaded; the authority validates every command against its own copy.
 TSharedPtr<const FLDDemoContentSnapshot> DevTestCatalog(FOutputDevice& Ar)
@@ -355,28 +267,28 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestAttr(
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {
-            const FDevTestStatName* Stat = nullptr;
+            const LDDevTest::FStatField* Stat = nullptr;
             if (Args.Num() == 2)
             {
-                for (const FDevTestStatName& Row : DevTestStats)
+                for (const LDDevTest::FStatField& Row : LDDevTest::StatFields())
                 {
-                    if (Args[0].TrimStartAndEnd().Equals(Row.Name, ESearchCase::IgnoreCase))
+                    if (Args[0].TrimStartAndEnd().Equals(Row.ConsoleName, ESearchCase::IgnoreCase))
                     {
                         Stat = &Row;
                     }
                 }
             }
             int64 Amount = 0;
-            if (!Stat || !DevTestParseScaled(Args[1], Stat->Decimals, Amount))
+            if (!Stat || !LDDevTest::ParseScaled(Args[1], Stat->Decimals, Amount))
             {
                 Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Attr <stat> <value>, value >= 0 with at most two decimals (Range: whole cm):"));
-                for (const FDevTestStatName& Row : DevTestStats)
+                for (const LDDevTest::FStatField& Row : LDDevTest::StatFields())
                 {
-                    Ar.Logf(TEXT("  %-11s %s"), Row.Name, Row.Unit);
+                    Ar.Logf(TEXT("  %-11s %s"), Row.ConsoleName, Row.Unit);
                 }
                 return;
             }
-            DevTestSend(World, ELDDevTestOp::SetAttribute, Amount, Ar, NAME_None, 0, uint8(Stat->Stat));
+            DevTestSend(World, ELDDevTestOp::SetAttribute, Amount, Ar, NAME_None, 0, Stat->Stat);
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestClearAttr(

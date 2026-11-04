@@ -193,7 +193,7 @@ try {
         @($third.devFixture.resets).Count -ne 2 -or [long]$buyer.final_gold -ne [long]$second.startingGold) {
         throw "The DEV-stage ledger does not list exactly the buyer's reset (one item, one gold change back to the start): $output"
     }
-    if (@($buyer.dev_test).Count -ne 15 -or @($hostReport.dev_test).Count -ne 3) {
+    if (@($buyer.dev_test).Count -ne 16 -or @($hostReport.dev_test).Count -ne 3) {
         throw "A DEV test step is missing from the reports: $output"
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'

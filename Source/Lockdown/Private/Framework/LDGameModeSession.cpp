@@ -1,5 +1,6 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
+#include "Development/LDDevGrowthFixture.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDControlSettings.h"
 #include "Engine/World.h"
@@ -154,6 +155,10 @@ FLDLobbyView ALDGameMode::ReadLobby() const
     else if (MatchPhase != ELDMatchPhase::Lobby) { View.StartBlocker = RejectionText(ELDSessionReject::WrongPhase); }
     else if (!AllReady) { View.StartBlocker = RejectionText(ELDSessionReject::NotAllReady); }
     View.CanStart = View.StartBlocker.IsEmpty() && LobbyHost.IsValid();
+#if WITH_DEV_AUTOMATION_TESTS
+    View.DevTestSession = LDDevGrowthFixture::IsSwitchPresent();
+    View.DevContentReload = LDDemoEntry::IsDevContentReload();
+#endif
     return View;
 }
 

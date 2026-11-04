@@ -122,6 +122,8 @@ namespace LDDevTest
     // RefreshCamps and OpenCapture change the match for everyone; only the Listen Host's own connection may send them.
     LOCKDOWN_API bool IsMatchWide(ELDDevTestOp Op);
     LOCKDOWN_API const TCHAR* OpName(ELDDevTestOp Op);
+    // The player-facing name of the op in the test-mode notices and panel.
+    LOCKDOWN_API const TCHAR* OpLabel(ELDDevTestOp Op);
     // Request shape only: a known op, a non-zero request id and the op's domain: grants an amount > 0 and nothing else;
     // LearnOption a definition and slot 0..2; BuyItem a definition and slot 0; SellItem slot 1..2 and no definition;
     // SetAttribute a permanent build stat and an amount >= 0; refill, reset and clear nothing.
@@ -129,4 +131,21 @@ namespace LDDevTest
     LOCKDOWN_API ELDGrowthReason ValidateShape(const FLDDevTestCommand& Command);
     // Admission answer for a command refused before it reached a request stream.
     LOCKDOWN_API FLDDevTestResult Refused(const FLDDevTestCommand& Command, ELDGrowthReason Reason, const FString& Detail);
+
+    // One settable permanent build stat of SetAttribute, shared by the console and the in-game test panel. Decimals is the
+    // exact entry scale (points and percents take two decimals and travel as P2 / basis points; range takes whole cm);
+    // Attribute is the projected row the term shows up in.
+    struct FStatField
+    {
+        const TCHAR* ConsoleName;
+        uint8 Stat;       // ELDDemoBonusStat
+        int32 Decimals;
+        const TCHAR* Unit;
+        uint8 Attribute;  // ELDProjectedAttribute
+    };
+    LOCKDOWN_API TConstArrayView<FStatField> StatFields();
+    // A positive decimal integer of at most 18 digits; anything else is refused rather than truncated.
+    LOCKDOWN_API bool ParseAmount(const FString& Text, int64& Out);
+    // A nonnegative decimal with at most Decimals fraction digits, scaled exactly by 10^Decimals; nothing is rounded.
+    LOCKDOWN_API bool ParseScaled(const FString& Text, int32 Decimals, int64& Out);
 }

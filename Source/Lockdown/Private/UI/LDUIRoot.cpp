@@ -38,7 +38,7 @@ namespace
     const FLinearColor SectionColor(.55f,.86f,.92f);
     const FLinearColor MutedColor(.66f,.74f,.78f);
     const FLinearColor WarningColor(1.f,.78f,.55f);
-    constexpr int32 MainPanelCount=3;
+    constexpr int32 MainPanelCount=4;
 
     int32 MainPanelIndex(ELDUIMainPanel Panel)
     {
@@ -246,6 +246,8 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     AIButtonRow->SetVisibility(ESlateVisibility::Collapsed);
     AIReadOnly=Label(FString(),18);
     Add(Lobby,AIReadOnly,6);
+    LobbyDevMarker=Label(FString(),16,WarningColor);
+    Add(Lobby,LobbyDevMarker,4);
     auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
     Add(Lobby,Actions,8);
     ReadyButton=MakeButton(TEXT("准备"),TEXT("Ready"),[this](){Ready();});
@@ -559,6 +561,10 @@ void ULDUIRoot::RefreshLobby(const ALDPlayerController& PC,const ALDGameState& P
     }
     AIButtonRow->SetVisibility(bHost?ESlateVisibility::SelfHitTestInvisible:ESlateVisibility::Collapsed);
     SetLine(AIReadOnly,bHost||!bCurrent?FString():FString::Printf(TEXT("AI 对手：%d"),int32(Lobby.AICount)));
+    // A DEV test room says so before anyone starts: its results are fixture evidence, never a cheat-free match.
+    SetLine(LobbyDevMarker,!bCurrent||(!Lobby.DevTestSession&&!Lobby.DevContentReload)?FString()
+        :FString(Lobby.DevTestSession?TEXT("测试模式房间：对局中可用“测试”面板改自己的状态"):TEXT("开发房间"))
+        +(Lobby.DevContentReload?TEXT(" · 内容热重载：只接受房主与 AI"):TEXT(""))+TEXT("；结果不算无作弊对局。"));
     StartMatchButton->SetVisibility(bHost?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
     StartMatchButton->SetIsEnabled(bCurrent&&Lobby.CanStart);
     ReadyButton->SetIsEnabled(bOwnerCurrent);
@@ -941,7 +947,7 @@ void ULDUIRoot::RegisterMainPanel(ELDUIMainPanel Panel,ULDPanel* Widget)
     const int32 Index=MainPanelIndex(Panel);
     if(Index==INDEX_NONE)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices and Shop are registered panels."),int32(Panel));
+        UE_LOG(LogTemp,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices, Shop and DevTest are registered panels."),int32(Panel));
         return;
     }
     MainPanels[Index]=Widget;

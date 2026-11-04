@@ -1,6 +1,7 @@
 #include "Development/LDDevTestProtocol.h"
 
 #include "Development/LDDemoContentDefinitions.h"
+#include "Combat/LDAttributeProjection.h"
 
 bool FLDDevTestCommand::SameTerms(const FLDDevTestCommand& Other) const
 {
@@ -96,4 +97,94 @@ FLDDevTestResult LDDevTest::Refused(const FLDDevTestCommand& Command, ELDGrowthR
     Result.Reason = LDGrowthWire::Raw(Reason);
     Result.Detail = Detail;
     return Result;
+}
+
+TConstArrayView<LDDevTest::FStatField> LDDevTest::StatFields()
+{
+    static const FStatField Fields[] =
+    {
+        {TEXT("MaxHP"), uint8(ELDDemoBonusStat::MaxHPFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::MaxHP)},
+        {TEXT("MaxMP"), uint8(ELDDemoBonusStat::MaxMPFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::MaxMP)},
+        {TEXT("AD"), uint8(ELDDemoBonusStat::ADFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::AD)},
+        {TEXT("AP"), uint8(ELDDemoBonusStat::APFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::AP)},
+        {TEXT("Armor"), uint8(ELDDemoBonusStat::ArmorFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::Armor)},
+        {TEXT("MR"), uint8(ELDDemoBonusStat::MagicResistFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::MagicResist)},
+        {TEXT("Haste"), uint8(ELDDemoBonusStat::CooldownHasteFlat), 2, TEXT("points"), uint8(ELDProjectedAttribute::CooldownHaste)},
+        {TEXT("Range"), uint8(ELDDemoBonusStat::AttackRangeCmFlat), 0, TEXT("cm"), uint8(ELDProjectedAttribute::AttackRange)},
+        {TEXT("AttackSpeed"), uint8(ELDDemoBonusStat::AttackSpeedBonusRatio), 2, TEXT("% of base"), uint8(ELDProjectedAttribute::AttackSpeed)},
+        {TEXT("MoveSpeed"), uint8(ELDDemoBonusStat::MoveSpeedBonusRatio), 2, TEXT("% of base"), uint8(ELDProjectedAttribute::MoveSpeed)},
+        {TEXT("Crit"), uint8(ELDDemoBonusStat::CritChanceBonusRatio), 2, TEXT("percentage points"), uint8(ELDProjectedAttribute::CritChance)},
+    };
+    return Fields;
+}
+
+bool LDDevTest::ParseAmount(const FString& Raw, int64& Out)
+{
+    Out = 0;
+    const FString Text = Raw.TrimStartAndEnd();
+    if (Text.IsEmpty() || Text.Len() > 18)
+    {
+        return false;
+    }
+    for (const TCHAR Char : Text)
+    {
+        if (!FChar::IsDigit(Char))
+        {
+            return false;
+        }
+    }
+    Out = FCString::Atoi64(*Text);
+    return Out > 0;
+}
+
+bool LDDevTest::ParseScaled(const FString& Raw, int32 Decimals, int64& Out)
+{
+    Out = 0;
+    const FString Text = Raw.TrimStartAndEnd();
+    FString Whole, Fraction;
+    if (!Text.Split(TEXT("."), &Whole, &Fraction))
+    {
+        Whole = Text;
+    }
+    else if (Fraction.IsEmpty())
+    {
+        return false;
+    }
+    if (Whole.IsEmpty() || Whole.Len() > 15 || Fraction.Len() > Decimals)
+    {
+        return false;
+    }
+    for (const TCHAR Char : Whole + Fraction)
+    {
+        if (!FChar::IsDigit(Char))
+        {
+            return false;
+        }
+    }
+    while (Fraction.Len() < Decimals)
+    {
+        Fraction += TEXT("0");
+    }
+    Out = FCString::Atoi64(*(Whole + Fraction));
+    return true;
+}
+
+const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
+{
+    switch (Op)
+    {
+    case ELDDevTestOp::GrantExperience: return TEXT("加经验");
+    case ELDDevTestOp::GrantGold: return TEXT("加零花钱");
+    case ELDDevTestOp::RefillResources: return TEXT("补满生命与法力");
+    case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
+    case ELDDevTestOp::LearnOption: return TEXT("选择卡牌");
+    case ELDDevTestOp::BuyItem: return TEXT("购买装备");
+    case ELDDevTestOp::SellItem: return TEXT("出售装备");
+    case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
+    case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");
+    case ELDDevTestOp::ResetToMatchStart: return TEXT("重置到开局");
+    case ELDDevTestOp::RefreshCamps: return TEXT("刷新野怪");
+    case ELDDevTestOp::OpenCapture: return TEXT("提前开圈");
+    default: return TEXT("未知操作");
+    }
 }
