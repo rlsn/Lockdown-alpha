@@ -8,6 +8,33 @@ struct FLDDemoEffectDefinition;
 // Voluntary actions the control matrix judges; the same rule serves human, opponent AI and camp callers.
 enum class ELDCombatControlAction : uint8 { Move, Displacement, Basic, Cast, Gear };
 
+// Every control or slow a body can receive; all of them are committed through ALDCombatDirector::CommitControl.
+// Hard controls (Root, Stun, Disarm, Taunt) diminish; Knockback and Slow never do.
+enum class ELDControlKind : uint8 { Root, Stun, Disarm, Taunt, Knockback, Slow };
+
+// One control or slow about to be committed on a body life.
+struct FLDControlApplication
+{
+    ELDControlKind Kind = ELDControlKind::Root;
+    FGuid EffectId;
+    FGuid SourceEntity;
+    FLDCombatBodyRef SourceBody;
+    // Undiminished duration; CommitControl applies the hard-control chain.
+    int64 DurationMs = 0;
+    // Slow: move-speed ratio and attack-speed ratio.
+    int64 RatioBp = 0;
+    int64 AttackRatioBp = 0;
+};
+
+// Hard-control diminishing returns of one body (#112 cross-session contract 6): a hard control landing while a previous one is active
+// or within 2 s after the latest one ended lasts 60%, then 30% (third and later), never below 0.2 s; the chain is
+// shared by every source and clears after 2 s without a new hard control.
+struct FLDHardControlChain
+{
+    int32 Count = 0;
+    int64 WindowEndMs = 0;
+};
+
 // The next basic attack's added hit, armed by one release and consumed by the first basic that lands.
 struct FLDCombatEmpower
 {
@@ -18,6 +45,8 @@ struct FLDCombatEmpower
     int64 APRatioBp = 0;
     ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     int64 ExpiresAtMs = 0;
+    // active_lunge Lv3: remaining-cooldown cut of the arming learned source when the empowered basic lands.
+    int64 RefundMs = 0;
 };
 
 // The last reflection one thorns source of a body dealt to one attacker.
@@ -69,8 +98,9 @@ namespace LDCombatControl
     // and at least IntervalMs after this source's last reflection to the same attacker.
     LOCKDOWN_API bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
         const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs);
-    // Reflection base in P2: (Base + Armor x ArmorRatio), doubled by CriticalMultiplier when the hit was critical.
-    LOCKDOWN_API bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, bool bCritical,
+    // Reflection base in P2: (Base + Armor x ArmorRatio + MaxHP x MaxHPRatio), multiplied by CriticalMultiplier when the
+    // hit was critical.
+    LOCKDOWN_API bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, int64 OwnerMaxHPP2, bool bCritical,
         int64& OutP2, FString& Error);
     // Records a reflection and forgets marks whose window has passed.
     LOCKDOWN_API void MarkThorns(TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker,
@@ -79,4 +109,9 @@ namespace LDCombatControl
     // Planar jump plan from Foot toward Point, clamped to RangeCm. Zero distance is a jump in place.
     LOCKDOWN_API bool PlanJump(const FVector& Foot, const FVector& Point, double RangeCm,
         FVector& OutDirection, double& OutDistanceCm);
+
+    LOCKDOWN_API bool IsHardControl(ELDControlKind Kind);
+    // Duration of a hard control landing at NowMs after the chain's diminishing returns; advances the chain.
+    // Non-positive durations are returned unchanged and leave the chain untouched.
+    LOCKDOWN_API int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs);
 }

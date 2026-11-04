@@ -93,6 +93,19 @@
     "empower_basic": 22,
     "jump": 23,
     "thorns": 24,
-    "backstab": 25
+    "backstab": 25,
+    "cooldown_refund": 26,
+    "ability_crit": 27,
+    "resist_shred": 28,
+    "momentum": 29,
+    "taunt_retaliate": 30,
+    "triggered_shield": 31,
+    "basic_stacks": 32,
+    "long_reach": 33,
+    "crit_damage_reduction": 34,
+    "nth_basic_bonus": 35,
+    "mana_on_hit": 36,
+    "dispel_slow": 37,
+    "path_slow": 38
   }
 }

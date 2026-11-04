@@ -60,10 +60,6 @@ FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen,
                     {
                         Bonus = N.Add(Bonus, StatBonus(Effect.Stats, Stat, N));
                     }
-                    else if (HPRegen && Effect.GetOp() == ELDDemoEffectOp::OutOfCombatRegen)
-                    {
-                        Bonus = N.Add(Bonus, N.Value(Effect.HPPerSec));
-                    }
                 }
                 Next[Budget] = N.Max(Next[Budget], N.Add(Best[Budget - Rank.Rank], Bonus));
             }
@@ -150,9 +146,11 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     {
         if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
         {
-            int64 Base, Armor, Sum, Critical;
+            int64 Base, Armor, Health, Sum, Total, Critical;
             return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
-                && N.Add64(Base, Armor, Sum, Path) && N.Mul64(Sum, Effect.CriticalMultiplierBp, Critical, Path);
+                && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, Health, Path)
+                && N.Add64(Base, Armor, Sum, Path) && N.Add64(Sum, Health, Total, Path)
+                && N.Mul64(Total, Effect.CriticalMultiplierBp, Critical, Path);
         }
         const bool bDamage = Effect.GetOp() == ELDDemoEffectOp::Damage || Effect.GetOp() == ELDDemoEffectOp::EmpowerBasic
             || Effect.GetOp() == ELDDemoEffectOp::AmbushDamage;

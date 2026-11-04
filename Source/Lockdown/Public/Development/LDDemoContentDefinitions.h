@@ -94,6 +94,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AttackSpeedPerLevelBp = 0;
     UPROPERTY() int64 CritChanceBaseBp = 0;
     UPROPERTY() int64 CritMultiplierBp = 0;
+    // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (active_monkey_peach Lv3, passive_precision Lv3).
+    UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
@@ -207,6 +209,22 @@ struct FLDDemoPolicies
 UENUM()
 enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
 
+// When a triggered effect fires (cooldown_refund, triggered_shield, mana_on_hit).
+UENUM()
+enum class ELDDemoEffectTrigger : uint8
+{
+    None, Release, EmpowerHit, BasicHit, BasicCrit, Cleanse, LandingHit, LowHP, AbilityHit, Control
+};
+
+// Which cooldown tracks a cooldown_refund shortens: the basic cadence, the releasing source's own track,
+// the other learned active (Q/W) or both learned actives.
+UENUM()
+enum class ELDDemoCooldownEntries : uint8 { None, Basic, Self, OtherActives, Actives };
+
+// ability_crit: a guaranteed ability critical against an impaired target, or a share of the crit chance for listed abilities.
+UENUM()
+enum class ELDDemoCritMode : uint8 { None, Impaired, Chance };
+
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
 
@@ -245,6 +263,10 @@ struct FLDDemoTargetDefinition
     UPROPERTY() FLDDemoRational RangeCm;
     UPROPERTY() FLDDemoRational ProjectileRadiusCm;
     UPROPERTY() FLDDemoRational ProjectileSpeedCmPerSec;
+    // Share of the caster's extra basic-attack range (current minus base) added to this cast range, up to
+    // AttackRangeBonusCapCm; 0 = none.
+    UPROPERTY() int64 AttackRangeRatioBp = 0;
+    UPROPERTY() FLDDemoRational AttackRangeBonusCapCm;
 };
 
 USTRUCT()
@@ -264,7 +286,6 @@ struct FLDDemoEffectDefinition
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 DurationMs = 0;
     UPROPERTY() int64 DelayMs = 0;
-    UPROPERTY() FLDDemoRational HPPerSec;
     UPROPERTY() int64 RatioBp = 0;
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
@@ -280,6 +301,35 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 CriticalMultiplierBp = 0;
     UPROPERTY() bool bAbilityTrigger = false;
     UPROPERTY() bool bRearExempt = false;
+    // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield, mana_on_hit).
+    UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
+    UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
+    UPROPERTY() ELDDemoCritMode CritMode = ELDDemoCritMode::None;
+    // cooldown_refund: the remaining-cooldown reduction; ambush_damage: the readiness credit of one dash or jump.
+    UPROPERTY() int64 AmountMs = 0;
+    // resist_shred: magic resist share removed (ArmorRatioBp is the armor share).
+    UPROPERTY() int64 MagicResistRatioBp = 0;
+    // slow: the source's vamp against the slowed body while it lasts; low_hp_stat_bonus: omnivamp while active.
+    UPROPERTY() int64 VampRatioBp = 0;
+    // shield: multiplier when the same release cleansed a root or slow; out_of_combat_regen: regen surge multiplier.
+    UPROPERTY() int64 MultiplierBp = 0;
+    // nth_basic_bonus: every Count-th landed basic; basic_stacks: maximum stacks.
+    UPROPERTY() int32 Count = 0;
+    // backstab: impaired targets (rooted, slowed, taunted, knocked back) count as struck from behind.
+    UPROPERTY() bool bImpaired = false;
+    // stealth: entering stealth readies the owner's ambush passive.
+    UPROPERTY() bool bAmbushReady = false;
+    // dash_boost: cooldown ratio and distance bonus of every dash or jump active (character and gear) at release.
+    UPROPERTY() int64 SkillCooldownRatioBp = 0;
+    UPROPERTY() int64 SkillDistanceBonusBp = 0;
+    // ability_crit (Chance): the abilities that may crit with the share of the owner's crit chance.
+    UPROPERTY() TArray<FString> AbilityIds;
+    // taunt_retaliate: damage per counted attack; momentum: cap of the gathered damage; long_reach: amplification cap.
+    UPROPERTY() int64 PerCountP2 = 0;
+    UPROPERTY() int64 CapP2 = 0;
+    UPROPERTY() int64 CapBp = 0;
+    // out_of_combat_regen: HP share of the current max HP regenerated per second (basis points).
+    UPROPERTY() int64 MaxHPPerSecBp = 0;
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };

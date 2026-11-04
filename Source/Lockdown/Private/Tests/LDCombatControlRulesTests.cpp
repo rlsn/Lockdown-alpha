@@ -269,14 +269,19 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
 
     int64 Amount = 0;
     FString Error;
-    TestTrue(TEXT("Base plus armor scaling"), LDCombatControl::ThornsBaseP2(Both, 4000, false, Amount, Error) && Amount == 1500 + 4000 * 1500 / 10000);
-    TestTrue(TEXT("A critical hit applies the critical multiplier"), LDCombatControl::ThornsBaseP2(Both, 4000, true, Amount, Error) && Amount == (1500 + 600) * 2);
+    TestTrue(TEXT("Base plus armor scaling"), LDCombatControl::ThornsBaseP2(Both, 4000, 0, false, Amount, Error) && Amount == 1500 + 4000 * 1500 / 10000);
+    TestTrue(TEXT("A critical hit applies the critical multiplier"), LDCombatControl::ThornsBaseP2(Both, 4000, 0, true, Amount, Error) && Amount == (1500 + 600) * 2);
+    FLDDemoEffectDefinition Health = Both;
+    Health.MaxHPRatioBp = 150;
+    TestTrue(TEXT("Armor and max-HP coefficients add (祖传铁裆 #112)"),
+        LDCombatControl::ThornsBaseP2(Health, 4000, 100000, false, Amount, Error) && Amount == 1500 + 600 + 1500);
     TestTrue(TEXT("A multiplier of one leaves a critical reflection unchanged"),
-        LDCombatControl::ThornsBaseP2(Thorns(false, false), 0, true, Amount, Error) && Amount == 1500 * 2);
+        LDCombatControl::ThornsBaseP2(Thorns(false, false), 0, 0, true, Amount, Error) && Amount == 1500 * 2);
     FLDDemoEffectDefinition Plain = BasicOnly;
     Plain.CriticalMultiplierBp = 10000;
-    TestTrue(TEXT("No critical doubling without a multiplier"), LDCombatControl::ThornsBaseP2(Plain, 0, true, Amount, Error) && Amount == 1500);
-    TestFalse(TEXT("Negative armor is refused"), LDCombatControl::ThornsBaseP2(Both, -1, false, Amount, Error));
+    TestTrue(TEXT("No critical doubling without a multiplier"), LDCombatControl::ThornsBaseP2(Plain, 0, 0, true, Amount, Error) && Amount == 1500);
+    TestFalse(TEXT("Negative armor is refused"), LDCombatControl::ThornsBaseP2(Both, -1, 0, false, Amount, Error));
+    TestFalse(TEXT("Negative max HP is refused"), LDCombatControl::ThornsBaseP2(Health, 0, -1, false, Amount, Error));
     return true;
 }
 

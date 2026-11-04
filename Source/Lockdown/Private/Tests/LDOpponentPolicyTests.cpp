@@ -334,8 +334,13 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
         400, INDEX_NONE, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("Full pair: sell the survival piece for a strictly better active pair"), TEXT("item_edge_blade"),
         TEXT("item_iron_plate"), 199, 1, TEXT("item_arcane_battery"));
+    // #112: the edge blade and iron plate each carry a passive, so no cheaper trade strictly improves that pair.
+    bGood &= Plan(Test, C, TEXT("One gold short of that: no affordable trade strictly improves the pair"),
+        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, INDEX_NONE, TEXT(""));
+    bGood &= Plan(Test, C, TEXT("A basic-only pair trades for its strictly better active pair"), TEXT("item_edge_blade"),
+        TEXT("item_slingshot"), 192, 1, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_echo_maul"));
+        TEXT("item_edge_blade"), TEXT("item_slingshot"), 191, 1, TEXT("item_iron_plate"));
     bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_echo_maul"),
         TEXT("item_arcane_battery"), 100000, INDEX_NONE, TEXT(""));
     FLDEquipmentPairRank Rank;

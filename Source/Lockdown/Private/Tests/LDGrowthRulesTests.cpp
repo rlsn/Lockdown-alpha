@@ -391,14 +391,14 @@ bool GrowthTestConserves(FAutomationTestBase& Test, const LDEconomy::FLedger& Le
 
 bool GrowthTestRunLedger(FAutomationTestBase& Test)
 {
-    // Approved values (CONTENT_AND_BALANCE §5/§6.1): SHOP.StartingGold 320, item_iron_plate 310 / 201, item_runic_focus 360,
+    // Approved values (CONTENT_AND_BALANCE §5/§6.1): SHOP.StartingGold 320, item_iron_plate 310 / 201, item_siphon_emblem 360,
     // a level 10 contender kill pays 170 gold and a monster_scavenger 30.
     const int64 StartingGold = 320;
     const int64 PlatePrice = 310;
     const int64 PlateSellGold = 201;
-    const int64 FocusPrice = 360;
+    const int64 EmblemPrice = 360;
     const FName Plate(TEXT("item_iron_plate"));
-    const FName Focus(TEXT("item_runic_focus"));
+    const FName Emblem(TEXT("item_siphon_emblem"));
     const FGuid Match(0x4D415443, 1, 2, 3);
     const FGuid P1(0x0000A001, 0, 0, 1);
     const FGuid P2(0x0000A002, 0, 0, 2);
@@ -456,8 +456,8 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     bGood &= Test.TestEqual(TEXT("A reward leaves the inventory revision"), Ledger.InventoryRevision(P1), uint64(1));
     bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After the reward"));
 
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(50, P2, 1, 1, Focus, 0, FocusPrice), LDEconomy::EPrepareError::InsufficientGold,
-        TEXT("Buying the 360 gold runic focus with the 320 starting gold"));
+    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(50, P2, 1, 1, Emblem, 0, EmblemPrice), LDEconomy::EPrepareError::InsufficientGold,
+        TEXT("Buying the 360 gold siphon emblem with the 320 starting gold"));
 
     for (uint32 Key = 2; Key <= 6; ++Key)
     {
@@ -1111,9 +1111,9 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         Tuning.ChoiceBaseWeight == 1 && Tuning.StartingGold == 320 && Tuning.SellRatioBp == 6500);
     bApproved &= Test.TestTrue(TEXT("Fixture prices item_iron_plate at 310 / 201 as the ledger test assumes"),
         OutCatalog->FindEquipment(TEXT("item_iron_plate"), IronPlate, Missing) && IronPlate->BuyPrice == 310 && IronPlate->SellGold == 201);
-    const FLDDemoEquipmentDefinition* RunicFocus = nullptr;
-    bApproved &= Test.TestTrue(TEXT("Fixture prices item_runic_focus at 360, above the starting gold, as the ledger test assumes"),
-        OutCatalog->FindEquipment(TEXT("item_runic_focus"), RunicFocus, Missing) && RunicFocus->BuyPrice == 360);
+    const FLDDemoEquipmentDefinition* SiphonEmblem = nullptr;
+    bApproved &= Test.TestTrue(TEXT("Fixture prices item_siphon_emblem at 360, above the starting gold, as the ledger test assumes"),
+        OutCatalog->FindEquipment(TEXT("item_siphon_emblem"), SiphonEmblem, Missing) && SiphonEmblem->BuyPrice == 360);
     return bApproved;
 }
 

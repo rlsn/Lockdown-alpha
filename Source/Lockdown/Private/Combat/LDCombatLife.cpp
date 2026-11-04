@@ -35,11 +35,12 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     // A slow shows its strongest instance; timed bonuses and control marks show one cue each with the latest deadline.
     if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
-    int64 BoostUntil=0, ExposedUntil=0;
+    int64 BoostUntil=0;
     for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
-    for (const auto& Exposure : Body->Exposures) { if (Exposure.ExpiresAtMs>NowMs) { ExposedUntil=FMath::Max(ExposedUntil,Exposure.ExpiresAtMs); } }
     if (BoostUntil>0) { Out.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
-    if (ExposedUntil>0) { Out.Add({uint8(ELDDemoStatusId::Exposed),1,ExposedUntil}); }
+    // A resistance shred (breach, status exposed) is public like the controls.
+    if (const int64 BreachUntil=LDTactical::BreachUntilMs(Body->Breaches,NowMs); BreachUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Exposed),1,BreachUntil}); }
     // Disarm and stun are public control cues like Root (latest remaining deadline); the empowerment stays private.
     if (const int64 DisarmUntil=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Disarm),1,DisarmUntil}); }
@@ -263,6 +264,7 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
     Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
+    DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
@@ -270,7 +272,8 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
         int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
-            + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; });
+            + Body.Breaches.RemoveAll([&Entity](const FLDCombatBreach& Breach) { return Breach.SourceEntity==Entity; })
+            + Body.VampMarks.RemoveAll([&Entity](const FLDCombatVampMark& Mark) { return Mark.SourceEntity==Entity; });
         if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
         {
             Body.Taunt.Reset();

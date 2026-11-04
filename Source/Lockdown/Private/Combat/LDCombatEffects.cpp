@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDControlRules.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
@@ -118,23 +119,62 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // Protection is the target life's state at this hit, not at the time the effect was accepted.
     const bool bProtected=Hit.Target.Victim.Kind==ELDVictimKind::Contender
         && Mode->IsContenderProtected(Hit.Target.Victim.EntityId);
+    // The exact releasing life, when it still stands: geometry, heals and mana grants read it; a dead or replaced
+    // source still deals its released damage.
+    ALDCharacter* SourceActor=nullptr;
+    FLDBodyCombatState* Source=FindBody(Hit.SourceBody,&SourceActor);
+    if (Source && (Source==Body || Source->bPendingDeath)) { Source=nullptr; SourceActor=nullptr; }
     const FLDProjectedAttributes& Defence=Body->AttributeProjection.Final;
+    // Controls and breaches are judged before this hit applies its own.
+    const bool bImpaired=IsImpaired(*Body,NowMs);
+    bool bCritical=Hit.bCritical;
+    // An ability critical is decided once per hit (one per target per cast); reflections and added damage never crit.
+    if (!bCritical && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bReflect && !Hit.bAddedDamage)
+    {
+        if (Hit.bCritIfImpaired && (bImpaired || LDTactical::HasBreach(Body->Breaches,NowMs))) { bCritical=true; }
+        else if (Hit.AbilityCritChanceBp>0 && CritRandom.RandRange(0,9999)<Hit.AbilityCritChanceBp) { bCritical=true; }
+    }
     FLDDamageEvaluationInput Evaluation;
     Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
     Evaluation.HitClass=Hit.HitClass;
-    Evaluation.bCritical=Hit.bCritical;
+    Evaluation.bCritical=bCritical;
     Evaluation.SourceADP2=Hit.SourceADP2;
     Evaluation.SourceAPP2=Hit.SourceAPP2;
     if (Hit.MaxHPRatioBp!=0) { Evaluation.SourceMaxHPP2=Hit.SourceMaxHPP2; }
-    Evaluation.TargetResistanceP2=Hit.DamageType==ELDDemoDamageType::Physical ? Defence.ArmorP2 : Defence.MagicResistP2;
+    const bool bPhysical=Hit.DamageType==ELDDemoDamageType::Physical;
+    // Breaches cut the matching resistance first by their flat terms, then by their summed ratio.
+    Evaluation.TargetResistanceP2=LDTactical::BreachedResistanceP2(Body->Breaches,
+        bPhysical ? Defence.ArmorP2 : Defence.MagicResistP2,bPhysical,NowMs);
     Evaluation.TargetHPP2=Body->Resources.HpP2;
     Evaluation.TargetShieldP2=Body->Resources.ShieldP2;
     Evaluation.bTargetProtected=bProtected;
-    // Rear strike: the releasing body in the target's rear arc at this hit, by the target's authority facing.
-    const bool bBehind=(Hit.BackstabRatioBp>0 || Hit.BackstabStunMs>0) && IsSourceBehind(Hit.SourceBody,*Actor);
-    // The source's control damage amplification on this life multiplies with a rear strike; both act before resistance.
-    const int64 ExposureBp=LDTactical::ExposureBp(Body->Exposures,Hit.SourceEntity,NowMs);
-    Evaluation.AmplifyBp=(10000+ExposureBp)*(bBehind ? 10000+Hit.BackstabRatioBp : 10000)/10000;
+    // Rear strike: the releasing body in the target's rear arc at this hit, by the target's authority facing; active_thousand_year Lv3
+    // also counts a rooted, slowed or taunted target.
+    const bool bRearStrike=Hit.BackstabRatioBp>0 || Hit.BackstabStunMs>0;
+    const bool bBehind=bRearStrike && (IsSourceBehind(Hit.SourceBody,*Actor)
+        || (Hit.bBackstabImpaired && (LDTactical::HasActiveRoot(Body->Roots,NowMs) || LDTactical::StrongestSlowBp(Body->Slows,NowMs)>0
+            || LDControl::IsTaunted(Body->Taunt,NowMs))));
+    // "Your damage +X%" terms (passive_public_shame, passive_eagle_eye) add into one (1 + sum) factor before resistance; the ability's own
+    // multipliers (a rear strike) and the target's critical reduction multiply it.
+    int64 DealtBp=0;
+    if (Hit.ControlAmpBp>0 && bImpaired) { DealtBp+=Hit.ControlAmpBp; }
+    if (Hit.DistanceAmpPer100Bp>0 && SourceActor)
+    {
+        const double Distance=FVector::Dist2D(FootOf(*SourceActor),FootOf(*Actor));
+        const double Amp=FMath::IsFinite(Distance) ? Distance*double(Hit.DistanceAmpPer100Bp)/100. : 0.;
+        DealtBp+=FMath::Clamp<int64>(int64(FMath::FloorToDouble(Amp)),0,Hit.DistanceAmpCapBp>0 ? Hit.DistanceAmpCapBp : MAX_int32);
+    }
+    int64 AmplifyBp=10000+DealtBp;
+    if (bBehind) { AmplifyBp=AmplifyBp*(10000+Hit.BackstabRatioBp)/10000; }
+    if (bCritical)
+    {
+        TArray<FLDPassiveEffectRef> Guards;
+        if (!CollectPassiveEffects(Body->AttributeProjection,ELDDemoEffectOp::CritDamageReduction,Guards,Error)) { return false; }
+        int64 CutBp=0;
+        for (const FLDPassiveEffectRef& Guard : Guards) { CutBp=FMath::Max(CutBp,Guard.Effect->RatioBp); }
+        AmplifyBp=AmplifyBp*(10000-FMath::Clamp<int64>(CutBp,0,10000))/10000;
+    }
+    Evaluation.AmplifyBp=AmplifyBp;
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
     {
@@ -144,49 +184,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     const FLDDamageEvaluation& Damage=Evaluated.Value.GetValue();
 
-    // Every fallible part of the hit is resolved before its first write.
-    FLDCombatRoot RootInstance, DisarmInstance, StunInstance;
+    // Every fallible read of the hit is resolved before its first write.
     const bool bControllable=!bProtected && Damage.RemainingHPP2>0;
     const int64 StunMs=FMath::Max(Hit.StunDurationMs,bBehind ? Hit.BackstabStunMs : 0);
-    const bool bRoots=Hit.RootDurationMs>0 && bControllable;
-    const bool bDisarms=Hit.DisarmDurationMs>0 && bControllable;
-    const bool bStuns=StunMs>0 && bControllable;
-    const auto Prepare=[&Hit,NowMs,&Error](bool bApplies, int64 DurationMs, FLDCombatRoot& Instance)
-    {
-        if (!bApplies) { return true; }
-        Instance.EffectId=Hit.EffectId;
-        Instance.SourceEntity=Hit.SourceEntity;
-        return LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Instance.ExpiresAtMs,Error);
-    };
-    if (!Prepare(bRoots,Hit.RootDurationMs,RootInstance) || !Prepare(bDisarms,Hit.DisarmDurationMs,DisarmInstance)
-        || !Prepare(bStuns,StunMs,StunInstance))
-    { return false; }
-    const bool bControls=bRoots || bDisarms || bStuns;
-    FLDCombatSlow SlowInstance;
-    const bool bSlows=Hit.SlowDurationMs>0 && Hit.SlowBp>0 && bControllable;
-    if (bSlows)
-    {
-        SlowInstance.EffectId=Hit.EffectId;
-        SlowInstance.SourceEntity=Hit.SourceEntity;
-        SlowInstance.RatioBp=Hit.SlowBp;
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.SlowDurationMs,SlowInstance.ExpiresAtMs,Error)) { return false; }
-    }
-    FLDBodyCombatState* Healed=nullptr;
-    int64 HealP2=0;
-    if (Hit.bLifesteal && Hit.HitClass==ELDCombatHitClass::BasicPrimary && Damage.HPLostP2>0)
-    {
-        if (Hit.LifestealRatioBp<0 || (Hit.LifestealRatioBp>0 && Damage.HPLostP2>MAX_int64/Hit.LifestealRatioBp))
-        {
-            Error=TEXT("Lifesteal scaling is outside the checked numeric domain.");
-            return false;
-        }
-        HealP2=Damage.HPLostP2*Hit.LifestealRatioBp/10000;
-        // Only the exact releasing life heals; a lethal, dead or respawned body never does.
-        Healed=FindBody(Hit.SourceBody);
-        if (Healed && (Healed==Body || Healed->bPendingDeath || Healed->Resources.HpP2<=0)) { Healed=nullptr; }
-    }
     TArray<FLDCombatBodyRef> Cleaved;
-    if (Hit.bCleave && Hit.HitClass==ELDCombatHitClass::BasicPrimary && Damage.DamageP2>0)
+    if (Hit.OnHitScaleBp>0 && Hit.bCleave && Damage.DamageP2>0)
     {
         if (Hit.CleaveRatioBp<0 || !FMath::IsFinite(Hit.CleaveRadiusCm) || Hit.CleaveRadiusCm<0)
         {
@@ -200,7 +202,32 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             return false;
         }
     }
+    TArray<FLDPassiveEffectRef> LowShields;
+    if (!CollectPassiveEffects(Body->AttributeProjection,ELDDemoEffectOp::TriggeredShield,LowShields,Error)) { return false; }
+    TArray<FLDPassiveEffectRef> ManaGrants;
+    if (Source && !CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::ManaOnHit,ManaGrants,Error)) { return false; }
+    // Vamp of this hit: on-hit lifesteal (already at its on-hit coefficient), passive_cornered omnivamp while the source is low and
+    // a vamp mark the source holds on this body from an earlier hit; all on the HP actually lost.
+    int64 VampBp=0;
+    if (Source && !Hit.bReflect && Damage.HPLostP2>0)
+    {
+        if (Hit.OnHitScaleBp>0 && Hit.bLifesteal) { VampBp+=Hit.LifestealRatioBp; }
+        if (Hit.OmnivampBp>0 && LDTactical::BelowHPThreshold(Source->Resources.HpP2,Source->Resources.MaxHpP2,Hit.OmnivampThresholdBp))
+        { VampBp+=Hit.OmnivampBp; }
+        VampBp+=LDTactical::VampMarkBp(Body->VampMarks,Hit.SourceEntity,NowMs);
+    }
+    int64 HealP2=0;
+    if (VampBp>0)
+    {
+        if (VampBp<0 || Damage.HPLostP2>MAX_int64/VampBp)
+        {
+            Error=TEXT("Vamp scaling is outside the checked numeric domain.");
+            return false;
+        }
+        HealP2=Damage.HPLostP2*VampBp/10000;
+    }
 
+    const int64 HPBefore=Body->Resources.HpP2;
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
     ++Body->Resources.Revision;
@@ -209,8 +236,57 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
     // A positive mitigated hit is combat even when the barrier absorbed all of it.
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
+    // Controls and slows go through the single control path (diminishing returns, interruptions, spray, assists).
+    bool bControlled=false;
+    const auto Control=[&](ELDControlKind Kind, int64 DurationMs, int64 RatioBp, int64 AttackRatioBp, bool& bOut)
+    {
+        FLDControlApplication App;
+        App.Kind=Kind;
+        App.EffectId=Hit.EffectId;
+        App.SourceEntity=Hit.SourceEntity;
+        App.SourceBody=Hit.SourceBody;
+        App.DurationMs=DurationMs;
+        App.RatioBp=RatioBp;
+        App.AttackRatioBp=AttackRatioBp;
+        bOut=false;
+        if (!CommitControl(*Body,App,NowMs,bOut,Error)) { return false; }
+        bControlled|=bOut;
+        return true;
+    };
+    if (bControllable)
+    {
+        bool bApplied=false;
+        if ((Hit.RootDurationMs>0 && !Control(ELDControlKind::Root,Hit.RootDurationMs,0,0,bApplied))
+            || (Hit.DisarmDurationMs>0 && !Control(ELDControlKind::Disarm,Hit.DisarmDurationMs,0,0,bApplied))
+            || (StunMs>0 && !Control(ELDControlKind::Stun,StunMs,0,0,bApplied)))
+        { return false; }
+        if (Hit.SlowDurationMs>0 && Hit.SlowBp>0)
+        {
+            if (!Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,Hit.SlowAttackBp,bApplied)) { return false; }
+            // active_slipper_throw Lv3: while this slow lasts the source vamps against this body.
+            if (bApplied && Hit.SlowVampBp>0)
+            {
+                FLDCombatVampMark Mark;
+                Mark.SourceEntity=Hit.SourceEntity;
+                Mark.RatioBp=Hit.SlowVampBp;
+                if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.SlowDurationMs,Mark.ExpiresAtMs,Error)) { return false; }
+                LDTactical::ApplyVampMark(Body->VampMarks,Mark);
+            }
+        }
+        if (Hit.ShredMs>0 && (Hit.ShredArmorBp>0 || Hit.ShredMagicResistBp>0))
+        {
+            FLDCombatBreach Breach;
+            Breach.Key=Hit.ShredKey;
+            Breach.SourceEntity=Hit.SourceEntity;
+            Breach.ArmorRatioBp=Hit.ShredArmorBp;
+            Breach.MagicResistRatioBp=Hit.ShredMagicResistBp;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.ShredMs,Breach.ExpiresAtMs,Error)) { return false; }
+            LDTactical::ApplyBreach(Body->Breaches,Breach,NowMs);
+            ++Body->StateRevision;
+        }
+    }
     // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
-    if (Damage.DamageP2>0 || bControls || bSlows)
+    if (Damage.DamageP2>0 || bControlled)
     {
         Body->Cues.LastHitAtMs=NowMs;
         MarkViewChanged(Body->Victim.EntityId);
@@ -218,7 +294,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         RevealStealth(*Body);
     }
     // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
-    if ((Damage.DamageP2>0 || bControls || bSlows) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
+    if ((Damage.DamageP2>0 || bControlled) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
     {
         FLDCombatHostileContact& Contact=PendingContacts.AddDefaulted_GetRef();
         Contact.HitId=Hit.HitId;
@@ -227,36 +303,79 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Contact.CreditOwner=Hit.CreditOwner;
         Contact.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();
     }
-    if (bRoots && LDTactical::ApplyRoot(Body->Roots,RootInstance,NowMs)) { ++Body->StateRevision; }
-    if (bSlows && LDTactical::ApplySlow(Body->Slows,SlowInstance,NowMs)) { ++Body->StateRevision; }
-    if (bDisarms && LDCombatControl::Apply(Body->Disarms,DisarmInstance,NowMs))
+    // active_come_here Lv3 counts the enemy basic and ability hits (positive damage, absorbed included) taken while it lasts.
+    if (Body->Retaliation.IsSet() && NowMs<Body->Retaliation->EndAtMs && Damage.DamageP2>0 && !Hit.bReflect && !Hit.bAddedDamage
+        && Hit.SourceEntity!=Body->Victim.EntityId
+        && (Hit.HitClass==ELDCombatHitClass::BasicPrimary || Hit.HitClass==ELDCombatHitClass::Ability))
+    { ++Body->Retaliation->HitsTaken; }
+    // passive_second_wind: an ability hit opens the regeneration surge.
+    const auto& Wind=Body->AttributeProjection.OutOfCombatHPRegen;
+    if (Wind.IsSet() && Wind->SurgeMs>0 && Hit.HitClass==ELDCombatHitClass::Ability && Damage.DamageP2>0
+        && !LDMatchLifecycle::AddDurationMs(NowMs,Wind->SurgeMs,Body->RegenSurgeUntilMs,Error))
+    { return false; }
+    // passive_cornered Lv3: falling below the threshold grants a shield once per internal cooldown.
+    for (const FLDPassiveEffectRef& Shield : LowShields)
     {
-        ++Body->StateRevision;
-        // A disarmed body cannot finish a basic windup.
-        if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Basic) { AbandonAction(*Body,ELDCombatReject::ControlBlocked); }
+        const FLDDemoEffectDefinition& Effect=*Shield.Effect;
+        if (Effect.Trigger!=ELDDemoEffectTrigger::LowHP || Body->Resources.HpP2<=0 || NowMs<Body->LowHPShieldReadyAtMs
+            || LDTactical::BelowHPThreshold(HPBefore,Body->Resources.MaxHpP2,Effect.RatioBp)
+            || !LDTactical::BelowHPThreshold(Body->Resources.HpP2,Body->Resources.MaxHpP2,Effect.RatioBp))
+        { continue; }
+        const int64 Amount=Effect.BaseP2+Body->Resources.MaxHpP2/10000*Effect.MaxHPRatioBp+Body->Resources.MaxHpP2%10000*Effect.MaxHPRatioBp/10000;
+        if (!GrantShield(*Body,Amount,Effect.DurationMs,FGuid::NewGuid(),NowMs,Error)
+            || !LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body->LowHPShieldReadyAtMs,Error))
+        { return false; }
     }
-    // A stun interrupts any unreleased windup; queued and later requests are refused while it lasts.
-    if (bStuns && LDCombatControl::Apply(Body->Stuns,StunInstance,NowMs))
-    {
-        ++Body->StateRevision;
-        AbandonAction(*Body,ELDCombatReject::ControlBlocked);
-    }
-    // A Root or Stun this source just applied opens its control damage amplification on this life (passive_public_shame).
-    if ((bRoots || bStuns) && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
-    if (Healed && HealP2>0)
+    if (Source)
     {
-        auto& Pool=Healed->Resources;
-        const int64 Before=Pool.HpP2;
-        Pool.HpP2=HealP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+HealP2;
-        if (Pool.HpP2>=Pool.MaxHpP2) { Healed->HpRegenMicroP2=0; }
-        if (Pool.HpP2!=Before)
+        if (HealP2>0)
         {
-            ++Pool.Revision;
-            MarkViewChanged(Hit.SourceBody.Victim.EntityId);
+            auto& Pool=Source->Resources;
+            const int64 Before=Pool.HpP2;
+            Pool.HpP2=HealP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+HealP2;
+            if (Pool.HpP2>=Pool.MaxHpP2) { Source->HpRegenMicroP2=0; }
+            if (Pool.HpP2!=Before)
+            {
+                ++Pool.Revision;
+                MarkViewChanged(Hit.SourceBody.Victim.EntityId);
+            }
+        }
+        // Mana grants, at most once per release: passive_public_shame Lv3 for a control this hit committed, item_runic_focus for an ability hit.
+        for (const FLDPassiveEffectRef& Grant : ManaGrants)
+        {
+            const FLDDemoEffectDefinition& Effect=*Grant.Effect;
+            if (Effect.Trigger==ELDDemoEffectTrigger::Control && bControlled && Source->LastControlManaEffect!=Hit.EffectId)
+            {
+                Source->LastControlManaEffect=Hit.EffectId;
+                GrantMana(*Source,Effect.BaseP2);
+            }
+            else if (Effect.Trigger==ELDDemoEffectTrigger::AbilityHit && !bProtected && !Hit.bReflect
+                && Hit.HitClass==ELDCombatHitClass::Ability && Hit.Token!=0
+                && (Hit.Source.Kind==ELDCombatSourceKind::Learned || Hit.Source.Kind==ELDCombatSourceKind::Gear)
+                && Source->LastAbilityManaEffect!=Hit.EffectId)
+            {
+                Source->LastAbilityManaEffect=Hit.EffectId;
+                GrantMana(*Source,Effect.BaseP2);
+            }
         }
     }
-    // POLICY.BasicSecondaryTriggers=Disabled: secondaries never crit, heal, cleave or start another attack.
+    if (!ApplyOnHitEffects(Hit,*Body,Damage,Cleaved,NowMs,Error)) { return false; }
+    // Thorns answer a hit the owner survived; a reflection never answers another reflection.
+    if (!Hit.bReflect && Damage.DamageP2>0 && Body->Resources.HpP2>0
+        && !QueueThorns(Hit,*Actor,*Body,Damage.DamageP2,bCritical,Error)) { return false; }
+    if (Body->Resources.HpP2==0 && !LockDeath(*Actor,*Body,Hit,Error)) { return false; }
+    return true;
+}
+
+bool ALDCombatDirector::ApplyOnHitEffects(const FLDCombatHit& Hit, FLDBodyCombatState& /*Target*/, const FLDDamageEvaluation& /*Damage*/,
+    const TArray<FLDCombatBodyRef>& Cleaved, int64 /*NowMs*/, FString& /*Error*/)
+{
+    // Only a hit that triggers on-hit effects reaches here with a coefficient; anything it makes triggers nothing.
+    if (Hit.OnHitScaleBp<=0) { return true; }
+    // Cleave: each secondary takes CleaveRatio (already at the on-hit coefficient) of the primary's raw terms, the merged
+    // empowerment included, never its critical. POLICY.BasicSecondaryTriggers=Disabled: secondaries never crit, heal,
+    // cleave or start another attack.
     for (const FLDCombatBodyRef& Secondary : Cleaved)
     {
         FLDCombatHit& Sweep=PendingHits.AddDefaulted_GetRef();
@@ -269,17 +388,330 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Sweep.CreditOwner=Hit.CreditOwner;
         Sweep.Source=Hit.Source;
         Sweep.HitClass=ELDCombatHitClass::BasicSecondary;
-        Sweep.BaseP2=0;
-        Sweep.ADRatioBp=Hit.CleaveRatioBp;
+        Sweep.BaseP2=Hit.BaseP2*Hit.CleaveRatioBp/10000;
+        Sweep.ADRatioBp=Hit.ADRatioBp*Hit.CleaveRatioBp/10000;
         Sweep.APRatioBp=0;
         Sweep.DamageType=ELDDemoDamageType::Physical;
         Sweep.SourceADP2=Hit.SourceADP2;
         Sweep.SourceAPP2=Hit.SourceAPP2;
+        Sweep.ControlAmpBp=Hit.ControlAmpBp;
+        Sweep.DistanceAmpPer100Bp=Hit.DistanceAmpPer100Bp;
+        Sweep.DistanceAmpCapBp=Hit.DistanceAmpCapBp;
+        Sweep.OmnivampBp=Hit.OmnivampBp;
+        Sweep.OmnivampThresholdBp=Hit.OmnivampThresholdBp;
+        Sweep.bAddedDamage=true;
     }
-    // Thorns answer a hit the owner survived; a reflection never answers another reflection.
-    if (!Hit.bReflect && Damage.DamageP2>0 && Body->Resources.HpP2>0 && !QueueThorns(Hit,*Actor,*Body,Damage.DamageP2,Error)) { return false; }
-    if (Body->Resources.HpP2==0 && !LockDeath(*Actor,*Body,Hit,Error)) { return false; }
     return true;
+}
+
+bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+    TArray<FLDPassiveEffectRef>& Out, FString& Error) const
+{
+    Out.Reset();
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { Error=TEXT("Passive effects require the approved Demo content."); return false; }
+    for (const FLDLearnedTriggerTerm& Term : Projection.LearnedTriggers)
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!Content->FindAbility(Term.AbilityId,Ability,Error)) { return false; }
+        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Term](const FLDDemoRankDefinition& Row) { return Row.Rank==int32(Term.Rank); });
+        if (!Rank) { Error=FString::Printf(TEXT("Learned trigger %s has no rank %u."),*Term.AbilityId,uint32(Term.Rank)); return false; }
+        for (const FLDDemoEffectDefinition& Effect : Rank->Effects)
+        {
+            if (Effect.GetOp()!=Op) { continue; }
+            FLDPassiveEffectRef& Ref=Out.AddDefaulted_GetRef();
+            Ref.Key=Term.AbilityId;
+            Ref.Source.Kind=ELDCombatSourceKind::Learned;
+            Ref.Source.DefinitionId=FName(*Term.AbilityId);
+            Ref.Effect=&Effect;
+        }
+    }
+    // POLICY.DuplicateEquipmentPassive=OncePerFamily: two copies still apply once per family.
+    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
+    {
+        const FLDDemoEquipmentDefinition* Equipment=nullptr;
+        if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
+        for (const FLDDemoEffectDefinition& Effect : Equipment->Passive.Effects)
+        {
+            if (Effect.GetOp()!=Op) { continue; }
+            FLDPassiveEffectRef& Ref=Out.AddDefaulted_GetRef();
+            Ref.Key=Family.Family;
+            Ref.Source.Kind=ELDCombatSourceKind::Gear;
+            Ref.Source.DefinitionId=FName(*Family.EquipmentId);
+            Ref.Effect=&Effect;
+        }
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ALDCombatDirector::SnapshotOnHit(const FLDBodyCombatState& Source, int64 ScaleBp, FLDCombatHit& InOut, FString& Error) const
+{
+    InOut.OnHitScaleBp=FMath::Max<int64>(0,ScaleBp);
+    InOut.bCleave=InOut.bLifesteal=false;
+    InOut.CleaveRatioBp=InOut.LifestealRatioBp=0;
+    InOut.CleaveRadiusCm=0;
+    if (InOut.OnHitScaleBp==0) { return true; }
+    TArray<FLDPassiveEffectRef> Effects;
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::Cleave,Effects,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Effects)
+    {
+        InOut.bCleave=true;
+        InOut.CleaveRatioBp=FMath::Max(InOut.CleaveRatioBp,Ref.Effect->RatioBp*InOut.OnHitScaleBp/10000);
+        InOut.CleaveRadiusCm=FMath::Max(InOut.CleaveRadiusCm,Ref.Effect->RadiusCm.Denominator>0
+            ? double(Ref.Effect->RadiusCm.Numerator)/double(Ref.Effect->RadiusCm.Denominator) : 0.);
+    }
+    if (!CollectPassiveEffects(Source.AttributeProjection,ELDDemoEffectOp::Lifesteal,Effects,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Effects)
+    {
+        InOut.bLifesteal=true;
+        InOut.LifestealRatioBp+=Ref.Effect->RatioBp*InOut.OnHitScaleBp/10000;
+    }
+    // C2: passive_dox_master stacks snapshot here.
+    return true;
+}
+
+bool ALDCombatDirector::StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const
+{
+    const FLDAttributeProjection& Projection=Source.AttributeProjection;
+    InOut.ControlAmpBp=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->RatioBp : 0;
+    InOut.OmnivampBp=Projection.LowHPBonus.IsSet() ? Projection.LowHPBonus->OmnivampBp : 0;
+    InOut.OmnivampThresholdBp=Projection.LowHPBonus.IsSet() ? Projection.LowHPBonus->ThresholdBp : 0;
+    InOut.DistanceAmpPer100Bp=InOut.DistanceAmpCapBp=0;
+    TArray<FLDPassiveEffectRef> Reach;
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::LongReach,Reach,Error)) { return false; }
+    for (const FLDPassiveEffectRef& Ref : Reach)
+    {
+        InOut.DistanceAmpPer100Bp=FMath::Max(InOut.DistanceAmpPer100Bp,Ref.Effect->RatioBp);
+        InOut.DistanceAmpCapBp=FMath::Max(InOut.DistanceAmpCapBp,Ref.Effect->CapBp);
+    }
+    return true;
+}
+
+FLDCombatHit ALDCombatDirector::MakeAmbushHit(const FLDCombatHit& Primary, const FLDAmbushDamageTerm& Term)
+{
+    FLDCombatHit Hit=Primary;
+    Hit.HitId=FGuid::NewGuid();
+    Hit.HitClass=ELDCombatHitClass::Ability;
+    Hit.BaseP2=Term.BaseP2;
+    Hit.ADRatioBp=Term.ADRatioBp;
+    Hit.APRatioBp=Term.APRatioBp;
+    Hit.DamageType=Term.DamageType;
+    Hit.MaxHPRatioBp=0;
+    Hit.bCritical=Hit.bCritIfImpaired=false;
+    Hit.AbilityCritChanceBp=0;
+    Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.SlowAttackBp=Hit.SlowVampBp=0;
+    Hit.DisarmDurationMs=Hit.StunDurationMs=Hit.BackstabRatioBp=Hit.BackstabStunMs=0;
+    Hit.bBackstabImpaired=Hit.bReflect=false;
+    Hit.OnHitScaleBp=0;
+    Hit.bCleave=Hit.bLifesteal=false;
+    Hit.CleaveRatioBp=Hit.LifestealRatioBp=0;
+    Hit.CleaveRadiusCm=0;
+    Hit.bAddedDamage=true;
+    // passive_lurking Lv3: the first strike shreds both resistances of the struck body.
+    Hit.ShredKey=FName(*Term.AbilityId);
+    Hit.ShredArmorBp=Hit.ShredMagicResistBp=Term.ShredRatioBp;
+    Hit.ShredMs=Term.ShredDurationMs;
+    return Hit;
+}
+
+bool ALDCombatDirector::AmbushReadyNow(const FLDBodyCombatState& Body, int64 NowMs) const
+{
+    const auto& Term=Body.AttributeProjection.Ambush;
+    const int64 Credit=Body.AmbushCreditFromMs==Body.LastCombatAtMs ? Body.AmbushCreditMs : 0;
+    return Term.IsSet() && !Body.bPendingDeath && LDTactical::AmbushReady(Body.LastCombatAtMs,Term->DelayMs,NowMs,Credit);
+}
+
+void ALDCombatDirector::CreditAmbush(FLDBodyCombatState& Body, int64 AmountMs)
+{
+    if (AmountMs<=0 || !Body.AttributeProjection.Ambush.IsSet()) { return; }
+    if (Body.AmbushCreditFromMs!=Body.LastCombatAtMs)
+    {
+        Body.AmbushCreditFromMs=Body.LastCombatAtMs;
+        Body.AmbushCreditMs=0;
+    }
+    Body.AmbushCreditMs=FMath::Min(Body.AttributeProjection.Ambush->DelayMs,Body.AmbushCreditMs+AmountMs);
+    MarkViewChanged(Body.Victim.EntityId);
+}
+
+void ALDCombatDirector::GrantMana(FLDBodyCombatState& Body, int64 AmountP2)
+{
+    auto& Pool=Body.Resources;
+    if (AmountP2<=0 || Body.bPendingDeath || Pool.MpP2>=Pool.MaxMpP2) { return; }
+    Pool.MpP2=AmountP2>=Pool.MaxMpP2-Pool.MpP2 ? Pool.MaxMpP2 : Pool.MpP2+AmountP2;
+    ++Pool.Revision;
+    MarkViewChanged(Body.Victim.EntityId);
+}
+
+bool ALDCombatDirector::GrantShield(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
+    int64 NowMs, FString& Error)
+{
+    if (AmountP2<=0 || Body.bPendingDeath) { return true; }
+    int64 Expires=0;
+    if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,Expires,Error)) { return false; }
+    // A weaker barrier is a stated sub-effect outcome (ReplaceIfNotWeaker), not a failure.
+    if (LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,FLDCombatShield{EffectId,Body.Victim.EntityId,Expires},AmountP2,NowMs))
+    {
+        ++Body.Resources.Revision;
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::CastRangeCm(const FLDBodyCombatState& Body, const FLDDemoTargetDefinition& Target, double& OutCm,
+    FString& Error) const
+{
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content) { Error=TEXT("Cast range requires the approved Demo content."); return false; }
+    const auto Cm=[](const FLDDemoRational& Value) { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; };
+    OutCm=Cm(Target.RangeCm);
+    // active_arc_bolt: a share of the extra basic-attack range above the catalog base, up to its cap.
+    if (Target.AttackRangeRatioBp>0)
+    {
+        const double Extra=FMath::Max(0.,Cm(Body.AttributeProjection.Final.AttackRangeCm)-Cm(Content->Get().Parameters.AttackRangeCm.Base));
+        OutCm+=FMath::Min(Extra*double(Target.AttackRangeRatioBp)/10000.,Cm(Target.AttackRangeBonusCapCm));
+    }
+    if (Target.Mode==ELDDemoTargetMode::Unit || Target.Mode==ELDDemoTargetMode::DirectionProjectile)
+    {
+        TArray<FLDPassiveEffectRef> Reach;
+        if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::LongReach,Reach,Error)) { return false; }
+        double Bonus=0;
+        for (const FLDPassiveEffectRef& Ref : Reach) { Bonus=FMath::Max(Bonus,Cm(Ref.Effect->DistanceCm)); }
+        OutCm+=Bonus;
+    }
+    else if (Target.Mode==ELDDemoTargetMode::GroundPoint)
+    {
+        int64 CooldownRatioBp=10000, DistanceBonusBp=0;
+        if (!LDCombatSourceRules::SkillDisplacementBoost(*Content,Body.AttributeProjection.EquipmentPassives,CooldownRatioBp,DistanceBonusBp,Error))
+        { return false; }
+        OutCm*=double(10000+DistanceBonusBp)/10000.;
+    }
+    return FMath::IsFinite(OutCm) && OutCm>0;
+}
+
+bool ALDCombatDirector::ResolveDashSweeps(FString& Error)
+{
+    if (DashSweeps.IsEmpty()) { return true; }
+    const ALDGameMode* Mode=Core();
+    if (!Mode) { Error=TEXT("Dash sweeps require the current core."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    TArray<FLDCombatDashSweep> Due;
+    for (int32 Index=DashSweeps.Num()-1; Index>=0; --Index)
+    {
+        if (DashSweeps[Index].EndAtMs>NowMs) { continue; }
+        Due.Insert(MoveTemp(DashSweeps[Index]),0);
+        DashSweeps.RemoveAt(Index);
+    }
+    for (const FLDCombatDashSweep& Sweep : Due)
+    {
+        ALDCharacter* Actor=nullptr;
+        FLDBodyCombatState* Body=FindBody(Sweep.Body,&Actor);
+        if (!Body || !Actor || Body->bPendingDeath) { continue; }
+        const FVector End=FootOf(*Actor);
+        const FVector2D A(Sweep.StartFootCm.X,Sweep.StartFootCm.Y), B(End.X,End.Y);
+        TArray<FLDCombatBodyRef> Struck;
+        for (const auto& Pair : Bodies)
+        {
+            const ALDCharacter* Other=Pair.Key.Get();
+            const FLDBodyCombatState& State=Pair.Value;
+            if (!Other || &State==Body || State.bPendingDeath
+                || (State.Victim.Kind==ELDVictimKind::Contender && Mode->IsContenderProtected(State.Victim.EntityId)))
+            { continue; }
+            const FVector Foot=FootOf(*Other);
+            const FVector2D P(Foot.X,Foot.Y);
+            const FVector2D Segment=B-A;
+            const double Length=Segment.SizeSquared();
+            const double T=Length>UE_DOUBLE_SMALL_NUMBER ? FMath::Clamp(FVector2D::DotProduct(P-A,Segment)/Length,0.,1.) : 0.;
+            if (FVector2D::Distance(P,A+Segment*T)<=Sweep.HalfWidthCm) { Struck.Add({State.Victim,State.Identity}); }
+        }
+        Struck.Sort([](const FLDCombatBodyRef& Left, const FLDCombatBodyRef& Right) { return Left.Victim.EntityId<Right.Victim.EntityId; });
+        for (const FLDCombatBodyRef& Target : Struck)
+        {
+            FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
+            Hit.HitId=FGuid::NewGuid();
+            Hit.EffectId=Sweep.EffectId;
+            Hit.Token=Sweep.Token;
+            Hit.Target=Target;
+            Hit.SourceBody=Sweep.Body;
+            Hit.SourceEntity=Body->Victim.EntityId;
+            Hit.CreditOwner=Body->Victim.Kind==ELDVictimKind::Contender ? Body->Victim.EntityId : FGuid();
+            Hit.Source=Sweep.Source;
+            Hit.HitClass=ELDCombatHitClass::Ability;
+            Hit.SlowBp=Sweep.SlowBp;
+            Hit.SlowDurationMs=Sweep.SlowMs;
+            Hit.bAddedDamage=true;
+        }
+    }
+    return true;
+}
+
+bool ALDCombatDirector::ResolveRetaliations(FString& Error)
+{
+    const ALDGameMode* Mode=Core();
+    if (!Mode) { Error=TEXT("Retaliations require the current core."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        ALDCharacter* Actor=Pair.Key.Get();
+        if (!Body.Retaliation.IsSet() || Body.Retaliation->EndAtMs>NowMs) { continue; }
+        const FLDCombatRetaliation Answer=Body.Retaliation.GetValue();
+        Body.Retaliation.Reset();
+        if (!Actor || Body.bPendingDeath) { continue; }
+        // base + per attack (counted up to its cap) + armor share of the caster now.
+        const int64 Armor=Body.AttributeProjection.Final.ArmorP2;
+        const int64 Counted=FMath::Min(Answer.HitsTaken,Answer.MaxHits);
+        if (Answer.BaseP2<0 || Answer.PerHitP2<0 || Answer.ArmorRatioBp<0 || Answer.PerHitP2>MAX_int32 || Answer.BaseP2>MAX_int32)
+        { Error=TEXT("Retaliation scaling is outside the checked numeric domain."); return false; }
+        const int64 BaseP2=Answer.BaseP2+Answer.PerHitP2*Counted+Armor/10000*Answer.ArmorRatioBp+Armor%10000*Answer.ArmorRatioBp/10000;
+        TArray<FLDCombatBodyRef> Targets;
+        if (!CollectAreaTargets(FootOf(*Actor),Answer.RadiusCm,&Body,Body.Victim.EntityId,Targets,Error)) { return false; }
+        for (const FLDCombatBodyRef& Target : Targets)
+        {
+            FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
+            Hit.HitId=FGuid::NewGuid();
+            Hit.EffectId=Answer.EffectId;
+            Hit.Target=Target;
+            Hit.SourceBody={Body.Victim,Body.Identity};
+            Hit.SourceEntity=Body.Victim.EntityId;
+            Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
+            Hit.Source=Answer.Source;
+            Hit.HitClass=ELDCombatHitClass::Ability;
+            Hit.BaseP2=BaseP2;
+            Hit.DamageType=Answer.DamageType;
+            Hit.SourceADP2=Body.AttributeProjection.Final.ADP2;
+            Hit.SourceAPP2=Body.AttributeProjection.Final.APP2;
+            Hit.bAddedDamage=true;
+            if (!StampSourceTerms(Body,Hit,Error)) { return false; }
+        }
+        ++Body.StateRevision;
+        MarkViewChanged(Body.Victim.EntityId);
+    }
+    return true;
+}
+
+void ALDCombatDirector::AdvanceMomentum(int64 NowMs)
+{
+    for (auto& Pair : Bodies)
+    {
+        FLDBodyCombatState& Body=Pair.Value;
+        ALDCharacter* Actor=Pair.Key.Get();
+        if (!Body.Momentum.IsSet()) { continue; }
+        if (!Actor || Body.bPendingDeath || NowMs>=Body.Momentum->ConsumeUntilMs)
+        {
+            Body.Momentum.Reset();
+            ++Body.StateRevision;
+            MarkViewChanged(Body.Victim.EntityId);
+            continue;
+        }
+        const FVector Foot=FootOf(*Actor);
+        if (Body.Momentum->LastFootCm!=Foot && Body.Momentum->AccumulateUntilMs>=NowMs)
+        {
+            Body.Momentum->DistanceCm+=FVector::Dist2D(Body.Momentum->LastFootCm,Foot);
+        }
+        Body.Momentum->LastFootCm=Foot;
+    }
 }
 
 bool ALDCombatDirector::IsSourceBehind(const FLDCombatBodyRef& Source, const ALDCharacter& Target) const
@@ -292,7 +724,8 @@ bool ALDCombatDirector::IsSourceBehind(const FLDCombatBodyRef& Source, const ALD
         Content->Get().Parameters.RearArcDeg);
 }
 
-bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, FString& Error)
+bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2,
+    bool bCritical, FString& Error)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
     const ALDGameMode* Mode=Core();
@@ -303,60 +736,25 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     const FLDBodyCombatState* AttackerBody=FindBody(Hit.SourceBody,&Attacker);
     // Only the exact attacking life can be answered; a dead, replaced or self source is not.
     if (!AttackerBody || !Attacker || AttackerBody->bPendingDeath || AttackerBody==&Body) { return true; }
-    struct FThornsSource
-    {
-        FString Key;
-        FLDCombatSourceRef Ref;
-        const FLDDemoEffectDefinition* Effect=nullptr;
-    };
-    TArray<FThornsSource> Sources;
-    for (const FLDLearnedTriggerTerm& Term : Projection.LearnedTriggers)
-    {
-        const FLDDemoAbilityDefinition* Ability=nullptr;
-        if (!Content->FindAbility(Term.AbilityId,Ability,Error)) { return false; }
-        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Term](const FLDDemoRankDefinition& Row) { return Row.Rank==int32(Term.Rank); });
-        if (!Rank) { Error=FString::Printf(TEXT("Learned trigger %s has no rank %u."),*Term.AbilityId,uint32(Term.Rank)); return false; }
-        for (const FLDDemoEffectDefinition& Effect : Rank->Effects)
-        {
-            if (Effect.GetOp()!=ELDDemoEffectOp::Thorns) { continue; }
-            FThornsSource& Source=Sources.AddDefaulted_GetRef();
-            Source.Key=Term.AbilityId;
-            Source.Ref.Kind=ELDCombatSourceKind::Learned;
-            Source.Ref.DefinitionId=FName(*Term.AbilityId);
-            Source.Effect=&Effect;
-        }
-    }
-    // POLICY.DuplicateEquipmentPassive=OncePerFamily: two copies still reflect once per family.
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
-    {
-        const FLDDemoEquipmentDefinition* Equipment=nullptr;
-        if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
-        for (const FLDDemoEffectDefinition& Effect : Equipment->Passive.Effects)
-        {
-            if (Effect.GetOp()!=ELDDemoEffectOp::Thorns) { continue; }
-            FThornsSource& Source=Sources.AddDefaulted_GetRef();
-            Source.Key=Family.Family;
-            Source.Ref.Kind=ELDCombatSourceKind::Gear;
-            Source.Ref.DefinitionId=FName(*Family.EquipmentId);
-            Source.Effect=&Effect;
-        }
-    }
+    TArray<FLDPassiveEffectRef> Sources;
+    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::Thorns,Sources,Error)) { return false; }
     if (Sources.IsEmpty()) { return true; }
     const int64 NowMs=Mode->GetAuthorityNowMs();
     const FVector OwnerFoot=FootOf(Holder), AttackerFoot=FootOf(*Attacker);
     FLDThornsContact Contact;
     Contact.HitClass=Hit.HitClass;
     Contact.bReflected=Hit.bReflect;
-    Contact.bCritical=Hit.bCritical;
+    Contact.bCritical=bCritical;
     Contact.DamageP2=DamageP2;
     Contact.DistanceCm=FVector::Dist2D(OwnerFoot,AttackerFoot);
     Contact.bFromBehind=LDCombatControl::IsBehind(OwnerFoot,Holder.GetActorRotation().Yaw,AttackerFoot,Content->Get().Parameters.RearArcDeg);
     const FLDCombatBodyRef OwnerRef{Body.Victim,Body.Identity};
-    for (const FThornsSource& Source : Sources)
+    for (const FLDPassiveEffectRef& Source : Sources)
     {
         if (!LDCombatControl::ThornsTriggers(*Source.Effect,Contact,Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs)) { continue; }
         int64 BaseP2=0;
-        if (!LDCombatControl::ThornsBaseP2(*Source.Effect,Projection.Final.ArmorP2,Hit.bCritical,BaseP2,Error)) { return false; }
+        // Armor and max-HP coefficients of the holder now (passive_iron_crotch, item_nail_uniform).
+        if (!LDCombatControl::ThornsBaseP2(*Source.Effect,Projection.Final.ArmorP2,Body.Resources.MaxHpP2,bCritical,BaseP2,Error)) { return false; }
         LDCombatControl::MarkThorns(Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs,Source.Effect->IntervalMs);
         // The same hit, damage, ownership, death and reward path as any other hit; it is flagged so it never crits,
         // heals, cleaves or triggers the attacker's own thorns.
@@ -368,13 +766,18 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
         Reflect.SourceBody=OwnerRef;
         Reflect.SourceEntity=Body.Victim.EntityId;
         Reflect.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
-        Reflect.Source=Source.Ref;
+        Reflect.Source=Source.Source;
         Reflect.HitClass=ELDCombatHitClass::Ability;
         Reflect.BaseP2=BaseP2;
         Reflect.DamageType=Source.Effect->DamageType;
         Reflect.SourceADP2=Projection.Final.ADP2;
         Reflect.SourceAPP2=Projection.Final.APP2;
         Reflect.bReflect=true;
+        // passive_iron_crotch Lv3: the reflection cuts the attacker's attack and move speed for a while.
+        Reflect.SlowBp=Reflect.SlowAttackBp=Source.Effect->RatioBp;
+        Reflect.SlowDurationMs=Source.Effect->DurationMs;
+        if (!StampSourceTerms(Body,Reflect,Error)) { return false; }
+        Reflect.OmnivampBp=0;
     }
     Error.Reset();
     return true;
@@ -422,21 +825,18 @@ bool ALDCombatDirector::ResolveLandings(FString& Error)
                 Hit.HitId=FGuid::NewGuid();
                 Hit.Target=Target;
                 PendingHits.Add(Hit);
-                if (Landing.Ambush.IsSet())
-                {
-                    // The ambush bonus is a separate instance of its own damage type against the same struck body.
-                    FLDCombatHit Ambush=Hit;
-                    Ambush.HitId=FGuid::NewGuid();
-                    Ambush.BaseP2=Landing.Ambush->BaseP2;
-                    Ambush.ADRatioBp=Landing.Ambush->ADRatioBp;
-                    Ambush.APRatioBp=Landing.Ambush->APRatioBp;
-                    Ambush.DamageType=Landing.Ambush->DamageType;
-                    Ambush.MaxHPRatioBp=0;
-                    Ambush.bCritical=false;
-                    Ambush.RootDurationMs=Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
-                    Ambush.DisarmDurationMs=Ambush.StunDurationMs=Ambush.BackstabRatioBp=Ambush.BackstabStunMs=0;
-                    PendingHits.Add(Ambush);
-                }
+                // The ambush bonus is a separate instance of its own damage type against the same struck body.
+                if (Landing.Ambush.IsSet()) { PendingHits.Add(MakeAmbushHit(Hit,Landing.Ambush.GetValue())); }
+            }
+            // active_body_slam Lv3: one shield sized by every body this landing struck.
+            if (Landing.LandingShield.IsSet() && !Targets.IsEmpty())
+            {
+                const FLDDemoEffectDefinition& Effect=Landing.LandingShield.GetValue();
+                const int64 MaxHP=Body->Resources.MaxHpP2;
+                const int64 Each=Effect.BaseP2+MaxHP/10000*Effect.MaxHPRatioBp+MaxHP%10000*Effect.MaxHPRatioBp/10000;
+                if (Each>MAX_int64/FMath::Max(1,Targets.Num()))
+                { Error=TEXT("Landing shield overflowed."); return false; }
+                if (!GrantShield(*Body,Each*Targets.Num(),Effect.DurationMs,Landing.EffectId,NowMs,Error)) { return false; }
             }
         }
         ++Body->StateRevision;
@@ -511,43 +911,14 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
         }
         if (Struck!=INDEX_NONE)
         {
-            // The first body ends the projectile; a protected body still stops it and evaluates to zero.
-            FLDCombatHit& Contact=PendingHits.AddDefaulted_GetRef();
+            // The first body ends the projectile; a protected body still stops it and evaluates to zero. The contact is
+            // the payload snapshotted at release.
+            FLDCombatHit Contact=Projectile.Payload;
             Contact.HitId=FGuid::NewGuid();
-            Contact.EffectId=Projectile.EffectId;
-            Contact.Token=Projectile.Token;
             Contact.Target=Targets[Struck].Body;
-            Contact.SourceBody=Projectile.SourceBody;
-            Contact.SourceEntity=Projectile.SourceEntity;
-            Contact.CreditOwner=Projectile.CreditOwner;
-            Contact.Source=Projectile.Source;
-            Contact.HitClass=ELDCombatHitClass::Ability;
-            Contact.BaseP2=Projectile.BaseP2;
-            Contact.ADRatioBp=Projectile.ADRatioBp;
-            Contact.APRatioBp=Projectile.APRatioBp;
-            Contact.DamageType=Projectile.DamageType;
-            Contact.SourceADP2=Projectile.SourceADP2;
-            Contact.SourceAPP2=Projectile.SourceAPP2;
-            Contact.MaxHPRatioBp=Projectile.MaxHPRatioBp;
-            Contact.SourceMaxHPP2=Projectile.SourceMaxHPP2;
-            Contact.bCritical=false;
-            Contact.SlowBp=Projectile.SlowBp;
-            Contact.SlowDurationMs=Projectile.SlowDurationMs;
-            Contact.ControlAmpBp=Projectile.ControlAmpBp;
-            Contact.ControlAmpDurationMs=Projectile.ControlAmpDurationMs;
-            if (Projectile.Ambush.IsSet())
-            {
-                // The ambush bonus is a separate instance of its own damage type against the same struck body.
-                FLDCombatHit Ambush=Contact;
-                Ambush.HitId=FGuid::NewGuid();
-                Ambush.BaseP2=Projectile.Ambush->BaseP2;
-                Ambush.ADRatioBp=Projectile.Ambush->ADRatioBp;
-                Ambush.APRatioBp=Projectile.Ambush->APRatioBp;
-                Ambush.DamageType=Projectile.Ambush->DamageType;
-                Ambush.MaxHPRatioBp=0;
-                Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
-                PendingHits.Add(Ambush);
-            }
+            PendingHits.Add(Contact);
+            // The ambush bonus is a separate instance of its own damage type against the same struck body.
+            if (Projectile.Ambush.IsSet()) { PendingHits.Add(MakeAmbushHit(Contact,Projectile.Ambush.GetValue())); }
             Finished.Add(Index);
             continue;
         }
@@ -605,21 +976,6 @@ bool ALDCombatDirector::CollectAreaTargets(const FVector& Anchor, double RadiusC
     return true;
 }
 
-bool ALDCombatDirector::MarkControlled(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
-{
-    if (Hit.ControlAmpBp<=0 || Hit.ControlAmpDurationMs<=0 || !Hit.SourceEntity.IsValid()
-        || Hit.SourceEntity==Target.Victim.EntityId)
-    { return true; }
-    FLDCombatExposure Exposure;
-    Exposure.SourceEntity=Hit.SourceEntity;
-    Exposure.AmplifyBp=Hit.ControlAmpBp;
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.ControlAmpDurationMs,Exposure.ExpiresAtMs,Error)) { return false; }
-    LDTactical::ApplyExposure(Target.Exposures,Exposure);
-    ++Target.StateRevision;
-    MarkViewChanged(Target.Victim.EntityId);
-    return true;
-}
-
 bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -630,8 +986,7 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
     }
     const FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
         Body.BuildProjection.LowHPBonus,Body.Resources.HpP2,Body.Resources.MaxHpP2,NowMs);
-    const bool bAmbushReady=Body.BuildProjection.Ambush.IsSet() && !Body.bPendingDeath
-        && LDTactical::AmbushReady(Body.LastCombatAtMs,Body.BuildProjection.Ambush->DelayMs,NowMs);
+    const bool bAmbushReady=AmbushReadyNow(Body,NowMs);
     if (bAmbushReady!=Body.bAmbushReadyShown)
     {
         Body.bAmbushReadyShown=bAmbushReady;
@@ -689,7 +1044,7 @@ bool ALDCombatDirector::RefreshAllTemporary(int64 NowMs, FString& Error)
     {
         FLDBodyCombatState& Body=Pair.Value;
         if (!Pair.Key.IsValid()) { continue; }
-        if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,Body.Exposures,NowMs))
+        if (LDTactical::ExpireTemporaryStatuses(Body.Slows,Body.TimedBonuses,Body.Breaches,Body.VampMarks,NowMs))
         {
             ++Body.StateRevision;
             MarkViewChanged(Body.Victim.EntityId);
@@ -759,7 +1114,7 @@ bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery&
         // D21: every contender recovers out of combat; camp members heal only by their reset.
         const bool bContender=Body.Victim.Kind==ELDVictimKind::Contender;
         if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &Recovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
-            Pools,Error))
+            Pools,Error,Body.RegenSurgeUntilMs))
         {
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;

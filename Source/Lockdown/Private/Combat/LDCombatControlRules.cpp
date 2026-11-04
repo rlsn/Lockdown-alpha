@@ -72,24 +72,28 @@ namespace LDCombatControl
         return !Last || Thorns.IntervalMs <= 0 || AtMs - Last->AtMs >= Thorns.IntervalMs;
     }
 
-    bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, bool bCritical, int64& OutP2, FString& Error)
+    bool ThornsBaseP2(const FLDDemoEffectDefinition& Thorns, int64 OwnerArmorP2, int64 OwnerMaxHPP2, bool bCritical,
+        int64& OutP2, FString& Error)
     {
         OutP2 = 0;
         const int64 Critical = bCritical ? Thorns.CriticalMultiplierBp : 10000;
-        if (Thorns.BaseP2 < 0 || Thorns.ArmorRatioBp < 0 || OwnerArmorP2 < 0 || Critical < 10000
-            || Thorns.BaseP2 > MAX_int64 / 10000 || (Thorns.ArmorRatioBp > 0 && OwnerArmorP2 > MAX_int64 / Thorns.ArmorRatioBp))
+        if (Thorns.BaseP2 < 0 || Thorns.ArmorRatioBp < 0 || Thorns.MaxHPRatioBp < 0 || OwnerArmorP2 < 0 || OwnerMaxHPP2 < 0
+            || Critical < 10000 || Thorns.BaseP2 > MAX_int64 / 10000
+            || (Thorns.ArmorRatioBp > 0 && OwnerArmorP2 > MAX_int64 / Thorns.ArmorRatioBp)
+            || (Thorns.MaxHPRatioBp > 0 && OwnerMaxHPP2 > MAX_int64 / Thorns.MaxHPRatioBp))
         {
             Error = TEXT("Thorns scaling is outside the checked numeric domain.");
             return false;
         }
         const int64 ScaledBase = Thorns.BaseP2 * 10000;
         const int64 ScaledArmor = OwnerArmorP2 * Thorns.ArmorRatioBp;
-        if (ScaledBase > MAX_int64 - ScaledArmor)
+        const int64 ScaledHealth = OwnerMaxHPP2 * Thorns.MaxHPRatioBp;
+        if (ScaledBase > MAX_int64 - ScaledArmor || ScaledBase + ScaledArmor > MAX_int64 - ScaledHealth)
         {
             Error = TEXT("Thorns scaling overflowed.");
             return false;
         }
-        const int64 Plain = (ScaledBase + ScaledArmor) / 10000;
+        const int64 Plain = (ScaledBase + ScaledArmor + ScaledHealth) / 10000;
         if (Plain > MAX_int64 / Critical)
         {
             Error = TEXT("Thorns critical scaling overflowed.");
@@ -119,5 +123,25 @@ namespace LDCombatControl
         OutDirection = Planar / Length;
         OutDistanceCm = FMath::Min(Length, RangeCm);
         return true;
+    }
+
+    bool IsHardControl(ELDControlKind Kind)
+    {
+        return Kind == ELDControlKind::Root || Kind == ELDControlKind::Stun || Kind == ELDControlKind::Disarm
+            || Kind == ELDControlKind::Taunt;
+    }
+
+    int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs)
+    {
+        constexpr int64 WindowMs = 2000;
+        constexpr int64 FloorMs = 200;
+        if (DurationMs <= 0) { return DurationMs; }
+        Chain.Count = NowMs < Chain.WindowEndMs ? FMath::Min(Chain.Count + 1, 2) : 0;
+        const int64 ScaleBp = Chain.Count == 0 ? 10000 : Chain.Count == 1 ? 6000 : 3000;
+        const int64 Scaled = DurationMs / 10000 * ScaleBp + DurationMs % 10000 * ScaleBp / 10000;
+        const int64 Result = Chain.Count == 0 ? DurationMs : FMath::Max(FMath::Min(FloorMs, DurationMs), Scaled);
+        const int64 EndsAt = NowMs <= MAX_int64 - Result - WindowMs ? NowMs + Result + WindowMs : MAX_int64;
+        Chain.WindowEndMs = FMath::Max(Chain.WindowEndMs, EndsAt);
+        return Result;
     }
 }

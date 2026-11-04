@@ -36,6 +36,8 @@ struct FFields
     FFields(FCheck& InCheck, const FValue& Value, FString InPath);
 
     FValue Take(const FString& Key);
+    // Whether an optional field is present (it must still be consumed with Take or a typed reader).
+    bool Has(const TCHAR* Key) const;
     bool Done();
     bool Text(const TCHAR* Key, FString& Out, int32 Min = 1, int32 Max = 512);
     bool Identifier(const TCHAR* Key, FString& Out);

@@ -44,8 +44,8 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
-    // Conditional multiplier of the raw amount before resistance: the product of a control damage amplification
-    // (10000 + mark) and a rear strike (10000 + ratio); 10000 = none.
+    // Conditional multiplier of the raw amount before resistance: the product of every conditional amplification
+    // (passive_public_shame, rear strike, passive_eagle_eye distance, a critical reduction of the target); 10000 = none.
     int64 AmplifyBp = 10000;
 };
 
@@ -85,12 +85,14 @@ struct FLDCombatShield
 };
 
 // One slow instance (EFFECT.Slow) on one target life; the strongest active instance projects into move speed.
+// AttackRatioBp is an attack-speed cut carried by the same instance (passive_iron_crotch Lv3); the strongest one projects too.
 struct FLDCombatSlow
 {
     FGuid EffectId;
     FGuid SourceEntity;
     int64 RatioBp = 0;
     int64 ExpiresAtMs = 0;
+    int64 AttackRatioBp = 0;
 };
 
 // One timed self bonus (EFFECT.TimedStatBonus); a recast of the same source definition replaces it.
@@ -102,11 +104,27 @@ struct FLDCombatTimedBonus
     int64 ExpiresAtMs = 0;
 };
 
-// Damage amplification the controlling source holds on this target life (EFFECT.ControlDamageAmp).
-struct FLDCombatExposure
+// One resistance shred (breach) on a target life. Flat terms count once per stack; ratio terms do not stack.
+// The same Key and source refresh it (adding Stacks up to MaxStacks); different keys or sources coexist.
+// Effective resistance = max(0, Resistance - sum of flats) x (1 - min(1, sum of ratios)).
+struct FLDCombatBreach
+{
+    FName Key;
+    FGuid SourceEntity;
+    int64 ArmorFlatP2 = 0;
+    int64 MagicResistFlatP2 = 0;
+    int64 ArmorRatioBp = 0;
+    int64 MagicResistRatioBp = 0;
+    int32 Stacks = 1;
+    int32 MaxStacks = 1;
+    int64 ExpiresAtMs = 0;
+};
+
+// A source's vamp against one target life while the mark lasts (active_slipper_throw Lv3).
+struct FLDCombatVampMark
 {
     FGuid SourceEntity;
-    int64 AmplifyBp = 0;
+    int64 RatioBp = 0;
     int64 ExpiresAtMs = 0;
 };
 

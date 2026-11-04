@@ -97,17 +97,6 @@ bool ReadRecoveryCatalog(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
     return true;
 }
 
-// Exact 1e-6 P2 per millisecond of a points-per-second rate (the FORMULA.Regen step), or -1.
-int64 MicroPerMs(const FLDDemoRational& Rate)
-{
-    if (Rate.Denominator <= 0 || Rate.Numerator < 0 || Rate.Numerator > MAX_int64 / 100000
-        || (Rate.Numerator * 100000) % Rate.Denominator != 0)
-    {
-        return -1;
-    }
-    return Rate.Numerator * 100000 / Rate.Denominator;
-}
-
 FLDBodyCombatState Body(ELDVictimKind Kind, int64 MaxHpP2, int64 MaxMpP2, int64 AtMs)
 {
     FLDBodyCombatState State;
@@ -164,7 +153,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     if (!TestNotNull(TEXT("The catalog holds a passive out-of-combat bonus to stack with"), Bonus)) { return false; }
     const int64 HpMicro = MaxHp * Recovery.MaxHPBpPerSec / 10;
     const int64 MpMicro = MaxMp * Recovery.MaxMPBpPerSec / 10;
-    const int64 BonusMicro = MicroPerMs(Bonus->HPPerSec);
+    const int64 BonusMicro = MaxHp * Bonus->MaxHPPerSecBp / 10;
     if (!TestTrue(TEXT("Recovery and bonus rates are exact per millisecond"),
         HpMicro * 10 == MaxHp * Recovery.MaxHPBpPerSec && MpMicro * 10 == MaxMp * Recovery.MaxMPBpPerSec && BonusMicro >= 0))
     {
@@ -192,7 +181,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     FLDBodyCombatState StackedState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
     FLDOutOfCombatRegenTerm Term;
     Term.DelayMs = Bonus->DelayMs;
-    Term.HPPerSec = Bonus->HPPerSec;
+    Term.MaxHPBpPerSec = Bonus->MaxHPPerSecBp;
     StackedState.AttributeProjection.OutOfCombatHPRegen = Term;
     Driver->Bodies.Add(Stacked, MoveTemp(StackedState));
     FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
@@ -285,7 +274,7 @@ bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
 {
     FLDAttributeProjection Attributes;
     Attributes.Final.HPRegenPerSec={8,5};Attributes.Final.MPRegenPerSec={6,5};
-    FLDOutOfCombatRegenTerm Passive;Passive.DelayMs=6000;Passive.HPPerSec={3,1};
+    FLDOutOfCombatRegenTerm Passive;Passive.DelayMs=6000;Passive.MaxHPBpPerSec=30;
     Attributes.OutOfCombatHPRegen=Passive;
     const LDTactical::FOutOfCombatRecovery Recovery{5000,150,150};
     const auto Before=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,5999);
@@ -307,7 +296,7 @@ bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
             FMath::IsNearlyEqual(Rates.MP,(double(Pools.MpP2)+double(Pools.MpMicroP2)/1000000.)/100.));
     }
     const auto ChangedMax=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,1000,7000);
-    TestTrue(TEXT("Maxima and active passive contribute to the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,23.2)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
+    TestTrue(TEXT("Maxima and active passive contribute to the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,23.92)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
     const auto Combat=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,7000,7000);
     TestTrue(TEXT("A combat event removes conditional terms immediately"),FMath::IsNearlyEqual(Combat.HP,1.6)&&FMath::IsNearlyEqual(Combat.MP,1.2));
     return true;

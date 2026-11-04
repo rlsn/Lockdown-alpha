@@ -40,6 +40,21 @@ bool NonnegativeRational(const FLDDemoRational& Value)
     return Value.Numerator >= 0 && Value.Denominator > 0;
 }
 
+// Passive effects Combat reads as triggers (ALDCombatDirector::CollectPassiveEffects); they add no attribute term.
+bool IsCombatTriggerOp(ELDDemoEffectOp Op)
+{
+    switch (Op)
+    {
+    case ELDDemoEffectOp::Lifesteal: case ELDDemoEffectOp::Cleave: case ELDDemoEffectOp::DashBoost:
+    case ELDDemoEffectOp::Thorns: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::AbilityCrit:
+    case ELDDemoEffectOp::TriggeredShield: case ELDDemoEffectOp::BasicStacks: case ELDDemoEffectOp::LongReach:
+    case ELDDemoEffectOp::CritDamageReduction: case ELDDemoEffectOp::NthBasicBonus: case ELDDemoEffectOp::ManaOnHit:
+        return true;
+    default:
+        return false;
+    }
+}
+
 // Maps one typed bonus to its projected attribute and term kind; false for an unsupported stat.
 bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool& bBasisPoints)
 {
@@ -282,8 +297,7 @@ private:
                 for (const FLDDemoEffectDefinition& Effect : Item.Passive.Effects)
                 {
                     // Approved equipment passives are combat triggers or innate-dash terms and contribute no attribute terms.
-                    if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave
-                        && Effect.GetOp() != ELDDemoEffectOp::DashBoost && Effect.GetOp() != ELDDemoEffectOp::Thorns)
+                    if (!IsCombatTriggerOp(Effect.GetOp()))
                     {
                         return Refuse(EError::Catalog, Field,
                             Item.Id + TEXT(" has an equipment passive effect without an attribute projection rule"));
@@ -399,16 +413,19 @@ private:
                         return Refuse(EError::Aggregation, Field,
                             TEXT("Several conditional regeneration sources have no approved aggregation rule"));
                     }
-                    if (Effect.DelayMs <= 0 || !NonnegativeRational(Effect.HPPerSec))
+                    if (Effect.DelayMs <= 0 || Effect.MaxHPPerSecBp <= 0 || Effect.MaxHPPerSecBp > 10000 || Effect.MaxHPPerSecBp % 10 != 0)
                     {
                         return Refuse(EError::Catalog, Field,
-                            TEXT("Conditional regeneration requires a positive delay and a nonnegative rate"));
+                            TEXT("Conditional regeneration requires a positive delay and a whole 0.001 max-HP share per second"));
                     }
                     FLDOutOfCombatRegenTerm& Term = OutOfCombat.Emplace();
                     Term.AbilityId = Passives[Index]->Id;
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.DelayMs = Effect.DelayMs;
-                    OutOfCombatRate = Numbers.Value(Effect.HPPerSec);
+                    Term.SurgeMs = Effect.DurationMs;
+                    Term.SurgeMultiplierBp = Effect.MultiplierBp;
+                    Term.InCombatRatioBp = Effect.RatioBp;
+                    Term.MaxHPBpPerSec = Effect.MaxHPPerSecBp;
                 }
                 else if (Effect.GetOp() == ELDDemoEffectOp::LowHpStatBonus)
                 {
@@ -425,6 +442,7 @@ private:
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.ThresholdBp = Effect.RatioBp;
                     Term.Stats = Effect.Stats;
+                    Term.OmnivampBp = Effect.VampRatioBp;
                 }
                 else if (Effect.GetOp() == ELDDemoEffectOp::AmbushDamage)
                 {
@@ -444,6 +462,9 @@ private:
                     Term.ADRatioBp = Effect.ADRatioBp;
                     Term.APRatioBp = Effect.APRatioBp;
                     Term.DamageType = Effect.DamageType;
+                    Term.DashCreditMs = Effect.AmountMs;
+                    Term.ShredRatioBp = Effect.RatioBp;
+                    Term.ShredDurationMs = Effect.DurationMs;
                 }
                 else if (Effect.GetOp() == ELDDemoEffectOp::ControlDamageAmp)
                 {
@@ -451,22 +472,25 @@ private:
                     {
                         return Refuse(EError::Aggregation, Field, TEXT("Several control amplification passives have no approved aggregation rule"));
                     }
-                    if (Effect.RatioBp <= 0 || Effect.DurationMs <= 0)
+                    if (Effect.RatioBp <= 0)
                     {
-                        return Refuse(EError::Catalog, Field, TEXT("Control amplification requires a positive ratio and duration"));
+                        return Refuse(EError::Catalog, Field, TEXT("Control amplification requires a positive ratio"));
                     }
                     FLDControlDamageAmpTerm& Term = ControlAmp.Emplace();
                     Term.AbilityId = Passives[Index]->Id;
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.RatioBp = Effect.RatioBp;
-                    Term.DurationMs = Effect.DurationMs;
                 }
-                else if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
+                else if (IsCombatTriggerOp(Effect.GetOp()))
                 {
-                    // A combat trigger of this exact rank; it contributes no attribute term.
-                    FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
-                    Trigger.AbilityId = Passives[Index]->Id;
-                    Trigger.Rank = Build.LearnedPassives[Index].Rank;
+                    // A combat trigger of this exact rank, listed once per passive; it contributes no attribute term.
+                    if (!LearnedTriggers.ContainsByPredicate([&](const FLDLearnedTriggerTerm& Existing)
+                        { return Existing.AbilityId == Passives[Index]->Id; }))
+                    {
+                        FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
+                        Trigger.AbilityId = Passives[Index]->Id;
+                        Trigger.Rank = Build.LearnedPassives[Index].Rank;
+                    }
                 }
                 else
                 {
@@ -566,11 +590,7 @@ private:
             return Within(Value, P.AttackRangeCm.Min, P.AttackRangeCm.Max, Field)
                 && StoreRational(Value, Final.AttackRangeCm, Field);
         case EAttribute::HPRegen:
-            // The catalog bound also covers the out-of-combat peak, so check both rates.
-            return Within(Value, P.HPRegen.Min, P.HPRegen.Max, Field)
-                && (!OutOfCombat.IsSet() || Within(Numbers.Add(Value, OutOfCombatRate), P.HPRegen.Min, P.HPRegen.Max,
-                    TEXT("OutOfCombatHPRegen")))
-                && StoreRational(Value, Final.HPRegenPerSec, Field);
+            return Within(Value, P.HPRegen.Min, P.HPRegen.Max, Field) && StoreRational(Value, Final.HPRegenPerSec, Field);
         case EAttribute::MPRegen:
             return Within(Value, P.MPRegen.Min, P.MPRegen.Max, Field) && StoreRational(Value, Final.MPRegenPerSec, Field);
         case EAttribute::CritChance: return StoreScaled(Value, 10000, 0, 10000, Final.CritChanceBp, Field);
@@ -642,14 +662,7 @@ private:
                 return ArithmeticFailure(Field);
             }
         }
-        if (OutOfCombat.IsSet())
-        {
-            if (!StoreRational(OutOfCombatRate, OutOfCombat->HPPerSec, TEXT("OutOfCombatHPRegen")))
-            {
-                return false;
-            }
-            Out.OutOfCombatHPRegen = OutOfCombat;
-        }
+        Out.OutOfCombatHPRegen = OutOfCombat;
         Out.LowHPBonus = LowHP;
         Out.Ambush = Ambush;
         Out.ControlAmp = ControlAmp;
@@ -672,7 +685,6 @@ private:
     TArray<const FLDDemoEquipmentDefinition*, TInlineAllocator<2>> Items;
     TArray<FLDEquipmentPassiveFamily> Families;
     TOptional<FLDOutOfCombatRegenTerm> OutOfCombat;
-    FExact OutOfCombatRate;
     TOptional<FLDLowHPBonusTerm> LowHP;
     TOptional<FLDAmbushDamageTerm> Ambush;
     TOptional<FLDControlDamageAmpTerm> ControlAmp;
@@ -770,9 +782,9 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         Result.Value.Emplace(MoveTemp(Out));
         return Result;
     }
-    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000)
+    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000 || Terms.AttackSlowBp < 0 || Terms.AttackSlowBp >= 10000)
     {
-        return Fail(EError::InputDomain, TEXT("MoveSlowBp"), TEXT("A slow must keep some move speed"));
+        return Fail(EError::InputDomain, TEXT("MoveSlowBp"), TEXT("A slow must keep some move and attack speed"));
     }
     const bool bRows = Build.Contributions.Num() == AttributeCount;
     if (!bRows && !Build.Contributions.IsEmpty())
@@ -808,6 +820,12 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         FTermSum& Sum = Temporary[int32(EAttribute::MoveSpeed)];
         Sum.Ratio = N.Sub(Sum.Ratio, N.Value(Terms.MoveSlowBp, 10000));
         Touched[int32(EAttribute::MoveSpeed)] = true;
+    }
+    if (Terms.AttackSlowBp > 0)
+    {
+        FTermSum& Sum = Temporary[int32(EAttribute::AttackSpeed)];
+        Sum.Ratio = N.Sub(Sum.Ratio, N.Value(Terms.AttackSlowBp, 10000));
+        Touched[int32(EAttribute::AttackSpeed)] = true;
     }
     const FLDDemoContentParameters& P = Catalog.Get().Parameters;
     const FExact One = N.Value(1);
@@ -955,7 +973,7 @@ FLDResourceMaxChangeResult ResourceMaxChange(const FLDResourceMaxChangeInput& In
 
 bool FLDTemporaryAttributeTerms::operator==(const FLDTemporaryAttributeTerms& Other) const
 {
-    if (MoveSlowBp != Other.MoveSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
+    if (MoveSlowBp != Other.MoveSlowBp || AttackSlowBp != Other.AttackSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
     for (int32 Index = 0; Index < Bonuses.Num(); ++Index)
     {
         const FLDDemoStatBonus& A = Bonuses[Index];
