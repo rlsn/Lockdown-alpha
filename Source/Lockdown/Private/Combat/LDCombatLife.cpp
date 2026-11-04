@@ -243,7 +243,12 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
-        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; });
+        int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; });
+        if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
+        {
+            Body.Taunt.Reset();
+            ++Removed;
+        }
         if (Removed>0)
         {
             ++Body.StateRevision;

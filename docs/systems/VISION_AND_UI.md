@@ -25,6 +25,12 @@
 ## 谁可以看到什么
 
 - 观察者唯一的来源是自己的存活身体。半径取批准内容的 `VISION.RadiusCm`（含边界）。
+- 隐身（纸箱「纸箱潜行」，Combat 的 `stealth` 效果）是同一授权规则的一部分，不是外观处理：
+  `LDObservation::ConcealedSight` 让隐身身体只在观察者脚点平面距离 `reveal_radius`（含边界）内为 Visible，
+  其外按普通 `OutOfRange` 处理。采样（`GatherTargets` 记录 `ConcealBeyondCm`）、`ResolveObservedUnit`、`BindObservedOrder`、
+  死亡见证与野怪感知（`TraceObservation`）都走它，因此进入隐身后的下一次采样即以可靠隐藏通知撤销句柄、
+  命令时刻的解析与锁定按失去视野失败、已有追击/锁定按失视野规则取消；重新发现总是新句柄与 epoch。
+  隐身从不穿透遮挡，也不把故障变成目标消失。隐身本身不进公开状态，只在本人 `CombatView` 显示。
 - 遮挡只来自注册世界中 `BlocksSight` 的凸多边形：线段触到边或角即算遮挡，世界只有一层。
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
@@ -185,7 +191,8 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 
 ## 检查入口
 
-- `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何。
+- `Lockdown.Rules.DemoVision.{Codec,Privacy,Ordering,Handles,Termination,Sight}` 覆盖线缆、白名单、游标、句柄与 pin、终结和视线几何；
+  `Lockdown.Rules.DemoControl.StealthObservation` 覆盖隐身的观察授权、撤销与近距离发现。
 - `Lockdown.Rules.DemoVision.ActionCues` 覆盖动作提示与提示龄的线缆规则、六个名册座位与身体色（座位互不相同、营地 NPC 不用座位色）；
   `Lockdown.Rules.DemoVision.Projectiles` 覆盖飞行物线缆上限与句柄冲突、同一视线规则的近者优先选择、逐观察者句柄寿命，以及接收端隐藏与超时清除。
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“弹脑瓜崩”文案与头像/身体共用的六色。

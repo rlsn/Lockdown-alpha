@@ -52,6 +52,8 @@ struct FLDBodyCombatState
     uint64 StateRevision=1;                // statuses/action changes; resources use Resources.Revision
     TArray<FLDCombatRoot> Roots;
     TOptional<FLDCombatShield> Shield;
+    TOptional<FLDCombatTaunt> Taunt;       // contenders only
+    TOptional<FLDCombatStealth> Stealth;
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
     int64 RegenThroughMs=0;
@@ -181,6 +183,10 @@ public:
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move);
     bool IsRooted(const ALDCharacter& Body) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
+    // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
+    bool ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBodyRef& OutTaunter) const;
+    // Planar distance beyond which enemies cannot observe this body now (stealth); 0 when it is not hidden.
+    double ConcealBeyondCm(const ALDCharacter& Body) const;
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // Action cue of a registered body at NowMs (LDCombatCues); None after a lethal hit (LDCombatObservation.cpp).
@@ -272,6 +278,15 @@ private:
     bool ApplyHit(const FLDCombatHit& Hit, FString& Error);
     bool AdvanceProjectiles(FString& Error);
     void ExpireStatuses(int64 NowMs);
+    // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
+    bool RefreshTaunts(FString& Error);
+    // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body.
+    bool ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
+        const FGuid& EffectId, FString& Error);
+    // Effective speed of one body: the projection, less an active stealth penalty.
+    bool EffectiveMoveSpeed(const FLDBodyCombatState& Body, int64 NowMs, double& OutCmPerSec) const;
+    // Stealth ends at an accepted attack/ability/item or a positive hit.
+    void RevealStealth(FLDBodyCombatState& Body);
     bool Regenerate(int64 NowMs, FString& Error);
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
 

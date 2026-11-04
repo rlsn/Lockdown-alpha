@@ -37,6 +37,17 @@ namespace LDObservation
         default: return ELDObservedResolve::AuthorityFault;
         }
     }
+
+    // Stealth (CONTENT_AND_BALANCE 15.4): a hidden body is observed only within ConcealBeyondCm (planar, inclusive) of
+    // the observer; beyond it the result is ordinary OutOfRange, exactly like a body past the vision radius. Zero means
+    // not hidden. Faults and other results pass through unchanged.
+    inline ELDSightResult ConcealedSight(ELDSightResult Geometric, const FVector& ObserverFootCm, const FVector& TargetFootCm,
+        double ConcealBeyondCm)
+    {
+        if (Geometric != ELDSightResult::Visible || !(ConcealBeyondCm > 0)) { return Geometric; }
+        return FVector::DistSquared2D(ObserverFootCm, TargetFootCm) <= ConcealBeyondCm * ConcealBeyondCm
+            ? ELDSightResult::Visible : ELDSightResult::OutOfRange;
+    }
 }
 
 // Valid only inside the calling authority phase; never cached, serialized or shown.
@@ -62,6 +73,7 @@ struct FLDObservedTarget
 {
     FLDCombatBodyRef Body;
     FVector FootCm = FVector::ZeroVector;
+    double ConcealBeyondCm = 0;    // stealth reveal distance at this sample; 0 = not hidden (LDObservation::ConcealedSight)
     FLDObservedUnitView Presented; // authorized fields; Handle/Epoch/StateRevision are observer-local
 };
 
@@ -117,6 +129,8 @@ public:
     bool BindOrder(const FLDMoveIdentity& Order, const FGuid& Handle, uint32 ObservationEpoch, FString& Error);
     bool ReleaseOrder(const FLDMoveIdentity& Order, FString& Error);
     bool FindBinding(const FGuid& Handle, uint32 ObservationEpoch, FLDCombatBodyRef& Out) const;
+    // Server-only reverse lookup of the current interval of one body (e.g. a taunter this observer must chase).
+    bool FindHandle(const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
     bool IsBound(const FLDCombatBodyRef& Body) const;
     const FLDObservedTerminationFact* FindTermination(const FGuid& Handle, uint32 ObservationEpoch) const;
     void RecentTerminations(TArray<FLDObservedUnitTermination>& Out) const;
@@ -182,6 +196,11 @@ public:
         uint32 ObservationEpoch, const FLDGameplayWritePermit& Permit, FString& Error);
     bool ReleaseObservedOrder(const ALDPlayerController& Caller, const FLDMoveIdentity& Order, FString& Error);
     ELDSightResult TraceSight(const FVector& SourceFootCm, const FVector& TargetFootCm, const FLDWorldRevision& Expected) const;
+    // Whether an observer standing at SourceFootCm may observe Target now: static sight plus the target's stealth.
+    // Every enemy perception (contenders, opponent AI, camp members, taunt upkeep) uses this, never bare TraceSight.
+    ELDSightResult TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target, const FLDWorldRevision& Expected) const;
+    // The caller's current observer-local handle of Body, only while Body is bound in its latest sample.
+    bool FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const;
     static constexpr int64 SamplePeriodMs = 50;
     static constexpr int64 PublishPeriodMs = 100;
 private:
@@ -198,8 +217,9 @@ private:
     FObserver* FindObserver(const ALDPlayerController& Caller);
     const FObserver* FindObserver(const ALDPlayerController& Caller) const;
     bool ReadObserver(const FObserver& Observer, FLDContenderLifeRead& Life, FVector& Foot, FString& Error) const;
-    // Authority-time sight that also proves the registered world has not changed under observation.
-    ELDSightResult CurrentSight(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
+    // Authority-time observation of a registered body (sight plus its stealth) that also proves the registered world
+    // has not changed under observation.
+    ELDSightResult CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const;
     bool GatherTargets(TArray<FLDObservedTarget>& Out, FString& Error) const;
     bool SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
         const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error);

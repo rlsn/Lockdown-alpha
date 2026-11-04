@@ -23,6 +23,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Shield: return TEXT("shield");
     case ELDDemoStatusId::CampReturning: return TEXT("camp_returning");
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
+    case ELDDemoStatusId::Taunt: return TEXT("taunt");
+    case ELDDemoStatusId::Stealth: return TEXT("stealth");
     default: return nullptr;
     }
 }
@@ -463,6 +465,9 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" 最大胆量");
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
+    case ELDDemoEffectOp::Taunt: return TEXT("嘲讽自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Stealth: return TEXT("隐身 ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
+        +TEXT("cm 内的敌人可发现，腿速 -")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }

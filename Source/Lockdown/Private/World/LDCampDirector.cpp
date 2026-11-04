@@ -212,7 +212,8 @@ bool ALDCampDirector::BuildCandidates(const FLDCampMemberState& Member, const FM
             return false;
         }
         const FVector TargetFoot = Target->GetCharacterMovement()->GetActorFeetLocation();
-        switch (Mode->Vision->TraceSight(Self.FootCm, TargetFoot, Registry->Revision()))
+        // Camp perception honours stealth exactly like a contender's observation.
+        switch (Mode->Vision->TraceObservation(Self.FootCm, *Target, Registry->Revision()))
         {
         case ELDSightResult::Visible:
             Out.Add({Source, TargetFoot, Registry->Revision(), NowSeconds});

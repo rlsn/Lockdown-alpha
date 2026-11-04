@@ -868,7 +868,16 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
-    TestEqual(TEXT("All 25 approved content and status identities are displayed"), Definitions.Display.Num(), 25);
+    const TCHAR* const StatusIds[] = {TEXT("root"), TEXT("shield"), TEXT("camp_returning"), TEXT("respawn_protection"),
+        TEXT("taunt"), TEXT("stealth")};
+    for (const TCHAR* StatusId : StatusIds)
+    {
+        TestTrue(FString(TEXT("Status identity is displayed: ")) + StatusId,
+            Definitions.Display.ContainsByPredicate([StatusId](const FLDDemoDisplayDefinition& Row) { return Row.Id == StatusId; }));
+    }
+    TestEqual(TEXT("Every approved content and status identity is displayed once"), Definitions.Display.Num(),
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num()
+        + int32(UE_ARRAY_COUNT(StatusIds)));
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;

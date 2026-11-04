@@ -33,12 +33,15 @@ const FNativeId NativeIds[] =
     DEMO_ID("equipment", "item_phase_anchor", ELDDemoEquipmentId, ItemPhaseAnchor),
     DEMO_ID("equipment", "item_arcane_battery", ELDDemoEquipmentId, ItemArcaneBattery),
     DEMO_ID("equipment", "item_echo_maul", ELDDemoEquipmentId, ItemEchoMaul),
+    DEMO_ID("equipment", "item_paper_box", ELDDemoEquipmentId, ItemPaperBox),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
     DEMO_ID("statuses", "shield", ELDDemoStatusId, Shield),
     DEMO_ID("statuses", "camp_returning", ELDDemoStatusId, CampReturning),
     DEMO_ID("statuses", "respawn_protection", ELDDemoStatusId, RespawnProtection),
+    DEMO_ID("statuses", "taunt", ELDDemoStatusId, Taunt),
+    DEMO_ID("statuses", "stealth", ELDDemoStatusId, Stealth),
     DEMO_ID("effect_ops", "damage", ELDDemoEffectOp, Damage),
     DEMO_ID("effect_ops", "shield", ELDDemoEffectOp, Shield),
     DEMO_ID("effect_ops", "dispel_root", ELDDemoEffectOp, DispelRoot),
@@ -49,6 +52,8 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "dash", ELDDemoEffectOp, Dash),
     DEMO_ID("effect_ops", "restore_mana", ELDDemoEffectOp, RestoreMana),
     DEMO_ID("effect_ops", "cleave", ELDDemoEffectOp, Cleave),
+    DEMO_ID("effect_ops", "taunt", ELDDemoEffectOp, Taunt),
+    DEMO_ID("effect_ops", "stealth", ELDDemoEffectOp, Stealth),
 };
 #undef DEMO_ID
 
@@ -519,6 +524,22 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             return false;
         }
         break;
+    case ELDDemoEffectOp::Taunt:
+        if (!F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
+        {
+            return false;
+        }
+        break;
+    case ELDDemoEffectOp::Stealth:
+        // RadiusCm is the reveal distance; RatioBp is the movement-speed penalty while hidden (below 100%).
+        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || !F.Fraction(TEXT("reveal_radius"), TEXT("cm"), Out.RadiusCm, true)
+            || !F.Fixed(TEXT("move_speed_penalty"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 0, 9999))
+        {
+            return false;
+        }
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -685,6 +706,9 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
     case ELDDemoEquipmentId::ItemEchoMaul:
         ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::AttackRangeCmFlat);
         PassiveFamily = TEXT("passive_cleave"); PassiveOps = OpBit(ELDDemoEffectOp::Cleave); break;
+    case ELDDemoEquipmentId::ItemPaperBox:
+        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
+        ActiveFamily = TEXT("cd_paper_box"); ActiveOps = OpBit(ELDDemoEffectOp::Stealth); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented equipment projection"));
     }

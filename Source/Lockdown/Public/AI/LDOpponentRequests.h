@@ -8,6 +8,7 @@ struct FLDSpatialOrderRequest;
 struct FLDOrderReceipt;
 struct FLDCombatActionRequest;
 struct FLDCombatActionReceipt;
+struct FLDCombatOwnerView;
 struct FLDChoiceCommand;
 struct FLDShopOpenCommand;
 struct FLDShopOpenResult;
@@ -53,6 +54,9 @@ namespace LDOpponentRequests
         const FLDEquipmentView& Equipment, const FLDProgressionView& Progression, uint64 RequestId,
         FLDShopCommand& Out, FString& Error);
 
+    // A taunted body takes no own order, stop or activation (Navigation chases its taunter): while this AI's own
+    // Combat projection shows an active taunt it holds every body intent instead of submitting refused requests.
+    LOCKDOWN_API bool BodyIntentsHeld(const FLDCombatOwnerView& Combat, int64 NowMs);
     LOCKDOWN_API ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt);
     LOCKDOWN_API ELDOpponentSettle SettleAction(const FLDCombatActionReceipt& Receipt);
     LOCKDOWN_API ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason);

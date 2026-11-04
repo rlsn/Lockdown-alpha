@@ -37,6 +37,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.Action.IsSet()) { Consider(Body.Action->ReleaseAtMs); }
         for (const auto& Root : Body.Roots) { Consider(Root.ExpiresAtMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
+        if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
+        if (Body.Stealth.IsSet()) { Consider(Body.Stealth->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
         if (Body.AttributeProjection.OutOfCombatHPRegen.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.AttributeProjection.OutOfCombatHPRegen->DelayMs)
@@ -209,6 +211,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     { Error=TEXT("Combat actions require the current Actions permit."); return false; }
     // Regeneration of the elapsed interval settles before this boundary's actions can start combat.
     if (!Regenerate(Mode->GetAuthorityNowMs(),Error)) { return false; }
+    // A taunt whose taunter died, left or went out of the victim's observation ends before any intent is judged.
+    if (!RefreshTaunts(Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
     if (!Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }

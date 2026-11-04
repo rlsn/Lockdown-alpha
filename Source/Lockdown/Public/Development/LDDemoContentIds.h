@@ -17,12 +17,14 @@ enum class ELDDemoAttributeId : uint8
 enum class ELDDemoEquipmentId : uint8
 {
     ItemIronPlate=99, ItemEdgeBlade=100, ItemRunicFocus=101,
-    ItemSiphonEmblem=102, ItemPhaseAnchor=103, ItemArcaneBattery=104, ItemEchoMaul=105
+    ItemSiphonEmblem=102, ItemPhaseAnchor=103, ItemArcaneBattery=104, ItemEchoMaul=105,
+    ItemPaperBox=106
 };
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2 };
-enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4 };
+enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4, Taunt=5, Stealth=6 };
 enum class ELDDemoEffectOp : uint8
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
-    OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10
+    OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10,
+    Taunt=11, Stealth=12
 };

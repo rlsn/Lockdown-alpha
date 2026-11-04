@@ -44,7 +44,8 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave"))
+                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave",
+                       "taunt", "stealth"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -453,7 +454,7 @@ def _positive_stats(stats, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "restore_mana")),
+        "Self": frozenset(("shield", "dispel_root", "restore_mana", "taunt", "stealth")),
         "Unit": frozenset(("damage", "root")),
         "DirectionProjectile": frozenset(("damage",)),
         "DirectionDash": frozenset(("dash",)),
@@ -476,6 +477,12 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
                 require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "restore ratio must be positive")
+            if effect["op"] == "taunt":
+                require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
+            if effect["op"] == "stealth":
+                require(quantity(effect["reveal_radius"]) > 0, "NumericDomain", path, "reveal radius must be positive")
+                require(quantity(effect["move_speed_penalty"]) < 1, "NumericDomain", path,
+                        "stealth cannot remove all movement speed")
     if mode in ("Unit", "DirectionProjectile"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
@@ -550,10 +557,12 @@ def validate_definitions(data, ids):
         "item_phase_anchor": {"MoveSpeedBonusRatio"},
         "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
         "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
+        "item_paper_box": {"APFlat", "MoveSpeedBonusRatio"},
     }
     item_actives = {
         "item_phase_anchor": ("DirectionDash", {"dash"}, "cd_phase_anchor"),
         "item_arcane_battery": ("Self", {"restore_mana", "shield"}, "cd_arcane_battery"),
+        "item_paper_box": ("Self", {"stealth"}, "cd_paper_box"),
     }
     item_passives = {
         "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),

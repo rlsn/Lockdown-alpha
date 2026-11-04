@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDControlRules.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -213,6 +214,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     {
         Body->Cues.LastHitAtMs=NowMs;
         MarkViewChanged(Body->Victim.EntityId);
+        // Being hurt (absorbed damage included) or controlled reveals a stealthed body.
+        RevealStealth(*Body);
     }
     // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
     if ((Damage.DamageP2>0 || bRoots) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
@@ -367,7 +370,8 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
     {
         FLDBodyCombatState& Body=Pair.Value;
         const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
-        if (!Expired.bRootsChanged && !Expired.bShieldChanged) { continue; }
+        const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,Body.Stealth,NowMs);
+        if (!Expired.bRootsChanged && !Expired.bShieldChanged && !Control.bTauntChanged && !Control.bStealthChanged) { continue; }
         ++Body.StateRevision;
         if (Expired.bShieldChanged) { ++Body.Resources.Revision; }
         MarkViewChanged(Body.Victim.EntityId);

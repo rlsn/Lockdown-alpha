@@ -111,11 +111,12 @@ def effect(value):
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
-        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"),
+        ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("move_speed_penalty", "RatioBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
-    for source, dest in (("rate", "HPPerSec"), ("distance", "DistanceCm"), ("radius", "RadiusCm")):
+    for source, dest in (("rate", "HPPerSec"), ("distance", "DistanceCm"), ("radius", "RadiusCm"),
+                         ("reveal_radius", "RadiusCm")):
         if source in value:
             result[dest] = rational(value[source])
     if "damage_type" in value:

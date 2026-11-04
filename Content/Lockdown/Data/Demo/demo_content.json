@@ -946,6 +946,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "item_paper_box.description",
+      "description_text": "提高缺德值和腿速。主动「纸箱潜行」：钻进纸箱隐身一小会儿，腿速略降；离得很近的敌人仍能发现你，弹脑瓜崩、放技能、用装备或挨打都会现身。",
+      "icon_id": "icon_item_paper_box",
+      "id": "item_paper_box",
+      "name_key": "item_paper_box.name",
+      "name_text": "纸箱",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "item_phase_anchor.description",
       "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。",
       "icon_id": "icon_item_phase_anchor",
@@ -1042,6 +1051,24 @@
       "id": "shield",
       "name_key": "shield.name",
       "name_text": "淡定",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "stealth.description",
+      "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被发现。弹脑瓜崩、放技能、用装备或挨打都会现身。",
+      "icon_id": "icon_stealth",
+      "id": "stealth",
+      "name_key": "stealth.name",
+      "name_text": "隐身",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "taunt.description",
+      "description_text": "只能追着嘲讽你的人弹脑瓜崩，不能放技能、用装备或自己下令；对方社死、离开或不在视野里时立刻解除。",
+      "icon_id": "icon_taunt",
+      "id": "taunt",
+      "name_key": "taunt.name",
+      "name_text": "被嘲讽",
       "namespace": "DemoContent"
     }
   ],
@@ -1179,6 +1206,63 @@
         "MaxHPFlat": {
           "p2": 18000,
           "unit": "hp"
+        }
+      }
+    },
+    {
+      "active": {
+        "cooldown_family": "cd_paper_box",
+        "rank": {
+          "cooldown": {
+            "ms": 45000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "move_speed_penalty": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
+              "op": "stealth",
+              "opcode": 12,
+              "reveal_radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "Self"
+        },
+        "windup": {
+          "ms": 0,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 400,
+      "id": "item_paper_box",
+      "native_id": 106,
+      "passive": null,
+      "sell_gold": 260,
+      "stats": {
+        "APFlat": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 800,
+          "unit": "ratio"
         }
       }
     },

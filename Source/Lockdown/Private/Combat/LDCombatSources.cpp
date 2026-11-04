@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDControlRules.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
@@ -557,6 +558,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!View.bHasActive) { View.Unavailable=ELDCombatReject::NoActiveEffect; }
     else if (!Body || Body->bPendingDeath) { View.Unavailable=ELDCombatReject::Dead; }
+    else if (LDControl::IsTaunted(Body->Taunt,NowMs)) { View.Unavailable=ELDCombatReject::ControlBlocked; }
     else if (View.ReadyAtMs>NowMs) { View.Unavailable=ELDCombatReject::Cooldown; }
     else if (Body->Resources.MpP2<View.ManaCostP2) { View.Unavailable=ELDCombatReject::InsufficientMana; }
     else if (Target->Mode==ELDDemoTargetMode::DirectionDash && Content
@@ -880,6 +882,20 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 ShieldStatus.ExpiresAtMs=Body->Shield->ExpiresAtMs;
                 ShieldStatus.AmountP2=Body->Resources.ShieldP2;
             }
+            // Owner-only: who taunts and where a stealthed body is never reach any other observer through this view.
+            if (LDControl::IsTaunted(Body->Taunt,NowMs))
+            {
+                FLDCombatStatusView& TauntStatus=Out.Statuses.AddDefaulted_GetRef();
+                TauntStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Taunt);
+                TauntStatus.ExpiresAtMs=Body->Taunt->ExpiresAtMs;
+                TauntStatus.ControlBlocks=uint8(ELDCombatControlBlock::Move)|uint8(ELDCombatControlBlock::Cast)|uint8(ELDCombatControlBlock::Gear);
+            }
+            if (LDControl::IsStealthed(Body->Stealth,NowMs))
+            {
+                FLDCombatStatusView& StealthStatus=Out.Statuses.AddDefaulted_GetRef();
+                StealthStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Stealth);
+                StealthStatus.ExpiresAtMs=Body->Stealth->ExpiresAtMs;
+            }
             if (Body->Action.IsSet())
             {
                 Out.ActionEntry=Body->Action->Entry;
@@ -903,7 +919,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         Out.MaxMPP2=Projection.Final.MaxMPP2;
     }
     for (const ELDCombatEntry Slot : LDCombatSourcesDetail::OwnerEntries) { Out.Entries.Add(EntryView(*Record,Body,Slot,NowMs)); }
-    Out.MoveSpeedCmPerSec=float(LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec));
+    double MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec);
+    // The owning client predicts with the same effective speed the authority moves its body at.
+    if (Body && !Body->bPendingDeath && !EffectiveMoveSpeed(*Body,NowMs,MoveSpeed))
+    { MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec); }
+    Out.MoveSpeedCmPerSec=float(MoveSpeed);
     Out.AttackRangeCm=float(LDCombatSourcesDetail::RationalValue(Projection.Final.AttackRangeCm));
     for (const FLDAttributeContributions& Row : Projection.Contributions)
     {

@@ -40,7 +40,7 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (6, 5, 7, 2))
+                          len(self.data["camps"]["monsters"])), (6, 5, 8, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
             "active_arc_bolt", "active_binding_snare", "active_guard_pulse",
             "passive_battle_rhythm", "passive_precision", "passive_second_wind"])
@@ -118,10 +118,12 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_respawn_protection_is_display_metadata_not_an_effect_or_duration_change(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
-        self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4})
+        self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
+                                           "taunt": 5, "stealth": 6})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
-            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10})
+            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10,
+            "taunt": 11, "stealth": 12})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -143,9 +145,10 @@ class ApprovedDemoData(unittest.TestCase):
             "attr_reach": "长臂猿",
             "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
             "item_siphon_emblem": "老爸的皮带", "item_phase_anchor": "跑道钉鞋", "item_arcane_battery": "保温杯",
-            "item_echo_maul": "值日扫帚",
+            "item_echo_maul": "值日扫帚", "item_paper_box": "纸箱",
             "monster_scavenger": "纪律委员", "monster_guardian": "体育老师",
             "root": "定身", "shield": "淡定", "camp_returning": "回岗中", "respawn_protection": "复活保护",
+            "taunt": "被嘲讽", "stealth": "隐身",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -251,6 +254,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_phase_anchor": (400, 260, {"MoveSpeedBonusRatio": Fraction(".12")}),
             "item_arcane_battery": (400, 260, {"MaxMPFlat": 120, "MagicResistFlat": 10}),
             "item_echo_maul": (400, 260, {"ADFlat": 14, "AttackRangeCmFlat": 40}),
+            "item_paper_box": (400, 260, {"APFlat": 20, "MoveSpeedBonusRatio": Fraction(".08")}),
         }
         for identity, (price, sell, stats) in expected.items():
             item = self.catalog.definition(identity)
@@ -267,6 +271,13 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.catalog.definition("item_siphon_emblem")["passive"]["effects"][0]["ratio"]["bp"], 1500)
         cleave = self.catalog.definition("item_echo_maul")["passive"]["effects"][0]
         self.assertEqual((cleave["ratio"]["bp"], amount(cleave["radius"])), (3500, 180))
+        # Proposed (pending user approval): box mana cost 40; the other box terms follow CONTENT_AND_BALANCE 15.4.
+        box = self.catalog.definition("item_paper_box")["active"]
+        self.assertEqual((box["target"]["mode"], box["windup"]["ms"], box["cooldown_family"]), ("Self", 0, "cd_paper_box"))
+        self.assertEqual((box["rank"]["mana_cost"]["p2"], box["rank"]["cooldown"]["ms"]), (4000, 45000))
+        stealth = box["rank"]["effects"][0]
+        self.assertEqual((stealth["op"], stealth["duration"]["ms"], amount(stealth["reveal_radius"]),
+                          stealth["move_speed_penalty"]["bp"]), ("stealth", 3000, 250, 1000))
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))

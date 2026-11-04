@@ -47,6 +47,7 @@ namespace LDNavigationDetail
         case ELDOrderFailure::Superseded: return TEXT("已被新订单替换");
         case ELDOrderFailure::Stopped: return TEXT("已停止");
         case ELDOrderFailure::Expired: return TEXT("订单已过期");
+        case ELDOrderFailure::Taunted: return TEXT("被嘲讽，只能弹嘲讽你的人");
         default: return TEXT("订单失败");
         }
     }

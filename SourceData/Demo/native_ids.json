@@ -29,7 +29,8 @@
     "item_siphon_emblem": 102,
     "item_phase_anchor": 103,
     "item_arcane_battery": 104,
-    "item_echo_maul": 105
+    "item_echo_maul": 105,
+    "item_paper_box": 106
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -39,7 +40,9 @@
     "root": 1,
     "shield": 2,
     "camp_returning": 3,
-    "respawn_protection": 4
+    "respawn_protection": 4,
+    "taunt": 5,
+    "stealth": 6
   },
   "effect_ops": {
     "damage": 1,
@@ -51,6 +54,8 @@
     "lifesteal": 7,
     "dash": 8,
     "restore_mana": 9,
-    "cleave": 10
+    "cleave": 10,
+    "taunt": 11,
+    "stealth": 12
   }
 }
