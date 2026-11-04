@@ -225,6 +225,23 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     const LDHUD::FResultRowView Shown=LDHUD::ResultRow(Row,Row.ContenderId,FGuid());
     TestTrue(TEXT("A frozen row keeps the departed AI and its statistics"),Shown.Name==TEXT("机器人（AI）（已离开）")&&Shown.Kills==TEXT("3")&&Shown.Deaths==TEXT("1")&&Shown.Level==TEXT("7")&&Shown.bWinner);
     TestFalse(TEXT("Statistics never mark a winner on their own"),LDHUD::ResultRow(Row,FGuid(),FGuid()).bWinner);
+    // D26: the public airdrop line.
+    FLDAirdropView Drop;
+    TestTrue(TEXT("No drop shows no airdrop line"),LDHUD::AirdropLine(Drop,FGuid(),FString(),true,0).IsEmpty());
+    Drop.Serial=1;Drop.Phase=ELDAirdropPhase::Announced;Drop.PointId=TEXT("airdrop_s");Drop.LandAtMs=45000;
+    TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,FGuid(),FString(),true,30001),
+        FString(TEXT("空投 0:15 后落地 · 小地图橙色标记")));
+    TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,FGuid(),FString(),false,0),
+        FString(TEXT("空投即将落地 · 小地图橙色标记")));
+    Drop.Phase=ELDAirdropPhase::Landed;
+    TestEqualSensitive(TEXT("A landed drop is first come, first served"),LDHUD::AirdropLine(Drop,FGuid(),FString(),true,46000),
+        FString(TEXT("空投已落地 · 先到先得")));
+    const FGuid Me=FGuid::NewGuid();
+    Drop.Phase=ELDAirdropPhase::Claimed;Drop.ClaimedBy=Me;Drop.ClaimedAtMs=47000;
+    TestEqualSensitive(TEXT("The own claim is announced to its owner"),LDHUD::AirdropLine(Drop,Me,FString(),true,48000),FString(TEXT("你抢到了空投！")));
+    TestEqualSensitive(TEXT("Another contender's claim names the public roster name"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,48000),
+        FString(TEXT("甲 抢到了空投")));
+    TestTrue(TEXT("The claim notice leaves after a few seconds"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,60000).IsEmpty());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDContentParametersTest,"Lockdown.Rules.HUDContentParameters",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
