@@ -232,6 +232,8 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
         {TEXT("REGEN.OutOfCombatMaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxMPRegenBp, 0, 10000},
         {TEXT("SHOP.SellRatio"), TEXT("ratio"), TEXT("bp"), &P.SellRatioBp, 0, 10000},
+        {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
+        {TEXT("REWARD.AssistGoldRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistGoldBp, 0, 10000},
         {TEXT("AI.RetreatHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.RetreatHPBp, 0, 10000},
         {TEXT("AI.ResumeFarmHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ResumeFarmHPBp, 0, 10000},
         {TEXT("AI.HighCampEntryHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.HighCampEntryHPBp, 0, 10000},

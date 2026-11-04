@@ -93,14 +93,15 @@ namespace LDHUD
     // Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
-    LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    // A contender kill lists its assisters after the line (AssisterNames in the notice's order).
+    LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const TArray<FString>& AssisterNames=TArray<FString>());
     struct FKillFeedLineView
     {
         FString Text;
         bool bSelf=false;
     };
-    // A notice naming the player as victim or killer says 你 there and is marked so the feed can highlight it.
-    LOCKDOWN_API FKillFeedLineView KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    // A notice naming the player as victim, killer or assister says 你 there and is marked so the feed can highlight it.
+    LOCKDOWN_API FKillFeedLineView KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const TArray<FString>& AssisterNames=TArray<FString>());
     // Cause line of the own death banner: the newest public notice of this generation naming the player as the victim at or
     // after NotBeforeMs (when the life that died was first seen alive, so an older death is never shown). Killers come from
     // the public roster and camp tiers from approved display text; empty while no such notice is known.
@@ -111,6 +112,7 @@ namespace LDHUD
         FString Name;
         FString Kills;
         FString Deaths;
+        FString Assists;
         FString Level;
         bool bWinner=false;
     };
@@ -187,8 +189,19 @@ namespace LDHUD
         FString Statuses;
         bool bEquipment=false;
         FString Equipment;
+        // A visible contender's Q/W actives (#112 §10): key, display name, rank and the Lv3 mark; never cooldowns.
+        struct FActiveChip
+        {
+            FString Key;
+            FString Name;
+            FString Rank;
+            bool bEmpty=true;
+            bool bMaxRank=false;
+        };
+        bool bActives=false;
+        FActiveChip Actives[2];
     };
-    // SC-07 whitelist only: name, level, HP, MP, public statuses and two equipment definitions.
+    // SC-07 whitelist only: name, level, HP, MP, public statuses, two equipment definitions and the two Q/W actives with ranks.
     LOCKDOWN_API FObservedCard ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
     LOCKDOWN_API FString ObservedUnit(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
 

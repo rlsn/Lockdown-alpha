@@ -204,6 +204,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TargetManaRow=Bar(LDHUDStyle::Mana,B,T,306,22);TargetBox->AddChildToVerticalBox(TargetManaRow)->SetPadding(FMargin(0,2));TargetManaBar=B;TargetMana=T;
         TargetStatuses=Text(TEXT(""),14);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
         TargetEquipment=Text(TEXT(""),14);TargetEquipment->SetColorAndOpacity(LDHUDStyle::TextSecondary);TargetBox->AddChildToVerticalBox(TargetEquipment)->SetPadding(FMargin(0,2,0,0));
+        {
+            // Two Q/W tiles of a visible contender: the name on top, the rank (with the Lv3 mark) below; no cooldown is ever drawn.
+            auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
+            for(int32 Index=0;Index<2;++Index)
+            {
+                auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
+                UTextBlock* Name=OneLine(TEXT(""),14,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Name);
+                UTextBlock* Rank=OneLine(TEXT(""),13,0);HudFace(Rank,false,1);Rank->SetColorAndOpacity(LDHUDStyle::TextSecondary);Lines->AddChildToVerticalBox(Rank);
+                auto* Tile=WidgetTree->ConstructWidget<UBorder>();Tile->SetBrush(HudRound(6.f,LDHUDStyle::Rim,1.f));Tile->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
+                Tile->SetPadding(FMargin(8,3));Tile->SetContent(Lines);Tile->SetClipping(EWidgetClipping::ClipToBounds);
+                auto* TileSlot=Row->AddChildToHorizontalBox(Tile);TileSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));TileSlot->SetPadding(FMargin(Index?3.f:0.f,0,Index?0.f:3.f,0));
+                TargetActiveTiles.Add(Tile);TargetActiveNames.Add(Name);TargetActiveRanks.Add(Rank);
+            }
+            TargetActivesRow=Row;TargetBox->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,4,0,0));
+        }
         auto* TargetWidth=WidgetTree->ConstructWidget<USizeBox>();TargetWidth->SetWidthOverride(330);TargetWidth->SetContent(TargetBox);
         TargetCard=Panel(TargetWidth,true);Place(TargetCard,FAnchors(0,0),FVector2D(0,0),FVector2D(16,16));TargetCard->SetVisibility(ESlateVisibility::Collapsed);
 
@@ -246,7 +261,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         ReturnButton=LDWidgets::Button(WidgetTree,TEXT("带房间返回 Lobby"),[PC](){PC->ReturnDemoToLobby();},false,TEXT("ResultReturnToLobby"));
         ResultActions->AddChildToHorizontalBox(ReturnButton)->SetPadding(FMargin(0,0,12,0));
         ResultActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("离开房间"),[PC](){if(PC->RootUI){PC->RootUI->LeaveRoom();}},false,TEXT("ResultLeaveRoom")));
-        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(640);ResultWidth->SetContent(ResultBox);
+        auto* ResultWidth=WidgetTree->ConstructWidget<USizeBox>();ResultWidth->SetWidthOverride(720);ResultWidth->SetContent(ResultBox);
         ResultPanel=Panel(ResultWidth,true);Place(ResultPanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,0));ResultPanel->SetVisibility(ESlateVisibility::Collapsed);
 
         // Top-right: minimap, sight state (only when it is not the normal current view) and the settings entry.
@@ -779,6 +794,16 @@ void ULDHUD::RefreshReadModel()
         HudSetText(TargetStatuses,Card.Statuses);
         HudSetShown(TargetEquipment,Card.bEquipment,ESlateVisibility::HitTestInvisible);
         if(Card.bEquipment){HudSetText(TargetEquipment,Card.Equipment);}
+        HudSetShown(TargetActivesRow,Card.bActives,ESlateVisibility::HitTestInvisible);
+        for(int32 Index=0;Card.bActives&&Index<TargetActiveTiles.Num();++Index)
+        {
+            const LDHUD::FObservedCard::FActiveChip& Chip=Card.Actives[Index];
+            HudSetText(TargetActiveNames[Index],Chip.Key+TEXT(" · ")+Chip.Name);
+            HudSetText(TargetActiveRanks[Index],Chip.bEmpty?FString(TEXT("—")):Chip.Rank);
+            HudSetColor(TargetActiveRanks[Index],Chip.bMaxRank?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
+            TargetActiveTiles[Index]->SetBrush(HudRound(6.f,Chip.bMaxRank?LDHUDStyle::TextAccent:LDHUDStyle::Rim,Chip.bMaxRank?2.f:1.f));
+            TargetActiveTiles[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,Chip.bEmpty?.55f:.9f));
+        }
     }
 
     // The toast fades on local presentation time.
@@ -874,7 +899,9 @@ void ULDHUD::RefreshKillFeed(const ALDGameState& Public,const FGuid& Self,const 
             KillSerial=Notice->Serial;
             // Notices already old when first seen (e.g. a late join) are marked seen without a banner.
             if(bClock&&NowMs-Notice->OccurredAtMs>6000){continue;}
-            const LDHUD::FKillFeedLineView Shown=LDHUD::KillFeedLine(*Notice,Self,LDHUD::RosterName(Public.DemoLobby,Notice->Victim),LDHUD::RosterName(Public.DemoLobby,Notice->Killer),Low,High);
+            TArray<FString> AssisterNames;
+            for(const FGuid& Assister:Notice->Assisters){AssisterNames.Add(LDHUD::RosterName(Public.DemoLobby,Assister));}
+            const LDHUD::FKillFeedLineView Shown=LDHUD::KillFeedLine(*Notice,Self,LDHUD::RosterName(Public.DemoLobby,Notice->Victim),LDHUD::RosterName(Public.DemoLobby,Notice->Killer),Low,High,AssisterNames);
             FLDHUDKillLine& Line=KillLines.AddDefaulted_GetRef();Line.At=UiNow;Line.Text=Shown.Text;Line.bSelf=Shown.bSelf;
         }
     }
@@ -914,18 +941,18 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
         UTextBlock* Label=LDWidgets::Text(WidgetTree,Value,Size);Label->SetAutoWrapText(false);
         auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetContent(Label);return Box;
     };
-    auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Level,const FString& Mark)
+    auto Row=[&](const FString& Name,const FString& Kills,const FString& Deaths,const FString& Assists,const FString& Level,const FString& Mark)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();
         Line->AddChildToHorizontalBox(Cell(Name,280));Line->AddChildToHorizontalBox(Cell(Kills,90));Line->AddChildToHorizontalBox(Cell(Deaths,90));
-        Line->AddChildToHorizontalBox(Cell(Level,100));Line->AddChildToHorizontalBox(Cell(Mark,80));
+        Line->AddChildToHorizontalBox(Cell(Assists,70));Line->AddChildToHorizontalBox(Cell(Level,100));Line->AddChildToHorizontalBox(Cell(Mark,80));
         ResultRows->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,4));
     };
-    Row(TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,TEXT("最终等级"),FString());
+    Row(TEXT("名字"),LDTerms::ResultKills,LDTerms::ResultDeaths,LDTerms::ResultAssists,TEXT("最终等级"),FString());
     for(const FLDResultRow& Entry:Result.Rows)
     {
         const LDHUD::FResultRowView View=LDHUD::ResultRow(Entry,Result.Winner,PC.OwnerState.ContenderId);
-        Row(View.Name,View.Kills,View.Deaths,View.Level,View.bWinner?FString(LDTerms::Winner):FString());
+        Row(View.Name,View.Kills,View.Deaths,View.Assists,View.Level,View.bWinner?FString(LDTerms::Winner):FString());
     }
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const

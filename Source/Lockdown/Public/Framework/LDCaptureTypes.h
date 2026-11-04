@@ -52,6 +52,7 @@ struct FLDResultRow
     UPROPERTY() uint64 Kills = 0;
     UPROPERTY() uint64 Deaths = 0;
     UPROPERTY() uint8 FinalLevel = 0;
+    UPROPERTY() uint64 Assists = 0;
 };
 
 // Frozen public result. Rows follow the locked start roster; statistics never choose the winner.
@@ -81,6 +82,8 @@ struct FLDKillNotice
     UPROPERTY() FGuid Killer;
     UPROPERTY() ELDKillCause Cause = ELDKillCause::Unowned;
     UPROPERTY() int64 OccurredAtMs = 0;
+    // Contender cause with a rewarded killer only: the assisters of this death, sorted (public like the killer).
+    UPROPERTY() TArray<FGuid> Assisters;
 };
 
 // Bounded ring of the most recent contender deaths, oldest first; Serial increases per match.
@@ -121,6 +124,8 @@ struct FLDCaptureEligibilityEvent
     FLDDeathKey DeathKey;
     FGuid CreditContender;
     ELDKillCause KillCause = ELDKillCause::Unowned;
+    // The locked fact's assisters (FLDCommittedDeath::Assisters); empty without a Contender cause.
+    TArray<FGuid> Assisters;
 };
 
 namespace LDCapture

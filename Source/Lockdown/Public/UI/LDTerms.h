@@ -83,6 +83,8 @@ inline constexpr TCHAR CaptureGo[]=TEXT("去中心插旗");
 inline constexpr TCHAR Winner[]=TEXT("淫人王");
 inline constexpr TCHAR UnknownVictim[]=TEXT("对面");
 inline FString KillLine(const FString& Killer,const FString& Victim){return Killer+TEXT(" 把 ")+Victim+TEXT(" 淫了");}
+inline constexpr TCHAR Assist[]=TEXT("助攻");
+inline FString AssistSuffix(const TArray<FString>& Assisters){return Assisters.IsEmpty()?FString():FString(TEXT("（"))+Assist+TEXT("：")+FString::Join(Assisters,TEXT("、"))+TEXT("）");}
 inline FString KilledByLine(const FString& Victim,const FString& By){return Victim+TEXT(" 被 ")+By+TEXT(" 淫了");}
 inline FString KilledBy(const FString& By){return FString(TEXT("被 "))+By+TEXT(" 淫了");}
 inline FString KillFloat(const FString& Victim){return FString(TEXT("淫了 "))+Victim+TEXT("！");}
@@ -91,4 +93,5 @@ inline constexpr TCHAR NoWinner[]=TEXT("无人插旗 · 全员摆烂");
 inline constexpr TCHAR NoCapture[]=TEXT("无人插旗");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
+inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
 }

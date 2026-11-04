@@ -40,6 +40,7 @@ def content_fixture():
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
+        ("REWARD.AssistWindowSec", "s", 10), ("REWARD.AssistGoldRatio", "ratio", 0.4),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),

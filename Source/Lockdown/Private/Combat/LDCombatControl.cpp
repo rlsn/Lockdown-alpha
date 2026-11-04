@@ -133,6 +133,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
         ++Victim.StateRevision;
         MarkViewChanged(Victim.Victim.EntityId);
+        RecordAssistContribution(Victim,Body.Victim.EntityId,Now);
         UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Taunt.ExpiresAtMs);
     }

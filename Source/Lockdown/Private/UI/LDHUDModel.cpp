@@ -258,25 +258,34 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         return View;
     }
 }
-FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
+FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const TArray<FString>& AssisterNames)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
     switch(Notice.Cause)
     {
-    case ELDKillCause::Contender: return LDTerms::KillLine(KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName,Victim);
+    case ELDKillCause::Contender:
+    {
+        TArray<FString> Assisters;
+        for(const FString& Name:AssisterNames){Assisters.Add(Name.IsEmpty()?FString(TEXT("未列名参赛者")):Name);}
+        return LDTerms::KillLine(KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName,Victim)+LDTerms::AssistSuffix(Assisters);
+    }
     case ELDKillCause::CampLow: return LDTerms::KilledByLine(Victim,LowCampName);
     case ELDKillCause::CampHigh: return LDTerms::KilledByLine(Victim,HighCampName);
     case ELDKillCause::Unowned: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（无参赛者击杀）");
     default: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（死因未知）");
     }
 }
-LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
+LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const TArray<FString>& AssisterNames)
 {
     FKillFeedLineView Line;
     const bool bVictim=Self.IsValid()&&Notice.Victim==Self;
     const bool bKiller=Self.IsValid()&&Notice.Cause==ELDKillCause::Contender&&Notice.Killer==Self;
-    Line.bSelf=bVictim||bKiller;
-    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName);
+    TArray<FString> Assisters=AssisterNames;
+    bool bAssister=false;
+    for(int32 Index=0;Index<Assisters.Num()&&Index<Notice.Assisters.Num();++Index)
+    {if(Self.IsValid()&&Notice.Assisters[Index]==Self){Assisters[Index]=TEXT("你");bAssister=true;}}
+    Line.bSelf=bVictim||bKiller||bAssister;
+    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName,Assisters);
     return Line;
 }
 FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName)
@@ -319,6 +328,7 @@ LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winn
     View.bWinner=Winner.IsValid()&&Row.ContenderId==Winner;
     View.Kills=FString::Printf(TEXT("%llu"),Row.Kills);
     View.Deaths=FString::Printf(TEXT("%llu"),Row.Deaths);
+    View.Assists=FString::Printf(TEXT("%llu"),Row.Assists);
     View.Level=FString::Printf(TEXT("%d"),Row.FinalLevel);
     return View;
 }
@@ -404,6 +414,20 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         auto Slot=[Content](uint8 Id){return Id?EquipmentName(Content,Id):FString(TEXT("空槽"));};
         Card.Equipment=FString::Printf(TEXT("装备：%s · %s"),*Slot(Unit.Equipment.Slots[0]),*Slot(Unit.Equipment.Slots[1]));
     }
+    Card.bActives=bContender&&(Unit.AuthorizedFieldMask&LDObservation::Actives)!=0;
+    const int32 MaxRank=Content&&Content->Progression.MaxSkillRank>0?Content->Progression.MaxSkillRank:int32(LDObservation::MaxActiveRank);
+    for(int32 Index=0;Card.bActives&&Index<2;++Index)
+    {
+        FObservedCard::FActiveChip& Chip=Card.Actives[Index];
+        Chip.Key=Index==0?TEXT("Q"):TEXT("W");
+        const uint8 Id=Unit.Actives.Abilities[Index];
+        Chip.bEmpty=Id==0;
+        if(Chip.bEmpty){Chip.Name=TEXT("空槽");continue;}
+        Chip.Name=AbilityName(Content,Id);
+        Chip.bMaxRank=int32(Unit.Actives.Ranks[Index])>=MaxRank;
+        Chip.Rank=FString::Printf(TEXT("Lv%d"),int32(Unit.Actives.Ranks[Index]));
+        if(Chip.bMaxRank){Chip.Rank+=TEXT(" ★满级");}
+    }
     return Card;
 }
 FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec)
@@ -413,6 +437,15 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
     if(Card.bMana){Text+=TEXT(" · ")+Card.Mana.Text;}
     Text+=TEXT("\n")+Card.Statuses;
     if(Card.bEquipment){Text+=TEXT("\n")+Card.Equipment;}
+    if(Card.bActives)
+    {
+        Text+=TEXT("\n技能：");
+        for(int32 Index=0;Index<2;++Index)
+        {
+            const FObservedCard::FActiveChip& Chip=Card.Actives[Index];
+            Text+=(Index?TEXT(" · "):TEXT(""))+Chip.Key+TEXT(" ")+Chip.Name+(Chip.bEmpty?FString():TEXT(" ")+Chip.Rank);
+        }
+    }
     return Text;
 }
 

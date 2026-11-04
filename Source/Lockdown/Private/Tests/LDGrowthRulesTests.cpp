@@ -2894,4 +2894,232 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// #112 §8: one contender death settles the killer's full kill gold and the assisters' split share in one composite commit,
+// every XP part split evenly, exactly once; malformed assister facts are refused; contributions record on the single entry.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAssistSettlementTest, "Lockdown.Rules.DemoAssist.Settlement",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(*this, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentParameters& Tuning = Catalog->Get().Parameters;
+    TestTrue(TEXT("The approved assist window is 15 s and the assist gold share is 50%"),
+        Tuning.AssistWindowMs == 15000 && Tuning.AssistGoldBp == 5000);
+
+    // ---- Public Q/W facts of a build (#112 §10) ----
+    const FLDDemoAbilityDefinition* Active = Catalog->Get().Abilities.FindByPredicate(
+        [](const FLDDemoAbilityDefinition& Row) { return Row.Kind == ELDDemoAbilityKind::Active; });
+    const FLDDemoAbilityDefinition* Passive = Catalog->Get().Abilities.FindByPredicate(
+        [](const FLDDemoAbilityDefinition& Row) { return Row.Kind == ELDDemoAbilityKind::Passive; });
+    if (!TestTrue(TEXT("The catalog has an active and a passive ability"), Active && Passive)) { return false; }
+    FLDBuildProjectionInput Build;
+    Build.Level = 5;
+    FLDLearnedActiveValue& Held = Build.Actives.AddDefaulted_GetRef();
+    Held.AbilityId = FName(*Active->Id);
+    Held.Rank = uint8(Catalog->Get().Progression.MaxSkillRank);
+    Held.Entry = ELDCombatEntry::W;
+    FLDObservedActivesView Public;
+    TestTrue(TEXT("A held W active projects its native id and rank into the W slot only"),
+        ALDCombatDirector::PublicActivesOf(Build, *Catalog, Public) && Public.Abilities[0] == 0 && Public.Ranks[0] == 0
+        && Public.Abilities[1] == Active->NativeId && Public.Ranks[1] == Held.Rank);
+    FLDBuildProjectionInput PassiveBuild = Build;
+    PassiveBuild.Actives[0].AbilityId = FName(*Passive->Id);
+    TestFalse(TEXT("A passive never fills a public Q/W slot"), ALDCombatDirector::PublicActivesOf(PassiveBuild, *Catalog, Public));
+    FLDBuildProjectionInput OverRank = Build;
+    OverRank.Actives[0].Rank = uint8(Catalog->Get().Progression.MaxSkillRank + 1);
+    TestFalse(TEXT("A rank above the approved maximum is refused"), ALDCombatDirector::PublicActivesOf(OverRank, *Catalog, Public));
+
+    // ---- Authority fixture ----
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated assist world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* GameState = World->SpawnActor<ALDGameState>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    auto* Development = World->SpawnActor<ALDDevelopmentDirector>();
+    if (!Mode || !GameState || !Driver || !Economy || !Development) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
+    Mode->GameState = GameState;
+    World->CopyGameState(Mode, GameState);
+    Mode->MatchContext = {5, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    Mode->Combat = Driver;
+    Mode->Economy = Economy;
+    Mode->Development = Development;
+    Mode->DemoContent = Catalog;
+    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
+    // Sorted ids keep the expected assister order readable: A1 < A2.
+    const FGuid Killer(0xA5, 0, 0, 0x10), A1(0xA5, 0, 0, 0x20), A2(0xA5, 0, 0, 0x30), Victim(0xA5, 0, 0, 0x40);
+    const TArray<FGuid> Roster = {Killer, A1, A2, Victim};
+    for (const FGuid& Id : Roster)
+    {
+        auto& Life = Mode->Lives.Add(Id);
+        Life.Kind = ELDVictimKind::Contender;
+        Life.Phase = ELDLifePhase::Unspawned;
+        Life.Life = 1;
+        Life.Revision = 2;
+    }
+    FString Error;
+    const int64 StartingGold = Tuning.StartingGold;
+    Economy->Match = Mode->MatchContext;
+    Economy->Roster = Roster;
+    Economy->Content = Catalog;
+    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Roster, StartingGold, Error)))
+    { AddError(Error); return false; }
+    if (!TestTrue(TEXT("Growth opens for the roster"), Development->BeginMatch(Mode->MatchContext, Roster, Catalog, Error)))
+    { AddError(Error); return false; }
+    for (const FGuid& Id : Roster)
+    {
+        FLDCombatEntityRecord& Record = Driver->Records.Add(Id);
+        Record.Kind = ELDVictimKind::Contender;
+        Record.Entity = Id;
+        Record.Build.Level = 1;
+    }
+    World->Tick(LEVELTICK_TimeOnly, .025f);
+
+    // ---- The single contribution entry ----
+    FLDBodyCombatState Life;
+    Life.Victim = {ELDVictimKind::Contender, Victim, 1};
+    TestTrue(TEXT("Another contender's contact records a contribution"), Driver->RecordAssistContribution(Life, A1, 1000));
+    TestFalse(TEXT("A contact by the victim itself is no contribution"), Driver->RecordAssistContribution(Life, Victim, 1100));
+    TestFalse(TEXT("An unowned contact is no contribution"), Driver->RecordAssistContribution(Life, FGuid(), 1100));
+    TestFalse(TEXT("A contact by an entity without a contender record is no contribution"),
+        Driver->RecordAssistContribution(Life, FGuid(0xA5, 0, 0, 0x99), 1100));
+    TestTrue(TEXT("A later contact refreshes the same contributor"), Driver->RecordAssistContribution(Life, A1, 4000)
+        && Life.AssistContributions.Num() == 1 && Life.AssistContributions[0].LastAtMs == 4000);
+    FLDBodyCombatState Camp;
+    Camp.Victim = {ELDVictimKind::CampMember, FGuid::NewGuid(), 1};
+    TestFalse(TEXT("Camp members collect no assist contributions"), Driver->RecordAssistContribution(Camp, A1, 1000)
+        || !Camp.AssistContributions.IsEmpty());
+    Life.bPendingDeath = true;
+    TestFalse(TEXT("A life whose death is locked takes no new contribution"), Driver->RecordAssistContribution(Life, A2, 5000));
+
+    // ---- Settlement ----
+    int64 StepAtMs = 0;
+    const auto Settle = [&](const FLDCommittedDeath& Fact, FLDRewardReceipt& Out)
+    {
+        StepAtMs += 1;
+        Error.Reset();
+        if (Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) != ELDCommitReject::None)
+        {
+            AddError(FString::Printf(TEXT("The boundary at %lld ms did not begin."), StepAtMs));
+            return false;
+        }
+        const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards,
+                [&](const FLDGameplayWritePermit& Permit) { Out = Economy->CommitDeathReward(Fact, Permit); return true; }, Error)
+            && Mode->FinishAuthorityStep(*Driver, Error);
+        if (!Ran) { AddError(FString::Printf(TEXT("DeathsAndRewards boundary failed: %s"), *Error)); }
+        return Ran;
+    };
+    const auto Gold = [&](const FGuid& Id) { const LDEconomy::FAccount* A = Economy->Ledger.Account(Id); return A ? A->Gold : -1; };
+    const auto XP = [&](const FGuid& Id) { const FLDProgressionState* P = Development->FindProgression(Id); return P ? P->CumulativeXP : -1; };
+    const auto ContenderDeath = [&](uint32 LifeNumber, const TArray<FGuid>& Assisters)
+    {
+        FLDCommittedDeath Fact;
+        Fact.Key = {Mode->MatchContext.LedgerMatch, {ELDVictimKind::Contender, Victim, LifeNumber}};
+        Fact.VictimBody = {Fact.Key.Victim, FGuid::NewGuid()};
+        Fact.VictimContender = Victim;
+        Fact.FatalEffectId = FGuid(0xA5, 1, 0, LifeNumber);
+        Fact.CreditOwner = Killer;
+        Fact.RewardBasis.RewardDefinitionId = FName(*Catalog->Get().Character.Id);
+        Fact.RewardBasis.VictimLevelAtDeath = 1;
+        Fact.RewardBasis.bCreditOwnerEligibleAtDeath = true;
+        Fact.RewardBasis.NoRewardReason = ELDNoRewardReason::None;
+        Fact.Assisters = Assisters;
+        Fact.OccurredAtMs = 1000;
+        Fact.OccurredAtSeconds = 1.;
+        return Fact;
+    };
+    LDProgression::FRewardAmounts Base;
+    GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
+        LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
+    const int64 AssistGold = Base.Gold * Tuning.AssistGoldBp / 10000 / 2;
+    const int64 SharedXP = Base.XP / 3;
+    if (!TestTrue(TEXT("The split leaves every share below the first level threshold"),
+        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
+    { return false; }
+
+    const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
+    const uint64 SerialBefore = Economy->Ledger.CommittedSerial();
+    FLDRewardReceipt Receipt;
+    if (!Settle(Assisted, Receipt)) { return false; }
+    TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
+    TestEqual(TEXT("The killer keeps the full kill gold"), Gold(Killer), StartingGold + Base.Gold);
+    TestTrue(TEXT("Each assister gets half the base kill gold split evenly, floored"),
+        Gold(A1) == StartingGold + AssistGold && Gold(A2) == StartingGold + AssistGold);
+    TestTrue(TEXT("Killer and assisters split the XP evenly, floored"),
+        XP(Killer) == SharedXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
+    TestEqual(TEXT("The victim keeps his gold"), Gold(Victim), StartingGold);
+    TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
+        Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
+        && Receipt.Assists[0].GoldDelta == AssistGold && Receipt.Assists[1].XPDelta == SharedXP
+        && Receipt.GoldDelta == Base.Gold && Receipt.XPDelta == SharedXP);
+    TestTrue(TEXT("One composite commit writes three consecutive single-account mints"),
+        Economy->Ledger.CommittedSerial() == SerialBefore + 3);
+    TestTrue(TEXT("The receipt's ledger serials are consecutive"), Receipt.bHasLedgerSerial && Receipt.Assists[0].bHasLedgerSerial
+        && Receipt.Assists[0].LedgerSerial == Receipt.LedgerSerial + 1 && Receipt.Assists[1].LedgerSerial == Receipt.LedgerSerial + 2);
+    TestTrue(FString::Printf(TEXT("The ledger reconciles after the composite (%s)"), *Error), Economy->Ledger.Reconcile(Error));
+
+    FLDRewardReceipt Replay;
+    if (!Settle(Assisted, Replay)) { return false; }
+    TestTrue(TEXT("The same death settles only once: a replay returns the original receipt and pays nothing"),
+        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && Gold(A1) == StartingGold + AssistGold
+        && Economy->Ledger.CommittedSerial() == SerialBefore + 3);
+    FLDRewardReceipt Conflict;
+    if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }
+    GrowthTestReason(*this, TEXT("Another assister set under the same death key conflicts"), Conflict.Reason, ELDGrowthReason::DeathConflict);
+
+    const auto Refused = [&](const TCHAR* What, const FLDCommittedDeath& Fact)
+    {
+        FLDRewardReceipt Out;
+        const uint64 Before = Economy->Ledger.CommittedSerial();
+        if (!Settle(Fact, Out)) { return; }
+        TestTrue(What, Out.Outcome == ELDRewardOutcome::PermanentlyRejected && Out.Reason == ELDGrowthReason::DataInvalid
+            && Economy->Ledger.CommittedSerial() == Before);
+    };
+    Refused(TEXT("The killer is never his own assister"), ContenderDeath(2, {A1, Killer}));
+    Refused(TEXT("Assisters are sorted and unique"), ContenderDeath(3, {A2, A1}));
+    Refused(TEXT("The victim is never an assister"), ContenderDeath(4, {Victim}));
+    Refused(TEXT("An assister must hold an account in this match"), ContenderDeath(5, {FGuid(0xA5, 0, 0, 0x99)}));
+    FLDCommittedDeath Unowned = ContenderDeath(6, {A1});
+    Unowned.CreditOwner.Invalidate();
+    Unowned.RewardBasis.bCreditOwnerEligibleAtDeath = false;
+    Unowned.RewardBasis.NoRewardReason = ELDNoRewardReason::NoOwner;
+    Refused(TEXT("A death without a killer carries no assisters"), Unowned);
+    FLDCommittedDeath Camp2;
+    Camp2.Key = {Mode->MatchContext.LedgerMatch, {ELDVictimKind::CampMember, FGuid::NewGuid(), 1}};
+    Camp2.CreditOwner = Killer;
+    Camp2.RewardBasis.RewardDefinitionId = FName(*Catalog->Get().Monsters[0].Id);
+    Camp2.RewardBasis.bCreditOwnerEligibleAtDeath = true;
+    Camp2.RewardBasis.NoRewardReason = ELDNoRewardReason::None;
+    Camp2.Assisters = {A1};
+    Refused(TEXT("A camp kill only rewards the last hit"), Camp2);
+
+    FLDRewardReceipt Plain;
+    const int64 KillerXPBefore = XP(Killer);
+    Unowned = ContenderDeath(7, {});
+    Unowned.CreditOwner.Invalidate();
+    Unowned.RewardBasis.bCreditOwnerEligibleAtDeath = false;
+    Unowned.RewardBasis.NoRewardReason = ELDNoRewardReason::NoOwner;
+    if (!Settle(Unowned, Plain)) { return false; }
+    TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && XP(Killer) == KillerXPBefore
+        && Gold(A1) == StartingGold + AssistGold);
+
+    // An assister that left keeps his account open while the death crediting him awaits its retry.
+    Driver->RetryRewards.Add(ContenderDeath(8, {A2}));
+    TestTrue(TEXT("An owed assist keeps the assister's account from retiring"), Driver->OwesRewardTo(A2) && Driver->OwesRewardTo(Killer)
+        && !Driver->OwesRewardTo(A1));
+    Driver->RetryRewards.Reset();
+    return true;
+}
+
 #endif

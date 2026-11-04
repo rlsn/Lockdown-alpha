@@ -49,7 +49,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹；Mint 金币 + 累计 XP + 逐级机会；升级时 Combat 投影；无主/自杀/离局为 NoReward |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份 Mint 金币 + 累计 XP + 逐级机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 分配），升级时各自 Combat 投影，全部准备后一起安装；无主/自杀/离局为 NoReward 且没有助攻 |
 | `CommitPendingChoice` | 原卡/版本/生死阶段重查；学习、升阶、属性或确认替换；消费一次机会；之后才抽下一组 |
 | `CommitPendingShopCommand` | 会话/报价/世界资格/余额/槽位重查；Burn+Create 或 Consume+Mint；BuildRevision 与 Combat 投影 |
 
@@ -62,14 +62,16 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 `LDEconomy::FLedger` 不参与 UObject 复制。`Initialize` 只在新局建立一次；`Prepare(FTransaction)`
 按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币，
 以及 DEV 测试重置的 DevReset：只 Consume 一件不退款，或只一次非零金币变动回到开局金币，增为 Mint、减为 Burn）在完整后像上校验，返回可移动的
-`FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。
+`FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。一笔复合提交要动多个账户时（参赛者击杀的击杀者与助攻者），
+每个账户仍是一条单账户条目：`PrepareAfter(Previous, FTransaction)` 在尚未应用的前一份计划之后准备下一条（连续序号，
+尾部容量与业务键按整条链检查，基准被其他提交抢先时以 `InvalidTransaction` 拒绝），全部准备成功后按顺序 `ApplyPrepared`。
 提交序号与发行序号独立于尾部长度，失败不推进任何计数。
 
 尾部容量为 64 条工程限额，不是对局次数上限。`TryCompactResolvedPrefix` 在维护点从旧前缀独立重放
 全部尾部，与当前状态逐账户、实例、库存修订与总量比对一致后折叠成新前缀；被 pin、序号不符或历史不一致时
 不覆盖。`Reconcile` 以同一重放核对 `初始总量 + Mint - Burn`。
 账户退休是带核心离局戳的独立提交：金币和冻结装备仍参与审计，之后不再接受金钱或物品变化。
-仍有已锁死亡奖励欠给该离局参赛者（本边界待结算或待重试，`ALDCombatDirector::OwesRewardTo`）时暂不退休，
+仍有已锁死亡奖励欠给该离局参赛者（作为击杀者或助攻者，本边界待结算或待重试，`ALDCombatDirector::OwesRewardTo`）时暂不退休，
 待下一边界的唯一重试结清后再退休，重试不会命中 `RetiredAccount`。
 
 业务去重分层完成：请求序号屏障（每族 64 份回执窗口与终结水位）、DeathKey 生命水位与事实指纹、

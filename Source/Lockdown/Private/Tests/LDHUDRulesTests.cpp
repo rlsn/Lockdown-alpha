@@ -70,10 +70,10 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     FLDObservedStatus Protection;Protection.StatusId=uint8(ELDDemoStatusId::RespawnProtection);Protection.ExpiresAtServerMs=11500;Rival.Statuses.Add(Protection);
     const FString Shown=LDHUD::ObservedUnit(Rival,TEXT("玩家甲"),&Content,10.);
     auto Has=[](const FString& Text,const TCHAR* Label){return Text.Contains(Label,ESearchCase::CaseSensitive);};
-    TestEqualSensitive(TEXT("Observed card renders exactly the SC-07 whitelist with approved display names"),Shown,
-        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 120/200\n状态：%s 2.5s · %s 1.5s\n装备：%s · 空槽"),LDTerms::Health,LDTerms::Mana,
+    TestEqualSensitive(TEXT("Observed card renders exactly the SC-07 whitelist (with the #112 Q/W actives) with approved display names"),Shown,
+        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 120/200\n状态：%s 2.5s · %s 1.5s\n装备：%s · 空槽\n技能：Q 空槽 · W 空槽"),LDTerms::Health,LDTerms::Mana,
             *HudName(TEXT("root")),*HudName(TEXT("respawn_protection")),*HudName(TEXT("item_iron_plate"))));
-    for(const TCHAR* Private:{LDTerms::Gold,LDTerms::Experience,TEXT("冷却"),TEXT("技能"),LDTerms::AttackDamage,LDTerms::Armor,TEXT("属性"),TEXT("98765")})
+    for(const TCHAR* Private:{LDTerms::Gold,LDTerms::Experience,TEXT("冷却"),TEXT("被动"),LDTerms::AttackDamage,LDTerms::Armor,TEXT("属性"),TEXT("98765")})
     {TestFalse(FString::Printf(TEXT("Observed card has no private category: %s"),Private),Has(Shown,Private));}
     TestTrue(TEXT("A contender missing from the public roster is not given an invented name"),LDHUD::ObservedUnit(Rival,FString(),&Content,10.).StartsWith(TEXT("未列名参赛者"),ESearchCase::CaseSensitive));
     FLDObservedUnitView Camp;Camp.Kind=ELDObservedUnitKind::CampMember;Camp.AuthorizedFieldMask=LDObservation::CampFields;Camp.CreatureId=uint8(ELDDemoMonsterId::MonsterGuardian);

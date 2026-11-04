@@ -196,6 +196,9 @@ struct FLDCommittedDeath
     FLDCombatSourceRef ReleasedSource;    // fingerprint only
     FLDCombatBodyRef SourceBodyAtRelease; // fingerprint only
     FLDRewardBasis RewardBasis;
+    // Contender victims with an eligible killer only: the other contenders still in the match whose latest assist
+    // contribution fell within REWARD.AssistWindowSec before the fatal hit, sorted. Frozen with the fact.
+    TArray<FGuid> Assisters;
     ELDDeathCause Cause=ELDDeathCause::Damage;
     double OccurredAtSeconds=0;           // raw authority time of the fatal hit
     int64 OccurredAtMs=0;                 // checked ceil bucket of OccurredAtSeconds

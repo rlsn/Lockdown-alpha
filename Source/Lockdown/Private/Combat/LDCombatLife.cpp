@@ -82,6 +82,8 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
             if (Slot==INDEX_NONE) { Error=TEXT("Persistent equipment has no item slot."); return false; }
             Facts.Equipment.Slots[Slot]=Definition->NativeId;
         }
+        if (!PublicActivesOf(Record->Build,*Content,Facts.Actives))
+        { Error=TEXT("Persistent Q/W actives have no approved public active definition."); return false; }
     }
     else
     {

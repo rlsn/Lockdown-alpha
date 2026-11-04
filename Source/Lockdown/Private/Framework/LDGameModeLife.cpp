@@ -395,8 +395,12 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     Died.Change = ELDCaptureEligibilityChange::Died;
     Died.DeathKey = Fact.Key;
     if (!FLDCaptureEventTime::FromMs(Fact.OccurredAtMs, Died.Time, Error)
-        || !KillCauseOf(Fact, Died.KillCause, Died.CreditContender, Error)
-        || !PublishEligibility(Permit, Died, Error))
+        || !KillCauseOf(Fact, Died.KillCause, Died.CreditContender, Error))
+    {
+        return false;
+    }
+    if (Died.KillCause == ELDKillCause::Contender) { Died.Assisters = Fact.Assisters; }
+    if (!PublishEligibility(Permit, Died, Error))
     {
         return false;
     }

@@ -31,7 +31,7 @@
 | 死亡选择 | 死亡等待可确认原三选一及替换；校验当前 Life 和 `ExpectedLifePhase`。只更新持久构筑，不复活、不治疗尸体，阶段竞争拒绝也不丢 Offer。 |
 | 保护与进攻 | 当前身份、请求新鲜性、消息形状及终局闸检查后，**发出进攻意图即解除保护**，之后目标、距离、蓝量或冷却失败也不恢复保护。纯本地 Armed、取消、移动、商店、Stop 不解除。 |
 | 资源上限 | 上限变化保持 HP/MP 原百分比，由 Combat 按 `FORMULA.ResourceMaxChange` 做一次最终投影；UI 不再次换算或额外回血，死亡不因此复活。 |
-| 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态及装备；不显示其技能列表、冷却、最终属性、金币；施法那一刻在施法者身旁飘出该次技能或装备的显示名，不含等级与冷却。观察 DTO 不携带装备实例、私有修订或能力来源。 |
+| 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态、装备，以及 Q/W 两块技能小卡（键位、技能名、等级，满级加“★满级”并用强调色描边，#112 §10）；不显示其被动列表、冷却、最终属性、金币；施法那一刻在施法者身旁飘出该次技能或装备的显示名，不含等级与冷却。观察 DTO 不携带装备实例、私有修订或能力来源。 |
 | 失视野与死亡镜头 | 失视野撤销目标并停止该追击订单，不转 LastSeen 移动、不保留单位标记。死亡可自由拖动镜头看静态地图与公共信息，无额外活体视野，不能跟随/观察隐藏玩家。 |
 | 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜、不新增局内全员排行榜。Host 主动结束可无赢家。 |
 | 死亡与离局效果 | 留在局内的死亡取消未释放动作，已释放独立效果继续；正式离局/断线立即移除身体及未结束独立效果。关 UI 无权回滚已释放效果。 |
@@ -112,14 +112,14 @@ Choices 例外地停靠在小地图下方的右侧窄列（半透明底板，三
 | 画面回馈 | 可见施法者施法那一刻在其身旁飘出技能或装备名（如“扒裤子！”，不含等级/冷却，用户批准的 CB-P10 例外）；可见单位受到伤害/治疗、本人受伤/治疗/心理防线变化的浮动数字；本人获得奖励时角色旁的“+N 流量”“+N 米”；本人淫了对手时的“淫了 某某！”；升级时“涨粉了！LvN”横幅与本人脚下光环、光柱 | 只来自本人投影、公开击杀通知与当前观察帧的白名单；首样本、换局、换命只重设基线，不补发；他人数字等该样本的延迟画面呈现后再出现。 |
 | 可见目标卡 | 名称/等级、适用的精确血蓝、获准状态、两装备定义；目标高亮 | 只在当前观察授权有效时存在；失视野、stale、换 epoch 清全部，不留灰色历史卡/点。NPC 不适用字段与玩家空槽区分。 |
 | 公共圈 | 发育期/剩余开放时间、开放无人、独占者名/进度、争夺；争夺时有暂停的原占领者则显示“进度暂停 X/Hold s（名字）”与暂停进度条，无持有者时显示无人保有进度 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放/胜利。 |
-| 击杀通知 | 去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、可理解死因；涉及本人的一行写“你”并高亮 | 普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。 |
+| 击杀通知 | 去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者（“X 把 Y 淫了（助攻：A、B）”）、可理解死因；本人是受害者、击杀者或助攻者时那一处写“你”并高亮该行 | 普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。 |
 | 属性 P | 本人所有 Spec 属性；基础、等级成长、永久选择、装备/被动/临时贡献及最终值；相关单位/公式说明 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
 | Shop | 开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价、本人金币、恰两装备、Buy/Sell、回绑冷却说明 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤不自动关店；越界失效交易，死亡/终局关店。 |
 | Choices | 同一持久 Offer 的三张不同合法卡、效果/目标等级、待选次数；先选卡再明确确认；开局 Offer 为真人自动打开一次（玩家已开自己的面板或输入被占用时不打开），6 s 内未点选卡片则自动收起为待选提示；本人受击时未在操作的面板自动收起；可暂时关闭 | 不自动选择、计时逼选、重抽或消费机会。stale 刷新同卡的保护版本后再次确认；死亡可用当前阶段提交。 |
 | 主动替换子确认 | 新技能、Q/W 两旧技能及等级，明确选要遗忘的槽，再“确认替换并遗忘” | 不默认替换第一个槽；取消返回原三卡，无消耗。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级、构筑和米都还在，别慌”与待选入口；复活保护（免死金牌）图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗/购物。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
 | 局内 Settings | 显示/画质、音量、按键、镜头/文字，恢复默认、应用；继续、离开；Host 另有结束本局 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。结束本局与离开房间是不同确认。 |
-| Result | 全员名称/Kills/Deaths/FinalLevel，赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
+| Result | 全员名称/Kills/Deaths/Assists/FinalLevel（列名：淫了几个 · 寄了几次 · 助攻 · 最终等级），赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
 
 ### 3.3 原创线框与可读性
 
@@ -277,7 +277,7 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | 连接 / `ULDGameInstance` 会话接线 | 本人编辑名称/端点、`ConnectionAttemptSerial`、WorldContext 归属、阶段、分类失败 | attempt 与 match 不是同一身份。旧 attempt 回包不得操作新页面；不展示完整引擎日志/内部路径。 |
 | `FLDLobbyView` / GameMode → 公共投影 | `Generation, Phase, RosterRevision, PublicRevision, Entries[ContenderId,Name,Human/AI,Host,Ready], AICount, CanStart/Reason` | roster 结构变更与 Ready 变更分修订；无对手 owner 构筑/财产。身份不是显示名或行号。 |
 | `FLDPublicMatchView` / 生命周期域 | `Generation, Phase`、同步时钟锚、`OpenAtMs, CircleState, Occupier, CaptureEpoch, SoloSinceMs, DueAtMs, PausedProgressMs, Result`；`Occupier` 在争夺中为被暂停的原占领者（无则空），`PausedProgressMs` 只在此时有值 | 公开圈只有状态/公开身份/进度，**无圈内成员列表、隐藏坐标或观察句柄**。错代次拒绝；到零不自行写阶段/胜负。 |
-| 最终 `FLDResultView` / GameMode 一次锁定 | `Generation, ResultId, ResultSerial, Reason, OptionalWinner, StartedAtMs, EndedAtMs, DurationMs, Rows`；每个 `FLDResultRow` 为 `ContenderId,Name,uint64 Kills,uint64 Deaths,uint8 FinalLevel` | 只在终局公开统计，LedgerMatch 不发公共 DTO；按锁定 roster 顺序保留离局者，离开不算死亡。K/D 从同一 DeathKey 恰一次派生，Growth 仅供 FinalLevel；用时不能由 OpenAtMs 猜，缺合法结果不填零。 |
+| 最终 `FLDResultView` / GameMode 一次锁定 | `Generation, ResultId, ResultSerial, Reason, OptionalWinner, StartedAtMs, EndedAtMs, DurationMs, Rows`；每个 `FLDResultRow` 为 `ContenderId,Name,uint64 Kills,uint64 Deaths,uint8 FinalLevel,uint64 Assists` | 只在终局公开统计，LedgerMatch 不发公共 DTO；按锁定 roster 顺序保留离局者，离开不算死亡。K/D/A 从同一 DeathKey 恰一次派生，Growth 仅供 FinalLevel；用时不能由 OpenAtMs 猜，缺合法结果不填零。 |
 | 参赛者死亡公共事件 / Combat 致死事实经生命周期域裁剪 | Generation、事件 ID/序号、公开 killer/victim、已批准死因类别 | 可以明确无参赛者击杀者；仅死亡对象为参赛者时进全场通知。无隐藏位置、私有伤害/来源、实时地图 ping；事件去重不由 UI 生成奖励或最终统计。 |
 | 本人生命 / Life → `FLDOwnerState` | `ContenderId, BodyRef/Life, LifeState, LifeRevision, RespawnAtMs, ProtectedUntilMs` | 比较 match/life/生命阶段，不靠 Pawn 地址；死亡持续时间和保护只显示，不触发复活或解除。 |
 | 本人 Combat 资源/属性 | `Resources{HP,MaxHP,MP,MaxMP,Shield}` 为 int64 P2；`FLDAttributeBreakdown{AttributeId,Unit,Base,LevelGrowth,PermanentChoice,EquipmentFlat,PassiveContribution,TemporaryContribution,PercentContribution,Final,FormulaId,ClampApplied}` | 本人精确数值和来源分解；P2 为百分之一点，不把编码值直接当点数。UI 不执行第二次百分比/上限投影。 |

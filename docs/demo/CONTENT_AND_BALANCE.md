@@ -33,7 +33,7 @@
 | Q/W 最多 2 个角色主动；每个角色技能最高 3 级 | 新主动满槽时明确替换，旧技能及等级遗忘；重新获取从 1 级开始 |
 | 被动没有独立槽位上限 | 只能受十次选择与技能等级约束，不以 UI 或实现数组容量添加产品上限 |
 | 最多 2 件装备、没有背包；装备主动使用 1/2 | 装备主动不占 Q/W；满槽先卖再买，不能自动替换 |
-| 最后一击独得经验与金币；每条生命只发奖一次 | 不加助攻、附近分摊、贡献分成或回位奖励 |
+| 野怪最后一击独得经验与金币；参赛者击杀另有助攻（#112）；每条生命的击杀与助攻奖励一起只发一次 | 不加附近分摊、按伤害比例分成或回位奖励 |
 | 死亡保留等级、XP、金币、技能、装备及待选机会 | 冷却继续经过服务器时间；死亡只损失等待与位置 |
 | 发育期结束后，独占唯一圆圈、占领进度达到时长获胜 | 伤害、控制、圈内战斗本身不清零；争夺暂停原占领者进度，离圈、死亡与离局清零且不可继承 |
 | 保护者免伤免控，不能推进或干扰占领 | 主动攻击、施法、装备主动先解除保护；不把保护当争圈工具 |
@@ -391,12 +391,18 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 导入器要求 id 有序不重复且都是属性卡、两数之和为 3、各组数量不超过可用卡数。
 升十级以后继续记录合法奖励的累计XP，但不能生成第十一次选择。
 累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和、不转金币；UI十级显示MAX而非暗示11级。
-全部奖励归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
+野怪奖励全部归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
+参赛者之间的击杀按 App Spec §4.1 的助攻规则（#112，参考 LoL）在同一笔死亡奖励中结算：击杀者拿全额 `REWARD.PlayerGold`；
+另生成 $\lfloor PlayerGold \times REWARD.AssistGoldRatio\rfloor$ 的助攻金币，由 $n$ 名助攻者平分并各自向下取整；
+`REWARD.PlayerXP` 由击杀者和 $n$ 名助攻者共 $n+1$ 人平分，各自向下取整，除不尽的余数不发放。
+例：两名助攻者击杀 Lv1，击杀者 80 金币、33 XP，每名助攻者 20 金币、33 XP。资格窗口为 `REWARD.AssistWindowSec`。
 
 | 奖励参数/公式 ID | 已批准值，整数 | 样例与归属 |
 | --- | --- | --- |
 | `REWARD.PlayerXP`（`.Base=100`、`.PerLevel=20`） | $100+20(L_{victim}-1)$ | 击杀Lv1得100XP、Lv10得280XP；以致死瞬间受害者等级快照 |
-| `REWARD.PlayerGold`（`.Base=80`、`.PerLevel=10`） | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；没有助攻/范围奖励 |
+| `REWARD.PlayerGold`（`.Base=80`、`.PerLevel=10`） | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；击杀者全额，没有范围奖励 |
+| `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被心理防线吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时（#112 票中给定） |
+| `REWARD.AssistGoldRatio` | 比例/R4，0.5 | 助攻金币=受害者基础击杀金币的50%（不含额外赏金），助攻者平分向下取整（#112 票中给定） |
 | `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只40XP/30金币 | 整组80XP/60金币，首个完整低营即可首次升级 |
 | `CAMP.High.RewardXP/RewardGold` | 每只160XP/120金币 | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
 
@@ -799,8 +805,9 @@ source/绑定/target/距离/MP/CD等动作合法性校验。包括AttackUnit、A
 Max同比后积分余数仍是原资源点的未入账小量，不随Max放大；满资源丢弃超额及余数，
 不囤积未来回复；死亡/新life清除瞬时积分余数。这不是第二份可写HP/MP或另一时钟。
 
-奖励以 HP 从正变零的唯一致死事实为基础。XP、金币和派生升级机会应先同时 Prepare，
-在同一可去重提交边界兑现（`ALDEconomyDirector::CommitDeathReward`），不能先改 Ledger 再执行可能失败的成长准备。
+奖励以 HP 从正变零的唯一致死事实为基础；参赛者受害者的助攻者名单在致死瞬间冻结进同一事实。击杀者与全部助攻者的
+XP、金币和派生升级机会应先同时 Prepare（每人一条单账户 Mint，依次链式准备），
+在同一可去重提交边界一起兑现（`ALDEconomyDirector::CommitDeathReward`），不能先改 Ledger 再执行可能失败的成长准备。
 来源 Pawn 已死但所属参赛者仍在局内，不影响已合法释放效果的奖励归属；无合法所有者则不发奖励。
 参赛者离局不是死亡，不发离开奖励。回位只是存活生命的 reset，不发奖、不创建新获奖生命。
 
@@ -841,7 +848,7 @@ DeathTax/掉物/有限奖励等旧死亡与奖励政策、旧启动/打包依赖
 | `ABILITY.*`、`ITEM.*.Active` 的 MP/时间/族 → cost/timing/source 投影 | `LDCombatActions`（释放扣费）、`LDCombatSources`（`FLDCombatTrack` 冷却轨道） | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改装备ManaCost确实改变MP；换槽/重购不能重置 |
 | 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDCombatEffects`、`LDCombatSources`、`LDTacticalRules`（Root/屏障/回复） | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
 | `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `ALDVendorDirector`（会话/报价/Buy/Sell/回执）与 `LDEconomy::FLedger`；`SHOP.StartingGold` 由 `FLedger::Initialize` 写入 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
-| `XP.*`、`REWARD.*`、`CHOICE.*`、`progression` → progression/reward/offer 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（机会/Offer/选择）、`ALDEconomyDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；最后一击XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
+| `XP.*`、`REWARD.*`、`CHOICE.*`、`progression` → progression/reward/offer 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（机会/Offer/选择）、`ALDEconomyDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；击杀者与助攻者的XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
 | `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `ALDCampDirector`/`LDCampLifecycle`/`LDCampDecision`、GameMode 生命与占领（`LDGameModeLife`、`LDGameModeCapture`） | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查占领完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `LDDemoContentIds.h` 原生编号、`FLDDefinitionWire`、`FLDCombatSourceRef` | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重购新实例仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | `LDDemoContentText`（`DemoContent` 字符串表）、HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效；无主动装备1/2明确不可用 |
@@ -931,8 +938,8 @@ UI 只能按同步服务器时间展示，不能因本地显示到零自行解�
 UI不能硬编码一套伤害或CD公式；最终 `STAT.MoveSpeedCmPerSec`、`STAT.AttackRangeCm`、
 当前资源和来源剩余CD从同一只读投影提供。纯属性/被动装备没有主动入口，1/2明确不可用。
 
-可见对手按用户确认显示名称/等级/HP/MP/公开临时状态/装备**定义**；
-不发送私有物品实例、IssuedCooldownId、技能列表、技能等级/CD、其他属性贡献或金币。
+可见对手按用户确认显示名称/等级/HP/MP/公开临时状态/装备**定义**，以及 Q/W 两个主动技能的定义与等级（#112 §10，满级显示 Lv3 标记）；
+不发送私有物品实例、IssuedCooldownId、被动列表、技能 CD、其他属性贡献或金币。
 永久学习被动不能伪装成“公开状态”泄露技能构筑。失视野清检查目标/锁定并停止该追击订单，
 不保留地图LastSeen单位标记；地图地形/固定地点仍可见。
 死亡可以自由拖动静态地图，但不增加活体观察源，也不跟随隐藏玩家。
