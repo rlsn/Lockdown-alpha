@@ -272,6 +272,15 @@ bool FLDControlTauntRestoreTest::RunTest(const FString& Parameters)
         LDControl::IsTaunted(TOptional<FLDCombatTaunt>(Taunt), Now + TauntMs));
     TestTrue(TEXT("Control returns: the forced chase ends and the replaced order is not resumed"),
         LDOrderRules::ForcedOrderStep(false, true, true) == LDOrderRules::EForcedOrder::End);
+    // The forced-chase retry is stamped on the match-relative clock; a new match (clock back at 0) must not inherit it.
+    LDOrderRules::FForcedRetry Retry;
+    Retry.Hold(150., .25);
+    TestFalse(TEXT("A chase that stopped by itself waits one query interval"), Retry.IsDue(150.1));
+    TestTrue(TEXT("It is retried after the interval"), Retry.IsDue(150.25));
+    Retry.Hold(150., .25);
+    TestFalse(TEXT("Without a match reset the next match's early seconds would still wait"), Retry.IsDue(1.));
+    Retry.ResetMatch();
+    TestTrue(TEXT("After the match reset a taunt chases from the new match's first second"), Retry.IsDue(0.));
     return true;
 }
 
@@ -380,6 +389,17 @@ bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A reveal trigger ends stealth at once"), LDControl::Reveal(Revealed) && !LDControl::IsStealthed(Revealed, Now)
         && LDControl::ConcealBeyondCm(Revealed, Now) == 0);
     TestFalse(TEXT("A second trigger has nothing to reveal"), LDControl::Reveal(Revealed));
+    // A taunt is a control: landing it on a stealthed body reveals it like any other control (15.4).
+    TOptional<FLDCombatTaunt> Taunted;
+    TOptional<FLDCombatStealth> HiddenVictim = Stealth;
+    bool bTauntRevealed = false;
+    TestTrue(TEXT("A taunt that lands reveals its stealthed victim"),
+        LDControl::TauntVictim(Taunted, HiddenVictim, TauntBy(Contender(1), Now), Now, bTauntRevealed)
+        && bTauntRevealed && !LDControl::IsStealthed(HiddenVictim, Now) && LDControl::IsTaunted(Taunted, Now));
+    TOptional<FLDCombatStealth> StillHidden = Stealth;
+    TestFalse(TEXT("A taunt that does not land reveals nothing"),
+        LDControl::TauntVictim(Taunted, StillHidden, Taunted.GetValue(), Now, bTauntRevealed) || bTauntRevealed
+        || !LDControl::IsStealthed(StillHidden, Now));
     TOptional<FLDCombatTaunt> NoTaunt;
     TOptional<FLDCombatStealth> Expiring = Stealth;
     TestTrue(TEXT("Stealth lasts until just before its end"), LDControl::IsStealthed(Expiring, Now + Effect->DurationMs - 1));
@@ -406,6 +426,22 @@ bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
         && FMath::IsNearlyEqual(Hidden, Base * (1. + (Bonus->Amount - Effect->RatioBp) / 10000.), 1e-6) && Hidden < Plain);
     double Refused = 0;
     TestFalse(TEXT("A full penalty is refused"), LDControl::MoveSpeedCmPerSec(Row, 10000, Bounds, Refused));
+    // Temporary terms stay: a timed boost (风骚走位 +30%) or the strongest slow (-30%) still applies while hidden.
+    const double BoxRatio = Bonus->Amount / 10000., Penalty = Effect->RatioBp / 10000.;
+    FLDAttributeContributions Boosted = Row;
+    Boosted.Temporary.AdditiveRatio.Numerator = 3000;
+    Boosted.Temporary.AdditiveRatio.Denominator = 10000;
+    double BoostedHidden = 0;
+    TestTrue(TEXT("A timed move-speed boost survives stealth"), LDControl::MoveSpeedCmPerSec(Boosted, Effect->RatioBp, Bounds, BoostedHidden)
+        && FMath::IsNearlyEqual(BoostedHidden, FMath::Clamp(Base * (1. + BoxRatio + .30 - Penalty), Cm(Bounds.Min), Cm(Bounds.Max)), 1e-6)
+        && BoostedHidden > Hidden);
+    FLDAttributeContributions Slowed = Row;
+    Slowed.Temporary.AdditiveRatio.Numerator = -3000;
+    Slowed.Temporary.AdditiveRatio.Denominator = 10000;
+    double SlowedHidden = 0;
+    TestTrue(TEXT("A slow still applies while hidden"), LDControl::MoveSpeedCmPerSec(Slowed, Effect->RatioBp, Bounds, SlowedHidden)
+        && FMath::IsNearlyEqual(SlowedHidden, FMath::Clamp(Base * (1. + BoxRatio - .30 - Penalty), Cm(Bounds.Min), Cm(Bounds.Max)), 1e-6)
+        && SlowedHidden < Hidden);
     return true;
 }
 #endif

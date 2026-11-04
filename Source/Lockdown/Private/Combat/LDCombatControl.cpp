@@ -125,7 +125,8 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
     for (const int32 Index : LDControl::SelectTauntTargets(Body.Victim.EntityId,CasterFoot,LDCombatControlDetail::Cm(Effect.RadiusCm),Candidates))
     {
         FLDBodyCombatState& Victim=*States[Index];
-        if (!LDControl::ApplyTaunt(Victim.Taunt,Taunt,Now)) { continue; }
+        bool bRevealed=false;
+        if (!LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Taunt,Now,bRevealed)) { continue; }
         // Unreleased work the taunt now forbids ends without cost; a basic swing at the taunter continues.
         if (Victim.Action.IsSet() && !LDControl::TauntAllows(Victim.Taunt,Now,
             Victim.Action->Kind==ELDCombatActionKind::Basic,Victim.Action->TargetBody))

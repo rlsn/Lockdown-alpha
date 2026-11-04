@@ -87,10 +87,13 @@ bool LDControl::MoveSpeedCmPerSec(const FLDAttributeContributions& Row, int64 Pe
         OutCmPerSec=ControlRational(Row.Final);
         return FMath::IsFinite(OutCmPerSec) && OutCmPerSec>0;
     }
+    // The same FORMULA.MoveSpeed rows as the projection, temporary terms (timed boosts, the strongest slow) included,
+    // with the stealth penalty as one more additive ratio.
     const double Flat=ControlRational(Row.Base)+ControlRational(Row.LevelGrowth.Flat)+ControlRational(Row.PermanentChoices.Flat)
-        +ControlRational(Row.Passives.Flat)+ControlRational(Row.Equipment.Flat);
+        +ControlRational(Row.Passives.Flat)+ControlRational(Row.Equipment.Flat)+ControlRational(Row.Temporary.Flat);
     const double Ratio=ControlRational(Row.LevelGrowth.AdditiveRatio)+ControlRational(Row.PermanentChoices.AdditiveRatio)
-        +ControlRational(Row.Passives.AdditiveRatio)+ControlRational(Row.Equipment.AdditiveRatio)-double(PenaltyBp)/10000.;
+        +ControlRational(Row.Passives.AdditiveRatio)+ControlRational(Row.Equipment.AdditiveRatio)
+        +ControlRational(Row.Temporary.AdditiveRatio)-double(PenaltyBp)/10000.;
     const double Min=ControlRational(Bounds.Min), Max=ControlRational(Bounds.Max);
     const double Speed=Flat*(1.+Ratio);
     if (!FMath::IsFinite(Speed) || !FMath::IsFinite(Min) || !FMath::IsFinite(Max) || !(Min>0) || Max<Min) { return false; }
@@ -102,4 +105,13 @@ bool LDControl::TauntBlocks(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs, 
 {
     return IsTaunted(Taunt, AtMs) && (Action == ELDCombatControlAction::Cast || Action == ELDCombatControlAction::Gear
         || Action == ELDCombatControlAction::Displacement);
+}
+
+bool LDControl::TauntVictim(TOptional<FLDCombatTaunt>& Taunt, TOptional<FLDCombatStealth>& Stealth,
+    const FLDCombatTaunt& Candidate, int64 AtMs, bool& bRevealed)
+{
+    bRevealed=false;
+    if (!ApplyTaunt(Taunt,Candidate,AtMs)) { return false; }
+    bRevealed=Reveal(Stealth);
+    return true;
 }

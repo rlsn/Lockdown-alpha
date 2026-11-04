@@ -108,7 +108,7 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 当前订单以 `Taunted` 取消，待处理的自身订单（含 Stop）以 `Taunted` 拒绝；改为服务器生成的强制追击
 （`Order` 为 0、不进订单簿、无心跳租约、不发回执），只经本观察者当前区间的嘲讽者句柄
 （Vision `FindObservedHandle` + `ResolveObservedUnit`）接近并经同一 `StartNavAttack` 普攻；尚未进入本观察者帧时原地等待。
-嘲讽结束后强制追击结束、控制权交还，不恢复被替换的订单；强制追击自行结束（无路径/无进展）时 0.1 s 后重建。
+嘲讽结束后强制追击结束、控制权交还，不恢复被替换的订单；强制追击自行结束（无路径/无进展）时 0.1 s 后重建；这个重建时刻按比赛时钟记录（`LDOrderRules::FForcedRetry`），`ResetMatch` 清零，不带入下一局。
 对手 AI 被嘲讽时暂停身体意图（`LDOpponentRequests::BodyIntentsHeld`），被嘲讽打断的订单按 Dropped 结算，不计失败。
 
 已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。

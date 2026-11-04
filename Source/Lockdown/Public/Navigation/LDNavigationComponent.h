@@ -253,5 +253,5 @@ private:
     // While a taunt replaces an order: that order's unreleased swing at this taunter is kept (ReleaseOrderLinks).
     FLDCombatBodyRef KeptSwingTarget;
     // A forced chase that ended by itself (no path, no progress) is retried after one order query interval.
-    double ForcedRetryAt=0;
+    LDOrderRules::FForcedRetry ForcedRetry;
 };

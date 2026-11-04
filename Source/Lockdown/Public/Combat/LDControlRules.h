@@ -17,6 +17,9 @@ namespace LDControl
     LOCKDOWN_API bool TauntBlocks(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs, ELDCombatControlAction Action);
     // The newest taunt replaces the current one: the latest taunter commands, for its own duration.
     LOCKDOWN_API bool ApplyTaunt(TOptional<FLDCombatTaunt>& Taunt, const FLDCombatTaunt& Candidate, int64 AtMs);
+    // A taunt that lands is a control: like any other control it also reveals a stealthed victim (15.4).
+    LOCKDOWN_API bool TauntVictim(TOptional<FLDCombatTaunt>& Taunt, TOptional<FLDCombatStealth>& Stealth,
+        const FLDCombatTaunt& Candidate, int64 AtMs, bool& bRevealed);
     // A taunt ends early when its taunter's life is no longer alive (death, leave) or the victim no longer observes
     // that body (out of sight, blocked or hidden by stealth).
     LOCKDOWN_API bool TauntHolds(const FLDCombatTaunt& Taunt, int64 AtMs, bool bTaunterAlive, bool bVictimObservesTaunter);

@@ -49,7 +49,7 @@ Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函�
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
 不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
 嘲讽与隐身：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
-且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽。被嘲讽期间
+且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制，隐身的受控者立即现身（`LDControl::TauntVictim`）。被嘲讽期间
 Q/W/装备 1/2 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
 已在前摇、被嘲讽所禁止的动作当场放弃。每个 Actions 阶段开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局、
 或被嘲讽者已观察不到嘲讽者（视线、距离或隐身）的嘲讽；离局另由 `CancelEntityEffects` 清除。

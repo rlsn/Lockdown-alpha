@@ -204,6 +204,9 @@ void ULDNavigationComponent::ResetMatch()
     EndLifeOrders(ELDOrderCancelReason::MatchClosed);
     ResetBook();
     Content.Reset();
+    // State stamped with the match-relative authority clock (which restarts at 0) never crosses into the next match.
+    ForcedRetry.ResetMatch();
+    KeptSwingTarget={};
 }
 
 // ResetLife on the authority: orders of an older life, or of a body the owner no longer holds, end here.
@@ -381,7 +384,7 @@ void ULDNavigationComponent::EndActive(ELDOrderStatus Outcome, ELDOrderFailure F
     // re-created only after an order query interval.
     if (Ended.bForced)
     {
-        if (const auto* Mode=AuthorityMode()) { ForcedRetryAt=Mode->GetAuthorityNowSeconds()+OrderQueryIntervalSeconds; }
+        if (const auto* Mode=AuthorityMode()) { ForcedRetry.Hold(Mode->GetAuthorityNowSeconds(),OrderQueryIntervalSeconds); }
     }
     else { Publish(Receipt,true); }
     UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u epoch=%u status=%u failure=%u"),Ended.Request.Identity.Order,
@@ -475,7 +478,7 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
             TGuardValue<FLDCombatBodyRef> Keep(KeptSwingTarget,Taunter);
             EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true);
         }
-        if (Now<ForcedRetryAt) { return true; }
+        if (!ForcedRetry.IsDue(Now)) { return true; }
         if (ForcedSerial==MAX_uint32)
         {
             UE_LOG(LogTemp,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED"));
