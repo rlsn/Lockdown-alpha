@@ -13,7 +13,11 @@
     "active_binding_snare": 64,
     "passive_battle_rhythm": 65,
     "passive_second_wind": 66,
-    "passive_precision": 67
+    "passive_precision": 67,
+    "active_monkey_peach": 68,
+    "active_thousand_year": 69,
+    "active_lunge": 70,
+    "passive_iron_crotch": 71
   },
   "attributes": {
     "attr_might": 1,
@@ -29,7 +33,8 @@
     "item_siphon_emblem": 102,
     "item_phase_anchor": 103,
     "item_arcane_battery": 104,
-    "item_echo_maul": 105
+    "item_echo_maul": 105,
+    "item_nail_uniform": 106
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -39,7 +44,10 @@
     "root": 1,
     "shield": 2,
     "camp_returning": 3,
-    "respawn_protection": 4
+    "respawn_protection": 4,
+    "disarm": 5,
+    "stun": 6,
+    "empowered": 7
   },
   "effect_ops": {
     "damage": 1,
@@ -51,6 +59,12 @@
     "lifesteal": 7,
     "dash": 8,
     "restore_mana": 9,
-    "cleave": 10
+    "cleave": 10,
+    "disarm": 11,
+    "stun": 12,
+    "empower_basic": 13,
+    "jump": 14,
+    "thorns": 15,
+    "backstab": 16
   }
 }

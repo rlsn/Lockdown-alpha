@@ -115,6 +115,13 @@ struct FLDEquipmentPassiveFamily
     TArray<int32> EquippedIndices;
 };
 
+// A learned passive whose rank is a combat trigger (thorns) rather than an attribute term.
+struct FLDLearnedTriggerTerm
+{
+    FString AbilityId;
+    uint8 Rank = 0;
+};
+
 struct FLDAttributeProjection
 {
     FLDProjectedAttributes Final;
@@ -123,6 +130,8 @@ struct FLDAttributeProjection
     TOptional<FLDOutOfCombatRegenTerm> OutOfCombatHPRegen;
     // One entry per family, sorted by family.
     TArray<FLDEquipmentPassiveFamily> EquipmentPassives;
+    // Learned combat-trigger passives at their learned rank, sorted by ability.
+    TArray<FLDLearnedTriggerTerm> LearnedTriggers;
 };
 
 struct FLDAttributeProjectionResult

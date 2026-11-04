@@ -112,6 +112,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 SellRatioBp = 0;
     UPROPERTY() int64 ChoiceBaseWeight = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
+    // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
+    UPROPERTY() FLDDemoRational RearArcDeg;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
@@ -199,7 +201,7 @@ struct FLDDemoPolicies
 };
 
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
 
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
@@ -257,6 +259,13 @@ struct FLDDemoEffectDefinition
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    // Thorns: armor scaling of the reflection, per-attacker repeat window, critical-hit multiplier,
+    // whether ability hits trigger it (basic hits always do) and whether hits from behind are exempt.
+    UPROPERTY() int64 ArmorRatioBp = 0;
+    UPROPERTY() int64 IntervalMs = 0;
+    UPROPERTY() int64 CriticalMultiplierBp = 0;
+    UPROPERTY() bool bAbilityTrigger = false;
+    UPROPERTY() bool bRearExempt = false;
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };

@@ -43,7 +43,7 @@ def content_fixture():
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
         ("AI.DecisionIntervalSec", "s", 0.125), ("AI.RetryPolicy.InitialBackoffSec", "s", 0.125),
         ("AI.RetryPolicy.MaxBackoffSec", "s", 0.375), ("AI.ExploreRevisitIntervalSec", "s", 12),
-        ("AI.EngagementBudgetSec", "s", 30),
+        ("AI.EngagementBudgetSec", "s", 30), ("COMBAT.RearArcDeg", "deg", 90),
     ):
         parameters[key] = q(unit, value)
     parameters.update({
@@ -162,7 +162,7 @@ def content_fixture():
         "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_guardian"}
                        for identity in ("l1", "h1", "l2", "h2", "l3")],
     }
-    identities = ["character_demo", "root", "shield", "camp_returning", "respawn_protection"]
+    identities = ["character_demo", "root", "shield", "camp_returning", "respawn_protection", "disarm", "stun", "empowered"]
     identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",

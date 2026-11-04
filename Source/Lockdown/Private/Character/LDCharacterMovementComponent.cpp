@@ -125,7 +125,7 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
     {
         const auto* Mode=GetWorld()->GetAuthGameMode<ALDGameMode>();
         float Speed=0;
-        return Mode && Mode->Combat && !Mode->Combat->IsRooted(*Body) && Mode->Combat->ReadMoveSpeed(*Body,Speed)
+        return Mode && Mode->Combat && !Mode->Combat->IsMoveBlocked(*Body) && Mode->Combat->ReadMoveSpeed(*Body,Speed)
             && FMath::IsFinite(Speed) && Speed>0 ? Speed : 0;
     }
     const auto* PC=Cast<ALDPlayerController>(Body->GetController());

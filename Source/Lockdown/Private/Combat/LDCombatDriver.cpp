@@ -36,12 +36,17 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.bPendingDeath) { continue; }
         if (Body.Action.IsSet()) { Consider(Body.Action->ReleaseAtMs); }
         for (const auto& Root : Body.Roots) { Consider(Root.ExpiresAtMs); }
+        for (const auto& Disarm : Body.Disarms) { Consider(Disarm.ExpiresAtMs); }
+        for (const auto& Stun : Body.Stuns) { Consider(Stun.ExpiresAtMs); }
+        if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
         if (Body.AttributeProjection.OutOfCombatHPRegen.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.AttributeProjection.OutOfCombatHPRegen->DelayMs)
         { Consider(Body.LastCombatAtMs+Body.AttributeProjection.OutOfCombatHPRegen->DelayMs); }
     }
+    // A jump lands on its exact boundary.
+    for (const auto& Landing : Landings) { Consider(Landing.LandAtMs); }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -255,7 +260,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    if (!AdvanceProjectiles(Error)) { return false; }
+    if (!ResolveLandings(Error) || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

@@ -43,7 +43,8 @@
         "REWARD.PlayerGold.Base", "REWARD.PlayerGold.PerLevel",
         "AI.RetreatHPRatio", "AI.ResumeFarmHPRatio", "AI.HighCampEntryHPRatio", "AI.HighCampReserveHPRatio", "AI.LowCampReserveHPRatio",
         "AI.CaptureReactionBudgetSec", "AI.DecisionIntervalSec", "AI.RetryPolicy.MaxAttempts",
-        "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec"
+        "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec",
+        "COMBAT.RearArcDeg"
       ],
       "properties": {
         "STAT.MaxHP.Base": {"$ref": "#/$defs/hp"}, "STAT.MaxHP.PerLevel": {"$ref": "#/$defs/hp"},
@@ -81,7 +82,8 @@
         "AI.HighCampEntryHPRatio": {"$ref": "#/$defs/probability"}, "AI.HighCampReserveHPRatio": {"$ref": "#/$defs/probability"}, "AI.LowCampReserveHPRatio": {"$ref": "#/$defs/probability"},
         "AI.CaptureReactionBudgetSec": {"$ref": "#/$defs/positive_sec"}, "AI.DecisionIntervalSec": {"$ref": "#/$defs/positive_sec"},
         "AI.RetryPolicy.MaxAttempts": {"$ref": "#/$defs/positive_count"}, "AI.RetryPolicy.InitialBackoffSec": {"$ref": "#/$defs/positive_sec"},
-        "AI.RetryPolicy.MaxBackoffSec": {"$ref": "#/$defs/positive_sec"}, "AI.ExploreRevisitIntervalSec": {"$ref": "#/$defs/positive_sec"}, "AI.EngagementBudgetSec": {"$ref": "#/$defs/positive_sec"}
+        "AI.RetryPolicy.MaxBackoffSec": {"$ref": "#/$defs/positive_sec"}, "AI.ExploreRevisitIntervalSec": {"$ref": "#/$defs/positive_sec"}, "AI.EngagementBudgetSec": {"$ref": "#/$defs/positive_sec"},
+        "COMBAT.RearArcDeg": {"$ref": "#/$defs/arc_deg"}
       }
     },
     "formulas": {
@@ -221,6 +223,10 @@
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "Rational",
       "properties": {"unit": {"const": "cm"}, "value": {"type": "number", "minimum": 0}}
     },
+    "arc_deg": {
+      "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "Rational",
+      "properties": {"unit": {"const": "deg"}, "value": {"type": "number", "exclusiveMinimum": 0, "maximum": 360}}
+    },
     "speed": {
       "type": "object", "additionalProperties": false, "required": ["unit", "value"], "x-quantity": "Rational",
       "properties": {"unit": {"const": "cm/s"}, "value": {"type": "number", "exclusiveMinimum": 0}}
@@ -286,6 +292,30 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "radius"],
           "properties": {"op": {"const": "cleave"}, "ratio": {"$ref": "#/$defs/probability"}, "radius": {"$ref": "#/$defs/cm"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "duration"],
+          "properties": {"op": {"const": "disarm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "duration"],
+          "properties": {"op": {"const": "stun"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "duration"],
+          "properties": {"op": {"const": "empower_basic"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "duration"],
+          "properties": {"op": {"const": "jump"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "base", "armor_ratio", "damage_type", "radius", "interval", "critical_multiplier", "trigger", "rear_exempt"],
+          "properties": {"op": {"const": "thorns"}, "base": {"$ref": "#/$defs/points"}, "armor_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "radius": {"$ref": "#/$defs/cm"}, "interval": {"$ref": "#/$defs/positive_sec"}, "critical_multiplier": {"$ref": "#/$defs/multiplier"}, "trigger": {"enum": ["Basic", "BasicOrAbility"]}, "rear_exempt": {"type": "boolean"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
+          "properties": {"op": {"const": "backstab"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         }
       ]
     },
@@ -297,7 +327,8 @@
           "type": "object", "additionalProperties": false, "required": ["mode", "range", "projectile_radius", "projectile_speed"],
           "properties": {"mode": {"const": "DirectionProjectile"}, "range": {"$ref": "#/$defs/cm"}, "projectile_radius": {"$ref": "#/$defs/cm"}, "projectile_speed": {"$ref": "#/$defs/speed"}}
         },
-        {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "DirectionDash"}}}
+        {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "DirectionDash"}}},
+        {"type": "object", "additionalProperties": false, "required": ["mode", "range"], "properties": {"mode": {"const": "GroundPoint"}, "range": {"$ref": "#/$defs/cm"}}}
       ]
     },
     "active_rank": {

@@ -38,6 +38,8 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
+    // Conditional multiplier of the raw amount before resistance (for example a rear strike); 10000 = none.
+    int64 AmplifyBp = 10000;
 };
 
 struct FLDDamageEvaluation

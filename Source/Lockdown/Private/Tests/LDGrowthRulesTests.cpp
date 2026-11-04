@@ -1336,25 +1336,29 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("An empty build may learn three actives"),
-        GrowthTestKindCount(Pool, ELDChoiceOptionKind::LearnActive), 3);
-    bGood &= Test.TestEqual(TEXT("An empty build may learn three passives"),
-        GrowthTestKindCount(Pool, ELDChoiceOptionKind::LearnPassive), 3);
+    bGood &= Test.TestEqual(TEXT("An empty build may learn six actives"),
+        GrowthTestKindCount(Pool, ELDChoiceOptionKind::LearnActive), 6);
+    bGood &= Test.TestEqual(TEXT("An empty build may learn four passives"),
+        GrowthTestKindCount(Pool, ELDChoiceOptionKind::LearnPassive), 4);
     bGood &= Test.TestEqual(TEXT("An empty build may take all five attribute cards"),
         GrowthTestKindCount(Pool, ELDChoiceOptionKind::Attribute), 5);
     const TPair<ELDChoiceOptionKind, const TCHAR*> ApprovedPool[] = {
         {ELDChoiceOptionKind::LearnActive, TEXT("active_arc_bolt")},
         {ELDChoiceOptionKind::LearnActive, TEXT("active_binding_snare")},
         {ELDChoiceOptionKind::LearnActive, TEXT("active_guard_pulse")},
+        {ELDChoiceOptionKind::LearnActive, TEXT("active_lunge")},
+        {ELDChoiceOptionKind::LearnActive, TEXT("active_monkey_peach")},
+        {ELDChoiceOptionKind::LearnActive, TEXT("active_thousand_year")},
         {ELDChoiceOptionKind::Attribute, TEXT("attr_focus")},
         {ELDChoiceOptionKind::Attribute, TEXT("attr_might")},
         {ELDChoiceOptionKind::Attribute, TEXT("attr_reach")},
         {ELDChoiceOptionKind::Attribute, TEXT("attr_resolve")},
         {ELDChoiceOptionKind::Attribute, TEXT("attr_vitality")},
         {ELDChoiceOptionKind::LearnPassive, TEXT("passive_battle_rhythm")},
+        {ELDChoiceOptionKind::LearnPassive, TEXT("passive_iron_crotch")},
         {ELDChoiceOptionKind::LearnPassive, TEXT("passive_precision")},
         {ELDChoiceOptionKind::LearnPassive, TEXT("passive_second_wind")}};
-    if (!Test.TestEqual(TEXT("The empty build's legal pool has 3 + 3 + 5 options"), Pool.Num(), int32(UE_ARRAY_COUNT(ApprovedPool))))
+    if (!Test.TestEqual(TEXT("The empty build's legal pool has 6 + 4 + 5 options"), Pool.Num(), int32(UE_ARRAY_COUNT(ApprovedPool))))
     {
         return false;
     }

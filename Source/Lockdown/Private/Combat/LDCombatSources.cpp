@@ -555,13 +555,16 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
         View.CooldownMs=Track->LastDurationMs;
     }
     const FLDDemoContentSnapshot* Content=Catalog();
+    const bool bDisplacement=Target && (Target->Mode==ELDDemoTargetMode::DirectionDash || Target->Mode==ELDDemoTargetMode::GroundPoint);
+    const bool bGear=Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2;
+    const auto Blocked=[&](ELDCombatControlAction Action)
+    { return Content && LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Content->Get().Policies,Action); };
     if (!View.bHasActive) { View.Unavailable=ELDCombatReject::NoActiveEffect; }
     else if (!Body || Body->bPendingDeath) { View.Unavailable=ELDCombatReject::Dead; }
+    else if (Blocked(bGear ? ELDCombatControlAction::Gear : ELDCombatControlAction::Cast)) { View.Unavailable=ELDCombatReject::ControlBlocked; }
     else if (View.ReadyAtMs>NowMs) { View.Unavailable=ELDCombatReject::Cooldown; }
     else if (Body->Resources.MpP2<View.ManaCostP2) { View.Unavailable=ELDCombatReject::InsufficientMana; }
-    else if (Target->Mode==ELDDemoTargetMode::DirectionDash && Content
-        && LDTactical::RootBlocks(Body->Roots,NowMs,Content->Get().Policies,ELDDemoRootBlock::Dash))
-    { View.Unavailable=ELDCombatReject::ControlBlocked; }
+    else if (bDisplacement && Blocked(ELDCombatControlAction::Displacement)) { View.Unavailable=ELDCombatReject::ControlBlocked; }
     else if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability) { View.Unavailable=ELDCombatReject::Busy; }
     return View;
 }
@@ -873,6 +876,26 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 RootStatus.ExpiresAtMs=RootedUntilMs;
                 RootStatus.ControlBlocks=LDCombatSourcesDetail::RootControlBlocks(Policies);
             }
+            if (const int64 DisarmedUntilMs=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmedUntilMs>0)
+            {
+                FLDCombatStatusView& DisarmStatus=Out.Statuses.AddDefaulted_GetRef();
+                DisarmStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Disarm);
+                DisarmStatus.ExpiresAtMs=DisarmedUntilMs;
+                DisarmStatus.ControlBlocks=LDCombatControl::DisarmBlockBits();
+            }
+            if (const int64 StunnedUntilMs=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunnedUntilMs>0)
+            {
+                FLDCombatStatusView& StunStatus=Out.Statuses.AddDefaulted_GetRef();
+                StunStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Stun);
+                StunStatus.ExpiresAtMs=StunnedUntilMs;
+                StunStatus.ControlBlocks=LDCombatControl::StunBlockBits();
+            }
+            if (Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs)
+            {
+                FLDCombatStatusView& EmpowerStatus=Out.Statuses.AddDefaulted_GetRef();
+                EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
+                EmpowerStatus.ExpiresAtMs=Body->Empower->ExpiresAtMs;
+            }
             if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
             {
                 FLDCombatStatusView& ShieldStatus=Out.Statuses.AddDefaulted_GetRef();
@@ -888,7 +911,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
             Out.Cues=CueFactsOf(*Body);
-            Out.bRooted=LDTactical::RootBlocks(Body->Roots,NowMs,Policies,ELDDemoRootBlock::Move);
+            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move);
             if (Projection.OutOfCombatHPRegen.IsSet())
             {
                 const int64 DelayMs=Projection.OutOfCombatHPRegen->DelayMs;
@@ -1016,6 +1039,9 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
         return;
     }
     LDTactical::DispelRoots(Body->Roots);
+    Body->Disarms.Reset();
+    Body->Stuns.Reset();
+    Body->Empower.Reset();
     Body->Shield.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;

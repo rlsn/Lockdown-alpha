@@ -25,6 +25,8 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Shield:
     case ELDDemoStatusId::CampReturning:
     case ELDDemoStatusId::RespawnProtection:
+    case ELDDemoStatusId::Disarm:
+    case ELDDemoStatusId::Stun:
         return true;
     default:
         return false;
@@ -43,6 +45,7 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemPhaseAnchor:
     case ELDDemoEquipmentId::ItemArcaneBattery:
     case ELDDemoEquipmentId::ItemEchoMaul:
+    case ELDDemoEquipmentId::ItemNailUniform:
         return true;
     default:
         return false;

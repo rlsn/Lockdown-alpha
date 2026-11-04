@@ -43,7 +43,7 @@ struct FLDCombatCaller
 // ---------------------------------------------------------------- action requests
 
 UENUM()
-enum class ELDCombatTargetKind : uint8 { Missing, Self, Unit, Direction };
+enum class ELDCombatTargetKind : uint8 { Missing, Self, Unit, Direction, Point };
 
 USTRUCT()
 struct FLDCombatTarget
@@ -53,6 +53,7 @@ struct FLDCombatTarget
     UPROPERTY() FGuid Observed;                    // Unit, contender callers: observer-local handle
     UPROPERTY() uint32 ObservationEpoch=0;
     UPROPERTY() FVector_NetQuantizeNormal Direction=FVector::ZeroVector; // Direction: planar unit vector
+    UPROPERTY() FVector_NetQuantize Point=FVector::ZeroVector;           // Point: requested ground point (GroundPoint skills)
     FLDCombatBodyRef ServerBody;                   // Unit from a registered camp member only; never replicated
 };
 
@@ -352,8 +353,8 @@ struct FLDCombatBodyRead
     bool bActionInProgress=false;
     int64 NextAttackAtMs=0;
     double AttackRangeCm=0;
-    bool bMovementAllowed=false;         // alive, not pending death, not rooted
-    bool bAttackAllowed=false;           // alive, not pending death; Root does not block attacks
+    bool bMovementAllowed=false;         // alive, not pending death, neither rooted nor stunned
+    bool bAttackAllowed=false;           // alive, not pending death, neither disarmed nor stunned; Root does not block attacks
     bool bBasicAttackReady=false;        // attack allowed, no action in progress and now >= NextAttackAtMs
 };
 
@@ -450,6 +451,7 @@ struct FLDCombatOwnerView
     UPROPERTY() ELDCombatPhase ActionPhase=ELDCombatPhase::Finished; // Accepted while a windup is pending
     UPROPERTY() uint64 ActionToken=0;
     UPROPERTY() int64 ActionReleaseAtMs=0;
+    // Voluntary movement is blocked (Root or Stun); the client movement prediction reads it.
     UPROPERTY() bool bRooted=false;
     UPROPERTY() float MoveSpeedCmPerSec=0;
     UPROPERTY() float AttackRangeCm=0;

@@ -229,7 +229,8 @@ private:
                 for (const FLDDemoEffectDefinition& Effect : Item.Passive.Effects)
                 {
                     // Approved equipment passives are combat triggers and contribute no attribute terms.
-                    if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave)
+                    if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave
+                        && Effect.GetOp() != ELDDemoEffectOp::Thorns)
                     {
                         return Refuse(EError::Catalog, Field,
                             Item.Id + TEXT(" has an equipment passive effect without an attribute projection rule"));
@@ -382,6 +383,13 @@ private:
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.DelayMs = Effect.DelayMs;
                     OutOfCombatRate = Numbers.Value(Effect.HPPerSec);
+                }
+                else if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
+                {
+                    // A combat trigger of this exact rank; it contributes no attribute term.
+                    FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
+                    Trigger.AbilityId = Passives[Index]->Id;
+                    Trigger.Rank = Build.LearnedPassives[Index].Rank;
                 }
                 else
                 {
@@ -557,6 +565,8 @@ private:
             Out.OutOfCombatHPRegen = OutOfCombat;
         }
         Out.EquipmentPassives = MoveTemp(Families);
+        LearnedTriggers.Sort([](const FLDLearnedTriggerTerm& A, const FLDLearnedTriggerTerm& B) { return A.AbilityId < B.AbilityId; });
+        Out.LearnedTriggers = MoveTemp(LearnedTriggers);
         return true;
     }
 
@@ -574,6 +584,7 @@ private:
     TArray<FLDEquipmentPassiveFamily> Families;
     TOptional<FLDOutOfCombatRegenTerm> OutOfCombat;
     FExact OutOfCombatRate;
+    TArray<FLDLearnedTriggerTerm> LearnedTriggers;
 };
 }
 

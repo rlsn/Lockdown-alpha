@@ -44,7 +44,10 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave"))
+                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave",
+                       "disarm", "stun", "empower_basic", "jump", "thorns", "backstab"))
+# Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off.
+JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "restore_mana"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -185,7 +188,7 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
     "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s")),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "deg")),
 }
 
 
@@ -450,13 +453,22 @@ def _positive_stats(stats, path):
             "IneffectiveChoice", path, "every declared stat bonus must be positive")
 
 
+def _validate_thorns(effect, path):
+    require(quantity(effect["base"]) > 0 or quantity(effect["armor_ratio"]) > 0,
+            "IneffectiveEffect", path, "a reflection has neither magnitude nor armor scaling")
+    require(quantity(effect["radius"]) > 0, "NumericDomain", path, "reflection reach must be positive")
+    require(quantity(effect["critical_multiplier"]) >= 1, "NumericDomain", path,
+            "a critical hit cannot shrink the reflection")
+
+
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
         "Self": frozenset(("shield", "dispel_root", "restore_mana")),
-        "Unit": frozenset(("damage", "root")),
+        "Unit": frozenset(("damage", "root", "disarm", "stun", "backstab")),
         "DirectionProjectile": frozenset(("damage",)),
-        "DirectionDash": frozenset(("dash",)),
+        "DirectionDash": frozenset(("dash", "empower_basic")),
+        "GroundPoint": frozenset(("jump",)) | JUMP_LANDING_OPS,
     }[mode]
     signature = None
     for rank in ranks:
@@ -464,7 +476,13 @@ def _validate_action(target, ranks, path):
         require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
         require(signature is None or signature == ops, "RankShape", path, "ranks must use the same handlers")
         signature = ops
+        require("backstab" not in ops or "damage" in ops, "MissingHandler", path, "a rear strike amplifies a damage effect")
+        require(mode != "GroundPoint" or "jump" in ops, "MissingHandler", path, "a ground point is consumed by a jump")
+        require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
         for effect in rank["effects"]:
+            if effect["op"] == "empower_basic":
+                require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
+                        "IneffectiveEffect", path, "an empowered attack adds neither damage nor scaling")
             if effect["op"] in ("dash", "cleave"):
                 field = "distance" if effect["op"] == "dash" else "radius"
                 require(quantity(effect[field]) > 0, "NumericDomain", path, "geometry must be positive")
@@ -476,7 +494,7 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
                 require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "restore ratio must be positive")
-    if mode in ("Unit", "DirectionProjectile"):
+    if mode in ("Unit", "DirectionProjectile", "GroundPoint"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
         require(quantity(target["projectile_radius"]) > 0, "NumericDomain", path, "projectile radius must be positive")
@@ -499,11 +517,15 @@ def validate_definitions(data, ids):
         "active_arc_bolt": ("DirectionProjectile", {"damage"}),
         "active_guard_pulse": ("Self", {"shield", "dispel_root"}),
         "active_binding_snare": ("Unit", {"damage", "root"}),
+        "active_monkey_peach": ("Unit", {"damage", "disarm"}),
+        "active_thousand_year": ("Unit", {"damage", "backstab"}),
+        "active_lunge": ("DirectionDash", {"dash", "empower_basic"}),
     }
     passive_contracts = {
         "passive_battle_rhythm": ("stat_bonus", {"AttackSpeedBonusRatio"}),
         "passive_second_wind": ("out_of_combat_regen", None),
         "passive_precision": ("stat_bonus", {"CritChanceBonusRatio"}),
+        "passive_iron_crotch": ("thorns", None),
     }
     cooldown_families = {}
     for ability in data["abilities"]:
@@ -530,6 +552,8 @@ def validate_definitions(data, ids):
                 if stat_fields is not None:
                     require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
                     _positive_stats(effect["stats"], identity)
+                elif operation == "thorns":
+                    _validate_thorns(effect, identity)
                 else:
                     require(quantity(effect["rate"]) > 0, "NumericDomain", identity, "regen bonus must be positive")
     attribute_stats = {
@@ -550,6 +574,7 @@ def validate_definitions(data, ids):
         "item_phase_anchor": {"MoveSpeedBonusRatio"},
         "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
         "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
+        "item_nail_uniform": {"MaxHPFlat", "ArmorFlat"},
     }
     item_actives = {
         "item_phase_anchor": ("DirectionDash", {"dash"}, "cd_phase_anchor"),
@@ -558,6 +583,7 @@ def validate_definitions(data, ids):
     item_passives = {
         "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),
         "item_echo_maul": ("passive_cleave", {"cleave"}),
+        "item_nail_uniform": ("passive_prickle", {"thorns"}),
     }
     passive_families = {}
     for item in data["equipment"]:
@@ -584,6 +610,9 @@ def validate_definitions(data, ids):
             previous = passive_families.setdefault(family, passive["effects"])
             require(previous == passive["effects"], "PassiveConflict", identity, "same family has different terms")
             for effect in passive["effects"]:
+                if effect["op"] == "thorns":
+                    _validate_thorns(effect, identity)
+                    continue
                 require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "passive ratio must be positive")
                 if effect["op"] == "cleave":
                     require(quantity(effect["radius"]) > 0, "NumericDomain", identity, "cleave radius must be positive")
@@ -657,6 +686,8 @@ def validate_numbers(data):
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
     for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
+    require(0 < p("COMBAT.RearArcDeg") < 360, "InvalidGeometry", "COMBAT.RearArcDeg",
+            "the rear arc must be a proper, non-empty sector")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
@@ -773,13 +804,18 @@ def _validate_build_envelope(data):
                 "a legal source combination would lose its declared bonus to the cap")
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
+    max_armor = params["STAT.Armor.Max"]["p2"]
     for row in (*data["abilities"], *data["equipment"]):
         for effect in all_effects(row):
-            if effect["op"] in ("damage", "shield"):
+            if effect["op"] in ("damage", "shield", "empower_basic"):
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
-                if effect["op"] == "damage":
+                if effect["op"] != "shield":
                     checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
+            elif effect["op"] == "thorns":
+                numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
+                numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])
+                checked_mul(numerator, effect["critical_multiplier"]["bp"], row["id"])
 
 
 def _wire_fraction(value, path):

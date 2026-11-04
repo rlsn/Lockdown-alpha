@@ -147,7 +147,14 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     }
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
-        if (Effect.GetOp() != ELDDemoEffectOp::Damage && Effect.GetOp() != ELDDemoEffectOp::Shield)
+        if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
+        {
+            int64 Base, Armor, Sum, Critical;
+            return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
+                && N.Add64(Base, Armor, Sum, Path) && N.Mul64(Sum, Effect.CriticalMultiplierBp, Critical, Path);
+        }
+        const bool bDamage = Effect.GetOp() == ELDDemoEffectOp::Damage || Effect.GetOp() == ELDDemoEffectOp::EmpowerBasic;
+        if (!bDamage && Effect.GetOp() != ELDDemoEffectOp::Shield)
         {
             return true;
         }
@@ -157,7 +164,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             return false;
         }
-        return Effect.GetOp() != ELDDemoEffectOp::Damage
+        return !bDamage
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path));
     };
     for (const auto& Ability : D.Abilities)

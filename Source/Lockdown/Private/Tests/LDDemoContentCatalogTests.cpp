@@ -838,6 +838,13 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentDisplayStringTableTest, "Lockdown.Rules.DemoContent.DisplayStringTable",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
+namespace
+{
+const ELDDemoStatusId LDDemoContentCatalogTestStatuses[] = {
+    ELDDemoStatusId::Root, ELDDemoStatusId::Shield, ELDDemoStatusId::CampReturning, ELDDemoStatusId::RespawnProtection,
+    ELDDemoStatusId::Disarm, ELDDemoStatusId::Stun, ELDDemoStatusId::Empowered};
+}
+
 bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
 {
     FFixtures Fixtures;
@@ -868,7 +875,11 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
-    TestEqual(TEXT("All 25 approved content and status identities are displayed"), Definitions.Display.Num(), 25);
+    // The character, every content definition and every status identity has exactly one display row.
+    const int32 StatusIdentities = UE_ARRAY_COUNT(LDDemoContentCatalogTestStatuses);
+    TestEqual(TEXT("All approved content and status identities are displayed"), Definitions.Display.Num(),
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num()
+        + StatusIdentities);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
         FString Name, Description;

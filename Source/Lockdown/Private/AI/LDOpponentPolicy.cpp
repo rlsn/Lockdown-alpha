@@ -71,7 +71,19 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     {
     case ELDDemoEffectOp::Damage:
     case ELDDemoEffectOp::Root:
+    case ELDDemoEffectOp::Disarm:
+    case ELDDemoEffectOp::Stun:
+    case ELDDemoEffectOp::Backstab:
         Usage.bEngage |= !bSelfTarget;
+        break;
+    case ELDDemoEffectOp::Thorns:
+        Usage.bSurvival = true;
+        break;
+    case ELDDemoEffectOp::EmpowerBasic:
+        Usage.bBasicGrowth = true;
+        break;
+    case ELDDemoEffectOp::Jump:
+        Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:

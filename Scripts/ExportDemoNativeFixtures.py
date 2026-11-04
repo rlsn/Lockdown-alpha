@@ -33,7 +33,7 @@ BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
 )
-TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash")
+TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -108,10 +108,12 @@ def effect(value):
         "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "HPPerSec": rational(), "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
+        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"),
+        ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -122,6 +124,10 @@ def effect(value):
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
         result["Stats"] = stats(value["stats"])
+    if "trigger" in value:
+        result["bAbilityTrigger"] = ("Basic", "BasicOrAbility").index(value["trigger"]) == 1
+    if "rear_exempt" in value:
+        result["bRearExempt"] = value["rear_exempt"]
     return result
 
 
@@ -171,7 +177,7 @@ def parameter_projection(parameters):
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
-        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
+        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (

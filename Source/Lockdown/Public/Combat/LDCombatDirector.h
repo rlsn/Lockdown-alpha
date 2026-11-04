@@ -4,6 +4,7 @@
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
+#include "Combat/LDCombatControlRules.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -30,6 +31,7 @@ struct FLDCombatAction
     FLDCombatTarget Target;
     FLDCombatBodyRef TargetBody;
     FVector Direction=FVector::ZeroVector;
+    FVector TargetPoint=FVector::ZeroVector;  // GroundPoint: the requested point (planar use only)
     int64 StartedAtMs=0;
     int64 ReleaseAtMs=0;
     uint64 SourceRevision=0;
@@ -51,6 +53,12 @@ struct FLDBodyCombatState
     FName MonsterId;                       // CampMember bodies only
     uint64 StateRevision=1;                // statuses/action changes; resources use Resources.Revision
     TArray<FLDCombatRoot> Roots;
+    // Disarm and Stun instances (LDCombatControl); each keeps its effect, source and half-open expiry.
+    TArray<FLDCombatRoot> Disarms;
+    TArray<FLDCombatRoot> Stuns;
+    // The armed next-basic bonus (one consumption) and this life's thorns repeat windows.
+    TOptional<FLDCombatEmpower> Empower;
+    TArray<FLDThornsMark> ThornsMarks;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
@@ -124,11 +132,29 @@ struct FLDCombatHit
     int64 SourceADP2=0, SourceAPP2=0;
     bool bCritical=false;
     int64 RootDurationMs=0;
+    int64 DisarmDurationMs=0;
+    int64 StunDurationMs=0;
+    // Rear strike: applied when the releasing body stands in the target's rear arc at this hit.
+    int64 BackstabRatioBp=0;
+    int64 BackstabStunMs=0;
+    // A reflection never crits, heals, cleaves or triggers another reflection.
+    bool bReflect=false;
     bool bCleave=false;
     int64 CleaveRatioBp=0;
     double CleaveRadiusCm=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
+};
+
+// A released jump: the landing effects resolve at LandAtMs on the same body life, centred on its landing foot.
+struct FLDCombatLanding
+{
+    FLDCombatBodyRef Body;
+    FGuid EffectId;
+    uint64 Token=0;
+    FLDCombatSourceRef Source;
+    int64 LandAtMs=0;
+    TArray<FLDDemoEffectDefinition> Effects;
 };
 
 // Released straight, non-homing projectile: first legal hostile body or blocking terrain ends it.
@@ -179,7 +205,10 @@ public:
         const FLDGameplayWritePermit& Permit);
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move);
-    bool IsRooted(const ALDCharacter& Body) const;
+    // Voluntary movement blocked by Root or Stun (LDCombatControl matrix).
+    bool IsMoveBlocked(const ALDCharacter& Body) const;
+    // The control matrix for one registered body at the current authority time.
+    bool IsActionBlocked(const FLDBodyCombatState& Body, ELDCombatControlAction Action) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
@@ -271,6 +300,13 @@ private:
     // ---- Effects (LDCombatEffects.cpp).
     bool ApplyHit(const FLDCombatHit& Hit, FString& Error);
     bool AdvanceProjectiles(FString& Error);
+    // Disarm/Stun of one committed hit, the rear-strike judgement and the victim's thorns reflections.
+    bool IsSourceBehind(const FLDCombatBodyRef& Source, const ALDCharacter& Target) const;
+    bool QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holder, FLDBodyCombatState& Body, int64 DamageP2, FString& Error);
+    // Self effects shared by a release and a jump landing (shield, root cleanse, mana).
+    bool ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FGuid& EffectId,
+        int64 NowMs, FString& Error);
+    bool ResolveLandings(FString& Error);
     void ExpireStatuses(int64 NowMs);
     bool Regenerate(int64 NowMs, FString& Error);
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
@@ -291,6 +327,7 @@ private:
     TMap<FGuid,FLDCombatEntityRecord> Records;
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
+    TArray<FLDCombatLanding> Landings;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

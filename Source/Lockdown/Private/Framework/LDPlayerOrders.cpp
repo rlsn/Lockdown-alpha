@@ -17,7 +17,7 @@ namespace LDPlayerOrdersDetail
     bool IsArmedMode(ELDDemoTargetMode Mode)
     {
         return Mode==ELDDemoTargetMode::Unit || Mode==ELDDemoTargetMode::DirectionProjectile
-            || Mode==ELDDemoTargetMode::DirectionDash;
+            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint;
     }
 }
 
@@ -119,6 +119,16 @@ bool ALDPlayerController::ConfirmArmedCombat()
                 Aim.Kind=ELDCombatTargetKind::Direction;
                 Aim.Direction=Direction;
             }
+        }
+    }
+    else if (Mode==ELDDemoTargetMode::GroundPoint)
+    {
+        // The requested ground point; the server clamps it to the reach and judges the path.
+        FHitResult GroundHit;
+        if (Navigation->GroundUnderPointer(GroundHit))
+        {
+            Aim.Kind=ELDCombatTargetKind::Point;
+            Aim.Point=GroundHit.ImpactPoint;
         }
     }
     return ConfirmArmedEntry(Aim);

@@ -426,7 +426,7 @@ class DemoContentImport(unittest.TestCase):
                 self.assert_refused(mutation, relative=demo.IDS_SOURCE)
         (self.root / demo.IDS_SOURCE).write_bytes(original)
         path = self.root / demo.NATIVE_IDS
-        path.write_bytes(path.read_bytes().replace(b"ActiveArcBolt=62", b"ActiveArcBolt=68"))
+        path.write_bytes(path.read_bytes().replace(b"ActiveArcBolt=62", b"ActiveArcBolt=200"))
         with self.assertRaisesRegex(ValueError, "NativeId"):
             demo.compile_content(self.root)
 

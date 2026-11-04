@@ -31,6 +31,11 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     { Out.Add({uint8(ELDDemoStatusId::Root),1,RootUntil}); }
     if (Body->Shield.IsSet() && Body->Shield->ExpiresAtMs>NowMs && Body->Resources.ShieldP2>0)
     { Out.Add({uint8(ELDDemoStatusId::Shield),1,Body->Shield->ExpiresAtMs}); }
+    // Disarm and stun are public control cues like Root (latest remaining deadline); the empowerment stays private.
+    if (const int64 DisarmUntil=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Disarm),1,DisarmUntil}); }
+    if (const int64 StunUntil=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunUntil>0)
+    { Out.Add({uint8(ELDDemoStatusId::Stun),1,StunUntil}); }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -240,10 +245,12 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     // Leaving cancels every unsettled effect of the entity; already committed damage and receipts stay.
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
+    Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
-        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; });
+        const auto FromEntity=[&Entity](const FLDCombatRoot& Instance) { return Instance.SourceEntity==Entity; };
+        const int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity);
         if (Removed>0)
         {
             ++Body.StateRevision;

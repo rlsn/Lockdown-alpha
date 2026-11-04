@@ -46,6 +46,8 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Root: return FLinearColor(1.f,.02f,.58f);
     case ELDDemoStatusId::Shield: return LDHUDStyle::Shield;
     case ELDDemoStatusId::RespawnProtection: return FLinearColor(1.f,.92f,.62f);
+    case ELDDemoStatusId::Disarm: return FLinearColor(1.f,.55f,.1f);
+    case ELDDemoStatusId::Stun: return FLinearColor(1.f,.95f,.1f);
     default: return WorldLabelStatusInk;
     }
 }
