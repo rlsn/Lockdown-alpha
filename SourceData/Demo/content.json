@@ -65,6 +65,9 @@
     "MATCH.DevelopmentSec": {"unit": "s", "value": 120},
     "LIFE.RespawnSec": {"unit": "s", "value": 15},
     "LIFE.ProtectionSec": {"unit": "s", "value": 3},
+    "REGEN.OutOfCombatDelaySec": {"unit": "s", "value": 5},
+    "REGEN.OutOfCombatMaxHPRatioPerSec": {"unit": "ratio", "value": 0.015},
+    "REGEN.OutOfCombatMaxMPRatioPerSec": {"unit": "ratio", "value": 0.015},
     "SHOP.StartingGold": 320,
     "SHOP.SellRatio": {"unit": "ratio", "value": 0.65},
     "CHOICE.BaseWeight": 1,
@@ -253,7 +256,8 @@
   },
   "progression": {
     "max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
-    "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440]
+    "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440],
+    "opening_offer": {"attribute_ids": ["attr_might", "attr_reach", "attr_resolve", "attr_vitality"], "attribute_count": 2, "passive_count": 1}
   },
   "world": {
     "map_id": "demo_world",

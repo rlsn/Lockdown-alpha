@@ -376,6 +376,22 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
 
 bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
 {
+    const FLDDemoContentSnapshot* Content=Catalog();
+    if (!Content)
+    {
+        Error=TEXT("Regeneration requires the approved Demo catalog of this match.");
+        return false;
+    }
+    const FLDDemoContentParameters& Parameters=Content->Get().Parameters;
+    LDTactical::FOutOfCombatRecovery Recovery;
+    Recovery.DelayMs=Parameters.OutOfCombatRegenDelayMs;
+    Recovery.MaxHPBpPerSec=Parameters.OutOfCombatMaxHPRegenBp;
+    Recovery.MaxMPBpPerSec=Parameters.OutOfCombatMaxMPRegenBp;
+    return RegenerateBodies(Recovery,NowMs,Error);
+}
+
+bool ALDCombatDirector::RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error)
+{
     for (auto& Pair : Bodies)
     {
         FLDBodyCombatState& Body=Pair.Value;
@@ -388,37 +404,29 @@ bool ALDCombatDirector::Regenerate(int64 NowMs, FString& Error)
             return false;
         }
         if (NowMs==FromMs) { continue; }
-        const FLDAttributeProjection& Attributes=Body.AttributeProjection;
         auto& Pool=Body.Resources;
-        // The out-of-combat bonus starts exactly at LastCombatAt + Delay: the old rate is settled up to that moment.
-        int64 BonusFromMs=NowMs;
-        if (Attributes.OutOfCombatHPRegen.IsSet())
-        {
-            const int64 DelayMs=Attributes.OutOfCombatHPRegen->DelayMs;
-            if (DelayMs<0 || Body.LastCombatAtMs>MAX_int64-DelayMs)
-            {
-                Error=FString::Printf(TEXT("Out-of-combat regeneration of %s has no representable start."),
-                    *Body.Victim.EntityId.ToString());
-                return false;
-            }
-            BonusFromMs=FMath::Clamp(Body.LastCombatAtMs+DelayMs,FromMs,NowMs);
-        }
-        const int64 HpBefore=Pool.HpP2, MpBefore=Pool.MpP2;
-        const bool bIntegrated=LDTactical::IntegrateRegen(Attributes.Final.HPRegenPerSec,BonusFromMs-FromMs,
-                Pool.MaxHpP2,Pool.HpP2,Body.HpRegenMicroP2,Error)
-            && LDTactical::IntegrateRegen(Attributes.Final.HPRegenPerSec,NowMs-BonusFromMs,
-                Pool.MaxHpP2,Pool.HpP2,Body.HpRegenMicroP2,Error)
-            && (!Attributes.OutOfCombatHPRegen.IsSet() || LDTactical::IntegrateRegen(Attributes.OutOfCombatHPRegen->HPPerSec,
-                NowMs-BonusFromMs,Pool.MaxHpP2,Pool.HpP2,Body.HpRegenMicroP2,Error))
-            && LDTactical::IntegrateRegen(Attributes.Final.MPRegenPerSec,NowMs-FromMs,
-                Pool.MaxMpP2,Pool.MpP2,Body.MpRegenMicroP2,Error);
-        if (!bIntegrated)
+        LDTactical::FRegenPools Pools;
+        Pools.HpP2=Pool.HpP2;
+        Pools.MaxHpP2=Pool.MaxHpP2;
+        Pools.MpP2=Pool.MpP2;
+        Pools.MaxMpP2=Pool.MaxMpP2;
+        Pools.HpMicroP2=Body.HpRegenMicroP2;
+        Pools.MpMicroP2=Body.MpRegenMicroP2;
+        // D21: every contender recovers out of combat; camp members heal only by their reset.
+        const bool bContender=Body.Victim.Kind==ELDVictimKind::Contender;
+        if (!LDTactical::SettleRegen(Body.AttributeProjection,bContender ? &Recovery : nullptr,Body.LastCombatAtMs,FromMs,NowMs,
+            Pools,Error))
         {
             Error=FString::Printf(TEXT("Regeneration of %s failed: %s"),*Body.Victim.EntityId.ToString(),*Error);
             return false;
         }
+        const bool bChanged=Pool.HpP2!=Pools.HpP2 || Pool.MpP2!=Pools.MpP2;
+        Pool.HpP2=Pools.HpP2;
+        Pool.MpP2=Pools.MpP2;
+        Body.HpRegenMicroP2=Pools.HpMicroP2;
+        Body.MpRegenMicroP2=Pools.MpMicroP2;
         Body.RegenThroughMs=NowMs;
-        if (Pool.HpP2!=HpBefore || Pool.MpP2!=MpBefore)
+        if (bChanged)
         {
             ++Pool.Revision;
             MarkViewChanged(Body.Victim.EntityId);

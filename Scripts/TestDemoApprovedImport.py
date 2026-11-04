@@ -75,6 +75,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "600"),
             ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "18"),
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
+            ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
@@ -273,6 +275,10 @@ class ApprovedDemoData(unittest.TestCase):
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
         self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
+        # D24: the opening offer is two of four basic attribute cards (not attr_focus) plus one passive.
+        self.assertEqual(self.data["progression"]["opening_offer"],
+                         {"attribute_ids": ("attr_might", "attr_reach", "attr_resolve", "attr_vitality"),
+                          "attribute_count": 2, "passive_count": 1})
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
             ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 416, 900, 3000, 25000, 40, 30, 1250),
             ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 451, 1100, 4000, 65000, 160, 120, 1539),

@@ -15,6 +15,7 @@ class FLDDemoContentSnapshot;
 struct FLDDemoAbilityDefinition;
 struct FLDDemoEquipmentDefinition;
 struct FLDDemoRankDefinition;
+namespace LDTactical { struct FOutOfCombatRecovery; }
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
 
@@ -213,6 +214,7 @@ private:
     friend class FLDRewardSettlementTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
+    friend class FLDCombatRecoveryTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -273,6 +275,8 @@ private:
     bool AdvanceProjectiles(FString& Error);
     void ExpireStatuses(int64 NowMs);
     bool Regenerate(int64 NowMs, FString& Error);
+    // Settles every living body through NowMs; only contender bodies receive the D21 Recovery.
+    bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error);
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
 
     // ---- Sources (LDCombatSources.cpp).

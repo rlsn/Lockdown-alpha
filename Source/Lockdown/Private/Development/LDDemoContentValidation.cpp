@@ -239,6 +239,33 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
+    // A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate (LDTactical::SettleRegen).
+    for (const int64 Bp : {P.OutOfCombatMaxHPRegenBp, P.OutOfCombatMaxMPRegenBp})
+    {
+        if (!Check.Require(P.OutOfCombatRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("REGEN"),
+            TEXT("out-of-combat recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))
+        {
+            return false;
+        }
+    }
+    const FLDDemoProgressionDefinition& Opening = D.Progression;
+    int32 Passives = 0;
+    for (const auto& Ability : D.Abilities) { Passives += Ability.Kind == ELDDemoAbilityKind::Passive ? 1 : 0; }
+    for (const FString& Id : Opening.OpeningAttributeIds)
+    {
+        if (!Check.Require(D.Attributes.ContainsByPredicate([&Id](const FLDDemoAttributeDefinition& Row) { return Row.Id == Id; }),
+            TEXT("progression.opening_offer"), TEXT("opening offer names an unknown attribute card")))
+        {
+            return false;
+        }
+    }
+    if (!Check.Require(Opening.OpeningAttributeCount >= 0 && Opening.OpeningPassiveCount >= 0
+        && Opening.OpeningAttributeCount + Opening.OpeningPassiveCount == 3
+        && Opening.OpeningAttributeCount <= Opening.OpeningAttributeIds.Num() && Opening.OpeningPassiveCount <= Passives,
+        TEXT("progression.opening_offer"), TEXT("opening offer cannot draw three distinct cards from its attributes and passives")))
+    {
+        return false;
+    }
     int64 TotalXP = 0;
     if (!Check.Require(D.Progression.XPThresholds[0] == 0, TEXT("progression"), TEXT("level one starts at zero XP")))
     {

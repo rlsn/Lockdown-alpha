@@ -165,7 +165,9 @@ def parameter_projection(parameters):
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.HoldSec", "CaptureHoldMs"), ("TIMING.DefendRouteBudgetSec", "DefendRouteBudgetMs"),
         ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("SHOP.SellRatio", "SellRatioBp"),
+        ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
+        ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
+        ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
@@ -237,11 +239,14 @@ def expected_projection(compilation):
                         "Effects": [effect(item) for item in row["passive"]["effects"]] if row["passive"] else []},
         } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
-        "Progression": {dest: data["progression"][source] for source, dest in (
+        "Progression": {**{dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("max_choices", "MaxChoices"), ("max_skill_rank", "MaxSkillRank"),
             ("active_slots", "ActiveSlots"), ("equipment_slots", "EquipmentSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
-        )},
+        )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
+            ("attribute_ids", "OpeningAttributeIds"), ("attribute_count", "OpeningAttributeCount"),
+            ("passive_count", "OpeningPassiveCount"),
+        )}},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_id", "ShopId"), ("capture_id", "CaptureId"),
         )},
@@ -472,6 +477,9 @@ def export(output, *, rank_mutations=True):
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")
     bad_content("build_envelope", lambda d: d["attributes"][0]["stats"]["APFlat"].update({"p2": d["parameters"]["STAT.AP.Max"]["p2"]}), "build")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
+    bad_content("unknown_opening_attribute", lambda d: d["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_absent"), "opening offer")
+    bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"attribute_count": 3}), "opening offer")
+    bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_active", lambda d: d["equipment"][0].update({"active": None}), "presence")

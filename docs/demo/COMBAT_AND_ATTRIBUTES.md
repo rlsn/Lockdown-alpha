@@ -310,6 +310,9 @@ Prepare 本身不偷偷 Tick；死亡/新生命清瞬时余数。
 时钟事件先结清旧速率到实际发生时刻，再切换有效速率，不另取帧 dt 默认值。
 正常复活时以该次复活的实际时刻初始化新身体的脱战时间起点，不沿用上一生命的就绪窗口；
 这不修改已保留的技能/装备 cooldown 或普攻端点。
+D21 人人脱战慢回复用同一 LastCombatAt：参赛者身体满 `REGEN.OutOfCombatDelaySec` 后另加按当前 Max 比例的 HP/MP 恢复，
+与上述被动额外回复各按自己的延迟起算、相互叠加；野怪身体不享有。实现为纯规则 `LDTactical::SettleRegen`
+（`ALDCombatDirector::Regenerate` 逐身体调用），起点也作为 `NextDueMs` 的精确边界。
 
 ## 5. 来源、独立冷却与反套利
 

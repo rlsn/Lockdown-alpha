@@ -889,11 +889,13 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             }
             Out.Cues=CueFactsOf(*Body);
             Out.bRooted=LDTactical::RootBlocks(Body->Roots,NowMs,Policies,ELDDemoRootBlock::Move);
+            // The passive bonus or the D21 contender recovery (this view is a contender's) is running.
+            Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
+                Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);
             if (Projection.OutOfCombatHPRegen.IsSet())
             {
-                const int64 DelayMs=Projection.OutOfCombatHPRegen->DelayMs;
-                Out.bOutOfCombatRegenActive=DelayMs>=0 && Body->LastCombatAtMs<=MAX_int64-DelayMs
-                    && NowMs>=Body->LastCombatAtMs+DelayMs;
+                Out.bOutOfCombatRegenActive|=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
+                    Projection.OutOfCombatHPRegen->DelayMs,NowMs);
             }
         }
     }

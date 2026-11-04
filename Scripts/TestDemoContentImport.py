@@ -467,6 +467,31 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation, "UnknownField|BuildEnvelope")
 
+    def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
+        for mutation, code in (
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_unknown"), "InvalidReference|OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].reverse(), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].append("attr_might"), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=3), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=0, passive_count=3), None),
+            (lambda data: data["progression"]["opening_offer"].pop("passive_count"), "MissingField"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
+            (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
+            (lambda data: data["parameters"].pop("REGEN.OutOfCombatDelaySec"), "MissingField"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                if code is None:
+                    # Three passives exist in the fixture, so an all-passive opening is a valid composition.
+                    changed = deepcopy(self.author)
+                    mutation(changed)
+                    (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
+                    demo.compile_author(self.root)
+                else:
+                    self.assert_refused(mutation, code)
+
     def test_build_bounds_zero_gain_arbitrage_and_xp_consistency_refuse(self):
         for mutation in (
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=150),

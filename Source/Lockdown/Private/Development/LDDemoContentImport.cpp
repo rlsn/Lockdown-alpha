@@ -186,6 +186,9 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("MATCH.DevelopmentSec"), TEXT("ms"), TEXT("ms"), &P.DevelopmentMs, 0, MAX_int64},
         {TEXT("LIFE.RespawnSec"), TEXT("ms"), TEXT("ms"), &P.RespawnMs, 1, MAX_int64},
         {TEXT("LIFE.ProtectionSec"), TEXT("ms"), TEXT("ms"), &P.ProtectionMs, 0, MAX_int64},
+        {TEXT("REGEN.OutOfCombatDelaySec"), TEXT("ms"), TEXT("ms"), &P.OutOfCombatRegenDelayMs, 1, MAX_int64},
+        {TEXT("REGEN.OutOfCombatMaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxHPRegenBp, 0, 10000},
+        {TEXT("REGEN.OutOfCombatMaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.OutOfCombatMaxMPRegenBp, 0, 10000},
         {TEXT("SHOP.SellRatio"), TEXT("ratio"), TEXT("bp"), &P.SellRatioBp, 0, 10000},
         {TEXT("AI.RetreatHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.RetreatHPBp, 0, 10000},
         {TEXT("AI.ResumeFarmHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ResumeFarmHPBp, 0, 10000},
@@ -875,6 +878,28 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
             }
             Pair.Value->Add(Number);
         }
+    }
+    FFields Opening(Check, F.Take(TEXT("opening_offer")), TEXT("content.progression.opening_offer"));
+    const TArray<FValue>* OpeningIds;
+    if (!Array(Opening.Take(TEXT("attribute_ids")), OpeningIds, Check, Opening.Path, 1, 64))
+    {
+        return false;
+    }
+    for (const auto& Row : *OpeningIds)
+    {
+        FString Name;
+        if (!String(Row, Name, Check, Opening.Path, 1, 63) || !Id(Name, Check, Opening.Path)
+            || !Check.Require(Out.OpeningAttributeIds.IsEmpty() || Out.OpeningAttributeIds.Last() < Name, Opening.Path,
+                TEXT("duplicate or unsorted opening offer attribute")))
+        {
+            return false;
+        }
+        Out.OpeningAttributeIds.Add(MoveTemp(Name));
+    }
+    if (!Opening.SmallInt(TEXT("attribute_count"), Out.OpeningAttributeCount, 0, 3)
+        || !Opening.SmallInt(TEXT("passive_count"), Out.OpeningPassiveCount, 0, 3) || !Opening.Done())
+    {
+        return false;
     }
     return F.Done();
 }

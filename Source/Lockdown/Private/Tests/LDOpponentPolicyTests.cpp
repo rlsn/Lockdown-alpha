@@ -270,6 +270,9 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Pick(Test, C, TEXT("No actives: the first engage role in public catalog order"),
         {}, {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
              Option(3, EKind::LearnActive, TEXT("active_arc_bolt"))}, 3);
+    bGood &= Pick(Test, C, TEXT("A D24 opening offer (two attribute cards and a passive): the new passive is taken"),
+        {}, {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
+             Option(3, EKind::Attribute, TEXT("attr_vitality"))}, 2);
     const auto& Attributes = C.Get().Attributes;
     const FString* First = nullptr;
     uint32 FirstOption = 0;

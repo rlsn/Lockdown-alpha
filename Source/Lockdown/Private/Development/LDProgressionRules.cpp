@@ -78,6 +78,28 @@ void ProgressionSortBuild(FLDGrowthBuild& Build)
     Build.Skills.Sort([](const FLDLearnedSkill& A, const FLDLearnedSkill& B) { return ProgressionIdLess(A.Id, B.Id); });
     Build.Cards.Sort([](const FLDAttributeCardCount& A, const FLDAttributeCardCount& B) { return ProgressionIdLess(A.Id, B.Id); });
 }
+
+using FProgressionRows = TArray<int32, TInlineAllocator<32>>;
+
+// Uniform draw of Count rows without replacement from the Pool indices in Remaining, continuing State.
+ELDGrowthReason ProgressionDrawDistinct(const TArray<LDProgression::FLegalOption>& Pool, FProgressionRows Remaining, int32 Count,
+    int64 Weight, uint64& State, TArray<LDProgression::FLegalOption>& Out)
+{
+    for (int32 Draw = 0; Draw < Count; ++Draw)
+    {
+        int64 Total = 0;
+        if (!ProgressionCheckedMul(Weight, Remaining.Num(), Total) || Total <= 0)
+        {
+            return ELDGrowthReason::ArithmeticOverflow;
+        }
+        // One approved positive weight for every option: the weighted pick is uniform over remaining rows.
+        const uint64 Roll = ProgressionSplitMix64(State) % uint64(Total);
+        const int32 Pick = int32(Roll / uint64(Weight));
+        Out.Add(Pool[Remaining[Pick]]);
+        Remaining.RemoveAt(Pick);
+    }
+    return ELDGrowthReason::None;
+}
 }
 
 const FLDLearnedSkill* FLDGrowthBuild::FindSkill(FName Id) const
@@ -245,26 +267,88 @@ ELDGrowthReason LDProgression::DrawThree(const TArray<FLegalOption>& Pool, int64
     {
         return ELDGrowthReason::DataInvalid;
     }
-    TArray<int32, TInlineAllocator<32>> Remaining;
+    FProgressionRows Remaining;
     for (int32 Index = 0; Index < Pool.Num(); ++Index)
     {
         Remaining.Add(Index);
     }
     uint64 State = Seed;
-    for (int32 Draw = 0; Draw < 3; ++Draw)
+    const ELDGrowthReason Reason = ProgressionDrawDistinct(Pool, MoveTemp(Remaining), 3, Weight, State, Out);
+    if (Reason != ELDGrowthReason::None)
     {
-        int64 Total = 0;
-        if (!ProgressionCheckedMul(Weight, Remaining.Num(), Total) || Total <= 0)
+        Out.Reset();
+    }
+    return Reason;
+}
+
+ELDGrowthReason LDProgression::OpeningCandidates(const FLDDemoProgressionDefinition& Progression, const TArray<FLegalOption>& Pool,
+    TArray<int32>& OutAttributes, TArray<int32>& OutPassives)
+{
+    OutAttributes.Reset();
+    OutPassives.Reset();
+    if (Progression.OpeningAttributeCount < 0 || Progression.OpeningPassiveCount < 0
+        || Progression.OpeningAttributeCount + Progression.OpeningPassiveCount != 3)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    for (int32 Index = 0; Index < Pool.Num(); ++Index)
+    {
+        const FLegalOption& Row = Pool[Index];
+        if (Row.Kind == ELDChoiceOptionKind::Attribute && Progression.OpeningAttributeIds.ContainsByPredicate(
+            [&Row](const FString& Id) { return FName(*Id) == Row.DefinitionId; }))
         {
-            return ELDGrowthReason::ArithmeticOverflow;
+            OutAttributes.Add(Index);
         }
-        // One approved positive weight for every option: the weighted pick is uniform over remaining rows.
-        const uint64 Roll = ProgressionSplitMix64(State) % uint64(Total);
-        const int32 Pick = int32(Roll / uint64(Weight));
-        Out.Add(Pool[Remaining[Pick]]);
-        Remaining.RemoveAt(Pick);
+        else if (Row.Kind == ELDChoiceOptionKind::LearnPassive)
+        {
+            OutPassives.Add(Index);
+        }
+    }
+    // A short group is refused explicitly; the opening offer never borrows cards from outside its composition.
+    return OutAttributes.Num() >= Progression.OpeningAttributeCount && OutPassives.Num() >= Progression.OpeningPassiveCount
+        ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
+}
+
+ELDGrowthReason LDProgression::DrawOpening(const FLDDemoProgressionDefinition& Progression, const TArray<FLegalOption>& Pool,
+    int64 Weight, uint64 Seed, TArray<FLegalOption>& Out)
+{
+    Out.Reset();
+    TArray<int32> Attributes;
+    TArray<int32> Passives;
+    const ELDGrowthReason PoolReason = OpeningCandidates(Progression, Pool, Attributes, Passives);
+    if (Weight <= 0 || PoolReason != ELDGrowthReason::None)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    uint64 State = Seed;
+    ELDGrowthReason Reason = ProgressionDrawDistinct(Pool, FProgressionRows(Attributes), Progression.OpeningAttributeCount,
+        Weight, State, Out);
+    if (Reason == ELDGrowthReason::None)
+    {
+        Reason = ProgressionDrawDistinct(Pool, FProgressionRows(Passives), Progression.OpeningPassiveCount, Weight, State, Out);
+    }
+    if (Reason != ELDGrowthReason::None)
+    {
+        Out.Reset();
+        return Reason;
+    }
+    // The card positions are shuffled too, so the passive is not always the last card.
+    for (int32 Index = Out.Num() - 1; Index > 0; --Index)
+    {
+        Out.Swap(Index, int32(ProgressionSplitMix64(State) % uint64(Index + 1)));
     }
     return ELDGrowthReason::None;
+}
+
+ELDGrowthReason LDProgression::DrawOffer(const FLDDemoProgressionDefinition& Progression, const TArray<FLegalOption>& Pool,
+    uint8 Ordinal, int64 Weight, uint64 Seed, TArray<FLegalOption>& Out)
+{
+    if (Ordinal == 0)
+    {
+        Out.Reset();
+        return ELDGrowthReason::DataInvalid;
+    }
+    return Ordinal == 1 ? DrawOpening(Progression, Pool, Weight, Seed, Out) : DrawThree(Pool, Weight, Seed, Out);
 }
 
 uint64 LDProgression::OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal)

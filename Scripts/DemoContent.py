@@ -541,6 +541,17 @@ def validate_definitions(data, ids):
                 and set(attribute["stats"]) == attribute_stats[attribute["id"]],
                 "UnknownField", attribute["id"], "attribute definition does not declare these stats")
         _positive_stats(attribute["stats"], attribute["id"])
+    opening = data["progression"]["opening_offer"]
+    opening_ids = opening["attribute_ids"]
+    require(opening_ids == sorted(set(opening_ids)), "OpeningOffer", "progression.opening_offer",
+            "opening attribute ids must be distinct and sorted")
+    require(set(opening_ids) <= {row["id"] for row in data["attributes"]}, "InvalidReference",
+            "progression.opening_offer", "opening attribute ids must name attribute cards")
+    passives = sum(1 for row in data["abilities"] if row["kind"] == "passive")
+    require(opening["attribute_count"] + opening["passive_count"] == 3
+            and opening["attribute_count"] <= len(opening_ids) and opening["passive_count"] <= passives,
+            "OpeningOffer", "progression.opening_offer",
+            "the opening offer must draw three distinct cards from its attribute ids and the passive pool")
 
     item_stats = {
         "item_iron_plate": {"MaxHPFlat", "ArmorFlat"},
@@ -666,6 +677,10 @@ def validate_numbers(data):
     require(0 < params["UNIT.BasicAttackWindupSec"]["ms"] < interval,
             "InvalidTiming", "basic_attack", "windup must be shorter than attack interval")
     data["character"]["basic_attack"]["interval_ms"] = interval
+    for key in ("REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec"):
+        # A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate.
+        require(params[key]["bp"] > 0 and params[key]["bp"] % 10 == 0, "NumericDomain", key,
+                "out-of-combat recovery must be a positive multiple of 0.001 of the maximum per second")
     require(p("AI.RetreatHPRatio") < p("AI.ResumeFarmHPRatio") <= p("AI.HighCampEntryHPRatio"),
             "InvalidPolicy", "AI", "retreat/resume/high-camp thresholds are inconsistent")
     require(p("AI.LowCampReserveHPRatio") <= p("AI.HighCampReserveHPRatio") < p("AI.HighCampEntryHPRatio"),
