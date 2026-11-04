@@ -44,7 +44,7 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave"))
+                       "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave", "dash_boost"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -563,11 +563,11 @@ def validate_definitions(data, ids):
         "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
     }
     item_actives = {
-        "item_phase_anchor": ("DirectionDash", {"dash"}, "cd_phase_anchor"),
         "item_arcane_battery": ("Self", {"restore_mana", "shield"}, "cd_arcane_battery"),
     }
     item_passives = {
         "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),
+        "item_phase_anchor": ("passive_stride", {"dash_boost"}),
         "item_echo_maul": ("passive_cleave", {"cleave"}),
     }
     passive_families = {}
@@ -595,6 +595,13 @@ def validate_definitions(data, ids):
             previous = passive_families.setdefault(family, passive["effects"])
             require(previous == passive["effects"], "PassiveConflict", identity, "same family has different terms")
             for effect in passive["effects"]:
+                if effect["op"] == "dash_boost":
+                    # D20: the innate dash cooldown is multiplied by cooldown_ratio and its distance by 1 + distance_bonus.
+                    require(quantity(effect["cooldown_ratio"]) > 0, "NumericDomain", identity,
+                            "a dash cooldown ratio must keep a positive cooldown")
+                    require(quantity(effect["cooldown_ratio"]) < 1 or quantity(effect["distance_bonus"]) > 0,
+                            "IneffectiveEffect", identity, "dash boost changes neither cooldown nor distance")
+                    continue
                 require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "passive ratio must be positive")
                 if effect["op"] == "cleave":
                     require(quantity(effect["radius"]) > 0, "NumericDomain", identity, "cleave radius must be positive")
@@ -673,6 +680,10 @@ def validate_numbers(data):
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
     require(quantity(data["character"]["basic_attack"]["ad_ratio"]) == 1,
             "NumericDomain", "basic_attack", "initial basic damage is exactly AD")
+    dash = data["character"]["dash"]
+    require(quantity(dash["distance"]) > 0, "InvalidGeometry", "character.dash", "dash distance must be positive")
+    require(dash["duration"]["ms"] < dash["cooldown"]["ms"], "InvalidTiming", "character.dash",
+            "dash must end before its cooldown does")
     interval = ceil_fraction(1000 / p("STAT.BaseAttackSpeed"), "basic attack interval")
     require(0 < params["UNIT.BasicAttackWindupSec"]["ms"] < interval,
             "InvalidTiming", "basic_attack", "windup must be shorter than attack interval")

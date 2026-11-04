@@ -307,8 +307,9 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     FActionView View;
     View.Slot=Input.Slot;View.Key=Context.KeyLabel;
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W;
-    View.Kind=bLearned?TEXT("角色主动"):TEXT("装备主动");
-    View.Name=!Input.bHasSource?FString(bLearned?TEXT("空槽"):TEXT("无装备"))
+    const bool bDash=Input.Slot==EActionSlot::Dash;
+    View.Kind=bLearned?TEXT("角色主动"):bDash?TEXT("通用冲刺"):TEXT("装备主动");
+    View.Name=!Input.bHasSource?FString(bLearned?TEXT("空槽"):bDash?TEXT("冲刺不可用"):TEXT("无装备"))
         :bLearned&&Input.Rank>0?FString::Printf(TEXT("%s %d级"),*Input.Name,Input.Rank):Input.Name;
     // Only a current own context may send; a predicted execution failure never suppresses the intent itself.
     View.bCanSubmitIntent=Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
@@ -337,7 +338,8 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("胆量 %lld"),HudWholePoints(Input.ManaCostP2,false));}
     View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
     if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n胆量消耗 %lld"),HudWholePoints(Input.ManaCostP2,false));}
-    if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
+    if(bDash&&Input.bHasSource){View.Tooltip+=FString::Printf(TEXT("\n朝方向冲出 %dcm，碰到阻挡就停下；被定身时不能冲刺；释放后的冷却不因换装改变"),Input.RangeCm);}
+    else if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
     if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
 }
@@ -462,6 +464,8 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::Lifesteal: return TEXT("弹脑瓜崩造成的面子损失的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" 最大胆量");
+    case ELDDemoEffectOp::DashBoost:
+        return TEXT("冲刺冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，冲刺距离 +")+HudPercent(Effect.DistanceBonusBp);
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" 皮肉伤副击");
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
@@ -656,7 +660,9 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     FActionInput Input;
     Input.Slot=Slot;Input.bProjected=true;
     Input.bHasSource=!Entry.DefinitionId.IsNone();
-    if(Input.bHasSource){Input.Name=ContentName(Content,Entry.DefinitionId.ToString());}
+    // The innate dash is no content definition with display text; its slot names the action itself.
+    if(Input.bHasSource){Input.Name=Slot==EActionSlot::Dash?FString(TEXT("冲刺")):ContentName(Content,Entry.DefinitionId.ToString());}
+    Input.RangeCm=Entry.RangeCm;
     Input.Rank=Entry.Rank;Input.bHasActive=Entry.bHasActive;Input.ManaCostP2=Entry.ManaCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
@@ -711,6 +717,7 @@ FString LDHUD::EntryLabel(ELDCombatEntry Entry)
     case ELDCombatEntry::W: return TEXT("角色技能 2");
     case ELDCombatEntry::Item1: return TEXT("装备 1");
     case ELDCombatEntry::Item2: return TEXT("装备 2");
+    case ELDCombatEntry::Dash: return TEXT("冲刺");
     default: return TEXT("动作");
     }
 }
@@ -727,7 +734,8 @@ FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
 }
 FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
 {
-    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2;
+    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2
+        ||Receipt.Entry==ELDCombatEntry::Dash;
     if(!bSlot||Receipt.Phase!=ELDCombatPhase::Rejected||Receipt.Origin!=ELDCombatRequestOrigin::Direct
         ||Receipt.Reject==ELDCombatReject::None||Receipt.Reject==ELDCombatReject::Cancelled){return FString();}
     return CombatRejectText(Receipt.Reject);

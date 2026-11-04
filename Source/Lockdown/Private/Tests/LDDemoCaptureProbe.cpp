@@ -548,7 +548,9 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         TEXT("R03"), TEXT("Level, XP and gold are the content's opening values (start level, XP.Start, SHOP.StartingGold)"));
     bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
     for (const FLDEquipmentSlotView& Slot : Equipment.Slots) { bSlotsEmpty &= !Slot.bOccupied; }
-    const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry) { return !Entry.DefinitionId.IsNone(); });
+    // Only the innate D dash, which every contender holds, may name a source at a fresh start.
+    const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
+    { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
     Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
         && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
         && bSlotsEmpty && bNoEntries && Own.EquipmentPassives.IsEmpty() && PC.ReadOwnShop() == nullptr,
@@ -557,7 +559,11 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
         TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));
     const bool bTracksReady = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& Entry)
-    { return Entry.IssuedCooldownId.IsValid() || Entry.ReadyAtMs > Own.AsOfMs; });
+    {
+        // The dash track is issued fresh for every match: ready, with no duration issued yet.
+        return Entry.Entry == ELDCombatEntry::Dash ? Entry.CooldownMs != 0 || Entry.ReadyAtMs > Own.AsOfMs
+            : Entry.IssuedCooldownId.IsValid() || Entry.ReadyAtMs > Own.AsOfMs;
+    });
     Check(bTracksReady && Own.NextAttackAtMs <= Own.AsOfMs && Own.ActionEntry == ELDCombatEntry::None
         && Own.ActionPhase == ELDCombatPhase::Finished,
         TEXT("R06"), TEXT("Every cooldown source is ready with no issued cooldown track carried from the first match"));

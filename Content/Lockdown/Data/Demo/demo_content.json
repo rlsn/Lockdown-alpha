@@ -814,6 +814,25 @@
       "interval_ms": 1112,
       "target_mode": "Unit"
     },
+    "dash": {
+      "cooldown": {
+        "ms": 18000,
+        "unit": "ms"
+      },
+      "distance": {
+        "denominator": 1,
+        "numerator": 300,
+        "unit": "cm"
+      },
+      "duration": {
+        "ms": 200,
+        "unit": "ms"
+      },
+      "mana_cost": {
+        "p2": 0,
+        "unit": "mp"
+      }
+    },
     "id": "character_demo",
     "native_id": 1
   },
@@ -947,7 +966,7 @@
     },
     {
       "description_key": "item_phase_anchor.description",
-      "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。",
+      "description_text": "提高腿速。被动「助跑」：穿着时冲刺的冷却缩短、冲得更远；两双同款只算一次。",
       "icon_id": "icon_item_phase_anchor",
       "id": "item_phase_anchor",
       "name_key": "item_phase_anchor.name",
@@ -1183,46 +1202,27 @@
       }
     },
     {
-      "active": {
-        "cooldown_family": "cd_phase_anchor",
-        "rank": {
-          "cooldown": {
-            "ms": 28000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "distance": {
-                "denominator": 1,
-                "numerator": 450,
-                "unit": "cm"
-              },
-              "duration": {
-                "ms": 250,
-                "unit": "ms"
-              },
-              "op": "dash",
-              "opcode": 8
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "DirectionDash"
-        },
-        "windup": {
-          "ms": 0,
-          "unit": "ms"
-        }
-      },
+      "active": null,
       "buy_price": 400,
       "id": "item_phase_anchor",
       "native_id": 103,
-      "passive": null,
+      "passive": {
+        "effects": [
+          {
+            "cooldown_ratio": {
+              "bp": 5000,
+              "unit": "ratio"
+            },
+            "distance_bonus": {
+              "bp": 5000,
+              "unit": "ratio"
+            },
+            "op": "dash_boost",
+            "opcode": 11
+          }
+        ],
+        "family": "passive_stride"
+      },
       "sell_gold": 260,
       "stats": {
         "MoveSpeedBonusRatio": {

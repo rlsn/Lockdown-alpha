@@ -54,6 +54,8 @@ namespace
     constexpr uint32 PanlessFixtureSchema = 7;
     constexpr uint32 OrientationlessFixtureSchema = 8;
     constexpr uint32 QuickCastlessFixtureSchema = 9;
+    // Schema 10 writes every current preference; only its key list predates the innate D dash.
+    constexpr uint32 DashlessFixtureSchema = 10;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -948,7 +950,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Item1"), TEXT("Item2"), TEXT("Stop"), TEXT("Attributes"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -964,9 +966,10 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
-    TestTrue(TEXT("Spec defaults: Q/W abilities, 1/2 equipment, A attack-move, P attributes, S stop, Esc back"),
+    TestTrue(TEXT("Spec defaults: Q/W abilities, 1/2 equipment, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
         && Settings->Key(TEXT("Item1")) == EKeys::One && Settings->Key(TEXT("Item2")) == EKeys::Two
+        && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape);
     FString Error;
@@ -1399,6 +1402,44 @@ bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
         Write(Bad);
         TestTrue(TEXT("A malformed quick cast flag is corrupt"), ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
     }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsDashMigrationTest, "Lockdown.Rules.LocalSettingsDashMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit dash fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("阴人王");
+    Values->bQuickCast = true;
+    Values->Bindings.Remove(TEXT("Dash"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, DashlessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 10 file keeps every preference and binding and takes the default D for the new dash"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("Dash")) == EKeys::D && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Migrated.Settings->GetQuickCast() && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(TEXT("冲刺键使用默认值")));
+    TestTrue(TEXT("The migrated values are dirty until the next verified save"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && !Migrated.Settings->NeedsRecovery());
+
+    Write(FixtureBytes(*Values, QuickCastlessFixtureSchema, 0));
+    const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("An older migrated layout also takes the default dash key"),
+        Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings && Older.Settings->Key(TEXT("Dash")) == EKeys::D
+        && Older.Message.Contains(TEXT("快速施法默认关闭")) && Older.Message.Contains(TEXT("冲刺键使用默认值")));
+
+    // The player already put D on another action: the dash is never given a colliding key or another key silently.
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::D);
+    Write(FixtureBytes(*Values, DashlessFixtureSchema, 0));
+    const auto Taken = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A layout holding D elsewhere is refused with recovery, naming the missing dash"),
+        Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
+        && Taken.Message.Contains(TEXT("Dash")));
     return true;
 }
 #endif

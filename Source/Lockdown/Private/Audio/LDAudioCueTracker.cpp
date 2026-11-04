@@ -170,7 +170,7 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
         CastKeys.Reset();
     }
     const bool bActive = Receipt.Entry == ELDCombatEntry::Q || Receipt.Entry == ELDCombatEntry::W
-        || Receipt.Entry == ELDCombatEntry::Item1 || Receipt.Entry == ELDCombatEntry::Item2;
+        || Receipt.Entry == ELDCombatEntry::Item1 || Receipt.Entry == ELDCombatEntry::Item2 || Receipt.Entry == ELDCombatEntry::Dash;
     const bool bReleased = Receipt.Reject == ELDCombatReject::None
         && (Receipt.Phase == ELDCombatPhase::Released || Receipt.Phase == ELDCombatPhase::Finished);
     if (!bActive || !bReleased) { return; }

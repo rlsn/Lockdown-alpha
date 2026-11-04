@@ -228,8 +228,9 @@ private:
             {
                 for (const FLDDemoEffectDefinition& Effect : Item.Passive.Effects)
                 {
-                    // Approved equipment passives are combat triggers and contribute no attribute terms.
-                    if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave)
+                    // Approved equipment passives are combat triggers or innate-dash terms and contribute no attribute terms.
+                    if (Effect.GetOp() != ELDDemoEffectOp::Lifesteal && Effect.GetOp() != ELDDemoEffectOp::Cleave
+                        && Effect.GetOp() != ELDDemoEffectOp::DashBoost)
                     {
                         return Refuse(EError::Catalog, Field,
                             Item.Id + TEXT(" has an equipment passive effect without an attribute projection rule"));

@@ -260,6 +260,10 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 RatioBp = 0;
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
+    // DashBoost (D20): the innate dash cooldown is multiplied by CooldownRatioBp/10000 and its distance by
+    // (10000+DistanceBonusBp)/10000.
+    UPROPERTY() int64 CooldownRatioBp = 0;
+    UPROPERTY() int64 DistanceBonusBp = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
@@ -351,6 +355,9 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() ELDDemoDamageType BasicDamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 BasicADRatioBp = 0;
     UPROPERTY() int64 BasicIntervalMs = 0;
+    // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
+    // no windup, one rank with the approved mana cost, cooldown and a single Dash effect.
+    UPROPERTY() FLDDemoEquipmentActive Dash;
 };
 
 USTRUCT()

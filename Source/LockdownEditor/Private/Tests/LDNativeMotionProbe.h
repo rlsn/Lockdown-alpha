@@ -31,6 +31,8 @@ public:
     bool PrepareGround();
     void TraceWalking(const FVector& InVelocity, float Seconds);
     void TraceUnrecordedMove();
+    // Applies the production dash root motion and integrates it in fixed native steps outside any capture scope.
+    bool TraceDash(const FVector& Direction, double DistanceCm, double DurationSeconds, float StepSeconds, int32 Steps, FString& Error);
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;
     virtual bool StepUp(const FVector& GravDir, const FVector& Delta, const FHitResult& InHit, FStepDownResult* OutStepDownResult) override;
     virtual float SlideAlongSurface(const FVector& Delta, float Time, const FVector& Normal, FHitResult& Hit, bool HandleImpact) override;

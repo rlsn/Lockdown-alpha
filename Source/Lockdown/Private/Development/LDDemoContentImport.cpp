@@ -49,6 +49,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "dash", ELDDemoEffectOp, Dash),
     DEMO_ID("effect_ops", "restore_mana", ELDDemoEffectOp, RestoreMana),
     DEMO_ID("effect_ops", "cleave", ELDDemoEffectOp, Cleave),
+    DEMO_ID("effect_ops", "dash_boost", ELDDemoEffectOp, DashBoost),
 };
 #undef DEMO_ID
 
@@ -522,6 +523,14 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             return false;
         }
         break;
+    case ELDDemoEffectOp::DashBoost:
+        if (!F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.CooldownRatioBp, 1, 10000)
+            || !F.Fixed(TEXT("distance_bonus"), TEXT("ratio"), TEXT("bp"), Out.DistanceBonusBp)
+            || !Check.Require(Out.CooldownRatioBp < 10000 || Out.DistanceBonusBp > 0, Path, TEXT("ineffective dash boost")))
+        {
+            return false;
+        }
+        break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented effect projection"));
     }
@@ -680,8 +689,8 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
         ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::MagicResistFlat);
         PassiveFamily = TEXT("passive_siphon"); PassiveOps = OpBit(ELDDemoEffectOp::Lifesteal); break;
     case ELDDemoEquipmentId::ItemPhaseAnchor:
-        ExpectedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio); Mode = ELDDemoTargetMode::DirectionDash;
-        ActiveFamily = TEXT("cd_phase_anchor"); ActiveOps = OpBit(ELDDemoEffectOp::Dash); break;
+        ExpectedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
+        PassiveFamily = TEXT("passive_stride"); PassiveOps = OpBit(ELDDemoEffectOp::DashBoost); break;
     case ELDDemoEquipmentId::ItemArcaneBattery:
         ExpectedStats = Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::MagicResistFlat);
         ActiveFamily = TEXT("cd_arcane_battery"); ActiveOps = OpBit(ELDDemoEffectOp::RestoreMana) | OpBit(ELDDemoEffectOp::Shield); break;
@@ -935,7 +944,23 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Basic(Check, Character.Take(TEXT("basic_attack")), TEXT("content.character.basic_attack"));
     if (!Basic.Literal(TEXT("target_mode"), TEXT("Unit")) || !Basic.Literal(TEXT("damage_type"), TEXT("Physical"))
         || !Basic.Fixed(TEXT("ad_ratio"), TEXT("ratio"), TEXT("bp"), Out.Character.BasicADRatioBp, 10000, 10000)
-        || !Basic.Int(TEXT("interval_ms"), Out.Character.BasicIntervalMs, 1) || !Basic.Done() || !Character.Done()
+        || !Basic.Int(TEXT("interval_ms"), Out.Character.BasicIntervalMs, 1) || !Basic.Done())
+    {
+        return false;
+    }
+    // D19: the innate dash is projected into the single-rank active shape Combat executes for every source.
+    FFields Dash(Check, Character.Take(TEXT("dash")), TEXT("content.character.dash"));
+    FLDDemoEquipmentActive& InnateDash = Out.Character.Dash;
+    FLDDemoEffectDefinition& DashMove = InnateDash.Rank.Effects.AddDefaulted_GetRef();
+    InnateDash.Target.Mode = ELDDemoTargetMode::DirectionDash;
+    InnateDash.Rank.Rank = 1;
+    DashMove.Opcode = uint8(ELDDemoEffectOp::Dash);
+    if (!Dash.Fixed(TEXT("mana_cost"), TEXT("mp"), TEXT("p2"), InnateDash.Rank.ManaCostP2)
+        || !Dash.Fixed(TEXT("cooldown"), TEXT("ms"), TEXT("ms"), InnateDash.Rank.CooldownMs, 1)
+        || !Dash.Fraction(TEXT("distance"), TEXT("cm"), DashMove.DistanceCm, true)
+        || !Dash.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), DashMove.DurationMs, 1)
+        || !Check.Require(DashMove.DurationMs < InnateDash.Rank.CooldownMs, Dash.Path, TEXT("dash outlasts its cooldown"))
+        || !Dash.Done() || !Character.Done()
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 6, Ability)
         || !Definitions(F.Take(TEXT("attributes")), Out.Attributes, Check, TEXT("content.attributes"), 3, 5, Attribute)
         || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 7, Equipment)

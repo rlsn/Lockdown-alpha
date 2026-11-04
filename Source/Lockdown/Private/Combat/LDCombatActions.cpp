@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -23,7 +24,10 @@ namespace LDCA
     { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
 
     bool IsContenderEntry(ELDCombatEntry Entry)
-    { return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2; }
+    {
+        return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2
+            || Entry==ELDCombatEntry::Dash;
+    }
 
     bool SameTerms(const FLDCombatActionRequest& A, const FLDCombatActionRequest& B)
     {
@@ -39,9 +43,6 @@ namespace LDCA
         return !Direction.ContainsNaN() && FMath::Abs(Direction.Z)<=0.01
             && FMath::IsNearlyEqual(Direction.Size2D(),1.,0.02);
     }
-
-    const FLDDemoRankDefinition* FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank)
-    { return Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& Candidate) { return Candidate.Rank==Rank; }); }
 
     const FLDDemoEffectDefinition* FindEffect(const FLDDemoRankDefinition& Rank, ELDDemoEffectOp Op)
     { return Rank.Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==Op; }); }
@@ -446,7 +447,8 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (Body->Victim.Life!=Request.Life) { return Refuse(ELDCombatReject::StaleLife); }
     const int64 Now=Mode->GetAuthorityNowMs();
     const FLDCombatBodyRef SelfRef{Body->Victim,Body->Identity};
-    if (Record.Kind==ELDVictimKind::Contender)
+    // The innate D dash is movement, not an aggressive intent (APP_SPEC 7.1: a protected body may move).
+    if (Record.Kind==ELDVictimKind::Contender && Request.Entry!=ELDCombatEntry::Dash)
     {
         // Every admitted Q/W/1/2 attempt is an aggressive intent: protection ends before the action is checked.
         auto* PC=Mode->FindContenderController(Record.Entity);
@@ -509,15 +511,23 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     if (!ResolveEntry(Record,Request.Entry,Source,Rank,Ability,Equipment)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     if (Request.ExpectedSourceRevision!=Record.SourceRevision) { return Refuse(ELDCombatReject::StaleSource); }
     if (Equipment && !Equipment->HasActive) { return Refuse(ELDCombatReject::NoActiveEffect); }
-    const FLDDemoRankDefinition* RankDef=Ability ? LDCA::FindRank(*Ability,Rank) : Equipment ? &Equipment->Active.Rank : nullptr;
-    const FLDDemoTargetDefinition* TargetDef=Ability ? &Ability->Target : Equipment ? &Equipment->Active.Target : nullptr;
-    const int64 WindupMs=Ability ? Ability->WindupMs : Equipment->Active.WindupMs;
-    if (!RankDef || !TargetDef) { return Refuse(ELDCombatReject::SourceUnavailable); }
-    if (Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability) { return Refuse(ELDCombatReject::Busy); }
+    const FLDDemoRankDefinition* RankDef=nullptr;
+    const FLDDemoTargetDefinition* TargetDef=nullptr;
+    int64 WindupMs=0;
+    if (!ActiveOf(Source,Rank,Ability,Equipment,TargetDef,RankDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     const auto* Track=TrackFor(Record,Request.Entry);
     if (!Track) { Error=TEXT("A held active source has no persistent cooldown track."); return false; }
-    if (Track->ReadyAtMs>Now) { return Refuse(ELDCombatReject::Cooldown); }
-    if (Body->Resources.MpP2<RankDef->ManaCostP2) { return Refuse(ELDCombatReject::InsufficientMana); }
+    FLDActiveGateInput Gate;
+    Gate.NowMs=Now;
+    Gate.ReadyAtMs=Track->ReadyAtMs;
+    Gate.MpP2=Body->Resources.MpP2;
+    Gate.ManaCostP2=RankDef->ManaCostP2;
+    Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash;
+    Gate.Roots=&Body->Roots;
+    Gate.bCheckBusy=true;
+    Gate.bAbilityInProgress=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
+    if (const ELDCombatReject Blocked=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies); Blocked!=ELDCombatReject::None)
+    { return Refuse(Blocked); }
     FLDCombatAction Action;
     Action.Kind=ELDCombatActionKind::Ability;
     Action.Key={ELDCombatRequestOrigin::Direct,Request.Generation,Record.Entity,Request.Life,Request.DirectSequence};
@@ -554,8 +564,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         Action.Direction=FVector(Request.Target.Direction).GetSafeNormal2D();
         if (TargetDef->Mode==ELDDemoTargetMode::DirectionDash)
         {
-            if (LDTactical::RootBlocks(Body->Roots,Now,Content->Get().Policies,ELDDemoRootBlock::Dash))
-            { return Refuse(ELDCombatReject::ControlBlocked); }
             auto* Movement=Cast<ULDCharacterMovementComponent>(Actor->GetCharacterMovement());
             if (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm)) { return Refuse(ELDCombatReject::Blocked); }
         }
@@ -736,12 +744,26 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEquipmentDefinition* Equipment=nullptr;
     if (!ResolveEntry(*Record,Action.Entry,Source,Rank,Ability,Equipment) || Source!=Action.Source || Rank!=Action.Rank)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    const FLDDemoRankDefinition* RankDef=Ability ? LDCA::FindRank(*Ability,Rank) : &Equipment->Active.Rank;
-    const FLDDemoTargetDefinition& TargetDef=Ability ? Ability->Target : Equipment->Active.Target;
+    const FLDDemoRankDefinition* RankDef=nullptr;
+    const FLDDemoTargetDefinition* TargetPtr=nullptr;
+    int64 WindupMs=0;
     auto* Track=TrackFor(*Record,Action.Entry);
-    if (!RankDef || !Track) { Reject=ELDCombatReject::SourceUnavailable; return true; }
-    if (Track->ReadyAtMs>Now) { Reject=ELDCombatReject::Cooldown; return true; }
-    if (Body.Resources.MpP2<RankDef->ManaCostP2) { Reject=ELDCombatReject::InsufficientMana; return true; }
+    if (!ActiveOf(Source,Rank,Ability,Equipment,TargetPtr,RankDef,WindupMs) || !Track)
+    { Reject=ELDCombatReject::SourceUnavailable; return true; }
+    const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
+    // The innate dash takes its distance and cooldown from the equipment passives held at this release (D20).
+    const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
+    FLDInnateDashTerms Innate;
+    if (bInnate && !InnateDashFor(*Record,&Body,Innate,Error)) { return false; }
+    FLDActiveGateInput Gate;
+    Gate.NowMs=Now;
+    Gate.ReadyAtMs=Track->ReadyAtMs;
+    Gate.MpP2=Body.Resources.MpP2;
+    Gate.ManaCostP2=bInnate ? Innate.ManaCostP2 : RankDef->ManaCostP2;
+    Gate.bDash=TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
+    Gate.Roots=&Body.Roots;
+    Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
+    if (Reject!=ELDCombatReject::None) { return true; }
     FLDCombatBodyRef UnitTarget;
     if (TargetDef.Mode==ELDDemoTargetMode::Unit)
     {
@@ -760,17 +782,16 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     }
     auto* Movement=Cast<ULDCharacterMovementComponent>(Actor.GetCharacterMovement());
     const auto* DashEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dash);
-    if (DashEffect && LDTactical::RootBlocks(Body.Roots,Now,Content->Get().Policies,ELDDemoRootBlock::Dash))
-    { Reject=ELDCombatReject::ControlBlocked; return true; }
     if (DashEffect && (!Movement || !Movement->CanStartDash(Action.Direction,LDCA::DashProbeCm)))
     { Reject=ELDCombatReject::Blocked; return true; }
-    // The duration is fixed at the actual release moment; later build changes never move this endpoint.
-    int64 DurationMs=0, ReadyAt=0;
-    if (!LDTactical::CooldownDurationMs(RankDef->CooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
-            Content->Get().Formulas.HasteScaleP2,DurationMs,Error)
+    // The duration is fixed at the actual release moment; later build changes never move this endpoint. The innate
+    // dash issues its whole (possibly boosted) cooldown without haste.
+    int64 DurationMs=bInnate ? Innate.CooldownMs : 0, ReadyAt=0;
+    if ((!bInnate && !LDTactical::CooldownDurationMs(RankDef->CooldownMs,Body.AttributeProjection.Final.CooldownHasteP2,
+            Content->Get().Formulas.HasteScaleP2,DurationMs,Error))
         || !LDMatchLifecycle::AddDurationMs(Now,DurationMs,ReadyAt,Error)) { return false; }
     // Every fallible step is done: pay once and register the effects.
-    Body.Resources.MpP2-=RankDef->ManaCostP2;
+    Body.Resources.MpP2-=Gate.ManaCostP2;
     ++Body.Resources.Revision;
     Track->ReadyAtMs=ReadyAt;
     Track->LastDurationMs=DurationMs;
@@ -856,7 +877,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Dash:
         {
             const double Seconds=double(Effect.DurationMs)/1000.;
-            if (!Movement->StartDemoDash(Action.Direction,LDCA::ToDouble(Effect.DistanceCm),Seconds,Error)) { return false; }
+            const double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm);
+            if (!Movement->StartDemoDash(Action.Direction,Distance,Seconds,Error)) { return false; }
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
             break;
         }

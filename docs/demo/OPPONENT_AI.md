@@ -380,13 +380,25 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 | `active_guard_pulse` | Self；真实效果为屏障并移除本人当前全部 Root 来源。需要防护，或 Root 妨碍脱险/入圈且 Skill/资源/readiness 允许时优先使用；Root 不禁止 Skill，但不能越过其他施法限制。不治疗、不免疫伤害，不清其他控制/CD/死亡或重新保护。 |
 | `active_binding_snare` | Unit；当前可见威胁的观察句柄，执行时重查；不是凭公开占领者 ID 施法。 |
 
-首版七个装备定义逐项绑定；当前只有两种非空 Active，不以一个“会用装备”的泛化断言代替：
+D 键通用冲刺（D19）是每名参赛者的固定来源，AI 经同一 owner view 的 `ELDCombatEntry::Dash` 读到它
+（`ELDOpponentSourceSlot::Dash`），位移距离取权威给出的 `RangeCm`（含跑道钉鞋加成），不在策略里重算；
+冷却、定身与起步阻挡都在 Combat 重验，`bReady` 只取权威的可用原因与 ReadyAt。它在“必要合法机动”这一级使用：
+
+| 时机 | 方向与条件 |
+| --- | --- |
+| 追击 | 正在交战的可见对手参赛者（不是营地野怪）离自己超过“普攻距离 + 半个冲刺”且不超过“普攻距离 + 一个冲刺”，本人未在撤退、未定身：朝其当前可见脚点冲刺，落点在普攻距离内。 |
+| 撤退 | 脱战撤退（低血且有可见威胁）时，朝已选的公开撤退地点冲刺。 |
+| 抢圈 | 公开独占截止时间让回防变得紧急时，朝升旗台冲刺；不紧急的入圈不花冲刺。 |
+
+验收见 `Lockdown.Rules.DemoOpponentPolicy.InnateDash`。
+
+首版七个装备定义逐项绑定；当前只有一种非空 Active，不以一个“会用装备”的泛化断言代替：
 
 | 公开装备定义 | 内容域给定的 typed 能力 | AI 使用与目标规则 |
 | --- | --- | --- |
-| `item_phase_anchor` | Active：Direction/Dash；RangeCm 来自 DashDistanceCm，另有 DashDurationSec/WindupSec/ManaCost/CooldownSec/CooldownFamily | 脱险或合法入圈机动时，从自身到已查询公共合法落脚方向构造有限非零方向；使用目录真实位移范围，落点/沿途几何由世界和同一 Combat/运动边界重验。没有合法方向就不用，不追隐藏 Actor、不直接改坐标。 |
 | `item_arcane_battery` | Active：Self/RestoreMana+Shield；ManaRestoreRatio、ShieldBase/ShieldAPRatio/ShieldDurationSec 及动作/来源字段 | 本人 MP 有真实缺口，或当前脱险/守圈需要防护时使用；收益和叠加由统一效果规则决定。Dead 不施放，不推断该物品还能回血或清控制。 |
 | `item_iron_plate`、`item_edge_blade`、`item_runic_focus`、`item_siphon_emblem` | Active 为空；具体 Stats/Passive 由内容域定义 | 正常购买/装备后消费统一派生与被动，无主动按钮或伪施法。 |
+| `item_phase_anchor` | Active 为空；`passive_stride` 的 `dash_boost` 强化 D 冲刺 | 由 Combat 投影进 D 冲刺的 `RangeCm` 与冷却；AI 不为它发主动请求。 |
 | `item_echo_maul` | Active 为空；`passive_cleave` 响应 PrimaryBasicContact | 通过正常普攻触发，AI 不向副目标追加攻击订单；不把群攻变成隐藏单位锁定。 |
 
 角色和装备均按真实 TargetMode 进入同一执行通路；Unit 使用授权句柄，
@@ -532,7 +544,7 @@ AI 持有被暂停的进度时留在圈内迎战，只在止损线离开；AI �
 | AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Choice/Shop 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、满 Q/W 替换、全部技能三级、死前 Alive 请求延到 Dead、Dead 选择与复活竞争 | 同一机会只消费一次，原卡保留不重抽；十次（含开局一次）/十级/三级边界；明确遗忘/再学一级。当前 Dead 选择不治疗/提前复活；旧 LifePhase 确认拒绝而候选不变。 |
 | AI-A09 买卖资格/失败 | 无 ShopView 但公开目录预算足够的首次/旧报价失效购物；开店 Pending/重复/取消/Opened/Rejected；LOS 被挡；旧路径、非法区域、无钱/满槽/旧报价/旧世界修订/越界/死亡/终局/分配失败；Sell 后 Buy 被拒及重放 | 无 ShopView 仍会据非约束预算主动到店；Pending 不提交 Buy/Sell。每人一个待办，只有核心 Transactions 借当次 Permit 进内部 OpenPendingShop/资格查询；只有 Opened 带 View并触发重新预算，后续交易再验当前条件且无额外 LOS。失败不部分改钱物，已 Sell 不倒回，无免费实例或预算刷新。 |
-| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；phase_anchor、arcane_battery；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/圈内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
+| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；arcane_battery 与 D 冲刺（含钉鞋加成）；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/圈内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
 | AI-A11 进攻解除保护 | 圈内保护 AI 发当前有效新意图，分别 Missing 目标/错误支持面/未接地/无路/距离远/蓝少/CD未到；对照 Query、旧包、异生命、终局 | 前组为语义执行失败，即使 Rejected 也 ProtectionRemoved/LifeRevision 更新，失败不扣动作 MP/CD；资格事件在 Capture 前生效，保护时段不追算占领，未接地仍无资格；后组不解除。 |
 | AI-A12 死亡/离局效果 | 正常死亡时有已释放独立效果，效果击杀合法目标；另在效果存续时正式离局 | 正常死亡继续原期限并正常发给仍在局死者奖励，可产生 Dead Offer；离局立刻移除身体/效果且离开不发奖；均不能打中同 ID 新生命。 |
 | AI-A13 发育/回防/恢复 | 当前 HP 达高营入口但预测剩余不足 Reserve；合适低营；同刻反击/零伤害/超预算/隐藏成员变化；公开占领紧急，低血/零移速/保护/无回复，守圈敌人离圈 | Reserve 只控制模型入场，实际止损沿 Retreat；成本估计不写 HP/CD/RNG、不读隐藏状态、不补最低伤害或抹同刻反击，不将估计当实战保证。回防无除零/全知/等回满死锁，不为一只怪拖延；必要离圈接受清零。 |

@@ -123,12 +123,16 @@
       }
     },
     "character": {
-      "type": "object", "additionalProperties": false, "required": ["id", "basic_attack"],
+      "type": "object", "additionalProperties": false, "required": ["id", "basic_attack", "dash"],
       "properties": {
         "id": {"$ref": "#/$defs/id"},
         "basic_attack": {
           "type": "object", "additionalProperties": false, "required": ["target_mode", "damage_type", "ad_ratio"],
           "properties": {"target_mode": {"const": "Unit"}, "damage_type": {"const": "Physical"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}}
+        },
+        "dash": {
+          "type": "object", "additionalProperties": false, "required": ["mana_cost", "cooldown", "distance", "duration"],
+          "properties": {"mana_cost": {"$ref": "#/$defs/mp"}, "cooldown": {"$ref": "#/$defs/positive_sec"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         }
       }
     },
@@ -296,6 +300,10 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "radius"],
           "properties": {"op": {"const": "cleave"}, "ratio": {"$ref": "#/$defs/probability"}, "radius": {"$ref": "#/$defs/cm"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "cooldown_ratio", "distance_bonus"],
+          "properties": {"op": {"const": "dash_boost"}, "cooldown_ratio": {"$ref": "#/$defs/probability"}, "distance_bonus": {"$ref": "#/$defs/multiplier"}}
         }
       ]
     },

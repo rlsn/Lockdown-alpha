@@ -84,13 +84,17 @@ void HudTint(ULDCommandButton* Button,const FLinearColor& Color)
     if(Style.Normal.TintColor==FSlateColor(Color)){return;}
     Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
 }
-const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("Item1"),TEXT("Item2")};
-const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2};
-const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionItem1"),TEXT("HUDActionItem2")};
-// Status control bits that forbid each entry kind: character actives cast, equipment actives use gear.
-const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Gear)};
+const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("Item1"),TEXT("Item2"),TEXT("Dash")};
+const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2,ELDCombatEntry::Dash};
+const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionItem1"),TEXT("HUDActionItem2"),TEXT("HUDActionDash")};
+constexpr int32 HudActionCount=UE_ARRAY_COUNT(HudActionEntries);
+// Status control bits that forbid each entry kind: character actives cast, equipment actives use gear, the dash displaces.
+const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),
+    uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Displacement)};
+static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
+    && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). Equal side blocks keep the
-// centre block, resources over the 2+2 action entries, on the screen centre directly under the character.
+// centre block, resources over the 2+2+1 action entries, on the screen centre directly under the character.
 constexpr float HudSideWidth=300.f;
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
@@ -98,7 +102,7 @@ constexpr float HudSlotWidth=124.f;
 constexpr float HudSlotHeight=106.f;
 constexpr float HudSlotGap=8.f;
 constexpr float HudGroupGap=24.f;
-constexpr float HudCentreWidth=4*HudSlotWidth+2*HudSlotGap+HudGroupGap;
+constexpr float HudCentreWidth=5*HudSlotWidth+2*HudSlotGap+2*HudGroupGap;
 constexpr double HudNoticeSeconds=2.;
 constexpr double HudPulseSeconds=6.;
 const FLinearColor HudButtonRest(.045f,.12f,.15f);
@@ -278,7 +282,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* LevelStrip=WidgetTree->ConstructWidget<USizeBox>();LevelStrip->SetHeightOverride(8);LevelStrip->SetContent(LevelBar);
         Centre->AddChildToVerticalBox(LevelStrip)->SetPadding(FMargin(0,4,0,0));
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
-        for(int32 Index=0;Index<4;++Index)
+        for(int32 Index=0;Index<HudActionCount;++Index)
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
             auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -324,8 +328,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // 124 leaves a 108-unit text box (frame padding 8+8): five size-15 CJK glyphs per line, also with the rounded glyph
             // advances of the 720p UI scale; 106 holds the key row, two name lines and the state line.
             Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
-            // Character actives (Q/W) and equipment actives (1/2) are separate groups, never one merged bar.
-            Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2?HudGroupGap:HudSlotGap,0,0,0));
+            // Character actives (Q/W), equipment actives (1/2) and the innate dash (D) are separate groups, never one merged bar.
+            Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2||Index==4?HudGroupGap:HudSlotGap,0,0,0));
         }
         Centre->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,8,0,0));
         auto* CentreWidth=WidgetTree->ConstructWidget<USizeBox>();CentreWidth->SetWidthOverride(HudCentreWidth);CentreWidth->SetContent(Centre);
