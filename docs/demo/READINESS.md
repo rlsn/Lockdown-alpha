@@ -29,7 +29,9 @@
 | `PackageWin64.ps1` | 通过，manifest 记录 `3ae994d` 且无未提交改动 |
 | 打包版场景：Core、Combat（含操作手感数据与 9 张截图）、Growth（含第二局与账本复算）、Capture（含第二局）、Camp、Vision（含纸箱隐身段四轮）、Opponent 满员（3 真人 + 3 AI，AI 占领获胜）、SessionFault（七段） | 全部通过 |
 | 编辑器场景：Entry、Frontend、WorldRoom（这三个 runner 没有 `-PackageRoot`，只在编辑器中运行） | 全部通过 |
-| `VerifyCleanCheckout.ps1`、网络模拟下的满员局、有声运行 | 本次未运行 |
+| `VerifyCleanCheckout.ps1` | 通过：在 `bea6211`（`3ae994d` 之后只改文档）的隔离检出中构建、Bootstrap 与 178 项规则 |
+| 打包版网络模拟满员局（`-PktLag=40 -PktLagVariance=10 -PktLoss=1 -PktDup=1 -PktOrder=1`） | 通过；本局没有 AI 死亡，3 项死亡与复活检查报告为未覆盖（正常满员局已覆盖） |
+| 有声运行 | 本次未运行（场景均以 `-nosound` 运行） |
 
 Vision 的隐身段（检查组 `#ST`/`#STH`）在打包版上确认：两个受限客户端与 Listen Host 各隐身一次（Client1 两次），
 隐身期间观察者的每一帧都没有在揭示半径外呈现隐身者、没有旧句柄、代理或 Host 原生身体；失视野取消锁定与追击；
