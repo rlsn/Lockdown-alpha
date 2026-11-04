@@ -38,7 +38,8 @@
     "item_phase_anchor": 103,
     "item_arcane_battery": 104,
     "item_echo_maul": 105,
-    "item_slingshot": 106
+    "item_slingshot": 106,
+    "item_paper_box": 107
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -53,7 +54,9 @@
     "stat_boost": 6,
     "enraged": 7,
     "ambush_ready": 8,
-    "exposed": 9
+    "exposed": 9,
+    "taunt": 10,
+    "stealth": 11
   },
   "effect_ops": {
     "damage": 1,
@@ -72,6 +75,8 @@
     "self_area": 14,
     "low_hp_stat_bonus": 15,
     "ambush_damage": 16,
-    "control_damage_amp": 17
+    "control_damage_amp": 17,
+    "taunt": 18,
+    "stealth": 19
   }
 }

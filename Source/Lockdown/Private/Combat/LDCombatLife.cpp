@@ -261,9 +261,14 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     {
         auto& Body=Pair.Value;
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
-        const int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; })
+        int32 Removed=Body.Roots.RemoveAll([&Entity](const FLDCombatRoot& Root) { return Root.SourceEntity==Entity; })
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
             + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; });
+        if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
+        {
+            Body.Taunt.Reset();
+            ++Removed;
+        }
         if (Removed>0)
         {
             ++Body.StateRevision;

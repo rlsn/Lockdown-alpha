@@ -28,6 +28,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Enraged: return TEXT("enraged");
     case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
+    case ELDDemoStatusId::Taunt: return TEXT("taunt");
+    case ELDDemoStatusId::Stealth: return TEXT("stealth");
     default: return nullptr;
     }
 }
@@ -490,6 +492,9 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次弹脑瓜崩或伤害技能额外造成")
             +(Effect.DamageType==ELDDemoDamageType::Magical?TEXT("社死伤害 "):TEXT("皮肉伤 "))+HudScaling(Effect);
     case ELDDemoEffectOp::ControlDamageAmp: return TEXT("定身敌人后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内，对其伤害 +")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::Taunt: return TEXT("嘲讽自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Stealth: return TEXT("隐身 ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
+        +TEXT("cm 内的敌人可发现，腿速 -")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 
 enum class ELDCombatHitClass : uint8 { None, BasicPrimary, BasicSecondary, Ability };
 enum class ELDCombatEvaluationError : uint8 { None, Definition, Numeric, Domain, Overflow };
@@ -107,6 +108,37 @@ struct FLDStatusExpiry
 {
     bool bRootsChanged = false;
     bool bShieldChanged = false;
+    bool bTauntChanged = false;
+    bool bStealthChanged = false;
+};
+
+// One taunt on a contender life (EFFECT taunt): until it ends the victim may only basic-attack the taunter's body.
+struct FLDCombatTaunt
+{
+    FGuid EffectId;
+    FGuid SourceEntity;
+    FLDCombatBodyRef SourceBody;
+    int64 ExpiresAtMs = 0;
+};
+
+// Self stealth (EFFECT stealth): enemies observe the body only within RevealRadiusCm (inclusive) while it lasts.
+struct FLDCombatStealth
+{
+    FGuid EffectId;
+    int64 ExpiresAtMs = 0;
+    double RevealRadiusCm = 0;
+    int64 MoveSpeedPenaltyBp = 0;
+};
+
+// A hostile body inside a taunt's radius at the release moment, as Combat read it.
+struct FLDTauntCandidate
+{
+    FLDCombatBodyRef Body;
+    FVector FootCm = FVector::ZeroVector;
+    bool bPendingDeath = false;
+    bool bProtected = false;
+    // Observation of the caster from this candidate (geometry plus stealth); only Visible may be taunted.
+    bool bSeesCaster = false;
 };
 
 struct FLDBasicTimingInput

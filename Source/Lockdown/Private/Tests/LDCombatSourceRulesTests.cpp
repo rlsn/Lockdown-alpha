@@ -299,6 +299,14 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     Gate.bCheckBusy = Gate.bAbilityInProgress = true;
     TestTrue(TEXT("Admission refuses a dash during another ability windup"),
         LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::Busy);
+    Gate.bCheckBusy = Gate.bAbilityInProgress = false;
+    Gate.bTaunted = true;
+    TestTrue(TEXT("A taunted body cannot dash"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
+    Gate.bDash = false;
+    TestTrue(TEXT("A taunted body cannot use any other active either"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
+    Gate.bTaunted = false;
+    Gate.bDash = true;
 
     // Cooldown debt: buying or selling spikes is a build change, which plans only learned and gear tracks; the innate
     // track keeps the absolute end fixed at its release.

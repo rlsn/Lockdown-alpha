@@ -46,7 +46,7 @@ NATIVE_ENUMS = {
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave", "dash_boost",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
-                       "ambush_damage", "control_damage_amp"))
+                       "ambush_damage", "control_damage_amp", "taunt", "stealth"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
@@ -461,7 +461,8 @@ def _positive_stats(stats, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "restore_mana", "timed_stat_bonus", "self_area", *HOSTILE_OPS)),
+        "Self": frozenset(("shield", "dispel_root", "restore_mana", "timed_stat_bonus", "self_area", "taunt", "stealth",
+                           *HOSTILE_OPS)),
         "Unit": frozenset(("damage", "root", "slow")),
         "DirectionProjectile": frozenset(("damage", "slow")),
         "DirectionDash": frozenset(("dash", "self_area", *HOSTILE_OPS)),
@@ -497,6 +498,12 @@ def _validate_action(target, ranks, path):
                 require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path,
                         "timed bonuses cannot change resource maxima")
                 _positive_stats(effect["stats"], path)
+            if effect["op"] == "taunt":
+                require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
+            if effect["op"] == "stealth":
+                require(quantity(effect["reveal_radius"]) > 0, "NumericDomain", path, "reveal radius must be positive")
+                require(quantity(effect["move_speed_penalty"]) < 1, "NumericDomain", path,
+                        "stealth cannot remove all movement speed")
     if mode in ("Unit", "DirectionProjectile"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
@@ -604,9 +611,11 @@ def validate_definitions(data, ids):
         "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
         "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
         "item_slingshot": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
+        "item_paper_box": {"APFlat", "MoveSpeedBonusRatio"},
     }
     item_actives = {
         "item_arcane_battery": ("Self", {"restore_mana", "shield"}, "cd_arcane_battery"),
+        "item_paper_box": ("Self", {"stealth"}, "cd_paper_box"),
     }
     item_passives = {
         "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),

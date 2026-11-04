@@ -104,6 +104,13 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 到点且无目标即结束。失去视野终止订单并解除锁定，不恢复原目的地。
 真人订单需要拥有连接心跳续租；没有 LocalPlayer 的服务器 AI 控制器以注册绑定为租约。
 
+被嘲讽（Combat 的 `ReadTaunter`）时，`ProcessAuthorityOrders` 按 `LDOrderRules::ForcedOrderStep` 强制订单：
+当前订单以 `Taunted` 取消，待处理的自身订单（含 Stop）以 `Taunted` 拒绝；改为服务器生成的强制追击
+（`Order` 为 0、不进订单簿、无心跳租约、不发回执），只经本观察者当前区间的嘲讽者句柄
+（Vision `FindObservedHandle` + `ResolveObservedUnit`）接近并经同一 `StartNavAttack` 普攻；尚未进入本观察者帧时原地等待。
+嘲讽结束后强制追击结束、控制权交还，不恢复被替换的订单；强制追击自行结束（无路径/无进展）时 0.1 s 后重建。
+对手 AI 被嘲讽时暂停身体意图（`LDOpponentRequests::BodyIntentsHeld`），被嘲讽打断的订单按 Dropped 结算，不计失败。
+
 已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。
 接收时间由核心按同一比赛原点生成 NotBefore 审计桶，不能把帧间迟到命令放进更早补进的运动区间。
 心跳只刷新当前已激活 identity，不创建订单；序列与取消计数耗尽明确失败，不回绕。

@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDControlRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -389,6 +390,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     { return Refuse(ELDCombatReject::InvalidRequest); }
     if (Body->Action.IsSet()) { return Refuse(ELDCombatReject::Busy); }
     const int64 Now=Mode->GetAuthorityNowMs();
+    if (!LDControl::TauntAllows(Body->Taunt,Now,true,Target)) { return Refuse(ELDCombatReject::ControlBlocked); }
     if (Now<Record->NextAttackAtMs) { return Refuse(ELDCombatReject::AttackNotReady); }
     ALDCharacter* TargetActor=nullptr;
     const auto* TargetBody=FindBody(Target,&TargetActor);
@@ -436,6 +438,8 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     ++Body->StateRevision;
     // The committed cadence survives cancellation, orders, death and respawn; time keeps running.
     Record->NextAttackAtMs=NextAttack;
+    // An accepted swing reveals a stealthed attacker before it lands.
+    RevealStealth(*Body);
     MarkViewChanged(Caller.EntityId);
     Receipt.CombatToken=Action.Token;
     Receipt.Phase=ELDCombatPhase::Accepted;
@@ -443,11 +447,12 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     return Receipt;
 }
 
-void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move)
+void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep)
 {
     auto* Body=FindEntityBody(Entity);
     if (Body && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Basic
-        && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move)
+        && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move
+        && !(Keep.IsValid() && Body->Action->TargetBody==Keep))
     { FinishAction(*Body,ELDCombatReject::Cancelled,false); }
 }
 
@@ -489,6 +494,8 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         { return Refuse(Protection.Reason==ELDCommitReject::StaleLife ? ELDCombatReject::StaleLife : ELDCombatReject::MatchClosed); }
         Receipt.bProtectionRemoved=Protection.bProtectionRemoved;
         Receipt.LifeRevision=Protection.LifeRevision;
+        // A taunted body may only basic-attack its taunter: no ability or item until the taunt ends.
+        if (LDControl::IsTaunted(Body->Taunt,Now)) { return Refuse(ELDCombatReject::ControlBlocked); }
     }
     if (Record.Kind==ELDVictimKind::CampMember)
     {
@@ -551,6 +558,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Gate.ManaCostP2=RankDef->ManaCostP2;
     Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash;
     Gate.Roots=&Body->Roots;
+    Gate.bTaunted=LDControl::IsTaunted(Body->Taunt,Now);
     Gate.bCheckBusy=true;
     Gate.bAbilityInProgress=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
     if (const ELDCombatReject Blocked=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies); Blocked!=ELDCombatReject::None)
@@ -604,6 +612,8 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     // A new ability interrupts an unreleased basic windup; its committed cadence is not refunded.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
     Body->Action=Action;
+    // Any accepted ability or item activation reveals a stealthed body (a new stealth is applied at its own release).
+    RevealStealth(*Body);
     ++Body->StateRevision;
     MarkViewChanged(Record.Entity);
     Receipt.CombatToken=Action.Token;
@@ -702,6 +712,8 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     ELDCombatReject Reject;
     if (!ResolveUnitTarget(*Record,Actor,Action.Target,TargetRef,TargetFoot,Reject) || TargetRef!=Action.TargetBody)
     { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
+    if (!LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef))
+    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
     const FVector Foot=FootOf(Actor);
     if (FVector::Dist2D(Foot,TargetFoot)>LDCA::ToDouble(Body.AttributeProjection.Final.AttackRangeCm))
     { Outcome=ELDCombatReject::OutOfRange; FinishAction(Body,Outcome,false); return true; }
@@ -792,6 +804,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     Gate.ManaCostP2=bInnate ? Innate.ManaCostP2 : RankDef->ManaCostP2;
     Gate.bDash=TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
     Gate.Roots=&Body.Roots;
+    Gate.bTaunted=LDControl::IsTaunted(Body.Taunt,Now);
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
     FLDCombatBodyRef UnitTarget;
@@ -904,6 +917,20 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::SelfArea:
             // Delivered with the hits below.
             break;
+        case ELDDemoEffectOp::Taunt:
+            if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error)) { return false; }
+            break;
+        case ELDDemoEffectOp::Stealth:
+        {
+            FLDCombatStealth Stealth;
+            Stealth.EffectId=EffectId;
+            Stealth.RevealRadiusCm=LDCA::ToDouble(Effect.RadiusCm);
+            Stealth.MoveSpeedPenaltyBp=Effect.RatioBp;
+            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Stealth.ExpiresAtMs,Error)) { return false; }
+            if (!LDControl::ApplyStealth(Body.Stealth,Stealth,Now))
+            { Error=TEXT("A stealth release has no valid duration, reveal radius or speed penalty."); return false; }
+            break;
+        }
         default:
             Error=FString::Printf(TEXT("Active effect opcode %u has no Combat handler."),Effect.Opcode);
             return false;
@@ -1018,8 +1045,10 @@ bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPer
     OutCmPerSec=0;
     const auto* Body=Bodies.Find(const_cast<ALDCharacter*>(&Actor));
     if (!Body || Body->bPendingDeath) { return false; }
-    const double Speed=LDCA::ToDouble(Body->AttributeProjection.Final.MoveSpeedCmPerSec);
-    if (!FMath::IsFinite(Speed) || Speed<=0 || Speed>MAX_flt) { return false; }
+    const auto* Mode=Core();
+    double Speed=0;
+    if (!Mode || !EffectiveMoveSpeed(*Body,Mode->GetAuthorityNowMs(),Speed) || !FMath::IsFinite(Speed) || Speed<=0 || Speed>MAX_flt)
+    { return false; }
     OutCmPerSec=float(Speed);
     return true;
 }

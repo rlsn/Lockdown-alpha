@@ -304,7 +304,11 @@
                          "effects": [{"op": "restore_mana", "ratio": {"unit": "ratio", "value": 0.25}}, {"op": "shield", "base": {"unit": "hp", "value": 120}, "ap_ratio": {"unit": "ratio", "value": 0.40}, "duration": {"unit": "s", "value": 2.5}}]}}},
     {"id": "item_echo_maul", "buy_price": 400, "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackRangeCmFlat": {"unit": "cm", "value": 40}}, "active": null,
      "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}]}},
-    {"id": "item_slingshot", "buy_price": 360, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null, "passive": null}
+    {"id": "item_slingshot", "buy_price": 360, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null, "passive": null},
+    {"id": "item_paper_box", "buy_price": 400, "stats": {"APFlat": {"unit": "points", "value": 20}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.08}}, "passive": null,
+     "active": {"target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_paper_box",
+                "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 45},
+                         "effects": [{"op": "stealth", "duration": {"unit": "s", "value": 3}, "reveal_radius": {"unit": "cm", "value": 250}, "move_speed_penalty": {"unit": "ratio", "value": 0.10}}]}}}
   ],
   "camps": {
     "monsters": [
@@ -374,6 +378,7 @@
     {"id": "item_arcane_battery", "namespace": "DemoContent", "name_key": "item_arcane_battery.name", "name_text": "保温杯", "description_key": "item_arcane_battery.description", "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。", "icon_id": "icon_item_arcane_battery"},
     {"id": "item_echo_maul", "namespace": "DemoContent", "name_key": "item_echo_maul.name", "name_text": "值日扫帚", "description_key": "item_echo_maul.description", "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。", "icon_id": "icon_item_echo_maul"},
     {"id": "item_slingshot", "namespace": "DemoContent", "name_key": "item_slingshot.name", "name_text": "弹弓", "description_key": "item_slingshot.description", "description_text": "提高攻击距离和手速。", "icon_id": "icon_item_slingshot"},
+    {"id": "item_paper_box", "namespace": "DemoContent", "name_key": "item_paper_box.name", "name_text": "纸箱", "description_key": "item_paper_box.description", "description_text": "提高缺德值和腿速。主动「纸箱潜行」：钻进纸箱隐身一小会儿，腿速略降；离得很近的敌人仍能发现你，弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_item_paper_box"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "纪律委员", "description_key": "monster_scavenger.description", "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "体育老师", "description_key": "monster_guardian.description", "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。", "icon_id": "icon_monster_guardian"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "定身", "description_key": "root.description", "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。", "icon_id": "icon_root"},
@@ -384,6 +389,8 @@
     {"id": "stat_boost", "namespace": "DemoContent", "name_key": "stat_boost.name", "name_text": "来劲了", "description_key": "stat_boost.description", "description_text": "技能带来的属性提升，到时间就消失。", "icon_id": "icon_stat_boost"},
     {"id": "enraged", "namespace": "DemoContent", "name_key": "enraged.name", "name_text": "上头", "description_key": "enraged.description", "description_text": "急了生效中：面子过低，手劲提高。", "icon_id": "icon_enraged"},
     {"id": "ambush_ready", "namespace": "DemoContent", "name_key": "ambush_ready.name", "name_text": "伺机而动", "description_key": "ambush_ready.description", "description_text": "暗中观察已就绪：下一次弹脑瓜崩或伤害技能额外造成社死伤害。", "icon_id": "icon_ambush_ready"},
-    {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "当众出丑", "description_key": "exposed.description", "description_text": "刚被定身，一段时间内受到对方的伤害提高。", "icon_id": "icon_exposed"}
+    {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "当众出丑", "description_key": "exposed.description", "description_text": "刚被定身，一段时间内受到对方的伤害提高。", "icon_id": "icon_exposed"},
+    {"id": "taunt", "namespace": "DemoContent", "name_key": "taunt.name", "name_text": "被嘲讽", "description_key": "taunt.description", "description_text": "只能追着嘲讽你的人弹脑瓜崩，不能放技能、用装备、冲刺或自己下令；对方社死、离开或不在视野里时立刻解除。", "icon_id": "icon_taunt"},
+    {"id": "stealth", "namespace": "DemoContent", "name_key": "stealth.name", "name_text": "隐身", "description_key": "stealth.description", "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被发现。弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_stealth"}
   ]
 }

@@ -139,6 +139,9 @@ private:
         bool bHumanLease=false, bPinned=false, bEngaged=false, bCloseIn=false;
         bool bReplanned=false, bForceReplan=false, bProgressReplan=false;
         bool bProtectionRemoved=false, bSentGoal=false, bSentEngaged=false;
+        // Taunt chase: server-made, never in the owner's book or receipts; Identity.Order stays 0.
+        bool bForced=false;
+        FLDCombatBodyRef ForcedTarget;
     };
     struct FOrderRecord
     {
@@ -205,6 +208,9 @@ private:
     bool AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FActiveOrder& Order,
         ELDOrderFailure& Failure, FString& Error);
     bool AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
+    // Taunted body: refuses its own orders and chases the taunter through this observer's current view.
+    bool AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FLDCombatBodyRef& Taunter,
+        const FLDGameplayWritePermit& Permit, FString& Error);
     bool AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit,
         FLDAuthorityTargetSample& Out, bool& bFound, FString& Error);
     bool EngageTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample,
@@ -243,4 +249,9 @@ private:
     TArray<FOrderRecord> Records;
     FLDOrderBook Book;
     uint64 NextReceiptSerial=0;
+    uint32 ForcedSerial=0;
+    // While a taunt replaces an order: that order's unreleased swing at this taunter is kept (ReleaseOrderLinks).
+    FLDCombatBodyRef KeptSwingTarget;
+    // A forced chase that ended by itself (no path, no progress) is retried after one order query interval.
+    double ForcedRetryAt=0;
 };

@@ -337,6 +337,7 @@ FLDOrderReceipt ULDNavigationComponent::MakeReceipt(const FActiveOrder& Order, E
 void ULDNavigationComponent::PublishActive(ELDOrderStatus Outcome)
 {
     auto& Order=ActiveOrder.GetValue();
+    if (Order.bForced) { return; }
     const FLDOrderReceipt Receipt=MakeReceipt(Order,Outcome,ELDOrderFailure::None);
     Order.bSentGoal=Receipt.bHasGoal;
     Order.SentGoal=Receipt.GoalCm;
@@ -376,7 +377,13 @@ void ULDNavigationComponent::EndActive(ELDOrderStatus Outcome, ELDOrderFailure F
     ActiveOrder.Reset();
     ReleaseOrderLinks(Ended,true);
     if (auto* PC=bHalt?Controller():nullptr) { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
-    Publish(Receipt,true);
+    // A forced taunt chase is not the owner's order: it has no record or receipt, and one that stopped by itself is
+    // re-created only after an order query interval.
+    if (Ended.bForced)
+    {
+        if (const auto* Mode=AuthorityMode()) { ForcedRetryAt=Mode->GetAuthorityNowSeconds()+OrderQueryIntervalSeconds; }
+    }
+    else { Publish(Receipt,true); }
     UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u epoch=%u status=%u failure=%u"),Ended.Request.Identity.Order,
         Ended.Request.Identity.Epoch,uint32(Outcome),uint32(Failure));
 }
@@ -386,7 +393,7 @@ void ULDNavigationComponent::ReleaseOrderLinks(const FActiveOrder& Order, bool b
     auto* Mode=AuthorityMode();
     if (!Mode) { return; }
     if (Order.Request.IsAggressive() && Mode->Combat)
-    { Mode->Combat->CancelNavAttack(Order.Body.Victim.EntityId,Order.Request.Identity); }
+    { Mode->Combat->CancelNavAttack(Order.Body.Victim.EntityId,Order.Request.Identity,KeptSwingTarget); }
     if (!Order.bPinned || !bReleasePin) { return; }
     FString Error;
     auto* PC=Controller();
@@ -402,6 +409,26 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
     auto* Mode=AuthorityMode();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     { Error=TEXT("Order activation requires the current Actions permit."); return false; }
+    {
+        auto* Owner=Controller();
+        auto* OwnBody=Owner?Cast<ALDCharacter>(Owner->GetPawn()):nullptr;
+        FLDCombatBodyRef SelfRef, TaunterRef;
+        const bool bTaunted=OwnBody && OwnBody->GetController()==Owner && Mode->ReadBodyRef(*OwnBody,SelfRef)
+            && Mode->Combat && Mode->Combat->ReadTaunter(SelfRef,TaunterRef);
+        const bool bForced=ActiveOrder.IsSet() && ActiveOrder->bForced;
+        switch (LDOrderRules::ForcedOrderStep(bTaunted,bForced,bForced && ActiveOrder->ForcedTarget==TaunterRef))
+        {
+        case LDOrderRules::EForcedOrder::Begin:
+        case LDOrderRules::EForcedOrder::Keep:
+            return AdvanceForced(*Mode,*OwnBody,SelfRef,TaunterRef,Permit,Error);
+        case LDOrderRules::EForcedOrder::End:
+            // The taunt is over: control returns without resuming the order it replaced.
+            EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true);
+            break;
+        default:
+            break;
+        }
+    }
     if (PendingOrder && Mode->GetAuthorityNowMs()>=PendingOrder->NotBeforeMs
         && (PendingOrder->bStop || Book.ActivationDue(Mode->GetAuthorityNowSeconds()))
         && !ActivatePending(*Mode,Permit,Error)) { return false; }
@@ -428,6 +455,69 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
         || (Latest.bHasGoal && FVector::DistSquared2D(FVector(Latest.GoalCm),Order.SentGoal)>=FMath::Square(GoalShiftCm)))
     { PublishActive(ELDOrderStatus::Progress); }
     return true;
+}
+
+bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self,
+    const FLDCombatBodyRef& Taunter, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    const double Now=Mode.GetAuthorityNowSeconds();
+    // Every own order (Stop included) is refused while taunted; the identity watermark already advanced at receipt.
+    if (PendingOrder && Mode.GetAuthorityNowMs()>=PendingOrder->NotBeforeMs)
+    {
+        const FPendingOrder Refused=MoveTemp(PendingOrder.GetValue());
+        PendingOrder.Reset();
+        Reply(Refused.Request,ELDOrderStatus::Rejected,ELDOrderFailure::Taunted,true);
+    }
+    if (!ActiveOrder || !ActiveOrder->bForced || ActiveOrder->ForcedTarget!=Taunter || ActiveOrder->Body!=Self)
+    {
+        if (ActiveOrder)
+        {
+            TGuardValue<FLDCombatBodyRef> Keep(KeptSwingTarget,Taunter);
+            EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true);
+        }
+        if (Now<ForcedRetryAt) { return true; }
+        if (ForcedSerial==MAX_uint32)
+        {
+            UE_LOG(LogTemp,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED"));
+            return true;
+        }
+        FActiveOrder Forced;
+        Forced.Request.Identity={Mode.GetMatchContext().Generation,Self.Victim.Life,0,++ForcedSerial};
+        Forced.Request.Kind=ELDSpatialOrderKind::AttackUnit;
+        Forced.Match=Mode.GetMatchContext();
+        Forced.Body=Self;
+        Forced.bForced=true;
+        Forced.ForcedTarget=Taunter;
+        Forced.Surface=GroundSurfaceHint();
+        Forced.LastHeartbeat=Forced.LastProgress=Now;
+        ActiveOrder=MoveTemp(Forced);
+        UE_LOG(LogTemp,Display,TEXT("LD_NAV_TAUNT_FORCED life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
+    }
+    auto& Order=ActiveOrder.GetValue();
+    auto* PC=Controller();
+    FGuid Handle;
+    uint32 HandleEpoch=0;
+    FLDAuthorityTargetSample Sample;
+    FString Diagnostic;
+    // The taunter is chased only through this observer's own current interval: no hidden position is ever read.
+    const ELDObservedResolve Resolved=PC && Mode.Vision && Mode.Vision->FindObservedHandle(*PC,Taunter,Handle,HandleEpoch)
+        ? Mode.Vision->ResolveObservedUnit(*PC,Handle,HandleEpoch,ELDObservationPurpose::AttackStart,Sample,&Diagnostic)
+        : ELDObservedResolve::TargetUnavailable;
+    if (Resolved==ELDObservedResolve::AuthorityFault) { Error=TEXT("Taunt chase observation fault: ")+Diagnostic; return false; }
+    if (Resolved!=ELDObservedResolve::Resolved || Sample.Target!=Taunter)
+    {
+        // Not yet in this observer's sampled view (or just lost): hold; Combat ends a taunt that lost observation.
+        Order.bEngaged=false;
+        Order.Points.Reset();
+        return true;
+    }
+    if (Order.Target!=Handle || Order.TargetEpoch!=HandleEpoch)
+    {
+        Order.Target=Handle;
+        Order.TargetEpoch=HandleEpoch;
+        Order.bForceReplan=true;
+    }
+    return EngageTarget(Mode,Body,Sample,Permit,Error);
 }
 
 bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit, FString& Error)

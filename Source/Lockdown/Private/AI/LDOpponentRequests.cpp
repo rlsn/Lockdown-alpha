@@ -1,6 +1,7 @@
 #include "AI/LDOpponentRequests.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDGrowthProtocol.h"
+#include "Development/LDDemoContentIds.h"
 #include "Navigation/LDOrderTypes.h"
 #include "World/LDWorldQueryTypes.h"
 
@@ -322,6 +323,12 @@ bool BuildTrade(const FLDOpponentBuildIntent& Intent, const FLDShopOpenResult& S
     return Fail(Error, TEXT("Only Buy and Sell intents become shop commands."));
 }
 
+bool BodyIntentsHeld(const FLDCombatOwnerView& Combat, int64 NowMs)
+{
+    return Combat.bHasBody && Combat.Statuses.ContainsByPredicate([NowMs](const FLDCombatStatusView& Status)
+    { return Status.StatusId == uint8(ELDDemoStatusId::Taunt) && NowMs < Status.ExpiresAtMs; });
+}
+
 ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
 {
     switch (Receipt.Status)
@@ -346,7 +353,9 @@ ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
     case ELDOrderFailure::MatchEnded:
     case ELDOrderFailure::Superseded:
     case ELDOrderFailure::Stopped:
-    case ELDOrderFailure::Expired: return ELDOpponentSettle::Dropped;
+    case ELDOrderFailure::Expired:
+    // An enemy's taunt interrupted the order: nothing about the intent itself failed.
+    case ELDOrderFailure::Taunted: return ELDOpponentSettle::Dropped;
     // Unusable ground, no complete path, blocked progress, a refused shop and malformed or stale requests.
     default: return ELDOpponentSettle::Failed;
     }

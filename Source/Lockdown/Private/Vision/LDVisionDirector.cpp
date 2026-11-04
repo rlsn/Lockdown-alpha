@@ -550,6 +550,15 @@ bool FLDObserverLedger::FindBinding(const FGuid& Handle, uint32 ObservationEpoch
     return true;
 }
 
+bool FLDObserverLedger::FindHandle(const FLDCombatBodyRef& Body, FGuid& OutHandle, uint32& OutEpoch) const
+{
+    const FBinding* Binding = Bindings.FindByPredicate([&Body](const FBinding& Candidate) { return Candidate.Body == Body; });
+    if (!Binding) { return false; }
+    OutHandle = Binding->Handle;
+    OutEpoch = Binding->Epoch;
+    return true;
+}
+
 bool FLDObserverLedger::IsBound(const FLDCombatBodyRef& Body) const
 {
     return Bindings.ContainsByPredicate([&Body](const FBinding& Binding) { return Binding.Body == Body; });
@@ -777,6 +786,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
         FLDObservedTarget Target;
         Target.Body = Ref;
         Target.FootCm = FootOf(*Body);
+        Target.ConcealBeyondCm = Core->Combat->ConcealBeyondCm(*Body);
         FLDObservedUnitView& Unit = Target.Presented;
         Unit.FeetCm = Target.FootCm;
         Unit.Facing = QuantizeObservedYaw(Body->GetActorRotation().Yaw);
@@ -871,7 +881,8 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         for (const FLDObservedTarget& Target : Targets)
         {
             if (Target.Body.Victim.EntityId == Observer.ContenderId) { continue; }
-            const ELDSightResult Result = Sight.Trace(Foot, Target.FootCm);
+            const ELDSightResult Result = LDObservation::ConcealedSight(Sight.Trace(Foot, Target.FootCm), Foot, Target.FootCm,
+                Target.ConcealBeyondCm);
             const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Result);
             if (Outcome == ELDObservedResolve::AuthorityFault)
             {
@@ -995,7 +1006,6 @@ bool ALDVisionDirector::RecordObservedDeath(const FLDGameplayWritePermit& Permit
     }
     int64 OccurredAtMs = 0;
     if (!LDMatchLifecycle::AuthoritySecondsToEventMs(OccurredAtSeconds, OccurredAtMs, Error)) { return false; }
-    const FVector VictimFoot = FootOf(*VictimBody);
     for (FObserver& Observer : Observers)
     {
         if (!Observer.Ledger.IsBound(Victim)) { continue; }
@@ -1003,7 +1013,7 @@ bool ALDVisionDirector::RecordObservedDeath(const FLDGameplayWritePermit& Permit
         FVector Foot;
         if (!ReadObserver(Observer, Life, Foot, Error)) { return false; }
         if (!ObserverHasLiveBinding(Observer.Ledger, Life)) { continue; }
-        const ELDSightResult Result = CurrentSight(Foot, VictimFoot);
+        const ELDSightResult Result = CurrentObservation(Foot, *VictimBody);
         const ELDObservedResolve Witnessed = LDObservation::ResolveFromSight(Result);
         if (Witnessed == ELDObservedResolve::AuthorityFault)
         {
@@ -1053,7 +1063,7 @@ ELDObservedResolve ALDVisionDirector::ResolveObservedUnit(const ALDPlayerControl
     if (Core->ResolveBody(ActiveMatch, Target, TargetBody) != ELDCommitReject::None || !TargetBody)
     { return Refuse(ELDObservedResolve::TargetUnavailable, TEXT("The observed life has no current registered body.")); }
     const FVector TargetFoot = FootOf(*TargetBody);
-    const ELDSightResult Sighted = CurrentSight(Foot, TargetFoot);
+    const ELDSightResult Sighted = CurrentObservation(Foot, *TargetBody);
     const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Sighted);
     if (Outcome == ELDObservedResolve::AuthorityFault)
     { return Refuse(Outcome, FString::Printf(TEXT("Observation sight failed at this authority moment (%u)."), uint32(Sighted))); }
@@ -1135,7 +1145,7 @@ bool ALDVisionDirector::BindObservedOrder(const ALDPlayerController& Caller, con
         Error = TEXT("TargetUnavailable: an order can only pin a unit visible at this authority moment.");
         return false;
     }
-    const ELDSightResult Sighted = CurrentSight(Foot, FootOf(*TargetBody));
+    const ELDSightResult Sighted = CurrentObservation(Foot, *TargetBody);
     const ELDObservedResolve Outcome = LDObservation::ResolveFromSight(Sighted);
     if (Outcome != ELDObservedResolve::Resolved)
     {
@@ -1164,8 +1174,26 @@ ELDSightResult ALDVisionDirector::TraceSight(const FVector& SourceFootCm, const 
     return Sight.Trace(SourceFootCm, TargetFootCm);
 }
 
-ELDSightResult ALDVisionDirector::CurrentSight(const FVector& SourceFootCm, const FVector& TargetFootCm) const
+ELDSightResult ALDVisionDirector::TraceObservation(const FVector& SourceFootCm, const ALDCharacter& Target,
+    const FLDWorldRevision& Expected) const
+{
+    const auto* Core = AuthorityMode();
+    if (!Core || !Core->Combat) { return ELDSightResult::StaleWorld; }
+    const FVector TargetFoot = FootOf(Target);
+    return LDObservation::ConcealedSight(TraceSight(SourceFootCm, TargetFoot, Expected), SourceFootCm, TargetFoot,
+        Core->Combat->ConcealBeyondCm(Target));
+}
+
+ELDSightResult ALDVisionDirector::CurrentObservation(const FVector& SourceFootCm, const ALDCharacter& Target) const
 {
     const auto* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
-    return Registry ? TraceSight(SourceFootCm, TargetFootCm, Registry->Revision()) : ELDSightResult::StaleWorld;
+    return Registry ? TraceObservation(SourceFootCm, Target, Registry->Revision()) : ELDSightResult::StaleWorld;
 }
+
+bool ALDVisionDirector::FindObservedHandle(const ALDPlayerController& Caller, const FLDCombatBodyRef& Body, FGuid& OutHandle,
+    uint32& OutEpoch) const
+{
+    const FObserver* Observer = FindObserver(Caller);
+    return bActive && Observer && Observer->Ledger.FindHandle(Body, OutHandle, OutEpoch);
+}
+

@@ -28,6 +28,7 @@ struct FLDActiveGateInput
     int64 ManaCostP2=0;
     bool bDash=false;            // the active moves the body (POLICY.RootBlocks Dash applies)
     const TArray<FLDCombatRoot>* Roots=nullptr;
+    bool bTaunted=false;         // a taunted body may only basic-attack its taunter: no Q/W/D/1/2
     bool bCheckBusy=false;       // admission only: another ability is winding up
     bool bAbilityInProgress=false;
 };
@@ -41,7 +42,8 @@ namespace LDCombatSourceRules
     // The duration is unchanged, so a boosted dash covers its longer distance in the same time.
     LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
         FLDInnateDashTerms& Out, FString& Error);
-    // Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked for a dash under a Root; None when usable.
+    // Busy (admission only), ControlBlocked while taunted, Cooldown, InsufficientMana, then ControlBlocked for a dash
+    // under a Root; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
 
     // COMBAT 5.1 persistent cooldown binding for one complete post-change build. A learned definition keeps

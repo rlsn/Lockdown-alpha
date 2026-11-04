@@ -47,6 +47,7 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemArcaneBattery:
     case ELDDemoEquipmentId::ItemEchoMaul:
     case ELDDemoEquipmentId::ItemSlingshot:
+    case ELDDemoEquipmentId::ItemPaperBox:
         return true;
     default:
         return false;

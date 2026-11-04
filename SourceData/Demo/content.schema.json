@@ -328,6 +328,14 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
           "properties": {"op": {"const": "control_damage_amp"}, "ratio": {"$ref": "#/$defs/multiplier"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "radius", "duration"],
+          "properties": {"op": {"const": "taunt"}, "radius": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "duration", "reveal_radius", "move_speed_penalty"],
+          "properties": {"op": {"const": "stealth"}, "duration": {"$ref": "#/$defs/positive_sec"}, "reveal_radius": {"$ref": "#/$defs/cm"}, "move_speed_penalty": {"$ref": "#/$defs/probability"}}
         }
       ]
     },

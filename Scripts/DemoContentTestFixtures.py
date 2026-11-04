@@ -141,6 +141,11 @@ def content_fixture():
                                          {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]}}},
         {"id": "item_echo_maul", "buy_price": 57, "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
          "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
+        {"id": "item_paper_box", "buy_price": 58, "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
+         "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_paper_box",
+                    "rank": {"rank": 1, "mana_cost": q("mp", 6), "cooldown": q("s", 11),
+                             "effects": [{"op": "stealth", "duration": q("s", 0.75), "reveal_radius": q("cm", 60),
+                                          "move_speed_penalty": q("ratio", 0.05)}]}}},
     ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (

@@ -351,7 +351,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     { V.Units[0].AuthorizedFieldMask &= ~uint32(LDObservation::Level); })));
     TestFalse(TEXT("Missing level is not a default"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Level = 0; })));
     TestFalse(TEXT("Unknown equipment refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Equipment.Slots[1] = 98; })));
-    TestFalse(TEXT("Unknown status refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Statuses[0].StatusId = 9; })));
+    TestFalse(TEXT("Unknown status refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Statuses[0].StatusId = 200; })));
     TestFalse(TEXT("Duplicate status refused"), Encodes(Mutated([](FLDWorldView& V)
     { const FLDObservedStatus Copy = V.Units[0].Statuses[0]; V.Units[0].Statuses.Add(Copy); })));
     TestFalse(TEXT("Returning cue is camp-only"), Encodes(Mutated([](FLDWorldView& V)
