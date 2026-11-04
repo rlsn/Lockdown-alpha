@@ -202,7 +202,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 **本地预测：** 非权威的拥有客户端收到 `Activated/Progress` 后按回执目标自行规划同一路线并转向；
 Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 路线失败时客户端自行发送 Stop 并提示。
 
-**提示：** 订单进度文本只写入 `ULDNavigationComponent::Status`。只有真实失败与“复活保护已解除”
+**提示：** 订单进度文本只写入 `ULDNavigationComponent::Status`。只有真实失败与“免死金牌没了”
 经 `ALDPlayerController::PostIntentNotice` 进入 HUD 的单行提示；被自己的新订单替换（`Superseded`）
 或自己按 S（`Stopped`）不提示。
 
