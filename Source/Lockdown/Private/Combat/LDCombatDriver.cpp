@@ -169,7 +169,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
-                return Mode->Economy->ProcessTransactions(Permit,Error);
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->Economy->ProcessTransactions(Permit,Error);
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)

@@ -5,7 +5,8 @@
 #include "Economy/LDEconomyDirector.h"
 
 // D26 (#79): the airdrop. The schedule and claim selection are the pure FLDAirdropState / LDAirdrop rules; this file
-// only drives them at the RespawnsAndWorld boundary and pays the claim through the single growth reward composite.
+// only drives them: the schedule at the RespawnsAndWorld boundary, then the claim in the same step's Transactions phase
+// (bodies do not move between the two), paid through the single growth reward composite.
 
 int64 ALDGameMode::NextAirdropDueMs() const
 {
@@ -14,10 +15,9 @@ int64 ALDGameMode::NextAirdropDueMs() const
 
 bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Airdrop.IsActive()
-        || !Combat || !Economy || !DemoContent)
+    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Airdrop.IsActive())
     {
-        Error = TEXT("The airdrop requires the current RespawnsAndWorld permit, an active schedule, Combat and the growth domain.");
+        Error = TEXT("The airdrop schedule requires the current RespawnsAndWorld permit and an active schedule.");
         return false;
     }
     const int64 NowMs = Permit.GetBoundary().AtMs;
@@ -29,6 +29,18 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
             Airdrop.Phase == ELDAirdropPhase::Landed ? TEXT("LAND") : TEXT("ANNOUNCE"), Airdrop.Serial,
             Point ? *Point->Id.ToString() : TEXT("none"), NowMs);
     }
+    return true;
+}
+
+bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Airdrop.IsActive()
+        || !Combat || !Economy || !DemoContent)
+    {
+        Error = TEXT("The airdrop claim requires the current Transactions permit, an active schedule, Combat and the growth domain.");
+        return false;
+    }
+    const int64 NowMs = Permit.GetBoundary().AtMs;
     if (Airdrop.Phase != ELDAirdropPhase::Landed) { return true; }
     const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
     TArray<LDAirdrop::FCandidate> Candidates;

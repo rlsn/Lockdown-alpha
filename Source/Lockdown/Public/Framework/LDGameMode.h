@@ -143,9 +143,11 @@ public:
     const FLDDormZones& GetDormZones() const { return DormZones; }
     // D26 (#79): the current airdrop of this match; inactive outside a running match.
     const FLDAirdropState& GetAirdrop() const { return Airdrop; }
-    // RespawnsAndWorld: announces and lands the scheduled drop, then lets the first living contender inside the pickup
-    // disk claim it through the growth reward composite. False only on an authority fault.
+    // RespawnsAndWorld: announces and lands the scheduled drop. False only on an authority fault.
     bool AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions (growth applies only there or in DeathsAndRewards): the first living contender inside the pickup disk
+    // of a landed drop claims it through the growth reward composite. False only on an authority fault.
+    bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
     // Right after Motion: whether this step's motion completes a capture segment strictly before the step's

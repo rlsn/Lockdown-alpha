@@ -36,7 +36,8 @@ public:
     // DeathsAndRewards: called once per committed death after its Effects set locked every RewardBasis.
     FLDRewardReceipt CommitDeathReward(const FLDCommittedDeath& Death, const FLDGameplayWritePermit& Permit);
     // D26 (#79): one map event payout (Event + Serial is its business identity, so a repeat is refused by the ledger)
-    // through the same reward composite as a death reward, with ledger cause MapEventReward. Any phase permit.
+    // through the same reward composite as a death reward, with ledger cause MapEventReward. Needs the Transactions or
+    // DeathsAndRewards permit, where growth applies.
     ELDRewardOutcome CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, int64 Gold,
         const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
     // Transactions: shop openings, choices and shop commands in server arrival order, then account retirement
