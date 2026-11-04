@@ -79,9 +79,9 @@ bool LDDevGrowthFixture::ResolvePreset(const FLDDemoContentSnapshot& Catalog, co
     return ResolvePreset(Pool, DefinitionIds, Out, Error);
 }
 
-ELDGrowthReason LDDevGrowthFixture::PickHead(const FLDDemoProgressionDefinition& Progression,
-    const TArray<LDProgression::FLegalOption>& Pool, uint8 Ordinal, int64 Weight, uint64 Seed,
-    TArray<TArray<FName>>& Queue, TArray<LDProgression::FLegalOption>& Out, bool& bPreset, FString& PresetError)
+ELDGrowthReason LDDevGrowthFixture::PickHead(const LDProgression::FDrawInput& Input,
+    const TArray<LDProgression::FLegalOption>& Pool, TArray<TArray<FName>>& Queue, TArray<LDProgression::FLegalOption>& Out,
+    bool& bPreset, FString& PresetError)
 {
     Out.Reset();
     bPreset = false;
@@ -96,7 +96,7 @@ ELDGrowthReason LDDevGrowthFixture::PickHead(const FLDDemoProgressionDefinition&
             return ELDGrowthReason::None;
         }
     }
-    return LDProgression::DrawOffer(Progression, Pool, Ordinal, Weight, Seed, Out);
+    return LDProgression::DrawOffer(Input, Pool, Out);
 }
 
 namespace

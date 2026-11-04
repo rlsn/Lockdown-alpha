@@ -431,7 +431,14 @@ bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Proj
     {
         const FLDDemoEquipmentDefinition* Equipment=nullptr;
         if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
-        for (const FLDDemoEffectDefinition& Effect : Equipment->Passive.Effects)
+        // The upgraded copy's terms replace the base ones (#112 equipment upgrade).
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
+        if (!Effects)
+        {
+            Error=FString::Printf(TEXT("Upgraded equipment passive %s has no approved terms."),*Family.Family);
+            return false;
+        }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=Op) { continue; }
             FLDPassiveEffectRef& Ref=Out.AddDefaulted_GetRef();

@@ -82,7 +82,7 @@ bool FLDChoiceCommand::SameTerms(const FLDChoiceCommand& Other) const
         && OptionId == Other.OptionId && ExpectedBuildRevision == Other.ExpectedBuildRevision
         && GrowthWireSameDigest(CatalogDigest, Other.CatalogDigest) && bReplace == Other.bReplace && ReplaceSlot == Other.ReplaceSlot
         && ExpectedOldSkillId == Other.ExpectedOldSkillId && ExpectedOldRank == Other.ExpectedOldRank
-        && bReplaceConfirmed == Other.bReplaceConfirmed;
+        && bReplaceConfirmed == Other.bReplaceConfirmed && bReroll == Other.bReroll;
 }
 
 bool FLDShopCommand::SameTerms(const FLDShopCommand& Other) const
@@ -93,7 +93,7 @@ bool FLDShopCommand::SameTerms(const FLDShopCommand& Other) const
         && WorldGeometryRevision == Other.WorldGeometryRevision && ExpectedAccountRevision == Other.ExpectedAccountRevision
         && ExpectedInventoryRevision == Other.ExpectedInventoryRevision && ExpectedBuildRevision == Other.ExpectedBuildRevision
         && DefinitionId == Other.DefinitionId && BuyPrice == Other.BuyPrice && Instance == Other.Instance
-        && ExpectedItemRevision == Other.ExpectedItemRevision && SellPrice == Other.SellPrice;
+        && ExpectedItemRevision == Other.ExpectedItemRevision && SellPrice == Other.SellPrice && UpgradePrice == Other.UpgradePrice;
 }
 
 bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
@@ -103,7 +103,7 @@ bool LDGrowthWire::IsKnownFamily(ELDGrowthFamily Family)
 
 bool LDGrowthWire::IsKnownShopKind(ELDShopCommandKind Kind)
 {
-    return Kind == ELDShopCommandKind::Buy || Kind == ELDShopCommandKind::Sell;
+    return Kind == ELDShopCommandKind::Buy || Kind == ELDShopCommandKind::Sell || Kind == ELDShopCommandKind::Upgrade;
 }
 
 bool LDGrowthWire::IsChoicePhase(ELDLifePhase Phase)
@@ -139,6 +139,8 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::ReplacementRequired: return TEXT("ReplacementRequired");
     case ELDGrowthReason::ReplacementMismatch: return TEXT("ReplacementMismatch");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
+    case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
+    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("OfferAlreadyRerolled");
     case ELDGrowthReason::NoShopSession: return TEXT("NoShopSession");
     case ELDGrowthReason::QuoteStale: return TEXT("QuoteStale");
     case ELDGrowthReason::PriceChanged: return TEXT("PriceChanged");
@@ -158,6 +160,9 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::InvalidApproachRegion: return TEXT("InvalidApproachRegion");
     case ELDGrowthReason::DataNotReady: return TEXT("DataNotReady");
     case ELDGrowthReason::StaleContext: return TEXT("StaleContext");
+    case ELDGrowthReason::UpgradeUsed: return TEXT("UpgradeUsed");
+    case ELDGrowthReason::UpgradeUnavailable: return TEXT("UpgradeUnavailable");
+    case ELDGrowthReason::AlreadyUpgraded: return TEXT("AlreadyUpgraded");
     case ELDGrowthReason::NumericUnderflow: return TEXT("NumericUnderflow");
     case ELDGrowthReason::NumericDomain: return TEXT("NumericDomain");
     case ELDGrowthReason::ArithmeticOverflow: return TEXT("ArithmeticOverflow");

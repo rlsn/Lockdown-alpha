@@ -179,6 +179,10 @@ private:
             return Refuse(EError::InputDomain, TEXT("EquippedItems"), FString::Printf(
                 TEXT("%d equipped items exceed %d equipment slots"), Build.EquippedItems.Num(), Progression.EquipmentSlots));
         }
+        if (!Build.EquippedUpgraded.IsEmpty() && Build.EquippedUpgraded.Num() != Build.EquippedItems.Num())
+        {
+            return Refuse(EError::InputDomain, TEXT("EquippedUpgraded"), TEXT("Upgrade flags must match the equipped items"));
+        }
         FString LookupError;
         int64 ConsumedChoices = 0;
         for (int32 Index = 0; Index < Build.LearnedPassives.Num(); ++Index)
@@ -249,6 +253,11 @@ private:
             {
                 return Refuse(EError::UnknownDefinition, FString::Printf(TEXT("EquippedItems[%d]"), Index), LookupError);
             }
+            if (IsUpgraded(Index) && !LDDemoEquipment::Upgradable(*Item))
+            {
+                return Refuse(EError::Catalog, FString::Printf(TEXT("EquippedItems[%d]"), Index),
+                    Item->Id + TEXT(" is upgraded but has no approved upgraded terms"));
+            }
             Items.Add(Item);
         }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
@@ -277,6 +286,11 @@ private:
         return true;
     }
 
+    bool IsUpgraded(int32 Index) const
+    {
+        return Build.EquippedUpgraded.IsValidIndex(Index) && Build.EquippedUpgraded[Index];
+    }
+
     bool RegisterEquipmentPassives()
     {
         for (int32 Index = 0; Index < Items.Num(); ++Index)
@@ -294,7 +308,7 @@ private:
                 });
             if (Family == nullptr)
             {
-                for (const FLDDemoEffectDefinition& Effect : Item.Passive.Effects)
+                for (const FLDDemoEffectDefinition& Effect : *LDDemoEquipment::EffectivePassiveEffects(Item, IsUpgraded(Index)))
                 {
                     // Approved equipment passives are combat triggers or innate-dash terms and contribute no attribute terms.
                     if (!IsCombatTriggerOp(Effect.GetOp()))
@@ -314,6 +328,7 @@ private:
                     *Family->EquipmentId, *Item.Id, *Family->Family));
             }
             Family->EquippedIndices.Add(Index);
+            Family->bUpgraded |= IsUpgraded(Index);
         }
         Families.Sort([](const FLDEquipmentPassiveFamily& A, const FLDEquipmentPassiveFamily& B)
         {
@@ -501,7 +516,7 @@ private:
         for (int32 Index = 0; Index < Items.Num(); ++Index)
         {
             const FString Field = FString::Printf(TEXT("EquippedItems[%d]"), Index);
-            for (const FLDDemoStatBonus& Bonus : Items[Index]->Stats)
+            for (const FLDDemoStatBonus& Bonus : LDDemoEquipment::EffectiveStats(*Items[Index], IsUpgraded(Index)))
             {
                 if (!AddBonus(Bonus, &FAttributeSum::Equipment, One, Field))
                 {

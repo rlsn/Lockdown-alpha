@@ -53,6 +53,8 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "mana_on_hit", "dispel_slow", "path_slow"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
+# 112 §1: the only mechanic tags; the native ELDDemoMechanicTag mirrors this set.
+MECHANIC_TAGS = frozenset(("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
@@ -465,6 +467,16 @@ def _effect_set(effects, path):
     return frozenset(operations)
 
 
+def _same_handlers(base, upgraded):
+    return [effect["op"] for effect in base] == [effect["op"] for effect in upgraded]
+
+
+def _validate_tags(tags, path):
+    # 112 §1: one to three distinct mechanic tags; the schema fixes the six names, the draft weights read them.
+    require(1 <= len(tags) <= 3 and len(set(tags)) == len(tags) and set(tags) <= MECHANIC_TAGS,
+            "MechanicTags", path, "expected one to three distinct mechanic tags")
+
+
 def _positive_stats(stats, path):
     require(stats and all(quantity(value) > 0 for value in stats.values()),
             "IneffectiveChoice", path, "every declared stat bonus must be positive")
@@ -561,6 +573,8 @@ def validate_definitions(data, ids):
         all_ids.update(index)
         for row in rows:
             row["native_id"] = ids[section][row["id"]]
+    for row in (*data["abilities"], *data["equipment"]):
+        _validate_tags(row["tags"], row["id"])
 
     # (target mode, handlers of every rank, handlers rank 3 adds as its qualitative change)
     active_contracts = {
@@ -653,17 +667,19 @@ def validate_definitions(data, ids):
                 and set(attribute["stats"]) == attribute_stats[attribute["id"]],
                 "UnknownField", attribute["id"], "attribute definition does not declare these stats")
         _positive_stats(attribute["stats"], attribute["id"])
-    opening = data["progression"]["opening_offer"]
-    opening_ids = opening["attribute_ids"]
-    require(opening_ids == sorted(set(opening_ids)), "OpeningOffer", "progression.opening_offer",
-            "opening attribute ids must be distinct and sorted")
-    require(set(opening_ids) <= {row["id"] for row in data["attributes"]}, "InvalidReference",
-            "progression.opening_offer", "opening attribute ids must name attribute cards")
-    passives = sum(1 for row in data["abilities"] if row["kind"] == "passive")
-    require(opening["attribute_count"] + opening["passive_count"] == 3
-            and opening["attribute_count"] <= len(opening_ids) and opening["passive_count"] <= passives,
+    progression = data["progression"]
+    opening = progression["opening_offer"]
+    draftable = {kind: sum(1 for row in data["abilities"] if row["kind"] == kind and row["draftable"])
+                 for kind in ("active", "passive")}
+    require(opening["active_count"] + opening["passive_count"] == 3
+            and opening["active_count"] <= draftable["active"] and opening["passive_count"] <= draftable["passive"],
             "OpeningOffer", "progression.opening_offer",
-            "the opening offer must draw three distinct cards from its attribute ids and the passive pool")
+            "the opening offer must draw three distinct new skills from the draftable actives and passives")
+    reroll_levels = progression["reroll_levels"]
+    require(reroll_levels == sorted(set(reroll_levels))
+            and all(2 <= level <= progression["max_level"] for level in reroll_levels),
+            "RerollLevels", "progression.reroll_levels",
+            "reroll levels must be distinct, ascending and reachable by levelling up")
 
     item_stats = {
         "item_iron_plate": {"MaxHPFlat", "ArmorFlat"},
@@ -708,13 +724,24 @@ def validate_definitions(data, ids):
             require(active["cooldown_family"] == family and family not in cooldown_families,
                     "InvalidReference", identity, "unknown or shared definition cooldown family")
             cooldown_families[family] = identity
+            if "upgraded_rank" in active:
+                # 112 §7: the upgraded active is the same action one step stronger: same handlers in the same order.
+                upgraded = active["upgraded_rank"]
+                require(upgraded["rank"] == 2, "RankShape", identity, "an upgraded equipment active is rank 2")
+                _validate_action(active["target"], [upgraded], identity)
+                require(_same_handlers(active["rank"]["effects"], upgraded["effects"]), "UpgradeShape", identity,
+                        "the upgraded active must keep the base handlers in the same order")
         if passive is not None:
             family, effects = item_passives[identity]
             require(passive["family"] == family and _effect_set(passive["effects"], identity) == effects,
                     "InvalidReference", identity, "wrong passive family or effects")
-            previous = passive_families.setdefault(family, passive["effects"])
-            require(previous == passive["effects"], "PassiveConflict", identity, "same family has different terms")
-            for effect in passive["effects"]:
+            upgraded_effects = passive["upgraded"]["effects"] if "upgraded" in passive else None
+            require(upgraded_effects is None or _same_handlers(passive["effects"], upgraded_effects), "UpgradeShape", identity,
+                    "the upgraded passive must keep the base handlers in the same order")
+            terms = (passive["effects"], upgraded_effects)
+            previous = passive_families.setdefault(family, terms)
+            require(previous == terms, "PassiveConflict", identity, "same family has different terms")
+            for effect in (*passive["effects"], *(upgraded_effects or ())):
                 if effect["op"] == "dash_boost":
                     # D20: the innate dash cooldown is multiplied by cooldown_ratio and its distance by 1 + distance_bonus.
                     require(quantity(effect["cooldown_ratio"]) > 0, "NumericDomain", identity,
@@ -771,9 +798,29 @@ def all_effects(row):
     active = row.get("active")
     if active is not None:
         yield from active["rank"]["effects"]
+        if "upgraded_rank" in active:
+            yield from active["upgraded_rank"]["effects"]
     passive = row.get("passive")
     if passive is not None:
         yield from passive["effects"]
+        if "upgraded" in passive:
+            yield from passive["upgraded"]["effects"]
+
+
+def upgraded_stats(stats, ratio_bp, path):
+    """112 §7: an upgraded item's fixed stats are 1 + SHOP.UpgradeStatBonusRatio times the base, floored per field
+    precision (P2 points/resources, R4 ratios, whole centimetres of attack range)."""
+    result = {}
+    for key, value in stats.items():
+        if "p2" in value or "bp" in value:
+            storage = "p2" if "p2" in value else "bp"
+            amount = checked_mul(value[storage], checked_add(10000, ratio_bp, path), path)
+            result[key] = {"unit": value["unit"], storage: amount // 10000}
+        else:
+            scaled = quantity(value) * Fraction(10000 + ratio_bp, 10000)
+            result[key] = {"unit": value["unit"], "numerator": integer(scaled.numerator // scaled.denominator, path),
+                           "denominator": 1}
+    return result
 
 
 def validate_numbers(data):
@@ -845,6 +892,13 @@ def validate_numbers(data):
         item["sell_gold"] = numerator // 10000
         require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
         checked_add(params["SHOP.StartingGold"], price, item["id"])
+        item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
+    for key in ("CHOICE.UpgradeWeight", "CHOICE.NewActiveOpenSlotWeight", "CHOICE.NewActiveFullSlotWeight",
+                "CHOICE.NewPassiveWeight"):
+        require(params[key]["bp"] > 0, "NumericDomain", key, "a draft weight must be positive")
+    require(params["CHOICE.AffinityStep"]["bp"] >= 10000 and params["CHOICE.AffinityCap"]["bp"] >= 10000,
+            "NumericDomain", "CHOICE.Affinity", "tag affinity never lowers a weight")
+    checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == {"Low", "High"},
@@ -894,18 +948,25 @@ def _choice_bonus(data, field):
     return best[budget]
 
 
+def _equipment_bonus(data, field, zero):
+    # Two items, at most one of them upgraded (112 §7).
+    best = max((quantity(row["stats"].get(field, zero)) for row in data["equipment"]), default=Fraction(0))
+    upgraded = max((quantity(row["upgraded_stats"].get(field, zero)) for row in data["equipment"]), default=Fraction(0))
+    return best + upgraded
+
+
 def _validate_build_envelope(data):
     params = data["parameters"]
     for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen", "CooldownHaste", "AttackRange"):
         field = {"HPRegen": "HPRegen", "MPRegen": "MPRegen", "AttackRange": "AttackRangeCmFlat"}.get(stat, stat + "Flat")
-        equipment = max((quantity(row["stats"].get(field, {"p2": 0})) for row in data["equipment"]), default=Fraction(0))
+        equipment = _equipment_bonus(data, field, {"p2": 0})
         if stat == "AttackRange":
             base = quantity(params["UNIT.BasicAttackRangeCm"])
         else:
             base = quantity(params["STAT." + stat + ".Base"])
             if "STAT." + stat + ".PerLevel" in params:
                 base += 9 * quantity(params["STAT." + stat + ".PerLevel"])
-        maximum = base + _choice_bonus(data, field) + 2 * equipment
+        maximum = base + _choice_bonus(data, field) + equipment
         require(maximum <= quantity(params["STAT." + stat + ".Max"]),
                 "BuildEnvelope", stat, "a legal max_choices/two-item build exceeds the declared bound")
     for field, base_key, maximum_key, level_key in (
@@ -913,8 +974,7 @@ def _validate_build_envelope(data):
         ("MoveSpeedBonusRatio", "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Max", None),
         ("CritChanceBonusRatio", "STAT.CritChance.Base", None, None),
     ):
-        equipment = max((quantity(row["stats"].get(field, {"bp": 0})) for row in data["equipment"]), default=Fraction(0))
-        bonus = _choice_bonus(data, field) + 2 * equipment
+        bonus = _choice_bonus(data, field) + _equipment_bonus(data, field, {"bp": 0})
         if level_key is not None:
             bonus += 9 * quantity(params[level_key])
         base = quantity(params[base_key])

@@ -199,7 +199,9 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
 DEV 测试会话的测试属性层（`FLDBuildProjectionInput::DevBonuses`）也只由 Combat 持有：成长域输入不带它，
 Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 `Dev` 来源行；见[库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
-来源冷却轨道与债优先回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，售出重购按回绑规则继承；
+已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性、被动效果与主动等级只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects/EffectiveActiveRank`
+取得，属性投影、来源与效果处理器不另写进阶分支；同款双持时同名被动取有进阶的一件。
+来源冷却轨道与债优先回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，进阶不刷新冷却，售出重购按回绑规则继承；
 商店报价用只读 `PreviewGearBinding` 说明继承冷却，以购买回执为准。
 
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。

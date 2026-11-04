@@ -226,6 +226,8 @@ struct FLDEquippedItemValue
     FGuid Instance;
     FName DefinitionId;
     uint64 ItemRevision=0;
+    // 112 §7: read stats, passive and active terms through LDDemoEquipment::Effective*.
+    bool bUpgraded=false;
 };
 
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
@@ -468,6 +470,7 @@ struct FLDCombatOwnerView
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
+    UPROPERTY() TArray<FName> UpgradedEquipmentPassives; // 112 §7: families applying their upgraded terms
     UPROPERTY() bool bOutOfCombatRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;

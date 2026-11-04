@@ -69,14 +69,61 @@ FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen,
     return Best[Choices];
 }
 
+// Two items, at most one of them upgraded (112 §7).
 FExact EquipmentBonus(const FLDDemoContentDefinitions& D, int32 Stat, FNumbers& N)
 {
     FExact Best = N.Value(0);
+    FExact Upgraded = N.Value(0);
     for (const auto& Row : D.Equipment)
     {
         Best = N.Max(Best, StatBonus(Row.Stats, Stat, N));
+        Upgraded = N.Max(Upgraded, StatBonus(Row.UpgradedStats, Stat, N));
     }
-    return N.Mul(Best, N.Value(2));
+    return N.Add(Best, Upgraded);
+}
+
+// 112 §7: Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2/R4 storage, whole centimetres of range).
+bool UpgradedStatsMatch(const FLDDemoEquipmentDefinition& Item, int64 BonusBp, FNumbers& N)
+{
+    if (Item.UpgradedStats.Num() != Item.Stats.Num())
+    {
+        return false;
+    }
+    for (int32 I = 0; I < Item.Stats.Num(); ++I)
+    {
+        const FLDDemoStatBonus& Base = Item.Stats[I];
+        const FLDDemoStatBonus& Up = Item.UpgradedStats[I];
+        if (Base.Stat != Up.Stat)
+        {
+            return false;
+        }
+        if (Base.Stat == ELDDemoBonusStat::AttackRangeCmFlat)
+        {
+            int64 Scaled, Whole;
+            if (Base.Cm.Denominator <= 0 || !N.Mul64(Base.Cm.Numerator, 10000 + BonusBp, Scaled, Item.Id)
+                || !N.Mul64(Base.Cm.Denominator, 10000, Whole, Item.Id))
+            {
+                return false;
+            }
+            const int64 Expected = Scaled >= 0 ? Scaled / Whole : -((-Scaled + Whole - 1) / Whole);
+            if (Up.Amount != 0 || Up.Cm.Denominator != 1 || Up.Cm.Numerator != Expected)
+            {
+                return false;
+            }
+            continue;
+        }
+        int64 Scaled;
+        if (!N.Mul64(Base.Amount, 10000 + BonusBp, Scaled, Item.Id))
+        {
+            return false;
+        }
+        const int64 Expected = Scaled >= 0 ? Scaled / 10000 : -((-Scaled + 9999) / 10000);
+        if (Up.Amount != Expected || Up.Cm.Numerator != 0 || Up.Cm.Denominator != 1)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Check)
@@ -189,6 +236,14 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             if (!CheckEffect(Effect, Item.Id)) { return false; }
         }
+        for (const auto& Effect : Item.Active.UpgradedRank.Effects)
+        {
+            if (!CheckEffect(Effect, Item.Id)) { return false; }
+        }
+        for (const auto& Effect : Item.Passive.UpgradedEffects)
+        {
+            if (!CheckEffect(Effect, Item.Id)) { return false; }
+        }
     }
     return Check.Good;
 }
@@ -258,20 +313,26 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     const FLDDemoProgressionDefinition& Opening = D.Progression;
-    int32 Passives = 0;
-    for (const auto& Ability : D.Abilities) { Passives += Ability.Kind == ELDDemoAbilityKind::Passive ? 1 : 0; }
-    for (const FString& Id : Opening.OpeningAttributeIds)
+    int32 Actives = 0, Passives = 0;
+    for (const auto& Ability : D.Abilities)
     {
-        if (!Check.Require(D.Attributes.ContainsByPredicate([&Id](const FLDDemoAttributeDefinition& Row) { return Row.Id == Id; }),
-            TEXT("progression.opening_offer"), TEXT("opening offer names an unknown attribute card")))
+        if (Ability.Draftable)
         {
-            return false;
+            (Ability.Kind == ELDDemoAbilityKind::Passive ? Passives : Actives) += 1;
         }
     }
-    if (!Check.Require(Opening.OpeningAttributeCount >= 0 && Opening.OpeningPassiveCount >= 0
-        && Opening.OpeningAttributeCount + Opening.OpeningPassiveCount == 3
-        && Opening.OpeningAttributeCount <= Opening.OpeningAttributeIds.Num() && Opening.OpeningPassiveCount <= Passives,
-        TEXT("progression.opening_offer"), TEXT("opening offer cannot draw three distinct cards from its attributes and passives")))
+    if (!Check.Require(Opening.OpeningActiveCount >= 0 && Opening.OpeningPassiveCount >= 0
+        && Opening.OpeningActiveCount + Opening.OpeningPassiveCount == 3
+        && Opening.OpeningActiveCount <= Actives && Opening.OpeningPassiveCount <= Passives,
+        TEXT("progression.opening_offer"), TEXT("opening offer cannot draw three distinct new draftable skills")))
+    {
+        return false;
+    }
+    const auto& Choice = P.Choice;
+    if (!Check.Require(Choice.UpgradeWeightBp > 0 && Choice.NewActiveOpenSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp > 0
+        && Choice.NewPassiveWeightBp > 0 && Choice.AffinityStepBp >= 10000 && Choice.AffinityCapBp >= 10000
+        && Choice.ThirdSlotAttributeBp >= 0 && Choice.ThirdSlotAttributeBp <= 10000, TEXT("CHOICE"),
+        TEXT("draft weights must be positive and tag affinity never lowers a weight")))
     {
         return false;
     }
@@ -306,7 +367,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         if (!N.Mul64(Item.BuyPrice, P.SellRatioBp, SaleNumerator, Item.Id)
             || !N.Add64(P.StartingGold, Item.BuyPrice, PurchaseEnvelope, Item.Id)
             || !Check.Require(Item.SellGold == SaleNumerator / 10000 && Item.SellGold < Item.BuyPrice,
-                Item.Id, TEXT("derived sell gold differs or permits arbitrage")))
+                Item.Id, TEXT("derived sell gold differs or permits arbitrage"))
+            || !Check.Require(UpgradedStatsMatch(Item, P.UpgradeStatBonusBp, N), Item.Id,
+                TEXT("derived upgraded stats differ from the floored stat bonus")))
         {
             return false;
         }

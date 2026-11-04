@@ -667,6 +667,19 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
     }
     return Card;
 }
+TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
+{
+    TArray<FString> Lines;
+    for(const FLDDemoStatBonus& Stat:Item.UpgradedStats){Lines.Add(StatLine(Stat));}
+    if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(Item,true))
+    {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
+    if(const FLDDemoRankDefinition* Active=LDDemoEquipment::EffectiveActiveRank(Item,true))
+    {
+        Lines.Add(TEXT("主动 [1/2]：")+TargetLine(Item.Active.Target));
+        for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
+    }
+    return Lines;
+}
 LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {
     FShopItemView View;
@@ -744,6 +757,8 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ReplacementRequired: return TEXT("主动技能槽已满，需要选择替换哪个技能");
     case ELDGrowthReason::ReplacementMismatch: return TEXT("要替换的技能已变化，请重新选择");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("该选项不能替换技能");
+    case ELDGrowthReason::NoReroll: return TEXT("没有免费重抽次数");
+    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("这一组已经重抽过一次");
     case ELDGrowthReason::NoShopSession: return FString(LDTerms::Shop)+TEXT("尚未打开");
     case ELDGrowthReason::QuoteStale: return TEXT("报价已更新，请重新确认");
     case ELDGrowthReason::PriceChanged: return TEXT("价格已变化，请重新确认");
@@ -761,6 +776,9 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::InvalidGround: case ELDGrowthReason::WrongSurface: return TEXT("当前位置不能交易");
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
+    case ELDGrowthReason::UpgradeUsed: return TEXT("本局的装备进阶已经用过了");
+    case ELDGrowthReason::UpgradeUnavailable: return TEXT("这件装备暂时不能进阶");
+    case ELDGrowthReason::AlreadyUpgraded: return TEXT("这件装备已经进阶");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
     case ELDGrowthReason::NumericDomain: return TEXT("数值非法，本次没有提交");
     case ELDGrowthReason::ArithmeticOverflow: return TEXT("数值溢出，本次没有提交");

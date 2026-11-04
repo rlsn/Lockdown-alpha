@@ -20,9 +20,9 @@ def instance(serial):
     return f"11111111-2222-3333-{serial >> 48:04x}-{serial & 0xFFFFFFFFFFFF:012x}"
 
 
-def account(gold, revision, retired=False, retire_serial=0, life=0, life_revision=0):
+def account(gold, revision, retired=False, retire_serial=0, life=0, life_revision=0, upgrade_used=False):
     return {"gold": str(gold), "revision": str(revision), "retired": retired, "retireSerial": str(retire_serial),
-            "retireLife": life, "retireLifeRevision": str(life_revision)}
+            "retireLife": life, "retireLifeRevision": str(life_revision), "upgradeUsed": upgrade_used}
 
 
 def state(through, issued, minted, burned, accounts, inventories, items):
@@ -31,13 +31,14 @@ def state(through, issued, minted, burned, accounts, inventories, items):
         "minted": str(minted), "burned": str(burned),
         "accounts": [dict(account_row, id=key) for key, account_row in accounts.items()],
         "inventories": [{"owner": key, "revision": str(value)} for key, value in inventories.items()],
-        "items": [{"instance": instance(serial), "issueSerial": str(serial), "definition": DEFINITION, "owner": owner,
-                   "slot": slot, "revision": "1"} for serial, owner, slot in items],
+        "items": [{"instance": instance(row[0]), "issueSerial": str(row[0]), "definition": DEFINITION, "owner": row[1],
+                   "slot": row[2], "revision": str(row[3] if len(row) > 3 else 1), "upgraded": len(row) > 4 and row[4]}
+                  for row in items],
     }
 
 
 def entry(serial, cause, gold=None, create=None, consume=None, retire=None, mint=0, burn=0,
-          result_account=0, result_inventory=0, created=0):
+          result_account=0, result_inventory=0, created=0, upgrade=None):
     return {
         "serial": str(serial), "cause": cause, "businessKey": f"6b657900-0000-0000-0000-{200 + serial:012x}",
         "terms": TERMS, "commitBatch": str(200 + serial), "mint": str(mint), "burn": str(burn),
@@ -46,6 +47,8 @@ def entry(serial, cause, gold=None, create=None, consume=None, retire=None, mint
                                                 "definition": DEFINITION, "slot": create[2]},
         "consume": None if consume is None else {"instance": instance(consume[0]), "expectedItemRevision": "1",
                                                   "owner": consume[1], "expectedInventoryRevision": str(consume[2])},
+        "upgrade": None if upgrade is None else {"instance": instance(upgrade[0]), "expectedItemRevision": str(upgrade[3]),
+                                                  "owner": upgrade[1], "expectedInventoryRevision": str(upgrade[2])},
         "retire": None if retire is None else {"account": retire[0], "expectedRevision": str(retire[1]),
                                                 "life": retire[2], "lifeRevision": str(retire[3])},
         "resultAccountRevision": str(result_account), "resultInventoryRevision": str(result_inventory),
@@ -82,7 +85,7 @@ def live_state():
 
 
 def fixture():
-    return {"schemaVersion": 4, "match": MATCH, "startingGold": "150",
+    return {"schemaVersion": 5, "match": MATCH, "startingGold": "150",
             "devFixture": {"enabled": False, "grants": [], "minted": "0", "resets": []}, "prefix": compacted_prefix(),
             "tail": history()[2:], "current": live_state()}
 
@@ -112,6 +115,18 @@ def dev_reset_run():
     return data
 
 
+def upgrade_run():
+    """fixture() plus P1 upgrading its live item 3 for 30 (serial 9): the item revision and the inventory revision rise,
+    and the account's one upgrade is spent."""
+    data = fixture()
+    data["tail"].append(entry(9, "Upgrade", gold=(P1, 5, -30), upgrade=(3, P1, 4, 1), burn=30, result_account=6, result_inventory=5))
+    data["current"] = state(9, 3, 210, 330,
+                            {P1: account(65, 6, upgrade_used=True), P2: account(115, 4, True, 8, 1, 3),
+                             P3: account(150, 2, True, 2, 2, 7)},
+                            {P1: 5, P2: 3, P3: 1}, [(3, P1, 1, 2, True)])
+    return data
+
+
 class EconomyEvidenceTests(unittest.TestCase):
     def setUp(self):
         self.data = fixture()
@@ -126,6 +141,32 @@ class EconomyEvidenceTests(unittest.TestCase):
 
     def test_replays_compacted_prefix_and_every_cause(self):
         self.assertEqual(verify_data(self.data), {"tail": 6, "throughSerial": 8, "accounts": 3, "items": 1, "gold": 360})
+
+    def test_upgrade_spends_the_one_upgrade_of_the_account(self):
+        self.assertEqual(verify_data(upgrade_run())["throughSerial"], 9)
+        again = upgrade_run()
+        again["tail"].append(entry(10, "Upgrade", gold=(P1, 6, -30), upgrade=(3, P1, 5, 2), burn=30, result_account=7,
+                                   result_inventory=6))
+        self.rejects(again, "already upgraded")
+        stale = upgrade_run()
+        stale["tail"][-1]["upgrade"]["expectedItemRevision"] = "2"
+        self.rejects(stale, "item revision changed")
+        minted = upgrade_run()
+        minted["tail"][-1].update(mint="30", burn="0")
+        self.rejects(minted, "shape")
+        sold = upgrade_run()
+        sold["tail"].append(entry(10, "Sell", gold=(P1, 6, 65), consume=(3, P1, 5), mint=65, result_account=7, result_inventory=6))
+        sold["current"] = state(10, 3, 275, 330,
+                                {P1: account(130, 7, upgrade_used=True), P2: account(115, 4, True, 8, 1, 3),
+                                 P3: account(150, 2, True, 2, 2, 7)}, {P1: 6, P2: 3, P3: 1}, [])
+        sold["current"]["items"] = []
+        # Selling the upgraded copy needs its current item revision; the spent upgrade stays spent.
+        self.rejects(sold, "item revision changed")
+        sold["tail"][-1]["consume"]["expectedItemRevision"] = "2"
+        self.assertEqual(verify_data(sold)["throughSerial"], 10)
+        hidden = upgrade_run()
+        hidden["current"]["accounts"][0]["upgradeUsed"] = False
+        self.rejects(hidden)
 
     def test_replays_uncompacted_history(self):
         self.data.update(prefix=initial_state(), tail=history())
@@ -150,7 +191,7 @@ class EconomyEvidenceTests(unittest.TestCase):
                 self.rejects(data, "Missing ledger field")
 
     def test_schema_match_and_identity_spelling(self):
-        for value in (3, 5, True, "4", None):
+        for value in (4, 6, True, "5", None):
             with self.subTest(schema=value):
                 data = copy.deepcopy(self.data)
                 data["schemaVersion"] = value

@@ -25,10 +25,12 @@ namespace LDEconomy
         bool bRetired = false;
         uint64 RetireSerial = 0;
         FRetireStamp RetireStamp;
+        // 112 §7: the account's one equipment upgrade of the match is spent; selling that item never returns it.
+        bool bUpgradeUsed = false;
         bool operator==(const FAccount& Other) const
         {
             return Gold == Other.Gold && Revision == Other.Revision && bRetired == Other.bRetired
-                && RetireSerial == Other.RetireSerial && RetireStamp == Other.RetireStamp;
+                && RetireSerial == Other.RetireSerial && RetireStamp == Other.RetireStamp && bUpgradeUsed == Other.bUpgradeUsed;
         }
     };
 
@@ -39,16 +41,20 @@ namespace LDEconomy
         FGuid Owner;
         uint8 Slot = 0;
         uint64 Revision = 1;
+        // 112 §7: bound to this instance; leaves with it on sale.
+        bool bUpgraded = false;
         bool operator==(const FItem& Other) const
         {
             return IssueSerial == Other.IssueSerial && Definition == Other.Definition && Owner == Other.Owner
-                && Slot == Other.Slot && Revision == Other.Revision;
+                && Slot == Other.Slot && Revision == Other.Revision && bUpgraded == Other.bUpgraded;
         }
     };
 
     enum class ECause : uint8
     {
         None, DeathReward, Buy, Sell, AccountRetire,
+        // 112 §7: Burn SHOP.UpgradeCost + upgrade one owned instance; spends the account's one upgrade.
+        Upgrade,
 #if WITH_DEV_AUTOMATION_TESTS
         // DEV growth fixture grant (-LDDevGrowthFixture only): Mint to one account, never a death or a trade.
         DevFixture,
@@ -81,6 +87,14 @@ namespace LDEconomy
         uint64 ExpectedInventoryRevision = 0;
     };
 
+    struct FUpgradeItem
+    {
+        FGuid Instance;
+        uint64 ExpectedItemRevision = 0;
+        FGuid Owner;
+        uint64 ExpectedInventoryRevision = 0;
+    };
+
     struct FRetireAccount
     {
         FGuid Account;
@@ -90,6 +104,7 @@ namespace LDEconomy
 
     // Demo transactions touch at most one account. Cause fixes the allowed shape:
     // DeathReward = Mint to one account; Buy = Burn + Create; Sell = Consume + Mint; AccountRetire = Retire only;
+    // Upgrade = Burn + Upgrade of an instance of the same account;
     // DevFixture (DEV builds) = Mint to one account like DeathReward; DevReset (DEV builds) = Consume only, or Gold only
     // with a non-zero delta booked as Mint or Burn.
     struct FTransaction
@@ -103,6 +118,7 @@ namespace LDEconomy
         TOptional<FGoldChange> Gold;
         TOptional<FCreateItem> Create;
         TOptional<FConsumeItem> Consume;
+        TOptional<FUpgradeItem> Upgrade;
         TOptional<FRetireAccount> Retire;
     };
 
@@ -134,7 +150,7 @@ namespace LDEconomy
     {
         None, NotInitialized, InvalidTransaction, UnknownAccount, RetiredAccount, AccountStale, InsufficientGold,
         Overflow, UnknownItem, NotOwner, ItemStale, InventoryStale, SlotOccupied, EquipmentFull, AlreadyRetired,
-        DuplicateBusinessKey, BusinessKeyConflict, JournalFull
+        DuplicateBusinessKey, BusinessKeyConflict, JournalFull, UpgradeUsed, AlreadyUpgraded
     };
 
     class LOCKDOWN_API FPreparedCommit
@@ -242,7 +258,7 @@ namespace LDEconomy
     LOCKDOWN_API bool ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bReplay, EPrepareError& Error, FString& Message);
     LOCKDOWN_API bool SameState(const FAuditState& A, const FAuditState& B, FString& Difference);
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 4): the audit prefix, the journal tail after it, the
+    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 5): the audit prefix, the journal tail after it, the
     // live state and every DevFixture mint and DevReset entry of the match, every 64-bit value as a decimal string. StartingGold is the
     // approved SHOP.StartingGold of the match.
     LOCKDOWN_API bool ExportEvidence(const FLedger& Ledger, int64 StartingGold, FString& OutJson, FString& Error);

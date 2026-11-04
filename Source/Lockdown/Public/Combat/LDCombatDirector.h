@@ -442,6 +442,7 @@ private:
     friend class FLDCombatOrderRulesTest;
     friend class FLDCombatRecoveryTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDDemoGrowthRerollTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,

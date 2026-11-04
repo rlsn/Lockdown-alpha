@@ -1,7 +1,8 @@
-"""Independently replay a Demo ledger evidence export (schema 4): audit prefix + journal tail must equal the live state.
+"""Independently replay a Demo ledger evidence export (schema 5): audit prefix + journal tail must equal the live state.
 
 The export comes from LDEconomy::ExportEvidence. Every rule mirrors LDEconomy::ApplyEntry: one account per entry,
-DeathReward = mint, Buy = burn + create, Sell = consume + mint, AccountRetire = retire only, two equipment slots,
+DeathReward = mint, Buy = burn + create, Sell = consume + mint, AccountRetire = retire only, Upgrade = burn + upgrade
+of one not yet upgraded instance of the same account that has not spent its one upgrade, two equipment slots,
 instance identities that encode the match and issue serial, and gold that reconciles with initial + mint - burn.
 DevFixture = mint from the DEV growth fixture (-LDDevGrowthFixture). Its grants are listed in devFixture for the whole
 match; they are accepted only with --dev-fixture and only from an export whose process ran with the fixture.
@@ -16,12 +17,12 @@ from pathlib import Path
 import re
 from uuid import UUID
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 UINT32_MAX, UINT64_MAX = 2**32 - 1, 2**64 - 1
 EQUIPMENT_SLOTS = 2
 JOURNAL_TAIL_CAPACITY = 64
-CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire")
+CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire", "Upgrade")
 DEV_FIXTURE = "DevFixture"
 DEV_RESET = "DevReset"
 DEFINITION = re.compile(r"[a-z][a-z0-9_]{0,62}")
@@ -120,6 +121,7 @@ def load_state(row, match, label):
             "retireSerial": u64(field(account, "retireSerial"), f"{label} retireSerial"),
             "retireLife": small(field(account, "retireLife"), f"{label} retireLife", UINT32_MAX),
             "retireLifeRevision": u64(field(account, "retireLifeRevision"), f"{label} retireLifeRevision"),
+            "upgradeUsed": flag(field(account, "upgradeUsed"), f"{label} account upgradeUsed"),
         }
         if retired:
             require(1 <= record["retireSerial"] <= state["through"] and record["retireLife"] >= 1
@@ -146,6 +148,7 @@ def load_state(row, match, label):
             "owner": guid(field(item, "owner"), f"{label} item owner"),
             "slot": small(field(item, "slot"), f"{label} item slot", EQUIPMENT_SLOTS - 1),
             "revision": u64(field(item, "revision"), f"{label} item revision", 1),
+            "upgraded": flag(field(item, "upgraded"), f"{label} item upgraded"),
         }
         require(record["owner"] in state["accounts"], f"Item owner has no account: {key}")
         require((record["owner"], record["slot"]) not in positions, f"Two items share one equipment slot: {key}")
@@ -200,9 +203,13 @@ def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
             or (cause == DEV_RESET and fixture_resets is not None), f"Unknown cause: {cause}")
     mint = i64(field(entry, "mint"), "mint", 0)
     burn = i64(field(entry, "burn"), "burn", 0)
-    gold, create, consume, retire = (optional(entry, name) for name in ("gold", "create", "consume", "retire"))
+    gold, create, consume, upgrade, retire = (optional(entry, name) for name in ("gold", "create", "consume", "upgrade", "retire"))
     delta = i64(field(gold, "delta"), "gold delta") if gold is not None else None
-    if cause in ("DeathReward", DEV_FIXTURE):
+    require(upgrade is None or cause == "Upgrade", "Only an Upgrade entry upgrades an item")
+    if cause == "Upgrade":
+        shape = (gold is not None and upgrade is not None and create is None and consume is None and retire is None
+                 and delta < 0 and burn == -delta and mint == 0 and field(upgrade, "owner") == field(gold, "account"))
+    elif cause in ("DeathReward", DEV_FIXTURE):
         shape = gold is not None and create is None and consume is None and retire is None and delta > 0 and mint == delta and burn == 0
     elif cause == "Buy":
         shape = (gold is not None and create is not None and consume is None and retire is None and delta < 0
@@ -260,7 +267,8 @@ def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
         created_instance = instance_for(match, created_serial)
         require(created_instance not in items, "Issued equipment identity is already live")
         inventory_owner, new_inventory = owner, inventories[owner] + 1
-        new_item = {"serial": created_serial, "definition": item_definition, "owner": owner, "slot": slot, "revision": 1}
+        new_item = {"serial": created_serial, "definition": item_definition, "owner": owner, "slot": slot, "revision": 1,
+                    "upgraded": False}
 
     consumed = None
     if consume is not None:
@@ -276,6 +284,23 @@ def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
                 "Inventory revision changed")
         require(inventories[owner] < UINT64_MAX, "Inventory revision would overflow")
         inventory_owner, new_inventory, consumed = owner, inventories[owner] + 1, key
+
+    upgraded = None
+    if upgrade is not None:
+        key = guid(field(upgrade, "instance"), "upgrade instance")
+        owner = guid(field(upgrade, "owner"), "upgrade owner")
+        item = items.get(key)
+        require(item is not None, "Equipment instance is not live")
+        require(item["owner"] == owner, "Equipment instance belongs to another owner")
+        require(item["revision"] == u64(field(upgrade, "expectedItemRevision"), "upgrade expectedItemRevision"), "Equipment item revision changed")
+        require(not item["upgraded"], "Equipment instance is already upgraded")
+        require(not new_account["upgradeUsed"], "The account already spent its one upgrade of the match")
+        require(inventories[owner] == u64(field(upgrade, "expectedInventoryRevision"), "upgrade expectedInventoryRevision"),
+                "Inventory revision changed")
+        require(inventories[owner] < UINT64_MAX and item["revision"] < UINT64_MAX, "Inventory or item revision would overflow")
+        inventory_owner, new_inventory = owner, inventories[owner] + 1
+        upgraded = (key, dict(item, revision=item["revision"] + 1, upgraded=True))
+        new_account = dict(new_account, upgradeUsed=True)
 
     if retire is not None:
         key = guid(field(retire, "account"), "retire account")
@@ -314,6 +339,8 @@ def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
         state["issued"] = created_serial
     if consumed is not None:
         del items[consumed]
+    if upgraded is not None:
+        items[upgraded[0]] = upgraded[1]
     state["minted"], state["burned"], state["through"] = minted, burned, serial
 
 

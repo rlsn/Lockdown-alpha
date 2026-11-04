@@ -40,6 +40,10 @@ def content_fixture():
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
+        ("SHOP.UpgradeStatBonusRatio", "ratio", 0.4), ("CHOICE.UpgradeWeight", "ratio", 2.5),
+        ("CHOICE.NewActiveOpenSlotWeight", "ratio", 1.75), ("CHOICE.NewActiveFullSlotWeight", "ratio", 0.25),
+        ("CHOICE.NewPassiveWeight", "ratio", 1.25), ("CHOICE.AffinityStep", "ratio", 1.5),
+        ("CHOICE.AffinityCap", "ratio", 2), ("CHOICE.ThirdSlotAttributeChance", "ratio", 0.6),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
@@ -49,7 +53,7 @@ def content_fixture():
     ):
         parameters[key] = q(unit, value)
     parameters.update({
-        "SHOP.StartingGold": 10, "CHOICE.BaseWeight": 2, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
+        "SHOP.StartingGold": 10, "SHOP.UpgradeCost": 30, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
     })
@@ -77,7 +81,7 @@ def content_fixture():
     }
     abilities = [
         {
-            "id": "active_arc_bolt", "kind": "active", "cooldown_family": "cd_arc_bolt", "windup": q("s", 0.125),
+            "id": "active_arc_bolt", "kind": "active", "tags": ["Mobility", "Breach"], "draftable": True, "cooldown_family": "cd_arc_bolt", "windup": q("s", 0.125),
             "target": {"mode": "DirectionProjectile", "range": q("cm", 350), "projectile_radius": q("cm", 15), "projectile_speed": q("cm/s", 900)},
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
@@ -88,7 +92,7 @@ def content_fixture():
             } for rank in range(1, 4)],
         },
         {
-            "id": "active_guard_pulse", "kind": "active", "cooldown_family": "cd_guard_pulse",
+            "id": "active_guard_pulse", "kind": "active", "tags": ["Shield", "Control"], "draftable": True, "cooldown_family": "cd_guard_pulse",
             "target": {"mode": "Self"}, "windup": q("s", 0),
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 4 * rank), "cooldown": q("s", 7),
@@ -98,7 +102,7 @@ def content_fixture():
             } for rank in range(1, 4)],
         },
         {
-            "id": "active_binding_snare", "kind": "active", "cooldown_family": "cd_binding_snare",
+            "id": "active_binding_snare", "kind": "active", "tags": ["Control", "Breach"], "draftable": True, "cooldown_family": "cd_binding_snare",
             "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
@@ -107,19 +111,19 @@ def content_fixture():
             } for rank in range(1, 4)],
         },
         {
-            "id": "passive_battle_rhythm", "kind": "passive", "target": {"mode": "Self"},
+            "id": "passive_battle_rhythm", "kind": "passive", "tags": ["BasicAttack", "Mobility"], "draftable": True, "target": {"mode": "Self"},
             "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": q("ratio", value)}},
                                                  {"op": "basic_stacks", "stats": {"MoveSpeedBonusRatio": q("ratio", 0.01)},
                                                   "duration": q("s", 1), "max_stacks": 2}]}
                       for rank, value in enumerate((0.02, 0.04, 0.06), 1)],
         },
         {
-            "id": "passive_second_wind", "kind": "passive", "target": {"mode": "Self"},
+            "id": "passive_second_wind", "kind": "passive", "tags": ["Tank", "Breach"], "draftable": True, "target": {"mode": "Self"},
             "ranks": [{"rank": rank, "effects": [{"op": "out_of_combat_regen", "delay": q("s", 2.5), "max_hp_ratio": q("ratio", 0.001 * rank)}]}
                       for rank in range(1, 4)],
         },
         {
-            "id": "passive_precision", "kind": "passive", "target": {"mode": "Self"},
+            "id": "passive_precision", "kind": "passive", "tags": ["BasicAttack", "Breach"], "draftable": True, "target": {"mode": "Self"},
             "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}},
                                                  {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": q("s", 0.5)}]
                        + ([{"op": "ability_crit", "mode": "Chance", "ratio": q("ratio", 0.5), "abilities": ["active_binding_snare"]}]
@@ -135,24 +139,28 @@ def content_fixture():
         {"id": "attr_reach", "stats": {"AttackRangeCmFlat": q("cm", 10)}},
     ]
     equipment = [
-        {"id": "item_iron_plate", "buy_price": 51, "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None,
+        {"id": "item_iron_plate", "buy_price": 51, "tags": ["Tank"], "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None,
          "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": q("ratio", 0.1)}]}},
-        {"id": "item_edge_blade", "buy_price": 52, "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+        {"id": "item_edge_blade", "buy_price": 52, "tags": ["BasicAttack"], "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
          "passive": {"family": "passive_third_strike", "effects": [{"op": "nth_basic_bonus", "count": 3, "base": q("points", 5), "damage_type": "Physical"}]}},
-        {"id": "item_runic_focus", "buy_price": 53, "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None,
+        {"id": "item_runic_focus", "buy_price": 53, "tags": ["Breach"], "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None,
          "passive": {"family": "passive_mana_refund", "effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": q("mp", 2)}]}},
-        {"id": "item_siphon_emblem", "buy_price": 54, "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)}, "active": None,
-         "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}]}},
-        {"id": "item_phase_anchor", "buy_price": 55, "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+        {"id": "item_siphon_emblem", "buy_price": 54, "tags": ["BasicAttack", "Tank"], "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)}, "active": None,
+         "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}],
+                     "upgraded": {"effects": [{"op": "lifesteal", "ratio": q("ratio", 0.15)}]}}},
+        {"id": "item_phase_anchor", "buy_price": 55, "tags": ["Mobility"], "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
          "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": q("ratio", 0.5), "distance_bonus": q("ratio", 0.25)}]}},
-        {"id": "item_arcane_battery", "buy_price": 56, "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None,
+        {"id": "item_arcane_battery", "buy_price": 56, "tags": ["Shield", "Breach"], "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None,
          "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_arcane_battery",
                     "rank": {"rank": 1, "mana_cost": q("mp", 0), "cooldown": q("s", 12),
                              "effects": [{"op": "restore_mana", "ratio": q("ratio", 0.2)},
-                                         {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]}}},
-        {"id": "item_echo_maul", "buy_price": 57, "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
+                                         {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]},
+                    "upgraded_rank": {"rank": 2, "mana_cost": q("mp", 0), "cooldown": q("s", 10),
+                                      "effects": [{"op": "restore_mana", "ratio": q("ratio", 0.3)},
+                                                  {"op": "shield", "base": q("hp", 60), "ap_ratio": q("ratio", 0.25), "duration": q("s", 1.25)}]}}},
+        {"id": "item_echo_maul", "buy_price": 57, "tags": ["BasicAttack", "Mobility"], "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
          "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
-        {"id": "item_paper_box", "buy_price": 58, "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
+        {"id": "item_paper_box", "buy_price": 58, "tags": ["Mobility"], "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
          "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_paper_box",
                     "rank": {"rank": 1, "mana_cost": q("mp", 6), "cooldown": q("s", 11),
                              "effects": [{"op": "stealth", "duration": q("s", 0.75), "reveal_radius": q("cm", 60),
@@ -196,8 +204,7 @@ def content_fixture():
         "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps,
         "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810],
-                        "opening_offer": {"attribute_ids": ["attr_focus", "attr_might", "attr_vitality"],
-                                          "attribute_count": 2, "passive_count": 1}},
+                        "opening_offer": {"active_count": 2, "passive_count": 1}, "reroll_levels": [3, 6]},
         "world": {"map_id": "demo_world", "spawn_ids": [f"s{index:02d}" for index in range(10)],
                   "camp_ids": ["l1", "h1", "l2", "h2", "l3"], "shop_id": "shop", "capture_id": "capture"},
         "display": display,
