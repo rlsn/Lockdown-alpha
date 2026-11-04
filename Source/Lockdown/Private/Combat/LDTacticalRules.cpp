@@ -382,4 +382,72 @@ namespace LDTactical
         Error.Reset();
         return true;
     }
+
+    bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs)
+    {
+        return DelayMs >= 0 && LastCombatAtMs <= MAX_int64 - DelayMs && NowMs >= LastCombatAtMs + DelayMs;
+    }
+
+    bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error)
+    {
+        if (NowMs < FromMs)
+        {
+            Error = TEXT("Regeneration cannot settle a reversed interval.");
+            return false;
+        }
+        // An out-of-combat term starts exactly at LastCombatAt + Delay; the part of the interval before it is combat time.
+        const auto TermStart = [LastCombatAtMs, FromMs, NowMs, &Error](int64 DelayMs, int64& OutMs)
+        {
+            if (DelayMs < 0 || LastCombatAtMs > MAX_int64 - DelayMs)
+            {
+                Error = TEXT("An out-of-combat regeneration term has no representable start.");
+                return false;
+            }
+            OutMs = FMath::Clamp(LastCombatAtMs + DelayMs, FromMs, NowMs);
+            return true;
+        };
+        // MaxP2 x Bp / 1e6 points per second; a whole 0.001 share (Bp % 10 == 0) is always exact per millisecond.
+        const auto Share = [&Error](int64 MaxP2, int64 Bp, FLDDemoRational& Out)
+        {
+            if (MaxP2 < 0 || Bp < 0 || Bp > 10000 || (Bp != 0 && MaxP2 > MAX_int64 / Bp))
+            {
+                Error = TEXT("Out-of-combat recovery share is outside its numeric domain.");
+                return false;
+            }
+            Out.Numerator = MaxP2 * Bp;
+            Out.Denominator = 1000000;
+            return true;
+        };
+        const int64 Elapsed = NowMs - FromMs;
+        if (!IntegrateRegen(Attributes.Final.HPRegenPerSec, Elapsed, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
+            || !IntegrateRegen(Attributes.Final.MPRegenPerSec, Elapsed, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+        {
+            return false;
+        }
+        if (Attributes.OutOfCombatHPRegen.IsSet())
+        {
+            int64 StartMs = NowMs;
+            if (!TermStart(Attributes.OutOfCombatHPRegen->DelayMs, StartMs)
+                || !IntegrateRegen(Attributes.OutOfCombatHPRegen->HPPerSec, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2,
+                    InOut.HpMicroP2, Error))
+            {
+                return false;
+            }
+        }
+        if (Recovery)
+        {
+            int64 StartMs = NowMs;
+            FLDDemoRational HPRate, MPRate;
+            if (!TermStart(Recovery->DelayMs, StartMs) || !Share(InOut.MaxHpP2, Recovery->MaxHPBpPerSec, HPRate)
+                || !Share(InOut.MaxMpP2, Recovery->MaxMPBpPerSec, MPRate)
+                || !IntegrateRegen(HPRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error)
+                || !IntegrateRegen(MPRate, NowMs - StartMs, InOut.MaxMpP2, InOut.MpP2, InOut.MpMicroP2, Error))
+            {
+                return false;
+            }
+        }
+        Error.Reset();
+        return true;
+    }
 }

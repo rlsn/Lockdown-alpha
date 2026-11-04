@@ -38,6 +38,7 @@
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm",
         "CAPTURE.HoldSec", "TIMING.DefendRouteBudgetSec", "MATCH.DevelopmentSec", "LIFE.RespawnSec", "LIFE.ProtectionSec",
+        "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
         "SHOP.StartingGold", "SHOP.SellRatio", "CHOICE.BaseWeight", "CAMP.ResetArrivalRadiusCm",
         "XP.BaseToNext", "XP.IncreasePerLevel", "REWARD.PlayerXP.Base", "REWARD.PlayerXP.PerLevel",
         "REWARD.PlayerGold.Base", "REWARD.PlayerGold.PerLevel",
@@ -73,6 +74,8 @@
         "SHOP.InteractRadiusCm": {"$ref": "#/$defs/cm"}, "CAPTURE.RadiusCm": {"$ref": "#/$defs/cm"},
         "CAPTURE.HoldSec": {"$ref": "#/$defs/positive_sec"}, "TIMING.DefendRouteBudgetSec": {"$ref": "#/$defs/positive_sec"},
         "MATCH.DevelopmentSec": {"$ref": "#/$defs/sec"}, "LIFE.RespawnSec": {"$ref": "#/$defs/positive_sec"}, "LIFE.ProtectionSec": {"$ref": "#/$defs/sec"},
+        "REGEN.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"}, "REGEN.OutOfCombatMaxHPRatioPerSec": {"$ref": "#/$defs/probability"},
+        "REGEN.OutOfCombatMaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
         "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"}, "CHOICE.BaseWeight": {"$ref": "#/$defs/positive_count"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"}, "XP.BaseToNext": {"$ref": "#/$defs/positive_count"}, "XP.IncreasePerLevel": {"$ref": "#/$defs/count"},
         "REWARD.PlayerXP.Base": {"$ref": "#/$defs/count"}, "REWARD.PlayerXP.PerLevel": {"$ref": "#/$defs/count"},
@@ -153,12 +156,19 @@
     },
     "progression": {
       "type": "object", "additionalProperties": false,
-      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds"],
+      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer"],
       "properties": {
         "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 10},
         "max_skill_rank": {"type": "integer", "const": 3}, "active_slots": {"type": "integer", "const": 2},
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
-        "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}}
+        "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}},
+        "opening_offer": {
+          "type": "object", "additionalProperties": false, "required": ["attribute_ids", "attribute_count", "passive_count"],
+          "properties": {
+            "attribute_ids": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/id"}},
+            "attribute_count": {"type": "integer", "minimum": 0, "maximum": 3}, "passive_count": {"type": "integer", "minimum": 0, "maximum": 3}
+          }
+        }
       }
     },
     "world": {

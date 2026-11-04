@@ -108,6 +108,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 DevelopmentMs = 0;
     UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
+    // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
+    UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
+    UPROPERTY() int64 OutOfCombatMaxHPRegenBp = 0;
+    UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
     UPROPERTY() int64 StartingGold = 0;
     UPROPERTY() int64 SellRatioBp = 0;
     UPROPERTY() int64 ChoiceBaseWeight = 0;
@@ -403,6 +407,10 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
+    // D24: the opening offer draws OpeningAttributeCount of these cards and OpeningPassiveCount passives.
+    UPROPERTY() TArray<FString> OpeningAttributeIds;
+    UPROPERTY() int32 OpeningAttributeCount = 0;
+    UPROPERTY() int32 OpeningPassiveCount = 0;
 };
 
 USTRUCT()

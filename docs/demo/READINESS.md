@@ -54,10 +54,10 @@
 | D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D19 | D 键通用冲刺，AI 也会用 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D20 | 跑道钉鞋改为强化冲刺的被动 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)、[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
+| D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；宿舍快回未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
 | D22 | 发育期 120 秒，复活 15 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D24 | 开局三选一：2 张随机基础属性卡加 1 个随机被动；升级三选一保持完全随机 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；4 张基础属性卡的范围待确认 |
+| D24 | 开局三选一：2 张随机基础属性卡（举铁、长臂猿、穿秋裤、食堂加餐，不含刷整蛊视频）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已决定，未实现（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
 | D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |

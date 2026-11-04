@@ -171,6 +171,17 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
         Error = TEXT("The approved catalog cannot offer three distinct choices to a level-1 build.");
         return false;
     }
+    // D24: the kept opening offer is drawn from its own composition; a short group refuses the match, never borrows cards.
+    TArray<int32> OpeningAttributes;
+    TArray<int32> OpeningPassives;
+    if (LDProgression::OpeningCandidates(Definitions.Progression, FirstPool, OpeningAttributes, OpeningPassives)
+        != ELDGrowthReason::None)
+    {
+        Error = FString::Printf(TEXT("The approved catalog cannot fill the opening offer: %d of %d opening attribute cards and %d of %d passives."),
+            OpeningAttributes.Num(), Definitions.Progression.OpeningAttributeCount, OpeningPassives.Num(),
+            Definitions.Progression.OpeningPassiveCount);
+        return false;
+    }
     TMap<FGuid, FRecord> NewRecords;
     NewRecords.Reserve(Roster.Num());
     for (const FGuid& Id : Roster)
@@ -722,7 +733,8 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         && Progression.LastOfferRevision < MAX_uint64,
         TEXT("A head draw needs an empty offer slot over a non-empty opportunity queue."));
     const uint8 Ordinal = static_cast<uint8>(Progression.ConsumedThrough + 1);
-    const int64 Weight = Content->Get().Parameters.ChoiceBaseWeight;
+    const FLDDemoContentDefinitions& Definitions = Content->Get();
+    const int64 Weight = Definitions.Parameters.ChoiceBaseWeight;
     const uint64 Seed = LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal);
     TArray<LDProgression::FLegalOption> Picked;
 #if WITH_DEV_AUTOMATION_TESTS
@@ -730,8 +742,8 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
     TArray<TArray<FName>> NoPresets;
     bool bPreset = false;
     FString PresetError;
-    const ELDGrowthReason DrawReason = LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Presets ? *Presets : NoPresets, Picked,
-        bPreset, PresetError);
+    const ELDGrowthReason DrawReason = LDDevGrowthFixture::PickHead(Definitions.Progression, Pool, Ordinal, Weight, Seed,
+        Presets ? *Presets : NoPresets, Picked, bPreset, PresetError);
     if (!PresetError.IsEmpty())
     {
         UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s ordinal=%u, drawn normally: %s"),
@@ -748,7 +760,7 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         DevOfferQueue.Remove(ContenderId);
     }
 #else
-    const ELDGrowthReason DrawReason = LDProgression::DrawThree(Pool, Weight, Seed, Picked);
+    const ELDGrowthReason DrawReason = LDProgression::DrawOffer(Definitions.Progression, Pool, Ordinal, Weight, Seed, Picked);
 #endif
     verifyf(DrawReason == ELDGrowthReason::None && Picked.Num() == 3, TEXT("The prepared head pool must yield three distinct options."));
     FLDChoiceOfferState Offer;

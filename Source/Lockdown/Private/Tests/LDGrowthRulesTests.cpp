@@ -1680,17 +1680,17 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
     bool bPreset = false;
     FString PresetError;
     bGood &= Test.TestTrue(TEXT("The first head draw takes the oldest preset, in its order"),
-        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
         && PresetError.IsEmpty() && Picked.Num() == 3 && Picked[0].DefinitionId == Snare && Picked[1].DefinitionId == Focus
         && Picked[2].DefinitionId == Reach && Queue.Num() == 2);
     bGood &= Test.TestTrue(TEXT("A preset that no longer resolves is consumed with an explicit error and the ordinary draw runs"),
-        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && !PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary) && Queue.Num() == 1);
     bGood &= Test.TestTrue(TEXT("The next head draw takes the next preset"),
-        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
         && Picked[0].DefinitionId == Pulse && Picked[1].DefinitionId == Precision && Picked[2].DefinitionId == Might && Queue.IsEmpty());
     bGood &= Test.TestTrue(TEXT("With no preset left the head is the ordinary seeded draw: a preset shapes one offer only"),
-        LDDevGrowthFixture::PickHead(Pool, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary));
     return bGood;
 }
@@ -1871,6 +1871,181 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     return bGood;
 }
 
+// D24: the kept opening offer holds OpeningAttributeCount of the named basic attribute cards and OpeningPassiveCount
+// new passives; every later opportunity still draws from the whole legal pool. A short group is refused, never filled.
+bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDDemoProgressionDefinition& Progression = Content.Progression;
+    bool bGood = Test.TestTrue(TEXT("The approved opening offer is two of might/reach/resolve/vitality plus one passive"),
+        Progression.OpeningAttributeIds == TArray<FString>{TEXT("attr_might"), TEXT("attr_reach"), TEXT("attr_resolve"), TEXT("attr_vitality")}
+        && Progression.OpeningAttributeCount == 2 && Progression.OpeningPassiveCount == 1);
+    TSet<FName> OpeningAttributes;
+    for (const FString& Id : Progression.OpeningAttributeIds)
+    {
+        OpeningAttributes.Add(FName(*Id));
+    }
+    // Whatever passives the catalog holds are eligible: the set is read, not listed.
+    TSet<FName> Passives;
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        if (Ability.Kind == ELDDemoAbilityKind::Passive)
+        {
+            Passives.Add(FName(*Ability.Id));
+        }
+    }
+    TArray<LDProgression::FLegalOption> Pool;
+    if (!GrowthTestReason(Test, TEXT("The starting build's legal pool"), LDProgression::LegalPool(*Catalog, FLDGrowthBuild(), Pool),
+        ELDGrowthReason::None))
+    {
+        return false;
+    }
+    const auto CheckComposition = [&](const FString& Who, const TArray<FName>& Ids, const TArray<ELDChoiceOptionKind>& Kinds)
+    {
+        int32 AttributeCards = 0;
+        int32 PassiveCards = 0;
+        bool bLegal = Ids.Num() == 3 && Kinds.Num() == 3 && Ids[0] != Ids[1] && Ids[0] != Ids[2] && Ids[1] != Ids[2];
+        for (int32 Index = 0; bLegal && Index < 3; ++Index)
+        {
+            if (Kinds[Index] == ELDChoiceOptionKind::Attribute && OpeningAttributes.Contains(Ids[Index])) { ++AttributeCards; }
+            else if (Kinds[Index] == ELDChoiceOptionKind::LearnPassive && Passives.Contains(Ids[Index])) { ++PassiveCards; }
+            else { bLegal = false; }
+        }
+        return Test.TestTrue(Who + TEXT(": three distinct cards, exactly the opening attributes and passives"),
+            bLegal && AttributeCards == Progression.OpeningAttributeCount && PassiveCards == Progression.OpeningPassiveCount);
+    };
+    const int64 Weight = Content.Parameters.ChoiceBaseWeight;
+    TSet<FName> Reached;
+    int32 PassivePositions[3] = {0, 0, 0};
+    for (uint64 Seed = 1; Seed <= 512; ++Seed)
+    {
+        TArray<LDProgression::FLegalOption> Drawn;
+        const ELDGrowthReason Reason = LDProgression::DrawOffer(Progression, Pool, 1, Weight, Seed, Drawn);
+        TArray<FName> Ids;
+        TArray<ELDChoiceOptionKind> Kinds;
+        for (int32 Index = 0; Index < Drawn.Num(); ++Index)
+        {
+            Ids.Add(Drawn[Index].DefinitionId);
+            Kinds.Add(Drawn[Index].Kind);
+            Reached.Add(Drawn[Index].DefinitionId);
+            PassivePositions[Index] += Drawn[Index].Kind == ELDChoiceOptionKind::LearnPassive ? 1 : 0;
+            bGood &= GrowthTestPoolHas(Pool, Drawn[Index].Kind, Drawn[Index].DefinitionId, Drawn[Index].FromRank, Drawn[Index].ToRank);
+        }
+        if (Reason != ELDGrowthReason::None || !CheckComposition(FString::Printf(TEXT("Opening seed %llu"), Seed), Ids, Kinds))
+        {
+            return false;
+        }
+    }
+    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every opening attribute and every passive, nothing else"),
+        Reached.Num(), OpeningAttributes.Num() + Passives.Num());
+    bGood &= Test.TestTrue(TEXT("Reached cards are only opening attributes and passives"),
+        Reached.Difference(OpeningAttributes.Union(Passives)).IsEmpty());
+    bGood &= Test.TestTrue(TEXT("The passive card appears in every position"),
+        PassivePositions[0] > 0 && PassivePositions[1] > 0 && PassivePositions[2] > 0);
+    TArray<LDProgression::FLegalOption> First, Again;
+    bGood &= GrowthTestReason(Test, TEXT("An opening draw"), LDProgression::DrawOpening(Progression, Pool, Weight, 77, First), ELDGrowthReason::None);
+    bGood &= GrowthTestReason(Test, TEXT("The same opening seed"), LDProgression::DrawOpening(Progression, Pool, Weight, 77, Again), ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("The same seed redraws the same opening offer"), GrowthTestSameOptions(First, Again));
+
+    // Later opportunities keep the whole pool, unweighted: every legal option (actives and other attributes) is reachable.
+    TSet<FName> Later;
+    for (uint64 Seed = 1; Seed <= 256; ++Seed)
+    {
+        TArray<LDProgression::FLegalOption> Drawn, Plain;
+        bGood &= GrowthTestReason(Test, TEXT("A later draw"), LDProgression::DrawOffer(Progression, Pool, 2, Weight, Seed, Drawn), ELDGrowthReason::None);
+        LDProgression::DrawThree(Pool, Weight, Seed, Plain);
+        if (!Test.TestTrue(TEXT("A later opportunity is the ordinary whole-pool draw"), GrowthTestSameOptions(Drawn, Plain)))
+        {
+            return false;
+        }
+        for (const LDProgression::FLegalOption& Row : Drawn) { Later.Add(Row.DefinitionId); }
+    }
+    bGood &= Test.TestEqual(TEXT("Later draws reach every legal option"), Later.Num(), Pool.Num());
+
+    // Refusals: a short group, malformed counts and opportunity 0 offer nothing.
+    TArray<LDProgression::FLegalOption> Refused;
+    FLDDemoProgressionDefinition Short = Progression;
+    Short.OpeningAttributeIds = {Progression.OpeningAttributeIds[0]};
+    bGood &= GrowthTestReason(Test, TEXT("One opening attribute for two cards"), LDProgression::DrawOpening(Short, Pool, Weight, 1, Refused),
+        ELDGrowthReason::DataInvalid);
+    TArray<LDProgression::FLegalOption> NoPassives = Pool.FilterByPredicate([](const LDProgression::FLegalOption& Row)
+        { return Row.Kind != ELDChoiceOptionKind::LearnPassive; });
+    TArray<int32> Attributes, PassiveRows;
+    bGood &= GrowthTestReason(Test, TEXT("An opening pool without passives"),
+        LDProgression::OpeningCandidates(Progression, NoPassives, Attributes, PassiveRows), ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("Drawing an opening without passives"), LDProgression::DrawOpening(Progression, NoPassives, Weight, 1, Refused),
+        ELDGrowthReason::DataInvalid);
+    FLDDemoProgressionDefinition Four = Progression;
+    Four.OpeningPassiveCount = 2;
+    bGood &= GrowthTestReason(Test, TEXT("An opening of four cards"), LDProgression::DrawOpening(Four, Pool, Weight, 1, Refused),
+        ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("Opening with weight 0"), LDProgression::DrawOpening(Progression, Pool, 0, 1, Refused),
+        ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("Opportunity 0"), LDProgression::DrawOffer(Progression, Pool, 0, Weight, 1, Refused),
+        ELDGrowthReason::DataInvalid);
+    bGood &= Test.TestEqual(TEXT("Refused opening draws offer nothing"), Refused.Num(), 0);
+
+    // The DEV fixture still presets any legal cards for the opening; without a preset it draws the opening composition.
+    TArray<TArray<FName>> Queue = {{FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))}};
+    TArray<LDProgression::FLegalOption> Picked;
+    bool bPreset = false;
+    FString PresetError;
+    bGood &= Test.TestTrue(TEXT("An opening preset is still honoured as the DEV override"),
+        LDDevGrowthFixture::PickHead(Progression, Pool, 1, Weight, 77, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
+        && bPreset && Picked.Num() == 3 && Picked[0].DefinitionId == FName(TEXT("active_arc_bolt")) && Queue.IsEmpty());
+    bGood &= Test.TestTrue(TEXT("Without a preset the fixture draws the ordinary opening offer"),
+        LDDevGrowthFixture::PickHead(Progression, Pool, 1, Weight, 77, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
+        && !bPreset && GrowthTestSameOptions(Picked, First));
+
+    // Every roster contender's kept opening offer follows the composition.
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!Test.TestNotNull(TEXT("An isolated world for the growth director"), World))
+    {
+        return false;
+    }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    ALDDevelopmentDirector* Development = World->SpawnActor<ALDDevelopmentDirector>();
+    if (!Test.TestNotNull(TEXT("A growth director"), Development))
+    {
+        return false;
+    }
+    TArray<FGuid> Roster;
+    for (uint32 Index = 1; Index <= 6; ++Index)
+    {
+        Roster.Add(FGuid(0xD24, 0, 0, Index));
+    }
+    FLDMatchContext Match;
+    Match.Generation = 1;
+    Match.LedgerMatch = FGuid(0xD24, 1, 0, 0);
+    FString Error;
+    if (!Test.TestTrue(FString::Printf(TEXT("The match begins (%s)"), *Error), Development->BeginMatch(Match, Roster, Catalog, Error)))
+    {
+        return false;
+    }
+    for (const FGuid& Id : Roster)
+    {
+        const FLDProgressionView View = Development->ReadProgression(Id);
+        TArray<FName> Ids;
+        TArray<ELDChoiceOptionKind> Kinds;
+        for (const FLDChoiceOption& Option : View.Offer.Options)
+        {
+            Ids.Add(Option.DefinitionId);
+            Kinds.Add(Option.Kind);
+        }
+        bGood &= Test.TestTrue(TEXT("The kept offer is opportunity 1"), View.bHasOffer && View.Offer.OpportunityOrdinal == 1)
+            && CheckComposition(TEXT("Roster contender ") + Id.ToString(), Ids, Kinds);
+    }
+    return bGood;
+}
+
 bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
 {
     // Any field added to the private growth views must be added here deliberately (and told to UI).
@@ -1999,6 +2174,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthOpeningTest, "Lockdown.Rules.DemoG
 bool FLDDemoGrowthOpeningTest::RunTest(const FString& Parameters)
 {
     return GrowthTestRunOpening(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthOpeningPoolTest, "Lockdown.Rules.DemoGrowthOpeningPool",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthOpeningPoolTest::RunTest(const FString& Parameters)
+{
+    return GrowthTestRunOpeningPool(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthPrivacySchemaTest, "Lockdown.Rules.DemoGrowthPrivacySchema",

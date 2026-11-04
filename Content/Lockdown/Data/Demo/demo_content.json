@@ -1387,6 +1387,18 @@
       "ms": 180000,
       "unit": "ms"
     },
+    "REGEN.OutOfCombatDelaySec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "REGEN.OutOfCombatMaxHPRatioPerSec": {
+      "bp": 150,
+      "unit": "ratio"
+    },
+    "REGEN.OutOfCombatMaxMPRatioPerSec": {
+      "bp": 150,
+      "unit": "ratio"
+    },
     "REWARD.PlayerGold.Base": 80,
     "REWARD.PlayerGold.PerLevel": 10,
     "REWARD.PlayerXP.Base": 100,
@@ -1658,6 +1670,16 @@
     "max_choices": 10,
     "max_level": 10,
     "max_skill_rank": 3,
+    "opening_offer": {
+      "attribute_count": 2,
+      "attribute_ids": [
+        "attr_might",
+        "attr_reach",
+        "attr_resolve",
+        "attr_vitality"
+      ],
+      "passive_count": 1
+    },
     "xp_start": 0,
     "xp_thresholds": [
       0,

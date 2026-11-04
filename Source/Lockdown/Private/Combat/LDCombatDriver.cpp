@@ -30,6 +30,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
 {
     int64 Due=MAX_int64;
     const auto Consider=[&Due,NowMs](int64 At) { if (At>NowMs && At<Due) { Due=At; } };
+    const FLDDemoContentSnapshot* Content=Catalog();
+    const int64 RecoveryDelayMs=Content ? Content->Get().Parameters.OutOfCombatRegenDelayMs : -1;
     for (const auto& Pair : Bodies)
     {
         const auto& Body=Pair.Value;
@@ -41,6 +43,9 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Body.MonsterNextAttackAtMs);
         if (Body.AttributeProjection.OutOfCombatHPRegen.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.AttributeProjection.OutOfCombatHPRegen->DelayMs)
         { Consider(Body.LastCombatAtMs+Body.AttributeProjection.OutOfCombatHPRegen->DelayMs); }
+        // D21: a contender's out-of-combat recovery starts on its own exact boundary.
+        if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
+        { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
     }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
