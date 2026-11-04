@@ -22,7 +22,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed
+    AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
@@ -92,19 +92,24 @@ struct FLDOpponentSelf
     TOptional<FLDOpponentOffer> Offer;
 };
 
-enum class ELDOpponentCircle : uint8 { Empty, Solo, Contested };
+// Guarded: only the graffiti owner stands in the spray zone.
+enum class ELDOpponentCircle : uint8 { Empty, Solo, Contested, Guarded };
 
-// Public match state shared with every participant; an occupier never carries a position.
+// Public match state shared with every participant; a sprayer or graffiti owner never carries a position.
 struct FLDOpponentPublicMatch
 {
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
-    // The contender holding capture progress: the solo occupier, or under D12 the holder a contest only paused.
+    // The contender holding spray progress: the sole sprayer, or the holder a contest only paused.
     // Invalid when nobody holds progress.
     FGuid Occupier;
-    // Real expiry of the holder's remaining progress while Solo; zero while Contested.
+    // Real instant the sole sprayer's graffiti lands while Solo; zero otherwise.
     int64 DueAtMs = 0;
+    // The contender whose graffiti the flagpole shows; invalid while it is bare.
+    FGuid Owner;
+    // Real instant the owner's running guard wins; zero without an owner or while a sole sprayer pauses it.
+    int64 GuardDueAtMs = 0;
 };
 
 enum class ELDOpponentUnitKind : uint8 { Contender, CampMember };

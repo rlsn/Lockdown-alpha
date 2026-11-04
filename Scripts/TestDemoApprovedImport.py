@@ -75,8 +75,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
-            ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "600"),
-            ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "18"),
+            ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "300"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("TIMING.DefendRouteBudgetSec", "ms", "19"),
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -557,7 +557,7 @@ class ApprovedDemoData(unittest.TestCase):
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
 
     def test_published_route_lengths_and_whole_ground_budget(self):
-        captures = (3875.255, 3875.436, 3875.833, 3875.833, 3875.436, 3875.255, 3875.554, 3875.820, 3875.820, 3875.554)
+        captures = (4175.255, 4175.436, 4175.833, 4175.833, 4175.436, 4175.255, 4175.554, 4175.820, 4175.820, 4175.554)
         shops = (3354.614, 3183.627, 3479.117, 3672.275, 4718.133, 4886.361, 5224.744, 5202.690, 4647.008, 4386.503)
         lows = (
             (2087.615, 6923.428, 3559.634), (2088.219, 6516.459, 5110.357), (3560.434, 5111.733, 6515.950),
@@ -575,18 +575,18 @@ class ApprovedDemoData(unittest.TestCase):
                 target = world.point(self.anchors[camp_id]["position_cm"], camp_id)
                 self.assertAlmostEqual(self.model.distance(start, target, 0), expected, delta=.00051)
         for identity, capture, shop in (
-            ("l1", 2000.103, 1345.505), ("h1", 2000, 1640.297), ("l2", 2000.103, 2901.504),
-            ("h2", 1999.499, 3340.230), ("l3", 1999.499, 2631.535),
+            ("l1", 2300.103, 1345.505), ("h1", 2300, 1640.297), ("l2", 2300.103, 2901.504),
+            ("h2", 2299.499, 3340.230), ("l3", 2299.499, 2631.535),
         ):
             self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
             self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
-        self.assertAlmostEqual(self.world.report["route_upper_bound_cm"], 9224.661, delta=.00051)
+        self.assertAlmostEqual(self.world.report["route_upper_bound_cm"], 9524.661, delta=.00051)
         self.assertLess(self.world.report["route_upper_bound_cm"], 9600)
         self.assertAlmostEqual(self.world.report["min_inner_angular_gap_degrees"], 11.662, delta=.00051)
         candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
         self.assertEqual(len(candidates), 70)
-        self.assertAlmostEqual(min(candidates), 3775.611, delta=.00051)
-        self.assertAlmostEqual(max(candidates), 3976.064, delta=.00051)
+        self.assertAlmostEqual(min(candidates), 4075.611, delta=.00051)
+        self.assertAlmostEqual(max(candidates), 4276.064, delta=.00051)
 
     def test_actual_melee_opportunities_and_sight_counterexamples(self):
         self.assertTrue(self.geometry.sight_clear((0, 1500, 0), (0, 2600, 0)))

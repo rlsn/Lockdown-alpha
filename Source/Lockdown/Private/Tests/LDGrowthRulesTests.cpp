@@ -2864,7 +2864,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 17: the Host's camp refresh without a camp director"),
         Command(Gen, 1, 17, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
     TestTrue(TEXT("The refusal names the missing camps"), NoCamps && NoCamps->Detail.Contains(TEXT("camp director")));
-    if (!TestTrue(TEXT("The capture reducer begins far in the future"), Mode->CaptureReducer.Begin(1000000, 500, Error))) { return false; }
+    if (!TestTrue(TEXT("The capture reducer begins far in the future"), Mode->CaptureReducer.Begin(1000000, 500, 500, Error))) { return false; }
     Mode->MatchPhase = ELDMatchPhase::CaptureOpen;
     if (!HostCommit(TEXT("Request 18: an early capture outside development"), Command(Gen, 1, 18, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::StaleContext)) { return false; }
@@ -2877,7 +2877,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     FLDCaptureReducer Circle;
     FString CircleError;
     TestFalse(TEXT("An inactive reducer opens nothing early"), Circle.DevOpenAt(10, CircleError));
-    TestTrue(TEXT("A pure reducer begins"), Circle.Begin(5000, 500, CircleError));
+    TestTrue(TEXT("A pure reducer begins"), Circle.Begin(5000, 500, 500, CircleError));
     TestFalse(TEXT("An early opening must be earlier than the schedule"), Circle.DevOpenAt(5000, CircleError));
     TOptional<FLDCaptureProposal> Proposal;
     TestTrue(TEXT("An early opening is the next CloseBoundary's opening"), Circle.DevOpenAt(1200, CircleError)

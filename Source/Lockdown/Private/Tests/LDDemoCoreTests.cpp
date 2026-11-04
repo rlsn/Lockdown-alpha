@@ -6,7 +6,9 @@
 #include "Character/LDNativeMotionTypes.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
+#include "Components/BoxComponent.h"
 #include "Misc/AutomationTest.h"
+#include "UObject/Package.h"
 #include "Misc/ScopeExit.h"
 #include <limits>
 #include <type_traits>
@@ -350,7 +352,8 @@ bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
         Joined.Body={{ELDVictimKind::Contender,Out.Winner,1},FGuid::NewGuid()};
         Joined.Phase=ELDCommitPhase::RespawnsAndWorld;
         Joined.bInside=true;
-        if (!Mode->CaptureReducer.Begin(0,10,Error) || !FLDCaptureEventTime::FromMs(1,Joined.Time,Error)
+        // Sole from 1 ms: the 4 ms spray lands at 5 ms and the 6 ms guard wins at 11 ms.
+        if (!Mode->CaptureReducer.Begin(0,4,6,Error) || !FLDCaptureEventTime::FromMs(1,Joined.Time,Error)
             || !Mode->CaptureReducer.Enqueue(Joined,Error))
         {
             AddError(Error);
@@ -366,7 +369,7 @@ bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
         Fact.CreditOwner=Match.Winner;
         return Fact;
     };
-    // Boundary 11: a kill's reward is refused as retryable, then the hold completes at the same instant.
+    // Boundary 11: a kill's reward is refused as retryable, then the guard completes at the same instant.
     const auto RunCaptureBoundary=[&](FMatch& Match)
     {
         FString Error;
@@ -406,9 +409,10 @@ bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("Capture fixture opens"),Open(Captured))) { return false; }
     Mode=Captured.Mode;
     if (!RunCaptureBoundary(Captured)) { return false; }
-    TestTrue(TEXT("The completed hold waits for the pending reward instead of locking over it"),
+    TestTrue(TEXT("The completed guard waits for the pending reward instead of locking over it"),
         !Mode->bResultLocked && Mode->IsGameplayWriteOpen(Mode->MatchContext) && Mode->PendingCapture.IsSet()
-        && Mode->PendingCapture->Occupier==Captured.Winner && Mode->PendingCapture->DueAtMs==11);
+        && Mode->PendingCapture->Winner==Captured.Winner && Mode->PendingCapture->DueAtMs==11
+        && Mode->PendingCapture->GuardSinceMs==5);
     auto* Driver=Captured.Driver;
     TestTrue(TEXT("A held completion admits no later instant"),
         Mode->IsCloseAwaitingSettlement() && Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,12)==ELDCommitReject::WrongPhase);
@@ -436,7 +440,7 @@ bool FLDRewardSettlementTest::RunTest(const FString& Parameters)
         Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Close,
             [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error)
         && Mode->bResultLocked && !Mode->IsGameplayWriteOpen(Mode->MatchContext) && !Mode->PendingCapture.IsSet()
-        && Mode->ResultView.Reason==ELDMatchEndReason::CaptureCompleted && Mode->ResultView.Winner==Captured.Winner
+        && Mode->ResultView.Reason==ELDMatchEndReason::GuardSucceeded && Mode->ResultView.Winner==Captured.Winner
         && Mode->ResultView.EndedAtMs==11);
     TestTrue(TEXT("The settlement boundary completes without moving the clock"),
         Mode->FinishAuthorityStep(*Driver,Error) && !Mode->bSettlementStep && Mode->GetAuthorityNowMs()==11
@@ -541,12 +545,16 @@ bool FLDCaptureInsideStepTest::RunTest(const FString& Parameters)
         Event.bInside=Inside;
         return FLDCaptureEventTime::FromSeconds(Seconds,Event.Time,Error) && Mode->CaptureReducer.Enqueue(Event,Error);
     };
-    // Open at 0 with a 10 ms hold; the holder is sole from 1 ms.
-    if (!Mode->CaptureReducer.Begin(0,10,Error)
+    // Open at 0 with a 2 ms spray and a 3 ms guard; the holder is sole from 1 ms and sprays at 3 ms.
+    if (!Mode->CaptureReducer.Begin(0,2,3,Error)
         || !Fact(ELDCaptureEventKind::Joined,HolderBody,.001,ELDCommitPhase::RespawnsAndWorld,true)
         || !Fact(ELDCaptureEventKind::Joined,RivalBody,.001,ELDCommitPhase::RespawnsAndWorld,false))
     { AddError(Error); return false; }
     World->Tick(LEVELTICK_TimeOnly,.025f);
+    // A bound zone (no native ground needed: the fixture injects presence) lets Combat's control path reach the reducer.
+    Mode->CaptureCircle.CaptureId=TEXT("capture_fixture");
+    Mode->CaptureCircle.RadiusCm=300;
+    Mode->CaptureCircle.Ground=NewObject<UBoxComponent>(GetTransientPackage());
     const auto Phase=[&](ELDCommitPhase Which,TFunctionRef<bool()> Body)
     { return Mode->ExecuteAuthorityPhase(*Driver,Which,[&](const FLDGameplayWritePermit&) { return Body(); },Error); };
     const auto Capture=[&]()
@@ -557,34 +565,48 @@ bool FLDCaptureInsideStepTest::RunTest(const FString& Parameters)
                 [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit,Error); },Error)
             && Mode->FinishAuthorityStep(*Driver,Error);
     };
+    ELDCommitReject StaleInterrupt=ELDCommitReject::None, EffectsInterrupt=ELDCommitReject::InvalidRequest;
 
-    // Step to 5 ms: the rival enters at 5 ms and pauses the holder at 4 of 10 ms; nothing completes inside it.
-    const bool Contested=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,5)==ELDCommitReject::None
+    // Step to 5 ms: the spray lands inside the step at 3 ms without ending the match; the owner walks out at 3.5 ms
+    // (his guard keeps running) and the rival entering at 4 ms sprays alone, pausing the guard at 1 of 3 ms.
+    const bool Sprayed=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,5)==ELDCommitReject::None
         && !Mode->CaptureCompletesInsideStep()
-        && Phase(ELDCommitPhase::Motion,[&] { return Fact(ELDCaptureEventKind::Presence,RivalBody,.005,ELDCommitPhase::Motion,true); })
-        && !Mode->CaptureCompletesInsideStep()
-        && Phase(ELDCommitPhase::Actions,[] { return true; }) && Capture();
-    if (!TestTrue(FString::Printf(TEXT("Contest step: %s"),*Error),Contested)) { return false; }
-    TestTrue(TEXT("The contest pauses the holder and adds no driver stop"),
-        Mode->CaptureReducer.GetState()==ELDCircleState::Contested && Mode->CaptureReducer.GetPausedProgressMs()==4
-        && Mode->NextCaptureDueMs()==MAX_int64);
-
-    // Step to 20 ms: the rival leaves at 8 ms, so the resumed hold is due at 14 ms, inside the step, and a later
-    // re-entry at 17 ms cannot undo it. The later boundary instant's gameplay phases do not run.
-    const bool Stepped=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,20)==ELDCommitReject::None
         && Phase(ELDCommitPhase::Motion,[&]
         {
-            return Fact(ELDCaptureEventKind::Presence,RivalBody,.0075,ELDCommitPhase::Motion,false)
-                && Fact(ELDCaptureEventKind::Presence,RivalBody,.0165,ELDCommitPhase::Motion,true);
+            return Fact(ELDCaptureEventKind::Presence,HolderBody,.0035,ELDCommitPhase::Motion,false)
+                && Fact(ELDCaptureEventKind::Presence,RivalBody,.004,ELDCommitPhase::Motion,true);
+        })
+        && !Mode->CaptureCompletesInsideStep()
+        && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Actions,[&](const FLDGameplayWritePermit& Permit)
+            { StaleInterrupt=Mode->PublishCaptureInterrupt(Permit,{{ELDVictimKind::Contender,Rival,2},RivalBody.BodyIdentity}); return true; },Error)
+        // A control committed on the rival at 5 ms (the Effects boundary) restarts his spray from zero.
+        && Mode->ExecuteAuthorityPhase(*Driver,ELDCommitPhase::Effects,[&](const FLDGameplayWritePermit& Permit)
+            { EffectsInterrupt=Mode->PublishCaptureInterrupt(Permit,RivalBody); return true; },Error)
+        && Capture();
+    if (!TestTrue(FString::Printf(TEXT("Spray step: %s"),*Error),Sprayed)) { return false; }
+    TestTrue(TEXT("Only the current living body can be interrupted; the control path is accepted inside its permit"),
+        StaleInterrupt==ELDCommitReject::UnknownBody && EffectsInterrupt==ELDCommitReject::None);
+    TestTrue(TEXT("A spray inside a step is no win; the sole rival pauses the guard and, interrupted, sprays again from zero"),
+        !Mode->bResultLocked && Mode->CaptureReducer.GetState()==ELDCircleState::Solo && Mode->CaptureReducer.GetOccupier()==Rival
+        && Mode->CaptureReducer.GetSoloSinceMs()==5 && Mode->CaptureReducer.GetGraffitiOwner()==Holder
+        && Mode->CaptureReducer.GetGuardKeptMs()==1 && Mode->NextCaptureDueMs()==7);
+
+    // Step to 10 ms: the rival walks out at 5.5 ms, just before his spray, so the guard resumes and wins at 8 ms, inside
+    // the step; his re-entry at 8.5 ms cannot undo it. The later boundary instant's gameplay phases do not run.
+    const bool Stepped=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,10)==ELDCommitReject::None
+        && Phase(ELDCommitPhase::Motion,[&]
+        {
+            return Fact(ELDCaptureEventKind::Presence,RivalBody,.0055,ELDCommitPhase::Motion,false)
+                && Fact(ELDCaptureEventKind::Presence,RivalBody,.0085,ELDCommitPhase::Motion,true);
         });
     if (!TestTrue(FString::Printf(TEXT("Resume step motion: %s"),*Error),Stepped)) { return false; }
-    TestTrue(TEXT("The motion prefix closes the capture inside the step"),Mode->CaptureCompletesInsideStep());
+    TestTrue(TEXT("The motion prefix closes the guard inside the step"),Mode->CaptureCompletesInsideStep());
     TestTrue(FString::Printf(TEXT("Owed rewards, Capture and Close finish the step: %s"),*Error),
         Phase(ELDCommitPhase::DeathsAndRewards,[] { return true; }) && Capture());
-    TestTrue(TEXT("The holder wins at his exact resumed due instant, before the step's boundary"),
+    TestTrue(TEXT("The owner wins at his exact resumed guard instant, before the step's boundary"),
         Mode->bResultLocked && !Mode->IsGameplayWriteOpen(Mode->MatchContext) && !Mode->PendingCapture.IsSet()
-        && Mode->ResultView.Reason==ELDMatchEndReason::CaptureCompleted && Mode->ResultView.Winner==Holder
-        && Mode->ResultView.EndedAtMs==14 && Mode->GetAuthorityNowMs()==20);
+        && Mode->ResultView.Reason==ELDMatchEndReason::GuardSucceeded && Mode->ResultView.Winner==Holder
+        && Mode->ResultView.EndedAtMs==8 && Mode->GetAuthorityNowMs()==10);
     return true;
 }
 #endif

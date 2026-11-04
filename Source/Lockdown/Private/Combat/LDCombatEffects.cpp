@@ -245,6 +245,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     // A Root or Stun this source just applied opens its control damage amplification on this life (passive_public_shame).
     if ((bRoots || bStuns) && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
+    // A committed Root or Stun interrupts the target's spray (a disarm or slow does not).
+    if ((bRoots || bStuns) && !InterruptSpray(*Body,Error)) { return false; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     if (Healed && HealP2>0)
     {

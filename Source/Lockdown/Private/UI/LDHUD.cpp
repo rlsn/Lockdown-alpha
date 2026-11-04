@@ -535,13 +535,15 @@ void ULDHUD::RefreshReadModel()
     }
     const FLDDemoContentDefinitions* Content=DisplayDefinitions();
 
-    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs,Content?Content->Parameters.CaptureHoldMs:0);
+    const FString OwnerName=LDHUD::RosterName(Lobby,Public.GraffitiOwner);
+    const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),OwnerName,bClock,NowMs,
+        Content?Content->Parameters.CaptureSprayMs:0,Content?Content->Parameters.CaptureGuardMs:0);
     HudSetText(PhaseText,Circle.Line);CircleProgress->SetPercent(Circle.Progress);
     HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
         :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
     HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
-    HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
+    HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content,OwnerName));
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshKillFeed(*GS,O.ContenderId,Content,bClock,NowMs);
     const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);

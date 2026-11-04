@@ -129,6 +129,10 @@ struct FSourceShape
     double RangeCm = 0;
     bool bDamage = false;
     bool bRoot = false;
+    // Hard controls that also interrupt a spray (APP_SPEC 2.2); a self taunt reaches contenders within its radius.
+    bool bStun = false;
+    bool bTaunt = false;
+    double TauntRadiusCm = 0;
     bool bShield = false;
     bool bDispelRoot = false;
     bool bDash = false;
@@ -143,6 +147,11 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         {
         case ELDDemoEffectOp::Damage: Out.bDamage = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
+        case ELDDemoEffectOp::Stun: Out.bStun = true; break;
+        case ELDDemoEffectOp::Taunt:
+            Out.bTaunt = true;
+            Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
+            break;
         case ELDDemoEffectOp::Shield: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::RestoreMana: Out.RestoreManaBp = FMath::Max(Out.RestoreManaBp, Effect.RatioBp); break;
@@ -190,6 +199,8 @@ struct FActivationNeed
     bool bProtect = false;
     bool bCleanseRoot = false;
     bool bAllowDamage = true;
+    // The target is the public sole sprayer: any ready hard control (root, stun, taunt) clears his spray progress.
+    bool bInterrupt = false;
     const FLDOpponentUnit* Target = nullptr;
     TOptional<FVector> DashDirection;
 };
@@ -455,8 +466,16 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                 }
                 break;
             case 2:
+                if (Need.bInterrupt && Shape.Mode == ELDDemoTargetMode::Self && Shape.bTaunt && Need.Target
+                    && C.Distance(Need.Target->FootCm) <= Shape.TauntRadiusCm)
+                {
+                    bUse = true;
+                    Key.Target = Need.Target->Handle;
+                    break;
+                }
+                [[fallthrough]];
             case 3:
-                if ((Tier == 2 ? Shape.bRoot : Shape.bDamage && Need.bAllowDamage) && bTargetInRange)
+                if ((Tier == 2 ? Shape.bRoot || (Need.bInterrupt && Shape.bStun) : Shape.bDamage && Need.bAllowDamage) && bTargetInRange)
                 {
                     if (Shape.Mode == ELDDemoTargetMode::Unit)
                     {
@@ -518,12 +537,21 @@ TOptional<FVector> ChaseDash(const FContext& C, const FLDOpponentUnit& Target, c
     return Toward.IsNearlyZero() ? TOptional<FVector>() : TOptional<FVector>(Toward);
 }
 
+// The public sole sprayer, matched by the authorized ContenderId of a visible unit.
+bool IsSoleSprayer(const FContext& C, const FLDOpponentUnit& Unit)
+{
+    const auto& Public = C.Frame.Public;
+    return Public.Circle == ELDOpponentCircle::Solo && Public.Occupier.IsValid() && Unit.Kind == ELDOpponentUnitKind::Contender
+        && Unit.ContenderId == Public.Occupier;
+}
+
 FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Target, bool bAllowDamage = true)
 {
     Engage(C, Target);
     FActivationNeed Need;
     Need.bProtect = C.NeedProtection();
     Need.bAllowDamage = bAllowDamage;
+    Need.bInterrupt = IsSoleSprayer(C, Target);
     Need.Target = &Target;
     Need.DashDirection = ChaseDash(C, Target, Need);
     if (auto Activation = PickActivation(C, Need)) { return Activation.GetValue(); }
@@ -532,25 +560,55 @@ FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Targe
 
 const FLDOpponentUnit* CircleTarget(const FContext& C)
 {
-    // D12: a contest only pauses the holder's progress, so a rival holder inside the circle is fought first. It is
-    // matched by the authorized ContenderId of a visible unit, never turned into a target from the public id alone.
+    // A contest only pauses the spray holder's progress, so a rival holder inside the zone is fought first, then a rival
+    // graffiti owner standing in it (only his death clears the graffiti). Both are matched by the authorized ContenderId
+    // of a visible unit, never turned into a target from the public id alone.
     const FGuid& Holder = C.Frame.Public.Occupier;
+    const FGuid& Owner = C.Frame.Public.Owner;
     const FLDOpponentUnit* Current = nullptr;
     const FLDOpponentUnit* Best = nullptr;
+    const FLDOpponentUnit* RivalOwner = nullptr;
     for (const auto* Unit : C.Enemies)
     {
         if (Unit->bProtected || HandleSuppressed(C, *Unit) || FVector::Dist2D(Unit->FootCm, C.Capture->FootCm) > C.CaptureRadiusCm) { continue; }
         if (Holder.IsValid() && Unit->Kind == ELDOpponentUnitKind::Contender && Unit->ContenderId == Holder) { return Unit; }
+        if (Owner.IsValid() && Unit->Kind == ELDOpponentUnitKind::Contender && Unit->ContenderId == Owner) { RivalOwner = Unit; }
         if (IsCurrentTarget(C, *Unit)) { Current = Unit; }
         if (!Best || UnitBefore(C, *Unit, *Best)) { Best = Unit; }
     }
-    return Current ? Current : Best;
+    return RivalOwner ? RivalOwner : Current ? Current : Best;
 }
 
-// Contest, defend or hold: move to the public circle entry, then fight only rivals inside it.
-// Mobility is spent only when a public solo deadline makes the trip necessary.
+// Siege (APP_SPEC 2.2): the visible rival graffiti owner within the acquire radius, wherever he stands; his death clears
+// the graffiti. Matched by the authorized ContenderId of a visible unit.
+const FLDOpponentUnit* OwnerTarget(const FContext& C)
+{
+    const FGuid& Owner = C.Frame.Public.Owner;
+    if (!Owner.IsValid() || Owner == C.Self.ContenderId) { return nullptr; }
+    for (const auto* Unit : C.Enemies)
+    {
+        if (Unit->Kind == ELDOpponentUnitKind::Contender && Unit->ContenderId == Owner && !Unit->bProtected
+            && !HandleSuppressed(C, *Unit) && C.Distance(Unit->FootCm) <= C.AcquireRadiusCm)
+        {
+            return Unit;
+        }
+    }
+    return nullptr;
+}
+
+// Spray, guard or besiege: move to the public zone entry, then fight only rivals inside it. Outside the zone a visible
+// rival graffiti owner within reach is besieged on the way. Mobility is spent only when a public deadline makes the
+// trip necessary.
 bool CircleBody(const FContext& C, bool bUrgent, FLDOpponentBodyIntent& Out)
 {
+    if (!C.bInsideCircle)
+    {
+        if (const auto* Owner = OwnerTarget(C))
+        {
+            Out = EngageBody(C, *Owner);
+            return true;
+        }
+    }
     if (C.bInsideCircle)
     {
         if (const auto* Target = CircleTarget(C))
@@ -1401,18 +1459,24 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
 
-    // D12: a contest only pauses the holder's progress and leaving or dying clears it, so a paused holder keeps holding
-    // and fights inside the circle like a solo holder; only the stop-loss line below lets it go.
-    const bool bHolder = C.bCaptureOpen && Frame.Public.Circle != ELDOpponentCircle::Empty
+    // A contest only pauses the spray holder's progress and leaving, dying or a hard control clears it, so a paused holder
+    // keeps holding and fights inside the zone like a sole sprayer; only the stop-loss line below lets it go.
+    const bool bHolder = C.bCaptureOpen && (Frame.Public.Circle == ELDOpponentCircle::Solo || Frame.Public.Circle == ELDOpponentCircle::Contested)
         && Frame.Public.Occupier == Self.ContenderId;
     const bool bHoldingSolo = bHolder && Frame.Public.Circle == ELDOpponentCircle::Solo;
     const bool bHoldingPaused = bHolder && Frame.Public.Circle == ELDOpponentCircle::Contested;
+    // The graffiti owner guards the zone (standing in it blocks every sprayer) but his death clears the graffiti, so he
+    // never fights below the stop-loss line. Every other body answers a rival graffiti: besiege its owner or repaint.
+    const bool bOwner = C.bCaptureOpen && Frame.Public.Owner.IsValid() && Frame.Public.Owner == Self.ContenderId;
+    const bool bRivalGraffiti = C.bCaptureOpen && Frame.Public.Owner.IsValid() && !bOwner;
     bool bUrgent = false;
-    if (C.bCaptureOpen && Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo)
+    const int64 PublicDueMs = Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo ? Frame.Public.DueAtMs
+        : bRivalGraffiti ? Frame.Public.GuardDueAtMs : 0;
+    if (C.bCaptureOpen && PublicDueMs > 0)
     {
         FLDCaptureUrgencyInput Urgency;
         Urgency.NowMs = C.Now;
-        Urgency.DueAtMs = Frame.Public.DueAtMs;
+        Urgency.DueAtMs = PublicDueMs;
         Urgency.bInside = C.bInsideCircle;
         Urgency.PathCm = Frame.CapturePathCm;
         Urgency.MoveSpeedCmPerSec = Self.Attributes.MoveSpeedCmPerSec;
@@ -1430,21 +1494,22 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     // under this build. After RetryPolicy.MaxAttempts the body stops answering the circle until its build changes, so a
     // weaker body recovers and grows instead of entering again and again only to be pushed out.
     const FLDOpponentRetryKey CaptureKey = FContext::EngagementKey(C.Capture->Id, FGuid());
-    if (bStopLoss && !bHoldingSolo && (State.Mode == EMode::DefendOrHold || State.Mode == EMode::Contest))
+    if (bStopLoss && !bHoldingSolo && !bOwner && (State.Mode == EMode::DefendOrHold || State.Mode == EMode::Contest))
     {
         State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
     FLDOpponentBodyIntent Intent;
-    if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || ((bUrgent || bContesting) && !bStopLoss && bMayContest))
+    if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || (bOwner && !State.bRecovering)
+            || ((bUrgent || bContesting || bRivalGraffiti) && !bStopLoss && bMayContest))
         && CircleBody(C, bUrgent, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
-        if (bHolder || bUrgent)
-        {
-            return Finish(EMode::DefendOrHold, bHolder ? EReason::HoldCapture : EReason::PublicCaptureUrgent);
-        }
+        if (bHolder) { return Finish(EMode::DefendOrHold, EReason::HoldCapture); }
+        if (bOwner) { return Finish(EMode::DefendOrHold, EReason::GuardGraffiti); }
+        if (bRivalGraffiti) { return Finish(bUrgent ? EMode::DefendOrHold : EMode::Contest, EReason::BesiegeOwner); }
+        if (bUrgent) { return Finish(EMode::DefendOrHold, EReason::PublicCaptureUrgent); }
         return Finish(EMode::Contest, EReason::ContestCapture);
     }
     if (State.bRecovering && !C.Threats.IsEmpty() && !bHoldingSolo)

@@ -43,6 +43,12 @@ bool FLDAudioCuePublicTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A limited epoch is not replayed later"),AudioSample(Tracker,Frame).IsEmpty());
     Public.CircleState=ELDCircleState::Empty;Public.Occupier.Invalidate();Public.CaptureEpoch=6;Frame.LocalSeconds=22;
     TestTrue(TEXT("An emptied circle has no cue"),AudioSample(Tracker,Frame).IsEmpty());
+    Public.CircleState=ELDCircleState::Guarded;Public.GraffitiOwner=Other;Public.CaptureEpoch=7;Frame.LocalSeconds=22.2;
+    TestTrue(TEXT("A freshly sprayed graffiti sounds the flagpole fanfare even inside the repeat limit"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::CaptureOpened}));
+    Public.CircleState=ELDCircleState::Empty;Public.CaptureEpoch=8;Frame.LocalSeconds=24;
+    TestTrue(TEXT("The same graffiti does not sound again"),AudioSample(Tracker,Frame).IsEmpty());
+    Public.GraffitiOwner.Invalidate();
 
     FLDKillNotice Notice;Notice.Serial=1;Notice.Victim=Other;Notice.Killer=Self;Notice.Cause=ELDKillCause::Contender;Notice.OccurredAtMs=Frame.NowMs-500;
     Feed.Notices={Notice};
@@ -59,8 +65,8 @@ bool FLDAudioCuePublicTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A feed of another match never sounds"),AudioSample(Tracker,Frame).IsEmpty());
     Frame.KillFeed=&Feed;
 
-    Public.Phase=ELDMatchPhase::Results;Public.ResultId=FGuid::NewGuid();Public.CaptureEpoch=7;
-    Result.Generation=7;Result.ResultId=Public.ResultId;Result.ResultSerial=1;Result.Reason=ELDMatchEndReason::CaptureCompleted;Result.Winner=Self;Result.EndedAtMs=Frame.NowMs;
+    Public.Phase=ELDMatchPhase::Results;Public.ResultId=FGuid::NewGuid();Public.CaptureEpoch=9;
+    Result.Generation=7;Result.ResultId=Public.ResultId;Result.ResultSerial=1;Result.Reason=ELDMatchEndReason::GuardSucceeded;Result.Winner=Self;Result.EndedAtMs=Frame.NowMs;
     TestTrue(TEXT("The own capture win sounds victory once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::MatchVictory}));
     TestTrue(TEXT("The frozen result does not repeat"),AudioSample(Tracker,Frame).IsEmpty());
 

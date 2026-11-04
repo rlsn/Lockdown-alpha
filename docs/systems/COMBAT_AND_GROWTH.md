@@ -66,7 +66,7 @@ Vision 的同一观察链；隐身期间润速按 `FORMULA.MoveSpeed` 多一项�
 
 `AdvanceAuthority(const FLDMatchContext&, int64 ThroughMs, FString&)` 在 `Combat\LDCombatDriver.cpp`
 中逐步推进：步终点取可用时间、原生最大步长和最早的真实到期点（释放、状态到期、冷却、
-普攻节拍、脱战回复起点、保护到期、复活时刻、营地整组刷新、开圈与独占完成时刻）。每步依次执行 Motion → Session
+普攻节拍、脱战回复起点、保护到期、复活时刻、营地整组刷新、旗杆开放、喷上涂鸦与守护完成时刻）。每步依次执行 Motion → Session
 （保护半开到期）→ Actions（先结算到本边界的回复）→ Effects → DeathsAndRewards → RespawnsAndWorld →
 Transactions → Capture → Close 和完成边界，仅推进原生游戏时间已经提供的预算；
 Close 锁定结果后仍完成该边界，随后无 permit 的发布依次调用成长 `PublishGrowth` 与 `ExecuteCapturePublish`，然后停止推进。
@@ -75,7 +75,10 @@ DeathsAndRewards 先结束本集合全部生命，再逐个调用成长 `CommitD
 driver 立即以同刻结算边界（`BeginSettlementStep`：新 BatchSerial、不推进时间，只有 DeathsAndRewards 重试与 Close）
 先结清奖励再锁定原完成时刻的胜者；只有故障关闭写闸时奖励才记录为未支付（`LD_REWARD_UNPAID_AT_FAULT`）。
 Transactions 每步调用一次 `ProcessTransactions`。
-生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向占领归约器提交资格事实并通知提供者。
+生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向喷漆与守护归约器提交资格事实并通知提供者。
+控制在命中提交时通知喷漆区：`ApplyHit` 每提交一次定身或眩晕、`ApplyTauntEffect` 每嘲讽一名参赛者，
+都在同一 Actions/Effects 许可内调用 `InterruptSpray(Target)`，再经 `ALDGameMode::PublishCaptureInterrupt` 清零该参赛者的喷漆进度
+（事实时刻为该边界 AtMs；营地身体或没有活动归约器的世界不受影响）。击退加入后走同一入口；缴械、减速和伤害从不调用它。
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
@@ -85,8 +88,8 @@ DeathsAndRewards 依次 `EndCampMemberLife` → `ConsumeMemberDeath` → `Commit
 DEV 测试会话的 `DevRefreshCleared`（Transactions）只把等待中的刷新截止提前，实际重生仍由下一个 `AdvanceCamps` 完成。
 任一营地入口返回 false 即为权威故障。
 
-修改这个顺序会影响同时死亡、资源释放、命中与占领完成的同刻竞争，必须连同对应场景验证。
-争圈的归约与结果归 GameMode 核心的占领归约器（`Framework\LDCaptureReducer`）。
+修改这个顺序会影响同时死亡、资源释放、命中与喷漆/守护完成的同刻竞争，必须连同对应场景验证。
+喷漆、守护的归约与结果归 GameMode 核心的喷漆与守护归约器（`Framework\LDCaptureReducer`）。
 
 ## 状态、伤害和效果归属
 
@@ -158,7 +161,7 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
   且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+嘴硬×比例（被暴击时乘
   `CriticalMultiplierBp`），走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤。
 - **跳到指定点**（目标 `GroundPoint`、效果 `jump`）：请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），
-  距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与占领照常由运动链计算）；
+  距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与喷漆区进出照常由运动链计算）；
   同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，潜水党就绪时各附一次附加伤害（体重即正义），
   死亡或换命丢弃落地。
 

@@ -55,7 +55,7 @@ ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
 发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
 `EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
-有待重试的死亡奖励（或因此等待结算边界的占领完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
+有待重试的死亡奖励（或因此等待结算边界的守护完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
 因此 GameMode 在本世界的 `PreLoadMapWithContext`（早于关闭网络驱动）关闭房间并向每名成员发出带原因的
@@ -85,9 +85,11 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   不包含 LedgerMatch、身体坐标或私有构筑。每个 AI 名额在开局时绑定一个服务器 `ALDOpponentController`。
 - `OnRep_DemoLobby` 通过同一有界读模型检查再发布给 UI：成员身份不得重复或超容量，
   Host/AI/Ready 形状必须一致；旧 Generation、重复/旧发布版本及结构版本回退不能覆盖已接受状态。
-- `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与圈状态来源：阶段、开放时刻、圈状态
-  （未开放/无人/独占/争夺）、唯一进度持有者（独占者，或争夺中被暂停的原占领者及其 `PausedProgressMs`）、
-  CaptureEpoch 及独占起点/完成时刻；不列圈内人数、
+- `ALDGameState::PublicMatch` 是 UI/AI 的唯一阶段与旗杆状态来源：阶段、开放时刻、喷漆区状态
+  （未开放/无人/独自喷漆/争夺/主人独守，即 `NotOpen/Empty/Solo/Contested/Guarded`）、唯一喷漆进度持有者
+  （独自喷漆者，或争夺中被暂停的喷漆者及其 `PausedProgressMs`）、CaptureEpoch 及喷漆起点/喷上时刻，
+  涂鸦主人 `GraffitiOwner` 与其身份色槽位 `GraffitiPresentation`、运行中守护的获胜时刻 `GuardDueAtMs`
+  或被独自喷漆暂停的守护进度 `GuardKeptMs`；不列喷漆区内人数、
   保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置。
@@ -134,7 +136,7 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 阶段按 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Transactions → Capture → Close
 的契约顺序每步各执行一次，不为未接通阶段签发成功证明。Close 锁定唯一结果后，driver 仍完成该边界并调用
 无 permit 的发布（成长 `PublishGrowth`、`ExecuteCapturePublish`），然后停止推进。
-唯一例外是同刻结算边界：占领完成的边界仍欠一笔待重试奖励时，Close 保留提案，`BeginSettlementStep`
+唯一例外是同刻结算边界：守护完成的边界仍欠一笔待重试奖励时，Close 保留提案，`BeginSettlementStep`
 以相同 AtMs 和新 BatchSerial 开一步，只依次执行 DeathsAndRewards 与 Close，不要求原生 Motion。
 当前 Motion 批次包含不可变的实际子段/原生支持样本，按 Body 的单一 stream
 和连续记录前缀保留；回滚试探不进入提交批次。核心检查相邻批次的起点/支持与上次已接纳终点一致，
@@ -154,27 +156,36 @@ GameMode 用同一比赛原点把原生游戏时间变为可执行预算，Comba
 不沿用旧 B92 席位接管或控制器交接；策略、请求与回执见[对手 AI](../demo/OPPONENT_AI.md)。
 本局不重连，人数和 AI 行为按 App Spec。
 
-占领与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
-`FLDCaptureReducer` 是唯一占领归约器：生命提供者在提交点调用 `PublishCaptureEligibility`
+喷漆、守护与唯一结果归 GameMode 核心；旧 Objective Actor、Seal/路线/站桩/HeartSensor 已退出。
+`FLDCaptureReducer` 是唯一喷漆与守护归约器（`Begin(OpenAtMs, SprayMs, GuardMs)`）：生命提供者在提交点调用 `PublishCaptureEligibility`
 （Joined/Respawned 带保护截止与初始支持样本、ProtectionEnded、Died 带 DeathKey 与击杀者），
+Combat 在 Actions/Effects 许可内对存活参赛者身体提交定身、眩晕、嘲讽（及击退）时经 `ALDCombatDirector::InterruptSpray`
+调用 `PublishCaptureInterrupt`（事实时刻为该边界 AtMs，种类 `Interrupted`；缴械、减速和伤害不调用），
 Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptureCircle::Extract` 求出带真实时刻的
-进出（连续子段求交、支持面变化与不连续修正只取前后态；脚点在闭圆盘内且站在注册地面才算占用）。
+进出（连续子段求交、支持面变化与不连续修正只取前后态；脚点在闭圆盘内且站在注册地面才算在喷漆区内）。
 事实按提交序入队，到其整数桶封闭时才按原始秒、阶段、提交序归约，同一边界内的进出/死亡/保护变化
-全部保留；保护者既不占也不争，开放前不计时，Solo 起点取向上取整桶，完成时刻 `DueAtMs` 由驱动切步。
-争夺冻结原占领者的进度（其他人不累积），他再次独占时 `SoloSinceMs` 回拨暂停值续计；他离圈、死亡或离局即清零，
-下一独占者从 0 开始。争夺暂停不给驱动额外停靠边界：步内能让持有者恢复独占的只有 Motion 的进出事实
-（离局在步前入队，死亡、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
+全部保留；保护者既不喷也不争，开放前不计时，Solo 起点取向上取整桶。区内只有一名有效参赛者且他不是涂鸦主人时他喷漆，
+争夺冻结喷漆者的进度（其他人不累积），他再次独自在区内时 `SoloSinceMs` 回拨暂停值续计；他离区、死亡、离局或被打断即清零，
+别人不继承。喷漆到期严格早于某条事实时先喷上；与到期同刻的死亡、离局、控制、离区先处理。
+喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护除 Solo 外都运行（主人在不在区内都一样），
+Solo 时暂停于 `GuardKept`，独自喷漆停止后从暂停处续计；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
+`FLDCaptureProposal{Epoch, Winner, GuardSinceMs, DueAtMs}`。`NextDueMs` 给驱动的停靠边界：未开放时为开放时刻、
+独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停不给驱动额外停靠边界：步内能让被暂停的守护恢复的
+只有 Motion 的离区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
 `CaptureCompletesInsideStep`，由 `FLDCaptureReducer::CompletionInsideMs` 在归约器副本上预演已入队事实；
-若续计的截止早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
-在该截止时刻锁定结果（其后的进出丢弃），边界时刻的行动、效果与交易都不发生。
+若恢复后的守护获胜时刻早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
+在该时刻锁定结果（其后的进出丢弃），边界时刻的行动、效果与交易都不发生；步内喷上的涂鸦由 `CloseBoundary` 在其真实时刻归约。
+结束原因为 `ELDMatchEndReason::GuardSucceeded`（“守护成功”）或 `HostEnded`。
 驱动在 Transactions 后依次调用 `ExecuteCapturePhase`（核对每个存活身体本步运动证据、归约并给出提案）、
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
-`ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。
-漏切完成边界、保护到期未收到 ProtectionEnded、缺运动证据或结果行无法冻结都是明确故障，不默认判胜。
-世界里的旗杆边界是本地表现 `ALDCaptureMarker`：各端在接受的 `PublicMatch` 处于发育/开放/结算时，
+`ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共旗杆状态）。
+漏切喷漆或守护完成边界、保护到期未收到 ProtectionEnded、缺运动证据或结果行无法冻结都是明确故障，不默认判胜。
+世界里的旗杆表现是本地 `ALDCaptureMarker`：各端在接受的 `PublicMatch` 处于发育/开放/结算时，
 按本机注册的 CAPTURE 锚点与 `CAPTURE.RadiusCm` 在地面铺一圈 2cm 平线（复用已烘焙的引擎方块与
-`M_Character` 的 `Tint`，无碰撞、不影响寻路/视线/高度），颜色跟随公开圈态（未开灰、开放黄、独占绿、
-争夺红），换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
+`M_Character` 的 `Tint`，无碰撞、不影响寻路/视线/高度），颜色跟随公开喷漆区状态（未开灰、开放黄、独自喷漆绿、
+争夺红、主人独守蓝）；旗杆约 210cm 高处另有一块涂鸦板，有涂鸦时按主人的身份色
+（`ULDHumanoidVisualComponent::ContenderTint(GraffitiPresentation)`）显示、无主时隐藏，同样无碰撞、不进导航和视线。
+换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
 普通离局在受理时刻向归约器提交 Left，不发奖、不判胜，结果行保留。
 `ReturnToLobby` 与开局失败共用 `RetireMatch`：先关闸，再按注册逆序调用 MatchReset，
 `RetireAuthorityCore` 拆除身体、`RetireMatchDomains` 中的每局领域 Actor 与时钟/许可状态，
@@ -195,12 +206,12 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
-`Lockdown.Rules.DemoCapture`（归约器连续性、争夺暂停/续计/清零、保护与契约故障、圈几何、公共读模型、提供者门禁、
-Host 结束/回 Lobby 与换代隔离）和
+`Lockdown.Rules.DemoCapture`（喷漆与守护 `.SprayAndGuard`、硬控打断 `.SprayInterrupt`、主人死亡/离局清除涂鸦 `.GraffitiCleared`、
+争夺暂停/续计/清零、保护与契约故障、喷漆区几何、公共读模型、提供者门禁、Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
-`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的占领、争夺暂停与续计、
-原占领者离圈后清零且他人从零计时、
+`RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
+喷上涂鸦、主人离区后守护照常、他人独自改漆使守护暂停且改漆失败后守护续计、以 `GuardSucceeded` 守护成功的
 唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
-空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、抢圈复位与旧代请求以 StaleMatch 拒绝；
+空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、旗杆与涂鸦复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。

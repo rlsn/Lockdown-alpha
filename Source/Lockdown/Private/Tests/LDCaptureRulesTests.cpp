@@ -54,6 +54,10 @@ namespace
     FLDCaptureEvent CaptureJoined(const FLDCombatBodyRef& Body, bool Inside)
     { return CaptureFact(ELDCaptureEventKind::Joined, Body, CaptureMs(0), ELDCommitPhase::RespawnsAndWorld, Inside); }
 
+    // A root, stun, taunt or knockback committed by Combat's control path at an Effects boundary.
+    FLDCaptureEvent CaptureInterrupt(const FLDCombatBodyRef& Body, int64 Ms)
+    { return CaptureFact(ELDCaptureEventKind::Interrupted, Body, CaptureMs(Ms), ELDCommitPhase::Effects); }
+
     struct FCaptureReducerProbe
     {
         FAutomationTestBase& Test;
@@ -77,89 +81,90 @@ namespace
                 && Reducer.GetSoloSinceMs() == SoloSinceMs && Reducer.GetDueAtMs() == DueAtMs
                 && Reducer.NextDueMs() == DueAtMs);
         }
+
+        void ExpectGuard(const FGuid& Owner, ELDCircleState State, int64 GuardDueAtMs, int64 GuardKeptMs, const TCHAR* What)
+        {
+            Test.TestTrue(What, Reducer.GetGraffitiOwner() == Owner && Reducer.GetState() == State
+                && Reducer.GetGuardDueAtMs() == GuardDueAtMs && Reducer.GetGuardKeptMs() == GuardKeptMs);
+        }
     };
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureContinuityTest, "Lockdown.Rules.DemoCapture.Continuity",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureSprayGuardTest, "Lockdown.Rules.DemoCapture.SprayAndGuard",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
+bool FLDCaptureSprayGuardTest::RunTest(const FString& Parameters)
 {
     FCaptureReducerProbe Probe{*this};
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
     const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1), BodyC = CaptureTestBody(C, 1);
-    TestTrue(TEXT("Approved opening and hold start the reducer"), Probe.Reducer.Begin(1000, 500, Probe.Error));
+    TestTrue(TEXT("Approved opening, spray and guard start the reducer"), Probe.Reducer.Begin(1000, 350, 2000, Probe.Error));
     Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
     Probe.Add(CaptureJoined(BodyC, false), TEXT("C joins outside"));
-    Probe.Close(999, false, TEXT("Development never completes a capture"));
-    TestTrue(TEXT("Closed circle waits for its exact opening boundary"),
+    Probe.Close(999, false, TEXT("Development never sprays"));
+    TestTrue(TEXT("The closed flagpole waits for its exact opening boundary"),
         Probe.Reducer.GetState() == ELDCircleState::NotOpen && Probe.Reducer.NextDueMs() == 1000);
-    Probe.Close(1000, false, TEXT("Opening starts the first segment"));
-    Probe.ExpectSolo(A, 1000, 1500, TEXT("Occupancy before opening is not credited"));
-    const uint64 FirstEpoch = Probe.Reducer.GetEpoch();
+    Probe.Close(1000, false, TEXT("The opening starts the first spray"));
+    Probe.ExpectSolo(A, 1000, 1350, TEXT("A sole effective contender who is not the owner sprays; presence before the opening is not credited"));
+    TestFalse(TEXT("No graffiti yet"), Probe.Reducer.GetGraffitiOwner().IsValid() || Probe.Reducer.GetGuardDueAtMs() != 0);
 
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.2003), true), TEXT("B enters"));
-    Probe.Close(1201, false, TEXT("Contest has no completion"));
-    TestTrue(TEXT("A second eligible body contests and pauses the holder's progress"),
-        Probe.Reducer.GetState() == ELDCircleState::Contested && Probe.Reducer.GetOccupier() == A
-        && Probe.Reducer.GetPausedProgressMs() == 201 && Probe.Reducer.GetSoloSinceMs() == 0
-        && Probe.Reducer.GetDueAtMs() == 0 && Probe.Reducer.NextDueMs() == MAX_int64);
-    Probe.Add(CapturePresence(BodyB, CaptureMs(1300), false), TEXT("B leaves"));
-    Probe.Close(1300, false, TEXT("Re-solo does not complete"));
-    Probe.ExpectSolo(A, 1099, 1599, TEXT("The holder resumes from his paused progress"));
-
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.4001), true), TEXT("B touches in"));
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.4002), false), TEXT("B leaves within the same boundary"));
-    Probe.Close(1401, false, TEXT("Intermediate contest inside one boundary"));
-    Probe.ExpectSolo(A, 1099, 1599, TEXT("An enter-then-exit inside one boundary pauses and resumes without loss"));
-    TestTrue(TEXT("Every pause and resume advances the public epoch"), Probe.Reducer.GetEpoch() == FirstEpoch + 4);
-
-    Probe.Add(CapturePresence(BodyC, CaptureSeconds(1.5004), true), TEXT("C enters"));
-    Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyC, CaptureMs(1501), ELDCommitPhase::DeathsAndRewards), TEXT("C dies"));
-    Probe.Close(1501, false, TEXT("Enter then die in one boundary"));
-    Probe.ExpectSolo(A, 1099, 1599, TEXT("A contender who entered before dying paused the segment without clearing it"));
-    TestTrue(TEXT("The intermediate contest was reduced, not collapsed"), Probe.Reducer.GetEpoch() == FirstEpoch + 6);
-
-    Probe.Close(1598, false, TEXT("Quiet boundary before completion"));
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.5985), true), TEXT("B enters inside the completion bucket"));
-    Probe.Close(1599, false, TEXT("A contest in the completion bucket prevents the win"));
-    TestTrue(TEXT("Due-bucket entry pauses the full progress"), Probe.Reducer.GetState() == ELDCircleState::Contested
-        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == 500
-        && Probe.Reducer.NextDueMs() == MAX_int64);
-    Probe.Add(CapturePresence(BodyB, CaptureMs(1600), false), TEXT("B leaves again"));
-    Probe.Add(CapturePresence(BodyB, CaptureSeconds(1.6005), true), TEXT("B enters after the completion instant"));
-    TOptional<FLDCaptureProposal> Proposal;
-    TestTrue(TEXT("Completion boundary closes"), Probe.Reducer.CloseBoundary(1600, Proposal, Probe.Error));
-    TestTrue(TEXT("A fully paused holder completes the instant he is sole again; later facts cannot backfill it"),
-        Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == 1600 && Proposal->SoloSinceMs == 1100
-        && Proposal->Epoch == Probe.Reducer.GetEpoch());
+    Probe.Close(1350, false, TEXT("A spray is no win"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 3350, 0, TEXT("The spray lands at its full duration and the guard starts from zero"));
+    TestTrue(TEXT("The owner no longer sprays and the driver stops at the guard win"),
+        !Probe.Reducer.GetOccupier().IsValid() && Probe.Reducer.NextDueMs() == 3350);
     {
-        // DEV telemetry counts every reduced change, including the contests inside one boundary.
         const FLDCaptureDevTally& Tally = Probe.Reducer.DevTally();
         const FLDCaptureDevTally::FHolder* Holder = Tally.Holders.Find(A);
-        TestTrue(TEXT("The telemetry tally lists one attempt, four contests that paused it and four resumes"),
-            Tally.Contests == 4 && Tally.Holders.Num() == 1 && Holder && Holder->Attempts == 1 && Holder->Paused == 4
-            && Holder->Resumes == 4 && Holder->Lost == 0);
+        TestTrue(TEXT("The telemetry tally counts the spray"), Tally.Sprays == 1 && Tally.Repaints == 0
+            && Tally.GraffitiSinceMs == 1350 && Holder && Holder->Sprays == 1 && Holder->Attempts == 1);
     }
 
-    FCaptureReducerProbe Sub{*this};
-    TestTrue(TEXT("Sub-millisecond reducer"), Sub.Reducer.Begin(0, 500, Sub.Error));
-    Sub.Add(CaptureJoined(BodyA, false), TEXT("A joins outside"));
-    Sub.Close(0, false, TEXT("Empty open circle"));
-    TestTrue(TEXT("No eligible occupant is an empty circle"), Sub.Reducer.GetState() == ELDCircleState::Empty);
-    Sub.Add(CapturePresence(BodyA, CaptureSeconds(1.0003), true), TEXT("A enters after a millisecond edge"));
-    Sub.Close(1001, false, TEXT("Ceil bucket"));
-    Sub.ExpectSolo(A, 1001, 1501, TEXT("A late sub-millisecond entry is never floored into an earlier start"));
-    Sub.Add(CaptureFact(ELDCaptureEventKind::Left, BodyA, CaptureMs(1200), ELDCommitPhase::Session), TEXT("Occupier leaves"));
-    Sub.Close(1200, false, TEXT("Leaving does not complete or award"));
-    TestTrue(TEXT("A contender who left neither holds nor wins"), Sub.Reducer.GetState() == ELDCircleState::Empty
-        && Sub.Reducer.NextDueMs() == MAX_int64);
-    const FLDCaptureDevTally::FHolder* SubHolder = Sub.Reducer.DevTally().Holders.Find(A);
-    TestTrue(TEXT("The telemetry tally counts the uncontested attempt that ended without a win as lost"),
-        Sub.Reducer.DevTally().Contests == 0 && SubHolder && SubHolder->Attempts == 1 && SubHolder->Lost == 1
-        && SubHolder->Resumes == 0 && SubHolder->Paused == 0);
-    Sub.Reducer.Reset();
-    TestTrue(TEXT("A reset clears the telemetry tally"), Sub.Reducer.DevTally().Holders.IsEmpty());
+    Probe.Add(CapturePresence(BodyA, CaptureMs(1500), false), TEXT("The owner walks away"));
+    Probe.Close(1500, false, TEXT("Owner away"));
+    Probe.ExpectGuard(A, ELDCircleState::Empty, 3350, 0, TEXT("The owner leaves freely; his guard keeps running"));
+
+    Probe.Add(CapturePresence(BodyB, CaptureMs(1600), true), TEXT("B enters alone"));
+    Probe.Close(1600, false, TEXT("A repaint starts"));
+    Probe.ExpectSolo(B, 1600, 1950, TEXT("A sole challenger sprays from zero"));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 250, TEXT("A sole sprayer pauses the guard at its progress"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(1700), false), TEXT("B gives up"));
+    Probe.Close(1700, false, TEXT("A failed repaint"));
+    Probe.ExpectGuard(A, ELDCircleState::Empty, 3450, 0, TEXT("A failed repaint resumes the guard from where it paused"));
+
+    Probe.Add(CapturePresence(BodyA, CaptureMs(1800), true), TEXT("The owner returns"));
+    Probe.Close(1800, false, TEXT("Owner inside"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 3450, 0, TEXT("The owner alone in the zone does not spray and his guard runs on"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(1900), true), TEXT("B joins the owner"));
+    Probe.Close(1900, false, TEXT("Owner and challenger"));
+    Probe.ExpectGuard(A, ELDCircleState::Contested, 3450, 0, TEXT("Nobody sprays alone, so the guard keeps running"));
+    TestFalse(TEXT("A challenger beside the owner holds no progress"), Probe.Reducer.GetOccupier().IsValid());
+    Probe.Add(CapturePresence(BodyA, CaptureMs(2000), false), TEXT("The owner leaves the challenger alone"));
+    Probe.Close(2000, false, TEXT("Challenger alone"));
+    Probe.ExpectSolo(B, 2000, 2350, TEXT("The challenger sprays as soon as he is alone"));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 550, TEXT("His spray pauses the guard again"));
+
+    Probe.Close(2350, false, TEXT("The repaint lands"));
+    Probe.ExpectGuard(B, ELDCircleState::Guarded, 4350, 0, TEXT("A repaint covers the old graffiti and starts the new owner's guard from zero"));
+    TestTrue(TEXT("The tally counts the repaint"), Probe.Reducer.DevTally().Sprays == 2 && Probe.Reducer.DevTally().Repaints == 1
+        && Probe.Reducer.DevTally().GraffitiSinceMs == 2350);
+
+    FCaptureReducerProbe Dies = Probe;
+    Dies.Add(CaptureFact(ELDCaptureEventKind::Died, BodyB, CaptureMs(4350), ELDCommitPhase::DeathsAndRewards),
+        TEXT("The owner dies at the win instant"));
+    Dies.Close(4350, false, TEXT("A death at the same instant is settled before the guard"));
+    Dies.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The dead owner's graffiti is cleared and nobody wins"));
+    TestEqual(TEXT("The tally names the clearing cause"), Dies.Reducer.DevTally().ClearedByDeath, uint32(1));
+    FCaptureReducerProbe Skipped = Probe;
+    TOptional<FLDCaptureProposal> Proposal;
+    TestFalse(TEXT("A driver that skips the guard win fails loudly"),
+        Skipped.Reducer.CloseBoundary(4351, Proposal, Skipped.Error) || Proposal.IsSet());
+
+    Probe.Close(4349, false, TEXT("Quiet boundary before the win"));
+    TestTrue(TEXT("The guard win boundary closes"), Probe.Reducer.CloseBoundary(4350, Proposal, Probe.Error));
+    TestTrue(TEXT("A guard that reached its full duration proposes its owner"),
+        Proposal.IsSet() && Proposal->Winner == B && Proposal->GuardSinceMs == 2350 && Proposal->DueAtMs == 4350
+        && Proposal->Epoch == Probe.Reducer.GetEpoch());
+    (void)BodyC;
     return true;
 }
 
@@ -177,17 +182,17 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     };
 
     FCaptureReducerProbe Probe{*this};
-    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, Probe.Error));
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, 5000, Probe.Error));
     Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
     Probe.Add(CaptureJoined(BodyC, false), TEXT("C joins outside"));
     Probe.Close(0, false, TEXT("Open"));
     Probe.Add(CapturePresence(BodyB, CaptureMs(100), true), TEXT("B enters"));
     Probe.Close(100, false, TEXT("Contest"));
-    ExpectPaused(Probe, A, 100, TEXT("The holder's progress is paused"));
+    ExpectPaused(Probe, A, 100, TEXT("Two effective contenders pause the sprayer's progress"));
     Probe.Close(300, false, TEXT("A long contest"));
     ExpectPaused(Probe, A, 100, TEXT("Nobody accumulates while contested"));
-    Probe.Add(CapturePresence(BodyA, CaptureMs(350), false), TEXT("The paused holder leaves the circle"));
+    Probe.Add(CapturePresence(BodyA, CaptureMs(350), false), TEXT("The paused holder leaves the zone"));
     Probe.Close(350, false, TEXT("Holder exit"));
     Probe.ExpectSolo(B, 350, 850, TEXT("The holder who leaves loses his progress and nobody inherits it"));
 
@@ -206,7 +211,7 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Clearing the holder is a public change"), Probe.Reducer.GetEpoch(), PausedEpoch + 1);
     Probe.Add(CapturePresence(BodyC, CaptureMs(500), false), TEXT("C leaves"));
     Probe.Close(500, false, TEXT("Contest ends without a holder"));
-    Probe.ExpectSolo(A, 500, 1000, TEXT("The next sole contender starts from zero"));
+    Probe.ExpectSolo(A, 500, 1000, TEXT("The next sole sprayer starts from zero"));
 
     Probe.Add(CapturePresence(BodyC, CaptureMs(600), true), TEXT("C enters"));
     Probe.Add(CaptureFact(ELDCaptureEventKind::Left, BodyA, CaptureMs(650), ELDCommitPhase::Session),
@@ -216,10 +221,10 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     Probe.Add(CapturePresence(BodyC, CaptureMs(700), false), TEXT("C exits while sole"));
     Probe.Add(CapturePresence(BodyC, CaptureMs(800), true), TEXT("C returns"));
     Probe.Close(800, false, TEXT("Empty then sole"));
-    Probe.ExpectSolo(C, 800, 1300, TEXT("An empty circle clears progress, even for the same contender"));
+    Probe.ExpectSolo(C, 800, 1300, TEXT("An empty zone clears progress, even for the same contender"));
 
     FCaptureReducerProbe Same{*this};
-    TestTrue(TEXT("Reducer begins"), Same.Reducer.Begin(0, 500, Same.Error));
+    TestTrue(TEXT("Reducer begins"), Same.Reducer.Begin(0, 500, 5000, Same.Error));
     Same.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Same.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
     Same.Close(0, false, TEXT("Open"));
@@ -229,44 +234,27 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     Same.ExpectSolo(B, 201, 701, TEXT("Facts of one boundary are reduced in order: the holder's exit hands nothing over"));
 
     FCaptureReducerProbe Cap{*this};
-    TestTrue(TEXT("Reducer begins"), Cap.Reducer.Begin(0, 500, Cap.Error));
+    TestTrue(TEXT("Reducer begins"), Cap.Reducer.Begin(0, 500, 5000, Cap.Error));
     Cap.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Cap.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
     Cap.Close(0, false, TEXT("Open"));
-    Cap.Add(CapturePresence(BodyB, CaptureMs(450), true), TEXT("B enters late in the segment"));
+    Cap.Add(CapturePresence(BodyB, CaptureMs(450), true), TEXT("B enters late in the spray"));
     Cap.Close(450, false, TEXT("Late contest"));
     ExpectPaused(Cap, A, 450, TEXT("A late contest adds no driver stop of its own"));
-    FCaptureReducerProbe Skipped = Cap;
-    Skipped.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
-    TestEqual(TEXT("The motion prefix shows the resumed completion inside the step"),
-        Skipped.Reducer.CompletionInsideMs(520), int64(510));
-    TOptional<FLDCaptureProposal> Proposal;
-    TestFalse(TEXT("A resumed completion closed as an ordinary boundary fails loudly"),
-        Skipped.Reducer.CloseBoundary(520, Proposal, Skipped.Error) || Proposal.IsSet());
-    FCaptureReducerProbe Hidden = Cap;
-    Hidden.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
-    Hidden.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed completion"));
-    TestFalse(TEXT("A later contest cannot hide a skipped resumed completion"),
-        Hidden.Reducer.CloseBoundary(520, Proposal, Hidden.Error) || Proposal.IsSet());
     FCaptureReducerProbe Inside = Cap;
     Inside.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
-    Inside.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed completion"));
-    TestTrue(TEXT("The step closes through the resumed completion"),
-        Inside.Reducer.CloseThroughCompletion(520, Proposal, Inside.Error));
-    TestTrue(TEXT("The holder wins at his exact resumed due instant; a later entry inside the step cannot undo it"),
-        Proposal.IsSet() && Proposal->Occupier == A && Proposal->SoloSinceMs == 10 && Proposal->DueAtMs == 510
-        && Proposal->Epoch == Inside.Reducer.GetEpoch() && Inside.Reducer.GetClosedThroughMs() == 520);
+    Inside.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed spray"));
+    TestEqual(TEXT("A spray inside a step never ends the match"), Inside.Reducer.CompletionInsideMs(520), MAX_int64);
+    Inside.Close(520, false, TEXT("The step closes through the resumed spray"));
+    Inside.ExpectGuard(A, ELDCircleState::Contested, 5510, 0,
+        TEXT("The resumed spray lands at its real instant inside the step; the later entry only meets the owner"));
+    TestEqual(TEXT("The graffiti dates from the resumed spray instant"), Inside.Reducer.DevTally().GraffitiSinceMs, int64(510));
     FCaptureReducerProbe Interrupted = Cap;
     Interrupted.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
     Interrupted.Add(CapturePresence(BodyB, CaptureSeconds(.5095), true), TEXT("B re-enters in the due bucket"));
-    TestEqual(TEXT("A contest in the due bucket still prevents the resumed win"),
-        Interrupted.Reducer.CompletionInsideMs(520), MAX_int64);
-    TestFalse(TEXT("Closing through a completion that did not happen fails loudly"),
-        Interrupted.Reducer.CloseThroughCompletion(520, Proposal, Interrupted.Error) || Proposal.IsSet());
-    Cap.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
-    Cap.Close(500, false, TEXT("The capped boundary"));
-    Cap.ExpectSolo(A, 10, 510, TEXT("The resumed segment keeps its paused progress"));
-    Cap.Close(510, true, TEXT("The resumed segment completes at its real due instant"));
+    Interrupted.Close(520, false, TEXT("Contest in the due bucket"));
+    ExpectPaused(Interrupted, A, 500, TEXT("A contest in the due bucket still prevents the resumed spray"));
+    TestFalse(TEXT("No graffiti"), Interrupted.Reducer.GetGraffitiOwner().IsValid());
     return true;
 }
 
@@ -274,23 +262,23 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCapturePausedContestStepsTest, "Lockdown.Rul
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCapturePausedContestStepsTest::RunTest(const FString& Parameters)
 {
-    // The native driver's longest step (CMC MaxSimulationTimeStep) and the approved hold.
-    constexpr int64 MaxStepMs = 50, HoldMs = 25000, ContestMs = 2000;
+    // The native driver's longest step (CMC MaxSimulationTimeStep) and the approved spray and guard.
+    constexpr int64 MaxStepMs = 50, SprayMs = 3500, GuardMs = 20000, ContestMs = 2000;
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
     const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
     FCaptureReducerProbe Probe{*this};
-    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, HoldMs, Probe.Error));
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, SprayMs, GuardMs, Probe.Error));
     Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
     Probe.Close(0, false, TEXT("Open"));
-    Probe.Add(CapturePresence(BodyB, CaptureMs(HoldMs - 1), true), TEXT("B enters one millisecond before completion"));
-    Probe.Close(HoldMs - 1, false, TEXT("Contest freezes nearly the full hold"));
-    TestTrue(TEXT("The holder is paused one millisecond short"), Probe.Reducer.GetState() == ELDCircleState::Contested
-        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == HoldMs - 1);
+    Probe.Add(CapturePresence(BodyB, CaptureMs(SprayMs - 1), true), TEXT("B enters one millisecond before the spray"));
+    Probe.Close(SprayMs - 1, false, TEXT("Contest freezes nearly the full spray"));
+    TestTrue(TEXT("The sprayer is paused one millisecond short"), Probe.Reducer.GetState() == ELDCircleState::Contested
+        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == SprayMs - 1);
     // Step the contest exactly as the authority driver does: the native step cap or the reducer's next stop.
-    int64 Now = HoldMs - 1;
+    int64 Now = SprayMs - 1;
     int32 Steps = 0;
-    while (Now < HoldMs - 1 + ContestMs && Steps <= ContestMs)
+    while (Now < SprayMs - 1 + ContestMs && Steps <= ContestMs)
     {
         const int64 End = FMath::Min(Now + MaxStepMs, Probe.Reducer.NextDueMs());
         if (!Probe.Close(End, false, TEXT("A quiet contest boundary"))) { return false; }
@@ -299,16 +287,114 @@ bool FLDCapturePausedContestStepsTest::RunTest(const FString& Parameters)
     }
     TestTrue(FString::Printf(TEXT("A quiet paused contest runs native-length steps (%d steps for %lld ms)"), Steps, ContestMs),
         Steps <= ContestMs / MaxStepMs);
-    // The step in which the holder becomes sole again closes at his exact resumed due instant.
+    // The step in which the holder becomes sole again sprays at his exact resumed instant and goes on.
     const int64 End = Now + MaxStepMs;
     Probe.Add(CapturePresence(BodyB, CaptureSeconds((double(Now) + 6.5) / 1000.), false), TEXT("B leaves inside the step"));
-    TestEqual(TEXT("Only this step's motion prefix reveals the inside completion"), Probe.Reducer.CompletionInsideMs(End), Now + 8);
-    TOptional<FLDCaptureProposal> Proposal;
-    TestTrue(TEXT("The resumed step closes through its completion"),
-        Probe.Reducer.CloseThroughCompletion(End, Proposal, Probe.Error));
-    TestTrue(TEXT("The resumed hold completes exactly one millisecond after the resume"),
-        Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == Now + 8
-        && Proposal->DueAtMs - Proposal->SoloSinceMs == HoldMs);
+    TestEqual(TEXT("A resumed spray inside the step is no completion of the match"), Probe.Reducer.CompletionInsideMs(End), MAX_int64);
+    Probe.Close(End, false, TEXT("The resumed step closes as an ordinary boundary"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, Now + 8 + GuardMs, 0,
+        TEXT("The resumed spray lands one millisecond after the resume and the guard starts there"));
+    TestEqual(TEXT("The driver next stops at the guard win"), Probe.Reducer.NextDueMs(), Now + 8 + GuardMs);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureSprayInterruptTest, "Lockdown.Rules.DemoCapture.SprayInterrupt",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureSprayInterruptTest::RunTest(const FString& Parameters)
+{
+    // Root, stun, taunt and knockback reach the reducer as one Interrupted fact from Combat's control path; damage,
+    // slow and disarm publish none, so they never touch the spray.
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+    FCaptureReducerProbe Probe{*this};
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, 5000, Probe.Error));
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.ExpectSolo(A, 0, 500, TEXT("A sprays"));
+    Probe.Add(CaptureInterrupt(BodyA, 200), TEXT("A hard control lands on the sole sprayer"));
+    Probe.Close(200, false, TEXT("Interrupted sprayer"));
+    Probe.ExpectSolo(A, 200, 700, TEXT("The control clears his progress at its instant; still alone, he starts again from zero"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(300), true), TEXT("B enters"));
+    Probe.Close(300, false, TEXT("Contest"));
+    TestTrue(TEXT("The contest pauses the restarted progress"), Probe.Reducer.GetState() == ELDCircleState::Contested
+        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == 100);
+    Probe.Add(CaptureInterrupt(BodyA, 350), TEXT("A hard control lands on the paused holder"));
+    Probe.Close(350, false, TEXT("Interrupted paused holder"));
+    TestTrue(TEXT("A control clears paused progress too"), Probe.Reducer.GetState() == ELDCircleState::Contested
+        && !Probe.Reducer.GetOccupier().IsValid() && Probe.Reducer.GetPausedProgressMs() == 0);
+    Probe.Add(CapturePresence(BodyB, CaptureMs(400), false), TEXT("B leaves"));
+    Probe.Close(400, false, TEXT("A alone again"));
+    Probe.ExpectSolo(A, 400, 900, TEXT("Nothing of the cleared progress resumes"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(450), true), TEXT("B enters"));
+    Probe.Close(450, false, TEXT("Contest"));
+    const uint64 Epoch = Probe.Reducer.GetEpoch();
+    Probe.Add(CaptureInterrupt(BodyB, 460), TEXT("A hard control lands on the challenger without progress"));
+    Probe.Close(460, false, TEXT("Interrupted bystander"));
+    TestTrue(TEXT("Controlling someone without progress changes nothing"), Probe.Reducer.GetEpoch() == Epoch
+        && Probe.Reducer.GetOccupier() == A && Probe.Reducer.GetPausedProgressMs() == 50);
+    Probe.Add(CapturePresence(BodyB, CaptureMs(470), false), TEXT("B leaves"));
+    Probe.Close(470, false, TEXT("Resume"));
+    Probe.ExpectSolo(A, 420, 920, TEXT("The holder resumes his paused progress"));
+    Probe.Close(919, false, TEXT("Quiet boundary"));
+    Probe.Add(CaptureInterrupt(BodyA, 920), TEXT("A hard control at the spray instant"));
+    Probe.Close(920, false, TEXT("Control and spray at one instant"));
+    Probe.ExpectSolo(A, 920, 1420, TEXT("A control at the spray instant is settled first and the spray never lands"));
+    TestFalse(TEXT("No graffiti"), Probe.Reducer.GetGraffitiOwner().IsValid());
+    {
+        const FLDCaptureDevTally::FHolder* Holder = Probe.Reducer.DevTally().Holders.Find(A);
+        TestTrue(TEXT("The telemetry tally counts every interruption as a loss"), Holder && Holder->Attempts == 4
+            && Holder->Resumes == 1 && Holder->Paused == 2 && Holder->Lost == 3 && Holder->Interrupted == 3);
+    }
+    TestFalse(TEXT("An interruption must name the current living body"),
+        Probe.Reducer.Enqueue(CaptureInterrupt(CaptureTestBody(A, 2), 1000), Probe.Error));
+    Probe.Close(1420, false, TEXT("The spray lands"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 6420, 0, TEXT("A graffiti"));
+    const uint64 Owned = Probe.Reducer.GetEpoch();
+    Probe.Add(CaptureInterrupt(BodyA, 1500), TEXT("A hard control lands on the owner"));
+    Probe.Close(1500, false, TEXT("Controlled owner"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 6420, 0, TEXT("Controls on the owner never touch the guard"));
+    TestEqual(TEXT("Nothing public changed"), Probe.Reducer.GetEpoch(), Owned);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureGraffitiClearedTest, "Lockdown.Rules.DemoCapture.GraffitiCleared",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureGraffitiClearedTest::RunTest(const FString& Parameters)
+{
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1);
+    FCaptureReducerProbe Probe{*this};
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 100, 5000, Probe.Error));
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Close(100, false, TEXT("A sprays"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 5100, 0, TEXT("A owns the flagpole"));
+
+    FCaptureReducerProbe Death = Probe;
+    Death.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(200), ELDCommitPhase::DeathsAndRewards), TEXT("The owner dies"));
+    Death.Close(200, false, TEXT("Owner death"));
+    Death.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The owner's death clears the graffiti at once"));
+    TestTrue(TEXT("The bare flagpole adds no stop and the tally names the death"), Death.Reducer.NextDueMs() == MAX_int64
+        && Death.Reducer.DevTally().ClearedByDeath == 1 && Death.Reducer.DevTally().GraffitiSinceMs == -1);
+    FCaptureReducerProbe Leave = Probe;
+    Leave.Add(CaptureFact(ELDCaptureEventKind::Left, BodyA, CaptureMs(200), ELDCommitPhase::Session), TEXT("The owner leaves the match"));
+    Leave.Close(200, false, TEXT("Owner departure"));
+    Leave.ExpectGuard(FGuid(), ELDCircleState::Empty, 0, 0, TEXT("The owner's departure clears the graffiti at once"));
+    TestEqual(TEXT("The tally names the departure"), Leave.Reducer.DevTally().ClearedByLeave, uint32(1));
+
+    Probe.Add(CapturePresence(BodyA, CaptureMs(150), false), TEXT("The owner walks away"));
+    Probe.Add(CapturePresence(BodyB, CaptureMs(160), true), TEXT("B sprays alone"));
+    Probe.Close(160, false, TEXT("Repaint under way"));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 60, TEXT("The repaint pauses the guard"));
+    Probe.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(170), ELDCommitPhase::DeathsAndRewards), TEXT("The owner dies"));
+    Probe.Close(170, false, TEXT("Owner death during a repaint"));
+    Probe.ExpectSolo(B, 160, 260, TEXT("The sprayer keeps his progress when the graffiti is cleared"));
+    TestFalse(TEXT("No graffiti"), Probe.Reducer.GetGraffitiOwner().IsValid());
+    Probe.Close(260, false, TEXT("B sprays"));
+    Probe.ExpectGuard(B, ELDCircleState::Guarded, 5260, 0, TEXT("A spray on the bare flagpole"));
+    TestTrue(TEXT("It is no repaint"), Probe.Reducer.DevTally().Sprays == 2 && Probe.Reducer.DevTally().Repaints == 0);
     return true;
 }
 
@@ -320,32 +406,33 @@ bool FLDCaptureProtectionTest::RunTest(const FString& Parameters)
     const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), FirstB = CaptureTestBody(B, 1), SecondB = CaptureTestBody(B, 2);
     auto Prepare = [&](FCaptureReducerProbe& Probe, int64 ProtectedUntilMs)
     {
-        TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, Probe.Error));
+        TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, 5000, Probe.Error));
         Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
         Probe.Add(CaptureJoined(FirstB, false), TEXT("B joins outside"));
         Probe.Close(0, false, TEXT("Open"));
         Probe.Add(CaptureFact(ELDCaptureEventKind::Died, FirstB, CaptureMs(100), ELDCommitPhase::DeathsAndRewards), TEXT("B dies"));
-        Probe.Close(100, false, TEXT("Death"));
         Probe.Add(CaptureFact(ELDCaptureEventKind::Respawned, SecondB, CaptureMs(200), ELDCommitPhase::RespawnsAndWorld,
-            true, ProtectedUntilMs), TEXT("B respawns protected inside the circle"));
+            true, ProtectedUntilMs), TEXT("B respawns protected inside the zone"));
         Probe.Close(200, false, TEXT("Protected respawn"));
-        Probe.ExpectSolo(A, 0, 500, TEXT("A protected body neither advances nor interrupts"));
+        Probe.ExpectSolo(A, 0, 500, TEXT("A protected body neither sprays nor interrupts"));
     };
 
     FCaptureReducerProbe AtDue{*this};
     Prepare(AtDue, 500);
     AtDue.Add(CaptureFact(ELDCaptureEventKind::ProtectionEnded, SecondB, CaptureMs(500), ELDCommitPhase::Session),
-        TEXT("Protection expires at the completion instant"));
+        TEXT("Protection expires at the spray instant"));
     AtDue.Close(500, false, TEXT("Half-open protection end contests at the same instant"));
-    TestTrue(TEXT("Expiry at the completion instant pauses the full progress"),
+    TestTrue(TEXT("Expiry at the spray instant pauses the full progress"),
         AtDue.Reducer.GetState() == ELDCircleState::Contested && AtDue.Reducer.GetOccupier() == A
         && AtDue.Reducer.GetPausedProgressMs() == 500 && AtDue.Reducer.NextDueMs() == MAX_int64);
     AtDue.Add(CapturePresence(SecondB, CaptureMs(501), false), TEXT("B leaves"));
-    AtDue.Close(501, true, TEXT("Sole again with the full paused progress completes at that instant"));
+    AtDue.Close(501, false, TEXT("Sole again with the full paused progress"));
+    AtDue.ExpectGuard(A, ELDCircleState::Guarded, 5501, 0, TEXT("The full paused progress sprays the instant he is sole again"));
 
     FCaptureReducerProbe Later{*this};
     Prepare(Later, 600);
-    Later.Close(500, true, TEXT("Protection ending after completion cannot rewrite it"));
+    Later.Close(500, false, TEXT("Protection ending after the spray cannot rewrite it"));
+    Later.ExpectGuard(A, ELDCircleState::Guarded, 5500, 0, TEXT("The protected body never counted"));
 
     FCaptureReducerProbe Exit{*this};
     Prepare(Exit, 300);
@@ -362,20 +449,24 @@ bool FLDCaptureProtectionTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Contract failure is explained"), Missing.Error.IsEmpty());
 
     FCaptureReducerProbe Skip{*this};
-    TestTrue(TEXT("Reducer begins"), Skip.Reducer.Begin(0, 500, Skip.Error));
+    TestTrue(TEXT("Reducer begins"), Skip.Reducer.Begin(0, 100, 400, Skip.Error));
     Skip.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
     Skip.Close(0, false, TEXT("Open"));
-    TestFalse(TEXT("A driver that skips the completion boundary fails loudly"),
+    Skip.Close(100, false, TEXT("Spray"));
+    TestFalse(TEXT("A driver that skips the guard win fails loudly"),
         Skip.Reducer.CloseBoundary(501, Proposal, Skip.Error) || Proposal.IsSet());
 
     FCaptureReducerProbe Refuse{*this};
-    TestTrue(TEXT("Reducer begins"), Refuse.Reducer.Begin(1000, 500, Refuse.Error));
+    TestFalse(TEXT("A spray or guard without a positive duration is refused"),
+        Refuse.Reducer.Begin(1000, 0, 500, Refuse.Error) || Refuse.Reducer.Begin(1000, 500, 0, Refuse.Error));
+    TestTrue(TEXT("Reducer begins"), Refuse.Reducer.Begin(1000, 500, 5000, Refuse.Error));
     Refuse.Add(CaptureJoined(BodyA, false), TEXT("A joins"));
     TestFalse(TEXT("A contender cannot join twice"), Refuse.Reducer.Enqueue(CaptureJoined(BodyA, false), Refuse.Error));
     TestFalse(TEXT("Presence must name the current body"),
         Refuse.Reducer.Enqueue(CapturePresence(CaptureTestBody(A, 1), CaptureMs(10), true), Refuse.Error));
     TestFalse(TEXT("Unknown contenders cannot publish presence"),
         Refuse.Reducer.Enqueue(CapturePresence(FirstB, CaptureMs(10), true), Refuse.Error));
+    TestFalse(TEXT("Unknown contenders cannot be interrupted"), Refuse.Reducer.Enqueue(CaptureInterrupt(FirstB, 10), Refuse.Error));
     TestFalse(TEXT("Respawn requires a committed death"), Refuse.Reducer.Enqueue(CaptureFact(ELDCaptureEventKind::Respawned,
         CaptureTestBody(A, 2), CaptureMs(10), ELDCommitPhase::RespawnsAndWorld, false, 100), Refuse.Error));
     TestFalse(TEXT("An unprotected life cannot end protection"), Refuse.Reducer.Enqueue(CaptureFact(
@@ -383,6 +474,7 @@ bool FLDCaptureProtectionTest::RunTest(const FString& Parameters)
     Refuse.Add(CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(10), ELDCommitPhase::DeathsAndRewards), TEXT("A dies"));
     TestFalse(TEXT("One life dies once"), Refuse.Reducer.Enqueue(
         CaptureFact(ELDCaptureEventKind::Died, BodyA, CaptureMs(11), ELDCommitPhase::DeathsAndRewards), Refuse.Error));
+    TestFalse(TEXT("A dead body cannot be interrupted"), Refuse.Reducer.Enqueue(CaptureInterrupt(BodyA, 11), Refuse.Error));
     Refuse.Close(20, false, TEXT("Close"));
     TestFalse(TEXT("Closed boundaries cannot be backfilled"), Refuse.Reducer.Enqueue(CaptureFact(ELDCaptureEventKind::Respawned,
         CaptureTestBody(A, 2), CaptureMs(20), ELDCommitPhase::RespawnsAndWorld, false, 100), Refuse.Error));
@@ -543,6 +635,37 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
         TEXT("Paused progress cannot exceed the open time"));
     MalformedPause([](FLDPublicMatchView& View) { View.CircleState = ELDCircleState::Empty; },
         TEXT("An empty circle holds no progress"));
+    Malformed([](FLDPublicMatchView& View) { View.GuardDueAtMs = 140000; }, TEXT("A bare flagpole has no guard"));
+    FLDPublicMatchView Owned = Open;
+    Owned.PublicRevision = Open.PublicRevision + 2;
+    Owned.GraffitiOwner = FGuid::NewGuid();
+    Owned.GraffitiPresentation = 2;
+    Owned.GuardKeptMs = 4000;
+    FLDPublicMatchView OwnedLatest = Latest;
+    TestEqual(TEXT("A sole sprayer under a graffiti shows the paused guard"),
+        LDCapture::AcceptPublicMatchView(Owned, OwnedLatest, Error), ELDLobbyProjectionResult::Accepted);
+    auto MalformedOwned = [&](const FLDPublicMatchView& Base, TFunctionRef<void(FLDPublicMatchView&)> Mutate, const TCHAR* What)
+    {
+        FLDPublicMatchView Candidate = Base;
+        Mutate(Candidate);
+        FLDPublicMatchView Scratch = Latest;
+        TestEqual(What, LDCapture::AcceptPublicMatchView(Candidate, Scratch, Error), ELDLobbyProjectionResult::Malformed);
+    };
+    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GuardDueAtMs = 140000; }, TEXT("A paused guard has no win instant"));
+    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GuardKeptMs = -1; }, TEXT("Kept guard progress is not negative"));
+    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.Occupier = View.GraffitiOwner; }, TEXT("The owner never sprays"));
+    MalformedOwned(Owned, [](FLDPublicMatchView& View) { View.GraffitiPresentation = 6; }, TEXT("The owner's tint is a roster slot"));
+    FLDPublicMatchView Guarded = Owned;
+    Guarded.CircleState = ELDCircleState::Guarded;
+    Guarded.Occupier.Invalidate();
+    Guarded.SoloSinceMs = Guarded.DueAtMs = Guarded.GuardKeptMs = 0;
+    Guarded.GuardDueAtMs = 140000;
+    FLDPublicMatchView GuardedLatest = Latest;
+    TestEqual(TEXT("The owner alone in the zone shows his running guard"),
+        LDCapture::AcceptPublicMatchView(Guarded, GuardedLatest, Error), ELDLobbyProjectionResult::Accepted);
+    MalformedOwned(Guarded, [](FLDPublicMatchView& View) { View.GuardDueAtMs = 0; }, TEXT("A running guard names its win instant"));
+    MalformedOwned(Guarded, [](FLDPublicMatchView& View) { View.GraffitiOwner.Invalidate(); View.GraffitiPresentation = 0; View.GuardDueAtMs = 0; },
+        TEXT("A guarded zone names its owner"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Development; },
         TEXT("Development cannot publish an open circle"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Lobby; }, TEXT("Lobby publishes no capture state"));
@@ -552,7 +675,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Result.Generation = 2;
     Result.ResultId = FGuid::NewGuid();
     Result.ResultSerial = 1;
-    Result.Reason = ELDMatchEndReason::CaptureCompleted;
+    Result.Reason = ELDMatchEndReason::GuardSucceeded;
     Result.Winner = Open.Occupier;
     Result.StartedAtMs = 0;
     Result.EndedAtMs = 150000;
@@ -714,7 +837,7 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
 
     // A running match without native bodies: only the core gate, clock and reducer matter here.
     Mode->MatchPhase = ELDMatchPhase::Development;
-    TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(120000, 25000, Error));
+    TestTrue(TEXT("The approved timing starts the reducer"), Mode->CaptureReducer.Begin(120000, 3500, 20000, Error));
     FLDSessionRequest Request;
     Request.Key = {Generation, 1};
     Request.Command = ELDSessionCommand::EndMatch;

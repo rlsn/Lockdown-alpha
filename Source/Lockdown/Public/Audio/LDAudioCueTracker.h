@@ -50,6 +50,7 @@ private:
     uint32 PublicGeneration = 0;
     bool bOpenSeen = false;
     uint64 CircleEpoch = 0;
+    FGuid GraffitiSeen;
     double LastCaptureCueAt = -1e9;
     uint32 KillGeneration = 0;
     uint64 KillSerial = 0;
