@@ -83,6 +83,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
+            ("CAMP.ReturnDeadEndSec", "ms", "6"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -95,6 +96,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOP.StartingGold", 320), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("CAMP.ReturnDeadEndPlans", 3),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))

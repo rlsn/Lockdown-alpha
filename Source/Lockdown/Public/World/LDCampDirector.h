@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "World/LDCampDecision.h"
 #include "World/LDCampLifecycle.h"
 #include "World/LDWorldQueryTypes.h"
 #include "LDCampDirector.generated.h"
@@ -66,7 +67,6 @@ private:
         bool bActive = false;
         double BestProgress = 0;
         double LastProgressSeconds = 0;
-        uint64 WarnedReturnEpoch = 0;
     };
     struct FMemberRead
     {
@@ -93,5 +93,6 @@ private:
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TMap<FGuid, TWeakObjectPtr<ALDCampMemberCharacter>> Bodies;
     TMap<FGuid, FMotion> Motion;
+    TMap<FGuid, FLDCampReturnWatch> Returns;
     TSet<int32> BlockedRefresh;
 };

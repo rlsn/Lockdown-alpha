@@ -179,6 +179,7 @@ def parameter_projection(parameters):
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
         ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
+        ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
@@ -193,6 +194,7 @@ def parameter_projection(parameters):
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
         ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
+        ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}

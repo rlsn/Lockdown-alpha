@@ -318,6 +318,8 @@ struct FLDCampResetInput
     FLDCombatBodyRef Body;                 // current live CampMember body
     uint64 ReturnEpoch=0;                  // World-owned; reset key = LedgerMatch + Victim + ReturnEpoch
     FVector HomeFootCm=FVector::ZeroVector;
+    // #28: World proved this return a dead end (CAMP.ReturnDeadEnd*); the reset applies where the member stands.
+    bool bInPlace=false;
     uint64 ExpectedResourceRevision=0;     // from ReadCombatBody
     uint64 ExpectedStateRevision=0;
 };

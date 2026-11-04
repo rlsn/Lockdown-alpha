@@ -1208,7 +1208,7 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
             TEXT("StaleBuild: the camp member's resources or statuses changed after the reset was read."));
     }
     const double ArrivalCm=LDCombatSourcesDetail::RationalValue(Content->Get().Parameters.CampResetArrivalRadiusCm);
-    if (!(ArrivalCm>0) || FVector::DistSquared2D(FootOf(*Actor),Input.HomeFootCm)>ArrivalCm*ArrivalCm)
+    if (!(ArrivalCm>0) || (!Input.bInPlace && FVector::DistSquared2D(FootOf(*Actor),Input.HomeFootCm)>ArrivalCm*ArrivalCm))
     {
         return LDCombatSourcesDetail::CampResetFailure(EPrepare::InvalidInput,
             TEXT("InvalidInput: the camp member foot is outside CAMP.ResetArrivalRadiusCm of its home."));

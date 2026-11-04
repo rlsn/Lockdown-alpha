@@ -121,6 +121,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 SellRatioBp = 0;
     UPROPERTY() int64 ChoiceBaseWeight = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
+    // #28: a Returning member with this many consecutive refused path plans, or this long without path progress
+    // while free to move, resets where it stands instead of retrying forever.
+    UPROPERTY() int64 CampReturnDeadEndPlans = 0;
+    UPROPERTY() int64 CampReturnDeadEndMs = 0;
     // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
     UPROPERTY() FLDDemoRational RearArcDeg;
     UPROPERTY() int64 XPBaseToNext = 0;

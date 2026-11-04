@@ -312,6 +312,7 @@ bool ALDCampDirector::AdvanceMemberMotion(const FLDAuthorityStep& Step, const FL
     {
         Track.BestProgress = Progress;
         Track.LastProgressSeconds = Step.EndServerSeconds;
+        if (FLDCampReturnWatch* Watch = Returns.Find(Ref.Victim.EntityId)) { Watch->Progressed(Step.EndServerSeconds); }
     }
     if (Step.EndServerSeconds - Track.LastProgressSeconds >= CampStallSeconds)
     {
@@ -332,6 +333,14 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
         return false;
     }
     const double Now = Mode->GetAuthorityNowSeconds();
+    const FLDDemoContentParameters& Parameters = Content->Get().Parameters;
+    if (Parameters.CampReturnDeadEndPlans <= 0 || Parameters.CampReturnDeadEndPlans > MAX_int32 || Parameters.CampReturnDeadEndMs <= 0)
+    {
+        Error = TEXT("Approved CAMP.ReturnDeadEnd parameters are invalid.");
+        return false;
+    }
+    const int32 DeadEndPlans = int32(Parameters.CampReturnDeadEndPlans);
+    const double DeadEndSeconds = double(Parameters.CampReturnDeadEndMs) / 1000.;
     for (int32 Camp = 0; Camp < State.NumCamps(); ++Camp)
     {
         const FLDCampSpec& Spec = State.GetRoster()->Camps[Camp];
@@ -377,6 +386,21 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
                 UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RETURN camp=%s slot=%d life=%u epoch=%llu"),
                     *Spec.CampId.ToString(), Slot, Ref.Victim.Life, State.FindLiving(Ref)->ReturnEpoch);
             }
+            const uint64 Epoch = State.FindLiving(Ref)->ReturnEpoch;
+            FLDCampReturnWatch* Watch = nullptr;
+            if (Decision.NextBrain.Phase == ELDCampBrainPhase::Returning)
+            {
+                Watch = &Returns.FindOrAdd(Entity);
+                Watch->Observe(Epoch, Now);
+                // Control pauses the return (ReturnHome needs MovementAllowed); paused time is not a stall.
+                if (Decision.Intent != ELDCampIntent::ReturnHome) { Watch->Progressed(Now); }
+            }
+            auto DeadEnd = [&](const TCHAR* Cause)
+            {
+                StopMotion(Entity);
+                UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_RETURN_DEAD_END camp=%s slot=%d epoch=%llu cause=%s refused=%d"),
+                    *Spec.CampId.ToString(), Slot, Epoch, Cause, Watch->RefusedPlans);
+            };
             switch (Decision.Intent)
             {
             case ELDCampIntent::Chase:
@@ -388,28 +412,43 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
                     return false;
                 }
                 const FVector Goal = Decision.GoalFootCm.GetValue();
+                const bool bReturn = Decision.Intent == ELDCampIntent::ReturnHome;
                 FMotion& Track = Motion.FindOrAdd(Entity);
+                if (bReturn && Watch->bDeadEnd)
+                {
+                    // Waiting for RespawnsAndWorld to reset it where it stands.
+                    StopMotion(Entity);
+                    break;
+                }
+                if (bReturn && Watch->Stalled(Now, DeadEndSeconds))
+                {
+                    DeadEnd(TEXT("no_progress"));
+                    break;
+                }
                 if (Track.bActive && FVector::DistSquared2D(Track.Goal, Goal) <= FMath::Square(CampReplanShiftCm)) { break; }
+                if (bReturn && !Watch->MayPlan(Now)) { break; }
                 FMotion Planned;
-                Planned.WarnedReturnEpoch = Track.WarnedReturnEpoch;
                 FString PlanError;
                 if (PlanPath(Self, Spec.SurfaceId, Goal, Now, Planned, PlanError))
                 {
                     Track = MoveTemp(Planned);
+                    if (bReturn) { Watch->PlanAccepted(); }
                     break;
                 }
                 StopMotion(Entity);
-                const uint64 Epoch = State.FindLiving(Ref)->ReturnEpoch;
-                if (Decision.Intent == ELDCampIntent::ReturnHome && Track.WarnedReturnEpoch != Epoch)
+                if (!bReturn)
                 {
-                    Track.WarnedReturnEpoch = Epoch;
+                    UE_LOG(LogTemp, Verbose, TEXT("LD_CAMP_CHASE_PATH_REJECTED camp=%s slot=%d %s"), *Spec.CampId.ToString(), Slot, *PlanError);
+                    break;
+                }
+                if (!Watch->bWarned)
+                {
+                    Watch->bWarned = true;
                     UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_RETURN_BLOCKED camp=%s slot=%d epoch=%llu %s"),
                         *Spec.CampId.ToString(), Slot, Epoch, *PlanError);
                 }
-                else
-                {
-                    UE_LOG(LogTemp, Verbose, TEXT("LD_CAMP_CHASE_PATH_REJECTED camp=%s slot=%d %s"), *Spec.CampId.ToString(), Slot, *PlanError);
-                }
+                // Refused plans are spaced by the stall interval, so the limit spans seconds rather than ticks.
+                if (Watch->PlanRefused(Now, DeadEndPlans, CampStallSeconds)) { DeadEnd(TEXT("refused_plans")); }
                 break;
             }
             case ELDCampIntent::RequestBasicAttack:
@@ -480,6 +519,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     }
     const FGuid Entity = Fact.Key.Victim.EntityId;
     Motion.Remove(Entity);
+    Returns.Remove(Entity);
     if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
     Bodies.Remove(Entity);
     UE_LOG(LogTemp, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
@@ -503,8 +543,13 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     FMemberRead Self;
     if (!ReadMember(Spec, Ref, Self, Error)) { return false; }
     // HomeProof: true same-surface support within the approved arrival radius of the fixed home.
-    if (!Self.bGrounded || Self.SurfaceId != Spec.SurfaceId
-        || FVector::DistSquared2D(Self.FootCm, Spec.Members[Slot].HomeCm) > Arrival * Arrival)
+    const bool bHome = Self.bGrounded && Self.SurfaceId == Spec.SurfaceId
+        && FVector::DistSquared2D(Self.FootCm, Spec.Members[Slot].HomeCm) <= Arrival * Arrival;
+    // #28 dead end: a return with no legal way home resets where the member stands, on real support only.
+    const FLDCampReturnWatch* Watch = Returns.Find(Ref.Victim.EntityId);
+    const bool bInPlace = !bHome && Self.bGrounded && Watch && Watch->bDeadEnd
+        && Watch->Epoch == State.FindCamp(Camp)->Members[Slot].ReturnEpoch;
+    if (!bHome && !bInPlace)
     {
         Error.Reset();
         return true;
@@ -521,6 +566,7 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     Input.Body = Ref;
     Input.ReturnEpoch = Key.ReturnEpoch;
     Input.HomeFootCm = Spec.Members[Slot].HomeCm;
+    Input.bInPlace = bInPlace;
     Input.ExpectedResourceRevision = Body.ResourceRevision;
     Input.ExpectedStateRevision = Body.StateRevision;
     FLDCampResetPrepareResult Prepared = Mode->Combat->PrepareCampReset(Input, Permit);
@@ -537,8 +583,9 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     }
     if (!State.CompleteReset(Key, Mode->GetAuthorityNowSeconds(), Error)) { return false; }
     StopMotion(Ref.Victim.EntityId);
-    UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RESET camp=%s slot=%d life=%u epoch=%llu"),
-        *Spec.CampId.ToString(), Slot, Ref.Victim.Life, Key.ReturnEpoch);
+    Returns.Remove(Ref.Victim.EntityId);
+    UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RESET camp=%s slot=%d life=%u epoch=%llu in_place=%d"),
+        *Spec.CampId.ToString(), Slot, Ref.Victim.Life, Key.ReturnEpoch, bInPlace ? 1 : 0);
     return true;
 }
 
@@ -738,6 +785,7 @@ void ALDCampDirector::EndMatch()
     }
     Bodies.Reset();
     Motion.Reset();
+    Returns.Reset();
     BlockedRefresh.Reset();
     State.End();
     Content.Reset();

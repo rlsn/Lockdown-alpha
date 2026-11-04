@@ -42,6 +42,30 @@ struct FLDCampDecisionInput
     bool BasicAttackReady = false;
 };
 
+// #28: bounds one Returning cycle that finds no legal way home. Pure bookkeeping; the camp director reports
+// plans and motion and resets the member where it stands once bDeadEnd is set (CAMP.ReturnDeadEnd*).
+struct FLDCampReturnWatch
+{
+    uint64 Epoch = 0;
+    int32 RefusedPlans = 0;
+    double LastProgressSeconds = 0;
+    double NextPlanSeconds = 0;
+    bool bWarned = false;
+    bool bDeadEnd = false;
+
+    // A new ReturnEpoch starts fresh bookkeeping; the current epoch keeps it.
+    void Observe(uint64 InEpoch, double NowSeconds);
+    // Path progress, and time the member is not free to move, restart the no-progress clock.
+    void Progressed(double NowSeconds) { LastProgressSeconds = NowSeconds; }
+    bool MayPlan(double NowSeconds) const { return !bDeadEnd && NowSeconds >= NextPlanSeconds; }
+    void PlanAccepted() { RefusedPlans = 0; }
+    // A refused plan waits RetrySeconds before the next one; the MaxRefused-th consecutive refusal ends the return.
+    // Returns true when this call set bDeadEnd.
+    bool PlanRefused(double NowSeconds, int32 MaxRefused, double RetrySeconds);
+    // Free to move but without path progress for LimitSeconds ends the return. Returns true when this call set bDeadEnd.
+    bool Stalled(double NowSeconds, double LimitSeconds);
+};
+
 struct FLDCampDecision
 {
     FLDCampBrain NextBrain;

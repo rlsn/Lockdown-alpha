@@ -589,7 +589,7 @@ Hit 使 HP 从正转零时固化那次实际拥有者；无主致死记录已处
 | 共同反击 | 只共享攻击事件及来源身份/因果，每名成员从自身合法观察取得目标；有控制/无合法目标者不能绕过规则动作 | 同营共同反击变成共享视野、全地图警戒或邻营连锁；旧源重生身体自动成为报复目标 |
 | 接近/攻击 | 同一导航/CharacterMovement 路径和 Combat 动作执行器；接近到对应中心距，检查状态/冷却/视线 | 另写位置积分或直接扣 HP，忽略 partial path、MoveTo 失败或攻击前摇 |
 | 失去目标/失去视野 | 即刻取消锁定和原追击订单；`LoseTargetGraceSec` 只决定无目标等待到返回的阶段，不继续追踪 | grace期间继续读隐藏Pawn、自动续走LastSeen坐标或恢复过期句柄 |
-| 超 Leash / grace 到期 → Returning | Leash 统一以 Camp 锚点的脚点 XY 距离判定；合法路径回各 MemberHome，取消未来追击/攻击 | 用整个 Leash 圆当无障碍直线区；被反复攻击就无限重置 leash、拖离营地 |
+| 交战中超 Leash / grace 到期 → Returning | Leash 统一以 Camp 锚点的脚点 XY 距离判定，只约束 Engaged 成员（Idle 成员受击后先进入 Engaged）；合法路径回各 MemberHome，取消未来追击/攻击 | 用整个 Leash 圆当无障碍直线区；被反复攻击就无限重置 leash、拖离营地 |
 | Returning | 正常可受伤/控制/杀死，不新开目标/不攻击/不回头追击；受击不取消返回，受控制时尊重同一移动限制 | 回位无敌、受击重开追逐、把回位途中死亡丢成普通reset |
 | 成功回营 → Reset | 同刻先见已到期命中/死亡；只对真实合法到家且仍存活的成员，满已定义HP/MP、清临时效果/仇恨与目标、该怪技能就绪 | 抢先回血覆盖死亡、远处重置、复活死组员、增加Life、清Hit/Death拒重、发奖励或刷新玩家CD |
 | 成员真实死亡 | Combat 结束一次生命，奖励域处理一次死亡事实；营地只标该成员死亡 | 一名成员死亡就重刷它、把两只 Low 合并成一个奖励源 |
@@ -602,7 +602,11 @@ Low 部分清理后，已死亡成员保持死亡，直到该组真正清空再�
 没有MP资源定义的怪物保持NotApplicable，不为“满蓝”补一份临时Mana默认值。
 回位无路／无进展必须停止不合法动作并报诊断，不得通过穿墙、瞬移回家或伪装成功。
 当前实现：规划被拒时停止并按 ReturnEpoch 记一次 `LD_CAMP_RETURN_BLOCKED`，2s 无进展记
-`LD_CAMP_PATH_STALLED`，之后每个 Actions 边界重新规划，没有重试上限或其他收尾。
+`LD_CAMP_PATH_STALLED` 后重新规划；被拒后等 2s 再规划。每个 ReturnEpoch 由纯记账 `FLDCampReturnWatch`
+计数：连续 `CAMP.ReturnDeadEndPlans` 次被拒，或可移动却 `CAMP.ReturnDeadEndSec` 内没有路径进展（受控制暂停计时），
+就记一次 `LD_CAMP_RETURN_DEAD_END` 并停止移动；下一个 RespawnsAndWorld 对站在合法支持面上的该成员走同一
+`PrepareCampReset/ApplyCampReset`（`bInPlace`，Combat 只免除到家距离校验），日志 `LD_CAMP_RESET … in_place=1`（#28）。
+原地重置后的成员是 Idle，不因站在 Leash 外而立即再回位；再次受击进入 Engaged 后才按 Leash 返回。
 刷新落点被动态占用时保留同一 ticket，在原营地局部合法落点每个 RespawnsAndWorld 边界重试
 （首次记 `LD_CAMP_REFRESH_BLOCKED`），不随机换营地；开局整组落点被占则开局失败。
 无法完整生成的状态不公开成“已刷新”。

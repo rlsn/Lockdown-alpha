@@ -42,6 +42,7 @@ def content_fixture():
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
         ("DORM.MaxMPRatioPerSec", "ratio", 0.05),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
+        ("CAMP.ReturnDeadEndSec", "s", 4),
         ("AI.RetreatHPRatio", "ratio", 0.2), ("AI.ResumeFarmHPRatio", "ratio", 0.6),
         ("AI.HighCampEntryHPRatio", "ratio", 0.85), ("AI.HighCampReserveHPRatio", "ratio", 0.3),
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
@@ -54,6 +55,7 @@ def content_fixture():
         "SHOP.StartingGold": 10, "CHOICE.BaseWeight": 2, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
+        "CAMP.ReturnDeadEndPlans": 2,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",

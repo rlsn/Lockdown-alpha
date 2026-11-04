@@ -176,7 +176,8 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 | D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
 | 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
 | 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
-| 地图事件：宿舍、空投、教导主任 Boss、通报批评（D21、D26、D27）；营地回位无路时的收尾；AI 使用全部新内容并应对各类事件 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| 地图事件：空投、教导主任 Boss、通报批评（D26、D27）及 AI 应对；宿舍（D21）与营地回位无路收尾（#28，规则 `DemoCamp.ReturnDeadEnd`，原生场景未注入无路情形）已实现 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| AI 使用全部新技能与装备；Opponent 满员场景的严格门槛稳定通过 | [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) |
 | 地图布局与野怪重新设计（D30） | [#97](https://github.com/rlsn/Lockdown-alpha/issues/97) |
 | 打击感与核心手感：命中反馈、前后摇、移动和冲刺的手感 | [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
 

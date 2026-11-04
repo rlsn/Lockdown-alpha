@@ -1,6 +1,30 @@
 #include "World/LDCampDecision.h"
 #include "Development/LDDemoContentCatalog.h"
 
+void FLDCampReturnWatch::Observe(uint64 InEpoch,double NowSeconds)
+{
+    if(Epoch==InEpoch){return;}
+    *this={};
+    Epoch=InEpoch;
+    LastProgressSeconds=NowSeconds;
+}
+
+bool FLDCampReturnWatch::PlanRefused(double NowSeconds,int32 MaxRefused,double RetrySeconds)
+{
+    if(bDeadEnd){return false;}
+    ++RefusedPlans;
+    NextPlanSeconds=NowSeconds+RetrySeconds;
+    bDeadEnd=RefusedPlans>=MaxRefused;
+    return bDeadEnd;
+}
+
+bool FLDCampReturnWatch::Stalled(double NowSeconds,double LimitSeconds)
+{
+    if(bDeadEnd||NowSeconds-LastProgressSeconds<LimitSeconds){return false;}
+    bDeadEnd=true;
+    return true;
+}
+
 namespace LDCampDecision
 {
 namespace
@@ -125,7 +149,8 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
         else if(Input.MovementAllowed)
         {Result.Intent=ELDCampIntent::ReturnHome;Result.GoalFootCm=Input.MemberHome.PositionCm;}
     };
-    if(Input.Brain.Phase==ELDCampBrainPhase::Returning||AnchorDistance>Leash*Leash)
+    if(Input.Brain.Phase==ELDCampBrainPhase::Returning
+        ||(Input.Brain.Phase==ELDCampBrainPhase::Engaged&&AnchorDistance>Leash*Leash))
     {Returning();}
     else if(Input.Brain.Phase==ELDCampBrainPhase::Idle)
     {Result.NextBrain.LostTargetSinceSeconds.Reset();}
