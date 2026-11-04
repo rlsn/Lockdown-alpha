@@ -6,7 +6,14 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatTypes.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentIds.h"
+#include "Development/LDDevGrowthFixture.h"
+#include "Development/LDGrowthProtocol.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDViewTypes.h"
 #include "Vision/LDVisionDirector.h"
@@ -35,13 +42,90 @@
 #include "UnrealClient.h"
 
 // Carries the topology-only assertions of the retired LDViewNetworkProbe (#1, #9, #15, #23, #28 of the observation
-// closure plan) plus the Listen Host presentation gate. Codec, ordering, handles and sight stay in
-// Lockdown.Rules.DemoVision.*; this scenario does not repeat them. Named, not anonymous: unity builds merge files.
+// closure plan) plus the Listen Host presentation gate, then the paper box stealth segment (#ST, #STH): no frame,
+// handle, proxy or Listen Host body presents a stealthed contender beyond its reveal radius, a lost lock is cancelled,
+// rediscovery issues a fresh handle and each reveal trigger brings the body back. Codec, ordering, handles and sight
+// stay in Lockdown.Rules.DemoVision.*; this scenario does not repeat them. Named, not anonymous: unity builds merge files.
 namespace LDDemoVisionScenario
 {
 const TCHAR* const VisionRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
 // All three bodies walk to the public capture anchor; a crowded arrival may stop short of its exact point.
 constexpr double ArrivalCm = 150.0;
+
+// Stealth segment (#ST, CONTENT_AND_BALANCE 15.4): the three bodies stand on an equilateral triangle of this side beside
+// the shop, so every body is in sight of the other two and far outside the box's reveal radius.
+constexpr double StealthGapCm = 600.0;
+// A stealthed body walks up to this distance of its near observer, inside the reveal radius.
+constexpr double StealthApproachCm = 150.0;
+// A frame's feet are sampled on the authority while this process reads its own body now: one body radius of slack.
+constexpr double StealthSlackCm = 40.0;
+constexpr double StealthSiteCm = 80.0;
+constexpr int32 StealthWalkAttempts = 4;
+// Bounded waits in seconds: a walk, a shop step or a fixture grant; one trial after its stealth began; the second
+// stealth of the same box waits out the approved cooldown.
+constexpr double StealthStepSeconds = 20.0;
+constexpr double StealthTrialSeconds = 8.0;
+constexpr double StealthCooldownSeconds = 75.0;
+
+inline FName StealthItem() { return FName(TEXT("item_paper_box")); }
+inline FName StealthTaunt() { return FName(TEXT("active_come_here")); }
+
+// How a stealthed body is made visible again before its expiry (15.4): its own accepted attack, its own accepted
+// ability, a hit it takes or a control that lands on it.
+enum class EStealthTrigger : uint8 { Attack, Cast, Hurt, Control };
+
+struct FLDStealthTrial
+{
+    const TCHAR* Stealther;
+    EStealthTrigger Trigger;
+    // The observer the stealthed body walks up to (and who acts for Hurt/Control); null when it stays on its site.
+    const TCHAR* Near;
+    // Near holds an attack order on the body when it hides: lost sight must cancel the lock and the chase.
+    bool bChase;
+    const TCHAR* Name;
+};
+
+// Client1 and Client2 are restricted owning clients; the Host is the participating Listen Host. Every role is also an
+// observer of each trial it does not hide in. The fourth trial reuses Client1's box after its cooldown.
+const FLDStealthTrial StealthTrials[] = {
+    {TEXT("Client1"), EStealthTrigger::Attack, TEXT("Client2"), true, TEXT("attack")},
+    {TEXT("Client2"), EStealthTrigger::Cast, nullptr, false, TEXT("cast")},
+    {TEXT("Host"), EStealthTrigger::Hurt, TEXT("Client1"), false, TEXT("hurt")},
+    {TEXT("Client1"), EStealthTrigger::Control, TEXT("Client2"), false, TEXT("control")},
+};
+
+double VisionRational(const FLDDemoRational& Value)
+{
+    return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : -1.0;
+}
+
+const FLDObservedUnitView* ContenderUnit(const FLDWorldView& Frame, const FGuid& Contender)
+{
+    return Frame.Units.FindByPredicate([&Contender](const FLDObservedUnitView& Unit)
+        { return Unit.Kind == ELDObservedUnitKind::Contender && Unit.ContenderId == Contender; });
+}
+
+bool HasStatus(const TArray<FLDObservedStatus>& Statuses, ELDDemoStatusId Id)
+{
+    return Statuses.ContainsByPredicate([Id](const FLDObservedStatus& Status) { return Status.StatusId == uint8(Id); });
+}
+
+// Per-trial runtime state of one role; reset before every trial.
+struct FLDStealthRun
+{
+    double At = 0, ActAt = 0, RevealSeenAt = 0;
+    int32 WalkAttempts = 0, Frames = 0, HomeSeen = -1;
+    bool bHomeReady = false;
+    FGuid PreHandle, FoundHandle;
+    uint32 PreEpoch = 0;
+    FLDMoveIdentity Chase;
+    bool bChaseSent = false, bChaseCancelled = false, bChaseResumed = false;
+    bool bHidden = false, bConcealed = false, bFound = false, bActed = false, bStopped = false, bRegained = false;
+    bool bApproach = false, bEarly = false, bLate = false, bTaunted = false, bHurt = false;
+    int64 HiddenMs = 0, ExpiresMs = 0, RevealMs = 0, RegainedMs = 0, TargetHp = 0, OwnHp = 0;
+    double RegainedCm = -1, FoundCm = -1;
+    FString Leaks;
+};
 
 struct FLDSeenUnit
 {
@@ -145,6 +229,23 @@ public:
 #if DO_ENABLE_NET_TEST
     FPacketSimulationSettings SavedEmulation;
 #endif
+    // ---- Stealth segment (#ST/#STH) ----
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    enum class EPhase : uint8 { Home, Pre, Run, Done };
+    int32 StealthStep = 0, Trial = 0;
+    EPhase Phase = EPhase::Home;
+    double StealthAt = 0;
+    bool bOffersStaged = false, bSitesReady = false, bIdMarked = false, bGranted = false, bShopSent = false, bBuySent = false;
+    int32 ShopAttempts = 0;
+    uint64 ChoiceRequest = 0;
+    TArray<uint64> GrantTickets;
+    FGuid Ids[3];
+    FVector Sites[3];
+    FName ShopId;
+    double RevealCm = 0;
+    int64 StealthDurationMs = 0;
+    LDDemoVisionScenario::FLDStealthRun Run;
+    TArray<TSharedPtr<FJsonValue>> StealthRows;
 
     ~FLDDemoVisionProbe() { StopWatching(); }
 
@@ -408,6 +509,27 @@ public:
         const bool bAllReady = Lobby.Members.Num() == 3
             && !Lobby.Members.ContainsByPredicate([](const FLDLobbyMember& Member) { return !Member.Ready; });
         if (!bAllReady) { BlockedSince = 0; return true; }
+        if (!bOffersStaged)
+        {
+            // Both owning clients' opening offer carries the taunt the stealth segment needs. The growth domain does not
+            // exist before Start, so the Host's DEV growth fixture stages it in the Lobby.
+            FString StageError;
+            bool bStaged = LDDevGrowthFixture::IsSwitchPresent();
+            int32 Staged = 0;
+            for (const FLDLobbyMember& Member : Lobby.Members)
+            {
+                if (Member.Kind != ELDContenderKind::Human || Member.Host) { continue; }
+                bStaged = bStaged && LDDevGrowthFixture::StageOffer(Owner.GetWorld(), Member.ContenderId,
+                    {StealthTaunt(), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))}, StageError);
+                ++Staged;
+            }
+            if (!Check(bStaged && Staged == 2, TEXT("#ST"), TEXT("The Host's DEV growth fixture (-LDDevGrowthFixture) stages both owning clients' opening offer with active_come_here in the Lobby")
+                + (StageError.IsEmpty() ? FString() : TEXT(": ") + StageError)))
+            {
+                return Finish();
+            }
+            bOffersStaged = true;
+        }
         if (Lobby.CanStart)
         {
             BlockedSince = 0;
@@ -572,6 +694,730 @@ public:
         return true;
     }
 
+    // ---- Stealth segment (#ST): every role buys a paper box through its own connection; four trials hide one body each. ----
+
+    int32 SelfIndex() const
+    {
+        for (int32 Index = 0; Index < 3; ++Index) { if (Role == VisionRoles[Index]) { return Index; } }
+        return INDEX_NONE;
+    }
+
+    static int32 IndexOf(const TCHAR* Name)
+    {
+        for (int32 Index = 0; Index < 3; ++Index) { if (FCString::Strcmp(VisionRoles[Index], Name) == 0) { return Index; } }
+        return INDEX_NONE;
+    }
+
+    TSharedPtr<FJsonObject> Load(const FString& Name) const
+    {
+        FString Json;
+        TSharedPtr<FJsonObject> Value;
+        if (!FFileHelper::LoadFileToString(Json, *FPaths::Combine(Output, Name))
+            || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Value)) { return nullptr; }
+        return Value;
+    }
+
+    // Trial marker, e.g. S2HiddenClient2.json.
+    FString TM(const TCHAR* What, const FString& Who = FString()) const { return FString::Printf(TEXT("S%d%s%s.json"), Trial + 1, What, *Who); }
+
+    bool AllTrialMarkers(const TCHAR* What, const TCHAR* Except = nullptr) const
+    {
+        for (const TCHAR* Name : VisionRoles)
+        {
+            if ((!Except || FCString::Strcmp(Name, Except) != 0) && !Exists(TM(What, Name))) { return false; }
+        }
+        return true;
+    }
+
+    bool CurrentCombatView(const ALDPlayerController& Owner) const
+    {
+        return Owner.CombatView.Generation == Owner.OwnerState.Match && Owner.CombatView.Life == Owner.OwnerState.Life;
+    }
+
+    const FLDCombatEntryView* EntryRow(const ALDPlayerController& Owner, FName Definition) const
+    {
+        return CurrentCombatView(Owner) ? Owner.CombatView.Entries.FindByPredicate([&Definition](const FLDCombatEntryView& Entry)
+            { return Entry.DefinitionId == Definition && Entry.bHasActive; }) : nullptr;
+    }
+
+    // The held active is off cooldown on the authority clock and affordable. Unavailable is display-only and is not
+    // republished when a cooldown merely runs out, so it is not read here; the server still judges the activation.
+    bool EntryReady(const ALDPlayerController& Owner, FName Definition) const
+    {
+        const FLDCombatEntryView* Row = EntryRow(Owner, Definition);
+        int64 NowMs = 0;
+        return Row && Owner.ReadDemoAuthorityTimeMs(NowMs) && Row->ReadyAtMs <= NowMs && Owner.CombatView.MPP2 >= Row->ManaCostP2;
+    }
+
+    const FLDCombatStatusView* OwnStatus(const ALDPlayerController& Owner, ELDDemoStatusId Id) const
+    {
+        return CurrentCombatView(Owner) ? Owner.CombatView.Statuses.FindByPredicate([Id](const FLDCombatStatusView& Status)
+            { return Status.StatusId == uint8(Id); }) : nullptr;
+    }
+
+    bool StealthCheck(bool bValue, const TCHAR* Id, const FString& Name)
+    {
+        return Check(bValue, Id, FString::Printf(TEXT("[S%d %s] "), Trial + 1, StealthTrials[Trial].Name) + Name);
+    }
+
+    // Host, Client1 and Client2 derive the same triangle beside the shop from public anchors and approved radii.
+    bool PrepareStealthSites(const ULDMapRegistry& Registry)
+    {
+        const FLDDemoContentDefinitions& Defs = Catalog->Get();
+        ShopId = FName(*Defs.World.ShopId);
+        const FLDMapBinding* ShopAnchor = Registry.Resolve(ShopId, Registry.Generation);
+        const FLDMapBinding* CaptureAnchor = Registry.Resolve(FName(*Defs.World.CaptureId), Registry.Generation);
+        const double ShopReach = VisionRational(Defs.Parameters.ShopInteractRadiusCm);
+        const double CaptureReach = VisionRational(Defs.Parameters.CaptureRadiusCm);
+        const double BodyRadius = VisionRational(Defs.Parameters.CollisionRadiusCm);
+        const double SightReach = VisionRational(Defs.Parameters.VisionRadiusCm);
+        const FLDDemoEquipmentDefinition* Box = Defs.Equipment.FindByPredicate([](const FLDDemoEquipmentDefinition& Item)
+            { return FName(*Item.Id) == StealthItem(); });
+        const FLDDemoEffectDefinition* Effect = Box && Box->HasActive ? Box->Active.Rank.Effects.FindByPredicate(
+            [](const FLDDemoEffectDefinition& Candidate) { return Candidate.Opcode == uint8(ELDDemoEffectOp::Stealth); }) : nullptr;
+        RevealCm = Effect ? VisionRational(Effect->RadiusCm) : -1;
+        StealthDurationMs = Effect ? Effect->DurationMs : 0;
+        if (!ShopAnchor || !CaptureAnchor || ShopReach <= 0 || CaptureReach <= 0 || BodyRadius <= 0 || RevealCm <= 0
+            || StealthDurationMs <= 0 || StealthGapCm >= SightReach - 2.0 * BodyRadius
+            || StealthGapCm * 0.8 <= RevealCm + StealthApproachCm + StealthSlackCm)
+        {
+            return Check(false, TEXT("#ST"), TEXT("The public anchors, the approved radii and the paper box's stealth admit an in-sight triangle beyond its reveal radius"));
+        }
+        const FVector Outward = (ShopAnchor->Position - CaptureAnchor->Position).GetSafeNormal2D();
+        const FVector Across(Outward.Y, -Outward.X, 0.0);
+        const FVector Base = ShopAnchor->Position + Across * (2.0 * ShopReach);
+        FCollisionShape Capsule;
+        FString SiteError;
+        if (Outward.IsNearlyZero() || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError))
+        {
+            return Check(false, TEXT("#ST"), TEXT("The stealth sites have a body capsule and a direction from the shop: ") + SiteError);
+        }
+        const auto Legal = [&](const FVector& Site, FLDLegalGround& LegalSite)
+        {
+            ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
+            bool bWithin = true;
+            return Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
+                && Registry.QueryShopReach(Registry.Revision(), Site, bWithin, SiteFailure, SiteError) && !bWithin
+                && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+        };
+        // Twelve fixed bearings; the first whose three corners are legal ground joined pairwise by near-straight complete
+        // routes (open ground) wins. Sight itself is proven at run time from each owner's frame.
+        for (int32 Bearing = 0; Bearing < 12 && !bSitesReady; ++Bearing)
+        {
+            const FVector Direction = Across.RotateAngleAxis(30.0 * Bearing, FVector::UpVector);
+            const FVector Candidate[3] = {Base, Base + Direction * StealthGapCm,
+                Base + Direction.RotateAngleAxis(60.0, FVector::UpVector) * StealthGapCm};
+            FLDLegalGround Ground[3];
+            bool bOpen = Legal(Candidate[0], Ground[0]) && Legal(Candidate[1], Ground[1]) && Legal(Candidate[2], Ground[2]);
+            for (int32 From = 0; bOpen && From < 3; ++From)
+            {
+                const int32 To = (From + 1) % 3;
+                FLDCompletePath Route;
+                ELDWorldQueryFailure RouteFailure = ELDWorldQueryFailure::None;
+                bOpen = Registry.QueryCompletePath(Registry.Revision(), Ground[From], Ground[To], Capsule, Route, RouteFailure, SiteError)
+                    && Route.LengthCm <= 1.15 * StealthGapCm;
+            }
+            if (bOpen)
+            {
+                for (int32 Index = 0; Index < 3; ++Index) { Sites[Index] = Candidate[Index]; }
+                bSitesReady = true;
+            }
+        }
+        return Check(bSitesReady, TEXT("#ST"), FString::Printf(
+            TEXT("Three legal stealth sites %.0f cm apart beside the shop, outside its reach and the capture circle, joined by open routes (reveal radius %.0f cm, stealth %lld ms)%s"),
+            StealthGapCm, RevealCm, StealthDurationMs, *(bSitesReady ? FString() : TEXT(": ") + SiteError)));
+    }
+
+    // A ground walk to Site with bounded retries; bArrived once the body stands within StealthSiteCm of it.
+    bool StealthWalk(double Now, ALDPlayerController& Owner, const FVector& Site, bool& bArrived)
+    {
+        bArrived = false;
+        const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
+        if (Owner.Navigation->HasMoveOrder() || (Run.WalkAttempts > 0 && Now - Run.ActAt < 1.0)) { return true; }
+        if (Body && FVector::Dist2D(Body->GetNavAgentLocation(), Site) <= StealthSiteCm) { bArrived = true; return true; }
+        if (Run.WalkAttempts >= StealthWalkAttempts)
+        { return Fail(TEXT("#ST"), TEXT("The owned body could not reach its stealth site: ") + Owner.Navigation->Status); }
+        Owner.Navigation->Navigate(Site);
+        ++Run.WalkAttempts;
+        Run.ActAt = Now;
+        return true;
+    }
+
+    bool StepTimedOut(double Now, double Seconds, const FString& Why)
+    {
+        if (Now - StealthAt <= Seconds) { return false; }
+        Fail(TEXT("#ST"), Why);
+        return true;
+    }
+
+    void NextStealthStep(double Now)
+    {
+        ++StealthStep;
+        StealthAt = Now;
+    }
+
+    bool TickStealth(double Now, UWorld& InWorld, ALDPlayerController& Owner, const ULDMapRegistry& Registry)
+    {
+        if (StealthAt == 0) { StealthAt = Now; }
+        if (Owner.OwnerState.LifePhase != ELDLifePhase::Alive || !Cast<ALDCharacter>(Owner.GetPawn()))
+        { return Fail(TEXT("#ST"), TEXT("The owned body left its life during the stealth segment")); }
+        switch (StealthStep)
+        {
+        case 0: return TickStealthSetup(Now, Owner, Registry);
+        case 1: return TickStealthFund(Now, InWorld);
+        case 2: return TickStealthShop(Now, Owner);
+        case 3: return TickStealthBuy(Now, Owner);
+        default: return TickTrial(Now, InWorld, Owner);
+        }
+    }
+
+    // Every role publishes its contender id; each owning client learns the staged taunt through the ordinary choice.
+    bool TickStealthSetup(double Now, ALDPlayerController& Owner, const ULDMapRegistry& Registry)
+    {
+        if (!Catalog)
+        {
+            FString LoadError;
+            if (!LDDemoEntry::LoadRuntimeContent(Catalog, LoadError) || !Catalog)
+            { return Fail(TEXT("#ST"), TEXT("The approved Demo content is unavailable: ") + LoadError); }
+        }
+        if (!bSitesReady && !PrepareStealthSites(Registry)) { return Finish(); }
+        if (!bIdMarked)
+        {
+            auto Value = MakeShared<FJsonObject>();
+            Value->SetStringField(TEXT("contender"), Owner.OwnerState.ContenderId.ToString(EGuidFormats::DigitsWithHyphensLower));
+            if (!Owner.OwnerState.ContenderId.IsValid() || !Save(Value, Role + TEXT("Id.json")))
+            { return Fail(TEXT("#ST"), TEXT("This owner could not publish its contender id to the scenario")); }
+            bIdMarked = true;
+        }
+        if (Role != TEXT("Host"))
+        {
+            const FLDProgressionView* View = Owner.ReadOwnProgression();
+            const bool bLearned = View && View->Skills.ContainsByPredicate([](const FLDLearnedSkillView& Row) { return Row.DefinitionId == StealthTaunt(); });
+            if (!bLearned)
+            {
+                if (ChoiceRequest == 0)
+                {
+                    const FLDChoiceOption* Card = View && View->bHasOffer && View->bCanChoose
+                        ? View->Offer.Options.FindByPredicate([](const FLDChoiceOption& Option) { return Option.DefinitionId == StealthTaunt(); })
+                        : nullptr;
+                    if (!Card)
+                    {
+                        return StepTimedOut(Now, StealthStepSeconds, TEXT("No choosable opening offer carries the staged active_come_here")) ? false : true;
+                    }
+                    FLDChoiceCommand Command;
+                    Command.OfferId = View->Offer.OfferId;
+                    Command.OfferRevision = View->Offer.OfferRevision;
+                    Command.OptionId = Card->OptionId;
+                    Command.ExpectedBuildRevision = View->BuildRevision;
+                    Command.CatalogDigest = View->CatalogDigest;
+                    ELDGrowthReason LocalReason = ELDGrowthReason::None;
+                    ChoiceRequest = Owner.SubmitChoice(Command, LocalReason);
+                    if (!Check(ChoiceRequest != 0 && LocalReason == ELDGrowthReason::None, TEXT("#ST"),
+                        TEXT("This owning client submits the staged active_come_here as its ordinary opening choice"))) { return Finish(); }
+                }
+                return StepTimedOut(Now, StealthStepSeconds, TEXT("The chosen active_come_here never reached this owner's build")) ? false : true;
+            }
+        }
+        for (int32 Index = 0; Index < 3; ++Index)
+        {
+            if (Ids[Index].IsValid()) { continue; }
+            const TSharedPtr<FJsonObject> Marker = Load(FString(VisionRoles[Index]) + TEXT("Id.json"));
+            FString Text;
+            if (!Marker || !Marker->TryGetStringField(TEXT("contender"), Text) || !FGuid::Parse(Text, Ids[Index]))
+            {
+                Ids[Index].Invalidate();
+                return StepTimedOut(Now, StealthStepSeconds, TEXT("Not every role published its contender id")) ? false : true;
+            }
+        }
+        if (!Check(Ids[SelfIndex()] == Owner.OwnerState.ContenderId && Ids[0] != Ids[1] && Ids[1] != Ids[2] && Ids[0] != Ids[2], TEXT("#ST"),
+            TEXT("The three roles are three distinct contenders of this match"))) { return Finish(); }
+        NextStealthStep(Now);
+        return true;
+    }
+
+    // Host: the DEV growth fixture grants each contender exactly the gold it lacks for one paper box, on its authority.
+    bool TickStealthFund(double Now, UWorld& InWorld)
+    {
+        if (Role == TEXT("Host") && !Exists(TEXT("StealthFunded.json")))
+        {
+            ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+            const FLDDemoEquipmentDefinition* Box = Catalog->Get().Equipment.FindByPredicate([](const FLDDemoEquipmentDefinition& Item)
+                { return FName(*Item.Id) == StealthItem(); });
+            if (!Mode || !Mode->Economy || !Box) { return Fail(TEXT("#ST"), TEXT("The Listen Host has the Economy owner and the approved paper box")); }
+            if (!bGranted)
+            {
+                int64 Needed[3] = {0, 0, 0};
+                for (int32 Index = 0; Index < 3; ++Index)
+                {
+                    const ALDPlayerController* Contender = Mode->FindContenderController(Ids[Index]);
+                    const FLDEquipmentView* Equipment = Contender ? Contender->ReadOwnEquipment() : nullptr;
+                    if (!Equipment) { return StepTimedOut(Now, StealthStepSeconds, TEXT("A contender's equipment view is unreadable on the Host")) ? false : true; }
+                    Needed[Index] = FMath::Max<int64>(0, Box->BuyPrice - Equipment->Gold);
+                }
+                for (int32 Index = 0; Index < 3; ++Index)
+                {
+                    if (Needed[Index] == 0) { continue; }
+                    FString GrantError;
+                    const uint64 Ticket = Mode->Economy->DevGrantReward(Ids[Index], 0, Needed[Index], GrantError);
+                    if (!Check(Ticket != 0, TEXT("#ST"), FString::Printf(TEXT("The DEV growth fixture queues the %lld gold %s lacks for the paper box%s"),
+                        Needed[Index], VisionRoles[Index], *(GrantError.IsEmpty() ? FString() : TEXT(": ") + GrantError)))) { return Finish(); }
+                    GrantTickets.Add(Ticket);
+                }
+                bGranted = true;
+                return true;
+            }
+            for (const uint64 Ticket : GrantTickets)
+            {
+                FString Detail;
+                const ELDDevGrantStatus Status = Mode->Economy->DevGrantStatus(Ticket, Detail);
+                if (Status == ELDDevGrantStatus::Pending) { return StepTimedOut(Now, StealthStepSeconds, TEXT("A DEV gold grant stayed pending")) ? false : true; }
+                if (!Check(Status == ELDDevGrantStatus::Granted, TEXT("#ST"), TEXT("Each DEV gold grant commits through the reward composite: ") + Detail)) { return Finish(); }
+            }
+            if (!Mark(TEXT("StealthFunded.json"))) { return Finish(); }
+        }
+        if (!Exists(TEXT("StealthFunded.json"))) { return StepTimedOut(Now, StealthStepSeconds, TEXT("The Host never funded the paper boxes")) ? false : true; }
+        NextStealthStep(Now);
+        return true;
+    }
+
+    // Each owner walks to the public shop; its own arrival handler opens the session (no probe call opens it).
+    bool TickStealthShop(double Now, ALDPlayerController& Owner)
+    {
+        if (Owner.ReadOwnShop()) { NextStealthStep(Now); return true; }
+        if (!bShopSent || (Now - StealthAt > StealthStepSeconds && ShopAttempts < 2))
+        {
+            Owner.Navigation->ApproachShop(ShopId);
+            bShopSent = true;
+            ++ShopAttempts;
+            StealthAt = Now;
+            return true;
+        }
+        return StepTimedOut(Now, StealthStepSeconds, TEXT("The shop approach opened no shop session: ") + Owner.Navigation->Status) ? false : true;
+    }
+
+    // One ordinary Buy of the paper box on the open quote; the box's active must then appear on the owner's 1/2 entry.
+    bool TickStealthBuy(double Now, ALDPlayerController& Owner)
+    {
+        if (EntryRow(Owner, StealthItem()))
+        {
+            Check(true, TEXT("#ST"), TEXT("This owner bought item_paper_box through its own connection and holds its active on a gear entry"));
+            NextStealthStep(Now);
+            Phase = EPhase::Home;
+            Run = LDDemoVisionScenario::FLDStealthRun();
+            Run.At = Now;
+            return true;
+        }
+        if (!bBuySent)
+        {
+            const FLDShopView* ShopView = Owner.ReadOwnShop();
+            const FLDEquipmentView* Equipment = Owner.ReadOwnEquipment();
+            const FLDProgressionView* Progression = Owner.ReadOwnProgression();
+            const FLDShopItemView* Offered = ShopView ? ShopView->Items.FindByPredicate([](const FLDShopItemView& Item)
+                { return Item.DefinitionId == StealthItem(); }) : nullptr;
+            FLDShopCommand Command;
+            if (!ShopView || !Equipment || !Progression || !Offered || Offered->BuyPrice <= 0 || Equipment->Gold < Offered->BuyPrice
+                || !FLDDefinitionWire::Encode(ShopView->WorldMapId, Command.WorldMapId)
+                || !FLDDefinitionWire::Encode(Offered->DefinitionId, Command.DefinitionId))
+            {
+                return StepTimedOut(Now, StealthStepSeconds, TEXT("The open quote never offered an affordable paper box")) ? false : true;
+            }
+            Command.Kind = ELDShopCommandKind::Buy;
+            Command.SessionId = ShopView->SessionId;
+            Command.QuoteRevision = ShopView->QuoteRevision;
+            Command.CatalogDigest = ShopView->CatalogDigest;
+            Command.WorldLayoutRevision = ShopView->WorldLayoutRevision;
+            Command.WorldGeometryRevision = ShopView->WorldGeometryRevision;
+            Command.ExpectedAccountRevision = Equipment->AccountRevision;
+            Command.ExpectedInventoryRevision = Equipment->InventoryRevision;
+            Command.ExpectedBuildRevision = Progression->BuildRevision;
+            Command.BuyPrice = Offered->BuyPrice;
+            ELDGrowthReason LocalReason = ELDGrowthReason::None;
+            const uint64 Request = Owner.SubmitShopCommand(Command, LocalReason);
+            if (!Check(Request != 0 && LocalReason == ELDGrowthReason::None, TEXT("#ST"), TEXT("The paper box Buy goes through SubmitShopCommand")))
+            { return Finish(); }
+            bBuySent = true;
+            StealthAt = Now;
+            return true;
+        }
+        return StepTimedOut(Now, StealthStepSeconds, TEXT("The paper box purchase never reached this owner's gear entries")) ? false : true;
+    }
+
+    void BeginPhase(EPhase Next, double Now)
+    {
+        Phase = Next;
+        Run.At = Now;
+        Run.WalkAttempts = 0;
+        Run.ActAt = 0;
+    }
+
+    bool TickTrial(double Now, UWorld& InWorld, ALDPlayerController& Owner)
+    {
+        const LDDemoVisionScenario::FLDStealthTrial& T = StealthTrials[Trial];
+        const bool bHider = Role == T.Stealther;
+        switch (Phase)
+        {
+        case EPhase::Home: return TickTrialHome(Now, Owner, T, bHider);
+        case EPhase::Pre: return TickTrialPre(Now, Owner, T, bHider);
+        case EPhase::Run: return bHider ? TickHider(Now, Owner, T) : TickWatcher(Now, InWorld, Owner, T);
+        default: break;
+        }
+        if (!AllTrialMarkers(TEXT("Done")))
+        {
+            if (Now - Run.At <= StealthStepSeconds) { return true; }
+            return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] Not every role finished the trial"), Trial + 1));
+        }
+        if (++Trial >= int32(UE_ARRAY_COUNT(StealthTrials)))
+        {
+            Stage = 8;
+            return true;
+        }
+        Run = LDDemoVisionScenario::FLDStealthRun();
+        BeginPhase(EPhase::Home, Now);
+        return true;
+    }
+
+    // Everyone returns to its corner; the hider's box and any trigger skill must be ready; each sees the other two.
+    bool TickTrialHome(double Now, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T, bool bHider)
+    {
+        const bool bNear = T.Near && Role == T.Near;
+        bool bArrived = false;
+        if (!StealthWalk(Now, Owner, Sites[SelfIndex()], bArrived)) { return false; }
+        if (bArrived && !Exists(TM(TEXT("Home"), Role)))
+        {
+            const ALDWorldViewRelay* Relay = nullptr;
+            const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+            int32 Seen = 0;
+            for (int32 Index = 0; Frame && Index < 3; ++Index)
+            {
+                Seen += Index != SelfIndex() && ContenderUnit(*Frame, Ids[Index]) ? 1 : 0;
+            }
+            const bool bNeedsTaunt = (bHider && T.Trigger == EStealthTrigger::Cast) || (bNear && T.Trigger == EStealthTrigger::Control);
+            Run.HomeSeen = Seen;
+            Run.bHomeReady = (!bHider || EntryReady(Owner, StealthItem())) && (!bNeedsTaunt || EntryReady(Owner, StealthTaunt()));
+            if (Seen == 2 && Run.bHomeReady && !Mark(TM(TEXT("Home"), Role))) { return Finish(); }
+        }
+        if (AllTrialMarkers(TEXT("Home"))) { BeginPhase(EPhase::Pre, Now); return true; }
+        if (Now - Run.At <= (Trial == 3 ? StealthCooldownSeconds : StealthStepSeconds)) { return true; }
+        return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] Not every role stood ready in sight on its stealth site (this role arrived=%d sees=%d ready=%d)"),
+            Trial + 1, int32(bArrived), Run.HomeSeen, int32(Run.bHomeReady)));
+    }
+
+    // Observers record the hider's current handle (the near one of the chase trial also orders an attack on it); the
+    // hider then opens its box through its 1/2 hotkey entry.
+    bool TickTrialPre(double Now, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T, bool bHider)
+    {
+        if (!bHider)
+        {
+            const ALDWorldViewRelay* Relay = nullptr;
+            const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+            const FLDObservedUnitView* Unit = Frame ? ContenderUnit(*Frame, Ids[IndexOf(T.Stealther)]) : nullptr;
+            if (!Unit)
+            {
+                if (Now - Run.At <= 2.0) { return true; }
+                return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] This observer lost the hider before it hid"), Trial + 1));
+            }
+            Run.PreHandle = Unit->Handle;
+            Run.PreEpoch = Unit->ObservationEpoch;
+            if (T.bChase && Role == T.Near)
+            {
+                Owner.Navigation->AttackUnit(Unit->Handle, Unit->ObservationEpoch);
+                Run.Chase = Owner.Navigation->LocalIdentity();
+                Run.bChaseSent = true;
+            }
+            if (!Mark(TM(TEXT("Pre"), Role))) { return Finish(); }
+            BeginPhase(EPhase::Run, Now);
+            return true;
+        }
+        if (!AllTrialMarkers(TEXT("Pre"), T.Stealther))
+        {
+            if (Now - Run.At <= StealthStepSeconds) { return true; }
+            return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The observers never recorded the hider"), Trial + 1));
+        }
+        const FLDCombatEntryView* Box = EntryRow(Owner, StealthItem());
+        if (!Box) { return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The hider no longer holds its paper box"), Trial + 1)); }
+        Run.OwnHp = Owner.CombatView.HPP2;
+        Owner.ActivateCombatEntry(Box->Entry);
+        BeginPhase(EPhase::Run, Now);
+        return true;
+    }
+
+    bool FinishTrial(double Now, const FString& Kind)
+    {
+        auto Row = MakeShared<FJsonObject>();
+        Row->SetNumberField(TEXT("trial"), Trial + 1);
+        Row->SetStringField(TEXT("trigger"), StealthTrials[Trial].Name);
+        Row->SetStringField(TEXT("stealther"), StealthTrials[Trial].Stealther);
+        Row->SetStringField(TEXT("role_kind"), Kind);
+        Row->SetNumberField(TEXT("hidden_ms"), double(Run.HiddenMs));
+        Row->SetNumberField(TEXT("expires_ms"), double(Run.ExpiresMs));
+        Row->SetNumberField(TEXT("frames_while_hidden"), Run.Frames);
+        Row->SetBoolField(TEXT("concealed_seen"), Run.bConcealed);
+        Row->SetBoolField(TEXT("rediscovered_fresh_handle"), Run.bFound);
+        Row->SetNumberField(TEXT("rediscovered_cm"), Run.FoundCm);
+        Row->SetBoolField(TEXT("chase_cancelled"), Run.bChaseCancelled);
+        Row->SetNumberField(TEXT("revealed_ms"), double(Run.RevealMs));
+        Row->SetNumberField(TEXT("regained_sample_ms"), double(Run.RegainedMs));
+        Row->SetNumberField(TEXT("regained_cm"), Run.RegainedCm);
+        Row->SetStringField(TEXT("leaks"), Run.Leaks);
+        StealthRows.Add(MakeShared<FJsonValueObject>(Row));
+        if (!Passed || !Mark(TM(TEXT("Done"), Role))) { return Finish(); }
+        BeginPhase(EPhase::Done, Now);
+        return true;
+    }
+
+    // The hider: its own view shows the stealth, it acts on its trigger and its own view shows the stealth end early.
+    bool TickHider(double Now, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T)
+    {
+        const FLDCombatStatusView* Stealth = OwnStatus(Owner, ELDDemoStatusId::Stealth);
+        const FGuid NearId = T.Near ? Ids[IndexOf(T.Near)] : FGuid();
+        const ALDWorldViewRelay* Relay = nullptr;
+        const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+        const FLDObservedUnitView* NearUnit = Frame && T.Near ? ContenderUnit(*Frame, NearId) : nullptr;
+        if (!Run.bHidden)
+        {
+            if (!Stealth)
+            {
+                if (Now - Run.At <= 3.0) { return true; }
+                return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The paper box's active put no stealth status on this owner's view"), Trial + 1));
+            }
+            Run.bHidden = true;
+            Run.ExpiresMs = Stealth->ExpiresAtMs;
+            // The release sets the expiry exactly one approved duration after the authority time the stealth began.
+            Run.HiddenMs = Stealth->ExpiresAtMs - StealthDurationMs;
+            auto Value = MakeShared<FJsonObject>();
+            Value->SetNumberField(TEXT("hidden_ms"), double(Run.HiddenMs));
+            Value->SetNumberField(TEXT("expires_ms"), double(Run.ExpiresMs));
+            if (!Save(Value, TM(TEXT("Hidden")))) { return Fail(TEXT("#ST"), TEXT("The hider could not announce its stealth")); }
+            if (T.Near)
+            {
+                const ALDCharacter* Body = Cast<ALDCharacter>(Owner.GetPawn());
+                if (!NearUnit || !Body) { return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The hider does not see its near observer"), Trial + 1)); }
+                const FVector NearFeet = NearUnit->FeetCm;
+                const FVector Goal = NearFeet + (Body->GetNavAgentLocation() - NearFeet).GetSafeNormal2D() * StealthApproachCm;
+                Owner.Navigation->Navigate(FVector(Goal.X, Goal.Y, NearFeet.Z));
+                Run.bApproach = true;
+            }
+            return true;
+        }
+        if (Stealth && Stealth->ExpiresAtMs != Run.ExpiresMs)
+        { return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The stealth was replaced while it ran"), Trial + 1)); }
+        Run.bTaunted |= OwnStatus(Owner, ELDDemoStatusId::Taunt) != nullptr;
+        Run.bHurt |= CurrentCombatView(Owner) && Owner.CombatView.HPP2 < Run.OwnHp;
+        if (CurrentCombatView(Owner) && !Stealth && !Run.bEarly && !Run.bLate)
+        {
+            Run.RevealMs = Owner.CombatView.AsOfMs;
+            Run.bEarly = Owner.CombatView.AsOfMs < Run.ExpiresMs;
+            Run.bLate = !Run.bEarly;
+        }
+        if (T.Trigger == EStealthTrigger::Attack)
+        {
+            if (!Run.bActed && Exists(TM(TEXT("Found"))))
+            {
+                if (!NearUnit) { return Fail(TEXT("#ST"), TEXT("[S1] The hider lost its near observer before attacking")); }
+                if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+                Run.TargetHp = NearUnit->Health.CurrentP2;
+                Owner.Navigation->AttackUnit(NearUnit->Handle, NearUnit->ObservationEpoch);
+                Run.bActed = true;
+                Run.ActAt = Now;
+            }
+            if (Run.bActed && !Run.bStopped && ((NearUnit && NearUnit->Health.CurrentP2 < Run.TargetHp) || Now - Run.ActAt > 3.0))
+            {
+                Owner.StopCombatAndOrders();
+                Run.bStopped = true;
+            }
+        }
+        else if (T.Trigger == EStealthTrigger::Cast && !Run.bActed && AllTrialMarkers(TEXT("Concealed"), T.Stealther))
+        {
+            const FLDCombatEntryView* Taunt = EntryRow(Owner, StealthTaunt());
+            if (!Taunt) { return Fail(TEXT("#ST"), TEXT("[S2] The hider holds no active_come_here to cast")); }
+            if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+            Owner.ActivateCombatEntry(Taunt->Entry);
+            Run.bActed = true;
+        }
+        const bool bTriggerDone = T.Trigger == EStealthTrigger::Attack ? Run.bStopped
+            : T.Trigger == EStealthTrigger::Cast ? Run.bActed
+            : T.Trigger == EStealthTrigger::Hurt ? Run.bHurt : Run.bTaunted;
+        if ((Run.bEarly || Run.bLate) && bTriggerDone)
+        {
+            StealthCheck(Run.bEarly, TEXT("#ST"), FString::Printf(
+                TEXT("The hider's own view shows its stealth ended at its %s before the expiry (ended %lld ms, expiry %lld ms)"),
+                T.Name, Run.RevealMs, Run.ExpiresMs));
+            if (T.Trigger == EStealthTrigger::Hurt) { StealthCheck(Run.bHurt, TEXT("#ST"), TEXT("The stealthed body took the near observer's hit")); }
+            if (T.Trigger == EStealthTrigger::Control) { StealthCheck(Run.bTaunted, TEXT("#ST"), TEXT("The near observer's taunt landed on the stealthed body as a control")); }
+            return FinishTrial(Now, TEXT("stealther"));
+        }
+        if (Now - Run.At <= StealthTrialSeconds) { return true; }
+        return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The %s trial did not complete for the hider (early=%d late=%d acted=%d stopped=%d hurt=%d taunted=%d)"),
+            Trial + 1, T.Name, int32(Run.bEarly), int32(Run.bLate), int32(Run.bActed), int32(Run.bStopped), int32(Run.bHurt), int32(Run.bTaunted)));
+    }
+
+    // While hidden and before its reveal, every frame this observer receives may show the hider only inside the reveal
+    // radius, never under its old handle; no proxy or relay lookup keeps the old handle; the Listen Host never draws
+    // the hider's canonical body and a restricted client never holds it.
+    void AuditHidden(UWorld& InWorld, const ALDPlayerController& Owner, const ALDWorldViewRelay& Relay, const FLDObservedUnitView* Unit,
+        const FVector& Feet, const FGuid& Hidden)
+    {
+        const auto Leak = [this](const FString& Text) { if (Run.Leaks.Len() < 2000) { Run.Leaks += Text + TEXT("; "); } };
+        ++Run.Frames;
+        if (Unit)
+        {
+            const double Distance = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
+            if (Distance > RevealCm + StealthSlackCm) { Leak(FString::Printf(TEXT("presented at %.0f cm"), Distance)); }
+            if (Unit->Handle == Run.PreHandle) { Leak(TEXT("presented under its old handle")); }
+            if (HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth)) { Leak(TEXT("its owner-only stealth status reached this observer")); }
+        }
+        FLDObservedUnitView Ignored;
+        if (Relay.ReadUnit(Run.PreHandle, Run.PreEpoch, Ignored)) { Leak(TEXT("the old handle still resolves")); }
+        for (TActorIterator<ALDObservedEntityProxy> It(&InWorld); It; ++It)
+        {
+            if (It->ObservedHandle == Run.PreHandle) { Leak(TEXT("a proxy still presents the old handle")); }
+        }
+        if (Role == TEXT("Host"))
+        {
+            const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+            const ALDPlayerController* HiderPC = Mode ? Mode->FindContenderController(Hidden) : nullptr;
+            const APawn* Body = HiderPC ? HiderPC->GetPawn() : nullptr;
+            FString Part;
+            if (!Body) { Leak(TEXT("the Host lost the hider's canonical body")); }
+            else if (HasPresentation(*Body, Part)) { Leak(TEXT("the Listen Host draws the canonical body: ") + Part); }
+        }
+        else
+        {
+            int32 Pawns = 0;
+            for (TActorIterator<APawn> It(&InWorld); It; ++It) { Pawns += *It != Owner.GetPawn() ? 1 : 0; }
+            if (Pawns != 0) { Leak(TEXT("a foreign body was replicated to this restricted client")); }
+        }
+    }
+
+    // An observer: concealment (and the chase cancellation), then rediscovery inside the radius under a fresh handle
+    // (near) or the hider back in view beyond the radius before its expiry (far).
+    bool TickWatcher(double Now, UWorld& InWorld, ALDPlayerController& Owner, const LDDemoVisionScenario::FLDStealthTrial& T)
+    {
+        const bool bNear = T.Near && Role == T.Near;
+        const FGuid Hidden = Ids[IndexOf(T.Stealther)];
+        if (!Run.bHidden)
+        {
+            const TSharedPtr<FJsonObject> Marker = Load(TM(TEXT("Hidden")));
+            double HiddenMs = 0, ExpiresMs = 0;
+            if (!Marker || !Marker->TryGetNumberField(TEXT("hidden_ms"), HiddenMs) || !Marker->TryGetNumberField(TEXT("expires_ms"), ExpiresMs))
+            {
+                if (Now - Run.At <= 5.0) { return true; }
+                return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The hider never announced its stealth"), Trial + 1));
+            }
+            Run.bHidden = true;
+            Run.HiddenMs = int64(HiddenMs);
+            Run.ExpiresMs = int64(ExpiresMs);
+            Run.At = Now;
+        }
+        const ALDCharacter* Own = Cast<ALDCharacter>(Owner.GetPawn());
+        const FVector Feet = Own->GetNavAgentLocation();
+        const bool bRevealed = Exists(TM(TEXT("Reveal")));
+        if (bRevealed && Run.RevealSeenAt == 0) { Run.RevealSeenAt = Now; }
+        if (Run.bChaseSent)
+        {
+            const FLDOrderReceipt& Latest = Owner.Navigation->LatestReceipt();
+            const bool bCancelled = Latest.Identity == Run.Chase && Latest.Status == ELDOrderStatus::Cancelled
+                && Latest.Failure == ELDOrderFailure::TargetUnavailable && !Owner.Navigation->HasMoveOrder();
+            Run.bChaseCancelled |= bCancelled;
+            Run.bChaseResumed |= Run.bChaseCancelled && Owner.Navigation->HasMoveOrder();
+        }
+        const ALDWorldViewRelay* Relay = nullptr;
+        const FLDWorldView* Frame = CurrentFrame(Owner, Relay);
+        if (Frame && Relay)
+        {
+            const int64 SampleMs = int64(FMath::RoundToDouble(Frame->SampledAtServerSec * 1000.0));
+            const FLDObservedUnitView* Unit = ContenderUnit(*Frame, Hidden);
+            if (!bRevealed && SampleMs > Run.HiddenMs && SampleMs < Run.ExpiresMs)
+            {
+                AuditHidden(InWorld, Owner, *Relay, Unit, Feet, Hidden);
+                if (!Unit && !Run.bConcealed)
+                {
+                    Run.bConcealed = true;
+                    FString Why;
+                    StealthCheck(ProxiesMatchFrame(InWorld, *Relay, *Frame, Why), TEXT("#ST"),
+                        TEXT("The stealthed body left this owner's current frame and proxies while still in sight range (the minimap and floating numbers read only this frame)")
+                        + (Why.IsEmpty() ? FString() : TEXT(": ") + Why));
+                    if (Role == TEXT("Host"))
+                    {
+                        const ALDGameMode* Mode = InWorld.GetAuthGameMode<ALDGameMode>();
+                        const ALDPlayerController* HiderPC = Mode ? Mode->FindContenderController(Hidden) : nullptr;
+                        const ALDCharacter* Body = HiderPC ? Cast<ALDCharacter>(HiderPC->GetPawn()) : nullptr;
+                        FString Part;
+                        StealthCheck(Body && !HasPresentation(*Body, Part) && Body->GetActorEnableCollision(), TEXT("#STH"),
+                            TEXT("The Listen Host keeps the stealthed remote body living and colliding, and draws neither it nor a proxy of it"));
+                    }
+                    if (!Passed || !Mark(TM(TEXT("Concealed"), Role))) { return Finish(); }
+                }
+                if (bNear && Unit && !Run.bFound)
+                {
+                    const double Distance = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
+                    if (!StealthCheck(Run.bConcealed, TEXT("#ST"), TEXT("The near observer saw the body concealed before it walked into the reveal radius")))
+                    { return Finish(); }
+                    Run.bFound = true;
+                    Run.FoundCm = Distance;
+                    Run.FoundHandle = Unit->Handle;
+                    StealthCheck(Unit->Handle != Run.PreHandle && Distance <= RevealCm + StealthSlackCm
+                        && !HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth), TEXT("#ST"), FString::Printf(
+                        TEXT("The still-stealthed body is rediscovered inside the reveal radius (%.0f cm) under a fresh handle, without its stealth status"), Distance));
+                    if (!Passed || !Mark(TM(TEXT("Found")))) { return Finish(); }
+                    if (T.Trigger == EStealthTrigger::Hurt)
+                    {
+                        if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+                        Run.TargetHp = Unit->Health.CurrentP2;
+                        Owner.Navigation->AttackUnit(Unit->Handle, Unit->ObservationEpoch);
+                        Run.bActed = true;
+                        Run.ActAt = Now;
+                    }
+                    else if (T.Trigger == EStealthTrigger::Control)
+                    {
+                        const FLDCombatEntryView* Taunt = EntryRow(Owner, StealthTaunt());
+                        if (!Taunt) { return Fail(TEXT("#ST"), TEXT("[S4] The near observer holds no active_come_here")); }
+                        if (!Mark(TM(TEXT("Reveal")))) { return Finish(); }
+                        Owner.ActivateCombatEntry(Taunt->Entry);
+                        Run.bActed = true;
+                    }
+                }
+            }
+            if (bNear && Run.bActed && !Run.bStopped && T.Trigger == EStealthTrigger::Hurt
+                && ((Unit && Unit->Health.CurrentP2 < Run.TargetHp) || Now - Run.ActAt > 3.0))
+            {
+                Owner.StopCombatAndOrders();
+                Run.bStopped = true;
+            }
+            if (!bNear && bRevealed && !Run.bRegained && Unit && SampleMs > Run.HiddenMs)
+            {
+                Run.bRegained = true;
+                Run.RegainedMs = SampleMs;
+                Run.RegainedCm = FVector::Dist2D(FVector(Unit->FeetCm), Feet);
+                StealthCheck(Run.bConcealed && Unit->Handle != Run.PreHandle && SampleMs < Run.ExpiresMs && Run.RegainedCm > RevealCm + StealthSlackCm
+                    && !HasStatus(Unit->Statuses, ELDDemoStatusId::Stealth), TEXT("#ST"), FString::Printf(
+                    TEXT("After the %s the body is back in this far observer's frame before its stealth would expire (sample %lld ms < %lld ms, %.0f cm away) under a fresh handle"),
+                    T.Name, SampleMs, Run.ExpiresMs, Run.RegainedCm));
+                if (!Passed) { return Finish(); }
+            }
+        }
+        const bool bDone = bNear
+            ? Run.bFound && (!T.bChase || Run.bChaseCancelled) && (T.Trigger != EStealthTrigger::Hurt || Run.bStopped)
+                && (T.Trigger != EStealthTrigger::Control || Run.bActed)
+            : Run.bRegained;
+        if (bDone)
+        {
+            StealthCheck(Run.Leaks.IsEmpty() && Run.Frames > 0, TEXT("#ST"), FString::Printf(
+                TEXT("No frame sampled while the body hid (%d checked) presented it beyond the reveal radius or under its old handle, resolved or proxied the old handle, or leaked its body%s"),
+                Run.Frames, *(Run.Leaks.IsEmpty() ? FString() : TEXT(": ") + Run.Leaks)));
+            if (T.bChase && bNear)
+            {
+                StealthCheck(Run.bChaseCancelled && !Run.bChaseResumed, TEXT("#ST"),
+                    TEXT("Losing sight cancelled this observer's attack lock and chase (TargetUnavailable) and rediscovery did not resume them"));
+            }
+            return FinishTrial(Now, bNear ? TEXT("near") : TEXT("far"));
+        }
+        if (Now - Run.At <= StealthTrialSeconds) { return true; }
+        return Fail(TEXT("#ST"), FString::Printf(TEXT("[S%d] The %s trial did not complete for this %s observer (concealed=%d found=%d regained=%d chase_cancelled=%d revealed=%d frames=%d)"),
+            Trial + 1, T.Name, bNear ? TEXT("near") : TEXT("far"), int32(Run.bConcealed), int32(Run.bFound), int32(Run.bRegained),
+            int32(Run.bChaseCancelled), int32(bRevealed), Run.Frames));
+    }
+
     bool TickReport()
     {
         for (const TCHAR* Marker : {TEXT("HostControl.json"), TEXT("Client1Recovered.json"), TEXT("Client2Control.json")})
@@ -591,7 +1437,9 @@ public:
         Report->SetStringField(TEXT("role"), Role);
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
-        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H). Not combat, death or termination, AI or full-match acceptance."));
+        Report->SetStringField(TEXT("scope"), TEXT("DEV-only owned-connection observation scenario: a rendered, participating Listen Host and two owning clients started through the normal lobby. Carries checks #1, #9, #15, #23 and #28 of the retired view network probe plus Listen Host presentation (#15H), then the paper box stealth segment (#ST, #STH): every role buys the box with DEV-fixture gold through its own connection and four trials hide one body each, revealed by its attack, its cast, a hit it takes and a taunt. Not combat balance, death or termination, AI or full-match acceptance."));
+        Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
+        Report->SetArrayField(TEXT("stealth"), StealthRows);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);
         Report->SetNumberField(TEXT("stage"), Stage);
@@ -693,6 +1541,7 @@ public:
         case 4: return TickSight(Now, *Current, *Owner);
         case 5: return TickImage(Now);
         case 6: return TickStall(Now, *Current, *Owner);
+        case 7: return TickStealth(Now, *Current, *Owner, *Registry);
         default: return TickReport();
         }
     }
@@ -705,12 +1554,12 @@ void LDDemoTests::StartVisionProbe(ALDPlayerController& Controller)
     if (!FParse::Param(FCommandLine::Get(), TEXT("LDDemoVisionProbe")) || !Controller.IsLocalController()
         || UWorld::RemovePIEPrefix(Controller.GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap) { return; }
     const TSharedRef<FLDDemoVisionProbe> Probe = MakeShared<FLDDemoVisionProbe>();
-    int32 Timeout = 180;
+    int32 Timeout = 300;
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoVisionTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoVisionOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoVisionRole="), Probe->Role)
         || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2"))
-        || Timeout < 60 || Timeout > 300
+        || Timeout < 120 || Timeout > 600
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
