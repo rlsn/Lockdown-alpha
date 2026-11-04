@@ -439,7 +439,7 @@ Inventory 从 Ledger 解析两个真实位置，Combat 引用实例/定义，视
 | Sell 后 Buy | 两次独立请求。Sell 成功后重读余额/槽位再发 Buy；后买失败保留真实卖出结果，不恢复已卖物或虚构新物。 |
 
 账务分类只保留所需操作（`LDEconomy::ECause`）：`DeathReward` 的 Mint，`Buy` 的 Burn+Create，
-`Sell` 的 Consume+Mint，`AccountRetire`；DEV 构建另有仅限 `-LDDevGrowthFixture` 的 `DevFixture` Mint，
+`Sell` 的 Consume+Mint，`AccountRetire`；DEV 构建另有仅限 `-LDDevGrowthFixture` 的 `DevFixture` Mint 与 DEV 测试重置的 `DevReset`，
 不属于产品流程。开局金币是 `FLedger::Initialize` 为每个名单账户写入的 `SHOP.StartingGold` 基线（审计记为 InitialGoldTotal），
 不是 Mint。不引入商店现金、有限旧库存、银行、玩家交易、制作或掉落循环。
 目录固定价和 `FORMULA.SellGold` 必须证明任意卖买循环无正金币收益，且每个精确实例最多售出一次。
@@ -805,7 +805,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | --- | --- |
 | `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、账本守恒/压缩/退休与证据导出、请求窗口、等级/候选/替换与本人视图白名单；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。原生创建失败、过期回执、满容量、越界和生死竞争仍须 §12 A16/A17/A24/A25 的 N05 场景。 |
 | 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局三选一、击杀奖励、选择与商店交易经各自连接完成，并用 `CheckEconomyEvidence.py` 复算账本证据；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
-| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 3 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，DEV 成长夹具的 `DevFixture` 铸币只在 `--dev-fixture` 时接受；旧 budget/quality/parents 分支已删除。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 4 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，DEV 成长夹具的 `DevFixture` 铸币与 DEV 测试重置的 `DevReset` 条目只在 `--dev-fixture` 时接受；旧 budget/quality/parents 分支已删除。 |
 | D29–D34 本域专测/手册 | 必要 Ledger/Inventory/来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
 
 本域规则测试落在现有 Tests 体系，不新建测试框架，也不保留旧领域只是为了旧测试可编译。

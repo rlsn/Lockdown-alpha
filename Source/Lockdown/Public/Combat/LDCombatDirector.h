@@ -295,6 +295,15 @@ public:
         const FLDGameplayWritePermit& Permit, FString& Detail);
     // Pure part: whether Bonuses changed. Terms stay sorted by stat.
     static bool DevApplyAttribute(TArray<FLDDemoStatBonus>& Bonuses, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount);
+    // DEV test reset to the match start, part 1 (pure, inside the reset composite): the empty level-1 build without a
+    // DEV layer at Growth's and the ledger's result revisions, through PrepareProjected like any build change.
+    FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision, uint64 ResultInventoryRevision) const;
+    // Part 2, right after ApplyBuildChange of part 1: every learned and gear cooldown track is dropped (a later learn or
+    // buy issues a new one, as at the match start), the innate dash track is ready at NowMs and a living body's HP/MP
+    // are full. Returns the number of dropped tracks.
+    int32 DevFinishReset(const FGuid& Contender, int64 NowMs);
+    // Pure part of DevFinishReset's tracks.
+    static int32 DevDropTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs);
 #endif
 
     // ---- Camps.

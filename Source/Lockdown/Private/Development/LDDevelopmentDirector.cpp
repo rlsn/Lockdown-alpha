@@ -994,4 +994,40 @@ ELDGrowthReason ALDDevelopmentDirector::DevChooseOption(const FGuid& ContenderId
     return Reason;
 }
 
+FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareReset(const FGuid& ContenderId) const
+{
+    const FRecord* Record = Records.Find(ContenderId);
+    if (!Record || !Content.IsValid())
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::NotContender, TEXT("The reset contender has no growth record in this match."));
+    }
+    if (Record->Build.Revision == MAX_uint64 || Record->Progression.Revision == MAX_uint64
+        || Record->Progression.LastOfferRevision == MAX_uint64)
+    {
+        return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("A growth revision is exhausted."));
+    }
+    FLDPreparedGrowthChange Prepared;
+    Prepared.ContenderId = ContenderId;
+    Prepared.ExpectedBuildRevision = Record->Build.Revision;
+    Prepared.ExpectedProgressionRevision = Record->Progression.Revision;
+    Prepared.OldLevel = Record->Build.Level;
+    // The BeginMatch state with every revision still rising.
+    Prepared.NewBuild = FLDGrowthBuild();
+    Prepared.NewBuild.Revision = Record->Build.Revision + 1;
+    Prepared.NewProgression = FLDProgressionState();
+    Prepared.NewProgression.Revision = Record->Progression.Revision + 1;
+    Prepared.NewProgression.EarnedThrough = 1;
+    Prepared.NewProgression.LastOfferRevision = Record->Progression.LastOfferRevision;
+    const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, Prepared.NewBuild, Prepared.HeadPool);
+    if (PoolReason != ELDGrowthReason::None || Prepared.HeadPool.Num() < 3)
+    {
+        return DevelopmentPrepareFailure(PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid,
+            TEXT("The catalog cannot offer three distinct choices to a level-1 build."));
+    }
+    Prepared.bDrawHead = true;
+    FLDPrepareGrowthResult Result;
+    Result.Value.Emplace(MoveTemp(Prepared));
+    return Result;
+}
+
 #endif

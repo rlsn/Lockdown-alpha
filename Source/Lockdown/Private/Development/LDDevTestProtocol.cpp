@@ -21,6 +21,7 @@ bool LDDevTest::IsKnownOp(ELDDevTestOp Op)
     case ELDDevTestOp::SellItem:
     case ELDDevTestOp::SetAttribute:
     case ELDDevTestOp::ClearAttributes:
+    case ELDDevTestOp::ResetToMatchStart:
         return true;
     default:
         return false;
@@ -40,6 +41,7 @@ const TCHAR* LDDevTest::OpName(ELDDevTestOp Op)
     case ELDDevTestOp::SellItem: return TEXT("SellItem");
     case ELDDevTestOp::SetAttribute: return TEXT("SetAttribute");
     case ELDDevTestOp::ClearAttributes: return TEXT("ClearAttributes");
+    case ELDDevTestOp::ResetToMatchStart: return TEXT("ResetToMatchStart");
     default: return TEXT("Unknown");
     }
 }

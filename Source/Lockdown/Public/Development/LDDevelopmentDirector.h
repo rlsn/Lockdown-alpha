@@ -129,6 +129,11 @@ public:
     // AuthorityFault meaning the boundary must fault.
     ELDGrowthReason DevChooseOption(const FGuid& ContenderId, FName DefinitionId, uint8 ReplaceSlot,
         const FLDGameplayWritePermit& Permit, FString& Detail);
+    // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
+    // skills or cards, the opening opportunity only (EarnedThrough 1, none consumed, no choice records) and a fresh
+    // opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer revisions keep rising, so
+    // every in-flight choice of the old state is refused as stale; request streams and receipts stay.
+    FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
 #endif
 
 private:

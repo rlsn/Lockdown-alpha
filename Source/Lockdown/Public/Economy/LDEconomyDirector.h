@@ -105,6 +105,12 @@ private:
     // Commits or rejects this contender's pending DEV test command; false only on an authority fault. A retryable
     // reward refusal leaves the command pending for the next Transactions phase.
     bool CommitPendingDevTest(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);
+    // ResetToMatchStart as one composite: DevReset ledger entries (each held item consumed without a refund, then one gold
+    // change back to the starting gold) rehearsed on a copy of the ledger, Growth's DevPrepareReset and Combat's
+    // DevPrepareReset prepared against those results, then everything installed. Nothing changes on a refusal; bRetry
+    // when the journal tail is full (the command stays pending); AuthorityFault when the install lost its domain.
+    ELDGrowthReason CommitDevReset(const FGuid& ContenderId, const FLDDevTestCommand& Command, const FLDGameplayWritePermit& Permit,
+        FString& Detail, bool& bRetry);
     struct FDevTestRecord
     {
         TLDGrowthRequestStream<FLDDevTestCommand, FLDDevTestReceipt> Stream;

@@ -1869,6 +1869,33 @@ public:
                 [&] { const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
                     return AD && AD->Dev.Numerator == 0
                         && ExactP2(AD->Final) == Dev.ADBeforeP2 - LDDemoGrowthScenario::GrowthProbeDevADP2; }));
+        case 12:
+            if (!Dev.bSent)
+            {
+                if (!Check(Equip->Gold >= ItemBuyPrice && SlotOf(ItemId) == INDEX_NONE, TEXT("DevTest"),
+                    TEXT("The buyer can afford one more DEV buy before the reset"),
+                    FString::Printf(TEXT("gold %lld, price %lld"), Equip->Gold, ItemBuyPrice))) { return Finish(); }
+                return SendDev(Now, PC, TEXT("A DEV buy gives the buyer an item to lose in the reset"), ELDDevTestOp::BuyItem, 0, ItemId);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&] { return GoldIs(Dev.GoldBefore - ItemBuyPrice) && SlotOf(ItemId) != INDEX_NONE; }));
+        case 13:
+            if (!Dev.bSent)
+            {
+                return SendDev(Now, PC, TEXT("A DEV reset puts the buyer back to the match start"), ELDDevTestOp::ResetToMatchStart, 0);
+            }
+            return AdvanceDev(AwaitDev(Now, ELDAdmissionStatus::Final, ELDReceiptOutcome::Applied, ELDGrowthReason::None,
+                [&]
+                {
+                    const FLDProgressionView* View = PC.ReadOwnProgression();
+                    const FLDEquipmentView* Gear = PC.ReadOwnEquipment();
+                    const FLDCombatAttributeRowView* AD = OwnAttribute(PC, ELDProjectedAttribute::AD);
+                    return View && Gear && AD && View->Level == 1 && View->CumulativeXP == 0 && View->AttributeCards.IsEmpty()
+                        && View->PendingChoiceCount == 1 && View->bHasOffer && View->Offer.OpportunityOrdinal == 1
+                        && Gear->Gold == Catalog->Get().Parameters.StartingGold
+                        && !Gear->Slots.ContainsByPredicate([](const FLDEquipmentSlotView& Slot) { return Slot.bOccupied; })
+                        && AD->Choices.Numerator == 0 && AD->Equipment.Numerator == 0 && AD->Dev.Numerator == 0;
+                }));
         default:
             if (Passed) { Mark(TEXT("Client1DevDone.json")); }
             return Finish();

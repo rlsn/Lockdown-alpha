@@ -192,4 +192,56 @@ ELDGrowthReason ALDCombatDirector::DevSetAttribute(const FGuid& Contender, bool 
         Final.MagicResistP2);
     return ELDGrowthReason::None;
 }
+
+FLDCombatPrepareResult ALDCombatDirector::DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision,
+    uint64 ResultInventoryRevision) const
+{
+    const ALDGameMode* Mode = Core();
+    const FLDDemoContentSnapshot* Content = Catalog();
+    const FLDCombatEntityRecord* Record = FindRecord(Contender);
+    FLDCombatPrepareResult Refused;
+    if (!Mode || !Content || !Record || Record->Kind != ELDVictimKind::Contender)
+    {
+        Refused.Error = ELDCombatPrepareError::UnknownContender;
+        Refused.Message = TEXT("UnknownContender: no persistent Combat record yet (the first life has not spawned).");
+        return Refused;
+    }
+    if (ResultBuildRevision <= Record->Installed.BuildRevision || ResultInventoryRevision < Record->Installed.InventoryRevision)
+    {
+        Refused.Error = ELDCombatPrepareError::InvalidInput;
+        Refused.Message = TEXT("InvalidInput: the reset must advance the build revision and keep the inventory revision.");
+        return Refused;
+    }
+    FLDBuildProjectionInput Input;
+    Input.Level = 1;
+    Input.ResultBuildRevision = ResultBuildRevision;
+    Input.ResultInventoryRevision = ResultInventoryRevision;
+    return PrepareProjected(*Mode, *Content, *Record, Contender, Input, Record->Installed);
+}
+
+int32 ALDCombatDirector::DevDropTracks(TArray<FLDCombatTrack>& Tracks, int64 NowMs)
+{
+    const int32 Dropped = Tracks.RemoveAll([](const FLDCombatTrack& Track) { return Track.Kind != ELDCombatSourceKind::Innate; });
+    for (FLDCombatTrack& Track : Tracks)
+    {
+        Track.ReadyAtMs = FMath::Min(Track.ReadyAtMs, NowMs);
+    }
+    return Dropped;
+}
+
+int32 ALDCombatDirector::DevFinishReset(const FGuid& Contender, int64 NowMs)
+{
+    FLDCombatEntityRecord* Record = FindRecord(Contender);
+    if (!Record)
+    {
+        return 0;
+    }
+    const int32 Dropped = DevDropTracks(Record->Tracks, NowMs);
+    if (FLDBodyCombatState* Body = FindEntityBody(Contender); Body && !Body->bPendingDeath)
+    {
+        DevRefillPool(Body->Resources);
+    }
+    MarkViewChanged(Contender);
+    return Dropped;
+}
 #endif

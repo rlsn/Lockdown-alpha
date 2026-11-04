@@ -82,8 +82,8 @@ def live_state():
 
 
 def fixture():
-    return {"schemaVersion": 3, "match": MATCH, "startingGold": "150",
-            "devFixture": {"enabled": False, "grants": [], "minted": "0"}, "prefix": compacted_prefix(),
+    return {"schemaVersion": 4, "match": MATCH, "startingGold": "150",
+            "devFixture": {"enabled": False, "grants": [], "minted": "0", "resets": []}, "prefix": compacted_prefix(),
             "tail": history()[2:], "current": live_state()}
 
 
@@ -94,7 +94,21 @@ def dev_fixture_run():
     data["current"] = state(9, 3, 260, 300,
                             {P1: account(145, 6), P2: account(115, 4, True, 8, 1, 3), P3: account(150, 2, True, 2, 2, 7)},
                             {P1: 4, P2: 3, P3: 1}, [(3, P1, 1)])
-    data["devFixture"] = {"enabled": True, "grants": [{"serial": "9", "account": P1, "gold": "50"}], "minted": "50"}
+    data["devFixture"] = {"enabled": True, "grants": [{"serial": "9", "account": P1, "gold": "50"}], "minted": "50", "resets": []}
+    return data
+
+
+def dev_reset_run():
+    """dev_fixture_run() plus P1's DEV reset to the match start: its item 3 consumed without a refund (serial 10), then
+    its 145 gold raised back to the starting 150 by a mint of 5 (serial 11)."""
+    data = dev_fixture_run()
+    data["tail"].append(entry(10, "DevReset", consume=(3, P1, 4), result_inventory=5))
+    data["tail"].append(entry(11, "DevReset", gold=(P1, 6, 5), mint=5, result_account=7))
+    data["current"] = state(11, 3, 265, 300,
+                            {P1: account(150, 7), P2: account(115, 4, True, 8, 1, 3), P3: account(150, 2, True, 2, 2, 7)},
+                            {P1: 5, P2: 3, P3: 1}, [])
+    data["devFixture"]["resets"] = [{"serial": "10", "account": P1, "gold": "0", "instance": instance(3)},
+                                    {"serial": "11", "account": P1, "gold": "5", "instance": None}]
     return data
 
 
@@ -136,7 +150,7 @@ class EconomyEvidenceTests(unittest.TestCase):
                 self.rejects(data, "Missing ledger field")
 
     def test_schema_match_and_identity_spelling(self):
-        for value in (2, 4, True, "3", None):
+        for value in (3, 5, True, "4", None):
             with self.subTest(schema=value):
                 data = copy.deepcopy(self.data)
                 data["schemaVersion"] = value
@@ -181,7 +195,7 @@ class EconomyEvidenceTests(unittest.TestCase):
         data = dev_fixture_run()
         self.assertEqual(verify_data(data, dev_fixture=True),
                          {"tail": 7, "throughSerial": 9, "accounts": 3, "items": 1, "gold": 410,
-                          "devFixtureGrants": 1, "devFixtureMinted": 50})
+                          "devFixtureGrants": 1, "devFixtureMinted": 50, "devResetEntries": 0})
         self.rejects(data, "only --dev-fixture")
         quiet = copy.deepcopy(data)
         quiet["devFixture"]["enabled"] = False
@@ -205,6 +219,42 @@ class EconomyEvidenceTests(unittest.TestCase):
         burned["tail"][-1]["burn"] = "50"
         with self.assertRaisesRegex(ValueError, "shape"):
             verify_data(burned, dev_fixture=True)
+
+    def test_dev_reset_entries_need_the_flag_and_their_listing(self):
+        data = dev_reset_run()
+        self.assertEqual(verify_data(data, dev_fixture=True),
+                         {"tail": 9, "throughSerial": 11, "accounts": 3, "items": 0, "gold": 415,
+                          "devFixtureGrants": 1, "devFixtureMinted": 50, "devResetEntries": 2})
+        self.rejects(data, "only --dev-fixture")
+        quiet = copy.deepcopy(data)
+        quiet["devFixture"].update(enabled=False, grants=[], minted="0")
+        self.rejects(quiet, "without the DEV growth fixture")
+        unlisted = copy.deepcopy(data)
+        unlisted["devFixture"]["resets"] = unlisted["devFixture"]["resets"][:1]
+        with self.assertRaisesRegex(ValueError, "not listed"):
+            verify_data(unlisted, dev_fixture=True)
+        for label, index, change in (("gold", 1, {"gold": "6"}), ("account", 1, {"account": P2}),
+                                     ("instance", 0, {"instance": instance(2)})):
+            with self.subTest(listing=label):
+                wrong = copy.deepcopy(data)
+                wrong["devFixture"]["resets"][index].update(change)
+                with self.assertRaisesRegex(ValueError, "not listed"):
+                    verify_data(wrong, dev_fixture=True)
+        mixed = copy.deepcopy(data)
+        mixed["devFixture"]["resets"][0]["gold"] = "1"
+        with self.assertRaisesRegex(ValueError, "either a consumed instance or a gold change"):
+            verify_data(mixed, dev_fixture=True)
+        twice = copy.deepcopy(data)
+        twice["devFixture"]["resets"][1]["serial"] = "9"
+        with self.assertRaisesRegex(ValueError, "listed twice"):
+            verify_data(twice, dev_fixture=True)
+        for label, index, change in (("refund", 0, {"mint": "65"}), ("zero gold", 1, {"gold": {"account": P1, "expectedRevision": "6", "delta": "0"}, "mint": "0"}),
+                                     ("burn for a raise", 1, {"burn": "5", "mint": "0"})):
+            with self.subTest(shape=label):
+                bad = copy.deepcopy(data)
+                bad["tail"][7 + index].update(change)
+                with self.assertRaisesRegex(ValueError, "shape"):
+                    verify_data(bad, dev_fixture=True)
 
     def test_dev_fixture_flag_needs_a_fixture_run(self):
         with self.assertRaisesRegex(ValueError, "without -LDDevGrowthFixture"):

@@ -37,6 +37,10 @@ enum class ELDDevTestOp : uint8
     SetAttribute = 8,
     // Amount == 0, Stat 0: removes every DEV attribute term; base, growth, passives and equipment stay.
     ClearAttributes = 9,
+    // Nothing named: the caller back to the match start. Level 1, zero XP, no skills, cards, items or DEV attribute
+    // terms, the starting gold, the opening opportunity with a fresh opening offer, every cooldown ready and a living
+    // body full. Items and gold change through DevReset ledger entries. Alive or Dead.
+    ResetToMatchStart = 10,
 };
 
 USTRUCT()

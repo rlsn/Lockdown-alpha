@@ -718,8 +718,8 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestTrue(TEXT("The evidence names schema 3, its match and the approved starting gold"),
-        Root->GetIntegerField(TEXT("schemaVersion")) == 3
+    bGood &= Test.TestTrue(TEXT("The evidence names schema 4, its match and the approved starting gold"),
+        Root->GetIntegerField(TEXT("schemaVersion")) == 4
         && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
         && Root->GetStringField(TEXT("startingGold")) == TEXT("320"));
     const TSharedPtr<FJsonObject>* FixtureBlock = nullptr;
@@ -2759,9 +2759,90 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Economy->Ledger.OwnerItems(Tester, Owned);
     TestEqual(TEXT("A refused buy creates no item"), Owned.Num(), 0);
 
+    // ---- Reset to the match start: DevReset ledger entries, the BeginMatch growth state and an empty Combat build ----
+    GrowthTestReason(*this, TEXT("A reset names nothing"),
+        LDDevTest::ValidateShape(Command(Gen, 1, 1, ELDDevTestOp::ResetToMatchStart, 5)), ELDGrowthReason::NumericDomain);
+    // The tester holds one item bought through the ordinary ledger shape.
+    {
+        LDEconomy::FTransaction Bought;
+        Bought.Cause = LDEconomy::ECause::Buy;
+        Bought.BusinessKey = FGuid(0xD7, 0, 2, 1);
+        Bought.CommitBatch = 1;
+        LDEconomy::FGoldChange Paid;
+        Paid.Account = Tester;
+        Paid.ExpectedRevision = Economy->Ledger.Account(Tester)->Revision;
+        Paid.Delta = -20;
+        Bought.Gold.Emplace(Paid);
+        Bought.Burn = 20;
+        LDEconomy::FCreateItem Created;
+        Created.Owner = Tester;
+        Created.ExpectedInventoryRevision = Economy->Ledger.InventoryRevision(Tester);
+        Created.Definition = FName(TEXT("item_edge_blade"));
+        Created.Slot = 1;
+        Bought.Create.Emplace(Created);
+        LDEconomy::FPrepareResult Purchase = Economy->Ledger.Prepare(Bought);
+        if (!TestTrue(FString::Printf(TEXT("The fixture purchase prepares (%s)"), *Purchase.Message), Purchase.IsSuccess())) { return false; }
+        Economy->Ledger.ApplyPrepared(MoveTemp(Purchase.Value.GetValue()));
+    }
+    const int64 GoldBeforeReset = Gold(Tester);
+    const uint64 BuildRevisionBeforeReset = Development->FindBuild(Tester)->Revision;
+    const uint64 OfferRevisionBeforeReset = Development->FindProgression(Tester)->LastOfferRevision;
+    const FLDDevTestReceipt* ResetReceipt = Commit(TEXT("Request 15: reset to the match start while dead"),
+        Command(Gen, 1, 15, ELDDevTestOp::ResetToMatchStart, 0), ELDGrowthReason::None);
+    if (!ResetReceipt) { return false; }
+    TestTrue(TEXT("The reset receipt explains what changed"), ResetReceipt->Detail.Contains(TEXT("1 items removed")));
+    Owned.Reset();
+    Economy->Ledger.OwnerItems(Tester, Owned);
+    TestTrue(TEXT("The reset holds the starting gold and no item"), Gold(Tester) == StartingGold && Owned.IsEmpty());
+    const TArray<LDEconomy::FDevResetEntry>& ResetEntries = Economy->Ledger.DevResetEntries();
+    TestTrue(TEXT("Two DevReset entries: the item consumed without a refund, then the gold change back to the start"),
+        ResetEntries.Num() == 2 && ResetEntries[0].Account == Tester && ResetEntries[0].Gold == 0 && ResetEntries[0].Instance.IsValid()
+        && ResetEntries[1].Instance == FGuid() && ResetEntries[1].Gold == StartingGold - GoldBeforeReset
+        && ResetEntries[1].Serial == ResetEntries[0].Serial + 1);
+    TestTrue(FString::Printf(TEXT("The ledger reconciles after the reset (%s)"), *Error), Economy->Ledger.Reconcile(Error));
+    FString ResetEvidence;
+    // The boundary may already have folded the entries into the audit prefix; the devFixture listing keeps them all.
+    TSharedPtr<FJsonObject> ResetRoot;
+    const TSharedPtr<FJsonObject>* ResetFixture = nullptr;
+    const TArray<TSharedPtr<FJsonValue>>* ResetRows = nullptr;
+    TestTrue(FString::Printf(TEXT("The evidence lists both reset entries (%s)"), *Error),
+        LDEconomy::ExportEvidence(Economy->Ledger, StartingGold, ResetEvidence, Error)
+        && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ResetEvidence), ResetRoot) && ResetRoot.IsValid()
+        && ResetRoot->TryGetObjectField(TEXT("devFixture"), ResetFixture)
+        && (*ResetFixture)->TryGetArrayField(TEXT("resets"), ResetRows) && ResetRows->Num() == 2);
+    const FLDGrowthBuild* ResetBuild = Development->FindBuild(Tester);
+    const FLDProgressionState* ResetProgression = Development->FindProgression(Tester);
+    TestTrue(TEXT("Growth is back at level 1 with no XP, skills or cards and a higher build revision"),
+        ResetBuild && ResetBuild->Level == 1 && ResetBuild->Skills.IsEmpty() && ResetBuild->Cards.IsEmpty()
+        && ResetBuild->Revision > BuildRevisionBeforeReset && ResetProgression && ResetProgression->CumulativeXP == 0);
+    TestTrue(TEXT("Only the opening opportunity is open, with a fresh opening offer"),
+        ResetProgression && ResetProgression->EarnedThrough == 1 && ResetProgression->ConsumedThrough == 0
+        && ResetProgression->Records.IsEmpty() && ResetProgression->Offer.IsSet() && ResetProgression->Offer->Ordinal == 1
+        && ResetProgression->Offer->Revision > OfferRevisionBeforeReset && ResetProgression->Offer->Options.Num() == 3);
+    TestTrue(TEXT("Combat installed the empty level-1 build at the growth and ledger revisions, without a DEV layer"),
+        Fighter.Build.Level == 1 && Fighter.Build.AttributeCards.IsEmpty() && Fighter.Build.Actives.IsEmpty()
+        && Fighter.Build.Equipment.IsEmpty() && Fighter.Build.DevBonuses.IsEmpty()
+        && Fighter.Installed.BuildRevision == ResetBuild->Revision
+        && Fighter.Installed.InventoryRevision == Economy->Ledger.InventoryRevision(Tester)
+        && Fighter.Projection.Final.ADP2 == PlainValue.Final.ADP2);
+    TestTrue(TEXT("Every learned and gear cooldown track is dropped"), !Fighter.Tracks.ContainsByPredicate(
+        [](const FLDCombatTrack& Track) { return Track.Kind != ELDCombatSourceKind::Innate; }));
+    TArray<FLDCombatTrack> Mixed;
+    Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Learned;
+    FLDCombatTrack& Innate = Mixed.AddDefaulted_GetRef();
+    Innate.Kind = ELDCombatSourceKind::Innate;
+    Innate.ReadyAtMs = 9000;
+    Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Gear;
+    TestTrue(TEXT("The pure track drop keeps only the innate dash, ready now"), ALDCombatDirector::DevDropTracks(Mixed, 1000) == 2
+        && Mixed.Num() == 1 && Mixed[0].Kind == ELDCombatSourceKind::Innate && Mixed[0].ReadyAtMs == 1000);
+    const FLDDevTestReceipt* Relearned = Commit(TEXT("Request 16: the fresh opening opportunity takes a card again"),
+        Learn(16, TEXT("attr_might"), 0), ELDGrowthReason::None);
+    TestTrue(TEXT("After the reset the card is learned once more"), Relearned && Development->FindBuild(Tester)->Cards.Num() == 1
+        && Development->FindProgression(Tester)->ConsumedThrough == 1);
+
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 15, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::GrantGold, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
     Status(TEXT("A replay after the match closed"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);

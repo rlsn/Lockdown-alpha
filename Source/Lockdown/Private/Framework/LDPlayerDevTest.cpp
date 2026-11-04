@@ -22,6 +22,7 @@ const TCHAR* DevTestOpLabel(ELDDevTestOp Op)
     case ELDDevTestOp::SellItem: return TEXT("出售装备");
     case ELDDevTestOp::SetAttribute: return TEXT("设置测试属性");
     case ELDDevTestOp::ClearAttributes: return TEXT("清除测试属性");
+    case ELDDevTestOp::ResetToMatchStart: return TEXT("重置到开局");
     default: return TEXT("未知操作");
     }
 }
@@ -387,6 +388,21 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestClearAttr(
                 return;
             }
             DevTestSend(World, ELDDevTestOp::ClearAttributes, 0, Ar);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestReset(
+    TEXT("ld.Dev.Reset"),
+    TEXT("DEV test session: put yourself back to the match start: level 1, no XP, skills, cards, items or DEV attributes, "
+        "the starting gold, a fresh opening offer and every cooldown ready."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (!Args.IsEmpty())
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Reset (no arguments)"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::ResetToMatchStart, 0, Ar);
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefill(
