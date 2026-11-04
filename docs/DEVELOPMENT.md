@@ -213,6 +213,13 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
 ```
 
+AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <1-50>` 只启动一个无渲染的 Listen Host，
+它作为唯一真人留在房间里不动，与三个 AI 经正常大厅连打 N 局（每局各有 `-TimeoutSeconds`，局间回 Lobby）。
+每局写一份 `MatchNN.json`：结束原因与胜者、开圈与首杀（以及首个死亡）时刻、全部击杀、每名参赛者每秒的等级/经验/金币曲线、
+买入与卖出（由装备实例的出现与消失得出，附目录价格）、占领尝试/续占/被争夺暂停/失去与争夺次数
+（取自占领归约的 DEV 计数，边界内的中间变化也计入）；`SummarizeOpponentTelemetry.py` 汇总为 `Summary.json`
+（胜负方式、各槽获胜数、时长与首杀分布、每分钟等级与金币、购买次数等）。这些数字只描述这几局，不作为平衡目标，也不判断 AI 行为对错。
+
 其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）放在里程碑或发布冻结后的完整验收里，在打包版上各跑一次。
 改到某个场景覆盖的系统时，PR 里也要跑那个场景。
 新增的原生测试要同步登记到 `CheckRuleReport.py`。如果某个模块的检查需要真实对局，优先补进满员场景，不另开新场景。

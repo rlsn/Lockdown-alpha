@@ -699,13 +699,19 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
     FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentTimeout="), Timeout);
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentOutput="), Probe->Output)
         || !FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentRole="), Probe->Role)
-        || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2"))
+        || (Probe->Role != TEXT("Host") && Probe->Role != TEXT("Client1") && Probe->Role != TEXT("Client2")
+            && Probe->Role != TEXT("Telemetry"))
         || Timeout < 300 || Timeout > 900
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
         UE_LOG(LogTemp, Error, TEXT("LD_DEMO_OPPONENT_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
+        return;
+    }
+    if (Probe->Role == TEXT("Telemetry"))
+    {
+        StartOpponentTelemetry(Controller, Probe->Output, Timeout);
         return;
     }
     Probe->Controller = &Controller;

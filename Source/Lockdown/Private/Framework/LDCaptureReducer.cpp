@@ -202,11 +202,13 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, FString& Error)
     int64 NextPaused = bHolderEffective ? Paused : 0;
     int64 NextSince = 0;
     int64 NextDue = 0;
+    bool bResumed = false;
     if (Next == ELDCircleState::Solo)
     {
         if (State == ELDCircleState::Solo && NextHolder == Only) { return true; }
         // The paused holder resumes from his frozen progress; any other sole contender starts at zero.
         const int64 Resumed = NextHolder == Only ? NextPaused : 0;
+        bResumed = Resumed > 0;
         NextHolder = Only;
         NextSince = Now - Resumed;
         NextPaused = 0;
@@ -233,6 +235,21 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, FString& Error)
         return false;
     }
     ++Epoch;
+#if WITH_DEV_AUTOMATION_TESTS
+    if (Next == ELDCircleState::Solo)
+    {
+        FLDCaptureDevTally::FHolder& Holder = DevCounts.Holders.FindOrAdd(NextHolder);
+        ++(bResumed ? Holder.Resumes : Holder.Attempts);
+    }
+    else if (Next == ELDCircleState::Contested && State != ELDCircleState::Contested)
+    {
+        ++DevCounts.Contests;
+        if (NextHolder.IsValid()) { ++DevCounts.Holders.FindOrAdd(NextHolder).Paused; }
+    }
+    if (Occupier.IsValid() && NextHolder != Occupier) { ++DevCounts.Holders.FindOrAdd(Occupier).Lost; }
+#else
+    (void)bResumed;
+#endif
     State = Next;
     Occupier = NextHolder;
     SoloSince = NextSince;

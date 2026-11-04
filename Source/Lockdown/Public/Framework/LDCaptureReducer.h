@@ -18,6 +18,25 @@ struct FLDCaptureEvent
     uint64 Ordinal = 0;
 };
 
+#if WITH_DEV_AUTOMATION_TESTS
+// DEV telemetry only, never read by a rule: every reduced segment change, including the ones inside one boundary
+// that no public view shows. An attempt starts a holder's progress from zero, a resume continues his paused progress,
+// a pause is a contest that froze it and a loss ends it without a win.
+struct FLDCaptureDevTally
+{
+    struct FHolder
+    {
+        uint32 Attempts = 0;
+        uint32 Resumes = 0;
+        uint32 Paused = 0;
+        uint32 Lost = 0;
+    };
+    // Entries into Contested, with or without a paused holder.
+    uint32 Contests = 0;
+    TMap<FGuid, FHolder> Holders;
+};
+#endif
+
 struct FLDCaptureProposal
 {
     uint64 Epoch = 0;
@@ -71,6 +90,7 @@ public:
     // DEV test session: moves a closed circle's opening forward to AtMs, a boundary that is not closed yet, so the next
     // CloseBoundary opens it exactly like the scheduled opening. Refused when inactive, already open, or not earlier.
     bool DevOpenAt(int64 AtMs, FString& Error);
+    const FLDCaptureDevTally& DevTally() const { return DevCounts; }
 #endif
 
 private:
@@ -102,4 +122,7 @@ private:
     double LastReducedSeconds = 0;
     ELDCircleState State = ELDCircleState::NotOpen;
     FGuid Occupier;
+#if WITH_DEV_AUTOMATION_TESTS
+    FLDCaptureDevTally DevCounts;
+#endif
 };

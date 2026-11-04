@@ -242,6 +242,7 @@ AI 的已注销绑定不能因迟到奖励/回执重新规划、选择、生成�
 | `S\Public\AI\LDOpponentController.h`、`S\Private\AI\LDOpponentController.cpp` | 服务器适配器与 OpponentAI 提供者：绑定、组帧、调度、发送、回执消费、受限诊断与请求计数。 |
 | `S\Private\Tests\LDOpponentPolicyTests.cpp` | `Lockdown.Rules.DemoOpponentPolicy.*` 规则测试（§8.1）。 |
 | `S\Private\Tests\LDDemoOpponentProbe.h`、`S\Private\Tests\LDDemoOpponentProbe.cpp`、`Scripts\RunDemoOpponentCheck.ps1` | 满员联机场景（§8.2）；probe 只在 Host 核对权威数据，从不回送给策略。 |
+| `S\Private\Tests\LDDemoOpponentTelemetry.cpp`、`Scripts\SummarizeOpponentTelemetry.py` | `RunDemoOpponentCheck.ps1 -Telemetry`：一名闲置 Host 加三个 AI 连打多局的遥测（§8.2 末），只读权威数据、不判断对错。 |
 
 AI 参数接入内容域唯一的生成输入/载荷/contract，不新增 AI 私有 JSON 或运行时读 docs。
 不新增行为树、黑板资产、AI 专用地图、不同身体、独立 NavMesh 或旧模式开关；
@@ -532,6 +533,11 @@ AI 持有被暂停的进度时留在圈内迎战，只在止损线离开；AI �
 下表其余条目，以及这两条中 runner 没有覆盖的部分（零到二个 AI 开局、真人离开、每个 AI 各自的成长、逐段回执链、三个槽位分别获胜），
 目前没有自动验收。
 纯模型证明策略决定，原生场景证明接线，真实拥有连接证明授权和运行拓扑，三者不能互相冒充。
+
+`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount N` 是另一回事：一名无渲染、闲置的 Listen Host 与三个 AI 连打 N 局，
+每局记录时长、首杀、每名参赛者的等级与金币曲线、购买、占领尝试与争夺次数和胜负方式，并汇总为一份报告
+（字段见[开发指南](../DEVELOPMENT.md)）。它只是对局数据，供 AI 与节奏评审参考：不核对上表任何一项，
+也不把某个数字当作目标；真人闲置时 AI 也会击杀 Host，这些击杀照常计入。
 
 | ID / 场景 | 正例与反例动作 | 精确可观察结果 |
 | --- | --- | --- |

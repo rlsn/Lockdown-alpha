@@ -1,11 +1,17 @@
 [CmdletBinding()]
 param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,900)][int]$TimeoutSeconds=720,
     # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
-    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
+    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
+    # DEV telemetry instead of the full-room check: one idle headless Listen Host and three AI play -MatchCount matches in a
+    # row; each match gets -TimeoutSeconds. Writes one MatchNN.json per match and Summary.json; it judges nothing.
+    [switch]$Telemetry, [ValidateRange(1,50)][int]$MatchCount=1)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
-$output = New-LDArtifactDirectory ($(if ($PackageRoot) { 'DemoOpponent-FullRoom-Packaged' } else { 'DemoOpponent-FullRoom' }) +
+if ($Telemetry -and $NetEmulation) { throw 'Telemetry runs the Host alone on loopback; -NetEmulation has no connection to impair.' }
+if (-not $Telemetry -and $PSBoundParameters.ContainsKey('MatchCount')) { throw '-MatchCount applies only to -Telemetry.' }
+$scenario = if ($Telemetry) { 'DemoOpponent-Telemetry' } else { 'DemoOpponent-FullRoom' }
+$output = New-LDArtifactDirectory ($scenario + $(if ($PackageRoot) { '-Packaged' } else { '' }) +
     $(if ($NetEmulation) { '-NetEmulated' } else { '' }))
 $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -PackageRoot $PackageRoot -Output $output
 # Probe markers and reports live where the probe accepts them; logs and user dirs stay beside the runner.
@@ -25,8 +31,10 @@ function Start-OpponentRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients stay headless.
-    $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" } else { '-nullrhi' }
+    # The Host renders (1280x720 offscreen) so it can keep HUD screenshots of the match; clients and the telemetry
+    # Host stay headless.
+    $portArgument = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port" }
+        elseif ($Role -eq 'Telemetry') { "-nullrhi -port=$port -LDDemoOpponentMatches=$MatchCount" } else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoOpponentProbe -LDDemoOpponentRole={2} -LDDemoOpponentTimeout={3} -LDDemoOpponentOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
@@ -60,7 +68,26 @@ function Wait-OpponentReports {
     throw "Opponent scenario evidence timed out: $output"
 }
 
+function Invoke-OpponentTelemetry {
+    Start-OpponentRole 'Telemetry' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoTelemetryHost'
+    # The Host ends itself after the last match, or on the first failure with its reason in Telemetry.json.
+    $process = $processes[0]
+    if (-not $process.WaitForExit((($TimeoutSeconds * $MatchCount) + 60) * 1000)) { throw "Opponent telemetry timed out: $output" }
+    $file = Join-Path $evidence 'Telemetry.json'
+    if (-not (Test-Path -LiteralPath $file)) { throw "Opponent telemetry left no report (exit $($process.ExitCode)): $output" }
+    $report = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    if (-not $report.passed -or $process.ExitCode -ne 0) {
+        throw "Opponent telemetry failed after $($report.matches_completed) of $MatchCount match(es): $($report.detail). Evidence: $output"
+    }
+    $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
+        Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+    if ($errors.Count) { throw "Opponent telemetry logged an error: $($errors[0].Line). Evidence: $output" }
+    Invoke-LDTool -Tool 'python' -ToolArguments @('-B', (Join-Path $PSScriptRoot 'SummarizeOpponentTelemetry.py'), $evidence) -LogPath (Join-Path $output 'Summary.txt')
+    Write-Host "DEV-only opponent telemetry recorded $MatchCount match(es) of one idle Host and three AI. It describes these matches; it is not an AI acceptance check or a balance verdict. Evidence: $output"
+}
+
 try {
+    if ($Telemetry) { Invoke-OpponentTelemetry; return }
     Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
     Wait-OpponentReports @('HostJoined.json')
     foreach ($index in 1..2) {

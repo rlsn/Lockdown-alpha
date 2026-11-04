@@ -341,6 +341,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
 归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
 DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放圈的开放时刻提前到一个尚未关闭的边界，开放仍由 `CloseBoundary` 完成。
+DEV 构建中 `DevTally()`（经 `ALDGameMode::DevCaptureTally`）按每次归约后的状态变化计数：每名持有者的尝试（从零开始独占）、
+续占（暂停的进度恢复）、被争夺暂停和失去，以及进入争夺的次数；只供遥测读取，任何规则都不读它，`Reset` 时清空。
 
 ## 保存与复位边界
 

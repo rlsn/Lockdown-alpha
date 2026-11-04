@@ -172,6 +172,8 @@ public:
     // instead of after the full development time (FLDCaptureReducer::DevOpenAt); the hold and every capture rule stay.
     // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
     bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
+    // DEV telemetry only: the current match's reduced capture segment changes; empty outside a match.
+    const FLDCaptureDevTally& DevCaptureTally() const { return CaptureReducer.DevTally(); }
 #endif
 private:
     friend class FLDDemoSessionTest;
