@@ -154,6 +154,8 @@ namespace LDEconomy
         uint64 ExpectedCommittedSerial = 0;
         FJournalEntry Journal;
         FAuditState AfterState;
+        // Business keys of the earlier, not yet applied plans this one was chained after (PrepareAfter).
+        TArray<FGuid> ChainKeys;
     };
 
     struct LOCKDOWN_API FPrepareResult
@@ -195,6 +197,9 @@ namespace LDEconomy
         const FGuid& GetMatch() const { return Current.Match; }
 
         FPrepareResult Prepare(const FTransaction& Transaction) const;
+        // Prepares Transaction as the next commit after the not yet applied Previous plan (one composite commit that
+        // touches several accounts as consecutive single-account entries). Apply Previous first, then this plan.
+        FPrepareResult PrepareAfter(const FPreparedCommit& Previous, const FTransaction& Transaction) const;
         // No-fail install of a plan prepared against the current serial; any mismatch is a broken caller contract.
         void ApplyPrepared(FPreparedCommit&& Prepared);
 
@@ -232,6 +237,7 @@ namespace LDEconomy
         FAuditState Current;
         TArray<FJournalEntry> Tail;
         int32 Pins = 0;
+        FPrepareResult PrepareFrom(const FAuditState& Base, const TArray<FGuid>& ChainKeys, const FTransaction& Transaction) const;
 #if WITH_DEV_AUTOMATION_TESTS
         TArray<FDevFixtureMint> DevFixtureMints;
         TArray<FDevResetEntry> DevResets;

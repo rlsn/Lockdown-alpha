@@ -3565,6 +3565,14 @@
       "bp": 150,
       "unit": "ratio"
     },
+    "REWARD.AssistGoldRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "REWARD.AssistWindowSec": {
+      "ms": 15000,
+      "unit": "ms"
+    },
     "REWARD.PlayerGold.Base": 80,
     "REWARD.PlayerGold.PerLevel": 10,
     "REWARD.PlayerXP.Base": 100,

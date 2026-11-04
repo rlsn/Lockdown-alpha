@@ -91,6 +91,11 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
     UPROPERTY() TObjectPtr<UTextBlock> TargetEquipment;
+    // The visible contender's Q/W tiles: key and name, then rank with the Lv3 mark.
+    UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveNames;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> TargetActiveRanks;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;

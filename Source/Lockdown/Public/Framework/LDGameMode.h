@@ -80,6 +80,7 @@ struct FLDContenderRecord
     bool bLeft = false;
     uint64 Kills = 0;
     uint64 Deaths = 0;
+    uint64 Assists = 0;
 };
 
 UCLASS()
@@ -185,6 +186,7 @@ private:
     friend class FLDCaptureInsideStepTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDDemoAssistSettlementTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

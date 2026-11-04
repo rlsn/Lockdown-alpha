@@ -34,8 +34,11 @@
 - 遮挡只来自注册世界中 `BlocksSight` 的凸多边形：线段触到边或角即算遮挡，世界只有一层。
 - 镜头位置、缩放和小地图手势都不授予视野。
 - 观察者没有存活身体时，帧为显式 `NoLivingBody`：没有覆盖、单位或终结记录。死亡镜头只看静态和公开信息。
-- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP/MP、公开状态、两件装备。
-  不含技能、冷却、完整属性、金币或规范身体身份。
+- 参赛者单位只携带 SC-07 白名单：参赛者 Id（客户端经公开名册换成名称）、等级、HP/MP、公开状态、两件装备，
+  以及 Q/W 两个主动的原生 id 与等级（`Actives`，字段位 `LDObservation::Actives`，观察 schema 4；#112 §10）。
+  `Actives` 由 Combat 的 `PublicActivesOf` 在构筑安装和身体准备时写进同一公开事实，与装备一样只随当前可见单位下发、失视即撤销；
+  codec 要求每槽“id 与等级同为 0 或同为非 0”、等级不超过 3、两槽不同 id，营地成员两槽为 0，接收端只接受批准目录里的主动技能。
+  目标卡（`LDHUD::ObservedCard`）据此显示 Q/W 小卡、等级与 Lv3 标记。不含被动、冷却、完整属性、金币或规范身体身份。
 - 营地成员只携带生物 Id、HP 和公开状态；内容定义了 MP 时才带 MP。营地成员的 `Presentation` 恒为 0。
   `CampReturning`（3）只出现在营地成员身上，不叠层、无期限：codec 只接受 `Stacks` 为 1、`ExpiresAtServerMs` 为 0 的该状态。
   它由 `ALDCampDirector::AppendObservedFacts` 在核心 `ReadObservedPublicFacts` 之后追加（只在成员处于 Returning 时）；

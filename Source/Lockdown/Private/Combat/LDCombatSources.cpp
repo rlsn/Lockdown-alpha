@@ -818,6 +818,27 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareProjected(const ALDGameMode& Mo
     return Result;
 }
 
+bool ALDCombatDirector::PublicActivesOf(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content,
+    FLDObservedActivesView& Out)
+{
+    Out=FLDObservedActivesView();
+    const int32 MaxRank=Content.Get().Progression.MaxSkillRank;
+    for (const FLDLearnedActiveValue& Active : Build.Actives)
+    {
+        const int32 Slot=Active.Entry==ELDCombatEntry::Q ? 0 : Active.Entry==ELDCombatEntry::W ? 1 : INDEX_NONE;
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        FString LookupError;
+        if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0 || Active.Rank<1 || int32(Active.Rank)>MaxRank
+            || int32(Active.Rank)>LDObservation::MaxActiveRank
+            || !Content.FindAbility(Active.AbilityId.ToString(),Ability,LookupError) || !Ability
+            || Ability->Kind!=ELDDemoAbilityKind::Active || Ability->NativeId==0)
+        { return false; }
+        Out.Abilities[Slot]=Ability->NativeId;
+        Out.Ranks[Slot]=Active.Rank;
+    }
+    return true;
+}
+
 void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit)
 {
     ALDGameMode* Mode=Core();
@@ -858,6 +879,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     }
     FLDBasicTiming Timing;
     FLDObservedEquipmentView PublicSlots;
+    FLDObservedActivesView PublicActives;
     float WalkSpeed=0;
     if (bValid && Body)
     {
@@ -866,6 +888,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         bValid=LDCombatSourcesDetail::ProjectedBasicTiming(Prepared.Projection,*Content,Timing,Code,Reason)
             && LDCombatSourcesDetail::NativeWalkSpeed(Prepared.Projection.Final.MoveSpeedCmPerSec,WalkSpeed)
             && LDCombatSourcesDetail::PublicEquipment(Prepared.Input,*Content,PublicSlots)
+            && PublicActivesOf(Prepared.Input,*Content,PublicActives)
             && Prepared.NewMaxHPP2==Prepared.Projection.Final.MaxHPP2 && Prepared.NewMaxMPP2==Prepared.Projection.Final.MaxMPP2;
     }
     if (!bValid)
@@ -915,6 +938,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         if (!Body->PublicFacts.IsSet()) { Body->PublicFacts.Emplace(); }
         Body->PublicFacts->Level=Prepared.Input.Level;
         Body->PublicFacts->Equipment=PublicSlots;
+        Body->PublicFacts->Actives=PublicActives;
         Actor->GetCharacterMovement()->MaxWalkSpeed=WalkSpeed;
         // The new build keeps this life's slows, timed bonuses and HP condition on top of it.
         FString Error;

@@ -78,6 +78,8 @@
     "REWARD.PlayerXP.PerLevel": 20,
     "REWARD.PlayerGold.Base": 80,
     "REWARD.PlayerGold.PerLevel": 10,
+    "REWARD.AssistWindowSec": {"unit": "s", "value": 15},
+    "REWARD.AssistGoldRatio": {"unit": "ratio", "value": 0.5},
     "AI.RetreatHPRatio": {"unit": "ratio", "value": 0.25},
     "AI.ResumeFarmHPRatio": {"unit": "ratio", "value": 0.60},
     "AI.HighCampEntryHPRatio": {"unit": "ratio", "value": 0.80},

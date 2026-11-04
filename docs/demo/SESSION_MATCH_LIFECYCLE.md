@@ -253,7 +253,7 @@ int64 DurationMs; TArray<FLDResultRow> Rows; }`，
 Generation/PublicRevision 拒绝旧锚；非活跃阶段按明确阶段停止玩法倒计时估算，
 不能由本地估计达到零触发任何服务器动作。
 
-`FLDResultRow` 为 `ContenderId / Name / uint64 Kills / uint64 Deaths / uint8 FinalLevel`，
+`FLDResultRow` 为 `ContenderId / Name / uint64 Kills / uint64 Deaths / uint8 FinalLevel / uint64 Assists`，
 Winner 的 ContenderId 是唯一赢家标记来源。按开局锁定名单顺序冻结所有行，
 不按击杀造排名；离局者仍有行，leave 不加 Deaths。
 StartedAtMs 来自成功开局，不以 OpenAtMs 推算；DurationMs 由核心实际开始/结束时刻计算，
@@ -758,8 +758,10 @@ HostEnd 按实际受理时刻关闭，不宣称已经封闭其后尚未执行的
 
 结果统计归 GameMode 私有参赛记录，从同一已提交 DeathKey 派生一次：
 参赛者真实死亡增加 Deaths；具有合法实际归属的另一参赛者击杀增加 Kills，
-无主/自杀不指定击杀者，离开/重置不加死亡，野怪不进入该参赛者 K/D 统计。
-同一键重放不重计。Growth 只提供最终已提交 FinalLevel，不再维护第二份 K/D。
+死亡事实冻结的每名助攻者增加 Assists（经 `FLDCaptureEligibilityEvent::Assisters` 交给核心，同时写入公开击杀通知
+`FLDKillNotice::Assisters`，排序、不含击杀者与受害者，只随参赛者击杀出现），
+无主/自杀不指定击杀者也没有助攻，离开/重置不加死亡，野怪不进入该参赛者 K/D/A 统计。
+同一键重放不重计。Growth 只提供最终已提交 FinalLevel，不再维护第二份 K/D/A。
 锁结果前准备完整 Rows/时间，锁后只发布该冻结快照；离局者的合法结算完成后仍有结果行，
 不能从已销毁 Pawn、killfeed 到达次数、当前公开名单或客户端镜头推算。
 

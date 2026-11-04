@@ -216,6 +216,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         MarkViewChanged(Body->Victim.EntityId);
         // Being hurt (absorbed damage included) or controlled reveals a stealthed body.
         RevealStealth(*Body);
+        // The same committed harm, control or slow is the owner's assist contribution on this life.
+        RecordAssistContribution(*Body,Hit.CreditOwner,NowMs);
     }
     // Camp retaliation consumes the committed hostile damage or control; misses and zero contact never aggro.
     if ((Damage.DamageP2>0 || bControls || bSlows) && Hit.Target.Victim.Kind==ELDVictimKind::CampMember)
@@ -620,6 +622,15 @@ bool ALDCombatDirector::MarkControlled(FLDBodyCombatState& Target, const FLDComb
     return true;
 }
 
+bool ALDCombatDirector::RecordAssistContribution(FLDBodyCombatState& Victim, const FGuid& CreditOwner, int64 NowMs)
+{
+    if (Victim.Victim.Kind!=ELDVictimKind::Contender || Victim.bPendingDeath) { return false; }
+    const FLDCombatEntityRecord* Contributor=CreditOwner.IsValid() ? FindRecord(CreditOwner) : nullptr;
+    // Only a contender of this match contributes; camp members and unowned effects carry no credit owner.
+    if (!Contributor || Contributor->Kind!=ELDVictimKind::Contender) { return false; }
+    return LDAssist::RecordContribution(Victim.AssistContributions,CreditOwner,Victim.Victim.EntityId,NowMs);
+}
+
 bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error)
 {
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -821,6 +832,13 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
     {
         Basis.NoRewardReason=ELDNoRewardReason::None;
         Basis.bCreditOwnerEligibleAtDeath=true;
+    }
+    // Assists exist only for a contender kill with an eligible killer; a departed contributor no longer earns one.
+    if (Body.Victim.Kind==ELDVictimKind::Contender && Basis.bCreditOwnerEligibleAtDeath)
+    {
+        LDAssist::SelectAssisters(Body.AssistContributions,Hit.CreditOwner,Body.Victim.EntityId,Mode->GetAuthorityNowMs(),
+            Content->Get().Parameters.AssistWindowMs,[Mode](const FGuid& Contender) { return Mode->IsMemberPresent(Contender); },
+            Death.Assisters);
     }
     // Effects run on an integral authority boundary, so the fatal instant is that exact millisecond.
     Death.OccurredAtSeconds=Mode->GetAuthorityNowSeconds();

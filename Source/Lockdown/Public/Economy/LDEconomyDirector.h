@@ -75,6 +75,7 @@ public:
 private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDDemoAssistSettlementTest;
     // Retires the ledger accounts of contenders that left; M is the authority core of this match.
     bool RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error);
     bool CompactLedger(FString& Error);
@@ -84,6 +85,19 @@ private:
     ELDRewardOutcome CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
         LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
         const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
+    // One recipient's part of a composite reward; KeyBytes is the canonical business key of its ledger mint.
+    struct FRewardShare
+    {
+        FGuid Recipient;
+        LDProgression::FRewardAmounts Amounts;
+        TArray<uint8> KeyBytes;
+    };
+    // The same composite for several distinct recipients (a contender kill with its assisters): every part of every
+    // recipient is prepared before any is installed, so the whole reward commits once or not at all. Shares[0] fills the
+    // receipt's own fields, the rest fill Receipt.Assists in order.
+    ELDRewardOutcome CommitRewardShares(const TArray<FRewardShare>& Shares, LDEconomy::ECause Cause,
+        const uint8 (&TransactionTerms)[32], const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt,
+        ELDGrowthReason& Reason);
     ALDGameMode* Mode() const;
 #if WITH_DEV_AUTOMATION_TESTS
     // Commits every pending DEV grant in ticket order; false only on an authority fault.

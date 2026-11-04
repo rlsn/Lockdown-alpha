@@ -164,14 +164,25 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     }
     const FLDDeathKey DeathKey{MatchContext.LedgerMatch, Event.Body.Victim};
     FLDContenderRecord* Killer = nullptr;
+    TArray<FLDContenderRecord*> Assisters;
     if (Kind == ELDCaptureEventKind::Died)
     {
         Killer = Event.CreditContender.IsValid() ? FindContender(Event.CreditContender) : nullptr;
         if (!(Event.DeathKey == DeathKey) || CountedDeaths.Contains(DeathKey)
             || uint8(Event.KillCause) > uint8(ELDKillCause::Unowned)
             || (Event.KillCause == ELDKillCause::Contender) != Event.CreditContender.IsValid()
-            || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer))
+            || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer)
+            || (!Killer && !Event.Assisters.IsEmpty()))
         { return ELDCommitReject::InvalidRequest; }
+        for (int32 Index = 0; Index < Event.Assisters.Num(); ++Index)
+        {
+            const FGuid& Assister = Event.Assisters[Index];
+            FLDContenderRecord* Record = Assister.IsValid() ? FindContender(Assister) : nullptr;
+            if (!Record || Assister == Id || Assister == Event.CreditContender
+                || (Index > 0 && !(Event.Assisters[Index - 1] < Assister)))
+            { return ELDCommitReject::InvalidRequest; }
+            Assisters.Add(Record);
+        }
         if (NextKillSerial == MAX_uint64) { return ELDCommitReject::CounterExhausted; }
     }
     FString Error;
@@ -190,10 +201,12 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         CountedDeaths.Add(DeathKey);
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
+        for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
         FLDKillNotice& Notice = KillNotices.AddDefaulted_GetRef();
         Notice.Serial = ++NextKillSerial;
         Notice.Victim = Id;
         Notice.Killer = Event.CreditContender;
+        Notice.Assisters = Event.Assisters;
         Notice.Cause = Event.KillCause;
         Notice.OccurredAtMs = Event.Time.BucketMs;
         while (KillNotices.Num() > LDCapture::MaxKillNotices) { KillNotices.RemoveAt(0); }
@@ -381,6 +394,7 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
         Row.bLeft = Record->bLeft;
         Row.Kills = Record->Kills;
         Row.Deaths = Record->Deaths;
+        Row.Assists = Record->Assists;
         if (!Progression->ReadFinalLevel(*this, Id, Row.FinalLevel, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("Progression refused a committed final level."); }

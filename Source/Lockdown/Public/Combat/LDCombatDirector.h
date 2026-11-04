@@ -3,6 +3,7 @@
 #include "GameFramework/Actor.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -76,6 +77,8 @@ struct FLDBodyCombatState
     // The armed next-basic bonus (one consumption) and this life's thorns repeat windows.
     TOptional<FLDCombatEmpower> Empower;
     TArray<FLDThornsMark> ThornsMarks;
+    // Assist contributions other contenders made to this life (LDAssist); read once when the life locks its death.
+    TArray<FLDAssistContribution> AssistContributions;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
     TOptional<FLDCombatStealth> Stealth;
@@ -264,9 +267,13 @@ public:
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
     // A body life's cue facts with its winding-up action and dash filled in.
     static FLDCombatCueFacts CueFactsOf(const FLDBodyCombatState& Body);
+    // Public Q/W facts of a build (#112 §10): each held active's native id and rank in its slot. False when a held active
+    // has no approved active definition, a rank outside 1..MaxSkillRank or a slot other than Q/W.
+    static bool PublicActivesOf(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content,
+        FLDObservedActivesView& Out);
 
     // ---- Growth compound commits.
-    // A locked death credited to this contender still awaits its reward (this boundary's set or its one retry).
+    // A locked death crediting this contender (killer or assister) still awaits its reward (this boundary's set or its one retry).
     bool OwesRewardTo(const FGuid& Recipient) const;
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
@@ -318,6 +325,7 @@ private:
     friend class FLDCombatOrderRulesTest;
     friend class FLDCombatRecoveryTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDDemoAssistSettlementTest;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -404,6 +412,11 @@ private:
     // A control the hit's source just applied to Target (Root now; stun or knock-up later) opens the source's
     // control damage amplification on that life.
     bool MarkControlled(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // The single assist contribution entry (LDAssist): CreditOwner, another contender, just hurt this contender life with
+    // positive damage (shield-absorbed part included) or applied any control or debuff to it. Every damage, control and
+    // debuff path calls it once per committed contact; camp bodies and unowned or self contacts are ignored.
+    // Returns whether a contribution was recorded or refreshed.
+    bool RecordAssistContribution(FLDBodyCombatState& Victim, const FGuid& CreditOwner, int64 NowMs);
     // Recomputes the effective projection from BuildProjection when the active temporary terms changed.
     bool RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter* Actor, int64 NowMs, FString& Error);
     // Ends lapsed slows, timed bonuses and exposures of every body and refreshes their effective projections.

@@ -124,6 +124,10 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 PlayerXPPerLevel = 0;
     UPROPERTY() int64 PlayerGoldBase = 0;
     UPROPERTY() int64 PlayerGoldPerLevel = 0;
+    // Contender kills only: a contribution within this window before the death earns an assist; the assisters split
+    // this share of the victim's base kill gold (the killer keeps the full kill gold).
+    UPROPERTY() int64 AssistWindowMs = 0;
+    UPROPERTY() int64 AssistGoldBp = 0;
     UPROPERTY() FLDDemoAIParameters AI;
 };
 

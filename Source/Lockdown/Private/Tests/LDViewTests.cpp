@@ -26,9 +26,9 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
-        TEXT("Deaths"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
+        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices")},TEXT("Kill feed is a bounded public ring"));
-    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Cause"),TEXT("OccurredAtMs")},
+    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Assisters"),TEXT("Cause"),TEXT("OccurredAtMs")},
         TEXT("Kill notices carry no coordinates or build"));
     const FStructProperty* Clock=CastField<FStructProperty>(ALDGameState::StaticClass()->FindPropertyByName(TEXT("DemoClock")));
     if(TestNotNull(TEXT("The authority clock is one struct value"),Clock))

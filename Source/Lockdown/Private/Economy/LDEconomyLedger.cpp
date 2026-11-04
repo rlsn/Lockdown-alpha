@@ -497,6 +497,26 @@ int64 LDEconomy::FLedger::TotalGold() const
 
 LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transaction) const
 {
+    return PrepareFrom(Current, TArray<FGuid>(), Transaction);
+}
+
+LDEconomy::FPrepareResult LDEconomy::FLedger::PrepareAfter(const FPreparedCommit& Previous, const FTransaction& Transaction) const
+{
+    if (IsInitialized() && Previous.AfterState.ThroughSerial != Previous.ExpectedCommittedSerial + 1)
+    {
+        FPrepareResult Result;
+        Result.Error = EPrepareError::InvalidTransaction;
+        Result.Message = TEXT("A chained plan must follow a prepared commit.");
+        return Result;
+    }
+    TArray<FGuid> Keys = Previous.ChainKeys;
+    Keys.Add(Previous.Journal.Transaction.BusinessKey);
+    return PrepareFrom(Previous.AfterState, Keys, Transaction);
+}
+
+LDEconomy::FPrepareResult LDEconomy::FLedger::PrepareFrom(const FAuditState& Base, const TArray<FGuid>& ChainKeys,
+    const FTransaction& Transaction) const
+{
     FPrepareResult Result;
     if (!IsInitialized())
     {
@@ -504,10 +524,22 @@ LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transa
         Result.Message = TEXT("Ledger is not initialized for a match.");
         return Result;
     }
-    if (Tail.Num() >= JournalTailCapacity)
+    if (Tail.Num() + ChainKeys.Num() >= JournalTailCapacity)
     {
         Result.Error = EPrepareError::JournalFull;
         Result.Message = TEXT("Ledger journal tail is full; compact the resolved prefix first.");
+        return Result;
+    }
+    if (Base.Match != Current.Match || Base.ThroughSerial != Current.ThroughSerial + uint64(ChainKeys.Num()))
+    {
+        Result.Error = EPrepareError::InvalidTransaction;
+        Result.Message = TEXT("A chained plan does not continue the current committed serial.");
+        return Result;
+    }
+    if (ChainKeys.Contains(Transaction.BusinessKey))
+    {
+        Result.Error = EPrepareError::BusinessKeyConflict;
+        Result.Message = TEXT("Business key repeats inside one composite commit.");
         return Result;
     }
     for (const FJournalEntry& Old : Tail)
@@ -522,9 +554,10 @@ LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transa
         }
     }
     FPreparedCommit Prepared;
-    Prepared.ExpectedCommittedSerial = Current.ThroughSerial;
+    Prepared.ExpectedCommittedSerial = Base.ThroughSerial;
     Prepared.Journal.Transaction = Transaction;
-    Prepared.AfterState = Current;
+    Prepared.AfterState = Base;
+    Prepared.ChainKeys = ChainKeys;
     if (!ApplyEntry(Prepared.AfterState, Prepared.Journal, false, Result.Error, Result.Message))
     {
         return Result;

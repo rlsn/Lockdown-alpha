@@ -453,6 +453,20 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnShopOpenResult, const FLDShopOpenResult
 
 // ---- Server-internal death reward result ------------------------------------------------------
 
+// One assister's part of a contender kill reward, committed in the same composite as the killer's part.
+struct LOCKDOWN_API FLDRewardShareReceipt
+{
+    FGuid Recipient;
+    bool bHasLedgerSerial = false;
+    uint64 LedgerSerial = 0;
+    int64 GoldDelta = 0;
+    int64 XPDelta = 0;
+    uint8 LevelBefore = 0;
+    uint8 LevelAfter = 0;
+    uint8 OpportunityFirst = 1;
+    uint8 OpportunityLast = 0;
+};
+
 struct LOCKDOWN_API FLDRewardReceipt
 {
     FLDDeathKey Key;
@@ -460,6 +474,7 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 Fingerprint[32] = {};
     ELDRewardOutcome Outcome = ELDRewardOutcome::None;
     ELDGrowthReason Reason = ELDGrowthReason::None;
+    // The killer (or the only recipient of a camp or DEV reward); the fields below are his part.
     FGuid Recipient;
     bool bHasLedgerSerial = false;
     uint64 LedgerSerial = 0;
@@ -471,6 +486,8 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 OpportunityFirst = 1;
     uint8 OpportunityLast = 0;
     FLDResultRevisions Revisions;
+    // Assisters of a contender kill in the fact's order, each with the part granted in the same commit.
+    TArray<FLDRewardShareReceipt> Assists;
 };
 
 namespace LDGrowthWire

@@ -114,8 +114,17 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
     {
         if (!Notice.Serial || Notice.Serial <= Previous || !Notice.Victim.IsValid() || Notice.OccurredAtMs < 0
             || uint8(Notice.Cause) > uint8(ELDKillCause::Unowned)
-            || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim)
+            || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim
+            || (Notice.Cause != ELDKillCause::Contender && !Notice.Assisters.IsEmpty())
+            || Notice.Assisters.Num() > CaptureResultRowsMax - 2)
         { return FailCaptureView(Error, TEXT("Invalid kill notice.")); }
+        for (int32 Index = 0; Index < Notice.Assisters.Num(); ++Index)
+        {
+            const FGuid& Assister = Notice.Assisters[Index];
+            if (!Assister.IsValid() || Assister == Notice.Victim || Assister == Notice.Killer
+                || (Index > 0 && !(Notice.Assisters[Index - 1] < Assister)))
+            { return FailCaptureView(Error, TEXT("Invalid kill notice assisters.")); }
+        }
         Previous = Notice.Serial;
     }
     Error.Reset();
