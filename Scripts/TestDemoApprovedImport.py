@@ -411,6 +411,7 @@ class ApprovedDemoData(unittest.TestCase):
 class ApprovedDemoRefusals(unittest.TestCase):
     def setUp(self):
         base = content.ROOT / "Artifacts" / "DemoContent"
+        base.mkdir(parents=True, exist_ok=True)
         temporary = tempfile.TemporaryDirectory(prefix="approved-test-", dir=base)
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
