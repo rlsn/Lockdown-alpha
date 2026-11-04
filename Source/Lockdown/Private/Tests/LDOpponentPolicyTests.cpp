@@ -735,7 +735,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         Contest.Public.Phase = ELDMatchPhase::CaptureOpen;
         Contest.Public.Circle = ELDOpponentCircle::Contested;
         Contest.Self.FootCm = FVector(0, 2700, 0);
-        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900), Unit(5, ELDOpponentUnitKind::Contender, 0, 3500)};
+        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900), Unit(5, ELDOpponentUnitKind::Contender, 0, 3250)};
         const auto Nearer = LDOpponentPolicy::Decide(Contest, C, Challenge);
         Contest.Public.Occupier = FGuid(0xE0, 0, 0, 5);
         const auto Holder = LDOpponentPolicy::Decide(Contest, C, Challenge);
@@ -756,6 +756,70 @@ bool RunPriorities(FAutomationTestBase& Test)
         const auto Join = Decide(Outside);
         bGood &= Expect(Test, TEXT("D12: a paused rival hold is contested from outside without urgency"), Join, EMode::Contest,
             EBody::MoveGround, TEXT("capture"));
+    }
+    {
+        // Spray and guard (APP_SPEC 2.2): the owner guards the zone but never dies for it; every other body besieges the
+        // visible owner or walks in to repaint; a hard control interrupts the public sole sprayer.
+        FLDOpponentPolicyState Guard;
+        auto Owned = Base;
+        Owned.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Owned.Public.Circle = ELDOpponentCircle::Empty;
+        Owned.Public.Owner = Owned.Self.ContenderId;
+        Owned.Public.GuardDueAtMs = Owned.Public.NowMs + 15000;
+        const auto Guarding = LDOpponentPolicy::Decide(Owned, C, Guard);
+        bGood &= Expect(Test, TEXT("The graffiti owner returns to guard the zone"), Guarding, EMode::DefendOrHold,
+            EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Guard reason"), Guarding.Reason == ELDOpponentReason::GuardGraffiti);
+        Owned.Self.HpP2 = Owned.Self.MaxHpP2 / 5;
+        Owned.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 600)};
+        const auto Survive = LDOpponentPolicy::Decide(Owned, C, Guard);
+        bGood &= Expect(Test, TEXT("A low owner escapes instead of dying, since his death clears the graffiti"), Survive,
+            EMode::Disengage, EBody::MoveGround);
+
+        FLDOpponentPolicyState Siege;
+        auto Rival = Base;
+        Rival.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Rival.Public.Circle = ELDOpponentCircle::Empty;
+        Rival.Public.Owner = FGuid(0xE0, 0, 0, 5);
+        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 15000;
+        Rival.CapturePathCm = 3000.;
+        Rival.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 300)};
+        const auto Besiege = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("A visible rival owner within reach is besieged on the way"), Besiege, EMode::Contest,
+            EBody::AttackUnit) && Test.TestTrue(TEXT("The owner is the target"), Besiege.Body.Handle == FGuid(0xD0, 0, 0, 5)
+                && Besiege.Reason == ELDOpponentReason::BesiegeOwner);
+        Rival.Units.Reset();
+        const auto Repaint = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("An unseen owner's graffiti is answered by walking in to repaint"), Repaint, EMode::Contest,
+            EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Siege reason"), Repaint.Reason == ELDOpponentReason::BesiegeOwner);
+        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 3000;
+        const auto Late = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("A guard about to win makes the answer urgent"), Late, EMode::DefendOrHold, EBody::MoveGround,
+            TEXT("capture"));
+
+        FLDOpponentPolicyState Stop;
+        auto Spray = Base;
+        Spray.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Spray.Public.Circle = ELDOpponentCircle::Solo;
+        Spray.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Spray.Public.DueAtMs = Spray.Public.NowMs + 2000;
+        Spray.Self.FootCm = FVector(0, 2750, 0);
+        Spray.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
+        Spray.Self.Skills = {Skill(TEXT("active_come_here"), 1, ELDOpponentSkillSlot::Q)};
+        FLDOpponentSource Taunt;
+        Taunt.Slot = ELDOpponentSourceSlot::Q;
+        Taunt.DefinitionId = TEXT("active_come_here");
+        Taunt.bReady = true;
+        Spray.Self.Sources = {Taunt};
+        const auto Interrupt = LDOpponentPolicy::Decide(Spray, C, Stop);
+        bGood &= Expect(Test, TEXT("A ready taunt interrupts the public sole sprayer within its radius"), Interrupt,
+            EMode::DefendOrHold, EBody::Activate) && Test.TestTrue(TEXT("The taunt is the activated source"),
+                Interrupt.Body.Source == ELDOpponentSourceSlot::Q);
+        Spray.Public.Circle = ELDOpponentCircle::Contested;
+        Spray.Public.DueAtMs = 0;
+        FLDOpponentPolicyState Paused;
+        const auto NoInterrupt = LDOpponentPolicy::Decide(Spray, C, Paused);
+        bGood &= Expect(Test, TEXT("A paused holder is fought, not taunted, since nobody sprays"), NoInterrupt, EMode::Contest,
+            EBody::AttackUnit);
     }
 
     Frame = Base;
@@ -783,15 +847,16 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Self.Gold = 150;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
-    Frame.Self.FootCm = FVector(0, 2500, 0);
-    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3500), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
+    // Both feet inside the 300 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
+    Frame.Self.FootCm = FVector(0, 2750, 0);
+    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3240), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("Inside the circle only rivals inside it are fought"), Decision, EMode::Contest, EBody::AttackUnit)
         && Test.TestTrue(TEXT("The in-circle rival"), Decision.Body.Handle == Frame.Units[0].Handle);
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = Frame.Self.ContenderId;
-    // Just outside the circle edge yet inside the acquisition radius of the holder.
-    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2350)};
+    // Just outside the zone edge yet inside the acquisition radius of the holder.
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2650)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("A solo holder does not chase a rival outside the circle"), Decision, EMode::DefendOrHold,
         EBody::None) && Test.TestTrue(TEXT("Hold reason"), Decision.Reason == ELDOpponentReason::HoldCapture);

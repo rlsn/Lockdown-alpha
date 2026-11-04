@@ -34,7 +34,7 @@ def match(index, duration_ms=125000, winner_slot=1, first_kill=30000):
                               purchases=(40000,) if slot != 2 else (), attempts=2))
     return {"schema": 1, "match": index, "generation": index, "result_id": f"{index:032x}",
             "content_root": "ab" * 32, "dev_content_reload": False,
-            "reason": "CaptureCompleted" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
+            "reason": "GuardSucceeded" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
             "capture_open_ms": 60000, "first_kill_ms": first_kill, "first_death_ms": 20000, "kill_feed_gaps": 0,
             "kills": [{"t_ms": first_kill, "victim": HUMAN, "killer": ai_id(0), "cause": "Contender"}] if first_kill >= 0 else [],
             "capture_contests": 3, "contenders": rows}
@@ -46,7 +46,7 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(summary["matches"], 2)
         self.assertEqual(summary["content_roots"], ["ab" * 32])
         self.assertFalse(summary["dev_content_reload"])
-        self.assertEqual(summary["reasons"]["CaptureCompleted"], 2)
+        self.assertEqual(summary["reasons"]["GuardSucceeded"], 2)
         self.assertEqual(summary["ai_capture_wins"], 2)
         self.assertEqual(summary["wins_by_slot"], {"0": 1, "1": 1, "2": 0})
         self.assertEqual(summary["duration_ms"]["min"], 125000)

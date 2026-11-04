@@ -39,7 +39,7 @@ const TCHAR* ReasonName(ELDMatchEndReason Reason)
 {
     switch (Reason)
     {
-    case ELDMatchEndReason::CaptureCompleted: return TEXT("CaptureCompleted");
+    case ELDMatchEndReason::GuardSucceeded: return TEXT("GuardSucceeded");
     case ELDMatchEndReason::HostEnded: return TEXT("HostEnded");
     default: return TEXT("None");
     }

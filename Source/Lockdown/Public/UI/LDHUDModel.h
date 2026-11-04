@@ -83,15 +83,18 @@ namespace LDHUD
         bool bProgress=false;
         float Progress=0.f;
     };
-    // Public capture state (APP_SPEC 2.2). Reaching zero only waits for the authority; it never announces a winner.
-    // A contested circle with a paused holder (D12) shows the paused progress against HoldMs, the approved CAPTURE hold;
-    // without a holder the contest names no one and shows no progress.
-    LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs,int64 HoldMs=0);
-    // The one most useful next step for the own player, shown under the public capture line: a pending growth choice,
-    // then the open capture point, then the dearest approved item the own gold buys while a slot is empty, then early
-    // farming. Own projections, the public match and approved prices only; never a hidden unit or another wallet.
-    // Empty when nothing applies or the match is not running.
-    LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
+    // Public spray and guard state (APP_SPEC 2.2). Reaching zero only waits for the authority; it never announces a
+    // spray or a winner. The progress bar shows the sole sprayer's progress (Solo), a paused holder's kept progress
+    // against SprayMs (Contested), otherwise the graffiti owner's guard against GuardMs (CAPTURE.SpraySec/GuardSec).
+    // The graffiti owner and the guard are named in every open state; a contest without a holder names no sprayer.
+    LOCKDOWN_API FCircleView Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
+        int64 SprayMs=0,int64 GuardMs=0);
+    // The one most useful next step for the own player, shown under the public spray line: a pending growth choice,
+    // then the open flagpole (spray, guard your own graffiti, or besiege its owner), then the dearest approved item the
+    // own gold buys while a slot is empty, then early farming. Own projections, the public match and approved prices
+    // only; never a hidden unit or another wallet. Empty when nothing applies or the match is not running.
+    LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,
+        const FString& OwnerName=FString());
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
     struct FKillFeedLineView

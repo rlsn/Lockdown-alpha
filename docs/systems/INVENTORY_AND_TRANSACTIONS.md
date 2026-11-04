@@ -128,7 +128,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 | `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑或库存修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
 | `ResetToMatchStart`（什么都不带） | `ALDEconomyDirector::CommitDevReset` 一笔复合提交：先在账本副本上演练 DevReset 条目（按槽序每件装备一条不退款的 Consume，再一条金币变动回到 `SHOP.StartingGold`），再按其结果准备 `ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无技能与属性卡、只有开局机会、Apply 时与 `BeginMatch` 一样抽开局 Offer；各修订继续递增，旧状态的在途选择按过期拒绝）与 `ALDCombatDirector::DevPrepareReset`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层），全部可行才依次安装，随后 `DevFinishReset` 丢弃全部技能与装备冷却轨道、冲刺就绪、活着的身体补满；日志尾已满时保留待下一阶段；Alive 或 Dead |
 | `RefreshCamps`（只限 Host） | `ALDCampDirector::DevRefreshCleared` → `FLDCampMatchState::DevRefreshNow`：每个已清空、等待刷新的营地截止时间提前到本边界（不推迟更早的截止），下一个 RespawnsAndWorld 经 `AdvanceCamps` 正常整组刷新（含出生点被占时的等待）；存活营地不动；回执写出等待中的营地数；没有营地 director 为 `DataNotReady` |
-| `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放圈的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；占领所需时间与全部占领规则不变；其他阶段为 `StaleContext` |
+| `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放旗杆的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；喷漆、守护时长与全部规则不变；其他阶段为 `StaleContext` |
 
 终态回执在 `PublishGrowth` 的 `SyncOwner` 之后经 `ClientDevTestResult` 送达，受理结果同一通道立即返回。
 普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
@@ -178,7 +178,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、
 只有本局新抽的一次开局机会（不是第一局的任何 Offer），Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
 且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
-开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、抢圈或终局。
+开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、喷漆守护或终局。
 已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。

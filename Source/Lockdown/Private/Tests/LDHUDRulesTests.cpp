@@ -227,38 +227,58 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublic
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {
     FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=120000;
-    TestEqualSensitive(TEXT("Development counts down to the public opening in whole seconds rounded up"),LDHUD::Circle(Public,FString(),true,500).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT(" 2:00 后开放"));
+    TestEqualSensitive(TEXT("Development counts down to the public opening in whole seconds rounded up"),LDHUD::Circle(Public,FString(),FString(),true,500).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT(" 2:00 后开放"));
     TestEqualSensitive(TEXT("A running countdown never reads 0:00 before the opening"),LDHUD::Clock(1),FString(TEXT("0:01")));
-    TestEqualSensitive(TEXT("Without the authority clock the opening time is not guessed"),LDHUD::Circle(Public,FString(),false,0).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放"));
+    TestEqualSensitive(TEXT("Without the authority clock the opening time is not guessed"),LDHUD::Circle(Public,FString(),FString(),false,0).Line,FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放"));
     Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Empty;
-    TestEqualSensitive(TEXT("An open empty circle has no occupier"),LDHUD::Circle(Public,FString(),true,0).Line,FString(LDTerms::CircleEmpty));
+    TestEqualSensitive(TEXT("An open empty zone names no one"),LDHUD::Circle(Public,FString(),FString(),true,0).Line,FString(LDTerms::CircleEmpty));
     Public.CircleState=ELDCircleState::Contested;
-    const LDHUD::FCircleView Contested=LDHUD::Circle(Public,TEXT("玩家甲"),true,0);
+    const LDHUD::FCircleView Contested=LDHUD::Circle(Public,TEXT("玩家甲"),FString(),true,0);
     TestTrue(TEXT("A contest without a holder names no one and shows no progress"),Contested.Line==FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept&&!Contested.bProgress);
     {
-        FLDPublicMatchView Paused=Public;Paused.Occupier=FGuid::NewGuid();Paused.PausedProgressMs=12001;
+        FLDPublicMatchView Paused=Public;Paused.Occupier=FGuid::NewGuid();Paused.PausedProgressMs=1201;
         const FString Contest=FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(TEXT("玩家甲"));
-        const LDHUD::FCircleView Held=LDHUD::Circle(Paused,TEXT("玩家甲"),true,0,25000);
-        TestTrue(TEXT("A paused holder's progress shows against the approved hold, rounded up"),
-            Held.Line==Contest+TEXT(" 13/25 s")&&Held.bProgress&&FMath::IsNearlyEqual(Held.Progress,12001.f/25000.f));
-        TestTrue(TEXT("Without the approved hold the paused seconds still show, without a bar"),
-            LDHUD::Circle(Paused,TEXT("玩家甲"),true,0).Line==Contest+TEXT("（13 s）")&&!LDHUD::Circle(Paused,TEXT("玩家甲"),true,0).bProgress);
+        const LDHUD::FCircleView Held=LDHUD::Circle(Paused,TEXT("玩家甲"),FString(),true,0,3500,20000);
+        TestTrue(TEXT("A paused sprayer's progress shows against the approved spray in tenths"),
+            Held.Line==Contest+TEXT(" 1.2/3.5 s")&&Held.bProgress&&FMath::IsNearlyEqual(Held.Progress,1201.f/3500.f));
+        TestTrue(TEXT("Without the approved spray the paused seconds still show, without a bar"),
+            LDHUD::Circle(Paused,TEXT("玩家甲"),FString(),true,0).Line==Contest+TEXT("（1.2 s）")&&!LDHUD::Circle(Paused,TEXT("玩家甲"),FString(),true,0).bProgress);
     }
-    Public.CircleState=ELDCircleState::Solo;Public.SoloSinceMs=100000;Public.DueAtMs=125000;
-    const LDHUD::FCircleView Solo=LDHUD::Circle(Public,TEXT("玩家甲"),true,110000);
-    TestTrue(TEXT("Solo progress runs from the public solo start to its due time"),Solo.bProgress&&FMath::IsNearlyEqual(Solo.Progress,.4f,.0001f)
-        &&Solo.Line==FString(TEXT("玩家甲 "))+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" 15.0s"));
-    const LDHUD::FCircleView Due=LDHUD::Circle(Public,TEXT("玩家甲"),true,126000);
-    TestTrue(TEXT("Reaching the due time waits for the authority and never claims a winner"),Due.Progress==1.f&&Due.Line.EndsWith(TEXT("0.0s"))&&!Due.Line.Contains(LDTerms::Winner));
-    TestEqualSensitive(TEXT("An unlisted occupier is not given an invented name"),LDHUD::Circle(Public,FString(),false,0).Line,FString(TEXT("未列名参赛者 "))+LDTerms::Holding+TEXT(" · 进度同步中"));
+    Public.CircleState=ELDCircleState::Solo;Public.SoloSinceMs=100000;Public.DueAtMs=103500;
+    const LDHUD::FCircleView Solo=LDHUD::Circle(Public,TEXT("玩家甲"),FString(),true,101400);
+    TestTrue(TEXT("Spray progress runs from the public spray start to its due time"),Solo.bProgress&&FMath::IsNearlyEqual(Solo.Progress,.4f,.0001f)
+        &&Solo.Line==FString(TEXT("玩家甲 "))+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" 2.1s"));
+    const LDHUD::FCircleView Due=LDHUD::Circle(Public,TEXT("玩家甲"),FString(),true,104000);
+    TestTrue(TEXT("Reaching the due time waits for the authority and never claims a graffiti or a winner"),Due.Progress==1.f&&Due.Line.EndsWith(TEXT("0.0s"))&&!Due.Line.Contains(LDTerms::Winner));
+    TestEqualSensitive(TEXT("An unlisted sprayer is not given an invented name"),LDHUD::Circle(Public,FString(),FString(),false,0).Line,FString(TEXT("未列名参赛者 "))+LDTerms::Holding+TEXT(" · 进度同步中"));
+    {
+        // The graffiti owner and his guard are public in every open state.
+        FLDPublicMatchView Owned=Public;Owned.GraffitiOwner=FGuid::NewGuid();Owned.GuardKeptMs=5000;
+        const LDHUD::FCircleView Repaint=LDHUD::Circle(Owned,TEXT("玩家甲"),TEXT("玩家乙"),true,101400,3500,20000);
+        TestTrue(TEXT("A sole sprayer's bar shows his spray; the line names the paused guard of the graffiti owner"),
+            Repaint.bProgress&&FMath::IsNearlyEqual(Repaint.Progress,.4f,.0001f)
+            &&Repaint.Line==FString(TEXT("玩家甲 "))+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" 2.1s · ")+LDTerms::GraffitiOf(TEXT("玩家乙"))
+                +TEXT(" · ")+LDTerms::GuardPaused+TEXT("（")+LDTerms::GuardLeft+TEXT(" 15.0s）"));
+        FLDPublicMatchView Guarded=Owned;Guarded.CircleState=ELDCircleState::Guarded;Guarded.Occupier.Invalidate();
+        Guarded.SoloSinceMs=Guarded.DueAtMs=Guarded.GuardKeptMs=0;Guarded.GuardDueAtMs=120000;
+        const LDHUD::FCircleView Guard=LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000);
+        TestTrue(TEXT("A running guard counts down to its public win instant"),Guard.bProgress&&FMath::IsNearlyEqual(Guard.Progress,.25f,.0001f)
+            &&Guard.Line==LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardLeft+TEXT(" 15.0s"));
+        Guarded.CircleState=ELDCircleState::Empty;
+        TestEqualSensitive(TEXT("An owner away from the zone still guards"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000).Line,Guard.Line);
+        Guarded.CircleState=ELDCircleState::Contested;
+        TestEqualSensitive(TEXT("A contest beside the owner names the running guard"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000).Line,
+            FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept+TEXT(" · ")+Guard.Line);
+        TestFalse(TEXT("A running guard never claims a winner"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,125000,3500,20000).Line.Contains(LDTerms::Winner));
+    }
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;
     TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh),LDTerms::KillLine(TEXT("甲"),TEXT("乙")));
     Notice.Cause=ELDKillCause::CampHigh;
     TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh),LDTerms::KilledByLine(TEXT("乙"),LDTerms::CampHigh));
     Notice.Cause=ELDKillCause::Unowned;
     TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),LDTerms::CampLow,LDTerms::CampHigh),FString(TEXT("乙 "))+LDTerms::Dead+TEXT("（无参赛者击杀）"));
-    FLDResultView Result;Result.Reason=ELDMatchEndReason::CaptureCompleted;Result.Winner=FGuid::NewGuid();
-    TestEqualSensitive(TEXT("A capture result crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),LDTerms::Crowned(TEXT("甲")));
+    FLDResultView Result;Result.Reason=ELDMatchEndReason::GuardSucceeded;Result.Winner=FGuid::NewGuid();
+    TestEqualSensitive(TEXT("A guard win names its end reason and crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),FString(TEXT("守护成功 · "))+LDTerms::Crowned(TEXT("甲")));
     TestTrue(TEXT("The crowning names the winner and the winner title"),LDTerms::Crowned(TEXT("甲")).StartsWith(TEXT("甲 "))&&LDTerms::Crowned(TEXT("甲")).Contains(LDTerms::Winner));
     Result.Winner.Invalidate();
     TestEqualSensitive(TEXT("A capture result without a winner says so"),LDHUD::ResultHeadline(Result,FString()),FString(LDTerms::NoWinner));
@@ -537,7 +557,12 @@ bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
     Growth.PendingChoiceCount=0;Public.Phase=ELDMatchPhase::CaptureOpen;
     TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo);
     Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;
-    TestEqualSensitive(TEXT("The own occupation is encouraged instead"),Step(),FString(TEXT("稳住：你"))+LDTerms::Holding);
+    TestEqualSensitive(TEXT("The own spray is encouraged instead"),Step(),FString(TEXT("稳住：你"))+LDTerms::Holding);
+    Public.CircleState=ELDCircleState::Guarded;Public.Occupier.Invalidate();Public.GraffitiOwner=Self;
+    TestEqualSensitive(TEXT("The own graffiti asks to survive the guard"),Step(),FString(LDTerms::GuardOwn));
+    Public.GraffitiOwner=FGuid::NewGuid();
+    TestEqualSensitive(TEXT("A rival graffiti asks to besiege its owner or repaint"),LDHUD::NextStep(Public,Self,&Growth,&Wallet,&Content,TEXT("玩家乙")),LDTerms::Besiege(TEXT("玩家乙")));
+    Public.GraffitiOwner.Invalidate();
     Public.Phase=ELDMatchPhase::Results;
     TestTrue(TEXT("Outside a running match there is no hint"),Step().IsEmpty());
     Public.Phase=ELDMatchPhase::Development;Growth.Generation=3;Wallet.Generation=3;Wallet.Slots[0].bOccupied=false;

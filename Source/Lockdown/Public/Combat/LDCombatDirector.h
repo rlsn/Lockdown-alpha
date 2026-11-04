@@ -389,6 +389,10 @@ private:
     // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body.
     bool ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
         const FGuid& EffectId, FString& Error);
+    // Spray interruption (APP_SPEC 2.2): called once for every root, stun, taunt or knockback committed on a body,
+    // inside the current Actions/Effects permit. A contender body's spray progress clears through the capture domain;
+    // camp bodies and a world without an active spray reducer are untouched. Disarm, slow and damage never call it.
+    bool InterruptSpray(const FLDBodyCombatState& Target, FString& Error);
     // Effective speed of one body: the projection, less an active stealth penalty.
     bool EffectiveMoveSpeed(const FLDBodyCombatState& Body, int64 NowMs, double& OutCmPerSec) const;
     // Stealth ends at an accepted attack/ability/item or a positive hit.

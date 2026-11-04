@@ -94,6 +94,7 @@ ELDOpponentCircle CircleOf(ELDCircleState State)
     {
     case ELDCircleState::Solo: return ELDOpponentCircle::Solo;
     case ELDCircleState::Contested: return ELDOpponentCircle::Contested;
+    case ELDCircleState::Guarded: return ELDOpponentCircle::Guarded;
     default: return ELDOpponentCircle::Empty;
     }
 }
@@ -197,20 +198,23 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds, Tally.PausedHoldsKept,
-        Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks);
+        Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
 {
     const FLDOpponentPublicMatch& Public = Frame.Public;
-    if (Frame.Self.Phase != ELDLifePhase::Alive || Public.Phase != ELDMatchPhase::CaptureOpen
-        || Public.Circle != ELDOpponentCircle::Contested || !Public.Occupier.IsValid())
+    if (Frame.Self.Phase != ELDLifePhase::Alive || Public.Phase != ELDMatchPhase::CaptureOpen) { return; }
+    const bool bAimed = Decision.Body.Kind == ELDOpponentBodyKind::AttackUnit || Decision.Body.Kind == ELDOpponentBodyKind::Activate;
+    if (bAimed && Public.Owner.IsValid() && Public.Owner != Frame.Self.ContenderId && Frame.Units.ContainsByPredicate(
+        [&](const FLDOpponentUnit& Unit) { return Unit.Handle == Decision.Body.Handle && Unit.ContenderId == Public.Owner; }))
     {
-        return;
+        ++Tally.OwnerAttacks;
     }
+    if (Public.Circle != ELDOpponentCircle::Contested || !Public.Occupier.IsValid()) { return; }
     const bool bReleased = Decision.Mode == ELDOpponentMode::Disengage;
     if (Public.Occupier == Frame.Self.ContenderId)
     {
@@ -330,6 +334,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
         ? Public.Occupier : FGuid();
     Frame.Public.DueAtMs = Public.DueAtMs;
+    Frame.Public.Owner = Public.GraffitiOwner;
+    Frame.Public.GuardDueAtMs = Public.GuardDueAtMs;
     FLDOpponentSelf& Me = Frame.Self;
     Me.ContenderId = Own.ContenderId;
     Me.Phase = Own.LifePhase;
@@ -369,8 +375,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (!LDOpponentFrame::ReadObservedUnits(View, Generation, *Content, Frame.Units, Error)) { return false; }
     Frame.ViewRevision = View.Revision;
     Me.FootCm = View.Footprint.SourceFeetCm;
-    if (Public.Phase == ELDMatchPhase::CaptureOpen && Public.CircleState == ELDCircleState::Solo
-        && Public.Occupier != Own.ContenderId)
+    if (Public.Phase == ELDMatchPhase::CaptureOpen && ((Public.CircleState == ELDCircleState::Solo
+        && Public.Occupier != Own.ContenderId) || (Public.GraffitiOwner.IsValid() && Public.GraffitiOwner != Own.ContenderId)))
     {
         double PathCm = 0;
         FString PathError;

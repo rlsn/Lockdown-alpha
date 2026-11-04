@@ -15,7 +15,7 @@ import statistics
 MATCH_SCHEMA = 1
 SUMMARY_SCHEMA = 1
 OPPONENTS = 3
-REASONS = ("CaptureCompleted", "HostEnded", "None")
+REASONS = ("GuardSucceeded", "HostEnded", "None")
 KINDS = ("Human", "OpponentAI")
 CAUSES = ("Contender", "CampLow", "CampHigh", "Unowned")
 MATCH_FILE = re.compile(r"Match[0-9]{2}\.json")
@@ -166,7 +166,7 @@ def summarize(matches):
         ais.extend(match_ais)
         winner = next((row for row in rows if row["winner"]), None)
         winner_slot = winner["slot"] if winner else -1
-        if winner and winner["kind"] == "OpponentAI" and match["reason"] == "CaptureCompleted":
+        if winner and winner["kind"] == "OpponentAI" and match["reason"] == "GuardSucceeded":
             ai_capture_wins += 1
             wins_by_slot[str(winner_slot)] += 1
         per_match.append({

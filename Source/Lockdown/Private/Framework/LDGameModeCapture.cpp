@@ -7,7 +7,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Engine/World.h"
 
-// Capture/endgame module: the unique continuous-exclusive circle, the locked result and the
+// Capture/endgame module: the unique spray zone and graffiti guard, the locked result and the
 // public projections. The authority driver calls Capture -> Close -> Publish after Transactions.
 
 int64 ALDGameMode::NextCaptureDueMs() const
@@ -38,9 +38,9 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
     MatchStartedAtMs = AuthorityNowMs;
     if (Parameters.DevelopmentMs <= 0
         || !LDMatchLifecycle::AddDurationMs(MatchStartedAtMs, Parameters.DevelopmentMs, OpenAtMs, Error)
-        || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureHoldMs, Error))
+        || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("The approved development or capture hold duration is invalid."); }
+        if (Error.IsEmpty()) { Error = TEXT("The approved development, spray or guard duration is invalid."); }
         CaptureCircle = {};
         return false;
     }
@@ -202,6 +202,29 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     return ELDCommitReject::None;
 }
 
+ELDCommitReject ALDGameMode::PublishCaptureInterrupt(const FLDGameplayWritePermit& Permit, const FLDCombatBodyRef& Body)
+{
+    const ELDCommitPhase Phase = Permit.GetPhase();
+    if (Phase != ELDCommitPhase::Actions && Phase != ELDCommitPhase::Effects) { return ELDCommitReject::WrongPhase; }
+    const auto Permission = ValidateWritePermit(Permit, Phase);
+    if (Permission != ELDCommitReject::None) { return Permission; }
+    if (!CaptureReducer.IsActive() || !CaptureCircle.IsValid()) { return ELDCommitReject::WrongPhase; }
+    if (Body.Victim.Kind != ELDVictimKind::Contender || !CaptureReducer.IsCommittedAliveBody(Body))
+    { return ELDCommitReject::UnknownBody; }
+    FLDCaptureEvent Fact;
+    Fact.Kind = ELDCaptureEventKind::Interrupted;
+    Fact.Body = Body;
+    Fact.Phase = Phase;
+    FString Error;
+    // The control lands at this boundary instant: before any spray or guard completion due at the same instant.
+    if (!FLDCaptureEventTime::FromMs(Permit.GetBoundary().AtMs, Fact.Time, Error) || !CaptureReducer.Enqueue(Fact, Error))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
+        return ELDCommitReject::InvalidRequest;
+    }
+    return ELDCommitReject::None;
+}
+
 void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
 {
     // A contender outside the capture roster (no committed join) has no eligibility to revoke.
@@ -300,14 +323,14 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (!PendingCapture) { return true; }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
-    // A completion planned inside this step happened before its boundary; any other one is due exactly at it.
+    // A guard win planned inside this step happened before its boundary; any other one is due exactly at it.
     const int64 AtMs = Permit.GetBoundary().AtMs;
-    if (Proposal.Epoch != CaptureReducer.GetEpoch() || CaptureReducer.GetState() != ELDCircleState::Solo
-        || CaptureReducer.GetOccupier() != Proposal.Occupier
+    if (Proposal.Epoch != CaptureReducer.GetEpoch() || !CaptureReducer.IsGuardRunning()
+        || CaptureReducer.GetGraffitiOwner() != Proposal.Winner || CaptureReducer.GetGuardDueAtMs() != Proposal.DueAtMs
         || (bCaptureCompletesInsideStep ? Proposal.DueAtMs >= AtMs : Proposal.DueAtMs != AtMs))
     {
         PendingCapture.Reset();
-        Error = TEXT("The capture proposal no longer matches the closed continuous segment.");
+        Error = TEXT("The guard proposal no longer matches the closed graffiti guard.");
         return false;
     }
     if (HasPendingRewardRetries())
@@ -315,17 +338,17 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
         if (bSettlementStep || bCaptureCompletesInsideStep)
         {
             PendingCapture.Reset();
-            Error = TEXT("The settlement boundary still owes a reward; the capture cannot lock over it.");
+            Error = TEXT("The settlement boundary still owes a reward; the guard win cannot lock over it.");
             return false;
         }
-        // The hold is complete at this instant, but a reward of a death up to it is still owed. The proposal
+        // The guard is complete at this instant, but a reward of a death up to it is still owed. The proposal
         // waits for a settlement boundary at the same instant: its single retry first, then this Close.
         UE_LOG(LogTemp, Display, TEXT("LD_CAPTURE_CLOSE_AWAITS_REWARD generation=%u due_ms=%lld"),
             MatchContext.Generation, Proposal.DueAtMs);
         return true;
     }
     PendingCapture.Reset();
-    return TryCloseMatch(ELDMatchEndReason::CaptureCompleted, Proposal.Occupier, Proposal.DueAtMs, Error);
+    return TryCloseMatch(ELDMatchEndReason::GuardSucceeded, Proposal.Winner, Proposal.DueAtMs, Error);
 }
 
 bool ALDGameMode::HasPendingRewardRetries() const
@@ -510,6 +533,15 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.Occupier = CaptureReducer.GetOccupier();
         View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
     }
+    View.GraffitiOwner = CaptureReducer.GetGraffitiOwner();
+    if (View.GraffitiOwner.IsValid())
+    {
+        // The owner's public identity slot: his start roster position, the same key his body tint uses.
+        const int32 Slot = RosterOrder.IndexOfByKey(View.GraffitiOwner);
+        View.GraffitiPresentation = Slot >= 0 && Slot < MAX_uint8 ? uint8(Slot) : MAX_uint8;
+    }
+    View.GuardDueAtMs = CaptureReducer.GetGuardDueAtMs();
+    View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     return View;
 }

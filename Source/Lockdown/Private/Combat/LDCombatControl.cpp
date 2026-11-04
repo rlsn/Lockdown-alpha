@@ -127,6 +127,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         FLDBodyCombatState& Victim=*States[Index];
         bool bRevealed=false;
         if (!LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Taunt,Now,bRevealed)) { continue; }
+        if (!InterruptSpray(Victim,Error)) { return false; }
         // Unreleased work the taunt now forbids ends without cost; a basic swing at the taunter continues.
         if (Victim.Action.IsSet() && !LDControl::TauntAllows(Victim.Taunt,Now,
             Victim.Action->Kind==ELDCombatActionKind::Basic,Victim.Action->TargetBody))
@@ -135,6 +136,26 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         MarkViewChanged(Victim.Victim.EntityId);
         UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Taunt.ExpiresAtMs);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::InterruptSpray(const FLDBodyCombatState& Target, FString& Error)
+{
+    auto* Mode=Core();
+    if (!Mode) { Error=TEXT("A spray interruption requires the current core."); return false; }
+    // Rule fixtures without a spray zone, and camp bodies, carry no spray progress.
+    if (Target.Victim.Kind!=ELDVictimKind::Contender || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
+    if (!Mode->ActiveWritePermit)
+    {
+        Error=TEXT("A spray interruption must be committed inside a gameplay permit.");
+        return false;
+    }
+    const ELDCommitReject Reject=Mode->PublishCaptureInterrupt(*Mode->ActiveWritePermit,{Target.Victim,Target.Identity});
+    if (Reject!=ELDCommitReject::None)
+    {
+        Error=FString::Printf(TEXT("The spray zone refused the interruption of %s (reject %u)."),*Target.Victim.EntityId.ToString(),uint32(Reject));
+        return false;
     }
     return true;
 }

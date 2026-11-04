@@ -486,6 +486,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("challenges_kept"), T.ChallengesKept);
         Value->SetNumberField(TEXT("challenges_released"), T.ChallengesReleased);
         Value->SetNumberField(TEXT("holder_attacks"), T.HolderAttacks);
+        Value->SetNumberField(TEXT("owner_attacks"), T.OwnerAttacks);
         Rows.Add(MakeShared<FJsonValueObject>(Value));
     }
     Summary->SetArrayField(TEXT("opponents"), Rows);
@@ -644,8 +645,10 @@ bool FLDDemoOpponentProbe::Tick()
         const FLDResultView& Result = Public->MatchResult;
         if (Result.Generation != View.Generation || Result.ResultId != View.ResultId) { return true; }
         const FLDResultRow* Winner = Result.Rows.FindByPredicate([&Result](const FLDResultRow& Row) { return Row.ContenderId == Result.Winner; });
-        Check(Result.Reason == ELDMatchEndReason::CaptureCompleted && Winner && Winner->Kind == ELDContenderKind::OpponentAI
-            && OpponentIds.Contains(Result.Winner), TEXT("An opponent AI wins the match by completing the capture"));
+        // The win is the guard of a graffiti that an opponent AI sprayed; the public end view still names him as its owner.
+        Check(Result.Reason == ELDMatchEndReason::GuardSucceeded && Winner && Winner->Kind == ELDContenderKind::OpponentAI
+            && OpponentIds.Contains(Result.Winner) && View.GraffitiOwner == Result.Winner && View.GuardDueAtMs == Result.EndedAtMs,
+            TEXT("An opponent AI wins the match by spraying the flagpole and guarding its graffiti"));
         Check(Result.Rows.Num() == HumanCount + OpponentCount && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }), TEXT("The frozen result lists all six contenders with committed final levels"));
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));

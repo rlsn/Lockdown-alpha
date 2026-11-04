@@ -103,7 +103,8 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational VisionRadiusCm;
     UPROPERTY() FLDDemoRational ShopInteractRadiusCm;
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
-    UPROPERTY() int64 CaptureHoldMs = 0;
+    UPROPERTY() int64 CaptureSprayMs = 0;
+    UPROPERTY() int64 CaptureGuardMs = 0;
     UPROPERTY() int64 DefendRouteBudgetMs = 0;
     UPROPERTY() int64 DevelopmentMs = 0;
     UPROPERTY() int64 RespawnMs = 0;

@@ -3526,14 +3526,18 @@
       "numerator": 100,
       "unit": "cm"
     },
-    "CAPTURE.HoldSec": {
-      "ms": 25000,
+    "CAPTURE.GuardSec": {
+      "ms": 20000,
       "unit": "ms"
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 600,
+      "numerator": 300,
       "unit": "cm"
+    },
+    "CAPTURE.SpraySec": {
+      "ms": 3500,
+      "unit": "ms"
     },
     "CHOICE.BaseWeight": 1,
     "COMBAT.RearArcDeg": {
@@ -3771,7 +3775,7 @@
       "unit": "cm/s"
     },
     "TIMING.DefendRouteBudgetSec": {
-      "ms": 18000,
+      "ms": 19000,
       "unit": "ms"
     },
     "UNIT.BasicAttackRangeCm": {

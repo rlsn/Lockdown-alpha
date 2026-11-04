@@ -84,7 +84,8 @@ FString LDHUD::EquipmentName(const FLDDemoContentDefinitions* Content,uint8 Equi
     if(Content){if(const auto* Item=Content->Equipment.FindByPredicate([EquipmentId](const FLDDemoEquipmentDefinition& E){return E.NativeId==EquipmentId;})){return ContentName(Content,Item->Id);}}
     return FString::Printf(TEXT("未知装备 #%d"),EquipmentId);
 }
-FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content)
+FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,
+    const FString& OwnerName)
 {
     if(Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
@@ -92,6 +93,8 @@ FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const
     if(Public.Phase==ELDMatchPhase::CaptureOpen)
     {
         if(Public.CircleState==ELDCircleState::Solo&&Self.IsValid()&&Public.Occupier==Self){return FString(TEXT("稳住：你"))+LDTerms::Holding;}
+        if(Public.GraffitiOwner.IsValid()&&Self.IsValid()&&Public.GraffitiOwner==Self){return LDTerms::GuardOwn;}
+        if(Public.GraffitiOwner.IsValid()){return LDTerms::Besiege(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);}
         return FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo;
     }
     const bool bWallet=Equipment&&Equipment->bValid&&Equipment->Generation==Public.Generation;
@@ -218,7 +221,8 @@ FString LDHUD::Clock(int64 RemainingMs)
     const int64 Seconds=RemainingMs>0?(RemainingMs+999)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
 }
-LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& OccupierName,bool bClock,int64 NowMs,int64 HoldMs)
+LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
+    int64 SprayMs,int64 GuardMs)
 {
     FCircleView View;
     switch(Public.Phase)
@@ -228,31 +232,68 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
             :FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放");
         return View;
     case ELDMatchPhase::CaptureOpen:
+    {
+        const FString Sprayer=SprayerName.IsEmpty()?FString(TEXT("未列名参赛者")):SprayerName;
+        // The graffiti and its guard are public in every open state; a sole sprayer pauses the guard.
+        FString Guard;
+        float GuardProgress=0.f;
+        bool bGuardProgress=false;
+        if(Public.GraffitiOwner.IsValid())
+        {
+            Guard=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
+            if(Public.CircleState==ELDCircleState::Solo)
+            {
+                Guard+=FString(TEXT(" · "))+LDTerms::GuardPaused;
+                if(GuardMs>0)
+                {
+                    Guard+=FString(TEXT("（"))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(GuardMs-Public.GuardKeptMs)+TEXT("）");
+                    bGuardProgress=true;GuardProgress=float(FMath::Clamp(double(Public.GuardKeptMs)/double(GuardMs),0.,1.));
+                }
+            }
+            else if(!bClock){Guard+=TEXT(" · 守护同步中");}
+            else
+            {
+                Guard+=FString(TEXT(" · "))+LDTerms::GuardLeft+TEXT(" ")+TenthsUp(Public.GuardDueAtMs-NowMs);
+                if(GuardMs>0){bGuardProgress=true;GuardProgress=float(FMath::Clamp(1.-double(Public.GuardDueAtMs-NowMs)/double(GuardMs),0.,1.));}
+            }
+        }
+        const auto WithGuard=[&Guard](const FString& Spray){return Guard.IsEmpty()?Spray:Spray.IsEmpty()?Guard:Spray+TEXT(" · ")+Guard;};
         switch(Public.CircleState)
         {
-        case ELDCircleState::Empty: View.Line=LDTerms::CircleEmpty;return View;
+        case ELDCircleState::Empty:
+            View.Line=Guard.IsEmpty()?FString(LDTerms::CircleEmpty):Guard;
+            View.bProgress=bGuardProgress;View.Progress=GuardProgress;
+            return View;
+        case ELDCircleState::Guarded:
+            View.Line=Guard;
+            View.bProgress=bGuardProgress;View.Progress=GuardProgress;
+            return View;
         case ELDCircleState::Contested:
         {
-            // D12: a contest pauses the holder's progress instead of clearing it; without a holder nothing is kept.
-            if(!Public.Occupier.IsValid()||Public.PausedProgressMs<=0){View.Line=FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept;return View;}
-            const FString Name=OccupierName.IsEmpty()?FString(TEXT("未列名参赛者")):OccupierName;
-            const FString Kept=FString::Printf(TEXT("%lld"),(Public.PausedProgressMs+999)/1000);
-            if(HoldMs<=0){View.Line=FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Name)+TEXT("（")+Kept+TEXT(" s）");return View;}
-            View.bProgress=true;View.Progress=float(FMath::Clamp(double(Public.PausedProgressMs)/double(HoldMs),0.,1.));
-            View.Line=FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Name)+TEXT(" ")+Kept+FString::Printf(TEXT("/%lld s"),(HoldMs+999)/1000);
+            // A contest pauses the holder's spray progress instead of clearing it; without a holder nothing is kept.
+            if(!Public.Occupier.IsValid()||Public.PausedProgressMs<=0)
+            {
+                View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept);
+                View.bProgress=bGuardProgress;View.Progress=GuardProgress;
+                return View;
+            }
+            const FString Kept=FString::Printf(TEXT("%.1f"),double(Public.PausedProgressMs)/1000.);
+            if(SprayMs<=0){View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT("（")+Kept+TEXT(" s）"));return View;}
+            View.bProgress=true;View.Progress=float(FMath::Clamp(double(Public.PausedProgressMs)/double(SprayMs),0.,1.));
+            View.Line=WithGuard(FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::ProgressKept(Sprayer)+TEXT(" ")+Kept+FString::Printf(TEXT("/%.1f s"),double(SprayMs)/1000.));
             return View;
         }
         case ELDCircleState::Solo:
         {
-            const FString Name=OccupierName.IsEmpty()?FString(TEXT("未列名参赛者")):OccupierName;
             const int64 Span=Public.DueAtMs-Public.SoloSinceMs;
-            if(!bClock||Span<=0){View.Line=Name+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中");return View;}
+            if(!bClock||Span<=0){View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · 进度同步中"));return View;}
             View.bProgress=true;View.Progress=float(FMath::Clamp(double(NowMs-Public.SoloSinceMs)/double(Span),0.,1.));
-            View.Line=Name+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs);
+            View.Line=WithGuard(Sprayer+TEXT(" ")+LDTerms::Holding+TEXT(" · ")+LDTerms::HoldLeft+TEXT(" ")+TenthsUp(Public.DueAtMs-NowMs));
             return View;
         }
         default: View.Line=FString(LDTerms::CapturePoint)+TEXT("状态同步中");return View;
         }
+    }
     default:
         View.Line=PhaseLine(Public.Phase);
         return View;
@@ -303,8 +344,8 @@ FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerN
 {
     switch(Result.Reason)
     {
-    case ELDMatchEndReason::CaptureCompleted:
-        return Result.Winner.IsValid()?LDTerms::Crowned(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName):FString(LDTerms::NoWinner);
+    case ELDMatchEndReason::GuardSucceeded:
+        return Result.Winner.IsValid()?FString(TEXT("守护成功 · "))+LDTerms::Crowned(WinnerName.IsEmpty()?FString(TEXT("未列名参赛者")):WinnerName):FString(LDTerms::NoWinner);
     case ELDMatchEndReason::HostEnded: return FString(TEXT("房主结束了本局 · "))+LDTerms::NoCapture;
     default: return TEXT("对局结束 · 原因未知");
     }
