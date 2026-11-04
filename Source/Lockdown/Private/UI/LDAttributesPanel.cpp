@@ -95,9 +95,12 @@ FString AttrPanelGear(const FLDCombatOwnerView* Combat,const FLDDemoContentDefin
             Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Id==Id;});
             if(!Item){Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Passive.Family==Id;});}
         }
-        Lines.Add(LDHUD::ContentName(Definitions,Item?Item->Id:Id));
+        const bool bUpgraded=Combat->UpgradedEquipmentPassives.Contains(Passive);
+        Lines.Add(LDHUD::ContentName(Definitions,Item?Item->Id:Id)+(bUpgraded?TEXT("（已进阶）"):TEXT("")));
         if(!Item){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该装备被动"));}continue;}
-        for(const FLDDemoEffectDefinition& Effect:Item->Passive.Effects){Lines.Add(TEXT("  ")+LDHUD::EffectLine(Effect));}
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,bUpgraded);
+        if(!Effects){Lines.Add(TEXT("  缺少进阶后的被动定义"));continue;}
+        for(const FLDDemoEffectDefinition& Effect:*Effects){Lines.Add(TEXT("  ")+LDHUD::EffectLine(Effect));}
     }
     return AttrPanelLines(Lines);
 }
