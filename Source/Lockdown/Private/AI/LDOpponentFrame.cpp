@@ -40,6 +40,7 @@ bool SourceSlot(ELDCombatEntry Entry, ELDOpponentSourceSlot& Out)
     case ELDCombatEntry::W: Out = ELDOpponentSourceSlot::W; return true;
     case ELDCombatEntry::Item1: Out = ELDOpponentSourceSlot::Gear0; return true;
     case ELDCombatEntry::Item2: Out = ELDOpponentSourceSlot::Gear1; return true;
+    case ELDCombatEntry::Dash: Out = ELDOpponentSourceSlot::Dash; return true;
     default: return false;
     }
 }
@@ -271,12 +272,13 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
         ELDOpponentSourceSlot Slot;
         if (!SourceSlot(Entry.Entry, Slot) || Entry.DefinitionId.IsNone()) { continue; }
         const bool bActiveSource = Entry.SourceKind == ELDCombatSourceKind::Learned
-            || (Entry.SourceKind == ELDCombatSourceKind::Gear && Entry.bHasActive);
+            || ((Entry.SourceKind == ELDCombatSourceKind::Gear || Entry.SourceKind == ELDCombatSourceKind::Innate) && Entry.bHasActive);
         if (!bActiveSource) { continue; }
         FLDOpponentSource Source;
         Source.Slot = Slot;
         Source.DefinitionId = CanonicalId(Entry.DefinitionId);
         Source.bReady = Entry.Unavailable == ELDCombatReject::None && Entry.ReadyAtMs <= NowMs;
+        Source.RangeCm = Entry.RangeCm;
         Out.Sources.Add(MoveTemp(Source));
     }
     Error.Reset();

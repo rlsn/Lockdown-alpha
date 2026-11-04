@@ -137,17 +137,22 @@ float ULDCharacterMovementComponent::GetMaxSpeed() const
 
 bool ULDCharacterMovementComponent::StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)
 {
-    const FVector Planar(Direction.X,Direction.Y,0);
-    const double Speed=DistanceCm/DurationSeconds;
     if (!CharacterOwner || !CharacterOwner->HasAuthority() || !UpdatedComponent
         || !LDCharacterMovementDetail::IsDemoMovement(GetWorld()))
     {
         Error=TEXT("A Demo dash runs only on the server authority body.");
         return false;
     }
-    if (Direction.ContainsNaN() || FMath::Abs(Direction.Z)>UE_KINDA_SMALL_NUMBER || Planar.IsNearlyZero()
-        || !FMath::IsFinite(DistanceCm) || DistanceCm<=0 || !FMath::IsFinite(DurationSeconds) || DurationSeconds<=0
-        || DurationSeconds>MAX_flt || !FMath::IsFinite(Speed) || Speed>MAX_flt)
+    return ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error);
+}
+
+bool ULDCharacterMovementComponent::ApplyDashRootMotion(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error)
+{
+    const FVector Planar(Direction.X,Direction.Y,0);
+    const double Speed=DistanceCm/DurationSeconds;
+    if (!CharacterOwner || !UpdatedComponent || Direction.ContainsNaN() || FMath::Abs(Direction.Z)>UE_KINDA_SMALL_NUMBER
+        || Planar.IsNearlyZero() || !FMath::IsFinite(DistanceCm) || DistanceCm<=0 || !FMath::IsFinite(DurationSeconds)
+        || DurationSeconds<=0 || DurationSeconds>MAX_flt || !FMath::IsFinite(Speed) || Speed>MAX_flt)
     {
         Error=TEXT("A Demo dash needs a finite non-zero planar direction, distance and duration.");
         return false;

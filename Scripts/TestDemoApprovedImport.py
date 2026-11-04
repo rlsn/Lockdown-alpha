@@ -121,7 +121,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
-            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10})
+            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10, "dash_boost": 11})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -256,9 +256,15 @@ class ApprovedDemoData(unittest.TestCase):
             item = self.catalog.definition(identity)
             self.assertEqual((item["buy_price"], item["sell_gold"]), (price, sell))
             self.assertEqual({key: amount(value) for key, value in item["stats"].items()}, stats)
-        dash = self.catalog.definition("item_phase_anchor")["active"]["rank"]
-        self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"]), (4000, 28000))
-        self.assertEqual((amount(dash["effects"][0]["distance"]), dash["effects"][0]["duration"]["ms"]), (450, 250))
+        # D19/D20: the innate D dash belongs to the character; the spikes only boost it passively.
+        dash = self.data["character"]["dash"]
+        self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]),
+                         (0, 18000, 300, 200))
+        spikes = self.catalog.definition("item_phase_anchor")
+        self.assertIsNone(spikes["active"])
+        self.assertEqual(spikes["passive"]["family"], "passive_stride")
+        boost = spikes["passive"]["effects"][0]
+        self.assertEqual((boost["op"], boost["cooldown_ratio"]["bp"], boost["distance_bonus"]["bp"]), ("dash_boost", 5000, 5000))
         battery = self.catalog.definition("item_arcane_battery")["active"]["rank"]
         self.assertEqual((battery["mana_cost"]["p2"], battery["cooldown"]["ms"]), (0, 40000))
         self.assertEqual(battery["effects"][0]["ratio"]["bp"], 2500)

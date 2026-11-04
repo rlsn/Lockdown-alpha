@@ -26,7 +26,7 @@ enum class ELDOpponentReason : uint8
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
-enum class ELDOpponentSourceSlot : uint8 { Q, W, Gear0, Gear1 };
+enum class ELDOpponentSourceSlot : uint8 { Q, W, Gear0, Gear1, Dash };
 
 struct FLDOpponentSkill
 {
@@ -41,6 +41,8 @@ struct FLDOpponentSource
     ELDOpponentSourceSlot Slot = ELDOpponentSourceSlot::Q;
     FString DefinitionId;
     bool bReady = false;
+    // The authority's current reach of this active (the innate dash distance with held boosts); never recomputed.
+    int32 RangeCm = 0;
 };
 
 enum class ELDOpponentOptionKind : uint8 { LearnActive, UpgradeActive, LearnPassive, UpgradePassive, Attribute };

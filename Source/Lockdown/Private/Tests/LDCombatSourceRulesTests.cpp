@@ -1,5 +1,6 @@
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Navigation/LDOrderRules.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -88,7 +89,8 @@ namespace LDCombatSourceRulesTestDetail
         return true;
     }
 
-    const FName Anchor(TEXT("item_phase_anchor"));
+    const FName Battery(TEXT("item_arcane_battery"));
+    const FName Spikes(TEXT("item_phase_anchor"));
     const FName Maul(TEXT("item_echo_maul"));
     const FName Bolt(TEXT("active_arc_bolt"));
     constexpr int64 NowMs = 60000;
@@ -98,7 +100,7 @@ namespace LDCombatSourceRulesTestDetail
         FLDCombatTrack Track;
         Track.IssuedCooldownId = Id;
         Track.Kind = ELDCombatSourceKind::Gear;
-        Track.DefinitionId = Anchor;
+        Track.DefinitionId = Battery;
         Track.BoundInstance = Bound;
         Track.bBound = bBound;
         Track.ReadyAtMs = ReadyAtMs;
@@ -146,7 +148,7 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
 
     FLDCombatEntityRecord Empty;
     FLDBuildProjectionInput First;
-    First.Equipment.Add(Item(ELDCombatEntry::Item1, A, Anchor));
+    First.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
     TestTrue(TEXT("A first active copy issues a ready new track"),
         Plan(Empty, First, *Content, Out, Code) && Out.Num() == 1 && Out[0].bNewTrack && Out[0].ReadyAtMs == 0
         && Out[0].Entry == ELDCombatEntry::Item1 && Out[0].Source.ItemInstance == A && Out[0].IssuedCooldownId.IsValid());
@@ -155,7 +157,7 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     FLDCombatEntityRecord Debt;
     Debt.Tracks.Add(GearTrack(Sold, A, false, NowMs + 10000));
     FLDBuildProjectionInput Rebuy;
-    Rebuy.Equipment.Add(Item(ELDCombatEntry::Item2, B, Anchor));
+    Rebuy.Equipment.Add(Item(ELDCombatEntry::Item2, B, Battery));
     TestTrue(TEXT("A rebought copy inherits the sold copy's unexpired debt"),
         Plan(Debt, Rebuy, *Content, Out, Code) && Out.Num() == 1 && !Out[0].bNewTrack
         && Out[0].IssuedCooldownId == Sold && Out[0].ReadyAtMs == NowMs + 10000);
@@ -165,8 +167,8 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     Pair.Tracks.Add(GearTrack(Held, A, true, NowMs + 5000));
     Pair.Tracks.Add(GearTrack(Ready, C, false, NowMs - 1));
     FLDBuildProjectionInput Both;
-    Both.Equipment.Add(Item(ELDCombatEntry::Item1, A, Anchor));
-    Both.Equipment.Add(Item(ELDCombatEntry::Item2, B, Anchor));
+    Both.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
+    Both.Equipment.Add(Item(ELDCombatEntry::Item2, B, Battery));
     const bool bBoth = Plan(Pair, Both, *Content, Out, Code) && Out.Num() == 2;
     TestTrue(TEXT("A held copy keeps its own track and a second copy takes the free ready one"),
         bBoth && Out[0].Source.ItemInstance == A && Out[0].IssuedCooldownId == Held && Out[0].ReadyAtMs == NowMs + 5000
@@ -177,7 +179,7 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     TwoDebts.Tracks.Add(GearTrack(Early, A, false, NowMs + 3000));
     TwoDebts.Tracks.Add(GearTrack(Late, B, false, NowMs + 8000));
     FLDBuildProjectionInput One;
-    One.Equipment.Add(Item(ELDCombatEntry::Item1, C, Anchor));
+    One.Equipment.Add(Item(ELDCombatEntry::Item1, C, Battery));
     TestTrue(TEXT("Debt first: the latest unexpired unbound track is taken"),
         Plan(TwoDebts, One, *Content, Out, Code) && Out.Num() == 1 && Out[0].IssuedCooldownId == Late
         && Out[0].ReadyAtMs == NowMs + 8000);
@@ -205,10 +207,115 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
         Plan(Empty, Passive, *Content, Out, Code) && Out.IsEmpty());
 
     FLDBuildProjectionInput Duplicate;
-    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item1, A, Anchor));
-    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item2, A, Anchor));
+    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
+    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item2, A, Battery));
     TestTrue(TEXT("One instance in two slots is refused"),
         !Plan(Empty, Duplicate, *Content, Out, Code) && Code == ELDCombatPrepareError::InvalidInput);
+    return true;
+}
+
+// D19/D20: the innate dash terms come from the approved character; the spikes passive halves the cooldown and lengthens
+// the distance once per family; the shared gate refuses a cooling, unaffordable or rooted dash; build changes never
+// plan or rebind the innate track.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatInnateDashTest, "Lockdown.Rules.DemoCombatSources.InnateDash",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCombatSourceRulesTestDetail;
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    if (!ReadApprovedContent(*this, Content)) { return false; }
+    const FLDDemoEquipmentActive& Dash = Content->Get().Character.Dash;
+    if (!TestTrue(TEXT("The approved character projects one executable dash"),
+        Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Rank.Effects.Num() == 1
+        && Dash.Rank.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Rank.CooldownMs > Dash.Rank.Effects[0].DurationMs))
+    { return false; }
+    const FLDDemoEffectDefinition& Move = Dash.Rank.Effects[0];
+    const FLDDemoEquipmentDefinition* SpikesItem = nullptr;
+    FString Error;
+    if (!TestTrue(TEXT("The spikes are approved equipment"), Content->FindEquipment(Spikes.ToString(), SpikesItem, Error) && SpikesItem))
+    { return false; }
+    const FLDDemoEffectDefinition* Boost = SpikesItem->HasPassive ? SpikesItem->Passive.Effects.FindByPredicate(
+        [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::DashBoost; }) : nullptr;
+    TestTrue(TEXT("The spikes have no active and one dash boost passive (1/2 show no active)"), !SpikesItem->HasActive && Boost);
+    if (!Boost) { return false; }
+    const auto Families = [&](const TArray<FString>& Items, TArray<FLDEquipmentPassiveFamily>& Out)
+    {
+        const auto Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, Items), *Content);
+        if (!Projected.IsSuccess()) { return false; }
+        Out = Projected.Value->EquipmentPassives;
+        return true;
+    };
+    TArray<FLDEquipmentPassiveFamily> None, One, Two, Other;
+    FLDInnateDashTerms Base, Single, Double, Unrelated;
+    TestTrue(TEXT("Bare terms are the approved character dash"),
+        Families({}, None) && LDCombatSourceRules::InnateDashTerms(*Content, None, Base, Error) && !Base.bBoosted
+        && Base.CooldownMs == Dash.Rank.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Rank.ManaCostP2
+        && Base.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Base.DistanceCm.Denominator);
+    const int64 Scaled = Dash.Rank.CooldownMs * Boost->CooldownRatioBp;
+    const int64 BoostedCooldown = Scaled / 10000 + (Scaled % 10000 != 0 ? 1 : 0);
+    TestTrue(TEXT("Worn spikes scale the cooldown and the distance, never the duration"),
+        Families({Spikes.ToString()}, One) && LDCombatSourceRules::InnateDashTerms(*Content, One, Single, Error) && Single.bBoosted
+        && Single.CooldownMs == BoostedCooldown && Single.DurationMs == Move.DurationMs
+        && Single.DistanceCm.Numerator * Move.DistanceCm.Denominator * 10000
+            == Move.DistanceCm.Numerator * (10000 + Boost->DistanceBonusBp) * Single.DistanceCm.Denominator);
+    TestTrue(TEXT("Two pairs of spikes apply the same-named passive once"),
+        Families({Spikes.ToString(), Spikes.ToString()}, Two) && Two.Num() == 1
+        && LDCombatSourceRules::InnateDashTerms(*Content, Two, Double, Error)
+        && Double.CooldownMs == Single.CooldownMs && Double.DistanceCm.Numerator == Single.DistanceCm.Numerator
+        && Double.DistanceCm.Denominator == Single.DistanceCm.Denominator);
+    TestTrue(TEXT("Another equipment passive leaves the dash unchanged"),
+        Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, Unrelated, Error)
+        && !Unrelated.bBoosted && Unrelated.CooldownMs == Base.CooldownMs);
+
+    const FLDDemoPolicies& Policies = Content->Get().Policies;
+    TArray<FLDCombatRoot> Roots;
+    FLDActiveGateInput Gate;
+    Gate.NowMs = NowMs;
+    Gate.ReadyAtMs = NowMs;
+    Gate.ManaCostP2 = Base.ManaCostP2;
+    Gate.MpP2 = Base.ManaCostP2;
+    Gate.bDash = true;
+    Gate.Roots = &Roots;
+    TestTrue(TEXT("A dash whose track ends now is usable"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
+    Gate.ReadyAtMs = NowMs + 1;
+    TestTrue(TEXT("A cooling dash is refused"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::Cooldown);
+    Gate.ReadyAtMs = NowMs;
+    Roots.Add({FGuid::NewGuid(), FGuid::NewGuid(), NowMs + 500});
+    TestTrue(TEXT("A rooted body cannot dash (POLICY.RootBlocks Dash)"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
+    Gate.bDash = false;
+    TestTrue(TEXT("Root does not block a non-moving active"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
+    Gate.bDash = true;
+    Gate.NowMs = NowMs + 500;
+    Gate.ReadyAtMs = NowMs + 500;
+    TestTrue(TEXT("The Root ends exactly at its deadline and the dash is free again"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::None);
+    Gate.ManaCostP2 = 100;
+    Gate.MpP2 = 99;
+    TestTrue(TEXT("An unaffordable cost is refused before the Root check"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::InsufficientMana);
+    Gate.ManaCostP2 = Gate.MpP2 = 0;
+    Gate.bCheckBusy = Gate.bAbilityInProgress = true;
+    TestTrue(TEXT("Admission refuses a dash during another ability windup"),
+        LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::Busy);
+
+    // Cooldown debt: buying or selling spikes is a build change, which plans only learned and gear tracks; the innate
+    // track keeps the absolute end fixed at its release.
+    FLDCombatEntityRecord Record;
+    FLDCombatTrack Innate;
+    Innate.IssuedCooldownId = FGuid::NewGuid();
+    Innate.Kind = ELDCombatSourceKind::Innate;
+    Innate.DefinitionId = LDCombatSourceRules::InnateDashId();
+    Innate.bBound = true;
+    Innate.ReadyAtMs = NowMs + Base.CooldownMs;
+    Record.Tracks.Add(Innate);
+    FLDBuildProjectionInput Wear;
+    Wear.Equipment.Add(Item(ELDCombatEntry::Item1, FGuid::NewGuid(), Spikes));
+    TArray<FLDCombatBindingPlan> Out;
+    ELDCombatPrepareError Code = ELDCombatPrepareError::None;
+    TestTrue(TEXT("Wearing spikes plans no binding and never touches the innate track"),
+        Plan(Record, Wear, *Content, Out, Code) && Out.IsEmpty() && Record.Tracks[0].ReadyAtMs == NowMs + Base.CooldownMs);
     return true;
 }
 

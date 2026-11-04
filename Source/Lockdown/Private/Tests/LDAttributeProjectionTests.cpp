@@ -632,7 +632,12 @@ bool RunDuplicateEquipment(FAutomationTestBase& Test)
             return false;
         }
         bGood &= ExpectAttributes(Test, Label + TEXT(" add every fixed stat per copy"), Projection.Final, Expected);
-        bGood &= ExpectFamilies(Test, Label + TEXT(" without passives"), Projection, {});
+        // D20: the spikes carry one dash-boost passive family, which two copies still list once.
+        const bool bSpikes = FCString::Strcmp(Case.Item, TEXT("item_phase_anchor")) == 0;
+        bGood &= bSpikes
+            ? ExpectFamilies(Test, Label + TEXT(" list the stride passive once"), Projection,
+                {{TEXT("passive_stride"), TEXT("item_phase_anchor"), {0, 1}}})
+            : ExpectFamilies(Test, Label + TEXT(" without passives"), Projection, {});
     }
     if (!ProjectBuild(Test, TEXT("Two phase anchors"),
         MakeBuild(1, {}, {}, {TEXT("item_phase_anchor"), TEXT("item_phase_anchor")}), *Catalog, Projection))

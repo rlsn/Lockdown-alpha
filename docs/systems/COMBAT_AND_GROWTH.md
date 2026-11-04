@@ -33,10 +33,16 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
 已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
 
-普攻、Q/W 与装备 1/2 经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
+普攻、Q/W、装备 1/2 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
 本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
 未准入不付费，已解除的保护不恢复。释放时重验来源与目标，成功才扣蓝并按 `FORMULA.CooldownMs`
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
+冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
+D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
+`ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`；它不是进攻意图，不解除保护。
+每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
+释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）计算距离与冷却：
+`dash_boost` 乘冷却比例、加距离比例，时长不变，冷却不吃鬼点子；结束时刻写成绝对 ReadyAt，之后换装不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
@@ -84,7 +90,8 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
 提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法来源的原生 id，
-分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动，含冲刺），两者至多一个非 0，其他提示均为 0；
+分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动），两者至多一个非 0，其他提示均为 0；
+D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不飘名称）；
 来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
 身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地两档各用自己的模型；
@@ -122,7 +129,7 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 
 ## 检查入口
 
-`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`、`DemoOrders.*`、
+`Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
 攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），

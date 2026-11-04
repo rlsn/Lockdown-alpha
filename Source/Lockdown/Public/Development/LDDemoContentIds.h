@@ -24,5 +24,5 @@ enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnP
 enum class ELDDemoEffectOp : uint8
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
-    OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10
+    OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10, DashBoost=11
 };

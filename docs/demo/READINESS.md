@@ -52,8 +52,8 @@
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
 | D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D19 | D 键通用冲刺，AI 也会用 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D20 | 跑道钉鞋改为强化冲刺的被动 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 胆量，不受鬼点子影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 尚未运行；拥有连接场景未运行；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
+| D20 | 跑道钉鞋改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「助跑」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 尚未运行 |
 | D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)、[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
 | D22 | 发育期 120 秒，复活 15 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
@@ -119,7 +119,7 @@
 | 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
 | 上限变化 | 场景 Growth：死亡期间选择最大面子属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
 | 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
-| 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | 方向冲刺等其他装备主动没有拥有连接场景 |
+| 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | D 键冲刺与钉鞋加成没有拥有连接场景 |
 | 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 零花钱 / +X 经验”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)） |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
 | 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |

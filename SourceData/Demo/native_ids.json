@@ -51,6 +51,7 @@
     "lifesteal": 7,
     "dash": 8,
     "restore_mana": 9,
-    "cleave": 10
+    "cleave": 10,
+    "dash_boost": 11
   }
 }

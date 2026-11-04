@@ -1115,19 +1115,22 @@ bool RunProjections(FAutomationTestBase& Test)
     Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), true, 9000, ELDCombatReject::None),
         Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), true, 15000, ELDCombatReject::Cooldown),
         Entry(ELDCombatEntry::Item1, ELDCombatSourceKind::Gear, TEXT("item_iron_plate"), false, 0, ELDCombatReject::NoActiveEffect),
-        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_phase_anchor"), true, 0, ELDCombatReject::ControlBlocked)};
-    bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness and Root: ") + Error,
+        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_arcane_battery"), true, 0, ELDCombatReject::None),
+        Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), true, 0, ELDCombatReject::ControlBlocked)};
+    Combat.Entries.Last().RangeCm = 450;
+    bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness, the innate dash reach and Root: ") + Error,
         LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.HpP2 == 30000 && Self.MaxMpP2 == 28000
-        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 3
+        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 4
         && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
         && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
-        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && !Self.Sources[2].bReady);
+        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && Self.Sources[2].bReady
+        && Self.Sources[3].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[3].bReady && Self.Sources[3].RangeCm == 450);
     {
         auto Cased = Combat;
         Cased.Entries[0].DefinitionId = TEXT("Active_Arc_Bolt");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
-            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
+            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 4
             && CasedSelf.Sources[0].DefinitionId == TEXT("active_arc_bolt"));
     }
     Combat.Statuses.Reset();
@@ -1330,11 +1333,11 @@ bool RunRequests(FAutomationTestBase& Test)
     Cast.Epoch = 0;
     bGood &= Test.TestFalse(TEXT("A unit activation without its observation epoch is refused"),
         LDOpponentRequests::BuildAction(Cast, 7, 1, 6, 11, Action, Error));
-    Cast.Source = ELDOpponentSourceSlot::W;
+    Cast.Source = ELDOpponentSourceSlot::Dash;
     Cast.TargetMode = ELDDemoTargetMode::DirectionDash;
     Cast.Direction = FVector(0, 3, 4);
-    bGood &= Test.TestTrue(TEXT("A dash direction is planar and normalized"),
-        LDOpponentRequests::BuildAction(Cast, 7, 1, 7, 11, Action, Error) && Action.Entry == ELDCombatEntry::W
+    bGood &= Test.TestTrue(TEXT("The innate dash goes out on the D entry with a planar normalized direction"),
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 7, 11, Action, Error) && Action.Entry == ELDCombatEntry::Dash
         && Action.Target.Kind == ELDCombatTargetKind::Direction && FVector(Action.Target.Direction).Equals(FVector(0, 1, 0), 1.e-4));
     Cast.Direction = FVector(0, 0, 1);
     bGood &= Test.TestFalse(TEXT("A vertical-only direction is refused"), LDOpponentRequests::BuildAction(Cast, 7, 1, 8, 11, Action, Error));
@@ -1577,7 +1580,97 @@ bool RunRequests(FAutomationTestBase& Test)
         && !LDOpponentRequests::ToOutcome(ESettle::InFlight, Outcome) && !LDOpponentRequests::ToOutcome(ESettle::Dropped, Outcome));
     return bGood;
 }
+
+// D19: the AI uses the innate D dash to close on a fleeing rival, to escape and to reach an urgent capture defence; never
+// on a camp member, while it cools, or when walking suffices. Reach comes from the authority's read of the D entry.
+bool RunInnateDash(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    const auto& DashRank = C.Get().Character.Dash.Rank;
+    if (!Test.TestTrue(TEXT("The approved character has one dash effect"), DashRank.Effects.Num() == 1)) { return false; }
+    const auto& Distance = DashRank.Effects[0].DistanceCm;
+    const double Reach = double(Distance.Numerator) / double(Distance.Denominator);
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.DefinitionId = TEXT("innate_dash");
+    Dash.bReady = true;
+    Dash.RangeCm = FMath::RoundToInt32(Reach);
+    Base.Self.Sources = {Dash};
+    const auto IsDash = [](const FLDOpponentDecision& Decision)
+    { return Decision.Body.Kind == ELDOpponentBodyKind::Activate && Decision.Body.Source == ELDOpponentSourceSlot::Dash
+        && Decision.Body.TargetMode == ELDDemoTargetMode::DirectionDash; };
+
+    // Chase: the engaged rival first stands within reach, then keeps beyond half a dash past attack range.
+    FLDOpponentPolicyState Chase;
+    auto Frame = Base;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack + 10, 0)};
+    const auto Near = LDOpponentPolicy::Decide(Frame, C, Chase);
+    bool bGood = Expect(Test, TEXT("A rival within half a dash of attack range is attacked, not dashed at"), Near, EMode::Engage,
+        EBody::AttackUnit);
+    Frame.Units[0].FootCm = FVector(Attack + .75 * Reach, 0, 0);
+    const auto Fleeing = LDOpponentPolicy::Decide(Frame, C, Chase);
+    bGood &= Test.TestTrue(TEXT("A fleeing engaged rival one dash away is closed with the dash toward it"),
+        Fleeing.Mode == EMode::Engage && IsDash(Fleeing) && Fleeing.Body.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+    auto Cooling = Frame;
+    Cooling.Self.Sources[0].bReady = false;
+    FLDOpponentPolicyState CoolingState = Chase;
+    bGood &= Test.TestFalse(TEXT("A cooling dash is never proposed"), IsDash(LDOpponentPolicy::Decide(Cooling, C, CoolingState)));
+    auto Far = Frame;
+    Far.Units[0].FootCm = FVector(Attack + Reach + 50, 0, 0);
+    FLDOpponentPolicyState FarState = Chase;
+    bGood &= Test.TestFalse(TEXT("A rival beyond one dash past attack range is walked after"),
+        IsDash(LDOpponentPolicy::Decide(Far, C, FarState)));
+
+    // Camp members are farmed on foot even when the dash is ready and would reach.
+    Frame = Base;
+    Frame.Self.FootCm = FVector(2000 - Attack - .75 * Reach, 100, 0);
+    Frame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger"))};
+    FLDOpponentPolicyState Farm;
+    const auto Farming = LDOpponentPolicy::Decide(Frame, C, Farm);
+    bGood &= Test.TestFalse(TEXT("A camp member is never chased with the dash"), IsDash(Farming));
+
+    // Retreat: a low body seen by a threat dashes toward its escape place, away from the threat.
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 300, 0)};
+    FLDOpponentPolicyState Escape;
+    const auto Escaping = LDOpponentPolicy::Decide(Frame, C, Escape);
+    bGood &= Test.TestTrue(TEXT("A low body escaping a visible threat dashes away from it"),
+        Escaping.Mode == EMode::Disengage && IsDash(Escaping) && Escaping.Body.Direction.X < 0);
+
+    // Capture: an urgent public deadline spends the dash toward the circle.
+    Frame = Base;
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+    Frame.CapturePathCm = 3000.;
+    FLDOpponentPolicyState Defence;
+    const auto Urgent = LDOpponentPolicy::Decide(Frame, C, Defence);
+    bGood &= Test.TestTrue(TEXT("An urgent capture defence dashes toward the circle"),
+        IsDash(Urgent) && Urgent.Body.Direction.Equals(FVector(0, 1, 0), 1.e-4));
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    FLDOpponentPolicyState Calm;
+    bGood &= Test.TestFalse(TEXT("A capture trip that walking still makes keeps the dash"),
+        IsDash(LDOpponentPolicy::Decide(Frame, C, Calm)));
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentInnateDashTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunInnateDash(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCampCostTest, "Lockdown.Rules.DemoOpponentPolicy.CampCost",

@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -201,6 +202,12 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
         {
             Record.Build.Level=1;
             Record.Projection=Prepared.AttributeProjection;
+            // D19: the one persistent innate dash track, ready at match start and kept for the whole match.
+            FLDCombatTrack& Dash=Record.Tracks.AddDefaulted_GetRef();
+            Dash.IssuedCooldownId=FGuid::NewGuid();
+            Dash.Kind=ELDCombatSourceKind::Innate;
+            Dash.DefinitionId=LDCombatSourceRules::InnateDashId();
+            Dash.bBound=true;
         }
         Records.Add(Record.Entity,MoveTemp(Record));
     }

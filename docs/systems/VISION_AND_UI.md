@@ -157,7 +157,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中面子下降且上限未降；致死一击交给社死音效 | 0.2 秒内最多一次 |
 | 本人淡定吸收（`SelfShieldHit`） | 同一投影中面子未降而淡定减少，且淡定状态仍在或在其列出的到期前消失（与
-| 本人技能或装备主动释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
+| 本人技能、装备主动或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
 | 购买或出售成功 / 交易被拒 | 本人小卖部提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人社死 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
@@ -199,7 +199,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDObservationBoundary`（`LDHUDRulesTests`）覆盖检视器白名单和地图换算。
 - `HUDLifeStatus`（`LDHUDRulesTests`）覆盖自身生命行：权威时刻缺失时显示不可用，倒计时在截止前不显示 0，死亡不显示金币损失。
 - `HUDOwnResources`、`HUDActionView`、`HUDPublicMatch`、`HUDContentParameters`、`HUDCombatOwnerView`（`LDHUDRulesTests`）
-  覆盖本人资源与等级、Q/W/1/2 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
+  覆盖本人资源与等级、Q/W/1/2/D 意图与限制分离、公共圈/击杀/结果、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
 - `HUDCooldownText`、`HUDActionStates`、`HUDDeathCause`、`HUDKillFeedSelf`（`LDHUDRulesTests`）覆盖冷却秒数文字（不提前显示 0）、
   动作格的冷却/胆量不足/受控/空槽/准备态分类与胆量消耗文字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、

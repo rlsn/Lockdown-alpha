@@ -15,6 +15,8 @@ class FLDDemoContentSnapshot;
 struct FLDDemoAbilityDefinition;
 struct FLDDemoEquipmentDefinition;
 struct FLDDemoRankDefinition;
+struct FLDDemoTargetDefinition;
+struct FLDInnateDashTerms;
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
 
@@ -281,6 +283,13 @@ private:
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility, const FLDDemoEquipmentDefinition*& OutEquipment) const;
+    // The executable active of a resolved entry: a learned rank, a gear active or the innate dash; false without one.
+    bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, const FLDDemoAbilityDefinition* Ability,
+        const FLDDemoEquipmentDefinition* Equipment, const FLDDemoTargetDefinition*& OutTarget,
+        const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const;
+    // D19/D20 innate dash terms for the body's installed equipment passives (the persistent build without a body).
+    bool InnateDashFor(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, FLDInnateDashTerms& Out,
+        FString& Error) const;
     bool PlanBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
         TArray<FLDCombatBindingPlan>& Out, FString& Error) const;
     FLDCombatEntryView EntryView(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body,

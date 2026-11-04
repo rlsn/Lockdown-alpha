@@ -84,6 +84,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::Dash:
+    case ELDDemoEffectOp::DashBoost:
         Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Cleave:
@@ -134,6 +135,14 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
 {
     Out = {};
     FString Error;
+    if (Source.Slot == ELDOpponentSourceSlot::Dash)
+    {
+        // The innate dash: its reach is the authority's current read (D20 boosts included), never a local recomputation.
+        Out.Mode = ELDDemoTargetMode::DirectionDash;
+        Out.bDash = true;
+        Out.RangeCm = double(Source.RangeCm);
+        return Source.RangeCm > 0;
+    }
     if (Source.Slot == ELDOpponentSourceSlot::Q || Source.Slot == ELDOpponentSourceSlot::W)
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
@@ -387,8 +396,8 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
-    static constexpr ELDOpponentSourceSlot Slots[] =
-        {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::Gear0, ELDOpponentSourceSlot::Gear1};
+    static constexpr ELDOpponentSourceSlot Slots[] = {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W,
+        ELDOpponentSourceSlot::Gear0, ELDOpponentSourceSlot::Gear1, ELDOpponentSourceSlot::Dash};
     const bool bManaGapKnown = C.Self.MaxMpP2 > 0 && C.Self.MpP2 >= 0 && C.Self.MpP2 <= C.Self.MaxMpP2;
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
@@ -472,6 +481,19 @@ bool ProtectionReady(const FContext& C)
     return false;
 }
 
+// Chase (D19): a ready dash closes on a visible rival contender that keeps more than half a dash beyond attack range
+// but is no further than one dash beyond it, so the landing is inside reach. Camp members are never chased this way.
+TOptional<FVector> ChaseDash(const FContext& C, const FLDOpponentUnit& Target, const FActivationNeed& Need)
+{
+    if (Target.Kind != ELDOpponentUnitKind::Contender || Need.bProtect || !Need.bAllowDamage || C.Rooted()) { return {}; }
+    const auto* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
+    if (!Dash || !Dash->bReady || Dash->RangeCm <= 0) { return {}; }
+    const double Gap = C.Distance(Target.FootCm), Reach = double(Dash->RangeCm);
+    if (Gap <= C.AttackRangeCm + .5 * Reach || Gap > C.AttackRangeCm + Reach) { return {}; }
+    const FVector Toward = (Target.FootCm - C.Self.FootCm).GetSafeNormal2D();
+    return Toward.IsNearlyZero() ? TOptional<FVector>() : TOptional<FVector>(Toward);
+}
+
 FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Target, bool bAllowDamage = true)
 {
     Engage(C, Target);
@@ -479,6 +501,7 @@ FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Targe
     Need.bProtect = C.NeedProtection();
     Need.bAllowDamage = bAllowDamage;
     Need.Target = &Target;
+    Need.DashDirection = ChaseDash(C, Target, Need);
     if (auto Activation = PickActivation(C, Need)) { return Activation.GetValue(); }
     return AttackBody(C, Target);
 }

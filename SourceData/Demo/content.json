@@ -135,7 +135,8 @@
   },
   "character": {
     "id": "character_demo",
-    "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": {"unit": "ratio", "value": 1.00}}
+    "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": {"unit": "ratio", "value": 1.00}},
+    "dash": {"mana_cost": {"unit": "mp", "value": 0}, "cooldown": {"unit": "s", "value": 18}, "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.2}}
   },
   "abilities": [
     {
@@ -213,10 +214,8 @@
     {"id": "item_runic_focus", "buy_price": 360, "stats": {"APFlat": {"unit": "points", "value": 30}, "CooldownHasteFlat": {"unit": "points", "value": 15}}, "active": null, "passive": null},
     {"id": "item_siphon_emblem", "buy_price": 360, "stats": {"ADFlat": {"unit": "points", "value": 12}, "MagicResistFlat": {"unit": "points", "value": 12}}, "active": null,
      "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.15}}]}},
-    {"id": "item_phase_anchor", "buy_price": 400, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "passive": null,
-     "active": {"target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_phase_anchor",
-                "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 28},
-                         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.250}}]}}},
+    {"id": "item_phase_anchor", "buy_price": 400, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null,
+     "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": {"unit": "ratio", "value": 0.5}, "distance_bonus": {"unit": "ratio", "value": 0.5}}]}},
     {"id": "item_arcane_battery", "buy_price": 400, "stats": {"MaxMPFlat": {"unit": "mp", "value": 120}, "MagicResistFlat": {"unit": "points", "value": 10}}, "passive": null,
      "active": {"target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_arcane_battery",
                 "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 0}, "cooldown": {"unit": "s", "value": 40},
@@ -279,7 +278,7 @@
     {"id": "item_edge_blade", "namespace": "DemoContent", "name_key": "item_edge_blade.name", "name_text": "鸡毛掸子", "description_key": "item_edge_blade.description", "description_text": "提高手劲和手速。", "icon_id": "icon_item_edge_blade"},
     {"id": "item_runic_focus", "namespace": "DemoContent", "name_key": "item_runic_focus.name", "name_text": "辣条", "description_key": "item_runic_focus.description", "description_text": "提高缺德值和鬼点子。", "icon_id": "icon_item_runic_focus"},
     {"id": "item_siphon_emblem", "namespace": "DemoContent", "name_key": "item_siphon_emblem.name", "name_text": "老爸的皮带", "description_key": "item_siphon_emblem.description", "description_text": "提高手劲和脸皮。被动「长脸」：弹脑瓜崩让对方实际丢掉的面子，按比例回到自己身上。", "icon_id": "icon_item_siphon_emblem"},
-    {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。", "icon_id": "icon_item_phase_anchor"},
+    {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。被动「助跑」：穿着时冲刺的冷却缩短、冲得更远；两双同款只算一次。", "icon_id": "icon_item_phase_anchor"},
     {"id": "item_arcane_battery", "namespace": "DemoContent", "name_key": "item_arcane_battery.name", "name_text": "保温杯", "description_key": "item_arcane_battery.description", "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。", "icon_id": "icon_item_arcane_battery"},
     {"id": "item_echo_maul", "namespace": "DemoContent", "name_key": "item_echo_maul.name", "name_text": "值日扫帚", "description_key": "item_echo_maul.description", "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。", "icon_id": "icon_item_echo_maul"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "纪律委员", "description_key": "monster_scavenger.description", "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。", "icon_id": "icon_monster_scavenger"},

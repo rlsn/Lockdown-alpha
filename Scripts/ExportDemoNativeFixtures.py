@@ -107,11 +107,12 @@ def effect(value):
     result = {
         "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "HPPerSec": rational(), "RatioBp": 0,
-        "DistanceCm": rational(), "RadiusCm": rational(), "Stats": [],
+        "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"),
+        ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -218,11 +219,16 @@ def expected_projection(compilation):
                 [("Move", "Dash").index(entry) for entry in value] if type(value) is list else value
                 for key, value in data["policies"].items()}
     character = data["character"]
+    dash = character["dash"]
+    dash_opcode = json.loads(compilation.inputs[demo.IDS_SOURCE])["effect_ops"]["dash"]
+    innate_dash = active({"target": {"mode": "DirectionDash"}, "rank": {
+        "rank": 1, "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
+        "effects": [{"opcode": dash_opcode, "distance": dash["distance"], "duration": dash["duration"]}]}})
     result = {
         "Identity": identity, "Parameters": parameter_projection(data["parameters"]), "Formulas": formulas, "Policies": policies,
         "Character": {"Id": character["id"], "NativeId": character["native_id"], "BasicTarget": 1, "BasicDamageType": 0,
                       "BasicADRatioBp": scalar(character["basic_attack"]["ad_ratio"]),
-                      "BasicIntervalMs": character["basic_attack"]["interval_ms"]},
+                      "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Kind": ("active", "passive").index(row["kind"]),
             "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,

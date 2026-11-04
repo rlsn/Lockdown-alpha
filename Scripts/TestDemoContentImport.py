@@ -391,7 +391,8 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"].update({"CAMP.Low.AggroRadiusCm": {"unit": "cm", "value": 0}}),
             lambda data: data["abilities"][0]["ranks"][0].update(extra=1),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(hidden_legacy_fallback=True),
-            lambda data: data["equipment"][4]["active"].update(range={"unit": "cm", "value": 120}),
+            lambda data: data["equipment"][5]["active"].update(range={"unit": "cm", "value": 120}),
+            lambda data: data["character"]["dash"].update(windup={"unit": "s", "value": 0}),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -436,7 +437,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0]["ranks"].reverse(),
             lambda data: data["abilities"][0]["ranks"][1].update(rank=1),
             lambda data: data["abilities"][0]["ranks"][2].pop("mana_cost"),
-            lambda data: data["equipment"][4]["active"]["rank"].update(rank=2),
+            lambda data: data["equipment"][5]["active"]["rank"].update(rank=2),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -448,8 +449,16 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0].update(cooldown_family="unknown_family"),
             lambda data: data["equipment"][3]["passive"].update(family="passive_cleave"),
             lambda data: data["abilities"][3]["ranks"][0]["effects"][0].update(stats={"ADFlat": {"unit": "points", "value": 1}}),
-            lambda data: data["equipment"][4].update(active=None),
-            lambda data: data["equipment"][0].update(active=deepcopy(data["equipment"][4]["active"])),
+            lambda data: data["equipment"][5].update(active=None),
+            lambda data: data["equipment"][0].update(active=deepcopy(data["equipment"][5]["active"])),
+            lambda data: data["equipment"][4].update(passive=None),
+            lambda data: data["equipment"][4]["passive"].update(family="passive_cleave"),
+            lambda data: data["equipment"][4]["passive"]["effects"][0].update(cooldown_ratio={"unit": "ratio", "value": 0}),
+            lambda data: data["equipment"][4]["passive"]["effects"][0].update(
+                cooldown_ratio={"unit": "ratio", "value": 1}, distance_bonus={"unit": "ratio", "value": 0}),
+            lambda data: data["character"].pop("dash"),
+            lambda data: data["character"]["dash"].update(distance={"unit": "cm", "value": 0}),
+            lambda data: data["character"]["dash"].update(duration=deepcopy(data["character"]["dash"]["cooldown"])),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
