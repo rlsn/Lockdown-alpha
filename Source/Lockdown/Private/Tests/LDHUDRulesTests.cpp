@@ -1,4 +1,8 @@
 #include "UI/LDHUDModel.h"
+#include "UI/LDDevTestPanel.h"
+#include "Development/LDDevTestProtocol.h"
+#include "Development/LDGrowthProtocol.h"
+#include "Combat/LDCombatTypes.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWorldFeedback.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -544,6 +548,86 @@ bool FLDHUDChoicesFoldTest::RunTest(const FString& Parameters)
         Combat.Revision=4;Combat.HPP2=48100;Combat.AsOfMs=3000;
         TestFalse(TEXT("Regeneration is not a hit"),IsHit(Observe()));
     }
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDDevTestPanelTest,"Lockdown.Rules.HUDDevTestPanel",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
+{
+    HudRegisterFixtureTable();
+    ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
+    // Entries are exact: a malformed amount or value is refused locally and sends nothing.
+    int64 Value=0;
+    TestTrue(TEXT("A positive amount parses exactly"),LDDevTest::ParseAmount(TEXT(" 120 "),Value)&&Value==120);
+    int32 AmountRefusals=0;
+    for(const TCHAR* Bad:{TEXT(""),TEXT("0"),TEXT("-5"),TEXT("1.5"),TEXT("12a"),TEXT("1234567890123456789")}){AmountRefusals+=LDDevTest::ParseAmount(Bad,Value)?0:1;}
+    TestEqual(TEXT("Empty, zero, signed, fractional, non-digit and over-long amounts are refused"),AmountRefusals,6);
+    TestTrue(TEXT("Two decimals scale to P2 / basis points"),LDDevTest::ParseScaled(TEXT("12.5"),2,Value)&&Value==1250&&LDDevTest::ParseScaled(TEXT("7"),2,Value)&&Value==700);
+    TestTrue(TEXT("Whole centimetres scale by one"),LDDevTest::ParseScaled(TEXT("40"),0,Value)&&Value==40&&LDDevTest::ParseScaled(TEXT("0"),2,Value)&&Value==0);
+    int32 ValueRefusals=0;
+    for(const TPair<const TCHAR*,int32>& Bad:{TPair<const TCHAR*,int32>(TEXT("1.234"),2),{TEXT("1.5"),0},{TEXT("-1"),2},{TEXT(".5"),2},{TEXT("5."),2},{TEXT("1e3"),2}})
+    {ValueRefusals+=LDDevTest::ParseScaled(Bad.Key,Bad.Value,Value)?0:1;}
+    TestEqual(TEXT("Extra decimals, signs, missing digits and exponents are refused, never rounded"),ValueRefusals,6);
+    // One settable field per permanent build stat, each shown in its projected attribute row.
+    const TConstArrayView<LDDevTest::FStatField> Fields=LDDevTest::StatFields();
+    TSet<uint8> Stats;TSet<FString> Names;bool bRowsValid=true;
+    for(const LDDevTest::FStatField& Field:Fields)
+    {
+        Stats.Add(Field.Stat);Names.Add(Field.ConsoleName);
+        bRowsValid&=Field.Attribute<uint8(ELDProjectedAttribute::Count)&&Field.Stat!=uint8(ELDDemoBonusStat::ADBonusRatio);
+    }
+    TestTrue(TEXT("Eleven distinct permanent stats, never the conditional AD ratio"),Fields.Num()==11&&Stats.Num()==11&&Names.Num()==11&&bRowsValid);
+    const LDDevTest::FStatField* Crit=Fields.FindByPredicate([](const LDDevTest::FStatField& F){return F.Stat==uint8(ELDDemoBonusStat::CritChanceBonusRatio);});
+    const LDDevTest::FStatField* Range=Fields.FindByPredicate([](const LDDevTest::FStatField& F){return F.Stat==uint8(ELDDemoBonusStat::AttackRangeCmFlat);});
+    TestTrue(TEXT("Fields name the stat in player terms with the entry unit"),Crit&&Range&&LDDevPanel::StatLabel(*Crit)==TEXT("正中要害率（百分点）")
+        &&LDDevPanel::StatLabel(*Range).EndsWith(TEXT("（厘米）")));
+
+    // Catalog rows: skills then attribute cards, with what the own progression holds.
+    FLDDemoContentDefinitions Content=HudFixtureContent();
+    FLDDemoAbilityDefinition Active;Active.Id=TEXT("root");Active.Kind=ELDDemoAbilityKind::Active;Content.Abilities.Add(Active);
+    FLDDemoAbilityDefinition Passive;Passive.Id=TEXT("passive_battle_rhythm");Passive.Kind=ELDDemoAbilityKind::Passive;Content.Abilities.Add(Passive);
+    FLDDemoAttributeDefinition Card;Card.Id=TEXT("shield");Content.Attributes.Add(Card);
+    Content.Equipment[0].BuyPrice=300;
+    FLDProgressionView Progression;Progression.bValid=true;Progression.Level=3;Progression.CumulativeXP=450;Progression.PendingChoiceCount=1;
+    FLDLearnedSkillView Learned;Learned.DefinitionId=TEXT("root");Learned.bActive=true;Learned.Rank=2;Learned.Slot=0;Progression.Skills.Add(Learned);
+    FLDAttributeCardView Cards;Cards.DefinitionId=TEXT("shield");Cards.Count=3;Progression.AttributeCards.Add(Cards);
+    const TArray<LDDevPanel::FLearnRow> Rows=LDDevPanel::LearnRows(Content,&Progression);
+    TestTrue(TEXT("Every skill and card of the catalog is listed in order with its kind"),Rows.Num()==3&&Rows[0].Name==TEXT("定身")&&Rows[0].bActiveSkill
+        &&Rows[1].Kind==TEXT("被动技能")&&Rows[2].Kind==TEXT("属性卡"));
+    TestTrue(TEXT("Held ranks and card counts come from the own progression"),LDDevPanel::HeldText(Rows[0])==TEXT("2 级")
+        &&LDDevPanel::HeldText(Rows[1])==TEXT("未拥有")&&LDDevPanel::HeldText(Rows[2])==TEXT("已有 3 张"));
+    TestFalse(TEXT("One held active does not need a replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
+    Learned.Slot=1;Learned.DefinitionId=TEXT("other_active");Progression.Skills.Add(Learned);
+    TestTrue(TEXT("Q and W both held offer the confirmed replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
+    TestFalse(TEXT("An unprojected progression offers nothing"),LDDevPanel::BothActiveSlotsHeld(nullptr));
+    const TArray<LDDevPanel::FItemRow> Items=LDDevPanel::ItemRows(Content);
+    TestTrue(TEXT("Items list their catalog price"),Items.Num()==1&&Items[0].Name==TEXT("《五年挨打三年模拟》")&&Items[0].Price==300);
+
+    // Own state lines: an unprojected view reads as syncing, never as 0.
+    TestEqualSensitive(TEXT("Nothing projected is syncing"),LDDevPanel::StatusLine(nullptr,nullptr),FString(TEXT("等级 同步中 · 零花钱 同步中")));
+    FLDEquipmentView Equipment;Equipment.bValid=true;Equipment.Gold=275;
+    FLDEquipmentSlotView First;First.SlotIndex=0;First.bOccupied=true;First.DefinitionId=TEXT("item_iron_plate");Equipment.Slots.Add(First);
+    FLDEquipmentSlotView Second;Second.SlotIndex=1;Equipment.Slots.Add(Second);
+    TestEqualSensitive(TEXT("Level, XP, unused choices and gold"),LDDevPanel::StatusLine(&Progression,&Equipment),FString(TEXT("等级 3 · 经验 450 · 未用选择机会 1 · 零花钱 275")));
+    TestTrue(TEXT("Slots show the held item or empty"),LDDevPanel::SlotLine(&Equipment,&Content,1)==TEXT("装备 1：《五年挨打三年模拟》")
+        &&LDDevPanel::SlotLine(&Equipment,&Content,2)==TEXT("装备 2：空")&&LDDevPanel::SlotLine(nullptr,&Content,1)==TEXT("装备 1：同步中"));
+    TestEqualSensitive(TEXT("An attribute without a projected row is syncing"),LDDevPanel::AttributeLine(nullptr,uint8(ELDProjectedAttribute::AD)),FString(TEXT("同步中")));
+    FLDCombatOwnerView Combat;FLDCombatAttributeRowView AD;AD.Attribute=uint8(ELDProjectedAttribute::AD);
+    for(FLDDemoRational* Term:{&AD.Base,&AD.Level,&AD.Choices,&AD.Passives,&AD.Equipment,&AD.PercentBonus,&AD.Dev,&AD.DevPercent,&AD.Temporary,&AD.TemporaryPercent,&AD.Final})
+    {Term->Numerator=0;Term->Denominator=1;}
+    AD.Base.Numerator=50;AD.Dev.Numerator=12;AD.Final.Numerator=62;Combat.Attributes.Add(AD);
+    const FString ADLine=LDDevPanel::AttributeLine(&Combat,uint8(ELDProjectedAttribute::AD));
+    TestTrue(TEXT("The committed final value shows with the test layer among its sources"),ADLine.StartsWith(TEXT("当前 62"))&&ADLine.Contains(TEXT("测试")));
+
+    // The authority's answer, never a guessed success.
+    FLDDevTestResult Result;Result.Status=ELDAdmissionStatus::AdmissionRejected;Result.Reason=uint16(ELDGrowthReason::NotAuthority);
+    TestTrue(TEXT("An admission refusal names its reason"),LDDevPanel::ResultLine(Result).StartsWith(TEXT("请求被拒绝（")));
+    Result.Status=ELDAdmissionStatus::Final;Result.bHasReceipt=true;Result.Receipt.Op=ELDDevTestOp::GrantGold;Result.Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
+    TestEqualSensitive(TEXT("An applied receipt says so"),LDDevPanel::ResultLine(Result),FString(TEXT("加零花钱 已生效")));
+    Result.Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Result.Receipt.Header.Reason=uint16(ELDGrowthReason::EquipmentFull);
+    TestTrue(TEXT("A refused receipt names the op and its reason"),LDDevPanel::ResultLine(Result).StartsWith(TEXT("加零花钱 被拒绝（")));
+    Result.Status=ELDAdmissionStatus::AcceptedPending;Result.bHasReceipt=false;
+    TestTrue(TEXT("An admitted command waits for its commit"),LDDevPanel::ResultLine(Result).StartsWith(TEXT("已受理")));
     return true;
 }
 #endif

@@ -149,6 +149,12 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
     case ECause::DevFixture:
         bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
         break;
+    case ECause::DevReset:
+        bShape = !bCreate && !bRetire && (bConsume
+            ? !bGold && T.Mint == 0 && T.Burn == 0
+            : bGold && T.Gold->Delta != 0 && T.Gold->Delta != MIN_int64
+                && T.Mint == FMath::Max<int64>(T.Gold->Delta, 0) && T.Burn == FMath::Max<int64>(-T.Gold->Delta, 0));
+        break;
 #endif
     default:
         break;
@@ -447,6 +453,7 @@ bool LDEconomy::FLedger::Initialize(const FGuid& Match, const TArray<FGuid>& Acc
     Pins = 0;
 #if WITH_DEV_AUTOMATION_TESTS
     DevFixtureMints.Reset();
+    DevResets.Reset();
 #endif
     return true;
 }
@@ -459,6 +466,7 @@ void LDEconomy::FLedger::Reset()
     Pins = 0;
 #if WITH_DEV_AUTOMATION_TESTS
     DevFixtureMints.Reset();
+    DevResets.Reset();
 #endif
 }
 
@@ -536,6 +544,12 @@ void LDEconomy::FLedger::ApplyPrepared(FPreparedCommit&& Prepared)
     if (Applied.Cause == ECause::DevFixture)
     {
         DevFixtureMints.Add({Prepared.Journal.Serial, Applied.Gold->Account, Applied.Gold->Delta});
+    }
+    else if (Applied.Cause == ECause::DevReset)
+    {
+        DevResets.Add(Applied.Consume.IsSet()
+            ? FDevResetEntry{Prepared.Journal.Serial, Applied.Consume->Owner, 0, Applied.Consume->Instance}
+            : FDevResetEntry{Prepared.Journal.Serial, Applied.Gold->Account, Applied.Gold->Delta, FGuid()});
     }
 #endif
     Tail.Add(MoveTemp(Prepared.Journal));
@@ -637,6 +651,7 @@ const TCHAR* LedgerJsonCause(LDEconomy::ECause Cause)
     case LDEconomy::ECause::Sell: return TEXT("Sell");
     case LDEconomy::ECause::AccountRetire: return TEXT("AccountRetire");
     case LDEconomy::ECause::DevFixture: return TEXT("DevFixture");
+    case LDEconomy::ECause::DevReset: return TEXT("DevReset");
     case LDEconomy::ECause::None: break;
     }
     return TEXT("None");
@@ -795,7 +810,7 @@ bool LDEconomy::ExportEvidence(const FLedger& Ledger, int64 StartingGold, FStrin
         return false;
     }
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-    Root->SetNumberField(TEXT("schemaVersion"), 3);
+    Root->SetNumberField(TEXT("schemaVersion"), 4);
     Root->SetStringField(TEXT("match"), LedgerJsonGuid(Ledger.GetMatch()));
     Root->SetStringField(TEXT("startingGold"), LedgerJsonI64(StartingGold));
     // Every DevFixture mint of the match, also those already folded into the prefix, and whether this process ran
@@ -819,6 +834,25 @@ bool LDEconomy::ExportEvidence(const FLedger& Ledger, int64 StartingGold, FStrin
     }
     Fixture->SetArrayField(TEXT("grants"), Grants);
     Fixture->SetStringField(TEXT("minted"), LedgerJsonI64(FixtureMinted));
+    // Every DevReset entry of the match: a consumed instance (gold 0) or a gold change back to the starting gold.
+    TArray<TSharedPtr<FJsonValue>> Resets;
+    for (const FDevResetEntry& Reset : Ledger.DevResetEntries())
+    {
+        TSharedRef<FJsonObject> Row = MakeShared<FJsonObject>();
+        Row->SetStringField(TEXT("serial"), LedgerJsonU64(Reset.Serial));
+        Row->SetStringField(TEXT("account"), LedgerJsonGuid(Reset.Account));
+        Row->SetStringField(TEXT("gold"), LedgerJsonI64(Reset.Gold));
+        if (Reset.Instance.IsValid())
+        {
+            Row->SetStringField(TEXT("instance"), LedgerJsonGuid(Reset.Instance));
+        }
+        else
+        {
+            Row->SetField(TEXT("instance"), MakeShared<FJsonValueNull>());
+        }
+        Resets.Add(MakeShared<FJsonValueObject>(Row));
+    }
+    Fixture->SetArrayField(TEXT("resets"), Resets);
     Root->SetObjectField(TEXT("devFixture"), Fixture);
     Root->SetObjectField(TEXT("prefix"), LedgerJsonState(Ledger.AuditPrefix()));
     TArray<TSharedPtr<FJsonValue>> Tail;

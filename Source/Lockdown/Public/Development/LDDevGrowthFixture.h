@@ -13,6 +13,9 @@ class UWorld;
 // LDDevGrowthFixture::StageOffer in the Lobby, ALDDevelopmentDirector::DevQueueOffer and ALDEconomyDirector::DevGrantReward
 // in an open match, directly on the game thread.
 // It never changes how an offer is chosen or a reward is committed, and it is not a play mode.
+// The same switch admits the owner-only DEV test commands (LDDevTestProtocol.h, ALDEconomyDirector::QueueDevTest): the
+// fixture entries above stay Host-only, while a DEV test command reaches the authority through its owning connection's RPC
+// and only ever acts on that connection's own contender.
 enum class ELDDevGrantStatus : uint8
 {
     Unknown,  // no grant with this ticket in the current match

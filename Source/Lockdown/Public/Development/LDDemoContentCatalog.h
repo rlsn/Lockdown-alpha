@@ -80,6 +80,17 @@ public:
         TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error) const;
     static bool Load(const FLDDemoContentDigest& ExpectedRoot,
         TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error);
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV content hot reload (LDDemoEntry::IsDevContentReload). This asset must still match the compiled root; the
+    // current Sync outputs under ProjectRoot are then projected with the full native importer against DiskRoot, the
+    // hash of manifest.json on disk. Only the content payload, its display text and the root may differ from this
+    // asset: world bytes and sources, schemas, native ids and contracts must be unchanged (SameDevReloadBase).
+    bool ReadDevReloadFiles(const FString& ProjectRoot, const FLDDemoContentDigest& CompiledRoot, const FLDDemoContentDigest& DiskRoot,
+        TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error) const;
+    static bool LoadDevReload(const FLDDemoContentDigest& CompiledRoot, const FLDDemoContentDigest& DiskRoot,
+        TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error);
+    static bool SameDevReloadBase(const FLDDemoContentIdentity& Compiled, const FLDDemoContentIdentity& Reloaded, FString& Error);
+#endif
 
 private:
     uint64 ImportGeneration = 0;

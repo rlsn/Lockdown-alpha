@@ -231,6 +231,29 @@ void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
     CaptureTracks.Remove(ContenderId);
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDGameMode::DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail)
+{
+    bOutsideDevelopment = MatchPhase != ELDMatchPhase::Development;
+    if (bOutsideDevelopment)
+    {
+        Detail = TEXT("The capture circle opens early only during the development phase.");
+        return false;
+    }
+    if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
+    {
+        Detail = TEXT("An early capture opening needs the current Transactions permit.");
+        return false;
+    }
+    const int64 ScheduledMs = CaptureReducer.GetOpenAtMs();
+    const int64 AtMs = Permit.GetBoundary().AtMs;
+    if (!CaptureReducer.DevOpenAt(AtMs, Detail)) { return false; }
+    bPublicMatchDirty = true;
+    Detail = FString::Printf(TEXT("the capture circle opens at %lld ms instead of %lld ms"), AtMs, ScheduledMs);
+    return true;
+}
+#endif
+
 bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Capture) != ELDCommitReject::None || !CaptureReducer.IsActive())

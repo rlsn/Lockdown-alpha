@@ -93,6 +93,16 @@ ALDGameMode* ALDCampDirector::AuthorityMode() const
     return Mode && HasAuthority() && Mode->Camps == this ? Mode : nullptr;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool ALDCampDirector::DevRefreshCleared(const FLDGameplayWritePermit& Permit, int32& OutWaiting, FString& Error)
+{
+    OutWaiting = 0;
+    if (!CheckPermit(Permit, ELDCommitPhase::Transactions, Error)) { return false; }
+    OutWaiting = State.DevRefreshNow(Permit.GetBoundary().AtMs);
+    return true;
+}
+#endif
+
 bool ALDCampDirector::CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommitPhase Phase, FString& Error) const
 {
     const ALDGameMode* Mode = AuthorityMode();

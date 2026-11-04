@@ -732,10 +732,37 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
         return Reject(ELDGrowthReason::BuildStale);
     }
 
-    const bool bBuy = Command.Kind == ELDShopCommandKind::Buy;
-    LDEconomy::FTransaction Transaction;
     TArray<uint8> Canonical;
     VendorCanonicalCommand(Match.LedgerMatch, ContenderId, Command, Canonical);
+    FLDShopReceipt Receipt;
+    const ELDGrowthReason TradeReason = CommitTrade(ContenderId, Command, Canonical, Permit, Receipt);
+    if (TradeReason == ELDGrowthReason::AuthorityFault)
+    {
+        return Fault(TEXT("the Transactions write permit expired before the composite install"));
+    }
+    if (TradeReason != ELDGrowthReason::None)
+    {
+        return Reject(TradeReason);
+    }
+    return Finish(ContenderId, *Record, ELDGrowthReason::None, Permit, MoveTemp(Receipt));
+}
+
+ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const FLDShopCommand& Command,
+    const TArray<uint8>& Canonical, const FLDGameplayWritePermit& Permit, FLDShopReceipt& OutReceipt)
+{
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Economy || !GameMode->Development || !GameMode->Combat || !Content.IsValid())
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    LDEconomy::FLedger& Ledger = GameMode->Economy->MutableLedger();
+    const LDEconomy::FAccount* Account = Ledger.Account(ContenderId);
+    if (!Account)
+    {
+        return ELDGrowthReason::DataInvalid;
+    }
+    const bool bBuy = Command.Kind == ELDShopCommandKind::Buy;
+    LDEconomy::FTransaction Transaction;
     Transaction.BusinessKey = ALDEconomyDirector::BusinessKey(Canonical);
     ALDEconomyDirector::Terms(Canonical, Transaction.Terms);
     Transaction.CommitBatch = Permit.GetBoundary().BatchSerial;
@@ -752,11 +779,11 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
             ? VendorFindEquipment(*Content, WireDefinition) : nullptr;
         if (!Definition)
         {
-            return Reject(ELDGrowthReason::UnknownItem);
+            return ELDGrowthReason::UnknownItem;
         }
         if (Command.BuyPrice != Definition->BuyPrice)
         {
-            return Reject(ELDGrowthReason::PriceChanged);
+            return ELDGrowthReason::PriceChanged;
         }
         TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
         Ledger.OwnerItems(ContenderId, Owned);
@@ -780,11 +807,11 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
         // Capacity is reported before the balance because selling first is the only way forward.
         if (Owned.Num() >= LDEconomy::EquipmentSlots || FreeSlot == INDEX_NONE)
         {
-            return Reject(ELDGrowthReason::EquipmentFull);
+            return ELDGrowthReason::EquipmentFull;
         }
         if (Account->Gold < Command.BuyPrice)
         {
-            return Reject(ELDGrowthReason::InsufficientGold);
+            return ELDGrowthReason::InsufficientGold;
         }
         DefinitionId = FName(*Definition->Id);
         SlotIndex = uint8(FreeSlot);
@@ -803,20 +830,20 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
         const LDEconomy::FItem* Item = Ledger.Item(Command.Instance);
         if (!Item || Item->Owner != ContenderId)
         {
-            return Reject(ELDGrowthReason::ItemNotOwned);
+            return ELDGrowthReason::ItemNotOwned;
         }
         if (Item->Revision != Command.ExpectedItemRevision)
         {
-            return Reject(ELDGrowthReason::ItemStale);
+            return ELDGrowthReason::ItemStale;
         }
         const FLDDemoEquipmentDefinition* Definition = VendorFindEquipment(*Content, Item->Definition);
         if (!Definition)
         {
-            return Reject(ELDGrowthReason::DataInvalid);
+            return ELDGrowthReason::DataInvalid;
         }
         if (Command.SellPrice != Definition->SellGold)
         {
-            return Reject(ELDGrowthReason::PriceChanged);
+            return ELDGrowthReason::PriceChanged;
         }
         DefinitionId = Item->Definition;
         SlotIndex = Item->Slot;
@@ -848,20 +875,20 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
             UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_LEDGER_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
                 Command.RequestId, LDEconomy::FLedger::ErrorName(PreparedLedger.Error), *PreparedLedger.Message);
         }
-        return Reject(LedgerReason);
+        return LedgerReason;
     }
     const LDEconomy::FPreparedCommit& LedgerPlan = PreparedLedger.Value.GetValue();
     const uint64* AfterInventory = LedgerPlan.After().InventoryRevisions.Find(ContenderId);
     if (!AfterInventory)
     {
-        return Reject(ELDGrowthReason::DataInvalid);
+        return ELDGrowthReason::DataInvalid;
     }
     const uint64 ResultInventoryRevision = *AfterInventory;
 
     FLDPrepareGrowthResult PreparedGrowth = GameMode->Development->PrepareEquipmentChange(ContenderId);
     if (!PreparedGrowth.IsSuccess())
     {
-        return Reject(PreparedGrowth.Reason != ELDGrowthReason::None ? PreparedGrowth.Reason : ELDGrowthReason::PrepareUnavailable);
+        return PreparedGrowth.Reason != ELDGrowthReason::None ? PreparedGrowth.Reason : ELDGrowthReason::PrepareUnavailable;
     }
     const uint64 ResultBuildRevision = PreparedGrowth.Value->Build().Revision;
 
@@ -870,7 +897,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
     FLDExpectedBuildVersions Installed;
     if (!GameMode->Development->ReadCombatInstalled(ContenderId, Installed))
     {
-        return Reject(ELDGrowthReason::NotContender);
+        return ELDGrowthReason::NotContender;
     }
     FLDCombatPrepareResult PreparedCombat = GameMode->Combat->PrepareBuildChange(GameMode->Development->MakeCaller(ContenderId),
         GameMode->Development->MakeProjectionInput(PreparedGrowth.Value->Build(), Equipped, ResultInventoryRevision), Installed);
@@ -882,11 +909,11 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
             UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_PROJECTION_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
                 Command.RequestId, LDGrowthWire::ReasonName(CombatReason), *PreparedCombat.Message);
         }
-        return Reject(CombatReason);
+        return CombatReason;
     }
 
     const LDEconomy::FJournalEntry& Entry = LedgerPlan.Entry();
-    FLDShopReceipt Receipt;
+    FLDShopReceipt& Receipt = OutReceipt;
     Receipt.Instance = bBuy ? Entry.CreatedInstance : Command.Instance;
     Receipt.IssueSerial = bBuy ? Entry.CreatedIssueSerial : SoldIssueSerial;
     Receipt.DefinitionId = DefinitionId;
@@ -917,7 +944,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
 
     if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
     {
-        return Fault(TEXT("the Transactions write permit expired before the composite install"));
+        return ELDGrowthReason::AuthorityFault;
     }
     // Every part is prepared and the permit re-checked; the composite install below cannot fail.
     FLDExpectedBuildVersions Install;
@@ -927,7 +954,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
     PreparedGrowth.Value->SetCombatInstall(Install);
     GameMode->Development->ApplyPreparedGrowth(MoveTemp(PreparedGrowth.Value.GetValue()), Permit);
     GameMode->Combat->ApplyBuildChange(MoveTemp(PreparedCombat.Value.GetValue()), Permit);
-    return Finish(ContenderId, *Record, ELDGrowthReason::None, Permit, MoveTemp(Receipt));
+    return ELDGrowthReason::None;
 }
 
 FLDShopReceipt ALDVendorDirector::Finish(const FGuid& ContenderId, FRecord& Record, ELDGrowthReason Reason,
@@ -1001,3 +1028,84 @@ bool ALDVendorDirector::TakeOpenResult(const FGuid& ContenderId, FLDShopOpenResu
     Record->UnpublishedOpen.Reset();
     return true;
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+ELDGrowthReason ALDVendorDirector::DevTrade(const FGuid& ContenderId, bool bBuy, FName ItemId, uint8 Slot, uint64 RequestId,
+    const FLDGameplayWritePermit& Permit, FString& Detail)
+{
+    Detail.Reset();
+    ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Economy || !Content.IsValid())
+    {
+        return ELDGrowthReason::AuthorityFault;
+    }
+    const LDEconomy::FLedger& Ledger = GameMode->Economy->GetLedger();
+    const LDEconomy::FAccount* Account = Ledger.Account(ContenderId);
+    const FLDGrowthBuild* Build = GameMode->Development ? GameMode->Development->FindBuild(ContenderId) : nullptr;
+    if (!Account || !Build)
+    {
+        Detail = TEXT("The contender has no account or growth record in this match.");
+        return ELDGrowthReason::NotContender;
+    }
+    // The command a shop session would have sent for this trade, at the current guards and the catalog price.
+    FLDShopCommand Command;
+    Command.Generation = Match.Generation;
+    Command.RequestId = RequestId;
+    Command.Kind = bBuy ? ELDShopCommandKind::Buy : ELDShopCommandKind::Sell;
+    Command.ExpectedAccountRevision = Account->Revision;
+    Command.ExpectedInventoryRevision = Ledger.InventoryRevision(ContenderId);
+    Command.ExpectedBuildRevision = Build->Revision;
+    if (bBuy)
+    {
+        const FLDDemoEquipmentDefinition* Definition = VendorFindEquipment(*Content, ItemId);
+        if (!Definition || !FLDDefinitionWire::Encode(ItemId, Command.DefinitionId))
+        {
+            Detail = FString::Printf(TEXT("'%s' is not an item of the approved catalog."), *ItemId.ToString());
+            return ELDGrowthReason::UnknownItem;
+        }
+        Command.BuyPrice = Definition->BuyPrice;
+    }
+    else
+    {
+        TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
+        Ledger.OwnerItems(ContenderId, Owned);
+        const TPair<FGuid, LDEconomy::FItem>* Held = Owned.FindByPredicate(
+            [Slot](const TPair<FGuid, LDEconomy::FItem>& Pair) { return Pair.Value.Slot == uint8(Slot - 1); });
+        const FLDDemoEquipmentDefinition* Definition = Held ? VendorFindEquipment(*Content, Held->Value.Definition) : nullptr;
+        if (!Held)
+        {
+            Detail = FString::Printf(TEXT("Equipment slot %u is empty."), uint32(Slot));
+            return ELDGrowthReason::ItemNotOwned;
+        }
+        if (!Definition)
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        Command.Instance = Held->Key;
+        Command.ExpectedItemRevision = Held->Value.Revision;
+        Command.SellPrice = Definition->SellGold;
+    }
+    // Its own business identity: never the key of a shop request of any session.
+    TArray<uint8> Canonical;
+    {
+        FMemoryWriter Writer(Canonical);
+        FString Tag = TEXT("dev-test-trade");
+        FGuid LedgerMatch = Match.LedgerMatch;
+        FGuid Contender = ContenderId;
+        uint64 Request = RequestId;
+        uint8 Kind = uint8(Command.Kind);
+        FString Item = ItemId.ToString();
+        FGuid Instance = Command.Instance;
+        Writer << Tag << LedgerMatch << Contender << Request << Kind << Item << Instance;
+    }
+    FLDShopReceipt Receipt;
+    const ELDGrowthReason Reason = CommitTrade(ContenderId, Command, Canonical, Permit, Receipt);
+    if (Reason == ELDGrowthReason::None)
+    {
+        Detail = FString::Printf(TEXT("%s %s in slot %u, gold %+lld"), bBuy ? TEXT("bought") : TEXT("sold"),
+            *Receipt.DefinitionId.ToString(), uint32(Receipt.SlotIndex) + 1, Receipt.ActualGoldDelta);
+        GameMode->Economy->MarkDirty(ContenderId);
+    }
+    return Reason;
+}
+#endif

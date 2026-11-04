@@ -236,6 +236,9 @@ struct FLDBuildProjectionInput
     TArray<FLDAttributeCardValue> AttributeCards;
     TArray<FLDLearnedActiveValue> Actives;
     TArray<FLDEquippedItemValue> Equipment;
+    // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
+    // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
+    TArray<FLDDemoStatBonus> DevBonuses;
     uint64 ResultBuildRevision=0;      // strictly increasing
     uint64 ResultInventoryRevision=0;  // strictly increasing or unchanged
 };
@@ -408,7 +411,9 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Choices;
     UPROPERTY() FLDDemoRational Passives;
     UPROPERTY() FLDDemoRational Equipment;
-    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build
+    UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
+    UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
+    UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
     UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
     UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
     UPROPERTY() FLDDemoRational Final;

@@ -1,6 +1,7 @@
 #include "Region/LDMapDefinition.h"
 #include "LDMapGeometryJson.h"
 #include "../Development/LDDemoContentJson.h"
+#include "Framework/LDDemoEntry.h"
 
 namespace
 {
@@ -73,7 +74,17 @@ bool ULDMapDefinition::ValidatePrepared(const FLDDemoPreparedWorld& Expected, FS
 bool ULDMapDefinition::Read(const FLDDemoContentSnapshot& Content, TSharedPtr<const FLDDemoWorldGeometry>& Out, FString& Error) const
 {
     TUniquePtr<FLDDemoPreparedWorld> Expected;
-    if (!PrepareProjection(SourceBytes(SourceJson), Content, Expected, Error) || !ValidatePrepared(*Expected, Error)) { return false; }
+    if (!PrepareProjection(SourceBytes(SourceJson), Content, Expected, Error)) { return false; }
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV content hot reload: this asset stays bound to the compiled root while the reloaded content has its own.
+    // The world bytes and the full typed geometry re-projected with the reloaded numbers must still match exactly,
+    // so a number that moves world geometry is refused until Bootstrap and a rebuild.
+    if (LDDemoEntry::IsDevContentReload() && Expected->ContentRoot != ContentRoot && LDDemoEntry::IsCompiledCatalogRoot(ContentRoot))
+    {
+        Expected->ContentRoot = ContentRoot;
+    }
+#endif
+    if (!ValidatePrepared(*Expected, Error)) { return false; }
     Out = MakeShared<const FLDDemoWorldGeometry>(MoveTemp(Expected->Geometry));
     return true;
 }

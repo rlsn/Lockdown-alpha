@@ -291,6 +291,75 @@ bool ULDDemoContentCatalog::Load(const FLDDemoContentDigest& ExpectedRoot,
         ExpectedRoot, Out, Error);
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool ULDDemoContentCatalog::SameDevReloadBase(const FLDDemoContentIdentity& Compiled, const FLDDemoContentIdentity& Reloaded,
+    FString& Error)
+{
+    struct FField { const TCHAR* Name; bool bSame; };
+    for (const FField& Field : {
+        FField{TEXT("world.json"), Compiled.World == Reloaded.World},
+        {TEXT("content schema"), Compiled.AuthorSchema == Reloaded.AuthorSchema},
+        {TEXT("native ids"), Compiled.NativeIds == Reloaded.NativeIds},
+        {TEXT("native contract"), Compiled.NativeContract == Reloaded.NativeContract},
+        {TEXT("world contract"), Compiled.WorldContract == Reloaded.WorldContract},
+        {TEXT("content schema version"), Compiled.SchemaVersion == Reloaded.SchemaVersion},
+        {TEXT("handler revision"), Compiled.HandlerRevision == Reloaded.HandlerRevision},
+        {TEXT("projection revision"), Compiled.ProjectionRevision == Reloaded.ProjectionRevision},
+        {TEXT("world schema version"), Compiled.WorldSchemaVersion == Reloaded.WorldSchemaVersion},
+        {TEXT("world projection revision"), Compiled.WorldProjectionRevision == Reloaded.WorldProjectionRevision}})
+    {
+        if (!Field.bSame)
+        {
+            Error = FString::Printf(TEXT("%s differs from the compiled build; only demo_content.json numbers reload, this change needs Bootstrap and a rebuild."), Field.Name);
+            return false;
+        }
+    }
+    Error.Reset();
+    return true;
+}
+
+bool ULDDemoContentCatalog::ReadDevReloadFiles(const FString& ProjectRoot, const FLDDemoContentDigest& CompiledRoot,
+    const FLDDemoContentDigest& DiskRoot, TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error) const
+{
+    LDDemoContent::FCheck Check(Error);
+    if (!Check.Require(IsInGameThread(), TEXT("asset"), TEXT("asset reads require the game thread")) || !Validate(CompiledRoot, Error))
+    {
+        return false;
+    }
+    FLDDemoContentBundle Disk;
+    FLDDemoContentDefinitions Rebuilt;
+    if (!FLDDemoContentBundle::ReadImportFiles(ProjectRoot, Disk, Error) || !LDDemoContent::Project(Disk, DiskRoot, Rebuilt, Error)
+        || !SameDevReloadBase(Definitions.Identity, Rebuilt.Identity, Error))
+    {
+        return false;
+    }
+    if (!Check.Require(Disk.WorldSource == ImportedBytes.WorldSource && Disk.WorldAuthorSchema == ImportedBytes.WorldAuthorSchema,
+        TEXT("world source"), TEXT("differs from the compiled build; only demo_content.json numbers reload")))
+    {
+        return false;
+    }
+    Out = TSharedPtr<const FLDDemoContentSnapshot>(new FLDDemoContentSnapshot(MoveTemp(Rebuilt)));
+    Error.Reset();
+    return true;
+}
+
+bool ULDDemoContentCatalog::LoadDevReload(const FLDDemoContentDigest& CompiledRoot, const FLDDemoContentDigest& DiskRoot,
+    TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error)
+{
+    LDDemoContent::FCheck Check(Error);
+    if (!Check.Require(IsInGameThread(), TEXT("load"), TEXT("asset loading requires the game thread")))
+    {
+        return false;
+    }
+    const ULDDemoContentCatalog* Asset = LoadObject<ULDDemoContentCatalog>(nullptr, AssetPath());
+    if (!Check.Require(Asset != nullptr, AssetPath(), TEXT("required native content asset is absent; no legacy fallback")))
+    {
+        return false;
+    }
+    return Asset->ReadDevReloadFiles(FPaths::ProjectDir(), CompiledRoot, DiskRoot, Out, Error);
+}
+#endif
+
 bool ULDDemoContentCatalog::ReadRuntimeFiles(const FString& DataDirectory, const FLDDemoContentDigest& ExpectedRoot,
     TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error) const
 {

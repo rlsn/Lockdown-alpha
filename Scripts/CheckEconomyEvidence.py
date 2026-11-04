@@ -1,10 +1,13 @@
-"""Independently replay a Demo ledger evidence export (schema 3): audit prefix + journal tail must equal the live state.
+"""Independently replay a Demo ledger evidence export (schema 4): audit prefix + journal tail must equal the live state.
 
 The export comes from LDEconomy::ExportEvidence. Every rule mirrors LDEconomy::ApplyEntry: one account per entry,
 DeathReward = mint, Buy = burn + create, Sell = consume + mint, AccountRetire = retire only, two equipment slots,
 instance identities that encode the match and issue serial, and gold that reconciles with initial + mint - burn.
 DevFixture = mint from the DEV growth fixture (-LDDevGrowthFixture). Its grants are listed in devFixture for the whole
 match; they are accepted only with --dev-fixture and only from an export whose process ran with the fixture.
+DevReset = a DEV test reset to the match start under the same switch: either consume one item without a refund, or one
+gold change back to the starting gold (mint when it rises, burn when it falls). Every DevReset entry is listed in
+devFixture.resets and accepted under the same conditions.
 """
 
 import argparse
@@ -13,13 +16,14 @@ from pathlib import Path
 import re
 from uuid import UUID
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 INT64_MIN, INT64_MAX = -(2**63), 2**63 - 1
 UINT32_MAX, UINT64_MAX = 2**32 - 1, 2**64 - 1
 EQUIPMENT_SLOTS = 2
 JOURNAL_TAIL_CAPACITY = 64
 CAUSES = ("DeathReward", "Buy", "Sell", "AccountRetire")
 DEV_FIXTURE = "DevFixture"
+DEV_RESET = "DevReset"
 DEFINITION = re.compile(r"[a-z][a-z0-9_]{0,62}")
 UNSIGNED = re.compile(r"0|[1-9][0-9]*")
 SIGNED = re.compile(r"0|-?[1-9][0-9]*")
@@ -155,7 +159,8 @@ def load_state(row, match, label):
 
 
 def load_fixture(data, dev_fixture):
-    """The devFixture block: whether the exporting process ran with the fixture and every DevFixture mint by serial."""
+    """The devFixture block: whether the exporting process ran with the fixture, every DevFixture mint and every DevReset
+    entry by serial."""
     block = field(data, "devFixture")
     require(isinstance(block, dict), "devFixture must be an object")
     enabled = flag(field(block, "enabled"), "devFixture.enabled")
@@ -168,19 +173,31 @@ def load_fixture(data, dev_fixture):
         total += grants[serial][1]
     require(total == i64(field(block, "minted"), "devFixture.minted", 0), "devFixture.minted is not the sum of its listed grants")
     require(enabled or not grants, "DevFixture grants are listed by a process without the DEV growth fixture")
+    resets = {}
+    for row in rows(block, "resets"):
+        serial = u64(field(row, "serial"), "devFixture reset serial", 1)
+        require(serial not in resets and serial not in grants, f"DEV fixture serial {serial} is listed twice")
+        account_key = guid(field(row, "account"), "devFixture reset account")
+        gold = i64(field(row, "gold"), "devFixture reset gold")
+        listed = field(row, "instance")
+        item = None if listed is None else guid(listed, "devFixture reset instance")
+        require((item is None) == (gold != 0), "A DevReset listing names either a consumed instance or a gold change")
+        resets[serial] = (account_key, gold, item)
+    require(enabled or not resets, "DevReset entries are listed by a process without the DEV growth fixture")
     if dev_fixture:
         require(enabled, "--dev-fixture was given, but the evidence comes from a process without -LDDevGrowthFixture")
     else:
         require(not enabled, "The evidence comes from a run with the DEV growth fixture; only --dev-fixture accepts it")
-    return grants, total
+    return grants, total, resets
 
 
-def apply_entry(state, entry, match, fixture_grants=None):
-    """Mirror of LDEconomy::ApplyEntry in replay mode; fixture_grants is None unless the DEV fixture is accepted."""
+def apply_entry(state, entry, match, fixture_grants=None, fixture_resets=None):
+    """Mirror of LDEconomy::ApplyEntry in replay mode; the fixture listings are None unless the DEV fixture is accepted."""
     serial = u64(field(entry, "serial"), "serial")
     require(serial == state["through"] + 1, "Journal serial is not the next contiguous commit")
     cause = field(entry, "cause")
-    require(cause in CAUSES or (cause == DEV_FIXTURE and fixture_grants is not None), f"Unknown cause: {cause}")
+    require(cause in CAUSES or (cause == DEV_FIXTURE and fixture_grants is not None)
+            or (cause == DEV_RESET and fixture_resets is not None), f"Unknown cause: {cause}")
     mint = i64(field(entry, "mint"), "mint", 0)
     burn = i64(field(entry, "burn"), "burn", 0)
     gold, create, consume, retire = (optional(entry, name) for name in ("gold", "create", "consume", "retire"))
@@ -190,6 +207,12 @@ def apply_entry(state, entry, match, fixture_grants=None):
     elif cause == "Buy":
         shape = (gold is not None and create is not None and consume is None and retire is None and delta < 0
                  and burn == -delta and mint == 0 and field(create, "owner") == field(gold, "account"))
+    elif cause == DEV_RESET:
+        if consume is not None:
+            shape = gold is None and create is None and retire is None and mint == 0 and burn == 0
+        else:
+            shape = (gold is not None and create is None and retire is None and delta != 0 and delta != INT64_MIN
+                     and mint == max(delta, 0) and burn == max(-delta, 0))
     elif cause == "Sell":
         shape = (gold is not None and consume is not None and create is None and retire is None and delta >= 0
                  and mint == delta and burn == 0 and field(consume, "owner") == field(gold, "account"))
@@ -198,6 +221,10 @@ def apply_entry(state, entry, match, fixture_grants=None):
     require(shape, "Transaction shape does not match its cause")
     if cause == DEV_FIXTURE:
         require(fixture_grants.get(serial) == (field(gold, "account"), delta), f"DevFixture serial {serial} is not listed in devFixture")
+    if cause == DEV_RESET:
+        listed = ((field(consume, "owner"), 0, field(consume, "instance")) if consume is not None
+                  else (field(gold, "account"), delta, None))
+        require(fixture_resets.get(serial) == listed, f"DevReset serial {serial} is not listed in devFixture.resets")
     minted, burned = state["minted"] + mint, state["burned"] + burn
     require(minted <= INT64_MAX and burned <= INT64_MAX, "Ledger mint or burn total would overflow")
 
@@ -301,7 +328,7 @@ def verify_data(data, dev_fixture=False):
     require(isinstance(data, dict), "Evidence must be a JSON object")
     require(type(field(data, "schemaVersion")) is int and data["schemaVersion"] == SCHEMA_VERSION, "Unsupported ledger evidence schema")
     match = guid(field(data, "match"), "match")
-    fixture_grants, fixture_minted = load_fixture(data, dev_fixture)
+    fixture_grants, fixture_minted, fixture_resets = load_fixture(data, dev_fixture)
     starting_gold = i64(field(data, "startingGold"), "startingGold", 0)
     prefix = load_state(field(data, "prefix"), match, "prefix")
     current = load_state(field(data, "current"), match, "current")
@@ -318,10 +345,12 @@ def verify_data(data, dev_fixture=False):
         entry_batch = u64(field(entry, "commitBatch"), "commitBatch", 1)
         require(entry_batch >= batch, "Commit batches go backwards in the journal tail")
         batch = entry_batch
-        apply_entry(prefix, entry, match, fixture_grants if dev_fixture else None)
+        apply_entry(prefix, entry, match, fixture_grants if dev_fixture else None, fixture_resets if dev_fixture else None)
     compare(prefix, current)
     require(all(serial <= current["through"] and account in current["accounts"] for serial, (account, _) in fixture_grants.items()),
             "A listed DevFixture grant lies beyond the committed serial or names no account")
+    require(all(serial <= current["through"] and account in current["accounts"] for serial, (account, _, _) in fixture_resets.items()),
+            "A listed DevReset entry lies beyond the committed serial or names no account")
     require(fixture_minted <= current["minted"], "Listed DevFixture grants exceed the ledger mint total")
     result = {
         "tail": len(tail),
@@ -331,13 +360,14 @@ def verify_data(data, dev_fixture=False):
         "gold": sum(account["gold"] for account in current["accounts"].values()),
     }
     if dev_fixture:
-        result.update(devFixtureGrants=len(fixture_grants), devFixtureMinted=fixture_minted)
+        result.update(devFixtureGrants=len(fixture_grants), devFixtureMinted=fixture_minted, devResetEntries=len(fixture_resets))
     return result
 
 
 def verify(path, dev_fixture=False):
     result = verify_data(json.loads(Path(path).read_text(encoding="utf-8-sig")), dev_fixture)
-    fixture = (f"; DEV fixture: {result['devFixtureGrants']} grants minting {result['devFixtureMinted']} gold"
+    fixture = (f"; DEV fixture: {result['devFixtureGrants']} grants minting {result['devFixtureMinted']} gold, "
+               f"{result['devResetEntries']} reset entries"
                if dev_fixture else "")
     print(f"PASS {path}: {result['tail']} tail entries through serial {result['throughSerial']}, "
           f"{result['accounts']} accounts, {result['items']} live items, {result['gold']} gold{fixture}")

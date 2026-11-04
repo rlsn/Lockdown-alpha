@@ -52,6 +52,9 @@ namespace LDEconomy
 #if WITH_DEV_AUTOMATION_TESTS
         // DEV growth fixture grant (-LDDevGrowthFixture only): Mint to one account, never a death or a trade.
         DevFixture,
+        // DEV test reset to the match start (-LDDevGrowthFixture only): either Consume one item without a refund, or
+        // one gold change of the account back to the starting gold (Mint when it rises, Burn when it falls).
+        DevReset,
 #endif
     };
 
@@ -87,7 +90,8 @@ namespace LDEconomy
 
     // Demo transactions touch at most one account. Cause fixes the allowed shape:
     // DeathReward = Mint to one account; Buy = Burn + Create; Sell = Consume + Mint; AccountRetire = Retire only;
-    // DevFixture (DEV builds) = Mint to one account like DeathReward.
+    // DevFixture (DEV builds) = Mint to one account like DeathReward; DevReset (DEV builds) = Consume only, or Gold only
+    // with a non-zero delta booked as Mint or Burn.
     struct FTransaction
     {
         ECause Cause = ECause::None;
@@ -170,6 +174,15 @@ namespace LDEconomy
         FGuid Account;
         int64 Gold = 0;
     };
+
+    // One committed DevReset entry: a consumed item (Instance valid, Gold 0) or a gold change (Gold != 0).
+    struct FDevResetEntry
+    {
+        uint64 Serial = 0;
+        FGuid Account;
+        int64 Gold = 0;
+        FGuid Instance;
+    };
 #endif
 
     class LOCKDOWN_API FLedger
@@ -211,6 +224,7 @@ namespace LDEconomy
         void Unpin() { check(Pins > 0); --Pins; }
 #if WITH_DEV_AUTOMATION_TESTS
         const TArray<FDevFixtureMint>& DevFixtureGrants() const { return DevFixtureMints; }
+        const TArray<FDevResetEntry>& DevResetEntries() const { return DevResets; }
 #endif
 
     private:
@@ -220,6 +234,7 @@ namespace LDEconomy
         int32 Pins = 0;
 #if WITH_DEV_AUTOMATION_TESTS
         TArray<FDevFixtureMint> DevFixtureMints;
+        TArray<FDevResetEntry> DevResets;
 #endif
     };
 
@@ -227,8 +242,8 @@ namespace LDEconomy
     LOCKDOWN_API bool ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bReplay, EPrepareError& Error, FString& Message);
     LOCKDOWN_API bool SameState(const FAuditState& A, const FAuditState& B, FString& Difference);
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 3): the audit prefix, the journal tail after it, the
-    // live state and every DevFixture mint of the match, every 64-bit value as a decimal string. StartingGold is the
+    // DEV evidence for Scripts\CheckEconomyEvidence.py (schema 4): the audit prefix, the journal tail after it, the
+    // live state and every DevFixture mint and DevReset entry of the match, every 64-bit value as a decimal string. StartingGold is the
     // approved SHOP.StartingGold of the match.
     LOCKDOWN_API bool ExportEvidence(const FLedger& Ledger, int64 StartingGold, FString& OutJson, FString& Error);
 #endif

@@ -60,7 +60,8 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 账本接口
 
 `LDEconomy::FLedger` 不参与 UObject 复制。`Initialize` 只在新局建立一次；`Prepare(FTransaction)`
-按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币）在完整后像上校验，返回可移动的
+按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币，
+以及 DEV 测试重置的 DevReset：只 Consume 一件不退款，或只一次非零金币变动回到开局金币，增为 Mint、减为 Burn）在完整后像上校验，返回可移动的
 `FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。
 提交序号与发行序号独立于尾部长度，失败不推进任何计数。
 
@@ -86,7 +87,7 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 `DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
 等级/候选/替换纯规则、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
-导出 schema 3 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+导出 schema 4 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块：DevFixture 铸币 `grants` 与 DevReset 条目 `resets`），`python -B Scripts\CheckEconomyEvidence.py <证据>`
 逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
 时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
 
@@ -104,9 +105,59 @@ Host 的 DEV probe 在游戏线程直接调用：
 `ALDEconomyDirector::DevGrantReward(Contender, XP, Gold)` 排入下一个 Transactions 阶段，
 与死亡奖励共用 `CommitRewardParts` 复合提交（账本 cause `DevFixture` 铸币、`PrepareExperience` 与 Combat 投影），
 不伪造死亡事实；返回票号由 `DevGrantStatus` 轮询 Pending/Granted/Rejected。
-开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币；
-只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些铸币，且须与日志尾一致，
+开局与每次调用都打 `LD_DEV_FIXTURE_ACTIVE`。证据的 `devFixture` 记录进程是否带开关及整局全部 DevFixture 铸币与 DevReset 条目；
+只有给 `CheckEconomyEvidence.py` 加 `--dev-fixture` 时才接受这些条目，且须与日志尾逐条一致，
 未加时任何夹具证据都判失败。
+
+DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framework\LDPlayerDevTest.cpp`）是同一开关下给拥有连接用的请求族，
+只改调用者自己的参赛者，不能指定别人；两个整局操作（刷新营地、提前开圈）只接受 Listen Host 自己的连接
+（服务器上只有它的控制器是本地控制器，`QueueDevTest` 的 `bHostConnection`），其他连接在受理时回 `NotAuthority`。线协议在所有构建里存在，权威只在同一 `LDDevGrowthFixture::Admit`
+通过时受理（`WITH_DEV_AUTOMATION_TESTS` 构建、Host 带 `-LDDevGrowthFixture`、Demo 房间权威），否则回 `NotAuthority`。
+`SubmitDevTest` 与选择一样从已接受的 OwnerState 填 Generation/Life、分配 RequestId，一次只有一条在途；
+服务器 `ALDEconomyDirector::QueueDevTest` 复用 `TLDGrowthRequestStream`（单调序号、64 份回执窗口、冲突/乱序/过期拒绝），
+已接受的命令在 Transactions 阶段与选择、开店、买卖按服务器到达顺序提交（`CommitPendingDevTest`）。
+提交时重查本局与生命：离局为 `LeftMatch`，Life 不等于当前生命为 `OldLife`（旧命令不作用于下一条命）。
+
+| 命令 | 提交 |
+| --- | --- |
+| `GrantExperience` / `GrantGold`（数量 > 0） | 与死亡奖励同一 `CommitRewardParts` 复合提交，账本 cause `DevFixture`、业务键含 LedgerMatch/参赛者/RequestId；可重试拒绝保留待下一阶段 |
+| `RefillResources`（数量 0） | 当前 Alive 身体的 HP/MP 设为已提交上限，不动护盾；非 Alive 为 `Dead` |
+| `ResetCooldowns`（数量 0） | 该参赛者全部冷却轨道（技能与装备、已绑定或未绑定的债）截止时间提前到本边界，身份与绑定不变 |
+| `LearnOption`（定义 id，槽 0/1/2） | `ALDDevelopmentDirector::DevChooseOption`：定义须在当前构筑的 `LegalPool` 中，作为队首机会的结果消费它，与 `CommitPendingChoice` 共用 `InstallOption`（ApplyOption、修订、下一组的池、Combat 投影、抽下一组）；槽 1/2 以该槽当前技能确认替换；没有机会为 `NoOffer`；Alive 或 Dead |
+| `BuyItem`（定义 id）/ `SellItem`（槽 1/2） | `ALDVendorDirector::DevTrade`：以当前版本与目录价格合成一条商店命令，与 `CommitPendingShopCommand` 共用 `CommitTrade`（账本 Buy/Sell、构筑修订、Combat 投影），只跳过商店会话、报价与距离；满槽、余额不足照常拒绝；业务键带 `dev-test-trade` 标签；只限 Alive |
+| `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑或库存修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
+| `ResetToMatchStart`（什么都不带） | `ALDEconomyDirector::CommitDevReset` 一笔复合提交：先在账本副本上演练 DevReset 条目（按槽序每件装备一条不退款的 Consume，再一条金币变动回到 `SHOP.StartingGold`），再按其结果准备 `ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无技能与属性卡、只有开局机会、Apply 时与 `BeginMatch` 一样抽开局 Offer；各修订继续递增，旧状态的在途选择按过期拒绝）与 `ALDCombatDirector::DevPrepareReset`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层），全部可行才依次安装，随后 `DevFinishReset` 丢弃全部技能与装备冷却轨道、冲刺就绪、活着的身体补满；日志尾已满时保留待下一阶段；Alive 或 Dead |
+| `RefreshCamps`（只限 Host） | `ALDCampDirector::DevRefreshCleared` → `FLDCampMatchState::DevRefreshNow`：每个已清空、等待刷新的营地截止时间提前到本边界（不推迟更早的截止），下一个 RespawnsAndWorld 经 `AdvanceCamps` 正常整组刷新（含出生点被占时的等待）；存活营地不动；回执写出等待中的营地数；没有营地 director 为 `DataNotReady` |
+| `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放圈的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；占领所需时间与全部占领规则不变；其他阶段为 `StaleContext` |
+
+终态回执在 `PublishGrowth` 的 `SyncOwner` 之后经 `ClientDevTestResult` 送达，受理结果同一通道立即返回。
+普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
+测试层只由 Combat 持有：成长域的 `PrepareBuildChange` 输入不得带它（`InvalidInput`），Combat 把已安装的测试层带进每次真实构筑变更；
+投影把它作为单独的 `FLDAttributeContributions::Dev` 行（本人属性视图的 `Dev`/`DevPercent`、HUD 来源“测试”），
+最终值与临时项、隐身腿速一样把它计入加和；测试层与真实构筑合计越界时，那次真实选择或买卖同样按投影拒绝；新局重建 Combat 记录，测试层不带入下一局。
+控制台入口 `ld.Dev.XP <数量>`、`ld.Dev.Gold <数量>`、`ld.Dev.Refill`、`ld.Dev.ResetCooldowns`、`ld.Dev.Learn <id> [Q|W]`、
+`ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>`、`ld.Dev.Attr <属性> <数值>`、`ld.Dev.ClearAttr`、`ld.Dev.Reset`、`ld.Dev.RefreshCamps`、`ld.Dev.OpenCapture` 与 HUD 的测试面板（`UI/LDDevTestPanel.*`）
+都只是本地发送者，共用 `LDDevTest::StatFields`、`ParseAmount`、`ParseScaled` 与 `OpLabel`（`ld.Dev.List` 打印本进程已加载的批准目录），
+经验与金币只接受不超过 18 位的正十进制整数，测试属性按显示单位精确换算（点数与百分比至多两位小数，射程整厘米），不四舍五入；结果打 `LD_DEV_TEST_RESULT` 日志并在 HUD 提示行显示。
+`Lockdown.Rules.DemoDevTestCommands` 覆盖形状、开关拒绝、受理流、金币/经验提交、重放不重复提交、旧生命/离局/关局拒绝、
+冷却轨道重置、学习（阶段、非法 id、空槽替换、成功安装与 Combat 投影、无机会拒绝）、死亡时买入被拒与补满纯规则，
+以及测试属性：形状、纯层操作、单独的 Dev 投影行与临时项叠加、重复/负值/`ADBonusRatio`/越界拒绝、
+死亡时设置不推进任何修订、越界命令不改状态、成长输入夹带测试层被拒、真实学习保留测试层、清除只去掉测试层；
+以及重置：持有一件装备时死亡中重置，账本恰好两条 DevReset（不退款的 Consume 与回到开局金币的 Burn）且可复算并导出、
+成长回到 1 级与开局机会且修订递增、Combat 安装空构筑与对应修订、技能与装备冷却轨道被丢弃、重置后可再次学习；
+以及整局操作：拥有客户端发送被拒、没有营地 director 时拒绝、发育期外提前开圈被拒且不改开放时刻、发育期内开放时刻提前到提交边界，
+`FLDCaptureReducer::DevOpenAt` 的纯规则（未启用、不更早、已开放拒绝，提前后由 `CloseBoundary` 开放）；
+`Lockdown.Rules.DemoCamp.Lifecycle` 覆盖 `DevRefreshNow` 只计已清空营地、截止提前到边界且不推迟更早的截止。
+`RunDemoGrowthCheck.ps1` 在第二局导出干净账本之后再跑 DEV 段：买方经远程拥有连接发送旧局（`OldMatch`）、
+重放（原回执、不重复提交）、同号异条款（`RequestConflict`）、加金币、离店买入与卖出、重置冷却、补满、
+在开局机会上学习、无机会学习（`NoOffer`）、设置测试 AD（本人视图的 Dev 行与最终值）与清除、再买一件后重置到开局
+（本人视图回到 1 级、0 经验、无卡、空槽、开局金币与一组开局 Offer）、整局的刷新营地被拒（`NotAuthority`），Listen Host 经本地拥有 RPC 给自己加金币，买方完成后刷新营地并提前开圈
+（仍在发育期时必须开放并看到 CaptureOpen；若已过发育期则必须以 `StaleContext` 拒绝）；
+随后导出的第三份账本以 `--dev-fixture` 复算，必须恰好列出两人各自的 DEV 铸币与买方重置的两条 DevReset，并与买方本人投影一致。
+其中 Listen Host 的加金币与刷新营地、买方最后一步的清除测试属性都经 HUD“测试”入口与 `ULDDevTestPanel` 的按钮发送
+（买方先确认面板不显示房主专用操作、格式错误的经验数量在本地拒绝且不发送；Host 截一张打开面板的 `HostDevPanel.png` 供审阅）。
+面板的纯格式化（目录行、已有等级、替换条件、属性行、结果行）与输入解析由 `Lockdown.Rules.HUDDevTestPanel` 覆盖。
+刷新营地只在规则测试中验证到截止提前，场景只验证受理与回执，未在场景中观察营地实际重生。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
 在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，

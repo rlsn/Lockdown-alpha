@@ -5,6 +5,7 @@
 #include "Vision/LDViewTypes.h"
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCombatReceiptLog.h"
+#include "Development/LDDevTestProtocol.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
@@ -73,6 +74,16 @@ public:
     UFUNCTION(Client,Reliable) void ClientShopReceipt(const FLDShopReceiptQueryResult& Result);
     UFUNCTION(Client,Reliable) void ClientShopOpenResult(const FLDShopOpenResult& Result);
     // ---- end Growth/Shop ----
+    // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
+    // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitChoice; one command in flight.
+    // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
+    // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
+    uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
+        uint8 Slot = 0, uint8 Stat = 0);
+    FLDOnDevTestResult OnDevTestResult;
+    UFUNCTION(Server,Reliable) void ServerDevTestCommand(const FLDDevTestCommand& Command);
+    UFUNCTION(Client,Reliable) void ClientDevTestResult(const FLDDevTestResult& Result);
+    // ---- end DEV test commands ----
     void RebuildV05Mappings();
     void RecordAppliedCameraZoom();
     void ToggleControlsPanel();
@@ -161,6 +172,7 @@ private:
     };
     FGrowthRequestCursor ChoiceCursor;
     FGrowthRequestCursor ShopCursor;
+    FGrowthRequestCursor DevTestCursor;
     uint64 BeginGrowthRequest(FGrowthRequestCursor& Cursor, ELDGrowthReason& OutLocalReason);
     void SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint32 Generation, uint64 RequestId, bool bReserved, bool bFinal);
     // Owning client: Navigation's arrival of the current ApproachShop binding requests that shop's session once.

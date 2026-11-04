@@ -16,6 +16,8 @@ class ULDPanel;
 class ULDAttributesPanel;
 class ULDChoicesPanel;
 class ULDShopPanel;
+class ULDDevTestPanel;
+struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
@@ -70,6 +72,8 @@ public:
     UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
     UPROPERTY() TObjectPtr<ULDShopPanel> ShopPanel;
+    // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
+    UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
@@ -89,6 +93,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> TargetEquipment;
     UPROPERTY() TObjectPtr<UBorder> PhaseBanner;
     UPROPERTY() TObjectPtr<UTextBlock> PhaseText;
+    UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
@@ -179,7 +184,8 @@ private:
     void RefreshKillFeed(const class ALDGameState& Public,const FGuid& Self,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
     void RefreshResult(class ALDPlayerController& PC,const class ALDGameState& Public);
     bool IsUIAt(FVector2D Absolute) const;
-    TArray<ULDPanel*,TInlineAllocator<3>> MainPanels() const;
+    TArray<ULDPanel*,TInlineAllocator<4>> MainPanels() const;
+    void HandleDevTestResult(const FLDDevTestResult& Result);
     // ---- Audio: local 2D cues from the same public DTOs and own projection/receipts this HUD reads ----
     FLDAudioCueTracker AudioCues;
     uint32 AudioCombatReceipt=0;

@@ -24,6 +24,64 @@ THIRD_PARTY_INCLUDES_START
 #include <openssl/sha.h>
 THIRD_PARTY_INCLUDES_END
 
+namespace
+{
+bool FileSHA256(const FString& File, FString& OutHex)
+{
+    TArray<uint8> Bytes;
+    FSHA256Signature Digest;
+    if (!FFileHelper::LoadFileToArray(Bytes, *File) || Bytes.IsEmpty() || !SHA256(Bytes.GetData(), Bytes.Num(), Digest.Signature))
+    {
+        return false;
+    }
+    OutHex = Digest.ToString().ToLower();
+    return true;
+}
+
+#if WITH_DEV_AUTOMATION_TESTS
+TSharedPtr<const FLDDemoContentSnapshot>& DevPinnedContent()
+{
+    static TSharedPtr<const FLDDemoContentSnapshot> Pinned;
+    return Pinned;
+}
+
+bool LoadDevContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error)
+{
+    if (FPlatformProperties::RequiresCookedData())
+    {
+        Error = TEXT("内容热重载（-LDDevContentReload）只在未 cook 的编辑器或 Standalone 构建中可用；打包版请重新 cook。");
+        return false;
+    }
+#if LD_HAS_DEMO_CONTRACT
+    const FString Root = FPaths::ProjectContentDir() / TEXT("Lockdown/Data/Demo");
+    // The generated map assets come from world.json, so it stays bound to the compiled build.
+    if (!LDDemoEntry::VerifyFileHash(Root / TEXT("world.json"), LD_DEMO_WORLD_PAYLOAD_SHA256, Error)) { return false; }
+    FString DiskHex;
+    FLDDemoContentDigest Compiled, Disk;
+    if (!FileSHA256(Root / TEXT("manifest.json"), DiskHex))
+    {
+        Error = TEXT("缺少或无法读取 Demo 输入：manifest.json。请先运行 Sync。");
+        return false;
+    }
+    TSharedPtr<const FLDDemoContentSnapshot> Loaded;
+    if (!FLDDemoContentDigest::ParseHex(LD_DEMO_CATALOG_SHA256, Compiled, Error) || !FLDDemoContentDigest::ParseHex(DiskHex, Disk, Error)
+        || !ULDDemoContentCatalog::LoadDevReload(Compiled, Disk, Loaded, Error) || !LDDemoContentText::Register(*Loaded, Error))
+    {
+        Error = TEXT("内容热重载失败：") + Error;
+        return false;
+    }
+    UE_LOG(LogTemp, Display, TEXT("LD_DEV_CONTENT_RELOAD root=%s changed=%d"), *DiskHex, Disk != Compiled);
+    Out = MoveTemp(Loaded);
+    Error.Reset();
+    return true;
+#else
+    Error = TEXT("缺少已编译的 Demo 内容/世界契约。已批准的载荷与生成头文件必须一起构建。");
+    return false;
+#endif
+}
+#endif
+}
+
 bool LDDemoEntry::ValidateSelection(const FString& PackageName, const FString& Options, FString& Error)
 {
     Error.Reset();
@@ -58,8 +116,43 @@ bool LDDemoEntry::VerifyRuntimeFiles(FString& Error, FString* CatalogDigest)
     return true;
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+bool LDDemoEntry::IsDevContentReload()
+{
+    return FParse::Param(FCommandLine::Get(), TEXT("LDDevContentReload"));
+}
+
+bool LDDemoEntry::IsCompiledCatalogRoot(const FLDDemoContentDigest& Root)
+{
+#if LD_HAS_DEMO_CONTRACT
+    FLDDemoContentDigest Compiled;
+    FString Error;
+    return FLDDemoContentDigest::ParseHex(LD_DEMO_CATALOG_SHA256, Compiled, Error) && Compiled == Root;
+#else
+    return false;
+#endif
+}
+
+bool LDDemoEntry::RefreshDevContent(FString& Error)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Loaded;
+    if (!LoadDevContent(Loaded, Error)) { return false; }
+    DevPinnedContent() = MoveTemp(Loaded);
+    return true;
+}
+#endif
+
 bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error)
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if (IsDevContentReload())
+    {
+        if (!DevPinnedContent() && !RefreshDevContent(Error)) { return false; }
+        Out = DevPinnedContent();
+        Error.Reset();
+        return true;
+    }
+#endif
     FString DigestHex;
     FLDDemoContentDigest Expected;
     TSharedPtr<const FLDDemoContentSnapshot> Loaded;
@@ -119,10 +212,8 @@ bool LDDemoEntry::VerifyFileHash(const FString& File, const FString& ExpectedSHA
     {
         ValidDigest &= (Character >= TEXT('0') && Character <= TEXT('9')) || (Character >= TEXT('a') && Character <= TEXT('f'));
     }
-    TArray<uint8> Bytes;
-    FSHA256Signature Digest;
-    if (!ValidDigest || !FFileHelper::LoadFileToArray(Bytes, *File) || Bytes.IsEmpty()
-        || !SHA256(Bytes.GetData(), Bytes.Num(), Digest.Signature) || Digest.ToString().ToLower() != ExpectedSHA256)
+    FString Actual;
+    if (!ValidDigest || !FileSHA256(File, Actual) || Actual != ExpectedSHA256)
     {
         Error = TEXT("Demo 输入与本版本不一致：") + FPaths::GetCleanFilename(File)
             + TEXT("。请运行 Demo 编译检查并重新构建；不要手改生成的哈希。");

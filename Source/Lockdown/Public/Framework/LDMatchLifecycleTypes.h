@@ -234,6 +234,10 @@ struct FLDLobbyView
     UPROPERTY() uint8 AICount = 0;
     UPROPERTY() bool CanStart = false;
     UPROPERTY() FString StartBlocker;
+    // The Host runs a DEV test session (-LDDevGrowthFixture) / DEV content hot reload (-LDDevContentReload). Only DEV
+    // builds ever set them; every member's HUD marks the room and offers the test panel from them.
+    UPROPERTY() bool DevTestSession = false;
+    UPROPERTY() bool DevContentReload = false;
 };
 
 enum class ELDSessionWindowResult : uint8 { NewRequest, ExistingResult };

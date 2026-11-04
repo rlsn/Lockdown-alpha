@@ -4,6 +4,7 @@
 #include "UI/LDAttributesPanel.h"
 #include "UI/LDChoicesPanel.h"
 #include "UI/LDShopPanel.h"
+#include "UI/LDDevTestPanel.h"
 #include "UI/LDMinimap.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDControlSettings.h"
@@ -198,6 +199,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
 
         // Top-centre: the public capture state, the public kill feed, then the own death banner. None takes pointer input.
         auto* CircleBox=WidgetTree->ConstructWidget<UVerticalBox>();
+        // A DEV test room is marked on every member's screen for the whole match (#78).
+        DevMarkerText=OneLine(TEXT(""),15,0);DevMarkerText->SetJustification(ETextJustify::Center);DevMarkerText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        DevMarkerText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(DevMarkerText)->SetHorizontalAlignment(HAlign_Center);
         PhaseText=OneLine(TEXT(""),18,0);PhaseText->SetJustification(ETextJustify::Center);
         CircleBox->AddChildToVerticalBox(PhaseText)->SetHorizontalAlignment(HAlign_Center);
         CircleProgress=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(CircleProgress,FLinearColor(1,.78f,.25f));CircleProgress->SetPercent(0);
@@ -340,8 +345,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* PanelRow=WidgetTree->ConstructWidget<UHorizontalBox>();Utility->AddChildToVerticalBox(PanelRow)->SetPadding(FMargin(0,0,0,6));
         auto* Pick=LDWidgets::Button(WidgetTree,TEXT("待选"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoices"));
         auto* Sheet=LDWidgets::Button(WidgetTree,TEXT("属性"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes);}},true,TEXT("HUDAttributes"));
-        Commands.Add(TEXT("Choices"),Pick);Commands.Add(TEXT("Attributes"),Sheet);
+        auto* Dev=LDWidgets::Button(WidgetTree,TEXT("测试"),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::DevTest);}},true,TEXT("HUDDevTest"));
+        Dev->SetVisibility(ESlateVisibility::Collapsed);
+        Commands.Add(TEXT("Choices"),Pick);Commands.Add(TEXT("Attributes"),Sheet);Commands.Add(TEXT("DevTest"),Dev);
         PanelRow->AddChildToHorizontalBox(Pick)->SetPadding(FMargin(0,0,6,0));PanelRow->AddChildToHorizontalBox(Sheet);
+        PanelRow->AddChildToHorizontalBox(Dev)->SetPadding(FMargin(6,0,0,0));
         auto* Stop=LDWidgets::Button(WidgetTree,TEXT("停止"),[PC](){PC->StopCombatAndOrders();},true,TEXT("HUDStop"));
         Commands.Add(TEXT("Stop"),Stop);Utility->AddChildToVerticalBox(Stop)->SetHorizontalAlignment(HAlign_Left);
         CameraText=Text(TEXT(""),14);CameraText->SetColorAndOpacity(LDHUDStyle::TextSecondary);Utility->AddChildToVerticalBox(CameraText)->SetPadding(FMargin(0,6,0,0));
@@ -371,7 +379,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
 
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
         AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);ShopPanel=CreateWidget<ULDShopPanel>(PC);
-        const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Attributes,AttributesPanel.Get()},{ELDUIMainPanel::Choices,ChoicesPanel.Get()},{ELDUIMainPanel::Shop,ShopPanel.Get()}};
+        DevTestPanel=CreateWidget<ULDDevTestPanel>(PC);
+        const TPair<ELDUIMainPanel,ULDPanel*> Docked[]={{ELDUIMainPanel::Attributes,AttributesPanel.Get()},{ELDUIMainPanel::Choices,ChoicesPanel.Get()},
+            {ELDUIMainPanel::Shop,ShopPanel.Get()},{ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
         for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
         {
             if(!Entry.Value){UE_LOG(LogTemp,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
@@ -398,6 +408,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PC->OnChoiceReceipt.AddUObject(this,&ULDHUD::HandleChoiceReceipt);
         PC->OnShopReceipt.AddUObject(this,&ULDHUD::HandleShopReceipt);
         PC->OnShopOpenResult.AddUObject(this,&ULDHUD::HandleShopOpen);
+        if(DevTestPanel)
+        {
+            // The controller's single DEV test entry; the authority admits and commits every command.
+            DevTestPanel->Submit=[WeakPC](ELDDevTestOp Op,int64 Amount,ELDGrowthReason& Reason,FName Definition,uint8 SlotIndex,uint8 Stat)->uint64
+            {if(ALDPlayerController* Owner=WeakPC.Get()){return Owner->SubmitDevTest(Op,Amount,Reason,Definition,SlotIndex,Stat);}Reason=ELDGrowthReason::DataNotReady;return 0;};
+            PC->OnDevTestResult.AddUObject(this,&ULDHUD::HandleDevTestResult);
+        }
     }
     return Super::RebuildWidget();
 }
@@ -411,11 +428,16 @@ bool ULDHUD::IsUIAt(FVector2D P) const
     for(const ULDPanel* Open:MainPanels()){if(Open&&Open->IsPanelHit(P)){return true;}}
     for(const auto& Panel:HitPanels){if(Panel&&Panel->IsVisible()&&Panel->GetCachedGeometry().IsUnderLocation(P)){return true;}}return false;
 }
-TArray<ULDPanel*,TInlineAllocator<3>> ULDHUD::MainPanels() const
+TArray<ULDPanel*,TInlineAllocator<4>> ULDHUD::MainPanels() const
 {
-    TArray<ULDPanel*,TInlineAllocator<3>> Result;
-    for(ULDPanel* Panel:{static_cast<ULDPanel*>(AttributesPanel.Get()),static_cast<ULDPanel*>(ChoicesPanel.Get()),static_cast<ULDPanel*>(ShopPanel.Get())}){if(Panel){Result.Add(Panel);}}
+    TArray<ULDPanel*,TInlineAllocator<4>> Result;
+    for(ULDPanel* Panel:{static_cast<ULDPanel*>(AttributesPanel.Get()),static_cast<ULDPanel*>(ChoicesPanel.Get()),static_cast<ULDPanel*>(ShopPanel.Get()),
+        static_cast<ULDPanel*>(DevTestPanel.Get())}){if(Panel){Result.Add(Panel);}}
     return Result;
+}
+void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
+{
+    if(DevTestPanel){DevTestPanel->HandleResult(Result);}
 }
 FReply ULDHUD::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseButtonDown(G,E);}
@@ -423,6 +445,10 @@ FReply ULDHUD::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseWheel(G,E);}
 const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    // Under DEV content hot reload each match pins its own snapshot; the labels follow it instead of the first one.
+    if(bDisplayContentTried&&LDDemoEntry::IsDevContentReload()){bDisplayContentTried=false;}
+#endif
     if(!bDisplayContentTried)
     {
         bDisplayContentTried=true;FString Error;
@@ -486,6 +512,9 @@ void ULDHUD::RefreshReadModel()
 
     const LDHUD::FCircleView Circle=LDHUD::Circle(Public,LDHUD::RosterName(Lobby,Public.Occupier),bClock,NowMs,Content?Content->Parameters.CaptureHoldMs:0);
     HudSetText(PhaseText,Circle.Line);CircleProgress->SetPercent(Circle.Progress);
+    HudSetText(DevMarkerText,!Lobby.DevTestSession&&!Lobby.DevContentReload?FString()
+        :FString(Lobby.DevTestSession?TEXT("测试模式"):TEXT("开发房间"))+(Lobby.DevContentReload?TEXT(" · 内容热重载"):TEXT("")));
+    HudSetShown(DevMarkerText,Lobby.DevTestSession||Lobby.DevContentReload,ESlateVisibility::HitTestInvisible);
     HudSetShown(CircleProgress->GetParent(),Circle.bProgress,ESlateVisibility::HitTestInvisible);
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
@@ -595,6 +624,16 @@ void ULDHUD::RefreshReadModel()
         }
         ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,bClock,NowMs,Content);
     }
+    if(DevTestPanel)
+    {
+        // Only a DEV test room offers the panel; the Host alone sees the match-wide actions, which the server checks again.
+        if(!Lobby.DevTestSession&&DevTestPanel->IsPanelOpen()){DevTestPanel->ClosePanel();}
+        if(Lobby.DevTestSession)
+        {
+            DevTestPanel->Present(Progression,Equipment,OwnCombat,Content,PC->IsLocalController()&&PC->HasAuthority());
+        }
+    }
+    if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const int32 Pending=Progression?int32(Progression->PendingChoiceCount):0;
     if(ULDCommandButton* Pick=Commands.FindRef(TEXT("Choices")))
     {

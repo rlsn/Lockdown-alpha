@@ -39,6 +39,19 @@ Regenerate 显式更新现有生成资产；两者均不生成旧地图或旧目
 几何或导航不匹配会失败，不会偷偷改为生成。该模式要求三个 Demo 资产已经存在。
 Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核对原生碰撞、导航和地点绑定。
 
+### 调参热重载（DEV）
+
+只调 `SourceData\Demo\content.json` 里的数值时，可以不重新编译 C++、不重启编辑器：
+用 `OpenEditor.ps1 -DevContentReload`（PIE）或 `OpenStandalone.ps1 -HostRoom -DevContentReload` 启动
+（即 `-LDDevContentReload`，只在未 cook 的 DEV 构建中生效），改完运行 `python -B Scripts\SyncDemoContentData.py`，
+回到大厅开新局即使用新数值。规则如下：
+
+- 每局开始时（`InitializeAuthorityCore`）读一次磁盘上的 Sync 输出并固定到局末，局中改文件不影响本局；进程内其他读取者拿到的是同一份。
+- 只放开 `demo_content.json`（及其显示文本与根摘要）：载荷仍经完整原生导入校验；`world.json`、世界源文件、schema、原生 ID 与 contract 必须与构建一致；`DA_DemoWorld` 仍须按新数值重新投影出完全相同的几何。任何一项不符，开局失败并说明原因，需要 Bootstrap 加重新构建。
+- 房间只接受房主与 AI，远程客户端加入时被拒绝（它跟不上房主每局的重载）。
+- 打包版带此开关时内容加载直接失败，仍需重新 cook。`RunDemoOpponentCheck.ps1 -Telemetry -DevContentReload` 用同一机制跑遥测，每局记录所用内容根。
+- 热重载只是试数值的捷径：数值经批准后照常 Sync、`BootstrapAssets -Mode RefreshDefinitions` 并重新构建；热重载会话的结果不作为验收证据。
+
 ### 多人共用一台机器
 
 引擎的 `Build.bat` 是全机唯一的：任一工作区在构建时，其他 `Build.bat` 调用会排队到它结束。
@@ -143,6 +156,44 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 同一验证中使用相同产品构建、引擎和内容；连接失败要读取前端反馈和当前输出日志。
 不要把开发者全知实例当作普通远程拥有客户端。
 
+### DEV 测试模式
+
+Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`，或直接给可执行文件加 `-LDDevGrowthFixture`）启动，
+这个房间就是 DEV 测试会话；客户端无需开关。房间页与对局顶部横幅对所有成员显示“测试模式”
+（热重载时另标“内容热重载”）。对局中点底部 HUD 的“测试”按钮打开测试面板，不用记命令：
+
+- 资源与重复试验：输入数量加经验、加零花钱；补满生命与法力、重置冷却、重置到开局；
+- 测试属性：十一项属性各一个输入框，旁边显示服务器提交后的最终值与来源（含“测试”这一项）；清除全部测试属性；
+- 装备：两个槽位当前装备与出售；运行目录里全部装备按目录价格购买；
+- 技能与属性卡：运行目录里全部技能与属性卡，显示已有等级或张数，“学习”作为当前这次选择的结果；Q/W 都满时另有“替换 Q/W”；
+- 整局（只有房主看得到）：刷新已清空营地、提前开圈。
+
+面板只把输入换成同一组 DEV 测试命令，结果由服务器按下表规则提交；数量或数值格式不对时在本地拒绝、不发送，
+面板顶部显示最近一次的结果或拒绝原因。也可以按 `~` 打开控制台使用同样的命令：
+
+| 命令 | 作用 |
+| --- | --- |
+| `ld.Dev.XP <数量>` | 给自己加经验，升级与机会按正常奖励结算 |
+| `ld.Dev.Gold <数量>` | 给自己加零花钱 |
+| `ld.Dev.Refill` | 活着时补满生命与法力 |
+| `ld.Dev.ResetCooldowns` | 自己的技能与装备冷却全部就绪 |
+| `ld.Dev.List` | 列出运行目录里全部技能、属性卡与装备的 id |
+| `ld.Dev.Learn <id> [Q\|W]` | 把任意合法的技能或属性卡当作当前这次三选一的结果；Q/W 都满时用 Q 或 W 确认替换 |
+| `ld.Dev.Buy <id>` / `ld.Dev.Sell <1\|2>` | 不去商店，按目录价格买入到空槽或卖出该槽装备 |
+| `ld.Dev.Attr <属性> <数值>` | 在自己的构筑之上叠加一层测试属性（`MaxHP`、`MaxMP`、`AD`、`AP`、`Armor`、`MR`、`Haste` 为点数，`Range` 为整厘米，`AttackSpeed`、`MoveSpeed` 为基础值的百分比，`Crit` 为百分点；最多两位小数，0 去掉该项） |
+| `ld.Dev.ClearAttr` | 去掉自己的全部测试属性，构筑本身不变 |
+| `ld.Dev.RefreshCamps` | 只限房主：所有已清空、正在等刷新的营地在下一个边界按正常刷新重新生成，存活营地不动 |
+| `ld.Dev.OpenCapture` | 只限房主、只在发育期：占领圈在本边界提前开放，占领所需时间和全部占领规则不变 |
+| `ld.Dev.Reset` | 自己回到开局：1 级、0 经验、没有技能、属性卡、装备和测试属性，开局零花钱，重新给一组开局三选一，冷却全部就绪，活着时补满 |
+
+学习仍受真实规则约束：要有一次未用的选择机会（没有时先用 `ld.Dev.XP` 升级）、等级上限、Q/W 两槽与选择数上限；
+买卖照样付钱和退钱、两槽满时拒绝。测试属性在属性面板里单独显示为“测试”，跨死亡保留到本局结束，
+最终值超出目录上下限时整条命令被拒绝而不是截断。刷新营地与提前开圈改变整局，只接受房主自己的连接，
+其他客户端发送时回 `NotAuthority`；其余命令只作用于发送者自己，经服务器在 Transactions 阶段提交，
+与正常奖励、选择和买卖共用同一提交路径；
+没有开关的 Host、Shipping 构建、旧局或旧生命的请求都会被明确拒绝。
+测试会话的结果是夹具证据，不能当作无作弊完整对局的验收。实现与限制见[库存与事务](systems/INVENTORY_AND_TRANSACTIONS.md)。
+
 ## 最小验证选择
 
 | 改动 | 起点 |
@@ -184,6 +235,13 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
 .\Scripts\RunDemoOpponentCheck.ps1   # 3 真人 + 3 AI 满员对局，多个模块的检查合并在一局里
 ```
+
+AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <1-50>` 只启动一个无渲染的 Listen Host，
+它作为唯一真人留在房间里不动，与三个 AI 经正常大厅连打 N 局（每局各有 `-TimeoutSeconds`，局间回 Lobby）。
+每局写一份 `MatchNN.json`：结束原因与胜者、开圈与首杀（以及首个死亡）时刻、全部击杀、每名参赛者每秒的等级/经验/金币曲线、
+买入与卖出（由装备实例的出现与消失得出，附目录价格）、占领尝试/续占/被争夺暂停/失去与争夺次数
+（取自占领归约的 DEV 计数，边界内的中间变化也计入）；`SummarizeOpponentTelemetry.py` 汇总为 `Summary.json`
+（胜负方式、各槽获胜数、时长与首杀分布、每分钟等级与金币、购买次数等）。这些数字只描述这几局，不作为平衡目标，也不判断 AI 行为对错。
 
 其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）放在里程碑或发布冻结后的完整验收里，在打包版上各跑一次。
 改到某个场景覆盖的系统时，PR 里也要跑那个场景。

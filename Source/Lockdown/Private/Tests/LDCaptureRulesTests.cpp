@@ -133,6 +133,14 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A fully paused holder completes the instant he is sole again; later facts cannot backfill it"),
         Proposal.IsSet() && Proposal->Occupier == A && Proposal->DueAtMs == 1600 && Proposal->SoloSinceMs == 1100
         && Proposal->Epoch == Probe.Reducer.GetEpoch());
+    {
+        // DEV telemetry counts every reduced change, including the contests inside one boundary.
+        const FLDCaptureDevTally& Tally = Probe.Reducer.DevTally();
+        const FLDCaptureDevTally::FHolder* Holder = Tally.Holders.Find(A);
+        TestTrue(TEXT("The telemetry tally lists one attempt, four contests that paused it and four resumes"),
+            Tally.Contests == 4 && Tally.Holders.Num() == 1 && Holder && Holder->Attempts == 1 && Holder->Paused == 4
+            && Holder->Resumes == 4 && Holder->Lost == 0);
+    }
 
     FCaptureReducerProbe Sub{*this};
     TestTrue(TEXT("Sub-millisecond reducer"), Sub.Reducer.Begin(0, 500, Sub.Error));
@@ -146,6 +154,12 @@ bool FLDCaptureContinuityTest::RunTest(const FString& Parameters)
     Sub.Close(1200, false, TEXT("Leaving does not complete or award"));
     TestTrue(TEXT("A contender who left neither holds nor wins"), Sub.Reducer.GetState() == ELDCircleState::Empty
         && Sub.Reducer.NextDueMs() == MAX_int64);
+    const FLDCaptureDevTally::FHolder* SubHolder = Sub.Reducer.DevTally().Holders.Find(A);
+    TestTrue(TEXT("The telemetry tally counts the uncontested attempt that ended without a win as lost"),
+        Sub.Reducer.DevTally().Contests == 0 && SubHolder && SubHolder->Attempts == 1 && SubHolder->Lost == 1
+        && SubHolder->Resumes == 0 && SubHolder->Paused == 0);
+    Sub.Reducer.Reset();
+    TestTrue(TEXT("A reset clears the telemetry tally"), Sub.Reducer.DevTally().Holders.IsEmpty());
     return true;
 }
 

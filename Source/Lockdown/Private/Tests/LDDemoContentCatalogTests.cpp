@@ -1035,4 +1035,81 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoContentDevReloadTest, "Lockdown.Rules.DemoContent.DevReload",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
+{
+    FFixtures Fixtures;
+    if (!FixtureIndex(*this, Fixtures)) { return false; }
+    const auto Find = [&Fixtures](const TCHAR* Name) { return Fixtures.Valid.FindByPredicate([Name](const FCase& Case) { return Case.Name == Name; }); };
+    const FCase* Base = Find(TEXT("base"));
+    const FCase* Gold = Find(TEXT("exact_gold"));
+    const FCase* World = Find(TEXT("world_spawn_shift"));
+    if (!TestNotNull(TEXT("Base fixture"), Base) || !TestNotNull(TEXT("Content-only fixture"), Gold)
+        || !TestNotNull(TEXT("World fixture"), World)) { return false; }
+    // The asset plays the compiled build: imported from the base fixture.
+    FString Error;
+    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+    TUniquePtr<FLDDemoPreparedContent> Prepared;
+    const FString BaseRoot = FPaths::Combine(Fixtures.Root, Base->Name);
+    if (!ULDDemoContentCatalog::PrepareImportFromFiles(*Asset, BaseRoot, Base->Digest, Prepared, Error)
+        || !Asset->CommitImport(Prepared, Base->Digest, Error))
+    {
+        AddError(Error);
+        return false;
+    }
+    TSharedPtr<const FLDDemoContentSnapshot> Same, Reloaded, Refused;
+    TestTrue(TEXT("Unchanged Sync outputs reload to the compiled identity"),
+        Asset->ReadDevReloadFiles(BaseRoot, Base->Digest, Base->Digest, Same, Error) && Same
+        && Same->Get().Identity.Root == Base->Digest);
+    TestTrue(TEXT("A re-synced content payload reloads without a rebuild"),
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Gold->Digest, Reloaded, Error));
+    if (!TestNotNull(TEXT("Reloaded snapshot"), Reloaded.Get()) || !Same) { return false; }
+    TestTrue(TEXT("The reloaded snapshot carries the new number and root; the earlier snapshot keeps its own"),
+        Reloaded->Get().Parameters.StartingGold == int64(9007199254740993LL) && Reloaded->Get().Identity.Root == Gold->Digest
+        && Same->Get().Parameters.StartingGold != Reloaded->Get().Parameters.StartingGold);
+    TestFalse(TEXT("A changed world needs Bootstrap and a rebuild, not a reload"),
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, World->Name), Base->Digest, World->Digest, Refused, Error));
+    TestTrue(TEXT("The world refusal names what changed"), !Refused && Error.Contains(TEXT("world")));
+    TestFalse(TEXT("Files that do not hash to the read manifest root are refused"),
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Base->Digest, Refused, Error));
+    TestFalse(TEXT("An asset that does not match the compiled root cannot anchor a reload"),
+        Asset->ReadDevReloadFiles(BaseRoot, Gold->Digest, Base->Digest, Refused, Error));
+    TestFalse(TEXT("Absent Sync outputs are refused, never replaced by the stored bytes"),
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, TEXT("absent")), Base->Digest, Base->Digest, Refused, Error));
+    TestTrue(TEXT("No refused reload produced a snapshot"), !Refused);
+
+    // Only the content payload, its display text and the root may differ from the compiled identity.
+    const FLDDemoContentIdentity Compiled = Same->Get().Identity;
+    FLDDemoContentIdentity Changed = Compiled;
+    Changed.Root = Gold->Digest;
+    Changed.Content.Bytes[0] ^= 1;
+    Changed.Display.Bytes[0] ^= 1;
+    Changed.ApprovalStatus += TEXT("x");
+    TestTrue(TEXT("Content, display, root and approval may change"), ULDDemoContentCatalog::SameDevReloadBase(Compiled, Changed, Error));
+    const TFunction<void(FLDDemoContentIdentity&)> Guarded[] = {
+        [](FLDDemoContentIdentity& I) { I.World.Bytes[0] ^= 1; },
+        [](FLDDemoContentIdentity& I) { I.AuthorSchema.Bytes[0] ^= 1; },
+        [](FLDDemoContentIdentity& I) { I.NativeIds.Bytes[0] ^= 1; },
+        [](FLDDemoContentIdentity& I) { I.NativeContract.Bytes[0] ^= 1; },
+        [](FLDDemoContentIdentity& I) { I.WorldContract.Bytes[0] ^= 1; },
+        [](FLDDemoContentIdentity& I) { ++I.SchemaVersion; },
+        [](FLDDemoContentIdentity& I) { ++I.HandlerRevision; },
+        [](FLDDemoContentIdentity& I) { ++I.ProjectionRevision; },
+        [](FLDDemoContentIdentity& I) { ++I.WorldSchemaVersion; },
+        [](FLDDemoContentIdentity& I) { ++I.WorldProjectionRevision; }};
+    int32 Refusals = 0;
+    for (const auto& Mutate : Guarded)
+    {
+        FLDDemoContentIdentity Candidate = Compiled;
+        Mutate(Candidate);
+        Refusals += !ULDDemoContentCatalog::SameDevReloadBase(Compiled, Candidate, Error) && Error.Contains(TEXT("rebuild")) ? 1 : 0;
+    }
+    TestEqual(TEXT("Every world, schema, native id, contract and version change is refused with its reason"), Refusals, 10);
+    TestFalse(TEXT("Without -LDDevContentReload the normal load stays bound to the compiled build"),
+        LDDemoEntry::IsDevContentReload());
+    return true;
+}
 #endif

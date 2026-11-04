@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 
 class FLDDemoContentSnapshot;
+struct FLDDemoContentDigest;
 
 namespace LDDemoEntry
 {
@@ -19,6 +20,17 @@ namespace LDDemoEntry
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
     LOCKDOWN_API bool VerifyFileHash(const FString& File, const FString& ExpectedSHA256, FString& Error);
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV content hot reload (-LDDevContentReload, uncooked editor/Standalone builds only). LoadRuntimeContent then
+    // returns one pinned snapshot of the current Sync outputs on disk: demo_content.json may differ from the compiled
+    // contract, everything else (world, schemas, native ids, contracts) must still match the build. The snapshot is
+    // replaced only by RefreshDevContent, which the authority core calls when a new match starts, so no reader sees
+    // numbers change during a match.
+    LOCKDOWN_API bool IsDevContentReload();
+    LOCKDOWN_API bool RefreshDevContent(FString& Error);
+    // The catalog root compiled into this build (LDDemoContentContract.h). Generated assets stay bound to it.
+    LOCKDOWN_API bool IsCompiledCatalogRoot(const FLDDemoContentDigest& Root);
+#endif
 
     // A Host's PreLogin refusal reaches the joining client as "<Code>: <English detail>". The code is the stable
     // contract: the client shows only the reason mapped from it, never the English detail or engine text.

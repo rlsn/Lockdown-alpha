@@ -58,7 +58,14 @@ struct FLDPrepareGrowthResult
 // A queued intent of this module, ordered by server arrival for the Transactions dispatch.
 struct FLDPendingGrowthIntent
 {
-    enum class EKind : uint8 { Choice, ShopOpen, ShopCommand };
+    enum class EKind : uint8
+    {
+        Choice, ShopOpen, ShopCommand,
+#if WITH_DEV_AUTOMATION_TESTS
+        // DEV test command of ALDEconomyDirector (LDDevTestProtocol.h).
+        DevTest,
+#endif
+    };
     EKind Kind = EKind::Choice;
     FGuid Contender;
     uint64 Arrival = 0;
@@ -115,6 +122,18 @@ public:
     // draw; each head draw re-resolves its preset against that draw's legal pool. The opening offer is drawn in BeginMatch,
     // so it can only be preset in the Lobby through LDDevGrowthFixture::StageOffer.
     bool DevQueueOffer(const FGuid& ContenderId, const TArray<FName>& DefinitionIds, FString& Error);
+    // DEV test command (LDDevTestProtocol.h, Transactions permit): consumes the head opportunity with DefinitionId as if it
+    // had been one of the offered cards. It must be a legal option of the current build (LegalPool: unlearned at rank 1,
+    // learned at its next rank, any attribute card); ReplaceSlot 1/2 confirms replacing the active in Q/W, 0 replaces
+    // nothing. Every other rule of a choice applies through InstallOption. None when installed; otherwise nothing changed,
+    // AuthorityFault meaning the boundary must fault.
+    ELDGrowthReason DevChooseOption(const FGuid& ContenderId, FName DefinitionId, uint8 ReplaceSlot,
+        const FLDGameplayWritePermit& Permit, FString& Detail);
+    // DEV test reset to the match start, prepared for ApplyPreparedGrowth inside one composite: level 1, zero XP, no
+    // skills or cards, the opening opportunity only (EarnedThrough 1, none consumed, no choice records) and a fresh
+    // opening offer drawn at Apply exactly as BeginMatch draws it. Build, progression and offer revisions keep rising, so
+    // every in-flight choice of the old state is refused as stale; request streams and receipts stay.
+    FLDPrepareGrowthResult DevPrepareReset(const FGuid& ContenderId) const;
 #endif
 
 private:
@@ -130,6 +149,12 @@ private:
     FLDChoiceReceipt RejectPending(FRecord& Record, const FLDChoiceCommand& Command, ELDGrowthReason Reason,
         const FLDGameplayWritePermit* Permit);
     void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
+    // Applies Option to the head opportunity of Record with every choice rule (ApplyOption, revisions, the next head's
+    // pool, the Combat projection) and installs it with the next head drawn. None when installed; a rejection reason when
+    // nothing changed; AuthorityFault when the domain or the permit was lost before the install.
+    ELDGrowthReason InstallOption(const FGuid& ContenderId, FRecord& Record, const FLDChoiceOption Option,
+        const LDProgression::FReplacement* Replacement, uint64 RequestId, const FLDGameplayWritePermit& Permit,
+        LDProgression::FAppliedOption& OutApplied);
     ALDGameMode* Mode() const;
 
     FLDMatchContext Match;
