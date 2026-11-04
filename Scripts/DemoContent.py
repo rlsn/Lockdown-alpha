@@ -504,7 +504,9 @@ def _validate_action(target, ranks, path):
             if effect["op"] in ("damage", "shield"):
                 quantities = [effect["base"], effect["ap_ratio"]]
                 if effect["op"] == "damage":
-                    quantities.append(effect["ad_ratio"])
+                    quantities += [effect["ad_ratio"], effect["max_hp_ratio"]]
+                    require(mode != "DirectionProjectile" or quantity(effect["max_hp_ratio"]) == 0, "TargetEffectMismatch", path,
+                            "a projectile does not snapshot its caster's max HP")
                 require(any(quantity(value) > 0 for value in quantities),
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
@@ -887,13 +889,16 @@ def _validate_build_envelope(data):
     max_ad = params["STAT.AD.Max"]["p2"]
     max_ap = params["STAT.AP.Max"]["p2"]
     max_armor = params["STAT.Armor.Max"]["p2"]
+    max_hp = params["STAT.MaxHP.Max"]["p2"]
     for row in (*data["abilities"], *data["equipment"]):
         for effect in all_effects(row):
             if effect["op"] in ("damage", "shield", "ambush_damage", "empower_basic"):
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":
-                    checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
+                    numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
+                if effect["op"] == "damage":
+                    checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
             elif effect["op"] == "thorns":
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])

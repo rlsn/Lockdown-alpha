@@ -26,6 +26,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             }
@@ -56,6 +60,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             }
@@ -86,6 +94,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             }
@@ -146,6 +158,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -184,6 +200,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -222,6 +242,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -293,10 +317,14 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 11000,
+                "p2": 7500,
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 600,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -352,10 +380,14 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 14500,
+                "p2": 10500,
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 600,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -411,10 +443,14 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 18000,
+                "p2": 13500,
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 600,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -742,6 +778,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -806,6 +846,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -870,6 +914,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1197,6 +1245,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1235,6 +1287,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1273,6 +1329,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1427,6 +1487,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1469,6 +1533,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1511,6 +1579,10 @@
                 "unit": "points"
               },
               "damage_type": "Physical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1573,6 +1645,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1615,6 +1691,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -1657,6 +1737,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
               "op": "damage",
               "opcode": 1
             },
@@ -2565,7 +2649,7 @@
     },
     {
       "description_key": "active_body_slam.description",
-      "description_text": "跳向指定地点，落地时对周围的敌人造成皮肉伤并减速。伤害随手劲提高，不会正中要害。被定身时不能起跳。",
+      "description_text": "跳向指定地点，落地时对周围的敌人造成皮肉伤并减速。伤害随手劲和自己的最大面子提高，不会正中要害。被定身时不能起跳。",
       "icon_id": "icon_active_body_slam",
       "id": "active_body_slam",
       "name_key": "active_body_slam.name",

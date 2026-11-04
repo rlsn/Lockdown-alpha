@@ -17,13 +17,16 @@ struct FLDCombatEvaluationFailure
 struct FLDDamageDefinitionValues
 {
     // P2 points and R4 coefficients from an already-resolved definition/rank.
-    FLDDamageDefinitionValues(int64 InBaseP2, int64 InADRatioBp, int64 InAPRatioBp, ELDDemoDamageType InDamageType)
-        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType) {}
+    FLDDamageDefinitionValues(int64 InBaseP2, int64 InADRatioBp, int64 InAPRatioBp, ELDDemoDamageType InDamageType,
+        int64 InMaxHPRatioBp = 0)
+        : BaseP2(InBaseP2), ADRatioBp(InADRatioBp), APRatioBp(InAPRatioBp), DamageType(InDamageType), MaxHPRatioBp(InMaxHPRatioBp) {}
 
     int64 BaseP2;
     int64 ADRatioBp;
     int64 APRatioBp;
     ELDDemoDamageType DamageType;
+    // R4 coefficient of the source's own max HP (P2), alongside AD and AP (泰山压顶).
+    int64 MaxHPRatioBp;
 };
 
 struct FLDDamageEvaluationInput
@@ -34,6 +37,8 @@ struct FLDDamageEvaluationInput
     // A source attribute may be absent only when its resolved coefficient is zero.
     TOptional<int64> SourceADP2;
     TOptional<int64> SourceAPP2;
+    // The source's max HP snapshotted at release; required only when MaxHPRatioBp is nonzero.
+    TOptional<int64> SourceMaxHPP2;
     // Resistance is the matching armor or magic-resist point value, not a reduction ratio.
     TOptional<int64> TargetResistanceP2;
     TOptional<int64> TargetHPP2;

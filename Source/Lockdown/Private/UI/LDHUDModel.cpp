@@ -443,6 +443,7 @@ FString HudScaling(const FLDDemoEffectDefinition& Effect)
     FString Text=HudPoints(Effect.BaseP2);
     if(Effect.ADRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ADRatioBp)+TEXT("手劲");}
     if(Effect.APRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.APRatioBp)+TEXT("缺德值");}
+    if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+TEXT("自身最大面子");}
     return Text;
 }
 }

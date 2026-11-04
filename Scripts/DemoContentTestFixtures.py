@@ -82,7 +82,7 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
                 "effects": [{"op": "damage", "base": q("points", 8 * rank), "ad_ratio": q("ratio", 0),
-                             "ap_ratio": q("ratio", 0.125 * rank), "damage_type": "Magical"}],
+                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}],
             } for rank in range(1, 4)],
         },
         {
@@ -99,7 +99,7 @@ def content_fixture():
             "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
-                "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "damage_type": "Magical"},
+                "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
                             {"op": "root", "duration": q("s", 0.25 * rank)}],
             } for rank in range(1, 4)],
         },

@@ -259,6 +259,8 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
     UPROPERTY() int64 APRatioBp = 0;
+    // Damage only: coefficient of the caster's own max HP, snapshotted at release.
+    UPROPERTY() int64 MaxHPRatioBp = 0;
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 DurationMs = 0;
     UPROPERTY() int64 DelayMs = 0;

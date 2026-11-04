@@ -120,11 +120,12 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         && Mode->IsContenderProtected(Hit.Target.Victim.EntityId);
     const FLDProjectedAttributes& Defence=Body->AttributeProjection.Final;
     FLDDamageEvaluationInput Evaluation;
-    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType);
+    Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
     Evaluation.HitClass=Hit.HitClass;
     Evaluation.bCritical=Hit.bCritical;
     Evaluation.SourceADP2=Hit.SourceADP2;
     Evaluation.SourceAPP2=Hit.SourceAPP2;
+    if (Hit.MaxHPRatioBp!=0) { Evaluation.SourceMaxHPP2=Hit.SourceMaxHPP2; }
     Evaluation.TargetResistanceP2=Hit.DamageType==ELDDemoDamageType::Physical ? Defence.ArmorP2 : Defence.MagicResistP2;
     Evaluation.TargetHPP2=Body->Resources.HpP2;
     Evaluation.TargetShieldP2=Body->Resources.ShieldP2;
@@ -430,6 +431,7 @@ bool ALDCombatDirector::ResolveLandings(FString& Error)
                     Ambush.ADRatioBp=Landing.Ambush->ADRatioBp;
                     Ambush.APRatioBp=Landing.Ambush->APRatioBp;
                     Ambush.DamageType=Landing.Ambush->DamageType;
+                    Ambush.MaxHPRatioBp=0;
                     Ambush.bCritical=false;
                     Ambush.RootDurationMs=Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
                     Ambush.DisarmDurationMs=Ambush.StunDurationMs=Ambush.BackstabRatioBp=Ambush.BackstabStunMs=0;

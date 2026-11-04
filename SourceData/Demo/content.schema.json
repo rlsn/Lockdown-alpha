@@ -271,8 +271,8 @@
     "effect": {
       "oneOf": [
         {
-          "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type"],
-          "properties": {"op": {"const": "damage"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}}
+          "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "max_hp_ratio", "damage_type"],
+          "properties": {"op": {"const": "damage"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "max_hp_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ap_ratio", "duration"],

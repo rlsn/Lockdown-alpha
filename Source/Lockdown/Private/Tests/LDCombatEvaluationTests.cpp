@@ -570,6 +570,37 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.bTargetProtected = false;
     Input.AmplifyBp = -1;
     CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
+
+    // 泰山压顶 (2026-11-04): base + 0.4 AD + 6% of the caster's max HP, the max-HP term beside AD/AP before one floor.
+    FString Error;
+    const FLDDemoAbilityDefinition* Slam = nullptr;
+    if (!Catalog->FindAbility(TEXT("active_body_slam"), Slam, Error)) { AddError(Error); return false; }
+    const int64 MaxHP = Content.Parameters.MaxHP.BaseP2;
+    for (int32 I = 0; I < Slam->Ranks.Num(); ++I)
+    {
+        const auto* Effect = Slam->Ranks[I].Effects.FindByPredicate(
+            [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
+        if (!TestNotNull(TEXT("The body slam rank has a damage effect"), Effect)) { return false; }
+        TestEqual(TEXT("The body slam scales with 6% of the caster's max HP"), Effect->MaxHPRatioBp, int64(600));
+        Input = PrimaryInput(*Catalog);
+        Input.HitClass = ELDCombatHitClass::Ability;
+        Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType, Effect->MaxHPRatioBp);
+        CheckFailure(*this, TEXT("A max-HP coefficient without the caster's max HP is refused"),
+            LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Numeric);
+        Input.SourceMaxHPP2 = MaxHP;
+        const int64 Raw = Effect->BaseP2 * 10000 + AD * Effect->ADRatioBp + MaxHP * Effect->MaxHPRatioBp;
+        const int64 Slammed = Raw * Scale / ((Scale + Resist) * 10000);
+        if (!CheckDamage(*this, FString::Printf(TEXT("Body slam rank %d adds 6%% of the caster's max HP"), I + 1), Input, *Catalog,
+            {Slammed, 0, Slammed, 0, HP - Slammed, 0}))
+        {
+            return false;
+        }
+    }
+    Input = PrimaryInput(*Catalog);
+    Input.Definition.Emplace(0, Content.Character.BasicADRatioBp, 0, Content.Character.BasicDamageType, 600);
+    Input.SourceMaxHPP2 = MaxHP;
+    CheckFailure(*this, TEXT("A basic hit cannot scale with max HP"), LDTactical::EvaluateDamage(Input, *Catalog),
+        ELDCombatEvaluationError::Definition);
     return true;
 }
 

@@ -423,12 +423,13 @@ class ApprovedDemoData(unittest.TestCase):
         slam = self.catalog.definition("active_body_slam")
         self.assertEqual((slam["target"]["mode"], amount(slam["target"]["range"]), slam["windup"]["ms"], slam["cooldown_family"]),
                          ("GroundPoint", 400, 0, "cd_body_slam"))
-        for row, base, mana, cooldown in zip(slam["ranks"], (110, 145, 180), (60, 65, 70), (12800, 12000, 11200)):
+        for row, base, mana, cooldown in zip(slam["ranks"], (75, 105, 135), (60, 65, 70), (12800, 12000, 11200)):
             self.assertEqual([effect["op"] for effect in row["effects"]], ["jump", "self_area", "damage", "slow"])
             jump, area, damage, slowed = row["effects"]
             self.assertEqual((jump["duration"]["ms"], amount(area["radius"])), (400, 200))
-            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["damage_type"]),
-                             (base * 100, 4000, 0, "Physical"))
+            # 2026-11-04 user decision: 75/105/135 + 0.4 AD + 6% of the caster's max HP.
+            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["max_hp_ratio"]["bp"],
+                              damage["damage_type"]), (base * 100, 4000, 0, 600, "Physical"))
             self.assertEqual((slowed["ratio"]["bp"], slowed["duration"]["ms"]), (3000, 1500))
             self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (mana * 100, cooldown))
         come = self.catalog.definition("active_come_here")
@@ -439,6 +440,11 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual((boost["op"], boost["duration"]["ms"]), ("timed_stat_bonus", 3000))
             self.assertEqual({key: amount(value) for key, value in boost["stats"].items()}, {"ArmorFlat": bonus, "MagicResistFlat": bonus})
             self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (6000, cooldown))
+
+    def test_only_the_body_slam_scales_with_the_casters_max_hp(self):
+        scaled = {row["id"] for row in self.data["abilities"] for rank in row["ranks"] for effect in rank["effects"]
+                  if effect["op"] == "damage" and effect["max_hp_ratio"]["bp"] != 0}
+        self.assertEqual(scaled, {"active_body_slam"})
 
     def test_cross_batch_entries_refuse_a_jump_without_its_area(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")

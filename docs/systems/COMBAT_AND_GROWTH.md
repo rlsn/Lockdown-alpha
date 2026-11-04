@@ -123,7 +123,7 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 （负比例），点数类向下取整并夹紧到目录上下限；最大面子/胆量不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
 减速、限时增益和控制标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`ApplyTimedBonus`、`ApplyExposure`、`TemporaryTerms`）。
-技能命中载荷在释放时快照：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者最大面子，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻与弹体不带最大面子系数。技能命中载荷在释放时快照（含施放者 AD/AP/最大面子）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
 的逐目标合法性与视线检查）各得一份；减速随命中施加，定身随命中经 `MarkControlled` 打开施放者的控制增伤标记，
 之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。暗中观察的附加伤害是独立的技能伤害实例：
 普攻在开始挥击时、伤害技能在释放时判定脱战窗口。施放者离局时 `CancelEntityEffects` 一并移除其减速与标记，

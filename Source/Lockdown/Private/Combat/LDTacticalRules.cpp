@@ -76,12 +76,12 @@ namespace LDTactical
         {
             return Fail(EError::Definition, TEXT("HitClass"), TEXT("A resolved hit classification is required"));
         }
-        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0)
+        if (Definition.BaseP2 < 0 || Definition.ADRatioBp < 0 || Definition.APRatioBp < 0 || Definition.MaxHPRatioBp < 0)
         {
             return Fail(EError::Domain, TEXT("Definition"), TEXT("Damage points and R4 coefficients must be nonnegative"));
         }
         if (Input.HitClass != ELDCombatHitClass::Ability
-            && (Definition.APRatioBp != 0 || Definition.DamageType != ELDDemoDamageType::Physical))
+            && (Definition.APRatioBp != 0 || Definition.MaxHPRatioBp != 0 || Definition.DamageType != ELDDemoDamageType::Physical))
         {
             return Fail(EError::Definition, TEXT("Definition"), TEXT("Basic hits must be physical and cannot scale with AP"));
         }
@@ -108,6 +108,14 @@ namespace LDTactical
         if (Input.SourceAPP2.IsSet() && !WithinP2Bounds(Input.SourceAPP2.GetValue(), Parameters.AP))
         {
             return Fail(EError::Domain, TEXT("SourceAPP2"), TEXT("AP is outside the catalog point domain"));
+        }
+        if (Definition.MaxHPRatioBp != 0 && !Input.SourceMaxHPP2.IsSet())
+        {
+            return Fail(EError::Numeric, TEXT("SourceMaxHPP2"), TEXT("Max HP is required by the resolved coefficient"));
+        }
+        if (Input.SourceMaxHPP2.IsSet() && !WithinP2Bounds(Input.SourceMaxHPP2.GetValue(), Parameters.MaxHP))
+        {
+            return Fail(EError::Domain, TEXT("SourceMaxHPP2"), TEXT("Max HP is outside the catalog point domain"));
         }
         if (!Input.TargetResistanceP2.IsSet())
         {
@@ -149,6 +157,11 @@ namespace LDTactical
         {
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceAPP2.GetValue()),
                 Numbers.Value(Definition.APRatioBp, 10000)));
+        }
+        if (Definition.MaxHPRatioBp != 0)
+        {
+            Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
+                Numbers.Value(Definition.MaxHPRatioBp, 10000)));
         }
         if (Input.bCritical.GetValue())
         {

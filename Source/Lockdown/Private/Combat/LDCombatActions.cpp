@@ -59,6 +59,7 @@ namespace LDCA
         Hit.ADRatioBp=Term.ADRatioBp;
         Hit.APRatioBp=Term.APRatioBp;
         Hit.DamageType=Term.DamageType;
+        Hit.MaxHPRatioBp=0;
         Hit.bCritical=false;
         Hit.RootDurationMs=Hit.SlowBp=Hit.SlowDurationMs=Hit.ControlAmpBp=Hit.ControlAmpDurationMs=0;
         Hit.DisarmDurationMs=Hit.StunDurationMs=Hit.BackstabRatioBp=Hit.BackstabStunMs=0;
@@ -1065,6 +1066,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.DamageType=DamageEffect ? DamageEffect->DamageType : ELDDemoDamageType::Physical;
         Template.SourceADP2=Final.ADP2;
         Template.SourceAPP2=Final.APP2;
+        Template.MaxHPRatioBp=DamageEffect ? DamageEffect->MaxHPRatioBp : 0;
+        Template.SourceMaxHPP2=Body.Resources.MaxHpP2;
         Template.RootDurationMs=RootEffect ? RootEffect->DurationMs : 0;
         Template.SlowBp=SlowEffect ? SlowEffect->RatioBp : 0;
         Template.SlowDurationMs=SlowEffect ? SlowEffect->DurationMs : 0;
@@ -1090,6 +1093,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
         else if (TargetDef.Mode==ELDDemoTargetMode::DirectionProjectile)
         {
+            if (Template.MaxHPRatioBp!=0) { Error=TEXT("A projectile cannot carry a max HP coefficient."); return false; }
             FLDCombatProjectile Projectile;
             Projectile.EffectId=EffectId;
             Projectile.Token=Action.Token;
