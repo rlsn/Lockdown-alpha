@@ -47,9 +47,23 @@
 | D12 | 升旗台争夺暂停原占领者进度，恢复独占后续计 | 已实现；复活时长等相关数值未改 |
 | D15 | 保持 MOBA 点击操作并打磨手感：点击与悬停标记、按住右键持续移动、施法预输入、可选快速施法（默认关闭） | 已实现 |
 | D16 | 施法那一刻显示技能或装备名称，不显示等级与冷却 | 已实现 |
-| D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 暂缓，未进入运行输入 |
-| D13 | 校园补给箱 | 下一轮再定，未实现 |
-| D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 已批准方向，未进入运行输入 |
+| D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 由 D18、D21 取代 |
+| D13 | 校园补给箱 | 由 D26 的空投取代 |
+| D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
+| D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D19 | D 键通用冲刺，AI 也会用 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D20 | 跑道钉鞋改为强化冲刺的被动 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)、[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
+| D22 | 发育期 120 秒，复活 15 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D24 | 开局三选一：2 张随机基础属性卡加 1 个随机被动；升级三选一保持完全随机 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；4 张基础属性卡的范围待确认 |
+| D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已决定，未实现（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
+| D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
+| D27 | 通报批评：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
+| D28 | 胜利条件不变 | 无需改动 |
+| D29 | 整蛊表现：被扒裤衩、被千年杀等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
+| D30 | 地图布局与野怪可以重新设计；数量不变（1 个占领点、10 个出生点、5 组 2 档野怪、1 个商店） | 已决定，未实现（[#97](https://github.com/rlsn/Lockdown-alpha/issues/97)）；App Spec §6.1 随实现修改 |
 
 ## 已确认的实施方向
 
@@ -106,7 +120,7 @@
 | 上限变化 | 场景 Growth：死亡期间选择最大面子属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
 | 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
 | 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | 方向冲刺等其他装备主动没有拥有连接场景 |
-| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 零花钱 / +X 经验”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#53](https://github.com/rlsn/Lockdown-alpha/issues/53)） |
+| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 零花钱 / +X 经验”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)） |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
 | 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |
 | 视野一致 | 场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
@@ -118,22 +132,61 @@
 
 ## 未运行、未实现与已知限制
 
-- **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
+- **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#90](https://github.com/rlsn/Lockdown-alpha/issues/90)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
-  D09、D11、D13 与内容报告 §15 的扩展不在运行输入中（[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)、[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)、[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）。
-- **未运行**：跨机器局域网与公网直连（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）；人类试玩与数值平衡；Shipping 配置打包（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）；
-  真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
-  音效的人工试听（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#10](https://github.com/rlsn/Lockdown-alpha/issues/10)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
+  D17–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
+- **未运行**：跨机器局域网与公网直连（[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；人类试玩与数值平衡（[#88](https://github.com/rlsn/Lockdown-alpha/issues/88)）；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
+  真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#87](https://github.com/rlsn/Lockdown-alpha/issues/87)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
+  音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
 - **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
-- **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#43](https://github.com/rlsn/Lockdown-alpha/issues/43)）；
+- **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；
   截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
-  其余缺陷、体验与覆盖缺口见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。
+  玩法与 AI 的场景覆盖缺口见 [#89](https://github.com/rlsn/Lockdown-alpha/issues/89)，画面与 UI 的验收缺口见 [#87](https://github.com/rlsn/Lockdown-alpha/issues/87)。
 
 ## 剩余工作
 
-1. CT06 的全部提供者封桶、root motion 全链与历史时刻子段姿态（[#49](https://github.com/rlsn/Lockdown-alpha/issues/49)）。
-2. 跨机器局域网与公网直连验证（[#46](https://github.com/rlsn/Lockdown-alpha/issues/46)）、人类试玩与数值平衡（D09、D11 的数值调整在这之后再定：[#40](https://github.com/rlsn/Lockdown-alpha/issues/40)、[#42](https://github.com/rlsn/Lockdown-alpha/issues/42)）。
-3. Shipping 配置打包与分发（[#41](https://github.com/rlsn/Lockdown-alpha/issues/41)）。
-4. D13 校园补给箱（[#45](https://github.com/rlsn/Lockdown-alpha/issues/45)）与 D14（[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波，[#44](https://github.com/rlsn/Lockdown-alpha/issues/44)）按用户决定逐批审查后再进入运行输入。
-5. 音效人工试听、完整 UI 人工验收、真实显示模式与 OS 失焦检查（[#9](https://github.com/rlsn/Lockdown-alpha/issues/9)、[#19](https://github.com/rlsn/Lockdown-alpha/issues/19)）。
-6. 测试覆盖缺口、已知缺陷与体验打磨：见 Issue [#5](https://github.com/rlsn/Lockdown-alpha/issues/5)–[#59](https://github.com/rlsn/Lockdown-alpha/issues/59)。
+Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**现在还不好玩**。下一阶段以好玩为先：
+
+1. 先补齐影响玩法的逻辑和内容；
+2. 再反复试玩，调整玩法、构筑和数值；
+3. 最后做正式美术和声音。
+
+下表列出缺少的内容。每一项的范围和验收标准见对应的 Issue；进度和排期只在 Issue 与 [Project 看板](https://github.com/users/sinmentis/projects/4)里维护。
+
+### 玩法逻辑与内容（先做）
+
+| 缺少的内容 | Issue |
+| --- | --- |
+| 按 D17、D18、D22、D23 重算核心数值；D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24） | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
+| 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
+| 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
+| 地图事件：宿舍、空投、教导主任 Boss、通报批评（D21、D26、D27）；营地回位无路时的收尾；AI 使用全部新内容并应对各类事件 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| 地图布局与野怪重新设计（D30） | [#97](https://github.com/rlsn/Lockdown-alpha/issues/97) |
+| 打击感与核心手感：命中反馈、前后摇、移动和冲刺的手感 | [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
+
+### 迭代与试玩支撑
+
+| 缺少的内容 | Issue |
+| --- | --- |
+| 调参热重载、调试控制台、AI 满局遥测、每日试玩包 | [#78](https://github.com/rlsn/Lockdown-alpha/issues/78) |
+| 跨机器联机与组网说明、房主掉线超时、真实网络下的手感 | [#91](https://github.com/rlsn/Lockdown-alpha/issues/91) |
+| 试玩记录与问卷、好玩门槛指标、AI 胜率调校、门槛评审 | [#88](https://github.com/rlsn/Lockdown-alpha/issues/88) |
+
+### 表现、验收与交付
+
+| 缺少的内容 | Issue |
+| --- | --- |
+| 整蛊表现（D29）、新技能占位特效、事件视觉、图标、HUD 可读性 | [#85](https://github.com/rlsn/Lockdown-alpha/issues/85) |
+| 新技能和新事件的音效、人工试听、播放证据 | [#86](https://github.com/rlsn/Lockdown-alpha/issues/86) |
+| 玩法与 AI 的拥有连接场景覆盖 | [#89](https://github.com/rlsn/Lockdown-alpha/issues/89) |
+| 画面与 UI 的截图证据、完整人工 UI 验收、打包版回归门槛 | [#87](https://github.com/rlsn/Lockdown-alpha/issues/87) |
+| 正式美术：风格指南、UI 换皮、建模与外观、动作、正式特效、场景、无障碍配色 | [#93](https://github.com/rlsn/Lockdown-alpha/issues/93) |
+| 内部交付：冻结、打包、全套验收，核对文档与实际玩法是否一致 | [#92](https://github.com/rlsn/Lockdown-alpha/issues/92) |
+
+### 内部交付之后
+
+| 缺少的内容 | Issue |
+| --- | --- |
+| CT06 运动封桶；两个 commandlet 改为 `IsClient=true` | [#90](https://github.com/rlsn/Lockdown-alpha/issues/90) |
+| 原创音乐与完整音频制作 | [#94](https://github.com/rlsn/Lockdown-alpha/issues/94) |
+| 对外发布：Steam、Shipping、崩溃上报、宣发、新手教程、AI 难度、第二张地图、断线重连 | [#95](https://github.com/rlsn/Lockdown-alpha/issues/95) |
