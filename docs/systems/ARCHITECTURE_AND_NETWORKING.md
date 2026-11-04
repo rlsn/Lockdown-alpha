@@ -171,7 +171,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 `ExecuteClosePhase`（先备好全部结果行，再转 Results 并推进 GateRevision）与无 permit 的
 `ExecuteCapturePublish`（提供者 MatchClosed 清理、停身体、发布结果/击杀/公共圈）。
 漏切完成边界、保护到期未收到 ProtectionEnded、缺运动证据或结果行无法冻结都是明确故障，不默认判胜。
-世界里的升旗台边界是本地表现 `ALDCaptureMarker`：各端在接受的 `PublicMatch` 处于发育/开放/结算时，
+世界里的旗杆边界是本地表现 `ALDCaptureMarker`：各端在接受的 `PublicMatch` 处于发育/开放/结算时，
 按本机注册的 CAPTURE 锚点与 `CAPTURE.RadiusCm` 在地面铺一圈 2cm 平线（复用已烘焙的引擎方块与
 `M_Character` 的 `Tint`，无碰撞、不影响寻路/视线/高度），颜色跟随公开圈态（未开灰、开放黄、独占绿、
 争夺红），换代、回 Lobby 或房间停止即移除；它不复制、不参与判定，只在 Demo 地图生成，缺数据时记 `LD_CAPTURE_MARKER_UNAVAILABLE`。
