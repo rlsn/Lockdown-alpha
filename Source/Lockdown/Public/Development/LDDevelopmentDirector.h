@@ -137,6 +137,7 @@ public:
 #endif
 
 private:
+    friend class FLDDemoGrowthRerollTest;
     struct FRecord
     {
         FLDGrowthBuild Build;
@@ -149,6 +150,14 @@ private:
     FLDChoiceReceipt RejectPending(FRecord& Record, const FLDChoiceCommand& Command, ELDGrowthReason Reason,
         const FLDGameplayWritePermit* Permit);
     void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
+    void InstallHead(FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked);
+    // 112 §6: replaces the head offer with one free reroll (same opportunity, previous cards avoided where possible).
+    // None when installed; otherwise nothing changed.
+    ELDGrowthReason RerollHead(const FGuid& ContenderId, FRecord& Record);
+    // Free rerolls left: one per reached reroll level, minus those spent; unused ones carry over.
+    uint8 RerollTokens(const FRecord& Record) const;
+    // Definitions of the contender's equipped instances (tag affinity of the draw); empty before the ledger exists.
+    void EquippedDefinitions(const FGuid& ContenderId, TArray<FName>& Out) const;
     // Applies Option to the head opportunity of Record with every choice rule (ApplyOption, revisions, the next head's
     // pool, the Combat projection) and installs it with the next head drawn. None when installed; a rejection reason when
     // nothing changed; AuthorityFault when the domain or the permit was lost before the install.

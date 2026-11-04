@@ -39,10 +39,10 @@ namespace LDDevGrowthFixture
         const TArray<FName>& DefinitionIds, TArray<LDProgression::FLegalOption>& Out, FString& Error);
     // One head draw: the oldest queued preset is consumed and used when it still resolves against Pool (a preset is a
     // deterministic DEV override and may name any legal card, even for the opening offer); otherwise (no preset, or
-    // PresetError explains the dropped one) the ordinary seeded draw of opportunity Ordinal runs (LDProgression::DrawOffer).
-    LOCKDOWN_API ELDGrowthReason PickHead(const FLDDemoProgressionDefinition& Progression,
-        const TArray<LDProgression::FLegalOption>& Pool, uint8 Ordinal, int64 Weight, uint64 Seed,
-        TArray<TArray<FName>>& Queue, TArray<LDProgression::FLegalOption>& Out, bool& bPreset, FString& PresetError);
+    // PresetError explains the dropped one) the ordinary seeded draw of Input runs (LDProgression::DrawOffer).
+    LOCKDOWN_API ELDGrowthReason PickHead(const LDProgression::FDrawInput& Input,
+        const TArray<LDProgression::FLegalOption>& Pool, TArray<TArray<FName>>& Queue, TArray<LDProgression::FLegalOption>& Out,
+        bool& bPreset, FString& PresetError);
     // Lobby only: the growth domain does not exist before Start, so the fixture itself holds offers staged for the next
     // match's first heads (the opening offer first). The contender must be a member of World's Lobby; the cards are checked
     // against the empty starting build and each draw re-resolves them. Process-wide store on the Host authority.

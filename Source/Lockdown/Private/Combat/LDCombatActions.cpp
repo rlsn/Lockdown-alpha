@@ -793,8 +793,9 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     {
         const FLDDemoEquipmentDefinition* Equipment=nullptr;
         if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
-        if (!Equipment->HasPassive) { continue; }
-        for (const auto& Effect : Equipment->Passive.Effects)
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
+        if (!Effects) { continue; }
+        for (const auto& Effect : *Effects)
         {
             if (Effect.GetOp()==ELDDemoEffectOp::Cleave)
             {

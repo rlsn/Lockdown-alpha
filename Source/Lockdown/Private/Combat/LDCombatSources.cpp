@@ -124,9 +124,14 @@ namespace LDCombatSourcesDetail
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
         TArray<FString> Equipped;
+        TArray<bool> Upgraded;
         for (const ELDCombatEntry Slot : GearEntries)
         {
-            if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot)) { Equipped.Add(Item->DefinitionId.ToString()); }
+            if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot))
+            {
+                Equipped.Add(Item->DefinitionId.ToString());
+                Upgraded.Add(Item->bUpgraded);
+            }
         }
         if (Equipped.Num()!=Build.Equipment.Num())
         {
@@ -137,6 +142,7 @@ namespace LDCombatSourcesDetail
             return Refused;
         }
         FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
+        Values.EquippedUpgraded=MoveTemp(Upgraded);
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
     }
@@ -431,7 +437,13 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
             Error=FString::Printf(TEXT("Catalog: equipment passive %s has no approved definition. %s"),*Family.Family,*LookupError);
             return false;
         }
-        for (const FLDDemoEffectDefinition& Effect : Item->Passive.Effects)
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,Family.bUpgraded);
+        if (!Effects)
+        {
+            Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
+            return false;
+        }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
             const int64 Scale=10000+Effect.DistanceBonusBp;
@@ -562,8 +574,11 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
         OutSource.Kind=ELDCombatSourceKind::Gear;
         OutSource.DefinitionId=Item->DefinitionId;
         OutSource.ItemInstance=Item->Instance;
-        // Equipment actives have one fixed rank; gear without an active resolves and is refused by the caller.
-        OutRank=Equipment->HasActive ? static_cast<uint8>(Equipment->Active.Rank.Rank) : 0;
+        // Equipment actives have one fixed rank, the upgraded rank once the instance is upgraded (112 §7); gear without an
+        // active resolves and is refused by the caller.
+        const FLDDemoRankDefinition* Effective=LDDemoEquipment::EffectiveActiveRank(*Equipment,Item->bUpgraded);
+        if (Equipment->HasActive && !Effective) { return false; }
+        OutRank=Effective ? static_cast<uint8>(Effective->Rank) : 0;
         OutEquipment=Equipment;
         return true;
     }
@@ -587,7 +602,9 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, c
     else if (Equipment && Equipment->HasActive)
     {
         OutTarget=&Equipment->Active.Target;
-        OutRank=&Equipment->Active.Rank;
+        // The rank number names the effective row: the base rank, or the upgraded rank of an upgraded instance.
+        OutRank=LDDemoEquipment::EffectiveActiveRank(*Equipment,
+            Equipment->Active.HasUpgradedRank && Rank==Equipment->Active.UpgradedRank.Rank);
         OutWindupMs=Equipment->Active.WindupMs;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
@@ -1190,7 +1207,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             return false;
         }
     }
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives) { Out.EquipmentPassives.Add(FName(*Family.Family)); }
+    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
+    {
+        Out.EquipmentPassives.Add(FName(*Family.Family));
+        if (Family.bUpgraded) { Out.UpgradedEquipmentPassives.Add(FName(*Family.Family)); }
+    }
     return true;
 }
 

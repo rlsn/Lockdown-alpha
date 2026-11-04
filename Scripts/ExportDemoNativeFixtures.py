@@ -35,6 +35,7 @@ BONUS_STATS = (
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
+MECHANIC_TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -150,6 +151,20 @@ def active(value=None):
         "Target": target(value.get("target")),
         "WindupMs": scalar(value["windup"]) if "windup" in value else 0,
         "CooldownFamily": value.get("cooldown_family", ""), "Rank": rank(value.get("rank")),
+        "HasUpgradedRank": "upgraded_rank" in value, "UpgradedRank": rank(value.get("upgraded_rank")),
+    }
+
+
+def tags(values):
+    return [MECHANIC_TAGS.index(value) for value in values]
+
+
+def passive(value):
+    return {
+        "Family": value["family"] if value else "",
+        "Effects": [effect(item) for item in value["effects"]] if value else [],
+        "HasUpgraded": bool(value) and "upgraded" in value,
+        "UpgradedEffects": [effect(item) for item in value["upgraded"]["effects"]] if value and "upgraded" in value else [],
     }
 
 
@@ -176,6 +191,8 @@ def parameter_projection(parameters):
         ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
         ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
         ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistGoldRatio", "AssistGoldBp"),
+        ("SHOP.SellRatio", "SellRatioBp"), ("SHOP.UpgradeStatBonusRatio", "UpgradeStatBonusBp"),
+        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
     ):
@@ -187,7 +204,7 @@ def parameter_projection(parameters):
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
-        ("SHOP.StartingGold", "StartingGold"), ("CHOICE.BaseWeight", "ChoiceBaseWeight"),
+        ("SHOP.StartingGold", "StartingGold"), ("SHOP.UpgradeCost", "UpgradeCost"),
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
         ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
@@ -204,6 +221,12 @@ def parameter_projection(parameters):
     ):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
+    result["Choice"] = {dest: scalar(parameters["CHOICE." + source]) for source, dest in (
+        ("UpgradeWeight", "UpgradeWeightBp"), ("NewActiveOpenSlotWeight", "NewActiveOpenSlotWeightBp"),
+        ("NewActiveFullSlotWeight", "NewActiveFullSlotWeightBp"), ("NewPassiveWeight", "NewPassiveWeightBp"),
+        ("AffinityStep", "AffinityStepBp"), ("AffinityCap", "AffinityCapBp"),
+        ("ThirdSlotAttributeChance", "ThirdSlotAttributeBp"),
+    )}
     return result
 
 
@@ -242,16 +265,15 @@ def expected_projection(compilation):
                       "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Kind": ("active", "passive").index(row["kind"]),
-            "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
+            "Tags": tags(row["tags"]), "Draftable": row["draftable"], "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
             "CooldownFamily": row.get("cooldown_family", ""), "Ranks": [rank(item) for item in row["ranks"]],
         } for row in data["abilities"]],
         "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"])} for row in data["attributes"]],
         "Equipment": [{
             "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
-            "Stats": stats(row["stats"]), "HasActive": row["active"] is not None, "Active": active(row["active"]),
-            "HasPassive": row["passive"] is not None,
-            "Passive": {"Family": row["passive"]["family"] if row["passive"] else "",
-                        "Effects": [effect(item) for item in row["passive"]["effects"]] if row["passive"] else []},
+            "Tags": tags(row["tags"]), "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
+            "HasActive": row["active"] is not None, "Active": active(row["active"]),
+            "HasPassive": row["passive"] is not None, "Passive": passive(row["passive"]),
         } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {**{dest: data["progression"][source] for source, dest in (
@@ -259,9 +281,8 @@ def expected_projection(compilation):
             ("active_slots", "ActiveSlots"), ("equipment_slots", "EquipmentSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
         )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
-            ("attribute_ids", "OpeningAttributeIds"), ("attribute_count", "OpeningAttributeCount"),
-            ("passive_count", "OpeningPassiveCount"),
-        )}},
+            ("active_count", "OpeningActiveCount"), ("passive_count", "OpeningPassiveCount"),
+        )}, "RerollLevels": data["progression"]["reroll_levels"]},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_id", "ShopId"), ("capture_id", "CaptureId"),
         )},
@@ -498,8 +519,13 @@ def _export(output, *, rank_mutations):
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")
     bad_content("build_envelope", lambda d: d["attributes"][0]["stats"]["APFlat"].update({"p2": d["parameters"]["STAT.AP.Max"]["p2"]}), "build")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
-    bad_content("unknown_opening_attribute", lambda d: d["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_absent"), "opening offer")
-    bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"attribute_count": 3}), "opening offer")
+    bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"active_count": 3}), "opening offer")
+    bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
+    bad_content("unknown_mechanic_tag", lambda d: d["abilities"][0].update({"tags": ["Burst"]}), "mechanic tag")
+    bad_content("duplicate_mechanic_tag", lambda d: d["equipment"][0].update({"tags": ["Tank", "Tank"]}), "mechanic tag")
+    bad_content("missing_draftable", lambda d: d["abilities"][0].pop("draftable"), "missing")
+    bad_content("bad_upgraded_stats", lambda d: next(iter(d["equipment"][0]["upgraded_stats"].values())).update(
+        {"p2": 1} if "p2" in next(iter(d["equipment"][0]["upgraded_stats"].values())) else {"bp": 1}), "upgraded stats")
     bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")

@@ -2,6 +2,7 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDProgressionRules.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
@@ -59,8 +60,11 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         }
         auto* Bottom=WidgetTree->ConstructWidget<UVerticalBox>();Root->AddChildToVerticalBox(Bottom);
         Feedback=Text(TEXT(""),14);Bottom->AddChildToVerticalBox(Feedback);
+        auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();Bottom->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,6,0,0));
         ConfirmButton=LDWidgets::Button(WidgetTree,TEXT("确认本次选择"),[this](){ConfirmChoice();},false,TEXT("ChoicesConfirm"));
-        Bottom->AddChildToVerticalBox(ConfirmButton)->SetPadding(FMargin(0,6,0,0));
+        Actions->AddChildToHorizontalBox(ConfirmButton)->SetPadding(FMargin(0,0,8,0));
+        RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
+        Actions->AddChildToHorizontalBox(RerollButton);
         auto* Replace=WidgetTree->ConstructWidget<UVerticalBox>();
         ReplaceText=Text(TEXT(""),16);Replace->AddChildToVerticalBox(ReplaceText);
         auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(Slots)->SetPadding(FMargin(0,8));
@@ -69,7 +73,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             ReplaceSlotButtons[SkillSlot]=LDWidgets::Button(WidgetTree,TEXT(""),[this,SkillSlot](){PreviewReplacement(SkillSlot);},false,SkillSlot?FName(TEXT("ReplaceSlotW")):FName(TEXT("ReplaceSlotQ")));
             Slots->AddChildToHorizontalBox(ReplaceSlotButtons[SkillSlot])->SetPadding(FMargin(0,0,10,0));
         }
-        Replace->AddChildToVerticalBox(Text(TEXT("被替换的技能及其等级会被遗忘，再学从 1 级开始，旧投入不返还；冷却照常计时。"),14));
+        Replace->AddChildToVerticalBox(Text(TEXT("被替换的技能会被遗忘，旧投入不返还；新技能从旧技能的等级减一开始（至少 1 级）；冷却照常计时。"),14));
         auto* ReplaceActions=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(ReplaceActions)->SetPadding(FMargin(0,10,0,0));
         ReplaceConfirmButton=LDWidgets::Button(WidgetTree,TEXT("确认替换并遗忘"),[this](){ConfirmChoice();},false,TEXT("ReplaceConfirm"));
         ReplaceActions->AddChildToHorizontalBox(ReplaceConfirmButton)->SetPadding(FMargin(0,0,10,0));
@@ -166,6 +170,12 @@ void ULDChoicesPanel::RefreshSelection()
     for(int32 Index=0;Index<Cards.Num();++Index){ChoicesTint(Cards[Index].Button,Index==Selected?ChoicesSelected:ChoicesIdle);}
     const bool bReady=Selected!=INDEX_NONE&&!PendingRequest&&ShownOffer.IsValid()&&LDGrowthWire::IsChoicePhase(LatestPhase);
     ConfirmButton->SetIsEnabled(bReady&&!bReplacing);
+    const uint8 Tokens=Latest.RerollTokens;
+    const bool bCanReroll=Latest.bHasOffer&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
+        &&LDGrowthWire::IsChoicePhase(LatestPhase)&&!bReplacing;
+    RerollButton->SetIsEnabled(bCanReroll);
+    ChoicesText(CastChecked<UTextBlock>(RerollButton->GetContent()),Latest.bHasOffer&&Latest.Offer.bRerolled
+        ?FString::Printf(TEXT("本组已重抽 · 剩 %d 次"),Tokens):FString::Printf(TEXT("免费重抽 · 剩 %d 次"),Tokens));
     ReplaceConfirmButton->SetIsEnabled(bReady&&bReplacing&&ReplaceSlot!=INDEX_NONE);
     for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot){ChoicesTint(ReplaceSlotButtons[SkillSlot],int32(SkillSlot)==ReplaceSlot?ChoicesSelected:ChoicesIdle);}
 }
@@ -183,7 +193,8 @@ bool ULDChoicesPanel::PreviewReplacement(uint8 SkillSlot)
     const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
     if(!Skill){ChoicesText(Feedback,TEXT("该技能槽为空，无需替换；请返回三卡重新确认。"));return false;}
     ReplaceSlot=SkillSlot;ReplaceSkill=Skill->DefinitionId;ReplaceRank=Skill->Rank;
-    ChoicesText(Feedback,FString::Printf(TEXT("将遗忘 %s：%s %d 级"),SkillSlot?TEXT("W"):TEXT("Q"),*LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank));
+    ChoicesText(Feedback,FString::Printf(TEXT("将遗忘 %s：%s %d 级，新技能以 %d 级学会"),SkillSlot?TEXT("W"):TEXT("Q"),
+        *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank,LDProgression::ReplacementRank(Skill->Rank)));
     RefreshSelection();return true;
 }
 void ULDChoicesPanel::ConfirmChoice()
@@ -217,8 +228,22 @@ void ULDChoicesPanel::ConfirmChoice()
         {ChoicesText(Feedback,TEXT("请选择要替换的技能槽。"));return;}
         Command.bReplace=true;Command.ReplaceSlot=uint8(ReplaceSlot);Command.ExpectedOldRank=ReplaceRank;Command.bReplaceConfirmed=true;
     }
-    PendingName=Shown.Name;
+    PendingName=Shown.Name;bPendingReroll=false;
     Send(Command);
+}
+bool ULDChoicesPanel::Reroll()
+{
+    if(PendingRequest){ChoicesText(Feedback,TEXT("上一次请求仍在处理中。"));return false;}
+    if(!Latest.bHasOffer||Latest.Offer.OfferId!=ShownOffer||!LDGrowthWire::IsChoicePhase(LatestPhase)){ChoicesText(Feedback,TEXT("当前没有可以重抽的选择。"));return false;}
+    if(Latest.Offer.bRerolled){ChoicesText(Feedback,TEXT("这一组已经重抽过一次。"));return false;}
+    if(Latest.RerollTokens==0){ChoicesText(Feedback,TEXT("没有免费重抽次数；升到指定等级会获得。"));return false;}
+    FLDChoiceCommand Command;
+    Command.Generation=LatestMatch;Command.Life=LatestLife;Command.ExpectedLifePhase=LatestPhase;
+    Command.OfferId=Latest.Offer.OfferId;Command.OfferRevision=Latest.Offer.OfferRevision;
+    Command.ExpectedBuildRevision=Latest.BuildRevision;Command.CatalogDigest=Latest.CatalogDigest;Command.bReroll=true;
+    Selected=INDEX_NONE;ResetReplacement();PendingName.Reset();bPendingReroll=true;
+    Send(Command);
+    return true;
 }
 void ULDChoicesPanel::Send(const FLDChoiceCommand& Command)
 {
@@ -249,9 +274,15 @@ void ULDChoicesPanel::FinishRequest()
 }
 void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
 {
+    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.bRerolled)
+    {
+        ChoicesText(Feedback,FString::Printf(TEXT("已重抽，这一组换成了新的三张卡（剩余重抽 %d 次）"),Receipt.RerollTokensLeft));
+        return;
+    }
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)
     {
-        ChoicesText(Feedback,TEXT("已确认：")+PendingName+(Receipt.bReplaced?TEXT("（已遗忘被替换的技能）"):TEXT("")));
+        ChoicesText(Feedback,TEXT("已确认：")+PendingName+(Receipt.bReplaced
+            ?FString::Printf(TEXT("（已遗忘被替换的技能，新技能 %d 级）"),Receipt.NewRank):FString()));
         Selected=INDEX_NONE;ResetReplacement();
         return;
     }

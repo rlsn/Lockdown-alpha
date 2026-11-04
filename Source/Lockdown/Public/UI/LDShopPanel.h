@@ -37,6 +37,8 @@ public:
     void Buy();
     // Opens the sell child confirmation for that equipment slot.
     bool RequestSell(uint8 SlotIndex);
+    // 112 §7: opens the same child confirmation for upgrading that slot's item (one upgrade per match).
+    bool RequestUpgrade(uint8 SlotIndex);
     void ConfirmSell();
     bool HasPendingRequest() const {return PendingRequest!=0;}
     virtual bool IsPanelOpen() const override {return bOpen;}
@@ -55,6 +57,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> GoldLine;
     UPROPERTY() TObjectPtr<UTextBlock> EquipNames[2];
     UPROPERTY() TObjectPtr<ULDCommandButton> SellButtons[2];
+    UPROPERTY() TObjectPtr<ULDCommandButton> UpgradeButtons[2];
     UPROPERTY() TObjectPtr<UVerticalBox> ItemList;
     // Stable ShopItem<N> buttons reused by position; the pool only grows, so names, hover and focus survive updates.
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> ItemButtons;
@@ -82,6 +85,9 @@ private:
     int32 Selected=INDEX_NONE;
     bool bOpen=false;
     bool bSelling=false;
+    // The open child confirmation upgrades instead of selling.
+    bool bUpgrading=false;
+    int64 UpgradeQuotePrice=0;
     FGuid SellInstance;
     uint64 SellItemRevision=0;
     int64 SellQuotePrice=0;

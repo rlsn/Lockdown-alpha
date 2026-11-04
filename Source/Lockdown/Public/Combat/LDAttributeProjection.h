@@ -51,6 +51,8 @@ struct FLDAttributeBuildValues
     TArray<FLDAttributeCardValue> AttributeCards;
     // Occupied equipment slots in slot order; the same definition may appear twice.
     TArray<FString> EquippedItems;
+    // 112 §7: empty (nothing upgraded) or one flag per EquippedItems entry; an upgraded entry projects its upgraded stats.
+    TArray<bool> EquippedUpgraded;
     // DEV test layer (#78): one extra additive term per stat on top of base, growth, passives and equipment, reported
     // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
     // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value outside its catalog
@@ -153,6 +155,8 @@ struct FLDEquipmentPassiveFamily
     FString EquipmentId;
     // Ascending EquippedItems indices holding this family; the family still applies once.
     TArray<int32> EquippedIndices;
+    // 112 §7: an upgraded holder takes precedence, so the family applies its upgraded terms once.
+    bool bUpgraded = false;
 };
 
 // A learned passive whose rank is a combat trigger (thorns) rather than an attribute term.

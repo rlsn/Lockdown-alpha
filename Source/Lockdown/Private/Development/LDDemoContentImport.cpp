@@ -235,6 +235,14 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("SHOP.SellRatio"), TEXT("ratio"), TEXT("bp"), &P.SellRatioBp, 0, 10000},
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
         {TEXT("REWARD.AssistGoldRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistGoldBp, 0, 10000},
+        {TEXT("SHOP.UpgradeStatBonusRatio"), TEXT("ratio"), TEXT("bp"), &P.UpgradeStatBonusBp, 0, 10000},
+        {TEXT("CHOICE.UpgradeWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.UpgradeWeightBp, 1, 1000000},
+        {TEXT("CHOICE.NewActiveOpenSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveOpenSlotWeightBp, 1, 1000000},
+        {TEXT("CHOICE.NewActiveFullSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveFullSlotWeightBp, 1, 1000000},
+        {TEXT("CHOICE.NewPassiveWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewPassiveWeightBp, 1, 1000000},
+        {TEXT("CHOICE.AffinityStep"), TEXT("ratio"), TEXT("bp"), &P.Choice.AffinityStepBp, 10000, 1000000},
+        {TEXT("CHOICE.AffinityCap"), TEXT("ratio"), TEXT("bp"), &P.Choice.AffinityCapBp, 10000, 1000000},
+        {TEXT("CHOICE.ThirdSlotAttributeChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.ThirdSlotAttributeBp, 0, 10000},
         {TEXT("AI.RetreatHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.RetreatHPBp, 0, 10000},
         {TEXT("AI.ResumeFarmHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ResumeFarmHPBp, 0, 10000},
         {TEXT("AI.HighCampEntryHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.HighCampEntryHPBp, 0, 10000},
@@ -274,7 +282,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     }
     struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
     for (const auto& Field : {
-        FCountField{TEXT("SHOP.StartingGold"), &P.StartingGold, 0}, {TEXT("CHOICE.BaseWeight"), &P.ChoiceBaseWeight, 1},
+        FCountField{TEXT("SHOP.StartingGold"), &P.StartingGold, 0}, {TEXT("SHOP.UpgradeCost"), &P.UpgradeCost, 1},
         {TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
         {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0},
         {TEXT("REWARD.PlayerGold.Base"), &P.PlayerGoldBase, 0}, {TEXT("REWARD.PlayerGold.PerLevel"), &P.PlayerGoldPerLevel, 0},
@@ -770,6 +778,37 @@ bool Rank(const FValue& Value, FLDDemoRankDefinition& Out, int32 ExpectedRank, b
     return Effects(F.Take(TEXT("effects")), Out.Effects, ExpectedOps, Check, Path + TEXT(".effects")) && F.Done();
 }
 
+// 112 §1: one to three distinct mechanic tags, decoded by an explicit whitelist.
+bool Tags(const FValue& Value, TArray<ELDDemoMechanicTag>& Out, FCheck& Check, const FString& Path)
+{
+    static const TCHAR* const Names[] = {TEXT("BasicAttack"), TEXT("Mobility"), TEXT("Control"), TEXT("Shield"), TEXT("Tank"), TEXT("Breach")};
+    const TArray<FValue>* Rows;
+    if (!Array(Value, Rows, Check, Path, 1, 3))
+    {
+        return false;
+    }
+    for (const auto& Row : *Rows)
+    {
+        FString Name;
+        if (!String(Row, Name, Check, Path, 1, 16))
+        {
+            return false;
+        }
+        int32 Index = INDEX_NONE;
+        for (int32 I = 0; I < UE_ARRAY_COUNT(Names); ++I)
+        {
+            if (Name.Equals(Names[I], ESearchCase::CaseSensitive)) { Index = I; }
+        }
+        const ELDDemoMechanicTag Tag = static_cast<ELDDemoMechanicTag>(Index == INDEX_NONE ? 0 : Index);
+        if (!Check.Require(Index != INDEX_NONE && !Out.Contains(Tag), Path, TEXT("unknown or repeated mechanic tag")))
+        {
+            return false;
+        }
+        Out.Add(Tag);
+    }
+    return true;
+}
+
 bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, const FString& Path)
 {
     FFields F(Check, Value, Path);
@@ -834,6 +873,7 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
     }
     Out.Kind = Active ? ELDDemoAbilityKind::Active : ELDDemoAbilityKind::Passive;
     if (!Check.Require(Kind.Equals(Active ? TEXT("active") : TEXT("passive"), ESearchCase::CaseSensitive), Path, TEXT("wrong ability kind"))
+        || !Tags(F.Take(TEXT("tags")), Out.Tags, Check, Path + TEXT(".tags")) || !F.Flag(TEXT("draftable"), Out.Draftable)
         || !Target(F.Take(TEXT("target")), Out.Target, Check, Path + TEXT(".target"))
         || !Check.Require(Out.Target.Mode == Mode, Path, TEXT("wrong definition target")))
     {
@@ -894,12 +934,27 @@ bool Attribute(const FValue& Value, FLDDemoAttributeDefinition& Out, FCheck& Che
     return Check.Require(StatMask(Out.Stats) == Expected, Path, TEXT("wrong attribute stats"));
 }
 
+bool SameHandlers(const TArray<FLDDemoEffectDefinition>& Base, const TArray<FLDDemoEffectDefinition>& Upgraded)
+{
+    if (Base.Num() != Upgraded.Num())
+    {
+        return false;
+    }
+    for (int32 I = 0; I < Base.Num(); ++I)
+    {
+        if (Base[I].Opcode != Upgraded[I].Opcode) { return false; }
+    }
+    return true;
+}
+
 bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Check, const FString& Path)
 {
     FFields F(Check, Value, Path);
     if (!NativeIdentity(F, TEXT("equipment"), Out.Id, Out.NativeId)
         || !F.Int(TEXT("buy_price"), Out.BuyPrice, 1) || !F.Int(TEXT("sell_gold"), Out.SellGold)
-        || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats")))
+        || !Tags(F.Take(TEXT("tags")), Out.Tags, Check, Path + TEXT(".tags"))
+        || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
+        || !Stats(F.Take(TEXT("upgraded_stats")), Out.UpgradedStats, Check, Path + TEXT(".upgraded_stats")))
     {
         return false;
     }
@@ -963,7 +1018,22 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
             || !A.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Out.Active.WindupMs)
             || !A.Identifier(TEXT("cooldown_family"), Out.Active.CooldownFamily)
             || !Check.Require(Out.Active.CooldownFamily == ActiveFamily, A.Path, TEXT("wrong cooldown family"))
-            || !Rank(A.Take(TEXT("rank")), Out.Active.Rank, 1, true, ActiveOps, Check, A.Path + TEXT(".rank")) || !A.Done())
+            || !Rank(A.Take(TEXT("rank")), Out.Active.Rank, 1, true, ActiveOps, Check, A.Path + TEXT(".rank")))
+        {
+            return false;
+        }
+        // 112 §7: optional until its value is approved; an item missing it is simply not upgradable.
+        if (A.Object.IsValid() && A.Object->HasField(TEXT("upgraded_rank")))
+        {
+            Out.Active.HasUpgradedRank = true;
+            if (!Rank(A.Take(TEXT("upgraded_rank")), Out.Active.UpgradedRank, 2, true, ActiveOps, Check, A.Path + TEXT(".upgraded_rank"))
+                || !Check.Require(SameHandlers(Out.Active.Rank.Effects, Out.Active.UpgradedRank.Effects), A.Path,
+                    TEXT("the upgraded active must keep the base handlers in the same order")))
+            {
+                return false;
+            }
+        }
+        if (!A.Done())
         {
             return false;
         }
@@ -973,7 +1043,22 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
         FFields P(Check, Passive, Path + TEXT(".passive"));
         if (!P.Identifier(TEXT("family"), Out.Passive.Family)
             || !Check.Require(Out.Passive.Family == PassiveFamily, P.Path, TEXT("wrong passive family"))
-            || !Effects(P.Take(TEXT("effects")), Out.Passive.Effects, PassiveOps, Check, P.Path + TEXT(".effects")) || !P.Done())
+            || !Effects(P.Take(TEXT("effects")), Out.Passive.Effects, PassiveOps, Check, P.Path + TEXT(".effects")))
+        {
+            return false;
+        }
+        if (P.Object.IsValid() && P.Object->HasField(TEXT("upgraded")))
+        {
+            Out.Passive.HasUpgraded = true;
+            FFields U(Check, P.Take(TEXT("upgraded")), P.Path + TEXT(".upgraded"));
+            if (!Effects(U.Take(TEXT("effects")), Out.Passive.UpgradedEffects, PassiveOps, Check, U.Path + TEXT(".effects")) || !U.Done()
+                || !Check.Require(SameHandlers(Out.Passive.Effects, Out.Passive.UpgradedEffects), P.Path,
+                    TEXT("the upgraded passive must keep the base handlers in the same order")))
+            {
+                return false;
+            }
+        }
+        if (!P.Done())
         {
             return false;
         }
@@ -1127,26 +1212,26 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         }
     }
     FFields Opening(Check, F.Take(TEXT("opening_offer")), TEXT("content.progression.opening_offer"));
-    const TArray<FValue>* OpeningIds;
-    if (!Array(Opening.Take(TEXT("attribute_ids")), OpeningIds, Check, Opening.Path, 1, 64))
-    {
-        return false;
-    }
-    for (const auto& Row : *OpeningIds)
-    {
-        FString Name;
-        if (!String(Row, Name, Check, Opening.Path, 1, 63) || !Id(Name, Check, Opening.Path)
-            || !Check.Require(Out.OpeningAttributeIds.IsEmpty() || Out.OpeningAttributeIds.Last() < Name, Opening.Path,
-                TEXT("duplicate or unsorted opening offer attribute")))
-        {
-            return false;
-        }
-        Out.OpeningAttributeIds.Add(MoveTemp(Name));
-    }
-    if (!Opening.SmallInt(TEXT("attribute_count"), Out.OpeningAttributeCount, 0, 3)
+    if (!Opening.SmallInt(TEXT("active_count"), Out.OpeningActiveCount, 0, 3)
         || !Opening.SmallInt(TEXT("passive_count"), Out.OpeningPassiveCount, 0, 3) || !Opening.Done())
     {
         return false;
+    }
+    const TArray<FValue>* Rerolls;
+    if (!Array(F.Take(TEXT("reroll_levels")), Rerolls, Check, F.Path, 0, 10))
+    {
+        return false;
+    }
+    for (const auto& Row : *Rerolls)
+    {
+        int64 Level;
+        if (!Integer(Row, Level, Check, F.Path, 2, Out.MaxLevel)
+            || !Check.Require(Out.RerollLevels.IsEmpty() || Out.RerollLevels.Last() < Level, F.Path,
+                TEXT("reroll levels must be distinct and ascending")))
+        {
+            return false;
+        }
+        Out.RerollLevels.Add(int32(Level));
     }
     return F.Done();
 }

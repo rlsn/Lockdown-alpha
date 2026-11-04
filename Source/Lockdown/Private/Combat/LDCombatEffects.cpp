@@ -335,7 +335,9 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     {
         const FLDDemoEquipmentDefinition* Equipment=nullptr;
         if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
-        for (const FLDDemoEffectDefinition& Effect : Equipment->Passive.Effects)
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
+        if (!Effects) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=ELDDemoEffectOp::Thorns) { continue; }
             FThornsSource& Source=Sources.AddDefaulted_GetRef();

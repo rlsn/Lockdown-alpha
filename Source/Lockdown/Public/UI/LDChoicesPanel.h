@@ -29,6 +29,8 @@ public:
     bool PreviewChoice(int32 Index);
     bool PreviewReplacement(uint8 SkillSlot);
     void ConfirmChoice();
+    // 112 §6: spends one free reroll on the shown offer (one per offer, never paid with gold).
+    bool Reroll();
     virtual bool IsPanelOpen() const override {return bOpen;}
     virtual void OpenPanel() override;
     virtual bool ClosePanel() override;
@@ -60,6 +62,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> ReplaceText;
     UPROPERTY() TObjectPtr<ULDCommandButton> ConfirmButton;
+    UPROPERTY() TObjectPtr<ULDCommandButton> RerollButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReplaceSlotButtons[2];
     UPROPERTY() TObjectPtr<ULDCommandButton> ReplaceConfirmButton;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardWidgets;
@@ -77,6 +80,7 @@ private:
     uint64 PendingRequest=0;
     uint32 Answers=0;
     FString PendingName;
+    bool bPendingReroll=false;
     bool bOpen=false;
     bool bReplacing=false;
     LDHUD::FChoicesFold Fold;

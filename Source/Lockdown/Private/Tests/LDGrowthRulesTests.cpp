@@ -718,8 +718,8 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestTrue(TEXT("The evidence names schema 4, its match and the approved starting gold"),
-        Root->GetIntegerField(TEXT("schemaVersion")) == 4
+    bGood &= Test.TestTrue(TEXT("The evidence names schema 5, its match and the approved starting gold"),
+        Root->GetIntegerField(TEXT("schemaVersion")) == 5
         && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
         && Root->GetStringField(TEXT("startingGold")) == TEXT("320"));
     const TSharedPtr<FJsonObject>* FixtureBlock = nullptr;
@@ -1107,8 +1107,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         Curve.MaxLevel == 10 && Curve.MaxChoices == 10 && Curve.MaxSkillRank == 3 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level and REWARD.PlayerGold 80 + 10/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20 && Tuning.PlayerGoldBase == 80 && Tuning.PlayerGoldPerLevel == 10);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries CHOICE.BaseWeight 1, SHOP.StartingGold 320 and SHOP.SellRatio .65"),
-        Tuning.ChoiceBaseWeight == 1 && Tuning.StartingGold == 320 && Tuning.SellRatioBp == 6500);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries SHOP.UpgradeCost 240, SHOP.StartingGold 320 and SHOP.SellRatio .65"),
+        Tuning.UpgradeCost == 240 && Tuning.StartingGold == 320 && Tuning.SellRatioBp == 6500);
     bApproved &= Test.TestTrue(TEXT("Fixture prices item_iron_plate at 310 / 201 as the ledger test assumes"),
         OutCatalog->FindEquipment(TEXT("item_iron_plate"), IronPlate, Missing) && IronPlate->BuyPrice == 310 && IronPlate->SellGold == 201);
     const FLDDemoEquipmentDefinition* RunicFocus = nullptr;
@@ -1383,7 +1383,6 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("The pool is sorted by definition id, then kind"), GrowthTestPoolSorted(Pool));
     bGood &= Test.TestEqual(TEXT("No definition appears twice in the pool"), PoolIds.Num(), Pool.Num());
 
-    const int64 Weight = Approved.Parameters.ChoiceBaseWeight;
     const FGuid MatchSecret(0x5EC2E700, 1, 2, 3);
     const FGuid Contender(0x0000A001, 0, 0, 1);
     const uint64 Seed = LDProgression::OfferSeed(MatchSecret, Contender, 1);
@@ -1391,8 +1390,17 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Opportunity 2 draws from another seed"), Seed != LDProgression::OfferSeed(MatchSecret, Contender, 2));
     bGood &= Test.TestTrue(TEXT("Another contender's opportunity 1 draws from another seed"),
         Seed != LDProgression::OfferSeed(MatchSecret, FGuid(0x0000A002, 0, 0, 2), 1));
+    bGood &= Test.TestTrue(TEXT("The reroll of an opportunity draws from its own seed"),
+        LDProgression::RerollSeed(MatchSecret, Contender, 1) != Seed
+        && LDProgression::RerollSeed(MatchSecret, Contender, 1) == LDProgression::RerollSeed(MatchSecret, Contender, 1));
+    // A level-up draw over the empty build's pool (112 §6 composition is covered by DemoGrowthDraft).
+    LDProgression::FDrawInput Input;
+    Input.Content = &Catalog->Get();
+    Input.Build = &EmptyBuild;
+    Input.Ordinal = 2;
+    Input.Seed = Seed;
     TArray<LDProgression::FLegalOption> Offer;
-    if (!GrowthTestReason(Test, TEXT("Drawing an offer"), LDProgression::DrawThree(Pool, Weight, Seed, Offer), ELDGrowthReason::None)
+    if (!GrowthTestReason(Test, TEXT("Drawing an offer"), LDProgression::DrawOffer(Input, Pool, Offer), ELDGrowthReason::None)
         || !Test.TestEqual(TEXT("An offer holds three options"), Offer.Num(), 3))
     {
         return false;
@@ -1405,38 +1413,36 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             GrowthTestPoolHas(Pool, Offered.Kind, Offered.DefinitionId, Offered.FromRank, Offered.ToRank));
     }
     TArray<LDProgression::FLegalOption> Redrawn;
-    bGood &= GrowthTestReason(Test, TEXT("Redrawing with the same seed"), LDProgression::DrawThree(Pool, Weight, Seed, Redrawn),
+    bGood &= GrowthTestReason(Test, TEXT("Redrawing with the same seed"), LDProgression::DrawOffer(Input, Pool, Redrawn),
         ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("The same seed draws the same options in the same order"), GrowthTestSameOptions(Offer, Redrawn));
     TSet<FName> Reachable;
-    for (uint64 TrialSeed = 1; TrialSeed <= 64; ++TrialSeed)
+    int32 DraftableSkills = 0;
+    for (const FLDDemoAbilityDefinition& Ability : Approved.Abilities)
+    {
+        DraftableSkills += Ability.Draftable ? 1 : 0;
+    }
+    for (uint64 TrialSeed = 1; TrialSeed <= 256; ++TrialSeed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
+        Input.Seed = TrialSeed;
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Drawing with seed %llu"), TrialSeed),
-            LDProgression::DrawThree(Pool, Weight, TrialSeed, Drawn), ELDGrowthReason::None);
+            LDProgression::DrawOffer(Input, Pool, Drawn), ELDGrowthReason::None);
         for (const LDProgression::FLegalOption& DrawnOption : Drawn)
         {
             Reachable.Add(DrawnOption.DefinitionId);
         }
     }
-    bGood &= Test.TestEqual(TEXT("Every legal option is drawn by some of 64 seeds"), Reachable.Num(), Pool.Num());
+    bGood &= Test.TestEqual(TEXT("Every draftable skill and attribute card is drawn by some of 256 seeds"), Reachable.Num(),
+        DraftableSkills + Approved.Attributes.Num());
     TArray<LDProgression::FLegalOption> Refused;
-    bGood &= GrowthTestReason(Test, TEXT("Drawing with weight 0"), LDProgression::DrawThree(Pool, 0, Seed, Refused),
-        ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("Drawing with a negative weight"), LDProgression::DrawThree(Pool, -1, Seed, Refused),
-        ELDGrowthReason::DataInvalid);
+    Input.Ordinal = 0;
+    bGood &= GrowthTestReason(Test, TEXT("Opportunity 0"), LDProgression::DrawOffer(Input, Pool, Refused), ELDGrowthReason::DataInvalid);
+    Input.Ordinal = 2;
     const TArray<LDProgression::FLegalOption> TwoRows = {Pool[0], Pool[1]};
-    bGood &= GrowthTestReason(Test, TEXT("Drawing three from two legal options"), LDProgression::DrawThree(TwoRows, Weight, Seed, Refused),
+    bGood &= GrowthTestReason(Test, TEXT("Drawing three from two legal options"), LDProgression::DrawOffer(Input, TwoRows, Refused),
         ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("Refused draws offer nothing"), Refused.Num(), 0);
-    const TArray<LDProgression::FLegalOption> ThreeRows = {Pool[0], Pool[1], Pool[2]};
-    TArray<LDProgression::FLegalOption> AllThree;
-    bGood &= GrowthTestReason(Test, TEXT("Drawing three from exactly three legal options"),
-        LDProgression::DrawThree(ThreeRows, Weight, Seed, AllThree), ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("Exactly three legal options are all offered"), AllThree.Num() == 3
-        && GrowthTestPoolHas(AllThree, ThreeRows[0].Kind, ThreeRows[0].DefinitionId, 0, 1)
-        && GrowthTestPoolHas(AllThree, ThreeRows[1].Kind, ThreeRows[1].DefinitionId, 0, 1)
-        && GrowthTestPoolHas(AllThree, ThreeRows[2].Kind, ThreeRows[2].DefinitionId, 0, 1));
 
     const FName ArcBolt(TEXT("active_arc_bolt"));
     const FName Snare(TEXT("active_binding_snare"));
@@ -1683,27 +1689,30 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
 
     TArray<LDProgression::FLegalOption> Pool;
     TArray<LDProgression::FLegalOption> Ordinary;
-    const int64 Weight = Catalog->Get().Parameters.ChoiceBaseWeight;
-    const uint64 Seed = LDProgression::OfferSeed(FGuid(1, 2, 3, 4), FGuid(0xE3, 0, 0, 1), 1);
+    LDProgression::FDrawInput Input;
+    Input.Content = &Catalog->Get();
+    Input.Build = &Fresh;
+    Input.Ordinal = 2;
+    Input.Seed = LDProgression::OfferSeed(FGuid(1, 2, 3, 4), FGuid(0xE3, 0, 0, 1), 1);
     bGood &= GrowthTestReason(Test, TEXT("The fresh build's legal pool"), LDProgression::LegalPool(*Catalog, Fresh, Pool), ELDGrowthReason::None);
-    bGood &= GrowthTestReason(Test, TEXT("The ordinary seeded draw"), LDProgression::DrawThree(Pool, Weight, Seed, Ordinary),
+    bGood &= GrowthTestReason(Test, TEXT("The ordinary seeded draw"), LDProgression::DrawOffer(Input, Pool, Ordinary),
         ELDGrowthReason::None);
     TArray<TArray<FName>> Queue = {{Snare, Focus, Reach}, {Bolt, FName(TEXT("active_unknown")), Might}, {Pulse, Precision, Might}};
     TArray<LDProgression::FLegalOption> Picked;
     bool bPreset = false;
     FString PresetError;
     bGood &= Test.TestTrue(TEXT("The first head draw takes the oldest preset, in its order"),
-        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
         && PresetError.IsEmpty() && Picked.Num() == 3 && Picked[0].DefinitionId == Snare && Picked[1].DefinitionId == Focus
         && Picked[2].DefinitionId == Reach && Queue.Num() == 2);
     bGood &= Test.TestTrue(TEXT("A preset that no longer resolves is consumed with an explicit error and the ordinary draw runs"),
-        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && !PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary) && Queue.Num() == 1);
     bGood &= Test.TestTrue(TEXT("The next head draw takes the next preset"),
-        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
         && Picked[0].DefinitionId == Pulse && Picked[1].DefinitionId == Precision && Picked[2].DefinitionId == Might && Queue.IsEmpty());
     bGood &= Test.TestTrue(TEXT("With no preset left the head is the ordinary seeded draw: a preset shapes one offer only"),
-        LDDevGrowthFixture::PickHead(Catalog->Get().Progression, Pool, 2, Weight, Seed, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary));
     return bGood;
 }
@@ -1884,8 +1893,8 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     return bGood;
 }
 
-// D24: the kept opening offer holds OpeningAttributeCount of the named basic attribute cards and OpeningPassiveCount
-// new passives; every later opportunity still draws from the whole legal pool. A short group is refused, never filled.
+// 112 §6: the kept opening offer holds OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable
+// passives; a skill marked non-draftable never appears in any offer. A short group is refused, never filled.
 bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -1895,21 +1904,15 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const FLDDemoProgressionDefinition& Progression = Content.Progression;
-    bool bGood = Test.TestTrue(TEXT("The approved opening offer is two of might/reach/resolve/vitality plus one passive"),
-        Progression.OpeningAttributeIds == TArray<FString>{TEXT("attr_might"), TEXT("attr_reach"), TEXT("attr_resolve"), TEXT("attr_vitality")}
-        && Progression.OpeningAttributeCount == 2 && Progression.OpeningPassiveCount == 1);
-    TSet<FName> OpeningAttributes;
-    for (const FString& Id : Progression.OpeningAttributeIds)
-    {
-        OpeningAttributes.Add(FName(*Id));
-    }
-    // Whatever passives the catalog holds are eligible: the set is read, not listed.
-    TSet<FName> Passives;
+    bool bGood = Test.TestTrue(TEXT("The approved opening offer is two new actives plus one new passive"),
+        Progression.OpeningActiveCount == 2 && Progression.OpeningPassiveCount == 1);
+    // The draftable sets are read, not listed.
+    TSet<FName> Actives, Passives;
     for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
     {
-        if (Ability.Kind == ELDDemoAbilityKind::Passive)
+        if (Ability.Draftable)
         {
-            Passives.Add(FName(*Ability.Id));
+            (Ability.Kind == ELDDemoAbilityKind::Active ? Actives : Passives).Add(FName(*Ability.Id));
         }
     }
     TArray<LDProgression::FLegalOption> Pool;
@@ -1920,25 +1923,30 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     }
     const auto CheckComposition = [&](const FString& Who, const TArray<FName>& Ids, const TArray<ELDChoiceOptionKind>& Kinds)
     {
-        int32 AttributeCards = 0;
+        int32 ActiveCards = 0;
         int32 PassiveCards = 0;
         bool bLegal = Ids.Num() == 3 && Kinds.Num() == 3 && Ids[0] != Ids[1] && Ids[0] != Ids[2] && Ids[1] != Ids[2];
         for (int32 Index = 0; bLegal && Index < 3; ++Index)
         {
-            if (Kinds[Index] == ELDChoiceOptionKind::Attribute && OpeningAttributes.Contains(Ids[Index])) { ++AttributeCards; }
+            if (Kinds[Index] == ELDChoiceOptionKind::LearnActive && Actives.Contains(Ids[Index])) { ++ActiveCards; }
             else if (Kinds[Index] == ELDChoiceOptionKind::LearnPassive && Passives.Contains(Ids[Index])) { ++PassiveCards; }
             else { bLegal = false; }
         }
-        return Test.TestTrue(Who + TEXT(": three distinct cards, exactly the opening attributes and passives"),
-            bLegal && AttributeCards == Progression.OpeningAttributeCount && PassiveCards == Progression.OpeningPassiveCount);
+        return Test.TestTrue(Who + TEXT(": three distinct new draftable skills, two actives and one passive"),
+            bLegal && ActiveCards == Progression.OpeningActiveCount && PassiveCards == Progression.OpeningPassiveCount);
     };
-    const int64 Weight = Content.Parameters.ChoiceBaseWeight;
+    const FLDGrowthBuild Empty;
+    LDProgression::FDrawInput Input;
+    Input.Content = &Content;
+    Input.Build = &Empty;
+    Input.Ordinal = 1;
     TSet<FName> Reached;
     int32 PassivePositions[3] = {0, 0, 0};
     for (uint64 Seed = 1; Seed <= 512; ++Seed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
-        const ELDGrowthReason Reason = LDProgression::DrawOffer(Progression, Pool, 1, Weight, Seed, Drawn);
+        Input.Seed = Seed;
+        const ELDGrowthReason Reason = LDProgression::DrawOffer(Input, Pool, Drawn);
         TArray<FName> Ids;
         TArray<ELDChoiceOptionKind> Kinds;
         for (int32 Index = 0; Index < Drawn.Num(); ++Index)
@@ -1954,53 +1962,64 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
             return false;
         }
     }
-    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every opening attribute and every passive, nothing else"),
-        Reached.Num(), OpeningAttributes.Num() + Passives.Num());
-    bGood &= Test.TestTrue(TEXT("Reached cards are only opening attributes and passives"),
-        Reached.Difference(OpeningAttributes.Union(Passives)).IsEmpty());
+    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every draftable active and passive, nothing else"),
+        Reached.Num(), Actives.Num() + Passives.Num());
     bGood &= Test.TestTrue(TEXT("The passive card appears in every position"),
         PassivePositions[0] > 0 && PassivePositions[1] > 0 && PassivePositions[2] > 0);
     TArray<LDProgression::FLegalOption> First, Again;
-    bGood &= GrowthTestReason(Test, TEXT("An opening draw"), LDProgression::DrawOpening(Progression, Pool, Weight, 77, First), ELDGrowthReason::None);
-    bGood &= GrowthTestReason(Test, TEXT("The same opening seed"), LDProgression::DrawOpening(Progression, Pool, Weight, 77, Again), ELDGrowthReason::None);
+    Input.Seed = 77;
+    bGood &= GrowthTestReason(Test, TEXT("An opening draw"), LDProgression::DrawOffer(Input, Pool, First), ELDGrowthReason::None);
+    bGood &= GrowthTestReason(Test, TEXT("The same opening seed"), LDProgression::DrawOffer(Input, Pool, Again), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("The same seed redraws the same opening offer"), GrowthTestSameOptions(First, Again));
 
-    // Later opportunities keep the whole pool, unweighted: every legal option (actives and other attributes) is reachable.
-    TSet<FName> Later;
-    for (uint64 Seed = 1; Seed <= 256; ++Seed)
+    // Contract 2: a non-draftable skill (new actives until #117) never enters any offer, opening or level-up.
+    FLDDemoContentDefinitions Gated = Content;
+    const FName Held(TEXT("active_arc_bolt"));
+    Gated.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& Row) { return Row.Id == TEXT("active_arc_bolt"); })->Draftable = false;
+    LDProgression::FDrawInput GatedInput = Input;
+    GatedInput.Content = &Gated;
+    FLDGrowthBuild Level3;
+    Level3.Level = 3;
+    Level3.Skills = {{FName(TEXT("passive_precision")), 1, false, 0}};
+    bool bNeverGated = true;
+    for (uint64 Seed = 1; Seed <= 512; ++Seed)
     {
-        TArray<LDProgression::FLegalOption> Drawn, Plain;
-        bGood &= GrowthTestReason(Test, TEXT("A later draw"), LDProgression::DrawOffer(Progression, Pool, 2, Weight, Seed, Drawn), ELDGrowthReason::None);
-        LDProgression::DrawThree(Pool, Weight, Seed, Plain);
-        if (!Test.TestTrue(TEXT("A later opportunity is the ordinary whole-pool draw"), GrowthTestSameOptions(Drawn, Plain)))
+        for (const uint8 Ordinal : {uint8(1), uint8(3)})
         {
-            return false;
+            TArray<LDProgression::FLegalOption> LevelPool, Drawn;
+            const FLDGrowthBuild& Build = Ordinal == 1 ? Empty : Level3;
+            LDProgression::LegalPool(*Catalog, Build, LevelPool);
+            GatedInput.Build = &Build;
+            GatedInput.Ordinal = Ordinal;
+            GatedInput.Seed = Seed;
+            bNeverGated &= LDProgression::DrawOffer(GatedInput, LevelPool, Drawn) == ELDGrowthReason::None
+                && !Drawn.ContainsByPredicate([Held](const LDProgression::FLegalOption& Row) { return Row.DefinitionId == Held; });
         }
-        for (const LDProgression::FLegalOption& Row : Drawn) { Later.Add(Row.DefinitionId); }
     }
-    bGood &= Test.TestEqual(TEXT("Later draws reach every legal option"), Later.Num(), Pool.Num());
+    bGood &= Test.TestTrue(TEXT("A non-draftable active never appears in an opening or level-up offer"), bNeverGated);
+    // Still legal to learn outside a draw (DEV learn), so it stays in the legal pool.
+    bGood &= Test.TestTrue(TEXT("The non-draftable active stays in the legal pool"), GrowthTestPoolHas(Pool, ELDChoiceOptionKind::LearnActive, Held, 0, 1));
 
     // Refusals: a short group, malformed counts and opportunity 0 offer nothing.
     TArray<LDProgression::FLegalOption> Refused;
-    FLDDemoProgressionDefinition Short = Progression;
-    Short.OpeningAttributeIds = {Progression.OpeningAttributeIds[0]};
-    bGood &= GrowthTestReason(Test, TEXT("One opening attribute for two cards"), LDProgression::DrawOpening(Short, Pool, Weight, 1, Refused),
+    FLDDemoContentDefinitions Short = Content;
+    for (FLDDemoAbilityDefinition& Ability : Short.Abilities)
+    {
+        Ability.Draftable = Ability.Kind == ELDDemoAbilityKind::Passive || Ability.Id == TEXT("active_arc_bolt");
+    }
+    LDProgression::FDrawInput ShortInput = Input;
+    ShortInput.Content = &Short;
+    bGood &= Test.TestFalse(TEXT("One draftable active cannot fill two active cards"), LDProgression::DrawFeasible(Short, Empty, Pool, 1));
+    bGood &= GrowthTestReason(Test, TEXT("Drawing an opening with one draftable active"), LDProgression::DrawOffer(ShortInput, Pool, Refused),
         ELDGrowthReason::DataInvalid);
-    TArray<LDProgression::FLegalOption> NoPassives = Pool.FilterByPredicate([](const LDProgression::FLegalOption& Row)
-        { return Row.Kind != ELDChoiceOptionKind::LearnPassive; });
-    TArray<int32> Attributes, PassiveRows;
-    bGood &= GrowthTestReason(Test, TEXT("An opening pool without passives"),
-        LDProgression::OpeningCandidates(Progression, NoPassives, Attributes, PassiveRows), ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("Drawing an opening without passives"), LDProgression::DrawOpening(Progression, NoPassives, Weight, 1, Refused),
+    FLDDemoContentDefinitions Four = Content;
+    Four.Progression.OpeningPassiveCount = 2;
+    ShortInput.Content = &Four;
+    bGood &= GrowthTestReason(Test, TEXT("An opening of four cards"), LDProgression::DrawOffer(ShortInput, Pool, Refused),
         ELDGrowthReason::DataInvalid);
-    FLDDemoProgressionDefinition Four = Progression;
-    Four.OpeningPassiveCount = 2;
-    bGood &= GrowthTestReason(Test, TEXT("An opening of four cards"), LDProgression::DrawOpening(Four, Pool, Weight, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("Opening with weight 0"), LDProgression::DrawOpening(Progression, Pool, 0, 1, Refused),
-        ELDGrowthReason::DataInvalid);
-    bGood &= GrowthTestReason(Test, TEXT("Opportunity 0"), LDProgression::DrawOffer(Progression, Pool, 0, Weight, 1, Refused),
-        ELDGrowthReason::DataInvalid);
+    ShortInput.Content = &Content;
+    ShortInput.Ordinal = 0;
+    bGood &= GrowthTestReason(Test, TEXT("Opportunity 0"), LDProgression::DrawOffer(ShortInput, Pool, Refused), ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("Refused opening draws offer nothing"), Refused.Num(), 0);
 
     // The DEV fixture still presets any legal cards for the opening; without a preset it draws the opening composition.
@@ -2009,10 +2028,10 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     bool bPreset = false;
     FString PresetError;
     bGood &= Test.TestTrue(TEXT("An opening preset is still honoured as the DEV override"),
-        LDDevGrowthFixture::PickHead(Progression, Pool, 1, Weight, 77, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
         && bPreset && Picked.Num() == 3 && Picked[0].DefinitionId == FName(TEXT("active_arc_bolt")) && Queue.IsEmpty());
     bGood &= Test.TestTrue(TEXT("Without a preset the fixture draws the ordinary opening offer"),
-        LDDevGrowthFixture::PickHead(Progression, Pool, 1, Weight, 77, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
+        LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
         && !bPreset && GrowthTestSameOptions(Picked, First));
 
     // Every roster contender's kept opening offer follows the composition.
@@ -2068,27 +2087,32 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         {TEXT("bValid"), TEXT("Generation"), TEXT("Life"), TEXT("LifePhase"), TEXT("bCanChoose"), TEXT("Level"), TEXT("MaxLevel"),
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
          TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("EarnedThrough"), TEXT("ConsumedThrough"),
-         TEXT("PendingChoiceCount"), TEXT("bHasOffer"), TEXT("Offer"), TEXT("Skills"), TEXT("AttributeCards"), TEXT("CatalogDigest")});
+         TEXT("PendingChoiceCount"), TEXT("RerollTokens"), TEXT("bHasOffer"), TEXT("Offer"), TEXT("Skills"), TEXT("AttributeCards"),
+         TEXT("CatalogDigest")});
     bGood &= GrowthTestExactFields(Test, FLDChoiceOfferView::StaticStruct(),
-        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("GuardBuildRevision"), TEXT("Options")});
+        {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("GuardBuildRevision"), TEXT("bRerolled"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDChoiceOption::StaticStruct(),
         {TEXT("OptionId"), TEXT("Kind"), TEXT("DefinitionId"), TEXT("FromRank"), TEXT("ToRank")});
     bGood &= GrowthTestExactFields(Test, FLDLearnedSkillView::StaticStruct(),
         {TEXT("DefinitionId"), TEXT("bActive"), TEXT("Rank"), TEXT("Slot")});
     bGood &= GrowthTestExactFields(Test, FLDAttributeCardView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Count")});
     bGood &= GrowthTestExactFields(Test, FLDEquipmentView::StaticStruct(),
-        {TEXT("bValid"), TEXT("Generation"), TEXT("Gold"), TEXT("AccountRevision"), TEXT("InventoryRevision"), TEXT("Slots")});
+        {TEXT("bValid"), TEXT("Generation"), TEXT("Gold"), TEXT("AccountRevision"), TEXT("InventoryRevision"), TEXT("bUpgradeUsed"),
+         TEXT("Slots")});
     bGood &= GrowthTestExactFields(Test, FLDEquipmentSlotView::StaticStruct(),
-        {TEXT("SlotIndex"), TEXT("bOccupied"), TEXT("Instance"), TEXT("IssueSerial"), TEXT("DefinitionId"), TEXT("ItemRevision")});
+        {TEXT("SlotIndex"), TEXT("bOccupied"), TEXT("Instance"), TEXT("IssueSerial"), TEXT("DefinitionId"), TEXT("ItemRevision"),
+         TEXT("bUpgraded")});
     bGood &= GrowthTestExactFields(Test, FLDShopOpenResult::StaticStruct(),
         {TEXT("Generation"), TEXT("Life"), TEXT("ShopId"), TEXT("OpenStatus"), TEXT("Reason"), TEXT("bHasView"), TEXT("View")});
     bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(),
         {TEXT("ShopId"), TEXT("SessionId"), TEXT("Life"), TEXT("QuoteRevision"), TEXT("CatalogDigest"), TEXT("WorldMapId"),
-         TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("Items"), TEXT("Sellable")});
+         TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("Items"), TEXT("Sellable"), TEXT("UpgradePrice"),
+         TEXT("bUpgradeUsed")});
     bGood &= GrowthTestExactFields(Test, FLDShopItemView::StaticStruct(),
         {TEXT("DefinitionId"), TEXT("BuyPrice"), TEXT("SellGold"), TEXT("bHasActive"), TEXT("bInheritsCooldown"), TEXT("InheritedReadyAtMs")});
     bGood &= GrowthTestExactFields(Test, FLDShopSellView::StaticStruct(),
-        {TEXT("SlotIndex"), TEXT("Instance"), TEXT("ItemRevision"), TEXT("DefinitionId"), TEXT("SellPrice")});
+        {TEXT("SlotIndex"), TEXT("Instance"), TEXT("ItemRevision"), TEXT("DefinitionId"), TEXT("SellPrice"), TEXT("bUpgraded"),
+         TEXT("bCanUpgrade")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
@@ -2140,6 +2164,347 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
         GrowthTestReachableStructs(*It, Observed);
     }
     bGood &= Test.TestEqual(TEXT("Observed world views expose no private growth view"), Observed.Intersect(GrowthPrivateViews).Num(), 0);
+    return bGood;
+}
+// ---- 112 §6 draft rules: weights, tag affinity, per-offer limits, reroll avoidance, replacement rank ----
+FLDGrowthBuild GrowthTestDraftBuild(uint8 Level, std::initializer_list<FLDLearnedSkill> Skills)
+{
+    FLDGrowthBuild Build;
+    Build.Level = Level;
+    Build.Skills = Skills;
+    Build.Skills.Sort([](const FLDLearnedSkill& A, const FLDLearnedSkill& B)
+        { return A.Id.ToString().Compare(B.Id.ToString(), ESearchCase::CaseSensitive) < 0; });
+    return Build;
+}
+
+bool GrowthTestRunDraft(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FLDDemoChoiceWeights& W = Content.Parameters.Choice;
+    bool bGood = Test.TestTrue(TEXT("The approved draft weights are 2.2 / 1.5 / 0.30 / 1.0, affinity 1.30 capped at 1.70, third slot 65%"),
+        W.UpgradeWeightBp == 22000 && W.NewActiveOpenSlotWeightBp == 15000 && W.NewActiveFullSlotWeightBp == 3000
+        && W.NewPassiveWeightBp == 10000 && W.AffinityStepBp == 13000 && W.AffinityCapBp == 17000 && W.ThirdSlotAttributeBp == 6500);
+    bGood &= Test.TestTrue(TEXT("Rerolls are earned at levels 4 and 7"), Content.Progression.RerollLevels == TArray<int32>{4, 7});
+    const uint8 ExpectedTokens[] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2};
+    for (uint8 Level = 1; Level <= 10; ++Level)
+    {
+        bGood &= Test.TestEqual(FString::Printf(TEXT("Rerolls earned by level %u"), uint32(Level)),
+            LDProgression::RerollTokensEarned(Content.Progression, Level), ExpectedTokens[Level - 1]);
+    }
+    bGood &= Test.TestTrue(TEXT("A replacement keeps max(1, old rank - 1)"), LDProgression::ReplacementRank(1) == 1
+        && LDProgression::ReplacementRank(2) == 1 && LDProgression::ReplacementRank(3) == 2);
+
+    const FName Precision(TEXT("passive_precision")), Flurry(TEXT("active_combo_flurry")), Thousand(TEXT("active_thousand_year"));
+    const FName Fart(TEXT("active_fart_dash")), ComeHere(TEXT("active_come_here")), Arc(TEXT("active_arc_bolt"));
+    const auto Weight = [&](const FLDGrowthBuild& Build, const TArray<FName>& Equipment, ELDChoiceOptionKind Kind, FName Id)
+    {
+        int64 Out = -1;
+        const ELDGrowthReason Reason = LDProgression::SkillWeight(Content, Build, Equipment, {Kind, Id, 0, 1}, Out);
+        return Reason == ELDGrowthReason::None ? Out : int64(-1);
+    };
+    const FLDGrowthBuild Empty;
+    bGood &= Test.TestEqual(TEXT("A new active with a free Q/W weighs 1.5"), Weight(Empty, {}, ELDChoiceOptionKind::LearnActive, Arc),
+        int64(15000) * 10000);
+    bGood &= Test.TestEqual(TEXT("A new passive weighs 1.0"), Weight(Empty, {}, ELDChoiceOptionKind::LearnPassive, Precision),
+        int64(10000) * 10000);
+    // k counts the candidate's tags shared with the rest of the build: Precision (BasicAttack, Breach) vs Flurry (same tags).
+    const FLDGrowthBuild WithPrecision = GrowthTestDraftBuild(2, {{Precision, 1, false, 0}});
+    bGood &= Test.TestEqual(TEXT("Two shared tags multiply by 1.30^2"), Weight(WithPrecision, {}, ELDChoiceOptionKind::LearnActive, Flurry),
+        int64(15000) * 16900);
+    bGood &= Test.TestEqual(TEXT("An upgrade does not count its own tags (approved choice A)"),
+        Weight(WithPrecision, {}, ELDChoiceOptionKind::UpgradePassive, Precision), int64(22000) * 10000);
+    // Thousand (Control, Mobility) + Precision (Breach) cover all three tags of the fart dash: 1.30^3 caps at 1.70.
+    const FLDGrowthBuild Three = GrowthTestDraftBuild(3, {{Precision, 1, false, 0}, {Thousand, 1, true, 0}});
+    bGood &= Test.TestEqual(TEXT("Three shared tags cap at 1.70"), Weight(Three, {}, ELDChoiceOptionKind::LearnActive, Fart),
+        int64(15000) * 17000);
+    bGood &= Test.TestEqual(TEXT("Equipped items join the build's tags (iron plate: Tank)"),
+        Weight(Empty, {FName(TEXT("item_iron_plate"))}, ELDChoiceOptionKind::LearnActive, ComeHere), int64(15000) * 13000);
+    const FLDGrowthBuild Full = GrowthTestDraftBuild(4, {{Thousand, 1, true, 0}, {Arc, 2, true, 1}});
+    bGood &= Test.TestEqual(TEXT("A new active with Q/W full weighs 0.30 times its affinity (fart dash shares Mobility, Control, Breach)"),
+        Weight(Full, {}, ELDChoiceOptionKind::LearnActive, Fart), int64(3000) * 17000);
+    int64 Refused = 0;
+    bGood &= GrowthTestReason(Test, TEXT("An attribute card has no skill weight"),
+        LDProgression::SkillWeight(Content, Empty, {}, {ELDChoiceOptionKind::Attribute, FName(TEXT("attr_might")), 0, 1}, Refused),
+        ELDGrowthReason::DataInvalid);
+
+    // Per-offer limits over many seeds: at most one attribute card, only in the third slot; with Q/W full at most one new
+    // active; every card distinct. The attribute share of the third slot stays near 65%.
+    TArray<LDProgression::FLegalOption> FullPool;
+    bGood &= GrowthTestReason(Test, TEXT("The full build's pool"), LDProgression::LegalPool(*Catalog, Full, FullPool), ELDGrowthReason::None);
+    LDProgression::FDrawInput Input;
+    Input.Content = &Content;
+    Input.Build = &Full;
+    Input.Ordinal = 4;
+    int32 ThirdAttributes = 0, Violations = 0, OpenTwoNewActives = 0;
+    constexpr int32 Seeds = 1024;
+    for (int32 Seed = 1; Seed <= Seeds; ++Seed)
+    {
+        TArray<LDProgression::FLegalOption> Drawn;
+        Input.Seed = uint64(Seed) * 7919;
+        if (LDProgression::DrawOffer(Input, FullPool, Drawn) != ELDGrowthReason::None || Drawn.Num() != 3)
+        {
+            ++Violations;
+            continue;
+        }
+        int32 Attributes = 0, NewActives = 0;
+        for (int32 Index = 0; Index < 3; ++Index)
+        {
+            const LDProgression::FLegalOption& Row = Drawn[Index];
+            if (Row.Kind == ELDChoiceOptionKind::Attribute)
+            {
+                ++Attributes;
+                Violations += Index == 2 ? 0 : 1;
+            }
+            NewActives += Row.Kind == ELDChoiceOptionKind::LearnActive ? 1 : 0;
+        }
+        ThirdAttributes += Drawn[2].Kind == ELDChoiceOptionKind::Attribute ? 1 : 0;
+        Violations += Attributes > 1 || NewActives > 1 || Drawn[0].DefinitionId == Drawn[1].DefinitionId
+            || Drawn[0].DefinitionId == Drawn[2].DefinitionId || Drawn[1].DefinitionId == Drawn[2].DefinitionId ? 1 : 0;
+    }
+    bGood &= Test.TestEqual(TEXT("Every Q/W-full offer keeps its limits"), Violations, 0);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("The third card is an attribute about 65%% of the time (%d of %d)"), ThirdAttributes, Seeds),
+        ThirdAttributes > Seeds * 55 / 100 && ThirdAttributes < Seeds * 75 / 100);
+    TArray<LDProgression::FLegalOption> OpenPool;
+    LDProgression::LegalPool(*Catalog, WithPrecision, OpenPool);
+    Input.Build = &WithPrecision;
+    for (int32 Seed = 1; Seed <= 256; ++Seed)
+    {
+        TArray<LDProgression::FLegalOption> Drawn;
+        Input.Seed = uint64(Seed);
+        LDProgression::DrawOffer(Input, OpenPool, Drawn);
+        OpenTwoNewActives += Drawn.FilterByPredicate([](const LDProgression::FLegalOption& Row)
+            { return Row.Kind == ELDChoiceOptionKind::LearnActive; }).Num() >= 2 ? 1 : 0;
+    }
+    bGood &= Test.TestTrue(TEXT("With a free Q/W slot an offer may hold two new actives"), OpenTwoNewActives > 0);
+
+    // Reroll: the same rules, the previous three cards avoided while the pool allows.
+    Input.Build = &Full;
+    Input.Seed = 41;
+    TArray<LDProgression::FLegalOption> First;
+    LDProgression::DrawOffer(Input, FullPool, First);
+    int32 Overlaps = 0;
+    for (int32 Seed = 1; Seed <= 256; ++Seed)
+    {
+        LDProgression::FDrawInput Reroll = Input;
+        Reroll.Seed = LDProgression::RerollSeed(FGuid(1, 2, 3, 4), FGuid(5, 6, 7, uint32(Seed)), 4);
+        Reroll.Avoid = First;
+        TArray<LDProgression::FLegalOption> Again;
+        if (LDProgression::DrawOffer(Reroll, FullPool, Again) != ELDGrowthReason::None) { ++Overlaps; continue; }
+        for (const LDProgression::FLegalOption& Row : Again)
+        {
+            Overlaps += First.ContainsByPredicate([&Row](const LDProgression::FLegalOption& Old)
+                { return Old.Kind == Row.Kind && Old.DefinitionId == Row.DefinitionId; }) ? 1 : 0;
+        }
+    }
+    bGood &= Test.TestEqual(TEXT("A reroll never repeats a card of the previous offer while others remain"), Overlaps, 0);
+    // A pool with nothing else still fills the offer: avoidance is best effort, never a refusal.
+    const TArray<LDProgression::FLegalOption> Tight = {
+        {ELDChoiceOptionKind::UpgradeActive, Thousand, 1, 2}, {ELDChoiceOptionKind::UpgradeActive, Arc, 2, 3},
+        {ELDChoiceOptionKind::Attribute, FName(TEXT("attr_might")), 0, 1}};
+    LDProgression::FDrawInput TightInput = Input;
+    TightInput.Avoid = Tight;
+    TArray<LDProgression::FLegalOption> TightDraw;
+    bGood &= GrowthTestReason(Test, TEXT("A reroll of an exhausted pool"), LDProgression::DrawOffer(TightInput, Tight, TightDraw),
+        ELDGrowthReason::None);
+    bGood &= Test.TestEqual(TEXT("It repeats the only cards there are"), TightDraw.Num(), 3);
+
+    // Replacement: the new active starts at max(1, old rank - 1); the old skill is forgotten.
+    FLDGrowthBuild Build = GrowthTestDraftBuild(6, {{Thousand, 3, true, 0}, {Arc, 1, true, 1}});
+    LDProgression::FReplacement Replacement;
+    Replacement.Slot = 0;
+    Replacement.OldSkillId = Thousand;
+    Replacement.OldRank = 3;
+    Replacement.bConfirmed = true;
+    LDProgression::FAppliedOption Applied;
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, Fart, 0, 1), &Replacement,
+        ELDGrowthReason::None, Applied, TEXT("Replacing a rank-3 Q")))
+    {
+        return false;
+    }
+    bGood &= Test.TestTrue(TEXT("Replacing rank 3 learns the new active at rank 2 in the same slot"), Applied.bReplaced
+        && Applied.NewRank == 2 && Applied.ReplacedRank == 3 && !Build.FindSkill(Thousand));
+    bGood &= GrowthTestExpectSkill(Test, Build, Fart, 2, true, 0, TEXT("The downgraded replacement"));
+    Replacement.Slot = 1;
+    Replacement.OldSkillId = Arc;
+    Replacement.OldRank = 1;
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, ComeHere, 0, 1), &Replacement,
+        ELDGrowthReason::None, Applied, TEXT("Replacing a rank-1 W")))
+    {
+        return false;
+    }
+    bGood &= GrowthTestExpectSkill(Test, Build, ComeHere, 1, true, 1, TEXT("A rank-1 replacement stays at rank 1"));
+    return bGood;
+}
+
+// ---- 112 §7 equipment upgrade: ledger cause, effective definitions and the attribute projection ----
+bool GrowthTestRunUpgrade(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
+    {
+        return false;
+    }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    bool bGood = Test.TestTrue(TEXT("The approved upgrade costs 240 and adds 35% to fixed stats"),
+        Content.Parameters.UpgradeCost == 240 && Content.Parameters.UpgradeStatBonusBp == 3500);
+    const FLDDemoEquipmentDefinition* PureStats = nullptr;
+    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
+    {
+        bGood &= Test.TestEqual(Item.Id + TEXT(" has one upgraded value per stat"), Item.UpgradedStats.Num(), Item.Stats.Num());
+        for (int32 Index = 0; Index < Item.Stats.Num() && Index < Item.UpgradedStats.Num(); ++Index)
+        {
+            const FLDDemoStatBonus& Base = Item.Stats[Index];
+            const FLDDemoStatBonus& Up = Item.UpgradedStats[Index];
+            const bool bRange = Base.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+            const int64 Expected = bRange ? Base.Cm.Numerator * 13500 / (Base.Cm.Denominator * 10000) : Base.Amount * 13500 / 10000;
+            bGood &= Test.TestTrue(FString::Printf(TEXT("%s stat %d is +35%% floored at its precision"), *Item.Id, Index),
+                Up.Stat == Base.Stat && (bRange ? Up.Cm.Numerator == Expected && Up.Cm.Denominator == 1 : Up.Amount == Expected));
+        }
+        bGood &= Test.TestTrue(Item.Id + TEXT(" is upgradable exactly when every effect block has its upgraded form"),
+            LDDemoEquipment::Upgradable(Item) == ((!Item.HasPassive || Item.Passive.HasUpgraded) && (!Item.HasActive || Item.Active.HasUpgradedRank)));
+        bGood &= Test.TestTrue(Item.Id + TEXT(" serves its base or upgraded terms, never a fallback"),
+            &LDDemoEquipment::EffectiveStats(Item, false) == &Item.Stats && &LDDemoEquipment::EffectiveStats(Item, true) == &Item.UpgradedStats
+            && (Item.HasPassive ? LDDemoEquipment::EffectivePassiveEffects(Item, false) == &Item.Passive.Effects
+                && (LDDemoEquipment::EffectivePassiveEffects(Item, true) != nullptr) == Item.Passive.HasUpgraded
+                : LDDemoEquipment::EffectivePassiveEffects(Item, true) == nullptr)
+            && (Item.HasActive ? (LDDemoEquipment::EffectiveActiveRank(Item, true) != nullptr) == Item.Active.HasUpgradedRank
+                : LDDemoEquipment::EffectiveActiveRank(Item, false) == nullptr));
+        if (!PureStats && !Item.HasPassive && !Item.HasActive) { PureStats = &Item; }
+    }
+
+    // Projection: an upgraded instance projects its upgraded stats; an item without approved upgraded terms refuses.
+    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
+    {
+        FLDAttributeBuildValues Plain(1, {}, {}, {Item.Id});
+        FLDAttributeBuildValues Upgraded(1, {}, {}, {Item.Id});
+        Upgraded.EquippedUpgraded = {true};
+        const FLDAttributeProjectionResult Base = LDAttributeProjection::Project(Plain, *Catalog);
+        const FLDAttributeProjectionResult Up = LDAttributeProjection::Project(Upgraded, *Catalog);
+        if (!LDDemoEquipment::Upgradable(Item))
+        {
+            bGood &= Test.TestTrue(Item.Id + TEXT(" flagged upgraded without approved terms is refused"), !Up.IsSuccess()
+                && Up.Error.Code == ELDAttributeProjectionError::Catalog);
+            continue;
+        }
+        if (!Test.TestTrue(Item.Id + TEXT(" projects plain and upgraded"), Base.IsSuccess() && Up.IsSuccess())) { bGood = false; continue; }
+        for (const FLDDemoStatBonus& Stat : Item.UpgradedStats)
+        {
+            const FLDDemoStatBonus* Plain0 = Item.Stats.FindByPredicate([&Stat](const FLDDemoStatBonus& S) { return S.Stat == Stat.Stat; });
+            if (Stat.Stat == ELDDemoBonusStat::ADFlat)
+            {
+                bGood &= Test.TestEqual(Item.Id + TEXT(" upgraded AD"), Up.Value->Final.ADP2 - Base.Value->Final.ADP2, Stat.Amount - Plain0->Amount);
+            }
+            if (Stat.Stat == ELDDemoBonusStat::MaxHPFlat)
+            {
+                bGood &= Test.TestEqual(Item.Id + TEXT(" upgraded max HP"), Up.Value->Final.MaxHPP2 - Base.Value->Final.MaxHPP2,
+                    Stat.Amount - Plain0->Amount);
+            }
+        }
+        if (Item.HasPassive)
+        {
+            // Two copies, the second upgraded: the family applies once and takes the upgraded terms.
+            FLDAttributeBuildValues Pair(1, {}, {}, {Item.Id, Item.Id});
+            Pair.EquippedUpgraded = {false, true};
+            const FLDAttributeProjectionResult Both = LDAttributeProjection::Project(Pair, *Catalog);
+            bGood &= Test.TestTrue(Item.Id + TEXT(": duplicate copies apply the family once, the upgraded copy first"), Both.IsSuccess()
+                && Both.Value->EquipmentPassives.Num() == 1 && Both.Value->EquipmentPassives[0].bUpgraded
+                && Both.Value->EquipmentPassives[0].EquippedIndices.Num() == 2);
+        }
+    }
+    FLDAttributeBuildValues Mismatched(1, {}, {}, {Content.Equipment[0].Id});
+    Mismatched.EquippedUpgraded = {true, false};
+    bGood &= Test.TestFalse(TEXT("Mismatched upgrade flags are refused"), LDAttributeProjection::Project(Mismatched, *Catalog).IsSuccess());
+    if (!Test.TestNotNull(TEXT("The catalog holds an item with fixed stats only"), PureStats)) { return false; }
+
+    // Ledger: Burn + Upgrade, once per account, bound to the instance.
+    const FGuid Match(0x112, 7, 0, 1), P1(0x112, 7, 0, 2), P2(0x112, 7, 0, 3);
+    LDEconomy::FLedger Ledger;
+    FString Error;
+    if (!Test.TestTrue(TEXT("A ledger opens"), Ledger.Initialize(Match, {P1, P2}, 2000, Error))) { return false; }
+    uint64 Batch = 1;
+    const auto Buy = [&](const FGuid& Owner, uint8 Slot, int64 Price)
+    {
+        LDEconomy::FTransaction T;
+        T.Cause = LDEconomy::ECause::Buy;
+        T.BusinessKey = FGuid::NewGuid();
+        T.CommitBatch = ++Batch;
+        T.Burn = Price;
+        T.Gold.Emplace(LDEconomy::FGoldChange{Owner, Ledger.Account(Owner)->Revision, -Price});
+        T.Create.Emplace(LDEconomy::FCreateItem{Owner, Ledger.InventoryRevision(Owner), FName(*PureStats->Id), Slot});
+        LDEconomy::FPrepareResult Prepared = Ledger.Prepare(T);
+        if (!Prepared.IsSuccess()) { return FGuid(); }
+        const FGuid Created = Prepared.Value->Entry().CreatedInstance;
+        Ledger.ApplyPrepared(MoveTemp(Prepared.Value.GetValue()));
+        return Created;
+    };
+    const auto Upgrade = [&](const FGuid& Owner, const FGuid& Instance, int64 Cost, int64 MintInstead = 0)
+    {
+        LDEconomy::FTransaction T;
+        T.Cause = LDEconomy::ECause::Upgrade;
+        T.BusinessKey = FGuid::NewGuid();
+        T.CommitBatch = ++Batch;
+        T.Burn = MintInstead ? 0 : Cost;
+        T.Mint = MintInstead;
+        T.Gold.Emplace(LDEconomy::FGoldChange{Owner, Ledger.Account(Owner)->Revision, -Cost});
+        const LDEconomy::FItem* Item = Ledger.Item(Instance);
+        T.Upgrade.Emplace(LDEconomy::FUpgradeItem{Instance, Item ? Item->Revision : 0, Owner, Ledger.InventoryRevision(Owner)});
+        return Ledger.Prepare(T);
+    };
+    const FGuid First = Buy(P1, 0, PureStats->BuyPrice);
+    const FGuid Second = Buy(P1, 1, PureStats->BuyPrice);
+    const FGuid Other = Buy(P2, 0, PureStats->BuyPrice);
+    if (!Test.TestTrue(TEXT("Three items are bought"), First.IsValid() && Second.IsValid() && Other.IsValid())) { return false; }
+    bGood &= Test.TestTrue(TEXT("An upgrade that mints instead of burning has the wrong shape"),
+        Upgrade(P1, First, 240, 240).Error == LDEconomy::EPrepareError::InvalidTransaction);
+    bGood &= Test.TestTrue(TEXT("Another contender's item cannot be upgraded"), Upgrade(P1, Other, 240).Error == LDEconomy::EPrepareError::NotOwner);
+    const uint64 InventoryBefore = Ledger.InventoryRevision(P1);
+    const int64 GoldBefore = Ledger.Account(P1)->Gold;
+    LDEconomy::FPrepareResult Done = Upgrade(P1, First, 240);
+    if (!Test.TestTrue(TEXT("The first upgrade prepares"), Done.IsSuccess())) { return false; }
+    Ledger.ApplyPrepared(MoveTemp(Done.Value.GetValue()));
+    bGood &= Test.TestTrue(TEXT("The upgrade burns its cost, marks the instance, advances item and inventory revisions and spends the account's upgrade"),
+        Ledger.Account(P1)->Gold == GoldBefore - 240 && Ledger.Item(First)->bUpgraded && Ledger.Item(First)->Revision == 2
+        && Ledger.InventoryRevision(P1) == InventoryBefore + 1 && Ledger.Account(P1)->bUpgradeUsed && !Ledger.Item(Second)->bUpgraded);
+    bGood &= Test.TestTrue(TEXT("A second upgrade of the account is refused"), Upgrade(P1, Second, 240).Error == LDEconomy::EPrepareError::UpgradeUsed);
+    // Selling the upgraded item loses the upgrade at the ordinary sell price; the spent upgrade never returns.
+    LDEconomy::FTransaction Sell;
+    Sell.Cause = LDEconomy::ECause::Sell;
+    Sell.BusinessKey = FGuid::NewGuid();
+    Sell.CommitBatch = ++Batch;
+    Sell.Mint = PureStats->SellGold;
+    Sell.Gold.Emplace(LDEconomy::FGoldChange{P1, Ledger.Account(P1)->Revision, PureStats->SellGold});
+    Sell.Consume.Emplace(LDEconomy::FConsumeItem{First, 1, P1, Ledger.InventoryRevision(P1)});
+    bGood &= Test.TestTrue(TEXT("Selling with the pre-upgrade item revision is stale"),
+        Ledger.Prepare(Sell).Error == LDEconomy::EPrepareError::ItemStale);
+    Sell.Consume->ExpectedItemRevision = 2;
+    LDEconomy::FPrepareResult Sold = Ledger.Prepare(Sell);
+    if (!Test.TestTrue(TEXT("The upgraded item sells at its ordinary price"), Sold.IsSuccess())) { return false; }
+    Ledger.ApplyPrepared(MoveTemp(Sold.Value.GetValue()));
+    bGood &= Test.TestTrue(TEXT("The upgrade left with the item and stays spent"), !Ledger.Item(First) && Ledger.Account(P1)->bUpgradeUsed
+        && Upgrade(P1, Second, 240).Error == LDEconomy::EPrepareError::UpgradeUsed);
+    bGood &= Test.TestTrue(TEXT("Another account still has its own upgrade"), Upgrade(P2, Other, 240).IsSuccess());
+    bGood &= Test.TestTrue(FString::Printf(TEXT("The ledger reconciles (%s)"), *Error), Ledger.Reconcile(Error));
+    FString Evidence;
+    bGood &= Test.TestTrue(TEXT("Evidence exports the upgrade state"), LDEconomy::ExportEvidence(Ledger, 2000, Evidence, Error)
+        && Evidence.Contains(TEXT("upgradeUsed")) && Evidence.Contains(TEXT("\"Upgrade\"")));
+
+    // Wire: the new terms are part of request identity.
+    FLDShopCommand A;
+    A.Kind = ELDShopCommandKind::Upgrade;
+    A.UpgradePrice = 240;
+    FLDShopCommand B = A;
+    B.UpgradePrice = 239;
+    bGood &= Test.TestFalse(TEXT("Upgrade commands differing in price differ in terms"), A.SameTerms(B));
+    FLDChoiceCommand C;
+    FLDChoiceCommand D = C;
+    D.bReroll = true;
+    bGood &= Test.TestFalse(TEXT("A reroll differs in terms from a choice"), C.SameTerms(D));
+    bGood &= Test.TestTrue(TEXT("Upgrade is a known shop kind"), LDGrowthWire::IsKnownShopKind(ELDShopCommandKind::Upgrade));
     return bGood;
 }
 }
@@ -3119,6 +3484,176 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An owed assist keeps the assister's account from retiring"), Driver->OwesRewardTo(A2) && Driver->OwesRewardTo(Killer)
         && !Driver->OwesRewardTo(A1));
     Driver->RetryRewards.Reset();
+    return true;
+}
+
+// 112 §6: draft weights, tag affinity, per-offer limits, reroll avoidance and the replacement rank.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthDraftTest, "Lockdown.Rules.DemoGrowthDraft",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthDraftTest::RunTest(const FString& Parameters)
+{
+    return GrowthTestRunDraft(*this);
+}
+
+// 112 §7: equipment upgrade in the ledger, the effective definitions and the attribute projection.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthUpgradeTest, "Lockdown.Rules.DemoGrowthUpgrade",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthUpgradeTest::RunTest(const FString& Parameters)
+{
+    return GrowthTestRunUpgrade(*this);
+}
+
+// 112 §6: the reroll command through admission and the Transactions commit: tokens, one per offer, receipt replay.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthRerollTest, "Lockdown.Rules.DemoGrowthReroll",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(*this, Catalog))
+    {
+        return false;
+    }
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Isolated reroll world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    auto* Development = World->SpawnActor<ALDDevelopmentDirector>();
+    auto* Vendor = World->SpawnActor<ALDVendorDirector>();
+    if (!Mode || !Public || !Driver || !Economy || !Development || !Vendor) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
+    Mode->GameState = Public;
+    World->CopyGameState(Mode, Public);
+    Mode->MatchContext = {6, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    Mode->Combat = Driver;
+    Mode->Economy = Economy;
+    Mode->Development = Development;
+    Mode->Vendor = Vendor;
+    Mode->DemoContent = Catalog;
+    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
+    const FGuid Tester(0x112, 6, 0, 1);
+    auto& Life = Mode->Lives.Add(Tester);
+    Life.Kind = ELDVictimKind::Contender;
+    // Dead may confirm a choice; a reroll needs no body.
+    Life.Phase = ELDLifePhase::Dead;
+    Life.Life = 1;
+    Life.Revision = 2;
+    FString Error;
+    Economy->Match = Mode->MatchContext;
+    Economy->Roster = {Tester};
+    Economy->Content = Catalog;
+    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Economy->Roster,
+        Catalog->Get().Parameters.StartingGold, Error))) { AddError(Error); return false; }
+    if (!TestTrue(TEXT("Growth opens"), Development->BeginMatch(Mode->MatchContext, Economy->Roster, Catalog, Error))) { AddError(Error); return false; }
+    World->Tick(LEVELTICK_TimeOnly, .025f);
+    int64 StepAtMs = 0;
+    const auto RunTransactions = [&]()
+    {
+        StepAtMs += 1;
+        Error.Reset();
+        const bool bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
+                [&](const FLDGameplayWritePermit& Permit) { return Economy->ProcessTransactions(Permit, Error); }, Error)
+            && Mode->FinishAuthorityStep(*Driver, Error);
+        if (!bRan) { AddError(FString::Printf(TEXT("Transactions boundary failed: %s"), *Error)); }
+        return bRan;
+    };
+    uint64 NextRequest = 0;
+    const auto MakeReroll = [&]()
+    {
+        const FLDProgressionView View = Development->ReadProgression(Tester);
+        FLDChoiceCommand Out;
+        Out.Generation = View.Generation;
+        Out.Life = View.Life;
+        Out.ExpectedLifePhase = View.LifePhase;
+        Out.RequestId = ++NextRequest;
+        Out.OfferId = View.Offer.OfferId;
+        Out.OfferRevision = View.Offer.OfferRevision;
+        Out.ExpectedBuildRevision = View.BuildRevision;
+        Out.CatalogDigest = View.CatalogDigest;
+        Out.bReroll = true;
+        return Out;
+    };
+    const auto Final = [&](uint64 RequestId)
+    {
+        FLDReceiptQuery Query;
+        Query.Generation = Mode->MatchContext.Generation;
+        Query.Family = ELDGrowthFamily::Choice;
+        Query.RequestId = RequestId;
+        return Development->QueryChoiceReceipt(Tester, Query);
+    };
+
+    FLDChoiceCommand Bad = MakeReroll();
+    Bad.OptionId = FGuid::NewGuid();
+    TestEqual(TEXT("A reroll naming an option is refused at admission"),
+        LDGrowthWire::Reason(Development->QueueChoice(Tester, Bad).Reason), ELDGrowthReason::InvalidRequest);
+    NextRequest = 0;
+
+    // Level 1 has no token.
+    FLDChoiceCommand Command = MakeReroll();
+    Development->QueueChoice(Tester, Command);
+    if (!RunTransactions()) { return false; }
+    FLDChoiceReceiptQueryResult Result = Final(Command.RequestId);
+    TestTrue(TEXT("Without a token the reroll is refused with NoReroll and nothing changes"), Result.bHasReceipt
+        && Result.Receipt.Header.Outcome == ELDReceiptOutcome::Rejected
+        && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::NoReroll
+        && Development->ReadProgression(Tester).Offer.OfferId == Command.OfferId);
+
+    // Level 4 earns one token: the opening offer is replaced by a new offer of the same opportunity.
+    Development->Records.FindChecked(Tester).Build.Level = 4;
+    const FLDProgressionView Before = Development->ReadProgression(Tester);
+    TestEqual(TEXT("Level 4 holds one reroll token"), Before.RerollTokens, uint8(1));
+    Command = MakeReroll();
+    Development->QueueChoice(Tester, Command);
+    if (!RunTransactions()) { return false; }
+    Result = Final(Command.RequestId);
+    const FLDProgressionView After = Development->ReadProgression(Tester);
+    TestTrue(TEXT("The reroll is applied and names the replacing offer"), Result.bHasReceipt
+        && Result.Receipt.Header.Outcome == ELDReceiptOutcome::Applied && Result.Receipt.bRerolled
+        && Result.Receipt.bHasNextOffer && Result.Receipt.NextOfferId == After.Offer.OfferId && Result.Receipt.RerollTokensLeft == 0);
+    TestTrue(TEXT("Same opportunity, a new offer marked rerolled, the token spent, nothing consumed or learned"),
+        After.Offer.OfferId != Before.Offer.OfferId && After.Offer.OpportunityOrdinal == Before.Offer.OpportunityOrdinal
+        && After.Offer.bRerolled && After.RerollTokens == 0 && After.ConsumedThrough == Before.ConsumedThrough
+        && After.BuildRevision == Before.BuildRevision && After.Skills.IsEmpty());
+    int32 Repeated = 0;
+    for (const FLDChoiceOption& Option : After.Offer.Options)
+    {
+        Repeated += Before.Offer.Options.ContainsByPredicate([&Option](const FLDChoiceOption& Old)
+            { return Old.DefinitionId == Option.DefinitionId && Old.Kind == Option.Kind; }) ? 1 : 0;
+    }
+    TestEqual(TEXT("The rerolled opening avoids the previous three cards"), Repeated, 0);
+    const FLDSubmitResult Replay = Development->QueueChoice(Tester, Command);
+    TestTrue(TEXT("A replay answers the original receipt without a second reroll"), Replay.Status == ELDAdmissionStatus::Final
+        && Replay.bHasChoiceReceipt && Replay.ChoiceReceipt.NextOfferId == After.Offer.OfferId
+        && Development->ReadProgression(Tester).Offer.OfferId == After.Offer.OfferId);
+
+    // Level 7 earns another token, kept for later: the rerolled offer still cannot be rerolled again.
+    Development->Records.FindChecked(Tester).Build.Level = 7;
+    TestEqual(TEXT("Level 7 holds the second token"), Development->ReadProgression(Tester).RerollTokens, uint8(1));
+    Command = MakeReroll();
+    Development->QueueChoice(Tester, Command);
+    if (!RunTransactions()) { return false; }
+    Result = Final(Command.RequestId);
+    TestTrue(TEXT("One reroll per offer"), Result.bHasReceipt && LDGrowthWire::Reason(Result.Receipt.Header.Reason)
+        == ELDGrowthReason::OfferAlreadyRerolled && Development->ReadProgression(Tester).RerollTokens == 1);
+    // A stale offer revision is refused like any choice.
+    FLDChoiceCommand Stale = MakeReroll();
+    Stale.OfferRevision += 1;
+    Development->QueueChoice(Tester, Stale);
+    if (!RunTransactions()) { return false; }
+    Result = Final(Stale.RequestId);
+    TestTrue(TEXT("A reroll with a stale guard is refused"), Result.bHasReceipt
+        && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::OfferGuardStale);
     return true;
 }
 

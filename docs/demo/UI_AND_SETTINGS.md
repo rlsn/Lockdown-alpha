@@ -114,9 +114,9 @@ Choices 例外地停靠在小地图下方的右侧窄列（半透明底板，三
 | 旗杆喷漆与守护 | `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)`：发育期/剩余开放时间；开放后旗杆无主且无人时“旗杆空着，没人敢上？”；独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺时有暂停的喷漆者显示“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（精确到 0.1 s），无持有者时“旗杆底下打成一锅粥 · 谁也没存下进度”；有涂鸦时追加（或单独显示）“旗杆上是 X 的涂鸦 · 再守 <秒>s”，有人独自改漆时为“旗杆上是 X 的涂鸦 · 有人在改漆，守护暂停（再守 <秒>s）”，两部分以“ · ”连接。进度条：独自喷漆显示喷漆进度，争夺显示暂存的喷漆进度，其余显示守护进度 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放、喷上涂鸦或胜利。 |
 | 击杀通知 | 去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者（“X 把 Y 淫了（助攻：A、B）”）、可理解死因；本人是受害者、击杀者或助攻者时那一处写“你”并高亮该行 | 普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。 |
 | 属性 P | 本人所有 Spec 属性；基础、等级成长、永久选择、装备/被动/临时贡献及最终值；相关单位/公式说明 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
-| Shop | 开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价、本人金币、恰两装备、Buy/Sell、回绑冷却说明 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤不自动关店；越界失效交易，死亡/终局关店。 |
-| Choices | 同一持久 Offer 的三张不同合法卡、效果/目标等级、待选次数；先选卡再明确确认；开局 Offer 为真人自动打开一次（玩家已开自己的面板或输入被占用时不打开），6 s 内未点选卡片则自动收起为待选提示；本人受击时未在操作的面板自动收起；可暂时关闭 | 不自动选择、计时逼选、重抽或消费机会。stale 刷新同卡的保护版本后再次确认；死亡可用当前阶段提交。 |
-| 主动替换子确认 | 新技能、Q/W 两旧技能及等级，明确选要遗忘的槽，再“确认替换并遗忘” | 不默认替换第一个槽；取消返回原三卡，无消耗。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
+| Shop | 开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价、本人金币、恰两装备、Buy/Sell、每件已穿装备的“进阶”入口（价格、进阶后属性/被动/主动说明、已进阶标记；本局已用或该件不可进阶时说明原因）、回绑冷却说明 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤不自动关店；越界失效交易，死亡/终局关店。 |
+| Choices | 同一持久 Offer 的三张不同合法卡、效果/目标等级、待选次数；“免费重抽 · 剩 N 次”按钮（无令牌或本组已重抽时不可用）；满槽新主动卡写明替换后的等级；先选卡再明确确认；开局 Offer 为真人自动打开一次（玩家已开自己的面板或输入被占用时不打开），6 s 内未点选卡片则自动收起为待选提示；本人受击时未在操作的面板自动收起；可暂时关闭 | 不自动选择、计时逼选、自动重抽或消费机会；重抽只在玩家点按钮后提交，结果以权威回执与新 Offer 为准。stale 刷新同卡的保护版本后再次确认；死亡可用当前阶段提交。 |
+| 主动替换子确认 | 新技能、Q/W 两旧技能及等级与替换后新技能的等级（max(1, 旧等级−1)），明确选要遗忘的槽，再“确认替换并遗忘” | 不默认替换第一个槽；取消返回原三卡，无消耗。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级、构筑和米都还在，别慌”与待选入口；复活保护（免死金牌）图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗/购物。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
 | 局内 Settings | 显示/画质、音量、按键、镜头/文字，恢复默认、应用；继续、离开；Host 另有结束本局 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。结束本局与离开房间是不同确认。 |
 | Result | 全员名称/Kills/Deaths/Assists/FinalLevel（列名：淫了几个 · 寄了几次 · 助攻 · 最终等级），赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
@@ -256,8 +256,8 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | `ULDUIRoot::CloseTopPanel() -> bool`、`ShowMainPanel/ToggleMainPanel(ELDUIMainPanel)`；面板的 `ULDPanel::HasChildConfirmation/CloseChildConfirmation` | `ELDUIMainPanel` 仅本地导航枚举；唯一主面板/子确认/焦点状态，Controller 消费输入层。进入子确认先撤冲突 Armed 并保持释放抑制，Back 不越过模态，不反向创造第二栈。`ShowMainPanel` 用于权威事件打开，不顶掉玩家已开的菜单或设置。 |
 | `ULDUIRoot::TickFrontend/TickWorld` | 从已接受的投影更新前端与局内层；离局/换代只清本地呈现，不写领域数据。 |
 | `ULDHUD::RefreshReadModel()`、`LDHUD::Action(...) -> FActionView`、`LDHUD::AttributeRow(const FLDCombatAttributeRowView&) -> FAttributeRowView` | 纯本人/公共格式化；Action 消费 Combat 的本人 `CombatView` 条目与同步权威时刻，输出意图可提交性和执行限制，不查询敌 Actor 或重算派生公式。 |
-| `ULDChoicesPanel::Present(...) / PreviewChoice(int32) / PreviewReplacement(uint8) / ConfirmChoice()` | 行/卡 index 只选择屏幕中的不可变内容；最后发送稳定 OptionId、明确旧技能/槽及版本，不把数组位置当业务身份。 |
-| `ULDShopPanel::Present(...) / SelectItem(int32) / Buy() / RequestSell(uint8) / ConfirmSell()` | 冻结当前所见商品/实例、价格和版本；确认不重新用变化后的 row index 取另一条款。 |
+| `ULDChoicesPanel::Present(...) / PreviewChoice(int32) / PreviewReplacement(uint8) / ConfirmChoice() / Reroll()` | 行/卡 index 只选择屏幕中的不可变内容；最后发送稳定 OptionId、明确旧技能/槽及版本，不把数组位置当业务身份。 |
+| `ULDShopPanel::Present(...) / SelectItem(int32) / Buy() / RequestSell(uint8) / RequestUpgrade(uint8) / ConfirmSell()` | 冻结当前所见商品/实例、价格和版本；确认不重新用变化后的 row index 取另一条款。 |
 | `ALDPlayerController::SubmitChoice(const FLDChoiceCommand&) / SubmitShopCommand(const FLDShopCommand&)` | 经本人拥有连接转发 `ServerChoice/ServerShopCommand`；服务端调用所属域 Queue 方法。query receipt 同样沿原领域键，不建通用万能 RPC。 |
 | `ALDWorldViewRelay::ReadObservedFrame() const` | 返回世界域唯一只读 `FLDWorldView` 与本地 `ViewStatus`，不接受 ObserverId；目标卡/Minimap/世界输入共享它。 |
 

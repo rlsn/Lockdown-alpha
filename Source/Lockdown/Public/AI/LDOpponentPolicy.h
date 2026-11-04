@@ -61,6 +61,8 @@ struct FLDOpponentOffer
 {
     FGuid OfferId;
     uint64 OfferRevision = 0;
+    // 112 §6: this offer is already the opportunity's one reroll.
+    bool bRerolled = false;
     TArray<FLDOpponentOption> Options;
 };
 
@@ -88,6 +90,11 @@ struct FLDOpponentSelf
     TArray<FLDOpponentSkill> Skills;
     // Equipment slots 0/1 by catalog definition id; an empty string is an empty slot.
     FString Equipment[2];
+    // 112 §7: upgraded slots and whether the one upgrade of the match is spent.
+    bool EquipmentUpgraded[2] = {false, false};
+    bool bUpgradeUsed = false;
+    // 112 §6: free rerolls left.
+    uint8 RerollTokens = 0;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
 };
@@ -204,10 +211,12 @@ struct FLDOpponentBodyIntent
     FLDOpponentRetryKey Key;
 };
 
-enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy };
+enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy, Upgrade };
 
 struct FLDOpponentChoicePick
 {
+    // 112 §6: spend a free reroll instead of choosing (OptionId stays empty).
+    bool bReroll = false;
     FGuid OptionId;
     bool bReplace = false;
     ELDOpponentSkillSlot ReplaceSlot = ELDOpponentSkillSlot::Q;
@@ -220,6 +229,8 @@ struct FLDOpponentEquipmentPlan
 {
     int32 SellSlot = INDEX_NONE;
     FString BuyItemId;
+    // 112 §7: upgrade the item in this slot instead of trading (no SellSlot/BuyItemId).
+    int32 UpgradeSlot = INDEX_NONE;
 };
 
 struct FLDOpponentBuildIntent
@@ -230,6 +241,7 @@ struct FLDOpponentBuildIntent
     FLDOpponentChoicePick Choice;
     int32 SellSlot = INDEX_NONE;
     FString BuyItemId;
+    int32 UpgradeSlot = INDEX_NONE;
     FLDOpponentRetryKey Key;
 };
 

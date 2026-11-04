@@ -191,6 +191,7 @@ private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDDemoAssistSettlementTest;
+    friend class FLDDemoGrowthRerollTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

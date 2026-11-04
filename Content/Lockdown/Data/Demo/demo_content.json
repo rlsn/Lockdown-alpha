@@ -2,6 +2,7 @@
   "abilities": [
     {
       "cooldown_family": "cd_arc_bolt",
+      "draftable": true,
       "id": "active_arc_bolt",
       "kind": "active",
       "native_id": 62,
@@ -109,6 +110,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "Breach"
+      ],
       "target": {
         "mode": "DirectionProjectile",
         "projectile_radius": {
@@ -134,6 +139,7 @@
     },
     {
       "cooldown_family": "cd_binding_snare",
+      "draftable": true,
       "id": "active_binding_snare",
       "kind": "active",
       "native_id": 64,
@@ -265,6 +271,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "Breach"
+      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -280,6 +290,7 @@
     },
     {
       "cooldown_family": "cd_body_slam",
+      "draftable": true,
       "id": "active_body_slam",
       "kind": "active",
       "native_id": 80,
@@ -474,6 +485,11 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "Tank",
+        "Control"
+      ],
       "target": {
         "mode": "GroundPoint",
         "range": {
@@ -489,6 +505,7 @@
     },
     {
       "cooldown_family": "cd_combo_flurry",
+      "draftable": true,
       "id": "active_combo_flurry",
       "kind": "active",
       "native_id": 70,
@@ -575,6 +592,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "BasicAttack",
+        "Breach"
+      ],
       "target": {
         "mode": "Self"
       },
@@ -585,6 +606,7 @@
     },
     {
       "cooldown_family": "cd_come_here",
+      "draftable": true,
       "id": "active_come_here",
       "kind": "active",
       "native_id": 81,
@@ -722,6 +744,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "Tank"
+      ],
       "target": {
         "mode": "Self"
       },
@@ -732,6 +758,7 @@
     },
     {
       "cooldown_family": "cd_fart_dash",
+      "draftable": true,
       "id": "active_fart_dash",
       "kind": "active",
       "native_id": 69,
@@ -941,6 +968,11 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "Control",
+        "Breach"
+      ],
       "target": {
         "mode": "DirectionDash"
       },
@@ -951,6 +983,7 @@
     },
     {
       "cooldown_family": "cd_guard_pulse",
+      "draftable": true,
       "id": "active_guard_pulse",
       "kind": "active",
       "native_id": 63,
@@ -1055,6 +1088,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Shield",
+        "Control"
+      ],
       "target": {
         "mode": "Self"
       },
@@ -1065,6 +1102,7 @@
     },
     {
       "cooldown_family": "cd_lunge",
+      "draftable": true,
       "id": "active_lunge",
       "kind": "active",
       "native_id": 78,
@@ -1211,6 +1249,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
+      ],
       "target": {
         "mode": "DirectionDash"
       },
@@ -1221,6 +1263,7 @@
     },
     {
       "cooldown_family": "cd_monkey_peach",
+      "draftable": true,
       "id": "active_monkey_peach",
       "kind": "active",
       "native_id": 76,
@@ -1352,6 +1395,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "BasicAttack",
+        "Control"
+      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -1367,6 +1414,7 @@
     },
     {
       "cooldown_family": "cd_slick_moves",
+      "draftable": true,
       "id": "active_slick_moves",
       "kind": "active",
       "native_id": 71,
@@ -1453,6 +1501,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
+      ],
       "target": {
         "mode": "Self"
       },
@@ -1463,6 +1515,7 @@
     },
     {
       "cooldown_family": "cd_slipper_throw",
+      "draftable": true,
       "id": "active_slipper_throw",
       "kind": "active",
       "native_id": 68,
@@ -1606,6 +1659,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "BasicAttack"
+      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -1621,6 +1678,7 @@
     },
     {
       "cooldown_family": "cd_thousand_year",
+      "draftable": true,
       "id": "active_thousand_year",
       "kind": "active",
       "native_id": 77,
@@ -1764,6 +1822,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "Mobility"
+      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -1778,6 +1840,7 @@
       }
     },
     {
+      "draftable": true,
       "id": "passive_battle_rhythm",
       "kind": "passive",
       "native_id": 65,
@@ -1828,11 +1891,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_cornered",
       "kind": "passive",
       "native_id": 72,
@@ -1895,11 +1963,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Tank",
+        "BasicAttack"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_eagle_eye",
       "kind": "passive",
       "native_id": 75,
@@ -1953,11 +2026,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_iron_crotch",
       "kind": "passive",
       "native_id": 79,
@@ -2062,11 +2140,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Tank",
+        "Control"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_lurking",
       "kind": "passive",
       "native_id": 73,
@@ -2150,11 +2233,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "Breach"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_precision",
       "kind": "passive",
       "native_id": 67,
@@ -2205,11 +2293,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "BasicAttack",
+        "Breach"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_public_shame",
       "kind": "passive",
       "native_id": 74,
@@ -2266,11 +2359,16 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "Breach"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_second_wind",
       "kind": "passive",
       "native_id": 66,
@@ -2329,6 +2427,10 @@
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Tank",
+        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -2983,7 +3085,7 @@
     },
     {
       "description_key": "passive_iron_crotch.description",
-      "description_text": "掏蛋流的天敌：被近处敌人的大比兜或技能打中时，让对方受到精神攻击，随嘴硬提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。",
+      "description_text": "专治手欠：被近处敌人的大比兜或技能打中时，让对方受到精神攻击，随嘴硬提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。",
       "icon_id": "icon_passive_iron_crotch",
       "id": "passive_iron_crotch",
       "name_key": "passive_iron_crotch.name",
@@ -3162,6 +3264,20 @@
           "p2": 12000,
           "unit": "mp"
         }
+      },
+      "tags": [
+        "Shield",
+        "Breach"
+      ],
+      "upgraded_stats": {
+        "MagicResistFlat": {
+          "p2": 1350,
+          "unit": "points"
+        },
+        "MaxMPFlat": {
+          "p2": 16200,
+          "unit": "mp"
+        }
       }
     },
     {
@@ -3198,6 +3314,21 @@
           "numerator": 40,
           "unit": "cm"
         }
+      },
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 1890,
+          "unit": "points"
+        },
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 54,
+          "unit": "cm"
+        }
       }
     },
     {
@@ -3216,6 +3347,19 @@
           "bp": 1000,
           "unit": "ratio"
         }
+      },
+      "tags": [
+        "BasicAttack"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 2700,
+          "unit": "points"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 1350,
+          "unit": "ratio"
+        }
       }
     },
     {
@@ -3232,6 +3376,19 @@
         },
         "MaxHPFlat": {
           "p2": 18000,
+          "unit": "hp"
+        }
+      },
+      "tags": [
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ArmorFlat": {
+          "p2": 2025,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 24300,
           "unit": "hp"
         }
       }
@@ -3282,6 +3439,19 @@
         },
         "MaxHPFlat": {
           "p2": 15000,
+          "unit": "hp"
+        }
+      },
+      "tags": [
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ArmorFlat": {
+          "p2": 2430,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 20250,
           "unit": "hp"
         }
       }
@@ -3341,6 +3511,19 @@
           "bp": 800,
           "unit": "ratio"
         }
+      },
+      "tags": [
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 2700,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 1080,
+          "unit": "ratio"
+        }
       }
     },
     {
@@ -3371,6 +3554,15 @@
           "bp": 1200,
           "unit": "ratio"
         }
+      },
+      "tags": [
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "MoveSpeedBonusRatio": {
+          "bp": 1620,
+          "unit": "ratio"
+        }
       }
     },
     {
@@ -3387,6 +3579,19 @@
         },
         "CooldownHasteFlat": {
           "p2": 1500,
+          "unit": "points"
+        }
+      },
+      "tags": [
+        "Breach"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 4050,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 2025,
           "unit": "points"
         }
       }
@@ -3419,6 +3624,20 @@
           "p2": 1200,
           "unit": "points"
         }
+      },
+      "tags": [
+        "BasicAttack",
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 1620,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 1620,
+          "unit": "points"
+        }
       }
     },
     {
@@ -3436,6 +3655,21 @@
         },
         "AttackSpeedBonusRatio": {
           "bp": 1200,
+          "unit": "ratio"
+        }
+      },
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 162,
+          "unit": "cm"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 1620,
           "unit": "ratio"
         }
       }
@@ -3539,7 +3773,34 @@
       "ms": 3500,
       "unit": "ms"
     },
-    "CHOICE.BaseWeight": 1,
+    "CHOICE.AffinityCap": {
+      "bp": 17000,
+      "unit": "ratio"
+    },
+    "CHOICE.AffinityStep": {
+      "bp": 13000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewActiveFullSlotWeight": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewActiveOpenSlotWeight": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewPassiveWeight": {
+      "bp": 10000,
+      "unit": "ratio"
+    },
+    "CHOICE.ThirdSlotAttributeChance": {
+      "bp": 6500,
+      "unit": "ratio"
+    },
+    "CHOICE.UpgradeWeight": {
+      "bp": 22000,
+      "unit": "ratio"
+    },
     "COMBAT.RearArcDeg": {
       "denominator": 1,
       "numerator": 120,
@@ -3591,6 +3852,11 @@
       "unit": "ratio"
     },
     "SHOP.StartingGold": 320,
+    "SHOP.UpgradeCost": 240,
+    "SHOP.UpgradeStatBonusRatio": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
     "STAT.AD.Base": {
       "p2": 7000,
       "unit": "points"
@@ -3849,15 +4115,13 @@
     "max_level": 10,
     "max_skill_rank": 3,
     "opening_offer": {
-      "attribute_count": 2,
-      "attribute_ids": [
-        "attr_might",
-        "attr_reach",
-        "attr_resolve",
-        "attr_vitality"
-      ],
+      "active_count": 2,
       "passive_count": 1
     },
+    "reroll_levels": [
+      4,
+      7
+    ],
     "xp_start": 0,
     "xp_thresholds": [
       0,

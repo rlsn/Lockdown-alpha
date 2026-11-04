@@ -234,6 +234,8 @@ namespace LDHUD
         bool bAffordable=false;
     };
     LOCKDOWN_API FShopItemView ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive/active terms); empty parts are omitted.
+    LOCKDOWN_API TArray<FString> UpgradeLines(const FLDDemoEquipmentDefinition& Item);
     struct FAttributeRowView
     {
         FString Name;

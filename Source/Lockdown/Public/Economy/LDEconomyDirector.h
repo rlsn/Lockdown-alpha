@@ -76,6 +76,7 @@ private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDDemoAssistSettlementTest;
+    friend class FLDDemoGrowthRerollTest;
     // Retires the ledger accounts of contenders that left; M is the authority core of this match.
     bool RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error);
     bool CompactLedger(FString& Error);

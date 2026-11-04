@@ -82,6 +82,10 @@ class ApprovedDemoData(unittest.TestCase):
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistGoldRatio", "ratio", ".5"),
+            ("SHOP.UpgradeStatBonusRatio", "ratio", ".35"), ("CHOICE.UpgradeWeight", "ratio", "2.2"),
+            ("CHOICE.NewActiveOpenSlotWeight", "ratio", "1.5"), ("CHOICE.NewActiveFullSlotWeight", "ratio", ".30"),
+            ("CHOICE.NewPassiveWeight", "ratio", "1"), ("CHOICE.AffinityStep", "ratio", "1.30"),
+            ("CHOICE.AffinityCap", "ratio", "1.70"), ("CHOICE.ThirdSlotAttributeChance", "ratio", ".65"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -91,7 +95,7 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("SHOP.StartingGold", 320), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("SHOP.StartingGold", 320), ("SHOP.UpgradeCost", 240), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
         ):
@@ -332,13 +336,15 @@ class ApprovedDemoData(unittest.TestCase):
         }
         for identity, stats in expected.items():
             self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
-        # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
-        for stat, maximum in (("MaxHP", "2102"), ("MaxMP", "718"), ("AD", "218.8"), ("AP", "220"),
-                              ("Armor", "172"), ("MagicResist", "160")):
+        # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items, one upgraded.
+        for stat, maximum in (("MaxHP", "2165"), ("MaxMP", "760"), ("AD", "225.8"), ("AP", "230.5"),
+                              ("Armor", "178.3"), ("MagicResist", "164.2")):
             field = stat + "Flat"
             base = amount(self.catalog.parameter("STAT." + stat + ".Base")) + 9 * amount(self.catalog.parameter("STAT." + stat + ".PerLevel"))
             equipment = max(amount(row["stats"][field]) if field in row["stats"] else Fraction(0) for row in self.data["equipment"])
-            self.assertEqual(base + content._choice_bonus(self.data, field) + 2 * equipment, Fraction(maximum))
+            upgraded = max(amount(row["upgraded_stats"][field]) if field in row["upgraded_stats"] else Fraction(0)
+                           for row in self.data["equipment"])
+            self.assertEqual(base + content._choice_bonus(self.data, field) + equipment + upgraded, Fraction(maximum))
         self.assertEqual(Fraction(9, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.422"))
 
     def test_every_equipment_price_stat_and_effect(self):
@@ -482,10 +488,9 @@ class ApprovedDemoData(unittest.TestCase):
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
         self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
-        # D24: the opening offer is two of four basic attribute cards (not attr_focus) plus one passive.
-        self.assertEqual(self.data["progression"]["opening_offer"],
-                         {"attribute_ids": ("attr_might", "attr_reach", "attr_resolve", "attr_vitality"),
-                          "attribute_count": 2, "passive_count": 1})
+        # 112 §6: the opening offer is two new actives and one new passive; level 4 and 7 each earn one reroll.
+        self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
+        self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
             ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 416, 900, 3000, 25000, 40, 30, 1250),
             ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 451, 1100, 4000, 65000, 160, 120, 1539),

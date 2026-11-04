@@ -77,6 +77,23 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
+// 112 §6 draft weights, all basis points of a ratio (10000 = 1.0).
+USTRUCT()
+struct FLDDemoChoiceWeights
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int64 UpgradeWeightBp = 0;
+    UPROPERTY() int64 NewActiveOpenSlotWeightBp = 0;
+    UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
+    UPROPERTY() int64 NewPassiveWeightBp = 0;
+    // Each tag a candidate shares with the rest of the build multiplies its weight by AffinityStep, capped at AffinityCap.
+    UPROPERTY() int64 AffinityStepBp = 0;
+    UPROPERTY() int64 AffinityCapBp = 0;
+    // Chance that the third card of a level-up offer comes from the attribute pool.
+    UPROPERTY() int64 ThirdSlotAttributeBp = 0;
+};
+
 USTRUCT()
 struct FLDDemoContentParameters
 {
@@ -115,7 +132,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
     UPROPERTY() int64 StartingGold = 0;
     UPROPERTY() int64 SellRatioBp = 0;
-    UPROPERTY() int64 ChoiceBaseWeight = 0;
+    // 112 §7: one upgrade per contender and match costs UpgradeCost; fixed stats rise by UpgradeStatBonusBp.
+    UPROPERTY() int64 UpgradeCost = 0;
+    UPROPERTY() int64 UpgradeStatBonusBp = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
     // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
     UPROPERTY() FLDDemoRational RearArcDeg;
@@ -130,6 +149,7 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AssistWindowMs = 0;
     UPROPERTY() int64 AssistGoldBp = 0;
     UPROPERTY() FLDDemoAIParameters AI;
+    UPROPERTY() FLDDemoChoiceWeights Choice;
 };
 
 UENUM()
@@ -221,6 +241,10 @@ enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 UENUM()
 enum class ELDDemoCampTier : uint8 { Low, High };
 
+// 112 §1: the only mechanic tags of skills and equipment; draft affinity counts shared tags, the UI never shows them as schools.
+UENUM()
+enum class ELDDemoMechanicTag : uint8 { BasicAttack, Mobility, Control, Shield, Tank, Breach };
+
 UENUM()
 enum class ELDDemoBonusStat : uint8
 {
@@ -308,6 +332,9 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() ELDDemoAbilityKind Kind = ELDDemoAbilityKind::Active;
+    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
+    // False keeps the skill out of every three-card offer (opening and level-up); it stays learnable otherwise.
+    UPROPERTY() bool Draftable = false;
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
@@ -335,6 +362,9 @@ struct FLDDemoEquipmentActive
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
     UPROPERTY() FLDDemoRankDefinition Rank;
+    // 112 §7: the same action one step stronger once its item is upgraded (same handlers in the same order).
+    UPROPERTY() bool HasUpgradedRank = false;
+    UPROPERTY() FLDDemoRankDefinition UpgradedRank;
 };
 
 USTRUCT()
@@ -344,6 +374,9 @@ struct FLDDemoEquipmentPassive
 
     UPROPERTY() FString Family;
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
+    // 112 §7: the upgraded terms of the same handlers in the same order.
+    UPROPERTY() bool HasUpgraded = false;
+    UPROPERTY() TArray<FLDDemoEffectDefinition> UpgradedEffects;
 };
 
 USTRUCT()
@@ -355,7 +388,10 @@ struct FLDDemoEquipmentDefinition
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() int64 BuyPrice = 0;
     UPROPERTY() int64 SellGold = 0;
+    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    // Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2, R4, whole cm).
+    UPROPERTY() TArray<FLDDemoStatBonus> UpgradedStats;
     UPROPERTY() bool HasActive = false;
     UPROPERTY() FLDDemoEquipmentActive Active;
     UPROPERTY() bool HasPassive = false;
@@ -434,10 +470,11 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
-    // D24: the opening offer draws OpeningAttributeCount of these cards and OpeningPassiveCount passives.
-    UPROPERTY() TArray<FString> OpeningAttributeIds;
-    UPROPERTY() int32 OpeningAttributeCount = 0;
+    // 112 §6: the opening offer holds OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable passives.
+    UPROPERTY() int32 OpeningActiveCount = 0;
     UPROPERTY() int32 OpeningPassiveCount = 0;
+    // Reaching each of these levels earns one free reroll token.
+    UPROPERTY() TArray<int32> RerollLevels;
 };
 
 USTRUCT()
@@ -508,3 +545,31 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;
 };
+
+// 112 §7: the "current effective definition" of an equipped instance. Every reader of equipment stats, passive terms or
+// active terms goes through these, so an upgrade changes parameters without a second handler branch.
+namespace LDDemoEquipment
+{
+    // Upgradable only when every passive/active block of the item carries its approved upgraded form; never falls back.
+    inline bool Upgradable(const FLDDemoEquipmentDefinition& Item)
+    {
+        return (!Item.HasPassive || Item.Passive.HasUpgraded) && (!Item.HasActive || Item.Active.HasUpgradedRank);
+    }
+    inline const TArray<FLDDemoStatBonus>& EffectiveStats(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
+    {
+        return bUpgraded ? Item.UpgradedStats : Item.Stats;
+    }
+    // Null when the item has no passive, or an upgraded instance lacks its upgraded terms (a refused state).
+    inline const TArray<FLDDemoEffectDefinition>* EffectivePassiveEffects(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
+    {
+        if (!Item.HasPassive) { return nullptr; }
+        if (!bUpgraded) { return &Item.Passive.Effects; }
+        return Item.Passive.HasUpgraded ? &Item.Passive.UpgradedEffects : nullptr;
+    }
+    inline const FLDDemoRankDefinition* EffectiveActiveRank(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
+    {
+        if (!Item.HasActive) { return nullptr; }
+        if (!bUpgraded) { return &Item.Active.Rank; }
+        return Item.Active.HasUpgradedRank ? &Item.Active.UpgradedRank : nullptr;
+    }
+}

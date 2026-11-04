@@ -270,9 +270,9 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Pick(Test, C, TEXT("No actives: the first engage role in public catalog order"),
         {}, {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
              Option(3, EKind::LearnActive, TEXT("active_arc_bolt"))}, 3);
-    bGood &= Pick(Test, C, TEXT("A D24 opening offer (two attribute cards and a passive): the new passive is taken"),
-        {}, {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
-             Option(3, EKind::Attribute, TEXT("attr_vitality"))}, 2);
+    bGood &= Pick(Test, C, TEXT("A 112 opening offer (two new actives and a passive): an active fills the empty Q"),
+        {}, {Option(1, EKind::LearnActive, TEXT("active_guard_pulse")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
+             Option(3, EKind::LearnActive, TEXT("active_binding_snare"))}, 3);
     const auto& Attributes = C.Get().Attributes;
     const FString* First = nullptr;
     uint32 FirstOption = 0;
@@ -289,6 +289,28 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Approved attributes are present"), First != nullptr)
         && Pick(Test, C, TEXT("Attributes tie on stable public order"), {},
             {Option(1, EKind::Attribute, Ids[0]), Option(2, EKind::Attribute, Ids[1]), Option(3, EKind::Attribute, Ids[2])}, FirstOption);
+    // 112 §6: an offer whose best card is only an attribute spends a free reroll when one is held; a rerolled offer is chosen.
+    FLDOpponentSelf Rolling;
+    FLDOpponentOffer Plain;
+    Plain.OfferId = FGuid(0xB0, 0, 0, 2);
+    Plain.Options = {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::Attribute, TEXT("attr_focus"))};
+    Rolling.Offer = Plain;
+    Rolling.RerollTokens = 1;
+    FLDOpponentChoicePick Rolled;
+    FString RollError;
+    bGood &= Test.TestTrue(TEXT("Attributes only and a token: reroll"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && Rolled.bReroll && !Rolled.OptionId.IsValid());
+    Rolling.Offer->bRerolled = true;
+    bGood &= Test.TestTrue(TEXT("A rerolled offer is chosen from"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId.IsValid());
+    Rolling.Offer->bRerolled = false;
+    Rolling.RerollTokens = 0;
+    bGood &= Test.TestTrue(TEXT("Without a token the attribute is taken"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll);
+    Rolling.RerollTokens = 1;
+    Rolling.Offer->Options.Add(Option(3, EKind::LearnPassive, TEXT("passive_precision")));
+    bGood &= Test.TestTrue(TEXT("A good card is taken even with a token"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId == FGuid(0xA0, 0, 0, 3));
     FLDOpponentSelf Unknown;
     FLDOpponentOffer Offer;
     Offer.Options = {Option(1, EKind::Attribute, TEXT("attr_unknown"))};
@@ -307,6 +329,8 @@ bool Plan(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, cons
     Self.Equipment[0] = First;
     Self.Equipment[1] = Second;
     Self.Gold = Gold;
+    // Trade order only; the one upgrade of the match is covered on its own below.
+    Self.bUpgradeUsed = true;
     TOptional<FLDOpponentEquipmentPlan> Out;
     FString Error;
     const bool bPlanned = LDOpponentPolicy::PlanEquipment(Self, Catalog, Out, Error);
@@ -350,6 +374,27 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     Unknown.Equipment[0] = TEXT("item_unknown");
     TOptional<FLDOpponentEquipmentPlan> Out;
     bGood &= Test.TestFalse(TEXT("An unknown held item is refused"), LDOpponentPolicy::PlanEquipment(Unknown, C, Out, Error));
+    // 112 §7: with no affordable trade, the AI spends its one upgrade on a held item that has approved upgraded terms.
+    const FLDDemoEquipmentDefinition* Upgradable = C.Get().Equipment.FindByPredicate(
+        [](const FLDDemoEquipmentDefinition& Item) { return LDDemoEquipment::Upgradable(Item); });
+    if (Test.TestNotNull(TEXT("An approved item can be upgraded"), Upgradable))
+    {
+        const int64 Cost = C.Get().Parameters.UpgradeCost;
+        FLDOpponentSelf Holder;
+        Holder.Equipment[0] = Upgradable->Id;
+        Holder.Gold = Cost;
+        bGood &= Test.TestTrue(TEXT("Exactly the upgrade cost and nothing to buy: upgrade slot 0"),
+            LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && Out.IsSet() && Out->UpgradeSlot == 0 && Out->BuyItemId.IsEmpty()
+            && Out->SellSlot == INDEX_NONE);
+        Holder.Gold = Cost - 1;
+        bGood &= Test.TestTrue(TEXT("One gold short: no upgrade"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+        Holder.Gold = Cost;
+        Holder.bUpgradeUsed = true;
+        bGood &= Test.TestTrue(TEXT("A spent upgrade is never planned again"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+        Holder.bUpgradeUsed = false;
+        Holder.EquipmentUpgraded[0] = true;
+        bGood &= Test.TestTrue(TEXT("An upgraded item is not upgraded twice"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+    }
     return bGood;
 }
 

@@ -379,6 +379,7 @@ Gold、XP、阈值运算及审计累计的任何越界必须在整奖准备阶�
 | `RequestPending` | 最终点击提交一个 Option 及必要替换确认；显示等待，不能本地先改 rank 或减机会。关闭面板不声称撤回已受理意图。 | 否 |
 | `Committed` | 同一复合提交应用效果、遗忘/装槽、来源失效、最终属性、机会消费和结果；之后才生成下一队首。 | 恰一次 |
 | 拒绝 / 版本恢复 | 返回原因和同一个 Offer 的当前保护版本；重新明确确认，不换卡、不替换其他目标。 | 否 |
+| `Rerolled` | 玩家用一次免费重抽（`FLDChoiceCommand.bReroll`）替换当前 Offer：同一机会序号、新 OfferId、`bRerolled`，`RerollSeed` 决定的新随机材料，尽量避开上一组三张；消费一个重抽令牌，不消费机会、不改构筑。 | 否 |
 | `Frozen / InvalidMatch` | 终局只读冻结，离开失去提交资格；新局所有旧身份无执行权。 | 否 |
 
 开局队首在 `BeginMatch` 中随 1 号机会生成；队列为空时奖励授予的队首在 `ApplyPreparedGrowth` 中立即生成，不等“首次打开页面”才抽；
@@ -388,7 +389,7 @@ Gold、XP、阈值运算及审计累计的任何越界必须在整奖准备阶�
 准备阶段对 prospective Build 枚举下一队首的合法池（`HeadPool`，不足三项即 `DataInvalid` 拒绝整次准备），**不提前生成、
 公开或消费下一组随机结果**。实际抽样在本次状态应用后、整体 Publish 前完成；
 这是固定目录、预验合法池上的无失败纯操作；随机种子由 `OfferSeed(MatchSecret, Contender, Ordinal)` 决定，
-同一序号重试不换 seed。
+同一序号重试不换 seed。抽样规则见 §6.3，`DrawFeasible` 证明当前合法池在任何种子下都能凑齐三张卡。
 目录损坏不以重抽/属性替换修补：保留机会与原内容，以 `DataInvalid` 明确拒绝，必需奖励按 §4.3 走故障路径。
 
 ### 6.2 满槽替换与版本保护
@@ -396,8 +397,8 @@ Gold、XP、阈值运算及审计累计的任何越界必须在整奖准备阶�
 空槽学习采用 Q 后 W 的确定空槽顺序，UI 明示目标槽。满槽的新主动仍是一张合法卡，
 “替换 Q”与“替换 W”是后续参数，不是两张不同候选。
 最终确认必须绑定 Slot、旧技能稳定 ID、旧 rank、ExpectedBuildRevision 和 OfferRevision。
-只选中新卡但尚未确定替换不消费；确认成功后旧技能/等级真实删除，新技能 rank 1。
-旧技能冷却记录不等于备用技能库：再次获得仍从一级开始，仅继承未结束截止。
+只选中新卡但尚未确定替换不消费；确认成功后旧技能/等级真实删除，新技能 rank = max(1, 旧 rank − 1)（`LDProgression::ReplacementRank`），
+不返还米或选择次数。旧技能冷却记录不等于备用技能库：被遗忘的技能再次获得仍从一级开始，仅继承未结束截止。
 
 Offer 将**不可变内容**与**可更新保护版本**分开。
 交易或又一次升级推进 BuildRevision 时，重验相同三张卡，更新 GuardBuildRevision/OfferRevision；
@@ -411,31 +412,31 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 两个请求竞争同一 Offer 时，仅一个可提交；另一个返回原 Offer 已处理，
 绝不把其 OptionId 套到下一组。
 
-### 6.3 当前目录的候选覆盖
+### 6.3 抽卡规则、机制标签与重抽
 
-当前已批准目录为三主动、三被动、五属性、七装备；只引用以下稳定键：
+每个技能与装备在 `content.json` 登记 1–3 个不重复的机制标签（`tags`：`BasicAttack` 普攻、`Mobility` 位移、`Control` 控制、
+`Shield` 护盾、`Tank` 挨打、`Breach` 破防），原生为 `ELDDemoMechanicTag`；属性卡不带标签。标签只参与抽卡权重，
+界面、卡片和装备说明不显示流派或标签名。技能另有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
+仍留在 `LegalPool`（DEV 学习与夹具预置可用）。
 
-| 类别 | 本域合法性与效果引用 |
+| 机会 | 组成（`LDProgression::DrawOffer`） |
 | --- | --- |
-| 主动 `active_arc_bolt / active_guard_pulse / active_binding_snare` | 未学提供 rank 1；已学 rank 1/2 提供下一阶；rank 3 排除；满 Q/W 的新主动允许明确替换。效果为 `ABILITY.<id>.Rank[r]`。 |
-| 被动 `passive_battle_rhythm / passive_second_wind / passive_precision` | 同样按学习/升阶/满阶处理；不检查独立被动槽容量。 |
-| `CHOICE.attr_might / attr_focus / attr_vitality / attr_resolve / attr_reach` | 永久属性；resolve 的两种抗性是同一复合选项；reach 引用 `AttackRangeCmFlat`，仅改变普攻攻击距离，不自动扩大技能/横扫范围。 |
+| 1 号（开局） | `progression.opening_offer`：`active_count`（2）个未学的可进卡池主动 + `passive_count`（1）个未学的可进卡池被动，组内等概率，卡位洗牌。 |
+| 2–10 号 | 前两张从技能池按权重抽；第三张以 `CHOICE.ThirdSlotAttributeChance`（0.65）从属性卡池等概率抽，否则仍从技能池抽，所以每组最多 1 张属性卡且只在第三张。技能池耗尽时第三张回落到属性卡，反之亦然。 |
 
-按 `CHOICE.BaseWeight` 的统一正权重，在稳定排序的合法**语义定义**中无放回抽三项；
-同一技能不能同时是学习与升级候选，同一属性不得换图标/OptionId 重复占两张。
-不增加“必出主动”、类别保底、额外技能点、免费重抽或自动选择。
+技能池权重（`LDProgression::SkillWeight`，整数 = 两个基点相乘）：已学技能的升级 `CHOICE.UpgradeWeight`（2.2）；未学主动在 Q/W 有空槽时
+`CHOICE.NewActiveOpenSlotWeight`（1.5），满槽时 `CHOICE.NewActiveFullSlotWeight`（0.30），且满槽时一组抽到一张新主动后，剩余新主动退出本组；
+未学被动 `CHOICE.NewPassiveWeight`（1.0）。再乘标签亲和 min(`CHOICE.AffinityStep`^k, `CHOICE.AffinityCap`)（1.30、1.70，逐次乘、基点向下取整），
+k = 候选的标签中出现在“其他已学技能 + 已穿装备”标签并集里的个数；**已学技能的升级不把自己算进 k**（用户已批准的口径 A）。
+装备读自账本当前实例，同款两件各算一次但并集去重。所有抽取逐张不放回，同一技能不会同时以学习与升级出现。
 
-覆盖须以最终目录摘要重算，展开每次合法选项及满槽的两个替换去向；
-状态必须包含已消费机会数，不能将遗忘前后的投入损失合并掉。
-十次选择中的任一生成点，至多已有九次投入；当前三级技能最多三个，
-六种技能中至少三种仍能学习或升阶。若五属性在全部可达状态仍完整合法，则候选数量
-足以产生三张互异卡。**属性前提必须证明，不能仅凭结构计数认定完成。**
+重抽：`progression.reroll_levels`（4、7）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
+`bReroll` 命令走选择请求流（同一请求窗口、回执与去重、Match/Life/生命阶段/OfferRevision/BuildRevision 保护），在 Transactions 阶段提交：
+没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
+上一组的三张卡在每个卡位都优先排除（池中没有别的卡时才允许重复），回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不花米、不消费机会、不改构筑修订。
 
-内容验证需覆盖五属性各十次重复、所有零/一/两件装备的 **36 种多重集合**、等级成长、
-三级被动、公式顺序和取整，拒绝“承诺增加但静默 cap 掉”或复合卡只应用一半。
-AP 在尚无 AP 加成来源时可作为前置投资，UI 不应谎称它即时增强无 AP 加成的普攻。
-旧四属性/六装备模型的候选最小值、转移数和极值不能作为当前新池通过证据。
-这些覆盖证明也不代替选择持久性、来源历史、真实效果、网络或平衡验证。
+内容验证与 `DrawFeasible` 共同保证：开局组的可进卡池主动/被动数量足够；升级组在 Q/W 满槽限制下至少能凑出两张技能卡，再加属性卡或第三张技能卡。
+不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位。覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
 
 ## 7. 两装备、商店与来源冷却
 
@@ -449,6 +450,7 @@ Inventory 从 Ledger 解析两个真实位置，Combat 引用实例/定义，视
 | Buy | 检查目录/明确展示价、余额、空槽；准备唯一 Instance、占用空槽、扣款、属性/被动/主动绑定、修订和回执。满槽 `EquipmentFull`，不自动卖/毁旧物。 |
 | Sell | 按精确 Instance/ItemRevision/真实位置验证；按目录预算的卖价（`SellGold`，即 `FORMULA.SellGold`）销毁其权威持有、移除对应贡献/未释放来源、回款、保留冷却债并发布修订。 |
 | Sell 后 Buy | 两次独立请求。Sell 成功后重读余额/槽位再发 Buy；后买失败保留真实卖出结果，不恢复已卖物或虚构新物。 |
+| Upgrade | 账本 cause `Upgrade`：Burn `SHOP.UpgradeCost`（240）+ 把一件本人持有、未进阶的实例标为 `bUpgraded`（ItemRevision 与 InventoryRevision 各进一），账户 `bUpgradeUsed` 置位；每个账户整局一次，卖掉进阶装备后不恢复。物品须所有被动/主动块都有已批准的进阶形式（`LDDemoEquipment::Upgradable`），否则 `UpgradeUnavailable`；已用 `UpgradeUsed`、已进阶 `AlreadyUpgraded`。同一复合提交推进 BuildRevision 与 Combat 投影；来源轨道按实例保留，进阶不刷新冷却。 |
 
 账务分类只保留所需操作（`LDEconomy::ECause`）：`DeathReward` 的 Mint，`Buy` 的 Burn+Create，
 `Sell` 的 Consume+Mint，`AccountRetire`；DEV 构建另有仅限 `-LDDevGrowthFixture` 的 `DevFixture` Mint 与 DEV 测试重置的 `DevReset`，
@@ -719,7 +721,8 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 结构上限来自 Spec；实际金额、秒数、距离、概率、增量与公式常量不在本报告填默认值。
 `SourceData\Demo\content.json` 中对应位置：`progression`（`max_level`、`max_choices`、`xp_start`、`xp_thresholds` 等）、
 参数 `XP.BaseToNext/IncreasePerLevel`、`REWARD.PlayerXP.Base/PerLevel`、`REWARD.PlayerGold.Base/PerLevel`、
-`CHOICE.BaseWeight`、`SHOP.StartingGold/SellRatio/InteractRadiusCm`，`attributes`、`equipment[].buy_price`，
+`CHOICE.*` 抽卡权重、`progression.opening_offer/reroll_levels`、`SHOP.StartingGold/SellRatio/InteractRadiusCm/UpgradeCost/UpgradeStatBonusRatio`，
+`abilities[].tags/draftable`、`attributes`、`equipment[].buy_price/tags`，
 营地怪物 `reward_xp/reward_gold`。
 
 | 正式键 | 类型、单位和转换责任 | 本域消费者 / 必须验证 |
@@ -727,7 +730,8 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | 累计 XP 的有界整数；严格递增阈值，等级合法；运行 int64，算术检查后再存储。 | PrepareExperience；逐级跨阈值、十级 MAX、无十一阈值。 |
 | `REWARD.PlayerXP / PlayerGold` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP / RewardGold` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
-| `CHOICE.MaxCount / BaseWeight / CHOICE.<id>` | 次数/正整数抽样权重；属性增量按内容量纲；复合项全量预检。 | 合法池、十次界限（含开局一次）、无放回、五属性重复及36装备组合。 |
+| `CHOICE.UpgradeWeight / NewActiveOpenSlotWeight / NewActiveFullSlotWeight / NewPassiveWeight / AffinityStep / AffinityCap / ThirdSlotAttributeChance`、`progression.opening_offer / reroll_levels`、`CHOICE.<id>` | 权重与亲和为 R4 基点（权重 > 0，亲和 ≥ 1）；第三卡属性概率为基点概率；重抽等级严格递增且可达；属性增量按内容量纲；复合项全量预检。 | §6.3 抽卡与重抽、十次界限（含开局一次）、无放回、`DemoGrowthDraft/Reroll/OpeningPool`。 |
+| `SHOP.UpgradeCost / UpgradeStatBonusRatio`、`equipment[].passive.upgraded`、`equipment[].active.upgraded_rank`、生成的 `upgraded_stats` | 整金币；R4 比例；进阶块与原块同一组 handler 同序；固定属性由生成器按 P2/R4/整厘米向下取整算出，原生导入复核。 | Upgrade 事务、`LDDemoEquipment::Effective*`、构筑包络（两件装备至多一件进阶）、`DemoGrowthUpgrade`。 |
 | `ABILITY.<id>.Rank[r]` | 三级正式效果、目标、法力/时间/距离、伤害与触发规则。 | Build/Combat；rank 演进、重新学习、未选 handler 删除依据。 |
 | `ITEM.<id>.BuyPrice / Stats / Passive / Active` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、独立来源、商店显示与实际能力。 |
 | `SHOP.StartingGold / SellRatio`、`FORMULA.SellGold` | 比例按内容固定精度/精确有理值解释，乘法检查溢出，**仅最终卖价向下取整到整金币**；不拿 UI 浮点值结算。 | 初始化/卖出；非负、卖价不超买价、循环无正金币收益。 |
@@ -817,7 +821,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | --- | --- |
 | `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、账本守恒/压缩/退休与证据导出、请求窗口、等级/候选/替换与本人视图白名单；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。原生创建失败、过期回执、满容量、越界和生死竞争仍须 §12 A16/A17/A24/A25 的 N05 场景。 |
 | 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局三选一、击杀奖励、选择与商店交易经各自连接完成，并用 `CheckEconomyEvidence.py` 复算账本证据；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
-| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 4 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，DEV 成长夹具的 `DevFixture` 铸币与 DEV 测试重置的 `DevReset` 条目只在 `--dev-fixture` 时接受；旧 budget/quality/parents 分支已删除。 |
+| [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)、[CheckEconomyEvidence.py](../../Scripts/CheckEconomyEvidence.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败；账本证据 schema 5 由 `LDEconomy::ExportEvidence` 导出，独立复算前缀+尾部的钱物/奖励/退休并核对当前状态，DEV 成长夹具的 `DevFixture` 铸币与 DEV 测试重置的 `DevReset` 条目只在 `--dev-fixture` 时接受；旧 budget/quality/parents 分支已删除。 |
 | D29–D34 本域专测/手册 | 必要 Ledger/Inventory/来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
 
 本域规则测试落在现有 Tests 体系，不新建测试框架，也不保留旧领域只是为了旧测试可编译。

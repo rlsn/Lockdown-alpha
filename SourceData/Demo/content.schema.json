@@ -39,7 +39,9 @@
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm",
         "CAPTURE.SpraySec", "CAPTURE.GuardSec", "TIMING.DefendRouteBudgetSec", "MATCH.DevelopmentSec", "LIFE.RespawnSec", "LIFE.ProtectionSec",
         "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
-        "SHOP.StartingGold", "SHOP.SellRatio", "CHOICE.BaseWeight", "CAMP.ResetArrivalRadiusCm",
+        "SHOP.StartingGold", "SHOP.SellRatio", "SHOP.UpgradeCost", "SHOP.UpgradeStatBonusRatio",
+        "CHOICE.UpgradeWeight", "CHOICE.NewActiveOpenSlotWeight", "CHOICE.NewActiveFullSlotWeight", "CHOICE.NewPassiveWeight",
+        "CHOICE.AffinityStep", "CHOICE.AffinityCap", "CHOICE.ThirdSlotAttributeChance", "CAMP.ResetArrivalRadiusCm",
         "XP.BaseToNext", "XP.IncreasePerLevel", "REWARD.PlayerXP.Base", "REWARD.PlayerXP.PerLevel",
         "REWARD.PlayerGold.Base", "REWARD.PlayerGold.PerLevel", "REWARD.AssistWindowSec", "REWARD.AssistGoldRatio",
         "AI.RetreatHPRatio", "AI.ResumeFarmHPRatio", "AI.HighCampEntryHPRatio", "AI.HighCampReserveHPRatio", "AI.LowCampReserveHPRatio",
@@ -77,7 +79,12 @@
         "MATCH.DevelopmentSec": {"$ref": "#/$defs/sec"}, "LIFE.RespawnSec": {"$ref": "#/$defs/positive_sec"}, "LIFE.ProtectionSec": {"$ref": "#/$defs/sec"},
         "REGEN.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"}, "REGEN.OutOfCombatMaxHPRatioPerSec": {"$ref": "#/$defs/probability"},
         "REGEN.OutOfCombatMaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
-        "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"}, "CHOICE.BaseWeight": {"$ref": "#/$defs/positive_count"},
+        "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"},
+        "SHOP.UpgradeCost": {"$ref": "#/$defs/positive_count"}, "SHOP.UpgradeStatBonusRatio": {"$ref": "#/$defs/probability"},
+        "CHOICE.UpgradeWeight": {"$ref": "#/$defs/multiplier"}, "CHOICE.NewActiveOpenSlotWeight": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/multiplier"}, "CHOICE.NewPassiveWeight": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.AffinityStep": {"$ref": "#/$defs/multiplier"}, "CHOICE.AffinityCap": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.ThirdSlotAttributeChance": {"$ref": "#/$defs/probability"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"}, "XP.BaseToNext": {"$ref": "#/$defs/positive_count"}, "XP.IncreasePerLevel": {"$ref": "#/$defs/count"},
         "REWARD.PlayerXP.Base": {"$ref": "#/$defs/count"}, "REWARD.PlayerXP.PerLevel": {"$ref": "#/$defs/count"},
         "REWARD.PlayerGold.Base": {"$ref": "#/$defs/count"}, "REWARD.PlayerGold.PerLevel": {"$ref": "#/$defs/count"},
@@ -163,19 +170,19 @@
     },
     "progression": {
       "type": "object", "additionalProperties": false,
-      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer"],
+      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer", "reroll_levels"],
       "properties": {
         "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 10},
         "max_skill_rank": {"type": "integer", "const": 3}, "active_slots": {"type": "integer", "const": 2},
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
         "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}},
         "opening_offer": {
-          "type": "object", "additionalProperties": false, "required": ["attribute_ids", "attribute_count", "passive_count"],
+          "type": "object", "additionalProperties": false, "required": ["active_count", "passive_count"],
           "properties": {
-            "attribute_ids": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/id"}},
-            "attribute_count": {"type": "integer", "minimum": 0, "maximum": 3}, "passive_count": {"type": "integer", "minimum": 0, "maximum": 3}
+            "active_count": {"type": "integer", "minimum": 0, "maximum": 3}, "passive_count": {"type": "integer", "minimum": 0, "maximum": 3}
           }
-        }
+        },
+        "reroll_levels": {"type": "array", "minItems": 0, "maxItems": 10, "items": {"type": "integer", "minimum": 2, "maximum": 10}}
       }
     },
     "world": {
@@ -392,16 +399,17 @@
     "ability": {
       "oneOf": [
         {
-          "type": "object", "additionalProperties": false, "required": ["id", "kind", "target", "windup", "cooldown_family", "ranks"],
+          "type": "object", "additionalProperties": false, "required": ["id", "kind", "tags", "draftable", "target", "windup", "cooldown_family", "ranks"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "active"}, "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "active"}, "tags": {"$ref": "#/$defs/tags"}, "draftable": {"type": "boolean"},
+            "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"},
             "ranks": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/active_rank"}}
           }
         },
         {
-          "type": "object", "additionalProperties": false, "required": ["id", "kind", "target", "ranks"],
+          "type": "object", "additionalProperties": false, "required": ["id", "kind", "tags", "draftable", "target", "ranks"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "passive"},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "passive"}, "tags": {"$ref": "#/$defs/tags"}, "draftable": {"type": "boolean"},
             "target": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "Self"}}},
             "ranks": {
               "type": "array", "minItems": 3, "maxItems": 3,
@@ -415,15 +423,15 @@
       ]
     },
     "equipment": {
-      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "stats", "active", "passive"],
+      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "tags", "stats", "active", "passive"],
       "properties": {
-        "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "stats": {"$ref": "#/$defs/stat_bonus"},
+        "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "tags": {"$ref": "#/$defs/tags"}, "stats": {"$ref": "#/$defs/stat_bonus"},
         "active": {
           "oneOf": [
             {"type": "null"},
             {
               "type": "object", "additionalProperties": false, "required": ["target", "windup", "cooldown_family", "rank"],
-              "properties": {"target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"}, "rank": {"$ref": "#/$defs/active_rank"}}
+              "properties": {"target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"}, "rank": {"$ref": "#/$defs/active_rank"}, "upgraded_rank": {"$ref": "#/$defs/active_rank"}}
             }
           ]
         },
@@ -432,11 +440,21 @@
             {"type": "null"},
             {
               "type": "object", "additionalProperties": false, "required": ["family", "effects"],
-              "properties": {"family": {"$ref": "#/$defs/id"}, "effects": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/effect"}}}
+              "properties": {
+                "family": {"$ref": "#/$defs/id"}, "effects": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/effect"}},
+                "upgraded": {
+                  "type": "object", "additionalProperties": false, "required": ["effects"],
+                  "properties": {"effects": {"type": "array", "minItems": 1, "maxItems": 4, "items": {"$ref": "#/$defs/effect"}}}
+                }
+              }
             }
           ]
         }
       }
+    },
+    "tags": {
+      "type": "array", "minItems": 1, "maxItems": 3,
+      "items": {"enum": ["BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach"]}
     },
     "monster": {
       "type": "object", "additionalProperties": false,
