@@ -71,6 +71,8 @@ def check_match(match, index):
     require(field(match, "schema", int) == MATCH_SCHEMA, f"{where}: unsupported schema")
     require(field(match, "match", int) == index, f"{where}: match index out of order")
     require(field(match, "reason", str) in REASONS, f"{where}: unknown end reason")
+    require(re.fullmatch(r"[0-9a-f]{64}", field(match, "content_root", str)), f"{where}: malformed content root")
+    field(match, "dev_content_reload", bool)
     duration = field(match, "duration_ms", int)
     require(duration > 0, f"{where}: nonpositive duration")
     for name in ("capture_open_ms", "first_kill_ms", "first_death_ms"):
@@ -181,6 +183,9 @@ def summarize(matches):
     return {
         "schema": SUMMARY_SCHEMA,
         "matches": len(checked),
+        # Every content catalog the run played, in first-played order; more than one only under hot reload.
+        "content_roots": list(dict.fromkeys(match["content_root"] for match in checked)),
+        "dev_content_reload": any(match["dev_content_reload"] for match in checked),
         "reasons": reasons,
         "ai_capture_wins": ai_capture_wins,
         "wins_by_slot": wins_by_slot,

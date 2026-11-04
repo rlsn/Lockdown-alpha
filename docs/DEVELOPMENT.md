@@ -39,6 +39,19 @@ Regenerate 显式更新现有生成资产；两者均不生成旧地图或旧目
 几何或导航不匹配会失败，不会偷偷改为生成。该模式要求三个 Demo 资产已经存在。
 Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核对原生碰撞、导航和地点绑定。
 
+### 调参热重载（DEV）
+
+只调 `SourceData\Demo\content.json` 里的数值时，可以不重新编译 C++、不重启编辑器：
+用 `OpenEditor.ps1 -DevContentReload`（PIE）或 `OpenStandalone.ps1 -HostRoom -DevContentReload` 启动
+（即 `-LDDevContentReload`，只在未 cook 的 DEV 构建中生效），改完运行 `python -B Scripts\SyncDemoContentData.py`，
+回到大厅开新局即使用新数值。规则如下：
+
+- 每局开始时（`InitializeAuthorityCore`）读一次磁盘上的 Sync 输出并固定到局末，局中改文件不影响本局；进程内其他读取者拿到的是同一份。
+- 只放开 `demo_content.json`（及其显示文本与根摘要）：载荷仍经完整原生导入校验；`world.json`、世界源文件、schema、原生 ID 与 contract 必须与构建一致；`DA_DemoWorld` 仍须按新数值重新投影出完全相同的几何。任何一项不符，开局失败并说明原因，需要 Bootstrap 加重新构建。
+- 房间只接受房主与 AI，远程客户端加入时被拒绝（它跟不上房主每局的重载）。
+- 打包版带此开关时内容加载直接失败，仍需重新 cook。`RunDemoOpponentCheck.ps1 -Telemetry -DevContentReload` 用同一机制跑遥测，每局记录所用内容根。
+- 热重载只是试数值的捷径：数值经批准后照常 Sync、`BootstrapAssets -Mode RefreshDefinitions` 并重新构建；热重载会话的结果不作为验收证据。
+
 ### 多人共用一台机器
 
 引擎的 `Build.bat` 是全机唯一的：任一工作区在构建时，其他 `Build.bat` 调用会排队到它结束。

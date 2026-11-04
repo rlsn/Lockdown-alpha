@@ -35,6 +35,10 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         return false;
     }
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV content hot reload: each match pins the content synced before it started; nothing reloads mid-match.
+    if (LDDemoEntry::IsDevContentReload() && !LDDemoEntry::RefreshDevContent(Error)) { return false; }
+#endif
     if (!LDDemoEntry::LoadRuntimeContent(DemoContent, Error) || !Registry || !Registry->Ensure(Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("The current Demo world registry is missing."); }

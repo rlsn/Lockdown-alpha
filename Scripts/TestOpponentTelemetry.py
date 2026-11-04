@@ -33,6 +33,7 @@ def match(index, duration_ms=125000, winner_slot=1, first_kill=30000):
         rows.append(contender("OpponentAI", slot, ai_id(slot), level, gold, level[-1], ai_id(slot) == winner,
                               purchases=(40000,) if slot != 2 else (), attempts=2))
     return {"schema": 1, "match": index, "generation": index, "result_id": f"{index:032x}",
+            "content_root": "ab" * 32, "dev_content_reload": False,
             "reason": "CaptureCompleted" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
             "capture_open_ms": 60000, "first_kill_ms": first_kill, "first_death_ms": 20000, "kill_feed_gaps": 0,
             "kills": [{"t_ms": first_kill, "victim": HUMAN, "killer": ai_id(0), "cause": "Contender"}] if first_kill >= 0 else [],
@@ -43,6 +44,8 @@ class SummaryTest(unittest.TestCase):
     def test_aggregates_outcomes_times_and_curves_across_matches(self):
         summary = summarize([match(1), match(2, duration_ms=185000, winner_slot=0, first_kill=-1)])
         self.assertEqual(summary["matches"], 2)
+        self.assertEqual(summary["content_roots"], ["ab" * 32])
+        self.assertFalse(summary["dev_content_reload"])
         self.assertEqual(summary["reasons"]["CaptureCompleted"], 2)
         self.assertEqual(summary["ai_capture_wins"], 2)
         self.assertEqual(summary["wins_by_slot"], {"0": 1, "1": 1, "2": 0})
@@ -79,6 +82,8 @@ class SummaryTest(unittest.TestCase):
         bad = match(1); bad["first_kill_ms"] = bad["duration_ms"] + 1; cases.append(bad)
         bad = match(1); bad["kills"][0]["cause"] = "Skill"; cases.append(bad)
         bad = match(1); bad["contenders"][1]["capture_attempts"] = True; cases.append(bad)
+        bad = match(1); bad["content_root"] = "AB" * 32; cases.append(bad)
+        bad = match(1); del bad["dev_content_reload"]; cases.append(bad)
         for case in cases:
             with self.assertRaises(ValueError):
                 summarize([case])

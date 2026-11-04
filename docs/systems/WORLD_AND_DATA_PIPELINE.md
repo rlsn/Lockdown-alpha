@@ -168,6 +168,7 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 | `ValidatePrepared` | 对照当前 freshly prepared 定义，比较全部保存字节及全部反射属性；包括每个 rank/effect、可选能力的存在性和数组，不只比较 checksum |
 | `Validate(ExpectedRoot)` / `Read(ExpectedRoot)` | 重新严格解析保存字节并比较完整投影。只有相符时才返回 `TSharedPtr<const FLDDemoContentSnapshot>`；旧快照保持不可变，旧资产不因以前导入成功而获得新根的有效性 |
 | `ReadRuntimeFiles` / `Load` | 当前 runtime data 目录必须同时存在并匹配 manifest/content/world；`Load` 使用固定资产根和 `Content\Lockdown\Data\Demo`。不在运行时读 SourceData/源码、不采用旧目录或存储字节代替缺失的当前载荷 |
+| `ReadDevReloadFiles` / `LoadDevReload` / `SameDevReloadBase`（DEV） | 只用于调参热重载（`LDDemoEntry::IsDevContentReload`，`-LDDevContentReload`，未 cook 构建）。资产须先通过编译根的 `Validate`；再以 `ReadImportFiles` 读工程根下全部 Sync 输入（这是唯一在运行时读 SourceData/源码的路径），以磁盘 `manifest.json` 的哈希为根完整 `Project`。只有内容载荷、显示文本、根与审批字段可以与资产不同；世界字节与源文件、schema、原生 ID、contract 与各版本号任一不同即拒绝并说明需重新构建 |
 
 根摘要是完整规范 manifest **文件字节**的 SHA-256，manifest 内没有自哈希。
 原生加载核对内容 schema1/handler1/projection3、世界 schema2/projection2、每个子文件摘要、显示子树摘要、
@@ -340,6 +341,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 圈内进出由 `World\LDCaptureCircle` 提取），不再保留独立 Objective Actor、HeartSensor、
 Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
 归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
+调参热重载时 `LDDemoEntry::LoadRuntimeContent` 返回一份固定快照，只在 `InitializeAuthorityCore`（新局开始）经 `RefreshDevContent` 替换；
+`ULDMapDefinition::Read` 接受仍绑定编译根的 `DA_DemoWorld`，但世界字节与按重载数值重新投影的完整几何必须逐字段一致；`PreLogin` 拒绝远程客户端。
 DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放圈的开放时刻提前到一个尚未关闭的边界，开放仍由 `CloseBoundary` 完成。
 DEV 构建中 `DevTally()`（经 `ALDGameMode::DevCaptureTally`）按每次归约后的状态变化计数：每名持有者的尝试（从零开始独占）、
 续占（暂停的进度恢复）、被争夺暂停和失去，以及进入争夺的次数；只供遥测读取，任何规则都不读它，`Reset` 时清空。

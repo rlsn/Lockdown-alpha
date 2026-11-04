@@ -218,6 +218,11 @@ void ALDGameMode::PreLogin(const FString& Options,const FString& Address,const F
     if (!IsDemoRoom())
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::RoomNotReady,TEXT("this world is not an initialized Demo room.")); return; }
     if (!ValidateSelection(GetWorld()->GetOutermost()->GetName(),Options,ErrorMessage)) { return; }
+#if WITH_DEV_AUTOMATION_TESTS
+    // A remote client keeps its own content snapshot and cannot follow the Host's per-match reload.
+    if (IsDevContentReload())
+    { ErrorMessage=MakeJoinRefusal(JoinRefusal::ContentMismatch,TEXT("a DEV content hot reload room plays only the Host and AI.")); return; }
+#endif
     if (MatchPhase!=ELDMatchPhase::Lobby)
     { ErrorMessage=MakeJoinRefusal(JoinRefusal::MatchAlreadyStarted,TEXT("mid-match joining and reconnecting are not supported.")); return; }
     if (Contenders.Num()>=3)

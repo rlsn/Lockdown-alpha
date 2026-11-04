@@ -142,9 +142,14 @@ public:
         return false;
     }
 
-    void BeginMatch(const FLDLobbyView& Lobby, const FLDPublicMatchView& View)
+    bool BeginMatch(const FLDLobbyView& Lobby, const FLDPublicMatchView& View)
     {
         using namespace LDDemoOpponentTelemetryDetail;
+        // Under DEV content hot reload each match pins the content synced before it started; read that one.
+        if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content)
+        {
+            return Fail(TEXT("This match's content does not load: ") + Error);
+        }
         StartedAtMs = View.StartedAtMs;
         NextCurveMs = 0;
         OpenedAtMs = FirstKillMs = FirstDeathMs = -1;
@@ -162,6 +167,7 @@ public:
             Row.Kind = Member.Kind;
             Row.Slot = Member.Kind == ELDContenderKind::OpponentAI ? Slot++ : INDEX_NONE;
         }
+        return true;
     }
 
     void Sample(ALDGameMode& Mode, const ALDGameState& Public)
@@ -242,6 +248,9 @@ public:
         Match->SetNumberField(TEXT("match"), Completed + 1);
         Match->SetNumberField(TEXT("generation"), Result.Generation);
         Match->SetStringField(TEXT("result_id"), Id(Result.ResultId));
+        // The catalog root of the content this match played; under hot reload it changes with every re-sync.
+        Match->SetStringField(TEXT("content_root"), Content ? Content->Get().Identity.Root.ToHex() : FString());
+        Match->SetBoolField(TEXT("dev_content_reload"), LDDemoEntry::IsDevContentReload());
         Match->SetStringField(TEXT("reason"), ReasonName(Result.Reason));
         Match->SetStringField(TEXT("winner"), Id(Result.Winner));
         Match->SetNumberField(TEXT("duration_ms"), double(Result.DurationMs));
@@ -354,7 +363,7 @@ bool FLDDemoOpponentTelemetry::Tick()
             return Fail(TEXT("The start aborted: ") + PC->IntentFeedback);
         }
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation) { return true; }
-        BeginMatch(Lobby, View);
+        if (!BeginMatch(Lobby, View)) { return false; }
         Stage = ELDOpponentTelemetryStage::Match;
         return true;
     case ELDOpponentTelemetryStage::Match:
