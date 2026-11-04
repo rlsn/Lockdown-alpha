@@ -2,7 +2,13 @@
 
 bool LDCombatPreInput::IsDirectEntry(ELDCombatEntry Entry)
 {
-    return Entry == ELDCombatEntry::Q || Entry == ELDCombatEntry::W || Entry == ELDCombatEntry::Item1 || Entry == ELDCombatEntry::Item2;
+    return Entry == ELDCombatEntry::Q || Entry == ELDCombatEntry::W || Entry == ELDCombatEntry::Item1 || Entry == ELDCombatEntry::Item2
+        || Entry == ELDCombatEntry::Dash;
+}
+
+bool LDCombatPreInput::FiresOnPress(ELDCombatEntry Entry)
+{
+    return Entry == ELDCombatEntry::Dash;
 }
 
 bool LDCombatPreInput::IsWindingUp(const FLDCombatOwnerView& View, int64 NowMs)

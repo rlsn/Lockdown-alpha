@@ -108,10 +108,16 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 DevelopmentMs = 0;
     UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
+    // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
+    UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
+    UPROPERTY() int64 OutOfCombatMaxHPRegenBp = 0;
+    UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
     UPROPERTY() int64 StartingGold = 0;
     UPROPERTY() int64 SellRatioBp = 0;
     UPROPERTY() int64 ChoiceBaseWeight = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
+    // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
+    UPROPERTY() FLDDemoRational RearArcDeg;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
@@ -199,7 +205,7 @@ struct FLDDemoPolicies
 };
 
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
 
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
@@ -214,7 +220,9 @@ UENUM()
 enum class ELDDemoBonusStat : uint8
 {
     ADFlat, APFlat, MaxHPFlat, MaxMPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
-    AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio
+    AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio,
+    // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
+    ADBonusRatio
 };
 
 USTRUCT()
@@ -245,10 +253,14 @@ struct FLDDemoEffectDefinition
     GENERATED_BODY()
 
     // Opcode is checked against ELDDemoEffectOp; reservations are not battle handlers.
+    // Field use per op: Slow RatioBp+DurationMs; TimedStatBonus Stats+DurationMs; SelfArea RadiusCm;
+    // LowHpStatBonus RatioBp (HP threshold)+Stats; AmbushDamage DelayMs+damage terms; ControlDamageAmp RatioBp+DurationMs.
     UPROPERTY() uint8 Opcode = 0;
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
     UPROPERTY() int64 APRatioBp = 0;
+    // Damage only: coefficient of the caster's own max HP, snapshotted at release.
+    UPROPERTY() int64 MaxHPRatioBp = 0;
     UPROPERTY() ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 DurationMs = 0;
     UPROPERTY() int64 DelayMs = 0;
@@ -256,7 +268,18 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 RatioBp = 0;
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
+    // DashBoost (D20): the innate dash cooldown is multiplied by CooldownRatioBp/10000 and its distance by
+    // (10000+DistanceBonusBp)/10000.
+    UPROPERTY() int64 CooldownRatioBp = 0;
+    UPROPERTY() int64 DistanceBonusBp = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    // Thorns: armor scaling of the reflection, per-attacker repeat window, critical-hit multiplier,
+    // whether ability hits trigger it (basic hits always do) and whether hits from behind are exempt.
+    UPROPERTY() int64 ArmorRatioBp = 0;
+    UPROPERTY() int64 IntervalMs = 0;
+    UPROPERTY() int64 CriticalMultiplierBp = 0;
+    UPROPERTY() bool bAbilityTrigger = false;
+    UPROPERTY() bool bRearExempt = false;
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
@@ -347,6 +370,9 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() ELDDemoDamageType BasicDamageType = ELDDemoDamageType::Physical;
     UPROPERTY() int64 BasicADRatioBp = 0;
     UPROPERTY() int64 BasicIntervalMs = 0;
+    // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
+    // no windup, one rank with the approved mana cost, cooldown and a single Dash effect.
+    UPROPERTY() FLDDemoEquipmentActive Dash;
 };
 
 USTRUCT()
@@ -403,6 +429,10 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
+    // D24: the opening offer draws OpeningAttributeCount of these cards and OpeningPassiveCount passives.
+    UPROPERTY() TArray<FString> OpeningAttributeIds;
+    UPROPERTY() int32 OpeningAttributeCount = 0;
+    UPROPERTY() int32 OpeningPassiveCount = 0;
 };
 
 USTRUCT()

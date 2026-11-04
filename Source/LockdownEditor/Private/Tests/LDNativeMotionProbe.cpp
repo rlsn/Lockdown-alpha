@@ -82,6 +82,17 @@ void ULDNativeMotionProbeMovement::TraceUnrecordedMove()
     EndIsolatedNativeMotionProbe(Captured,CaptureError);
 }
 
+bool ULDNativeMotionProbeMovement::TraceDash(const FVector& Direction, double DistanceCm, double DurationSeconds,
+    float StepSeconds, int32 Steps, FString& Error)
+{
+    Trace.Reset();
+    Velocity=FVector::ZeroVector;
+    Acceleration=FVector::ZeroVector;
+    if (!ApplyDashRootMotion(Direction,DistanceCm,DurationSeconds,Error)) { return false; }
+    for (int32 Step=0; Step<Steps; ++Step) { PerformMovement(StepSeconds); }
+    return true;
+}
+
 void ULDNativeMotionProbeMovement::MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult)
 {
     const int32 Index=BeginTrace(TEXT("MoveAlongFloor"),DeltaSeconds);
@@ -430,6 +441,50 @@ bool FLDNativeSupportProbe::RunTest(const FString& Parameters)
         Move->Captured && Move->Captured->Records.ContainsByPredicate([](const auto& Row)
         { return Row.Kind==ELDNativeMotionRecordKind::Support && Row.Support.Grounded; }));
     return SaveTrace(*this,TEXT("support_regained"),*Move,Passed) && Passed;
+}
+
+// D19: the dash is native root motion, so blocking geometry stops it at the farthest legal capsule position instead of
+// passing through or teleporting; an immediately blocked heading is refused before anything is paid.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeDashProbe, "Lockdown.Rules.DemoMotionProbe.DashStopsAtWall",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeDashProbe::RunTest(const FString& Parameters)
+{
+    // Probe geometry only, not product values: the dash parameters come from the approved content in Combat.
+    constexpr double DistanceCm=300, DurationSeconds=.2, WallFaceX=140, CapsuleRadius=40;
+    constexpr float StepSeconds=.05f;
+    constexpr int32 Steps=6;
+    FString Error;
+    {
+        FNativeWorld Open;
+        if (!TestNotNull(TEXT("Native physics world"),Open.World)
+            || !TestNotNull(TEXT("Open ground"),Open.Box({0,0,-10},{800,800,10}))) { return false; }
+        auto* Move=Prepare(*this,Open.Body(FVector::ZeroVector));
+        if (!Move) { return false; }
+        const FVector Start=Move->GetActorFeetLocation();
+        TestTrue(TEXT("Open ground lets the dash start"),Move->CanStartDash(FVector(1,0,0),20));
+        TestTrue(TEXT("Production dash root motion integrates: ")+Error,
+            Move->TraceDash(FVector(1,0,0),DistanceCm,DurationSeconds,StepSeconds,Steps,Error));
+        const FVector End=Move->GetActorFeetLocation();
+        TestTrue(FString::Printf(TEXT("An unblocked dash covers its distance on the ground (moved %.1fcm)"),End.X-Start.X),
+            FMath::IsNearlyEqual(End.X-Start.X,DistanceCm,15.) && FMath::Abs(End.Y-Start.Y)<1. && Move->IsMovingOnGround());
+        TestTrue(TEXT("The dash ends with zero velocity"),Move->Velocity.Size2D()<1.);
+    }
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)
+        || !TestNotNull(TEXT("Ground box"),Fixture.Box({0,0,-10},{800,800,10}))
+        || !TestNotNull(TEXT("Blocking wall"),Fixture.Box({WallFaceX+10,0,200},{10,400,200}))) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body(FVector::ZeroVector));
+    if (!Move) { return false; }
+    TestTrue(TEXT("Production dash root motion integrates into the wall: ")+Error,
+        Move->TraceDash(FVector(1,0,0),DistanceCm,DurationSeconds,StepSeconds,Steps,Error));
+    const FVector Stopped=Move->GetActorFeetLocation();
+    TestTrue(FString::Printf(TEXT("A blocked dash stops at the farthest legal position before the wall (x=%.1f)"),Stopped.X),
+        Stopped.X<=WallFaceX-CapsuleRadius+.5 && Stopped.X>=WallFaceX-CapsuleRadius-5. && FMath::Abs(Stopped.Y)<1.);
+    TestTrue(TEXT("The stopped dash keeps walkable support and no velocity"),
+        Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor() && Move->Velocity.Size2D()<1.);
+    TestFalse(TEXT("A heading straight into touching geometry is refused before release"),Move->CanStartDash(FVector(1,0,0),20));
+    TestTrue(TEXT("Turning away from the wall the dash may start"),Move->CanStartDash(FVector(-1,0,0),20));
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeUnrecordedMoveProbe, "Lockdown.Rules.DemoMotionProbe.UnrecordedMoveRejected",

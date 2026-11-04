@@ -72,7 +72,9 @@ enum class ELDOrderFailure : uint8
 {
     None, InvalidRequest, NotOwner, StaleMatch, StaleLife, StaleOrder, RequestConflict, SequenceExhausted,
     InvalidGround, NoCompletePath, PathBlocked, TargetUnavailable, TargetDied, ShopUnavailable,
-    Dead, MatchEnded, Superseded, Stopped, Expired
+    Dead, MatchEnded, Superseded, Stopped, Expired,
+    // A taunted body takes no order of its own; Navigation chases its taunter instead.
+    Taunted
 };
 
 // Owner-only order receipt. Goal is only ever a public ground point or a visible target's approach point.

@@ -54,7 +54,7 @@ driver 在下一步开始时释放已被消费的前缀，营地成员批次没�
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
 都不是最终 Motion Fence、Sealing 或占领完成证明。Demo 没有击退或根运动（骨骼动画都原地播放）。
-没有冲刺或地表减速的独立运动分派；装备位移只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
+没有按住加速或地表减速的独立运动分派；D 冲刺只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
 
 ## 命令与取消
@@ -97,12 +97,19 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
      按键即按同一确认路径朝指针施放；对单位技能指针下无单位时仍进入普通武装、左键确认。
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，
-     600 cm/s 基础移速约 75 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
+     520 cm/s 基础移速约 65 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，
 到点且无目标即结束。失去视野终止订单并解除锁定，不恢复原目的地。
 真人订单需要拥有连接心跳续租；没有 LocalPlayer 的服务器 AI 控制器以注册绑定为租约。
+
+被嘲讽（Combat 的 `ReadTaunter`）时，`ProcessAuthorityOrders` 按 `LDOrderRules::ForcedOrderStep` 强制订单：
+当前订单以 `Taunted` 取消，待处理的自身订单（含 Stop）以 `Taunted` 拒绝；改为服务器生成的强制追击
+（`Order` 为 0、不进订单簿、无心跳租约、不发回执），只经本观察者当前区间的嘲讽者句柄
+（Vision `FindObservedHandle` + `ResolveObservedUnit`）接近并经同一 `StartNavAttack` 普攻；尚未进入本观察者帧时原地等待。
+嘲讽结束后强制追击结束、控制权交还，不恢复被替换的订单；强制追击自行结束（无路径/无进展）时 0.1 s 后重建；这个重建时刻按比赛时钟记录（`LDOrderRules::FForcedRetry`），`ResetMatch` 清零，不带入下一局。
+对手 AI 被嘲讽时暂停身体意图（`LDOpponentRequests::BodyIntentsHeld`），被嘲讽打断的订单按 Dropped 结算，不计失败。
 
 已收请求的完整条款参与重复/冲突判断；更新条款不能复用原 identity。
 接收时间由核心按同一比赛原点生成 NotBefore 审计桶，不能把帧间迟到命令放进更早补进的运动区间。
@@ -192,7 +199,7 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
-`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Stop`、`Attributes`、
+`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
 没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
@@ -207,7 +214,7 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
 schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast` 和绑定是完整正向清单。
-当前文件 schema 是 10，与产品/网络版本无关；旧通用 SaveGame 格式及 4–10 以外的 schema 返回不支持，不静默覆盖。
+当前文件 schema 是 11，与产品/网络版本无关；旧通用 SaveGame 格式及 4–11 以外的 schema 返回不支持，不静默覆盖。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
@@ -234,8 +241,10 @@ schema 6 是含名称但不含主音量的同一清单，同样显式迁移：�
 schema 7 是不含镜头平移速度的同一清单，显式迁移时平移速度取默认 1800；schema 5、6 迁移同样取 1800。
 schema 8 是不含小地图朝向的同一清单，显式迁移时朝向取跟随镜头；schema 5–7 迁移同样取跟随镜头。
 schema 9 是不含快速施法的同一清单，显式迁移时快速施法取默认关闭；schema 5–8 迁移同样关闭。
+schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10 迁移时若缺 `Dash` 且默认键 D 未被其他动作占用，
+补上默认 D 并在迁移提示中说明；D 已被占用时不改键、不挪键，缺动作的文件按 `Corrupt` 走恢复。
 `bQuickCast`（设置页
-schema 5–9 中的损坏、非法偏好或注册表外动作
+schema 5–10 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；
@@ -296,7 +305,7 @@ ledge 撤销、失去支持/同 XY 落地，以及拒绝缺失的原生位置记
 重点覆盖：新命令取代旧命令、S 后迟到确认、死亡后旧路线、真实客户端的坡面/阻挡、
 UI 不穿透、重新获得焦点不自动行动。
 `LDLocalSettingsTests` 使用显式文件夹具覆盖唯一注册表与退役动作拒绝、schema 4 不兼容恢复、
-schema 5–9 显式迁移与主音量、镜头平移速度、小地图朝向、快速施法保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
+schema 5–10 显式迁移（`LocalSettingsDashMigration` 覆盖补 D 与 D 被占用时的拒绝）与主音量、镜头平移速度、小地图朝向、快速施法保存回读（`LocalSettingsMasterVolume`、`LocalSettingsCameraPanSpeed`、`LocalSettingsMinimapOrientation`、`LocalSettingsQuickCast`）、
 小地图的换算（`Lockdown.Rules.Minimap.{CameraUp,FacingUp,NotMirrored,NorthFixed,RoundTrip,FitsFrame}`，`LDMinimapTests`）、
 产品显示默认（`LocalDisplayProductDefaults`）、只用无边框桌面分辨率（`LocalDisplayBorderlessOnly`）、
 损坏/越界拒绝与恢复、草稿隔离、旅行前 flush（`LocalSettingsTravelFlush`）和显示配置实际回读；

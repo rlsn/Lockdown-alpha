@@ -97,12 +97,12 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Changes after the first sample are reported against it"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::DamageTaken,10},{EKind::Gold,10},{EKind::Experience,20}}));
 
-    // Match 4: every projection differs from match 3 (gold resets to 150) and its feed already lists a fresh own kill;
+    // Match 4: every projection differs from match 3 (gold resets to 320) and its feed already lists a fresh own kill;
     // it only primes again.
     Sample.Match=4;Sample.PublicGeneration=4;
     Combat=WorldFeedbackTestBody(4,1,1,500,60000);
     Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.CumulativeXP=0;
-    Purse.Generation=4;Purse.Gold=150;
+    Purse.Generation=4;Purse.Gold=320;
     Feed.Generation=4;Feed.Notices={WorldFeedbackTestNotice(1,Self,Rival,Sample.NowMs-100)};
     Frame=WorldFeedbackTestFrame(4,1,1,2,1.);Frame.Units.Add(WorldFeedbackTestUnit(ELDObservedUnitKind::CampMember,1000,30000));
     TestTrue(TEXT("A new match resets every baseline and primes silently"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
@@ -120,17 +120,17 @@ bool FLDWorldFeedbackPrimingTest::RunTest(const FString& Parameters)
     Feed.Notices.Add(WorldFeedbackTestNotice(2,Self,Rival,Sample.NowMs-50));
     Foreign.OwnCombat=&OtherLife;Foreign.KillFeed=&Feed;Foreign.PublicGeneration=5;
     TestTrue(TEXT("A body view of another life and a feed of another public generation stay silent"),WorldFeedbackTestObserve(Tracker,Foreign).IsEmpty());
-    Combat.Revision=2;Combat.AsOfMs=600;Combat.HPP2=59000;Purse.Gold=180;Growth.CumulativeXP=30;
+    Combat.Revision=2;Combat.AsOfMs=600;Combat.HPP2=59000;Purse.Gold=350;Growth.CumulativeXP=30;
     const FWorldFeedbackTestEvents After=WorldFeedbackTestObserve(Tracker,Sample);
     TestTrue(TEXT("Foreign data moved neither the body nor the kill baseline; growth views of another match only re-prime"),
         WorldFeedbackTestIs(After,{{EKind::DamageTaken,10},{EKind::Kill,1}})&&After[1].Name==TEXT("同学甲"));
-    Purse.Gold=210;Growth.CumulativeXP=70;
+    Purse.Gold=380;Growth.CumulativeXP=70;
     TestTrue(TEXT("The re-primed growth then reports the next reward"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
 
     // A paused observation primes the body and the units again but keeps rewards, levels and kills.
     Tracker.Interrupt();
-    Combat.Revision=3;Combat.AsOfMs=700;Combat.HPP2=50000;Purse.Gold=240;Growth.CumulativeXP=110;
+    Combat.Revision=3;Combat.AsOfMs=700;Combat.HPP2=50000;Purse.Gold=410;Growth.CumulativeXP=110;
     TestTrue(TEXT("After an interruption the body primes again while rewards keep their baseline"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
     Combat.Revision=4;Combat.AsOfMs=800;Combat.HPP2=49000;
@@ -348,13 +348,13 @@ bool FLDWorldFeedbackRewardsAndLevelTest::RunTest(const FString& Parameters)
     Purse.Gold=350;Growth.CumulativeXP=9500;
     TestTrue(TEXT("The next reward floats again"),WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,100}}));
 
-    // The next match: its views reset gold to 150 and XP and level to their start, possibly before the owner follows.
+    // The next match: its views reset gold to 320 and XP and level to their start, possibly before the owner follows.
     Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;Growth.ConsumedThrough=0;Growth.PendingChoiceCount=0;Growth.CumulativeXP=0;
-    Purse.Generation=4;Purse.Gold=150;
+    Purse.Generation=4;Purse.Gold=320;
     TestTrue(TEXT("Views of a new generation before the owner's match follows are not read"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
     Sample.Match=4;Sample.PublicGeneration=4;
     TestTrue(TEXT("The new generation's reset only re-primes: nothing floats"),WorldFeedbackTestObserve(Tracker,Sample).IsEmpty());
-    Purse.Gold=180;Growth.CumulativeXP=40;
+    Purse.Gold=350;Growth.CumulativeXP=40;
     TestTrue(TEXT("Its first kill reward floats against the reset baseline"),
         WorldFeedbackTestIs(WorldFeedbackTestObserve(Tracker,Sample),{{EKind::Gold,30},{EKind::Experience,40}}));
     return true;

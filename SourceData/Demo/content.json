@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. First implementation/playtest baseline, not a balance-validation claim."
+      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim."
     }
   },
   "parameters": {
@@ -17,7 +17,7 @@
     "STAT.MaxMP.PerLevel": {"unit": "mp", "value": 22},
     "STAT.MaxMP.Min": {"unit": "mp", "value": 0},
     "STAT.MaxMP.Max": {"unit": "mp", "value": 800},
-    "STAT.AD.Base": {"unit": "points", "value": 54},
+    "STAT.AD.Base": {"unit": "points", "value": 70},
     "STAT.AD.PerLevel": {"unit": "points", "value": 3.2},
     "STAT.AD.Min": {"unit": "points", "value": 0},
     "STAT.AD.Max": {"unit": "points", "value": 250},
@@ -41,7 +41,7 @@
     "STAT.MPRegen.PerLevel": {"unit": "mp/s", "value": 0.08},
     "STAT.MPRegen.Min": {"unit": "mp/s", "value": 0},
     "STAT.MPRegen.Max": {"unit": "mp/s", "value": 4},
-    "STAT.BaseAttackSpeed": {"unit": "attacks/s", "value": 0.70},
+    "STAT.BaseAttackSpeed": {"unit": "attacks/s", "value": 0.90},
     "STAT.AttackSpeedPerLevelRatio": {"unit": "ratio", "value": 0.02},
     "STAT.AttackSpeed.Min": {"unit": "attacks/s", "value": 0.30},
     "STAT.AttackSpeed.Max": {"unit": "attacks/s", "value": 2.50},
@@ -49,7 +49,7 @@
     "STAT.CritMultiplier": {"unit": "ratio", "value": 2.00},
     "STAT.CooldownHaste.Base": {"unit": "points", "value": 0},
     "STAT.CooldownHaste.Max": {"unit": "points", "value": 60},
-    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 600},
+    "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 520},
     "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 300},
     "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 900},
     "UNIT.CollisionRadiusCm": {"unit": "cm", "value": 40},
@@ -61,11 +61,14 @@
     "SHOP.InteractRadiusCm": {"unit": "cm", "value": 350},
     "CAPTURE.RadiusCm": {"unit": "cm", "value": 600},
     "CAPTURE.HoldSec": {"unit": "s", "value": 25},
-    "TIMING.DefendRouteBudgetSec": {"unit": "s", "value": 16},
-    "MATCH.DevelopmentSec": {"unit": "s", "value": 180},
-    "LIFE.RespawnSec": {"unit": "s", "value": 26},
+    "TIMING.DefendRouteBudgetSec": {"unit": "s", "value": 18},
+    "MATCH.DevelopmentSec": {"unit": "s", "value": 120},
+    "LIFE.RespawnSec": {"unit": "s", "value": 15},
     "LIFE.ProtectionSec": {"unit": "s", "value": 3},
-    "SHOP.StartingGold": 150,
+    "REGEN.OutOfCombatDelaySec": {"unit": "s", "value": 5},
+    "REGEN.OutOfCombatMaxHPRatioPerSec": {"unit": "ratio", "value": 0.015},
+    "REGEN.OutOfCombatMaxMPRatioPerSec": {"unit": "ratio", "value": 0.015},
+    "SHOP.StartingGold": 320,
     "SHOP.SellRatio": {"unit": "ratio", "value": 0.65},
     "CHOICE.BaseWeight": 1,
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
@@ -86,7 +89,8 @@
     "AI.RetryPolicy.InitialBackoffSec": {"unit": "s", "value": 0.25},
     "AI.RetryPolicy.MaxBackoffSec": {"unit": "s", "value": 0.50},
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
-    "AI.EngagementBudgetSec": {"unit": "s", "value": 40}
+    "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
+    "COMBAT.RearArcDeg": {"unit": "deg", "value": 120}
   },
   "formulas": {
     "StatProjection": "AddFlatThenAdditivePercent",
@@ -135,7 +139,8 @@
   },
   "character": {
     "id": "character_demo",
-    "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": {"unit": "ratio", "value": 1.00}}
+    "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": {"unit": "ratio", "value": 1.00}},
+    "dash": {"mana_cost": {"unit": "mp", "value": 0}, "cooldown": {"unit": "s", "value": 18}, "distance": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 0.2}}
   },
   "abilities": [
     {
@@ -143,12 +148,12 @@
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 650}, "projectile_radius": {"unit": "cm", "value": 45}, "projectile_speed": {"unit": "cm/s", "value": 1600}},
       "windup": {"unit": "s", "value": 0.200},
       "ranks": [
-        {"rank": 1, "mana_cost": {"unit": "mp", "value": 45}, "cooldown": {"unit": "s", "value": 8},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "damage_type": "Magical"}]},
-        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 7},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "damage_type": "Magical"}]},
-        {"rank": 3, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 6},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 140}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.85}, "damage_type": "Magical"}]}
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 45}, "cooldown": {"unit": "s", "value": 6.4},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 5.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 130}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.75}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 4.8},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 160}, "ad_ratio": {"unit": "ratio", "value": 0.8}, "ap_ratio": {"unit": "ratio", "value": 0.85}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}]}
       ]
     },
     {
@@ -167,12 +172,12 @@
       "id": "active_binding_snare", "kind": "active", "cooldown_family": "cd_binding_snare",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 550}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
-        {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 14},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 20}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.0}}]},
-        {"rank": 2, "mana_cost": {"unit": "mp", "value": 65}, "cooldown": {"unit": "s", "value": 13},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.3}}]},
-        {"rank": 3, "mana_cost": {"unit": "mp", "value": 70}, "cooldown": {"unit": "s", "value": 12},
-         "effects": [{"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.6}}]}
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.0}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 65}, "cooldown": {"unit": "s", "value": 10.4},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 120}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 70}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 140}, "ad_ratio": {"unit": "ratio", "value": 0.6}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "root", "duration": {"unit": "s", "value": 1.6}}]}
       ]
     },
     {
@@ -198,13 +203,160 @@
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.14}}}]},
         {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.20}}}]}
       ]
+    },    {
+      "id": "active_slipper_throw", "kind": "active", "cooldown_family": "cd_slipper_throw",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 95}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.8},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 125}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 155}, "ad_ratio": {"unit": "ratio", "value": 0.64}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 1.5}}]}
+      ]
+    },
+    {
+      "id": "active_fart_dash", "kind": "active", "cooldown_family": "cd_fart_dash",
+      "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12.8},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 120}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 145}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 350}, "duration": {"unit": "s", "value": 0.200}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 170}, "ad_ratio": {"unit": "ratio", "value": 0.30}, "ap_ratio": {"unit": "ratio", "value": 0.30}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]}
+      ]
+    },
+    {
+      "id": "active_combo_flurry", "kind": "active", "cooldown_family": "cd_combo_flurry",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 16},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.30}}, "duration": {"unit": "s", "value": 4}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 14},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.45}}, "duration": {"unit": "s", "value": 4}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.60}}, "duration": {"unit": "s", "value": 4}}]}
+      ]
+    },
+    {
+      "id": "active_slick_moves", "kind": "active", "cooldown_family": "cd_slick_moves",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 14},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.30}}, "duration": {"unit": "s", "value": 2}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 13},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.40}}, "duration": {"unit": "s", "value": 2}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 12},
+         "effects": [{"op": "timed_stat_bonus", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.50}}, "duration": {"unit": "s", "value": 2}}]}
+      ]
+    },
+    {
+      "id": "passive_cornered", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.10}}}]},
+        {"rank": 2, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.16}}}]},
+        {"rank": 3, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.22}}}]}
+      ]
+    },
+    {
+      "id": "passive_lurking", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]},
+        {"rank": 2, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]},
+        {"rank": 3, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical"}]}
+      ]
+    },
+    {
+      "id": "passive_public_shame", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.08}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 2, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.12}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 3, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.16}, "duration": {"unit": "s", "value": 3}}]}
+      ]
+    },
+    {
+      "id": "passive_eagle_eye", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 80}}}]},
+        {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 140}}}]},
+        {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 200}}}]}
+      ]
+    },
+    {
+      "id": "active_monkey_peach", "kind": "active", "cooldown_family": "cd_monkey_peach",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 250}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 90}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.0}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 45}, "cooldown": {"unit": "s", "value": 8.8},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 120}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 150}, "ad_ratio": {"unit": "ratio", "value": 0.70}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "disarm", "duration": {"unit": "s", "value": 1.6}}]}
+      ]
+    },
+    {
+      "id": "active_thousand_year", "kind": "active", "cooldown_family": "cd_thousand_year",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 200}}, "windup": {"unit": "s", "value": 0.200},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 95}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.6}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 7.2},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 130}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.7}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 6.4},
+         "effects": [{"op": "damage", "base": {"unit": "points", "value": 165}, "ad_ratio": {"unit": "ratio", "value": 0.60}, "ap_ratio": {"unit": "ratio", "value": 0.60}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "backstab", "ratio": {"unit": "ratio", "value": 0.50}, "duration": {"unit": "s", "value": 0.8}}]}
+      ]
+    },
+    {
+      "id": "active_lunge", "kind": "active", "cooldown_family": "cd_lunge",
+      "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 50}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 9.6},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 8.0},
+         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.250}}, {"op": "empower_basic", "base": {"unit": "points", "value": 100}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical", "duration": {"unit": "s", "value": 3}}]}
+      ]
+    },
+    {
+      "id": "active_body_slam", "kind": "active", "cooldown_family": "cd_body_slam",
+      "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 400}}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 12.8},
+         "effects": [{"op": "jump", "duration": {"unit": "s", "value": 0.400}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 75}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.06}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 65}, "cooldown": {"unit": "s", "value": 12.0},
+         "effects": [{"op": "jump", "duration": {"unit": "s", "value": 0.400}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 105}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.06}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 70}, "cooldown": {"unit": "s", "value": 11.2},
+         "effects": [{"op": "jump", "duration": {"unit": "s", "value": 0.400}}, {"op": "self_area", "radius": {"unit": "cm", "value": 200}}, {"op": "damage", "base": {"unit": "points", "value": 135}, "ad_ratio": {"unit": "ratio", "value": 0.40}, "ap_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.06}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.30}, "duration": {"unit": "s", "value": 1.5}}]}
+      ]
+    },
+    {
+      "id": "active_come_here", "kind": "active", "cooldown_family": "cd_come_here",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
+      "ranks": [
+        {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 18},
+         "effects": [{"op": "taunt", "radius": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 1.0}}, {"op": "timed_stat_bonus", "stats": {"ArmorFlat": {"unit": "points", "value": 10}, "MagicResistFlat": {"unit": "points", "value": 10}}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 2, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 16},
+         "effects": [{"op": "taunt", "radius": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 1.25}}, {"op": "timed_stat_bonus", "stats": {"ArmorFlat": {"unit": "points", "value": 15}, "MagicResistFlat": {"unit": "points", "value": 15}}, "duration": {"unit": "s", "value": 3}}]},
+        {"rank": 3, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 14},
+         "effects": [{"op": "taunt", "radius": {"unit": "cm", "value": 300}, "duration": {"unit": "s", "value": 1.5}}, {"op": "timed_stat_bonus", "stats": {"ArmorFlat": {"unit": "points", "value": 20}, "MagicResistFlat": {"unit": "points", "value": 20}}, "duration": {"unit": "s", "value": 3}}]}
+      ]
+    },
+    {
+      "id": "passive_iron_crotch", "kind": "passive", "target": {"mode": "Self"},
+      "ranks": [
+        {"rank": 1, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 15}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
+        {"rank": 2, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 22}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
+        {"rank": 3, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 30}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]}
+      ]
     }
   ],
   "attributes": [
     {"id": "attr_might", "stats": {"ADFlat": {"unit": "points", "value": 8}}},
     {"id": "attr_focus", "stats": {"APFlat": {"unit": "points", "value": 16}}},
-    {"id": "attr_vitality", "stats": {"MaxHPFlat": {"unit": "hp", "value": 100}}},
-    {"id": "attr_resolve", "stats": {"ArmorFlat": {"unit": "points", "value": 6}, "MagicResistFlat": {"unit": "points", "value": 6}}},
+    {"id": "attr_vitality", "stats": {"MaxHPFlat": {"unit": "hp", "value": 60}}},
+    {"id": "attr_resolve", "stats": {"ArmorFlat": {"unit": "points", "value": 10}, "MagicResistFlat": {"unit": "points", "value": 10}}},
     {"id": "attr_reach", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 40}}}
   ],
   "equipment": [
@@ -213,16 +365,21 @@
     {"id": "item_runic_focus", "buy_price": 360, "stats": {"APFlat": {"unit": "points", "value": 30}, "CooldownHasteFlat": {"unit": "points", "value": 15}}, "active": null, "passive": null},
     {"id": "item_siphon_emblem", "buy_price": 360, "stats": {"ADFlat": {"unit": "points", "value": 12}, "MagicResistFlat": {"unit": "points", "value": 12}}, "active": null,
      "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.15}}]}},
-    {"id": "item_phase_anchor", "buy_price": 400, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "passive": null,
-     "active": {"target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_phase_anchor",
-                "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 28},
-                         "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.250}}]}}},
+    {"id": "item_phase_anchor", "buy_price": 400, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null,
+     "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": {"unit": "ratio", "value": 0.5}, "distance_bonus": {"unit": "ratio", "value": 0.5}}]}},
     {"id": "item_arcane_battery", "buy_price": 400, "stats": {"MaxMPFlat": {"unit": "mp", "value": 120}, "MagicResistFlat": {"unit": "points", "value": 10}}, "passive": null,
      "active": {"target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_arcane_battery",
                 "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 0}, "cooldown": {"unit": "s", "value": 40},
                          "effects": [{"op": "restore_mana", "ratio": {"unit": "ratio", "value": 0.25}}, {"op": "shield", "base": {"unit": "hp", "value": 120}, "ap_ratio": {"unit": "ratio", "value": 0.40}, "duration": {"unit": "s", "value": 2.5}}]}}},
     {"id": "item_echo_maul", "buy_price": 400, "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackRangeCmFlat": {"unit": "cm", "value": 40}}, "active": null,
-     "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}]}}
+     "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}]}},
+    {"id": "item_slingshot", "buy_price": 360, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "active": null, "passive": null},
+    {"id": "item_paper_box", "buy_price": 400, "stats": {"APFlat": {"unit": "points", "value": 20}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.08}}, "passive": null,
+     "active": {"target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0}, "cooldown_family": "cd_paper_box",
+                "rank": {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 45},
+                         "effects": [{"op": "stealth", "duration": {"unit": "s", "value": 3}, "reveal_radius": {"unit": "cm", "value": 250}, "move_speed_penalty": {"unit": "ratio", "value": 0.10}}]}}},
+    {"id": "item_nail_uniform", "buy_price": 380, "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 18}}, "active": null,
+     "passive": {"family": "passive_prickle", "effects": [{"op": "thorns", "base": {"unit": "points", "value": 20}, "armor_ratio": {"unit": "ratio", "value": 0.10}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}]}}
   ],
   "camps": {
     "monsters": [
@@ -230,15 +387,15 @@
         "id": "monster_scavenger", "tier": "Low", "count_per_camp": 2,
         "hp": {"unit": "hp", "value": 90}, "armor": {"unit": "points", "value": 8}, "magic_resist": {"unit": "points", "value": 8}, "attack": {"unit": "points", "value": 10},
         "attack_speed": {"unit": "attacks/s", "value": 0.80}, "attack_windup": {"unit": "s", "value": 0.350}, "attack_range": {"unit": "cm", "value": 150},
-        "move_speed": {"unit": "cm/s", "value": 480}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 900},
-        "lose_target_grace": {"unit": "s", "value": 3}, "respawn": {"unit": "s", "value": 40}, "reward_xp": 40, "reward_gold": 30,
+        "move_speed": {"unit": "cm/s", "value": 416}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 900},
+        "lose_target_grace": {"unit": "s", "value": 3}, "respawn": {"unit": "s", "value": 25}, "reward_xp": 40, "reward_gold": 30,
         "hp_regen": {"unit": "hp/s", "value": 0}, "max_mp": {"unit": "mp", "value": 0}, "mp_regen": {"unit": "mp/s", "value": 0}, "ap": {"unit": "points", "value": 0}, "crit_chance": {"unit": "ratio", "value": 0}
       },
       {
         "id": "monster_guardian", "tier": "High", "count_per_camp": 1,
         "hp": {"unit": "hp", "value": 420}, "armor": {"unit": "points", "value": 20}, "magic_resist": {"unit": "points", "value": 20}, "attack": {"unit": "points", "value": 48},
         "attack_speed": {"unit": "attacks/s", "value": 0.65}, "attack_windup": {"unit": "s", "value": 0.500}, "attack_range": {"unit": "cm", "value": 175},
-        "move_speed": {"unit": "cm/s", "value": 520}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1100},
+        "move_speed": {"unit": "cm/s", "value": 451}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1100},
         "lose_target_grace": {"unit": "s", "value": 4}, "respawn": {"unit": "s", "value": 65}, "reward_xp": 160, "reward_gold": 120,
         "hp_regen": {"unit": "hp/s", "value": 0}, "max_mp": {"unit": "mp", "value": 0}, "mp_regen": {"unit": "mp/s", "value": 0}, "ap": {"unit": "points", "value": 0}, "crit_chance": {"unit": "ratio", "value": 0}
       }
@@ -253,7 +410,8 @@
   },
   "progression": {
     "max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
-    "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440]
+    "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440],
+    "opening_offer": {"attribute_ids": ["attr_might", "attr_reach", "attr_resolve", "attr_vitality"], "attribute_count": 2, "passive_count": 1}
   },
   "world": {
     "map_id": "demo_world",
@@ -264,12 +422,26 @@
   },
   "display": [
     {"id": "character_demo", "namespace": "DemoContent", "name_key": "character_demo.name", "name_text": "大一新生", "description_key": "character_demo.description", "description_text": "已成年的大一新生。开局只会弹脑瓜崩，升级后挑选技能或属性奖励，也能去小卖部买装备。", "icon_id": "icon_character_demo", "portrait_icon_id": "portrait_character_demo"},
-    {"id": "active_arc_bolt", "namespace": "DemoContent", "name_key": "active_arc_bolt.name", "name_text": "粉笔头", "description_key": "active_arc_bolt.description", "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成社死伤害。伤害随缺德值提高，不会正中要害。", "icon_id": "icon_active_arc_bolt"},
+    {"id": "active_arc_bolt", "namespace": "DemoContent", "name_key": "active_arc_bolt.name", "name_text": "粉笔头", "description_key": "active_arc_bolt.description", "description_text": "朝指定方向扔出粉笔头，直线飞行，碰到第一个敌人或障碍就停下，对敌人造成皮肉伤，不会正中要害。", "icon_id": "icon_active_arc_bolt"},
     {"id": "active_guard_pulse", "namespace": "DemoContent", "name_key": "active_guard_pulse.name", "name_text": "假装无事发生", "description_key": "active_guard_pulse.description", "description_text": "给自己加上淡定，并立刻解除身上所有定身。淡定量随缺德值提高。", "icon_id": "icon_active_guard_pulse"},
     {"id": "active_binding_snare", "namespace": "DemoContent", "name_key": "active_binding_snare.name", "name_text": "扒裤衩", "description_key": "active_binding_snare.description", "description_text": "对一名看得见的敌人造成社死伤害并让其定身。伤害随缺德值提高，不会正中要害。", "icon_id": "icon_active_binding_snare"},
     {"id": "passive_battle_rhythm", "namespace": "DemoContent", "name_key": "passive_battle_rhythm.name", "name_text": "单身二十年的手速", "description_key": "passive_battle_rhythm.description", "description_text": "学会后持续提高手速。", "icon_id": "icon_passive_battle_rhythm"},
     {"id": "passive_second_wind", "namespace": "DemoContent", "name_key": "passive_second_wind.name", "name_text": "多喝热水", "description_key": "passive_second_wind.description", "description_text": "脱离战斗一段时间后，额外提高面子回复；一进入战斗，额外回复立刻停止。", "icon_id": "icon_passive_second_wind"},
     {"id": "passive_precision", "namespace": "DemoContent", "name_key": "passive_precision.name", "name_text": "正中要害", "description_key": "passive_precision.description", "description_text": "学会后提高弹脑瓜崩的正中要害率，对技能无效。", "icon_id": "icon_passive_precision"},
+    {"id": "active_slipper_throw", "namespace": "DemoContent", "name_key": "active_slipper_throw.name", "name_text": "老妈的拖鞋", "description_key": "active_slipper_throw.description", "description_text": "朝一名看得见的敌人甩出拖鞋，必定命中，造成皮肉伤并让其减速。伤害随手劲提高，不会正中要害。", "icon_id": "icon_active_slipper_throw"},
+    {"id": "active_fart_dash", "namespace": "DemoContent", "name_key": "active_fart_dash.name", "name_text": "屁遁", "description_key": "active_fart_dash.description", "description_text": "朝指定方向冲出一段距离，同时在出发点放个屁：周围的敌人受到社死伤害并减速。伤害随手劲和缺德值提高；被定身时不能使用。", "icon_id": "icon_active_fart_dash"},
+    {"id": "active_combo_flurry", "namespace": "DemoContent", "name_key": "active_combo_flurry.name", "name_text": "夺命连环掏", "description_key": "active_combo_flurry.description", "description_text": "短时间内大幅提高手速。", "icon_id": "icon_active_combo_flurry"},
+    {"id": "active_slick_moves", "namespace": "DemoContent", "name_key": "active_slick_moves.name", "name_text": "风骚走位", "description_key": "active_slick_moves.description", "description_text": "短时间内大幅提高腿速。", "icon_id": "icon_active_slick_moves"},
+    {"id": "passive_cornered", "namespace": "DemoContent", "name_key": "passive_cornered.name", "name_text": "急了", "description_key": "passive_cornered.description", "description_text": "面子低于一定比例时，手劲按比例提高；面子回升后恢复。", "icon_id": "icon_passive_cornered"},
+    {"id": "passive_lurking", "namespace": "DemoContent", "name_key": "passive_lurking.name", "name_text": "暗中观察", "description_key": "passive_lurking.description", "description_text": "脱离战斗一段时间后，下一次弹脑瓜崩或伤害技能额外造成社死伤害。伤害随手劲和缺德值提高。", "icon_id": "icon_passive_lurking"},
+    {"id": "passive_public_shame", "namespace": "DemoContent", "name_key": "passive_public_shame.name", "name_text": "社死现场", "description_key": "passive_public_shame.description", "description_text": "被你定身的敌人，之后一段时间内受到你的伤害提高。", "icon_id": "icon_passive_public_shame"},
+    {"id": "passive_eagle_eye", "namespace": "DemoContent", "name_key": "passive_eagle_eye.name", "name_text": "视力5.0", "description_key": "passive_eagle_eye.description", "description_text": "学会后提高弹脑瓜崩的攻击距离。", "icon_id": "icon_passive_eagle_eye"},
+    {"id": "active_monkey_peach", "namespace": "DemoContent", "name_key": "active_monkey_peach.name", "name_text": "猴子偷桃", "description_key": "active_monkey_peach.description", "description_text": "对身边一名看得见的敌人造成皮肉伤并让其缴械：期间不能弹脑瓜崩，仍可移动、放技能和用装备。伤害随手劲提高，不会正中要害。", "icon_id": "icon_active_monkey_peach"},
+    {"id": "active_thousand_year", "namespace": "DemoContent", "name_key": "active_thousand_year.name", "name_text": "千年杀", "description_key": "active_thousand_year.description", "description_text": "对贴身的一名看得见的敌人造成社死伤害，伤害随手劲和缺德值提高，不会正中要害。从对方背后出手时伤害更高，并让对方原地起飞、眩晕。", "icon_id": "icon_active_thousand_year"},
+    {"id": "active_lunge", "namespace": "DemoContent", "name_key": "active_lunge.name", "name_text": "一个箭步", "description_key": "active_lunge.description", "description_text": "朝指定方向冲出一段距离，碰到阻挡就停下；之后一段时间内的下一次弹脑瓜崩额外造成皮肉伤。被定身时不能冲刺。", "icon_id": "icon_active_lunge"},
+    {"id": "active_body_slam", "namespace": "DemoContent", "name_key": "active_body_slam.name", "name_text": "泰山压顶", "description_key": "active_body_slam.description", "description_text": "跳向指定地点，落地时对周围的敌人造成皮肉伤并减速。伤害随手劲和自己的最大面子提高，不会正中要害。被定身时不能起跳。", "icon_id": "icon_active_body_slam"},
+    {"id": "active_come_here", "namespace": "DemoContent", "name_key": "active_come_here.name", "name_text": "你过来啊", "description_key": "active_come_here.description", "description_text": "嘲讽身边看得见你的敌人：他们只能追着你弹脑瓜崩，不能放技能、用装备或冲刺；同时短时间内提高自己的抗揍和脸皮。", "icon_id": "icon_active_come_here"},
+    {"id": "passive_iron_crotch", "namespace": "DemoContent", "name_key": "passive_iron_crotch.name", "name_text": "铁裆功", "description_key": "passive_iron_crotch.description", "description_text": "被近处敌人的弹脑瓜崩或技能打中时，让对方受到社死伤害，随抗揍提高，被正中要害时翻倍。背后来袭不触发，同一人短时间内只触发一次。", "icon_id": "icon_passive_iron_crotch"},
     {"id": "attr_might", "namespace": "DemoContent", "name_key": "attr_might.name", "name_text": "举铁", "description_key": "attr_might.description", "description_text": "本局永久提高手劲。", "icon_id": "icon_attr_might"},
     {"id": "attr_focus", "namespace": "DemoContent", "name_key": "attr_focus.name", "name_text": "刷整蛊视频", "description_key": "attr_focus.description", "description_text": "本局永久提高缺德值。", "icon_id": "icon_attr_focus"},
     {"id": "attr_vitality", "namespace": "DemoContent", "name_key": "attr_vitality.name", "name_text": "食堂加餐", "description_key": "attr_vitality.description", "description_text": "本局永久提高最大面子，当前面子按比例一起涨。", "icon_id": "icon_attr_vitality"},
@@ -279,14 +451,27 @@
     {"id": "item_edge_blade", "namespace": "DemoContent", "name_key": "item_edge_blade.name", "name_text": "鸡毛掸子", "description_key": "item_edge_blade.description", "description_text": "提高手劲和手速。", "icon_id": "icon_item_edge_blade"},
     {"id": "item_runic_focus", "namespace": "DemoContent", "name_key": "item_runic_focus.name", "name_text": "辣条", "description_key": "item_runic_focus.description", "description_text": "提高缺德值和鬼点子。", "icon_id": "icon_item_runic_focus"},
     {"id": "item_siphon_emblem", "namespace": "DemoContent", "name_key": "item_siphon_emblem.name", "name_text": "老爸的皮带", "description_key": "item_siphon_emblem.description", "description_text": "提高手劲和脸皮。被动「长脸」：弹脑瓜崩让对方实际丢掉的面子，按比例回到自己身上。", "icon_id": "icon_item_siphon_emblem"},
-    {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。主动「冲刺」：朝指定方向冲出一段距离，碰到阻挡就停下；被定身时不能冲刺。", "icon_id": "icon_item_phase_anchor"},
+    {"id": "item_phase_anchor", "namespace": "DemoContent", "name_key": "item_phase_anchor.name", "name_text": "跑道钉鞋", "description_key": "item_phase_anchor.description", "description_text": "提高腿速。被动「助跑」：穿着时冲刺的冷却缩短、冲得更远；两双同款只算一次。", "icon_id": "icon_item_phase_anchor"},
     {"id": "item_arcane_battery", "namespace": "DemoContent", "name_key": "item_arcane_battery.name", "name_text": "保温杯", "description_key": "item_arcane_battery.description", "description_text": "提高最大胆量和脸皮。主动「泡枸杞」：立刻回复一部分胆量，并给自己加上淡定。", "icon_id": "icon_item_arcane_battery"},
+    {"id": "item_nail_uniform", "namespace": "DemoContent", "name_key": "item_nail_uniform.name", "name_text": "钉子户校服", "description_key": "item_nail_uniform.description", "description_text": "提高最大面子和抗揍。被动「扎手」：被近处敌人的弹脑瓜崩打中时，让对方受到社死伤害，随抗揍提高；同一人短时间内只触发一次。", "icon_id": "icon_item_nail_uniform"},
     {"id": "item_echo_maul", "namespace": "DemoContent", "name_key": "item_echo_maul.name", "name_text": "值日扫帚", "description_key": "item_echo_maul.description", "description_text": "提高手劲和攻击距离。被动「横扫」：弹脑瓜崩命中时顺带扫到目标附近的其他敌人，造成一部分皮肉伤。", "icon_id": "icon_item_echo_maul"},
+    {"id": "item_slingshot", "namespace": "DemoContent", "name_key": "item_slingshot.name", "name_text": "弹弓", "description_key": "item_slingshot.description", "description_text": "提高攻击距离和手速。", "icon_id": "icon_item_slingshot"},
+    {"id": "item_paper_box", "namespace": "DemoContent", "name_key": "item_paper_box.name", "name_text": "纸箱", "description_key": "item_paper_box.description", "description_text": "提高缺德值和腿速。主动「纸箱潜行」：钻进纸箱隐身一小会儿，腿速略降；离得很近的敌人仍能发现你，弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_item_paper_box"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "纪律委员", "description_key": "monster_scavenger.description", "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "体育老师", "description_key": "monster_guardian.description", "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。", "icon_id": "icon_monster_guardian"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "定身", "description_key": "root.description", "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。", "icon_id": "icon_root"},
     {"id": "shield", "namespace": "DemoContent", "name_key": "shield.name", "name_text": "淡定", "description_key": "shield.description", "description_text": "先替你挡下伤害，被打空或到时间就消失。", "icon_id": "icon_shield"},
     {"id": "camp_returning", "namespace": "DemoContent", "name_key": "camp_returning.name", "name_text": "回岗中", "description_key": "camp_returning.description", "description_text": "野怪正在回岗，途中不攻击也不换目标，但仍会挨打；回到岗位后恢复满面子。", "icon_id": "icon_camp_returning"},
-    {"id": "respawn_protection", "namespace": "DemoContent", "name_key": "respawn_protection.name", "name_text": "复活保护", "description_key": "respawn_protection.description", "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。", "icon_id": "icon_respawn_protection"}
+    {"id": "respawn_protection", "namespace": "DemoContent", "name_key": "respawn_protection.name", "name_text": "复活保护", "description_key": "respawn_protection.description", "description_text": "刚回到场上，暂时不受伤害和控制；一旦出手立刻解除。保护期间不能争夺升旗台。", "icon_id": "icon_respawn_protection"},
+    {"id": "slow", "namespace": "DemoContent", "name_key": "slow.name", "name_text": "减速", "description_key": "slow.description", "description_text": "腿速暂时降低，到时间就恢复；同时中了多个减速只按最强的算。", "icon_id": "icon_slow"},
+    {"id": "stat_boost", "namespace": "DemoContent", "name_key": "stat_boost.name", "name_text": "来劲了", "description_key": "stat_boost.description", "description_text": "技能带来的属性提升，到时间就消失。", "icon_id": "icon_stat_boost"},
+    {"id": "enraged", "namespace": "DemoContent", "name_key": "enraged.name", "name_text": "上头", "description_key": "enraged.description", "description_text": "急了生效中：面子过低，手劲提高。", "icon_id": "icon_enraged"},
+    {"id": "ambush_ready", "namespace": "DemoContent", "name_key": "ambush_ready.name", "name_text": "伺机而动", "description_key": "ambush_ready.description", "description_text": "暗中观察已就绪：下一次弹脑瓜崩或伤害技能额外造成社死伤害。", "icon_id": "icon_ambush_ready"},
+    {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "当众出丑", "description_key": "exposed.description", "description_text": "刚被定身，一段时间内受到对方的伤害提高。", "icon_id": "icon_exposed"},
+    {"id": "taunt", "namespace": "DemoContent", "name_key": "taunt.name", "name_text": "被嘲讽", "description_key": "taunt.description", "description_text": "只能追着嘲讽你的人弹脑瓜崩，不能放技能、用装备、冲刺或自己下令；对方社死、离开或不在视野里时立刻解除。", "icon_id": "icon_taunt"},
+    {"id": "stealth", "namespace": "DemoContent", "name_key": "stealth.name", "name_text": "隐身", "description_key": "stealth.description", "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被发现。弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_stealth"},
+    {"id": "disarm", "namespace": "DemoContent", "name_key": "disarm.name", "name_text": "缴械", "description_key": "disarm.description", "description_text": "不能弹脑瓜崩，但仍可以移动、冲刺、放技能和用装备。", "icon_id": "icon_disarm"},
+    {"id": "stun", "namespace": "DemoContent", "name_key": "stun.name", "name_text": "眩晕", "description_key": "stun.description", "description_text": "不能移动、冲刺、弹脑瓜崩、放技能和用装备；正在准备的动作会被打断。", "icon_id": "icon_stun"},
+    {"id": "empowered", "namespace": "DemoContent", "name_key": "empowered.name", "name_text": "蓄势待发", "description_key": "empowered.description", "description_text": "下一次打中敌人的弹脑瓜崩额外造成伤害；打出或到时间就消失。", "icon_id": "icon_empowered"}
   ]
 }

@@ -471,7 +471,7 @@
     }
   ],
   "approval": {
-    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. First implementation/playtest baseline, not a balance-validation claim.",
+    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim.",
     "status": "approved"
   },
   "author_schema_sha256": "7dde48916b230f72f6c73b487ed6f958eb8313f4a9a656addc3ffd732524727d",
@@ -1363,5 +1363,5 @@
   },
   "projection_revision": 2,
   "schema_version": 2,
-  "source_sha256": "ad717cb3458d8018c8d8eba22331662dbc4dd4b5eb50d81d07c05b4f2116482e"
+  "source_sha256": "d769d49c61c4debb12150212b2b753e3bf395b069afc8576f86c0d11aa1398ea"
 }

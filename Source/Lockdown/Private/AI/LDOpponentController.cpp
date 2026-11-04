@@ -646,6 +646,8 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         Problem = TEXT("A body intent arrived without a current living body.");
         return;
     }
+    // Taunted: Navigation chases the taunter and Combat refuses abilities and items; wait instead of retrying.
+    if (LDOpponentRequests::BodyIntentsHeld(Reads.Combat, NowMs)) { return; }
     // Any newer body request leaves the shop; a later trade needs a fresh approach.
     Visit = FShopVisit();
     if (Intent.Kind == ELDOpponentBodyKind::Stop)

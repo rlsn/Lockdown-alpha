@@ -17,7 +17,7 @@ namespace LDPlayerOrdersDetail
     bool IsArmedMode(ELDDemoTargetMode Mode)
     {
         return Mode==ELDDemoTargetMode::Unit || Mode==ELDDemoTargetMode::DirectionProjectile
-            || Mode==ELDDemoTargetMode::DirectionDash;
+            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint;
     }
 }
 
@@ -34,6 +34,12 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     {
         bAttackMoveArmed=false;
         ArmedEntry=Entry;
+        // The D dash goes toward the pointer at once; without ground under the pointer the server refuses it explicitly.
+        if (LDCombatPreInput::FiresOnPress(Entry))
+        {
+            ConfirmArmedCombat();
+            return;
+        }
         // Quick cast (local setting): fires at the pointer at once when it already names the aim; a unit skill without
         // a visible unit under the pointer stays armed for the ordinary left-click confirmation.
         if (Controls && Controls->GetQuickCast())
@@ -119,6 +125,16 @@ bool ALDPlayerController::ConfirmArmedCombat()
                 Aim.Kind=ELDCombatTargetKind::Direction;
                 Aim.Direction=Direction;
             }
+        }
+    }
+    else if (Mode==ELDDemoTargetMode::GroundPoint)
+    {
+        // The requested ground point; the server clamps it to the reach and judges the path.
+        FHitResult GroundHit;
+        if (Navigation->GroundUnderPointer(GroundHit))
+        {
+            Aim.Kind=ELDCombatTargetKind::Point;
+            Aim.Point=GroundHit.ImpactPoint;
         }
     }
     return ConfirmArmedEntry(Aim);

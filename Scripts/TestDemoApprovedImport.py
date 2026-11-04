@@ -36,16 +36,19 @@ class ApprovedDemoData(unittest.TestCase):
         approval = self.data["identity"]["approval"]
         self.assertEqual(approval["status"], "approved")
         self.assertEqual(approval, self.world.world["approval"])
-        for text in ("2026-11-02", "D01", "D02", "D03", "playtest", "not a balance"):
+        for text in ("2026-11-02", "D01", "D02", "D03", "2026-11-04", "#82", "15.7-15.9", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (6, 5, 7, 2))
+                          len(self.data["camps"]["monsters"])), (20, 5, 10, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
-            "active_arc_bolt", "active_binding_snare", "active_guard_pulse",
-            "passive_battle_rhythm", "passive_precision", "passive_second_wind"])
+            "active_arc_bolt", "active_binding_snare", "active_body_slam", "active_combo_flurry", "active_come_here",
+            "active_fart_dash", "active_guard_pulse",
+            "active_lunge", "active_monkey_peach", "active_slick_moves", "active_slipper_throw", "active_thousand_year",
+            "passive_battle_rhythm", "passive_cornered", "passive_eagle_eye", "passive_iron_crotch", "passive_lurking",
+            "passive_precision", "passive_public_shame", "passive_second_wind"])
         self.assertEqual(self.data["identity"]["projection_revision"], 3)
-        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1429)
+        self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
         self.assertEqual(self.data["character"]["basic_attack"]["ad_ratio"]["bp"], 10000)
 
@@ -54,7 +57,7 @@ class ApprovedDemoData(unittest.TestCase):
         for stat, unit, values in (
             ("MaxHP", "hp", ("620", "58", "1", "3000")),
             ("MaxMP", "mp", ("280", "22", "0", "800")),
-            ("AD", "points", ("54", "3.2", "0", "250")),
+            ("AD", "points", ("70", "3.2", "0", "250")),
             ("AP", "points", ("0", "0", "0", "250")),
             ("Armor", "points", ("18", "2", "0", "200")),
             ("MagicResist", "points", ("18", "2", "0", "200")),
@@ -64,28 +67,30 @@ class ApprovedDemoData(unittest.TestCase):
             for suffix, value in zip(("Base", "PerLevel", "Min", "Max"), values):
                 expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
-            ("STAT.BaseAttackSpeed", "attacks/s", ".70"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
+            ("STAT.BaseAttackSpeed", "attacks/s", ".90"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.50"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
-            ("UNIT.MoveSpeedCmPerSec", "cm/s", "600"), ("STAT.MoveSpeed.Min", "cm/s", "300"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
+            ("UNIT.MoveSpeedCmPerSec", "cm/s", "520"), ("STAT.MoveSpeed.Min", "cm/s", "300"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "600"),
-            ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "16"),
-            ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "26"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("CAPTURE.HoldSec", "ms", "25"), ("TIMING.DefendRouteBudgetSec", "ms", "18"),
+            ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
+            ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
             ("AI.DecisionIntervalSec", "ms", ".25"), ("AI.RetryPolicy.InitialBackoffSec", "ms", ".25"),
             ("AI.RetryPolicy.MaxBackoffSec", "ms", ".50"), ("AI.ExploreRevisitIntervalSec", "ms", "20"),
-            ("AI.EngagementBudgetSec", "ms", "40"),
+            ("AI.EngagementBudgetSec", "ms", "40"), ("COMBAT.RearArcDeg", "deg", "120"),
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("SHOP.StartingGold", 150), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("SHOP.StartingGold", 320), ("CHOICE.BaseWeight", 1), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
         ):
@@ -118,10 +123,15 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_respawn_protection_is_display_metadata_not_an_effect_or_duration_change(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
-        self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4})
+        self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
+                                           "slow": 5, "stat_boost": 6, "enraged": 7, "ambush_ready": 8, "exposed": 9,
+                                           "taunt": 10, "stealth": 11, "disarm": 12, "stun": 13, "empowered": 14})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
-            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10})
+            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10, "dash_boost": 11,
+            "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15, "ambush_damage": 16,
+            "control_damage_amp": 17, "taunt": 18, "stealth": 19, "disarm": 20, "stun": 21, "empower_basic": 22,
+            "jump": 23, "thorns": 24, "backstab": 25})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -139,13 +149,21 @@ class ApprovedDemoData(unittest.TestCase):
             "character_demo": "大一新生",
             "active_arc_bolt": "粉笔头", "active_guard_pulse": "假装无事发生", "active_binding_snare": "扒裤衩",
             "passive_battle_rhythm": "单身二十年的手速", "passive_second_wind": "多喝热水", "passive_precision": "正中要害",
+            "active_slipper_throw": "老妈的拖鞋", "active_fart_dash": "屁遁", "active_combo_flurry": "夺命连环掏",
+            "active_slick_moves": "风骚走位", "passive_cornered": "急了", "passive_lurking": "暗中观察",
+            "passive_public_shame": "社死现场", "passive_eagle_eye": "视力5.0", "item_slingshot": "弹弓",
+            "active_monkey_peach": "猴子偷桃", "active_thousand_year": "千年杀", "active_lunge": "一个箭步",
+            "passive_iron_crotch": "铁裆功", "item_nail_uniform": "钉子户校服",
+            "active_body_slam": "泰山压顶", "active_come_here": "你过来啊",
             "attr_might": "举铁", "attr_focus": "刷整蛊视频", "attr_vitality": "食堂加餐", "attr_resolve": "穿秋裤",
             "attr_reach": "长臂猿",
             "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
             "item_siphon_emblem": "老爸的皮带", "item_phase_anchor": "跑道钉鞋", "item_arcane_battery": "保温杯",
-            "item_echo_maul": "值日扫帚",
+            "item_echo_maul": "值日扫帚", "item_paper_box": "纸箱",
             "monster_scavenger": "纪律委员", "monster_guardian": "体育老师",
             "root": "定身", "shield": "淡定", "camp_returning": "回岗中", "respawn_protection": "复活保护",
+            "slow": "减速", "stat_boost": "来劲了", "enraged": "上头", "ambush_ready": "伺机而动", "exposed": "当众出丑",
+            "taunt": "被嘲讽", "stealth": "隐身", "disarm": "缴械", "stun": "眩晕", "empowered": "蓄势待发",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -195,13 +213,14 @@ class ApprovedDemoData(unittest.TestCase):
         arc = self.catalog.definition("active_arc_bolt")
         self.assertEqual((amount(arc["target"]["range"]), amount(arc["target"]["projectile_radius"]),
                           amount(arc["target"]["projectile_speed"]), arc["windup"]["ms"]), (650, 45, 1600, 200))
-        for row, damage, ap, mana, cooldown in zip(arc["ranks"], (70, 100, 140), (6500, 7500, 8500), (45, 50, 55), (8, 7, 6)):
+        for row, damage, ap, mana, cooldown in zip(arc["ranks"], (100, 130, 160), (6500, 7500, 8500), (45, 50, 55), (6400, 5600, 4800)):
             self.assertEqual(row["effects"][0]["base"]["p2"], damage * 100)
             self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], ap)
-            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 0)
-            self.assertEqual(row["effects"][0]["damage_type"], "Magical")
+            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 8000)
+            # #81: the chalk throw is Physical (皮肉伤); its amounts follow the core-numbers ticket (D18).
+            self.assertEqual(row["effects"][0]["damage_type"], "Physical")
             self.assertEqual(row["mana_cost"]["p2"], mana * 100)
-            self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
+            self.assertEqual(row["cooldown"]["ms"], cooldown)
         guard = self.catalog.definition("active_guard_pulse")
         self.assertEqual((guard["target"]["mode"], guard["windup"]["ms"]), ("Self", 0))
         for row, shield, mana, cooldown in zip(guard["ranks"], (90, 150, 220), (50, 55, 60), (16, 14, 12)):
@@ -213,12 +232,91 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
         snare = self.catalog.definition("active_binding_snare")
         self.assertEqual((amount(snare["target"]["range"]), snare["windup"]["ms"]), (550, 200))
-        for row, damage, root_ms, mana, cooldown in zip(snare["ranks"], (20, 40, 60), (1000, 1300, 1600), (60, 65, 70), (14, 13, 12)):
+        for row, damage, root_ms, mana, cooldown in zip(snare["ranks"], (100, 120, 140), (1000, 1300, 1600), (60, 65, 70), (11200, 10400, 9600)):
             self.assertEqual(row["effects"][0]["base"]["p2"], damage * 100)
+            self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 6000)
             self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], 3000)
+            self.assertEqual(row["effects"][0]["damage_type"], "Magical")
             self.assertEqual(row["effects"][1]["duration"]["ms"], root_ms)
             self.assertEqual(row["mana_cost"]["p2"], mana * 100)
-            self.assertEqual(row["cooldown"]["ms"], cooldown * 1000)
+            self.assertEqual(row["cooldown"]["ms"], cooldown)
+
+    def test_build_expansion_a_entries(self):
+        # #77/#81 entries approved by the user on 2026-11-04 as playtest input (CONTENT_AND_BALANCE 15.7).
+        slipper = self.catalog.definition("active_slipper_throw")
+        self.assertEqual((slipper["target"]["mode"], amount(slipper["target"]["range"]), slipper["windup"]["ms"]), ("Unit", 600, 200))
+        for row, base, slow, cooldown in zip(slipper["ranks"], (95, 125, 155), (2500, 3000, 3500), (9600, 8800, 8000)):
+            damage, slowed = row["effects"]
+            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["damage_type"]),
+                             (base * 100, 6400, 0, "Physical"))
+            self.assertEqual((slowed["op"], slowed["ratio"]["bp"], slowed["duration"]["ms"]), ("slow", slow, 1500))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (5000, cooldown))
+        fart = self.catalog.definition("active_fart_dash")
+        self.assertEqual((fart["target"]["mode"], fart["windup"]["ms"]), ("DirectionDash", 0))
+        for row, base, cooldown in zip(fart["ranks"], (120, 145, 170), (12800, 11200, 9600)):
+            dash, area, damage, slowed = row["effects"]
+            self.assertEqual((amount(dash["distance"]), dash["duration"]["ms"], amount(area["radius"])), (350, 200, 200))
+            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["damage_type"]),
+                             (base * 100, 3000, 3000, "Magical"))
+            self.assertEqual((slowed["ratio"]["bp"], slowed["duration"]["ms"]), (3000, 1500))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (5000, cooldown))
+        for identity, field, values, duration, mana, cooldowns in (
+            ("active_combo_flurry", "AttackSpeedBonusRatio", (3000, 4500, 6000), 4000, 5000, (16000, 14000, 12000)),
+            ("active_slick_moves", "MoveSpeedBonusRatio", (3000, 4000, 5000), 2000, 4000, (14000, 13000, 12000)),
+        ):
+            for row, value, cooldown in zip(self.catalog.definition(identity)["ranks"], values, cooldowns):
+                effect = row["effects"][0]
+                self.assertEqual((effect["op"], effect["stats"][field]["bp"], effect["duration"]["ms"]),
+                                 ("timed_stat_bonus", value, duration))
+                self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (mana, cooldown))
+        cornered = [row["effects"][0] for row in self.catalog.definition("passive_cornered")["ranks"]]
+        self.assertEqual([(e["threshold"]["bp"], e["stats"]["ADBonusRatio"]["bp"]) for e in cornered],
+                         [(5000, 1000), (5000, 1600), (5000, 2200)])
+        lurking = [row["effects"][0] for row in self.catalog.definition("passive_lurking")["ranks"]]
+        self.assertEqual([(e["delay"]["ms"], e["base"]["p2"], e["ad_ratio"]["bp"], e["ap_ratio"]["bp"], e["damage_type"])
+                          for e in lurking], [(4000, b * 100, 2000, 2000, "Magical") for b in (40, 70, 100)])
+        shame = [row["effects"][0] for row in self.catalog.definition("passive_public_shame")["ranks"]]
+        self.assertEqual([(e["ratio"]["bp"], e["duration"]["ms"]) for e in shame], [(800, 3000), (1200, 3000), (1600, 3000)])
+        eye = [row["effects"][0]["stats"]["AttackRangeCmFlat"] for row in self.catalog.definition("passive_eagle_eye")["ranks"]]
+        self.assertEqual([amount(value) for value in eye], [80, 140, 200])
+        sling = self.catalog.definition("item_slingshot")
+        self.assertEqual((sling["buy_price"], sling["sell_gold"], sling["active"], sling["passive"]), (360, 234, None, None))
+        self.assertEqual({key: amount(value) for key, value in sling["stats"].items()},
+                         {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(".12")})
+        # 15.3: max eagle eye plus one slingshot reaches 540 cm; two reach 660 cm.
+        base = amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))
+        self.assertEqual((base + 200 + 120, base + 200 + 240), (540, 660))
+
+    def test_build_expansion_a_refusals(self):
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        schema.validate(author)
+
+        def ability(data, identity):
+            return next(row for row in data["abilities"] if row["id"] == identity)
+
+        def first(data, identity, op):
+            return next(effect for effect in ability(data, identity)["ranks"][0]["effects"] if effect["op"] == op)
+
+        for name, mutate, code in (
+            ("area on a unit target", lambda d: [rank["effects"].append({"op": "self_area", "radius": {"unit": "cm", "numerator": 100, "denominator": 1}})
+                                                 for rank in ability(d, "active_slipper_throw")["ranks"]], "TargetEffectMismatch"),
+            ("dash hits without an area", lambda d: [rank["effects"].remove(next(e for e in rank["effects"] if e["op"] == "self_area"))
+                                                     for rank in ability(d, "active_fart_dash")["ranks"]], "TargetEffectMismatch"),
+            ("slow that stops the body", lambda d: first(d, "active_slipper_throw", "slow")["ratio"].update(bp=10000), "NumericDomain"),
+            ("zero-radius area", lambda d: first(d, "active_fart_dash", "self_area")["radius"].update(numerator=0), "NumericDomain"),
+            ("timed resource maximum", lambda d: first(d, "active_combo_flurry", "timed_stat_bonus")["stats"].update(
+                MaxHPFlat={"unit": "hp", "p2": 100}), "UnknownField"),
+            ("threshold at a full pool", lambda d: first(d, "passive_cornered", "low_hp_stat_bonus")["threshold"].update(bp=10000), "NumericDomain"),
+            ("ineffective ambush", lambda d: [first(d, "passive_lurking", "ambush_damage")[field].update(**{key: 0})
+                                              for field, key in (("base", "p2"), ("ad_ratio", "bp"), ("ap_ratio", "bp"))], "IneffectiveEffect"),
+            ("zero control amplification", lambda d: first(d, "passive_public_shame", "control_damage_amp")["ratio"].update(bp=0), "NumericDomain"),
+        ):
+            projected = schema.project(author)
+            mutate(projected)
+            with self.subTest(case=name), self.assertRaisesRegex(content.ContentError, code):
+                content.validate_definitions(projected, ids)
 
     def test_passives_attributes_and_build_bounds(self):
         for identity, field in (("passive_battle_rhythm", "AttackSpeedBonusRatio"), ("passive_precision", "CritChanceBonusRatio")):
@@ -228,19 +326,19 @@ class ApprovedDemoData(unittest.TestCase):
                          [3, 5, 7])
         self.assertTrue(all(row["effects"][0]["delay"]["ms"] == 6000 for row in self.catalog.definition("passive_second_wind")["ranks"]))
         expected = {
-            "attr_might": {"ADFlat": 8}, "attr_focus": {"APFlat": 16}, "attr_vitality": {"MaxHPFlat": 100},
-            "attr_resolve": {"ArmorFlat": 6, "MagicResistFlat": 6}, "attr_reach": {"AttackRangeCmFlat": 40},
+            "attr_might": {"ADFlat": 8}, "attr_focus": {"APFlat": 16}, "attr_vitality": {"MaxHPFlat": 60},
+            "attr_resolve": {"ArmorFlat": 10, "MagicResistFlat": 10}, "attr_reach": {"AttackRangeCmFlat": 40},
         }
         for identity, stats in expected.items():
             self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
         # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
-        for stat, maximum in (("MaxHP", "2502"), ("MaxMP", "718"), ("AD", "202.8"), ("AP", "220"),
-                              ("Armor", "126"), ("MagicResist", "120")):
+        for stat, maximum in (("MaxHP", "2102"), ("MaxMP", "718"), ("AD", "218.8"), ("AP", "220"),
+                              ("Armor", "172"), ("MagicResist", "160")):
             field = stat + "Flat"
             base = amount(self.catalog.parameter("STAT." + stat + ".Base")) + 9 * amount(self.catalog.parameter("STAT." + stat + ".PerLevel"))
             equipment = max(amount(row["stats"][field]) if field in row["stats"] else Fraction(0) for row in self.data["equipment"])
             self.assertEqual(base + content._choice_bonus(self.data, field) + 2 * equipment, Fraction(maximum))
-        self.assertEqual(Fraction(7, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.106"))
+        self.assertEqual(Fraction(9, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.422"))
 
     def test_every_equipment_price_stat_and_effect(self):
         expected = {
@@ -251,14 +349,23 @@ class ApprovedDemoData(unittest.TestCase):
             "item_phase_anchor": (400, 260, {"MoveSpeedBonusRatio": Fraction(".12")}),
             "item_arcane_battery": (400, 260, {"MaxMPFlat": 120, "MagicResistFlat": 10}),
             "item_echo_maul": (400, 260, {"ADFlat": 14, "AttackRangeCmFlat": 40}),
+            "item_slingshot": (360, 234, {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(".12")}),
+            "item_paper_box": (400, 260, {"APFlat": 20, "MoveSpeedBonusRatio": Fraction(".08")}),
+            "item_nail_uniform": (380, 247, {"MaxHPFlat": 150, "ArmorFlat": 18}),
         }
         for identity, (price, sell, stats) in expected.items():
             item = self.catalog.definition(identity)
             self.assertEqual((item["buy_price"], item["sell_gold"]), (price, sell))
             self.assertEqual({key: amount(value) for key, value in item["stats"].items()}, stats)
-        dash = self.catalog.definition("item_phase_anchor")["active"]["rank"]
-        self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"]), (4000, 28000))
-        self.assertEqual((amount(dash["effects"][0]["distance"]), dash["effects"][0]["duration"]["ms"]), (450, 250))
+        # D19/D20: the innate D dash belongs to the character; the spikes only boost it passively.
+        dash = self.data["character"]["dash"]
+        self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]),
+                         (0, 18000, 300, 200))
+        spikes = self.catalog.definition("item_phase_anchor")
+        self.assertIsNone(spikes["active"])
+        self.assertEqual(spikes["passive"]["family"], "passive_stride")
+        boost = spikes["passive"]["effects"][0]
+        self.assertEqual((boost["op"], boost["cooldown_ratio"]["bp"], boost["distance_bonus"]["bp"]), ("dash_boost", 5000, 5000))
         battery = self.catalog.definition("item_arcane_battery")["active"]["rank"]
         self.assertEqual((battery["mana_cost"]["p2"], battery["cooldown"]["ms"]), (0, 40000))
         self.assertEqual(battery["effects"][0]["ratio"]["bp"], 2500)
@@ -267,13 +374,120 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.catalog.definition("item_siphon_emblem")["passive"]["effects"][0]["ratio"]["bp"], 1500)
         cleave = self.catalog.definition("item_echo_maul")["passive"]["effects"][0]
         self.assertEqual((cleave["ratio"]["bp"], amount(cleave["radius"])), (3500, 180))
+        # Approved on 2026-11-04: box mana cost 40; the other box terms follow CONTENT_AND_BALANCE 15.4.
+        box = self.catalog.definition("item_paper_box")["active"]
+        self.assertEqual((box["target"]["mode"], box["windup"]["ms"], box["cooldown_family"]), ("Self", 0, "cd_paper_box"))
+        self.assertEqual((box["rank"]["mana_cost"]["p2"], box["rank"]["cooldown"]["ms"]), (4000, 45000))
+        stealth = box["rank"]["effects"][0]
+        self.assertEqual((stealth["op"], stealth["duration"]["ms"], amount(stealth["reveal_radius"]),
+                          stealth["move_speed_penalty"]["bp"]), ("stealth", 3000, 250, 1000))
+
+    def test_build_expansion_b_pending_proposal_values(self):
+        # CONTENT_AND_BALANCE 15.8 values, approved on 2026-11-04 as playtest input.
+        peach = self.catalog.definition("active_monkey_peach")
+        self.assertEqual((peach["target"]["mode"], amount(peach["target"]["range"]), peach["windup"]["ms"]), ("Unit", 250, 200))
+        for row, damage, disarm, mana, cooldown in zip(peach["ranks"], (90, 120, 150), (1000, 1300, 1600), (40, 45, 50), (9600, 8800, 8000)):
+            self.assertEqual([effect["op"] for effect in row["effects"]], ["damage", "disarm"])
+            self.assertEqual((row["effects"][0]["base"]["p2"], row["effects"][0]["ad_ratio"]["bp"], row["effects"][0]["damage_type"]),
+                             (damage * 100, 7000, "Physical"))
+            self.assertEqual((row["effects"][1]["duration"]["ms"], row["mana_cost"]["p2"], row["cooldown"]["ms"]), (disarm, mana * 100, cooldown))
+        poke = self.catalog.definition("active_thousand_year")
+        self.assertEqual((poke["target"]["mode"], amount(poke["target"]["range"])), ("Unit", 200))
+        for row, damage, stun, mana, cooldown in zip(poke["ranks"], (95, 130, 165), (600, 700, 800), (50, 55, 60), (8000, 7200, 6400)):
+            self.assertEqual((row["effects"][0]["base"]["p2"], row["effects"][0]["ad_ratio"]["bp"], row["effects"][0]["ap_ratio"]["bp"],
+                              row["effects"][0]["damage_type"]), (damage * 100, 6000, 6000, "Magical"))
+            self.assertEqual((row["effects"][1]["op"], row["effects"][1]["ratio"]["bp"], row["effects"][1]["duration"]["ms"]), ("backstab", 5000, stun))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (mana * 100, cooldown))
+        lunge = self.catalog.definition("active_lunge")
+        self.assertEqual(lunge["target"]["mode"], "DirectionDash")
+        for row, bonus, cooldown in zip(lunge["ranks"], (50, 75, 100), (11200, 9600, 8000)):
+            dash, empower = row["effects"]
+            self.assertEqual((amount(dash["distance"]), dash["duration"]["ms"]), (400, 250))
+            self.assertEqual((empower["op"], empower["base"]["p2"], empower["ad_ratio"]["bp"], empower["duration"]["ms"]),
+                             ("empower_basic", bonus * 100, 4000, 3000))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (4000, cooldown))
+        for row, base in zip(self.catalog.definition("passive_iron_crotch")["ranks"], (15, 22, 30)):
+            thorns = row["effects"][0]
+            self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], amount(thorns["radius"]), thorns["interval"]["ms"],
+                              thorns["critical_multiplier"]["bp"], thorns["trigger"], thorns["rear_exempt"], thorns["damage_type"]),
+                             (base * 100, 1500, 300, 500, 20000, "BasicOrAbility", True, "Magical"))
+        prickle = self.catalog.definition("item_nail_uniform")["passive"]
+        self.assertEqual(prickle["family"], "passive_prickle")
+        thorns = prickle["effects"][0]
+        self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], thorns["critical_multiplier"]["bp"], thorns["trigger"],
+                          thorns["rear_exempt"]), (2000, 1000, 10000, "Basic", False))
+        self.assertEqual(amount(self.catalog.parameter("COMBAT.RearArcDeg")), 120)
+
+    def test_cross_batch_entries_pending_proposal_values(self):
+        # CONTENT_AND_BALANCE 15.9 values, approved on 2026-11-04: the jump/area/slow and taunt/timed-bonus assemblies.
+        slam = self.catalog.definition("active_body_slam")
+        self.assertEqual((slam["target"]["mode"], amount(slam["target"]["range"]), slam["windup"]["ms"], slam["cooldown_family"]),
+                         ("GroundPoint", 400, 0, "cd_body_slam"))
+        for row, base, mana, cooldown in zip(slam["ranks"], (75, 105, 135), (60, 65, 70), (12800, 12000, 11200)):
+            self.assertEqual([effect["op"] for effect in row["effects"]], ["jump", "self_area", "damage", "slow"])
+            jump, area, damage, slowed = row["effects"]
+            self.assertEqual((jump["duration"]["ms"], amount(area["radius"])), (400, 200))
+            # 2026-11-04 user decision: 75/105/135 + 0.4 AD + 6% of the caster's max HP.
+            self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["max_hp_ratio"]["bp"],
+                              damage["damage_type"]), (base * 100, 4000, 0, 600, "Physical"))
+            self.assertEqual((slowed["ratio"]["bp"], slowed["duration"]["ms"]), (3000, 1500))
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (mana * 100, cooldown))
+        come = self.catalog.definition("active_come_here")
+        self.assertEqual((come["target"]["mode"], come["windup"]["ms"], come["cooldown_family"]), ("Self", 0, "cd_come_here"))
+        for row, taunt_ms, bonus, cooldown in zip(come["ranks"], (1000, 1250, 1500), (10, 15, 20), (18000, 16000, 14000)):
+            taunt, boost = row["effects"]
+            self.assertEqual((taunt["op"], amount(taunt["radius"]), taunt["duration"]["ms"]), ("taunt", 300, taunt_ms))
+            self.assertEqual((boost["op"], boost["duration"]["ms"]), ("timed_stat_bonus", 3000))
+            self.assertEqual({key: amount(value) for key, value in boost["stats"].items()}, {"ArmorFlat": bonus, "MagicResistFlat": bonus})
+            self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (6000, cooldown))
+
+    def test_only_the_body_slam_scales_with_the_casters_max_hp(self):
+        scaled = {row["id"] for row in self.data["abilities"] for rank in row["ranks"] for effect in rank["effects"]
+                  if effect["op"] == "damage" and effect["max_hp_ratio"]["bp"] != 0}
+        self.assertEqual(scaled, {"active_body_slam"})
+
+    def test_cross_batch_entries_refuse_a_jump_without_its_area(self):
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        projected = schema.project(author)
+        slam = next(row for row in projected["abilities"] if row["id"] == "active_body_slam")
+        for rank in slam["ranks"]:
+            rank["effects"] = [effect for effect in rank["effects"] if effect["op"] != "self_area"]
+        with self.assertRaisesRegex(content.ContentError, "TargetEffectMismatch"):
+            content.validate_definitions(projected, ids)
+
+    def test_build_expansion_b_contracts_reject_misplaced_mechanics(self):
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        for identity, change in (
+            ("active_thousand_year", lambda effects: effects.pop(0)),
+            ("active_monkey_peach", lambda effects: effects.append({"op": "stun", "duration": {"unit": "ms", "ms": 500}})),
+            ("active_lunge", lambda effects: effects.pop(0)),
+        ):
+            projected = schema.project(author)
+            ability = next(row for row in projected["abilities"] if row["id"] == identity)
+            for rank in ability["ranks"]:
+                change(rank["effects"])
+            with self.subTest(identity=identity), self.assertRaises(content.ContentError):
+                content.validate_definitions(projected, ids)
+        projected = schema.project(author)
+        crotch = next(row for row in projected["abilities"] if row["id"] == "passive_iron_crotch")
+        crotch["ranks"][0]["effects"][0]["critical_multiplier"] = {"unit": "ratio", "bp": 5000}
+        with self.assertRaisesRegex(content.ContentError, "NumericDomain"):
+            content.validate_definitions(projected, ids)
 
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
         self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
+        # D24: the opening offer is two of four basic attribute cards (not attr_focus) plus one passive.
+        self.assertEqual(self.data["progression"]["opening_offer"],
+                         {"attribute_ids": ("attr_might", "attr_reach", "attr_resolve", "attr_vitality"),
+                          "attribute_count": 2, "passive_count": 1})
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 480, 900, 3000, 40000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 520, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 416, 900, 3000, 25000, 40, 30, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 451, 1100, 4000, 65000, 160, 120, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))

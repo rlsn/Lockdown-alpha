@@ -148,17 +148,17 @@ bool RunCampCost(FAutomationTestBase& Test)
     Input.EngagementBudgetMs = Budget;
     bool bGood = Test.TestEqual(TEXT("Level 1 bare MaxHP is the approved 620"), L1.MaxHPP2, int64(62000));
     // CONTENT_AND_BALANCE §7.2 timings; damage is the regen-free conservative sum of its listed retaliations.
-    bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 5 x 8.47"),
-        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 4537, 4, 5, 4235, 57765);
-    bGood &= CheckCamp(Test, TEXT("L1 high camp: 10 hits, 9 x 40.67"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 13111, 10, 9, 36603, 25397);
+    bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 4 x 8.47"),
+        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 58612);
+    bGood &= CheckCamp(Test, TEXT("L1 high camp: 8 hits, 5 x 40.67"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 8034, 8, 5, 20335, 41665);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 3845, 4, 4, 2940, L10.MaxHPP2 - 2940);
+        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1154, 2, 1, 735, L10.MaxHPP2 - 735);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 7478, 7, 5, 17645, L10.MaxHPP2 - 17645);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 4922, 6, 3, 10587, L10.MaxHPP2 - 10587);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -168,12 +168,12 @@ bool RunCampCost(FAutomationTestBase& Test)
         LDOpponentPolicy::RetaliationHits(100, 99, 1250, 350), int64(0));
 
     FLDCampCostInput Exhausted = Input;
-    Exhausted.CurrentHpP2 = 4235;
+    Exhausted.CurrentHpP2 = 3388;
     bGood &= CheckCamp(Test, TEXT("Predicted HP exhaustion is NotFeasible, never a win"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 4537, 4, 5, 4235, 0);
-    Exhausted.CurrentHpP2 = 4236;
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 3586, 4, 4, 3388, 0);
+    Exhausted.CurrentHpP2 = 3389;
     bGood &= CheckCamp(Test, TEXT("One P2 more survives with one P2"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 4537, 4, 5, 4235, 1);
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 1);
     FLDCampCostInput Zero = Input;
     Zero.Attributes.ADP2 = 0;
     bGood &= Test.TestTrue(TEXT("No effective damage is NotFeasible; no minimum damage is invented"),
@@ -185,7 +185,7 @@ bool RunCampCost(FAutomationTestBase& Test)
     FLDCampCostInput Waiting = Input;
     Waiting.BasicReadyInMs = 1000;
     bGood &= Test.TestEqual(TEXT("A pending basic readiness delays the whole schedule"),
-        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(5537));
+        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(4586));
     FLDCampCostInput Domain = Input;
     Domain.Attributes.AttackSpeed.Numerator = 1;
     Domain.Attributes.AttackSpeed.Denominator = 10;
@@ -270,6 +270,9 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Pick(Test, C, TEXT("No actives: the first engage role in public catalog order"),
         {}, {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
              Option(3, EKind::LearnActive, TEXT("active_arc_bolt"))}, 3);
+    bGood &= Pick(Test, C, TEXT("A D24 opening offer (two attribute cards and a passive): the new passive is taken"),
+        {}, {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
+             Option(3, EKind::Attribute, TEXT("attr_vitality"))}, 2);
     const auto& Attributes = C.Get().Attributes;
     const FString* First = nullptr;
     uint32 FirstOption = 0;
@@ -317,7 +320,13 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(Test, Catalog)) { return false; }
     const auto& C = *Catalog;
-    bool bGood = Plan(Test, C, TEXT("Starting gold affords nothing; no plan"), TEXT(""), TEXT(""), 150, INDEX_NONE, TEXT(""));
+    bool bGood = Test.TestEqual(TEXT("Approved starting gold is 320"), C.Get().Parameters.StartingGold, int64(320));
+    bGood &= Plan(Test, C, TEXT("Starting gold 320 exactly affords the basic-growth edge blade"), TEXT(""), TEXT(""), 320,
+        INDEX_NONE, TEXT("item_edge_blade"));
+    bGood &= Plan(Test, C, TEXT("319 gold: only the survival iron plate is affordable"), TEXT(""), TEXT(""), 319, INDEX_NONE,
+        TEXT("item_iron_plate"));
+    bGood &= Plan(Test, C, TEXT("One gold below the cheapest item affords nothing; no plan"), TEXT(""), TEXT(""), 309, INDEX_NONE,
+        TEXT(""));
     bGood &= Plan(Test, C, TEXT("330 gold: basic growth before survival"), TEXT(""), TEXT(""), 330, INDEX_NONE, TEXT("item_edge_blade"));
     bGood &= Plan(Test, C, TEXT("360 gold: one item covering basic growth and survival"), TEXT(""), TEXT(""), 360,
         INDEX_NONE, TEXT("item_siphon_emblem"));
@@ -448,6 +457,7 @@ bool BaseFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog,
     if (!ProjectLevel(Test, Catalog, 1, Self.Attributes)) { return false; }
     Self.HpP2 = Self.MaxHpP2 = Self.Attributes.MaxHPP2;
     Self.MpP2 = Self.MaxMpP2 = Self.Attributes.MaxMPP2;
+    // Below every approved price, so these frames isolate the non-shopping priorities; the approved start can shop.
     Self.Gold = 150;
     Self.BuildRevision = 1;
     Out.Public.Phase = ELDMatchPhase::Development;
@@ -511,8 +521,13 @@ bool RunPriorities(FAutomationTestBase& Test)
         Decide(Frame).Build.Kind == ELDOpponentBuildKind::None);
 
     Decision = Decide(Base);
-    bGood &= Expect(Test, TEXT("Bare start farms the nearest feasible low camp, not a high camp"), Decision, EMode::Farm,
-        EBody::MoveGround, TEXT("l1"));
+    bGood &= Expect(Test, TEXT("A bare start with nothing affordable farms the nearest feasible low camp, not a high camp"), Decision,
+        EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame = Base;
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    Decision = Decide(Frame);
+    bGood &= Expect(Test, TEXT("The approved starting gold sends a bare start to the public shop first"), Decision, EMode::Shop,
+        EBody::ApproachShop, TEXT("shop"));
     auto Shuffled = Base;
     Algo::Reverse(Shuffled.POIs);
     bGood &= Expect(Test, TEXT("Public POI order does not change the decision"), Decide(Shuffled), EMode::Farm, EBody::MoveGround,
@@ -1115,19 +1130,22 @@ bool RunProjections(FAutomationTestBase& Test)
     Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), true, 9000, ELDCombatReject::None),
         Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), true, 15000, ELDCombatReject::Cooldown),
         Entry(ELDCombatEntry::Item1, ELDCombatSourceKind::Gear, TEXT("item_iron_plate"), false, 0, ELDCombatReject::NoActiveEffect),
-        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_phase_anchor"), true, 0, ELDCombatReject::ControlBlocked)};
-    bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness and Root: ") + Error,
+        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_arcane_battery"), true, 0, ELDCombatReject::None),
+        Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), true, 0, ELDCombatReject::ControlBlocked)};
+    Combat.Entries.Last().RangeCm = 450;
+    bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness, the innate dash reach and Root: ") + Error,
         LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.HpP2 == 30000 && Self.MaxMpP2 == 28000
-        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 3
+        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 4
         && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
         && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
-        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && !Self.Sources[2].bReady);
+        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && Self.Sources[2].bReady
+        && Self.Sources[3].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[3].bReady && Self.Sources[3].RangeCm == 450);
     {
         auto Cased = Combat;
         Cased.Entries[0].DefinitionId = TEXT("Active_Arc_Bolt");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
-            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
+            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 4
             && CasedSelf.Sources[0].DefinitionId == TEXT("active_arc_bolt"));
     }
     Combat.Statuses.Reset();
@@ -1330,11 +1348,11 @@ bool RunRequests(FAutomationTestBase& Test)
     Cast.Epoch = 0;
     bGood &= Test.TestFalse(TEXT("A unit activation without its observation epoch is refused"),
         LDOpponentRequests::BuildAction(Cast, 7, 1, 6, 11, Action, Error));
-    Cast.Source = ELDOpponentSourceSlot::W;
+    Cast.Source = ELDOpponentSourceSlot::Dash;
     Cast.TargetMode = ELDDemoTargetMode::DirectionDash;
     Cast.Direction = FVector(0, 3, 4);
-    bGood &= Test.TestTrue(TEXT("A dash direction is planar and normalized"),
-        LDOpponentRequests::BuildAction(Cast, 7, 1, 7, 11, Action, Error) && Action.Entry == ELDCombatEntry::W
+    bGood &= Test.TestTrue(TEXT("The innate dash goes out on the D entry with a planar normalized direction"),
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 7, 11, Action, Error) && Action.Entry == ELDCombatEntry::Dash
         && Action.Target.Kind == ELDCombatTargetKind::Direction && FVector(Action.Target.Direction).Equals(FVector(0, 1, 0), 1.e-4));
     Cast.Direction = FVector(0, 0, 1);
     bGood &= Test.TestFalse(TEXT("A vertical-only direction is refused"), LDOpponentRequests::BuildAction(Cast, 7, 1, 8, 11, Action, Error));
@@ -1577,7 +1595,97 @@ bool RunRequests(FAutomationTestBase& Test)
         && !LDOpponentRequests::ToOutcome(ESettle::InFlight, Outcome) && !LDOpponentRequests::ToOutcome(ESettle::Dropped, Outcome));
     return bGood;
 }
+
+// D19: the AI uses the innate D dash to close on a fleeing rival, to escape and to reach an urgent capture defence; never
+// on a camp member, while it cools, or when walking suffices. Reach comes from the authority's read of the D entry.
+bool RunInnateDash(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    const auto& DashRank = C.Get().Character.Dash.Rank;
+    if (!Test.TestTrue(TEXT("The approved character has one dash effect"), DashRank.Effects.Num() == 1)) { return false; }
+    const auto& Distance = DashRank.Effects[0].DistanceCm;
+    const double Reach = double(Distance.Numerator) / double(Distance.Denominator);
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    FLDOpponentSource Dash;
+    Dash.Slot = ELDOpponentSourceSlot::Dash;
+    Dash.DefinitionId = TEXT("innate_dash");
+    Dash.bReady = true;
+    Dash.RangeCm = FMath::RoundToInt32(Reach);
+    Base.Self.Sources = {Dash};
+    const auto IsDash = [](const FLDOpponentDecision& Decision)
+    { return Decision.Body.Kind == ELDOpponentBodyKind::Activate && Decision.Body.Source == ELDOpponentSourceSlot::Dash
+        && Decision.Body.TargetMode == ELDDemoTargetMode::DirectionDash; };
+
+    // Chase: the engaged rival first stands within reach, then keeps beyond half a dash past attack range.
+    FLDOpponentPolicyState Chase;
+    auto Frame = Base;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack + 10, 0)};
+    const auto Near = LDOpponentPolicy::Decide(Frame, C, Chase);
+    bool bGood = Expect(Test, TEXT("A rival within half a dash of attack range is attacked, not dashed at"), Near, EMode::Engage,
+        EBody::AttackUnit);
+    Frame.Units[0].FootCm = FVector(Attack + .75 * Reach, 0, 0);
+    const auto Fleeing = LDOpponentPolicy::Decide(Frame, C, Chase);
+    bGood &= Test.TestTrue(TEXT("A fleeing engaged rival one dash away is closed with the dash toward it"),
+        Fleeing.Mode == EMode::Engage && IsDash(Fleeing) && Fleeing.Body.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+    auto Cooling = Frame;
+    Cooling.Self.Sources[0].bReady = false;
+    FLDOpponentPolicyState CoolingState = Chase;
+    bGood &= Test.TestFalse(TEXT("A cooling dash is never proposed"), IsDash(LDOpponentPolicy::Decide(Cooling, C, CoolingState)));
+    auto Far = Frame;
+    Far.Units[0].FootCm = FVector(Attack + Reach + 50, 0, 0);
+    FLDOpponentPolicyState FarState = Chase;
+    bGood &= Test.TestFalse(TEXT("A rival beyond one dash past attack range is walked after"),
+        IsDash(LDOpponentPolicy::Decide(Far, C, FarState)));
+
+    // Camp members are farmed on foot even when the dash is ready and would reach.
+    Frame = Base;
+    Frame.Self.FootCm = FVector(2000 - Attack - .75 * Reach, 100, 0);
+    Frame.Units = {Unit(1, ELDOpponentUnitKind::CampMember, 2000, 100, TEXT("monster_scavenger"))};
+    FLDOpponentPolicyState Farm;
+    const auto Farming = LDOpponentPolicy::Decide(Frame, C, Farm);
+    bGood &= Test.TestFalse(TEXT("A camp member is never chased with the dash"), IsDash(Farming));
+
+    // Retreat: a low body seen by a threat dashes toward its escape place, away from the threat.
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 300, 0)};
+    FLDOpponentPolicyState Escape;
+    const auto Escaping = LDOpponentPolicy::Decide(Frame, C, Escape);
+    bGood &= Test.TestTrue(TEXT("A low body escaping a visible threat dashes away from it"),
+        Escaping.Mode == EMode::Disengage && IsDash(Escaping) && Escaping.Body.Direction.X < 0);
+
+    // Capture: an urgent public deadline spends the dash toward the circle.
+    Frame = Base;
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+    Frame.CapturePathCm = 3000.;
+    FLDOpponentPolicyState Defence;
+    const auto Urgent = LDOpponentPolicy::Decide(Frame, C, Defence);
+    bGood &= Test.TestTrue(TEXT("An urgent capture defence dashes toward the circle"),
+        IsDash(Urgent) && Urgent.Body.Direction.Equals(FVector(0, 1, 0), 1.e-4));
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    FLDOpponentPolicyState Calm;
+    bGood &= Test.TestFalse(TEXT("A capture trip that walking still makes keeps the dash"),
+        IsDash(LDOpponentPolicy::Decide(Frame, C, Calm)));
+    return bGood;
 }
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentInnateDashTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunInnateDash(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCampCostTest, "Lockdown.Rules.DemoOpponentPolicy.CampCost",

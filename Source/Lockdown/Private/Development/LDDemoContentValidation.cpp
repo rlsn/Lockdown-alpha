@@ -18,7 +18,8 @@ FExact StatBonus(const TArray<FLDDemoStatBonus>& Bonuses, int32 Stat, FNumbers& 
                 return N.Value(Bonus.Cm);
             }
             const bool Ratio = Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio;
+                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio;
             return N.Value(Bonus.Amount, Ratio ? 10000 : 100);
         }
     }
@@ -147,7 +148,15 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     }
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
-        if (Effect.GetOp() != ELDDemoEffectOp::Damage && Effect.GetOp() != ELDDemoEffectOp::Shield)
+        if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
+        {
+            int64 Base, Armor, Sum, Critical;
+            return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
+                && N.Add64(Base, Armor, Sum, Path) && N.Mul64(Sum, Effect.CriticalMultiplierBp, Critical, Path);
+        }
+        const bool bDamage = Effect.GetOp() == ELDDemoEffectOp::Damage || Effect.GetOp() == ELDDemoEffectOp::EmpowerBasic
+            || Effect.GetOp() == ELDDemoEffectOp::AmbushDamage;
+        if (!bDamage && Effect.GetOp() != ELDDemoEffectOp::Shield)
         {
             return true;
         }
@@ -157,8 +166,10 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         {
             return false;
         }
-        return Effect.GetOp() != ELDDemoEffectOp::Damage
-            || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path));
+        int64 HP;
+        return !bDamage
+            || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
+                && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
     for (const auto& Ability : D.Abilities)
     {
@@ -236,6 +247,33 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     if (!Check.Require(P.AI.RetreatHPBp < P.AI.ResumeFarmHPBp && P.AI.ResumeFarmHPBp <= P.AI.HighCampEntryHPBp
         && P.AI.LowCampReserveHPBp <= P.AI.HighCampReserveHPBp && P.AI.HighCampReserveHPBp < P.AI.HighCampEntryHPBp
         && P.AI.RetryInitialBackoffMs <= P.AI.RetryMaxBackoffMs, TEXT("AI"), TEXT("inconsistent thresholds/backoff")))
+    {
+        return false;
+    }
+    // A whole 0.001 share keeps every P2 maximum an exact 1e-6 P2 per millisecond rate (LDTactical::SettleRegen).
+    for (const int64 Bp : {P.OutOfCombatMaxHPRegenBp, P.OutOfCombatMaxMPRegenBp})
+    {
+        if (!Check.Require(P.OutOfCombatRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("REGEN"),
+            TEXT("out-of-combat recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))
+        {
+            return false;
+        }
+    }
+    const FLDDemoProgressionDefinition& Opening = D.Progression;
+    int32 Passives = 0;
+    for (const auto& Ability : D.Abilities) { Passives += Ability.Kind == ELDDemoAbilityKind::Passive ? 1 : 0; }
+    for (const FString& Id : Opening.OpeningAttributeIds)
+    {
+        if (!Check.Require(D.Attributes.ContainsByPredicate([&Id](const FLDDemoAttributeDefinition& Row) { return Row.Id == Id; }),
+            TEXT("progression.opening_offer"), TEXT("opening offer names an unknown attribute card")))
+        {
+            return false;
+        }
+    }
+    if (!Check.Require(Opening.OpeningAttributeCount >= 0 && Opening.OpeningPassiveCount >= 0
+        && Opening.OpeningAttributeCount + Opening.OpeningPassiveCount == 3
+        && Opening.OpeningAttributeCount <= Opening.OpeningAttributeIds.Num() && Opening.OpeningPassiveCount <= Passives,
+        TEXT("progression.opening_offer"), TEXT("opening offer cannot draw three distinct cards from its attributes and passives")))
     {
         return false;
     }
