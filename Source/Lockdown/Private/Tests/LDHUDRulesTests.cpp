@@ -184,8 +184,8 @@ bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {
-    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=180000;
-    TestEqualSensitive(TEXT("Development counts down to the public opening in whole seconds rounded up"),LDHUD::Circle(Public,FString(),true,60500).Line,FString(TEXT("发育期 · 升旗台 2:00 后开放")));
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Development;Public.OpenAtMs=120000;
+    TestEqualSensitive(TEXT("Development counts down to the public opening in whole seconds rounded up"),LDHUD::Circle(Public,FString(),true,500).Line,FString(TEXT("发育期 · 升旗台 2:00 后开放")));
     TestEqualSensitive(TEXT("A running countdown never reads 0:00 before the opening"),LDHUD::Clock(1),FString(TEXT("0:01")));
     TestEqualSensitive(TEXT("Without the authority clock the opening time is not guessed"),LDHUD::Circle(Public,FString(),false,0).Line,FString(TEXT("发育期 · 升旗台尚未开放")));
     Public.Phase=ELDMatchPhase::CaptureOpen;Public.CircleState=ELDCircleState::Empty;
@@ -232,15 +232,15 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Ratio stats are basis points"),LDHUD::StatLine(Stat),FString(TEXT("手速 +10%")));
     Stat.Stat=ELDDemoBonusStat::AttackRangeCmFlat;Stat.Amount=0;Stat.Cm.Numerator=40;Stat.Cm.Denominator=1;
     TestEqualSensitive(TEXT("Range bonuses are centimetres"),LDHUD::StatLine(Stat),FString(TEXT("攻击距离 +40cm")));
-    FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=7000;Damage.APRatioBp=6500;Damage.DamageType=ELDDemoDamageType::Magical;
-    TestEqualSensitive(TEXT("Magic damage uses the approved term and its AP scaling"),LDHUD::EffectLine(Damage),FString(TEXT("社死伤害 70 + 65%缺德值")));
+    FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=10000;Damage.ADRatioBp=8000;Damage.APRatioBp=6500;Damage.DamageType=ELDDemoDamageType::Magical;
+    TestEqualSensitive(TEXT("Magic damage uses the approved term and its AD and AP scaling"),LDHUD::EffectLine(Damage),FString(TEXT("社死伤害 100 + 80%手劲 + 65%缺德值")));
     FLDDemoEffectDefinition Root;Root.Opcode=uint8(ELDDemoEffectOp::Root);Root.DurationMs=1300;
     TestEqualSensitive(TEXT("Control duration is shown in seconds"),LDHUD::EffectLine(Root),FString(TEXT("定身 1.3s")));
     FLDDemoEffectDefinition Unknown;Unknown.Opcode=200;
     TestEqualSensitive(TEXT("An unknown effect is reported, never described"),LDHUD::EffectLine(Unknown),FString(TEXT("未知效果 #200")));
-    FLDDemoRankDefinition Rank;Rank.Rank=1;Rank.ManaCostP2=4500;Rank.CooldownMs=8000;Rank.Effects.Add(Damage);
+    FLDDemoRankDefinition Rank;Rank.Rank=1;Rank.ManaCostP2=4500;Rank.CooldownMs=6400;Rank.Effects.Add(Damage);
     const TArray<FString> Lines=LDHUD::RankLines(Rank,true);
-    TestTrue(TEXT("Active rank lines carry the effect then mana and cooldown"),Lines.Num()==2&&Lines[1]==TEXT("胆量 45 · 冷却 8s"));
+    TestTrue(TEXT("Active rank lines carry the effect then mana and cooldown"),Lines.Num()==2&&Lines[1]==TEXT("胆量 45 · 冷却 6.4s"));
     TestEqual(TEXT("Passive ranks have no cost line"),LDHUD::RankLines(Rank,false).Num(),1);
     FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");Bolt.Kind=ELDDemoAbilityKind::Active;
     Bolt.Target.Mode=ELDDemoTargetMode::DirectionProjectile;Bolt.Target.RangeCm.Numerator=650;Bolt.Target.RangeCm.Denominator=1;

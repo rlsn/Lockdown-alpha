@@ -389,12 +389,14 @@ bool GrowthTestConserves(FAutomationTestBase& Test, const LDEconomy::FLedger& Le
 
 bool GrowthTestRunLedger(FAutomationTestBase& Test)
 {
-    // Approved values (CONTENT_AND_BALANCE §5/§6.1): SHOP.StartingGold 150, item_iron_plate 310 / 201,
+    // Approved values (CONTENT_AND_BALANCE §5/§6.1): SHOP.StartingGold 320, item_iron_plate 310 / 201, item_runic_focus 360,
     // a level 10 contender kill pays 170 gold and a monster_scavenger 30.
-    const int64 StartingGold = 150;
+    const int64 StartingGold = 320;
     const int64 PlatePrice = 310;
     const int64 PlateSellGold = 201;
+    const int64 FocusPrice = 360;
     const FName Plate(TEXT("item_iron_plate"));
+    const FName Focus(TEXT("item_runic_focus"));
     const FGuid Match(0x4D415443, 1, 2, 3);
     const FGuid P1(0x0000A001, 0, 0, 1);
     const FGuid P2(0x0000A002, 0, 0, 2);
@@ -408,8 +410,8 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Initial gold is 3 x 150"), Ledger.TotalGold(), int64(450));
-    bGood &= Test.TestEqual(TEXT("The initial gold total is recorded for reconciliation"), Ledger.State().InitialGoldTotal, int64(450));
+    bGood &= Test.TestEqual(TEXT("Initial gold is 3 x 320"), Ledger.TotalGold(), int64(960));
+    bGood &= Test.TestEqual(TEXT("The initial gold total is recorded for reconciliation"), Ledger.State().InitialGoldTotal, int64(960));
     for (const FGuid& RosterAccount : {P1, P2, P3})
     {
         bGood &= GrowthTestExpectAccount(Test, Ledger, RosterAccount, StartingGold, 1, TEXT("A freshly initialized account"));
@@ -445,15 +447,15 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
         bGood &= Test.TestEqual(TEXT("The reward plan carries serial 1"), Plan.Value->Entry().Serial, uint64(1));
         Ledger.ApplyPrepared(MoveTemp(*Plan.Value));
     }
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 230, 2, TEXT("After the 80 gold death reward"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 400, 2, TEXT("After the 80 gold death reward"));
     bGood &= Test.TestEqual(TEXT("The reward is committed as serial 1"), Ledger.CommittedSerial(), uint64(1));
     bGood &= Test.TestEqual(TEXT("The next commit will be serial 2"), Ledger.NextCommitSerial(), uint64(2));
     bGood &= Test.TestEqual(TEXT("The reward is classified as minted gold"), Ledger.State().Minted, int64(80));
     bGood &= Test.TestEqual(TEXT("A reward leaves the inventory revision"), Ledger.InventoryRevision(P1), uint64(1));
     bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After the reward"));
 
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(50, P1, 2, 1, Plate, 0, PlatePrice), LDEconomy::EPrepareError::InsufficientGold,
-        TEXT("Buying the 310 gold plate with 230 gold"));
+    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(50, P2, 1, 1, Focus, 0, FocusPrice), LDEconomy::EPrepareError::InsufficientGold,
+        TEXT("Buying the 360 gold runic focus with the 320 starting gold"));
 
     for (uint32 Key = 2; Key <= 6; ++Key)
     {
@@ -463,7 +465,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
             return false;
         }
     }
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 1080, 7, TEXT("After five 170 gold rewards"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 1250, 7, TEXT("After five 170 gold rewards"));
 
     const FGuid FirstPlate = LDEconomy::FLedger::InstanceFor(Match, 1);
     const FGuid SecondPlate = LDEconomy::FLedger::InstanceFor(Match, 2);
@@ -483,7 +485,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     bGood &= Test.TestEqual(TEXT("The purchased definition"), Bought->Definition, Plate);
     bGood &= GrowthTestGuid(Test, TEXT("The purchased owner"), Bought->Owner, P1);
     bGood &= Test.TestEqual(TEXT("A new instance starts at item revision 1"), Bought->Revision, uint64(1));
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 770, 8, TEXT("After buying the first plate"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 940, 8, TEXT("After buying the first plate"));
     bGood &= Test.TestEqual(TEXT("The purchase bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(2));
     bGood &= Test.TestEqual(TEXT("The purchase price is burned"), Ledger.State().Burned, int64(310));
     bGood &= Test.TestEqual(TEXT("One instance has been issued"), Ledger.IssuedThrough(), uint64(1));
@@ -505,7 +507,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Two identical plates are held in slot order"), Owned.Num() == 2 && Owned[0].Key == FirstPlate
         && Owned[1].Key == SecondPlate && Owned[0].Value.Slot == 0 && Owned[1].Value.Slot == 1
         && Owned[0].Value.Definition == Plate && Owned[1].Value.Definition == Plate);
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 460, 9, TEXT("After buying the second plate"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 630, 9, TEXT("After buying the second plate"));
     bGood &= Test.TestEqual(TEXT("The second purchase bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(3));
     bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(54, P1, 9, 3, Plate, 0, PlatePrice), LDEconomy::EPrepareError::EquipmentFull,
         TEXT("A third affordable purchase with both slots used"));
@@ -518,7 +520,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     }
     bGood &= Test.TestNull(TEXT("The sale consumes exactly the sold instance"), Ledger.Item(FirstPlate));
     bGood &= Test.TestNotNull(TEXT("The sale keeps the other plate"), Ledger.Item(SecondPlate));
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 661, 10, TEXT("After selling for 201"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 831, 10, TEXT("After selling for 201"));
     bGood &= Test.TestEqual(TEXT("The sale bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(4));
     bGood &= Test.TestEqual(TEXT("Sale gold is minted"), Ledger.State().Minted, int64(1131));
     bGood &= Test.TestFalse(TEXT("A sale issues no instance"), SellEntry.CreatedInstance.IsValid());
@@ -637,7 +639,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Compaction keeps the account retired at serial 10 with its gold"),
         StillRetired && StillRetired->bRetired && StillRetired->RetireSerial == 10 && StillRetired->Gold == StartingGold);
     bGood &= GrowthTestConserves(Test, Ledger, TEXT("After compaction"));
-    bGood &= Test.TestEqual(TEXT("Total gold after compaction"), Ledger.TotalGold(), int64(2581));
+    bGood &= Test.TestEqual(TEXT("Total gold after compaction"), Ledger.TotalGold(), int64(3091));
     bGood &= Test.TestTrue(TEXT("Mint and burn totals survive compaction"), Ledger.State().Minted == 2751 && Ledger.State().Burned == 620);
 
     for (const uint64 ExpectedSerial : {uint64(65), uint64(66)})
@@ -654,7 +656,7 @@ bool GrowthTestRunLedger(FAutomationTestBase& Test)
         bGood &= Test.TestEqual(TEXT("The committed serial follows the new entry"), Ledger.CommittedSerial(), ExpectedSerial);
     }
     bGood &= Test.TestEqual(TEXT("Two entries follow the compacted prefix"), Ledger.JournalTail().Num(), 2);
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P2, 1830, 57, TEXT("The filler account at the end"));
+    bGood &= GrowthTestExpectAccount(Test, Ledger, P2, 2000, 57, TEXT("The filler account at the end"));
     bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After post-compaction commits"));
     bGood &= GrowthTestConserves(Test, Ledger, TEXT("The final ledger"));
     return bGood;
@@ -671,7 +673,7 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     const FName Blade(TEXT("item_edge_blade"));
     // The same definition under another FName casing, as a packaged build may hold it.
     const FName BladeCased(TEXT("Item_Edge_Blade"));
-    const int64 StartingGold = 150;
+    const int64 StartingGold = 320;
     LDEconomy::FLedger Ledger;
     FString Json;
     FString Error;
@@ -717,7 +719,7 @@ bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("The evidence names schema 3, its match and the approved starting gold"),
         Root->GetIntegerField(TEXT("schemaVersion")) == 3
         && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
-        && Root->GetStringField(TEXT("startingGold")) == TEXT("150"));
+        && Root->GetStringField(TEXT("startingGold")) == TEXT("320"));
     const TSharedPtr<FJsonObject>* FixtureBlock = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* FixtureGrants = nullptr;
     bGood &= Test.TestTrue(TEXT("Without -LDDevGrowthFixture the evidence states the fixture was off and lists no DevFixture mint"),
@@ -1103,10 +1105,13 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
         Curve.MaxLevel == 10 && Curve.MaxChoices == 10 && Curve.MaxSkillRank == 3 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level and REWARD.PlayerGold 80 + 10/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20 && Tuning.PlayerGoldBase == 80 && Tuning.PlayerGoldPerLevel == 10);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries CHOICE.BaseWeight 1, SHOP.StartingGold 150 and SHOP.SellRatio .65"),
-        Tuning.ChoiceBaseWeight == 1 && Tuning.StartingGold == 150 && Tuning.SellRatioBp == 6500);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries CHOICE.BaseWeight 1, SHOP.StartingGold 320 and SHOP.SellRatio .65"),
+        Tuning.ChoiceBaseWeight == 1 && Tuning.StartingGold == 320 && Tuning.SellRatioBp == 6500);
     bApproved &= Test.TestTrue(TEXT("Fixture prices item_iron_plate at 310 / 201 as the ledger test assumes"),
         OutCatalog->FindEquipment(TEXT("item_iron_plate"), IronPlate, Missing) && IronPlate->BuyPrice == 310 && IronPlate->SellGold == 201);
+    const FLDDemoEquipmentDefinition* RunicFocus = nullptr;
+    bApproved &= Test.TestTrue(TEXT("Fixture prices item_runic_focus at 360, above the starting gold, as the ledger test assumes"),
+        OutCatalog->FindEquipment(TEXT("item_runic_focus"), RunicFocus, Missing) && RunicFocus->BuyPrice == 360);
     return bApproved;
 }
 

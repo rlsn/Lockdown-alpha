@@ -148,17 +148,17 @@ bool RunCampCost(FAutomationTestBase& Test)
     Input.EngagementBudgetMs = Budget;
     bool bGood = Test.TestEqual(TEXT("Level 1 bare MaxHP is the approved 620"), L1.MaxHPP2, int64(62000));
     // CONTENT_AND_BALANCE §7.2 timings; damage is the regen-free conservative sum of its listed retaliations.
-    bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 5 x 8.47"),
-        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 4537, 4, 5, 4235, 57765);
-    bGood &= CheckCamp(Test, TEXT("L1 high camp: 10 hits, 9 x 40.67"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 13111, 10, 9, 36603, 25397);
+    bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 4 x 8.47"),
+        LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 58612);
+    bGood &= CheckCamp(Test, TEXT("L1 high camp: 8 hits, 5 x 40.67"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 8034, 8, 5, 20335, 41665);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 3845, 4, 4, 2940, L10.MaxHPP2 - 2940);
+        LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1154, 2, 1, 735, L10.MaxHPP2 - 735);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 7478, 7, 5, 17645, L10.MaxHPP2 - 17645);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 4922, 6, 3, 10587, L10.MaxHPP2 - 10587);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -168,12 +168,12 @@ bool RunCampCost(FAutomationTestBase& Test)
         LDOpponentPolicy::RetaliationHits(100, 99, 1250, 350), int64(0));
 
     FLDCampCostInput Exhausted = Input;
-    Exhausted.CurrentHpP2 = 4235;
+    Exhausted.CurrentHpP2 = 3388;
     bGood &= CheckCamp(Test, TEXT("Predicted HP exhaustion is NotFeasible, never a win"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 4537, 4, 5, 4235, 0);
-    Exhausted.CurrentHpP2 = 4236;
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::NotFeasible, 3586, 4, 4, 3388, 0);
+    Exhausted.CurrentHpP2 = 3389;
     bGood &= CheckCamp(Test, TEXT("One P2 more survives with one P2"),
-        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 4537, 4, 5, 4235, 1);
+        LDOpponentPolicy::EstimateCampCost(Exhausted, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 1);
     FLDCampCostInput Zero = Input;
     Zero.Attributes.ADP2 = 0;
     bGood &= Test.TestTrue(TEXT("No effective damage is NotFeasible; no minimum damage is invented"),
@@ -185,7 +185,7 @@ bool RunCampCost(FAutomationTestBase& Test)
     FLDCampCostInput Waiting = Input;
     Waiting.BasicReadyInMs = 1000;
     bGood &= Test.TestEqual(TEXT("A pending basic readiness delays the whole schedule"),
-        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(5537));
+        LDOpponentPolicy::EstimateCampCost(Waiting, *Low, *Catalog).ClearMs, int64(4586));
     FLDCampCostInput Domain = Input;
     Domain.Attributes.AttackSpeed.Numerator = 1;
     Domain.Attributes.AttackSpeed.Denominator = 10;
@@ -317,7 +317,13 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!ReadApprovedFixture(Test, Catalog)) { return false; }
     const auto& C = *Catalog;
-    bool bGood = Plan(Test, C, TEXT("Starting gold affords nothing; no plan"), TEXT(""), TEXT(""), 150, INDEX_NONE, TEXT(""));
+    bool bGood = Test.TestEqual(TEXT("Approved starting gold is 320"), C.Get().Parameters.StartingGold, int64(320));
+    bGood &= Plan(Test, C, TEXT("Starting gold 320 exactly affords the basic-growth edge blade"), TEXT(""), TEXT(""), 320,
+        INDEX_NONE, TEXT("item_edge_blade"));
+    bGood &= Plan(Test, C, TEXT("319 gold: only the survival iron plate is affordable"), TEXT(""), TEXT(""), 319, INDEX_NONE,
+        TEXT("item_iron_plate"));
+    bGood &= Plan(Test, C, TEXT("One gold below the cheapest item affords nothing; no plan"), TEXT(""), TEXT(""), 309, INDEX_NONE,
+        TEXT(""));
     bGood &= Plan(Test, C, TEXT("330 gold: basic growth before survival"), TEXT(""), TEXT(""), 330, INDEX_NONE, TEXT("item_edge_blade"));
     bGood &= Plan(Test, C, TEXT("360 gold: one item covering basic growth and survival"), TEXT(""), TEXT(""), 360,
         INDEX_NONE, TEXT("item_siphon_emblem"));
@@ -448,6 +454,7 @@ bool BaseFrame(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog,
     if (!ProjectLevel(Test, Catalog, 1, Self.Attributes)) { return false; }
     Self.HpP2 = Self.MaxHpP2 = Self.Attributes.MaxHPP2;
     Self.MpP2 = Self.MaxMpP2 = Self.Attributes.MaxMPP2;
+    // Below every approved price, so these frames isolate the non-shopping priorities; the approved start can shop.
     Self.Gold = 150;
     Self.BuildRevision = 1;
     Out.Public.Phase = ELDMatchPhase::Development;
@@ -511,8 +518,13 @@ bool RunPriorities(FAutomationTestBase& Test)
         Decide(Frame).Build.Kind == ELDOpponentBuildKind::None);
 
     Decision = Decide(Base);
-    bGood &= Expect(Test, TEXT("Bare start farms the nearest feasible low camp, not a high camp"), Decision, EMode::Farm,
-        EBody::MoveGround, TEXT("l1"));
+    bGood &= Expect(Test, TEXT("A bare start with nothing affordable farms the nearest feasible low camp, not a high camp"), Decision,
+        EMode::Farm, EBody::MoveGround, TEXT("l1"));
+    Frame = Base;
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    Decision = Decide(Frame);
+    bGood &= Expect(Test, TEXT("The approved starting gold sends a bare start to the public shop first"), Decision, EMode::Shop,
+        EBody::ApproachShop, TEXT("shop"));
     auto Shuffled = Base;
     Algo::Reverse(Shuffled.POIs);
     bGood &= Expect(Test, TEXT("Public POI order does not change the decision"), Decide(Shuffled), EMode::Farm, EBody::MoveGround,

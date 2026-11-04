@@ -50,13 +50,15 @@
 | D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 由 D18、D21 取代 |
 | D13 | 校园补给箱 | 由 D26 的空投取代 |
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
-| D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：基础物攻 70、攻速 0.90，离线复算约 11.4 秒 |
+| D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃手劲加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：粉笔头、扒裤衩加手劲加成并降冷却 20%，伤害类型未改（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D19 | D 键通用冲刺，AI 也会用 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D20 | 跑道钉鞋改为强化冲刺的被动 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D21 | 人人脱战慢回；地图边缘 2–3 处宿舍快回，不是安全区 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)、[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
-| D22 | 发育期 120 秒，复活 15 秒 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已决定，未进入运行输入（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
+| D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒不变 |
+| D23 | 低档营地刷新 25 秒，初始零花钱足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始零花钱 320 |
+| #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
+| #82 追加 | 属性卡：食堂加餐 +100→+60 面子，穿秋裤双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡加 1 个随机被动；升级三选一保持完全随机 | 已决定，未实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；4 张基础属性卡的范围待确认 |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已决定，未实现（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开空投；中期出现、会反击所有人的教导主任 Boss | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；空投需要修改 App Spec §4.1“不开设采集” |
@@ -134,7 +136,7 @@
 
 - **未实现**：CT06 的全部提供者封桶（正式 Motion Fence/Sealing）、root motion 全链与历史时刻的子段姿态（[#90](https://github.com/rlsn/Lockdown-alpha/issues/90)）。
   当前按步边界与核心当前时刻提交，偏离时明确故障；说明见[移动、输入与镜头](../systems/MOVEMENT_INPUT_AND_CAMERA.md)。
-  D17–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
+  D19–D21、D24–D27、D29、D30 已经决定，但还没有实现或进入运行输入，见下文“剩余工作”。
 - **未运行**：跨机器局域网与公网直连（[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；人类试玩与数值平衡（[#88](https://github.com/rlsn/Lockdown-alpha/issues/88)）；Shipping 配置打包（[#95](https://github.com/rlsn/Lockdown-alpha/issues/95)）；
   真实 OS 失焦与显示模式切换、完整人工 UI 验收（[#87](https://github.com/rlsn/Lockdown-alpha/issues/87)）；前端界面点击“建房”（场景以同一 `L_Demo?listen` 地址启动 Host）；
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
@@ -157,7 +159,7 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 
 | 缺少的内容 | Issue |
 | --- | --- |
-| 按 D17、D18、D22、D23 重算核心数值；D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24） | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
+| D 键冲刺、跑道钉鞋、开局卡池和脱战慢回（D19–D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
 | 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
 | 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
 | 地图事件：宿舍、空投、教导主任 Boss、通报批评（D21、D26、D27）；营地回位无路时的收尾；AI 使用全部新内容并应对各类事件 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |

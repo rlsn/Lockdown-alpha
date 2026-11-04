@@ -8,13 +8,13 @@
       "ranks": [
         {
           "cooldown": {
-            "ms": 8000,
+            "ms": 6400,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -22,7 +22,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 7000,
+                "p2": 10000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -38,13 +38,13 @@
         },
         {
           "cooldown": {
-            "ms": 7000,
+            "ms": 5600,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -52,7 +52,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 10000,
+                "p2": 13000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -68,13 +68,13 @@
         },
         {
           "cooldown": {
-            "ms": 6000,
+            "ms": 4800,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 8000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -82,7 +82,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 14000,
+                "p2": 16000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -128,13 +128,13 @@
       "ranks": [
         {
           "cooldown": {
-            "ms": 14000,
+            "ms": 11200,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -142,7 +142,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 2000,
+                "p2": 10000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -166,13 +166,13 @@
         },
         {
           "cooldown": {
-            "ms": 13000,
+            "ms": 10400,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -180,7 +180,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 4000,
+                "p2": 12000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -204,13 +204,13 @@
         },
         {
           "cooldown": {
-            "ms": 12000,
+            "ms": 9600,
             "unit": "ms"
           },
           "effects": [
             {
               "ad_ratio": {
-                "bp": 0,
+                "bp": 6000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -218,7 +218,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 6000,
+                "p2": 14000,
                 "unit": "points"
               },
               "damage_type": "Magical",
@@ -580,11 +580,11 @@
       "native_id": 4,
       "stats": {
         "ArmorFlat": {
-          "p2": 600,
+          "p2": 1000,
           "unit": "points"
         },
         "MagicResistFlat": {
-          "p2": 600,
+          "p2": 1000,
           "unit": "points"
         }
       }
@@ -594,7 +594,7 @@
       "native_id": 3,
       "stats": {
         "MaxHPFlat": {
-          "p2": 10000,
+          "p2": 6000,
           "unit": "hp"
         }
       }
@@ -669,7 +669,7 @@
         },
         "move_speed": {
           "denominator": 1,
-          "numerator": 520,
+          "numerator": 451,
           "unit": "cm/s"
         },
         "mp_regen": {
@@ -758,7 +758,7 @@
         },
         "move_speed": {
           "denominator": 1,
-          "numerator": 480,
+          "numerator": 416,
           "unit": "cm/s"
         },
         "mp_regen": {
@@ -773,7 +773,7 @@
           "unit": "cm"
         },
         "respawn": {
-          "ms": 40000,
+          "ms": 25000,
           "unit": "ms"
         },
         "reward_gold": 30,
@@ -811,7 +811,7 @@
         "unit": "ratio"
       },
       "damage_type": "Physical",
-      "interval_ms": 1429,
+      "interval_ms": 1112,
       "target_mode": "Unit"
     },
     "id": "character_demo",
@@ -1380,11 +1380,11 @@
       "unit": "ms"
     },
     "LIFE.RespawnSec": {
-      "ms": 26000,
+      "ms": 15000,
       "unit": "ms"
     },
     "MATCH.DevelopmentSec": {
-      "ms": 180000,
+      "ms": 120000,
       "unit": "ms"
     },
     "REWARD.PlayerGold.Base": 80,
@@ -1400,9 +1400,9 @@
       "bp": 6500,
       "unit": "ratio"
     },
-    "SHOP.StartingGold": 150,
+    "SHOP.StartingGold": 320,
     "STAT.AD.Base": {
-      "p2": 5400,
+      "p2": 7000,
       "unit": "points"
     },
     "STAT.AD.Max": {
@@ -1475,7 +1475,7 @@
     },
     "STAT.BaseAttackSpeed": {
       "denominator": 10,
-      "numerator": 7,
+      "numerator": 9,
       "unit": "attacks/s"
     },
     "STAT.CooldownHaste.Base": {
@@ -1593,7 +1593,7 @@
       "unit": "cm/s"
     },
     "TIMING.DefendRouteBudgetSec": {
-      "ms": 16000,
+      "ms": 18000,
       "unit": "ms"
     },
     "UNIT.BasicAttackRangeCm": {
@@ -1612,7 +1612,7 @@
     },
     "UNIT.MoveSpeedCmPerSec": {
       "denominator": 1,
-      "numerator": 600,
+      "numerator": 520,
       "unit": "cm/s"
     },
     "VISION.RadiusCm": {
