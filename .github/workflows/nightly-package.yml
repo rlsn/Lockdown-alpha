@@ -1,0 +1,111 @@
+# Daily Win64 Development playtest package (#78). Runs only on the maintainer's self-hosted runner, which is
+# switched on and off by hand (Scripts/CIRunner.ps1). A run queued while the runner is off waits up to 24 hours.
+# The runner's job-started hook refuses every event except schedule and workflow_dispatch on this repository.
+name: Nightly playtest package
+
+on:
+  schedule:
+    - cron: '0 19 * * *' # 03:00 Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: nightly-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.repository == 'rlsn/Lockdown-alpha'
+    runs-on: [self-hosted, Windows, X64, lockdown-ue58]
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Skip a scheduled run when main is unchanged
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $skip = 'false'
+          if ($env:GITHUB_EVENT_NAME -eq 'schedule') {
+            $uri = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/workflows/nightly-package.yml/runs?branch=main&status=success&per_page=1"
+            $last = (Invoke-RestMethod -Uri $uri -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }).workflow_runs
+            if ($last -and $last[0].head_sha -eq $env:GITHUB_SHA) {
+              $skip = 'true'
+              "main is still $env:GITHUB_SHA, already packaged by $($last[0].html_url). Nothing to do." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            }
+          }
+          "skip=$skip" >> $env:GITHUB_OUTPUT
+
+      - name: Check out
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/checkout@v7
+        with:
+          lfs: true
+          # Keep ignored build output (Binaries, Intermediate) so the nightly build is incremental.
+          clean: false
+
+      - name: Reset workspace
+        if: steps.gate.outputs.skip != 'true'
+        run: ./Scripts/CIResetWorkspace.ps1
+
+      - name: Preflight
+        if: steps.gate.outputs.skip != 'true'
+        run: ./Scripts/Preflight.ps1
+
+      - name: Build editor
+        if: steps.gate.outputs.skip != 'true'
+        run: ./Scripts/BuildEditor.ps1
+
+      - name: Rule tests
+        if: steps.gate.outputs.skip != 'true'
+        run: ./Scripts/RunTests.ps1
+
+      - name: Package Win64
+        if: steps.gate.outputs.skip != 'true'
+        run: ./Scripts/PackageWin64.ps1
+
+      - name: Add launch notes
+        id: notes
+        if: steps.gate.outputs.skip != 'true'
+        run: |
+          $output = @(Get-ChildItem Artifacts -Directory -Filter '*-PackageWin64' | Sort-Object Name)[-1]
+          if (-not $output) { throw 'PackageWin64 produced no output directory.' }
+          $manifest = Get-Content (Join-Path $output.FullName 'PackageManifest.json') -Raw | ConvertFrom-Json
+          if ($manifest.sourceRevision -ne $env:GITHUB_SHA) { throw "Package manifest revision $($manifest.sourceRevision) is not $env:GITHUB_SHA." }
+          $short = $env:GITHUB_SHA.Substring(0, 7)
+          $date = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
+          $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          @(
+            "Lockdown 试玩包 $($manifest.productVersion) · $short · $date (UTC)"
+            "Win64 Development 构建，由每日打包工作流生成：$runUrl"
+            ''
+            '启动'
+            '1. 解压整个压缩包，不要只拷出 exe。'
+            '2. 运行 Archive\Windows\Lockdown.exe，进入主菜单并设置名称。'
+            '3. 一人点“创建房间”当房主；其他人点“加入房间”，填写房主 IP 与端口。'
+            '   首次建房时 Windows 防火墙会询问，需允许访问；跨网络需自行开放防火墙并设置端口映射。'
+            '4. 用仓库脚本启动时会校验清单：.\Scripts\OpenPackaged.ps1 -PackageRoot ''<解压目录>\Archive'''
+            ''
+            '说明'
+            '- 本包在规则测试（RunTests.ps1）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
+            '- 打包成功不代表 Demo 验收通过，验收状态见 docs/demo/READINESS.md。'
+          ) | Set-Content -LiteralPath (Join-Path $output.FullName 'README.txt') -Encoding utf8
+          "path=$($output.FullName)" >> $env:GITHUB_OUTPUT
+          "name=Lockdown-playtest-$date-$short" >> $env:GITHUB_OUTPUT
+          "Packaged $($manifest.productVersion) at ``$short``. Download **Lockdown-playtest-$date-$short** from this run's artifacts (kept 7 days)." >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload playtest package
+        if: steps.gate.outputs.skip != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.notes.outputs.name }}
+          path: ${{ steps.notes.outputs.path }}
+          retention-days: 7
+          # Paks are already compressed.
+          compression-level: 1
+          if-no-files-found: error
