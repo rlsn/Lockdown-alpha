@@ -80,6 +80,32 @@ bool LoadDevContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Erro
 #endif
 }
 #endif
+
+TSharedPtr<const FLDDemoContentSnapshot>& ApprovedContent()
+{
+    static TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    return Snapshot;
+}
+
+bool LoadApprovedContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Error)
+{
+    if (!IsInGameThread())
+    {
+        Error = TEXT("Approved Demo content is only read on the game thread.");
+        return false;
+    }
+    FString DigestHex;
+    FLDDemoContentDigest Expected;
+    TSharedPtr<const FLDDemoContentSnapshot> Loaded;
+    if (!LDDemoEntry::VerifyPayloadFiles(Error, &DigestHex) || !FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error)
+        || !ULDDemoContentCatalog::Load(Expected, Loaded, Error) || !LDDemoContentText::Register(*Loaded, Error))
+    {
+        return false;
+    }
+    ApprovedContent() = Loaded;
+    Out = MoveTemp(Loaded);
+    return true;
+}
 }
 
 bool LDDemoEntry::ValidateSelection(const FString& PackageName, const FString& Options, FString& Error)
@@ -111,7 +137,12 @@ bool LDDemoEntry::VerifyRuntimeFiles(FString& Error, FString* CatalogDigest)
 {
     if (CatalogDigest) { CatalogDigest->Reset(); }
     TSharedPtr<const FLDDemoContentSnapshot> Saved;
-    if (!LoadRuntimeContent(Saved, Error)) { return false; }
+#if WITH_DEV_AUTOMATION_TESTS
+    const bool bLoaded = IsDevContentReload() ? LoadRuntimeContent(Saved, Error) : LoadApprovedContent(Saved, Error);
+#else
+    const bool bLoaded = LoadApprovedContent(Saved, Error);
+#endif
+    if (!bLoaded) { return false; }
     if (CatalogDigest) { *CatalogDigest = Saved->Get().Identity.Root.ToHex(); }
     return true;
 }
@@ -153,16 +184,19 @@ bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& O
         return true;
     }
 #endif
-    FString DigestHex;
-    FLDDemoContentDigest Expected;
-    TSharedPtr<const FLDDemoContentSnapshot> Loaded;
-    if (!VerifyPayloadFiles(Error, &DigestHex) || !FLDDemoContentDigest::ParseHex(DigestHex, Expected, Error)
-        || !ULDDemoContentCatalog::Load(Expected, Loaded, Error) || !LDDemoContentText::Register(*Loaded, Error))
+    // Spawn and respawn reuse the verified snapshot; entry checks explicitly reload and validate it.
+    if (!IsInGameThread())
     {
+        Error = TEXT("Approved Demo content is only read on the game thread.");
         return false;
     }
-    Out = MoveTemp(Loaded);
-    return true;
+    if (ApprovedContent())
+    {
+        Out = ApprovedContent();
+        Error.Reset();
+        return true;
+    }
+    return LoadApprovedContent(Out, Error);
 }
 
 bool LDDemoEntry::VerifyPayloadFiles(FString& Error, FString* CatalogDigest)

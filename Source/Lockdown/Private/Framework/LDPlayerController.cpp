@@ -3,6 +3,7 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCameraSettings.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Tests/LDDemoVisionProbe.h"
@@ -13,6 +14,7 @@
 #include "Tests/LDDemoOpponentProbe.h"
 #include "Tests/LDDemoSessionFaultProbe.h"
 #include "UI/LDUIRoot.h"
+#include "UI/LDControlSettings.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
@@ -209,11 +211,10 @@ void ALDPlayerController::PlayerTick(float Delta)
             UE_LOG(LogTemp,Error,TEXT("LD_DEMO_CAMERA_CREATION_FAILED"));
             return;
         }
-        const FRotator Rotation(-60,-45,0);
-        WaitingCamera->SetActorLocation(LastBodyPosition+FVector(0,0,20)-Rotation.Vector()*1400);
-        WaitingCamera->SetActorRotation(Rotation);
+        const float ArmLength=Controls?Controls->Zoom:LDCamera::DefaultArmLength;
+        WaitingCamera->SetActorTransform(ALDCharacter::DefaultArmCameraPose(LastBodyPosition,ArmLength));
         auto* Camera=WaitingCamera->GetCameraComponent();
-        Camera->FieldOfView=55;
+        Camera->FieldOfView=LDCamera::FieldOfView;
         Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness=true;
         Camera->PostProcessSettings.AutoExposureMinBrightness=0;
         Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness=true;

@@ -22,8 +22,8 @@ namespace
     // Schema 4 stored a selector for the retired multi-registry layout. It is parsed only to reject it explicitly.
     constexpr uint32 RetiredRegistrySchema = 4;
     // Schema 5 is the whitelist without PlayerName, MasterVolume, CameraPanCmPerSec and MinimapOrientation; schema 6 adds
-    // PlayerName, schema 7 MasterVolume, schema 8 CameraPanCmPerSec and schema 9 MinimapOrientation (QuickCast is new in
-    // of every preference they lack and are rewritten as the current schema on the next verified save.
+    // PlayerName, schema 7 MasterVolume, schema 8 CameraPanCmPerSec, schema 9 MinimapOrientation and schema 10 QuickCast.
+    // Missing preferences take their defaults; loading never rewrites an old file.
     constexpr uint32 NamelessSchema = 5;
     constexpr uint32 VolumelessSchema = 6;
     constexpr uint32 PanlessSchema = 7;
@@ -31,6 +31,12 @@ namespace
     constexpr uint32 QuickCastlessSchema = 9;
     // Schema 10 has every current preference but predates the innate D dash binding.
     constexpr uint32 DashlessSchema = 10;
+    constexpr uint32 PreviousZoomSchema = 11;
+    // Schema 12 has the schema 11 layout; only its zoom range (1100-1900 cm) predates the current camera range.
+    constexpr uint32 NearZoomSchema = 12;
+    constexpr float LegacyMinZoom = 1100.f;
+    constexpr float LegacyMaxZoom = 1700.f;
+    constexpr float NearZoomMax = 1900.f;
     const FName DashAction(TEXT("Dash"));
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
@@ -232,7 +238,7 @@ bool ULDControlSettings::Valid() const
 bool ULDControlSettings::ValidatePreferences(FString& Error) const
 {
     if (!FMath::IsFinite(TextScale) || TextScale < 1 || TextScale > 1.25
-        || !FMath::IsFinite(Zoom) || Zoom < 1100 || Zoom > 1700)
+        || !LDCamera::IsValidArmLength(Zoom))
     { Error = TEXT("镜头缩放或文字大小超出当前支持范围。"); return false; }
     if (!FMath::IsFinite(MasterVolume) || MasterVolume < 0 || MasterVolume > 1)
     { Error = TEXT("主音量超出 0–100% 的支持范围。"); return false; }
@@ -324,7 +330,7 @@ bool ULDControlSettings::ApplyLocalSettings(const ULDControlSettings& Draft, FSt
 
 bool ULDControlSettings::SetAppliedZoom(float Value, FString& Error)
 {
-    if (Phase == ELDLocalSettingsPhase::EditingDraft || !FMath::IsFinite(Value) || Value < 1100 || Value > 1700)
+    if (Phase == ELDLocalSettingsPhase::EditingDraft || !LDCamera::IsValidArmLength(Value))
     { Error = TEXT("镜头缩放未保存：当前应用的镜头值无效。"); return false; }
     Zoom = Value;
     Phase = ELDLocalSettingsPhase::ConfirmedApplied;
@@ -475,7 +481,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     const bool RetiredRegistry = Magic == LocalSettingsMagic && SavedSchema == RetiredRegistrySchema;
     const bool Migrating = Magic == LocalSettingsMagic
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
-            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema);
+            || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
+            || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -490,15 +497,12 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     Reader << Edge << Follow << Settings->TextScale << Settings->Zoom;
     // Schema 6 added the player name, schema 7 the master volume, schema 8 the camera pan speed and schema 9 the minimap
     // orientation, each between the preferences and the binding list; an older layout leaves every later field at its default.
-    if (SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema
-        || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << SavedName; }
-    if (SavedSchema == PanlessSchema || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema
-        || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema)
-    { Reader << Settings->MasterVolume; }
-    if (SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
-        || SavedSchema == CurrentSchema) { Reader << Settings->CameraPanCmPerSec; }
-    if (SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << Orientation; }
-    if (SavedSchema == DashlessSchema || SavedSchema == CurrentSchema) { Reader << Quick; }
+    // Supported layouts 5..current are contiguous; the retired schema 4 has none of these fields.
+    if (SavedSchema >= VolumelessSchema) { Reader << SavedName; }
+    if (SavedSchema >= PanlessSchema) { Reader << Settings->MasterVolume; }
+    if (SavedSchema >= OrientationlessSchema) { Reader << Settings->CameraPanCmPerSec; }
+    if (SavedSchema >= QuickCastlessSchema) { Reader << Orientation; }
+    if (SavedSchema >= DashlessSchema) { Reader << Quick; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -523,22 +527,33 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (Reader.IsError() || !Reader.AtEnd())
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容不完整或包含多余数据。文件未被替换。") }; }
     FString Error;
+    const float LegacyZoomMax = SavedSchema == NearZoomSchema ? NearZoomMax : LegacyMaxZoom;
+    const bool LegacyZoomValid = FMath::IsFinite(Settings->Zoom)
+        && Settings->Zoom >= LegacyMinZoom && Settings->Zoom <= LegacyZoomMax;
+    // An old zoom valid in its own range is kept when the current range holds it; a value below the current minimum
+    // is raised to it and reported, never rejected for a range the old build did not have.
+    const float StoredZoom = Settings->Zoom;
+    if ((RetiredRegistry || Migrating) && LegacyZoomValid)
+    { Settings->Zoom = FMath::Clamp(Settings->Zoom, LDCamera::MinArmLength, LDCamera::MaxArmLength); }
+    const bool ZoomRaised = Settings->Zoom != StoredZoom;
     if (RetiredRegistry)
     {
         // Explicit incompatibility: no saved binding is loaded or migrated, including names the Demo still uses.
         const FString Retired = DescribeActions(UnregisteredActions(Settings->Bindings));
         Settings->ResetBindings();
-        const bool PreferencesValid = Settings->ValidatePreferences(Error);
+        const bool PreferencesValid = LegacyZoomValid && Settings->ValidatePreferences(Error);
         FString Message = TEXT("已保存的按键来自旧版操作布局");
         if (!Retired.IsEmpty()) { Message += TEXT("（已退役动作：") + Retired + TEXT("）"); }
         Message += TEXT("。没有加载或转换任何旧按键；当前使用 Demo 默认按键，旧文件保持不变。");
         Message += PreferencesValid ? TEXT("有效的镜头与文字偏好已保留。") : TEXT("其镜头或文字偏好也无效，未保留。");
         return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, PreferencesValid ? Settings : nullptr, Message };
     }
-    // Every migrated layout predates the D dash: a missing Dash binding takes its default key when no other action holds it;
+    if (Migrating && !LegacyZoomValid)
+    { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, FString::Printf(TEXT("旧版本镜头缩放超出原有 %.0f–%.0f cm 范围，无法迁移。文件未被替换。"), LegacyMinZoom, LegacyZoomMax) }; }
+    // Layouts before schema 11 predate the D dash: a missing Dash binding takes its default key when no other action holds it;
     // otherwise the binding stays missing and the file is refused below like any other incomplete key list.
     FString DashDefault;
-    if (Migrating && !Settings->Bindings.Contains(DashAction))
+    if (Migrating && SavedSchema <= DashlessSchema && !Settings->Bindings.Contains(DashAction))
     {
         const FLDControlBinding* Dash = Definitions().FindByPredicate([](const FLDControlBinding& B) { return B.Action == DashAction; });
         if (Dash && !Settings->Bindings.FindKey(Dash->Key))
@@ -558,7 +573,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–10 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–12 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -576,7 +591,11 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == QuickCastlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
-        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault };
+        const FString ZoomNote = ZoomRaised
+            ? FString::Printf(TEXT("旧镜头距离 %.0f cm 低于当前最小值，已调整为 %.0f cm"), StoredZoom, Settings->Zoom)
+            : FString::Printf(TEXT("旧镜头距离 %.0f cm 原样保留"), Settings->Zoom);
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault + ZoomNote
+            + FString::Printf(TEXT("；如需 %.0f cm，请在设置中选择“采用推荐镜头”，只修改距离。"), LDCamera::DefaultArmLength) };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;
     return { ELDLocalSettingsLoadStatus::Loaded, Settings, nullptr, TEXT("本地偏好已加载。") };

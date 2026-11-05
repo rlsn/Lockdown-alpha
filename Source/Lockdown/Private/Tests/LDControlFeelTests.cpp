@@ -1,5 +1,8 @@
 #include "Navigation/LDOrderRules.h"
 #include "Combat/LDCombatPreInput.h"
+#include "Framework/LDPlayerController.h"
+#include "Engine/World.h"
+#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
@@ -59,6 +62,41 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
         FiresOnPress(ELDCombatEntry::Dash) && !FiresOnPress(ELDCombatEntry::Q) && !FiresOnPress(ELDCombatEntry::W)
         && !FiresOnPress(ELDCombatEntry::Item1) && !FiresOnPress(ELDCombatEntry::Item2) && !FiresOnPress(ELDCombatEntry::Basic));
     TestTrue(TEXT("A held press lives at most a second"), HoldSeconds == 1.0);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelSourceBufferTest, "Lockdown.Rules.DemoControlFeel.SourceBuffer",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelSourceBufferTest::RunTest(const FString& Parameters)
+{
+    const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+    if (!TestNotNull(TEXT("Source buffer fixture world"),World)) { return false; }
+    ON_SCOPE_EXIT { World->DestroyWorld(false); };
+    auto* PC=World->SpawnActor<ALDPlayerController>();
+    if (!TestNotNull(TEXT("Source buffer controller"),PC)) { return false; }
+    PC->OwnerState.Match=1;
+    PC->OwnerState.Life=1;
+    PC->LatestCombatView.Generation=PC->CombatView.Generation=1;
+    PC->LatestCombatView.Life=PC->CombatView.Life=1;
+    PC->LatestCombatView.SourceRevision=PC->CombatView.SourceRevision=5;
+    PC->LatestCombatView.Revision=1;
+    PC->CombatView.Revision=2;
+    PC->QueuedCombat.Entry=ELDCombatEntry::Q;
+    PC->QueuedCombat.SourceRevision=5;
+    PC->OnRep_CombatView();
+    TestEqual(TEXT("An ordinary action update preserves the held intent"),PC->QueuedCombat.Entry,ELDCombatEntry::Q);
+    PC->CombatView.Revision=3;
+    PC->CombatView.SourceRevision=6;
+    PC->OnRep_CombatView();
+    TestEqual(TEXT("Changing skills or gear drops the old source's buffered aim"),PC->QueuedCombat.Entry,ELDCombatEntry::None);
+    PC->QueuedCombat.Entry=ELDCombatEntry::W;
+    PC->CombatView.Generation=2;
+    PC->CombatView.Revision=1;
+    PC->OnRep_CombatView();
+    TestEqual(TEXT("A new match cannot inherit a buffered action"),PC->QueuedCombat.Entry,ELDCombatEntry::None);
     return true;
 }
 

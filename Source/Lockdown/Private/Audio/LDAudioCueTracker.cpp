@@ -92,6 +92,7 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
 void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out)
 {
     if (Frame.OwnMatch == 0 || Frame.OwnLife == 0) { return; }
+    if (Frame.OwnMatch == LifeMatch && Frame.OwnLife < LifeNumber) { return; }
     if (Frame.OwnMatch != LifeMatch)
     {
         LifeMatch = Frame.OwnMatch;
@@ -131,7 +132,11 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             const FLDCombatCueFacts& Facts = Combat->Cues;
             if (Facts.ReleasedAtMs > AttackReleasedAtMs)
             {
-                if (Facts.bReleasedBasic && Frame.OwnLifePhase == ELDLifePhase::Alive) { LDAudio::AddUnique(Out, ELDAudioCue::SelfAttack); }
+                if (Facts.ReleasedAtMs <= Combat->AsOfMs && Facts.bReleasedBasic
+                    && Frame.OwnLifePhase == ELDLifePhase::Alive && Combat->HPP2 > 0)
+                {
+                    LDAudio::AddUnique(Out, ELDAudioCue::SelfAttack);
+                }
                 AttackReleasedAtMs = Facts.ReleasedAtMs;
             }
             // Lost points with an unchanged or larger maximum: a smaller maximum (sold equipment) only clamps.

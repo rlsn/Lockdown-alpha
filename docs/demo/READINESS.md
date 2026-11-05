@@ -78,6 +78,7 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒由 D33 的喷漆 3.5 秒 + 守护 20 秒取代 |
 | D23 | 低档营地刷新 25 秒，初始的米足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始的米 320 |
 | #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
+| #82/#102 追加 | 2026-11-05 用户选“偏慢偏俯视”：基础移速 400 cm/s，野怪 320/347；镜臂默认 2250 cm、范围 1300–2400 cm（约 6 秒横穿屏幕） | 已进入运行输入，未做平衡测试；回防路线验证预算改为 26 秒；本地设置 schema 13，旧存档距离不自动改为 2250 |
 | #82 追加 | 属性卡：V 我 50 吃顿好的 +100→+60 精神状态上限，我不听我不听双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡（吃了口蛋白粉、伸手党、我不听我不听、V 我 50 吃顿好的，不含 5G 冲浪）加 1 个随机被动；升级三选一保持完全随机 | 由 D33 取代：开局一组改为 2 个 1 级主动 + 1 个 1 级被动，升级三选一按技能池权重与机制标签亲和抽取 |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |

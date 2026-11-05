@@ -194,7 +194,9 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     if (bCurrentView && LDCombatPreInput::IsDirectEntry(Entry) && LDCombatPreInput::IsWindingUp(CombatView,NowMs))
     {
-        QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds()};
+        QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds(),CombatView.SourceRevision};
+        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT queued match=%u life=%u entry=%u source=%llu"),
+            OwnerState.Match,OwnerState.Life,uint32(Entry),CombatView.SourceRevision);
         return;
     }
     QueuedCombat={};
@@ -209,6 +211,12 @@ void ALDPlayerController::FlushQueuedCombat()
     if (QueuedCombat.Match!=OwnerState.Match || QueuedCombat.Life!=OwnerState.Life || !CanWorldCommand())
     {
         QueuedCombat={};
+        return;
+    }
+    if (QueuedCombat.SourceRevision!=CombatView.SourceRevision)
+    {
+        QueuedCombat={};
+        PostIntentNotice(TEXT("技能或装备已变化，预输入已取消"));
         return;
     }
     if (FPlatformTime::Seconds()-QueuedCombat.QueuedAt>LDCombatPreInput::HoldSeconds)
@@ -242,6 +250,8 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     Request.Target=Aim;
     Request.Target.ServerBody={};
     Request.ExpectedSourceRevision=CombatView.SourceRevision;
+    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
+        Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);
 }
 
@@ -292,6 +302,9 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {
     if (Receipt.Generation!=OwnerState.Match) { return; }
+    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT receipt match=%u life=%u sequence=%llu entry=%u phase=%u reject=%u token=%llu"),
+        Receipt.Generation,Receipt.Life,Receipt.DirectSequence,uint32(Receipt.Entry),uint32(Receipt.Phase),
+        uint32(Receipt.Reject),Receipt.CombatToken);
     if (!CombatReceipts.Push(Receipt)) { UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
 }
 
@@ -308,6 +321,14 @@ void ALDPlayerController::OnRep_CombatView()
         return;
     }
     // An armed preview belongs to the life and the source revision it was armed against.
-    if (bNewLine || CombatView.SourceRevision!=LatestCombatView.SourceRevision) { CancelArmedCombat(); }
+    if (bNewLine || CombatView.SourceRevision!=LatestCombatView.SourceRevision)
+    {
+        CancelArmedCombat();
+        if (QueuedCombat.Entry!=ELDCombatEntry::None)
+        {
+            QueuedCombat={};
+            if (!bNewLine) { PostIntentNotice(TEXT("技能或装备已变化，预输入已取消")); }
+        }
+    }
     LatestCombatView=CombatView;
 }

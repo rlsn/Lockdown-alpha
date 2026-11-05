@@ -48,6 +48,11 @@ namespace
     {
         const FString Label = TEXT("Character ") + Body.Id;
         if (!Body.Mesh) { return ArtFail(Error, Label + TEXT(" has no skeletal mesh.")); }
+        for (int32 LOD=0; LOD<Body.Mesh->GetLODNum(); ++LOD)
+        {
+            if (!Body.Mesh->GetLODInfo(LOD)->bAllowCPUAccess)
+            { return ArtFail(Error, Label + TEXT(" needs CPU mesh access for model picking; rerun ImportDemoArt.ps1 -Mode Import.")); }
+        }
         const USkeleton* Skeleton = Body.Mesh->GetSkeleton();
         if (!Skeleton) { return ArtFail(Error, Label + TEXT(" mesh has no skeleton: ") + Body.Mesh->GetPathName()); }
         if (!ArtUsableTransform(Body.MeshTransform)) { return ArtFail(Error, Label + TEXT(" has an unusable mesh transform.")); }

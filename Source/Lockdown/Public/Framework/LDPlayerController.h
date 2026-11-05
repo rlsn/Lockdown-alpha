@@ -194,7 +194,11 @@ private:
         FLDCombatTarget Aim;
         uint32 Match=0,Life=0;
         double QueuedAt=0;
+        uint64 SourceRevision=0;
     };
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDControlFeelSourceBufferTest;
+#endif
     FQueuedCombat QueuedCombat;
     void FlushQueuedCombat();
     void SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Target);

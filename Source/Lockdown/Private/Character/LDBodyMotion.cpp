@@ -1,5 +1,24 @@
 #include "Character/LDBodyMotion.h"
 
+float LDBodyMotion::ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds)
+{
+    return (Action==EAction::Attack || Action==EAction::Cast) && HitAgeSeconds>=0.f && HitAgeSeconds<HitPoseHoldSeconds
+        ? FMath::Max(0.f,AgeSeconds-HitAgeSeconds) : AgeSeconds;
+}
+
+LDBodyMotion::FChannels LDBodyMotion::WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds)
+{
+    FChannels Result=Evaluate(Action,AgeSeconds);
+    if (Action!=EAction::Hit)
+    {
+        const FChannels Hit=Evaluate(EAction::Hit,HitAgeSeconds);
+        Result.Flash=FMath::Max(Result.Flash,Hit.Flash);
+        Result.HitBurst=Hit.Burst;
+        Result.Lunge+=Hit.Lunge;
+    }
+    return Result;
+}
+
 namespace LDBodyMotionDetail
 {
     float Smooth(float X)

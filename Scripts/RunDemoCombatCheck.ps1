@@ -3,7 +3,8 @@ param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(300,1500)][int]$
     # Optional engine packet simulation for every role, e.g. '-PktLag=40 -PktLagVariance=10 -PktLoss=1'.
     [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
     # The Host's rendered main view; the screenshots are reviewed at both supported sizes.
-    [ValidateSet('720p','1080p')][string]$Resolution='720p')
+    [ValidateSet('720p','1080p')][string]$Resolution='720p',
+    [switch]$RenderClient)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -41,8 +42,9 @@ function Start-CombatRole {
     param([string]$Role,[string]$Url)
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
-    # The Host is a participating Listen Host with a real RHI main view; the owning client needs no renderer.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" } else { '-nullrhi' }
+    # The Host always renders. RenderClient also exercises the cooked skeletal data on the real owning client.
+    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port $fixtureSwitch" }
+        elseif ($RenderClient) { "-windowed -RenderOffScreen $resolutionArguments" } else { '-nullrhi' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCombatProbe -LDDemoCombatRole={2} -LDDemoCombatTimeout={3} -LDDemoCombatOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
@@ -129,7 +131,7 @@ try {
         "$($hostFeel.braking_deceleration_walking), speed $($hostFeel.max_walk_speed) cm/s.")
     Write-Host $feel
     Write-Host ("DEV-only owned-connection combat/orders scenario passed through the ordinary lobby Start: a chased body's " +
-        "foot in the navmesh margin routes while the same clicked ground stays refused, Settings held " +
+        "foot in the navmesh margin routes and the same clicked ground projects onto the navmesh (#80), Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
         "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then skills learned by ordinary " +

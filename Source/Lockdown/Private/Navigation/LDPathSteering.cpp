@@ -1,8 +1,10 @@
 #include "Navigation/LDPathSteering.h"
+#include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
+#include "NavigationPath.h"
 #include "NavigationData.h"
 #include "Engine/World.h"
 
@@ -38,9 +40,20 @@ namespace LDPathSteering
     {
         if (!Path.IsValidIndex(Index)) { return FVector::ZeroVector; }
         const FVector Foot=Body.GetNavAgentLocation();
-        while (Index<Path.Num()-1 && FVector::DistSquared2D(Foot,Path[Index])<=FMath::Square(WaypointToleranceCm)) { ++Index; }
+        // A corner is passed once reached or once the foot has crossed the plane through it normal to the incoming leg, so a
+        // step longer than the tolerance never turns the body back towards a corner it already went past.
+        while (Index<Path.Num()-1)
+        {
+            const FVector Corner=Path[Index];
+            const FVector Incoming=Index>0?(Corner-Path[Index-1]).GetSafeNormal2D():FVector::ZeroVector;
+            if (FVector::DistSquared2D(Foot,Corner)>FMath::Square(WaypointToleranceCm)
+                && FVector::DotProduct(FVector(Foot.X-Corner.X,Foot.Y-Corner.Y,0),Incoming)<0) { break; }
+            ++Index;
+        }
         const FVector Delta=Path[Index]-Foot;
-        const double Scale=FMath::Clamp(Delta.Size2D()/FMath::Max(1.,Body.GetCharacterMovement()->GetMaxSpeed()*.2),.08,1.);
+        // Only the final point is an arrival: intermediate corners are taken at full speed.
+        const double Scale=Index<Path.Num()-1?1.:
+            FMath::Clamp(Delta.Size2D()/FMath::Max(1.,Body.GetCharacterMovement()->GetMaxSpeed()*.2),.08,1.);
         return Delta.GetSafeNormal2D()*Scale;
     }
 
@@ -74,18 +87,118 @@ namespace LDPathSteering
             Capsule,BodyGround.SurfaceId,Out,Failure,Error);
     }
 
+    bool ProjectableGoalFailure(ELDWorldQueryFailure Failure)
+    {
+        // Only a clicked point that is not itself a legal, reachable stand: never a stale/missing world or a bad request.
+        return Failure==ELDWorldQueryFailure::Blocked || Failure==ELDWorldQueryFailure::NotGrounded
+            || Failure==ELDWorldQueryFailure::WrongSurface || Failure==ELDWorldQueryFailure::Unreachable
+            || Failure==ELDWorldQueryFailure::IncompletePath;
+    }
+
+    bool ProjectGroundGoal(const ULDMapRegistry& Registry, const FLDLegalGround& From, const FVector& Clicked, FName SurfaceId,
+        const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& Out,
+        ELDWorldQueryFailure& Failure, FString& Error)
+    {
+        UWorld* World=Registry.GetWorld();
+        auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
+        const ANavigationData* Data=Nav?Nav->GetDefaultNavDataInstance(FNavigationSystem::DontCreate):nullptr;
+        const auto* Layout=Registry.GetGeometry();
+        FVector Min, Max;
+        if (!Data || !Layout || Layout->Surfaces.IsEmpty() || Clicked.ContainsNaN()
+            || !Layout->Surfaces[0].MinCm.ToVector(Min,Error) || !Layout->Surfaces[0].MaxCm.ToVector(Max,Error))
+        {
+            Failure=ELDWorldQueryFailure::MissingNavigation;
+            Error=TEXT("MissingNavigation: no navigation data to project the destination onto.");
+            return false;
+        }
+        // The single registered surface is flat: search at its height, across the whole surface, for the nearest
+        // navmesh point to the clicked XY (a wall, a box top or a spot too close to an obstacle).
+        const FVector Flat(Clicked.X,Clicked.Y,From.FootCm.Z);
+        const double Reach=FMath::Max(Max.X-Min.X,Max.Y-Min.Y);
+        FNavLocation OnMesh;
+        if (!Nav->ProjectPointToNavigation(Flat,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data))
+        {
+            Failure=ELDWorldQueryFailure::Unreachable;
+            Error=TEXT("Unreachable: no navmesh point near the clicked destination.");
+            return false;
+        }
+
+        FPathFindingQuery ReachableQuery(&Registry,*Data,From.SurfaceCm,OnMesh.Location);
+        ReachableQuery.SetAllowPartialPaths(true);
+        const FPathFindingResult Reachable=Nav->FindPathSync(Data->GetConfig(),ReachableQuery);
+        if ((!Reachable.IsSuccessful() && !Reachable.IsPartial()) || !Reachable.Path.IsValid()
+            || Reachable.Path->GetPathPoints().IsEmpty())
+        {
+            Failure=ELDWorldQueryFailure::Unreachable;
+            Error=TEXT("Unreachable: no reachable route to a navmesh destination.");
+            return false;
+        }
+
+        TArray<FVector> Candidates;
+        if (Reachable.Path->IsPartial())
+        {
+            for (const FNavPathPoint& Point : Reachable.Path->GetPathPoints()) { Candidates.Add(Point.Location); }
+            Candidates.Sort([&Flat](const FVector& A, const FVector& B)
+            {
+                return FVector::DistSquared2D(A,Flat)<FVector::DistSquared2D(B,Flat);
+            });
+        }
+        else { Candidates.Add(OnMesh.Location); }
+
+        // A partial path is confined to the start's connected navmesh. Try its closest points to the click first;
+        // each candidate must still pass the same legal-ground and complete-route checks as an ordinary destination.
+        for (const FVector& Base : Candidates)
+        {
+            const FVector Inward=(Base-Flat).GetSafeNormal2D();
+            for (const double Step : { 0., 2., 5., 10. })
+            {
+                if (Step>0 && Inward.IsNearlyZero()) { break; }
+                FNavLocation Candidate;
+                if (Step==0) { Candidate.Location=Base; }
+                else if (!Nav->ProjectPointToNavigation(
+                    FVector(Base.X,Base.Y,From.FootCm.Z)+Inward*Step,Candidate,
+                    FVector(1.,1.,Capsule.GetCapsuleHalfHeight()),Data)) { continue; }
+                if (!Registry.QueryGround(Registry.Revision(),FVector(Candidate.Location.X,Candidate.Location.Y,From.FootCm.Z),
+                    Capsule,SurfaceId,Out,Failure,Error)) { continue; }
+                FLDCompletePath CandidatePath;
+                if (!Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,CandidatePath,Failure,Error)) { continue; }
+                OutPath=MoveTemp(CandidatePath);
+                Failure=ELDWorldQueryFailure::None;
+                Error.Reset();
+                return true;
+            }
+        }
+        Failure=ELDWorldQueryFailure::Unreachable;
+        Error=TEXT("Unreachable: no legal navmesh destination has a complete route from the current body.");
+        return false;
+    }
+
     bool PlanRoute(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FVector& Goal, FName SurfaceId,
         EGoal GoalKind, const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& OutGoal,
         ELDWorldQueryFailure& Failure, FString& Error)
     {
         FLDLegalGround From, GoalGround;
-        if (!PlanStart(Registry,BodyGround,Capsule,From,Failure,Error)
-            || !Registry.QueryGround(Registry.Revision(),Goal,Capsule,SurfaceId,GoalGround,Failure,Error)) { return false; }
+        if (!PlanStart(Registry,BodyGround,Capsule,From,Failure,Error)) { return false; }
         if (GoalKind==EGoal::Body)
         {
-            if (!PlanStart(Registry,GoalGround,Capsule,OutGoal,Failure,Error)) { return false; }
+            return Registry.QueryGround(Registry.Revision(),Goal,Capsule,SurfaceId,GoalGround,Failure,Error)
+                && PlanStart(Registry,GoalGround,Capsule,OutGoal,Failure,Error)
+                && Registry.QueryCompletePath(Registry.Revision(),From,OutGoal,Capsule,OutPath,Failure,Error);
         }
-        else { OutGoal=GoalGround; }
-        return Registry.QueryCompletePath(Registry.Revision(),From,OutGoal,Capsule,OutPath,Failure,Error);
+        if (Registry.QueryGround(Registry.Revision(),Goal,Capsule,SurfaceId,GoalGround,Failure,Error)
+            && Registry.QueryCompletePath(Registry.Revision(),From,GoalGround,Capsule,OutPath,Failure,Error))
+        {
+            OutGoal=GoalGround;
+            return true;
+        }
+        if (!ProjectableGoalFailure(Failure)) { return false; }
+        const FString Strict=Error;
+        if (!ProjectGroundGoal(Registry,From,Goal,SurfaceId,Capsule,OutPath,GoalGround,Failure,Error))
+        {
+            Error=TEXT("Destination projection failed (")+Error+TEXT("); clicked point: ")+Strict;
+            return false;
+        }
+        OutGoal=GoalGround;
+        return true;
     }
 }

@@ -35,10 +35,12 @@ class ApprovedDemoData(unittest.TestCase):
     def test_approval_and_complete_selected_directory(self):
         approval = self.data["identity"]["approval"]
         self.assertEqual(approval["status"], "approved")
-        self.assertEqual(approval, self.world.world["approval"])
+        # A content-only approval does not rewrite the independently approved world geometry.
+        self.assertEqual(self.world.world["approval"]["status"], "approved")
         for text in ("2026-11-02", "D01", "D02", "D03", "2026-11-04", "#82", "15.7-15.9", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
+        self.assertIn("player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400)", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 16, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -73,12 +75,12 @@ class ApprovedDemoData(unittest.TestCase):
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.50"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"), ("STAT.AbilityCritMultiplier", "ratio", "1.5"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
-            ("UNIT.MoveSpeedCmPerSec", "cm/s", "520"), ("STAT.MoveSpeed.Min", "cm/s", "300"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
+            ("UNIT.MoveSpeedCmPerSec", "cm/s", "400"), ("STAT.MoveSpeed.Min", "cm/s", "230"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("TIMING.DefendRouteBudgetSec", "ms", "19"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("TIMING.DefendRouteBudgetSec", "ms", "26"),
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -631,8 +633,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 416, 900, 3000, 25000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 451, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 320, 900, 3000, 25000, 40, 30, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 347, 1100, 4000, 65000, 160, 120, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
@@ -741,7 +743,11 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
             self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
         self.assertAlmostEqual(self.world.report["route_upper_bound_cm"], 9524.661, delta=.00051)
-        self.assertLess(self.world.report["route_upper_bound_cm"], 9600)
+        speed = amount(self.data["parameters"]["UNIT.MoveSpeedCmPerSec"])
+        budget = amount(self.data["parameters"]["TIMING.DefendRouteBudgetSec"])
+        self.assertEqual((speed, budget), (400, 26))
+        self.assertLess(self.world.report["route_upper_bound_cm"], speed * budget)
+        self.assertGreater(self.world.report["route_upper_bound_cm"], speed * 23)
         self.assertAlmostEqual(self.world.report["min_inner_angular_gap_degrees"], 11.662, delta=.00051)
         candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
         self.assertEqual(len(candidates), 70)

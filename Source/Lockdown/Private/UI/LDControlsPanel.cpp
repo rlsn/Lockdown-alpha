@@ -125,6 +125,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         Rows=WidgetTree->ConstructWidget<UVerticalBox>();Content->AddChildToVerticalBox(Rows);
         Section(Content,TEXT("镜头 / 文字"));
         auto* CameraButtons=WidgetTree->ConstructWidget<UWrapBox>();CameraButtons->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(CameraButtons);
+        CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("采用推荐镜头（2250 厘米，仅修改距离）"),[this](){ChangePreference([](auto& S){S.UseRecommendedCameraZoom();});},false,TEXT("UseRecommendedCameraZoom")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("边缘平移 开/关"),[this](){ChangePreference([](auto& S){S.bEdgePan=!S.bEdgePan;});},false,TEXT("ToggleEdgePan")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("开局镜头跟随 开/关"),[this](){ChangePreference([](auto& S){S.bStartFollowing=!S.bStartFollowing;});},false,TEXT("ToggleStartFollow")));
         CameraButtons->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT("文字大小 100% / 125%"),[this](){ChangePreference([](auto& S){S.TextScale=S.TextScale>1?1:1.25;});},false,TEXT("ApplyTextScale")));

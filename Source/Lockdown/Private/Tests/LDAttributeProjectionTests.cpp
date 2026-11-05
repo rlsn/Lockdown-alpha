@@ -102,7 +102,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
         P.MaxHP.BaseP2 == 62000 && P.MaxHP.PerLevelP2 == 5800 && P.MaxMP.BaseP2 == 28000 && P.MaxMP.PerLevelP2 == 2200
         && P.AD.BaseP2 == 7000 && P.AD.PerLevelP2 == 320 && P.Armor.BaseP2 == 1800 && P.MagicResist.BaseP2 == 1800
         && P.AttackSpeed.Base.Numerator == 9 && P.AttackSpeed.Base.Denominator == 10 && P.AttackSpeedPerLevelBp == 200
-        && P.MoveSpeedCmPerSec.Base.Numerator == 520 && P.MoveSpeedCmPerSec.Base.Denominator == 1
+        && P.MoveSpeedCmPerSec.Base.Numerator == 400 && P.MoveSpeedCmPerSec.Base.Denominator == 1
         && P.AttackRangeCm.Base.Numerator == 220 && P.AttackRangeCm.Base.Denominator == 1
         && Progression.MaxLevel == 10 && Progression.MaxChoices == 10 && Progression.MaxSkillRank == 3
         && Progression.EquipmentSlots == 2);
@@ -143,7 +143,7 @@ struct FExpectedAttributes
 FExpectedAttributes ApprovedLevel(int32 Level)
 {
     FExpectedAttributes Expected;
-    Expected.MoveSpeedCmPerSec = MakeRational(520);
+    Expected.MoveSpeedCmPerSec = MakeRational(400);
     Expected.AttackRangeCm = MakeRational(220);
     switch (Level)
     {
@@ -614,11 +614,11 @@ bool RunDuplicateEquipment(FAutomationTestBase& Test)
         const TCHAR* Family;
     };
     for (const FDuplicateCase& Case : {
-        FDuplicateCase{TEXT("item_iron_plate"), 98000, 28000, 7000, 0, 4800, 1800, 9, 10, 520, 1, 0, TEXT("passive_crit_guard")},
-        FDuplicateCase{TEXT("item_edge_blade"), 62000, 28000, 11000, 0, 1800, 1800, 27, 25, 520, 1, 0, TEXT("passive_third_strike")},
-        FDuplicateCase{TEXT("item_runic_focus"), 62000, 28000, 7000, 6000, 1800, 1800, 9, 10, 520, 1, 3000, TEXT("passive_mana_refund")},
-        FDuplicateCase{TEXT("item_phase_anchor"), 62000, 28000, 7000, 0, 1800, 1800, 9, 10, 3224, 5, 0, TEXT("passive_stride")},
-        FDuplicateCase{TEXT("item_arcane_battery"), 62000, 52000, 7000, 0, 1800, 3800, 9, 10, 520, 1, 0, nullptr}})
+        FDuplicateCase{TEXT("item_iron_plate"), 98000, 28000, 7000, 0, 4800, 1800, 9, 10, 400, 1, 0, TEXT("passive_crit_guard")},
+        FDuplicateCase{TEXT("item_edge_blade"), 62000, 28000, 11000, 0, 1800, 1800, 27, 25, 400, 1, 0, TEXT("passive_third_strike")},
+        FDuplicateCase{TEXT("item_runic_focus"), 62000, 28000, 7000, 6000, 1800, 1800, 9, 10, 400, 1, 3000, TEXT("passive_mana_refund")},
+        FDuplicateCase{TEXT("item_phase_anchor"), 62000, 28000, 7000, 0, 1800, 1800, 9, 10, 496, 1, 0, TEXT("passive_stride")},
+        FDuplicateCase{TEXT("item_arcane_battery"), 62000, 52000, 7000, 0, 1800, 3800, 9, 10, 400, 1, 0, nullptr}})
     {
         const FString Label = FString::Printf(TEXT("Two %s"), Case.Item);
         Expected = ApprovedLevel(1);
@@ -695,10 +695,10 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
             { E.ADP2 = 19780; E.APP2 = 19800; E.AttackSpeed = MakeRational(171, 100); E.MaxHPP2 = 64700; },
             EAttribute::MaxHP, Zero, Zero, MakeRational(495), Zero, {}},
         {TEXT("attr_wild_juggernaut"), [](FExpectedAttributes& E)
-            { E.MaxHPP2 = 213200; E.ArmorP2 = 16200; E.MagicResistP2 = 16200; E.MoveSpeedCmPerSec = MakeRational(1664, 5); },
+            { E.MaxHPP2 = 213200; E.ArmorP2 = 16200; E.MagicResistP2 = 16200; E.MoveSpeedCmPerSec = MakeRational(256); },
             EAttribute::MoveSpeed, Zero, Zero, Zero, MakeRational(9, 25), {}},
         {TEXT("attr_wild_brawler"), [](FExpectedAttributes& E)
-            { E.AttackSpeed = MakeRational(549, 250); E.MoveSpeedCmPerSec = MakeRational(4472, 5); E.AttackRangeCm = MakeRational(80); },
+            { E.AttackSpeed = MakeRational(549, 250); E.MoveSpeedCmPerSec = MakeRational(688); E.AttackRangeCm = MakeRational(80); },
             EAttribute::AttackRange, Zero, Zero, MakeRational(270), Zero, {EAttribute::AttackRange}},
     };
     for (const FCardCase& Case : Cards)
@@ -894,7 +894,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 644.8"), Projection.Final.MoveSpeedCmPerSec, MakeRational(3224, 5));
+    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 496"), Projection.Final.MoveSpeedCmPerSec, MakeRational(496));
     if (!Envelope(TEXT("Range envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_reach"), 10)},
         {TEXT("item_echo_maul"), TEXT("item_echo_maul")})))
     {
@@ -1291,11 +1291,11 @@ bool RunTemporaryTerms(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("A negative temporary bonus is refused"), Terms({TempBonus(ELDDemoBonusStat::ADFlat, -1)}));
     bGood &= Refused(TEXT("A full slow is refused"), Terms({}, 10000));
     FLDAttributeProjection Camp;
-    Camp.Final.MoveSpeedCmPerSec = MakeRational(480);
+    Camp.Final.MoveSpeedCmPerSec = MakeRational(400);
     Camp.Final.ADP2 = 1000;
     if (!Apply(Test, TEXT("Camp member slow"), Camp, Terms({}, 3000), *Catalog, Out)) { return false; }
     bGood &= Test.TestTrue(TEXT("A body without contribution rows slows from its final speed"),
-        SameRational(Out.Final.MoveSpeedCmPerSec, 336, 1) && Out.Final.ADP2 == 1000 && Out.Contributions.IsEmpty());
+        SameRational(Out.Final.MoveSpeedCmPerSec, 280, 1) && Out.Final.ADP2 == 1000 && Out.Contributions.IsEmpty());
     return bGood;
 }
 

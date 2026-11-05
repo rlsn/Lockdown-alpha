@@ -4,6 +4,7 @@
 #include "Art/LDArtSubsystem.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDModelPicking.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -13,6 +14,8 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "Rendering/SkeletalMeshLODRenderData.h"
 #include "UObject/ConstructorHelpers.h"
 
 namespace LDHumanoidVisualDetail
@@ -24,7 +27,7 @@ namespace LDHumanoidVisualDetail
         RootRing, RootRim, ShackleLeft, ShackleRight, ShieldHalo,
         ShieldBar0, ShieldBar1, ShieldBar2, ShieldBar3, ShieldBar4, ShieldBar5, ShieldBar6, ShieldBar7,
         ProtectionBeam, ProtectionOrb0, ProtectionOrb1, ProtectionOrb2, ProtectionOrb3, ReturnSign,
-        Burst, Charge, SpawnColumn, PartCount
+        Burst, Charge, SpawnColumn, HitSpark, PartCount
     };
     constexpr int32 ShieldBars = 8, ProtectionOrbs = 4;
     enum EShape : uint8 { Cube, Sphere, Cylinder };
@@ -61,6 +64,7 @@ namespace LDHumanoidVisualDetail
         {TEXT("Burst"), Sphere, {.1,.1,.1}},
         {TEXT("Charge"), Sphere, {.1,.1,.1}},
         {TEXT("SpawnColumn"), Cylinder, {.9,.9,3.2}},
+        {TEXT("HitSpark"), Sphere, {.1,.1,.1}},
     };
     // One fixed colour per status on every unit, apart from all six seat tints, the turf and the red track:
     // root hot magenta, shield bright cyan, protection white-gold; each edged in near-black.
@@ -93,7 +97,7 @@ namespace LDHumanoidVisualDetail
         if (Index == ShieldHalo || (Index >= ShieldBar0 && Index < ShieldBar0 + ShieldBars)) { return ShieldColour; }
         if (Index == ProtectionBeam || (Index >= ProtectionOrb0 && Index < ProtectionOrb0 + ProtectionOrbs)) { return ProtectionColour; }
         if (Index == ReturnSign) { return ReturnColour; }
-        if (Index == Burst) { return BurstColour; }
+        if (Index == Burst || Index == HitSpark) { return BurstColour; }
         return Index == Charge ? ChargeColour : ColumnColour;
     }
     ELDArtAnim ClipOf(LDBodyMotion::EAction Action)
@@ -224,6 +228,9 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     Mesh->EmptyOverrideMaterials();
     Clip = ELDArtAnim::Count;
     bFlashing = false;
+    PickingFrame = MAX_uint64;
+    PickingVertices.Reset();
+    PickingIndices.Reset();
     if (!Art)
     {
         // The art subsystem has logged why its catalog is unavailable; this body draws nothing rather than a stand-in.
@@ -271,6 +278,55 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     Layout();
 }
 
+bool ULDHumanoidVisualComponent::TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const
+{
+    OutFraction = 1.;
+    if (!Art || !IsVisible() || (GetOwner() && GetOwner()->IsHidden()) || Mesh->bHiddenInGame || FallAt >= 0 || !Mesh->GetSkeletalMeshAsset()
+        || Start.ContainsNaN() || End.ContainsNaN()) { return false; }
+    const FBox BroadBounds = Mesh->Bounds.GetBox().ExpandBy(HeightCm);
+    if (!FMath::LineBoxIntersection(BroadBounds, Start, End, End - Start)) { return false; }
+    const FSkeletalMeshRenderData* RenderData = Mesh->GetSkeletalMeshRenderData();
+    const int32 LODIndex = Mesh->GetPredictedLODLevel();
+    if (!RenderData || !RenderData->LODRenderData.IsValidIndex(LODIndex)) { return false; }
+    const FSkeletalMeshLODRenderData& LOD = RenderData->LODRenderData[LODIndex];
+    FSkinWeightVertexBuffer* Weights = Mesh->GetSkinWeightBuffer(LODIndex);
+    const auto* IndexBuffer = LOD.MultiSizeIndexContainer.GetIndexBuffer();
+    const FSkeletalMeshLODInfo* LODInfo=Mesh->GetSkeletalMeshAsset()->GetLODInfo(LODIndex);
+    if (!ensureMsgf(Weights && IndexBuffer && LODInfo && LODInfo->bAllowCPUAccess,
+        TEXT("Presented model picking needs CPU mesh data; rerun ImportDemoArt.ps1 -Mode Import."))) { return false; }
+    if (PickingFrame != GFrameCounter)
+    {
+        TArray<FMatrix44f> RefToLocal;
+        Mesh->CacheRefToLocalMatrices(RefToLocal);
+        // Unlike GetCPUSkinnedVertices this never flushes the render thread or changes the skinning mode.
+        USkinnedMeshComponent::ComputeSkinnedPositions(Mesh, PickingVertices, RefToLocal, LOD, *Weights);
+        PickingIndices.Reset();
+        for (const FSkelMeshRenderSection& Section : LOD.RenderSections)
+        {
+            if (Section.bDisabled || Mesh->IsMaterialSectionShown(Section.MaterialIndex, LODIndex) == false) { continue; }
+            for (uint32 Index = Section.BaseIndex; Index < Section.BaseIndex + Section.NumTriangles * 3; ++Index)
+            { PickingIndices.Add(IndexBuffer->Get(Index)); }
+        }
+        PickingFrame = GFrameCounter;
+    }
+    const FTransform& Transform = Mesh->GetComponentTransform();
+    return LDModelPicking::Trace(PickingVertices, PickingIndices,
+        Transform.InverseTransformPosition(Start), Transform.InverseTransformPosition(End), OutFraction);
+}
+
+bool ULDHumanoidVisualComponent::PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const
+{
+    // The root ring's engine cylinder is 100 cm across at scale 1.05: the footprint shown under a body.
+    constexpr double FootprintRadiusCm = 52.5;
+    if (!Art || !IsVisible() || (GetOwner() && GetOwner()->IsHidden()) || Mesh->bHiddenInGame || FallAt >= 0
+        || !Mesh->GetSkeletalMeshAsset() || HeightCm <= 0) { return false; }
+    const FTransform& Transform = GetComponentTransform();
+    OutFoot = Transform.TransformPosition(FVector(0, 0, -HalfHeight));
+    OutTop = Transform.TransformPosition(FVector(0, 0, HeightCm - HalfHeight));
+    OutRadiusCm = FootprintRadiusCm * Transform.GetMaximumAxisScale();
+    return !OutFoot.ContainsNaN() && !OutTop.ContainsNaN();
+}
+
 void ULDHumanoidVisualComponent::Layout()
 {
     using namespace LDHumanoidVisualDetail;
@@ -310,6 +366,13 @@ void ULDHumanoidVisualComponent::SetCue(uint8 Value, float ActionAgeSeconds)
 void ULDHumanoidVisualComponent::PlayAppear()
 {
     AppearAt = Clock;
+}
+
+void ULDHumanoidVisualComponent::SetHitReaction(float AgeSeconds)
+{
+    if (!FMath::IsFinite(AgeSeconds) || AgeSeconds<0.f || AgeSeconds>=.3f || FallAt>=0) { return; }
+    const double Onset=Clock-AgeSeconds;
+    if (!bHitSeen || Onset>HitOnset+LDBodyMotion::SameInstanceSeconds) { HitOnset=Onset; bHitSeen=true; }
 }
 
 void ULDHumanoidVisualComponent::PlayFall()
@@ -372,10 +435,11 @@ void ULDHumanoidVisualComponent::PlayClip(bool bFalling, float Speed)
     };
     const FLDArtAnimation* Dying = Art->Find(ELDArtAnim::Death);
     const FLDArtAnimation* Acting = Action == EAction::None ? nullptr : Art->Find(ClipOf(Action));
+    const float ActionAge=LDBodyMotion::ImpactPoseAge(Action,float(Clock-ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
     const FLDArtAnimation* Waving = Art->Find(ELDArtAnim::Spawn);
     const bool bPosed = bFalling
         ? Dying && Pose(ELDArtAnim::Death, float(Clock - FallAt) * Dying->PlayRate, true)
-        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, float(Clock - ActionOnset), Acting->ImpactSec, Acting->PlayRate), false))
+        : (Acting && Pose(ClipOf(Action), LDBodyMotion::ClipTime(Action, ActionAge, Acting->ImpactSec, Acting->PlayRate), false))
             || (Waving && AppearAt >= 0 && Speed < RunFromCmPerSec && Pose(ELDArtAnim::Spawn, float(Clock - AppearAt) * Waving->PlayRate, false));
     const FLDArtAnimation* Entry = Art->Find(State);
     if (!Entry || !Entry->Sequence) { return; }
@@ -399,6 +463,7 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
 {
     using namespace LDHumanoidVisualDetail;
     Clock += FMath::Max(Delta, 0.f);
+    PickingFrame = MAX_uint64;
     if (!Art) { return; }
     const bool bFalling = FallAt >= 0;
     LDBodyMotion::FLife Life;
@@ -406,12 +471,13 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
     else if (AppearAt >= 0) { Life = LDBodyMotion::Appear(float(Clock - AppearAt)); }
     // The current action's effects: the lunge and the orb ease toward the timeline, the spark and the flash follow it.
     const LDBodyMotion::FChannels Target = bFalling ? LDBodyMotion::FChannels()
-        : LDBodyMotion::Evaluate(Action, float(Clock - ActionOnset));
+        : LDBodyMotion::WithHit(Action, float(Clock - ActionOnset),bHitSeen ? float(Clock-HitOnset) : -1.f);
     const float Ease = 1.f - FMath::Exp(-40.f * FMath::Max(Delta, 0.f));
     Shown.Lunge = FMath::Lerp(Shown.Lunge, Target.Lunge, Ease);
     Shown.Charge = FMath::Lerp(Shown.Charge, Target.Charge, Ease);
     Shown.Burst = Target.Burst;
     Shown.Flash = Target.Flash;
+    Shown.HitBurst = Target.HitBurst;
 
     // The whole body: a lunge or knock-back, the appear scale and the final sink, all about the feet.
     const FVector Feet(0, 0, -HalfHeight);
@@ -432,6 +498,12 @@ void ULDHumanoidVisualComponent::Animate(const FVector& Velocity, float Delta)
         Parts[Burst]->SetRelativeLocation(Action == LDBodyMotion::EAction::Hit
             ? FVector(18.f, 0, -HalfHeight + .72f * HeightCm) : Hand + FVector(8.f, 0, 0));
         Parts[Burst]->SetRelativeScale3D(FVector(.55f * Shown.Burst));
+    }
+    Parts[HitSpark]->SetHiddenInGame(Shown.HitBurst<=.02f);
+    if (Shown.HitBurst>.02f)
+    {
+        Parts[HitSpark]->SetRelativeLocation(FVector(18.f,0,-HalfHeight+.72f*HeightCm));
+        Parts[HitSpark]->SetRelativeScale3D(FVector(.55f*Shown.HitBurst));
     }
     const bool bCharge = Shown.Charge > .02f;
     Parts[Charge]->SetHiddenInGame(!bCharge);

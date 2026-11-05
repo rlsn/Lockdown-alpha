@@ -105,6 +105,7 @@ namespace LDObservedPresentation
         ELDObservedActionCue Cue = ELDObservedActionCue::None;
         uint16 CueAgeMs = 0;
         TArray<FLDObservedStatus> Statuses;
+        bool bDamage = false;
     };
     // Points ascend by At. Before the first point: the first; between two: linear, yaw along the shorter arc; at or after
     // the newest: the newest with zero velocity. A snap point is reached without sweeping toward it.
@@ -153,6 +154,8 @@ public:
     void Present(double AtServerSec, float Delta);
     // An authorized observed death: leaves a client-only falling copy of this body before the proxy is removed.
     void PlayDeathFall() const;
+    bool TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const;
+    bool PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const;
     FGuid ObservedHandle;
     uint32 ObservedEpoch = 0;
 private:
@@ -163,6 +166,7 @@ private:
     double ShownAt = -1;
     uint16 Look = MAX_uint16;
     bool bPlaced = false;
+    int64 LastHealthP2 = 0, LastMaxHealthP2 = 0;
 };
 
 // Client-only marker under this machine's own living body, so the player finds themself at a glance (APP_SPEC 8).
@@ -226,6 +230,10 @@ public:
     // Display location (body centre) of a unit presented right now: its proxy's interpolated pose. False unless the
     // current frame lists this handle and epoch and its proxy is placed, so callers never label a hidden or stale unit.
     bool ReadPresentedLocation(const FGuid& Handle, uint32 ObservationEpoch, FVector& OutWorld) const;
+    // The unit whose shown model the ray hits first; failing any surface hit, the unit whose pick volume (model height,
+    // root ring footprint) passes closest to the ray within AngleTolerance radians. Sight blockers stop both.
+    bool PickPresentedUnit(const FVector& RayStart, const FVector& RayDirection, double AngleTolerance,
+        FGuid& OutHandle, uint32& OutEpoch) const;
     // The delayed authority time (FLDWorldView::SampledAtServerSec scale) at which proxies and flights are posed now,
     // so overlays can show a sample's facts when its pose shows. False before the first accepted frame.
     bool ReadPresentationTime(double& OutAtServerSec) const;

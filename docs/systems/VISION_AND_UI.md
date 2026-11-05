@@ -86,6 +86,15 @@
 - 换局（`OwnerState.Match`）、观察者生命变化、断线、局终和非法载荷（`ProtocolRejected`）都会清除状态。
   属于其他世界修订的帧会被拒绝。
 - 清除时销毁对应代理及其表现。
+- 拾取只对当前 full 帧中的同句柄/epoch 代理进行，使用其呈现位置、骨骼摆姿与可见材质 section 的三角面；
+  不读取隐藏权威角色，不增加物理碰撞或 LastSeen。模型 LOD 须保留 CPU 数据（美术导入器生成，catalog 校验），
+  每个模型每帧最多计算一次 CPU 蒙皮，不调用会刷新渲染线程的 `GetCPUSkinnedVertices`。
+  静态 Sight 或本人模型遮挡之前的最近表面才可选，模型包围盒仅作宽相拒绝，不能当作模型命中；本人模型是第一遮挡面时不做宽容回退。没有表面命中时，
+  才按 `LDModelPicking::NearVolume` 取射线在 12 px 角容差内最接近的竖直拾取体（脚底到头顶、根环足迹半径），
+  同样不越过静态 Sight 或本人模型遮挡；遮挡距离在角容差判断前生效。隐藏或倒地的模型没有拾取体。
+- 受击闪白、胸口火花与轻微后仰独立于攻击/施法动作。本人用合法 owner cue 的 `LastHitAtMs`；
+  可见代理仅用同一授权区间、相同血量上限的相邻样本下降，在呈现时钟到达样本时触发，不推断施害者、暴击或被治疗抵消的隐藏伤害。
+  受击时仍在攻击/施法的模型有 45 ms 局部姿势停顿，随后追上原动作时间；不暂停输入、位移或服务器判定。
 - 代理与飞行物由 relay 用同一个呈现时钟摆姿（`LDObservedPresentation`）：呈现时刻是权威时间轴上的
   “本机时间 − 跟踪的时钟偏移 − 0.13 s”（一个发布间隔加抖动余量），偏移由每帧的到达时间与 `SampledAtServerSec` 得出：
   更早的到达立即下调偏移，迟到只能缓慢上调，跳变超过 0.5 s 视为换了时钟并重新起算。位置只在两个已收样本之间线性插值，超过最新样本就停在最新样本，不外推；
@@ -172,7 +181,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中精神状态下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
 | 本人心理防线吸收（`SelfShieldHit`） | 同一投影中精神状态未降而心理防线减少，且心理防线状态仍在或在其列出的到期前消失（与心理防线吸收飘字同一规则）；心理防线自然到期不响 | 与本人受击共用 0.2 秒限频 |
-| 本人普攻出手（`SelfAttack`） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能与装备的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线 |
+| 本人普攻出手（`SelfAttack`，不是命中确认） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能与装备的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线，死亡、旧生命与重放不响 |
 | 本人技能、装备主动或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
 | 购买或出售成功 / 交易被拒 | 本人砍一刀小摊提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
@@ -187,6 +196,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
 一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如心理防线吸收复用受击的 `impactGeneric_light_000.ogg`；
+本人普攻出手使用独立的 `SW_SelfAttack`，只表示释放，不作为命中确认。
+释放事实只保留最后一次动作；同一采样间隔内被后续技能释放覆盖的普攻不能补放，不从其他单位血量推断。
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
@@ -222,7 +233,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   覆盖本人资源与等级、Q/W/1/2/D 意图与限制分离、旗杆喷漆/涂鸦/守护行与进度条、击杀/结果（含守护成功标题）、内容参数行与原因文案、本人状态/被动行与战斗回执提示。
 - `HUDCooldownText`、`HUDActionStates`、`HUDDeathCause`、`HUDKillFeedSelf`（`LDHUDRulesTests`）覆盖冷却秒数文字（不提前显示 0）、
   动作格的冷却/电量不足/受控/空槽/准备态分类与电量消耗文字、本命之后的死因取值，以及击杀通知里本人写作“你”。
-- `AudioCuePublic`、`AudioCueOwn`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
+- `AudioCuePublic`、`AudioCueOwn`、`AudioCueBasicAttack`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
   首样本基线与去重、别局/别命/迟到回执不响、目录完整性，以及实际 `DA_DemoAudio` 资产可解析；
   它们不证明实际听感或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
