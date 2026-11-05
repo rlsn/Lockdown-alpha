@@ -230,15 +230,16 @@ bool ExpectExplainedFinals(FAutomationTestBase& Test, const FString& Label, cons
     {
         const FLDAttributeContributions& Row = Rows[Index];
         const FString What = FString::Printf(TEXT("%s: contribution row %d"), *Label, Index);
-        const LDDemoContent::FExact Flat = N.Add(N.Add(N.Value(Row.LevelGrowth.Flat), N.Value(Row.PermanentChoices.Flat)),
-            N.Add(N.Value(Row.Passives.Flat), N.Value(Row.Equipment.Flat)));
-        const LDDemoContent::FExact Ratio = N.Add(
+        const LDDemoContent::FExact Flat = N.Sub(N.Add(N.Add(N.Value(Row.LevelGrowth.Flat), N.Value(Row.PermanentChoices.Flat)),
+            N.Add(N.Value(Row.Passives.Flat), N.Value(Row.Equipment.Flat))), N.Value(Row.Penalties.Flat));
+        const LDDemoContent::FExact Ratio = N.Sub(N.Add(
             N.Add(N.Value(Row.LevelGrowth.AdditiveRatio), N.Value(Row.PermanentChoices.AdditiveRatio)),
-            N.Add(N.Value(Row.Passives.AdditiveRatio), N.Value(Row.Equipment.AdditiveRatio)));
+            N.Add(N.Value(Row.Passives.AdditiveRatio), N.Value(Row.Equipment.AdditiveRatio))), N.Value(Row.Penalties.AdditiveRatio));
+        // #112 §4: every attribute clamps to its catalog bounds; a clamped row reports it and its final differs from the sum.
         const bool bExplained = N.EQ(N.Mul(N.Add(N.Value(Row.Base), Flat), N.Add(N.Value(1), Ratio)), N.Value(Row.Final));
         bGood &= Test.TestTrue(What + TEXT(" keeps attribute order"), Row.Attribute == static_cast<EAttribute>(Index));
-        bGood &= Test.TestTrue(What + TEXT(" final equals (base + flat) x (1 + additive ratio)"), bExplained);
-        bGood &= Test.TestFalse(What + TEXT(" stays inside the approved clamp-free envelope"), Row.bClamped);
+        bGood &= Test.TestTrue(What + TEXT(" final is (base + flat - penalty) x (1 + ratio - penalty), or clamped and marked"),
+            bExplained != Row.bClamped);
     }
     const FLDProjectedAttributes& Final = Projection.Final;
     const auto Explained = [&N, &Rows](EAttribute Attribute, int64 Stored, int64 Scale)
@@ -665,52 +666,74 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     }
     FLDAttributeProjection Projection;
     bool bGood = true;
+    // #112 §4: nine copies of each composite card at level 10 (base AD 98.8, max HP 1142, max MP 478, resistances 36,
+    // attack speed 0.9 x 1.18, HP regeneration 2.68); every attribute clamps to its catalog bound and says so.
     struct FCardCase
     {
         const TCHAR* Id;
-        int64 ADP2;
-        int64 APP2;
-        int64 MaxHPP2;
-        int64 ResistP2;
-        int64 RangeCm;
+        TFunction<void(FExpectedAttributes&)> Expect;
         EAttribute Attribute;
-        int64 ChoiceFlat;
+        FLDDemoRational ChoiceFlat;
+        FLDDemoRational ChoiceRatio;
+        FLDDemoRational PenaltyFlat;
+        FLDDemoRational PenaltyRatio;
+        TArray<EAttribute> Clamped;
     };
-    for (const FCardCase& Case : {
-        FCardCase{TEXT("attr_might"), 17080, 0, 114200, 3600, 220, EAttribute::AD, 72},
-        FCardCase{TEXT("attr_focus"), 9880, 14400, 114200, 3600, 220, EAttribute::AP, 144},
-        FCardCase{TEXT("attr_vitality"), 9880, 0, 168200, 3600, 220, EAttribute::MaxHP, 540},
-        FCardCase{TEXT("attr_resolve"), 9880, 0, 114200, 12600, 220, EAttribute::MagicResist, 90},
-        FCardCase{TEXT("attr_reach"), 9880, 0, 114200, 3600, 580, EAttribute::AttackRange, 360}})
+    const FLDDemoRational Zero = MakeRational(0);
+    const TArray<FCardCase> Cards = {
+        {TEXT("attr_might"), [](FExpectedAttributes& E) { E.ADP2 = 16180; E.CritChanceBp = 4500; },
+            EAttribute::AD, MakeRational(63), Zero, Zero, Zero, {}},
+        {TEXT("attr_focus"), [](FExpectedAttributes& E) { E.APP2 = 13500; E.CooldownHasteP2 = 6000; },
+            EAttribute::AP, MakeRational(135), Zero, Zero, Zero, {EAttribute::CooldownHaste}},
+        {TEXT("attr_vitality"), [](FExpectedAttributes& E) { E.MaxHPP2 = 168200; E.MaxMPP2 = 80000; E.HPRegenPerSec = MakeRational(12); },
+            EAttribute::MaxHP, MakeRational(540), Zero, Zero, Zero, {EAttribute::MaxMP, EAttribute::HPRegen}},
+        {TEXT("attr_resolve"), [](FExpectedAttributes& E) { E.MaxHPP2 = 150200; E.ArmorP2 = 11700; E.MagicResistP2 = 11700; },
+            EAttribute::MagicResist, MakeRational(81), Zero, Zero, Zero, {}},
+        {TEXT("attr_reach"), [](FExpectedAttributes& E) { E.AttackRangeCm = MakeRational(535); E.AttackSpeed = MakeRational(387, 250); },
+            EAttribute::AttackRange, MakeRational(315), Zero, Zero, Zero, {}},
+        {TEXT("attr_wild_glass_cannon"), [](FExpectedAttributes& E)
+            { E.ADP2 = 19780; E.APP2 = 19800; E.AttackSpeed = MakeRational(171, 100); E.MaxHPP2 = 64700; },
+            EAttribute::MaxHP, Zero, Zero, MakeRational(495), Zero, {}},
+        {TEXT("attr_wild_juggernaut"), [](FExpectedAttributes& E)
+            { E.MaxHPP2 = 213200; E.ArmorP2 = 16200; E.MagicResistP2 = 16200; E.MoveSpeedCmPerSec = MakeRational(1664, 5); },
+            EAttribute::MoveSpeed, Zero, Zero, Zero, MakeRational(9, 25), {}},
+        {TEXT("attr_wild_brawler"), [](FExpectedAttributes& E)
+            { E.AttackSpeed = MakeRational(549, 250); E.MoveSpeedCmPerSec = MakeRational(4472, 5); E.AttackRangeCm = MakeRational(80); },
+            EAttribute::AttackRange, Zero, Zero, MakeRational(270), Zero, {EAttribute::AttackRange}},
+    };
+    for (const FCardCase& Case : Cards)
     {
         const FString Label = FString::Printf(TEXT("Nine %s cards at level 10"), Case.Id);
         FExpectedAttributes Stacked = ApprovedLevel(10);
-        Stacked.ADP2 = Case.ADP2;
-        Stacked.APP2 = Case.APP2;
-        Stacked.MaxHPP2 = Case.MaxHPP2;
-        Stacked.ArmorP2 = Case.ResistP2;
-        Stacked.MagicResistP2 = Case.ResistP2;
-        Stacked.AttackRangeCm = MakeRational(Case.RangeCm);
+        Case.Expect(Stacked);
         if (!ProjectBuild(Test, Label, MakeBuild(10, {}, {FLDAttributeCardValue(Case.Id, 9)}), *Catalog, Projection))
         {
             return false;
         }
         bGood &= ExpectAttributes(Test, Label + TEXT(" stack every card"), Projection.Final, Stacked);
-        bGood &= ExpectTerms(Test, Label + TEXT(" permanent-choice terms"),
-            Projection.Contributions[int32(Case.Attribute)].PermanentChoices, MakeRational(Case.ChoiceFlat), MakeRational(0));
+        const FLDAttributeContributions& Row = Projection.Contributions[int32(Case.Attribute)];
+        bGood &= ExpectTerms(Test, Label + TEXT(" permanent-choice terms"), Row.PermanentChoices, Case.ChoiceFlat, Case.ChoiceRatio);
+        bGood &= ExpectTerms(Test, Label + TEXT(" explicit deduction terms"), Row.Penalties, Case.PenaltyFlat, Case.PenaltyRatio);
+        for (int32 Index = 0; Index < Projection.Contributions.Num(); ++Index)
+        {
+            bGood &= Test.TestEqual(FString::Printf(TEXT("%s: row %d clamp flag"), *Label, Index),
+                Projection.Contributions[Index].bClamped, Case.Clamped.Contains(static_cast<EAttribute>(Index)));
+        }
     }
     FExpectedAttributes Mixed = ApprovedLevel(6);
-    Mixed.ADP2 = 10200;
-    Mixed.ArmorP2 = 3800;
-    Mixed.MagicResistP2 = 3800;
-    Mixed.AttackRangeCm = MakeRational(300);
+    Mixed.ADP2 = 10000;
+    Mixed.CritChanceBp = 1000;
+    Mixed.MaxHPP2 = 95000;
+    Mixed.ArmorP2 = 3700;
+    Mixed.MagicResistP2 = 3700;
+    Mixed.AttackRangeCm = MakeRational(290);
+    Mixed.AttackSpeed = MakeRational(549, 500);
     if (!ProjectBuild(Test, TEXT("Level 6 mixed cards"), MakeBuild(6, {}, {FLDAttributeCardValue(TEXT("attr_might"), 2),
         FLDAttributeCardValue(TEXT("attr_resolve"), 1), FLDAttributeCardValue(TEXT("attr_reach"), 2)}), *Catalog, Projection))
     {
         return false;
     }
     bGood &= ExpectAttributes(Test, TEXT("Level 6 mixed cards use all five choices"), Projection.Final, Mixed);
-
     // Rank values replace lower ranks: 0.08/0.14/0.20 attack speed and crit, 3/5/7 HP per second.
     const int64 RankRatioNumerators[] = {2, 7, 1};
     const int64 RankRatioDenominators[] = {25, 50, 5};
@@ -782,9 +805,9 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Passive order changes neither attributes nor explanations"), SameAttributes(Projection, Reversed));
 
     FExpectedAttributes Combined = ApprovedLevel(10);
-    Combined.ADP2 = 19480;
+    Combined.ADP2 = 18780;
     Combined.AttackSpeed = MakeRational(621, 500);
-    Combined.CritChanceBp = 1400;
+    Combined.CritChanceBp = 4900;
     if (!ProjectBuild(Test, TEXT("Precision, seven might cards and two edge blades"),
         MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_precision"), 2)}, {FLDAttributeCardValue(TEXT("attr_might"), 7)},
             {TEXT("item_edge_blade"), TEXT("item_edge_blade")}), *Catalog, Projection))
@@ -793,7 +816,7 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     }
     bGood &= ExpectAttributes(Test, TEXT("Choices, a passive and duplicate equipment each count once"), Projection.Final, Combined);
     const FLDAttributeContributions& ADRow = Projection.Contributions[int32(EAttribute::AD)];
-    bGood &= ExpectTerms(Test, TEXT("Combined AD permanent choices"), ADRow.PermanentChoices, MakeRational(56), MakeRational(0));
+    bGood &= ExpectTerms(Test, TEXT("Combined AD permanent choices"), ADRow.PermanentChoices, MakeRational(49), MakeRational(0));
     bGood &= ExpectTerms(Test, TEXT("Combined AD equipment"), ADRow.Equipment, MakeRational(40), MakeRational(0));
     const FLDAttributeContributions& SpeedRow = Projection.Contributions[int32(EAttribute::AttackSpeed)];
     bGood &= ExpectTerms(Test, TEXT("Combined attack-speed growth"), SpeedRow.LevelGrowth, MakeRational(0), MakeRational(9, 50));
@@ -830,26 +853,27 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AD envelope is 218.8"), Projection.Final.ADP2, int64(21880));
+    bGood &= Test.TestEqual(TEXT("AD envelope is 208.8"), Projection.Final.ADP2, int64(20880));
     if (!Envelope(TEXT("AP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_focus"), 10)},
         {TEXT("item_runic_focus"), TEXT("item_runic_focus")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AP envelope is 220"), Projection.Final.APP2, int64(22000));
-    bGood &= Test.TestEqual(TEXT("Haste envelope is 30"), Projection.Final.CooldownHasteP2, int64(3000));
+    bGood &= Test.TestEqual(TEXT("AP envelope is 210"), Projection.Final.APP2, int64(21000));
+    bGood &= Test.TestEqual(TEXT("Haste envelope clamps 110 to its cap 60"), Projection.Final.CooldownHasteP2, int64(6000));
+    bGood &= Test.TestTrue(TEXT("The clamped haste row says so"), Projection.Contributions[int32(EAttribute::CooldownHaste)].bClamped);
     if (!Envelope(TEXT("Armor envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
         {TEXT("item_iron_plate"), TEXT("item_iron_plate")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Armor envelope is 166"), Projection.Final.ArmorP2, int64(16600));
+    bGood &= Test.TestEqual(TEXT("Armor envelope is 156"), Projection.Final.ArmorP2, int64(15600));
     if (!Envelope(TEXT("Magic resist envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
         {TEXT("item_siphon_emblem"), TEXT("item_siphon_emblem")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 160"), Projection.Final.MagicResistP2, int64(16000));
+    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 150"), Projection.Final.MagicResistP2, int64(15000));
     bGood &= ExpectFamilies(Test, TEXT("Magic resist envelope"), Projection,
         {{TEXT("passive_siphon"), TEXT("item_siphon_emblem"), {0, 1}}});
     if (!Envelope(TEXT("Attack-speed envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 3)}, {},
@@ -869,7 +893,7 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Range envelope is 700"), Projection.Final.AttackRangeCm, MakeRational(700));
+    bGood &= ExpectRational(Test, TEXT("Range envelope is 650"), Projection.Final.AttackRangeCm, MakeRational(650));
     bGood &= ExpectFamilies(Test, TEXT("Range envelope"), Projection, {{TEXT("passive_cleave"), TEXT("item_echo_maul"), {0, 1}}});
     if (!Envelope(TEXT("Crit envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_precision"), 3)})))
     {

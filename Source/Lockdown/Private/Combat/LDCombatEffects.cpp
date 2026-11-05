@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDControlRules.h"
+#include "Combat/LDCombatMechanics.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -126,15 +127,36 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Evaluation.SourceADP2=Hit.SourceADP2;
     Evaluation.SourceAPP2=Hit.SourceAPP2;
     if (Hit.MaxHPRatioBp!=0) { Evaluation.SourceMaxHPP2=Hit.SourceMaxHPP2; }
-    Evaluation.TargetResistanceP2=Hit.DamageType==ELDDemoDamageType::Physical ? Defence.ArmorP2 : Defence.MagicResistP2;
+    // #112 §5: armor/MR breaches lower the resistance this hit meets (flat first, then the ratio, never below zero).
+    const bool bPhysical=Hit.DamageType==ELDDemoDamageType::Physical;
+    Evaluation.TargetResistanceP2=LDCombatMechanics::BreachedResistanceP2(bPhysical ? Defence.ArmorP2 : Defence.MagicResistP2,
+        Body->Breaches,bPhysical,NowMs);
     Evaluation.TargetHPP2=Body->Resources.HpP2;
-    Evaluation.TargetShieldP2=Body->Resources.ShieldP2;
+    // active_cancel_blast Lv3 shatters a share of the shield before the damage; that is not a break.
+    const int64 ShieldBeforeP2=Body->Resources.ShieldP2;
+    const int64 ShatteredP2=bProtected ? 0 : FMath::Min(ShieldBeforeP2,
+        ShieldBeforeP2/10000*Hit.ShieldShatterBp+ShieldBeforeP2%10000*Hit.ShieldShatterBp/10000);
+    Evaluation.TargetShieldP2=ShieldBeforeP2-ShatteredP2;
     Evaluation.bTargetProtected=bProtected;
+    // A damage guard reduces what reaches the shield (active_porcelain_flop).
+    if (Body->Guard.IsSet() && Body->Guard->ExpiresAtMs>NowMs) { Evaluation.MitigateBp=Body->Guard->ReductionBp; }
     // Rear strike: the releasing body in the target's rear arc at this hit, by the target's authority facing.
     const bool bBehind=(Hit.BackstabRatioBp>0 || Hit.BackstabStunMs>0) && IsSourceBehind(Hit.SourceBody,*Actor);
     // The source's control damage amplification on this life multiplies with a rear strike; both act before resistance.
     const int64 ExposureBp=LDTactical::ExposureBp(Body->Exposures,Hit.SourceEntity,NowMs);
     Evaluation.AmplifyBp=(10000+ExposureBp)*(bBehind ? 10000+Hit.BackstabRatioBp : 10000)/10000;
+    // #112: the negative kinds the target carries at this hit (counted before this hit adds any).
+    const int32 NegativeKinds=Hit.NegativeAmpBp>0 || Hit.NegativeHealMaxHPBp>0
+        ? LDCombatMechanics::CountNegativeKinds(NegativeKindsOf(*Body,NowMs)) : 0;
+    int64 VulnerableBp=0;
+    if (Hit.bPeriodic || Hit.HitClass==ELDCombatHitClass::BasicPrimary)
+    {
+        for (const FLDCombatVulnerable& Row : Body->Vulnerabilities) { if (Row.ExpiresAtMs>NowMs) { VulnerableBp=FMath::Max(VulnerableBp,Row.RatioBp); } }
+    }
+    for (const int64 Factor : {Hit.ExtraAmplifyBp, 10000+VulnerableBp, LDCombatMechanics::NegativeKindsAmplifyBp(NegativeKinds,Hit.NegativeAmpBp)})
+    {
+        if (Factor!=10000) { Evaluation.AmplifyBp=Evaluation.AmplifyBp*FMath::Max<int64>(Factor,0)/10000; }
+    }
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
     {
@@ -161,14 +183,19 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (!Prepare(bRoots,Hit.RootDurationMs,RootInstance) || !Prepare(bDisarms,Hit.DisarmDurationMs,DisarmInstance)
         || !Prepare(bStuns,StunMs,StunInstance))
     { return false; }
-    const bool bControls=bRoots || bDisarms || bStuns;
+    const bool bKnocks=Hit.KnockbackCm>0 && Hit.KnockbackMs>0 && bControllable;
+    const bool bControls=bRoots || bDisarms || bStuns || bKnocks;
     FLDCombatSlow SlowInstance;
     const bool bSlows=Hit.SlowDurationMs>0 && Hit.SlowBp>0 && bControllable;
     if (bSlows)
     {
         SlowInstance.EffectId=Hit.EffectId;
         SlowInstance.SourceEntity=Hit.SourceEntity;
-        SlowInstance.RatioBp=Hit.SlowBp;
+        // item_megaphone scales the slows its holder applies.
+        const FLDBodyCombatState* SlowSource=FindBody(Hit.SourceBody);
+        const FLDDemoEffectDefinition* Amp=SlowSource ? FindTrigger(SlowSource->AttributeProjection,ELDDemoEffectOp::AfflictionAmp) : nullptr;
+        SlowInstance.RatioBp=Amp ? FMath::Min<int64>(Hit.SlowBp*Amp->SecondaryRatioBp/10000,9999) : Hit.SlowBp;
+        SlowInstance.DurationMs=Hit.SlowDurationMs;
         if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.SlowDurationMs,SlowInstance.ExpiresAtMs,Error)) { return false; }
     }
     FLDBodyCombatState* Healed=nullptr;
@@ -180,7 +207,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             Error=TEXT("Lifesteal scaling is outside the checked numeric domain.");
             return false;
         }
-        HealP2=Damage.HPLostP2*Hit.LifestealRatioBp/10000;
+        HealP2=Damage.HPLostP2/10000*Hit.LifestealRatioBp+Damage.HPLostP2%10000*Hit.LifestealRatioBp/10000;
         // Only the exact releasing life heals; a lethal, dead or respawned body never does.
         Healed=FindBody(Hit.SourceBody);
         if (Healed && (Healed==Body || Healed->bPendingDeath || Healed->Resources.HpP2<=0)) { Healed=nullptr; }
@@ -204,6 +231,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
     ++Body->Resources.Revision;
+    const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2-ShatteredP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
+    const int64 ShieldGrantedP2=Body->ShieldGrantedP2;
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
     const FLDStatusExpiry Ended=LDTactical::ExpireTimedStatuses(Body->Roots,Body->Shield,Body->Resources.ShieldP2,NowMs);
     if (Ended.bRootsChanged || Ended.bShieldChanged) { ++Body->StateRevision; }
@@ -212,7 +241,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
     if (Damage.DamageP2>0 || bControls || bSlows)
     {
-        Body->Cues.LastHitAtMs=NowMs;
+        // A zone's periodic slow refresh is not a visible hit.
+        if (!Hit.bSilent || Damage.DamageP2>0) { Body->Cues.LastHitAtMs=NowMs; }
         MarkViewChanged(Body->Victim.EntityId);
         // Being hurt (absorbed damage included) or controlled reveals a stealthed body.
         RevealStealth(*Body);
@@ -244,18 +274,74 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // A Root or Stun this source just applied opens its control damage amplification on this life (passive_public_shame).
     if ((bRoots || bStuns) && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
-    if (Healed && HealP2>0)
+    // Every one-time heal passes the healed body's heal cut (#112 §5).
+    if (Healed && HealP2>0) { HealBody(*Healed,HealP2,NowMs); }
+    // #112 §5 mechanics of this committed hit, after its damage and controls.
+    if (bKnocks && !ApplyKnockback(*Actor,*Body,Hit,NowMs,Error)) { return false; }
+    if (bRoots && Hit.VulnerableBp>0)
     {
-        auto& Pool=Healed->Resources;
-        const int64 Before=Pool.HpP2;
-        Pool.HpP2=HealP2>=Pool.MaxHpP2-Pool.HpP2 ? Pool.MaxHpP2 : Pool.HpP2+HealP2;
-        if (Pool.HpP2>=Pool.MaxHpP2) { Healed->HpRegenMicroP2=0; }
-        if (Pool.HpP2!=Before)
+        Body->Vulnerabilities.Add(FLDCombatVulnerable{Hit.EffectId,Hit.VulnerableBp,RootInstance.ExpiresAtMs});
+        ++Body->StateRevision;
+    }
+    if (bControllable && Hit.HealCutBp>0 && Hit.HealCutMs>0)
+    {
+        FLDCombatHealCut Cut{Hit.EffectId,Hit.SourceEntity,Hit.HealCutBp,0};
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.HealCutMs,Cut.ExpiresAtMs,Error)) { return false; }
+        if (LDCombatMechanics::ApplyHealCut(Body->HealCuts,Cut,NowMs)) { ++Body->StateRevision; }
+    }
+    if (bControllable && Hit.Dot.IsSet())
+    {
+        FLDCombatDot Dot=Hit.Dot.GetValue();
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Dot.IntervalMs,Dot.NextTickAtMs,Error)
+            // The record outlives its last tick by one millisecond so that tick still meets the full breach.
+            || !LDMatchLifecycle::AddDurationMs(NowMs,Dot.DurationMs+1,Dot.ExpiresAtMs,Error)) { return false; }
+        Body->Dots.RemoveAll([&Dot](const FLDCombatDot& Row) { return Row.Key==Dot.Key && Row.SourceEntity==Dot.SourceEntity; });
+        if (Dot.ShredStepP2>0)
         {
-            ++Pool.Revision;
-            MarkViewChanged(Hit.SourceBody.Victim.EntityId);
+            FLDCombatBreach Breach;
+            Breach.Key=Dot.Key;
+            Breach.SourceEntity=Dot.SourceEntity;
+            Breach.ArmorFlatP2=Breach.MRFlatP2=Dot.ShredStepP2;
+            Breach.Stacks=1;
+            Breach.ExpiresAtMs=Dot.ExpiresAtMs;
+            LDCombatMechanics::ApplyBreach(Body->Breaches,Breach);
+        }
+        Body->Dots.Add(MoveTemp(Dot));
+        ++Body->StateRevision;
+    }
+    if (bControllable && Hit.bRefreshDebuffs)
+    {
+        // active_barrage_rant: this source's slows and damage over time on the target restart whole.
+        for (FLDCombatSlow& Slow : Body->Slows)
+        {
+            if (Slow.SourceEntity==Hit.SourceEntity && Slow.DurationMs>0 && Slow.ExpiresAtMs>NowMs
+                && !LDMatchLifecycle::AddDurationMs(NowMs,Slow.DurationMs,Slow.ExpiresAtMs,Error)) { return false; }
+        }
+        for (FLDCombatDot& Dot : Body->Dots)
+        {
+            if (Dot.SourceEntity!=Hit.SourceEntity || Dot.ExpiresAtMs<=NowMs) { continue; }
+            Dot.TicksLeft=Dot.TicksTotal;
+            if (Dot.TicksTotal>0 && !LDMatchLifecycle::AddDurationMs(NowMs,Dot.IntervalMs,Dot.NextTickAtMs,Error)) { return false; }
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Dot.DurationMs+(Dot.TicksTotal>0 ? 1 : 0),Dot.ExpiresAtMs,Error)) { return false; }
+            for (FLDCombatBreach& Breach : Body->Breaches)
+            {
+                if (Breach.Key==Dot.Key && Breach.SourceEntity==Dot.SourceEntity) { Breach.ExpiresAtMs=Dot.ExpiresAtMs; }
+            }
+        }
+        ++Body->StateRevision;
+    }
+    if (Hit.NegativeHealMaxHPBp>0 && NegativeKinds>0)
+    {
+        if (FLDBodyCombatState* Source=FindBody(Hit.SourceBody); Source && Source!=Body)
+        {
+            const int64 PerKind=Source->Resources.MaxHpP2/10000*Hit.NegativeHealMaxHPBp+Source->Resources.MaxHpP2%10000*Hit.NegativeHealMaxHPBp/10000;
+            HealBody(*Source,PerKind*NegativeKinds,NowMs);
         }
     }
+    if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
+    if (Damage.PreMitigationP2>0 && !CountGuard(*Actor,*Body,Damage.PreMitigationP2,NowMs,Error)) { return false; }
+    if ((bControls || bSlows) && !OnControlApplied(Hit,NowMs,Error)) { return false; }
+    if (!OnHitLanded(*Body,Hit,Damage.DamageP2,NowMs,Error)) { return false; }
     // POLICY.BasicSecondaryTriggers=Disabled: secondaries never crit, heal, cleave or start another attack.
     for (const FLDCombatBodyRef& Secondary : Cleaved)
     {
@@ -435,6 +521,10 @@ bool ALDCombatDirector::ResolveLandings(FString& Error)
                     Ambush.bCritical=false;
                     Ambush.RootDurationMs=Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
                     Ambush.DisarmDurationMs=Ambush.StunDurationMs=Ambush.BackstabRatioBp=Ambush.BackstabStunMs=0;
+                    Ambush.KnockbackCm=0;
+                    Ambush.KnockbackMs=Ambush.HealCutBp=Ambush.HealCutMs=Ambush.VulnerableBp=0;
+                    Ambush.Dot.Reset();
+                    Ambush.bAddon=true;
                     PendingHits.Add(Ambush);
                 }
             }
@@ -535,6 +625,8 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
             Contact.SlowDurationMs=Projectile.SlowDurationMs;
             Contact.ControlAmpBp=Projectile.ControlAmpBp;
             Contact.ControlAmpDurationMs=Projectile.ControlAmpDurationMs;
+            Contact.bRefreshDebuffs=Projectile.bRefreshDebuffs;
+            Contact.OnHitScaleBp=Projectile.OnHitScaleBp;
             if (Projectile.Ambush.IsSet())
             {
                 // The ambush bonus is a separate instance of its own damage type against the same struck body.
@@ -546,6 +638,9 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 Ambush.DamageType=Projectile.Ambush->DamageType;
                 Ambush.MaxHPRatioBp=0;
                 Ambush.SlowBp=Ambush.SlowDurationMs=Ambush.ControlAmpBp=Ambush.ControlAmpDurationMs=0;
+                Ambush.bRefreshDebuffs=false;
+                Ambush.OnHitScaleBp=0;
+                Ambush.bAddon=true;
                 PendingHits.Add(Ambush);
             }
             Finished.Add(Index);
@@ -710,8 +805,9 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
         const bool bControls=LDCombatControl::ExpireDisarmsAndStuns(Body.Disarms,Body.Stuns,NowMs);
         const bool bEmpower=Body.Empower.IsSet() && Body.Empower->ExpiresAtMs<=NowMs;
         if (bEmpower) { Body.Empower.Reset(); }
+        const bool bMechanics=ExpireMechanics(Body,NowMs);
         if (!Expired.bRootsChanged && !Expired.bShieldChanged && !Control.bTauntChanged && !Control.bStealthChanged
-            && !bControls && !bEmpower) { continue; }
+            && !bControls && !bEmpower && !bMechanics) { continue; }
         ++Body.StateRevision;
         if (Expired.bShieldChanged) { ++Body.Resources.Revision; }
         MarkViewChanged(Body.Victim.EntityId);

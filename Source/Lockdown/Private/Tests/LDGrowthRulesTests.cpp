@@ -1409,7 +1409,8 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("The same seed draws the same options in the same order"), GrowthTestSameOptions(Offer, Redrawn));
     TSet<FName> Reachable;
-    for (uint64 TrialSeed = 1; TrialSeed <= 64; ++TrialSeed)
+    // #112 grew the pool to 44 options; 256 seeds keep every option reachable with a wide margin.
+    for (uint64 TrialSeed = 1; TrialSeed <= 256; ++TrialSeed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("Drawing with seed %llu"), TrialSeed),
@@ -1419,7 +1420,7 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             Reachable.Add(DrawnOption.DefinitionId);
         }
     }
-    bGood &= Test.TestEqual(TEXT("Every legal option is drawn by some of 64 seeds"), Reachable.Num(), Pool.Num());
+    bGood &= Test.TestEqual(TEXT("Every legal option is drawn by some of 256 seeds"), Reachable.Num(), Pool.Num());
     TArray<LDProgression::FLegalOption> Refused;
     bGood &= GrowthTestReason(Test, TEXT("Drawing with weight 0"), LDProgression::DrawThree(Pool, 0, Seed, Refused),
         ELDGrowthReason::DataInvalid);

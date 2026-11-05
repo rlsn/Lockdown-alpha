@@ -83,9 +83,11 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const FVector2D Heading=FVector2D(Projectile.Direction.X,Projectile.Direction.Y).GetSafeNormal();
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
-        // The chalk throw is the only approved projectile; any other source has no look and is not invented one.
+        // The chalk flight is the only approved projectile look; active_barrage_rant's short shots use it too until it
+        // gets its own. Any other source has no look and is not invented one.
         if (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
-            || Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveArcBolt) || Heading.IsNearlyZero())
+            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveArcBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveBarrageRant))
+            || Heading.IsNearlyZero())
         {
             Out.Reset();
             Error=FString::Printf(TEXT("Projectile %s from %s has no approved observed look. %s"),

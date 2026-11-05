@@ -31,7 +31,9 @@ bool ALDCombatDirector::ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBod
     OutTaunter={};
     const auto* Mode=Core();
     const auto* Body=FindBody(Victim);
-    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())) { return false; }
+    // A decoy lure is no chase of its caster: Navigation walks the victim to the decoy instead (ReadDecoyLure).
+    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())
+        || Body->Taunt->bDecoy) { return false; }
     OutTaunter=Body->Taunt->SourceBody;
     return true;
 }
@@ -76,6 +78,19 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
         FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Victim=Pair.Key.Get();
         if (!Body.Taunt.IsSet()) { continue; }
+        if (Body.Taunt->bDecoy)
+        {
+            // A lure holds while its decoy stands, its caster is still in the match and its victim lives.
+            const FGuid LureId=Body.Taunt->EffectId;
+            const bool bHolds=Victim && !Body.bPendingDeath && Mode->IsMemberPresent(Body.Taunt->SourceEntity)
+                && Decoys.ContainsByPredicate([&LureId,Now](const FLDCombatDecoy& Decoy) { return Decoy.EffectId==LureId && Decoy.ExpiresAtMs>Now; })
+                && Body.Taunt->ExpiresAtMs>Now;
+            if (bHolds) { continue; }
+            Body.Taunt.Reset();
+            ++Body.StateRevision;
+            MarkViewChanged(Body.Victim.EntityId);
+            continue;
+        }
         ALDCharacter* Taunter=nullptr;
         const FLDBodyCombatState* Source=FindBody(Body.Taunt->SourceBody,&Taunter);
         const bool bAlive=Victim && !Body.bPendingDeath && Source && Taunter && !Source->bPendingDeath

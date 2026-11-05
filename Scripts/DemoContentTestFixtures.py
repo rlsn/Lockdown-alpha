@@ -90,7 +90,7 @@ def content_fixture():
             "target": {"mode": "Self"}, "windup": q("s", 0),
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 4 * rank), "cooldown": q("s", 7),
-                "effects": [{"op": "shield", "base": q("hp", 20 * rank), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
+                "effects": [{"op": "shield", "base": q("hp", 20 * rank), "ap_ratio": q("ratio", 0.2), "max_hp_ratio": q("ratio", 0.02), "duration": q("s", 1.25)},
                             {"op": "dispel_root"}],
             } for rank in range(1, 4)],
         },
@@ -100,7 +100,8 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
                 "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                            {"op": "root", "duration": q("s", 0.25 * rank)}],
+                            {"op": "root", "duration": q("s", 0.25 * rank)}]
+                + ([{"op": "vulnerable", "ratio": q("ratio", 0.1)}] if rank == 3 else []),
             } for rank in range(1, 4)],
         },
         {
@@ -118,13 +119,45 @@ def content_fixture():
             "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}}]}
                       for rank, value in enumerate((0.03, 0.06, 0.09), 1)],
         },
+        {
+            "id": "active_expose_post", "kind": "active", "cooldown_family": "cd_expose_post",
+            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
+            "ranks": [{
+                "rank": rank, "mana_cost": q("mp", 6), "cooldown": q("s", 5),
+                "effects": [{"op": "dot", "base": q("points", 3 * rank), "ad_ratio": q("ratio", 0.05), "ap_ratio": q("ratio", 0.05),
+                             "damage_type": "Magical", "interval": q("s", 0.5), "count": 3, "shred": q("points", 2)}]
+                + ([{"op": "mobility_punish", "base": q("points", 4), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1),
+                     "damage_type": "Magical"}] if rank == 3 else []),
+            } for rank in range(1, 4)],
+        },
+        {
+            "id": "active_table_flip", "kind": "active", "cooldown_family": "cd_table_flip",
+            "target": {"mode": "Self"}, "windup": q("s", 0),
+            "ranks": [{
+                "rank": rank, "mana_cost": q("mp", 6), "cooldown": q("s", 6),
+                "effects": [{"op": "shield", "base": q("hp", 10 * rank), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0.01), "duration": q("s", 1)},
+                            {"op": "self_area", "radius": q("cm", 80)},
+                            {"op": "shield_burst", "base": q("points", 5), "shield_ratio": q("ratio", 1.2), "cap": q("points", 60), "damage_type": "Physical"}]
+                + ([{"op": "knockback", "distance": q("cm", 40), "duration": q("s", 0.125)}] if rank == 3 else []),
+            } for rank in range(1, 4)],
+        },
+        {
+            "id": "passive_dox_master", "kind": "passive", "target": {"mode": "Self"},
+            "ranks": [{"rank": rank, "effects": [{"op": "breach_stacks", "base": q("points", rank), "ad_ratio": q("ratio", 0.01),
+                                                  "ap_ratio": q("ratio", 0.01), "damage_type": "Magical", "interval": q("s", 0.5),
+                                                  "duration": q("s", 1.5), "max_stacks": 3, "shred": q("points", rank),
+                                                  "heal_cut": q("ratio", 0.2 if rank == 3 else 0)}]}
+                      for rank in range(1, 4)],
+        },
     ]
     attributes = [
-        {"id": "attr_might", "stats": {"ADFlat": q("points", 2)}},
-        {"id": "attr_focus", "stats": {"APFlat": q("points", 4)}},
-        {"id": "attr_vitality", "stats": {"MaxHPFlat": q("hp", 20)}},
-        {"id": "attr_resolve", "stats": {"ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1)}},
-        {"id": "attr_reach", "stats": {"AttackRangeCmFlat": q("cm", 10)}},
+        {"id": "attr_might", "stats": {"ADFlat": q("points", 2), "CritChanceBonusRatio": q("ratio", 0.02)}},
+        {"id": "attr_focus", "stats": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2)}},
+        {"id": "attr_vitality", "stats": {"MaxHPFlat": q("hp", 20), "MaxMPFlat": q("mp", 10), "HPRegenFlat": q("hp/s", 0.5)}},
+        {"id": "attr_resolve", "stats": {"MaxHPFlat": q("hp", 10), "ArmorFlat": q("points", 1), "MagicResistFlat": q("points", 1)}},
+        {"id": "attr_reach", "stats": {"AttackRangeCmFlat": q("cm", 10), "AttackSpeedBonusRatio": q("ratio", 0.02)}},
+        {"id": "attr_wild_brawler", "stats": {"AttackSpeedBonusRatio": q("ratio", 0.04), "MoveSpeedBonusRatio": q("ratio", 0.02)},
+         "penalties": {"AttackRangeCmFlat": q("cm", 10)}},
     ]
     equipment = [
         {"id": "item_iron_plate", "buy_price": 51, "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None, "passive": None},
@@ -138,7 +171,7 @@ def content_fixture():
          "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_arcane_battery",
                     "rank": {"rank": 1, "mana_cost": q("mp", 0), "cooldown": q("s", 12),
                              "effects": [{"op": "restore_mana", "ratio": q("ratio", 0.2)},
-                                         {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]}}},
+                                         {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "max_hp_ratio": q("ratio", 0), "duration": q("s", 1.25)}]}}},
         {"id": "item_echo_maul", "buy_price": 57, "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
          "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
         {"id": "item_paper_box", "buy_price": 58, "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
@@ -147,6 +180,8 @@ def content_fixture():
                              "effects": [{"op": "stealth", "duration": q("s", 0.75), "reveal_radius": q("cm", 60),
                                           "move_speed_penalty": q("ratio", 0.05)}]}}},
     ]
+    equipment.append({"id": "item_megaphone", "buy_price": 59, "stats": {"APFlat": q("points", 3), "CooldownHasteFlat": q("points", 2)}, "active": None,
+                      "passive": {"family": "passive_megaphone", "effects": [{"op": "affliction_amp", "dot_ratio": q("ratio", 0.25), "slow_scale": q("ratio", 1.1)}]}})
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
         ("monster_scavenger", "Low", 2, 25, 3, 2, 1),

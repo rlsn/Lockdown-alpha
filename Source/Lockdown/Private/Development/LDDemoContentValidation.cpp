@@ -7,145 +7,11 @@ namespace LDDemoContent
 {
 namespace
 {
-FExact StatBonus(const TArray<FLDDemoStatBonus>& Bonuses, int32 Stat, FNumbers& N)
-{
-    for (const auto& Bonus : Bonuses)
-    {
-        if (int32(Bonus.Stat) == Stat)
-        {
-            if (Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat)
-            {
-                return N.Value(Bonus.Cm);
-            }
-            const bool Ratio = Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio;
-            return N.Value(Bonus.Amount, Ratio ? 10000 : 100);
-        }
-    }
-    return N.Value(0);
-}
-
-FExact ChoiceBonus(const FLDDemoContentDefinitions& D, int32 Stat, bool HPRegen, FNumbers& N)
-{
-    FExact Attribute = N.Value(0);
-    for (const auto& Row : D.Attributes)
-    {
-        Attribute = N.Max(Attribute, StatBonus(Row.Stats, Stat, N));
-    }
-    // Every legal choice of the match (MaxChoices) goes toward this one coordinate.
-    const int32 Choices = FMath::Max(D.Progression.MaxChoices, 0);
-    TArray<FExact> Best;
-    Best.Reserve(Choices + 1);
-    for (int32 Budget = 0; Budget <= Choices; ++Budget)
-    {
-        Best.Add(N.Mul(Attribute, N.Value(Budget)));
-    }
-    for (const auto& Ability : D.Abilities)
-    {
-        if (Ability.Kind != ELDDemoAbilityKind::Passive)
-        {
-            continue;
-        }
-        TArray<FExact> Next = Best;
-        for (int32 Budget = 0; Budget <= Choices; ++Budget)
-        {
-            for (const auto& Rank : Ability.Ranks)
-            {
-                if (Rank.Rank > Budget) { continue; }
-                FExact Bonus = N.Value(0);
-                for (const auto& Effect : Rank.Effects)
-                {
-                    if (Effect.GetOp() == ELDDemoEffectOp::StatBonus)
-                    {
-                        Bonus = N.Add(Bonus, StatBonus(Effect.Stats, Stat, N));
-                    }
-                    else if (HPRegen && Effect.GetOp() == ELDDemoEffectOp::OutOfCombatRegen)
-                    {
-                        Bonus = N.Add(Bonus, N.Value(Effect.HPPerSec));
-                    }
-                }
-                Next[Budget] = N.Max(Next[Budget], N.Add(Best[Budget - Rank.Rank], Bonus));
-            }
-        }
-        Best = MoveTemp(Next);
-    }
-    return Best[Choices];
-}
-
-FExact EquipmentBonus(const FLDDemoContentDefinitions& D, int32 Stat, FNumbers& N)
-{
-    FExact Best = N.Value(0);
-    for (const auto& Row : D.Equipment)
-    {
-        Best = N.Max(Best, StatBonus(Row.Stats, Stat, N));
-    }
-    return N.Mul(Best, N.Value(2));
-}
-
+// Every attribute clamps to its catalog bounds in the projection (#112 §4), so no source combination is refused; what
+// remains to check is that every damage or shield term stays inside int64 at the extreme attributes.
 bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Check)
 {
     const auto& P = D.Parameters;
-    struct FBound { const TCHAR* Name; const FLDDemoP2Bounds* Bounds; ELDDemoBonusStat Stat; };
-    for (const auto& Row : {
-        FBound{TEXT("MaxHP"), &P.MaxHP, ELDDemoBonusStat::MaxHPFlat}, {TEXT("MaxMP"), &P.MaxMP, ELDDemoBonusStat::MaxMPFlat},
-        {TEXT("AD"), &P.AD, ELDDemoBonusStat::ADFlat}, {TEXT("AP"), &P.AP, ELDDemoBonusStat::APFlat},
-        {TEXT("Armor"), &P.Armor, ELDDemoBonusStat::ArmorFlat}, {TEXT("MagicResist"), &P.MagicResist, ELDDemoBonusStat::MagicResistFlat}})
-    {
-        const FExact Base = N.Add(N.Value(Row.Bounds->BaseP2, 100), N.Mul(N.Value(9), N.Value(Row.Bounds->PerLevelP2, 100)));
-        const FExact Max = N.Add(Base, N.Add(ChoiceBonus(D, int32(Row.Stat), false, N), EquipmentBonus(D, int32(Row.Stat), N)));
-        if (!Check.Require(N.LE(Max, N.Value(Row.Bounds->MaxP2, 100)), Row.Name,
-            TEXT("a legal MaxChoices/two-item build exceeds its bound")))
-        {
-            return false;
-        }
-    }
-    for (const auto& Pair : {TPair<const TCHAR*, const FLDDemoRateBounds*>(TEXT("HPRegen"), &P.HPRegen), {TEXT("MPRegen"), &P.MPRegen}})
-    {
-        const FExact Base = N.Add(N.Value(Pair.Value->Base), N.Mul(N.Value(9), N.Value(Pair.Value->PerLevel)));
-        const FExact Max = N.Add(Base, ChoiceBonus(D, -1, Pair.Value == &P.HPRegen, N));
-        if (!Check.Require(N.LE(Max, N.Value(Pair.Value->Max)), Pair.Key, TEXT("regeneration build envelope exceeds bound")))
-        {
-            return false;
-        }
-    }
-    const int32 Haste = int32(ELDDemoBonusStat::CooldownHasteFlat);
-    const FExact HasteMax = N.Add(N.Value(P.CooldownHasteBaseP2, 100),
-        N.Add(ChoiceBonus(D, Haste, false, N), EquipmentBonus(D, Haste, N)));
-    const int32 Range = int32(ELDDemoBonusStat::AttackRangeCmFlat);
-    const FExact RangeMax = N.Add(N.Value(P.AttackRangeCm.Base),
-        N.Add(ChoiceBonus(D, Range, false, N), EquipmentBonus(D, Range, N)));
-    if (!Check.Require(N.LE(HasteMax, N.Value(P.CooldownHasteMaxP2, 100)), TEXT("CooldownHaste"), TEXT("build envelope exceeds bound"))
-        || !Check.Require(N.LE(RangeMax, N.Value(P.AttackRangeCm.Max)), TEXT("AttackRange"), TEXT("build envelope exceeds bound")))
-    {
-        return false;
-    }
-    for (ELDDemoBonusStat Stat : {ELDDemoBonusStat::AttackSpeedBonusRatio, ELDDemoBonusStat::MoveSpeedBonusRatio,
-        ELDDemoBonusStat::CritChanceBonusRatio})
-    {
-        FExact Bonus = N.Add(ChoiceBonus(D, int32(Stat), false, N), EquipmentBonus(D, int32(Stat), N));
-        FExact Max, Limit;
-        if (Stat == ELDDemoBonusStat::CritChanceBonusRatio)
-        {
-            Max = N.Add(N.Value(P.CritChanceBaseBp, 10000), Bonus);
-            Limit = N.Value(1);
-        }
-        else
-        {
-            const FLDDemoRationalBounds& Bound = Stat == ELDDemoBonusStat::AttackSpeedBonusRatio ? P.AttackSpeed : P.MoveSpeedCmPerSec;
-            if (Stat == ELDDemoBonusStat::AttackSpeedBonusRatio)
-            {
-                Bonus = N.Add(Bonus, N.Mul(N.Value(9), N.Value(P.AttackSpeedPerLevelBp, 10000)));
-            }
-            Max = N.Mul(N.Value(Bound.Base), N.Add(N.Value(1), Bonus));
-            Limit = N.Value(Bound.Max);
-        }
-        if (!N.NativePair(Max, TEXT("ratio build envelope"))
-            || !Check.Require(N.LE(Max, Limit), TEXT("ratio build envelope"), TEXT("a legal source combination loses its bonus to the cap")))
-        {
-            return false;
-        }
-    }
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
         if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
@@ -154,9 +20,11 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
                 && N.Add64(Base, Armor, Sum, Path) && N.Mul64(Sum, Effect.CriticalMultiplierBp, Critical, Path);
         }
-        const bool bDamage = Effect.GetOp() == ELDDemoEffectOp::Damage || Effect.GetOp() == ELDDemoEffectOp::EmpowerBasic
-            || Effect.GetOp() == ELDDemoEffectOp::AmbushDamage;
-        if (!bDamage && Effect.GetOp() != ELDDemoEffectOp::Shield)
+        const ELDDemoEffectOp Op = Effect.GetOp();
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::AmbushDamage
+            || Op == ELDDemoEffectOp::Dot || Op == ELDDemoEffectOp::MobilityPunish || Op == ELDDemoEffectOp::ZoneDamage
+            || Op == ELDDemoEffectOp::ShieldPulse || Op == ELDDemoEffectOp::BreachStacks;
+        if (!bDamage && Op != ELDDemoEffectOp::Shield && Op != ELDDemoEffectOp::BasicRider && Op != ELDDemoEffectOp::ZoneShield)
         {
             return true;
         }

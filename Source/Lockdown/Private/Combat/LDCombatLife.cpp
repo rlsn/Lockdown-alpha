@@ -45,6 +45,8 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     { Out.Add({uint8(ELDDemoStatusId::Disarm),1,DisarmUntil}); }
     if (const int64 StunUntil=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Stun),1,StunUntil}); }
+    // #112: knockback, breach and heal cut are public cues too.
+    AppendMechanicsStatuses(*Body,NowMs,false,Out);
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -263,6 +265,9 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
     Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
+    Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
+    VolleyShots.RemoveAll([&Entity](const FLDCombatVolleyShot& Shot) { return Shot.Body.Victim.EntityId==Entity; });
+    Decoys.RemoveAll([&Entity](const FLDCombatDecoy& Decoy) { return Decoy.Holder.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
@@ -270,7 +275,11 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
         int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
-            + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; });
+            + Body.Exposures.RemoveAll([&Entity](const FLDCombatExposure& Exposure) { return Exposure.SourceEntity==Entity; })
+            + Body.Knockbacks.RemoveAll(FromEntity)
+            + Body.Dots.RemoveAll([&Entity](const FLDCombatDot& Dot) { return Dot.SourceEntity==Entity; })
+            + Body.Breaches.RemoveAll([&Entity](const FLDCombatBreach& Breach) { return Breach.SourceEntity==Entity; })
+            + Body.HealCuts.RemoveAll([&Entity](const FLDCombatHealCut& Cut) { return Cut.SourceEntity==Entity; });
         if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)
         {
             Body.Taunt.Reset();

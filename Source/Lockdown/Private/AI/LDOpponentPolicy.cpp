@@ -39,7 +39,7 @@ int32 CatalogIndex(const TArray<TDefinition>& Definitions, const FString& Id)
 
 bool PositiveStat(const FLDDemoStatBonus& Stat)
 {
-    return Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat
+    return Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat.Stat == ELDDemoBonusStat::HPRegenFlat
         ? Stat.Cm.Denominator > 0 && Stat.Cm.Numerator > 0
         : Stat.Amount > 0;
 }
@@ -59,6 +59,7 @@ void ClassifyStat(const FLDDemoStatBonus& Stat, FLDOpponentUsage& Usage)
     case ELDDemoBonusStat::MaxHPFlat:
     case ELDDemoBonusStat::ArmorFlat:
     case ELDDemoBonusStat::MagicResistFlat:
+    case ELDDemoBonusStat::HPRegenFlat:
         Usage.bSurvival = true;
         break;
     default:

@@ -334,9 +334,12 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
         400, INDEX_NONE, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("Full pair: sell the survival piece for a strictly better active pair"), TEXT("item_edge_blade"),
         TEXT("item_iron_plate"), 199, 1, TEXT("item_arcane_battery"));
+    // #112: the basic-growth item_decoy_wig (400) is the next active source within the edge blade's sale value.
     bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_echo_maul"));
-    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_echo_maul"),
+        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_decoy_wig"));
+    bGood &= Plan(Test, C, TEXT("A pair with one active trades its passive piece for a second active source"), TEXT("item_echo_maul"),
+        TEXT("item_arcane_battery"), 100000, 0, TEXT("item_decoy_wig"));
+    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_decoy_wig"),
         TEXT("item_arcane_battery"), 100000, INDEX_NONE, TEXT(""));
     FLDEquipmentPairRank Rank;
     FString Error;

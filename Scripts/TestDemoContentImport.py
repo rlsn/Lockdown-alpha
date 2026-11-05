@@ -192,7 +192,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_leaf_projection(self.baseline, self.author)
         fields = self.baseline.catalog.field_projection
         self.assertEqual(fields["content.abilities[1].ranks[0].effects[0].base.value"],
-                         ("content.abilities[2].ranks[0].effects[0].base.p2",))
+                         ("content.abilities[3].ranks[0].effects[0].base.p2",))
 
     def test_each_rank_projects_all_effects_costs_and_coefficients(self):
         arc = self.baseline.catalog.definition("active_arc_bolt")
@@ -465,17 +465,33 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
-    def test_known_but_undeclared_stats_and_capped_gains_refuse(self):
+    def test_known_but_undeclared_stats_and_penalties_refuse(self):
         for mutation in (
             lambda data: data["attributes"][0].update(stats={"CritChanceBonusRatio": {"unit": "ratio", "value": 0.5}}),
             lambda data: data["equipment"][0]["stats"].update(APFlat={"unit": "points", "value": 1}),
+            lambda data: data["attributes"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
+            lambda data: data["attributes"][5].pop("penalties"),
+            lambda data: data["attributes"][5].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
+            lambda data: data["attributes"][5]["penalties"]["AttackRangeCmFlat"].update(value=0),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                self.assert_refused(mutation, "UnknownField|IneffectiveChoice")
+
+    def test_capped_gains_clamp_instead_of_refusing(self):
+        # Every attribute clamps to its bounds in the projection (#112 §4): a source sum past a cap still compiles.
+        for mutation in (
+            lambda data: data["parameters"]["STAT.AD.Max"].update(value=30),
             lambda data: data["parameters"]["STAT.AttackSpeed.Max"].update(value=1.1),
             lambda data: data["parameters"]["STAT.MoveSpeed.Max"].update(value=510),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.99),
         ):
-            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
-                self.assert_refused(mutation, "UnknownField|BuildEnvelope")
+                changed = deepcopy(self.author)
+                mutation(changed)
+                (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
+                demo.compile_author(self.root)
+        (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
 
     def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
         for mutation, code in (
@@ -506,7 +522,6 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=150),
             lambda data: data["parameters"]["STAT.MaxHP.Min"].update(value=200),
-            lambda data: data["parameters"]["STAT.AD.Max"].update(value=30),
             lambda data: data["attributes"][0]["stats"]["ADFlat"].update(value=0),
             lambda data: data["parameters"]["SHOP.SellRatio"].update(value=1),
             lambda data: data["progression"]["xp_thresholds"].__setitem__(4, 259),

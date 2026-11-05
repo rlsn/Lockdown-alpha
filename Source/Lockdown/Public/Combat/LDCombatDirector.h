@@ -5,6 +5,7 @@
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDCombatMechanics.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -91,6 +92,24 @@ struct FLDBodyCombatState
     FLDCombatSourceRef ReleasedSource;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
+    // #112 C2 mechanics (LDCombatMechanicsDirector.cpp): heal/shield reductions, breaches and damage over time, forced
+    // displacement windows (blocking every voluntary action), the damage guard and the passive trigger windows.
+    TArray<FLDCombatHealCut> HealCuts;
+    TArray<FLDCombatBreach> Breaches;
+    TArray<FLDCombatDot> Dots;
+    TArray<FLDCombatRoot> Knockbacks;
+    // Increments on every knockback that lands; Navigation drops the body's current order when it changes.
+    uint64 KnockbackSerial=0;
+    TArray<FLDCombatVulnerable> Vulnerabilities;
+    TOptional<FLDCombatGuard> Guard;
+    // The amount the current shield record was granted with (item_privacy_screen answers 40% of it).
+    int64 ShieldGrantedP2=0;
+    int64 MobilityShieldReadyAtMs=0;
+    int64 ShieldPulseReadyAtMs=0;
+    int64 RetortReadyAtMs=0;
+    // passive_thick_skin Lv3: the next basic or ability hit of this body before ShieldBonusUntilMs adds ShieldBonusP2.
+    int64 ShieldBonusP2=0;
+    int64 ShieldBonusUntilMs=0;
 };
 
 // Persistent cooldown identity; an item instance or entry slot is only its current binding.
@@ -168,6 +187,24 @@ struct FLDCombatHit
     double CleaveRadiusCm=0;
     bool bLifesteal=false;
     int64 LifestealRatioBp=0;
+    // #112 C2 (LDCombatMechanicsDirector.cpp).
+    bool bPeriodic=false;            // a damage-over-time tick: no crit, no on-hit, amplified by vulnerability
+    bool bAddon=false;               // an added hit (ambush, rider, shield bonus, punishment): stacks and triggers nothing
+    bool bFromShieldTrigger=false;   // a pulse/retort hit: its controls never grant shields (#112 §5)
+    bool bSilent=false;              // a zone's periodic slow refresh: no visible hit cue
+    int64 ExtraAmplifyBp=10000;      // source-side multiplier snapshotted at creation (before resistance)
+    double KnockbackCm=0;
+    int64 KnockbackMs=0;
+    bool bKnockbackFromAnchor=false; // pushed away from KnockbackAnchorCm instead of the source body's foot
+    FVector KnockbackAnchorCm=FVector::ZeroVector;
+    int64 HealCutBp=0, HealCutMs=0;
+    int64 VulnerableBp=0;            // installed for as long as the root this hit applies
+    int64 NegativeAmpBp=0;           // per negative kind on the target at this hit (active_cancel_blast)
+    int64 ShieldShatterBp=0;         // share of the target's shield removed before the damage (not a break)
+    int64 NegativeHealMaxHPBp=0;     // the source heals this share of its max HP per negative kind
+    bool bRefreshDebuffs=false;      // restarts this source's slows and damage over time on the target
+    int64 OnHitScaleBp=0;            // on-hit effect coefficient (0 = none; basic primary 10000)
+    TOptional<FLDCombatDot> Dot;     // a damage over time this hit installs on its target
 };
 
 // A released jump: the landing effects resolve at LandAtMs on the same body life, centred on its landing foot.
@@ -209,6 +246,51 @@ struct FLDCombatProjectile
     int64 ControlAmpBp=0, ControlAmpDurationMs=0;
     // Ambush damage snapshotted at release; delivered with the first body this projectile strikes.
     TOptional<FLDAmbushDamageTerm> Ambush;
+    bool bRefreshDebuffs=false;
+    int64 OnHitScaleBp=0;
+};
+
+// A later shot of a released volley (active_barrage_rant): fired from the shooter's foot at AtMs along the release
+// direction while the same body life lives.
+struct FLDCombatVolleyShot
+{
+    FLDCombatBodyRef Body;
+    int64 AtMs=0;
+    FLDCombatProjectile Template;
+};
+
+// A ground zone (EFFECT zone): Count pulses from StartMs+DelayMs every IntervalMs, a slow kept on enemies inside, and an
+// optional root on the enemies still inside when it ends. Its owner's payload terms are snapshotted at release.
+struct FLDCombatZone
+{
+    FGuid EffectId;
+    FLDCombatBodyRef SourceBody;
+    FGuid SourceEntity;
+    FGuid CreditOwner;
+    FLDCombatSourceRef Source;
+    FVector CentreCm=FVector::ZeroVector;
+    double RadiusCm=0;
+    int64 StartMs=0, EndMs=0, DelayMs=0, IntervalMs=0;
+    int32 Count=0, Pulsed=0;
+    bool bShield=false;
+    int64 ShieldBaseP2=0, ShieldAPRatioBp=0, ShieldMs=0;
+    bool bSlow=false;
+    int64 SlowBp=0, SlowCheckMs=0, SlowLingerMs=0, NextSlowAtMs=0;
+    int64 EndRootMs=0;
+    bool bDamage=false;
+    int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
+    ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
+    int64 SourceADP2=0, SourceAPP2=0;
+    int64 OnHitScaleBp=0;
+};
+
+// A decoy left by item_decoy_wig: neither attackable nor selectable; lured victims walk to it until it ends.
+struct FLDCombatDecoy
+{
+    FGuid EffectId;
+    FLDCombatBodyRef Holder;
+    FVector PointCm=FVector::ZeroVector;
+    int64 ExpiresAtMs=0;
 };
 
 UCLASS()
@@ -249,6 +331,12 @@ public:
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
     bool ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBodyRef& OutTaunter) const;
+    // A decoy lure on Victim now (item_decoy_wig): the point Navigation walks it to. False when it is not lured.
+    bool ReadDecoyLure(const FLDCombatBodyRef& Victim, FVector& OutPoint) const;
+    // Knockbacks that landed on this body life so far; Navigation drops the current order whenever it changes.
+    uint64 ReadKnockbackSerial(const FLDCombatBodyRef& Body) const;
+    // Every decoy standing now, for presentation (owner, point, expiry).
+    const TArray<FLDCombatDecoy>& ReadDecoys() const { return Decoys; }
     // Planar distance beyond which enemies cannot observe this body now (stealth); 0 when it is not hidden.
     double ConcealBeyondCm(const ALDCharacter& Body) const;
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
@@ -412,6 +500,57 @@ private:
     bool InstallBodyProjection(FLDBodyCombatState& Body, ALDCharacter* Actor, const FLDAttributeProjection& Projection,
         int64 NowMs, FString& Error);
 
+    // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
+    // A one-time heal of Body reduced by its strongest heal cut; regeneration never passes here. True when HP changed.
+    bool HealBody(FLDBodyCombatState& Body, int64 AmountP2, int64 NowMs);
+    // The single shield entry: the amount is reduced by the body's heal cut, applied ReplaceIfNotWeaker, and a refresh
+    // (replacing a shield that still held an amount) fires the owner's shield-event passives unless the shield itself
+    // came from such a pulse or another shield-triggered effect.
+    bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
+        const FGuid& SourceEntity, bool bFromShieldTrigger, int64 NowMs, FString& Error);
+    // Shield-event passives of Owner (passive_mental_gymnastics): pulse damage, Q/W cooldown cut, Lv3 slow.
+    bool PulseShieldEvent(FLDBodyCombatState& Owner, int64 NowMs, FString& Error);
+    // A shield emptied by Hit: the pulse above and item_privacy_screen's retort to the breaker.
+    bool OnShieldBroken(FLDBodyCombatState& Owner, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error);
+    // The forced displacement of one committed knockback (control kind Knockback): server root motion along the ground
+    // that stops at the last legal position, every voluntary action blocked while it lasts, the unreleased action
+    // abandoned and the current order dropped (KnockbackSerial).
+    bool ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // A body displaced itself (dash, jump, leap): expose-post punishments on it and its own thick-skin shield.
+    bool OnMobilityUsed(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    // The source of Hit applied a control or slow: its thick-skin shield (unless the hit came from a shield trigger).
+    bool OnControlApplied(const FLDCombatHit& Hit, int64 NowMs, FString& Error);
+    // Per landed hit: dox-master stacks, skateboard haste and the thick-skin Lv3 bonus of the hit's source.
+    bool OnHitLanded(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 DamageP2, int64 NowMs, FString& Error);
+    // The guard of Body counts this hit and recoils once past its threshold.
+    bool CountGuard(ALDCharacter& Actor, FLDBodyCombatState& Body, int64 PreMitigationP2, int64 NowMs, FString& Error);
+    // Dots, zones, volley shots, decoys and lapsed mechanics records, due at NowMs (Effects, before the hits).
+    bool AdvanceMechanics(int64 NowMs, FString& Error);
+    bool ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs);
+    int64 NextMechanicsDueMs(int64 NowMs) const;
+    FLDNegativeKinds NegativeKindsOf(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // Status cues of the #112 records: knockback, breach (breach or damage over time) and heal cut for every observer;
+    // the damage guard and the vulnerability only for the owner.
+    void AppendMechanicsStatuses(const FLDBodyCombatState& Body, int64 NowMs, bool bOwner, TArray<FLDObservedStatus>& Out) const;
+    // A trigger effect of the body's learned passives or equipment passive families (first match), or null.
+    const FLDDemoEffectDefinition* FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+        FLDCombatSourceRef* OutSource=nullptr) const;
+    // The registered actor of one body state, or null.
+    ALDCharacter* ActorOf(const FLDBodyCombatState& Body) const;
+    // passive_thick_skin of Body: a shield on mobility or control, behind its internal cooldown.
+    bool GrantThickSkin(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    // The release-time content of the #112 actives (zones, volleys, guard, burst, decoy, cooldown refresh, leap).
+    // The release-time self content of the #112 actives: the guard, zones, later volley shots, the decoy and its lure,
+    // the backward leap and the cooldown refresh. Hit payloads ride on Template (null when the rank has no hit).
+    bool ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
+        const FLDDemoRankDefinition& Rank, const FLDCombatHit* Template, const FVector& OriginFoot, const FVector& TargetPoint,
+        const FGuid& EffectId, uint64 Token, FString& Error);
+    // Hit extras of a #112 rank (dot, heal cut, vulnerability, negative-kind terms, knockback, refresh, on-hit scale).
+    void FillMechanicsTemplate(const FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, const FVector& OriginFoot,
+        int64 NowMs, FLDCombatHit& Template) const;
+    // C1's remaining-cooldown cut on one entry's persistent track (MAX_int64 = ready now).
+    bool ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs);
+
     // ---- Sources (LDCombatSources.cpp).
     bool ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const;
     // PrepareBuildChange after its caller, version and shape checks: projection, timing, bindings and the one
@@ -441,6 +580,9 @@ private:
     TArray<FLDCombatHit> PendingHits;
     TArray<FLDCombatProjectile> Projectiles;
     TArray<FLDCombatLanding> Landings;
+    TArray<FLDCombatZone> Zones;
+    TArray<FLDCombatVolleyShot> VolleyShots;
+    TArray<FLDCombatDecoy> Decoys;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;
