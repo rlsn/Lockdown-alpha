@@ -78,6 +78,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             }
             continue;
         }
+        // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);

@@ -22,13 +22,16 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     };
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
-        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader")},TEXT("The public circle names only the single progress holder and its progress"));
+        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss")},TEXT("The public circle names only the single progress holder and its progress"));
     // D26: the current airdrop names only its public point, landing instant and claimer; never a contender position.
     ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs"),
         TEXT("ClaimedBy"),TEXT("ClaimedAtMs")},TEXT("The public airdrop names only its public point, landing and claimer"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
     ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("BountyGold")},
         TEXT("The public leader notice names only the leader, a fuzzy circle and the bounty"));
+    // D26: the Boss view names only its phase, its appearance time and the last hit; its body is under fog of war.
+    ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},
+        TEXT("The public Boss view never carries the Boss's position or health"));
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),

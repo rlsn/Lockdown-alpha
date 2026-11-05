@@ -52,6 +52,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("equipment", "item_nail_uniform", ELDDemoEquipmentId, ItemNailUniform),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
+    DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
     DEMO_ID("statuses", "shield", ELDDemoStatusId, Shield),
     DEMO_ID("statuses", "camp_returning", ELDDemoStatusId, CampReturning),
@@ -399,6 +400,7 @@ const FBonusField BonusFields[] =
     {TEXT("MoveSpeedBonusRatio"), ELDDemoBonusStat::MoveSpeedBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("CritChanceBonusRatio"), ELDDemoBonusStat::CritChanceBonusRatio, TEXT("ratio"), TEXT("bp")},
     {TEXT("ADBonusRatio"), ELDDemoBonusStat::ADBonusRatio, TEXT("ratio"), TEXT("bp")},
+    {TEXT("APBonusRatio"), ELDDemoBonusStat::APBonusRatio, TEXT("ratio"), TEXT("bp")},
 };
 
 constexpr uint32 Bit(ELDDemoBonusStat Stat) { return 1u << uint8(Stat); }
@@ -1242,6 +1244,50 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     if (!Camps.Done())
     {
         return false;
+    }
+    // D26 (#79): the Boss block becomes its rules plus one Boss-tier monster row appended after the camp tiers.
+    {
+        FFields Boss(Check, F.Take(TEXT("boss")), TEXT("content.boss"));
+        FLDDemoMonsterDefinition Body;
+        FLDDemoBossDefinition& Rules = Out.Boss;
+        Body.Tier = ELDDemoCampTier::Boss;
+        Body.CountPerCamp = 1;
+        if (!NativeIdentity(Boss, TEXT("monsters"), Body.Id, Body.NativeId)
+            || !Boss.Fixed(TEXT("hp"), TEXT("hp"), TEXT("p2"), Body.HPP2, 1)
+            || !Boss.Fixed(TEXT("armor"), TEXT("points"), TEXT("p2"), Body.ArmorP2)
+            || !Boss.Fixed(TEXT("magic_resist"), TEXT("points"), TEXT("p2"), Body.MagicResistP2)
+            || !Boss.Fixed(TEXT("attack"), TEXT("points"), TEXT("p2"), Body.AttackP2, 1)
+            || !Boss.Fixed(TEXT("attack_interval"), TEXT("ms"), TEXT("ms"), Body.AttackIntervalMs, 1)
+            || !Boss.Fixed(TEXT("attack_windup"), TEXT("ms"), TEXT("ms"), Body.AttackWindupMs, 1)
+            || !Boss.Fraction(TEXT("attack_range"), TEXT("cm"), Body.AttackRangeCm, true)
+            || !Boss.Fraction(TEXT("move_speed"), TEXT("cm/s"), Body.MoveSpeedCmPerSec, true)
+            || !Boss.Fraction(TEXT("collision_radius"), TEXT("cm"), Body.CollisionRadiusCm, true)
+            || !Boss.Fraction(TEXT("aggro_radius"), TEXT("cm"), Rules.AggroRadiusCm, true)
+            || !Boss.Fixed(TEXT("attacker_memory"), TEXT("ms"), TEXT("ms"), Rules.AttackerMemoryMs, 1)
+            || !Boss.Fixed(TEXT("appear_at"), TEXT("ms"), TEXT("ms"), Rules.AppearAtMs, 1)
+            || !Boss.Int(TEXT("reward_xp"), Body.RewardXP) || !Boss.Int(TEXT("reward_gold"), Body.RewardGold))
+        {
+            return false;
+        }
+        FFields Buff(Check, Boss.Take(TEXT("approval")), TEXT("content.boss.approval"));
+        if (!Buff.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Rules.ApprovalDurationMs, 1)
+            || !Stats(Buff.Take(TEXT("stats")), Rules.ApprovalStats, Check, Buff.Path + TEXT(".stats"))
+            || !Check.Require((StatMask(Rules.ApprovalStats) & ~TemporaryStats) == 0, Buff.Path,
+                TEXT("the approval buff cannot change resource maxima"))
+            || !Buff.Done() || !Boss.Done())
+        {
+            return false;
+        }
+        // One attack per interval: attacks/s = 1000 / interval ms, kept exact as a rational.
+        const int64 Divisor = FMath::GreatestCommonDivisor(int64(1000), Body.AttackIntervalMs);
+        Body.AttackSpeed = {1000 / Divisor, Body.AttackIntervalMs / Divisor};
+        Body.LeashRadiusCm = Rules.AggroRadiusCm;
+        Body.PerceptionRadiusCm = Rules.AggroRadiusCm;
+        Body.LoseTargetGraceMs = Rules.AttackerMemoryMs;
+        Body.HPRegenPerSec = {0, 1};
+        Body.MPRegenPerSec = {0, 1};
+        Rules.Id = Body.Id;
+        Out.Monsters.Add(MoveTemp(Body));
     }
     FFields World(Check, F.Take(TEXT("world")), TEXT("content.world"));
     if (!World.Identifier(TEXT("map_id"), Out.World.MapId)

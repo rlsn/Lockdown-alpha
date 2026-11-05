@@ -56,7 +56,7 @@ namespace
                 return false;
             }
             Mode.Camps = Director;
-            return Director->BeginMatch(Start.Match, Error);
+            return Director->BeginMatch(Start.Match, Start.StartedAtMs, Error);
         };
         Hooks.MatchReset = [](ALDGameMode& Mode, const FLDMatchReset&, FString& Error)
         {
@@ -116,7 +116,7 @@ bool ALDCampDirector::CheckPermit(const FLDGameplayWritePermit& Permit, ELDCommi
     return true;
 }
 
-bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, FString& Error)
+bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, int64 StartedAtMs, FString& Error)
 {
     if (!HasAuthority() || State.IsActive() || !Bodies.IsEmpty())
     {
@@ -132,7 +132,8 @@ bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, FString& Error)
     }
     FLDCampRoster Roster;
     if (!LDCamp::BuildRoster(Loaded->Get(), *Registry->GetGeometry(), Roster, Error)
-        || !State.Begin(Match, MakeShared<const FLDCampRoster>(MoveTemp(Roster)), Error))
+        || !State.Begin(Match, MakeShared<const FLDCampRoster>(MoveTemp(Roster)), Error)
+        || !LDBoss::Resolve(*Loaded, *Registry->GetGeometry(), StartedAtMs, Boss, Error))
     {
         return false;
     }
@@ -161,6 +162,11 @@ bool ALDCampDirector::SpawnInitialCamps(const FLDGameplayWritePermit& Permit, FS
 
 bool ALDCampDirector::ReadMember(const FLDCampSpec& Spec, const FLDCombatBodyRef& Ref, FMemberRead& Out, FString& Error) const
 {
+    return ReadBody(Spec.SurfaceId, Ref, Out, Error);
+}
+
+bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMemberRead& Out, FString& Error) const
+{
     Out = {};
     ALDGameMode* Mode = AuthorityMode();
     ALDCampMemberCharacter* Body = Bodies.FindRef(Ref.Victim.EntityId).Get();
@@ -184,7 +190,7 @@ bool ALDCampDirector::ReadMember(const FLDCampSpec& Spec, const FLDCombatBodyRef
     FLDLegalGround Ground;
     ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
     FString GroundError;
-    if (Registry->QueryGround(Registry->Revision(), Out.FootCm, Capsule, Spec.SurfaceId, Ground, Failure, GroundError))
+    if (Registry->QueryGround(Registry->Revision(), Out.FootCm, Capsule, SurfaceId, Ground, Failure, GroundError))
     {
         Out.bGrounded = Ground.Floor.Get() == Movement->CurrentFloor.HitResult.GetComponent();
         Out.SurfaceId = Out.bGrounded ? Ground.SurfaceId : NAME_None;
@@ -292,7 +298,8 @@ bool ALDCampDirector::AdvanceMemberMotion(const FLDAuthorityStep& Step, const FL
     ALDGameMode* Mode = AuthorityMode();
     ALDCampMemberCharacter* Body = Bodies.FindRef(Ref.Victim.EntityId).Get();
     ALDCharacter* Resolved = nullptr;
-    if (!State.FindLiving(Ref) || !Body || Mode->ResolveBody(Step.Match, Ref, Resolved) != ELDCommitReject::None || Resolved != Body)
+    if ((!State.FindLiving(Ref) && !Boss.IsBody(Ref)) || !Body || Mode->ResolveBody(Step.Match, Ref, Resolved) != ELDCommitReject::None
+        || Resolved != Body)
     {
         Error = TEXT("Camp motion was issued for a stale or unregistered camp body.");
         return false;
@@ -486,6 +493,115 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             }
         }
     }
+    return ProcessBoss(Permit, Error);
+}
+
+bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    if (Boss.Phase != ELDBossPhase::Alive)
+    {
+        Error.Reset();
+        return true;
+    }
+    ALDGameMode* Mode = AuthorityMode();
+    auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Mode || !Mode->Combat || !Mode->Vision || !Registry)
+    {
+        Error = TEXT("The Boss needs Combat, vision and the registered world.");
+        return false;
+    }
+    const FLDCombatBodyRef Ref = Boss.Body;
+    const FGuid Entity = Ref.Victim.EntityId;
+    FMemberRead Self;
+    FLDCombatBodyRead Body;
+    if (!ReadBody(Boss.Rules.SurfaceId, Ref, Self, Error)) { return false; }
+    if (!Mode->Combat->ReadCombatBody(Ref, Body))
+    {
+        Error = TEXT("Combat has no readable state for the living Boss.");
+        return false;
+    }
+    // Every living contender, as the Boss sees it now (stealth honoured exactly like a contender's observation).
+    TArray<LDAirdrop::FCandidate> Feet;
+    Mode->Combat->ReadLivingContenderFeet(Feet);
+    TArray<LDBoss::FCandidate> Living;
+    for (const LDAirdrop::FCandidate& Foot : Feet)
+    {
+        FLDContenderLifeRead Life;
+        if (!Mode->ReadContenderLife(State.GetMatch(), Foot.Contender, Life, Error)) { return false; }
+        ALDCharacter* Target = nullptr;
+        if (Life.Phase != ELDLifePhase::Alive || Mode->ResolveBody(State.GetMatch(), Life.Body, Target) != ELDCommitReject::None || !Target)
+        {
+            continue;
+        }
+        LDBoss::FCandidate& Candidate = Living.AddDefaulted_GetRef();
+        Candidate.Body = Life.Body;
+        Candidate.FootCm = Foot.FootCm;
+        switch (Mode->Vision->TraceObservation(Self.FootCm, *Target, Registry->Revision()))
+        {
+        case ELDSightResult::Visible: Candidate.bVisible = true; break;
+        case ELDSightResult::OutOfRange:
+        case ELDSightResult::Blocked: break;
+        default:
+            Error = TEXT("Boss perception hit an invalid point or a stale world in TraceSight.");
+            return false;
+        }
+    }
+    const double Now = Mode->GetAuthorityNowSeconds();
+    const FLDBossDecision Decision = Boss.Decide(Permit.GetBoundary().AtMs, Self.FootCm, Living,
+        Body.bMovementAllowed && Self.bGrounded, Body.bAttackAllowed && Body.bBasicAttackReady);
+    FMotion& Track = Motion.FindOrAdd(Entity);
+    auto Walk = [&](const FVector& Goal, const TCHAR* What)
+    {
+        if (Track.bActive && FVector::DistSquared2D(Track.Goal, Goal) <= FMath::Square(CampReplanShiftCm)) { return; }
+        FMotion Planned;
+        FString PlanError;
+        if (PlanPath(Self, Boss.Rules.SurfaceId, Goal, Now, Planned, PlanError))
+        {
+            Track = MoveTemp(Planned);
+            return;
+        }
+        StopMotion(Entity);
+        UE_LOG(LogTemp, Warning, TEXT("LD_BOSS_PATH_REJECTED %s %s"), What, *PlanError);
+    };
+    switch (Decision.Intent)
+    {
+    case ELDBossIntent::Patrol:
+        // A reached waypoint hands over to the next one; the loop never ends while the Boss lives.
+        if (LDPathSteering::AtGoal(*Self.Body, Boss.PatrolGoal(), CampGoalToleranceCm))
+        {
+            UE_LOG(LogTemp, Display, TEXT("LD_BOSS_WAYPOINT reached=%d at_ms=%lld"), Boss.Waypoint + 1, Permit.GetBoundary().AtMs);
+            Boss.ReachedWaypoint();
+        }
+        Walk(Boss.PatrolGoal(), TEXT("patrol"));
+        break;
+    case ELDBossIntent::Chase:
+        Walk(Decision.GoalFootCm, TEXT("chase"));
+        break;
+    case ELDBossIntent::Attack:
+    {
+        StopMotion(Entity);
+        FLDCombatCaller Caller;
+        Caller.Match = State.GetMatch();
+        Caller.Kind = ELDVictimKind::CampMember;
+        Caller.EntityId = Entity;
+        FLDCombatActionRequest Request;
+        Request.Generation = State.GetMatch().Generation;
+        Request.Life = Ref.Victim.Life;
+        Request.DirectSequence = ++BossSequence;
+        Request.Entry = ELDCombatEntry::Basic;
+        Request.Target.Kind = ELDCombatTargetKind::Unit;
+        Request.Target.ServerBody = Decision.Target;
+        const FLDCombatActionReceipt Receipt = Mode->Combat->SubmitAction(Caller, Request);
+        UE_LOG(LogTemp, Display, TEXT("LD_BOSS_ATTACK target=%s sequence=%llu phase=%u reject=%u"),
+            *Decision.Target.Victim.EntityId.ToString(), Request.DirectSequence, uint8(Receipt.Phase), uint8(Receipt.Reject));
+        break;
+    }
+    case ELDBossIntent::None:
+    default:
+        // In range but cooling down, or controlled: hold where it stands.
+        StopMotion(Entity);
+        break;
+    }
     Error.Reset();
     return true;
 }
@@ -493,6 +609,14 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
 bool ALDCampDirector::OnCombatHostileContact(const FLDCombatHostileContact& Fact, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (!CheckPermit(Permit, ELDCommitPhase::Effects, Error)) { return false; }
+    if (Boss.IsBody(Fact.VictimBody))
+    {
+        int64 AtMs = 0;
+        if (!LDMatchLifecycle::DeadlineFromSeconds(Fact.OccurredAtSeconds, 0, AtMs, Error)) { return false; }
+        Boss.NoteAttack(Fact.SourceBody, AtMs);
+        Error.Reset();
+        return true;
+    }
     const ELDCampContactResult Result = State.ApplyContact({Fact.VictimBody, Fact.SourceBody, Fact.OccurredAtSeconds}, Error);
     if (Result == ELDCampContactResult::Rejected) { return false; }
     if (Result == ELDCampContactResult::Retaliating)
@@ -508,6 +632,17 @@ bool ALDCampDirector::OnCombatHostileContact(const FLDCombatHostileContact& Fact
 bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (!CheckPermit(Permit, ELDCommitPhase::DeathsAndRewards, Error)) { return false; }
+    if (Boss.IsBody(Fact.VictimBody))
+    {
+        const FGuid Entity = Fact.VictimBody.Victim.EntityId;
+        Boss.Died(Fact.VictimBody, Fact.CreditOwner, Fact.OccurredAtMs);
+        Motion.Remove(Entity);
+        if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
+        Bodies.Remove(Entity);
+        AuthorityMode()->MarkPublicMatchDirty();
+        UE_LOG(LogTemp, Display, TEXT("LD_BOSS_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
+        return GrantApproval(Fact.CreditOwner, Permit, Error);
+    }
     int32 Camp = INDEX_NONE;
     State.FindMember(Fact.Key.Victim.EntityId, &Camp);
     const ELDCampDeathResult Result = State.RecordDeath(Fact.Key, Fact.OccurredAtMs, Error);
@@ -622,11 +757,86 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
             BlockedRefresh.Add(Camp);
         }
     }
+    if (Boss.IsSpawnDue(Mode->GetAuthorityNowMs()))
+    {
+        bool bBlocked = false;
+        if (!SpawnBoss(Permit, bBlocked, Error)) { return false; }
+        // A blocked appearance retries at the next boundary on the same waypoint.
+        if (bBlocked && !bBossBlockedLogged)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("LD_BOSS_SPAWN_BLOCKED %s"), *Error);
+            bBossBlockedLogged = true;
+        }
+    }
     Error.Reset();
     return true;
 }
 
+bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlocked, FString& Error)
+{
+    bBlocked = false;
+    ALDGameMode* Mode = AuthorityMode();
+    const FLDDemoMonsterDefinition* Monster = nullptr;
+    if (!Mode || !Content->FindMonster(Boss.Rules.MonsterId.ToString(), Monster, Error) || !Monster)
+    {
+        if (Error.IsEmpty()) { Error = TEXT("The Boss spawn needs the core and its approved monster row."); }
+        return false;
+    }
+    FLDLegalGround Ground;
+    if (!FindGround(Boss.Rules.Waypoints[0], Boss.Rules.SurfaceId, TEXT("boss"), {}, Ground, bBlocked, Error)) { return false; }
+    if (bBlocked) { return true; }
+    ALDCampMemberCharacter* Body = nullptr;
+    bool bCommitted = false;
+    ON_SCOPE_EXIT { if (!bCommitted && IsValid(Body)) { Body->Destroy(); } };
+    if (!CreateBody(Ground, *Monster, TEXT("boss"), Body, Error)) { return false; }
+    TArray<FLDCombatBodyRef> Refs;
+    if (!Mode->SpawnCampMembers({{Boss.EntityId, Body, Boss.Rules.MonsterId}}, Permit, Refs, Error)) { return false; }
+    bCommitted = true;
+    if (Refs.Num() != 1 || !Boss.Spawned(Refs[0], Mode->GetAuthorityNowMs()))
+    {
+        Error = TEXT("Core committed a Boss life that the Boss state refused.");
+        return false;
+    }
+    Bodies.Add(Boss.EntityId, Body);
+    Motion.Add(Boss.EntityId, {});
+    Body->SetActorHiddenInGame(false);
+    Body->SetActorTickEnabled(true);
+    Mode->MarkPublicMatchDirty();
+    UE_LOG(LogTemp, Display, TEXT("LD_BOSS_SPAWN life=%u at_ms=%lld waypoint=%s"), Refs[0].Victim.Life, Mode->GetAuthorityNowMs(),
+        *Boss.Rules.Waypoints[0].ToString());
+    Error.Reset();
+    return true;
+}
+
+bool ALDCampDirector::GrantApproval(const FGuid& Killer, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    ALDGameMode* Mode = AuthorityMode();
+    FLDContenderLifeRead Life;
+    // Only a contender's last hit is approved; a killer already dead by the same step gets nothing.
+    if (!Killer.IsValid() || !Mode->ReadContenderLife(State.GetMatch(), Killer, Life, Error) || Life.Phase != ELDLifePhase::Alive)
+    {
+        Error.Reset();
+        return true;
+    }
+    const FLDDemoBossDefinition& Rules = Content->Get().Boss;
+    bool bApplied = false;
+    if (!Mode->Combat->GrantTimedBonus(Life.Body, FName(*Rules.Id), Rules.ApprovalStats, Rules.ApprovalDurationMs, Permit, bApplied, Error))
+    {
+        return false;
+    }
+    UE_LOG(LogTemp, Display, TEXT("LD_BOSS_APPROVAL contender=%s applied=%d duration_ms=%lld"), *Killer.ToString(), bApplied ? 1 : 0,
+        Rules.ApprovalDurationMs);
+    return true;
+}
+
 bool ALDCampDirector::FindPlacement(const FLDCampSpec& Spec, int32 Slot, const TArray<FVector>& Reserved,
+    FLDLegalGround& Out, bool& bBlocked, FString& Error) const
+{
+    return FindGround(Spec.Members[Slot].HomeCm, Spec.SurfaceId, FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot),
+        Reserved, Out, bBlocked, Error);
+}
+
+bool ALDCampDirector::FindGround(const FVector& HomeCm, FName SurfaceId, const FString& Label, const TArray<FVector>& Reserved,
     FLDLegalGround& Out, bool& bBlocked, FString& Error) const
 {
     bBlocked = false;
@@ -644,11 +854,11 @@ bool ALDCampDirector::FindPlacement(const FLDCampSpec& Spec, int32 Slot, const T
     {
         FVector Offset;
         if (!OffsetPoint.ToVector(Offset, Error)) { return false; }
-        const FVector Foot = Spec.Members[Slot].HomeCm + FVector(Offset.X, Offset.Y, 0);
+        const FVector Foot = HomeCm + FVector(Offset.X, Offset.Y, 0);
         FLDLegalGround Ground;
         ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
         FString GroundError;
-        if (!Registry->QueryGround(Registry->Revision(), Foot, Capsule, Spec.SurfaceId, Ground, Failure, GroundError))
+        if (!Registry->QueryGround(Registry->Revision(), Foot, Capsule, SurfaceId, Ground, Failure, GroundError))
         {
             if (IsCampWorldFault(Failure))
             {
@@ -674,7 +884,7 @@ bool ALDCampDirector::FindPlacement(const FLDCampSpec& Spec, int32 Slot, const T
         }
     }
     bBlocked = true;
-    Error = FString::Printf(TEXT("SpawnBlocked: camp %s member %d has no clear local placement."), *Spec.CampId.ToString(), Slot);
+    Error = FString::Printf(TEXT("SpawnBlocked: %s has no clear local placement."), *Label);
     return true;
 }
 
@@ -713,43 +923,13 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
             }
         }
     };
-    // Contender placement's support gap: the capsule rests inside CMC's stable floor band, not on the surface itself.
-    const double FloorGap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
     for (int32 Slot = 0; Slot < Spec.Members.Num(); ++Slot)
     {
-        const FVector Origin = Grounds[Slot].SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + FloorGap);
-        const FTransform Transform(FRotator::ZeroRotator, Origin);
-        auto* Body = GetWorld()->SpawnActorDeferred<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(), Transform,
-            this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-        if (!Body)
-        {
-            Error = TEXT("Camp body allocation failed.");
-            return false;
-        }
-        Spawned.Add(Body);
-        Body->SetActorHiddenInGame(true);
-        Body->SetActorTickEnabled(false);
-        if (!Body->PrepareMonster(*Content, *Monster, Error)) { return false; }
-        Body->FinishSpawning(Transform);
-        if (!IsValid(Body) || Body->IsActorBeingDestroyed())
-        {
-            Error = TEXT("Camp body failed native construction.");
-            return false;
-        }
-        auto* Movement = Body->GetCharacterMovement();
-        Movement->SetComponentTickEnabled(false);
-        Movement->SetMovementMode(MOVE_Walking);
-        Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false, nullptr);
-        Movement->SetBaseFromFloor(Movement->CurrentFloor);
-        if (!Movement->CurrentFloor.IsWalkableFloor() || Movement->CurrentFloor.HitResult.GetComponent() != Grounds[Slot].Floor.Get()
-            || !Body->GetActorLocation().Equals(Origin, .000001))
-        {
-            Error = FString::Printf(TEXT("Prepared camp body does not occupy its registered placement: camp %s member %d walkable=%d floor=%s expected=%s location=%s origin=%s."),
-                *Spec.CampId.ToString(), Slot, Movement->CurrentFloor.IsWalkableFloor(),
-                *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()), *GetNameSafe(Grounds[Slot].Floor.Get()),
-                *Body->GetActorLocation().ToString(), *Origin.ToString());
-            return false;
-        }
+        ALDCampMemberCharacter* Body = nullptr;
+        const bool bCreated = CreateBody(Grounds[Slot], *Monster, FString::Printf(TEXT("camp %s member %d"), *Spec.CampId.ToString(), Slot),
+            Body, Error);
+        if (Body) { Spawned.Add(Body); }
+        if (!bCreated) { return false; }
     }
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
@@ -777,6 +957,50 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
     return true;
 }
 
+bool ALDCampDirector::CreateBody(const FLDLegalGround& Ground, const FLDDemoMonsterDefinition& Monster, const FString& Label,
+    ALDCampMemberCharacter*& Out, FString& Error)
+{
+    Out = nullptr;
+    FCollisionShape Capsule;
+    if (!ULDMapRegistry::ContentCapsule(*Content, Capsule, Error)) { return false; }
+    // Contender placement's support gap: the capsule rests inside CMC's stable floor band, not on the surface itself.
+    const double FloorGap = (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
+    const FVector Origin = Ground.SurfaceCm + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + FloorGap);
+    const FTransform Transform(FRotator::ZeroRotator, Origin);
+    auto* Body = GetWorld()->SpawnActorDeferred<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(), Transform,
+        this, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+    if (!Body)
+    {
+        Error = TEXT("Camp body allocation failed.");
+        return false;
+    }
+    Out = Body;
+    Body->SetActorHiddenInGame(true);
+    Body->SetActorTickEnabled(false);
+    if (!Body->PrepareMonster(*Content, Monster, Error)) { return false; }
+    Body->FinishSpawning(Transform);
+    if (!IsValid(Body) || Body->IsActorBeingDestroyed())
+    {
+        Error = TEXT("Camp body failed native construction.");
+        return false;
+    }
+    auto* Movement = Body->GetCharacterMovement();
+    Movement->SetComponentTickEnabled(false);
+    Movement->SetMovementMode(MOVE_Walking);
+    Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false, nullptr);
+    Movement->SetBaseFromFloor(Movement->CurrentFloor);
+    if (!Movement->CurrentFloor.IsWalkableFloor() || Movement->CurrentFloor.HitResult.GetComponent() != Ground.Floor.Get()
+        || !Body->GetActorLocation().Equals(Origin, .000001))
+    {
+        Error = FString::Printf(TEXT("Prepared body does not occupy its registered placement: %s walkable=%d floor=%s expected=%s location=%s origin=%s."),
+            *Label, Movement->CurrentFloor.IsWalkableFloor(), *GetNameSafe(Movement->CurrentFloor.HitResult.GetComponent()),
+            *GetNameSafe(Ground.Floor.Get()), *Body->GetActorLocation().ToString(), *Origin.ToString());
+        return false;
+    }
+    Error.Reset();
+    return true;
+}
+
 void ALDCampDirector::EndMatch()
 {
     for (const auto& Pair : Bodies)
@@ -787,6 +1011,9 @@ void ALDCampDirector::EndMatch()
     Motion.Reset();
     Returns.Reset();
     BlockedRefresh.Reset();
+    Boss = {};
+    bBossBlockedLogged = false;
+    BossSequence = 0;
     State.End();
     Content.Reset();
 }
@@ -798,6 +1025,18 @@ bool ALDCampDirector::AppendObservedFacts(const FLDMatchContext& Match, const FL
     {
         Error = TEXT("Observed camp facts were requested for another match.");
         return false;
+    }
+    // D26: the Boss publishes only its creature identity; it has no camp cue.
+    if (Boss.IsBody(Body))
+    {
+        if (InOut.CreatureId != 0 && InOut.CreatureId != Boss.Rules.CreatureId)
+        {
+            Error = TEXT("Observed Boss facts conflict with another producer.");
+            return false;
+        }
+        InOut.CreatureId = Boss.Rules.CreatureId;
+        Error.Reset();
+        return true;
     }
     return State.AppendObservedFacts(Body, InOut, Error);
 }

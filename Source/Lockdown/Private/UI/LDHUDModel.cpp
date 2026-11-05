@@ -263,6 +263,25 @@ FString LDHUD::AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FS
     default: return FString();
     }
 }
+FString LDHUD::BossLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName,bool bClock,int64 NowMs)
+{
+    // Presentation only: how early the countdown shows and how long the result stays on screen.
+    constexpr int64 CountdownMs=15000,DownNoticeMs=8000;
+    const FString Name=BossName.IsEmpty()?FString(TEXT("Boss")):BossName;
+    switch(Boss.Phase)
+    {
+    case ELDBossPhase::Pending:
+        if(!bClock||Boss.AppearAtMs-NowMs>CountdownMs){return FString();}
+        return Boss.AppearAtMs>NowMs?Name+TEXT(" ")+Clock(Boss.AppearAtMs-NowMs)+TEXT(" 后出现 · 小地图金色巡逻点"):Name+TEXT(" 即将出现");
+    case ELDBossPhase::Alive: return Name+TEXT(" 巡逻中 · 打它会被它追着打");
+    case ELDBossPhase::Down:
+        if(bClock&&NowMs-Boss.DownAtMs>DownNoticeMs){return FString();}
+        if(Self.IsValid()&&Boss.KilledBy==Self){return TEXT("你击败了")+Name+TEXT("，获得认可！");}
+        if(!Boss.KilledBy.IsValid()){return Name+TEXT(" 倒下了");}
+        return (KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName)+TEXT(" 击败了")+Name+TEXT("，获得认可");
+    default: return FString();
+    }
+}
 FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName)
 {
     if(!Notice.Leader.IsValid()){return FString();}
@@ -270,7 +289,7 @@ FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FS
     if(Self.IsValid()&&Notice.Leader==Self){return TEXT("你被通报批评了！位置已在小地图公开 · ")+Bounty;}
     return TEXT("通报批评：")+(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName)+TEXT(" · ")+Bounty;
 }
-FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
+FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
     switch(Notice.Cause)
@@ -278,20 +297,21 @@ FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,co
     case ELDKillCause::Contender: return (KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName)+TEXT(" 让 ")+Victim+TEXT(" 社死了");
     case ELDKillCause::CampLow: return Victim+TEXT(" 被")+LowCampName+TEXT("送去社死");
     case ELDKillCause::CampHigh: return Victim+TEXT(" 被")+HighCampName+TEXT("送去社死");
+    case ELDKillCause::Boss: return Victim+TEXT(" 被")+BossName+TEXT("送去社死");
     case ELDKillCause::Unowned: return Victim+TEXT(" 社死了（无参赛者击杀）");
     default: return Victim+TEXT(" 社死了（死因未知）");
     }
 }
-LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName)
+LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName)
 {
     FKillFeedLineView Line;
     const bool bVictim=Self.IsValid()&&Notice.Victim==Self;
     const bool bKiller=Self.IsValid()&&Notice.Cause==ELDKillCause::Contender&&Notice.Killer==Self;
     Line.bSelf=bVictim||bKiller;
-    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName);
+    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName,BossName);
     return Line;
 }
-FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName)
+FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName,const FString& BossName)
 {
     if(Generation==0||Feed.Generation!=Generation||!Self.IsValid()){return FString();}
     const FLDKillNotice* Latest=nullptr;
@@ -307,6 +327,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     }
     case ELDKillCause::CampLow: return TEXT("被")+LowCampName+TEXT("送去社死");
     case ELDKillCause::CampHigh: return TEXT("被")+HighCampName+TEXT("送去社死");
+    case ELDKillCause::Boss: return TEXT("被")+BossName+TEXT("送去社死");
     case ELDKillCause::Unowned: return TEXT("无参赛者击杀");
     default: return TEXT("死因未知");
     }
@@ -458,6 +479,7 @@ const TCHAR* HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::MoveSpeedBonusRatio: return TEXT("腿速");
     case ELDDemoBonusStat::CritChanceBonusRatio: return TEXT("正中要害率");
     case ELDDemoBonusStat::ADBonusRatio: return TEXT("手劲");
+    case ELDDemoBonusStat::APBonusRatio: return TEXT("缺德值");
     default: return nullptr;
     }
 }
@@ -478,7 +500,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return FString(Name)+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
-    case ELDDemoBonusStat::ADBonusRatio:
+    case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio:
         return FString(Name)+TEXT(" +")+HudPercent(Stat.Amount);
     default: return FString(Name)+TEXT(" +")+HudPoints(Stat.Amount);
     }

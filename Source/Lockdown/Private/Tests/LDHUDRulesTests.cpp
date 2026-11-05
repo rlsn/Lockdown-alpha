@@ -212,11 +212,11 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reaching the due time waits for the authority and never claims a winner"),Due.Progress==1.f&&Due.Line.EndsWith(TEXT("0.0s"))&&!Due.Line.Contains(TEXT("加冕")));
     TestEqualSensitive(TEXT("An unlisted occupier is not given an invented name"),LDHUD::Circle(Public,FString(),false,0).Line,FString(TEXT("未列名参赛者 正在独占升旗台 · 进度同步中")));
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;
-    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),TEXT("纪律委员"),TEXT("体育老师")),FString(TEXT("甲 让 乙 社死了")));
+    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任")),FString(TEXT("甲 让 乙 社死了")));
     Notice.Cause=ELDKillCause::CampHigh;
-    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),TEXT("纪律委员"),TEXT("体育老师")),FString(TEXT("乙 被体育老师送去社死")));
+    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任")),FString(TEXT("乙 被体育老师送去社死")));
     Notice.Cause=ELDKillCause::Unowned;
-    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),TEXT("纪律委员"),TEXT("体育老师")),FString(TEXT("乙 社死了（无参赛者击杀）")));
+    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任")),FString(TEXT("乙 社死了（无参赛者击杀）")));
     FLDResultView Result;Result.Reason=ELDMatchEndReason::CaptureCompleted;Result.Winner=FGuid::NewGuid();
     TestEqualSensitive(TEXT("A capture result crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),FString(TEXT("甲 连续独占升旗台，加冕阴人王！")));
     Result.Reason=ELDMatchEndReason::HostEnded;Result.Winner.Invalidate();
@@ -242,6 +242,20 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Another contender's claim names the public roster name"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,48000),
         FString(TEXT("甲 抢到了空投")));
     TestTrue(TEXT("The claim notice leaves after a few seconds"),LDHUD::AirdropLine(Drop,FGuid::NewGuid(),TEXT("甲"),true,60000).IsEmpty());
+    // D26: the Boss line counts down shortly before it appears and names the last hit afterwards.
+    FLDBossView Dean;
+    TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),true,0).IsEmpty());
+    Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;
+    TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),true,30000).IsEmpty());
+    TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),true,51000),
+        FString(TEXT("教导主任 0:10 后出现 · 小地图金色巡逻点")));
+    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),false,51000).IsEmpty());
+    Dean.Phase=ELDBossPhase::Down;Dean.KilledBy=Me;Dean.DownAtMs=90000;
+    TestEqualSensitive(TEXT("The last hit is told it was approved"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),true,91000),
+        FString(TEXT("你击败了教导主任，获得认可！")));
+    TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossLine(Dean,FGuid::NewGuid(),TEXT("甲"),TEXT("教导主任"),true,91000),
+        FString(TEXT("甲 击败了教导主任，获得认可")));
+    TestTrue(TEXT("The result leaves after a few seconds"),LDHUD::BossLine(Dean,Me,FString(),TEXT("教导主任"),true,99001).IsEmpty());
     // D27: the 通报批评 line names the leader and the bounty; the leader is told directly.
     FLDLeaderView Named;
     TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named,Me,FString()).IsEmpty());
@@ -453,14 +467,14 @@ bool FLDHUDDeathCauseTest::RunTest(const FString& Parameters)
     FLDKillFeedView Feed;Feed.Generation=7;
     auto AddNotice=[&Feed](uint64 Serial,const FGuid& Victim,const FGuid& By,ELDKillCause Kind,int64 AtMs)
     {FLDKillNotice Entry;Entry.Serial=Serial;Entry.Victim=Victim;Entry.Killer=By;Entry.Cause=Kind;Entry.OccurredAtMs=AtMs;Feed.Notices.Add(Entry);};
-    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,TEXT("纪律委员"),TEXT("体育老师"));};
+    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任"));};
     AddNotice(1,Self,FGuid(),ELDKillCause::CampHigh,10000);
     AddNotice(2,Other,Rival,ELDKillCause::Contender,30000);
     AddNotice(3,Self,Rival,ELDKillCause::Contender,50000);
     TestEqualSensitive(TEXT("The newest own death names its killer from the public roster"),CauseAt(7,40000),FString(TEXT("被 同学甲 送去社死")));
     TestTrue(TEXT("A feed of another generation is not this match"),CauseAt(8,0).IsEmpty()&&CauseAt(0,0).IsEmpty());
     TestTrue(TEXT("Before this life's notice arrives an older death never stands in"),CauseAt(7,60000).IsEmpty());
-    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,TEXT("纪律委员"),TEXT("体育老师")).IsEmpty());
+    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任")).IsEmpty());
     Feed.Notices.RemoveAt(2);
     TestEqualSensitive(TEXT("A camp death names the approved creature of its tier"),CauseAt(7,0),FString(TEXT("被体育老师送去社死")));
     TestTrue(TEXT("Another contender's death is never the player's cause"),CauseAt(7,20000).IsEmpty());
@@ -481,7 +495,7 @@ bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
 {
     const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid();
     auto Line=[](const FLDKillNotice& Source,const FGuid& Viewer,const TCHAR* VictimName,const TCHAR* KillerName)
-    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,TEXT("纪律委员"),TEXT("体育老师"));};
+    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,TEXT("纪律委员"),TEXT("体育老师"),TEXT("教导主任"));};
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;Notice.Victim=Rival;Notice.Killer=Self;
     LDHUD::FKillFeedLineView Shown=Line(Notice,Self,TEXT("乙"),TEXT("我"));
     TestTrue(TEXT("The player's own kill says 你 and is highlighted"),Shown.bSelf&&Shown.Text==TEXT("你 让 乙 社死了"));

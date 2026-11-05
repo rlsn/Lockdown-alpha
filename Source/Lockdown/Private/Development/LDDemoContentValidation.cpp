@@ -19,7 +19,7 @@ FExact StatBonus(const TArray<FLDDemoStatBonus>& Bonuses, int32 Stat, FNumbers& 
             }
             const bool Ratio = Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio
                 || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::CritChanceBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio;
+                || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio || Bonus.Stat == ELDDemoBonusStat::APBonusRatio;
             return N.Value(Bonus.Amount, Ratio ? 10000 : 100);
         }
     }
@@ -342,12 +342,38 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    if (!Check.Require(D.Monsters[0].Tier != D.Monsters[1].Tier, TEXT("camps"), TEXT("both difficulty tiers are required")))
+    if (!Check.Require(D.Monsters.Num() == 3 && D.Monsters[0].Tier != D.Monsters[1].Tier
+        && D.Monsters[0].Tier != ELDDemoCampTier::Boss && D.Monsters[1].Tier != ELDDemoCampTier::Boss
+        && D.Monsters[2].Tier == ELDDemoCampTier::Boss && D.Monsters[2].Id == D.Boss.Id, TEXT("camps"),
+        TEXT("both camp difficulty tiers and exactly one Boss row are required")))
     {
         return false;
     }
+    // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
+    // interval, stays inside the move speed clamp, and its approval buff is positive temporary ratios only.
+    {
+        const FLDDemoMonsterDefinition& Body = D.Monsters[2];
+        bool bApproval = !D.Boss.ApprovalStats.IsEmpty() && D.Boss.ApprovalDurationMs > 0;
+        for (const FLDDemoStatBonus& Bonus : D.Boss.ApprovalStats)
+        {
+            bApproval &= Bonus.Amount > 0 && (Bonus.Stat == ELDDemoBonusStat::ADBonusRatio || Bonus.Stat == ELDDemoBonusStat::APBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
+        }
+        if (!Check.Require(N.EQ(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm))
+                && N.LE(N.Add(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm)), N.Value(Body.AttackRangeCm))
+                && N.LT(N.Value(Body.AttackRangeCm), N.Value(D.Boss.AggroRadiusCm)), TEXT("boss"), TEXT("invalid Boss collision/range/aggro geometry"))
+            || !Check.Require(Body.AttackWindupMs < Body.AttackIntervalMs && D.Boss.AppearAtMs > 0 && D.Boss.AttackerMemoryMs > 0,
+                TEXT("boss"), TEXT("invalid Boss timing"))
+            || !Check.Require(N.LE(N.Value(P.MoveSpeedCmPerSec.Min), N.Value(Body.MoveSpeedCmPerSec))
+                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp"))
+            || !Check.Require(bApproval, TEXT("boss.approval"), TEXT("the approval buff needs positive temporary ratio stats and a duration")))
+        {
+            return false;
+        }
+    }
     for (const auto& Monster : D.Monsters)
     {
+        if (Monster.Tier == ELDDemoCampTier::Boss) { continue; }
         int64 RewardTotal;
         if (!N.Interval(Monster.AttackSpeed, Interval, Monster.Id)
             || !Check.Require(Interval == Monster.AttackIntervalMs && Monster.AttackWindupMs < Interval,

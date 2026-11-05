@@ -58,6 +58,7 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     case ELDDemoBonusStat::AttackSpeedBonusRatio: Attribute = EAttribute::AttackSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::MoveSpeedBonusRatio: Attribute = EAttribute::MoveSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::ADBonusRatio: Attribute = EAttribute::AD; bRatio = bBasisPoints = true; return true;
+    case ELDDemoBonusStat::APBonusRatio: Attribute = EAttribute::AP; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::CritChanceBonusRatio:
         // Probability points add to the base chance; they are not a percentage of it.
         Attribute = EAttribute::CritChance;
@@ -243,7 +244,8 @@ private:
             EAttribute Attribute = EAttribute::Count;
             bool bRatio = false, bBasisPoints = false;
             const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
-            if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio)
+            if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::APBonusRatio)
             {
                 return Refuse(EError::InputDomain, Field, TEXT("A DEV term must name a permanent build stat"));
             }

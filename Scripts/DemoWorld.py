@@ -24,7 +24,8 @@ PARAMETER_REFS = (
 )
 # D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 # pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
-ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop")
+# D26 (#79): a BossWaypoint is one of the four public points the 教导主任 Boss patrols in id order; a point only.
+ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint")
 ROOT_KEYS = {
     "schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision",
     "source_sha256", "author_schema_sha256", "approval", "geometry", "placement",
@@ -209,7 +210,7 @@ def validate_author_contract(author):
             identifier(connection[field], at + "." + field)
         for wall, identity in _author_rows(connection["wall_ids"], at + ".wall_ids", 2):
             identifier(identity, f"{at}.wall_ids[{wall}]")
-    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 22):
+    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 26):
         at = f"{path}.anchors[{index}]"
         require(type(anchor) is dict, "AuthorShape", at, "expected an anchor object")
         kind = anchor.get("kind")
@@ -329,9 +330,9 @@ def validate_payload(raw):
             "WorldPlacement", "world.placement", "center-first unique offsets and a positive validation envelope are required")
     require(all(offset[2] == 0 and squared_distance(offset, (0, 0)) <= bounded(envelope * envelope) for offset in offsets),
             "WorldPlacement", "world.placement", "offset changes layer or exceeds its fixed validation envelope")
-    require(type(world["anchors"]) is list and len(world["anchors"]) == 22,
+    require(type(world["anchors"]) is list and len(world["anchors"]) == 26,
             "WorldAnchors", "world.anchors",
-            "ten spawns, five camps, one shop, one capture, two dorms and three airdrop points are required")
+            "ten spawns, five camps, one shop, one capture, two dorms, three airdrop points and four Boss waypoints are required")
     anchors = {}
     member_count = 0
     for row in world["anchors"]:
@@ -359,7 +360,7 @@ def validate_payload(raw):
         anchors[row["id"]] = row
     require(member_count == 8 and {kind: sum(row["kind"] == kind for row in anchors.values())
                                   for kind in ANCHOR_KINDS}
-            == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1, "Dorm": 2, "Airdrop": 3},
+            == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1, "Dorm": 2, "Airdrop": 3, "BossWaypoint": 4},
             "WorldAnchors", "world", "incorrect anchor/member counts")
     require(type(world["connections"]) is list and len(world["connections"]) == 5,
             "InvalidReference", "world.connections", "five named inner/outer connections are required")
@@ -547,6 +548,14 @@ def validate_bindings(world, data):
     # D21 dorms and D26 airdrop points: every point of the disk is legal standing ground, and the disk stays apart
     # from the circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
     camp_clearance = content._wire_fraction(world["geometry"]["camp_clearance_cm"], "camp clearance")
+    # D26 Boss waypoints are canonical boss_patrol_1..4 on legal standing ground for one capsule; the path between
+    # them is the runtime's legal navigation.
+    waypoints = sorted(identity for identity, row in anchors.items() if row["kind"] == "BossWaypoint")
+    require(waypoints == [f"boss_patrol_{n}" for n in range(1, 5)], "WorldAnchors", "boss_patrol",
+            "the Boss waypoints must be boss_patrol_1 to boss_patrol_4")
+    for identity in waypoints:
+        require(geometry.legal(point(anchors[identity]["position_cm"], identity), radius), "InvalidGeometry", identity,
+                "Boss waypoint lacks legal capsule support")
     zone_radius = {"Dorm": p("DORM.RadiusCm"), "Airdrop": p("AIRDROP.PickupRadiusCm")}
     zones = [(identity, row["kind"].lower(), point(row["position_cm"], identity), zone_radius[row["kind"]])
              for identity, row in anchors.items() if row["kind"] in zone_radius]

@@ -31,6 +31,8 @@ struct FLDOpponentRequestTally
     uint32 AirdropClaims = 0;
     // D27 evidence: times this adapter's decisions turned to hunting a named 通报批评 leader.
     uint32 LeaderHunts = 0;
+    // D26 evidence: times this adapter's decisions turned to stepping away from the Boss.
+    uint32 BossAvoids = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;
     uint32 Trades = 0;

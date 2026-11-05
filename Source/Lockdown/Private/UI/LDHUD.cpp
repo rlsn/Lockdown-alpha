@@ -137,10 +137,11 @@ FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
     }
 }
 // Camp tiers are named after their approved creature, never a guessed or hidden attacker.
-void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High)
+void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High,FString& Boss)
 {
-    Low=TEXT("低档野怪");High=TEXT("高档野怪");
-    if(Content){for(const FLDDemoMonsterDefinition& Monster:Content->Monsters){(Monster.Tier==ELDDemoCampTier::Low?Low:High)=LDHUD::ContentName(Content,Monster.Id);}}
+    Low=TEXT("低档野怪");High=TEXT("高档野怪");Boss=TEXT("Boss");
+    if(Content){for(const FLDDemoMonsterDefinition& Monster:Content->Monsters)
+    {(Monster.Tier==ELDDemoCampTier::Low?Low:Monster.Tier==ELDDemoCampTier::High?High:Boss)=LDHUD::ContentName(Content,Monster.Id);}}
 }
 }
 
@@ -216,6 +217,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         LeaderText=OneLine(TEXT(""),15,520);LeaderText->SetJustification(ETextJustify::Center);
         LeaderText->SetColorAndOpacity(FSlateColor(FLinearColor(1.f,.32f,.28f)));LeaderText->SetVisibility(ESlateVisibility::Collapsed);
         CircleBox->AddChildToVerticalBox(LeaderText)->SetHorizontalAlignment(HAlign_Center);
+        // D26: the public Boss line, in the minimap waypoints' gold.
+        BossText=OneLine(TEXT(""),15,520);BossText->SetJustification(ETextJustify::Center);
+        BossText->SetColorAndOpacity(FSlateColor(FLinearColor(.98f,.76f,.2f)));BossText->SetVisibility(ESlateVisibility::Collapsed);
+        CircleBox->AddChildToVerticalBox(BossText)->SetHorizontalAlignment(HAlign_Center);
         // The own next step under the public line, in the accent colour so it reads as advice rather than match state.
         NextStepText=OneLine(TEXT(""),15,520);NextStepText->SetJustification(ETextJustify::Center);NextStepText->SetColorAndOpacity(LDHUDStyle::TextAccent);
         CircleBox->AddChildToVerticalBox(NextStepText)->SetHorizontalAlignment(HAlign_Center);
@@ -528,6 +533,11 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(AirdropText,!AirdropText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(LeaderText,LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
     HudSetShown(LeaderText,!LeaderText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    {
+        FString Low,High,Dean;HudCampNames(Content,Low,High,Dean);
+        HudSetText(BossText,LDHUD::BossLine(Public.Boss,O.ContenderId,LDHUD::RosterName(Lobby,Public.Boss.KilledBy),Dean,bClock,NowMs));
+        HudSetShown(BossText,!BossText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    }
     HudSetText(NextStepText,LDHUD::NextStep(Public,O.ContenderId,PC->ReadOwnProgression(),PC->ReadOwnEquipment(),Content));
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshKillFeed(*GS,O.ContenderId,Content,bClock,NowMs);
@@ -536,9 +546,9 @@ void ULDHUD::RefreshReadModel()
     if(Death.bVisible)
     {
         HudSetText(DeathTitle,Death.Title);HudSetText(DeathCountdown,Death.Countdown);HudSetText(DeathNote,Death.Note);
-        FString Low,High;HudCampNames(Content,Low,High);
+        FString Low,High,Dean;HudCampNames(Content,Low,High,Dean);
         const int64 NotBeforeMs=LifeSeenMatch==O.Match&&LifeSeenLife==O.Life?LifeSeenAliveMs:0;
-        const FString Cause=LDHUD::DeathCause(GS->KillFeed,Public.Generation,O.ContenderId,NotBeforeMs,Lobby,Low,High);
+        const FString Cause=LDHUD::DeathCause(GS->KillFeed,Public.Generation,O.ContenderId,NotBeforeMs,Lobby,Low,High,Dean);
         HudSetText(DeathCauseText,Cause);HudSetShown(DeathCauseText,!Cause.IsEmpty(),ESlateVisibility::HitTestInvisible);
     }
 
@@ -865,7 +875,7 @@ void ULDHUD::RefreshKillFeed(const ALDGameState& Public,const FGuid& Self,const 
     if(Feed.Generation!=KillGeneration){KillGeneration=Feed.Generation;KillSerial=0;KillLines.Reset();}
     if(Feed.Generation&&Feed.Generation==Public.PublicMatch.Generation)
     {
-        FString Low,High;HudCampNames(Content,Low,High);
+        FString Low,High,Dean;HudCampNames(Content,Low,High,Dean);
         TArray<const FLDKillNotice*> Fresh;
         for(const FLDKillNotice& Notice:Feed.Notices){if(Notice.Serial>KillSerial){Fresh.Add(&Notice);}}
         Fresh.Sort([](const FLDKillNotice& A,const FLDKillNotice& B){return A.Serial<B.Serial;});
@@ -874,7 +884,7 @@ void ULDHUD::RefreshKillFeed(const ALDGameState& Public,const FGuid& Self,const 
             KillSerial=Notice->Serial;
             // Notices already old when first seen (e.g. a late join) are marked seen without a banner.
             if(bClock&&NowMs-Notice->OccurredAtMs>6000){continue;}
-            const LDHUD::FKillFeedLineView Shown=LDHUD::KillFeedLine(*Notice,Self,LDHUD::RosterName(Public.DemoLobby,Notice->Victim),LDHUD::RosterName(Public.DemoLobby,Notice->Killer),Low,High);
+            const LDHUD::FKillFeedLineView Shown=LDHUD::KillFeedLine(*Notice,Self,LDHUD::RosterName(Public.DemoLobby,Notice->Victim),LDHUD::RosterName(Public.DemoLobby,Notice->Killer),Low,High,Dean);
             FLDHUDKillLine& Line=KillLines.AddDefaulted_GetRef();Line.At=UiNow;Line.Text=Shown.Text;Line.bSelf=Shown.bSelf;
         }
     }

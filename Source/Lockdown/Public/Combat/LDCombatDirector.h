@@ -315,6 +315,10 @@ public:
 
     // ---- Camps.
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
+    // D26 (#79): DeathsAndRewards grants a timed stat bonus (the Boss approval buff) to one living contender body; a
+    // body already gone or dying gets nothing (bOutApplied false). False only on an authority fault.
+    bool GrantTimedBonus(const FLDCombatBodyRef& Body, FName Source, const TArray<FLDDemoStatBonus>& Stats, int64 DurationMs,
+        const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error);
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
 private:

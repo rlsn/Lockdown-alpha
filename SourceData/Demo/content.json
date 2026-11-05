@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash toward the pointer, every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorms, camp-return dead end, airdrop, Boss and leader values. First implementation/playtest baseline, not a balance-validation claim."
+      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash toward the pointer, every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorms, camp-return dead end, airdrop, Boss and leader values. 2026-11-05: #79 Boss windup and patrol points. First implementation/playtest baseline, not a balance-validation claim."
     }
   },
   "parameters": {
@@ -426,6 +426,14 @@
       {"anchor_id": "l3", "monster_id": "monster_scavenger"}
     ]
   },
+  "boss": {
+    "id": "monster_dean",
+    "hp": {"unit": "hp", "value": 1500}, "armor": {"unit": "points", "value": 30}, "magic_resist": {"unit": "points", "value": 30}, "attack": {"unit": "points", "value": 70},
+    "attack_interval": {"unit": "s", "value": 1.5}, "attack_windup": {"unit": "s", "value": 0.5}, "attack_range": {"unit": "cm", "value": 250},
+    "move_speed": {"unit": "cm/s", "value": 300}, "collision_radius": {"unit": "cm", "value": 40}, "aggro_radius": {"unit": "cm", "value": 400},
+    "attacker_memory": {"unit": "s", "value": 5}, "appear_at": {"unit": "s", "value": 60}, "reward_xp": 300, "reward_gold": 250,
+    "approval": {"duration": {"unit": "s", "value": 90}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.25}, "APBonusRatio": {"unit": "ratio", "value": 0.25}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.10}}}
+  },
   "progression": {
     "max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
     "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440],
@@ -477,6 +485,7 @@
     {"id": "item_paper_box", "namespace": "DemoContent", "name_key": "item_paper_box.name", "name_text": "纸箱", "description_key": "item_paper_box.description", "description_text": "提高缺德值和腿速。主动「纸箱潜行」：钻进纸箱隐身一小会儿，腿速略降；离得很近的敌人仍能发现你，弹脑瓜崩、放技能、用装备或挨打都会现身。", "icon_id": "icon_item_paper_box"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "纪律委员", "description_key": "monster_scavenger.description", "description_text": "低档野怪。不会主动出手，被打后同组一起反击；追得太远就回岗。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "体育老师", "description_key": "monster_guardian.description", "description_text": "高档野怪，更耐打、出手更重。不会主动出手，被打后反击；追得太远就回岗。", "icon_id": "icon_monster_guardian"},
+    {"id": "monster_dean", "namespace": "DemoContent", "name_key": "monster_dean.name", "name_text": "教导主任", "description_key": "monster_dean.description", "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击得到认可。", "icon_id": "icon_monster_dean"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "定身", "description_key": "root.description", "description_text": "不能移动和冲刺，但仍可以弹脑瓜崩、放技能和用装备。", "icon_id": "icon_root"},
     {"id": "shield", "namespace": "DemoContent", "name_key": "shield.name", "name_text": "淡定", "description_key": "shield.description", "description_text": "先替你挡下伤害，被打空或到时间就消失。", "icon_id": "icon_shield"},
     {"id": "camp_returning", "namespace": "DemoContent", "name_key": "camp_returning.name", "name_text": "回岗中", "description_key": "camp_returning.description", "description_text": "野怪正在回岗，途中不攻击也不换目标，但仍会挨打；回到岗位后恢复满面子。", "icon_id": "icon_camp_returning"},

@@ -7,6 +7,7 @@ import argparse
 from copy import deepcopy
 from decimal import Decimal
 import json
+import math
 from pathlib import Path
 
 from CatalogTools import encode
@@ -33,6 +34,7 @@ POLICIES = (
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
+    "APBonusRatio",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
 BUNDLE_PATHS = (
@@ -74,7 +76,7 @@ def expected_world_projection(compilation):
                         for row in world["connections"]],
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
-            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop").index(row["kind"]),
+            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -300,6 +302,23 @@ def expected_projection(compilation):
         ):
             monster[dest] = rational(row[source])
         result["Monsters"].append(monster)
+    # D26 (#79): the Boss block is its rules plus one Boss-tier monster row after the camp tiers.
+    boss = data["boss"]
+    interval = scalar(boss["attack_interval"])
+    divisor = math.gcd(1000, interval)
+    result["Boss"] = {"Id": boss["id"], "AppearAtMs": scalar(boss["appear_at"]), "AggroRadiusCm": rational(boss["aggro_radius"]),
+                      "AttackerMemoryMs": scalar(boss["attacker_memory"]),
+                      "ApprovalDurationMs": scalar(boss["approval"]["duration"]), "ApprovalStats": stats(boss["approval"]["stats"])}
+    result["Monsters"].append({
+        "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "AttackIntervalMs": interval,
+        "RewardXP": boss["reward_xp"], "RewardGold": boss["reward_gold"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),
+        "MagicResistP2": scalar(boss["magic_resist"]), "AttackP2": scalar(boss["attack"]), "AttackWindupMs": scalar(boss["attack_windup"]),
+        "LoseTargetGraceMs": scalar(boss["attacker_memory"]), "RespawnMs": 0, "MaxMPP2": 0, "APP2": 0, "CritChanceBp": 0,
+        "AttackSpeed": {"Numerator": 1000 // divisor, "Denominator": interval // divisor}, "AttackRangeCm": rational(boss["attack_range"]),
+        "MoveSpeedCmPerSec": rational(boss["move_speed"]), "CollisionRadiusCm": rational(boss["collision_radius"]),
+        "LeashRadiusCm": rational(boss["aggro_radius"]), "PerceptionRadiusCm": rational(boss["aggro_radius"]),
+        "HPRegenPerSec": rational(), "MPRegenPerSec": rational(),
+    })
     return result
 
 

@@ -237,7 +237,8 @@ UENUM()
 enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 
 UENUM()
-enum class ELDDemoCampTier : uint8 { Low, High };
+// Boss is the D26 教导主任's monster row: one roaming body, never placed in a camp.
+enum class ELDDemoCampTier : uint8 { Low, High, Boss };
 
 UENUM()
 enum class ELDDemoBonusStat : uint8
@@ -245,7 +246,9 @@ enum class ELDDemoBonusStat : uint8
     ADFlat, APFlat, MaxHPFlat, MaxMPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
     AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio,
     // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
-    ADBonusRatio
+    ADBonusRatio,
+    // Percent of the projected AP; timed bonuses only (the D26 Boss approval buff), floored to P2 when applied.
+    APBonusRatio
 };
 
 USTRUCT()
@@ -398,6 +401,21 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() FLDDemoEquipmentActive Dash;
 };
 
+// D26 (#79) 教导主任 Boss: the boss-only rules. Its body stats are the Monsters row with Id and Tier Boss (aggro radius as
+// its perception radius), so Combat, vision and rewards find it like any monster.
+USTRUCT()
+struct FLDDemoBossDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() FLDDemoRational AggroRadiusCm;
+    UPROPERTY() int64 AttackerMemoryMs = 0;
+    UPROPERTY() int64 ApprovalDurationMs = 0;
+    UPROPERTY() TArray<FLDDemoStatBonus> ApprovalStats;
+};
+
 USTRUCT()
 struct FLDDemoMonsterDefinition
 {
@@ -522,6 +540,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoEquipmentDefinition> Equipment;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
+    UPROPERTY() FLDDemoBossDefinition Boss;
     UPROPERTY() FLDDemoProgressionDefinition Progression;
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;

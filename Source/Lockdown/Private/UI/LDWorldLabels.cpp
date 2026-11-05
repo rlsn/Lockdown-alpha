@@ -23,7 +23,8 @@ namespace
 // Anchor height above the presented body centre, clear of the head and its status markers. The proxy draws the
 // high-tier camp body larger, so its label sits higher; the own body's bars sit at a contender label's height.
 double WorldLabelHeadroomCm(const LDWorldLabels::FLabel& Label)
-{return !Label.bContender&&Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?150.:120.;}
+{return Label.bContender?120.:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?175.
+    :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?150.:120.;}
 constexpr double OwnBarsHeadroomCm=120.;
 // Anchors further off-screen are skipped; the margin keeps a label whose anchor sits just past an edge.
 constexpr float WorldLabelCullMargin=160.f;
@@ -33,7 +34,8 @@ constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
 constexpr float WorldPipWidth=10.f,WorldPipHeight=4.f,WorldPipGap=2.f;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
-{return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?84.f:64.f;}
+{return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
+    :Label.CreatureId==uint8(ELDDemoMonsterId::MonsterGuardian)?84.f:64.f;}
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
 const FLinearColor WorldLabelCampInk(1.f,.8f,.42f);
 const FLinearColor WorldLabelStatusInk(.8f,.93f,1.f);

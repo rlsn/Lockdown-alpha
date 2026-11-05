@@ -630,7 +630,7 @@ class DemoContentImport(unittest.TestCase):
         source = self.root / demo.WORLD_SOURCE
         original = source.read_bytes()
         mutations = (
-            (lambda data: data["anchors"].remove(anchor(data, "dorm_se")), "22..22 entries"),
+            (lambda data: data["anchors"].remove(anchor(data, "dorm_se")), "26..26 entries"),
             (lambda data: anchor(data, "dorm_nw").update(kind="Spawn"), "anchor/member counts"),
             (move("dorm_nw", -4900, 4400), "dorm disk lacks legal capsule support"),
             (move("dorm_nw", 0, 500), "dorm disk overlaps the capture or shop disk"),
@@ -655,7 +655,7 @@ class DemoContentImport(unittest.TestCase):
         source = self.root / demo.WORLD_SOURCE
         original = source.read_bytes()
         mutations = (
-            (lambda data: data["anchors"].remove(anchor(data, "airdrop_s")), "22..22 entries"),
+            (lambda data: data["anchors"].remove(anchor(data, "airdrop_s")), "26..26 entries"),
             (lambda data: anchor(data, "airdrop_ne").update(kind="Spawn"), "anchor/member counts"),
             (move("airdrop_ne", 4950, 2670), "airdrop disk lacks legal capsule support"),
             (move("airdrop_ne", 0, 300), "airdrop disk overlaps the capture or shop disk"),

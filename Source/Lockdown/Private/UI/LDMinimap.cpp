@@ -28,7 +28,7 @@ struct FLDMinimapStatic
 {
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone };
-    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm };
+    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
@@ -216,6 +216,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         }
         // D26 (#79): an airdrop point is drawn only while it holds the current public drop (see NativePaint).
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
+        // D26 (#79): a public Boss patrol point, a small gold ring.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
@@ -411,6 +413,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,12.f,FLinearColor(1.f,.93f,.76f));Diamond(6,At,9.f,FLinearColor(.80f,.22f,.17f));Diamond(7,At,3.5f,Ink);break;
                 // Dorm: a small bed, a white pillow on a blue frame.
                 case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
+                // Boss patrol point: a gold dot on an ink disc.
+                case FLDMinimapStatic::ESite::BossWaypoint:Disc(5,At,8.f,Ink);Disc(6,At,5.f,FLinearColor(.95f,.72f,.12f));break;
                 }
             }
         }

@@ -169,7 +169,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
             "item_siphon_emblem": "老爸的皮带", "item_phase_anchor": "跑道钉鞋", "item_arcane_battery": "保温杯",
             "item_echo_maul": "值日扫帚", "item_paper_box": "纸箱",
-            "monster_scavenger": "纪律委员", "monster_guardian": "体育老师",
+            "monster_scavenger": "纪律委员", "monster_guardian": "体育老师", "monster_dean": "教导主任",
             "root": "定身", "shield": "淡定", "camp_returning": "回岗中", "respawn_protection": "复活保护",
             "slow": "减速", "stat_boost": "来劲了", "enraged": "上头", "ambush_ready": "伺机而动", "exposed": "当众出丑",
             "taunt": "被嘲讽", "stealth": "隐身", "disarm": "缴械", "stun": "眩晕", "empowered": "蓄势待发",
@@ -508,6 +508,19 @@ class ApprovedDemoData(unittest.TestCase):
                               row["attack_interval_ms"]), (windup, grace, respawn, interval))
             self.assertTrue(all(amount(row[key]) == 0 for key in ("hp_regen", "max_mp", "mp_regen", "ap", "crit_chance")))
 
+    def test_approved_boss(self):
+        # D26 (#79), user-approved 2026-11-04 ("Approve as proposed (Recommended)") and 2026-11-05 (windup, waypoints).
+        boss = self.data["boss"]
+        self.assertEqual(boss["id"], "monster_dean")
+        for key, expected in (("hp", 1500), ("armor", 30), ("magic_resist", 30), ("attack", 70), ("attack_range", 250),
+                              ("move_speed", 300), ("collision_radius", 40), ("aggro_radius", 400)):
+            self.assertEqual(amount(boss[key]), expected, key)
+        self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
+                          boss["appear_at"]["ms"], boss["reward_xp"], boss["reward_gold"]), (1500, 500, 5000, 60000, 300, 250))
+        self.assertEqual(boss["approval"]["duration"]["ms"], 90000)
+        self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
+                         {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
+
     def test_exact_world_surface_anchors_and_member_homes(self):
         expected = {
             "s00": (4400, 0), "s01": (3560, 2586), "s02": (1360, 4185), "s03": (-1360, 4185), "s04": (-3560, 2586),
@@ -515,6 +528,8 @@ class ApprovedDemoData(unittest.TestCase):
             "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
             "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
             "airdrop_ne": (1940, 2670), "airdrop_nw": (-1940, 2670), "airdrop_s": (0, -3300),
+            "boss_patrol_1": (2400, 2400), "boss_patrol_2": (-2400, 2400), "boss_patrol_3": (-2400, -2400),
+            "boss_patrol_4": (2400, -2400),
         }
         self.assertEqual(set(self.anchors), set(expected))
         for identity, xy in expected.items():

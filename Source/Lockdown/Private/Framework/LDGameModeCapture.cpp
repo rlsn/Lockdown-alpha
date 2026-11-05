@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -168,7 +169,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     {
         Killer = Event.CreditContender.IsValid() ? FindContender(Event.CreditContender) : nullptr;
         if (!(Event.DeathKey == DeathKey) || CountedDeaths.Contains(DeathKey)
-            || uint8(Event.KillCause) > uint8(ELDKillCause::Unowned)
+            || uint8(Event.KillCause) > uint8(ELDKillCause::Boss)
             || (Event.KillCause == ELDKillCause::Contender) != Event.CreditContender.IsValid()
             || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer))
         { return ELDCommitReject::InvalidRequest; }
@@ -520,6 +521,7 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     View.Airdrop = Airdrop.View();
     View.Leader = LeaderNotice.View();
+    View.Boss = Camps ? Camps->BossView() : FLDBossView();
     return View;
 }
 

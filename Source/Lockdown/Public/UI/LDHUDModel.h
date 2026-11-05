@@ -92,22 +92,25 @@ namespace LDHUD
     // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
     // seconds who claimed it. Empty when there is no drop to show.
     LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs);
+    // D26 (#79): the public Boss line: a countdown shortly before it appears, a reminder while it patrols, and who
+    // landed the last hit for a few seconds afterwards. Empty otherwise.
+    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName,bool bClock,int64 NowMs);
     // D27 (#79): the public 通报批评 line: who is named and the bounty on them; the own player is told directly.
     // Empty when nobody is named.
     LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
-    LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName);
     struct FKillFeedLineView
     {
         FString Text;
         bool bSelf=false;
     };
     // A notice naming the player as victim or killer says 你 there and is marked so the feed can highlight it.
-    LOCKDOWN_API FKillFeedLineView KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
+    LOCKDOWN_API FKillFeedLineView KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName);
     // Cause line of the own death banner: the newest public notice of this generation naming the player as the victim at or
     // after NotBeforeMs (when the life that died was first seen alive, so an older death is never shown). Killers come from
     // the public roster and camp tiers from approved display text; empty while no such notice is known.
-    LOCKDOWN_API FString DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName);
+    LOCKDOWN_API FString DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName,const FString& BossName);
     LOCKDOWN_API FString ResultHeadline(const FLDResultView& Result,const FString& WinnerName);
     struct FResultRowView
     {

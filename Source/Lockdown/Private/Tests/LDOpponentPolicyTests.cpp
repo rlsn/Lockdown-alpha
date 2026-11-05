@@ -923,6 +923,8 @@ bool RunProjections(FAutomationTestBase& Test)
         Anchor(TEXT("airdrop_ne"), ELDDemoWorldAnchorKind::Airdrop, 1940, 2670),
         Anchor(TEXT("airdrop_nw"), ELDDemoWorldAnchorKind::Airdrop, -1940, 2670),
         Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
+        // D26: Boss patrol points are not places a body goes; the projection leaves them out.
+        Anchor(TEXT("boss_patrol_1"), ELDDemoWorldAnchorKind::BossWaypoint, 2400, 2400),
         Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
         Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
         Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2),
@@ -1932,6 +1934,56 @@ bool RunHuntLeader(FAutomationTestBase& Test)
         EMode::Farm, EBody::MoveGround);
     return bGood;
 }
+
+bool RunAvoidBoss(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.Self.FootCm = FVector(500, -500, 0);
+    const TCHAR* Dean = *C.Get().Boss.Id;
+    auto IsAvoid = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::AvoidBoss; };
+
+    auto Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    FLDOpponentPolicyState Near;
+    const auto Step = LDOpponentPolicy::Decide(Frame, C, Near);
+    bool bGood = Expect(Test, TEXT("D26: a healthy body inside the Boss's acquire band steps away from it"), Step,
+        EMode::Disengage, EBody::MoveGround)
+        && Test.TestTrue(TEXT("Stepping away from the Boss is its own reason"), IsAvoid(Step))
+        && Test.TestTrue(TEXT("It walks away from the Boss, not past it"),
+            FVector::DotProduct((Frame.POIs.FindByPredicate([&Step](const FLDOpponentPOI& P) { return P.Id == Step.Body.POI; })->FootCm
+                - Frame.Self.FootCm).GetSafeNormal2D(), (Frame.Self.FootCm - FVector(700, -400, 0)).GetSafeNormal2D()) >= 0);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 2500, -500, Dean)};
+    FLDOpponentPolicyState Far;
+    bGood &= Test.TestFalse(TEXT("Out of the band a healthy body carries on"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Far)));
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Expect(Test, TEXT("A hurt body near the Boss escapes as recovery"), LDOpponentPolicy::Decide(Frame, C, Hurt),
+        EMode::Disengage, EBody::MoveGround);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 200, 3100, Dean)};
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = Frame.Self.ContenderId;
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.Self.FootCm = FVector(0, 3000, 0);
+    FLDOpponentPolicyState Holder;
+    bGood &= Expect(Test, TEXT("Holding the circle alone outranks stepping away"), LDOpponentPolicy::Decide(Frame, C, Holder),
+        EMode::DefendOrHold, EBody::None);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, TEXT("monster_scavenger"))};
+    FLDOpponentPolicyState Camp;
+    bGood &= Test.TestFalse(TEXT("A camp member is not the Boss"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Camp)));
+    return bGood;
+}
 }
 }
 
@@ -1949,6 +2001,14 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentHuntLeaderTest, "Lockdown.Rules.
 bool FLDDemoOpponentHuntLeaderTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunHuntLeader(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAvoidBossTest, "Lockdown.Rules.DemoOpponentPolicy.AvoidBoss",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentAvoidBossTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunAvoidBoss(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",

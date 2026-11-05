@@ -56,6 +56,14 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         || (Drop.Phase == ELDAirdropPhase::Claimed ? Drop.ClaimedAtMs < Drop.LandAtMs : Drop.ClaimedAtMs != 0)
         || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
     { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
+    const FLDBossView& Boss = View.Boss;
+    if (Boss.Phase == ELDBossPhase::None ? (Boss.AppearAtMs != 0 || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+        : (Boss.AppearAtMs <= View.StartedAtMs
+            // A blocked appearance stays Pending past its time and retries; Pending never names a killer.
+            || (Boss.Phase == ELDBossPhase::Pending ? (Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+                : Boss.Phase == ELDBossPhase::Alive ? (View.ServerNowMs < Boss.AppearAtMs || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
+                : (Boss.DownAtMs < Boss.AppearAtMs || Boss.DownAtMs > View.ServerNowMs))))
+    { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the match clock.")); }
     const FLDLeaderView& Named = View.Leader;
     if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= View.StartedAtMs
             || Named.RefreshedAtMs > View.ServerNowMs || Named.BountyGold <= 0)
@@ -76,7 +84,8 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         break;
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
-            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop || Named.Leader.IsValid())
+            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop || Named.Leader.IsValid()
+            || Boss.Phase != ELDBossPhase::None)
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no capture state.")); }
         break;
     }
@@ -126,7 +135,7 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
     for (const FLDKillNotice& Notice : View.Notices)
     {
         if (!Notice.Serial || Notice.Serial <= Previous || !Notice.Victim.IsValid() || Notice.OccurredAtMs < 0
-            || uint8(Notice.Cause) > uint8(ELDKillCause::Unowned)
+            || uint8(Notice.Cause) > uint8(ELDKillCause::Boss)
             || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim)
         { return FailCaptureView(Error, TEXT("Invalid kill notice.")); }
         Previous = Notice.Serial;

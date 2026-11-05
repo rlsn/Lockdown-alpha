@@ -207,7 +207,8 @@ bool ALDGameMode::KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCa
             if (Error.IsEmpty()) { Error = TEXT("A camp kill has no recorded monster definition."); }
             return false;
         }
-        OutCause = Monster->Tier == ELDDemoCampTier::High ? ELDKillCause::CampHigh : ELDKillCause::CampLow;
+        OutCause = Monster->Tier == ELDDemoCampTier::Boss ? ELDKillCause::Boss
+            : Monster->Tier == ELDDemoCampTier::High ? ELDKillCause::CampHigh : ELDKillCause::CampLow;
     }
     Error.Reset();
     return true;

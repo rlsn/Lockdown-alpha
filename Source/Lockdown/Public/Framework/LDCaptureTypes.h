@@ -13,11 +13,15 @@ enum class ELDMatchEndReason : uint8 { None, CaptureCompleted, HostEnded };
 
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
-enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned };
+// Boss (#79 D26) is appended so earlier causes keep their wire values.
+enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss };
 
 // D26 (#79): the public phase of the current airdrop.
 UENUM()
 enum class ELDAirdropPhase : uint8 { None, Announced, Landed, Claimed };
+UENUM()
+// D26 (#79) 教导主任 Boss: None outside a match, Pending until it appears, Alive while it patrols, Down once killed.
+enum class ELDBossPhase : uint8 { None, Pending, Alive, Down };
 
 // D26 (#79): the current airdrop, public to every connection: point, landing instant and claimer. None before the
 // first announcement. The next announcement replaces it.
@@ -46,6 +50,18 @@ struct FLDLeaderView
     UPROPERTY() int64 BountyGold = 0;
 };
 
+// D26 (#79) 教导主任 Boss, public to every connection: when it appears and who landed the last hit. Its body is seen only
+// through the ordinary fog of war, never through this view.
+USTRUCT()
+struct FLDBossView
+{
+    GENERATED_BODY()
+    UPROPERTY() ELDBossPhase Phase = ELDBossPhase::None;
+    UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() FGuid KilledBy;
+    UPROPERTY() int64 DownAtMs = 0;
+};
+
 // Whole-room capture state. It names at most the single occupier and never lists bodies in the
 // circle, hidden positions, protection or private build data. Live time comes from DemoClock.
 USTRUCT()
@@ -72,6 +88,7 @@ struct FLDPublicMatchView
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
     UPROPERTY() FLDLeaderView Leader;
+    UPROPERTY() FLDBossView Boss;
 };
 
 USTRUCT()

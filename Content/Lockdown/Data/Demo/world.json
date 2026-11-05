@@ -58,6 +58,82 @@
       "surface_id": "demo_ground"
     },
     {
+      "id": "boss_patrol_1",
+      "kind": "BossWaypoint",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 2400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 2400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "boss_patrol_2",
+      "kind": "BossWaypoint",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -2400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 2400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "boss_patrol_3",
+      "kind": "BossWaypoint",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -2400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -2400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "boss_patrol_4",
+      "kind": "BossWaypoint",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 2400
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -2400
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
       "id": "capture",
       "kind": "Capture",
       "position_cm": {
@@ -566,10 +642,10 @@
     }
   ],
   "approval": {
-    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash toward the pointer, every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorms, camp-return dead end, airdrop, Boss and leader values. First implementation/playtest baseline, not a balance-validation claim.",
+    "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash toward the pointer, every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorms, camp-return dead end, airdrop, Boss and leader values. 2026-11-05: #79 Boss windup and patrol points. First implementation/playtest baseline, not a balance-validation claim.",
     "status": "approved"
   },
-  "author_schema_sha256": "e1eda8ba02357bbe2bba3887234f456834a56a5eed304f60a61af94c4e7624de",
+  "author_schema_sha256": "646297c92a23334c08abe22b485304324cfef22fbbb708761099d06f4ae3586c",
   "connections": [
     {
       "camp_id": "l1",
@@ -1460,5 +1536,5 @@
   },
   "projection_revision": 2,
   "schema_version": 2,
-  "source_sha256": "9ea14ac67d0a134c9f9067c572e68592d33c7ab3e3cd5d4ae250dab3752f6d3a"
+  "source_sha256": "567ad6cc1041f14dad5f441b502a9b1bcd978e0c926d1dbd133b31c3288205c6"
 }

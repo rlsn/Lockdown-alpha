@@ -24,7 +24,7 @@ enum class ELDDemoEquipmentId : uint8
     ItemSiphonEmblem=102, ItemPhaseAnchor=103, ItemArcaneBattery=104, ItemEchoMaul=105,
     ItemSlingshot=106, ItemPaperBox=107, ItemNailUniform=108
 };
-enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2 };
+enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3 };
 enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4,
     Slow=5, StatBoost=6, Enraged=7, AmbushReady=8, Exposed=9, Taunt=10, Stealth=11,
     Disarm=12, Stun=13, Empowered=14 };

@@ -75,7 +75,7 @@
         ]
       }
     },
-    "anchors": {"type": "array", "minItems": 22, "maxItems": 22, "items": {"$ref": "#/$defs/anchor"}}
+    "anchors": {"type": "array", "minItems": 26, "maxItems": 26, "items": {"$ref": "#/$defs/anchor"}}
   },
   "$defs": {
     "id": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z][a-z0-9_]*$"},
@@ -90,7 +90,7 @@
         {
           "type": "object", "additionalProperties": false, "required": ["id", "kind", "surface_id", "position_cm"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Shop", "Capture", "Dorm", "Airdrop"]},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"type": "string", "enum": ["Spawn", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint"]},
             "surface_id": {"$ref": "#/$defs/id"}, "position_cm": {"$ref": "#/$defs/vector"}
           }
         },

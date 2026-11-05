@@ -212,6 +212,9 @@ struct FContext
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
     double LeaderRadiusCm = 0;
+    // D26: the visible Boss and the band in which it acquires a contender (its aggro radius plus its reach).
+    const FLDOpponentUnit* Boss = nullptr;
+    double BossBandCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
     double VisionRadiusCm = 0;
@@ -232,10 +235,13 @@ struct FContext
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
         AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
         LeaderRadiusCm = ToDouble(Content.Parameters.LeaderCircleRadiusCm);
+        const FLDDemoMonsterDefinition* BossBody = Content.Monsters.FindByPredicate(
+            [&Content](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Boss && M.Id == Content.Boss.Id; });
+        BossBandCm = BossBody ? ToDouble(Content.Boss.AggroRadiusCm) + ToDouble(BossBody->AttackRangeCm) : 0.;
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture || !Shop)
         {
             return false;
         }
@@ -247,6 +253,12 @@ struct FContext
             if (Unit.Kind == ELDOpponentUnitKind::Contender && Unit.ContenderId != Self.ContenderId)
             {
                 Enemies.Add(&Unit);
+                Threats.Add(&Unit);
+            }
+            else if (Unit.Kind == ELDOpponentUnitKind::CampMember && Unit.MonsterId.Equals(Catalog.Get().Boss.Id, ESearchCase::CaseSensitive))
+            {
+                // D26: the Boss turns on anyone near it, so a seen Boss is always a threat; AIs never pick a fight with it.
+                Boss = &Unit;
                 Threats.Add(&Unit);
             }
             else if (Unit.Kind == ELDOpponentUnitKind::CampMember && !Unit.bReturning && !State.VisitPOI.IsNone()
@@ -1504,6 +1516,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     {
         Body(DisengageBody(C));
         return Finish(EMode::Disengage, EReason::Recover);
+    }
+    // D26 (#79): a body inside the Boss's acquire band steps away from it before anything but the circle; out of the
+    // band it carries on, and a recovering body has already disengaged above.
+    if (C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm && !bHoldingSolo)
+    {
+        EndVisit(State, false);
+        Body(DisengageBody(C));
+        return Finish(EMode::Disengage, EReason::AvoidBoss);
     }
     if (!State.bRecovering)
     {

@@ -98,6 +98,7 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
     UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
     UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
+    UPROPERTY() TObjectPtr<UTextBlock> BossText;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;

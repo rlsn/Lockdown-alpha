@@ -53,7 +53,7 @@ HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
-                             "CritChanceBonusRatio", "ADBonusRatio"))
+                             "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
 # Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off: self effects,
 # and hit effects delivered to every legal body in the self_area around the landing foot.
 JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "restore_mana", "self_area", *HOSTILE_OPS))
@@ -532,7 +532,7 @@ def _validate_action(target, ranks, path):
 def validate_definitions(data, ids):
     collections = {"character": [data["character"]], "abilities": data["abilities"],
                    "attributes": data["attributes"], "equipment": data["equipment"],
-                   "monsters": data["camps"]["monsters"]}
+                   "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
         index = rows_by_id(rows, section)
@@ -835,6 +835,21 @@ def validate_numbers(data):
         checked_mul(monster["count_per_camp"], monster["reward_gold"], path)
         monster["attack_interval_ms"] = interval
         monster["perception_radius"] = dict(monster["leash_radius"])
+    # D26 (#79): the 教导主任 Boss is one roaming body: its own block, not a camp tier.
+    boss = data["boss"]
+    require(boss["id"] not in monsters, "DuplicateId", "boss", "the Boss is not a camp monster")
+    require(quantity(boss["hp"]) > 0 and quantity(boss["attack"]) > 0, "NumericDomain", "boss", "Boss HP/attack must be positive")
+    require(quantity(boss["collision_radius"]) == p("UNIT.CollisionRadiusCm")
+            and quantity(boss["attack_range"]) >= quantity(boss["collision_radius"]) + p("UNIT.CollisionRadiusCm")
+            and quantity(boss["aggro_radius"]) > quantity(boss["attack_range"]),
+            "InvalidGeometry", "boss", "invalid Boss collision/attack/aggro geometry")
+    require(boss["attack_windup"]["ms"] < boss["attack_interval"]["ms"], "InvalidTiming", "boss", "windup exceeds attack interval")
+    require(p("STAT.MoveSpeed.Min") <= quantity(boss["move_speed"]) <= p("STAT.MoveSpeed.Max"),
+            "NumericDomain", "boss", "Boss move speed outside the move speed clamp")
+    stats = boss["approval"]["stats"]
+    require(set(stats) <= TEMPORARY_STATS and all(key.endswith("BonusRatio") for key in stats), "UnknownField", "boss.approval",
+            "the approval buff takes temporary ratio stats only")
+    _positive_stats(stats, "boss.approval")
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(all(row["monster_id"] in monsters for row in placements.values()),
             "InvalidReference", "camps", "unknown monster reference")

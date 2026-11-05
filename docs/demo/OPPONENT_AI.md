@@ -376,6 +376,10 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 走向圆内离圆心最近、未被失败抑制的公开地点（不含商店）；看到被通报者后由普通交战分支接手。
 它排在空投和普通争圈之后、打野之前，原因 `HuntLeader`（`DemoOpponentPolicy.HuntLeader`）。
 
+教导主任 Boss（D26）只在合法视野内可见，与其他单位相同；AI 按其公开生物编号认出它，始终把可见的 Boss 计为威胁。
+本人脚点在 Boss 的索敌带（`aggro_radius` 加它的 `attack_range`）内时，走向背离 Boss 的公开地点，原因 `AvoidBoss`；
+这排在独占占点之后、追打对手之前；恢复中的 AI 照常以恢复撤离。AI 不主动攻击 Boss（`DemoOpponentPolicy.AvoidBoss`）。
+
 ### 6.3 普攻与每一个主动来源
 
 持续普攻只由 Nav AttackUnit/AttackMove 的 AttackCycle 驱动。

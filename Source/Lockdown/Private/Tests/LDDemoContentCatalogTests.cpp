@@ -708,7 +708,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), Geometry.Get(),
             FPaths::Combine(Root, TEXT("native_world_expected.json")), Actual)) { return false; }
         TestEqual(TEXT("World keeps ten actual polygon blockers"), Geometry->Blockers.Num(), 10);
-        TestEqual(TEXT("World keeps twenty-two authored anchors"), Geometry->Anchors.Num(), 22);
+        TestEqual(TEXT("World keeps twenty-six authored anchors"), Geometry->Anchors.Num(), 26);
         TestEqual(TEXT("World keeps seven local placements, not seventy spawn IDs"), Geometry->SpawnOffsetsCm.Num(), 7);
     }
     return true;
@@ -831,7 +831,7 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
         && !BadReader.IsError() && !BadRestored->Read(*Catalog, AfterFailure, Error));
     *Stored = Original;
     TestTrue(TEXT("Restoring the isolated mutations recovers the original asset"), Validate(Error));
-    TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 22);
+    TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 26);
     return true;
 }
 

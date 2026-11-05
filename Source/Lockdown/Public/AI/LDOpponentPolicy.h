@@ -22,7 +22,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed, ContestAirdrop, HuntLeader
+    AwaitReceipt, TargetSuppressed, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };

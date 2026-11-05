@@ -310,6 +310,19 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 纯移动/dash、自保盾/回蓝、购物/选择不刷新该脱战时钟。成功伤害技能释放即使后来打空也刷新。
 副击对受害者造成正mitigated伤害仍刷新其受击时钟，不能被“禁追加proc”错误过滤。
 
+**教导主任 Boss（D26，#79）**：`content.json` 的 `boss` 块（`monster_dean`，显示名“教导主任”）。开局后 `appear_at=60` 秒
+出现在 `boss_patrol_1`，以 `move_speed=300` cm/s 沿 `boss_patrol_1..4` 循环巡逻：(2400, 2400) → (-2400, 2400) →
+(-2400, -2400) → (2400, -2400)，位于中墙外、营地环与出生环之间、左右对称，是 `SourceData/World/demo_world.json` 的
+`BossWaypoint` 锚点，随 #97 重新布局调整。面子 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
+`attack=70` 物理伤害（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
+碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
+内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活。最后一击得 `reward_xp=300` 经验 + `reward_gold=250` 金币
+（走 `DeathReward` 结算），并获得“认可”：`approval.duration=90` 秒内 `ADBonusRatio` +25%、`APBonusRatio` +25%、
+`MoveSpeedBonusRatio` +10%（`APBonusRatio` 是新增的仅限临时增益的属性）。内容校验要求碰撞半径等于参赛者、攻击距离覆盖两者半径、
+索敌半径大于攻击距离、前摇短于攻击间隔、移速在移速上下限内、认可只含正的临时比例属性。
+数值由用户在 2026-11-04 批准（“Approve as proposed (Recommended)”），前摇（“0.5 s (Recommended)”）与巡逻点
+（“Four diagonals (Recommended)”）在 2026-11-05 批准，为首轮试玩值，未经平衡验证。
+
 ### 4.3 属性奖励：永久、可重复且每次有效
 
 | ID | `CHOICE.<ID>` 增量（类型见字段） | 十次全选的增量 | 适用与边界 |
