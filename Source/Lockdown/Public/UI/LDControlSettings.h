@@ -3,6 +3,7 @@
 #include "GameFramework/SaveGame.h"
 #include "InputCoreTypes.h"
 #include "Scalability.h"
+#include "Character/LDCameraSettings.h"
 #include "LDControlSettings.generated.h"
 
 class ULDControlSettings;
@@ -114,7 +115,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 11;
+    static constexpr int32 CurrentSchema = 13;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -124,7 +125,7 @@ public:
     UPROPERTY(SaveGame) bool bEdgePan=true;
     UPROPERTY(SaveGame) bool bStartFollowing=true;
     UPROPERTY(SaveGame) float TextScale=1;
-    UPROPERTY(SaveGame) float Zoom=1400;
+    UPROPERTY(SaveGame) float Zoom=LDCamera::DefaultArmLength;
     // Empty means the player has not chosen a name yet; no default name is ever invented.
     UPROPERTY(SaveGame) FString PlayerName;
     // Linear 0..1 gain of the whole Demo sound output; 1, the default, applies no attenuation.
@@ -145,6 +146,7 @@ public:
     bool ApplyLocalSettings(const ULDControlSettings& Draft, FString& Error);
     FLDLocalSettingsSaveResult SaveLocalSettings();
     bool SetAppliedZoom(float Value, FString& Error);
+    void UseRecommendedCameraZoom() { Zoom = LDCamera::DefaultArmLength; }
     bool SetAppliedMasterVolume(float Value, FString& Error);
     bool SetAppliedCameraPanSpeed(float Value, FString& Error);
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }

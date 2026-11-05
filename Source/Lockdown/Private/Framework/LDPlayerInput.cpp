@@ -2,6 +2,7 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDModelPicking.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
@@ -286,27 +287,18 @@ bool ALDPlayerController::ObservedUnderPointer(FGuid& OutHandle,uint32& OutEpoch
     const auto* Relay=LocalView();
     FVector2D Pointer;
     if (!Relay || !Navigation || !Navigation->PointerPosition(Pointer)) { return false; }
-    const float X=float(Pointer.X), Y=float(Pointer.Y);
     const auto Read=Relay->ReadObservedFrame();
     if (!Read.Frame || Read.Status!=ELDObservedViewStatus::Current
         || Read.Frame->MatchGeneration!=OwnerState.Match || Read.Frame->ObserverLife!=OwnerState.Life) { return false; }
-    double Distance=32*32;
-    const double HalfHeight=GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
-    for (const auto& Unit : Read.Frame->Units)
-    {
-        FVector2D Screen;
-        if (ProjectWorldLocationToScreen(FVector(Unit.FeetCm)+FVector(0,0,HalfHeight),Screen))
-        {
-            const double Current=FVector2D::DistSquared(Screen,FVector2D(X,Y));
-            if (Current<Distance || (Current==Distance && OutHandle.IsValid() && Unit.Handle<OutHandle))
-            {
-                OutHandle=Unit.Handle;
-                OutEpoch=Unit.ObservationEpoch;
-                Distance=Current;
-            }
-        }
-    }
-    return OutHandle.IsValid() && OutEpoch!=0;
+    FVector RayStart, RayDirection;
+    int32 Width=0, Height=0;
+    GetViewportSize(Width,Height);
+    const float Fov=PlayerCameraManager ? PlayerCameraManager->GetFOVAngle() : 0.f;
+    if (Width<=0 || !(Fov>0.f && Fov<180.f)) { return false; }
+    // Horizontal FOV over the viewport width: the angle LDModelPicking::PickTolerancePx pixels subtend at screen centre.
+    const double Tolerance=FMath::Atan(2.*FMath::Tan(FMath::DegreesToRadians(Fov)*.5)*LDModelPicking::PickTolerancePx/Width);
+    return DeprojectScreenPositionToWorld(float(Pointer.X),float(Pointer.Y),RayStart,RayDirection)
+        && Relay->PickPresentedUnit(RayStart,RayDirection,Tolerance,OutHandle,OutEpoch);
 }
 
 void ALDPlayerController::Inspect(FGuid Handle,uint32 ObservationEpoch)

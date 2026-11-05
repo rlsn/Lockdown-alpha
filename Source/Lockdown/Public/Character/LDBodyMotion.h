@@ -17,12 +17,17 @@ namespace LDBodyMotion
         float Charge = 0;    // cast orb at the hand
         float Burst = 0;     // impact flash at the hand or chest
         float Flash = 0;     // hit flash over the whole body
+        float HitBurst = 0;  // independent chest impact while another action keeps playing
     };
 
     // A basic swing lands, and a cast releases, here: near the 250 ms base windup of a basic release and the 200 ms
     // windup of the Demo actives.
     constexpr float StrikeAt = .2f;
     LOCKDOWN_API FChannels Evaluate(EAction Action, float AgeSeconds);
+    LOCKDOWN_API FChannels WithHit(EAction Action, float AgeSeconds, float HitAgeSeconds);
+    // Hold only a victim's current attack/cast pose at impact; never pause input, movement or authority time.
+    constexpr float HitPoseHoldSeconds = .045f;
+    LOCKDOWN_API float ImpactPoseAge(EAction Action, float AgeSeconds, float HitAgeSeconds);
 
     // The clip time that shows an action AgeSeconds after it began: an attack or cast clip with an impact frame
     // (ImpactSeconds at rate 1) reaches it at StrikeAt; any other clip plays at its authored rate. Never negative.

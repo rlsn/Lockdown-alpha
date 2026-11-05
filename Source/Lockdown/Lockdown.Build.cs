@@ -6,7 +6,7 @@ public class Lockdown : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "UMG", "NavigationSystem", "AIModule", "NetCore" });
-        PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json", "RHI" });
+        PrivateDependencyModuleNames.AddRange(new[] { "Slate", "SlateCore", "Json", "RHI", "RenderCore" });
         ExternalDependencies.Add(System.IO.Path.Combine(ModuleDirectory, "Private", "Development", "LDDemoContentContract.h"));
         ExternalDependencies.Add(System.IO.Path.Combine(ModuleDirectory, "Private", "World", "LDDemoWorldContract.h"));
         RuntimeDependencies.Add("$(ProjectDir)/Content/Lockdown/Data/Demo/demo_content.json", StagedFileType.UFS);

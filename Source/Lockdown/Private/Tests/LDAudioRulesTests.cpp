@@ -189,9 +189,92 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioCueBasicAttackTest,"Lockdown.Rules.AudioCueBasicAttack",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
+{
+    FLDAudioCueTracker Tracker;
+    FLDCombatOwnerView Combat;Combat.Generation=5;Combat.Life=1;Combat.bHasBody=true;
+    Combat.Revision=1;Combat.AsOfMs=1000;Combat.HPP2=Combat.MaxHPP2=50000;
+    Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedAtMs=900;
+    FLDAudioFrame Frame;Frame.OwnMatch=5;Frame.OwnLife=1;Frame.OwnLifePhase=ELDLifePhase::Alive;
+    Frame.OwnCombat=&Combat;Frame.LocalSeconds=1;
+    TestTrue(TEXT("A release already present at the first sample is not replayed"),AudioSample(Tracker,Frame).IsEmpty());
+
+    ++Combat.Revision;Combat.AsOfMs=1100;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;
+    Combat.Cues.ActingStartedAtMs=1100;
+    TestTrue(TEXT("A basic windup is not a released swing"),AudioSample(Tracker,Frame).IsEmpty());
+    TArray<ELDAudioCue> Out;
+    FLDCombatActionReceipt Refused;Refused.Generation=5;Refused.Life=1;Refused.Entry=ELDCombatEntry::Basic;
+    Refused.DirectSequence=1;Refused.Phase=ELDCombatPhase::Rejected;Refused.Reject=ELDCombatReject::OutOfRange;
+    Tracker.ObserveCombatReceipt(Refused,5,1,Out);
+    ++Combat.Revision;Combat.Cues.bActing=false;
+    TestTrue(TEXT("A refused or cancelled basic without a release stays silent"),
+        Out.IsEmpty()&&AudioSample(Tracker,Frame).IsEmpty());
+    Refused.DirectSequence=2;Refused.Reject=ELDCombatReject::Cancelled;
+    Tracker.ObserveCombatReceipt(Refused,5,1,Out);
+    TestTrue(TEXT("A cancelled basic receipt cannot manufacture a swing"),Out.IsEmpty());
+
+    ++Combat.Revision;Combat.AsOfMs=1400;Combat.Cues.ReleasedAtMs=1400;
+    TestTrue(TEXT("An own successful basic release sounds a swing without any HP change"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+    TestTrue(TEXT("An identical projection cannot replay the swing"),AudioSample(Tracker,Frame).IsEmpty());
+    ++Combat.Revision;
+    TestTrue(TEXT("A newer projection with the same release cannot replay it"),AudioSample(Tracker,Frame).IsEmpty());
+    --Combat.Revision;Combat.Cues.ReleasedAtMs=1500;Combat.AsOfMs=1500;
+    TestTrue(TEXT("An older revision cannot supply a new swing"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision+=2;Combat.Cues.ReleasedAtMs=1300;
+    TestTrue(TEXT("A release timestamp below the watermark cannot replay"),AudioSample(Tracker,Frame).IsEmpty());
+    ++Combat.Revision;Combat.Cues.ReleasedAtMs=1400;
+    TestTrue(TEXT("A regressed release cannot lower the watermark"),AudioSample(Tracker,Frame).IsEmpty());
+
+    ++Combat.Revision;Combat.AsOfMs=1600;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedAtMs=1600;
+    TestTrue(TEXT("A skill release is not a basic attack"),AudioSample(Tracker,Frame).IsEmpty());
+    ++Combat.Revision;Combat.HPP2=49000;Combat.Cues.LastHitAtMs=1700;Combat.AsOfMs=1700;Frame.LocalSeconds=2;
+    TestTrue(TEXT("Taking damage is SelfHit, not a basic swing"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfHit}));
+    ++Combat.Revision;Combat.HPP2=50000;
+    TestTrue(TEXT("Gaining HP does not manufacture a landed hit or swing"),AudioSample(Tracker,Frame).IsEmpty());
+    ++Combat.Revision;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedAtMs=1800;Combat.AsOfMs=1800;
+    TestTrue(TEXT("The next actual basic release sounds independently of HP"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+
+    ++Combat.Revision;Combat.Cues.ReleasedAtMs=1900;Combat.AsOfMs=1900;Combat.HPP2=0;Frame.OwnLifePhase=ELDLifePhase::Dead;
+    TestTrue(TEXT("A release first delivered with own death does not sound a swing"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
+    ++Combat.Revision;
+    TestTrue(TEXT("A dead projection never replays its release"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.OwnLife=2;Frame.OwnLifePhase=ELDLifePhase::Alive;
+    TestTrue(TEXT("Respawn ignores the previous body's release"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfRespawn}));
+    Combat.Life=2;Combat.Revision=1;Combat.HPP2=50000;Combat.AsOfMs=2100;Combat.Cues.ReleasedAtMs=2000;
+    TestTrue(TEXT("A new life primes its own release watermark"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.OwnLife=1;Combat.Life=1;Combat.Revision=100;Combat.Cues.ReleasedAtMs=2100;
+    TestTrue(TEXT("A late old owner life cannot rewind the release tracker"),AudioSample(Tracker,Frame).IsEmpty());
+    Frame.OwnLife=2;Combat.Life=2;Combat.Revision=2;Combat.AsOfMs=2200;Combat.Cues.ReleasedAtMs=2200;
+    TestTrue(TEXT("An old life cannot swallow the new life's next release"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+    Frame.OwnMatch=6;Frame.OwnLife=1;Combat.Generation=6;Combat.Life=1;Combat.Revision=1;
+    Combat.AsOfMs=100;Combat.Cues.ReleasedAtMs=100;
+    TestTrue(TEXT("A new match primes without a respawn or an old swing"),AudioSample(Tracker,Frame).IsEmpty());
+    ++Combat.Revision;Combat.AsOfMs=200;Combat.Cues.ReleasedAtMs=200;
+    TestTrue(TEXT("The new match can sound its own release at a lower timestamp"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+    ++Combat.Revision;Combat.AsOfMs=300;Combat.Cues.ReleasedAtMs=300;Combat.Generation=5;
+    TestTrue(TEXT("Another match's combat projection cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Generation=6;Combat.Life=2;
+    TestTrue(TEXT("Another life's combat projection cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Life=1;Combat.bHasBody=false;
+    TestTrue(TEXT("A projection without an own body cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.bHasBody=true;
+    TestTrue(TEXT("A valid current body release is still observed after invalid projections"),
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioCatalogTest,"Lockdown.Rules.AudioCatalog",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 {
+    TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
+    TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::BasicAttack),uint8(17));
     for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
     {
         ELDAudioCue Parsed=ELDAudioCue::None;

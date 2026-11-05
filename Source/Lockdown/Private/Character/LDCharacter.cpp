@@ -1,4 +1,5 @@
 #include "Character/LDCharacter.h"
+#include "Character/LDCameraSettings.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
@@ -44,13 +45,13 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
     CameraArm->SetUsingAbsoluteRotation(true);
-    CameraArm->SetRelativeRotation(FRotator(-60,-45,0));
-    CameraArm->TargetArmLength = 1400;
-    CameraArm->TargetOffset = FVector(0,0,20);
+    CameraArm->SetRelativeRotation(FRotator(LDCamera::Pitch,LDCamera::Yaw,0));
+    CameraArm->TargetArmLength = LDCamera::DefaultArmLength;
+    CameraArm->TargetOffset = FVector(0,0,LDCamera::TargetOffsetZ);
     CameraArm->bDoCollisionTest = false;
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
     Camera->SetupAttachment(CameraArm);
-    Camera->FieldOfView = 55;
+    Camera->FieldOfView = LDCamera::FieldOfView;
     Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness = true;
     Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness = true;
     Camera->PostProcessSettings.AutoExposureMinBrightness = 0;
@@ -124,6 +125,8 @@ void ALDCharacter::Tick(float Delta)
         && View.Life==PC->OwnerState.Life)
     {
         Selected=LDCombatCues::Select(View.Cues,NowMs);
+        if (View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs)
+        { Body->SetHitReaction(float(NowMs-View.Cues.LastHitAtMs)/1000.f); }
         for (const FLDCombatStatusView& Status : View.Statuses)
         {
             if (!Status.bIsPassive && (Status.ExpiresAtMs==0 || NowMs<Status.ExpiresAtMs))
@@ -136,10 +139,12 @@ void ALDCharacter::Tick(float Delta)
     Body->SetCue(PresentationCue(Selected.Cue,Statuses),bCue ? float(NowMs-Selected.AtMs)/1000.f : -1.f);
     Body->Animate(GetVelocity(),Delta);
     // Each hit the own body takes shakes its camera briefly and only slightly; others' hits never move this camera.
-    if (Selected.Cue==ELDObservedActionCue::Hit && Selected.AtMs!=ShakeHitAtMs)
+    if (View.Generation==PC->OwnerState.Match && View.Life==PC->OwnerState.Life
+        && View.Cues.LastHitAtMs>0 && NowMs>=View.Cues.LastHitAtMs
+        && NowMs-View.Cues.LastHitAtMs<160 && View.Cues.LastHitAtMs!=ShakeHitAtMs)
     {
-        ShakeHitAtMs=Selected.AtMs;
-        ShakeAge=0.f;
+        ShakeHitAtMs=View.Cues.LastHitAtMs;
+        ShakeAge=float(NowMs-View.Cues.LastHitAtMs)/1000.f;
     }
     ShakeAge+=Delta;
     constexpr float ShakeSeconds=.16f, ShakeCm=4.f;
@@ -178,7 +183,7 @@ uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDOb
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
 void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = ZoomedArmLength(CameraArm->TargetArmLength, Axis); }
-float ALDCharacter::ZoomedArmLength(float ArmLength, float Axis) { return FMath::Clamp(ArmLength - Axis * 80, 1100.0f, 1700.0f); }
+float ALDCharacter::ZoomedArmLength(float ArmLength, float Axis) { return FMath::Clamp(ArmLength - Axis * LDCamera::ZoomStep, LDCamera::MinArmLength, LDCamera::MaxArmLength); }
 FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLength)
 {
     // The arm uses an absolute rotation and a world-space target offset, so the default subobject is the whole geometry.

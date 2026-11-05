@@ -25,6 +25,8 @@ enum class ELDAudioCue : uint8
     UIClick,
     // A hit fully absorbed by the own shield: the hit sound's sample, quieter.
     SelfShieldHit,
+    // The own basic attack released; not confirmation of damage or a landed hit.
+    BasicAttack,
     Count UMETA(Hidden)
 };
 

@@ -862,6 +862,7 @@ namespace
         }
         if (!Mesh || !Mesh->GetSkeleton()) { return ArtFail(Error, TEXT("No skinned mesh and skeleton imported from ") + Spec.Source); }
         if (!ArtAssignMaterials(Mesh->GetMaterials(), Sources, Spec.Colors, Master, Folder, Spec.Id, Assets, Error)) { return false; }
+        for (int32 LOD=0; LOD<Mesh->GetLODNum(); ++LOD) { Mesh->GetLODInfo(LOD)->bAllowCPUAccess = true; }
         Mesh->PostEditChange();
         Mesh->MarkPackageDirty();
         Assets.Add(Mesh);

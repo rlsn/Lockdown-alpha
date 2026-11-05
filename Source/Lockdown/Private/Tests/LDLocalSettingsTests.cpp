@@ -1,4 +1,7 @@
 #include "UI/LDControlSettings.h"
+#include "Character/LDCharacter.h"
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "UI/LDTerms.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDGameInstance.h"
@@ -57,6 +60,8 @@ namespace
     constexpr uint32 QuickCastlessFixtureSchema = 9;
     // Schema 10 writes every current preference; only its key list predates the innate D dash.
     constexpr uint32 DashlessFixtureSchema = 10;
+    constexpr uint32 PreviousZoomFixtureSchema = 11;
+constexpr uint32 NearZoomFixtureSchema = 12;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -236,7 +241,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Read verified bytes"), FFileHelper::LoadFileToArray(Before, *Fixture.Storage.Filename()));
     Draft->Zoom = std::numeric_limits<float>::quiet_NaN();
     TestFalse(TEXT("Apply rejects NaN before mutating owner"), Applied->ApplyLocalSettings(*Draft, Error));
-    TestEqual(TEXT("Rejected draft keeps applied zoom"), Applied->Zoom, 1400.f);
+    TestEqual(TEXT("Rejected draft keeps applied zoom"), Applied->Zoom, LDCamera::DefaultArmLength);
     Applied->Bindings.Add(TEXT("RetiredAction"), EKeys::F8);
     TestFalse(TEXT("Raw unknown binding cannot resolve"), Applied->Key(TEXT("RetiredAction")).IsValid());
     TestTrue(TEXT("Unknown binding refuses save"), Applied->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
@@ -301,7 +306,7 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     Oversized.Init(0, 65537);
     Write(Oversized);
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
-    for (float BadZoom : { 1099.f, 1701.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+    for (float BadZoom : { 1299.f, 2401.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
     {
         Values->Zoom = BadZoom;
         Write(FixtureBytes(*Values));
@@ -1019,7 +1024,7 @@ bool FLDLocalSettingsTravelFlushTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A legal applied zoom is accepted"), Applied->SetAppliedZoom(1650, Error));
     Applied->SetAppliedFollowing(false);
     auto* LocalDraft = Applied->CreateDraft();
-    LocalDraft->Zoom = 1100;
+    LocalDraft->Zoom = 1300;
     Instance->RequestLocalSettingsFlush();
     Instance->PrepareLocalSettingsForTravel();
     const auto Restarted = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
@@ -1230,7 +1235,7 @@ bool FLDLocalSettingsAtomicReplaceFailureTest::RunTest(const FString& Parameters
         FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
     const auto Original = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The last known-good save remains loadable"),
-        Original.Status == ELDLocalSettingsLoadStatus::Loaded && Original.Settings && Original.Settings->Zoom == 1400);
+        Original.Status == ELDLocalSettingsLoadStatus::Loaded && Original.Settings && Original.Settings->Zoom == LDCamera::DefaultArmLength);
     TestTrue(TEXT("Failed replacement retains the newly applied dirty value"), Settings->IsDirty() && Settings->Zoom == 1600);
     TArray<FString> TemporaryFiles;
     IFileManager::Get().FindFiles(TemporaryFiles, *(Fixture.Storage.Filename() + TEXT(".tmp-*")), true, false);
@@ -1383,6 +1388,7 @@ bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
     Values->ResetBindings();
     Values->PlayerName = TEXT("王小明");
     Values->bQuickCast = true;
+    Values->Zoom = 1400;
     Write(FixtureBytes(*Values, QuickCastlessFixtureSchema, 0));
     const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("A schema 9 file migrates explicitly with quick cast off and its other preferences kept"),
@@ -1416,6 +1422,7 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     Values->ResetBindings();
     Values->PlayerName = TEXT("王小明");
     Values->bQuickCast = true;
+    Values->Zoom = 1400;
     Values->Bindings.Remove(TEXT("Dash"));
     Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
     Write(FixtureBytes(*Values, DashlessFixtureSchema, 0));
@@ -1441,6 +1448,167 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A layout holding D elsewhere is refused with recovery, naming the missing dash"),
         Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
         && Taken.Message.Contains(TEXT("Dash")));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    const auto* Character = GetDefault<ALDCharacter>();
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 13);
+    TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
+    TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
+    TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
+    TestTrue(TEXT("The fixed camera direction is unchanged"),
+        Character->CameraArm->GetRelativeRotation().Equals(FRotator(-60.f, -45.f, 0.f)));
+    TestEqual(TEXT("One zoom step remains 80 cm"), ALDCharacter::ZoomedArmLength(2250.f, 1.f), 2170.f);
+    TestEqual(TEXT("Zoom out clamps at 2400 cm"), ALDCharacter::ZoomedArmLength(2350.f, -1.f), 2400.f);
+    TestEqual(TEXT("Zoom in clamps at 1300 cm"), ALDCharacter::ZoomedArmLength(1340.f, 1.f), 1300.f);
+    const FVector Centre(200.f, -300.f, 0.f);
+    TestTrue(TEXT("The waiting camera pose uses the same arm geometry"),
+        ALDCharacter::DefaultArmCameraPose(Centre, 2250.f).GetLocation().Equals(
+            Centre + Character->CameraArm->TargetOffset - Character->CameraArm->GetRelativeRotation().Vector() * 2250.f));
+
+    FString Error;
+    for (const float Zoom : { 1300.f, 2250.f, 2400.f })
+    {
+        TestTrue(TEXT("An approved arm endpoint or default can apply"), Applied->SetAppliedZoom(Zoom, Error));
+        TestTrue(TEXT("The current arm value saves with readback"), Applied->SaveLocalSettings().IsSaved());
+        const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+        TestTrue(TEXT("Current schema restores the exact arm value"),
+            Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom);
+    }
+    for (const float Bad : { 1299.f, 2401.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+    {
+        TestFalse(TEXT("Invalid applied zoom is refused"), Applied->SetAppliedZoom(Bad, Error));
+        TestEqual(TEXT("A refused zoom leaves the applied value unchanged"), Applied->Zoom, 2400.f);
+        auto* InvalidDraft = Applied->CreateDraft();
+        InvalidDraft->Zoom = Bad;
+        TestFalse(TEXT("Invalid zoom is also refused through the draft path"), Applied->ApplyLocalSettings(*InvalidDraft, Error));
+    }
+    auto* Preferences = Applied->CreateDraft();
+    Preferences->Zoom = 1550.f;
+    Preferences->PlayerName = TEXT("镜头玩家");
+    Preferences->bEdgePan = false;
+    Preferences->bStartFollowing = false;
+    Preferences->TextScale = 1.25f;
+    Preferences->MasterVolume = .4f;
+    Preferences->CameraPanCmPerSec = 2700.f;
+    Preferences->MinimapOrientation = ELDMinimapOrientation::North;
+    Preferences->bQuickCast = true;
+    TestTrue(TEXT("A personalized binding is accepted"), Preferences->Rebind(TEXT("Skill1"), EKeys::F6, Error));
+    TestTrue(TEXT("Personal preferences apply"), Applied->ApplyLocalSettings(*Preferences, Error));
+    auto* Recommended = Applied->CreateDraft();
+    Recommended->UseRecommendedCameraZoom();
+    TestEqual(TEXT("The recommendation stays a draft until confirmed"), Applied->Zoom, 1550.f);
+    TestTrue(TEXT("The recommendation uses the ordinary explicit apply path"), Applied->ApplyLocalSettings(*Recommended, Error));
+    TestTrue(TEXT("Adopting the recommendation changes zoom only"),
+        Applied->Zoom == 2250.f && Applied->PlayerName == Preferences->PlayerName
+        && Applied->Bindings.OrderIndependentCompareEqual(Preferences->Bindings)
+        && Applied->bEdgePan == Preferences->bEdgePan && Applied->bStartFollowing == Preferences->bStartFollowing
+        && Applied->TextScale == Preferences->TextScale && Applied->MasterVolume == Preferences->MasterVolume
+        && Applied->CameraPanCmPerSec == Preferences->CameraPanCmPerSec
+        && Applied->MinimapOrientation == Preferences->MinimapOrientation && Applied->bQuickCast == Preferences->bQuickCast);
+    TestTrue(TEXT("The adopted recommendation saves"), Applied->SaveLocalSettings().IsSaved());
+    const auto Adopted = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The adopted recommendation survives a restart"), Adopted.Settings && Adopted.Settings->Zoom == 2250.f
+        && Adopted.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Adopted.Settings->PlayerName == Preferences->PlayerName);
+    Applied->ResetLocalDefaults();
+    TestEqual(TEXT("Restore defaults also uses the approved camera baseline"), Applied->Zoom, 2250.f);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsZoomMigrationTest, "Lockdown.Rules.LocalSettingsZoomMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("原偏好");
+    Values->MasterVolume = .35f;
+    Values->CameraPanCmPerSec = 2400.f;
+    Values->MinimapOrientation = ELDMinimapOrientation::Facing;
+    Values->TextScale = 1.25f;
+    Values->bQuickCast = true;
+    Values->bStartFollowing = false;
+    FString Error;
+    TestTrue(TEXT("A custom old binding is legal"), Values->Rebind(TEXT("Skill1"), EKeys::F6, Error));
+    auto Write = [&](const TArray<uint8>& Bytes)
+    { return TestTrue(TEXT("Write an isolated old-format file"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    for (const uint32 Schema : { NamelessFixtureSchema, VolumelessFixtureSchema, PanlessFixtureSchema,
+        OrientationlessFixtureSchema, QuickCastlessFixtureSchema, DashlessFixtureSchema, PreviousZoomFixtureSchema, NearZoomFixtureSchema })
+    {
+        const bool NearZoom = Schema == NearZoomFixtureSchema;
+        TArray<float> Kept = { 1400.f, 1550.f, 1700.f };
+        if (NearZoom) { Kept.Append({ 1850.f, 1900.f }); }
+        for (const float Zoom : { 1100.f, 1299.f })
+        {
+            Values->Zoom = Zoom;
+            if (!Write(FixtureBytes(*Values, Schema, 0))) { return false; }
+            const auto Raised = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            TestTrue(TEXT("An old zoom below the current minimum is raised to 1300 cm and reported"),
+                Raised.Status == ELDLocalSettingsLoadStatus::Migrated && Raised.Settings && Raised.Settings->Zoom == 1300.f
+                && Raised.Settings->IsDirty() && Raised.Message.Contains(TEXT("\u5df2\u8c03\u6574\u4e3a 1300 cm"))
+                && Raised.Message.Contains(TEXT("2250")));
+        }
+        for (const float Zoom : Kept)
+        {
+            Values->Zoom = Zoom;
+            const auto Before = FixtureBytes(*Values, Schema, 0);
+            if (!Write(Before)) { return false; }
+            const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            if (!TestTrue(TEXT("Every supported old schema preserves its exact valid zoom, including the old default"),
+                Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings
+                && Migrated.Settings->Zoom == Zoom && Migrated.Settings->IsDirty()
+                && Migrated.Message.Contains(TEXT("原样保留")))) { return false; }
+            TArray<uint8> After;
+            TestTrue(TEXT("Loading an old schema does not rewrite it"),
+                FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+            TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
+            uint32 SavedSchema = 0;
+            TestTrue(TEXT("The verified replacement explicitly declares schema 13"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 13);
+            const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
+                Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom
+                && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6 && !Loaded.Settings->bEdgePan
+                && !Loaded.Settings->bStartFollowing && Loaded.Settings->TextScale == 1.25f);
+            if (Schema >= PreviousZoomFixtureSchema)
+            {
+                TestTrue(TEXT("Schemas 11 and 12 retain every other stored preference"),
+                    Loaded.Settings && Loaded.Settings->PlayerName == Values->PlayerName
+                    && Loaded.Settings->MasterVolume == Values->MasterVolume
+                    && Loaded.Settings->CameraPanCmPerSec == Values->CameraPanCmPerSec
+                    && Loaded.Settings->MinimapOrientation == Values->MinimapOrientation && Loaded.Settings->bQuickCast);
+            }
+        }
+        for (const float Bad : { 1099.f, NearZoom ? 1901.f : 1701.f, NearZoom ? 2250.f : 1850.f, std::numeric_limits<float>::infinity(), std::numeric_limits<float>::quiet_NaN() })
+        {
+            Values->Zoom = Bad;
+            const auto Before = FixtureBytes(*Values, Schema);
+            if (!Write(Before)) { return false; }
+            const auto Rejected = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            TestTrue(TEXT("New range values cannot legitimize an invalid old-format zoom"),
+                Rejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !Rejected.Settings && !Rejected.RecoverablePreferences);
+            TArray<uint8> After;
+            TestTrue(TEXT("Refusal leaves the old file untouched"),
+                FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+        }
+    }
+    Values->Zoom = 1400.f;
+    Values->Bindings.Remove(TEXT("Dash"));
+    Write(FixtureBytes(*Values, PreviousZoomFixtureSchema));
+    const auto MissingDash = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 11 never repairs a missing required dash binding as if it predated the dash"),
+        MissingDash.Status == ELDLocalSettingsLoadStatus::Corrupt && !MissingDash.Settings && MissingDash.RecoverablePreferences);
+    Write(RetiredRegistryBytes(Values->Bindings, 1.f, 1850.f, true));
+    const auto Retired = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 4 recovery also enforces its original zoom range"),
+        Retired.Status == ELDLocalSettingsLoadStatus::UnsupportedSchema && !Retired.RecoverablePreferences);
     return true;
 }
 #endif

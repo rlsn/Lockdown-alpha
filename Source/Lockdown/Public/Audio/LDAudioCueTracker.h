@@ -62,6 +62,7 @@ private:
     uint32 HitMatch = 0;
     uint32 HitLife = 0;
     uint64 HitRevision = 0;
+    int64 BasicReleasedAtMs = 0; // All releases advance the watermark; only basic releases sound.
     int64 HitHPP2 = 0;
     int64 HitMaxHPP2 = 0;
     int64 HitShieldP2 = 0;

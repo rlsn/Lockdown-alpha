@@ -9,6 +9,7 @@
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCameraSettings.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -43,14 +44,14 @@ namespace
     {
         FString Name;
         FVector Focus = FVector::ZeroVector;
-        float ArmCm = 1400.f;
+        float ArmCm = LDCamera::DefaultArmLength;
         // Straight down from ArmCm above Focus, +X to the right, +Y down (the editor top view).
         bool bTopDown = false;
     };
 
     // Floor points a body can stand on, with the camera arm lengths the player can zoom between.
     constexpr double ArtSweepStepCm = 100.;
-    const float ArtSweepArms[] = { 1100.f, 1400.f, 1700.f };
+    const float ArtSweepArms[] = { LDCamera::MinArmLength, LDCamera::DefaultArmLength, LDCamera::MaxArmLength };
     // Heights on a standing body that must stay visible: upper chest and top of the head.
     const double ArtSweepBodyCm[] = { 130., 170. };
 
@@ -346,13 +347,13 @@ namespace
                 SpawnBody(Target, *Art->ForSeat(Seat), ULDHumanoidVisualComponent::ContenderTint(Seat), Routes[Index], FaceCamera + 30.f * Index, ELDArtAnim::Idle);
             }
             Shots = {
-                {TEXT("Characters-Identity"), Identity, 1100.f},
+                {TEXT("Characters-Identity"), Identity, LDCamera::MinArmLength},
                 {TEXT("Characters-States"), States + Down * 260.f, 1300.f},
-                {TEXT("Characters-GameZoom"), Identity, 1400.f},
-                {TEXT("Route-Capture"), FVector(0., 0., 0.), 1400.f},
-                {TEXT("Route-Shop"), FVector(778., 778., 0.), 1400.f},
-                {TEXT("Route-GateNorth"), FVector(0., 2081., 0.), 1400.f},
-                {TEXT("Route-EastBenches"), FVector(4400., 2800., 0.), 1400.f},
+                {TEXT("Characters-GameZoom"), Identity, LDCamera::DefaultArmLength},
+                {TEXT("Route-Capture"), FVector(0., 0., 0.), LDCamera::DefaultArmLength},
+                {TEXT("Route-Shop"), FVector(778., 778., 0.), LDCamera::DefaultArmLength},
+                {TEXT("Route-GateNorth"), FVector(0., 2081., 0.), LDCamera::DefaultArmLength},
+                {TEXT("Route-EastBenches"), FVector(4400., 2800., 0.), LDCamera::DefaultArmLength},
                 {TEXT("Field-Overview"), FVector(0., 0., 0.), 9000.f},
                 {TEXT("Map-TopDown"), FVector(0., 0., 0.), 24000.f, true},
             };

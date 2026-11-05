@@ -1,5 +1,6 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Character/LDModelPicking.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDFlightTrailComponent.h"
 #include "Character/LDCharacter.h"
@@ -310,6 +311,7 @@ ALDObservedEntityProxy::ALDObservedEntityProxy()
 
 void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
 {
+    const bool bSameInterval=bPlaced && ObservedHandle==Unit.Handle && ObservedEpoch==Unit.ObservationEpoch;
     LDObservedPresentation::FPoint Point;
     Point.At = SampledAtServerSec;
     Point.Location = FVector(Unit.FeetCm) + FVector(0, 0, VisualHalfHeightCm);
@@ -330,6 +332,10 @@ void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double Visua
     Shown.Cue = Unit.ActionCue;
     Shown.CueAgeMs = Unit.ActionCueAgeMs;
     Shown.Statuses = Unit.Statuses;
+    Shown.bDamage=bSameInterval && (Unit.AuthorizedFieldMask&LDObservation::Health)!=0
+        && Unit.Health.MaxP2==LastMaxHealthP2 && Unit.Health.CurrentP2<LastHealthP2;
+    LastHealthP2=Unit.Health.CurrentP2;
+    LastMaxHealthP2=Unit.Health.MaxP2;
     // A presentation clock that stalls keeps only a bounded queue: the oldest samples are dropped first.
     while (Points.Num() > 8) { Points.RemoveAt(0); Facts.RemoveAt(0); }
     ObservedHandle = Unit.Handle;
@@ -360,6 +366,8 @@ void ALDObservedEntityProxy::Present(double AtServerSec, float Delta)
         const float Age = Reached.Cue == ELDObservedActionCue::None ? -1.f
             : float(double(Reached.CueAgeMs) / 1000.0 + FMath::Max(0.0, AtServerSec - Points[Pose.Reached].At));
         Body->SetCue(ALDCharacter::PresentationCue(Reached.Cue, Reached.Statuses), Age);
+        if (Reached.bDamage)
+        { Body->SetHitReaction(float(FMath::Max(0.,AtServerSec-Points[Pose.Reached].At))); }
         ShownAt = Points[Pose.Reached].At;
     }
     if (Pose.Reached > 0)
@@ -376,6 +384,16 @@ void ALDObservedEntityProxy::PlayDeathFall() const
     {
         UE_LOG(LogTemp, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
     }
+}
+
+bool ALDObservedEntityProxy::TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const
+{
+    return bPlaced && IsValid(Body) && Body->TracePresentedModel(Start, End, OutFraction);
+}
+
+bool ALDObservedEntityProxy::PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const
+{
+    return bPlaced && IsValid(Body) && Body->PresentedPickVolume(OutFoot, OutTop, OutRadiusCm);
 }
 
 ALDOwnBodyMarker::ALDOwnBodyMarker()
@@ -637,6 +655,60 @@ bool ALDWorldViewRelay::ReadPresentedLocation(const FGuid& Handle, uint32 Observ
     }
     OutWorld = (*Proxy)->GetActorLocation();
     return true;
+}
+
+bool ALDWorldViewRelay::PickPresentedUnit(const FVector& RayStart, const FVector& RayDirection, double AngleTolerance,
+    FGuid& OutHandle, uint32& OutEpoch) const
+{
+    OutHandle.Invalidate();
+    OutEpoch = 0;
+    const FLDObservedFrameRead Read = Receiver.Read();
+    if (!Read.Frame || Read.Status != ELDObservedViewStatus::Current
+        || RayStart.ContainsNaN() || RayDirection.ContainsNaN() || RayDirection.IsNearlyZero()) { return false; }
+    const FVector End = RayStart + RayDirection.GetSafeNormal() * 2000000.;
+    double Closest = 1.;
+    FHitResult Obstruction;
+    if (GetWorld()->LineTraceSingleByChannel(Obstruction,RayStart,End,ECC_GameTraceChannel2))
+    { Closest=Obstruction.Time; }
+    const auto* Viewer=Cast<ALDPlayerController>(GetOwner());
+    const auto* OwnBody=Viewer ? Cast<ALDCharacter>(Viewer->GetPawn()) : nullptr;
+    double OwnFraction=1.;
+    if (OwnBody && OwnBody->Body->TracePresentedModel(RayStart,End,OwnFraction))
+    { Closest=FMath::Min(Closest,OwnFraction); }
+    for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+    {
+        const auto* Proxy = Proxies.Find(Unit.Handle);
+        if (!Proxy || !IsValid(*Proxy) || (*Proxy)->ObservedEpoch != Unit.ObservationEpoch) { continue; }
+        double Fraction = 1.;
+        if ((*Proxy)->TracePresentedModel(RayStart, End, Fraction)
+            && (Fraction < Closest || (Fraction == Closest && OutHandle.IsValid() && Unit.Handle < OutHandle)))
+        {
+            Closest = Fraction;
+            OutHandle = Unit.Handle;
+            OutEpoch = Unit.ObservationEpoch;
+        }
+    }
+    if (OutHandle.IsValid()) { return true; }
+    // No model surface under the pointer: the nearest pick volume around it on screen, never through a sight blocker.
+    const double Reach = (End - RayStart).Size() * (Obstruction.bBlockingHit ? Obstruction.Time : 1.);
+    double Best = TNumericLimits<double>::Max();
+    for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+    {
+        const auto* Proxy = Proxies.Find(Unit.Handle);
+        if (!Proxy || !IsValid(*Proxy) || (*Proxy)->ObservedEpoch != Unit.ObservationEpoch) { continue; }
+        FVector Foot, Top;
+        double Radius = 0., Angle = 0., Along = 0.;
+        if (!(*Proxy)->PresentedPickVolume(Foot, Top, Radius)
+            || !LDModelPicking::NearVolume(RayStart, RayDirection, Reach, Foot, Top, Radius, AngleTolerance, Angle, Along))
+        { continue; }
+        if (Angle < Best || (Angle == Best && OutHandle.IsValid() && Unit.Handle < OutHandle))
+        {
+            Best = Angle;
+            OutHandle = Unit.Handle;
+            OutEpoch = Unit.ObservationEpoch;
+        }
+    }
+    return OutHandle.IsValid();
 }
 
 bool ALDWorldViewRelay::ReadPresentationTime(double& OutAtServerSec) const

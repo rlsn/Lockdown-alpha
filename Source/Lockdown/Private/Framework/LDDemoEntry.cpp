@@ -153,6 +153,21 @@ bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& O
         return true;
     }
 #endif
+    // The payload hashes are compiled into this binary, so once verified, loaded and registered the snapshot cannot
+    // change for the life of the process. Reusing it keeps every spawn, respawn and AI bind off the file/hash/import
+    // path (that reload was a 300-600 ms game-thread hitch at camp and contender respawns). Failures are not cached.
+    if (!IsInGameThread())
+    {
+        Error = TEXT("Approved Demo content is only read on the game thread.");
+        return false;
+    }
+    static TSharedPtr<const FLDDemoContentSnapshot> Verified;
+    if (Verified)
+    {
+        Out = Verified;
+        Error.Reset();
+        return true;
+    }
     FString DigestHex;
     FLDDemoContentDigest Expected;
     TSharedPtr<const FLDDemoContentSnapshot> Loaded;
@@ -161,6 +176,7 @@ bool LDDemoEntry::LoadRuntimeContent(TSharedPtr<const FLDDemoContentSnapshot>& O
     {
         return false;
     }
+    Verified = Loaded;
     Out = MoveTemp(Loaded);
     return true;
 }

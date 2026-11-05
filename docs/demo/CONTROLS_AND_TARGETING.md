@@ -99,6 +99,7 @@ Unit 技能在指针下已有可见单位时、方向技能在指针下有地面
 **预输入**（`LDCombatPreInput`）：自己的 Q/W/1/2 正在前摇时再按一次 Q/W/1/2/D，
 控制器只保留最新一次按键，前摇结束后作为普通 Direct 请求发送，而不是先到服务器被判忙。
 S、新生命或新局、输入被抑制或保留超过 1 s 时丢弃；超时会提示“前一个技能未结束，预输入已取消”。
+预输入同时绑定技能/装备的 `SourceRevision`；来源变化时取消，不把旧目标用于新技能，并提示“技能或装备已变化，预输入已取消”。
 普攻不需要预输入：攻击订单本来就在服务器等待身体空闲。
 
 每个 Direct 请求携带 Generation/Life、单调递增的 `DirectSequence`、入口（Q/W/Item1/Item2）、
@@ -145,8 +146,11 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom`、`Back`。
 `Back` 的 Esc 是保留键；重绑校验冲突，不静默交换两个动作。
 
-本地设置 schema 当前为 10（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
-旧 schema 5–9 显式迁移并标记为未保存；schema 4 的多注册表布局被明确拒绝。
+本地设置 schema 当前为 13（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
+旧 schema 5–12 显式迁移并标记为未保存；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
+在当前 1300–2400 cm 范围内则原样保留（包括旧默认 1400、1850），低于 1300 cm 的调整为 1300 cm 并在提示中说明；
+不猜测用户意图或自动替换距离。schema 4 的多注册表布局被明确拒绝，其可恢复偏好也遵守旧范围。
+新安装默认 2250 cm；设置页“采用推荐镜头”只修改 Zoom，不重置姓名、绑定、音量、跟随或其他偏好。
 绑定集被拒绝时仍可恢复其中已校验的镜头/文字/音量/小地图偏好和玩家名。
 保存失败会展示错误并保留当前内存设置及未保存标记。
 
@@ -159,7 +163,9 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
   小地图拖动和 Q/W/1/2/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
-- 滚轮每格改变 80 cm 臂长并夹在 1100–1700 cm（`ALDCharacter::ZoomedArmLength`），
+- 默认臂长 2250 cm，固定 pitch −60°、yaw −45°、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
+  身体、死亡等待相机、本地设置与美术镜头检查共用，不改变授权视野。
+- 滚轮每格改变 80 cm 臂长并夹在 1300–2400 cm（`ALDCharacter::ZoomedArmLength`），
   结果保存为本地设置 `Zoom`；这是固定的原生常量，没有可调的缩放步长或范围设置。
 - 镜头中心夹在已注册地面的静态边界内，不使用动态单位决定夹限。
 - **死亡镜头**：等待复活时视角切到等待相机，沿用本生命最后的镜头中心，可自由平移与缩放静态地图，
@@ -415,7 +421,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 | `Bindings` | `Definitions()` 的默认键 | 无冲突，Esc 保留给 Back |
 | `bEdgePan` | 开 | — |
 | `bStartFollowing` | 开 | — |
-| `Zoom`（镜头臂长 cm） | 1400 | 1100–1700 |
+| `Zoom`（镜头臂长 cm） | 2250 | 1300–2400；旧 schema 5–11 按原 1100–1700、schema 12 按原 1100–1900 校验，低于 1300 的调整为 1300，其余原值迁移 |
 | `TextScale` | 1 | 1–1.25 |
 | `CameraPanCmPerSec` | 1800 | 900–3600 |
 | `MinimapOrientation` | `Camera` | `Camera/Facing/North`（HUD 小地图使用，`LDMinimap::MakeView`） |
@@ -425,8 +431,14 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 **工程常量**（不是产品数值）：订单激活节流与追击重算间隔 0.1 s、无进展 2 s、目标位移重算阈值 50 cm、
 地面到达容差 40 cm、回执窗口 16 条（`LDNavigationComponent.h`）；客户端心跳 0.5 s、租约 2 s
 （`LDCommandLiveness.h`）；按住移动 0.125 s / 40 cm（`LDOrderRules.h`）；预输入保留 1 s
-（`LDCombatPreInput.h`）；边缘平移带 8 px、滚轮 80 cm/格；指针拾取单位的屏幕半径 32 px
-（`ALDPlayerController::ObservedUnderPointer`）；地面/攻击标记显示 0.45/0.5 s，红叉 0.6 s（`LDPointerFeedback.h`）。
+（`LDCombatPreInput.h`）；边缘平移带 8 px、滚轮 80 cm/格；指针从屏幕反投影，拾取当前授权代理实际摆姿的模型三角面，
+不再使用中心 32 px 圆。头、脚和伸出的手臂均可选；遮挡视线的静态几何优先，重叠模型取最近表面。
+没有任何模型表面在指针下时，按已批准的手感决定（“模型 + 脚下光圈 + 屏幕上模型周围 ~12px 容差都算点中，多个候选取离光标最近的”）
+退回宽松拾取：每个代理的拾取体为从显示脚底到头顶、半径等于根环足迹 52.5 cm 的竖直胶囊，射线离它不超过
+12 px（`LDModelPicking::PickTolerancePx`，按水平 FOV 与视口宽度换算成角度）即可选，取角距离最小者；
+模型表面命中始终优先，Sight 遮挡同样截断宽松拾取。
+hover、检查、右键攻击、普通确认与快速施法共用此入口（`ALDPlayerController::ObservedUnderPointer`）；
+地面/攻击标记显示 0.45/0.5 s，红叉 0.6 s（`LDPointerFeedback.h`）。`LD_COMBAT_INPUT` 日志区分预输入、已发送和服务器回执，不把客户端提交当作命中。
 
 ## 9. 当前组件地图
 
@@ -466,6 +478,8 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 | --- | --- |
 | `Lockdown.Rules.DemoControlFeel.HeldMove` | 按住右键的重复频率与位移门槛。 |
 | `Lockdown.Rules.DemoControlFeel.PreInput` | 预输入入口与前摇判定。 |
+| `Lockdown.Rules.DemoControlFeel.SourceBuffer` | 普通投影更新保留预输入，来源或局变化取消旧目标。 |
+| `Lockdown.Rules.DemoControlFeel.ModelPicking` / `PresentedModelPicking` | 三角面边界、空隙、正反面与深度；宽松拾取体的穿过、容差内外、身后与遮挡截断；真实导入骨骼模型的站立/攻击/施法头脚与侧缘拾取、拾取体与模型身高一致、隐藏和倒地拒绝。 |
 | `Lockdown.Rules.DemoOrders.AttackMoveCandidate` | A 搜敌的最近者、半径与平局排序。 |
 | `Lockdown.Rules.DemoOrders.BookIsolation` | 订单簿按局/生命隔离与重置。 |
 | `Lockdown.Rules.ControlMappings` | 唯一动作注册表与绑定。 |

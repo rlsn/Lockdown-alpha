@@ -744,8 +744,8 @@ public:
     // Deterministic chase-goal regression on the real Demo world and navmesh. Along fixed bearings from the Host's public
     // duel site (anchors and approved radii only, never where a body stopped), the first legal foot just outside the
     // eroded navmesh edge stands where a target pressed against a wall or another body, or cutting a corner, stands. As
-    // a clicked ground goal it stays refused; as a chased body's goal (the planner of AttackUnit admission and chase
-    // replans) it routes to its nearest navmesh point within one capsule radius.
+    // a clicked ground goal it projects to the nearest reachable navmesh stand (#80); as a chased body's goal (the planner
+    // of AttackUnit admission and chase replans) it routes to its nearest navmesh point within one capsule radius.
     bool CheckChaseGoal(const ALDPlayerController& PC)
     {
         const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -817,9 +817,10 @@ public:
         const bool bChase = LDPathSteering::PlanRoute(*Registry, HostGround, Margin, Surface, LDPathSteering::EGoal::Body,
             Capsule, Chase, ChaseGoal, ChaseFailure, ChaseError);
         const FString Where = TEXT("foot=") + Margin.ToCompactString();
-        Check(!bStrict && StrictFailure == ELDWorldQueryFailure::Unreachable && StrictError.Contains(TEXT("destination")),
-            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge stays refused as a clicked ground goal, naming the destination"),
-            Where + TEXT(" ") + StrictError);
+        Check(bStrict && !Strict.Points.IsEmpty() && OnMesh(StrictGoal.SurfaceCm)
+            && FVector::Dist2D(StrictGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
+            TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, projects to a reachable navmesh stand within one capsule radius"),
+            Where + TEXT(" planned=") + StrictGoal.SurfaceCm.ToCompactString() + TEXT(" ") + StrictError);
         return Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
             TEXT("ChaseGoal"),
             TEXT("The same foot as a chased body's goal routes completely to its nearest navmesh point within one capsule radius"),
@@ -1791,15 +1792,21 @@ public:
             FString StruckError;
             const bool bStruck = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), PC.OwnerState.BodyRef, Struck, StruckError);
             const int64 PoolP2 = Own->Resources.HpP2 + Own->Resources.ShieldP2;
-            const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld %s%s"),
+            const int64 HitAgeMs=Mode.GetAuthorityNowMs()-Own->Cues.LastHitAtMs;
+            // A synchronous screenshot readback may span the entire cue window. Damage remains committed,
+            // but the public cue must expire normally rather than being held alive for this probe.
+            const bool bHitCueCorrect=HitAgeMs>=0 && HitAgeMs<LDCombatCues::HitHoldMs
+                ? Struck.ActionCue==ELDObservedActionCue::Hit && Struck.ActionCueAtMs==Own->Cues.LastHitAtMs
+                : HitAgeMs>=LDCombatCues::HitHoldMs && Struck.ActionCue==ELDObservedActionCue::None && Struck.ActionCueAtMs==0;
+            const FString Detail = FString::Printf(TEXT("samples=%d heading=%d pool_p2=%lld->%lld cast_cue=%d struck_cue=%d hit_ms=%lld cue_ms=%lld hit_age_ms=%lld %s%s"),
                 ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
-                Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, *FlyingError, *StruckError);
+                Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, HitAgeMs, *FlyingError, *StruckError);
             Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
                 TEXT("Client1's arc bolt (active_arc_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
             Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
                 TEXT("Skills"), TEXT("The arc bolt hits the Host, takes its shield or health and ends its flight"), Detail);
-            Check(bCastCueSeen && bStruck && Struck.ActionCue == ELDObservedActionCue::Hit && Struck.ActionCueAtMs == Own->Cues.LastHitAtMs,
-                TEXT("Skills"), TEXT("Public facts show Client1's Cast cue during its bolt and the Host's Hit cue from its landing"), Detail);
+            Check(bCastCueSeen && bStruck && bHitCueCorrect,
+                TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing Hit cue or its on-time expiry"), Detail);
             if (!Passed) { return Finish(); }
             bBoltLanded = true;
             // The landed flight leaves the frame at the next publication at the latest.
@@ -1994,9 +2001,10 @@ public:
     // attack marker closing on it, are captured on the way.
     bool TickKillClick(ALDPlayerController& PC, const FLDObservedUnitView& Victim)
     {
-        const double HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
         FVector2D Screen;
-        if (!PC.ProjectWorldLocationToScreen(FVector(Victim.FeetCm) + FVector(0, 0, HalfHeight), Screen))
+        FVector Presented;
+        if (!PC.LocalView() || !PC.LocalView()->ReadPresentedLocation(Victim.Handle,Victim.ObservationEpoch,Presented)
+            || !PC.ProjectWorldLocationToScreen(Presented, Screen))
         {
             return Fail(TEXT("Pointer"), TEXT("Client1's observed body does not project into the Host's view"));
         }

@@ -239,6 +239,17 @@
       "loudness_lufs": -23.01,
       "level_db": -6.0,
       "volume": 0.55
+    },
+    {
+      "cue": "BasicAttack",
+      "pack": "kenney-interface-sounds",
+      "source": "Kenney/InterfaceSounds/drop_002.ogg",
+      "pack_path": "Audio/drop_002.ogg",
+      "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218",
+      "duration_sec": 0.191,
+      "purpose": "本人普攻成功出手（挥击），不表示命中；复用短促释放音，不使用受击音",
+      "loudness_lufs": -20.61,
+      "volume": 1.073
     }
   ]
 }

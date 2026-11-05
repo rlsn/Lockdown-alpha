@@ -36,15 +36,23 @@ public:
     // Source's look, for a puppet that replaces it.
     void CopyLook(const ULDHumanoidVisualComponent& Source);
     void Animate(const FVector& Velocity, float Delta);
+    bool TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const;
+    // Upright lenient pick volume of the shown model: its displayed feet to the top of its head, as wide as the root
+    // ring footprint. False whenever TracePresentedModel could not select the model (hidden, fallen, no body).
+    bool PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const;
     // The cue byte and the seconds its action has already run on the presentation clock; a negative age is unknown and
     // counts the action from now. The same action kind reported with a later start restarts it (a repeated hit).
     // The first cue showing respawn protection also plays the appear effect.
     void SetCue(uint8 Value, float ActionAgeSeconds = -1.f);
+    void SetHitReaction(float AgeSeconds);
     void PlayAppear();
     // Plays the death clip, then sinks and shrinks away; markers and actions stop. IsFallen once it has vanished.
     void PlayFall();
     bool IsFallen() const;
 private:
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDPresentedModelPickingTest;
+#endif
     // Resolves the catalog body and paints its tint slots; without a body nothing is drawn and the error is logged.
     void ApplyLook(const FLDArtCharacter* Look, const FLinearColor& Identity, const FString& What);
     // Places the markers and effects for the body's displayed height.
@@ -67,9 +75,12 @@ private:
     LDBodyMotion::FChannels Shown;
     LDBodyMotion::EAction Action = LDBodyMotion::EAction::None;
     ELDArtAnim Clip = ELDArtAnim::Count;
-    double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1;
+    double Clock = 0, ActionOnset = 0, AppearAt = -1, FallAt = -1, HitOnset = -1;
     float HalfHeight = 0, HeightCm = 0;
     uint8 Cue = 0;
     uint8 LookSlot = MAX_uint8, LookCreature = 0;
-    bool bCueSeen = false, bFlashing = false;
+    bool bCueSeen = false, bFlashing = false, bHitSeen = false;
+    mutable uint64 PickingFrame = MAX_uint64;
+    mutable TArray<FVector3f> PickingVertices;
+    mutable TArray<uint32> PickingIndices;
 };

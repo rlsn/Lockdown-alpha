@@ -17,7 +17,8 @@ namespace LDPathSteering
     LOCKDOWN_API void HaltLocomotion(ACharacter* Body);
     // Planar distance travelled along the polyline at the point closest to Position.
     LOCKDOWN_API double AlongPath(const TArray<FVector>& Path, const FVector& Position);
-    // Unit-bounded planar steering towards Path[Index]; advances Index past reached waypoints.
+    // Unit-bounded planar steering towards Path[Index]; advances Index past reached or passed corners. Only the final
+    // point eases in, so hugging an obstacle never slows the body at intermediate corners.
     LOCKDOWN_API FVector Steering(const TArray<FVector>& Path, int32& Index, const ACharacter& Body);
     // Grounded, no root motion and within Acceptance of Goal (planar footpoint distance).
     LOCKDOWN_API bool AtGoal(const ACharacter& Body, const FVector& Goal, double AcceptanceCm);
@@ -28,10 +29,13 @@ namespace LDPathSteering
     // registry path query explains any refusal.
     LOCKDOWN_API bool PlanStart(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FCollisionShape& Capsule,
         FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error);
-    // How a route treats its goal: a clicked ground point is planned exactly as clicked, a body's foot like a body.
+    // How a route treats its goal: a clicked ground point, or a body's foot treated like a body.
     enum class EGoal : uint8 { Ground, Body };
-    // Complete route from a body's validated ground to Goal on SurfaceId. The start always goes through PlanStart; the
-    // goal only for EGoal::Body. OutGoal is the planned end; any refusal is the registry's strict complete-path query.
+    // Complete route from a body's validated ground to Goal on SurfaceId. The start always goes through PlanStart. A body
+    // goal goes through PlanStart too. A ground goal is planned exactly as clicked when that is a legal reachable stand;
+    // otherwise (a wall, a box top, too close to an obstacle, or a disconnected spot) it is projected at the body's floor
+    // height to the nearest navmesh point and re-validated. Stale/missing world, surface or capsule errors never project,
+    // and a projection that still has no complete route is refused. OutGoal is the planned end.
     LOCKDOWN_API bool PlanRoute(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FVector& Goal,
         FName SurfaceId, EGoal GoalKind, const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& OutGoal,
         ELDWorldQueryFailure& Failure, FString& Error);

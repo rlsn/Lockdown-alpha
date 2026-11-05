@@ -92,6 +92,7 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
 void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out)
 {
     if (Frame.OwnMatch == 0 || Frame.OwnLife == 0) { return; }
+    if (Frame.OwnMatch == LifeMatch && Frame.OwnLife < LifeNumber) { return; }
     if (Frame.OwnMatch != LifeMatch)
     {
         LifeMatch = Frame.OwnMatch;
@@ -118,6 +119,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             HitMatch = Combat->Generation;
             HitLife = Combat->Life;
             HitRevision = Combat->Revision;
+            BasicReleasedAtMs = Combat->Cues.ReleasedAtMs;
             HitHPP2 = Combat->HPP2;
             HitMaxHPP2 = Combat->MaxHPP2;
             HitShieldP2 = Combat->ShieldP2;
@@ -125,6 +127,14 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
         }
         else if (Combat->Revision > HitRevision)
         {
+            // Only a successful authority release advances this fact. Windups, hit reactions and HP changes
+            // cannot prove that the own basic swung; a release also does not prove that damage landed.
+            if (Combat->Cues.ReleasedAtMs > BasicReleasedAtMs && Combat->Cues.ReleasedAtMs <= Combat->AsOfMs
+                && Combat->Cues.bReleasedBasic && Frame.OwnLifePhase == ELDLifePhase::Alive && Combat->HPP2 > 0)
+            {
+                LDAudio::AddUnique(Out, ELDAudioCue::BasicAttack);
+            }
+            BasicReleasedAtMs = FMath::Max(BasicReleasedAtMs, Combat->Cues.ReleasedAtMs);
             // Lost points with an unchanged or larger maximum: a smaller maximum (sold equipment) only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;

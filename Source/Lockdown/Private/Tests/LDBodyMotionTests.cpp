@@ -31,6 +31,17 @@ bool FLDBodyMotionTimelinesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A hit knocks the body back"), Knocked.Lunge < -15.f);
     TestTrue(TEXT("The flash is short and the body recovers within the 300 ms cue"),
         Evaluate(EAction::Hit, .18f).Flash == 0.f && AtRest(Recovered));
+    const FChannels CastingHit=WithHit(EAction::Cast,.15f,.03f);
+    TestTrue(TEXT("Being hit during a cast preserves charging and adds a chest impact and flash"),
+        CastingHit.Charge>0.f && CastingHit.Flash>0.f && CastingHit.HitBurst>0.f);
+    const FChannels PlainCast=WithHit(EAction::Cast,.15f,-1.f);
+    TestTrue(TEXT("No observed hit adds no feedback"),PlainCast.Flash==0.f && PlainCast.HitBurst==0.f);
+    TestTrue(TEXT("A hit cue is never doubled"),WithHit(EAction::Hit,.05f,.05f).Lunge==Knocked.Lunge);
+    TestTrue(TEXT("An interrupted cast's impact holds only its presentation pose"),
+        FMath::IsNearlyEqual(ImpactPoseAge(EAction::Cast,.15f,.02f),.13f,1e-5f)
+        && FMath::IsNearlyEqual(ImpactPoseAge(EAction::Cast,.17f,.04f),.13f,1e-5f));
+    TestEqual(TEXT("After the tiny hold the pose catches up without extending any action"),ImpactPoseAge(EAction::Cast,.20f,.07f),.20f);
+    TestEqual(TEXT("A hit reaction itself is never delayed"),ImpactPoseAge(EAction::Hit,.03f,.03f),.03f);
 
     TestTrue(TEXT("An attack clip reaches its impact frame at the strike"), FMath::IsNearlyEqual(ClipTime(EAction::Attack, StrikeAt, .565f, 1.f), .565f));
     TestTrue(TEXT("A cast clip reaches its release frame at the strike"), FMath::IsNearlyEqual(ClipTime(EAction::Cast, StrikeAt, .635f, 1.f), .635f));
