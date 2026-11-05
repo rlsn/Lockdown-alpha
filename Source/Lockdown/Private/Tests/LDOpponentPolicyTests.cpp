@@ -270,9 +270,9 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Pick(Test, C, TEXT("No actives: the first engage role in public catalog order"),
         {}, {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
              Option(3, EKind::LearnActive, TEXT("active_arc_bolt"))}, 3);
-    bGood &= Pick(Test, C, TEXT("A D24 opening offer (two attribute cards and a passive): the new passive is taken"),
-        {}, {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
-             Option(3, EKind::Attribute, TEXT("attr_vitality"))}, 2);
+    bGood &= Pick(Test, C, TEXT("A 112 opening offer (two new actives and a passive): an active fills the empty Q"),
+        {}, {Option(1, EKind::LearnActive, TEXT("active_guard_pulse")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
+             Option(3, EKind::LearnActive, TEXT("active_binding_snare"))}, 3);
     const auto& Attributes = C.Get().Attributes;
     const FString* First = nullptr;
     uint32 FirstOption = 0;
@@ -289,6 +289,28 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Approved attributes are present"), First != nullptr)
         && Pick(Test, C, TEXT("Attributes tie on stable public order"), {},
             {Option(1, EKind::Attribute, Ids[0]), Option(2, EKind::Attribute, Ids[1]), Option(3, EKind::Attribute, Ids[2])}, FirstOption);
+    // 112 §6: an offer whose best card is only an attribute spends a free reroll when one is held; a rerolled offer is chosen.
+    FLDOpponentSelf Rolling;
+    FLDOpponentOffer Plain;
+    Plain.OfferId = FGuid(0xB0, 0, 0, 2);
+    Plain.Options = {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::Attribute, TEXT("attr_focus"))};
+    Rolling.Offer = Plain;
+    Rolling.RerollTokens = 1;
+    FLDOpponentChoicePick Rolled;
+    FString RollError;
+    bGood &= Test.TestTrue(TEXT("Attributes only and a token: reroll"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && Rolled.bReroll && !Rolled.OptionId.IsValid());
+    Rolling.Offer->bRerolled = true;
+    bGood &= Test.TestTrue(TEXT("A rerolled offer is chosen from"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId.IsValid());
+    Rolling.Offer->bRerolled = false;
+    Rolling.RerollTokens = 0;
+    bGood &= Test.TestTrue(TEXT("Without a token the attribute is taken"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll);
+    Rolling.RerollTokens = 1;
+    Rolling.Offer->Options.Add(Option(3, EKind::LearnPassive, TEXT("passive_precision")));
+    bGood &= Test.TestTrue(TEXT("A good card is taken even with a token"),
+        LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId == FGuid(0xA0, 0, 0, 3));
     FLDOpponentSelf Unknown;
     FLDOpponentOffer Offer;
     Offer.Options = {Option(1, EKind::Attribute, TEXT("attr_unknown"))};
@@ -307,6 +329,8 @@ bool Plan(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, cons
     Self.Equipment[0] = First;
     Self.Equipment[1] = Second;
     Self.Gold = Gold;
+    // Trade order only; the one upgrade of the match is covered on its own below.
+    Self.bUpgradeUsed = true;
     TOptional<FLDOpponentEquipmentPlan> Out;
     FString Error;
     const bool bPlanned = LDOpponentPolicy::PlanEquipment(Self, Catalog, Out, Error);
@@ -334,9 +358,12 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
         400, INDEX_NONE, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("Full pair: sell the survival piece for a strictly better active pair"), TEXT("item_edge_blade"),
         TEXT("item_iron_plate"), 199, 1, TEXT("item_arcane_battery"));
+    // #112: the basic-growth item_decoy_wig (400) is the next active source within the edge blade's sale value.
     bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_echo_maul"));
-    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_echo_maul"),
+        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_decoy_wig"));
+    bGood &= Plan(Test, C, TEXT("A pair with one active trades its passive piece for a second active source"), TEXT("item_echo_maul"),
+        TEXT("item_arcane_battery"), 100000, 0, TEXT("item_decoy_wig"));
+    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_decoy_wig"),
         TEXT("item_arcane_battery"), 100000, INDEX_NONE, TEXT(""));
     FLDEquipmentPairRank Rank;
     FString Error;
@@ -346,10 +373,44 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Two identical actives are two independent sources"),
         LDOpponentPolicy::RankEquipmentPair(TEXT("item_arcane_battery"), TEXT("item_arcane_battery"), C, Rank, Error)
         && Rank.ActiveSources == 2 && Rank.BasicGrowth == 0 && Rank.Survival == 1);
+    // #112 C1: the reworked item passives classify on their own, without the items' attribute stats.
+    const auto PassiveOnly = [&C](const TCHAR* Id)
+    {
+        const FLDDemoEquipmentDefinition* Item = C.Get().Equipment.FindByPredicate(
+            [Id](const FLDDemoEquipmentDefinition& Row) { return Row.Id == Id; });
+        FLDDemoEquipmentDefinition Copy = Item ? *Item : FLDDemoEquipmentDefinition();
+        Copy.Stats.Reset();
+        return LDOpponentPolicy::EquipmentUsage(Copy);
+    };
+    const FLDOpponentUsage Plate = PassiveOnly(TEXT("item_iron_plate"));
+    const FLDOpponentUsage Blade = PassiveOnly(TEXT("item_edge_blade"));
+    bGood &= Test.TestTrue(TEXT("Critical damage reduction is a survival use"), Plate.bSurvival && !Plate.bBasicGrowth);
+    bGood &= Test.TestTrue(TEXT("An every-Nth-basic bonus is a basic-growth use"), Blade.bBasicGrowth && !Blade.bSurvival);
     FLDOpponentSelf Unknown;
     Unknown.Equipment[0] = TEXT("item_unknown");
     TOptional<FLDOpponentEquipmentPlan> Out;
     bGood &= Test.TestFalse(TEXT("An unknown held item is refused"), LDOpponentPolicy::PlanEquipment(Unknown, C, Out, Error));
+    // 112 §7: with no affordable trade, the AI spends its one upgrade on a held item that has approved upgraded terms.
+    const FLDDemoEquipmentDefinition* Upgradable = C.Get().Equipment.FindByPredicate(
+        [](const FLDDemoEquipmentDefinition& Item) { return LDDemoEquipment::Upgradable(Item); });
+    if (Test.TestNotNull(TEXT("An approved item can be upgraded"), Upgradable))
+    {
+        const int64 Cost = C.Get().Parameters.UpgradeCost;
+        FLDOpponentSelf Holder;
+        Holder.Equipment[0] = Upgradable->Id;
+        Holder.Gold = Cost;
+        bGood &= Test.TestTrue(TEXT("Exactly the upgrade cost and nothing to buy: upgrade slot 0"),
+            LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && Out.IsSet() && Out->UpgradeSlot == 0 && Out->BuyItemId.IsEmpty()
+            && Out->SellSlot == INDEX_NONE);
+        Holder.Gold = Cost - 1;
+        bGood &= Test.TestTrue(TEXT("One gold short: no upgrade"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+        Holder.Gold = Cost;
+        Holder.bUpgradeUsed = true;
+        bGood &= Test.TestTrue(TEXT("A spent upgrade is never planned again"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+        Holder.bUpgradeUsed = false;
+        Holder.EquipmentUpgraded[0] = true;
+        bGood &= Test.TestTrue(TEXT("An upgraded item is not upgraded twice"), LDOpponentPolicy::PlanEquipment(Holder, C, Out, Error) && !Out.IsSet());
+    }
     return bGood;
 }
 
@@ -735,7 +796,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         Contest.Public.Phase = ELDMatchPhase::CaptureOpen;
         Contest.Public.Circle = ELDOpponentCircle::Contested;
         Contest.Self.FootCm = FVector(0, 2700, 0);
-        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900), Unit(5, ELDOpponentUnitKind::Contender, 0, 3500)};
+        Contest.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 2900), Unit(5, ELDOpponentUnitKind::Contender, 0, 3250)};
         const auto Nearer = LDOpponentPolicy::Decide(Contest, C, Challenge);
         Contest.Public.Occupier = FGuid(0xE0, 0, 0, 5);
         const auto Holder = LDOpponentPolicy::Decide(Contest, C, Challenge);
@@ -756,6 +817,70 @@ bool RunPriorities(FAutomationTestBase& Test)
         const auto Join = Decide(Outside);
         bGood &= Expect(Test, TEXT("D12: a paused rival hold is contested from outside without urgency"), Join, EMode::Contest,
             EBody::MoveGround, TEXT("capture"));
+    }
+    {
+        // Spray and guard (APP_SPEC 2.2): the owner guards the zone but never dies for it; every other body besieges the
+        // visible owner or walks in to repaint; a hard control interrupts the public sole sprayer.
+        FLDOpponentPolicyState Guard;
+        auto Owned = Base;
+        Owned.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Owned.Public.Circle = ELDOpponentCircle::Empty;
+        Owned.Public.Owner = Owned.Self.ContenderId;
+        Owned.Public.GuardDueAtMs = Owned.Public.NowMs + 15000;
+        const auto Guarding = LDOpponentPolicy::Decide(Owned, C, Guard);
+        bGood &= Expect(Test, TEXT("The graffiti owner returns to guard the zone"), Guarding, EMode::DefendOrHold,
+            EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Guard reason"), Guarding.Reason == ELDOpponentReason::GuardGraffiti);
+        Owned.Self.HpP2 = Owned.Self.MaxHpP2 / 5;
+        Owned.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 600)};
+        const auto Survive = LDOpponentPolicy::Decide(Owned, C, Guard);
+        bGood &= Expect(Test, TEXT("A low owner escapes instead of dying, since his death clears the graffiti"), Survive,
+            EMode::Disengage, EBody::MoveGround);
+
+        FLDOpponentPolicyState Siege;
+        auto Rival = Base;
+        Rival.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Rival.Public.Circle = ELDOpponentCircle::Empty;
+        Rival.Public.Owner = FGuid(0xE0, 0, 0, 5);
+        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 15000;
+        Rival.CapturePathCm = 3000.;
+        Rival.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 300)};
+        const auto Besiege = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("A visible rival owner within reach is besieged on the way"), Besiege, EMode::Contest,
+            EBody::AttackUnit) && Test.TestTrue(TEXT("The owner is the target"), Besiege.Body.Handle == FGuid(0xD0, 0, 0, 5)
+                && Besiege.Reason == ELDOpponentReason::BesiegeOwner);
+        Rival.Units.Reset();
+        const auto Repaint = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("An unseen owner's graffiti is answered by walking in to repaint"), Repaint, EMode::Contest,
+            EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Siege reason"), Repaint.Reason == ELDOpponentReason::BesiegeOwner);
+        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 3000;
+        const auto Late = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("A guard about to win makes the answer urgent"), Late, EMode::DefendOrHold, EBody::MoveGround,
+            TEXT("capture"));
+
+        FLDOpponentPolicyState Stop;
+        auto Spray = Base;
+        Spray.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Spray.Public.Circle = ELDOpponentCircle::Solo;
+        Spray.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Spray.Public.DueAtMs = Spray.Public.NowMs + 2000;
+        Spray.Self.FootCm = FVector(0, 2750, 0);
+        Spray.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
+        Spray.Self.Skills = {Skill(TEXT("active_come_here"), 1, ELDOpponentSkillSlot::Q)};
+        FLDOpponentSource Taunt;
+        Taunt.Slot = ELDOpponentSourceSlot::Q;
+        Taunt.DefinitionId = TEXT("active_come_here");
+        Taunt.bReady = true;
+        Spray.Self.Sources = {Taunt};
+        const auto Interrupt = LDOpponentPolicy::Decide(Spray, C, Stop);
+        bGood &= Expect(Test, TEXT("A ready taunt interrupts the public sole sprayer within its radius"), Interrupt,
+            EMode::DefendOrHold, EBody::Activate) && Test.TestTrue(TEXT("The taunt is the activated source"),
+                Interrupt.Body.Source == ELDOpponentSourceSlot::Q);
+        Spray.Public.Circle = ELDOpponentCircle::Contested;
+        Spray.Public.DueAtMs = 0;
+        FLDOpponentPolicyState Paused;
+        const auto NoInterrupt = LDOpponentPolicy::Decide(Spray, C, Paused);
+        bGood &= Expect(Test, TEXT("A paused holder is fought, not taunted, since nobody sprays"), NoInterrupt, EMode::Contest,
+            EBody::AttackUnit);
     }
 
     Frame = Base;
@@ -783,15 +908,16 @@ bool RunPriorities(FAutomationTestBase& Test)
     Frame.Self.Gold = 150;
     bGood &= Expect(Test, TEXT("An open, empty circle is contested"), Decide(Frame), EMode::Contest, EBody::MoveGround,
         TEXT("capture"));
-    Frame.Self.FootCm = FVector(0, 2500, 0);
-    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3500), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
+    // Both feet inside the 300 cm zone yet farther apart than the acquisition radius, so only the zone draws the fight.
+    Frame.Self.FootCm = FVector(0, 2750, 0);
+    Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 0, 3240), Unit(4, ELDOpponentUnitKind::Contender, 5000, 5000)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("Inside the circle only rivals inside it are fought"), Decision, EMode::Contest, EBody::AttackUnit)
         && Test.TestTrue(TEXT("The in-circle rival"), Decision.Body.Handle == Frame.Units[0].Handle);
     Frame.Public.Circle = ELDOpponentCircle::Solo;
     Frame.Public.Occupier = Frame.Self.ContenderId;
-    // Just outside the circle edge yet inside the acquisition radius of the holder.
-    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2350)};
+    // Just outside the zone edge yet inside the acquisition radius of the holder.
+    Frame.Units = {Unit(4, ELDOpponentUnitKind::Contender, 0, 2650)};
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("A solo holder does not chase a rival outside the circle"), Decision, EMode::DefendOrHold,
         EBody::None) && Test.TestTrue(TEXT("Hold reason"), Decision.Reason == ELDOpponentReason::HoldCapture);
@@ -1806,6 +1932,17 @@ bool RunDormRecovery(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(FString::Printf(TEXT("A rival's solo hold keeps the recovering body from a corner dorm (mode %u body %u poi %s)"),
         uint8(Waiting.Mode), uint8(Waiting.Body.Kind), *Waiting.Body.POI.ToString()),
         Waiting.Body.POI != TEXT("dorm_se") && Waiting.Body.POI != TEXT("dorm_nw"));
+    // The same holds while a rival guards its graffiti: its public guard is just as urgent to answer.
+    Frame.Public.Circle = ELDOpponentCircle::Guarded;
+    Frame.Public.Occupier = FGuid();
+    Frame.Public.DueAtMs = 0;
+    Frame.Public.Owner = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.GuardDueAtMs = Frame.Public.NowMs + 60000;
+    FLDOpponentPolicyState Guarded;
+    const auto Guarding = LDOpponentPolicy::Decide(Frame, C, Guarded);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A rival's guard keeps the recovering body from a corner dorm (mode %u body %u poi %s)"),
+        uint8(Guarding.Mode), uint8(Guarding.Body.Kind), *Guarding.Body.POI.ToString()),
+        Guarding.Body.POI != TEXT("dorm_se") && Guarding.Body.POI != TEXT("dorm_nw"));
 
     Frame = Base;
     Frame.Self.FootCm = InDorm;

@@ -21,18 +21,18 @@
 | 范围 | 已确认规则 |
 | --- | --- |
 | 基础与成长 | 所有人初始只有近战单体物理普攻；装备或属性可以增加攻击距离、提供普攻群攻，不能把整局锁死为短距单体。AP 不自动进入普攻。 |
-| 入口 | 角色主动 Q/W、装备主动 1/2 进入同一 Combat；装备主动在店外、圈内、两个装备槽已满时仍按战斗条件使用，不依赖商店会话、报价、购物距离或余额。 |
+| 入口 | 角色主动 Q/W、装备主动 1/2 进入同一 Combat；装备主动在店外、喷漆区内、两个装备槽已满时仍按战斗条件使用，不依赖商店会话、报价、购物距离或余额。 |
 | 重复装备 | 允许同时两件同款；普通基础属性相加，同名被动只生效一次。两个同款主动各自独立冷却，可以连续各用一次，仍需分别满足资源和动作条件。 |
 | 冷却 | 换槽、升级、卖买、遗忘重学和死亡不能清洗未完成冷却；来源丢失期间继续计时，重新持有沿用原结束时间。 |
 | 资源与死亡 | 最大 HP/MP 变更保持原生命/法力百分比；一次最终投影只换算一次。死亡保留构筑、财产、经验和候选；等待时可确认选择，但不治疗或复活。正常复活满新上限，旧临时控制清除，冷却继续。 |
 | 保护 | 通过身份、当前局/生命、规范包、新鲜请求及写闸前验的进攻意图就解除保护；随后目标、来源、距离、蓝量、冷却或控制失败仍解除。旧包、重放、畸形包不改变新生命。 |
 | 效果 | 已成功释放的独立效果在来源死亡、出售或遗忘后继续到原结束；未释放动作取消。持续来源贡献随维持条件失效停止。离局立即移除身体、取消未结效果；不追溯回滚此前事实。 |
-| 致死 | 最后一击的实际参赛者所有者独占全部金币和 XP；无助攻/近邻分摊，无主不继承历史攻击者，自杀、离局和回位不奖励。已死亡但仍在局的所有者可因有效效果击杀别人获奖。 |
+| 致死 | 野怪由最后一击的实际参赛者所有者独占全部金币和 XP；参赛者之间的击杀另按助攻规则分配（App Spec §4.1，#112）；无近邻分摊，无主不继承历史攻击者也没有助攻，自杀、离局和回位不奖励。已死亡但仍在局的所有者可因有效效果击杀别人获奖或得助攻。助攻贡献只在唯一的伤害/状态施加路径上经 `RecordAssistContribution` 记录。 |
 | 营地 | 野怪未受攻击不主动攻击；同营地受击共同反击但不共享隐藏坐标。Returning 仍可受伤/控制/被杀，不回头追击；存活成员成功到家才满血蓝、清临时状态/仇恨、技能就绪，不复活死成员、不发奖。 |
-| 视野 | 失视野取消锁定并停止该追击订单，不留 LastSeen 标记。可见对手可展示名称、等级、HP、MP、状态及装备展示内容，不展示技能列表、技能等级、CD、完整属性、金币或装备私有身份。唯一例外是可见施法者的施法提示可带该次施法的技能或装备主动名称，只在 Cast 提示期间（§10）。 |
+| 视野 | 失视野取消锁定并停止该追击订单，不留 LastSeen 标记。可见对手可展示名称、等级、HP、MP、状态、装备展示内容及 Q/W 两个主动技能与其等级（#112 §10），不展示被动列表、CD、完整属性、金币或装备私有身份。唯一例外是可见施法者的施法提示可带该次施法的技能或装备主动名称，只在 Cast 提示期间（§10）。 |
 | 选择预算 | 开局三选与每次升级各给一次选择；已消费的主动/被动等级与属性卡总数不超过 min(等级, 本局选择上限)，1 级构筑可带一张卡。上限值见内容报告。 |
 | 施法节奏 | 能力前摇中按 Q/W/1/2 由拥有客户端预输入、前摇结束后再发送；本地「快速施法」设置开启时，指针已指明目标即直接确认（§6.5）。服务器规则不因此改变。 |
-| 占领与结束 | 伤害和圈内控制本身不清占领；真实离圈、死亡或资格变化交生命周期/占领域。完成同刻不能跳过到期致死。先锁唯一结果、关闭领域写闸，再清理。 |
+| 喷漆、守护与结束 | 普通伤害、减速和缴械不清零喷漆；定身、眩晕、嘲讽（及击退）提交时由 `ALDCombatDirector::InterruptSpray` 经 `ALDGameMode::PublishCaptureInterrupt` 在施加瞬间清零被控参赛者的喷漆进度；涂鸦主人受伤、受控不影响守护。真实离区、死亡或资格变化交生命周期/喷漆与守护域。完成同刻不能跳过到期致死与控制。先锁唯一结果、关闭领域写闸，再清理。 |
 
 “同名被动一次”不授权不同强度来源一律取最强；首版等价同款来源可稳定选代表。
 批准目录若出现不等价同 family 组合，必须明确聚合规则或拒绝该输入。
@@ -209,7 +209,8 @@ namespace LDTactical
 | `FLDBasicTimingInput` | 显式的 BaseAttackSpeed、CurrentAttackSpeed 有理数及 BaseWindupMs；玩家来自 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物来自 `CAMP.Low/High.AttackSpeed/AttackWindupSec`，均接相同公式语义。 |
 | `FLDBasicTimingResult` | 与伤害一致的 Value/Error 形状，成功给 IntervalMs/WindupMs 正时长且前摇小于间隔；不生成绝对 NextAttackAt、ReadyAt 或权威时间。 |
 
-HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；仅主普攻允许本次暴击，
+HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；主普攻与内容明确列出的技能（#112 技能暴击，
+倍率 `STAT.AbilityCritMultiplier`）允许本次暴击，副击、反伤与附加伤害不暴击；
 两个 Basic 分类均拒绝 AP 系数和魔法伤害。完整字段、数值域与精确算术校验先于保护零伤，
 不能靠受保护掩盖坏输入。中间有理数复用同一受检精确算术，保留到最终一次 floor/ceil。
 原生公式夹具使用 producer 生成的 `approved_base`；原有 `base` 仍是独立合成输入，
@@ -261,6 +262,9 @@ Combat 的 `ProjectBuild` 对主动、被动等级与属性卡合计做同一上
 
 聚合单向依赖为：基础和等级成长、永久选择、已学被动、两个真实装备的普通贡献、
 有效临时状态 → 来源合法性/唯一被动组 → `FORMULA.StatProjection` → 最终属性及来源分解。
+属性卡的扣减项（`penalties`，#112 狂野卡）作为同类负贡献参与同一次相加，来源分解中单列为“代价”；
+每项最终属性统一夹到 `STAT.<属性>.Min/Max`（含扣减后的下限：精神状态上限 ≥1、润速 ≥300、普攻距离 ≥80），
+超出界的部分不生效，不拒绝构筑（R6）；唯一例外是 DEV 测试项：带 DEV 项的属性超过上限时拒绝该次投影，不靠夹取。HP 回复的固定加成 `HPRegenFlat` 与等级成长相加。
 当前资源、已存在的 ReadyAt 和 UI 格式化结果不反向参与投影。
 首版无消费者的属性反馈环不保留；非法依赖/循环在导入或 Prepare 明确拒绝。
 
@@ -282,7 +286,7 @@ Pool 仅选择 HP 正值归零的拒绝政策，不判定或修改 Alive/Dead；
 
 最大资源按 `POLICY.ResourceMaxChange=PreserveRatio`，读取权威旧当前值、旧上限和最终新上限，
 一次调用 `FORMULA.ResourceMaxChange`。不逐个拆装中间态换算，不从 HUD 百分比反算，
-不把投影当敌方 Damage/普通 Heal/PrimaryBasicContact，也不触发吸血、群攻或占领清零。
+不把投影当敌方 Damage/普通 Heal/PrimaryBasicContact，也不触发吸血、群攻或喷漆清零。
 两笔真实卖出/购买各做一次变换；没有其它资源事件的往返不能净获取整收益。
 
 内容合同的 P2 规则为最终一次向下量化；活体正 HP 降上限后量化为零，Prepare 返回
@@ -417,7 +421,7 @@ Navigation 使用原 Order/Epoch；Combat 使用 **DirectSequence**，CancelEpoc
 Rejected 也可能 `ProtectionRemoved=true`，附 LifeRevision/资格 EventStamp；
 动作失败不扣 MP、不设能力 CD、不开始普攻节拍，但已解除的保护不恢复。
 旧 match/life、被取消/重放/异条款请求、非法枚举/NaN/坏 shape 在前闸拒绝，不改新生命。
-在圈内失败的规范进攻仍可能因失保改变占领资格，不能等待动作成功才通知 Capture。
+在喷漆区内失败的规范进攻仍可能因失保改变喷漆资格，不能等待动作成功才通知 Capture。
 
 ### 6.3 动作准入、时序和支付
 
@@ -451,12 +455,13 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 | 正常 | 允许 | 允许 | 允许 | 合法路径/落点下允许 | 按内容条件 |
 | Root | 禁止 | 允许 | 允许，包括自身盾+净化 Root | 禁止，不因来源是装备绕过 | 不因 Root 一律关闭 |
 | PendingDeath/Dead | 禁止新动作 | 禁止 | 禁止 | 禁止 | 不回血治活；保留构筑不等于活体持续作用仍运行 |
-| 复活保护 | 普通移动允许，不争圈 | 规范进攻意图先失保，再验动作 | 同左 | 同左，解除后仍查 Root | 自动被动/旧效果不是新生命主动进攻意图 |
+| 复活保护 | 普通移动允许，不计入喷漆区人数 | 规范进攻意图先失保，再验动作 | 同左 | 同左，解除后仍查 Root | 自动被动/旧效果不是新生命主动进攻意图 |
 | Left/Closed | 禁止 | 禁止 | 禁止 | 禁止 | 取消未结影响；清理不重新提交 |
 
 按已批准首版内容，Root 以 effect/cast+完整目标生命保存独立实例和原期限，任一未到期实例即生效，
 显示最大剩余时间；同实例重发不续期，一个较早到期不能清掉另一来源。
-「我没事我很好」的净化删除当时全部 Root，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
+「我没事我很好」的净化删除当时全部 Root 与减速，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
+全部控制与减速只经 `CommitControl` 施加；定身、眩晕、缴械、嘲讽共用硬控递减（#112，内容报告 §15.10）。
 
 `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾的**当前剩余量**：
 新量不少于剩余量时，用新量、新 source context、新截止完整替换，相等也刷新；
@@ -519,7 +524,8 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 
 一次允许暴击的 Basic 只在成功 Release 采样一次，绑定 AttackId，取消前摇不能提前预览随机结果。
 被动去重键含完整 Match、AttackId、VictimKey 和 PassiveFamily，代表更换/重复实例不重复触发。
-吸血只按 `POLICY.LifestealBasis=PrimaryBasicAttackHPLost`，盾、过量、副击均不计；
+吸血只按该次命中的实际 HP 损失（`HPLostP2`）计算，盾、过量均不计；普攻吸血是命中特效，按命中的特效系数触发
+（普攻主击 1.0，技能按定义），副击、反伤与附加伤害不触发；技能吸血与全能吸血按 #112 内容条目相加（内容报告 §15.10）；
 治疗指向原释放身体生命，不能治疗该所有者的新复活身体或 PendingDeath。
 具体触发规则与数值见内容报告；实现只走同一条 Damage/Heal 通路（`ApplyHit`）。
 
@@ -538,7 +544,7 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 每个次击独立 VictimKey/HitKey，读取当前目标防御，沿同一物理 Damage 和 DeathKey 通路。
 所有次击共用该普攻源 AD 快照，不因首个击杀奖励升级改变伤害。
 两把同款自拍杆普通属性相加，但 family 只一轮；每 `(AttackId, 完整 VictimKey, passive_cleave)` 最多一击。
-按 `POLICY.BasicSecondaryTriggers=Disabled`，副击不暴击、不 on-hit/吸血/再群攻、
+按 `POLICY.BasicSecondaryTriggers=Disabled`，副击不暴击、不触发命中特效（吸血/横扫/叠层）、
 不创建新 Attack 或重抽。不是对 N 个目标调用 N 次 RequestBody，也不是保留旧反应体系。
 该限制只禁止攻击者的追加 proc，不是 `SuppressAllTriggers`：
 副击仍发布固有的受击/HP 变化、受害方 LastCombatAt、死亡/奖励及营地有效受击反击事实。
@@ -641,7 +647,7 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 
 | 同一真实边界的阶段 | 工作与闭合要求 |
 | --- | --- |
-| Session | 离开/HostEnd、保护自然到期、开圈条件；保护到期 t 在 t 命中前生效。更早真实 Hit 不因同毫秒桶被较晚 Leave 推翻。 |
+| Session | 离开/HostEnd、保护自然到期、旗杆开放条件；保护到期 t 在 t 命中前生效。更早真实 Hit 不因同毫秒桶被较晚 Leave 推翻。 |
 | Motion | 原生运动/碰撞分段及存在事件（`PublishCaptureMotion`）。到期 Root 等先提交，再推进其后的原生段。 |
 | Actions | 身份/新鲜性前闸、规范意图失保、实际订单/动作原子准入、AttackStart 和到期 Release。 |
 | Effects | 有序接触/命中/状态/恢复；统一保护闸，首次致零立即锁存。 |
@@ -649,11 +655,11 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 | RespawnsAndWorld | 合法复活、保护与营地生命周期；不重新授予保留构筑，回位不算死亡。 |
 | Transactions | 当前合法选择/买卖及最终投影；如产生明确同刻 Combat 因果，Capture 前排空 Effects→DeathsAndRewards/生命投影子批，不重开任意 Actions。 |
 | Capture 前 Sealing | 把 Actions/Effects/复活/事务派生的位移、生命和事件全部纳入后，闭合精确整数边界与流序号。 |
-| Capture | 只消费 fence 齐备的真实中间进出/资格事件，重查连续独占；受伤/圈内 Root 不造清零事件。 |
+| Capture | 只消费 fence 齐备的真实中间进出/资格/打断事件，重查喷漆与守护；普通受伤、减速、缴械不造清零事件，Root/眩晕/嘲讽在 Effects 提交时已发布 `Interrupted`。 |
 | Close → Publish | 先 `TryCloseMatch` 原子锁结果/闸，再 `CloseCombatMatch` 清未结动作/效果（`EndMatchActions`），最后发布获准状态/回执；清理不再制造玩法写入。 |
 
-`PublishCaptureMotion/PublishCaptureEligibility`（`ALDGameMode`）是单圈的窄接口，不新增通用 eventbus。
-死亡/保护资格只由 Life 发，位移存在事件由真实 Motion 发。
+`PublishCaptureMotion/PublishCaptureEligibility/PublishCaptureInterrupt`（`ALDGameMode`）是唯一喷漆区的窄接口，不新增通用 eventbus。
+死亡/保护资格只由 Life 发，位移存在事件由真实 Motion 发，硬控打断只由 Combat 的控制提交发。
 重复/旧局/旧生命/倒退序号不能再次作用；完成到 `1.0002 s` 不能封 `1001 ms`。
 缺 provider 或未结奖励不能靠最终位置快照、空列表或假完成变成成功。
 
@@ -693,8 +699,9 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 | 回执 | `FLDCombatActionReceipt`：Generation/Life/Origin/DirectSequence/Entry、CombatToken、ReceiptRevision、Phase、Reject、bProtectionRemoved、LifeRevision；无效动作也可已有合法失保。 |
 
 自己受到的状态可解释类型/时限，不借状态来源字段泄露隐藏施加者的位置或构筑。
-对手投影只由 Vision 的 observer DTO（`FLDObservedUnitView`）维护：当前合法可见时的名称/等级/HP/MP/状态/装备定义与槽位，
-没有 ItemInstance、IssuedCooldownId、来源修订、技能列表/等级/CD、完整属性或金币。
+对手投影只由 Vision 的 observer DTO（`FLDObservedUnitView`）维护：当前合法可见时的名称/等级/HP/MP/状态/装备定义与槽位，以及 Q/W 主动的原生 ID 与等级（`FLDObservedActivesView`，
+由 `ALDCombatDirector::PublicActivesOf` 在构筑安装与身体准备时写入公开事实），
+没有 ItemInstance、IssuedCooldownId、来源修订、被动列表、CD、完整属性或金币。
 “状态”只取 `AppendObservedStatuses` 输出的 Root/Shield 与生命域派生的保护，不复用 owner 的来源解释或已学被动名单。
 这些字段获准可见不等于全场公开；失权立即清面板、标记、目标关联及附着表现，旧包不能恢复。
 
@@ -708,7 +715,7 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 `ActionCue==Cast` 时携带该次施法的原生 ID（Q/W 技能或装备主动，含位移），至多一个非零，其余时刻均为零；
 不携带等级、CD 或已学列表。`ALDCombatDirector::ObservedCastSource` 取前摇中的能力（当其为最近者）
 或该生命最后一次释放的来源 `FLDBodyCombatState::ReleasedSource`。施法来源找不到已批准定义时，
-`AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板仍不显示技能列表、等级或 CD。
+`AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板只经 `Actives` 显示 Q/W 与等级，不显示被动列表或 CD。
 
 **弹体。** `ReadObservedProjectiles` 把仍在飞行的弹体按当前位置与平面朝向交给观察所有者采样；
 唯一获准外观为粉笔（天外飞瓶 `active_arc_bolt` 的现有美术，`ELDObservedProjectileLook::Chalk`），其他来源没有外观则整体失败。
@@ -762,7 +769,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | --- | --- | --- |
 | A01 全属性 | 正常仅普攻开局，分别改变各批准属性、等级与来源 | AD/AP不混；双抗类型正确；AS/MS/Range/血蓝/回复/暴击/Haste各有真实消费者，面板同源。 |
 | A02 重复装备 | 买两同款，卖代表再买；尝试第三件 | 普通属性两份、被动一次，组历史不断档不双触发；第三件钱物不变。 |
-| A03 双主动 | 店外/圈内/满两槽，两同款依次合法 Release | 两条独立 ReadyAt，各自 MP/控制/动作验证；一条不锁另一条，不要求 ShopSession。 |
+| A03 双主动 | 店外/喷漆区内/满两槽，两同款依次合法 Release | 两条独立 ReadyAt，各自 MP/控制/动作验证；一条不锁另一条，不要求 ShopSession。 |
 | A04 首发/债优先 | 空集合首次买装备/学技能、新局首次取得及重发；一件冷却买第二件；卖冷却件重买；两债不同期限都卖买；未绑定一债一 ready | 首次仅发行第一条，同请求只重放原绑定；角色无第二条。真第二件独立可用，回购先最长未绑定债，两截止分别保留，无第三条/共享max/空白绕债。 |
 | A05 绑定竞态 | 两准备计划抢一条；出售 Prepare 后先 Release；旧实例请求晚到 | 版本/permit拒双绑；保留最新 ReadyAt；旧实例不得操作新绑定；失败钱物/机会/源全不改。 |
 | A06 来源变化 | 换槽、升级、遗忘重学、死亡及新局 | 旧期限不中断；重学一级不洗 CD；旧 Source/目标请求拒绝，新局双 Match 域彻底隔离。 |
@@ -787,12 +794,12 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | A25 奖励故障 | 首次RetryableNotCommitted后下一边界重试分别成功/再次失败；首次不可恢复/部分提交故障及终局 | 原Key/基准不变且不半奖。唯一重试成功时不报告权威故障；不可恢复或再次失败由 `ReportAuthorityFault` 报告一次，之后不再推进奖励、不继续Capture，不伪NoReward或再次发钱。 |
 | A26 生存边界 | 致零后安排吸血/回复/盾；死亡等待确认选择并重发，复活同刻旧确认 | PendingDeath不治活；死亡选卡一次保留不回血，复活满新max，旧确认不操作新Life、不授予第二初始奖。 |
 | A27 独立/持续/退出 | Release前后分别死/售/忘；持续贡献失源；退出前后命中及同ceil桶 | 未释放取消、独立续原期限、持续贡献停止；Leave先无新Hit，Hit先冻结资格不因CurrentInMatch改NoReward。 |
-| A28 终局/占点 | 完成同刻致死/离圈/争夺，对照非致死伤害/圈内Root；排队交易/选择/清理回调 | 破坏条件先纳入，单纯战斗不清圈；关闸前事务保留、之后零新玩法写，旧permit拒绝。 |
-| A29 真时/水位 | 同段进出再进、1000.8ms离圈与1001ms到期、只完成1.0002s请求封1001ms、缺pose/流 | 先真实秒、真同刻才phase；中间事件不丢、桶不当先后/fence，不回填/假Miss/先判胜。 |
+| A28 终局/喷漆守护 | 完成同刻致死/离区/控制/争夺，对照非致死伤害/减速/缴械；排队交易/选择/清理回调 | 破坏条件先纳入，Root/眩晕/嘲讽清零喷漆而单纯伤害不清；关闸前事务保留、之后零新玩法写，旧permit拒绝。 |
+| A29 真时/水位 | 同段进出再进、1000.8ms离区与1001ms到期、只完成1.0002s请求封1001ms、缺pose/流 | 先真实秒、真同刻才phase；中间事件不丢、桶不当先后/fence，不回填/假Miss/先判胜。 |
 | A30 完整Sealing | Root在长step中到期；Actions/Effects/Respawns/Transactions派生位移/致死 | 最早边界先提交控制再跑后段；初次Motion不封口，全部因果子批/资格完成后Capture才消费。 |
 | A31 读权限 | 正常可视Host+拥有客户端；敌人入雾、可见检查、死后拖图、合法隐藏次击 | 可见名称/等级/HP/MP/状态/装备完整；无私有实例/源/CD/属性/金币，入雾停单清显示；原生/代理/音效不旁路，死后无新增活体视野。 |
 | A32 公开例外 | PvP/普通野怪击杀、圈状态、AI读模型 | PvP有限通知、野怪不刷全场横幅；无隐藏坐标/构筑/营地资源偷渡，AI不查内部Contacts/全Bodies。 |
-| A33 正常闭环/新局 | 批准内容下普攻打野→奖励→选卡/买装→QW/12/射程群攻→死亡复活→占领→新局；含三真人三AI | 无调试授予/传送/强制胜；真实拥有连接/延迟乱序下只结一次，新局旧请求/Effect/Death/交易/观察无执行权。 |
+| A33 正常闭环/新局 | 批准内容下普攻打野→奖励→选卡/买装→QW/12/射程群攻→死亡复活→喷漆与守护→新局；含三真人三AI | 无调试授予/传送/强制胜；真实拥有连接/延迟乱序下只结一次，新局旧请求/Effect/Death/交易/观察无执行权。 |
 | A34 营地反击/到家 | 未受击接近、无效意图/实际敌对命中、Returning连续受伤/Root/致死、到家、同刻致死/在途弹体、重置后新伤害/新返回并重放旧epoch、玩家伪造Reset | 只真实作用事实触发反击，无隐藏坐标共享；Returning可被杀不追击，受击只变资源/状态修订，不增epoch/重启返回。存活到家才重置、同刻死亡优先；同ResetKey只读重放，旧epoch不补满新伤害。Life/Hit/Death水位保留，无复活/奖励/伪Life隔离，玩家不可洗CD。 |
 
 A34 的纯投影夹具另覆盖临时上限增益/压低效果移除后的顺序：先清候选状态、
@@ -831,9 +838,9 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。
 - `Scripts\RunDemoGrowthCheck.ps1`：两件同款装备中使用一件的主动只冷却自己的轨道；出售后冷却债务保留并由报价继承；新局无债务。
 - `Scripts\RunDemoCampCheck.ps1`：野怪不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置。
-- `Scripts\RunDemoOpponentCheck.ps1`：三名真人就绪满房并加入三个 AI 后不参战，AI 自行完成成长、交易、战斗与占领。
+- `Scripts\RunDemoOpponentCheck.ps1`：三名真人就绪满房并加入三个 AI 后不参战，AI 自行完成成长、交易、战斗、喷漆与守护。
 - `RunDemoVisionCheck.ps1`、`RunDemoCoreCheck.ps1`、`RunDemoCaptureCheck.ps1`、`RunDemoSessionFaultCheck.ps1`
-  分别覆盖观察授权、身体登记、占领与离局等相邻域。
+  分别覆盖观察授权、身体登记、喷漆/守护与离局等相邻域。
 
 ### 13.2 当前未覆盖
 

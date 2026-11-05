@@ -34,9 +34,10 @@ bool FLDBuildExpansionSlowTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("After the strongest ends the weaker one applies"), StrongestSlowBp(Slows, 2000), int64(2500));
     TestEqual(TEXT("A slow ends exactly at its deadline"), StrongestSlowBp(Slows, 2500), int64(0));
     TArray<FLDCombatTimedBonus> NoBonuses;
-    TArray<FLDCombatExposure> NoExposures;
-    TestTrue(TEXT("Lapsed slows are removed"), ExpireTemporaryStatuses(Slows, NoBonuses, NoExposures, 2000) && Slows.Num() == 1);
-    TestFalse(TEXT("Nothing more lapses before the next deadline"), ExpireTemporaryStatuses(Slows, NoBonuses, NoExposures, 2100));
+    TArray<FLDCombatBreach> NoBreaches;
+    TArray<FLDCombatVampMark> NoMarks;
+    TestTrue(TEXT("Lapsed slows are removed"), ExpireTemporaryStatuses(Slows, NoBonuses, NoBreaches, NoMarks, 2000) && Slows.Num() == 1);
+    TestFalse(TEXT("Nothing more lapses before the next deadline"), ExpireTemporaryStatuses(Slows, NoBonuses, NoBreaches, NoMarks, 2100));
     const FLDTemporaryAttributeTerms Terms = TemporaryTerms(NoBonuses, Slows, {}, 100, 100, 2100);
     TestTrue(TEXT("Temporary terms carry the strongest slow only"), Terms.MoveSlowBp == 2500 && Terms.Bonuses.IsEmpty());
     return true;
@@ -63,8 +64,9 @@ bool FLDBuildExpansionTimedBonusTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A bonus ends exactly at its deadline"), Terms.Bonuses.Num() == 1
         && Terms.Bonuses[0].Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
     TArray<FLDCombatSlow> NoSlows;
-    TArray<FLDCombatExposure> NoExposures;
-    TestTrue(TEXT("Lapsed bonuses are removed"), ExpireTemporaryStatuses(NoSlows, Bonuses, NoExposures, 3000) && Bonuses.Num() == 1);
+    TArray<FLDCombatBreach> NoBreaches;
+    TArray<FLDCombatVampMark> NoMarks;
+    TestTrue(TEXT("Lapsed bonuses are removed"), ExpireTemporaryStatuses(NoSlows, Bonuses, NoBreaches, NoMarks, 3000) && Bonuses.Num() == 1);
     TestTrue(TEXT("Equal terms compare equal"), TemporaryTerms(Bonuses, {}, {}, 100, 100, 3500) == TemporaryTerms(Bonuses, {}, {}, 100, 100, 4000));
     TestTrue(TEXT("Expired terms differ from active terms"), TemporaryTerms(Bonuses, {}, {}, 100, 100, 3500) != TemporaryTerms(Bonuses, {}, {}, 100, 100, 6000));
     return true;
@@ -94,19 +96,34 @@ bool FLDBuildExpansionConditionalTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Ambush is ready at the delay"), AmbushReady(1000, 4000, 5000));
     TestFalse(TEXT("Entering combat closes the window"), AmbushReady(5000, 4000, 5000));
     TestFalse(TEXT("A nonpositive delay never triggers"), AmbushReady(0, 0, 10000));
-    // Control marks: one per source, refreshed by that source, invisible to every other source.
-    TArray<FLDCombatExposure> Exposures;
-    const FGuid Shamer = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    ApplyExposure(Exposures, {Shamer, 800, 3000});
-    ApplyExposure(Exposures, {Shamer, 1600, 4500});
-    TestTrue(TEXT("The same source refreshes its mark with the newest ratio"), Exposures.Num() == 1
-        && ExposureBp(Exposures, Shamer, 4000) == 1600);
-    TestEqual(TEXT("Another source gains nothing from the mark"), ExposureBp(Exposures, Other, 4000), int64(0));
-    TestEqual(TEXT("An invalid source gains nothing"), ExposureBp(Exposures, FGuid(), 4000), int64(0));
-    TestEqual(TEXT("The mark ends at its deadline"), ExposureBp(Exposures, Shamer, 4500), int64(0));
-    TArray<FLDCombatSlow> NoSlows;
+    // Dash credit (passive_lurking) brings the window closer; it never makes a nonpositive delay ready.
+    TestTrue(TEXT("A two-second credit opens the window two seconds early"), AmbushReady(1000, 4000, 3000, 2000));
+    TestFalse(TEXT("The credit window is exact"), AmbushReady(1000, 4000, 2999, 2000));
+    TestTrue(TEXT("A full credit readies at once (item_paper_box)"), AmbushReady(1000, 4000, 1000, 4000));
+    // Vamp marks (active_slipper_throw Lv3): one per source, bound to the slow that made it, refreshed by that source,
+    // invisible to every other source, and only while the bound slow lasts.
+    TArray<FLDCombatVampMark> Marks;
+    const FGuid Thrower = FGuid::NewGuid(), Other = FGuid::NewGuid(), FirstSlow = FGuid::NewGuid(), SecondSlow = FGuid::NewGuid();
+    TArray<FLDCombatSlow> Slowed;
+    Slowed.Add({FirstSlow, Thrower, 2500, 3000, 0, 2000});
+    Slowed.Add({SecondSlow, Thrower, 2500, 4500, 0, 2000});
+    ApplyVampMark(Marks, {Thrower, 1000, 3000, FirstSlow});
+    ApplyVampMark(Marks, {Thrower, 1500, 4500, SecondSlow});
+    TestTrue(TEXT("The same source refreshes its mark with the newest ratio"), Marks.Num() == 1 && VampMarkBp(Marks, Slowed, Thrower, 4000) == 1500);
+    TestEqual(TEXT("Another source gains nothing from the mark"), VampMarkBp(Marks, Slowed, Other, 4000), int64(0));
+    TestEqual(TEXT("An invalid source gains nothing"), VampMarkBp(Marks, Slowed, FGuid(), 4000), int64(0));
+    TestEqual(TEXT("The mark ends with its slow"), VampMarkBp(Marks, Slowed, Thrower, 4500), int64(0));
+    TArray<FLDCombatSlow> Refreshed = Slowed;
+    Refreshed[1].ExpiresAtMs = 6000;
+    TestTrue(TEXT("A refreshed slow carries its mark's deadline along"), SyncVampMarks(Marks, Refreshed, 4000)
+        && Marks.Num() == 1 && Marks[0].ExpiresAtMs == 6000 && VampMarkBp(Marks, Refreshed, Thrower, 5000) == 1500);
+    TArray<FLDCombatSlow> Cleansed;
+    TestEqual(TEXT("A cleansed slow leaves no vamp even before the mark's deadline"), VampMarkBp(Marks, Cleansed, Thrower, 4000), int64(0));
+    TArray<FLDCombatVampMark> Kept = Marks;
+    TestTrue(TEXT("Syncing after the cleanse removes the mark"), SyncVampMarks(Kept, Cleansed, 4000) && Kept.IsEmpty());
     TArray<FLDCombatTimedBonus> NoBonuses;
-    TestTrue(TEXT("A lapsed mark is removed"), ExpireTemporaryStatuses(NoSlows, NoBonuses, Exposures, 4500) && Exposures.IsEmpty());
+    TArray<FLDCombatBreach> NoBreaches;
+    TestTrue(TEXT("A lapsed mark is removed"), ExpireTemporaryStatuses(Refreshed, NoBonuses, NoBreaches, Marks, 6000) && Marks.IsEmpty());
     return true;
 }
 

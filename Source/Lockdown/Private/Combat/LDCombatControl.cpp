@@ -1,5 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDControlRules.h"
+#include "Combat/LDCombatSourceRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
@@ -31,7 +33,9 @@ bool ALDCombatDirector::ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBod
     OutTaunter={};
     const auto* Mode=Core();
     const auto* Body=FindBody(Victim);
-    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())) { return false; }
+    // A decoy lure is no chase of its caster: Navigation walks the victim to the decoy instead (ReadDecoyLure).
+    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())
+        || Body->Taunt->bDecoy) { return false; }
     OutTaunter=Body->Taunt->SourceBody;
     return true;
 }
@@ -76,6 +80,19 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
         FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Victim=Pair.Key.Get();
         if (!Body.Taunt.IsSet()) { continue; }
+        if (Body.Taunt->bDecoy)
+        {
+            // A lure holds while its decoy stands, its caster is still in the match and its victim lives.
+            const FGuid LureId=Body.Taunt->EffectId;
+            const bool bHolds=Victim && !Body.bPendingDeath && Mode->IsMemberPresent(Body.Taunt->SourceEntity)
+                && Decoys.ContainsByPredicate([&LureId,Now](const FLDCombatDecoy& Decoy) { return Decoy.EffectId==LureId && Decoy.ExpiresAtMs>Now; })
+                && Body.Taunt->ExpiresAtMs>Now;
+            if (bHolds) { continue; }
+            Body.Taunt.Reset();
+            ++Body.StateRevision;
+            MarkViewChanged(Body.Victim.EntityId);
+            continue;
+        }
         ALDCharacter* Taunter=nullptr;
         const FLDBodyCombatState* Source=FindBody(Body.Taunt->SourceBody,&Taunter);
         const bool bAlive=Victim && !Body.bPendingDeath && Source && Taunter && !Source->bPendingDeath
@@ -117,24 +134,168 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         if (bFault) { Error=TEXT("Taunt observation failed on a registered body."); return false; }
         States.Add(&State);
     }
-    FLDCombatTaunt Taunt;
-    Taunt.EffectId=EffectId;
-    Taunt.SourceEntity=Body.Victim.EntityId;
-    Taunt.SourceBody={Body.Victim,Body.Identity};
-    if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Taunt.ExpiresAtMs,Error)) { return false; }
     for (const int32 Index : LDControl::SelectTauntTargets(Body.Victim.EntityId,CasterFoot,LDCombatControlDetail::Cm(Effect.RadiusCm),Candidates))
     {
         FLDBodyCombatState& Victim=*States[Index];
+        // The taunt is a hard control: the single control path diminishes it and records its consequences.
+        FLDControlApplication App;
+        App.Kind=ELDControlKind::Taunt;
+        App.EffectId=EffectId;
+        App.SourceEntity=Body.Victim.EntityId;
+        App.SourceBody={Body.Victim,Body.Identity};
+        App.CreditOwner=Body.Victim.EntityId;
+        App.DurationMs=Effect.DurationMs;
+        bool bApplied=false;
+        if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
+        if (!bApplied) { continue; }
+        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
+            *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt.IsSet() ? Victim.Taunt->ExpiresAtMs : 0);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, bool& bApplied,
+    FString& Error)
+{
+    bApplied=false;
+    if (App.DurationMs<=0 || Victim.bPendingDeath) { return true; }
+    // Hard controls take the diminished duration; the chain advances only when the control actually lands.
+    FLDHardControlChain Chain=Victim.HardControl;
+    const bool bHard=LDCombatControl::IsHardControl(App.Kind);
+    const int64 DurationMs=bHard ? LDCombatControl::DiminishHardControl(Chain,NowMs,App.DurationMs) : App.DurationMs;
+    int64 ExpiresAtMs=0;
+    if (!LDMatchLifecycle::AddDurationMs(NowMs,DurationMs,ExpiresAtMs,Error)) { return false; }
+    FLDCombatRoot Instance;
+    Instance.EffectId=App.EffectId;
+    Instance.SourceEntity=App.SourceEntity;
+    Instance.ExpiresAtMs=ExpiresAtMs;
+    switch (App.Kind)
+    {
+    case ELDControlKind::Root:
+        bApplied=LDTactical::ApplyRoot(Victim.Roots,Instance,NowMs);
+        break;
+    case ELDControlKind::Disarm:
+        bApplied=LDCombatControl::Apply(Victim.Disarms,Instance,NowMs);
+        // A disarmed body cannot finish a basic windup.
+        if (bApplied && Victim.Action.IsSet() && Victim.Action->Kind==ELDCombatActionKind::Basic)
+        { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
+        break;
+    case ELDControlKind::Stun:
+        bApplied=LDCombatControl::Apply(Victim.Stuns,Instance,NowMs);
+        // A stun interrupts any unreleased windup; queued and later requests are refused while it lasts.
+        if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
+        break;
+    case ELDControlKind::Taunt:
+    {
+        // Only contenders are taunted (camp members are never taunted); the newest taunt replaces the current one.
+        if (Victim.Victim.Kind!=ELDVictimKind::Contender) { return true; }
+        FLDCombatTaunt Taunt;
+        Taunt.EffectId=App.EffectId;
+        Taunt.SourceEntity=App.SourceEntity;
+        Taunt.SourceBody=App.SourceBody;
+        Taunt.ExpiresAtMs=ExpiresAtMs;
         bool bRevealed=false;
-        if (!LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Taunt,Now,bRevealed)) { continue; }
+        bApplied=LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Taunt,NowMs,bRevealed);
         // Unreleased work the taunt now forbids ends without cost; a basic swing at the taunter continues.
-        if (Victim.Action.IsSet() && !LDControl::TauntAllows(Victim.Taunt,Now,
+        if (bApplied && Victim.Action.IsSet() && !LDControl::TauntAllows(Victim.Taunt,NowMs,
             Victim.Action->Kind==ELDCombatActionKind::Basic,Victim.Action->TargetBody))
         { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
-        ++Victim.StateRevision;
-        MarkViewChanged(Victim.Victim.EntityId);
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
-            *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Taunt.ExpiresAtMs);
+        break;
+    }
+    case ELDControlKind::Slow:
+    {
+        FLDCombatSlow Slow;
+        Slow.EffectId=App.EffectId;
+        Slow.SourceEntity=App.SourceEntity;
+        Slow.RatioBp=App.RatioBp;
+        Slow.AttackRatioBp=App.AttackRatioBp;
+        Slow.ExpiresAtMs=ExpiresAtMs;
+        bApplied=LDTactical::ApplySlow(Victim.Slows,Slow,NowMs);
+        break;
+    }
+    case ELDControlKind::Knockback:
+        // #112 C2: the forced-displacement window (no diminishing returns). Every voluntary action is blocked while it
+        // lasts, the unreleased action ends, and Navigation drops the current order when KnockbackSerial changes; the
+        // caller (ApplyKnockback) starts the displacement itself after this commit.
+        bApplied=LDCombatControl::Apply(Victim.Knockbacks,Instance,NowMs);
+        if (bApplied)
+        {
+            AbandonAction(Victim,ELDCombatReject::ControlBlocked);
+            ++Victim.KnockbackSerial;
+        }
+        break;
+    default:
+        Error=FString::Printf(TEXT("Control kind %u has no committed handler."),uint32(App.Kind));
+        return false;
+    }
+    if (!bApplied) { return true; }
+    if (bHard) { Victim.HardControl=Chain; }
+    ++Victim.StateRevision;
+    MarkViewChanged(Victim.Victim.EntityId);
+    // Root, stun, taunt and knockback reset the victim's spray progress at the moment they land; disarm and slow do not.
+    if ((App.Kind==ELDControlKind::Root || App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Taunt
+        || App.Kind==ELDControlKind::Knockback) && !InterruptSpray(Victim,Error))
+    { return false; }
+    // Every committed control or slow is its owner's assist contribution on this life.
+    RecordAssistContribution(Victim,App.CreditOwner,NowMs);
+    return true;
+}
+
+bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const
+{
+    return LDTactical::HasActiveRoot(Body.Roots,NowMs) || LDTactical::HasActiveRoot(Body.Stuns,NowMs)
+        || LDTactical::HasActiveRoot(Body.Disarms,NowMs) || LDControl::IsTaunted(Body.Taunt,NowMs)
+        || LDTactical::HasActiveRoot(Body.Knockbacks,NowMs) || LDTactical::StrongestSlowBp(Body.Slows,NowMs)>0;
+}
+
+bool ALDCombatDirector::ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs)
+{
+    const ALDGameMode* Mode=Core();
+    FLDCombatEntityRecord* Record=FindRecord(Entity);
+    FLDCombatTrack* Track=Record ? TrackFor(*Record,Entry) : nullptr;
+    if (!Mode || !Track) { return false; }
+    const int64 Ready=LDCombatSourceRules::ReduceReadyAt(Track->ReadyAtMs,Mode->GetAuthorityNowMs(),AmountMs);
+    if (Ready!=Track->ReadyAtMs)
+    {
+        Track->ReadyAtMs=Ready;
+        MarkViewChanged(Entity);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::ReduceLearnedCooldown(const FGuid& Entity, FName DefinitionId, int64 AmountMs)
+{
+    const ALDGameMode* Mode=Core();
+    FLDCombatEntityRecord* Record=FindRecord(Entity);
+    if (!Mode || !Record) { return false; }
+    FLDCombatTrack* Track=Record->Tracks.FindByPredicate([DefinitionId](const FLDCombatTrack& Candidate)
+    { return Candidate.Kind==ELDCombatSourceKind::Learned && Candidate.DefinitionId==DefinitionId; });
+    if (!Track) { return false; }
+    const int64 Ready=LDCombatSourceRules::ReduceReadyAt(Track->ReadyAtMs,Mode->GetAuthorityNowMs(),AmountMs);
+    if (Ready!=Track->ReadyAtMs)
+    {
+        Track->ReadyAtMs=Ready;
+        MarkViewChanged(Entity);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::InterruptSpray(const FLDBodyCombatState& Target, FString& Error)
+{
+    auto* Mode=Core();
+    if (!Mode) { Error=TEXT("A spray interruption requires the current core."); return false; }
+    // Rule fixtures without a spray zone, and camp bodies, carry no spray progress.
+    if (Target.Victim.Kind!=ELDVictimKind::Contender || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
+    if (!Mode->ActiveWritePermit)
+    {
+        Error=TEXT("A spray interruption must be committed inside a gameplay permit.");
+        return false;
+    }
+    const ELDCommitReject Reject=Mode->PublishCaptureInterrupt(*Mode->ActiveWritePermit,{Target.Victim,Target.Identity});
+    if (Reject!=ELDCommitReject::None)
+    {
+        Error=FString::Printf(TEXT("The spray zone refused the interruption of %s (reject %u)."),*Target.Victim.EntityId.ToString(),uint32(Reject));
+        return false;
     }
     return true;
 }

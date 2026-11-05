@@ -192,7 +192,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_leaf_projection(self.baseline, self.author)
         fields = self.baseline.catalog.field_projection
         self.assertEqual(fields["content.abilities[1].ranks[0].effects[0].base.value"],
-                         ("content.abilities[2].ranks[0].effects[0].base.p2",))
+                         ("content.abilities[3].ranks[0].effects[0].base.p2",))
 
     def test_each_rank_projects_all_effects_costs_and_coefficients(self):
         arc = self.baseline.catalog.definition("active_arc_bolt")
@@ -343,12 +343,13 @@ class DemoContentImport(unittest.TestCase):
     def test_bad_counts_revisions_ids_and_ranks_never_accept_bool(self):
         mutations = (
             lambda data: data["identity"].update(schema_version=True),
-            lambda data: data["parameters"].update({"CHOICE.BaseWeight": True}),
+            lambda data: data["parameters"].update({"SHOP.UpgradeCost": True}),
             lambda data: data["equipment"][0].update(buy_price=True),
             lambda data: data["abilities"][0]["ranks"][0].update(rank=True),
             lambda data: data["camps"]["monsters"][0].update(count_per_camp=True),
             lambda data: data["progression"].update(max_level=True),
-            lambda data: data["parameters"].update({"CHOICE.BaseWeight": 1.0}),
+            lambda data: data["parameters"].update({"SHOP.UpgradeCost": 1.0}),
+            lambda data: data["abilities"][0].update(draftable=1),
         )
         for mutation in mutations:
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -465,27 +466,54 @@ class DemoContentImport(unittest.TestCase):
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
 
-    def test_known_but_undeclared_stats_and_capped_gains_refuse(self):
+    def test_known_but_undeclared_stats_and_penalties_refuse(self):
         for mutation in (
             lambda data: data["attributes"][0].update(stats={"CritChanceBonusRatio": {"unit": "ratio", "value": 0.5}}),
             lambda data: data["equipment"][0]["stats"].update(APFlat={"unit": "points", "value": 1}),
+            lambda data: data["attributes"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
+            lambda data: data["attributes"][5].pop("penalties"),
+            lambda data: data["attributes"][5].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
+            lambda data: data["attributes"][5]["penalties"]["AttackRangeCmFlat"].update(value=0),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
+            with self.subTest(mutation=mutation):
+                self.assert_refused(mutation, "UnknownField|IneffectiveChoice")
+
+    def test_capped_gains_clamp_instead_of_refusing(self):
+        # Every attribute clamps to its bounds in the projection (#112 §4): a source sum past a cap still compiles.
+        for mutation in (
+            lambda data: data["parameters"]["STAT.AD.Max"].update(value=30),
             lambda data: data["parameters"]["STAT.AttackSpeed.Max"].update(value=1.1),
             lambda data: data["parameters"]["STAT.MoveSpeed.Max"].update(value=510),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.99),
         ):
-            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
-                self.assert_refused(mutation, "UnknownField|BuildEnvelope")
+                changed = deepcopy(self.author)
+                mutation(changed)
+                (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
+                demo.compile_author(self.root)
+        (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
 
     def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
         for mutation, code in (
-            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].__setitem__(0, "attr_unknown"), "InvalidReference|OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].reverse(), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"]["attribute_ids"].append("attr_might"), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"].update(attribute_count=3), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"].update(attribute_count=0, passive_count=3), None),
+            (lambda data: data["progression"]["opening_offer"].update(active_count=3), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(active_count=1), "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(active_count=0, passive_count=3), None),
+            (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "UnknownField"),
             (lambda data: data["progression"]["opening_offer"].pop("passive_count"), "MissingField"),
+            # Only draftable skills fill the opening: one draftable active cannot fill two active cards.
+            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] != "active_arc_bolt"
+                           and row["kind"] == "active"], "OpeningOffer"),
+            (lambda data: data["progression"].update(reroll_levels=[7, 4]), "RerollLevels"),
+            (lambda data: data["progression"].update(reroll_levels=[4, 4]), "RerollLevels"),
+            (lambda data: data["progression"].update(reroll_levels=[11]), "NumericOverflow"),
+            (lambda data: data["progression"].pop("reroll_levels"), "MissingField"),
+            (lambda data: data["abilities"][0].update(tags=[]), "ArrayLength"),
+            (lambda data: data["abilities"][0].update(tags=["Mobility", "Mobility"]), "MechanicTags"),
+            (lambda data: data["abilities"][0].update(tags=["Burst"]), "UnknownEnum|SchemaVariant"),
+            (lambda data: data["equipment"][0].update(tags=["Tank", "Shield", "Breach", "Mobility"]), "ArrayLength"),
+            (lambda data: data["equipment"][0].pop("tags"), "MissingField"),
+            (lambda data: data["abilities"][0].pop("draftable"), "MissingField|SchemaVariant"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatDelaySec"].update(value=0), "NumericDomain"),
@@ -494,7 +522,7 @@ class DemoContentImport(unittest.TestCase):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 if code is None:
-                    # Three passives exist in the fixture, so an all-passive opening is a valid composition.
+                    # Three draftable passives exist in the fixture, so an all-passive opening is a valid composition.
                     changed = deepcopy(self.author)
                     mutation(changed)
                     (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))
@@ -506,7 +534,6 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=150),
             lambda data: data["parameters"]["STAT.MaxHP.Min"].update(value=200),
-            lambda data: data["parameters"]["STAT.AD.Max"].update(value=30),
             lambda data: data["attributes"][0]["stats"]["ADFlat"].update(value=0),
             lambda data: data["parameters"]["SHOP.SellRatio"].update(value=1),
             lambda data: data["progression"]["xp_thresholds"].__setitem__(4, 259),

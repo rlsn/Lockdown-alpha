@@ -29,7 +29,7 @@
 | 文档/领域 | 架构职责映射 | 内容 |
 | --- | --- | --- |
 | [架构审计](ARCHITECTURE.md) | R/D/N、C1–C4 | 唯一运行链；复用、改造、抽取与已完成的删除闭包；配置/资产/数据/工具/测试联动 |
-| [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) | M1、M2、M5 | 核心类型/时钟/许可/驱动边界；房间、占点、死亡/复活、结果、新局及故障退出 |
+| [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) | M1、M2、M5 | 核心类型/时钟/许可/驱动边界；房间、喷漆与守护、死亡/复活、结果、新局及故障退出 |
 | [操作与目标](CONTROLS_AND_TARGETING.md) | M3 | 全部输入、点击分派、持续攻击/攻击移动、目标模式、可见性重查、取消、UI 捕获、镜头与操作手感 |
 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md) | M4 | 动作/来源/P2 写入、typed 字段消费、Prepare/Apply 投影、致死集合与 CampReset |
 | [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md) | M6、M7、M8 | 死亡奖励、开局与升级三选一、替换、两装备与独立冷却债、账本复算、查询结果 |
@@ -52,9 +52,9 @@
 | I2 世界几何、观察与地面移动 | 唯一地图地点、十点落地、遮挡/观察查询、CharacterMovement 与地面订单 | 已实现；`DemoWorld.*`、`DemoVision.*`、`RunDemoCoreCheck.ps1`、`RunDemoVisionCheck.ps1` |
 | I3 统一战斗、目标与身体生命 | 目标订单、属性投影、普攻与群攻/增程、追击/攻击移动/施法、控制、致死、复活保护 | 已实现；`DemoCombat*`、`DemoAttributeProjection.*`、`DemoControlFeel.*`、`RunDemoCombatCheck.ps1` |
 | I4 奖励、成长与两装备 | 奖励复合提交、经验与开局/升级三选一、替换、两装备买卖、来源冷却与界面 | 已实现；`DemoGrowth*`、`CheckEconomyEvidence.py`、`RunDemoGrowthCheck.ps1` |
-| I5 连续独占与终局 | 有效集合、争夺暂停、同刻重查、公共状态、先锁写闸再清理/发布 | 已实现；`DemoCapture.*`、`RunDemoCaptureCheck.ps1` |
+| I5 喷漆、守护与终局 | 有效集合、争夺暂停、硬控打断、涂鸦与守护、同刻重查、公共状态、先锁写闸再清理/发布 | 已实现；`DemoCapture.*`、`RunDemoCaptureCheck.ps1` |
 | I6 营地完整成长循环 | 五组两档营地、战斗/回位/清空刷新、每成员生命奖励 | 已实现；`DemoCamp.*`、`CampDecision`、`RunDemoCampCheck.ps1` |
-| I7 能完成循环的对手 AI | 自主打野、选择、购买、战斗/恢复、争圈、死亡复活；同一接口等待/拒绝/重试 | 已实现；`DemoOpponentPolicy.*`、`RunDemoOpponentCheck.ps1`（3 真人 + 3 AI） |
+| I7 能完成循环的对手 AI | 自主打野、选择、购买、战斗/恢复、喷漆/守护/围攻、死亡复活；同一接口等待/拒绝/重试 | 已实现；`DemoOpponentPolicy.*`、`RunDemoOpponentCheck.ps1`（3 真人 + 3 AI） |
 | I8 全界面、删除闭包与完整交付 | 完整界面/设置、旧运行链删除复核、正常对局、多人回 Lobby/新局、打包 | 已实现；`HUD*`、`WorldFeedback.*`、`Minimap.*`、`LocalSettings*`、`Audio*`、`Art*`；打包版场景见就绪评估 |
 
 旧系统清理随各切片完成，玩家交易与世界检查点已退出接口。以后的删除仍须满足具体闭包适用的
@@ -69,7 +69,7 @@ C3 资产/反射和 C4 有效配置/插件条件，不能沿用另一个闭包�
 | 内容/生成 | `SyncDemoContentData.py --check`、`SyncDemoWorldData.py --check`、`Test*Import.py` | 首版目录/参数可生成；非法值与不合法引用被拒；载荷/contract 一致；测试夹具不成为正式运行输入 |
 | 原生与资产 | `BuildEditor.ps1`、`BuildGame.ps1`、`BootstrapAssets.ps1 -Mode Validate` | 无反射/链接/Cook 悬空依赖；唯一入口、地图、音效与美术目录可加载 |
 | 规则 | `RunTests.ps1`（必需集合见 `CheckRuleReport.py`） | 属性/成长/装备/胜利/视野/界面/设置/操作的纯规则与原生规则；身份、取消与事务不变量 |
-| 拥有连接场景 | `RunDemo*Check.ps1`，发布验收加 `-PackageRoot` 在打包版上运行 | 真实拥有客户端的订单、战斗、成长与买卖、营地、抢圈与终局、视野、AI 满员对局与网络异常 |
+| 拥有连接场景 | `RunDemo*Check.ps1`，发布验收加 `-PackageRoot` 在打包版上运行 | 真实拥有客户端的订单、战斗、成长与买卖、营地、喷漆守护与终局、视野、AI 满员对局与网络异常 |
 | 交付 | `VerifyCleanCheckout.ps1`、`PackageWin64.ps1`、`OpenPackaged.ps1` | 本地 LFS 缓存检出可构建（不证明远端下载）；发布包实际运行通过后才认定可用 |
 
 所有联机证据都在同一台机器的回环连接上取得；局域网与正确配置的公网直连需要另外记录。

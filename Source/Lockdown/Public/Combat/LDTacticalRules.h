@@ -39,20 +39,38 @@ namespace LDTactical
     // Slows are kept per effect instance like Root (no renewal of the same instance); only the strongest active one counts.
     LOCKDOWN_API bool ApplySlow(TArray<FLDCombatSlow>& Slows, const FLDCombatSlow& Instance, int64 AtMs);
     LOCKDOWN_API int64 StrongestSlowBp(const TArray<FLDCombatSlow>& Slows, int64 AtMs);
+    // Strongest active attack-speed cut carried by a slow instance (0 when none).
+    LOCKDOWN_API int64 StrongestAttackSlowBp(const TArray<FLDCombatSlow>& Slows, int64 AtMs);
     // Latest expiry among the active slows of the strongest ratio (the visible deadline), or 0.
     LOCKDOWN_API int64 StrongestSlowUntilMs(const TArray<FLDCombatSlow>& Slows, int64 AtMs);
+    // Removes every slow instance; returns how many were active at AtMs (active_guard_pulse, active_slick_moves Lv3).
+    LOCKDOWN_API int32 DispelSlows(TArray<FLDCombatSlow>& Slows, int64 AtMs);
     // A recast of the same source definition replaces its bonus; different sources aggregate additively.
     LOCKDOWN_API void ApplyTimedBonus(TArray<FLDCombatTimedBonus>& Bonuses, const FLDCombatTimedBonus& Bonus);
-    // Same source refreshes its mark with the newest ratio and deadline.
-    LOCKDOWN_API void ApplyExposure(TArray<FLDCombatExposure>& Exposures, const FLDCombatExposure& Exposure);
-    LOCKDOWN_API int64 ExposureBp(const TArray<FLDCombatExposure>& Exposures, const FGuid& Source, int64 AtMs);
-    // Drops every slow, timed bonus and exposure whose half-open deadline has passed; true when anything ended.
+    // The same Key and source refresh the record (stacks add up to MaxStacks, terms and deadline take the newest);
+    // anything else is a separate record.
+    LOCKDOWN_API void ApplyBreach(TArray<FLDCombatBreach>& Breaches, const FLDCombatBreach& Breach, int64 AtMs);
+    LOCKDOWN_API bool HasBreach(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
+    // The resistance a hit meets: flats first (per stack), then the summed ratio (capped at 100%), floored to P2, >= 0.
+    LOCKDOWN_API int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs);
+    // Latest active breach deadline (the visible expiry), or 0.
+    LOCKDOWN_API int64 BreachUntilMs(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
+    // The same source refreshes its mark.
+    LOCKDOWN_API void ApplyVampMark(TArray<FLDCombatVampMark>& Marks, const FLDCombatVampMark& Mark);
+    // The mark's ratio while its bound slow is still active on the same body; 0 otherwise.
+    LOCKDOWN_API int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, const FGuid& Source,
+        int64 AtMs);
+    // Drops vamp marks whose bound slow is gone or lapsed and carries a refreshed slow's deadline onto its mark; true when
+    // anything changed.
+    LOCKDOWN_API bool SyncVampMarks(TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, int64 AtMs);
+    // Drops every slow, timed bonus, breach and vamp mark whose half-open deadline has passed (and every mark whose slow
+    // ended); true when anything ended.
     LOCKDOWN_API bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
-        TArray<FLDCombatExposure>& Exposures, int64 AtMs);
+        TArray<FLDCombatBreach>& Breaches, TArray<FLDCombatVampMark>& VampMarks, int64 AtMs);
     // HP strictly below ThresholdBp of MaxHP (a dead or empty pool never counts).
     LOCKDOWN_API bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp);
-    // The ambush window opens DelayMs after the last combat instant.
-    LOCKDOWN_API bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs);
+    // The ambush window opens DelayMs after the last combat instant; CreditMs (dashes, jumps, stealth) brings it closer.
+    LOCKDOWN_API bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs, int64 CreditMs = 0);
     // Active timed bonuses (in apply order), the conditional low-HP bonus and the strongest slow at AtMs.
     LOCKDOWN_API FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses,
         const TArray<FLDCombatSlow>& Slows, const TOptional<FLDLowHPBonusTerm>& LowHP, int64 HPP2, int64 MaxHPP2, int64 AtMs);
@@ -81,14 +99,17 @@ namespace LDTactical
     // out-of-combat bonus and, when given, the contender Recovery and the dorm's fast Dorm recovery (D21, #79).
     // Each out-of-combat term runs exactly from LastCombatAtMs + its own delay and they all stack; the maxima are
     // the ones held over the whole interval (a change settles first).
+    // passive_second_wind: before SurgeUntilMs the always-on rates are multiplied by the passive's surge multiplier, and during combat
+    // time the passive keeps its in-combat share of its out-of-combat rate.
     LOCKDOWN_API bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error,
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error, int64 SurgeUntilMs = 0,
         const FOutOfCombatRecovery* Dorm = nullptr);
     struct FRegenRates { double HP=0, MP=0; };
     // Read-only instantaneous rates from validated authority inputs, before full-pool clipping.
     // Uses the same terms (including the D21 躺平角 term when given) and activation boundaries as SettleRegen; no resource integration or mutation.
     LOCKDOWN_API FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm = nullptr);
+        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, int64 SurgeUntilMs = 0,
+        const FOutOfCombatRecovery* Dorm = nullptr);
     // Whether an out-of-combat term with DelayMs is running at NowMs.
     LOCKDOWN_API bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs);
 }

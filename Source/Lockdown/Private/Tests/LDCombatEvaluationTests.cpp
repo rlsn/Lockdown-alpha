@@ -295,12 +295,11 @@ bool FLDDemoDamageDomainTest::RunTest(const FString& Parameters)
         Input.Definition.Emplace(0, 10000, 0, ELDDemoDamageType::Magical);
         CheckFailure(*this, TEXT("Basic hits cannot become magical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Definition);
     }
-    for (ELDCombatHitClass HitClass : {ELDCombatHitClass::BasicSecondary, ELDCombatHitClass::Ability})
     {
         Input = PrimaryInput(*Catalog);
-        Input.HitClass = HitClass;
+        Input.HitClass = ELDCombatHitClass::BasicSecondary;
         Input.bCritical = true;
-        CheckFailure(*this, TEXT("Non-primary hits cannot borrow a critical result"),
+        CheckFailure(*this, TEXT("A sweep cannot borrow a critical result"),
             LDTactical::EvaluateDamage(Input, *Catalog), EError::Domain);
     }
     struct FRequiredP2 { const TCHAR* Name; TOptional<int64> FLDDamageEvaluationInput::* Member; };
@@ -601,6 +600,61 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.SourceMaxHPP2 = MaxHP;
     CheckFailure(*this, TEXT("A basic hit cannot scale with max HP"), LDTactical::EvaluateDamage(Input, *Catalog),
         ELDCombatEvaluationError::Definition);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageMitigationTest, "Lockdown.Rules.DemoCombatEvaluation.Mitigation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// #112 §5 damage guard (active_porcelain_flop): the reduction acts after resistance and before the shield, and the
+// guard counts the amount before it.
+bool FLDDemoDamageMitigationTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    auto Input = PrimaryInput(*Catalog);
+    Input.MitigateBp = 4000;
+    if (!CheckDamage(*this, TEXT("40% off 59.32 after armor"), Input, *Catalog, {3559, 0, 3559, 0, 58441, 0})) { return false; }
+    const auto Plain = LDTactical::EvaluateDamage(Input, *Catalog);
+    TestEqual(TEXT("The guard counts the post-resistance amount before the reduction"), Plain.Value->PreMitigationP2, int64(5932));
+    Input.TargetShieldP2 = int64(2000);
+    if (!CheckDamage(*this, TEXT("The reduced amount meets the shield next"), Input, *Catalog, {3559, 2000, 1559, 0, 60441, 0})) { return false; }
+    Input.bTargetProtected = true;
+    const auto Protected = LDTactical::EvaluateDamage(Input, *Catalog);
+    TestTrue(TEXT("Protection zeroes both amounts"), Protected.IsSuccess() && Protected.Value->DamageP2 == 0 && Protected.Value->PreMitigationP2 == 0);
+    Input.bTargetProtected = false;
+    Input.MitigateBp = 10001;
+    CheckFailure(*this, TEXT("A reduction past 100% is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageAbilityCritTest, "Lockdown.Rules.DemoCombatEvaluation.AbilityCrit",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoDamageAbilityCritTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto& Content = Catalog->Get();
+    TestTrue(TEXT("The ability critical multiplier is its own catalog parameter"), Content.Parameters.AbilityCritMultiplierBp >= 10000);
+    FLDDamageEvaluationInput Input = PrimaryInput(*Catalog);
+    Input.HitClass = ELDCombatHitClass::Ability;
+    Input.Definition.Emplace(10000, 0, 0, ELDDemoDamageType::Physical);
+    const int64 Resist = Input.TargetResistanceP2.GetValue(), Scale = Content.Formulas.ResistanceScaleP2, HP = Input.TargetHPP2.GetValue();
+    const int64 Plain = int64(10000) * Scale / (Scale + Resist);
+    if (!CheckDamage(*this, TEXT("A plain ability hit"), Input, *Catalog, {Plain, 0, Plain, 0, HP - Plain, 0})) { return false; }
+    Input.bCritical = true;
+    const int64 Crit = int64(10000) * Content.Parameters.AbilityCritMultiplierBp * Scale / ((Scale + Resist) * 10000);
+    if (!CheckDamage(*this, TEXT("An ability critical uses STAT.AbilityCritMultiplier, not the basic multiplier"), Input, *Catalog,
+        {Crit, 0, Crit, 0, HP - Crit, 0}))
+    {
+        return false;
+    }
+    // item_iron_plate: a critical reduction rides the pre-resistance amplification once.
+    Input.AmplifyBp = 8500;
+    const int64 Guarded = int64(10000) * Content.Parameters.AbilityCritMultiplierBp * 8500 * Scale / ((Scale + Resist) * 10000 * 10000);
+    CheckDamage(*this, TEXT("A critical reduction multiplies the critical amount before resistance"), Input, *Catalog,
+        {Guarded, 0, Guarded, 0, HP - Guarded, 0});
     return true;
 }
 

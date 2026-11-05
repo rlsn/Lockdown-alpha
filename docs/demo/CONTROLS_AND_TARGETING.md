@@ -16,7 +16,7 @@
 
 本模块负责右键移动/追击/前往砍一刀小摊、A 攻击移动、Q/W、1/2 与 D 冲刺的准备与确认、S 停止、Esc 返回、
 镜头和可保存绑定。战斗域负责动作、资源、节拍、命中与效果；世界域负责地面/路径查询与观察权限；
-生命周期域负责身体、真实时间步、保护与占领。没有连招、指令队列、多单位框选、编队、
+生命周期域负责身体、真实时间步、保护与喷漆/守护。没有连招、指令队列、多单位框选、编队、
 团队命令或自由旋转镜头。
 
 | 领域 | 代码入口 | 当前职责 |
@@ -272,7 +272,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 | 准备态（`ArmedEntry`/`bAttackMoveArmed`）、预输入槽、检查对象 | `ALDPlayerController` | HUD、光标；不复制给服务器。 |
 | 绑定与本地偏好 | `ULDControlSettings` | 控制器、Navigation、HUD、设置面板；不写局内数值。 |
 | 动作、资源、节拍、来源可用性 | `ALDCombatDirector` | Navigation 只读 `ReadCombatBody`（射程、普攻就绪、动作进行中）并申请普攻。 |
-| 实际运动 | `ULDCharacterMovementComponent` | 原生运动批次交给核心与占领（§7.3）。 |
+| 实际运动 | `ULDCharacterMovementComponent` | 原生运动批次交给核心与喷漆区判定（§7.3）。 |
 
 ### 5.2 窄类型与函数
 
@@ -370,18 +370,18 @@ D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion sourc
 Demo 只有一个注册地面，`GroundSurfaceHint()` 返回它的 SurfaceId；客户端点击与小地图都携带该 ID，
 服务器重新校验，hint 不能证明合法落地。
 
-### 7.3 实际运动与连续占领
+### 7.3 实际运动与喷漆区判定
 
 权威运动在核心 Motion 阶段执行：`ULDCharacterMovementComponent::AdvanceAuthorityMovement` 在
 `BeginNativeMotionCapture/FinishNativeMotionCapture` 范围内运行原生 CMC，产出不可变的
 `FLDNativeMotionBatch`（`Source\Lockdown\Public\Character\LDNativeMotionTypes.h`）：
 起止脚点、支持面、逐条 Movement/Adjustment/Support 记录及被回退的试探次数。
-批次由 `ALDGameMode` 接收（`PublishCaptureMotion`）并交给占领归约（`FLDCaptureReducer`），
+批次由 `ALDGameMode` 接收（`PublishCaptureMotion`）并交给喷漆与守护归约（`FLDCaptureReducer`），
 已消费的批次在下一步开始前经 `ReleaseConsumedMotion` 释放。
 
 核心步内阶段顺序为 Motion → Session → Actions → Effects → DeathsAndRewards → RespawnsAndWorld →
 Transactions → Capture → Close → Publish（`Source\Lockdown\Private\Combat\LDCombatDriver.cpp`）。
-Actions 内先处理 Direct 动作，再推进各参赛者订单。圈判定、事件时间与水位规则见
+Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判定、事件时间与水位规则见
 [会话与比赛生命周期](SESSION_MATCH_LIFECYCLE.md)。
 
 ### 7.4 读取白名单

@@ -1,5 +1,6 @@
 #include "Economy/LDEconomyDirector.h"
 
+#include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -67,6 +68,25 @@ void EconomyDeathFactBytes(const FLDCommittedDeath& Death, TArray<uint8>& Out)
     int64 OccurredAtMs = Death.OccurredAtMs;
     Writer << SourceBody << RewardDefinition << VictimLevel << VictimBuild << Eligible << NoRewardReason << Cause
         << OccurredAtSeconds << OccurredAtMs;
+    int32 AssisterCount = Death.Assisters.Num();
+    Writer << AssisterCount;
+    for (FGuid Assister : Death.Assisters)
+    {
+        Writer << Assister;
+    }
+}
+
+// Business key of one assister's mint of a contender death; the killer's mint keeps the death key itself.
+void EconomyAssistKeyBytes(const FLDDeathKey& Key, const FGuid& Assister, TArray<uint8>& Out)
+{
+    Out.Reset();
+    FMemoryWriter Writer(Out);
+    FString Tag = TEXT("death-assist");
+    FGuid LedgerMatch = Key.LedgerMatch;
+    FGuid Recipient = Assister;
+    Writer << Tag << LedgerMatch;
+    EconomyWriteVictim(Writer, Key.Victim);
+    Writer << Recipient;
 }
 
 ELDGrowthReason EconomyNoRewardReason(ELDNoRewardReason Reason)
@@ -322,7 +342,7 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     if (!Basis.bCreditOwnerEligibleAtDeath || !Death.CreditOwner.IsValid())
     {
         // A locked fact without an eligible owner is a handled death with no payout, never a later retry.
-        if (Basis.bCreditOwnerEligibleAtDeath || Basis.NoRewardReason == ELDNoRewardReason::None)
+        if (Basis.bCreditOwnerEligibleAtDeath || Basis.NoRewardReason == ELDNoRewardReason::None || !Death.Assisters.IsEmpty())
         {
             return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::DataInvalid);
         }
@@ -340,23 +360,35 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     {
         return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::DataInvalid);
     }
+    // Assisters exist only for a contender victim: distinct contenders of this match other than the killer and victim.
+    for (int32 Index = 0; Index < Death.Assisters.Num(); ++Index)
+    {
+        const FGuid& Assister = Death.Assisters[Index];
+        if (!bContenderVictim || !Assister.IsValid() || Assister == Recipient || Assister == Death.Key.Victim.EntityId
+            || (Index > 0 && !(Death.Assisters[Index - 1] < Assister))
+            || !M->Development->FindProgression(Assister) || !Ledger.Account(Assister))
+        {
+            return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::DataInvalid);
+        }
+    }
 
     LDProgression::FRewardAmounts Amounts;
     ELDGrowthReason AmountReason = ELDGrowthReason::None;
+    int64 Bounty = 0;
     if (bContenderVictim)
     {
         AmountReason = Basis.RewardDefinitionId == FName(*Content->Get().Character.Id)
             ? LDProgression::ContenderKillReward(Content->Get().Parameters, uint8(Content->Get().Progression.MaxLevel),
                 Basis.VictimLevelAtDeath, Amounts)
             : ELDGrowthReason::DataInvalid;
-        // D27: the leader bounty locked at the fatal moment comes on top of the normal kill reward.
-        const int64 Bounty = Basis.LeaderBountyGoldAtDeath;
+        // D27: the leader bounty locked at the fatal moment comes on top of the killer's normal kill gold. It is
+        // extra bounty, so it stays out of the assist base (APP_SPEC: 不含额外赏金).
+        Bounty = Basis.LeaderBountyGoldAtDeath;
         if (AmountReason == ELDGrowthReason::None
             && (Bounty < 0 || Bounty > Content->Get().Parameters.LeaderBountyGoldMax || Amounts.Gold > MAX_int64 - Bounty))
         {
             AmountReason = ELDGrowthReason::DataInvalid;
         }
-        if (AmountReason == ELDGrowthReason::None) { Amounts.Gold += Bounty; }
     }
     else
     {
@@ -367,11 +399,30 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
         return Finish(ELDRewardOutcome::PermanentlyRejected, AmountReason);
     }
 
-    TArray<uint8> KeyBytes;
-    EconomyDeathKeyBytes(Death.Key, KeyBytes);
+    // The killer keeps the full kill gold; the assisters split the assist share and everyone splits the XP.
+    FLDAssistRewardShares Split;
+    if (!LDAssist::SplitKillReward(Amounts.Gold, Amounts.XP, Death.Assisters.Num(),
+        bContenderVictim ? Content->Get().Parameters.AssistGoldBp : 0, Split))
+    {
+        return Finish(ELDRewardOutcome::PermanentlyRejected, ELDGrowthReason::ArithmeticOverflow);
+    }
+    TArray<FRewardShare> Shares;
+    FRewardShare& Killer = Shares.AddDefaulted_GetRef();
+    Killer.Recipient = Recipient;
+    Killer.Amounts.Gold = Split.KillerGold + Bounty;
+    Killer.Amounts.XP = Split.KillerXP;
+    EconomyDeathKeyBytes(Death.Key, Killer.KeyBytes);
+    for (const FGuid& Assister : Death.Assisters)
+    {
+        FRewardShare& Share = Shares.AddDefaulted_GetRef();
+        Share.Recipient = Assister;
+        Share.Amounts.Gold = Split.AssisterGold;
+        Share.Amounts.XP = Split.AssisterXP;
+        EconomyAssistKeyBytes(Death.Key, Assister, Share.KeyBytes);
+    }
     ELDGrowthReason Reason = ELDGrowthReason::None;
-    const ELDRewardOutcome Outcome = CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::DeathReward, KeyBytes,
-        Receipt.Fingerprint, Permit, Receipt, Reason);
+    const ELDRewardOutcome Outcome = CommitRewardShares(Shares, LDEconomy::ECause::DeathReward, Receipt.Fingerprint,
+        Permit, Receipt, Reason);
     if (Outcome != ELDRewardOutcome::Granted)
     {
         return Finish(Outcome, Reason);
@@ -419,6 +470,18 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, c
     LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
     const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
 {
+    TArray<FRewardShare> Shares;
+    FRewardShare& Share = Shares.AddDefaulted_GetRef();
+    Share.Recipient = Recipient;
+    Share.Amounts = Amounts;
+    Share.KeyBytes = KeyBytes;
+    return CommitRewardShares(Shares, Cause, TransactionTerms, Permit, Receipt, Reason);
+}
+
+ELDRewardOutcome ALDEconomyDirector::CommitRewardShares(const TArray<FRewardShare>& Shares, LDEconomy::ECause Cause,
+    const uint8 (&TransactionTerms)[32], const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt,
+    ELDGrowthReason& Reason)
+{
     Reason = ELDGrowthReason::None;
     ALDGameMode* M = Mode();
     FString MaintenanceError;
@@ -428,9 +491,19 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, c
         Reason = ELDGrowthReason::AuthorityFault;
         return ELDRewardOutcome::PermanentlyRejected;
     }
-    const FLDProgressionState* RecipientProgression = M->Development->FindProgression(Recipient);
-    const LDEconomy::FAccount* Account = Ledger.Account(Recipient);
-    if (!RecipientProgression || !Account)
+    TSet<FGuid> Seen;
+    for (const FRewardShare& Share : Shares)
+    {
+        bool bDuplicate = false;
+        Seen.Add(Share.Recipient, &bDuplicate);
+        if (bDuplicate || Share.Amounts.Gold < 0 || Share.Amounts.XP < 0
+            || !M->Development->FindProgression(Share.Recipient) || !Ledger.Account(Share.Recipient))
+        {
+            Reason = ELDGrowthReason::DataInvalid;
+            return ELDRewardOutcome::PermanentlyRejected;
+        }
+    }
+    if (Shares.IsEmpty())
     {
         Reason = ELDGrowthReason::DataInvalid;
         return ELDRewardOutcome::PermanentlyRejected;
@@ -438,65 +511,82 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, c
     Ledger.Pin();
     ON_SCOPE_EXIT { Ledger.Unpin(); };
 
-    TOptional<LDEconomy::FPreparedCommit> LedgerPlan;
-    if (Amounts.Gold > 0)
+    // Each recipient's mint is its own single-account entry, chained after the previous one of this composite.
+    TArray<TOptional<LDEconomy::FPreparedCommit>> LedgerPlans;
+    LedgerPlans.Reserve(Shares.Num());
+    TArray<int32> LedgerPlanOf;
+    const LDEconomy::FPreparedCommit* Previous = nullptr;
+    for (const FRewardShare& Share : Shares)
     {
+        LedgerPlanOf.Add(INDEX_NONE);
+        if (Share.Amounts.Gold <= 0)
+        {
+            continue;
+        }
+        const LDEconomy::FAccount* Account = Ledger.Account(Share.Recipient);
         LDEconomy::FTransaction Transaction;
         Transaction.Cause = Cause;
-        Transaction.BusinessKey = BusinessKey(KeyBytes);
+        Transaction.BusinessKey = BusinessKey(Share.KeyBytes);
         FMemory::Memcpy(Transaction.Terms, TransactionTerms, sizeof(Transaction.Terms));
         Transaction.CommitBatch = Permit.GetBoundary().BatchSerial;
-        Transaction.Mint = Amounts.Gold;
-        Transaction.Gold.Emplace(LDEconomy::FGoldChange{Recipient, Account->Revision, Amounts.Gold});
-        LDEconomy::FPrepareResult Prepared = Ledger.Prepare(Transaction);
+        Transaction.Mint = Share.Amounts.Gold;
+        Transaction.Gold.Emplace(LDEconomy::FGoldChange{Share.Recipient, Account->Revision, Share.Amounts.Gold});
+        LDEconomy::FPrepareResult Prepared = Previous ? Ledger.PrepareAfter(*Previous, Transaction) : Ledger.Prepare(Transaction);
         if (!Prepared.IsSuccess())
         {
             return EconomyLedgerOutcome(Prepared.Error, Reason);
         }
-        LedgerPlan.Emplace(MoveTemp(Prepared.Value.GetValue()));
+        LedgerPlanOf.Last() = LedgerPlans.Num();
+        LedgerPlans.Emplace(MoveTemp(Prepared.Value.GetValue()));
+        Previous = &LedgerPlans.Last().GetValue();
     }
 
-    FLDPrepareGrowthResult Growth = M->Development->PrepareExperience(Recipient, Amounts.XP);
-    if (!Growth.IsSuccess())
+    TArray<TOptional<FLDPreparedGrowthChange>> GrowthPlans;
+    TArray<TOptional<FLDPreparedCombatProjection>> CombatPlans;
+    for (const FRewardShare& Share : Shares)
     {
-        Reason = Growth.Reason;
-        return ELDRewardOutcome::PermanentlyRejected;
-    }
-    FLDPreparedGrowthChange& GrowthPlan = Growth.Value.GetValue();
-
-    TOptional<FLDPreparedCombatProjection> CombatPlan;
-    if (GrowthPlan.ChangesBuild())
-    {
-        FLDContenderLifeRead Life;
-        FString LifeError;
-        if (!M->ReadContenderLife(Match, Recipient, Life, LifeError))
+        FLDPrepareGrowthResult Growth = M->Development->PrepareExperience(Share.Recipient, Share.Amounts.XP);
+        if (!Growth.IsSuccess())
         {
-            Reason = ELDGrowthReason::StaleContext;
+            Reason = Growth.Reason;
             return ELDRewardOutcome::PermanentlyRejected;
         }
-        // A recipient that left after the locked fatal hit is settled without a future body to project.
-        if (Life.Phase != ELDLifePhase::Left)
+        FLDPreparedGrowthChange& GrowthPlan = Growth.Value.GetValue();
+        TOptional<FLDPreparedCombatProjection>& CombatPlan = CombatPlans.AddDefaulted_GetRef();
+        if (GrowthPlan.ChangesBuild())
         {
-            TArray<FLDEquippedItemValue> Equipped;
-            ALDInventoryDirector::EquippedItems(Ledger.State(), Recipient, Equipped);
-            const uint64 InventoryRevision = Ledger.InventoryRevision(Recipient);
-            FLDExpectedBuildVersions Expected;
-            if (!M->Development->ReadCombatInstalled(Recipient, Expected))
+            FLDContenderLifeRead Life;
+            FString LifeError;
+            if (!M->ReadContenderLife(Match, Share.Recipient, Life, LifeError))
             {
-                Reason = ELDGrowthReason::NotContender;
+                Reason = ELDGrowthReason::StaleContext;
                 return ELDRewardOutcome::PermanentlyRejected;
             }
-            FLDCombatPrepareResult Projection = M->Combat->PrepareBuildChange(M->Development->MakeCaller(Recipient),
-                M->Development->MakeProjectionInput(GrowthPlan.Build(), Equipped, InventoryRevision), Expected);
-            if (!Projection.IsSuccess())
+            // A recipient that left after the locked fatal hit is settled without a future body to project.
+            if (Life.Phase != ELDLifePhase::Left)
             {
-                const ELDRewardOutcome Outcome = EconomyCombatOutcome(Projection.Error, Reason);
-                UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_REWARD_PROJECTION %s %s"), LDGrowthWire::ReasonName(Reason), *Projection.Message);
-                return Outcome;
+                TArray<FLDEquippedItemValue> Equipped;
+                ALDInventoryDirector::EquippedItems(Ledger.State(), Share.Recipient, Equipped);
+                const uint64 InventoryRevision = Ledger.InventoryRevision(Share.Recipient);
+                FLDExpectedBuildVersions Expected;
+                if (!M->Development->ReadCombatInstalled(Share.Recipient, Expected))
+                {
+                    Reason = ELDGrowthReason::NotContender;
+                    return ELDRewardOutcome::PermanentlyRejected;
+                }
+                FLDCombatPrepareResult Projection = M->Combat->PrepareBuildChange(M->Development->MakeCaller(Share.Recipient),
+                    M->Development->MakeProjectionInput(GrowthPlan.Build(), Equipped, InventoryRevision), Expected);
+                if (!Projection.IsSuccess())
+                {
+                    const ELDRewardOutcome Outcome = EconomyCombatOutcome(Projection.Error, Reason);
+                    UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_REWARD_PROJECTION %s %s"), LDGrowthWire::ReasonName(Reason), *Projection.Message);
+                    return Outcome;
+                }
+                CombatPlan.Emplace(MoveTemp(Projection.Value.GetValue()));
+                GrowthPlan.SetCombatInstall({GrowthPlan.Build().Revision, InventoryRevision});
             }
-            CombatPlan.Emplace(MoveTemp(Projection.Value.GetValue()));
-            GrowthPlan.SetCombatInstall({GrowthPlan.Build().Revision, InventoryRevision});
         }
+        GrowthPlans.Emplace(MoveTemp(GrowthPlan));
     }
     if (M->ValidateWritePermit(Permit, Permit.GetPhase()) != ELDCommitReject::None)
     {
@@ -504,32 +594,64 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, c
         return ELDRewardOutcome::PermanentlyRejected;
     }
 
-    // Every part is prepared; the composite install below cannot fail.
-    Receipt.Recipient = Recipient;
-    Receipt.GoldDelta = Amounts.Gold;
-    Receipt.XPDelta = Amounts.XP;
-    Receipt.LevelBefore = GrowthPlan.LevelBefore();
-    Receipt.LevelAfter = GrowthPlan.Build().Level;
-    Receipt.OpportunityFirst = uint8(RecipientProgression->EarnedThrough + 1);
-    Receipt.OpportunityLast = GrowthPlan.Progression().EarnedThrough;
-    Receipt.Revisions.bHasProgression = true;
-    Receipt.Revisions.ProgressionRevision = GrowthPlan.Progression().Revision;
-    Receipt.Revisions.bHasBuild = true;
-    Receipt.Revisions.BuildRevision = GrowthPlan.Build().Revision;
-    if (LedgerPlan.IsSet())
+    // Every part of every recipient is prepared; the composite install below cannot fail.
+    Receipt.Assists.Reset();
+    for (int32 Index = 0; Index < Shares.Num(); ++Index)
     {
-        Receipt.bHasLedgerSerial = true;
-        Receipt.LedgerSerial = LedgerPlan->Entry().Serial;
-        Receipt.Revisions.bHasAccount = true;
-        Receipt.Revisions.AccountRevision = LedgerPlan->Entry().ResultAccountRevision;
+        const FRewardShare& Share = Shares[Index];
+        const FLDPreparedGrowthChange& GrowthPlan = GrowthPlans[Index].GetValue();
+        const FLDProgressionState* Progression = M->Development->FindProgression(Share.Recipient);
+        const LDEconomy::FPreparedCommit* LedgerPlan = LedgerPlanOf[Index] != INDEX_NONE
+            ? &LedgerPlans[LedgerPlanOf[Index]].GetValue() : nullptr;
+        if (Index == 0)
+        {
+            Receipt.Recipient = Share.Recipient;
+            Receipt.GoldDelta = Share.Amounts.Gold;
+            Receipt.XPDelta = Share.Amounts.XP;
+            Receipt.LevelBefore = GrowthPlan.LevelBefore();
+            Receipt.LevelAfter = GrowthPlan.Build().Level;
+            Receipt.OpportunityFirst = uint8(Progression->EarnedThrough + 1);
+            Receipt.OpportunityLast = GrowthPlan.Progression().EarnedThrough;
+            Receipt.Revisions.bHasProgression = true;
+            Receipt.Revisions.ProgressionRevision = GrowthPlan.Progression().Revision;
+            Receipt.Revisions.bHasBuild = true;
+            Receipt.Revisions.BuildRevision = GrowthPlan.Build().Revision;
+            if (LedgerPlan)
+            {
+                Receipt.bHasLedgerSerial = true;
+                Receipt.LedgerSerial = LedgerPlan->Entry().Serial;
+                Receipt.Revisions.bHasAccount = true;
+                Receipt.Revisions.AccountRevision = LedgerPlan->Entry().ResultAccountRevision;
+            }
+            continue;
+        }
+        FLDRewardShareReceipt& Part = Receipt.Assists.AddDefaulted_GetRef();
+        Part.Recipient = Share.Recipient;
+        Part.GoldDelta = Share.Amounts.Gold;
+        Part.XPDelta = Share.Amounts.XP;
+        Part.LevelBefore = GrowthPlan.LevelBefore();
+        Part.LevelAfter = GrowthPlan.Build().Level;
+        Part.OpportunityFirst = uint8(Progression->EarnedThrough + 1);
+        Part.OpportunityLast = GrowthPlan.Progression().EarnedThrough;
+        if (LedgerPlan)
+        {
+            Part.bHasLedgerSerial = true;
+            Part.LedgerSerial = LedgerPlan->Entry().Serial;
+        }
+    }
+    for (TOptional<LDEconomy::FPreparedCommit>& LedgerPlan : LedgerPlans)
+    {
         Ledger.ApplyPrepared(MoveTemp(LedgerPlan.GetValue()));
     }
-    M->Development->ApplyPreparedGrowth(MoveTemp(GrowthPlan), Permit);
-    if (CombatPlan.IsSet())
+    for (int32 Index = 0; Index < Shares.Num(); ++Index)
     {
-        M->Combat->ApplyBuildChange(MoveTemp(CombatPlan.GetValue()), Permit);
+        M->Development->ApplyPreparedGrowth(MoveTemp(GrowthPlans[Index].GetValue()), Permit);
+        if (CombatPlans[Index].IsSet())
+        {
+            M->Combat->ApplyBuildChange(MoveTemp(CombatPlans[Index].GetValue()), Permit);
+        }
+        MarkDirty(Shares[Index].Recipient);
     }
-    MarkDirty(Recipient);
     return ELDRewardOutcome::Granted;
 }
 

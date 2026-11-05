@@ -22,7 +22,8 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     };
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
-        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss")},TEXT("The public circle names only the single progress holder and its progress"));
+        TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
     // D26: the current 天降外卖 names only its public point and landing instant; never its claimer or claim time (§6.3).
     ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs")},
         TEXT("The public airdrop names only its public point and landing"));
@@ -35,9 +36,9 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));
     ExpectStruct(FLDResultRow::StaticStruct(),{TEXT("ContenderId"),TEXT("Name"),TEXT("Kind"),TEXT("bLeft"),TEXT("Kills"),
-        TEXT("Deaths"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
+        TEXT("Deaths"),TEXT("Assists"),TEXT("FinalLevel")},TEXT("Result rows expose no gold, skills, cooldowns, attributes or position"));
     ExpectStruct(FLDKillFeedView::StaticStruct(),{TEXT("Generation"),TEXT("Notices")},TEXT("Kill feed is a bounded public ring"));
-    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Cause"),TEXT("OccurredAtMs")},
+    ExpectStruct(FLDKillNotice::StaticStruct(),{TEXT("Serial"),TEXT("Victim"),TEXT("Killer"),TEXT("Assisters"),TEXT("Cause"),TEXT("OccurredAtMs")},
         TEXT("Kill notices carry no coordinates or build"));
     const FStructProperty* Clock=CastField<FStructProperty>(ALDGameState::StaticClass()->FindPropertyByName(TEXT("DemoClock")));
     if(TestNotNull(TEXT("The authority clock is one struct value"),Clock))

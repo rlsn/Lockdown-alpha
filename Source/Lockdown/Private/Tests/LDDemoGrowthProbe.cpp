@@ -32,6 +32,7 @@
 #include "Components/EditableTextBox.h"
 #include "Containers/Ticker.h"
 #include "UnrealClient.h"
+#include "Misc/App.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
@@ -1031,12 +1032,15 @@ public:
     bool PlanKills()
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        // Item A: the cheapest approved equipment (ties by id) whose active needs no target, so the buyer can put a real
-        // persistent cooldown track in motion and the next match can prove it was not carried over.
+        // Item A: the cheapest approved equipment (ties by id) whose active needs no target and no precondition, so the
+        // buyer can put a real persistent cooldown track in motion and the next match can prove it was not carried over.
+        // (item_energy_drink's refresh needs a cooling Q or W and is refused before paying otherwise.)
         const FLDDemoEquipmentDefinition* Cheapest = nullptr;
         for (const FLDDemoEquipmentDefinition& Candidate : Defs.Equipment)
         {
-            if (!Candidate.HasActive || Candidate.Active.Target.Mode != ELDDemoTargetMode::Self || Candidate.Active.Rank.CooldownMs <= 0)
+            if (!Candidate.HasActive || Candidate.Active.Target.Mode != ELDDemoTargetMode::Self || Candidate.Active.Rank.CooldownMs <= 0
+                || Candidate.Active.Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+                    { return Effect.GetOp() == ELDDemoEffectOp::CooldownRefresh; }))
             {
                 continue;
             }
@@ -2720,6 +2724,10 @@ public:
         else
         {
             Buy2Receipt = *Seen;
+            // Review evidence of the rendered buyer (never a check): the open shop with both held items and their
+            // #112 upgrade (进阶) entries.
+            if (FApp::CanEverRender())
+            { FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Role + TEXT("ShopUpgrade.png")), true, false); }
         }
         RecordShop(PC, TEXT("Applied"), LDDemoGrowthScenario::GrowthProbeReason(Seen->Header.Reason), Seen);
         if (!Passed) { return Finish(); }

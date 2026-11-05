@@ -8,7 +8,7 @@
 #include "Region/LDMapRegistry.h"
 #include "Engine/World.h"
 
-// Capture/endgame module: the unique continuous-exclusive circle, the locked result and the
+// Capture/endgame module: the unique spray zone and graffiti guard, the locked result and the
 // public projections. The authority driver calls Capture -> Close -> Publish after Transactions.
 
 int64 ALDGameMode::NextCaptureDueMs() const
@@ -39,9 +39,9 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
     MatchStartedAtMs = AuthorityNowMs;
     if (Parameters.DevelopmentMs <= 0
         || !LDMatchLifecycle::AddDurationMs(MatchStartedAtMs, Parameters.DevelopmentMs, OpenAtMs, Error)
-        || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureHoldMs, Error))
+        || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("The approved development or capture hold duration is invalid."); }
+        if (Error.IsEmpty()) { Error = TEXT("The approved development, spray or guard duration is invalid."); }
         CaptureCircle = {};
         return false;
     }
@@ -165,14 +165,25 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     }
     const FLDDeathKey DeathKey{MatchContext.LedgerMatch, Event.Body.Victim};
     FLDContenderRecord* Killer = nullptr;
+    TArray<FLDContenderRecord*> Assisters;
     if (Kind == ELDCaptureEventKind::Died)
     {
         Killer = Event.CreditContender.IsValid() ? FindContender(Event.CreditContender) : nullptr;
         if (!(Event.DeathKey == DeathKey) || CountedDeaths.Contains(DeathKey)
             || uint8(Event.KillCause) > uint8(ELDKillCause::Boss)
             || (Event.KillCause == ELDKillCause::Contender) != Event.CreditContender.IsValid()
-            || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer))
+            || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer)
+            || (!Killer && !Event.Assisters.IsEmpty()))
         { return ELDCommitReject::InvalidRequest; }
+        for (int32 Index = 0; Index < Event.Assisters.Num(); ++Index)
+        {
+            const FGuid& Assister = Event.Assisters[Index];
+            FLDContenderRecord* Record = Assister.IsValid() ? FindContender(Assister) : nullptr;
+            if (!Record || Assister == Id || Assister == Event.CreditContender
+                || (Index > 0 && !(Event.Assisters[Index - 1] < Assister)))
+            { return ELDCommitReject::InvalidRequest; }
+            Assisters.Add(Record);
+        }
         if (NextKillSerial == MAX_uint64) { return ELDCommitReject::CounterExhausted; }
     }
     FString Error;
@@ -191,6 +202,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         CountedDeaths.Add(DeathKey);
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
+        for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
         // D27: the shown leader's death spends the notice; its bounty was locked with the death.
         if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
         {
@@ -202,10 +214,34 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         Notice.Serial = ++NextKillSerial;
         Notice.Victim = Id;
         Notice.Killer = Event.CreditContender;
+        Notice.Assisters = Event.Assisters;
         Notice.Cause = Event.KillCause;
         Notice.OccurredAtMs = Event.Time.BucketMs;
         while (KillNotices.Num() > LDCapture::MaxKillNotices) { KillNotices.RemoveAt(0); }
         bKillFeedDirty = true;
+    }
+    return ELDCommitReject::None;
+}
+
+ELDCommitReject ALDGameMode::PublishCaptureInterrupt(const FLDGameplayWritePermit& Permit, const FLDCombatBodyRef& Body)
+{
+    const ELDCommitPhase Phase = Permit.GetPhase();
+    if (Phase != ELDCommitPhase::Actions && Phase != ELDCommitPhase::Effects) { return ELDCommitReject::WrongPhase; }
+    const auto Permission = ValidateWritePermit(Permit, Phase);
+    if (Permission != ELDCommitReject::None) { return Permission; }
+    if (!CaptureReducer.IsActive() || !CaptureCircle.IsValid()) { return ELDCommitReject::WrongPhase; }
+    if (Body.Victim.Kind != ELDVictimKind::Contender || !CaptureReducer.IsCommittedAliveBody(Body))
+    { return ELDCommitReject::UnknownBody; }
+    FLDCaptureEvent Fact;
+    Fact.Kind = ELDCaptureEventKind::Interrupted;
+    Fact.Body = Body;
+    Fact.Phase = Phase;
+    FString Error;
+    // The control lands at this boundary instant: before any spray or guard completion due at the same instant.
+    if (!FLDCaptureEventTime::FromMs(Permit.GetBoundary().AtMs, Fact.Time, Error) || !CaptureReducer.Enqueue(Fact, Error))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
+        return ELDCommitReject::InvalidRequest;
     }
     return ELDCommitReject::None;
 }
@@ -308,14 +344,14 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
     }
     if (!PendingCapture) { return true; }
     const FLDCaptureProposal Proposal = PendingCapture.GetValue();
-    // A completion planned inside this step happened before its boundary; any other one is due exactly at it.
+    // A guard win planned inside this step happened before its boundary; any other one is due exactly at it.
     const int64 AtMs = Permit.GetBoundary().AtMs;
-    if (Proposal.Epoch != CaptureReducer.GetEpoch() || CaptureReducer.GetState() != ELDCircleState::Solo
-        || CaptureReducer.GetOccupier() != Proposal.Occupier
+    if (Proposal.Epoch != CaptureReducer.GetEpoch() || !CaptureReducer.IsGuardRunning()
+        || CaptureReducer.GetGraffitiOwner() != Proposal.Winner || CaptureReducer.GetGuardDueAtMs() != Proposal.DueAtMs
         || (bCaptureCompletesInsideStep ? Proposal.DueAtMs >= AtMs : Proposal.DueAtMs != AtMs))
     {
         PendingCapture.Reset();
-        Error = TEXT("The capture proposal no longer matches the closed continuous segment.");
+        Error = TEXT("The guard proposal no longer matches the closed graffiti guard.");
         return false;
     }
     if (HasPendingRewardRetries())
@@ -323,17 +359,17 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
         if (bSettlementStep || bCaptureCompletesInsideStep)
         {
             PendingCapture.Reset();
-            Error = TEXT("The settlement boundary still owes a reward; the capture cannot lock over it.");
+            Error = TEXT("The settlement boundary still owes a reward; the guard win cannot lock over it.");
             return false;
         }
-        // The hold is complete at this instant, but a reward of a death up to it is still owed. The proposal
+        // The guard is complete at this instant, but a reward of a death up to it is still owed. The proposal
         // waits for a settlement boundary at the same instant: its single retry first, then this Close.
         UE_LOG(LogTemp, Display, TEXT("LD_CAPTURE_CLOSE_AWAITS_REWARD generation=%u due_ms=%lld"),
             MatchContext.Generation, Proposal.DueAtMs);
         return true;
     }
     PendingCapture.Reset();
-    return TryCloseMatch(ELDMatchEndReason::CaptureCompleted, Proposal.Occupier, Proposal.DueAtMs, Error);
+    return TryCloseMatch(ELDMatchEndReason::GuardSucceeded, Proposal.Winner, Proposal.DueAtMs, Error);
 }
 
 bool ALDGameMode::HasPendingRewardRetries() const
@@ -389,6 +425,7 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
         Row.bLeft = Record->bLeft;
         Row.Kills = Record->Kills;
         Row.Deaths = Record->Deaths;
+        Row.Assists = Record->Assists;
         if (!Progression->ReadFinalLevel(*this, Id, Row.FinalLevel, Error))
         {
             if (Error.IsEmpty()) { Error = TEXT("Progression refused a committed final level."); }
@@ -518,6 +555,15 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
         View.Occupier = CaptureReducer.GetOccupier();
         View.PausedProgressMs = CaptureReducer.GetPausedProgressMs();
     }
+    View.GraffitiOwner = CaptureReducer.GetGraffitiOwner();
+    if (View.GraffitiOwner.IsValid())
+    {
+        // The owner's public identity slot: his start roster position, the same key his body tint uses.
+        const int32 Slot = RosterOrder.IndexOfByKey(View.GraffitiOwner);
+        View.GraffitiPresentation = Slot >= 0 && Slot < MAX_uint8 ? uint8(Slot) : MAX_uint8;
+    }
+    View.GuardDueAtMs = CaptureReducer.GetGuardDueAtMs();
+    View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     View.Airdrop = Airdrop.View();
     View.Leader = LeaderNotice.View();

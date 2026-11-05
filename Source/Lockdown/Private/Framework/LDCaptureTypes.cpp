@@ -3,6 +3,7 @@
 namespace
 {
     constexpr int32 CaptureResultRowsMax = 6;
+    constexpr uint8 CapturePresentationSlots = 6;
     constexpr int32 CaptureNameLengthMax = 64;
     constexpr uint8 CaptureLevelMax = 10;
 
@@ -36,7 +37,7 @@ bool FLDCaptureEventTime::FromSeconds(double RawSeconds, FLDCaptureEventTime& Ou
 bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error)
 {
     if (!View.Generation || !View.PublicRevision || uint8(View.Phase) > uint8(ELDMatchPhase::Faulted)
-        || uint8(View.CircleState) > uint8(ELDCircleState::Contested))
+        || uint8(View.CircleState) > uint8(ELDCircleState::Guarded))
     { return FailCaptureView(Error, TEXT("Invalid public match header.")); }
     if (View.ServerNowMs < 0 || View.StartedAtMs < 0 || View.OpenAtMs < View.StartedAtMs)
     { return FailCaptureView(Error, TEXT("Invalid public match times.")); }
@@ -47,7 +48,14 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
                  : (View.SoloSinceMs != 0 || View.DueAtMs != 0))
         || (Paused ? (View.PausedProgressMs <= 0 || View.PausedProgressMs > View.ServerNowMs - View.OpenAtMs)
                    : View.PausedProgressMs != 0))
-    { return FailCaptureView(Error, TEXT("Capture occupier and progress do not match the circle state.")); }
+    { return FailCaptureView(Error, TEXT("Spray holder and progress do not match the zone state.")); }
+    const bool Owned = View.GraffitiOwner.IsValid();
+    if ((View.CircleState == ELDCircleState::Guarded && !Owned) || (Owned && View.Occupier == View.GraffitiOwner)
+        || View.GraffitiPresentation >= CapturePresentationSlots || (!Owned && View.GraffitiPresentation != 0)
+        || (!Owned ? (View.GuardDueAtMs != 0 || View.GuardKeptMs != 0)
+            : Solo ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > View.ServerNowMs - View.OpenAtMs)
+                   : (View.GuardDueAtMs <= View.OpenAtMs || View.GuardKeptMs != 0)))
+    { return FailCaptureView(Error, TEXT("Graffiti owner and guard progress do not match the zone state.")); }
     const FLDAirdropView& Drop = View.Airdrop;
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
     if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Claimed) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
@@ -70,7 +78,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     switch (View.Phase)
     {
     case ELDMatchPhase::Development:
-        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs)
+        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs || Owned)
         { return FailCaptureView(Error, TEXT("The development phase cannot publish an open circle or a result.")); }
         break;
     case ELDMatchPhase::CaptureOpen:
@@ -82,9 +90,9 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         break;
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
-            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || bDrop || Named.Leader.IsValid()
-            || Boss.Phase != ELDBossPhase::None)
-        { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no capture state.")); }
+            || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || Owned || bDrop
+            || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None)
+        { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no spray state.")); }
         break;
     }
     Error.Reset();
@@ -94,8 +102,8 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
 bool LDCapture::ValidateResultView(const FLDResultView& View, FString& Error)
 {
     if (!View.Generation || !View.ResultId.IsValid() || !View.ResultSerial
-        || (View.Reason != ELDMatchEndReason::CaptureCompleted && View.Reason != ELDMatchEndReason::HostEnded)
-        || (View.Reason == ELDMatchEndReason::CaptureCompleted) != View.Winner.IsValid())
+        || (View.Reason != ELDMatchEndReason::GuardSucceeded && View.Reason != ELDMatchEndReason::HostEnded)
+        || (View.Reason == ELDMatchEndReason::GuardSucceeded) != View.Winner.IsValid())
     { return FailCaptureView(Error, TEXT("Invalid result identity, reason or winner.")); }
     if (View.StartedAtMs < 0 || View.EndedAtMs < View.StartedAtMs || View.DurationMs != View.EndedAtMs - View.StartedAtMs)
     { return FailCaptureView(Error, TEXT("Invalid result duration.")); }
@@ -134,8 +142,17 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
     {
         if (!Notice.Serial || Notice.Serial <= Previous || !Notice.Victim.IsValid() || Notice.OccurredAtMs < 0
             || uint8(Notice.Cause) > uint8(ELDKillCause::Boss)
-            || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim)
+            || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim
+            || (Notice.Cause != ELDKillCause::Contender && !Notice.Assisters.IsEmpty())
+            || Notice.Assisters.Num() > CaptureResultRowsMax - 2)
         { return FailCaptureView(Error, TEXT("Invalid kill notice.")); }
+        for (int32 Index = 0; Index < Notice.Assisters.Num(); ++Index)
+        {
+            const FGuid& Assister = Notice.Assisters[Index];
+            if (!Assister.IsValid() || Assister == Notice.Victim || Assister == Notice.Killer
+                || (Index > 0 && !(Notice.Assisters[Index - 1] < Assister)))
+            { return FailCaptureView(Error, TEXT("Invalid kill notice assisters.")); }
+        }
         Previous = Notice.Serial;
     }
     Error.Reset();

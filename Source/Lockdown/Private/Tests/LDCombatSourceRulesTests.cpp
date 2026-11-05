@@ -269,6 +269,29 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another equipment passive leaves the dash unchanged"),
         Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, Unrelated, Error)
         && !Unrelated.bBoosted && Unrelated.CooldownMs == Base.CooldownMs);
+    // #112 §5: the same boost lengthens and quickens every gear or character active that displaces its caster, the
+    // decoy wig's backward leap included (approved 200 -> 250 cm, base cooldown x0.80; upgraded +35% / x0.72).
+    const FLDDemoEquipmentDefinition* Wig = nullptr;
+    const FLDDemoEquipmentDefinition* BatteryItem = nullptr;
+    if (TestTrue(TEXT("The decoy wig and the battery are approved"), Content->FindEquipment(TEXT("item_decoy_wig"), Wig, Error) && Wig
+        && Wig->HasActive && Content->FindEquipment(Battery.ToString(), BatteryItem, Error) && BatteryItem && BatteryItem->HasActive))
+    {
+        const FLDDemoEffectDefinition* Leap = Wig->Active.Rank.Effects.FindByPredicate(
+            [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::LeapBack; });
+        TestTrue(TEXT("The backward leap displaces its caster; a battery does not"), Leap
+            && LDCombatSourceRules::DisplacesCaster(Wig->Active.Rank) && !LDCombatSourceRules::DisplacesCaster(BatteryItem->Active.Rank));
+        int64 CooldownRatioBp = 0, DistanceBonusBp = 0;
+        TestTrue(TEXT("Worn spikes: the leap goes 25% farther and its base cooldown is x0.80"),
+            Leap && LDCombatSourceRules::SkillDisplacementBoost(*Content, One, CooldownRatioBp, DistanceBonusBp, Error)
+            && CooldownRatioBp == 8000 && DistanceBonusBp == 2500
+            && FMath::IsNearlyEqual(double(Leap->DistanceCm.Numerator) / double(Leap->DistanceCm.Denominator)
+                * double(10000 + DistanceBonusBp) / 10000., 250.));
+        TArray<FLDEquipmentPassiveFamily> Upgraded = One;
+        if (Upgraded.Num() == 1) { Upgraded[0].bUpgraded = true; }
+        TestTrue(TEXT("Upgraded spikes: +35% and x0.72"), Upgraded.Num() == 1
+            && LDCombatSourceRules::SkillDisplacementBoost(*Content, Upgraded, CooldownRatioBp, DistanceBonusBp, Error)
+            && CooldownRatioBp == 7200 && DistanceBonusBp == 3500);
+    }
 
     const FLDDemoPolicies& Policies = Content->Get().Policies;
     TArray<FLDCombatRoot> Roots;

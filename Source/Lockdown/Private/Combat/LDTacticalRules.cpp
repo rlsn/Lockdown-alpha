@@ -58,7 +58,7 @@ namespace LDTactical
             || Formulas.Crit != ELDDemoFormula::OncePerPrimaryAttack
             || Content.Policies.CritSampling != ELDDemoPolicy::OncePerAttackId
             || Content.Policies.BasicSecondaryTriggers != ELDDemoPolicy::Disabled
-            || Formulas.ResistanceScaleP2 <= 0 || Parameters.CritMultiplierBp < 10000)
+            || Formulas.ResistanceScaleP2 <= 0 || Parameters.CritMultiplierBp < 10000 || Parameters.AbilityCritMultiplierBp < 10000)
         {
             return Fail(EError::Definition, TEXT("Catalog"), TEXT("Unsupported damage, resistance or critical-hit contract"));
         }
@@ -89,9 +89,11 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("bCritical"), TEXT("The critical-hit result must be explicit"));
         }
-        if (Input.bCritical.GetValue() && Input.HitClass != ELDCombatHitClass::BasicPrimary)
+        // A primary basic crits at STAT.CritMultiplier; an ability crit (active_monkey_peach Lv3, passive_precision Lv3) at
+        // STAT.AbilityCritMultiplier. Sweeps never crit.
+        if (Input.bCritical.GetValue() && Input.HitClass == ELDCombatHitClass::BasicSecondary)
         {
-            return Fail(EError::Domain, TEXT("bCritical"), TEXT("Only a primary basic hit can be critical"));
+            return Fail(EError::Domain, TEXT("bCritical"), TEXT("A secondary basic hit cannot be critical"));
         }
         if (Definition.ADRatioBp != 0 && !Input.SourceADP2.IsSet())
         {
@@ -165,7 +167,9 @@ namespace LDTactical
         }
         if (Input.bCritical.GetValue())
         {
-            Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
+            const int64 Multiplier = Input.HitClass == ELDCombatHitClass::Ability
+                ? Parameters.AbilityCritMultiplierBp : Parameters.CritMultiplierBp;
+            Damage = Numbers.Mul(Damage, Numbers.Value(Multiplier, 10000));
         }
         if (Input.AmplifyBp < 0)
         {
@@ -187,8 +191,18 @@ namespace LDTactical
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
+        if (Input.MitigateBp < 0 || Input.MitigateBp > 10000)
+        {
+            return Fail(EError::Domain, TEXT("MitigateBp"), TEXT("A damage reduction must lie within 0..100%"));
+        }
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
         if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; }
+        Value.PreMitigationP2 = Value.DamageP2;
+        if (Input.MitigateBp > 0)
+        {
+            const int64 Keep = 10000 - Input.MitigateBp;
+            Value.DamageP2 = Value.DamageP2 / 10000 * Keep + Value.DamageP2 % 10000 * Keep / 10000;
+        }
         Value.ShieldAbsorbedP2 = FMath::Min(Value.DamageP2, Input.TargetShieldP2.GetValue());
         const int64 AfterShieldP2 = Value.DamageP2 - Value.ShieldAbsorbedP2;
         Value.HPLostP2 = FMath::Min(AfterShieldP2, Input.TargetHPP2.GetValue());
@@ -365,6 +379,23 @@ namespace LDTactical
         return Strongest;
     }
 
+    int64 StrongestAttackSlowBp(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        int64 Strongest = 0;
+        for (const auto& Slow : Slows)
+        {
+            if (Slow.ExpiresAtMs > AtMs) { Strongest = FMath::Max(Strongest, Slow.AttackRatioBp); }
+        }
+        return Strongest;
+    }
+
+    int32 DispelSlows(TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        const int32 Active = Slows.FilterByPredicate([AtMs](const FLDCombatSlow& Slow) { return Slow.ExpiresAtMs > AtMs; }).Num();
+        Slows.Reset();
+        return Active;
+    }
+
     int64 StrongestSlowUntilMs(const TArray<FLDCombatSlow>& Slows, int64 AtMs)
     {
         const int64 Strongest = StrongestSlowBp(Slows, AtMs);
@@ -382,28 +413,101 @@ namespace LDTactical
         Bonuses.Add(Bonus);
     }
 
-    void ApplyExposure(TArray<FLDCombatExposure>& Exposures, const FLDCombatExposure& Exposure)
+    void ApplyBreach(TArray<FLDCombatBreach>& Breaches, const FLDCombatBreach& Breach, int64 AtMs)
     {
-        Exposures.RemoveAll([&Exposure](const FLDCombatExposure& Existing) { return Existing.SourceEntity == Exposure.SourceEntity; });
-        Exposures.Add(Exposure);
+        for (FLDCombatBreach& Existing : Breaches)
+        {
+            if (Existing.Key != Breach.Key || Existing.SourceEntity != Breach.SourceEntity) { continue; }
+            const int32 Kept = Existing.ExpiresAtMs > AtMs ? Existing.Stacks : 0;
+            const int32 Max = FMath::Max(1, Breach.MaxStacks);
+            Existing = Breach;
+            Existing.MaxStacks = Max;
+            Existing.Stacks = FMath::Clamp(Kept + FMath::Max(1, Breach.Stacks), 1, Max);
+            return;
+        }
+        FLDCombatBreach& Added = Breaches.Add_GetRef(Breach);
+        Added.MaxStacks = FMath::Max(1, Breach.MaxStacks);
+        Added.Stacks = FMath::Clamp(Breach.Stacks, 1, Added.MaxStacks);
     }
 
-    int64 ExposureBp(const TArray<FLDCombatExposure>& Exposures, const FGuid& Source, int64 AtMs)
+    bool HasBreach(const TArray<FLDCombatBreach>& Breaches, int64 AtMs)
     {
-        for (const auto& Exposure : Exposures)
+        return Breaches.ContainsByPredicate([AtMs](const FLDCombatBreach& Breach) { return Breach.ExpiresAtMs > AtMs; });
+    }
+
+    int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs)
+    {
+        int64 Flat = 0, Ratio = 0;
+        for (const FLDCombatBreach& Breach : Breaches)
         {
-            if (Source.IsValid() && Exposure.SourceEntity == Source && Exposure.ExpiresAtMs > AtMs) { return Exposure.AmplifyBp; }
+            if (Breach.ExpiresAtMs <= AtMs) { continue; }
+            const int64 PerStack = bArmor ? Breach.ArmorFlatP2 : Breach.MagicResistFlatP2;
+            Flat = FMath::Min<int64>(MAX_int32, Flat + FMath::Max<int64>(0, PerStack) * FMath::Max(1, Breach.Stacks));
+            Ratio += FMath::Max<int64>(0, bArmor ? Breach.ArmorRatioBp : Breach.MagicResistRatioBp);
+        }
+        const int64 AfterFlat = FMath::Max<int64>(0, ResistanceP2 - Flat);
+        const int64 Kept = 10000 - FMath::Min<int64>(10000, Ratio);
+        return AfterFlat / 10000 * Kept + AfterFlat % 10000 * Kept / 10000;
+    }
+
+    int64 BreachUntilMs(const TArray<FLDCombatBreach>& Breaches, int64 AtMs)
+    {
+        int64 Until = 0;
+        for (const FLDCombatBreach& Breach : Breaches)
+        {
+            if (Breach.ExpiresAtMs > AtMs) { Until = FMath::Max(Until, Breach.ExpiresAtMs); }
+        }
+        return Until;
+    }
+
+    void ApplyVampMark(TArray<FLDCombatVampMark>& Marks, const FLDCombatVampMark& Mark)
+    {
+        Marks.RemoveAll([&Mark](const FLDCombatVampMark& Existing) { return Existing.SourceEntity == Mark.SourceEntity; });
+        Marks.Add(Mark);
+    }
+
+    int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, const FGuid& Source, int64 AtMs)
+    {
+        for (const FLDCombatVampMark& Mark : Marks)
+        {
+            if (!Source.IsValid() || Mark.SourceEntity != Source) { continue; }
+            const bool bSlowed = Slows.ContainsByPredicate([&Mark, AtMs](const FLDCombatSlow& Slow)
+            { return Slow.EffectId == Mark.SlowEffectId && Slow.ExpiresAtMs > AtMs; });
+            return bSlowed ? Mark.RatioBp : 0;
         }
         return 0;
     }
 
+    bool SyncVampMarks(TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        bool bChanged = false;
+        for (int32 Index = Marks.Num() - 1; Index >= 0; --Index)
+        {
+            FLDCombatVampMark& Mark = Marks[Index];
+            const FLDCombatSlow* Slow = Slows.FindByPredicate([&Mark](const FLDCombatSlow& Row) { return Row.EffectId == Mark.SlowEffectId; });
+            if (!Slow || Slow->ExpiresAtMs <= AtMs)
+            {
+                Marks.RemoveAt(Index);
+                bChanged = true;
+            }
+            else if (Mark.ExpiresAtMs != Slow->ExpiresAtMs)
+            {
+                Mark.ExpiresAtMs = Slow->ExpiresAtMs;
+                bChanged = true;
+            }
+        }
+        return bChanged;
+    }
+
     bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
-        TArray<FLDCombatExposure>& Exposures, int64 AtMs)
+        TArray<FLDCombatBreach>& Breaches, TArray<FLDCombatVampMark>& VampMarks, int64 AtMs)
     {
         const int32 Removed = Slows.RemoveAll([AtMs](const FLDCombatSlow& Slow) { return Slow.ExpiresAtMs <= AtMs; })
             + Bonuses.RemoveAll([AtMs](const FLDCombatTimedBonus& Bonus) { return Bonus.ExpiresAtMs <= AtMs; })
-            + Exposures.RemoveAll([AtMs](const FLDCombatExposure& Exposure) { return Exposure.ExpiresAtMs <= AtMs; });
-        return Removed > 0;
+            + Breaches.RemoveAll([AtMs](const FLDCombatBreach& Breach) { return Breach.ExpiresAtMs <= AtMs; })
+            + VampMarks.RemoveAll([AtMs](const FLDCombatVampMark& Mark) { return Mark.ExpiresAtMs <= AtMs; });
+        const bool bMarks = SyncVampMarks(VampMarks, Slows, AtMs);
+        return Removed > 0 || bMarks;
     }
 
     bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp)
@@ -413,9 +517,10 @@ namespace LDTactical
         return HPP2 * 10000 < MaxHPP2 * ThresholdBp;
     }
 
-    bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs)
+    bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs, int64 CreditMs)
     {
-        return DelayMs > 0 && LastCombatAtMs <= MAX_int64 - DelayMs && AtMs >= LastCombatAtMs + DelayMs;
+        const int64 Wait = FMath::Max<int64>(0, DelayMs - FMath::Max<int64>(0, CreditMs));
+        return DelayMs > 0 && LastCombatAtMs <= MAX_int64 - Wait && AtMs >= LastCombatAtMs + Wait;
     }
 
     FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses, const TArray<FLDCombatSlow>& Slows,
@@ -428,6 +533,7 @@ namespace LDTactical
         }
         if (LowHP.IsSet() && BelowHPThreshold(HPP2, MaxHPP2, LowHP->ThresholdBp)) { Terms.Bonuses.Append(LowHP->Stats); }
         Terms.MoveSlowBp = StrongestSlowBp(Slows, AtMs);
+        Terms.AttackSlowBp = StrongestAttackSlowBp(Slows, AtMs);
         return Terms;
     }
 
@@ -497,13 +603,22 @@ namespace LDTactical
     }
 
     FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, const FOutOfCombatRecovery* Dorm)
+        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, int64 SurgeUntilMs,
+        const FOutOfCombatRecovery* Dorm)
     {
         const auto Value=[](const FLDDemoRational& Rate){return double(Rate.Numerator)/double(Rate.Denominator);};
         FRegenRates Rates{Value(Attributes.Final.HPRegenPerSec),Value(Attributes.Final.MPRegenPerSec)};
-        if (Attributes.OutOfCombatHPRegen.IsSet()
-            && OutOfCombatAt(LastCombatAtMs,Attributes.OutOfCombatHPRegen->DelayMs,NowMs))
-        { Rates.HP+=Value(Attributes.OutOfCombatHPRegen->HPPerSec); }
+        const auto& Passive=Attributes.OutOfCombatHPRegen;
+        if (Passive.IsSet() && Passive->SurgeMultiplierBp>0 && NowMs<SurgeUntilMs)
+        {
+            Rates.HP*=double(Passive->SurgeMultiplierBp)/10000.;
+            Rates.MP*=double(Passive->SurgeMultiplierBp)/10000.;
+        }
+        if (Passive.IsSet())
+        {
+            const double Full=double(MaxHpP2)*double(Passive->MaxHPBpPerSec)/1000000.;
+            Rates.HP+=OutOfCombatAt(LastCombatAtMs,Passive->DelayMs,NowMs) ? Full : Full*double(Passive->InCombatRatioBp)/10000.;
+        }
         for (const FOutOfCombatRecovery* Term : {Recovery, Dorm})
         {
             if (!Term || !OutOfCombatAt(LastCombatAtMs,Term->DelayMs,NowMs)) { continue; }
@@ -514,7 +629,7 @@ namespace LDTactical
     }
 
     bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error,
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error, int64 SurgeUntilMs,
         const FOutOfCombatRecovery* Dorm)
     {
         if (NowMs < FromMs)
@@ -553,12 +668,51 @@ namespace LDTactical
         }
         if (Attributes.OutOfCombatHPRegen.IsSet())
         {
+            const FLDOutOfCombatRegenTerm& Passive = Attributes.OutOfCombatHPRegen.GetValue();
             int64 StartMs = NowMs;
-            if (!TermStart(Attributes.OutOfCombatHPRegen->DelayMs, StartMs)
-                || !IntegrateRegen(Attributes.OutOfCombatHPRegen->HPPerSec, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2,
-                    InOut.HpMicroP2, Error))
+            FLDDemoRational PassiveRate;
+            if (!TermStart(Passive.DelayMs, StartMs) || !Share(InOut.MaxHpP2, Passive.MaxHPBpPerSec, PassiveRate)
+                || !IntegrateRegen(PassiveRate, NowMs - StartMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error))
             {
                 return false;
+            }
+            // Combat time [FromMs, StartMs) keeps the in-combat share of the passive rate (passive_second_wind Lv3).
+            if (Passive.InCombatRatioBp > 0 && StartMs > FromMs)
+            {
+                FLDDemoRational Kept = PassiveRate;
+                if (Kept.Numerator > MAX_int64 / Passive.InCombatRatioBp || Kept.Denominator > MAX_int64 / 10000)
+                {
+                    Error = TEXT("In-combat regeneration share overflowed.");
+                    return false;
+                }
+                Kept.Numerator *= Passive.InCombatRatioBp;
+                Kept.Denominator *= 10000;
+                if (!IntegrateRegen(Kept, StartMs - FromMs, InOut.MaxHpP2, InOut.HpP2, InOut.HpMicroP2, Error))
+                {
+                    return false;
+                }
+            }
+            // A surge after an ability hit adds (multiplier - 1) x the always-on rates until SurgeUntilMs (passive_second_wind).
+            const int64 SurgeEnd = FMath::Min(NowMs, SurgeUntilMs);
+            if (Passive.SurgeMultiplierBp > 10000 && SurgeEnd > FromMs)
+            {
+                const int64 Extra = Passive.SurgeMultiplierBp - 10000;
+                for (int32 Pool = 0; Pool < 2; ++Pool)
+                {
+                    FLDDemoRational Rate = Pool == 0 ? Attributes.Final.HPRegenPerSec : Attributes.Final.MPRegenPerSec;
+                    if (Rate.Numerator > MAX_int64 / Extra || Rate.Denominator > MAX_int64 / 10000)
+                    {
+                        Error = TEXT("Regeneration surge overflowed.");
+                        return false;
+                    }
+                    Rate.Numerator *= Extra;
+                    Rate.Denominator *= 10000;
+                    if (!IntegrateRegen(Rate, SurgeEnd - FromMs, Pool == 0 ? InOut.MaxHpP2 : InOut.MaxMpP2,
+                        Pool == 0 ? InOut.HpP2 : InOut.MpP2, Pool == 0 ? InOut.HpMicroP2 : InOut.MpMicroP2, Error))
+                    {
+                        return false;
+                    }
+                }
             }
         }
         for (const FOutOfCombatRecovery* Term : {Recovery, Dorm})

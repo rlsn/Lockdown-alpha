@@ -27,7 +27,7 @@ UENUM()
 enum class ELDShopOpenStatus : uint8 { None = 0, Pending = 1, Opened = 2, Rejected = 3 };
 
 UENUM()
-enum class ELDShopCommandKind : uint8 { None = 0, Buy = 1, Sell = 2 };
+enum class ELDShopCommandKind : uint8 { None = 0, Buy = 1, Sell = 2, Upgrade = 3 };
 
 enum class ELDRewardOutcome : uint8 { None = 0, Granted = 1, NoReward = 2, RetryableNotCommitted = 3, PermanentlyRejected = 4 };
 
@@ -40,10 +40,12 @@ enum class ELDGrowthReason : uint16
     RequestConflict = 20, OutOfOrder = 21, ReceiptExpired = 22, RequestInFlight = 23,
     NoOffer = 40, UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44,
     BuildStale = 45, ReplacementRequired = 46, ReplacementMismatch = 47, ReplacementNotAllowed = 48,
+    NoReroll = 49, OfferAlreadyRerolled = 50,
     NoShopSession = 60, QuoteStale = 61, PriceChanged = 62, UnknownItem = 63, ItemNotOwned = 64, ItemStale = 65,
     EquipmentFull = 66, InsufficientGold = 67, InventoryStale = 68, AccountStale = 69,
     UnknownShop = 71, StaleWorld = 72, OutsideRange = 73, NotGrounded = 74, InvalidGround = 75, WrongSurface = 76,
     InvalidApproachRegion = 77, DataNotReady = 78, StaleContext = 79,
+    UpgradeUsed = 80, UpgradeUnavailable = 81, AlreadyUpgraded = 82,
     NumericUnderflow = 90, NumericDomain = 91, ArithmeticOverflow = 92, DataInvalid = 93, PrepareUnavailable = 94,
     AuthorityFault = 95, CapacityExceeded = 96,
     NoRewardNoOwner = 110, NoRewardSelf = 111, NoRewardOwnerLeft = 112, DeathConflict = 113, StaleDeath = 114
@@ -142,6 +144,8 @@ struct LOCKDOWN_API FLDChoiceOfferView
     UPROPERTY() uint8 OpportunityOrdinal = 0;
     UPROPERTY() uint64 OfferRevision = 0;
     UPROPERTY() uint64 GuardBuildRevision = 0;
+    // This offer is the opportunity's free reroll; it cannot be rerolled again.
+    UPROPERTY() bool bRerolled = false;
     // Exactly three distinct options, immutable for the offer's lifetime.
     UPROPERTY() TArray<FLDChoiceOption> Options;
 };
@@ -188,6 +192,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() uint8 EarnedThrough = 0;
     UPROPERTY() uint8 ConsumedThrough = 0;
     UPROPERTY() uint8 PendingChoiceCount = 0;
+    // Free rerolls left (earned at the reroll levels, kept until used).
+    UPROPERTY() uint8 RerollTokens = 0;
     UPROPERTY() bool bHasOffer = false;
     UPROPERTY() FLDChoiceOfferView Offer;
     UPROPERTY() TArray<FLDLearnedSkillView> Skills;
@@ -214,6 +220,8 @@ struct LOCKDOWN_API FLDChoiceCommand
     UPROPERTY() FLDDefinitionWire ExpectedOldSkillId;
     UPROPERTY() uint8 ExpectedOldRank = 0;
     UPROPERTY() bool bReplaceConfirmed = false;
+    // 112 §6: spend one free reroll on OfferId instead of choosing; OptionId stays empty and nothing is replaced.
+    UPROPERTY() bool bReroll = false;
 
     bool SameTerms(const FLDChoiceCommand& Other) const;
 };
@@ -237,6 +245,9 @@ struct LOCKDOWN_API FLDChoiceReceipt
     UPROPERTY() uint8 ReplacedRank = 0;
     UPROPERTY() bool bHasNextOffer = false;
     UPROPERTY() FGuid NextOfferId;
+    // Applied reroll: NextOfferId replaced OfferId for the same opportunity.
+    UPROPERTY() bool bRerolled = false;
+    UPROPERTY() uint8 RerollTokensLeft = 0;
 };
 
 // ---- Equipment and shop -----------------------------------------------------------------------
@@ -252,6 +263,8 @@ struct LOCKDOWN_API FLDEquipmentSlotView
     UPROPERTY() uint64 IssueSerial = 0;
     UPROPERTY() FName DefinitionId;
     UPROPERTY() uint64 ItemRevision = 0;
+    // 112 §7: this instance is upgraded; the state leaves with the instance.
+    UPROPERTY() bool bUpgraded = false;
 };
 
 // Own gold and the two real equipment positions. 1/2 readiness is Combat's binding view.
@@ -265,6 +278,8 @@ struct LOCKDOWN_API FLDEquipmentView
     UPROPERTY() int64 Gold = 0;
     UPROPERTY() uint64 AccountRevision = 0;
     UPROPERTY() uint64 InventoryRevision = 0;
+    // The one upgrade of the match is spent (even if that item was sold since).
+    UPROPERTY() bool bUpgradeUsed = false;
     // Always two rows, slot 0 then slot 1; an empty slot is explicit.
     UPROPERTY() TArray<FLDEquipmentSlotView> Slots;
 };
@@ -293,6 +308,9 @@ struct LOCKDOWN_API FLDShopSellView
     UPROPERTY() uint64 ItemRevision = 0;
     UPROPERTY() FName DefinitionId;
     UPROPERTY() int64 SellPrice = 0;
+    UPROPERTY() bool bUpgraded = false;
+    // The upgrade of this instance is offered now: unspent, not upgraded and the item has approved upgraded terms.
+    UPROPERTY() bool bCanUpgrade = false;
 };
 
 USTRUCT()
@@ -310,6 +328,8 @@ struct LOCKDOWN_API FLDShopView
     UPROPERTY() uint32 WorldGeometryRevision = 0;
     UPROPERTY() TArray<FLDShopItemView> Items;
     UPROPERTY() TArray<FLDShopSellView> Sellable;
+    UPROPERTY() int64 UpgradePrice = 0;
+    UPROPERTY() bool bUpgradeUsed = false;
 };
 
 USTRUCT()
@@ -360,10 +380,13 @@ struct LOCKDOWN_API FLDShopCommand
     // Buy only.
     UPROPERTY() FLDDefinitionWire DefinitionId;
     UPROPERTY() int64 BuyPrice = 0;
-    // Sell only.
+    // Sell and Upgrade.
     UPROPERTY() FGuid Instance;
     UPROPERTY() uint64 ExpectedItemRevision = 0;
+    // Sell only.
     UPROPERTY() int64 SellPrice = 0;
+    // Upgrade only: the quoted SHOP.UpgradeCost.
+    UPROPERTY() int64 UpgradePrice = 0;
 
     bool SameTerms(const FLDShopCommand& Other) const;
 };
@@ -456,6 +479,20 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnShopOpenResult, const FLDShopOpenResult
 
 // ---- Server-internal death reward result ------------------------------------------------------
 
+// One assister's part of a contender kill reward, committed in the same composite as the killer's part.
+struct LOCKDOWN_API FLDRewardShareReceipt
+{
+    FGuid Recipient;
+    bool bHasLedgerSerial = false;
+    uint64 LedgerSerial = 0;
+    int64 GoldDelta = 0;
+    int64 XPDelta = 0;
+    uint8 LevelBefore = 0;
+    uint8 LevelAfter = 0;
+    uint8 OpportunityFirst = 1;
+    uint8 OpportunityLast = 0;
+};
+
 struct LOCKDOWN_API FLDRewardReceipt
 {
     FLDDeathKey Key;
@@ -463,6 +500,7 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 Fingerprint[32] = {};
     ELDRewardOutcome Outcome = ELDRewardOutcome::None;
     ELDGrowthReason Reason = ELDGrowthReason::None;
+    // The killer (or the only recipient of a camp or DEV reward); the fields below are his part.
     FGuid Recipient;
     bool bHasLedgerSerial = false;
     uint64 LedgerSerial = 0;
@@ -474,6 +512,8 @@ struct LOCKDOWN_API FLDRewardReceipt
     uint8 OpportunityFirst = 1;
     uint8 OpportunityLast = 0;
     FLDResultRevisions Revisions;
+    // Assisters of a contender kill in the fact's order, each with the part granted in the same commit.
+    TArray<FLDRewardShareReceipt> Assists;
 };
 
 namespace LDGrowthWire

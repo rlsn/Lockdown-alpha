@@ -225,6 +225,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         FLDOpponentOffer Offer;
         Offer.OfferId = Progression.Offer.OfferId;
         Offer.OfferRevision = Progression.Offer.OfferRevision;
+        Offer.bRerolled = Progression.Offer.bRerolled;
         for (const auto& Option : Progression.Offer.Options)
         {
             FLDOpponentOption Mapped;
@@ -238,6 +239,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         Out.Offer = MoveTemp(Offer);
     }
     TArray<FString> Equipped;
+    TArray<bool> Upgraded;
     for (int32 Slot = 0; Slot < 2; ++Slot)
     {
         const auto& View = Equipment.Slots[Slot];
@@ -246,10 +248,18 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
             return Fail(Error, TEXT("Own equipment slots must be the two ordered positions."));
         }
         Out.Equipment[Slot] = View.bOccupied ? CanonicalId(View.DefinitionId) : FString();
-        if (View.bOccupied) { Equipped.Add(Out.Equipment[Slot]); }
+        Out.EquipmentUpgraded[Slot] = View.bOccupied && View.bUpgraded;
+        if (View.bOccupied)
+        {
+            Equipped.Add(Out.Equipment[Slot]);
+            Upgraded.Add(View.bUpgraded);
+        }
     }
-    const auto Projection = LDAttributeProjection::Project(
-        FLDAttributeBuildValues(Progression.Level, MoveTemp(Passives), MoveTemp(Cards), MoveTemp(Equipped)), Catalog);
+    Out.bUpgradeUsed = Equipment.bUpgradeUsed;
+    Out.RerollTokens = Progression.RerollTokens;
+    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards), MoveTemp(Equipped));
+    Values.EquippedUpgraded = MoveTemp(Upgraded);
+    const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;
     Out.Gold = Equipment.Gold;

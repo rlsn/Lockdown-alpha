@@ -205,6 +205,7 @@ void ALDGameState::SyncCaptureMarker()
         CaptureMarker=Marker;
     }
     Marker->ShowState(PublicMatch.CircleState);
+    Marker->ShowGraffiti(PublicMatch.GraffitiOwner.IsValid(),PublicMatch.GraffitiPresentation);
 }
 
 void ALDGameState::OnRep_MatchResult()

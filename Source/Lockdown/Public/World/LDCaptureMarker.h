@@ -7,6 +7,9 @@
 
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
+class UStaticMeshComponent;
+
+class UPrimitiveComponent;
 
 // A flat painted ring of chords on the registered ground, shared by the capture and dorm boundaries. Presentation only:
 // no collision, overlap, navigation or shadow, and its dimensions never change an approved radius or rule.
@@ -18,12 +21,13 @@ namespace LDGroundRing
     LOCKDOWN_API bool Lay(UInstancedStaticMeshComponent* Ring, double RadiusCm);
     // Tints the ring with the generated character material; false with a reason when it is missing.
     LOCKDOWN_API bool Paint(AActor& Owner, UInstancedStaticMeshComponent& Ring, UMaterialInstanceDynamic*& OutPaint, FString& Error);
-    LOCKDOWN_API bool IsPresentationOnly(const UInstancedStaticMeshComponent* Ring);
+    LOCKDOWN_API bool IsPresentationOnly(const UPrimitiveComponent* Component);
 }
 
-// Local presentation of the single capture circle (旗杆): a flat painted ring on the registered ground at the
-// approved radius around the capture anchor. Each machine builds it from its own world data and only mirrors the
-// accepted public circle state; it is never replicated and has no collision, navigation, sight or height effect.
+// Local presentation of the single spray zone: a flat painted ring on the registered ground at the approved radius
+// around the flagpole anchor, and the graffiti board on the flagpole painted in its owner's public identity tint.
+// Each machine builds it from its own world data and only mirrors the accepted public spray state; it is never
+// replicated and has no collision, navigation, sight or height effect.
 UCLASS(NotPlaceable, Transient)
 class LOCKDOWN_API ALDCaptureMarker : public AActor
 {
@@ -33,17 +37,24 @@ public:
     // Lays the ring for one match generation; false with a reason when the cooked mesh or material is missing.
     bool Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error);
     void ShowState(ELDCircleState State);
+    // The flagpole graffiti: shown in the owner's identity tint (his roster slot) while one stands, hidden when bare.
+    void ShowGraffiti(bool bOwned, uint8 PresentationSlot);
     static FLinearColor ColorFor(ELDCircleState State);
     uint32 GetGeneration() const { return Generation; }
     const FVector& GetCenter() const { return Center; }
     double GetRadius() const { return Radius; }
     ELDCircleState GetShownState() const { return Shown; }
+    bool IsGraffitiShown() const;
+    uint8 GetGraffitiSlot() const { return GraffitiSlot; }
     int32 GetSegmentCount() const;
     // True while the ring is pure presentation: no collision, overlap or navigation influence.
     bool IsPresentationOnly() const;
 private:
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Ring;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> Paint;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Graffiti;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> GraffitiPaint;
+    uint8 GraffitiSlot = 0;
     FVector Center = FVector::ZeroVector;
     double Radius = 0;
     uint32 Generation = 0;

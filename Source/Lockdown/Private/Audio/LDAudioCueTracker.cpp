@@ -23,6 +23,7 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
         PublicGeneration = Public->Generation;
         bOpenSeen = bOpen;
         CircleEpoch = Public->CaptureEpoch;
+        GraffitiSeen = Public->GraffitiOwner;
     }
     else
     {
@@ -39,15 +40,19 @@ void FLDAudioCueTracker::ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAud
             // Every public circle change advances the epoch, so one epoch is one event.
             CircleEpoch = Public->CaptureEpoch;
             const bool bRunning = Public->Phase == ELDMatchPhase::CaptureOpen;
+            // A freshly sprayed graffiti is the flagpole's fanfare (the opening cue) and outranks the zone change.
+            const bool bSprayed = Public->GraffitiOwner.IsValid() && Public->GraffitiOwner != GraffitiSeen;
             const ELDAudioCue Circle = !bRunning ? ELDAudioCue::None
+                : bSprayed ? ELDAudioCue::CaptureOpened
                 : Public->CircleState == ELDCircleState::Solo ? ELDAudioCue::CaptureStarted
                 : Public->CircleState == ELDCircleState::Contested ? ELDAudioCue::CaptureContested : ELDAudioCue::None;
-            if (Circle != ELDAudioCue::None && !bCaptureCue && Frame.LocalSeconds - LastCaptureCueAt >= CaptureRepeatSeconds)
+            if (Circle != ELDAudioCue::None && !bCaptureCue && (bSprayed || Frame.LocalSeconds - LastCaptureCueAt >= CaptureRepeatSeconds))
             {
                 LDAudio::AddUnique(Out, Circle);
                 bCaptureCue = true;
             }
         }
+        GraffitiSeen = Public->GraffitiOwner;
         if (bCaptureCue) { LastCaptureCueAt = Frame.LocalSeconds; }
     }
 

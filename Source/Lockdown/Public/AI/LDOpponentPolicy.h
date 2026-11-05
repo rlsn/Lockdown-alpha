@@ -24,7 +24,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed, ContestAirdrop, HuntLeader, AvoidBoss
+    AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
@@ -63,6 +63,8 @@ struct FLDOpponentOffer
 {
     FGuid OfferId;
     uint64 OfferRevision = 0;
+    // 112 §6: this offer is already the opportunity's one reroll.
+    bool bRerolled = false;
     TArray<FLDOpponentOption> Options;
 };
 
@@ -90,23 +92,33 @@ struct FLDOpponentSelf
     TArray<FLDOpponentSkill> Skills;
     // Equipment slots 0/1 by catalog definition id; an empty string is an empty slot.
     FString Equipment[2];
+    // 112 §7: upgraded slots and whether the one upgrade of the match is spent.
+    bool EquipmentUpgraded[2] = {false, false};
+    bool bUpgradeUsed = false;
+    // 112 §6: free rerolls left.
+    uint8 RerollTokens = 0;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
 };
 
-enum class ELDOpponentCircle : uint8 { Empty, Solo, Contested };
+// Guarded: only the graffiti owner stands in the spray zone.
+enum class ELDOpponentCircle : uint8 { Empty, Solo, Contested, Guarded };
 
-// Public match state shared with every participant; an occupier never carries a position.
+// Public match state shared with every participant; a sprayer or graffiti owner never carries a position.
 struct FLDOpponentPublicMatch
 {
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
-    // The contender holding capture progress: the solo occupier, or under D12 the holder a contest only paused.
+    // The contender holding spray progress: the sole sprayer, or the holder a contest only paused.
     // Invalid when nobody holds progress.
     FGuid Occupier;
-    // Real expiry of the holder's remaining progress while Solo; zero while Contested.
+    // Real instant the sole sprayer's graffiti lands while Solo; zero otherwise.
     int64 DueAtMs = 0;
+    // The contender whose graffiti the flagpole shows; invalid while it is bare.
+    FGuid Owner;
+    // Real instant the owner's running guard wins; zero without an owner or while a sole sprayer pauses it.
+    int64 GuardDueAtMs = 0;
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
     bool bAirdropLanded = false;
@@ -207,10 +219,12 @@ struct FLDOpponentBodyIntent
     FLDOpponentRetryKey Key;
 };
 
-enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy };
+enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy, Upgrade };
 
 struct FLDOpponentChoicePick
 {
+    // 112 §6: spend a free reroll instead of choosing (OptionId stays empty).
+    bool bReroll = false;
     FGuid OptionId;
     bool bReplace = false;
     ELDOpponentSkillSlot ReplaceSlot = ELDOpponentSkillSlot::Q;
@@ -223,6 +237,8 @@ struct FLDOpponentEquipmentPlan
 {
     int32 SellSlot = INDEX_NONE;
     FString BuyItemId;
+    // 112 §7: upgrade the item in this slot instead of trading (no SellSlot/BuyItemId).
+    int32 UpgradeSlot = INDEX_NONE;
 };
 
 struct FLDOpponentBuildIntent
@@ -233,6 +249,7 @@ struct FLDOpponentBuildIntent
     FLDOpponentChoicePick Choice;
     int32 SellSlot = INDEX_NONE;
     FString BuyItemId;
+    int32 UpgradeSlot = INDEX_NONE;
     FLDOpponentRetryKey Key;
 };
 

@@ -1,5 +1,6 @@
 #include "World/LDCaptureMarker.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Character/LDHumanoidVisualComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -12,6 +13,9 @@ namespace
     constexpr double LDCaptureMarkerHeightCm = 2.;
     constexpr double LDCaptureMarkerLiftCm = .3;
     constexpr double LDCaptureMarkerJointOverlap = 1.04;
+    // The graffiti board on the flagpole: a thin upright panel above head height at the anchor.
+    const FVector LDGraffitiBoardCm(8., 120., 90.);
+    constexpr double LDGraffitiBoardLiftCm = 210.;
 }
 
 UInstancedStaticMeshComponent* LDGroundRing::Create(AActor& Owner, FName Name)
@@ -60,10 +64,10 @@ bool LDGroundRing::Paint(AActor& Owner, UInstancedStaticMeshComponent& Ring, UMa
     return true;
 }
 
-bool LDGroundRing::IsPresentationOnly(const UInstancedStaticMeshComponent* Ring)
+bool LDGroundRing::IsPresentationOnly(const UPrimitiveComponent* Component)
 {
-    return Ring && Ring->GetCollisionEnabled() == ECollisionEnabled::NoCollision && !Ring->GetGenerateOverlapEvents()
-        && !Ring->CanEverAffectNavigation();
+    return Component && Component->GetCollisionEnabled() == ECollisionEnabled::NoCollision
+        && !Component->GetGenerateOverlapEvents() && !Component->CanEverAffectNavigation();
 }
 
 ALDCaptureMarker::ALDCaptureMarker()
@@ -73,6 +77,18 @@ ALDCaptureMarker::ALDCaptureMarker()
     SetCanBeDamaged(false);
     Ring = LDGroundRing::Create(*this, TEXT("Ring"));
     RootComponent = Ring;
+    Graffiti = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Graffiti"));
+    Graffiti->SetupAttachment(Ring);
+    Graffiti->SetMobility(EComponentMobility::Movable);
+    Graffiti->SetStaticMesh(Ring->GetStaticMesh());
+    Graffiti->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Graffiti->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Graffiti->SetGenerateOverlapEvents(false);
+    Graffiti->SetCanEverAffectNavigation(false);
+    Graffiti->SetCastShadow(false);
+    Graffiti->SetRelativeLocation(FVector(0., 0., LDGraffitiBoardLiftCm));
+    Graffiti->SetRelativeScale3D(LDGraffitiBoardCm / 100.);
+    Graffiti->SetVisibility(false);
 }
 
 bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 InGeneration, FString& Error)
@@ -86,12 +102,15 @@ bool ALDCaptureMarker::Build(const FVector& CenterCm, double RadiusCm, uint32 In
     UMaterialInstanceDynamic* NewPaint = nullptr;
     if (!LDGroundRing::Paint(*this, *Ring, NewPaint, Error)) { return false; }
     Paint = NewPaint;
+    GraffitiPaint = UMaterialInstanceDynamic::Create(Paint->Parent, this);
+    if (Graffiti) { Graffiti->SetMaterial(0, GraffitiPaint); }
     Center = CenterCm;
     Radius = RadiusCm;
     Generation = InGeneration;
     SetActorLocationAndRotation(CenterCm, FRotator::ZeroRotator);
     LDGroundRing::Lay(Ring, RadiusCm);
     ShowState(ELDCircleState::NotOpen);
+    ShowGraffiti(false, 0);
     Error.Reset();
     return true;
 }
@@ -102,6 +121,18 @@ void ALDCaptureMarker::ShowState(ELDCircleState State)
     if (Paint) { Paint->SetVectorParameterValue(TEXT("Tint"), ColorFor(State)); }
 }
 
+void ALDCaptureMarker::ShowGraffiti(bool bOwned, uint8 PresentationSlot)
+{
+    GraffitiSlot = bOwned ? PresentationSlot : 0;
+    if (GraffitiPaint && bOwned) { GraffitiPaint->SetVectorParameterValue(TEXT("Tint"), ULDHumanoidVisualComponent::ContenderTint(PresentationSlot)); }
+    if (Graffiti) { Graffiti->SetVisibility(bOwned); }
+}
+
+bool ALDCaptureMarker::IsGraffitiShown() const
+{
+    return Graffiti && Graffiti->IsVisible();
+}
+
 FLinearColor ALDCaptureMarker::ColorFor(ELDCircleState State)
 {
     switch (State)
@@ -109,6 +140,7 @@ FLinearColor ALDCaptureMarker::ColorFor(ELDCircleState State)
     case ELDCircleState::Empty: return FLinearColor(1.f, .82f, .1f);
     case ELDCircleState::Solo: return FLinearColor(.12f, .78f, .3f);
     case ELDCircleState::Contested: return FLinearColor(1.f, .12f, .05f);
+    case ELDCircleState::Guarded: return FLinearColor(.2f, .55f, 1.f);
     default: return FLinearColor(.55f, .58f, .62f);
     }
 }
@@ -120,5 +152,5 @@ int32 ALDCaptureMarker::GetSegmentCount() const
 
 bool ALDCaptureMarker::IsPresentationOnly() const
 {
-    return LDGroundRing::IsPresentationOnly(Ring);
+    return LDGroundRing::IsPresentationOnly(Ring) && LDGroundRing::IsPresentationOnly(Graffiti);
 }
