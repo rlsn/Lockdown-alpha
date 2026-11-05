@@ -43,6 +43,9 @@ namespace LDHUD
     LOCKDOWN_API FResourceView Resource(const FString& Label,double Current,double Max,bool bRoundUp);
     LOCKDOWN_API FResourceView ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp);
 
+    // Empty when the matching living owner projection is unavailable; never estimate from HP/MP deltas.
+    LOCKDOWN_API FString RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Combat,bool bHealth);
+
     struct FLevelView
     {
         FString Level;
@@ -162,7 +165,7 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. 胆量 30; empty without one
+        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. "<LDTerms::Mana> 30"; empty without one
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty

@@ -81,7 +81,7 @@
       "pack_path": "Audio/threeTone2.ogg",
       "sha256": "124198c80ff2e1826230be606aa3dcdd90262272bb545f621a9eb91dccfd5c9d",
       "duration_sec": 0.866,
-      "purpose": "升旗台开放",
+      "purpose": "占领点开放",
       "loudness_lufs": -11.59,
       "volume": 0.855
     },
@@ -103,7 +103,7 @@
       "pack_path": "Audio/twoTone2.ogg",
       "sha256": "e8e4a2d9faa4344f4722de9ef81103290858bbcd80f1dc686879128cae52e9f0",
       "duration_sec": 0.731,
-      "purpose": "升旗台争夺",
+      "purpose": "占领点争夺",
       "loudness_lufs": -12.95,
       "volume": 1.0
     },
@@ -202,7 +202,7 @@
       "pack_path": "Audio/phaserDown3.ogg",
       "sha256": "19fd2f5bb8448e022381f1a72c36117d4adcb521ebeb697e888bfaf7945cfa56",
       "duration_sec": 0.496,
-      "purpose": "本人社死",
+      "purpose": "本人死亡",
       "loudness_lufs": -12.52,
       "volume": 0.952
     },
@@ -235,7 +235,7 @@
       "pack_path": "Audio/impactGeneric_light_000.ogg",
       "sha256": "f0e982611e97512fee5f777986b67e8b435434b601f94992ec044f7e89fb5acb",
       "duration_sec": 0.139,
-      "purpose": "本人淡定（护盾）完全吸收伤害：复用受击音，低 6 dB",
+      "purpose": "本人护盾完全吸收伤害：复用受击音，低 6 dB",
       "loudness_lufs": -23.01,
       "level_db": -6.0,
       "volume": 0.55

@@ -1,5 +1,6 @@
 #include "UI/LDShopPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
@@ -46,8 +47,8 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         auto MakeText=[this](const FString& Caption,int32 FontSize){return LDWidgets::Text(WidgetTree,Caption,FontSize);};
         auto* Layout=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* HeadRow=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(HeadRow);
-        HeadRow->AddChildToHorizontalBox(MakeText(TEXT("小卖部"),20))->SetVerticalAlignment(VAlign_Center);
-        GoldLine=MakeText(TEXT("零花钱 同步中"),16);
+        HeadRow->AddChildToHorizontalBox(MakeText(LDTerms::Shop,20))->SetVerticalAlignment(VAlign_Center);
+        GoldLine=MakeText(FString(LDTerms::Gold)+TEXT(" 同步中"),16);
         UHorizontalBoxSlot* GoldCell=HeadRow->AddChildToHorizontalBox(GoldLine);
         GoldCell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));GoldCell->SetPadding(FMargin(16,0));GoldCell->SetVerticalAlignment(VAlign_Center);
         HeadRow->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("ShopClose")));
@@ -103,7 +104,7 @@ void ULDShopPanel::OpenPanel()
 {
     if(bOpen){return;}
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    if(!PendingRequest){ShopPanelText(Feedback,TEXT("点选商品查看说明，再点购买；卖出需要确认。对局不会暂停，小卖部也不是安全区"));}
+    if(!PendingRequest){ShopPanelText(Feedback,FString(TEXT("点选商品查看说明，再点购买；卖出需要确认。对局不会暂停，"))+LDTerms::Shop+TEXT("也不是安全区"));}
     RefreshShop();
 }
 bool ULDShopPanel::ClosePanel()
@@ -127,12 +128,12 @@ void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* Equip
     if(bOpen)
     {
         // Death and the end of the session, life or match close the shop; taking damage never does.
-        const TCHAR* CloseReason=nullptr;
+        FString CloseReason;
         if(bPresented&&Match!=LatestMatch){CloseReason=TEXT("对局已变化");}
         else if(bPresented&&Life!=LatestLife){CloseReason=TEXT("生命已变化");}
-        else if(Phase!=ELDLifePhase::Alive){CloseReason=Phase==ELDLifePhase::Dead?TEXT("社死中不能交易"):TEXT("当前状态不能交易");}
+        else if(Phase!=ELDLifePhase::Alive){CloseReason=Phase==ELDLifePhase::Dead?FString(LDTerms::Dead)+TEXT("，不能交易"):FString(TEXT("当前状态不能交易"));}
         else if(bLatestView&&!View){CloseReason=TEXT("会话已结束");}
-        if(CloseReason){ClosePanel();NotifyPlayer(FString(TEXT("小卖部已关闭："))+CloseReason);}
+        if(!CloseReason.IsEmpty()){ClosePanel();NotifyPlayer(FString(LDTerms::Shop)+TEXT("已关闭：")+CloseReason);}
     }
     if(bPresented&&Match!=LatestMatch&&PendingRequest)
     {
@@ -178,7 +179,7 @@ FString ULDShopPanel::CommandBlock() const
     if(Latest.Life!=LatestLife){return TEXT("报价不属于当前生命，等待同步");}
     if(!EquipmentKnown()){return TEXT("装备数据同步中，暂时不能交易");}
     if(!bLatestBuildKnown){return TEXT("构筑数据同步中，暂时不能交易");}
-    if(LatestPhase!=ELDLifePhase::Alive){return LatestPhase==ELDLifePhase::Dead?TEXT("社死中不能交易"):TEXT("当前状态不能交易");}
+    if(LatestPhase!=ELDLifePhase::Alive){return LatestPhase==ELDLifePhase::Dead?FString(LDTerms::Dead)+TEXT("，不能交易"):FString(TEXT("当前状态不能交易"));}
     return FString();
 }
 void ULDShopPanel::RefreshShop()
@@ -186,7 +187,7 @@ void ULDShopPanel::RefreshShop()
     if(!MainPanel){return;}
     const bool bEquipKnown=EquipmentKnown();
     const FString Block=CommandBlock();
-    ShopPanelText(GoldLine,bEquipKnown?LDHUD::Gold(LatestEquipment.Gold):FString(TEXT("零花钱 同步中")));
+    ShopPanelText(GoldLine,bEquipKnown?LDHUD::Gold(LatestEquipment.Gold):FString(LDTerms::Gold)+TEXT(" 同步中"));
     for(uint8 SlotIdx=0;SlotIdx<2;++SlotIdx)
     {
         const FLDEquipmentSlotView* EquipSlot=bEquipKnown?ShopPanelEquipSlot(LatestEquipment,SlotIdx):nullptr;
@@ -213,7 +214,7 @@ void ULDShopPanel::RefreshShop()
         ShopPanelText(DetailLines,FString::Join(ShownItem.Lines,TEXT("\n")));
         // Display hints only: Buy stays available and the server's own refusal is what the feedback reports.
         TArray<FString> HintParts;
-        if(bEquipKnown&&!ShownItem.bAffordable){HintParts.Add(TEXT("零花钱不足"));}
+        if(bEquipKnown&&!ShownItem.bAffordable){HintParts.Add(LDTerms::NotEnoughGold());}
         if(bEquipKnown&&ShopPanelEquipSlot(LatestEquipment,0)->bOccupied&&ShopPanelEquipSlot(LatestEquipment,1)->bOccupied){HintParts.Add(TEXT("装备槽已满，请先卖出一件"));}
         ShopPanelText(DetailHint,FString::Join(HintParts,TEXT("；")));
     }
@@ -270,7 +271,7 @@ void ULDShopPanel::Buy()
 }
 bool ULDShopPanel::RequestSell(uint8 SlotIndex)
 {
-    if(!bOpen){ShopPanelText(Feedback,TEXT("小卖部未打开"));return false;}
+    if(!bOpen){ShopPanelText(Feedback,FString(LDTerms::Shop)+TEXT("未打开"));return false;}
     if(bSelling){ShopPanelText(Feedback,TEXT("请先确认或返回当前的卖出确认"));return false;}
     const FString Block=CommandBlock();
     if(!Block.IsEmpty()){ShopPanelText(Feedback,Block);return false;}
@@ -278,7 +279,7 @@ bool ULDShopPanel::RequestSell(uint8 SlotIndex)
     if(!SellEntry){ShopPanelText(Feedback,TEXT("这个装备槽当前没有可卖出的装备"));return false;}
     bSelling=true;SellInstance=SellEntry->Instance;SellItemRevision=SellEntry->ItemRevision;SellQuotePrice=SellEntry->SellPrice;
     SellName=LDHUD::ContentName(LatestContent,SellEntry->DefinitionId.ToString());
-    ShopPanelText(SellPrompt,FString::Printf(TEXT("卖出 %s，获得 %lld 零花钱。卖出不可撤销。"),*SellName,SellQuotePrice));
+    ShopPanelText(SellPrompt,FString::Printf(TEXT("卖出 %s，获得 %lld %s。卖出不可撤销。"),*SellName,SellQuotePrice,LDTerms::Gold));
     if(SellPanel){SellPanel->SetVisibility(ESlateVisibility::Visible);}
     ShopPanelText(Feedback,TEXT("请确认是否卖出"));
     RefreshShop();return true;
@@ -315,7 +316,7 @@ bool ULDShopPanel::Send(const FLDShopCommand& Command,FString ItemName)
     if(!SubmitShopCommand)
     {
         UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_SUBMIT_UNAVAILABLE The growth shop entry is not connected to this panel."));
-        ShopPanelText(Feedback,TEXT("小卖部入口不可用，本次没有提交"));return false;
+        ShopPanelText(Feedback,FString(LDTerms::Shop)+TEXT("入口不可用，本次没有提交"));return false;
     }
     if(!PeekRequestId){UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_PEEK_UNAVAILABLE The growth request-id peek is not connected; a Listen Host answer inside the submit call cannot be matched."));}
     // A Listen Host answers inside the submit call: the request and its terms are recorded under the announced id first,
@@ -396,11 +397,11 @@ FString ULDShopPanel::AppliedNotice(const FLDShopReceipt& Receipt) const
     {UE_LOG(LogTemp,Warning,TEXT("LD_SHOP_PANEL_GOLD_DELTA_DIFFERS Request %llu moved %lld gold for a quoted price of %lld."),PendingRequest,GoldMoved,PendingPrice);}
     if(DoneKind==ELDShopCommandKind::Buy)
     {
-        FString Summary=FString::Printf(TEXT("已买入 %s，花费 %lld 零花钱"),*ItemName,GoldMoved);
+        FString Summary=FString::Printf(TEXT("已买入 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);
         if(Receipt.bHasSource&&bLatestClock&&Receipt.ReadyAtMs>LatestNowMs){Summary+=TEXT("，继承冷却 ")+LDHUD::TenthsUp(Receipt.ReadyAtMs-LatestNowMs);}
         return Summary;
     }
-    if(DoneKind==ELDShopCommandKind::Sell){return FString::Printf(TEXT("已卖出 %s，获得 %lld 零花钱"),*ItemName,Receipt.ActualGoldDelta);}
+    if(DoneKind==ELDShopCommandKind::Sell){return FString::Printf(TEXT("已卖出 %s，获得 %lld %s"),*ItemName,Receipt.ActualGoldDelta,LDTerms::Gold);}
     UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_RECEIPT_KIND_INVALID Request %llu was applied with shop kind %d."),PendingRequest,int32(Receipt.Kind));
     return TEXT("交易已成交，请以当前状态为准");
 }

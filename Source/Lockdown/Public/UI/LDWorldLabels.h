@@ -10,8 +10,8 @@ class FLDDemoContentSnapshot;
 namespace LDHUD{struct FActionContext;struct FActionView;}
 
 // Overhead labels of currently visible units (APP_SPEC 8). A contender reads its public roster name and a camp member
-// its approved display name. Under the name sits a compact 面子 bar (a contender's level badge, in its identity tint,
-// left of it) and above the name the unit's public statuses as text, so no state relies on colour alone: 淡定 is named
+// its approved display name. Under the name sits a compact health bar (a contender's level badge, in its identity tint,
+// left of it) and above the name the unit's public statuses as text, so no state relies on colour alone: the shield is named
 // there as well as marked on the bar.
 namespace LDWorldLabels
 {
@@ -32,7 +32,7 @@ namespace LDWorldLabels
         uint8 Level=0;         // contender level; 0 for camp members, which have none
         bool bHealth=false;    // false without a known maximum or with a malformed current: no bar, never an empty one
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1
-        bool bShield=false;    // the unit has the public 淡定 status; its amount is not part of the label
+        bool bShield=false;    // the unit has the public shield status; its amount is not part of the label
     };
     // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never mana, equipment,
     // skills, cooldowns or gold. A remaining time counts from the frame's own authority sample and rounds up to a
@@ -46,8 +46,8 @@ namespace LDWorldLabels
         bool bMana=false;
     };
     // Bars over the local owner's own body, from this controller's own combat projection only and behind the HUD band's
-    // gate: the current public match, this life, alive, with a body and a known 面子 maximum. 淡定 continues after the
-    // 面子 fill and, when both exceed the bar, the two share it in proportion; 胆量 is omitted without a known maximum.
+    // gate: the current public match, this life, alive, with a body and a known health maximum. The shield continues after the
+    // health fill and, when both exceed the bar, the two share it in proportion; mana is omitted without a known maximum.
     // The widget also requires the owner's pawn, which anchors the bars.
     LOCKDOWN_API FOwnBars OwnBars(const FLDOwnerState& Own,uint32 PublicGeneration,const FLDCombatOwnerView& Combat);
 
@@ -55,7 +55,7 @@ namespace LDWorldLabels
     enum class EReadinessPip : uint8 { Hidden, Ready, Cooling, NoMana, Controlled };
     // Classifies the HUD band's action view of one own entry (LDHUD::Action) by its execution limits and cooldown, so a
     // pip never re-derives a rule. An empty slot or one without an active draws nothing, nor does an action state that
-    // is not current (unsynced, dead, not playing); then cooling, controlled and short of 胆量 in the band's state
+    // is not current (unsynced, dead, not playing); then cooling, controlled and short of mana in the band's state
     // order. Any other limit, such as a published server reason, is not ready and reads as cooling.
     LOCKDOWN_API EReadinessPip ReadinessPip(const LDHUD::FActionView& View);
     // Pip of own entry Index (0..3 = Q, W, 1, 2), with the action view built like the HUD band's slot: LDHUD::ActionInput

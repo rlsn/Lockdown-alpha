@@ -125,6 +125,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> ManaText;
+    UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
+    UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     UPROPERTY() TObjectPtr<UTextBlock> LevelText;
     UPROPERTY() TObjectPtr<UTextBlock> GoldText;
@@ -158,7 +160,7 @@ private:
     uint32 AutoChoicesMatch=0;
     uint32 AutoChoicesPending=0;
     double AutoChoicesSince=-1;
-    // Own-body hits (the same 面子 and 淡定 losses the world feedback floats), which fold the three-choice panel.
+    // Own-body hits (the same health and shield losses the world feedback floats), which fold the three-choice panel.
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);
     void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
