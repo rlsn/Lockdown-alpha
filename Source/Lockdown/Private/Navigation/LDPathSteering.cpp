@@ -4,6 +4,7 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "NavigationSystem.h"
+#include "NavigationPath.h"
 #include "NavigationData.h"
 #include "Engine/World.h"
 
@@ -95,7 +96,8 @@ namespace LDPathSteering
     }
 
     bool ProjectGroundGoal(const ULDMapRegistry& Registry, const FLDLegalGround& From, const FVector& Clicked, FName SurfaceId,
-        const FCollisionShape& Capsule, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error)
+        const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& Out,
+        ELDWorldQueryFailure& Failure, FString& Error)
     {
         UWorld* World=Registry.GetWorld();
         auto* Nav=World?FNavigationSystem::GetCurrent<UNavigationSystemV1>(World):nullptr;
@@ -120,18 +122,54 @@ namespace LDPathSteering
             Error=TEXT("Unreachable: no navmesh point near the clicked destination.");
             return false;
         }
-        // Recast erodes conservatively; if the nearest edge point still touches geometry, step further into the mesh
-        // (away from the clicked point) and re-project so the goal stays exactly on the mesh.
-        const FVector Inward=(OnMesh.Location-Flat).GetSafeNormal2D();
-        for (const double Step : { 0., 2., 5., 10. })
+
+        FPathFindingQuery ReachableQuery(&Registry,*Data,From.SurfaceCm,OnMesh.Location);
+        ReachableQuery.SetAllowPartialPaths(true);
+        const FPathFindingResult Reachable=Nav->FindPathSync(Data->GetConfig(),ReachableQuery);
+        if ((!Reachable.IsSuccessful() && !Reachable.IsPartial()) || !Reachable.Path.IsValid()
+            || Reachable.Path->GetPathPoints().IsEmpty())
         {
-            if (Step>0 && Inward.IsNearlyZero()) { break; }
-            FNavLocation Candidate=OnMesh;
-            if (Step>0 && !Nav->ProjectPointToNavigation(FVector(OnMesh.Location.X,OnMesh.Location.Y,From.FootCm.Z)+Inward*Step,
-                Candidate,FVector(1.,1.,Capsule.GetCapsuleHalfHeight()),Data)) { continue; }
-            if (Registry.QueryGround(Registry.Revision(),FVector(Candidate.Location.X,Candidate.Location.Y,From.FootCm.Z),
-                Capsule,SurfaceId,Out,Failure,Error)) { return true; }
+            Failure=ELDWorldQueryFailure::Unreachable;
+            Error=TEXT("Unreachable: no reachable route to a navmesh destination.");
+            return false;
         }
+
+        TArray<FVector> Candidates;
+        if (Reachable.Path->IsPartial())
+        {
+            for (const FNavPathPoint& Point : Reachable.Path->GetPathPoints()) { Candidates.Add(Point.Location); }
+            Candidates.Sort([&Flat](const FVector& A, const FVector& B)
+            {
+                return FVector::DistSquared2D(A,Flat)<FVector::DistSquared2D(B,Flat);
+            });
+        }
+        else { Candidates.Add(OnMesh.Location); }
+
+        // A partial path is confined to the start's connected navmesh. Try its closest points to the click first;
+        // each candidate must still pass the same legal-ground and complete-route checks as an ordinary destination.
+        for (const FVector& Base : Candidates)
+        {
+            const FVector Inward=(Base-Flat).GetSafeNormal2D();
+            for (const double Step : { 0., 2., 5., 10. })
+            {
+                if (Step>0 && Inward.IsNearlyZero()) { break; }
+                FNavLocation Candidate;
+                if (Step==0) { Candidate.Location=Base; }
+                else if (!Nav->ProjectPointToNavigation(
+                    FVector(Base.X,Base.Y,From.FootCm.Z)+Inward*Step,Candidate,
+                    FVector(1.,1.,Capsule.GetCapsuleHalfHeight()),Data)) { continue; }
+                if (!Registry.QueryGround(Registry.Revision(),FVector(Candidate.Location.X,Candidate.Location.Y,From.FootCm.Z),
+                    Capsule,SurfaceId,Out,Failure,Error)) { continue; }
+                FLDCompletePath CandidatePath;
+                if (!Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,CandidatePath,Failure,Error)) { continue; }
+                OutPath=MoveTemp(CandidatePath);
+                Failure=ELDWorldQueryFailure::None;
+                Error.Reset();
+                return true;
+            }
+        }
+        Failure=ELDWorldQueryFailure::Unreachable;
+        Error=TEXT("Unreachable: no legal navmesh destination has a complete route from the current body.");
         return false;
     }
 
@@ -155,8 +193,7 @@ namespace LDPathSteering
         }
         if (!ProjectableGoalFailure(Failure)) { return false; }
         const FString Strict=Error;
-        if (!ProjectGroundGoal(Registry,From,Goal,SurfaceId,Capsule,GoalGround,Failure,Error)
-            || !Registry.QueryCompletePath(Registry.Revision(),From,GoalGround,Capsule,OutPath,Failure,Error))
+        if (!ProjectGroundGoal(Registry,From,Goal,SurfaceId,Capsule,OutPath,GoalGround,Failure,Error))
         {
             Error=TEXT("Destination projection failed (")+Error+TEXT("); clicked point: ")+Strict;
             return false;

@@ -60,6 +60,9 @@ bool FLDModelPickingTest::RunTest(const FString& Parameters)
         LDModelPicking::NearVolume(Eye,FVector(2000,0,200),1e6,Foot,Top,50.,Px,Angle,Along));
     TestFalse(TEXT("A sight blocker before the volume stops the lenient pick"),
         LDModelPicking::NearVolume(Eye,FVector(1,0,0),1500.,Foot,Top,50.,Px,Angle,Along));
+    TestFalse(TEXT("A volume just behind a sight blocker cannot pass the angular tolerance"),
+        LDModelPicking::NearVolume(Eye,FVector(1,0,0),1940.,Foot,Top,50.,
+            FMath::DegreesToRadians(.5),Angle,Along));
     TestFalse(TEXT("A volume behind the ray start is not selected"),
         LDModelPicking::NearVolume(FVector(2000,0,90),FVector(1,0,0),1e6,Foot,Top,50.,Px,Angle,Along));
     TestFalse(TEXT("A degenerate ray or tolerance selects nothing"),

@@ -673,7 +673,9 @@ bool ALDWorldViewRelay::PickPresentedUnit(const FVector& RayStart, const FVector
     const auto* Viewer=Cast<ALDPlayerController>(GetOwner());
     const auto* OwnBody=Viewer ? Cast<ALDCharacter>(Viewer->GetPawn()) : nullptr;
     double OwnFraction=1.;
-    if (OwnBody && OwnBody->Body->TracePresentedModel(RayStart,End,OwnFraction))
+    const bool bOwnModelHit = OwnBody && OwnBody->Body->TracePresentedModel(RayStart,End,OwnFraction);
+    const bool bOwnModelFirst = bOwnModelHit && OwnFraction <= Closest;
+    if (bOwnModelHit)
     { Closest=FMath::Min(Closest,OwnFraction); }
     for (const FLDObservedUnitView& Unit : Read.Frame->Units)
     {
@@ -689,6 +691,7 @@ bool ALDWorldViewRelay::PickPresentedUnit(const FVector& RayStart, const FVector
         }
     }
     if (OutHandle.IsValid()) { return true; }
+    if (bOwnModelFirst) { return false; }
     // No model surface under the pointer: the nearest pick volume around it on screen, never through a sight blocker.
     const double Reach = (End - RayStart).Size() * (Obstruction.bBlockingHit ? Obstruction.Time : 1.);
     double Best = TNumericLimits<double>::Max();

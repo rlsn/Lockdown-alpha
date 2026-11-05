@@ -34,8 +34,9 @@ namespace LDPathSteering
     // Complete route from a body's validated ground to Goal on SurfaceId. The start always goes through PlanStart. A body
     // goal goes through PlanStart too. A ground goal is planned exactly as clicked when that is a legal reachable stand;
     // otherwise (a wall, a box top, too close to an obstacle, or a disconnected spot) it is projected at the body's floor
-    // height to the nearest navmesh point and re-validated. Stale/missing world, surface or capsule errors never project,
-    // and a projection that still has no complete route is refused. OutGoal is the planned end.
+    // height toward the nearest reachable navmesh point. A partial path limits candidates to the start's connected
+    // navmesh; candidates must pass legal-ground and complete-route validation. Stale/missing world, surface or capsule
+    // errors never project, and projection is refused only when no legal reachable candidate exists. OutGoal is the planned end.
     LOCKDOWN_API bool PlanRoute(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FVector& Goal,
         FName SurfaceId, EGoal GoalKind, const FCollisionShape& Capsule, FLDCompletePath& OutPath, FLDLegalGround& OutGoal,
         ELDWorldQueryFailure& Failure, FString& Error);

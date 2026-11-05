@@ -7,11 +7,12 @@ bool LDModelPicking::NearVolume(const FVector& Start, const FVector& Direction, 
     OutDistance = 0.;
     const FVector Ray = Direction.GetSafeNormal();
     if (Start.ContainsNaN() || Ray.IsNearlyZero() || Foot.ContainsNaN() || Top.ContainsNaN() || !FMath::IsFinite(RadiusCm)
-        || RadiusCm < 0 || !(AngleTolerance >= 0) || !(MaxDistance > 0)) { return false; }
+        || RadiusCm < 0 || !(AngleTolerance >= 0) || !FMath::IsFinite(MaxDistance) || !(MaxDistance > 0)) { return false; }
+    const double SearchDistance = FMath::Max(MaxDistance, FMath::Max(FVector::Dist(Start, Foot), FVector::Dist(Start, Top)));
     FVector OnRay, OnAxis;
-    FMath::SegmentDistToSegmentSafe(Start, Start + Ray * MaxDistance, Foot, Top, OnRay, OnAxis);
+    FMath::SegmentDistToSegmentSafe(Start, Start + Ray * SearchDistance, Foot, Top, OnRay, OnAxis);
     const double Along = FVector::DotProduct(OnRay - Start, Ray);
-    if (Along <= UE_KINDA_SMALL_NUMBER) { return false; }
+    if (Along <= UE_KINDA_SMALL_NUMBER || Along > MaxDistance) { return false; }
     const double Outside = FMath::Max(0., FVector::Dist(OnRay, OnAxis) - RadiusCm);
     OutAngle = FMath::Atan2(Outside, Along);
     OutDistance = Along;
