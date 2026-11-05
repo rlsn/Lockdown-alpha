@@ -416,8 +416,22 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
         auto* Owner=Controller();
         auto* OwnBody=Owner?Cast<ALDCharacter>(Owner->GetPawn()):nullptr;
         FLDCombatBodyRef SelfRef, TaunterRef;
-        const bool bTaunted=OwnBody && OwnBody->GetController()==Owner && Mode->ReadBodyRef(*OwnBody,SelfRef)
-            && Mode->Combat && Mode->Combat->ReadTaunter(SelfRef,TaunterRef);
+        const bool bOwnBody=OwnBody && OwnBody->GetController()==Owner && Mode->ReadBodyRef(*OwnBody,SelfRef);
+        const bool bTaunted=bOwnBody && Mode->Combat && Mode->Combat->ReadTaunter(SelfRef,TaunterRef);
+        // A knockback that landed since the last pass drops the current move or attack order (#112 §5).
+        if (bOwnBody && Mode->Combat)
+        {
+            const uint64 Knocks=Mode->Combat->ReadKnockbackSerial(SelfRef);
+            const bool bNew=KnockbackBody==SelfRef && Knocks!=SeenKnockbackSerial;
+            KnockbackBody=SelfRef;
+            SeenKnockbackSerial=Knocks;
+            if (bNew && ActiveOrder && !ActiveOrder->bForced) { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::KnockedBack,true); }
+        }
+        // A decoy lure walks the body to the decoy and refuses its own orders until it ends.
+        FVector LurePoint;
+        if (bOwnBody && Mode->Combat && Mode->Combat->ReadDecoyLure(SelfRef,LurePoint))
+        { return AdvanceLure(*Mode,*OwnBody,SelfRef,LurePoint,Permit,Error); }
+        if (ActiveOrder.IsSet() && ActiveOrder->bLure) { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
         const bool bForced=ActiveOrder.IsSet() && ActiveOrder->bForced;
         switch (LDOrderRules::ForcedOrderStep(bTaunted,bForced,bForced && ActiveOrder->ForcedTarget==TaunterRef))
         {
@@ -521,6 +535,38 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
         Order.bForceReplan=true;
     }
     return EngageTarget(Mode,Body,Sample,Permit,Error);
+}
+
+bool ULDNavigationComponent::AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FVector& Point,
+    const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    // Every own order (Stop included) is refused while lured, exactly as while taunted.
+    if (PendingOrder && Mode.GetAuthorityNowMs()>=PendingOrder->NotBeforeMs)
+    {
+        const FPendingOrder Refused=MoveTemp(PendingOrder.GetValue());
+        PendingOrder.Reset();
+        Reply(Refused.Request,ELDOrderStatus::Rejected,ELDOrderFailure::Taunted,true);
+    }
+    if (ActiveOrder && ActiveOrder->bLure && ActiveOrder->Body==Self && ActiveOrder->LurePoint.Equals(Point,1.)) { return true; }
+    if (ActiveOrder) { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true); }
+    if (ForcedSerial==MAX_uint32) { UE_LOG(LogTemp,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED")); return true; }
+    FActiveOrder Lure;
+    Lure.Request.Identity={Mode.GetMatchContext().Generation,Self.Victim.Life,0,++ForcedSerial};
+    Lure.Request.Kind=ELDSpatialOrderKind::MoveGround;
+    Lure.Request.GroundCm=Point;
+    Lure.Request.SurfaceHint=GroundSurfaceHint();
+    Lure.Match=Mode.GetMatchContext();
+    Lure.Body=Self;
+    Lure.bForced=true;
+    Lure.bLure=true;
+    Lure.LurePoint=Point;
+    Lure.LastHeartbeat=Lure.LastProgress=Mode.GetAuthorityNowSeconds();
+    ELDOrderFailure Failure=ELDOrderFailure::None;
+    // A decoy the body cannot path to holds it in place for the lure (no fallback order).
+    if (!AdmitOrder(Mode,Body,Permit,Lure,Failure,Error)) { return Error.IsEmpty(); }
+    ActiveOrder=MoveTemp(Lure);
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_DECOY_LURE life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
+    return true;
 }
 
 bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit, FString& Error)

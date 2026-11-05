@@ -191,8 +191,18 @@ namespace LDTactical
         {
             return Fail(EError::Overflow, TEXT("DamageP2"), MathError);
         }
+        if (Input.MitigateBp < 0 || Input.MitigateBp > 10000)
+        {
+            return Fail(EError::Domain, TEXT("MitigateBp"), TEXT("A damage reduction must lie within 0..100%"));
+        }
         // Protection cannot hide missing input, an invalid domain or arithmetic overflow.
         if (Input.bTargetProtected.GetValue()) { Value.DamageP2 = 0; }
+        Value.PreMitigationP2 = Value.DamageP2;
+        if (Input.MitigateBp > 0)
+        {
+            const int64 Keep = 10000 - Input.MitigateBp;
+            Value.DamageP2 = Value.DamageP2 / 10000 * Keep + Value.DamageP2 % 10000 * Keep / 10000;
+        }
         Value.ShieldAbsorbedP2 = FMath::Min(Value.DamageP2, Input.TargetShieldP2.GetValue());
         const int64 AfterShieldP2 = Value.DamageP2 - Value.ShieldAbsorbedP2;
         Value.HPLostP2 = FMath::Min(AfterShieldP2, Input.TargetHPP2.GetValue());

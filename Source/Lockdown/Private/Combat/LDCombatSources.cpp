@@ -493,6 +493,15 @@ int64 LDCombatSourceRules::ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 Amo
     return AmountMs>=ReadyAtMs-NowMs ? NowMs : ReadyAtMs-AmountMs;
 }
 
+bool LDCombatSourceRules::DisplacesCaster(const FLDDemoRankDefinition& Rank)
+{
+    return Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+    {
+        const ELDDemoEffectOp Op=Effect.GetOp();
+        return Op==ELDDemoEffectOp::Dash || Op==ELDDemoEffectOp::Jump || Op==ELDDemoEffectOp::LeapBack;
+    });
+}
+
 bool LDCombatSourceRules::SkillDisplacementBoost(const FLDDemoContentSnapshot& Content,
     const TArray<FLDEquipmentPassiveFamily>& Passives, int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error)
 {
@@ -1182,6 +1191,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             { Temporary.Add({uint8(ELDDemoStatusId::Enraged),1,0}); }
             if (AmbushReadyNow(*Body,NowMs))
             { Temporary.Add({uint8(ELDDemoStatusId::AmbushReady),1,0}); }
+            AppendMechanicsStatuses(*Body,NowMs,true,Temporary);
             for (const FLDObservedStatus& Status : Temporary)
             {
                 FLDCombatStatusView& View=Out.Statuses.AddDefaulted_GetRef();
@@ -1210,7 +1220,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
             Out.Cues=CueFactsOf(*Body);
-            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move);
+            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move)
+                || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;
             const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
                 Parameters.OutOfCombatMaxHPRegenBp,Parameters.OutOfCombatMaxMPRegenBp};
@@ -1252,6 +1263,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
         RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
+        RowView.Penalty=Row.Penalties.Flat;
+        RowView.PenaltyPercent=Row.Penalties.AdditiveRatio;
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
         if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus)
@@ -1369,6 +1382,13 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Stuns.Reset();
     Body->Empower.Reset();
     Body->Shield.Reset();
+    // #112 records end with the reset too (the knockback window, breaches, damage over time, heal cuts).
+    Body->Knockbacks.Reset();
+    Body->Breaches.Reset();
+    Body->Dots.Reset();
+    Body->HealCuts.Reset();
+    Body->Vulnerabilities.Reset();
+    Body->Guard.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;
     Body->Resources.MaxHpP2=Prepared.MaxHPP2;

@@ -30,6 +30,8 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Exposed:
     case ELDDemoStatusId::Disarm:
     case ELDDemoStatusId::Stun:
+    case ELDDemoStatusId::Knockback:
+    case ELDDemoStatusId::HealCut:
         return true;
     default:
         return false;
@@ -51,6 +53,12 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemSlingshot:
     case ELDDemoEquipmentId::ItemPaperBox:
     case ELDDemoEquipmentId::ItemNailUniform:
+    case ELDDemoEquipmentId::ItemMegaphone:
+    case ELDDemoEquipmentId::ItemDossier:
+    case ELDDemoEquipmentId::ItemPrivacyScreen:
+    case ELDDemoEquipmentId::ItemSkateboard:
+    case ELDDemoEquipmentId::ItemDecoyWig:
+    case ELDDemoEquipmentId::ItemEnergyDrink:
         return true;
     default:
         return false;

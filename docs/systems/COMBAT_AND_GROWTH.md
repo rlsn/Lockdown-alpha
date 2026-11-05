@@ -76,9 +76,10 @@ driver 立即以同刻结算边界（`BeginSettlementStep`：新 BatchSerial、�
 先结清奖励再锁定原完成时刻的胜者；只有故障关闭写闸时奖励才记录为未支付（`LD_REWARD_UNPAID_AT_FAULT`）。
 Transactions 每步调用一次 `ProcessTransactions`。
 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向喷漆与守护归约器提交资格事实并通知提供者。
-控制在命中提交时通知喷漆区：`ApplyHit` 每提交一次定身或眩晕、`ApplyTauntEffect` 每嘲讽一名参赛者，
+控制在提交时通知喷漆区：唯一控制入口 `CommitControl` 每实际提交一次定身、眩晕、嘲讽（含假发片诱饵）或击退，
 都在同一 Actions/Effects 许可内调用 `InterruptSpray(Target)`，再经 `ALDGameMode::PublishCaptureInterrupt` 清零该参赛者的喷漆进度
-（事实时刻为该边界 AtMs；营地身体或没有活动归约器的世界不受影响）。击退加入后走同一入口；缴械、减速和伤害从不调用它。
+（事实时刻为该边界 AtMs；营地身体或没有活动归约器的世界不受影响）；缴械、减速和伤害从不调用它。
+被击退出喷漆区由随后的原生运动作为普通离区事实进入归约器。端到端规则见 `Lockdown.Rules.DemoCapture.CombatHitInterrupt`。
 原生 CMC 每身体每步只执行一次；Owner 显示时钟只复制完成步，视野在本次 driver 推进完成后采当前姿态并发布。
 `PublishAuthority` 失败返回同一 driver，由 Core 进入 Fault，而不是保留一局失去视野服务的正常比赛。
 营地成员在同一分派中接入：Motion 调 `AdvanceMemberMotion`；Actions 结算回复后先调 `ProcessAuthorityIntents`，
@@ -172,9 +173,10 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 - **唯一控制路径** `ALDCombatDirector::CommitControl(Victim, FLDControlApplication, NowMs, bApplied, Error)`：
   `ELDControlKind { Root, Stun, Disarm, Taunt, Knockback, Slow }`。硬控（定身、眩晕、缴械、嘲讽）先经
   `LDCombatControl::DiminishHardControl`（`FLDHardControlChain`：100%/60%/30%，最短 min(200ms, 原持续)，
-  窗口为最晚硬控结束后 2 秒）；只有实际落地的控制才推进计数与修订。嘲讽只作用于参赛者。击退由其所有者在本函数内提交。
+  窗口为最晚硬控结束后 2 秒）；只有实际落地的控制才推进计数与修订。嘲讽只作用于参赛者。击退（不递减）在本函数内提交其禁动窗口
+  （`Knockbacks`），放弃未出手的动作并递增 `KnockbackSerial`；位移本身由 `ApplyKnockback` 在提交成功后启动（见下节）。
   每次实际提交的定身、眩晕、嘲讽、击退在此调用喷漆打断，每次实际提交的控制与减速在此记录助攻贡献。
-  `IsImpaired(Body, Now)` 判断任何控制或减速（已截图、掏蛋子 3 级使用）。
+  `IsImpaired(Body, Now)` 判断任何控制（含击退）或减速（已截图、掏蛋子 3 级使用）。
 - **命中特效**：`FLDCombatHit::OnHitScaleBp` 是该命中的特效系数（普攻主击 10000，技能按定义，附加伤害/反伤/副击为 0）；
   `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在释放时快照吸血、横扫等来源，`ApplyHit` 内 `ApplyOnHitEffects` 按系数提交。
   `bAddedDamage` 的命中不暴击、不触发命中特效；`MakeAmbushHit` 是附加伤害命中的唯一构造。
@@ -185,12 +187,45 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 - **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
   `ReduceLearnedCooldown`，都经纯函数 `LDCombatSourceRules::ReduceReadyAt`（不早于当前时刻；`MAX_int64` 表示立即就绪；
   已就绪轨道不变）。
-- **位移强化**：`LDCombatSourceRules::SkillDisplacementBoost` 在释放时给出带冲刺/跳跃条目的基础冷却比例（整活频率之前）与距离加成；
+- **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺、跳跃、假发片后跳）；
+  `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（整活频率之前）与距离加成，后跳距离同样按加成延长；
   `CastRangeCm` 统一给出技能施法距离（天外飞瓶的普攻距离加成、网线够长 3 级的 +80cm）。
 - **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动与装备被动（同名家族一次）的唯一读取口；
   装备效果后续经 `LDDemoEquipment::Effective*` 取当前生效定义。
 - 其余 3 级状态：`Momentum`（秦王绕柱）、`Retaliation`（你瞅啥）、`DashSweeps`（一个滑铲路径减速）、`BasicHitRefund`（无影大比兜）、
   `RegenSurgeUntilMs`（发疯文学）、`LowHPShieldReadyAtMs`（他急了），均在 `NextDueMs` 中登记截止时刻。
+
+
+### #112 新机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
+
+纯规则在 `Combat\LDCombatMechanics`（减疗减盾、护盾事件、击退方向、负面状态计数、周期脉冲、区域判定、掀桌伤害、碰瓷触发），
+Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与数值见内容报告 §15.11。
+
+- **击退**：`ApplyKnockback(Target, Body, Hit, Now, bApplied, Error)` 先经 `CommitControl(Knockback)` 提交窗口，再用与冲刺相同的
+  `ULDCharacterMovementComponent::StartDemoDash` 沿地面推开（遇阻停在最远合法点）；方向由 `KnockbackDirection` 从施放点（命中的
+  `KnockbackAnchorCm` 或来源脚点）指向目标脚点。窗口内 `IsActionBlocked` 拒绝移动、位移、普攻、技能与装备主动；Navigation 看到
+  `ReadKnockbackSerial` 变化即放弃当前订单（`ELDOrderFailure::KnockedBack`，AI 视为 Dropped）。公开状态 `knockback`。
+- **护盾入口**：所有心理防线（技能、装备主动、触发护盾 `GrantShield`、区域、反震）只经 `GrantShieldTo`：先按身体最强减疗减盾缩减，
+  再 `ReplaceIfNotWeaker`；`LDCombatMechanics::GrantShield` 区分 Gained 与 Refreshed（替换仍有剩余量的记录才算刷新）。刷新与被伤害打空
+  （`ShieldBroken`）触发 `PulseShieldEvent`（精神胜利法）；打空另触发防窥膜反击 `OnShieldBroken`。`bFromShieldTrigger` 的命中
+  （脉冲、反击）所带控制不再触发社交牛逼症。`ShieldGrantedP2` 记录当前记录的获得量。
+- **治疗入口**：一次性治疗（吸血/全能吸血/吸血标记、实锤冲塔 3 级）经 `HealBody` 按最强减疗缩减；自然与脱战回复不经过它。
+  减疗记录 `FLDCombatHealCut` 每来源一份，取最强（`StrongestHealCutBp`），公开状态 `heal_cut`。
+- **持续伤害**：`FLDCombatDot`（挂人小作文为定次，开盒大师为叠层共用计时），`AdvanceMechanics` 在 Effects 命中前按到期点生成
+  `bPeriodic` 命中（不暴击、受扒裤子 3 级易伤影响、伤害吃施放时快照的大喇叭倍率）；双抗削减写入 C1 的 `FLDCombatBreach`，
+  每层一次 `LDTactical::ApplyBreach`（`Stacks=1`、`MaxStacks` 为层数上限）。开盒大师由 `StackDox` 叠层：系数命中经
+  `ApplyOnHitEffects`、伤害技能命中经 `OnHitLanded`。
+- **区域**：`FLDCombatZone` 按 `NextPulseAtMs` 的定次脉冲（自身护盾、区域伤害并以系数快照命中特效 `SnapshotOnHit`），减速每
+  `IntervalMs` 判定一次并保留 linger，结束时可定身区域内敌人；`InsideZone` 含边界。
+- **连射、诱饵、后跳、冷却刷新**：`ReleaseMechanics` 在释放时登记后续弹（`FLDCombatVolleyShot`，复用首发弹体载荷）、诱饵
+  （`FLDCombatDecoy`；能看见诱饵处的参赛者经 `CommitControl(Taunt)` 被嘲讽并标记 `bDecoy`，`TauntBlocks` 禁普攻/技能/装备，
+  `ReadDecoyLure` 供 Navigation 强制走向诱饵）、后跳（同一原生位移，计作位移）与红牛（两个都就绪时以 `NoActiveEffect` 拒绝）。
+- **碰瓷**：`FLDCombatGuard` 在求值中设 `MitigateBp`（抗性之后、护盾之前），`PreMitigationP2` 累计到 `GuardTriggers` 越过阈值时
+  反震一次（区域命中 + `GrantShieldTo`）。
+- **负面状态计数**：`NegativeKindsOf` 给出定身、减速、缴械、眩晕、嘲讽、破防（含持续伤害）六种；实锤冲塔按命中前计数放大。
+- **负属性与夹取**：`FLDDemoAttributeDefinition::Penalties` 在 `LDAttributeProjection` 中作为同类扣减项参与相加；所有属性最终统一夹到
+  目录上下限（不再拒绝构筑），内容验证 `BuildEnvelope` 只检查极值下伤害/护盾不溢出。
+- 离局 `CancelEntityEffects` 一并移除其区域、连射、诱饵、击退、持续伤害与减疗；营地回位清空全部。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
@@ -223,7 +258,8 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
 低血线/潜水党窗口与破防/吸血标记的纯规则，`DemoCombatPrimitives.*` 覆盖硬控递减、`CommitControl`、剩余冷却缩减、破防叠加、
 手速减速与解除减速、回复翻倍窗口，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
-`DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+`DemoCombatEvaluation.ControlAmplify/Mitigation` 覆盖增伤结算与碰瓷减伤位置，`DemoMechanics.*` 覆盖减疗减盾、护盾事件、
+击退方向与诱饵禁动、破防叠层、负面状态计数与周期脉冲/区域/碰瓷触发；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、奖励分配、多账户链式账本、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、

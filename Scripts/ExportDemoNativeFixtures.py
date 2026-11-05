@@ -33,6 +33,7 @@ POLICIES = (
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
+    "HPRegenFlat",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
 MECHANIC_TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
@@ -89,9 +90,13 @@ def rational(value=None):
     }
 
 
+# Rational stats keep their exact amount in Cm (range in cm, HP regeneration in hp/s) and leave Amount 0.
+RATIONAL_STATS = frozenset(("AttackRangeCmFlat", "HPRegenFlat"))
+
+
 def stats(values):
-    return [{"Stat": BONUS_STATS.index(key), "Amount": 0 if key == "AttackRangeCmFlat" else scalar(value),
-             "Cm": rational(value if key == "AttackRangeCmFlat" else None)}
+    return [{"Stat": BONUS_STATS.index(key), "Amount": 0 if key in RATIONAL_STATS else scalar(value),
+             "Cm": rational(value if key in RATIONAL_STATS else None)}
             for key, value in sorted(values.items())]
 
 
@@ -122,6 +127,7 @@ def effect(value):
         "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0, "MagicResistRatioBp": 0, "VampRatioBp": 0,
         "MultiplierBp": 0, "Count": 0, "bImpaired": False, "bAmbushReady": False, "SkillCooldownRatioBp": 0,
         "SkillDistanceBonusBp": 0, "AbilityIds": [], "PerCountP2": 0, "CapP2": 0, "CapBp": 0, "MaxHPPerSecBp": 0,
+        "ShredP2": 0, "ThresholdP2": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0, "CooldownCutMs": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
@@ -135,6 +141,12 @@ def effect(value):
         ("magic_resist_ratio", "MagicResistRatioBp"), ("mana", "BaseP2"), ("vamp", "VampRatioBp"),
         ("omnivamp", "VampRatioBp"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
         ("skill_distance_bonus", "SkillDistanceBonusBp"),
+        # #112 handlers.
+        ("shred", "ShredP2"), ("trigger_damage", "ThresholdP2"), ("scale", "RatioBp"),
+        ("shield_ratio", "RatioBp"), ("bonus_ratio", "RatioBp"), ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
+        ("heal_cut", "SecondaryRatioBp"), ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
+        ("linger", "SecondaryDurationMs"), ("taunt_duration", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
+        ("internal_cooldown", "IntervalMs"), ("cooldown_cut", "CooldownCutMs"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -150,6 +162,9 @@ def effect(value):
                          ("half_width", "RadiusCm"), ("cast_range", "DistanceCm")):
         if source in value:
             result[dest] = rational(value[source])
+    for source in ("count", "max_stacks"):
+        if source in value:
+            result["Count"] = value[source]
     if "damage_type" in value:
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
@@ -305,7 +320,8 @@ def expected_projection(compilation):
             "Tags": tags(row["tags"]), "Draftable": row["draftable"], "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
             "CooldownFamily": row.get("cooldown_family", ""), "Ranks": [rank(item) for item in row["ranks"]],
         } for row in data["abilities"]],
-        "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"])} for row in data["attributes"]],
+        "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"]),
+                        "Penalties": stats(row.get("penalties", {}))} for row in data["attributes"]],
         "Equipment": [{
             "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
             "Tags": tags(row["tags"]), "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
@@ -554,7 +570,8 @@ def _export(output, *, rank_mutations):
     bad_content("coefficient_overflow", lambda d: d["abilities"][0]["ranks"][0]["effects"][0]["ap_ratio"].update({"bp": demo.INT64_MAX}), "multiplication overflow")
     bad_content("growth_overflow", lambda d: d["parameters"]["STAT.MaxHP.PerLevel"].update({"p2": demo.INT64_MAX}), "multiplication overflow")
     bad_content("inverted_bounds", lambda d: d["parameters"]["STAT.AD.Min"].update({"p2": d["parameters"]["STAT.AD.Max"]["p2"]}), "outside")
-    bad_content("build_envelope", lambda d: d["attributes"][0]["stats"]["APFlat"].update({"p2": d["parameters"]["STAT.AP.Max"]["p2"]}), "build")
+    # Every attribute clamps to its bounds (#112 §4); a deduction only a wild card may name is refused instead.
+    bad_content("tame_card_penalty", lambda d: d["attributes"][0].update({"penalties": {"MaxHPFlat": {"unit": "hp", "p2": 100}}}), "penalties")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
     bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"active_count": 3}), "opening offer")
     bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
@@ -567,7 +584,7 @@ def _export(output, *, rank_mutations):
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_active", lambda d: d["equipment"][0].update({"active": None}), "presence")
-    bad_content("bad_passive_stat", lambda d: d["abilities"][3]["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_battle_rhythm")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}
     bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")

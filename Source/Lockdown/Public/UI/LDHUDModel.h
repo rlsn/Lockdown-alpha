@@ -211,6 +211,8 @@ namespace LDHUD
     // Typed parameters of approved content (CONTENT 12.5): prose comes from the display table, numbers only from the
     // immutable snapshot fields, formatted here without recomputing any battle formula.
     LOCKDOWN_API FString StatLine(const FLDDemoStatBonus& Stat);
+    // A wild card's explicit deduction, e.g. "移速 -4%".
+    LOCKDOWN_API FString PenaltyLine(const FLDDemoStatBonus& Stat);
     LOCKDOWN_API FString EffectLine(const FLDDemoEffectDefinition& Effect);
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
     // Effect lines of one rank; actives add their mana cost and cooldown.

@@ -34,6 +34,10 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Disarm: return TEXT("disarm");
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");
+    case ELDDemoStatusId::Knockback: return TEXT("knockback");
+    case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
+    case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
+    case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
     default: return nullptr;
     }
 }
@@ -520,6 +524,7 @@ FString HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::MoveSpeedBonusRatio: return LDTerms::MoveSpeed;
     case ELDDemoBonusStat::CritChanceBonusRatio: return LDTerms::CritChance();
     case ELDDemoBonusStat::ADBonusRatio: return LDTerms::AttackDamage;
+    case ELDDemoBonusStat::HPRegenFlat: return LDTerms::HealthRegen();
     default: return FString();
     }
 }
@@ -543,11 +548,20 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     switch(Stat.Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
+    case ELDDemoBonusStat::HPRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
     case ELDDemoBonusStat::ADBonusRatio:
         return Name+TEXT(" +")+HudPercent(Stat.Amount);
     default: return Name+TEXT(" +")+HudPoints(Stat.Amount);
     }
+}
+FString LDHUD::PenaltyLine(const FLDDemoStatBonus& Stat)
+{
+    // A wild card's explicit deduction: the same stat line with the sign turned.
+    FString Line=StatLine(Stat);
+    const int32 Plus=Line.Find(TEXT(" +"));
+    if(Plus!=INDEX_NONE){Line[Plus+1]=TEXT('-');}
+    return Line;
 }
 FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
 {
@@ -721,7 +735,7 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         const FLDAttributeCardView* Owned=Progression.AttributeCards.FindByPredicate([&Option](const FLDAttributeCardView& C){return C.DefinitionId==Option.DefinitionId;});
         Card.RankText=FString::Printf(TEXT("已选 %d 次"),Owned?int32(Owned->Count):0);
         if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
-        {for(const FLDDemoStatBonus& Stat:Definition->Stats){Card.Lines.Add(StatLine(Stat));}}
+        {for(const FLDDemoStatBonus& Stat:Definition->Stats){Card.Lines.Add(StatLine(Stat));}for(const FLDDemoStatBonus& Penalty:Definition->Penalties){Card.Lines.Add(PenaltyLine(Penalty));}}
         return Card;
     }
     Card.RankText=Option.FromRank>0?FString::Printf(TEXT("%d → %d 级"),Option.FromRank,Option.ToRank):FString::Printf(TEXT("%d 级"),Option.ToRank);
@@ -792,6 +806,9 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
         +TEXT(" · 装备 ")+Value(Row.Equipment);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
+    if(Row.Penalty.Denominator>0&&Row.Penalty.Numerator!=0){View.Breakdown+=TEXT(" · 代价 -")+Value(Row.Penalty);}
+    if(Row.PenaltyPercent.Denominator>0&&Row.PenaltyPercent.Numerator!=0)
+    {View.Breakdown+=TEXT(" · 代价百分比 -")+HudDecimal(100.*double(Row.PenaltyPercent.Numerator)/double(Row.PenaltyPercent.Denominator))+TEXT("%");}
     if(Row.Dev.Denominator>0&&Row.Dev.Numerator!=0){View.Breakdown+=TEXT(" · 测试 +")+Value(Row.Dev);}
     if(Row.DevPercent.Denominator>0&&Row.DevPercent.Numerator!=0)
     {View.Breakdown+=TEXT(" · 测试百分比 +")+HudDecimal(100.*double(Row.DevPercent.Numerator)/double(Row.DevPercent.Denominator))+TEXT("%");}

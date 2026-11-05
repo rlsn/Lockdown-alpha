@@ -27,14 +27,33 @@
     "active_lunge": 78,
     "passive_iron_crotch": 79,
     "active_body_slam": 80,
-    "active_come_here": 81
+    "active_come_here": 81,
+    "active_porcelain_flop": 82,
+    "active_expose_post": 83,
+    "active_barrage_rant": 84,
+    "active_cancel_blast": 85,
+    "active_pie_chart": 86,
+    "active_table_flip": 87,
+    "passive_dox_master": 88,
+    "passive_thick_skin": 89,
+    "passive_mental_gymnastics": 90,
+    "passive_keyboard_warrior": 91
   },
   "attributes": {
     "attr_might": 1,
     "attr_focus": 2,
     "attr_vitality": 3,
     "attr_resolve": 4,
-    "attr_reach": 5
+    "attr_reach": 5,
+    "attr_might_hp": 6,
+    "attr_might_haste": 7,
+    "attr_focus_as": 8,
+    "attr_focus_defense": 9,
+    "attr_reach_ms": 10,
+    "attr_roam_hybrid": 11,
+    "attr_wild_glass_cannon": 12,
+    "attr_wild_juggernaut": 13,
+    "attr_wild_brawler": 14
   },
   "equipment": {
     "item_iron_plate": 99,
@@ -46,7 +65,13 @@
     "item_echo_maul": 105,
     "item_slingshot": 106,
     "item_paper_box": 107,
-    "item_nail_uniform": 108
+    "item_nail_uniform": 108,
+    "item_megaphone": 109,
+    "item_dossier": 110,
+    "item_privacy_screen": 111,
+    "item_skateboard": 112,
+    "item_decoy_wig": 113,
+    "item_energy_drink": 114
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -66,7 +91,11 @@
     "stealth": 11,
     "disarm": 12,
     "stun": 13,
-    "empowered": 14
+    "empowered": 14,
+    "knockback": 20,
+    "heal_cut": 22,
+    "damage_guard": 23,
+    "vulnerable": 24
   },
   "effect_ops": {
     "damage": 1,
@@ -106,6 +135,35 @@
     "nth_basic_bonus": 35,
     "mana_on_hit": 36,
     "dispel_slow": 37,
-    "path_slow": 38
+    "path_slow": 38,
+    "knockback": 40,
+    "heal_cut": 41,
+    "dot": 42,
+    "mobility_punish": 43,
+    "volley": 44,
+    "refresh_debuffs": 45,
+    "on_hit": 46,
+    "debuff_amp": 47,
+    "shield_shatter": 48,
+    "debuff_heal": 49,
+    "zone": 50,
+    "zone_shield": 51,
+    "zone_slow": 52,
+    "zone_root": 53,
+    "zone_damage": 54,
+    "damage_guard": 55,
+    "shield_burst": 56,
+    "vulnerable": 57,
+    "decoy": 58,
+    "leap_back": 59,
+    "cooldown_refresh": 60,
+    "breach_stacks": 61,
+    "mobility_shield": 62,
+    "shield_pulse": 63,
+    "basic_rider": 64,
+    "cast_frenzy": 65,
+    "affliction_amp": 66,
+    "shield_break_retort": 67,
+    "hit_haste": 68
   }
 }

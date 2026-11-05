@@ -103,9 +103,12 @@ struct FLDAttributeContributions
     FLDAttributeTerms Equipment;
     // The DEV test layer (FLDAttributeBuildValues::DevBonuses); zero outside a DEV test session.
     FLDAttributeTerms Dev;
+    // Explicit wild-card deductions (positive magnitudes, #112 §4): (Base + Flats - Penalties.Flat) x (1 + Ratios -
+    // Penalties.AdditiveRatio); the final value never drops below the attribute's catalog minimum.
+    FLDAttributeTerms Penalties;
     // Timed self bonuses, active conditional passives and the strongest slow (a negative ratio); zero in a build projection.
     FLDAttributeTerms Temporary;
-    // (Base + every Flat) x (1 + every AdditiveRatio), exact; only attack and move speed clamp.
+    // (Base + every Flat - Penalties) x (1 + every AdditiveRatio - Penalties), exact, clamped to the catalog bounds.
     // With temporary terms, point/basis-point attributes floor to their storage unit and every attribute clamps.
     FLDDemoRational Final;
     bool bClamped = false;

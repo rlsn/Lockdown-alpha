@@ -530,7 +530,8 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
         return Out;
     };
     // One authority step to AtMs whose Effects phase applies Hits through the real combat path.
-    const auto Step = [&](int64 AtMs, const TArray<FLDCombatHit>& Hits)
+    const auto Step = [&](int64 AtMs, const TArray<FLDCombatHit>& Hits, TFunction<bool()> Extra = nullptr,
+        TFunction<bool()> Motion = nullptr)
     {
         const auto Pass = [](const FLDGameplayWritePermit&) { return true; };
         const ELDCommitReject Begin = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, AtMs);
@@ -539,12 +540,13 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
             Error = FString::Printf(TEXT("the step to %lld ms was refused (%u)"), AtMs, uint32(Begin));
             return false;
         }
-        return Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Pass, Error)
+        return Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion,
+                [&](const FLDGameplayWritePermit&) { return !Motion || Motion(); }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Actions, Pass, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Effects, [&](const FLDGameplayWritePermit&)
             {
                 for (const FLDCombatHit& Each : Hits) { if (!Driver->ApplyHit(Each, Error)) { return false; } }
-                return true;
+                return !Extra || Extra();
             }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Capture,
                 [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteCapturePhase(Permit, Error); }, Error)
@@ -578,7 +580,34 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
         Sprayer.AssistContributions.FilterByPredicate(
             [&](const FLDAssistContribution& Each) { return Each.Contributor == Controller; }).Num() == 1);
     const FLDCaptureDevTally::FHolder* Holder = Mode->CaptureReducer.DevTally().Holders.Find(Rival);
+
     TestTrue(TEXT("The tally counts exactly one interruption"), Holder && Holder->Interrupted == 1);
+
+    // A knockback commits through the same control path (its displacement needs the Demo map's movement; a push out of the
+    // zone then reaches the reducer as an ordinary presence change, i.e. leaving the zone).
+    World->Tick(LEVELTICK_TimeOnly, .025f);
+    bool bPushed = false;
+    const auto Push = [&]()
+    {
+        FLDControlApplication App;
+        App.Kind = ELDControlKind::Knockback;
+        App.EffectId = FGuid::NewGuid();
+        App.SourceEntity = App.CreditOwner = Attacker;
+        App.SourceBody = AttackerBody;
+        App.DurationMs = 200;
+        return Driver->CommitControl(Driver->Bodies.FindChecked(RivalActor), App, Mode->GetAuthorityNowMs(), bPushed, Error);
+    };
+    if (!TestTrue(FString::Printf(TEXT("Knockback step: %s"), *Error), Step(40, {}, Push))) { return false; }
+    TestTrue(TEXT("A knockback clears the spray at its instant and never diminishes"), bPushed
+        && Mode->CaptureReducer.GetState() == ELDCircleState::Solo && Mode->CaptureReducer.GetSoloSinceMs() == 40
+        && Mode->CaptureReducer.GetDueAtMs() == 140 && Sprayer.Knockbacks.Num() == 1 && Sprayer.Knockbacks[0].ExpiresAtMs == 240);
+    Holder = Mode->CaptureReducer.DevTally().Holders.Find(Rival);
+    TestTrue(TEXT("The tally counts the second interruption"), Holder && Holder->Interrupted == 2);
+    // Pushed out of the zone: the leave clears the progress like any other exit.
+    const auto Leave = [&]() { return Fact(ELDCaptureEventKind::Presence, RivalBody, .045, ELDCommitPhase::Motion, false); };
+    if (!TestTrue(FString::Printf(TEXT("Leave step: %s"), *Error), Step(50, {}, nullptr, Leave))) { return false; }
+    TestTrue(TEXT("Leaving the zone empties the flagpole and nothing of the spray is kept"),
+        Mode->CaptureReducer.GetState() == ELDCircleState::Empty && !Mode->CaptureReducer.GetOccupier().IsValid());
     return true;
 }
 #endif

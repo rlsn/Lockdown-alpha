@@ -800,6 +800,18 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     PendingHits.Add(Hit);
     if (Action.bAmbush && Body.AttributeProjection.Ambush.IsSet())
     { PendingHits.Add(MakeAmbushHit(Hit,Body.AttributeProjection.Ambush.GetValue())); }
+    // passive_keyboard_warrior: a separate magic hit rides on every swing; it never crits or triggers on-hit effects.
+    FLDCombatSourceRef RiderRef;
+    if (const FLDDemoEffectDefinition* Rider=FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::BasicRider,&RiderRef))
+    {
+        FLDCombatHit Extra=MakeAmbushHit(Hit,FLDAmbushDamageTerm());
+        Extra.Source=RiderRef;
+        Extra.BaseP2=Rider->BaseP2;
+        Extra.ADRatioBp=0;
+        Extra.APRatioBp=Rider->APRatioBp;
+        Extra.DamageType=Rider->DamageType;
+        PendingHits.Add(Extra);
+    }
     // active_lunge Lv3: the empowered basic that lands cuts the arming source's remaining cooldown.
     if (Bonus.IsSet() && Bonus->RefundMs>0) { ReduceLearnedCooldown(Body.Victim.EntityId,Bonus->SourceDefinitionId,Bonus->RefundMs); }
     if (bWasEmpowered)
@@ -907,6 +919,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (!ActiveOf(Source,Rank,Ability,Equipment,TargetPtr,RankDef,WindupMs) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
     const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
+    // The caster's foot before any displacement of this release (areas, zones, decoys and pushes centre here).
+    const FVector ReleaseFoot=FootOf(Actor);
     // The innate dash takes its distance and cooldown from the equipment passives held at this release (D20).
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     FLDInnateDashTerms Innate;
@@ -917,12 +931,20 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     Gate.ReadyAtMs=Track->ReadyAtMs;
     Gate.MpP2=Body.Resources.MpP2;
     Gate.ManaCostP2=bInnate ? Innate.ManaCostP2 : RankDef->ManaCostP2;
-    Gate.bDash=TargetDef.Mode==ELDDemoTargetMode::DirectionDash || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
+    // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
+    Gate.bDash=LDCombatSourceRules::DisplacesCaster(*RankDef);
     Gate.Roots=&Body.Roots;
     Gate.bControlBlocked=IsActionBlocked(Body,LDCA::EntryControl(Action.Entry));
     Gate.bDisplacementBlocked=IsActionBlocked(Body,ELDCombatControlAction::Displacement);
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
+    // item_energy_drink needs a Q or W cooling down; otherwise it is refused before paying.
+    if (LDCA::FindEffect(*RankDef,ELDDemoEffectOp::CooldownRefresh))
+    {
+        const FLDCombatTrack* Q=TrackFor(*Record,ELDCombatEntry::Q);
+        const FLDCombatTrack* W=TrackFor(*Record,ELDCombatEntry::W);
+        if ((!Q || Q->ReadyAtMs<=Now) && (!W || W->ReadyAtMs<=Now)) { Reject=ELDCombatReject::NoActiveEffect; return true; }
+    }
     FLDCombatBodyRef UnitTarget;
     if (TargetDef.Mode==ELDDemoTargetMode::Unit)
     {
@@ -966,7 +988,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* StunEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Stun);
     const FLDDemoEffectDefinition* BackstabEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Backstab);
     const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::SelfArea);
-    const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect;
+    const FLDDemoEffectDefinition* BurstEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::ShieldBurst);
+    // A damage guard holds its slow/stun and shield for its recoil (active_porcelain_flop); nothing hits at release.
+    const bool bGuard=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::DamageGuard)!=nullptr;
+    const bool bHostile=!bGuard && (DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect || BurstEffect
+        || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dot) || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::HealCut)
+        || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Knockback));
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash
         || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
     if (bHostile && bAreaMode && !AreaEffect)
@@ -981,10 +1008,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     { return false; }
     const auto& AmbushTerm=Body.AttributeProjection.Ambush;
     const bool bAmbush=DamageEffect && AmbushReadyNow(Body,Now);
-    // item_phase_anchor: a character or gear active with a dash or jump takes the skill boost held at this release (base
+    // item_phase_anchor: a character or gear active with a dash, jump or backward leap takes the skill boost held at this release (base
     // cooldown x ratio before haste, distance x (1 + bonus)); the innate dash has its own terms.
     int64 SkillCooldownRatioBp=10000, SkillDistanceBonusBp=0;
-    if (!bInnate && (DashEffect || JumpEffect) && !LDCombatSourceRules::SkillDisplacementBoost(*Content,
+    if (!bInnate && LDCombatSourceRules::DisplacesCaster(*RankDef) && !LDCombatSourceRules::SkillDisplacementBoost(*Content,
         Body.AttributeProjection.EquipmentPassives,SkillCooldownRatioBp,SkillDistanceBonusBp,Error))
     { return false; }
     const int64 BaseCooldownMs=bInnate ? 0 : (RankDef->CooldownMs/10000*SkillCooldownRatioBp
@@ -1006,7 +1033,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     bool bDealsDamage=false;
     bool bTimedBonus=false;
     FLDCombatLanding Landing;
-    const FVector ReleaseFoot=FootOf(Actor);
     // Cleanses resolve before the release's other self effects so a shield can see them (active_guard_pulse Lv3).
     bool bCleansed=false;
     if (!JumpEffect)
@@ -1059,6 +1085,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         }
         case ELDDemoEffectOp::Shield:
+            // A guard's shield is its recoil's payload.
+            if (bGuard) { break; }
+            if (!ApplySelfEffect(Body,Effect,EffectId,Now,Error,bCleansed)) { return false; }
+            break;
         case ELDDemoEffectOp::RestoreMana:
             if (!ApplySelfEffect(Body,Effect,EffectId,Now,Error,bCleansed)) { return false; }
             break;
@@ -1072,6 +1102,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             const double Distance=LDCA::ToDouble(bInnate ? Innate.DistanceCm : Effect.DistanceCm)*double(10000+SkillDistanceBonusBp)/10000.;
             if (!Movement->StartDemoDash(Action.Direction,Distance,Seconds,Error)) { return false; }
             if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Body.DashUntilMs,Error)) { return false; }
+            if (!OnMobilityUsed(Body,Now,Error)) { return false; }
             break;
         }
         case ELDDemoEffectOp::Jump:
@@ -1085,6 +1116,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Landing.Token=Action.Token;
             Landing.Source=Source;
             Landing.LandAtMs=Body.DashUntilMs;
+            if (!OnMobilityUsed(Body,Now,Error)) { return false; }
             break;
         }
         case ELDDemoEffectOp::EmpowerBasic:
@@ -1215,7 +1247,28 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Stun:
         case ELDDemoEffectOp::Backstab:
         case ELDDemoEffectOp::SelfArea:
-            // Delivered with the hits below.
+        // #112: hit extras ride on the hits below (FillMechanicsTemplate); release content follows them (ReleaseMechanics).
+        case ELDDemoEffectOp::Knockback:
+        case ELDDemoEffectOp::HealCut:
+        case ELDDemoEffectOp::Dot:
+        case ELDDemoEffectOp::MobilityPunish:
+        case ELDDemoEffectOp::Volley:
+        case ELDDemoEffectOp::RefreshDebuffs:
+        case ELDDemoEffectOp::OnHit:
+        case ELDDemoEffectOp::DebuffAmp:
+        case ELDDemoEffectOp::ShieldShatter:
+        case ELDDemoEffectOp::DebuffHeal:
+        case ELDDemoEffectOp::Vulnerable:
+        case ELDDemoEffectOp::ShieldBurst:
+        case ELDDemoEffectOp::Zone:
+        case ELDDemoEffectOp::ZoneShield:
+        case ELDDemoEffectOp::ZoneSlow:
+        case ELDDemoEffectOp::ZoneRoot:
+        case ELDDemoEffectOp::ZoneDamage:
+        case ELDDemoEffectOp::DamageGuard:
+        case ELDDemoEffectOp::Decoy:
+        case ELDDemoEffectOp::LeapBack:
+        case ELDDemoEffectOp::CooldownRefresh:
             break;
         default:
             Error=FString::Printf(TEXT("Active effect opcode %u has no Combat handler."),Effect.Opcode);
@@ -1269,6 +1322,24 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
         // Abilities trigger no on-hit effects unless their own definition grants a coefficient (C2 active_barrage_rant, active_fart_dash).
         if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
+        FillMechanicsTemplate(Body,*RankDef,ReleaseFoot,Now,Template);
+        // A #112 rank with an on-hit coefficient (active_barrage_rant Lv3) snapshots its on-hit terms at that coefficient.
+        if (Template.OnHitScaleBp>0 && !SnapshotOnHit(Body,Template.OnHitScaleBp,Template,Error)) { return false; }
+        if (BurstEffect)
+        {
+            // active_table_flip detonates the shield it holds now (the one just granted when it was not weaker):
+            // base + ratio x min(shield, cap). The shield is consumed, which is not a break.
+            Template.BaseP2=LDCombatMechanics::ShieldBurstBaseP2(BurstEffect->BaseP2,Body.Resources.ShieldP2,BurstEffect->RatioBp,BurstEffect->CapP2);
+            Template.ADRatioBp=Template.APRatioBp=Template.MaxHPRatioBp=0;
+            Template.DamageType=BurstEffect->DamageType;
+            if (Body.Resources.ShieldP2!=0 || Body.Shield.IsSet())
+            {
+                Body.Shield.Reset();
+                Body.Resources.ShieldP2=0;
+                Body.ShieldGrantedP2=0;
+                ++Body.Resources.Revision;
+            }
+        }
         const auto Deliver=[this,&Template,bAmbush,&AmbushTerm](const FLDCombatBodyRef& Target)
         {
             FLDCombatHit Hit=Template;
@@ -1317,7 +1388,31 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         else { for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); } }
     }
     if (JumpEffect) { Landings.Add(MoveTemp(Landing)); }
-    if (bDealsDamage) { Body.LastCombatAtMs=Now; }
+    // A ground zone sits at the requested point, clamped to the authored reach.
+    FVector ZonePoint=Action.TargetPoint;
+    if (TargetDef.Mode==ELDDemoTargetMode::GroundPoint)
+    {
+        const FVector Offset(ZonePoint.X-ReleaseFoot.X,ZonePoint.Y-ReleaseFoot.Y,0.);
+        const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
+        ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
+    }
+    if (!ReleaseMechanics(Actor,Body,Source,*RankDef,nullptr,ReleaseFoot,ZonePoint,EffectId,Action.Token,SkillDistanceBonusBp,Error)) { return false; }
+    // passive_keyboard_warrior Lv3: a released skill quickens the caster for a while.
+    if (Source.Kind==ELDCombatSourceKind::Learned)
+    {
+        FLDCombatSourceRef FrenzyRef;
+        if (const FLDDemoEffectDefinition* Frenzy=FindTrigger(Body.AttributeProjection,ELDDemoEffectOp::CastFrenzy,&FrenzyRef))
+        {
+            FLDCombatTimedBonus Bonus;
+            Bonus.EffectId=FGuid::NewGuid();
+            Bonus.SourceDefinition=FrenzyRef.DefinitionId;
+            Bonus.Stats=Frenzy->Stats;
+            if (!LDMatchLifecycle::AddDurationMs(Now,Frenzy->DurationMs,Bonus.ExpiresAtMs,Error)) { return false; }
+            LDTactical::ApplyTimedBonus(Body.TimedBonuses,Bonus);
+            bTimedBonus=true;
+        }
+    }
+    if (bDealsDamage || BurstEffect) { Body.LastCombatAtMs=Now; }
     if (bTimedBonus && !RefreshTemporary(Body,&Actor,Now,Error)) { return false; }
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -1343,13 +1438,8 @@ bool ALDCombatDirector::ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoE
             if (Amount>MAX_int64/Effect.MultiplierBp) { Error=TEXT("Shield scaling overflowed."); return false; }
             Amount=Amount*Effect.MultiplierBp/10000;
         }
-        int64 Expires=0;
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Effect.DurationMs,Expires,Error)) { return false; }
-        // A weaker barrier is a stated sub-effect outcome, not a failed release.
-        if (LDTactical::ApplyShield(Body.Shield,Body.Resources.ShieldP2,
-            FLDCombatShield{EffectId,Body.Victim.EntityId,Expires},Amount,NowMs))
-        { ++Body.Resources.Revision; }
-        return true;
+        // The single shield entry: heal cut, ReplaceIfNotWeaker and the refresh event (#112 §5).
+        return GrantShieldTo(Body,Amount,Effect.DurationMs,EffectId,Body.Victim.EntityId,false,NowMs,Error);
     }
     case ELDDemoEffectOp::DispelRoot:
         if (LDTactical::DispelRoots(Body.Roots)>0) { ++Body.StateRevision; }
@@ -1409,8 +1499,10 @@ bool ALDCombatDirector::IsActionBlocked(const FLDBodyCombatState& Body, ELDComba
     const auto* Content=Catalog();
     if (!Mode || !Content) { return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
+    // A knockback blocks every voluntary action while its displacement lasts (#112 R4).
     return LDCombatControl::Blocks(Body.Roots,Body.Disarms,Body.Stuns,Now,Content->Get().Policies,Action)
-        || LDControl::TauntBlocks(Body.Taunt,Now,Action);
+        || LDControl::TauntBlocks(Body.Taunt,Now,Action)
+        || Body.Knockbacks.ContainsByPredicate([Now](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>Now; });
 }
 
 bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPerSec) const

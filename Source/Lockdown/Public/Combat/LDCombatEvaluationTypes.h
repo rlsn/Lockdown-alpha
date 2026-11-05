@@ -47,6 +47,8 @@ struct FLDDamageEvaluationInput
     // Conditional multiplier of the raw amount before resistance: the product of every conditional amplification
     // (passive_public_shame, rear strike, passive_eagle_eye distance, a critical reduction of the target); 10000 = none.
     int64 AmplifyBp = 10000;
+    // Damage reduction of the target applied after resistance and before the shield (active_porcelain_flop); 0 = none.
+    int64 MitigateBp = 0;
 };
 
 struct FLDDamageEvaluation
@@ -58,6 +60,8 @@ struct FLDDamageEvaluation
     int64 OverkillP2 = 0;
     int64 RemainingHPP2 = 0;
     int64 RemainingShieldP2 = 0;
+    // The post-resistance amount before MitigateBp (what a damage guard counts toward its trigger).
+    int64 PreMitigationP2 = 0;
 };
 
 struct FLDDamageEvaluationResult
@@ -93,6 +97,8 @@ struct FLDCombatSlow
     int64 RatioBp = 0;
     int64 ExpiresAtMs = 0;
     int64 AttackRatioBp = 0;
+    // The authored duration, so a refresh by the same source (active_barrage_rant) restarts it whole.
+    int64 DurationMs = 0;
 };
 
 // One timed self bonus (EFFECT.TimedStatBonus); a recast of the same source definition replaces it.
@@ -143,6 +149,9 @@ struct FLDCombatTaunt
     FGuid SourceEntity;
     FLDCombatBodyRef SourceBody;
     int64 ExpiresAtMs = 0;
+    // A decoy lure (item_decoy_wig): the victim walks to DecoyPointCm and may neither attack, cast nor use items.
+    bool bDecoy = false;
+    FVector DecoyPointCm = FVector::ZeroVector;
 };
 
 // Self stealth (EFFECT stealth): enemies observe the body only within RevealRadiusCm (inclusive) while it lasts.

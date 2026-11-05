@@ -33,7 +33,9 @@ bool ALDCombatDirector::ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBod
     OutTaunter={};
     const auto* Mode=Core();
     const auto* Body=FindBody(Victim);
-    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())) { return false; }
+    // A decoy lure is no chase of its caster: Navigation walks the victim to the decoy instead (ReadDecoyLure).
+    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())
+        || Body->Taunt->bDecoy) { return false; }
     OutTaunter=Body->Taunt->SourceBody;
     return true;
 }
@@ -78,6 +80,19 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
         FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Victim=Pair.Key.Get();
         if (!Body.Taunt.IsSet()) { continue; }
+        if (Body.Taunt->bDecoy)
+        {
+            // A lure holds while its decoy stands, its caster is still in the match and its victim lives.
+            const FGuid LureId=Body.Taunt->EffectId;
+            const bool bHolds=Victim && !Body.bPendingDeath && Mode->IsMemberPresent(Body.Taunt->SourceEntity)
+                && Decoys.ContainsByPredicate([&LureId,Now](const FLDCombatDecoy& Decoy) { return Decoy.EffectId==LureId && Decoy.ExpiresAtMs>Now; })
+                && Body.Taunt->ExpiresAtMs>Now;
+            if (bHolds) { continue; }
+            Body.Taunt.Reset();
+            ++Body.StateRevision;
+            MarkViewChanged(Body.Victim.EntityId);
+            continue;
+        }
         ALDCharacter* Taunter=nullptr;
         const FLDBodyCombatState* Source=FindBody(Body.Taunt->SourceBody,&Taunter);
         const bool bAlive=Victim && !Body.bPendingDeath && Source && Taunter && !Source->bPendingDeath
@@ -199,8 +214,17 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         break;
     }
     case ELDControlKind::Knockback:
+        // #112 C2: the forced-displacement window (no diminishing returns). Every voluntary action is blocked while it
+        // lasts, the unreleased action ends, and Navigation drops the current order when KnockbackSerial changes; the
+        // caller (ApplyKnockback) starts the displacement itself after this commit.
+        bApplied=LDCombatControl::Apply(Victim.Knockbacks,Instance,NowMs);
+        if (bApplied)
+        {
+            AbandonAction(Victim,ELDCombatReject::ControlBlocked);
+            ++Victim.KnockbackSerial;
+        }
+        break;
     default:
-        // The forced displacement is committed by its owner (#112 C2) through this path.
         Error=FString::Printf(TEXT("Control kind %u has no committed handler."),uint32(App.Kind));
         return false;
     }
@@ -221,7 +245,7 @@ bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) 
 {
     return LDTactical::HasActiveRoot(Body.Roots,NowMs) || LDTactical::HasActiveRoot(Body.Stuns,NowMs)
         || LDTactical::HasActiveRoot(Body.Disarms,NowMs) || LDControl::IsTaunted(Body.Taunt,NowMs)
-        || LDTactical::StrongestSlowBp(Body.Slows,NowMs)>0;
+        || LDTactical::HasActiveRoot(Body.Knockbacks,NowMs) || LDTactical::StrongestSlowBp(Body.Slows,NowMs)>0;
 }
 
 bool ALDCombatDirector::ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs)

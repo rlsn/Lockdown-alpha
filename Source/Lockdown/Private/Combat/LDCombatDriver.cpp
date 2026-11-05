@@ -69,6 +69,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     }
     // A jump lands on its exact boundary; a dash's path sweep resolves when it ends.
     for (const auto& Landing : Landings) { Consider(Landing.LandAtMs); }
+    // #112 mechanics: ticks, pulses, shots and their records' ends.
+    Consider(NextMechanicsDueMs(NowMs));
     for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
@@ -288,7 +290,9 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
     AdvanceMomentum(Now);
-    if (!ResolveLandings(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error) || !AdvanceProjectiles(Error)) { return false; }
+    // Damage over time, zones and later volley shots due now join this boundary's hits and projectiles.
+    if (!AdvanceMechanics(Now,Error) || !ResolveLandings(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error)
+        || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

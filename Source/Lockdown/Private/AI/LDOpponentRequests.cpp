@@ -390,7 +390,8 @@ ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
     case ELDOrderFailure::Stopped:
     case ELDOrderFailure::Expired:
     // An enemy's taunt interrupted the order: nothing about the intent itself failed.
-    case ELDOrderFailure::Taunted: return ELDOpponentSettle::Dropped;
+    case ELDOrderFailure::Taunted:
+    case ELDOrderFailure::KnockedBack: return ELDOpponentSettle::Dropped;
     // Unusable ground, no complete path, blocked progress, a refused shop and malformed or stale requests.
     default: return ELDOpponentSettle::Failed;
     }

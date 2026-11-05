@@ -49,6 +49,10 @@ bool IsCombatTriggerOp(ELDDemoEffectOp Op)
     case ELDDemoEffectOp::Thorns: case ELDDemoEffectOp::CooldownRefund: case ELDDemoEffectOp::AbilityCrit:
     case ELDDemoEffectOp::TriggeredShield: case ELDDemoEffectOp::BasicStacks: case ELDDemoEffectOp::LongReach:
     case ELDDemoEffectOp::CritDamageReduction: case ELDDemoEffectOp::NthBasicBonus: case ELDDemoEffectOp::ManaOnHit:
+    // #112 C2 triggers (LDCombatMechanicsDirector.cpp).
+    case ELDDemoEffectOp::BreachStacks: case ELDDemoEffectOp::MobilityShield: case ELDDemoEffectOp::ShieldPulse:
+    case ELDDemoEffectOp::BasicRider: case ELDDemoEffectOp::CastFrenzy: case ELDDemoEffectOp::AfflictionAmp:
+    case ELDDemoEffectOp::ShieldBreakRetort: case ELDDemoEffectOp::HitHaste:
         return true;
     default:
         return false;
@@ -73,6 +77,7 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     case ELDDemoBonusStat::AttackSpeedBonusRatio: Attribute = EAttribute::AttackSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::MoveSpeedBonusRatio: Attribute = EAttribute::MoveSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::ADBonusRatio: Attribute = EAttribute::AD; bRatio = bBasisPoints = true; return true;
+    case ELDDemoBonusStat::HPRegenFlat: Attribute = EAttribute::HPRegen; return true;
     case ELDDemoBonusStat::CritChanceBonusRatio:
         // Probability points add to the base chance; they are not a percentage of it.
         Attribute = EAttribute::CritChance;
@@ -82,6 +87,12 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
         Attribute = EAttribute::Count;
         return false;
     }
+}
+
+// Stats whose amount is an exact rational in FLDDemoStatBonus::Cm (cm or hp/s) rather than a scaled integer.
+bool IsRationalStat(ELDDemoBonusStat Stat)
+{
+    return Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat == ELDDemoBonusStat::HPRegenFlat;
 }
 
 struct FTermSum
@@ -98,6 +109,8 @@ struct FAttributeSum
     FTermSum Passives;
     FTermSum Equipment;
     FTermSum Dev;
+    // Explicit wild-card deductions (positive magnitudes), subtracted from the flat and ratio sums.
+    FTermSum Penalties;
 };
 
 class FProjector
@@ -266,7 +279,7 @@ private:
             const FString Field = FString::Printf(TEXT("DevBonuses[%d]"), Index);
             EAttribute Attribute = EAttribute::Count;
             bool bRatio = false, bBasisPoints = false;
-            const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+            const bool bRange = IsRationalStat(Bonus.Stat);
             if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Bonus.Stat == ELDDemoBonusStat::ADBonusRatio)
             {
                 return Refuse(EError::InputDomain, Field, TEXT("A DEV term must name a permanent build stat"));
@@ -344,7 +357,7 @@ private:
         bool bRatio = false;
         bool bBasisPoints = false;
         StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints);
-        const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+        const bool bRange = IsRationalStat(Bonus.Stat);
         if (Attribute == EAttribute::Count || (bRange ? !NonnegativeRational(Bonus.Cm) : Bonus.Amount < 0))
         {
             return Refuse(EError::Catalog, Field, TEXT("Unsupported or negative stat bonus"));
@@ -399,6 +412,13 @@ private:
             for (const FLDDemoStatBonus& Bonus : Cards[Index]->Stats)
             {
                 if (!AddBonus(Bonus, &FAttributeSum::Choices, Count, Field))
+                {
+                    return false;
+                }
+            }
+            for (const FLDDemoStatBonus& Penalty : Cards[Index]->Penalties)
+            {
+                if (!AddBonus(Penalty, &FAttributeSum::Penalties, Count, Field + TEXT(".Penalties")))
                 {
                     return false;
                 }
@@ -616,9 +636,41 @@ private:
         }
     }
 
-    bool Finish(FLDAttributeProjection& Out)
+    // Inclusive catalog bounds of one projected attribute in its author unit.
+    void Bounds(EAttribute Attribute, FExact& Min, FExact& Max)
     {
         const FLDDemoContentParameters& P = Content.Parameters;
+        const auto Points = [this, &Min, &Max](const FLDDemoP2Bounds& B)
+        {
+            Min = Numbers.Value(B.MinP2, 100);
+            Max = Numbers.Value(B.MaxP2, 100);
+        };
+        const auto Rational = [this, &Min, &Max](const FLDDemoRational& Low, const FLDDemoRational& High)
+        {
+            Min = Numbers.Value(Low);
+            Max = Numbers.Value(High);
+        };
+        switch (Attribute)
+        {
+        case EAttribute::MaxHP: Points(P.MaxHP); break;
+        case EAttribute::MaxMP: Points(P.MaxMP); break;
+        case EAttribute::AD: Points(P.AD); break;
+        case EAttribute::AP: Points(P.AP); break;
+        case EAttribute::Armor: Points(P.Armor); break;
+        case EAttribute::MagicResist: Points(P.MagicResist); break;
+        case EAttribute::AttackSpeed: Rational(P.AttackSpeed.Min, P.AttackSpeed.Max); break;
+        case EAttribute::MoveSpeed: Rational(P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max); break;
+        case EAttribute::AttackRange: Rational(P.AttackRangeCm.Min, P.AttackRangeCm.Max); break;
+        case EAttribute::HPRegen: Rational(P.HPRegen.Min, P.HPRegen.Max); break;
+        case EAttribute::MPRegen: Rational(P.MPRegen.Min, P.MPRegen.Max); break;
+        case EAttribute::CritChance: Min = Numbers.Value(0); Max = Numbers.Value(1); break;
+        case EAttribute::CooldownHaste: Min = Numbers.Value(0); Max = Numbers.Value(P.CooldownHasteMaxP2, 100); break;
+        default: Min = Max = Numbers.Value(0); break;
+        }
+    }
+
+    bool Finish(FLDAttributeProjection& Out)
+    {
         const FExact One = Numbers.Value(1);
         Out.Contributions.Reset(AttributeCount);
         for (int32 Index = 0; Index < AttributeCount; ++Index)
@@ -626,28 +678,25 @@ private:
             const EAttribute Attribute = static_cast<EAttribute>(Index);
             const FString Field = AttributeName(Attribute);
             const FAttributeSum& Sum = Sums[Index];
-            const FExact Flat = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
-                Numbers.Add(Sum.Passives.Flat, Sum.Equipment.Flat)), Sum.Dev.Flat);
-            const FExact Ratio = Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
-                Numbers.Add(Sum.Passives.Ratio, Sum.Equipment.Ratio)), Sum.Dev.Ratio);
+            const FExact Flat = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
+                Numbers.Add(Sum.Passives.Flat, Sum.Equipment.Flat)), Sum.Dev.Flat), Sum.Penalties.Flat);
+            const FExact Ratio = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
+                Numbers.Add(Sum.Passives.Ratio, Sum.Equipment.Ratio)), Sum.Dev.Ratio), Sum.Penalties.Ratio);
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
+            // Every attribute clamps last to its catalog bounds (#112 §4): repeatable cards may push a sum past a cap,
+            // and a wild card's explicit deduction stops at the floor (max HP 1, move speed 300, attack range 80).
             bool bClamped = false;
-            if (Attribute == EAttribute::AttackSpeed || Attribute == EAttribute::MoveSpeed)
+            FExact Min, Max;
+            Bounds(Attribute, Min, Max);
+            if (Numbers.LT(Value, Min))
             {
-                // FORMULA.AttackSpeed/MoveSpeed clamp last; every other bound refuses instead.
-                const FLDDemoRationalBounds& Bounds = Attribute == EAttribute::AttackSpeed ? P.AttackSpeed : P.MoveSpeedCmPerSec;
-                const FExact Min = Numbers.Value(Bounds.Min);
-                const FExact Max = Numbers.Value(Bounds.Max);
-                if (Numbers.LT(Value, Min))
-                {
-                    Value = Min;
-                    bClamped = true;
-                }
-                else if (Numbers.LT(Max, Value))
-                {
-                    Value = Max;
-                    bClamped = true;
-                }
+                Value = Min;
+                bClamped = true;
+            }
+            else if (Numbers.LT(Max, Value))
+            {
+                Value = Max;
+                bClamped = true;
             }
             if (!Check.Good)
             {
@@ -671,6 +720,8 @@ private:
                 && ToRational(Sum.Equipment.Ratio, Row.Equipment.AdditiveRatio, Field)
                 && ToRational(Sum.Dev.Flat, Row.Dev.Flat, Field)
                 && ToRational(Sum.Dev.Ratio, Row.Dev.AdditiveRatio, Field)
+                && ToRational(Sum.Penalties.Flat, Row.Penalties.Flat, Field)
+                && ToRational(Sum.Penalties.Ratio, Row.Penalties.AdditiveRatio, Field)
                 && ToRational(Value, Row.Final, Field);
             if (!bRowStored)
             {
@@ -819,7 +870,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         const FString Field = FString::Printf(TEXT("Temporary[%d]"), Index);
         EAttribute Attribute = EAttribute::Count;
         bool bRatio = false, bBasisPoints = false;
-        const bool bRange = Bonus.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
+        const bool bRange = IsRationalStat(Bonus.Stat);
         if (!StatTarget(Bonus.Stat, Attribute, bRatio, bBasisPoints) || Attribute == EAttribute::MaxHP || Attribute == EAttribute::MaxMP
             || (bRange ? !NonnegativeRational(Bonus.Cm) : Bonus.Amount < 0))
         {
@@ -859,6 +910,8 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
                 Flat = N.Add(Flat, N.Value(Terms2->Flat));
                 Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));
             }
+            Flat = N.Sub(Flat, N.Value(Row.Penalties.Flat));
+            Ratio = N.Sub(Ratio, N.Value(Row.Penalties.AdditiveRatio));
         }
         else
         {

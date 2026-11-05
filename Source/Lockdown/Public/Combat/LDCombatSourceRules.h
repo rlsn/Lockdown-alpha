@@ -4,6 +4,8 @@
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatEvaluationTypes.h"
 
+struct FLDDemoRankDefinition;
+
 struct FLDCombatEntityRecord;
 struct FLDDemoPolicies;
 class FLDDemoContentSnapshot;
@@ -62,7 +64,10 @@ namespace LDCombatSourceRules
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
-    // item_phase_anchor: the boost of every character or gear active with a dash or jump, fixed at its release. Each held
+    // Whether a rank displaces its caster (dash, jump or backward leap): such a release is a dash for the root matrix and
+    // takes the item_phase_anchor skill boost.
+    LOCKDOWN_API bool DisplacesCaster(const FLDDemoRankDefinition& Rank);
+    // item_phase_anchor: the boost of every character or gear active with a dash, jump or backward leap, fixed at its release. Each held
     // family with DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
     LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
         int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error);

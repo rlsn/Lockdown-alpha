@@ -226,9 +226,18 @@ bool FLDCombatCommitControlTest::RunTest(const FString& Parameters)
     FString Error;
     FLDControlApplication Push;
     Push.Kind = ELDControlKind::Knockback;
+    Push.EffectId = FGuid::NewGuid();
+    Push.SourceEntity = Source;
+    Push.SourceBody = SourceBody;
     Push.DurationMs = 250;
-    TestFalse(TEXT("A knockback without its committed handler is refused explicitly"), Director->CommitControl(Victim, Push, 1900, bApplied, Error));
-    TestFalse(TEXT("Nothing applies on a refusal"), bApplied);
+    // #112 C2: a knockback commits its forced-displacement window, undiminished, and bumps the order-drop serial.
+    const FLDHardControlChain ChainBefore = Victim.HardControl;
+    const uint64 SerialBefore = Victim.KnockbackSerial;
+    TestTrue(TEXT("A knockback commits through the single control path"), Director->CommitControl(Victim, Push, 1900, bApplied, Error) && bApplied);
+    TestTrue(TEXT("Its window lasts the full undiminished time"),
+        Victim.Knockbacks.Num() == 1 && Victim.Knockbacks[0].ExpiresAtMs == 2150 && Victim.KnockbackSerial == SerialBefore + 1);
+    TestTrue(TEXT("A knockback never advances the hard-control chain"),
+        ChainBefore.Count == Victim.HardControl.Count && ChainBefore.WindowEndMs == Victim.HardControl.WindowEndMs);
     FLDBodyCombatState Camp;
     Camp.Victim.Kind = ELDVictimKind::CampMember;
     Camp.Victim.EntityId = FGuid::NewGuid();

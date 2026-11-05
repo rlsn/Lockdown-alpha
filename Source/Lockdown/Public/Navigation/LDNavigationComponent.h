@@ -142,6 +142,9 @@ private:
         // Taunt chase: server-made, never in the owner's book or receipts; Identity.Order stays 0.
         bool bForced=false;
         FLDCombatBodyRef ForcedTarget;
+        // Decoy lure (item_decoy_wig): a forced walk to LurePoint; no attack is ever started.
+        bool bLure=false;
+        FVector LurePoint=FVector::ZeroVector;
     };
     struct FOrderRecord
     {
@@ -211,6 +214,9 @@ private:
     // Taunted body: refuses its own orders and chases the taunter through this observer's current view.
     bool AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FLDCombatBodyRef& Taunter,
         const FLDGameplayWritePermit& Permit, FString& Error);
+    // Lured body: refuses its own orders and walks to the decoy point (#112 §5).
+    bool AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FVector& Point,
+        const FLDGameplayWritePermit& Permit, FString& Error);
     bool AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit,
         FLDAuthorityTargetSample& Out, bool& bFound, FString& Error);
     bool EngageTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample,
@@ -254,4 +260,7 @@ private:
     FLDCombatBodyRef KeptSwingTarget;
     // A forced chase that ended by itself (no path, no progress) is retried after one order query interval.
     LDOrderRules::FForcedRetry ForcedRetry;
+    // The last knockback count Navigation saw on its body life; a new knockback drops the current order (#112 §5).
+    FLDCombatBodyRef KnockbackBody;
+    uint64 SeenKnockbackSerial=0;
 };

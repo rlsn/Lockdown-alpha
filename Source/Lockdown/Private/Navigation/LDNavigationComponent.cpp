@@ -49,6 +49,7 @@ namespace LDNavigationDetail
         case ELDOrderFailure::Stopped: return TEXT("已停止");
         case ELDOrderFailure::Expired: return TEXT("订单已过期");
         case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能找喊你的人")+LDTerms::BasicAttackVerb; return *Text; }
+        case ELDOrderFailure::KnockedBack: return TEXT("被掀飞了，指令中断");
         default: return TEXT("订单失败");
         }
     }

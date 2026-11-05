@@ -53,8 +53,10 @@ walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 vi
 driver 在下一步开始时释放已被消费的前缀，营地成员批次没有其他消费者，同样在下一步释放。
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
-都不是最终 Motion Fence、Sealing 或喷漆/守护完成证明。Demo 没有击退或根运动（骨骼动画都原地播放）。
-没有按住加速或地表减速的独立运动分派；D 冲刺只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
+都不是最终 Motion Fence、Sealing 或喷漆/守护完成证明。骨骼动画没有根运动（都原地播放）。
+没有按住加速或地表减速的独立运动分派；D 冲刺、技能冲刺与假发片后跳只在 Combat 成功释放后、击退（#112）只在
+`CommitControl` 提交成功后经 `StartDemoDash` 写入原生 CMC 的服务器位移，沿地面积分、遇阻挡停在最远合法位置，不瞬移；
+击退同时递增 `KnockbackSerial`，导航据此以 `ELDOrderFailure::KnockedBack` 放弃当前订单。冲刺
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
 
 ## 命令与取消

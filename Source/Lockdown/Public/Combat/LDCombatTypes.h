@@ -421,6 +421,8 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
     UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
     UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
+    UPROPERTY() FLDDemoRational Penalty;             // wild-card flat deduction (positive magnitude, subtracted)
+    UPROPERTY() FLDDemoRational PenaltyPercent;      // wild-card ratio deduction (positive magnitude, subtracted)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };

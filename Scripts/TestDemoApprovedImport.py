@@ -40,13 +40,15 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (20, 5, 10, 2))
+                          len(self.data["camps"]["monsters"])), (30, 14, 16, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
-            "active_arc_bolt", "active_binding_snare", "active_body_slam", "active_combo_flurry", "active_come_here",
-            "active_fart_dash", "active_guard_pulse",
-            "active_lunge", "active_monkey_peach", "active_slick_moves", "active_slipper_throw", "active_thousand_year",
-            "passive_battle_rhythm", "passive_cornered", "passive_eagle_eye", "passive_iron_crotch", "passive_lurking",
-            "passive_precision", "passive_public_shame", "passive_second_wind"])
+            "active_arc_bolt", "active_barrage_rant", "active_binding_snare", "active_body_slam", "active_cancel_blast",
+            "active_combo_flurry", "active_come_here", "active_expose_post", "active_fart_dash", "active_guard_pulse",
+            "active_lunge", "active_monkey_peach", "active_pie_chart", "active_porcelain_flop", "active_slick_moves",
+            "active_slipper_throw", "active_table_flip", "active_thousand_year",
+            "passive_battle_rhythm", "passive_cornered", "passive_dox_master", "passive_eagle_eye", "passive_iron_crotch",
+            "passive_keyboard_warrior", "passive_lurking", "passive_mental_gymnastics", "passive_precision",
+            "passive_public_shame", "passive_second_wind", "passive_thick_skin"])
         self.assertEqual(self.data["identity"]["projection_revision"], 3)
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
@@ -130,7 +132,9 @@ class ApprovedDemoData(unittest.TestCase):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
                                            "slow": 5, "stat_boost": 6, "enraged": 7, "ambush_ready": 8, "exposed": 9,
-                                           "taunt": 10, "stealth": 11, "disarm": 12, "stun": 13, "empowered": 14})
+                                           "taunt": 10, "stealth": 11, "disarm": 12, "stun": 13, "empowered": 14,
+                                           "knockback": 20, "heal_cut": 22, "damage_guard": 23,
+                                           "vulnerable": 24})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
             "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10, "dash_boost": 11,
@@ -138,7 +142,13 @@ class ApprovedDemoData(unittest.TestCase):
             "control_damage_amp": 17, "taunt": 18, "stealth": 19, "disarm": 20, "stun": 21, "empower_basic": 22,
             "jump": 23, "thorns": 24, "backstab": 25, "cooldown_refund": 26, "ability_crit": 27, "resist_shred": 28,
             "momentum": 29, "taunt_retaliate": 30, "triggered_shield": 31, "basic_stacks": 32, "long_reach": 33,
-            "crit_damage_reduction": 34, "nth_basic_bonus": 35, "mana_on_hit": 36, "dispel_slow": 37, "path_slow": 38})
+            "crit_damage_reduction": 34, "nth_basic_bonus": 35, "mana_on_hit": 36, "dispel_slow": 37, "path_slow": 38,
+            "knockback": 40, "heal_cut": 41, "dot": 42, "mobility_punish": 43, "volley": 44, "refresh_debuffs": 45,
+            "on_hit": 46, "debuff_amp": 47, "shield_shatter": 48, "debuff_heal": 49, "zone": 50, "zone_shield": 51,
+            "zone_slow": 52, "zone_root": 53, "zone_damage": 54, "damage_guard": 55, "shield_burst": 56,
+            "vulnerable": 57, "decoy": 58, "leap_back": 59, "cooldown_refresh": 60, "breach_stacks": 61,
+            "mobility_shield": 62, "shield_pulse": 63, "basic_rider": 64, "cast_frenzy": 65, "affliction_amp": 66,
+            "shield_break_retort": 67, "hit_haste": 68})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -163,7 +173,9 @@ class ApprovedDemoData(unittest.TestCase):
             "passive_iron_crotch": "祖传铁裆", "item_nail_uniform": "扎心铆钉皮衣",
             "active_body_slam": "体重即正义", "active_come_here": "你瞅啥",
             "attr_might": "吃了口蛋白粉", "attr_focus": "5G 冲浪", "attr_vitality": "V 我 50 吃顿好的", "attr_resolve": "我不听我不听",
-            "attr_reach": "伸手党",
+            "attr_reach": "伸手党", "attr_might_hp": "体育生特训", "attr_might_haste": "武德充沛", "attr_focus_as": "键盘钢琴家",
+            "attr_focus_defense": "表面笑嘻嘻", "attr_reach_ms": "放风筝专家", "attr_roam_hybrid": "特种兵跑图",
+            "attr_wild_glass_cannon": "彻底疯狂", "attr_wild_juggernaut": "半吨重坦", "attr_wild_brawler": "社交悍匪",
             "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
             "item_echo_maul": "自拍杆", "item_paper_box": "路人甲 T 恤",
@@ -171,6 +183,14 @@ class ApprovedDemoData(unittest.TestCase):
             "root": "提裤子", "shield": "心理防线", "camp_returning": "回工位", "respawn_protection": "免死金牌",
             "slow": "腿软", "stat_boost": "上头", "enraged": "急了", "ambush_ready": "蹲到了", "exposed": "破防了",
             "taunt": "瞅你咋地", "stealth": "查无此人", "disarm": "捂裆", "stun": "CPU 干烧了", "empowered": "蓄力大比兜",
+            "active_porcelain_flop": "碰瓷倒地", "active_expose_post": "挂人小作文",
+            "active_barrage_rant": "键盘连喷", "active_cancel_blast": "实锤冲塔",
+            "active_pie_chart": "拉群画饼", "active_table_flip": "掀桌不干了", "passive_dox_master": "开盒大师",
+            "passive_thick_skin": "社交牛逼症", "passive_mental_gymnastics": "精神胜利法",
+            "passive_keyboard_warrior": "阴阳大师", "item_megaphone": "大喇叭", "item_dossier": "黑料小本本",
+            "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋", "item_decoy_wig": "假发片",
+            "item_energy_drink": "红牛", "knockback": "被掀飞", "heal_cut": "被开盒",
+            "damage_guard": "碰瓷中", "vulnerable": "裤子没了",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -261,12 +281,20 @@ class ApprovedDemoData(unittest.TestCase):
         fart = self.catalog.definition("active_fart_dash")
         self.assertEqual((fart["target"]["mode"], fart["windup"]["ms"]), ("DirectionDash", 0))
         for row, base, cooldown in zip(fart["ranks"], (120, 145, 170), (12800, 11200, 9600)):
-            dash, area, damage, slowed = row["effects"]
+            dash, area, damage, slowed = row["effects"][:4]
             self.assertEqual((amount(dash["distance"]), dash["duration"]["ms"], amount(area["radius"])), (350, 200, 200))
             self.assertEqual((damage["base"]["p2"], damage["ad_ratio"]["bp"], damage["ap_ratio"]["bp"], damage["damage_type"]),
                              (base * 100, 3000, 3000, "Magical"))
             self.assertEqual((slowed["ratio"]["bp"], slowed["duration"]["ms"]), (3000, 1500))
             self.assertEqual((row["mana_cost"]["p2"], row["cooldown"]["ms"]), (5000, cooldown))
+        # #112 §2 Lv3 gas: three pulses at 0.5/1.5/2.5 s that trigger on-hit effects at 0.5.
+        self.assertEqual([len(row["effects"]) for row in fart["ranks"]], [4, 4, 7])
+        zone, gas, on_hit = fart["ranks"][2]["effects"][4:]
+        self.assertEqual((zone["op"], amount(zone["radius"]), zone["duration"]["ms"], zone["interval"]["ms"], zone["delay"]["ms"],
+                          zone["count"]), ("zone", 200, 2500, 1000, 500, 3))
+        self.assertEqual((gas["op"], gas["base"]["p2"], gas["ad_ratio"]["bp"], gas["ap_ratio"]["bp"], gas["damage_type"]),
+                         ("zone_damage", 2500, 1000, 1000, "Magical"))
+        self.assertEqual((on_hit["op"], on_hit["scale"]["bp"]), ("on_hit", 5000))
         for identity, field, values, duration, mana, cooldowns in (
             ("active_combo_flurry", "AttackSpeedBonusRatio", (3000, 4500, 6000), 4000, 5000, (16000, 14000, 12000)),
             ("active_slick_moves", "MoveSpeedBonusRatio", (3000, 4000, 5000), 2000, 4000, (14000, 13000, 12000)),
@@ -335,22 +363,30 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual([row["effects"][0]["max_hp_ratio"]["bp"] for row in self.catalog.definition("passive_second_wind")["ranks"]],
                          [80, 120, 160])
         self.assertTrue(all(row["effects"][0]["delay"]["ms"] == 6000 for row in self.catalog.definition("passive_second_wind")["ranks"]))
+        # #112 §4: fourteen repeatable composite cards; the three wild cards name explicit deductions.
+        ratio = Fraction
         expected = {
-            "attr_might": {"ADFlat": 8}, "attr_focus": {"APFlat": 16}, "attr_vitality": {"MaxHPFlat": 60},
-            "attr_resolve": {"ArmorFlat": 10, "MagicResistFlat": 10}, "attr_reach": {"AttackRangeCmFlat": 40},
+            "attr_might": ({"ADFlat": 7, "CritChanceBonusRatio": ratio(".05")}, None),
+            "attr_might_hp": ({"ADFlat": 6, "MaxHPFlat": 50}, None),
+            "attr_might_haste": ({"ADFlat": 6, "CooldownHasteFlat": 8}, None),
+            "attr_focus": ({"APFlat": 15, "CooldownHasteFlat": 8}, None),
+            "attr_focus_as": ({"APFlat": 14, "AttackSpeedBonusRatio": ratio(".08")}, None),
+            "attr_focus_defense": ({"APFlat": 14, "ArmorFlat": 8, "MagicResistFlat": 8}, None),
+            "attr_reach": ({"AttackRangeCmFlat": 35, "AttackSpeedBonusRatio": ratio(".06")}, None),
+            "attr_reach_ms": ({"AttackRangeCmFlat": 30, "MoveSpeedBonusRatio": ratio(".045")}, None),
+            "attr_roam_hybrid": ({"MoveSpeedBonusRatio": ratio(".055"), "ADFlat": 4, "APFlat": 8}, None),
+            "attr_resolve": ({"MaxHPFlat": 40, "ArmorFlat": 9, "MagicResistFlat": 9}, None),
+            "attr_vitality": ({"MaxHPFlat": 60, "MaxMPFlat": 60, "HPRegenFlat": ratio("1.5")}, None),
+            "attr_wild_glass_cannon": ({"ADFlat": 11, "APFlat": 22, "AttackSpeedBonusRatio": ratio(".08")}, {"MaxHPFlat": 55}),
+            "attr_wild_juggernaut": ({"MaxHPFlat": 110, "ArmorFlat": 14, "MagicResistFlat": 14}, {"MoveSpeedBonusRatio": ratio(".04")}),
+            "attr_wild_brawler": ({"AttackSpeedBonusRatio": ratio(".14"), "MoveSpeedBonusRatio": ratio(".08")}, {"AttackRangeCmFlat": 30}),
         }
-        for identity, stats in expected.items():
-            self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
-        # Ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items, one upgraded.
-        for stat, maximum in (("MaxHP", "2165"), ("MaxMP", "760"), ("AD", "225.8"), ("AP", "230.5"),
-                              ("Armor", "178.3"), ("MagicResist", "164.2")):
-            field = stat + "Flat"
-            base = amount(self.catalog.parameter("STAT." + stat + ".Base")) + 9 * amount(self.catalog.parameter("STAT." + stat + ".PerLevel"))
-            equipment = max(amount(row["stats"][field]) if field in row["stats"] else Fraction(0) for row in self.data["equipment"])
-            upgraded = max(amount(row["upgraded_stats"][field]) if field in row["upgraded_stats"] else Fraction(0)
-                           for row in self.data["equipment"])
-            self.assertEqual(base + content._choice_bonus(self.data, field) + equipment + upgraded, Fraction(maximum))
-        self.assertEqual(Fraction(9, 10) * (1 + Fraction(18, 100) + Fraction(20, 100) + Fraction(20, 100)), Fraction("1.422"))
+        self.assertEqual({row["id"] for row in self.data["attributes"]}, set(expected))
+        for identity, (stats, penalties) in expected.items():
+            row = self.catalog.definition(identity)
+            self.assertEqual({key: amount(value) for key, value in row["stats"].items()}, stats)
+            self.assertEqual(None if "penalties" not in row else {key: amount(value) for key, value in row["penalties"].items()},
+                             penalties)
 
     def test_every_equipment_price_stat_and_effect(self):
         expected = {

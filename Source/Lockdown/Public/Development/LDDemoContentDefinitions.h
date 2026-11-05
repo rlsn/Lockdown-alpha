@@ -269,7 +269,9 @@ enum class ELDDemoBonusStat : uint8
     ADFlat, APFlat, MaxHPFlat, MaxMPFlat, ArmorFlat, MagicResistFlat, CooldownHasteFlat,
     AttackRangeCmFlat, AttackSpeedBonusRatio, MoveSpeedBonusRatio, CritChanceBonusRatio,
     // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
-    ADBonusRatio
+    ADBonusRatio,
+    // Always-on HP regeneration in hp/s (an exact rational, stored in FLDDemoStatBonus::Cm like the range).
+    HPRegenFlat
 };
 
 USTRUCT()
@@ -278,7 +280,8 @@ struct FLDDemoStatBonus
     GENERATED_BODY()
 
     UPROPERTY() ELDDemoBonusStat Stat = ELDDemoBonusStat::ADFlat;
-    // Stat fixes the unit: P2 points/resources or R4 basis points; range uses Cm.
+    // Stat fixes the unit: P2 points/resources or R4 basis points; the rational stats (range in cm, HP regeneration in hp/s)
+    // use Cm and leave Amount 0.
     UPROPERTY() int64 Amount = 0;
     UPROPERTY() FLDDemoRational Cm;
 };
@@ -359,6 +362,13 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 CapBp = 0;
     // out_of_combat_regen: HP share of the current max HP regenerated per second (basis points).
     UPROPERTY() int64 MaxHPPerSecBp = 0;
+    // #112 handlers (LDCombatMechanics; Count and CapP2 above are shared): armor and MR shred per step, a trigger
+    // threshold, a second ratio and duration (an attached slow, heal cut or linger) and a cooldown cut.
+    UPROPERTY() int64 ShredP2 = 0;
+    UPROPERTY() int64 ThresholdP2 = 0;
+    UPROPERTY() int64 SecondaryRatioBp = 0;
+    UPROPERTY() int64 SecondaryDurationMs = 0;
+    UPROPERTY() int64 CooldownCutMs = 0;
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
@@ -401,6 +411,8 @@ struct FLDDemoAttributeDefinition
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    // Explicit deductions of a wild card (#112 §4): positive magnitudes the projection subtracts; empty for every other card.
+    UPROPERTY() TArray<FLDDemoStatBonus> Penalties;
 };
 
 USTRUCT()
