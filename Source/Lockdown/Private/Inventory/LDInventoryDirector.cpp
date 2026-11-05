@@ -80,11 +80,13 @@ FLDEquipmentView ALDInventoryDirector::ReadEquipment(const FGuid& ContenderId) c
         Slot.IssueSerial = Item.IssueSerial;
         Slot.DefinitionId = Item.Definition;
         Slot.ItemRevision = Item.Revision;
+        Slot.bUpgraded = Item.bUpgraded;
     }
     View.bValid = true;
     View.Generation = GameMode->GetMatchContext().Generation;
     View.Gold = Account->Gold;
     View.AccountRevision = Account->Revision;
+    View.bUpgradeUsed = Account->bUpgradeUsed;
     View.InventoryRevision = Book->InventoryRevision(ContenderId);
     View.Slots = MoveTemp(Slots);
     return View;
@@ -147,6 +149,7 @@ void ALDInventoryDirector::EquippedItems(const LDEconomy::FAuditState& State, co
         Value.Instance = Pair.Key;
         Value.DefinitionId = Pair.Value.Definition;
         Value.ItemRevision = Pair.Value.Revision;
+        Value.bUpgraded = Pair.Value.bUpgraded;
         Held.Emplace(Pair.Value.Slot, Value);
     }
     Held.Sort([](const TPair<uint8, FLDEquippedItemValue>& A, const TPair<uint8, FLDEquippedItemValue>& B)

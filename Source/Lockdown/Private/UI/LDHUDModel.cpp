@@ -35,7 +35,6 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");
     case ELDDemoStatusId::Knockback: return TEXT("knockback");
-    case ELDDemoStatusId::Breach: return TEXT("breach");
     case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
     case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
     case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
@@ -503,14 +502,30 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
         return Text.IsEmpty()?FString(TEXT("无属性加成")):Text;
     }
-    case ELDDemoEffectOp::OutOfCombatRegen: return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后")+LDTerms::HealthRegen()+TEXT(" +")+HudRational(Effect.HPPerSec)+TEXT("/s");
+    case ELDDemoEffectOp::OutOfCombatRegen:
+    {
+        FString Text=TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后每秒回复 ")+HudPercent(Effect.MaxHPPerSecBp)+TEXT(" ")+LDTerms::MaxHealth();
+        if(Effect.MultiplierBp>0){Text+=TEXT("；受到技能伤害后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内")+LDTerms::HealthRegen()+TEXT("与")+LDTerms::Mana+TEXT("回复变为 ")+HudPercent(Effect.MultiplierBp);}
+        if(Effect.RatioBp>0){Text+=TEXT("；战斗中保留 ")+HudPercent(Effect.RatioBp);}
+        return Text;
+    }
     case ELDDemoEffectOp::Lifesteal: return FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" ")+LDTerms::MaxMana();
     case ELDDemoEffectOp::DashBoost:
-        return FString(LDTerms::Dash)+TEXT("的冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，")+LDTerms::Dash+TEXT("的距离 +")+HudPercent(Effect.DistanceBonusBp);
-    case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成 ")+HudPercent(Effect.RatioBp)+TEXT(" ")+LDTerms::PhysicalDamage+TEXT("副击");
-    case ELDDemoEffectOp::Slow: return FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    {
+        FString Text=FString(LDTerms::Dash)+TEXT("的冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，")+LDTerms::Dash+TEXT("的距离 +")+HudPercent(Effect.DistanceBonusBp);
+        if(Effect.SkillDistanceBonusBp>0||Effect.SkillCooldownRatioBp>0)
+        {Text+=TEXT("；带冲刺或跳跃的技能与装备主动距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
+        return Text;
+    }
+    case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成主击 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::PhysicalDamage+TEXT("副击");
+    case ELDDemoEffectOp::Slow:
+    {
+        FString Text=FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+        if(Effect.VampRatioBp>0){Text+=TEXT("；期间对其造成的")+FString(LDTerms::BasicAttack)+TEXT("与技能伤害吸血 ")+HudPercent(Effect.VampRatioBp);}
+        return Text;
+    }
     case ELDDemoEffectOp::TimedStatBonus:
     {
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
@@ -520,30 +535,90 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::LowHpStatBonus:
     {
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        if(Effect.VampRatioBp>0){Text+=TEXT("，全能吸血 ")+HudPercent(Effect.VampRatioBp);}
         return FString(LDTerms::Health)+TEXT("低于 ")+HudPercent(Effect.RatioBp)+TEXT(" 时：")+Text;
     }
     case ELDDemoEffectOp::AmbushDamage:
-        return TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次")+LDTerms::BasicAttack+TEXT("或伤害技能额外造成")+HudDamageTerm(Effect)+TEXT(" ")+HudScaling(Effect);
-    case ELDDemoEffectOp::ControlDamageAmp: return TEXT("控住敌人后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内，对其伤害 +")+HudPercent(Effect.RatioBp);
+    {
+        FString Text=TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次")+LDTerms::BasicAttack+TEXT("或伤害技能额外造成")+HudDamageTerm(Effect)+TEXT(" ")+HudScaling(Effect);
+        if(Effect.AmountMs>0){Text+=TEXT("；每次冲刺或跳跃使准备时间 -")+HudSeconds(Effect.AmountMs);}
+        if(Effect.RatioBp>0){Text+=TEXT("；首击使目标")+FString(LDTerms::Armor)+TEXT("与")+LDTerms::MagicResist+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);}
+        return Text;
+    }
+    case ELDDemoEffectOp::ControlDamageAmp: return TEXT("对处于任何控制或")+FString(LDTerms::Slow)+TEXT("下的敌人，伤害 +")+HudPercent(Effect.RatioBp);
     case ELDDemoEffectOp::Taunt: return FString(LDTerms::Taunt)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("：自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
-    case ELDDemoEffectOp::Stealth: return FString(LDTerms::Stealth)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
-        +TEXT("cm 内的敌人可认出，")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::Stealth:
+    {
+        FString Text=FString(LDTerms::Stealth)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
+            +TEXT("cm 内的敌人可认出，")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp);
+        if(Effect.bAmbushReady){Text+=TEXT("；进入")+FString(LDTerms::Stealth)+TEXT("时潜水党立即就绪");}
+        return Text;
+    }
     case ELDDemoEffectOp::Disarm: return FString(LDTerms::Disarm)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Stun: return FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
-    case ELDDemoEffectOp::Backstab: return TEXT("背后出手：伤害 +")+HudPercent(Effect.RatioBp)+TEXT("，")+LDTerms::Stun+TEXT(" ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Backstab:
+        return TEXT("背后出手：伤害 +")+HudPercent(Effect.RatioBp)+TEXT("，")+LDTerms::Stun+TEXT(" ")+HudSeconds(Effect.DurationMs)
+            +(Effect.bImpaired?FString(TEXT("；目标处于")+FString(LDTerms::Root)+TEXT("、")+LDTerms::Slow+TEXT("或")+LDTerms::Taunt+TEXT("时也按背后结算")):FString());
     case ELDDemoEffectOp::EmpowerBasic:
-        return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次")+LDTerms::BasicAttack+TEXT("额外造成")+HudDamageTerm(Effect)+TEXT(" ")+HudScaling(Effect);
+        return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次")+LDTerms::BasicAttack+TEXT("的主击额外造成 ")+HudScaling(Effect);
     case ELDDemoEffectOp::Jump: return TEXT("跳向指定地点（")+HudSeconds(Effect.DurationMs)+TEXT(" 后落地）");
     case ELDDemoEffectOp::Thorns:
     {
         FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内敌人的")+LDTerms::BasicAttack+(Effect.bAbilityTrigger?TEXT("或技能打中时"):TEXT("打中时"))
             +TEXT("，对方受")+HudDamageTerm(Effect)+TEXT(" ")+HudPoints(Effect.BaseP2);
         if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
+        if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+LDTerms::MaxHealth();}
         if(Effect.CriticalMultiplierBp>10000){Text+=TEXT("，被")+FString(LDTerms::Crit)+TEXT("时变为 ")+HudPercent(Effect.CriticalMultiplierBp);}
         Text+=TEXT("；同一人 ")+HudSeconds(Effect.IntervalMs)+TEXT(" 内最多一次");
         if(Effect.bRearExempt){Text+=TEXT("，背后来袭不触发");}
+        if(Effect.RatioBp>0){Text+=TEXT("；反伤使对方")+FString(LDTerms::AttackSpeed)+TEXT("与")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);}
         return Text;
     }
+    case ELDDemoEffectOp::CooldownRefund:
+    {
+        static const TCHAR* Triggers[]={TEXT(""),TEXT("施放后"),TEXT("强化普攻命中后"),TEXT("持续期间每次普攻命中，"),TEXT("普攻暴击时"),TEXT("解除了控制或减速时"),TEXT(""),TEXT(""),TEXT(""),TEXT("")};
+        static const TCHAR* Entries[]={TEXT(""),TEXT("普攻节拍"),TEXT("本技能"),TEXT("其他主动技能"),TEXT("Q/W")};
+        const FString Amount=Effect.AmountMs>0?TEXT("剩余冷却 -")+HudSeconds(Effect.AmountMs):(Effect.RatioBp>=10000?FString(TEXT("立即就绪")):TEXT("返还 ")+HudPercent(Effect.RatioBp)+TEXT(" 冷却"));
+        return FString(Triggers[uint8(Effect.Trigger)%10])+Entries[uint8(Effect.Entries)%5]+Amount;
+    }
+    case ELDDemoEffectOp::AbilityCrit:
+        return Effect.CritMode==ELDDemoCritMode::Impaired
+            ? FString(TEXT("目标处于任何控制或破防时，本次必定技能")+FString(LDTerms::Crit))
+            : TEXT("指定技能以 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::CritChance()+TEXT("进行技能")+LDTerms::Crit;
+    case ELDDemoEffectOp::ResistShred:
+        return TEXT("命中后目标")+FString(Effect.ArmorRatioBp>0?LDTerms::Armor:LDTerms::MagicResist)+TEXT(" -")+HudPercent(FMath::Max(Effect.ArmorRatioBp,Effect.MagicResistRatioBp))+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::Momentum:
+        return TEXT("之后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内每移动 100cm 积攒 ")+HudPoints(Effect.BaseP2)+TEXT(" 点（最多 ")+HudPoints(Effect.CapP2)+TEXT("），并入下一次")+LDTerms::BasicAttack+TEXT("的主击");
+    case ELDDemoEffectOp::TauntRetaliate:
+        return FString(LDTerms::Taunt)+TEXT("结束时，周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内受")+HudDamageTerm(Effect)+TEXT(" ")+HudPoints(Effect.BaseP2)+TEXT(" + 每次挨打 ")+HudPoints(Effect.PerCountP2)
+            +TEXT("（最多 ")+FString::FromInt(Effect.Count)+TEXT(" 次）+ ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;
+    case ELDDemoEffectOp::TriggeredShield:
+        return (Effect.Trigger==ELDDemoEffectTrigger::LowHP
+                ? FString(LDTerms::Health)+TEXT("跌破 ")+HudPercent(Effect.RatioBp)+TEXT(" 时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
+                : FString(TEXT("落地每命中 1 个敌人获得")))
+            +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    case ELDDemoEffectOp::BasicStacks:
+    {
+        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
+        Text=TEXT("每次")+FString(LDTerms::BasicAttack)+TEXT("获得 ")+HudSeconds(Effect.DurationMs)+TEXT(" ")+Text+TEXT("，最多 ")+FString::FromInt(Effect.Count)+TEXT(" 层");
+        if(Effect.RatioBp>0){Text+=TEXT("；满层时")+FString(LDTerms::BasicAttack)+TEXT("前摇缩短 ")+HudPercent(Effect.RatioBp);}
+        return Text;
+    }
+    case ELDDemoEffectOp::LongReach:
+    {
+        FString Text=TEXT("与目标每远 100cm，伤害 +")+HudPercent(Effect.RatioBp)+TEXT("（最多 ")+HudPercent(Effect.CapBp)+TEXT("）");
+        if(Effect.DistanceCm.Numerator>0){Text+=TEXT("；方向投射与指向技能射程 +")+HudRational(Effect.DistanceCm)+TEXT("cm");}
+        return Text;
+    }
+    case ELDDemoEffectOp::CritDamageReduction: return TEXT("受到的")+FString(LDTerms::Crit)+TEXT("伤害 -")+HudPercent(Effect.RatioBp);
+    case ELDDemoEffectOp::NthBasicBonus:
+        return TEXT("每第 ")+FString::FromInt(Effect.Count)+TEXT(" 次")+LDTerms::BasicAttack+TEXT("额外造成 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+HudDamageTerm(Effect);
+    case ELDDemoEffectOp::ManaOnHit:
+        return (Effect.Trigger==ELDDemoEffectTrigger::Control?FString(TEXT("亲自施加控制或")+FString(LDTerms::Slow)+TEXT("时")):FString(TEXT("技能命中时")))
+            +TEXT("回复 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+LDTerms::Mana+TEXT("（每次施放一次）");
+    case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
+    case ELDDemoEffectOp::PathSlow:
+        return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }
@@ -605,6 +680,19 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         Card.bNeedsReplacement=Filled>=2;
     }
     return Card;
+}
+TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
+{
+    TArray<FString> Lines;
+    for(const FLDDemoStatBonus& Stat:Item.UpgradedStats){Lines.Add(StatLine(Stat));}
+    if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(Item,true))
+    {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
+    if(const FLDDemoRankDefinition* Active=LDDemoEquipment::EffectiveActiveRank(Item,true))
+    {
+        Lines.Add(TEXT("主动 [1/2]：")+TargetLine(Item.Active.Target));
+        for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
+    }
+    return Lines;
 }
 LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {
@@ -686,6 +774,8 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ReplacementRequired: return TEXT("主动技能槽已满，需要选择替换哪个技能");
     case ELDGrowthReason::ReplacementMismatch: return TEXT("要替换的技能已变化，请重新选择");
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("该选项不能替换技能");
+    case ELDGrowthReason::NoReroll: return TEXT("没有免费重抽次数");
+    case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("这一组已经重抽过一次");
     case ELDGrowthReason::NoShopSession: return FString(LDTerms::Shop)+TEXT("尚未打开");
     case ELDGrowthReason::QuoteStale: return TEXT("报价已更新，请重新确认");
     case ELDGrowthReason::PriceChanged: return TEXT("价格已变化，请重新确认");
@@ -703,6 +793,9 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::InvalidGround: case ELDGrowthReason::WrongSurface: return TEXT("当前位置不能交易");
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
+    case ELDGrowthReason::UpgradeUsed: return TEXT("本局的装备进阶已经用过了");
+    case ELDGrowthReason::UpgradeUnavailable: return TEXT("这件装备暂时不能进阶");
+    case ELDGrowthReason::AlreadyUpgraded: return TEXT("这件装备已经进阶");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
     case ELDGrowthReason::NumericDomain: return TEXT("数值非法，本次没有提交");
     case ELDGrowthReason::ArithmeticOverflow: return TEXT("数值溢出，本次没有提交");

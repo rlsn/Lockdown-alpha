@@ -3,10 +3,10 @@
 #include "Combat/LDCombatEvaluationTypes.h"
 #include "Combat/LDCombatTypes.h"
 
-// #112 §5 mechanics: heal/shield reduction, shield events, knockback, damage over time, armor/MR breach, ground zones,
-// the damage guard and the negative-status count. Pure rules over primitive values; ALDCombatDirector applies them to its
-// body records (LDCombatMechanicsDirector.cpp holds the director side). Every timed record is half-open at
-// its ExpiresAtMs, like Root and Shield.
+// #112 §5 mechanics: heal/shield reduction, shield events, knockback, damage over time, ground zones, the damage guard
+// and the negative-status count (the armor/MR breach record is LDTactical's FLDCombatBreach). Pure rules over
+// primitive values; ALDCombatDirector applies them to its body records (LDCombatMechanicsDirector.cpp holds the
+// director side). Every timed record is half-open at its ExpiresAtMs, like Root and Shield.
 
 // One heal/shield reduction (EFFECT heal_cut) on a target life: healing and shields the life receives are multiplied by
 // (1 - RatioBp). Several sources never stack: only the strongest active one applies.
@@ -21,20 +21,6 @@ struct FLDCombatHealCut
 // Outcome of one shield application against the single shield record (EFFECT.ShieldPolicy=ReplaceIfNotWeaker).
 // Refreshed: it replaced a shield that still had a remaining amount; Gained: the record was empty or lapsed.
 enum class ELDShieldGrant : uint8 { Rejected, Gained, Refreshed };
-
-// Armor/MR breach on a target life: one record per Key (the applying definition and its source). The damage evaluation
-// subtracts the summed flat terms first, then scales by (1 - summed ratio terms); the result never drops below zero.
-struct FLDCombatBreach
-{
-    FName Key;
-    FGuid SourceEntity;
-    int64 ArmorFlatP2 = 0;
-    int64 MRFlatP2 = 0;
-    int64 ArmorRatioBp = 0;
-    int64 MRRatioBp = 0;
-    int32 Stacks = 0;
-    int64 ExpiresAtMs = 0;
-};
 
 // The six negative-status kinds active_cancel_blast counts (#112 §2): any breach or damage over time counts once.
 struct FLDNegativeKinds
@@ -135,13 +121,6 @@ namespace LDCombatMechanics
     // fall back to the source's facing. False only for non-finite input.
     LOCKDOWN_API bool KnockbackDirection(const FVector& SourceFoot, const FVector& TargetFoot, double SourceYawDeg,
         FVector& OutDirection);
-
-    // Breach records: same Key replaces (with its stacks), others aggregate; lapsed ones are dropped by Expire.
-    LOCKDOWN_API void ApplyBreach(TArray<FLDCombatBreach>& Breaches, const FLDCombatBreach& Record);
-    LOCKDOWN_API bool ExpireBreaches(TArray<FLDCombatBreach>& Breaches, int64 AtMs);
-    LOCKDOWN_API bool HasBreach(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
-    // max(0, ResistanceP2 - flat) x (1 - min(ratio, 10000)) floored to P2, over the active records of one resistance.
-    LOCKDOWN_API int64 BreachedResistanceP2(int64 ResistanceP2, const TArray<FLDCombatBreach>& Breaches, bool bArmor, int64 AtMs);
 
     // Number of negative kinds (0..6).
     LOCKDOWN_API int32 CountNegativeKinds(const FLDNegativeKinds& Kinds);

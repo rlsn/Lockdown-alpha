@@ -56,10 +56,15 @@ bool VendorCommandShape(const FLDShopCommand& Command)
     {
         FName DefinitionId;
         return Command.DefinitionId.Decode(DefinitionId) && Command.BuyPrice > 0 && !Command.Instance.IsValid()
-            && Command.ExpectedItemRevision == 0 && Command.SellPrice == 0;
+            && Command.ExpectedItemRevision == 0 && Command.SellPrice == 0 && Command.UpgradePrice == 0;
+    }
+    if (Command.Kind == ELDShopCommandKind::Upgrade)
+    {
+        return Command.Instance.IsValid() && Command.ExpectedItemRevision > 0 && Command.UpgradePrice > 0
+            && Command.SellPrice == 0 && Command.DefinitionId == FLDDefinitionWire() && Command.BuyPrice == 0;
     }
     return Command.Instance.IsValid() && Command.ExpectedItemRevision > 0 && Command.SellPrice >= 0
-        && Command.DefinitionId == FLDDefinitionWire() && Command.BuyPrice == 0;
+        && Command.DefinitionId == FLDDefinitionWire() && Command.BuyPrice == 0 && Command.UpgradePrice == 0;
 }
 
 // Canonical business record of one shop request: the ledger key and terms of exactly this contender request.
@@ -81,6 +86,10 @@ void VendorCanonicalCommand(const FGuid& LedgerMatch, const FGuid& ContenderId, 
         << Copy.ExpectedInventoryRevision << Copy.ExpectedBuildRevision;
     Writer.Serialize(Copy.DefinitionId.Bytes, sizeof(Copy.DefinitionId.Bytes));
     Writer << Copy.BuyPrice << Copy.Instance << Copy.ExpectedItemRevision << Copy.SellPrice;
+    if (Copy.Kind == ELDShopCommandKind::Upgrade)
+    {
+        Writer << Copy.UpgradePrice;
+    }
 }
 
 ELDGrowthReason VendorEligibilityReason(const FLDShopEligibilityResult& Eligibility)
@@ -125,6 +134,8 @@ ELDGrowthReason VendorLedgerReason(LDEconomy::EPrepareError Error)
     case LDEconomy::EPrepareError::DuplicateBusinessKey:
     case LDEconomy::EPrepareError::BusinessKeyConflict: return ELDGrowthReason::RequestConflict;
     case LDEconomy::EPrepareError::RetiredAccount: return ELDGrowthReason::LeftMatch;
+    case LDEconomy::EPrepareError::UpgradeUsed: return ELDGrowthReason::UpgradeUsed;
+    case LDEconomy::EPrepareError::AlreadyUpgraded: return ELDGrowthReason::AlreadyUpgraded;
     default: return ELDGrowthReason::DataInvalid;
     }
 }
@@ -367,6 +378,9 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         Item.bInheritsCooldown = Preview.bInherits;
         Item.InheritedReadyAtMs = Preview.bInherits ? Preview.ReadyAtMs : 0;
     }
+    const LDEconomy::FAccount* Account = Book.Account(ContenderId);
+    Out.UpgradePrice = Definitions.Parameters.UpgradeCost;
+    Out.bUpgradeUsed = Account->bUpgradeUsed;
     Out.Sellable.Reserve(Owned.Num());
     for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
     {
@@ -382,6 +396,8 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         Sell.ItemRevision = Pair.Value.Revision;
         Sell.DefinitionId = Pair.Value.Definition;
         Sell.SellPrice = Definition->SellGold;
+        Sell.bUpgraded = Pair.Value.bUpgraded;
+        Sell.bCanUpgrade = !Account->bUpgradeUsed && !Pair.Value.bUpgraded && LDDemoEquipment::Upgradable(*Definition);
     }
     return true;
 }
@@ -762,6 +778,7 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
         return ELDGrowthReason::DataInvalid;
     }
     const bool bBuy = Command.Kind == ELDShopCommandKind::Buy;
+    const bool bUpgrade = Command.Kind == ELDShopCommandKind::Upgrade;
     LDEconomy::FTransaction Transaction;
     Transaction.BusinessKey = ALDEconomyDirector::BusinessKey(Canonical);
     ALDEconomyDirector::Terms(Canonical, Transaction.Terms);
@@ -824,6 +841,57 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
         Create.Definition = DefinitionId;
         Create.Slot = SlotIndex;
         Transaction.Create.Emplace(Create);
+    }
+    else if (bUpgrade)
+    {
+        // 112 §7: one upgrade per contender and match, of an owned not yet upgraded instance with approved upgraded terms.
+        const LDEconomy::FItem* Item = Ledger.Item(Command.Instance);
+        if (!Item || Item->Owner != ContenderId)
+        {
+            return ELDGrowthReason::ItemNotOwned;
+        }
+        if (Item->Revision != Command.ExpectedItemRevision)
+        {
+            return ELDGrowthReason::ItemStale;
+        }
+        const FLDDemoEquipmentDefinition* Definition = VendorFindEquipment(*Content, Item->Definition);
+        if (!Definition)
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        if (Account->bUpgradeUsed)
+        {
+            return ELDGrowthReason::UpgradeUsed;
+        }
+        if (Item->bUpgraded)
+        {
+            return ELDGrowthReason::AlreadyUpgraded;
+        }
+        if (!LDDemoEquipment::Upgradable(*Definition))
+        {
+            return ELDGrowthReason::UpgradeUnavailable;
+        }
+        const int64 Price = Content->Get().Parameters.UpgradeCost;
+        if (Command.UpgradePrice != Price)
+        {
+            return ELDGrowthReason::PriceChanged;
+        }
+        if (Account->Gold < Price)
+        {
+            return ELDGrowthReason::InsufficientGold;
+        }
+        DefinitionId = Item->Definition;
+        SlotIndex = Item->Slot;
+        SoldIssueSerial = Item->IssueSerial;
+        Gold.Delta = -Price;
+        Transaction.Cause = LDEconomy::ECause::Upgrade;
+        Transaction.Burn = Price;
+        LDEconomy::FUpgradeItem Upgrade;
+        Upgrade.Instance = Command.Instance;
+        Upgrade.ExpectedItemRevision = Command.ExpectedItemRevision;
+        Upgrade.Owner = ContenderId;
+        Upgrade.ExpectedInventoryRevision = Command.ExpectedInventoryRevision;
+        Transaction.Upgrade.Emplace(Upgrade);
     }
     else
     {

@@ -13,8 +13,13 @@ namespace
 bool DevelopmentChoiceShapeValid(const FLDChoiceCommand& Command, int32 MaxSkillRank)
 {
     if (Command.Generation == 0 || Command.Life == 0 || Command.RequestId == 0 || !Command.OfferId.IsValid()
-        || !Command.OptionId.IsValid() || Command.ExpectedBuildRevision == 0 || Command.OfferRevision == 0
+        || Command.OptionId.IsValid() == Command.bReroll || Command.ExpectedBuildRevision == 0 || Command.OfferRevision == 0
         || !LDGrowthWire::IsChoicePhase(Command.ExpectedLifePhase))
+    {
+        return false;
+    }
+    // A reroll names the offer it replaces and nothing else.
+    if (Command.bReroll && Command.bReplace)
     {
         return false;
     }
@@ -152,34 +157,18 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
             LDGrowthWire::ReasonName(LevelReason));
         return false;
     }
-    // DrawThree multiplies the weight by the remaining pool; this bound keeps every later head draw no-fail.
-    const int64 PoolBound = FMath::Max<int64>(
-        static_cast<int64>(Definitions.Abilities.Num()) + static_cast<int64>(Definitions.Attributes.Num()), 1);
-    if (Definitions.Parameters.ChoiceBaseWeight <= 0 || Definitions.Parameters.ChoiceBaseWeight > MAX_int64 / PoolBound)
-    {
-        Error = TEXT("CHOICE.BaseWeight must be a positive weight that fits the whole candidate pool.");
-        return false;
-    }
     if (Definitions.Progression.ActiveSlots != 2)
     {
         Error = TEXT("Growth requires exactly two active skill slots (Q/W).");
         return false;
     }
+    // 112 §6: the kept opening offer is drawn from its own composition; a short group refuses the match, never borrows cards.
     TArray<LDProgression::FLegalOption> FirstPool;
-    if (LDProgression::LegalPool(*InContent, FLDGrowthBuild(), FirstPool) != ELDGrowthReason::None || FirstPool.Num() < 3)
+    if (LDProgression::LegalPool(*InContent, FLDGrowthBuild(), FirstPool) != ELDGrowthReason::None
+        || !LDProgression::DrawFeasible(InContent->Get(), FLDGrowthBuild(), FirstPool, 1))
     {
-        Error = TEXT("The approved catalog cannot offer three distinct choices to a level-1 build.");
-        return false;
-    }
-    // D24: the kept opening offer is drawn from its own composition; a short group refuses the match, never borrows cards.
-    TArray<int32> OpeningAttributes;
-    TArray<int32> OpeningPassives;
-    if (LDProgression::OpeningCandidates(Definitions.Progression, FirstPool, OpeningAttributes, OpeningPassives)
-        != ELDGrowthReason::None)
-    {
-        Error = FString::Printf(TEXT("The approved catalog cannot fill the opening offer: %d of %d opening attribute cards and %d of %d passives."),
-            OpeningAttributes.Num(), Definitions.Progression.OpeningAttributeCount, OpeningPassives.Num(),
-            Definitions.Progression.OpeningPassiveCount);
+        Error = FString::Printf(TEXT("The approved catalog cannot fill the opening offer of %d new draftable actives and %d passives."),
+            Definitions.Progression.OpeningActiveCount, Definitions.Progression.OpeningPassiveCount);
         return false;
     }
     TMap<FGuid, FRecord> NewRecords;
@@ -248,12 +237,14 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
     View.EarnedThrough = Progression.EarnedThrough;
     View.ConsumedThrough = Progression.ConsumedThrough;
     View.PendingChoiceCount = Progression.PendingCount();
+    View.RerollTokens = RerollTokens(*Record);
     if (Progression.Offer.IsSet())
     {
         const FLDChoiceOfferState& Offer = Progression.Offer.GetValue();
         View.bHasOffer = true;
         View.Offer.OfferId = Offer.OfferId;
         View.Offer.OpportunityOrdinal = Offer.Ordinal;
+        View.Offer.bRerolled = Offer.bRerolled;
         View.Offer.OfferRevision = Offer.Revision;
         View.Offer.GuardBuildRevision = Offer.GuardBuildRevision;
         View.Offer.Options = Offer.Options;
@@ -451,6 +442,33 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     {
         return Reject(ELDGrowthReason::OfferGuardStale);
     }
+    if (Command.bReroll)
+    {
+        const ELDGrowthReason RerollReason = RerollHead(ContenderId, *Record);
+        if (RerollReason != ELDGrowthReason::None)
+        {
+            return Reject(RerollReason);
+        }
+        FLDChoiceReceipt Receipt;
+        DevelopmentFillHeader(Receipt.Header, Command, Info, ELDReceiptOutcome::Applied, ELDGrowthReason::None, &Permit);
+        Receipt.Header.Revisions.bHasProgression = true;
+        Receipt.Header.Revisions.ProgressionRevision = Record->Progression.Revision;
+        Receipt.Header.Revisions.bHasBuild = true;
+        Receipt.Header.Revisions.BuildRevision = Record->Build.Revision;
+        Receipt.Header.Revisions.bHasOffer = true;
+        Receipt.Header.Revisions.OfferRevision = Record->Progression.Offer->Revision;
+        Receipt.OfferId = Command.OfferId;
+        Receipt.OpportunityOrdinal = Record->Progression.Offer->Ordinal;
+        Receipt.ConsumedThrough = Record->Progression.ConsumedThrough;
+        Receipt.bRerolled = true;
+        Receipt.RerollTokensLeft = RerollTokens(*Record);
+        Receipt.bHasNextOffer = true;
+        Receipt.NextOfferId = Record->Progression.Offer->OfferId;
+        Record->Choices.Finalize(Receipt);
+        Record->Unpublished.Add(Receipt);
+        GameMode->Economy->MarkDirty(ContenderId);
+        return Receipt;
+    }
     const FLDChoiceOption* Option = Offer.Options.FindByPredicate(
         [&Command](const FLDChoiceOption& Row) { return Row.OptionId == Command.OptionId; });
     if (!Option)
@@ -568,7 +586,8 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
     if (NewProgression.PendingCount() > 0)
     {
         const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, NewBuild, NextPool);
-        if (PoolReason != ELDGrowthReason::None || NextPool.Num() < 3)
+        if (PoolReason != ELDGrowthReason::None
+            || !LDProgression::DrawFeasible(Content->Get(), NewBuild, NextPool, uint8(NewProgression.ConsumedThrough + 1)))
         {
             return PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid;
         }
@@ -693,7 +712,8 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
     if (!NewProgression.Offer.IsSet() && NewProgression.PendingCount() > 0)
     {
         const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, NewBuild, Prepared.HeadPool);
-        if (PoolReason != ELDGrowthReason::None || Prepared.HeadPool.Num() < 3)
+        if (PoolReason != ELDGrowthReason::None
+            || !LDProgression::DrawFeasible(Content->Get(), NewBuild, Prepared.HeadPool, uint8(NewProgression.ConsumedThrough + 1)))
         {
             return DevelopmentPrepareFailure(PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid,
                 TEXT("The catalog cannot offer three distinct choices for the new opportunity."));
@@ -769,17 +789,20 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         && Progression.LastOfferRevision < MAX_uint64,
         TEXT("A head draw needs an empty offer slot over a non-empty opportunity queue."));
     const uint8 Ordinal = static_cast<uint8>(Progression.ConsumedThrough + 1);
-    const FLDDemoContentDefinitions& Definitions = Content->Get();
-    const int64 Weight = Definitions.Parameters.ChoiceBaseWeight;
-    const uint64 Seed = LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal);
+    LDProgression::FDrawInput Input;
+    Input.Content = &Content->Get();
+    Input.Build = &Record.Build;
+    Input.Ordinal = Ordinal;
+    Input.Seed = LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal);
+    EquippedDefinitions(ContenderId, Input.Equipment);
     TArray<LDProgression::FLegalOption> Picked;
 #if WITH_DEV_AUTOMATION_TESTS
     TArray<TArray<FName>>* Presets = DevOfferQueue.Find(ContenderId);
     TArray<TArray<FName>> NoPresets;
     bool bPreset = false;
     FString PresetError;
-    const ELDGrowthReason DrawReason = LDDevGrowthFixture::PickHead(Definitions.Progression, Pool, Ordinal, Weight, Seed,
-        Presets ? *Presets : NoPresets, Picked, bPreset, PresetError);
+    const ELDGrowthReason DrawReason = LDDevGrowthFixture::PickHead(Input, Pool, Presets ? *Presets : NoPresets, Picked, bPreset,
+        PresetError);
     if (!PresetError.IsEmpty())
     {
         UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s ordinal=%u, drawn normally: %s"),
@@ -796,12 +819,19 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         DevOfferQueue.Remove(ContenderId);
     }
 #else
-    const ELDGrowthReason DrawReason = LDProgression::DrawOffer(Definitions.Progression, Pool, Ordinal, Weight, Seed, Picked);
+    const ELDGrowthReason DrawReason = LDProgression::DrawOffer(Input, Pool, Picked);
 #endif
     verifyf(DrawReason == ELDGrowthReason::None && Picked.Num() == 3, TEXT("The prepared head pool must yield three distinct options."));
+    InstallHead(Record, Ordinal, false, Picked);
+}
+
+void ALDDevelopmentDirector::InstallHead(FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked)
+{
+    FLDProgressionState& Progression = Record.Progression;
     FLDChoiceOfferState Offer;
     Offer.OfferId = FGuid::NewGuid();
     Offer.Ordinal = Ordinal;
+    Offer.bRerolled = bRerolled;
     Offer.Options.Reserve(Picked.Num());
     for (const LDProgression::FLegalOption& Legal : Picked)
     {
@@ -816,6 +846,79 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
     Offer.GuardBuildRevision = Record.Build.Revision;
     Offer.Revision = ++Progression.LastOfferRevision;
     Progression.Offer.Emplace(MoveTemp(Offer));
+}
+
+uint8 ALDDevelopmentDirector::RerollTokens(const FRecord& Record) const
+{
+    const uint8 Earned = Content.IsValid() ? LDProgression::RerollTokensEarned(Content->Get().Progression, Record.Build.Level) : 0;
+    return Earned > Record.Progression.RerollsUsed ? uint8(Earned - Record.Progression.RerollsUsed) : 0;
+}
+
+void ALDDevelopmentDirector::EquippedDefinitions(const FGuid& ContenderId, TArray<FName>& Out) const
+{
+    Out.Reset();
+    const ALDGameMode* GameMode = Mode();
+    if (!GameMode || !GameMode->Economy || !GameMode->Economy->GetLedger().IsInitialized())
+    {
+        return;
+    }
+    TArray<FLDEquippedItemValue> Equipped;
+    ALDInventoryDirector::EquippedItems(GameMode->Economy->GetLedger().State(), ContenderId, Equipped);
+    for (const FLDEquippedItemValue& Item : Equipped)
+    {
+        Out.Add(Item.DefinitionId);
+    }
+}
+
+ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRecord& Record)
+{
+    FLDProgressionState& Progression = Record.Progression;
+    if (!Content.IsValid() || !Progression.Offer.IsSet())
+    {
+        return ELDGrowthReason::NoOffer;
+    }
+    const FLDChoiceOfferState& Current = Progression.Offer.GetValue();
+    if (Current.bRerolled)
+    {
+        return ELDGrowthReason::OfferAlreadyRerolled;
+    }
+    if (RerollTokens(Record) == 0)
+    {
+        return ELDGrowthReason::NoReroll;
+    }
+    if (Progression.Revision == MAX_uint64 || Progression.LastOfferRevision == MAX_uint64 || Progression.RerollsUsed == MAX_uint8)
+    {
+        return ELDGrowthReason::ArithmeticOverflow;
+    }
+    TArray<LDProgression::FLegalOption> Pool;
+    const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, Record.Build, Pool);
+    if (PoolReason != ELDGrowthReason::None)
+    {
+        return PoolReason;
+    }
+    // Same rules as the first draw; the previous three cards are avoided wherever the pool allows.
+    LDProgression::FDrawInput Input;
+    Input.Content = &Content->Get();
+    Input.Build = &Record.Build;
+    Input.Ordinal = Current.Ordinal;
+    Input.Seed = LDProgression::RerollSeed(MatchSecret, ContenderId, Current.Ordinal);
+    EquippedDefinitions(ContenderId, Input.Equipment);
+    for (const FLDChoiceOption& Option : Current.Options)
+    {
+        Input.Avoid.Add({Option.Kind, Option.DefinitionId, Option.FromRank, Option.ToRank});
+    }
+    TArray<LDProgression::FLegalOption> Picked;
+    const ELDGrowthReason DrawReason = LDProgression::DrawOffer(Input, Pool, Picked);
+    if (DrawReason != ELDGrowthReason::None || Picked.Num() != 3)
+    {
+        return DrawReason != ELDGrowthReason::None ? DrawReason : ELDGrowthReason::DataInvalid;
+    }
+    const uint8 Ordinal = Current.Ordinal;
+    ++Progression.RerollsUsed;
+    ++Progression.Revision;
+    Progression.Offer.Reset();
+    InstallHead(Record, Ordinal, true, Picked);
+    return ELDGrowthReason::None;
 }
 
 FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGrowthBuild& Build,
@@ -1019,7 +1122,7 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::DevPrepareReset(const FGuid& Cont
     Prepared.NewProgression.EarnedThrough = 1;
     Prepared.NewProgression.LastOfferRevision = Record->Progression.LastOfferRevision;
     const ELDGrowthReason PoolReason = LDProgression::LegalPool(*Content, Prepared.NewBuild, Prepared.HeadPool);
-    if (PoolReason != ELDGrowthReason::None || Prepared.HeadPool.Num() < 3)
+    if (PoolReason != ELDGrowthReason::None || !LDProgression::DrawFeasible(Content->Get(), Prepared.NewBuild, Prepared.HeadPool, 1))
     {
         return DevelopmentPrepareFailure(PoolReason != ELDGrowthReason::None ? PoolReason : ELDGrowthReason::DataInvalid,
             TEXT("The catalog cannot offer three distinct choices to a level-1 build."));

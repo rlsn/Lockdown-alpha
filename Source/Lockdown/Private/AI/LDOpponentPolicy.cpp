@@ -1,6 +1,7 @@
 #include "AI/LDOpponentPolicy.h"
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDProgressionRules.h"
 
 // Unity builds merge translation units: every file-scope helper lives in this module-unique namespace.
 namespace LDOpponentPolicy::Detail
@@ -1209,7 +1210,8 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 FCandidate Replace = Candidate;
                 Replace.Tier = bGain && !bLoses ? 1 : 6;
                 Replace.Loses = bLoses ? 1 : 0;
-                Replace.Forgotten = Active[Slot]->Rank;
+                // 112 §6: the new active keeps max(1, old rank - 1); only the lost ranks count as forgotten.
+                Replace.Forgotten = Active[Slot]->Rank - LDProgression::ReplacementRank(Active[Slot]->Rank);
                 Replace.Slot = Slot;
                 Replace.Pick.bReplace = true;
                 Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;
@@ -1223,6 +1225,13 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
             Error = TEXT("Offer option has an unsupported kind.");
             return false;
         }
+    }
+    // 112 §6: an offer whose best card is only an attribute or a role-losing replacement is worth a free reroll.
+    if (Best->Tier >= 5 && Self.RerollTokens > 0 && !Self.Offer->bRerolled)
+    {
+        Out = {};
+        Out.bReroll = true;
+        return true;
     }
     Out = Best->Pick;
     return true;
@@ -1293,6 +1302,24 @@ bool PlanEquipment(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Ca
                 Out = Plan;
             }
         }
+    }
+    // 112 §7: with no better trade, spend the one upgrade on the first held item that can take it.
+    if (!Out.IsSet() && !Self.bUpgradeUsed && Self.Gold >= Catalog.Get().Parameters.UpgradeCost)
+    {
+        for (int32 Slot = 0; Slot < 2; ++Slot)
+        {
+            const FLDDemoEquipmentDefinition* Item = nullptr;
+            if (Self.Equipment[Slot].IsEmpty() || Self.EquipmentUpgraded[Slot]
+                || !Catalog.FindEquipment(Self.Equipment[Slot], Item, Error) || !Item || !LDDemoEquipment::Upgradable(*Item))
+            {
+                continue;
+            }
+            FLDOpponentEquipmentPlan Plan;
+            Plan.UpgradeSlot = Slot;
+            Out = Plan;
+            break;
+        }
+        Error.Reset();
     }
     return true;
 }
@@ -1478,9 +1505,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(FLDOpponentBodyIntent());
             if (Out.Build.Kind == ELDOpponentBuildKind::None && !Frame.bBuildChangeInFlight)
             {
-                Out.Build.Kind = Plan->SellSlot != INDEX_NONE ? ELDOpponentBuildKind::Sell : ELDOpponentBuildKind::Buy;
+                Out.Build.Kind = Plan->UpgradeSlot != INDEX_NONE ? ELDOpponentBuildKind::Upgrade
+                    : Plan->SellSlot != INDEX_NONE ? ELDOpponentBuildKind::Sell : ELDOpponentBuildKind::Buy;
                 Out.Build.SellSlot = Plan->SellSlot;
                 Out.Build.BuyItemId = Plan->BuyItemId;
+                Out.Build.UpgradeSlot = Plan->UpgradeSlot;
                 Out.Build.Key = ShopKey;
             }
             return Finish(EMode::Shop, Frame.bBuildChangeInFlight ? EReason::AwaitReceipt : EReason::ShopImprovement);

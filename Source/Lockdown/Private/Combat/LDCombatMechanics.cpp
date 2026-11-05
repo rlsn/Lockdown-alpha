@@ -66,40 +66,6 @@ bool KnockbackDirection(const FVector& SourceFoot, const FVector& TargetFoot, do
     return true;
 }
 
-void ApplyBreach(TArray<FLDCombatBreach>& Breaches, const FLDCombatBreach& Record)
-{
-    Breaches.RemoveAll([&Record](const FLDCombatBreach& Existing)
-    { return Existing.Key == Record.Key && Existing.SourceEntity == Record.SourceEntity; });
-    Breaches.Add(Record);
-}
-
-bool ExpireBreaches(TArray<FLDCombatBreach>& Breaches, int64 AtMs)
-{
-    return Breaches.RemoveAll([AtMs](const FLDCombatBreach& Breach) { return Breach.ExpiresAtMs <= AtMs; }) > 0;
-}
-
-bool HasBreach(const TArray<FLDCombatBreach>& Breaches, int64 AtMs)
-{
-    return Breaches.ContainsByPredicate([AtMs](const FLDCombatBreach& Breach)
-    {
-        return Breach.ExpiresAtMs > AtMs
-            && (Breach.ArmorFlatP2 > 0 || Breach.MRFlatP2 > 0 || Breach.ArmorRatioBp > 0 || Breach.MRRatioBp > 0);
-    });
-}
-
-int64 BreachedResistanceP2(int64 ResistanceP2, const TArray<FLDCombatBreach>& Breaches, bool bArmor, int64 AtMs)
-{
-    int64 Flat = 0, Ratio = 0;
-    for (const FLDCombatBreach& Breach : Breaches)
-    {
-        if (Breach.ExpiresAtMs <= AtMs) { continue; }
-        Flat += FMath::Max<int64>(bArmor ? Breach.ArmorFlatP2 : Breach.MRFlatP2, 0);
-        Ratio += FMath::Max<int64>(bArmor ? Breach.ArmorRatioBp : Breach.MRRatioBp, 0);
-    }
-    const int64 AfterFlat = FMath::Max<int64>(ResistanceP2 - Flat, 0);
-    return ReduceByBp(AfterFlat, Ratio);
-}
-
 int32 CountNegativeKinds(const FLDNegativeKinds& Kinds)
 {
     return int32(Kinds.bRoot) + int32(Kinds.bSlow) + int32(Kinds.bDisarm) + int32(Kinds.bStun) + int32(Kinds.bTaunt)

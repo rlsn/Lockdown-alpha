@@ -33,12 +33,14 @@ enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2 };
 enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4,
     Slow=5, StatBoost=6, Enraged=7, AmbushReady=8, Exposed=9, Taunt=10, Stealth=11,
     Disarm=12, Stun=13, Empowered=14,
-    Knockback=20, Breach=21, HealCut=22, DamageGuard=23, Vulnerable=24 };
+    Knockback=20, HealCut=22, DamageGuard=23, Vulnerable=24 };
 enum class ELDDemoEffectOp : uint8
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
     OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10, DashBoost=11,
     Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, AmbushDamage=16, ControlDamageAmp=17,
     Taunt=18, Stealth=19, Disarm=20, Stun=21, EmpowerBasic=22, Jump=23, Thorns=24, Backstab=25,
-    Knockback=40, HealCut=41, Dot=42, MobilityPunish=43, Volley=44, RefreshDebuffs=45, OnHit=46, DebuffAmp=47, ShieldShatter=48, DebuffHeal=49, Zone=50, ZoneShield=51, ZoneSlow=52, ZoneRoot=53, ZoneDamage=54, DamageGuard=55, ShieldBurst=56, Vulnerable=57, Decoy=58, LeapBack=59, CooldownRefresh=60, BreachStacks=61, MobilityShield=62, ShieldPulse=63, BasicRider=64, CastFrenzy=65, AfflictionAmp=66, ShieldBreakRetort=67, HitHaste=68
+    CooldownRefund=26, AbilityCrit=27, ResistShred=28, Momentum=29, TauntRetaliate=30, TriggeredShield=31,
+    BasicStacks=32, LongReach=33, CritDamageReduction=34, NthBasicBonus=35, ManaOnHit=36, DispelSlow=37,
+    PathSlow=38, Knockback=40, HealCut=41, Dot=42, MobilityPunish=43, Volley=44, RefreshDebuffs=45, OnHit=46, DebuffAmp=47, ShieldShatter=48, DebuffHeal=49, Zone=50, ZoneShield=51, ZoneSlow=52, ZoneRoot=53, ZoneDamage=54, DamageGuard=55, ShieldBurst=56, Vulnerable=57, Decoy=58, LeapBack=59, CooldownRefresh=60, BreachStacks=61, MobilityShield=62, ShieldPulse=63, BasicRider=64, CastFrenzy=65, AfflictionAmp=66, ShieldBreakRetort=67, HitHaste=68
 };

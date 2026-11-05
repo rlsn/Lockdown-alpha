@@ -74,7 +74,10 @@ const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttribute
     {
         const FLDDemoEquipmentDefinition* Equipment=nullptr;
         if (!Content->FindEquipment(Family.EquipmentId,Equipment,Ignored) || !Equipment || !Equipment->HasPassive) { continue; }
-        for (const FLDDemoEffectDefinition& Effect : Equipment->Passive.Effects)
+        // An upgraded copy answers with its upgraded terms (#112 §7).
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
+        if (!Effects) { continue; }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=Op) { continue; }
             if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Gear; OutSource->DefinitionId=FName(*Family.EquipmentId); OutSource->ItemInstance.Invalidate(); }
@@ -166,8 +169,10 @@ bool ALDCombatDirector::OnShieldBroken(FLDBodyCombatState& Holder, const FLDComb
     return true;
 }
 
-bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, FString& Error)
+bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs,
+    bool& bApplied, FString& Error)
 {
+    bApplied=false;
     ALDCharacter* SourceActor=nullptr;
     FindBody(Hit.SourceBody,&SourceActor);
     const FVector From=Hit.bKnockbackFromAnchor || !SourceActor ? Hit.KnockbackAnchorCm : FootOf(*SourceActor);
@@ -175,23 +180,23 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     FVector Direction;
     if (!LDCombatMechanics::KnockbackDirection(From,FootOf(Target),Yaw,Direction))
     { Error=TEXT("A knockback has no finite direction."); return false; }
-    FLDCombatRoot Window;
-    Window.EffectId=Hit.EffectId;
-    Window.SourceEntity=Hit.SourceEntity;
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.KnockbackMs,Window.ExpiresAtMs,Error)) { return false; }
     auto* Movement=Cast<ULDCharacterMovementComponent>(Target.GetCharacterMovement());
+    if (!Movement) { Error=TEXT("Knockback requires the Demo character movement."); return false; }
+    // The control itself (window, interruptions, order drop, spray, assists) commits through the single control path.
+    FLDControlApplication App;
+    App.Kind=ELDControlKind::Knockback;
+    App.EffectId=Hit.EffectId;
+    App.SourceEntity=Hit.SourceEntity;
+    App.SourceBody=Hit.SourceBody;
+    App.DurationMs=Hit.KnockbackMs;
+    if (!CommitControl(Body,App,NowMs,bApplied,Error)) { return false; }
+    if (!bApplied) { return true; }
     // The same native root motion as a dash: integrated by the authority steps along the ground, stopped by blocking
     // geometry at the last legal position, never a teleport.
-    if (!Movement || !Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
+    if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
     { Error=TEXT("Knockback: ")+Error; return false; }
-    LDCombatControl::Apply(Body.Knockbacks,Window,NowMs);
-    // The unreleased action ends and Navigation drops the current move or attack order at its next pass.
-    AbandonAction(Body,ELDCombatReject::ControlBlocked);
-    ++Body.KnockbackSerial;
-    ++Body.StateRevision;
-    MarkViewChanged(Body.Victim.EntityId);
-    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f until=%lld"),*Body.Victim.EntityId.ToString(),
-        *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Window.ExpiresAtMs);
+    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld"),*Body.Victim.EntityId.ToString(),
+        *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs);
     return true;
 }
 
@@ -232,7 +237,7 @@ bool ALDCombatDirector::OnMobilityUsed(FLDBodyCombatState& Body, int64 NowMs, FS
         Hit.DamageType=Dot.DamageType;
         Hit.SourceADP2=Source ? Source->AttributeProjection.Final.ADP2 : Dot.SourceADP2;
         Hit.SourceAPP2=Source ? Source->AttributeProjection.Final.APP2 : Dot.SourceAPP2;
-        Hit.bAddon=true;
+        Hit.bAddedDamage=true;
         PendingHits.Add(Hit);
     }
     return GrantThickSkin(Body,NowMs,Error);
@@ -248,59 +253,12 @@ bool ALDCombatDirector::OnControlApplied(const FLDCombatHit& Hit, int64 NowMs, F
 bool ALDCombatDirector::OnHitLanded(FLDBodyCombatState& Target, const FLDCombatHit& Hit, int64 DamageP2, int64 NowMs, FString& Error)
 {
     FLDBodyCombatState* Source=FindBody(Hit.SourceBody);
-    if (!Source || Source==&Target || Source->bPendingDeath || DamageP2<=0 || Hit.bAddon || Hit.bReflect) { return true; }
+    if (!Source || Source==&Target || Source->bPendingDeath || DamageP2<=0 || Hit.bAddedDamage || Hit.bReflect) { return true; }
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
     const bool bAbility=Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bPeriodic;
-    // passive_dox_master: basic and damaging ability hits (and coefficient on-hit pulses, Q3) stack one breach layer.
-    FLDCombatSourceRef DoxRef;
-    if (const FLDDemoEffectDefinition* Dox=(bBasic || bAbility || Hit.OnHitScaleBp>0)
-        ? FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::BreachStacks,&DoxRef) : nullptr)
-    {
-        FLDCombatDot* Dot=Target.Dots.FindByPredicate([&DoxRef,Source](const FLDCombatDot& Row)
-        { return Row.Key==DoxRef.DefinitionId && Row.SourceEntity==Source->Victim.EntityId; });
-        if (!Dot)
-        {
-            Dot=&Target.Dots.AddDefaulted_GetRef();
-            Dot->Key=DoxRef.DefinitionId;
-            Dot->EffectId=FGuid::NewGuid();
-            Dot->SourceEntity=Source->Victim.EntityId;
-            Dot->SourceBody={Source->Victim,Source->Identity};
-            Dot->CreditOwner=Hit.CreditOwner;
-            Dot->Source=DoxRef;
-            Dot->BaseP2=Dox->BaseP2;
-            Dot->ADRatioBp=Dox->ADRatioBp;
-            Dot->APRatioBp=Dox->APRatioBp;
-            Dot->DamageType=Dox->DamageType;
-            Dot->IntervalMs=Dox->IntervalMs;
-            Dot->MaxStacks=int32(Dox->Count);
-            Dot->ShredStepP2=Dox->ShredP2;
-            Dot->DurationMs=Dox->DurationMs;
-            Dot->FullHealCutBp=Dox->SecondaryRatioBp;
-            Dot->Stacks=0;
-            if (!LDMatchLifecycle::AddDurationMs(NowMs,Dox->IntervalMs,Dot->NextTickAtMs,Error)) { return false; }
-        }
-        // All layers share one timer that a new layer restarts.
-        Dot->Stacks=FMath::Min(Dot->Stacks+1,Dot->MaxStacks);
-        Dot->SourceADP2=Source->AttributeProjection.Final.ADP2;
-        Dot->SourceAPP2=Source->AttributeProjection.Final.APP2;
-        const FLDDemoEffectDefinition* Amp=FindTrigger(Source->AttributeProjection,ELDDemoEffectOp::AfflictionAmp);
-        Dot->AmplifyBp=10000+(Amp ? Amp->RatioBp : 0);
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Dot->DurationMs,Dot->ExpiresAtMs,Error)) { return false; }
-        FLDCombatBreach Breach;
-        Breach.Key=Dot->Key;
-        Breach.SourceEntity=Dot->SourceEntity;
-        Breach.ArmorFlatP2=Breach.MRFlatP2=Dot->ShredStepP2*Dot->Stacks;
-        Breach.Stacks=Dot->Stacks;
-        Breach.ExpiresAtMs=Dot->ExpiresAtMs;
-        LDCombatMechanics::ApplyBreach(Target.Breaches,Breach);
-        if (Dot->FullHealCutBp>0 && Dot->Stacks>=Dot->MaxStacks)
-        {
-            LDCombatMechanics::ApplyHealCut(Target.HealCuts,
-                FLDCombatHealCut{Dot->EffectId,Dot->SourceEntity,Dot->FullHealCutBp,Dot->ExpiresAtMs},NowMs);
-        }
-        ++Target.StateRevision;
-        MarkViewChanged(Target.Victim.EntityId);
-    }
+    // passive_dox_master: a damaging ability hit stacks one layer here; basic and coefficient hits stack through
+    // ApplyOnHitEffects (Q3: one layer at any coefficient).
+    if (bAbility && Hit.OnHitScaleBp<=0 && !StackDox(Target,*Source,Hit,NowMs,Error)) { return false; }
     // passive_thick_skin Lv3: the next basic or ability hit after the shield adds a share of it as a separate magic hit.
     if ((bBasic || bAbility) && Source->ShieldBonusP2>0 && NowMs<Source->ShieldBonusUntilMs)
     {
@@ -309,7 +267,7 @@ bool ALDCombatDirector::OnHitLanded(FLDBodyCombatState& Target, const FLDCombatH
         FLDCombatHit Bonus=LDCombatMechanicsDetail::MakeHit(*Source,SkinRef,Hit.Target,FGuid());
         Bonus.BaseP2=Source->ShieldBonusP2;
         Bonus.DamageType=ELDDemoDamageType::Magical;
-        Bonus.bAddon=true;
+        Bonus.bAddedDamage=true;
         PendingHits.Add(Bonus);
         Source->ShieldBonusP2=0;
         Source->ShieldBonusUntilMs=0;
@@ -328,6 +286,63 @@ bool ALDCombatDirector::OnHitLanded(FLDBodyCombatState& Target, const FLDCombatH
         LDTactical::ApplyTimedBonus(Source->TimedBonuses,Haste);
         ++Source->StateRevision;
         MarkViewChanged(Source->Victim.EntityId);
+    }
+    return true;
+}
+
+bool ALDCombatDirector::StackDox(FLDBodyCombatState& Target, FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs,
+    FString& Error)
+{
+    if (&Source==&Target || Source.bPendingDeath || Target.bPendingDeath || Hit.bAddedDamage || Hit.bReflect) { return true; }
+    FLDCombatSourceRef DoxRef;
+    if (const FLDDemoEffectDefinition* Dox=FindTrigger(Source.AttributeProjection,ELDDemoEffectOp::BreachStacks,&DoxRef))
+    {
+        FLDCombatDot* Dot=Target.Dots.FindByPredicate([&DoxRef,&Source](const FLDCombatDot& Row)
+        { return Row.Key==DoxRef.DefinitionId && Row.SourceEntity==Source.Victim.EntityId; });
+        if (!Dot)
+        {
+            Dot=&Target.Dots.AddDefaulted_GetRef();
+            Dot->Key=DoxRef.DefinitionId;
+            Dot->EffectId=FGuid::NewGuid();
+            Dot->SourceEntity=Source.Victim.EntityId;
+            Dot->SourceBody={Source.Victim,Source.Identity};
+            Dot->CreditOwner=Hit.CreditOwner;
+            Dot->Source=DoxRef;
+            Dot->BaseP2=Dox->BaseP2;
+            Dot->ADRatioBp=Dox->ADRatioBp;
+            Dot->APRatioBp=Dox->APRatioBp;
+            Dot->DamageType=Dox->DamageType;
+            Dot->IntervalMs=Dox->IntervalMs;
+            Dot->MaxStacks=int32(Dox->Count);
+            Dot->ShredStepP2=Dox->ShredP2;
+            Dot->DurationMs=Dox->DurationMs;
+            Dot->FullHealCutBp=Dox->SecondaryRatioBp;
+            Dot->Stacks=0;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Dox->IntervalMs,Dot->NextTickAtMs,Error)) { return false; }
+        }
+        // All layers share one timer that a new layer restarts.
+        Dot->Stacks=FMath::Min(Dot->Stacks+1,Dot->MaxStacks);
+        Dot->SourceADP2=Source.AttributeProjection.Final.ADP2;
+        Dot->SourceAPP2=Source.AttributeProjection.Final.APP2;
+        const FLDDemoEffectDefinition* Amp=FindTrigger(Source.AttributeProjection,ELDDemoEffectOp::AfflictionAmp);
+        Dot->AmplifyBp=10000+(Amp ? Amp->RatioBp : 0);
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,Dot->DurationMs,Dot->ExpiresAtMs,Error)) { return false; }
+        // One more layer on C1's breach record: per-layer flat shred, the shared timer restarted (R5).
+        FLDCombatBreach Breach;
+        Breach.Key=Dot->Key;
+        Breach.SourceEntity=Dot->SourceEntity;
+        Breach.ArmorFlatP2=Breach.MagicResistFlatP2=Dot->ShredStepP2;
+        Breach.Stacks=1;
+        Breach.MaxStacks=Dot->MaxStacks;
+        Breach.ExpiresAtMs=Dot->ExpiresAtMs;
+        LDTactical::ApplyBreach(Target.Breaches,Breach,NowMs);
+        if (Dot->FullHealCutBp>0 && Dot->Stacks>=Dot->MaxStacks)
+        {
+            LDCombatMechanics::ApplyHealCut(Target.HealCuts,
+                FLDCombatHealCut{Dot->EffectId,Dot->SourceEntity,Dot->FullHealCutBp,Dot->ExpiresAtMs},NowMs);
+        }
+        ++Target.StateRevision;
+        MarkViewChanged(Target.Victim.EntityId);
     }
     return true;
 }
@@ -359,19 +374,6 @@ bool ALDCombatDirector::CountGuard(ALDCharacter& Actor, FLDBodyCombatState& Body
     return GrantShieldTo(Body,Shield,Guard.ShieldMs,EffectId,Body.Victim.EntityId,false,NowMs,Error);
 }
 
-bool ALDCombatDirector::ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs)
-{
-    const ALDGameMode* Mode=Core();
-    FLDCombatEntityRecord* Record=FindRecord(Entity);
-    FLDCombatTrack* Track=Record ? TrackFor(*Record,Entry) : nullptr;
-    if (!Mode || !Track || AmountMs<=0) { return false; }
-    const int64 Now=Mode->GetAuthorityNowMs();
-    if (Track->ReadyAtMs<=Now) { return false; }
-    Track->ReadyAtMs=AmountMs>=Track->ReadyAtMs-Now ? Now : Track->ReadyAtMs-AmountMs;
-    MarkViewChanged(Entity);
-    return true;
-}
-
 FLDNegativeKinds ALDCombatDirector::NegativeKindsOf(const FLDBodyCombatState& Body, int64 NowMs) const
 {
     const auto Active=[NowMs](const TArray<FLDCombatRoot>& Rows)
@@ -383,7 +385,7 @@ FLDNegativeKinds ALDCombatDirector::NegativeKindsOf(const FLDBodyCombatState& Bo
     Kinds.bStun=Active(Body.Stuns);
     Kinds.bTaunt=LDControl::IsTaunted(Body.Taunt,NowMs);
     // Q4: any armor/MR breach or damage over time counts as one kind.
-    Kinds.bBreach=LDCombatMechanics::HasBreach(Body.Breaches,NowMs)
+    Kinds.bBreach=LDTactical::HasBreach(Body.Breaches,NowMs)
         || Body.Dots.ContainsByPredicate([NowMs](const FLDCombatDot& Dot) { return Dot.ExpiresAtMs>NowMs; });
     return Kinds;
 }
@@ -391,7 +393,6 @@ FLDNegativeKinds ALDCombatDirector::NegativeKindsOf(const FLDBodyCombatState& Bo
 bool ALDCombatDirector::ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs)
 {
     bool bChanged=LDCombatMechanics::ExpireHealCuts(Body.HealCuts,NowMs);
-    bChanged|=LDCombatMechanics::ExpireBreaches(Body.Breaches,NowMs);
     bChanged|=Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
     bChanged|=Body.Vulnerabilities.RemoveAll([NowMs](const FLDCombatVulnerable& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
     bChanged|=Body.Dots.RemoveAll([NowMs](const FLDCombatDot& Dot) { return Dot.ExpiresAtMs<=NowMs; })>0;
@@ -485,17 +486,18 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                 if (Dot.TicksTotal>0)
                 {
                     --Dot.TicksLeft;
-                    // A fixed-count dot deepens its breach before each further tick (R2: -6/-12/-18 at hit/1s/2s).
-                    const int64 Steps=FMath::Min<int64>(Dot.TicksTotal,int64(Dot.TicksTotal-Dot.TicksLeft+1));
+                    // A fixed-count dot deepens its breach by one layer before each further tick (R2: -6/-12/-18 at
+                    // hit/1s/2s), all removed when it ends.
                     if (Dot.ShredStepP2>0 && Dot.TicksLeft>0)
                     {
                         FLDCombatBreach Breach;
                         Breach.Key=Dot.Key;
                         Breach.SourceEntity=Dot.SourceEntity;
-                        Breach.ArmorFlatP2=Breach.MRFlatP2=Dot.ShredStepP2*Steps;
-                        Breach.Stacks=int32(Steps);
+                        Breach.ArmorFlatP2=Breach.MagicResistFlatP2=Dot.ShredStepP2;
+                        Breach.Stacks=1;
+                        Breach.MaxStacks=Dot.TicksTotal;
                         Breach.ExpiresAtMs=Dot.ExpiresAtMs;
-                        LDCombatMechanics::ApplyBreach(Body.Breaches,Breach);
+                        LDTactical::ApplyBreach(Body.Breaches,Breach,NowMs);
                     }
                 }
                 if (!LDMatchLifecycle::AddDurationMs(Dot.NextTickAtMs,Dot.IntervalMs,Dot.NextTickAtMs,Error)) { return false; }
@@ -553,8 +555,11 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.ADRatioBp=Zone.ADRatioBp;
                     Hit.APRatioBp=Zone.APRatioBp;
                     Hit.DamageType=Zone.DamageType;
-                    Hit.OnHitScaleBp=Zone.OnHitScaleBp;
                     Hit.bPeriodic=true;
+                    // Gas pulses trigger the living owner's on-hit effects at their coefficient (C1's on-hit framework);
+                    // a dead owner's pulses only deal their damage.
+                    if (Holder && !Holder->bPendingDeath && Zone.OnHitScaleBp>0
+                        && !SnapshotOnHit(*Holder,Zone.OnHitScaleBp,Hit,Error)) { return false; }
                 }
             }
         }
@@ -760,13 +765,12 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
         const UWorld* CurrentWorld=GetWorld();
         const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
         if (!Mode->Vision || !Registry) { Error=TEXT("A decoy lure requires the observation owner and the registered world."); return false; }
-        FLDCombatTaunt Lure;
+        FLDControlApplication Lure;
+        Lure.Kind=ELDControlKind::Taunt;
         Lure.EffectId=EffectId;
         Lure.SourceEntity=Body.Victim.EntityId;
         Lure.SourceBody=SelfRef;
-        Lure.bDecoy=true;
-        Lure.DecoyPointCm=Decoy.PointCm;
-        if (!LDMatchLifecycle::AddDurationMs(Now,DecoyDef->SecondaryDurationMs,Lure.ExpiresAtMs,Error)) { return false; }
+        Lure.DurationMs=DecoyDef->SecondaryDurationMs;
         const double Radius=Cm(DecoyDef->RadiusCm);
         for (auto& Pair : Bodies)
         {
@@ -781,13 +785,15 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
             if (Sight==ELDSightResult::InvalidPoint || Sight==ELDSightResult::StaleWorld)
             { Error=TEXT("Decoy sight failed on a registered body."); return false; }
             if (Sight!=ELDSightResult::Visible) { continue; }
-            bool bRevealed=false;
-            if (!LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Lure,Now,bRevealed)) { continue; }
+            bool bApplied=false;
+            if (!CommitControl(Victim,Lure,Now,bApplied,Error)) { return false; }
+            if (!bApplied || !Victim.Taunt.IsSet()) { continue; }
+            // The committed taunt is a lure: no attack, cast or item, a forced walk to the decoy.
+            Victim.Taunt->bDecoy=true;
+            Victim.Taunt->DecoyPointCm=Decoy.PointCm;
             if (Victim.Action.IsSet()) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
-            ++Victim.StateRevision;
-            MarkViewChanged(Victim.Victim.EntityId);
             UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_DECOY_LURE victim=%s source=%s until=%lld"),
-                *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Lure.ExpiresAtMs);
+                *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt->ExpiresAtMs);
         }
     }
     if (FindOp(Rank,ELDDemoEffectOp::CooldownRefresh))
@@ -813,16 +819,6 @@ void ALDCombatDirector::AppendMechanicsStatuses(const FLDBodyCombatState& Body, 
 {
     if (const int64 KnockUntil=LDTactical::ActiveRootUntilMs(Body.Knockbacks,NowMs); KnockUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Knockback),1,KnockUntil}); }
-    int64 BreachUntil=0;
-    int32 MostLayers=0;
-    for (const FLDCombatBreach& Breach : Body.Breaches)
-    {
-        if (Breach.ExpiresAtMs<=NowMs) { continue; }
-        BreachUntil=FMath::Max(BreachUntil,Breach.ExpiresAtMs);
-        MostLayers=FMath::Max(MostLayers,Breach.Stacks);
-    }
-    for (const FLDCombatDot& Dot : Body.Dots) { if (Dot.ExpiresAtMs>NowMs) { BreachUntil=FMath::Max(BreachUntil,Dot.ExpiresAtMs); } }
-    if (BreachUntil>0) { Out.Add({uint8(ELDDemoStatusId::Breach),uint8(FMath::Clamp(MostLayers,1,255)),BreachUntil}); }
     int64 CutUntil=0;
     for (const FLDCombatHealCut& Cut : Body.HealCuts) { if (Cut.ExpiresAtMs>NowMs) { CutUntil=FMath::Max(CutUntil,Cut.ExpiresAtMs); } }
     if (CutUntil>0) { Out.Add({uint8(ELDDemoStatusId::HealCut),1,CutUntil}); }

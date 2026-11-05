@@ -3,9 +3,10 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "Combat/LDControlRules.h"
+#include "Combat/LDTacticalRules.h"
 #include "Misc/AutomationTest.h"
 
-// #112 §5 mechanics (C2): pure rules of heal/shield reduction, shield events, knockback, breach, the negative-kind count,
+// #112 §5 mechanics (C2): pure rules of heal/shield reduction, shield events, knockback, breach layers, the negative-kind count,
 // periodic schedules, zones, the shield burst and the damage guard, plus the decoy lure's control matrix.
 namespace LDCombatMechanicsTests
 {
@@ -110,43 +111,35 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoMechanicsBreachTest, "Lockdown.Rules.Dem
 
 bool FLDDemoMechanicsBreachTest::RunTest(const FString& Parameters)
 {
+    // The #112 C2 layers on C1's single breach record: active_expose_post adds one 6-point layer per tick (R2, at most
+    // three), passive_dox_master one layer per hit (R5, per-layer shred, at most three); flat terms count per layer.
     using namespace LDCombatMechanicsTests;
     TArray<FLDCombatBreach> Breaches;
     FLDCombatBreach Post;
     Post.Key = TEXT("active_expose_post");
     Post.SourceEntity = Id(1);
-    Post.ArmorFlatP2 = Post.MRFlatP2 = 600;
+    Post.ArmorFlatP2 = Post.MagicResistFlatP2 = 600;
     Post.Stacks = 1;
+    Post.MaxStacks = 3;
     Post.ExpiresAtMs = 3001;
-    LDCombatMechanics::ApplyBreach(Breaches, Post);
-    // R2: the fixed-count breach deepens per tick, replacing its own record.
-    Post.ArmorFlatP2 = Post.MRFlatP2 = 1800;
-    Post.Stacks = 3;
-    LDCombatMechanics::ApplyBreach(Breaches, Post);
-    TestEqual(TEXT("The same key and source replaces its record"), Breaches.Num(), 1);
+    for (int32 Tick = 0; Tick < 4; ++Tick) { LDTactical::ApplyBreach(Breaches, Post, 1000 * Tick); }
+    TestEqual(TEXT("The same key and source keeps one record"), Breaches.Num(), 1);
+    TestEqual(TEXT("Expose post deepens to its cap: 60 - 18"), LDTactical::BreachedResistanceP2(Breaches, 6000, true, 2000), int64(4200));
     FLDCombatBreach Dox;
     Dox.Key = TEXT("passive_dox_master");
     Dox.SourceEntity = Id(2);
-    Dox.ArmorFlatP2 = Dox.MRFlatP2 = 1200;
-    Dox.Stacks = 3;
-    Dox.ExpiresAtMs = 2000;
-    LDCombatMechanics::ApplyBreach(Breaches, Dox);
-    FLDCombatBreach Ratio;
-    Ratio.Key = TEXT("active_arc_bolt");
-    Ratio.SourceEntity = Id(3);
-    Ratio.ArmorRatioBp = 2000;
-    Ratio.ExpiresAtMs = 1500;
-    LDCombatMechanics::ApplyBreach(Breaches, Ratio);
-    TestEqual(TEXT("Different sources aggregate"), Breaches.Num(), 3);
-    TestEqual(TEXT("Flat first, then the ratio: (60 - 18 - 12) x 0.8 = 24"),
-        LDCombatMechanics::BreachedResistanceP2(6000, Breaches, true, 1000), int64(2400));
-    TestEqual(TEXT("Magic resist ignores the armor ratio: 60 - 30 = 30"),
-        LDCombatMechanics::BreachedResistanceP2(6000, Breaches, false, 1000), int64(3000));
-    TestEqual(TEXT("Resistance never drops below zero"), LDCombatMechanics::BreachedResistanceP2(2000, Breaches, true, 1000), int64(0));
-    TestEqual(TEXT("Lapsed records no longer count"), LDCombatMechanics::BreachedResistanceP2(6000, Breaches, true, 2500), int64(4200));
-    TestTrue(TEXT("A breach is active"), LDCombatMechanics::HasBreach(Breaches, 2500));
-    TestTrue(TEXT("Expiry drops lapsed records"), LDCombatMechanics::ExpireBreaches(Breaches, 2500) && Breaches.Num() == 1);
-    TestFalse(TEXT("Nothing is breached after the last one ends"), LDCombatMechanics::HasBreach(Breaches, 3001));
+    Dox.ArmorFlatP2 = Dox.MagicResistFlatP2 = 400;
+    Dox.Stacks = 1;
+    Dox.MaxStacks = 3;
+    Dox.ExpiresAtMs = 2500;
+    LDTactical::ApplyBreach(Breaches, Dox, 2000);
+    LDTactical::ApplyBreach(Breaches, Dox, 2000);
+    TestEqual(TEXT("Different sources add: 60 - 18 - 8"), LDTactical::BreachedResistanceP2(Breaches, 6000, false, 2000), int64(3400));
+    Dox.ExpiresAtMs = 6000;
+    LDTactical::ApplyBreach(Breaches, Dox, 3000);
+    TestEqual(TEXT("A lapsed dox record restarts from one layer"), LDTactical::BreachedResistanceP2(Breaches, 6000, true, 3001), int64(5600));
+    TestTrue(TEXT("Any active record is a breach"), LDTactical::HasBreach(Breaches, 5999));
+    TestFalse(TEXT("None after the last ends"), LDTactical::HasBreach(Breaches, 6000));
     return true;
 }
 

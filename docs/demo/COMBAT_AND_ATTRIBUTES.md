@@ -209,7 +209,8 @@ namespace LDTactical
 | `FLDBasicTimingInput` | 显式的 BaseAttackSpeed、CurrentAttackSpeed 有理数及 BaseWindupMs；玩家来自 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物来自 `CAMP.Low/High.AttackSpeed/AttackWindupSec`，均接相同公式语义。 |
 | `FLDBasicTimingResult` | 与伤害一致的 Value/Error 形状，成功给 IntervalMs/WindupMs 正时长且前摇小于间隔；不生成绝对 NextAttackAt、ReadyAt 或权威时间。 |
 
-HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；仅主普攻允许本次暴击，
+HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；主普攻与内容明确列出的技能（#112 技能暴击，
+倍率 `STAT.AbilityCritMultiplier`）允许本次暴击，副击、反伤与附加伤害不暴击；
 两个 Basic 分类均拒绝 AP 系数和魔法伤害。完整字段、数值域与精确算术校验先于保护零伤，
 不能靠受保护掩盖坏输入。中间有理数复用同一受检精确算术，保留到最终一次 floor/ceil。
 原生公式夹具使用 producer 生成的 `approved_base`；原有 `base` 仍是独立合成输入，
@@ -456,7 +457,8 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 
 按已批准首版内容，Root 以 effect/cast+完整目标生命保存独立实例和原期限，任一未到期实例即生效，
 显示最大剩余时间；同实例重发不续期，一个较早到期不能清掉另一来源。
-「我没事我很好」的净化删除当时全部 Root，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
+「我没事我很好」的净化删除当时全部 Root 与减速，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
+全部控制与减速只经 `CommitControl` 施加；定身、眩晕、缴械、嘲讽共用硬控递减（#112，内容报告 §15.10）。
 
 `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾的**当前剩余量**：
 新量不少于剩余量时，用新量、新 source context、新截止完整替换，相等也刷新；
@@ -519,7 +521,8 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 
 一次允许暴击的 Basic 只在成功 Release 采样一次，绑定 AttackId，取消前摇不能提前预览随机结果。
 被动去重键含完整 Match、AttackId、VictimKey 和 PassiveFamily，代表更换/重复实例不重复触发。
-吸血只按 `POLICY.LifestealBasis=PrimaryBasicAttackHPLost`，盾、过量、副击均不计；
+吸血只按该次命中的实际 HP 损失（`HPLostP2`）计算，盾、过量均不计；普攻吸血是命中特效，按命中的特效系数触发
+（普攻主击 1.0，技能按定义），副击、反伤与附加伤害不触发；技能吸血与全能吸血按 #112 内容条目相加（内容报告 §15.10）；
 治疗指向原释放身体生命，不能治疗该所有者的新复活身体或 PendingDeath。
 具体触发规则与数值见内容报告；实现只走同一条 Damage/Heal 通路（`ApplyHit`）。
 
@@ -538,7 +541,7 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 每个次击独立 VictimKey/HitKey，读取当前目标防御，沿同一物理 Damage 和 DeathKey 通路。
 所有次击共用该普攻源 AD 快照，不因首个击杀奖励升级改变伤害。
 两把同款自拍杆普通属性相加，但 family 只一轮；每 `(AttackId, 完整 VictimKey, passive_cleave)` 最多一击。
-按 `POLICY.BasicSecondaryTriggers=Disabled`，副击不暴击、不 on-hit/吸血/再群攻、
+按 `POLICY.BasicSecondaryTriggers=Disabled`，副击不暴击、不触发命中特效（吸血/横扫/叠层）、
 不创建新 Attack 或重抽。不是对 N 个目标调用 N 次 RequestBody，也不是保留旧反应体系。
 该限制只禁止攻击者的追加 proc，不是 `SuppressAllTriggers`：
 副击仍发布固有的受击/HP 变化、受害方 LastCombatAt、死亡/奖励及营地有效受击反击事实。

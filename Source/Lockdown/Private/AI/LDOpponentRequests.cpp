@@ -187,6 +187,23 @@ bool BuildChoice(const FLDOpponentBuildIntent& Intent, const FLDProgressionView&
     {
         return Fail(Error, TEXT("The chosen offer is no longer the current head offer."));
     }
+    if (Intent.Choice.bReroll)
+    {
+        if (Offer.bRerolled || Progression.RerollTokens == 0)
+        {
+            return Fail(Error, TEXT("The head offer cannot be rerolled now."));
+        }
+        Out.Generation = Progression.Generation;
+        Out.Life = Progression.Life;
+        Out.ExpectedLifePhase = Progression.LifePhase;
+        Out.RequestId = RequestId;
+        Out.OfferId = Intent.OfferId;
+        Out.OfferRevision = Intent.OfferRevision;
+        Out.ExpectedBuildRevision = Progression.BuildRevision;
+        Out.CatalogDigest = Progression.CatalogDigest;
+        Out.bReroll = true;
+        return true;
+    }
     const FGuid OptionId = Intent.Choice.OptionId;
     if (!Offer.Options.ContainsByPredicate([OptionId](const FLDChoiceOption& Option) { return Option.OptionId == OptionId; }))
     {
@@ -319,8 +336,26 @@ bool BuildTrade(const FLDOpponentBuildIntent& Intent, const FLDShopOpenResult& S
         Out.SellPrice = Offer->SellPrice;
         return true;
     }
+    if (Intent.Kind == ELDOpponentBuildKind::Upgrade)
+    {
+        const int32 UpgradeSlot = Intent.UpgradeSlot;
+        const FLDShopSellView* Held = View.Sellable.FindByPredicate([UpgradeSlot](const FLDShopSellView& Row)
+        {
+            return int32(Row.SlotIndex) == UpgradeSlot;
+        });
+        if (!Held || !Held->bCanUpgrade || !Held->Instance.IsValid() || Held->ItemRevision == 0 || View.UpgradePrice <= 0)
+        {
+            Out = FLDShopCommand();
+            return Fail(Error, TEXT("The planned slot has no upgradable instance in the shown quote."));
+        }
+        Out.Kind = ELDShopCommandKind::Upgrade;
+        Out.Instance = Held->Instance;
+        Out.ExpectedItemRevision = Held->ItemRevision;
+        Out.UpgradePrice = View.UpgradePrice;
+        return true;
+    }
     Out = FLDShopCommand();
-    return Fail(Error, TEXT("Only Buy and Sell intents become shop commands."));
+    return Fail(Error, TEXT("Only Buy, Sell and Upgrade intents become shop commands."));
 }
 
 bool BodyIntentsHeld(const FLDCombatOwnerView& Combat, int64 NowMs)

@@ -60,6 +60,8 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
             NameCell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameCell->SetVerticalAlignment(VAlign_Center);
             SellButtons[SlotIdx]=LDWidgets::Button(WidgetTree,TEXT("卖出"),[this,SlotIdx](){RequestSell(SlotIdx);},false,SlotIdx?FName(TEXT("ShopSell1")):FName(TEXT("ShopSell0")));
             EquipRow->AddChildToHorizontalBox(SellButtons[SlotIdx]);
+            UpgradeButtons[SlotIdx]=LDWidgets::Button(WidgetTree,TEXT("进阶"),[this,SlotIdx](){RequestUpgrade(SlotIdx);},false,SlotIdx?FName(TEXT("ShopUpgrade1")):FName(TEXT("ShopUpgrade0")));
+            EquipRow->AddChildToHorizontalBox(UpgradeButtons[SlotIdx])->SetPadding(FMargin(8,0,0,0));
         }
         auto* Middle=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(Middle)->SetPadding(FMargin(0,14,0,0));
         ItemList=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -120,7 +122,7 @@ bool ULDShopPanel::CloseChildConfirmation()
 }
 void ULDShopPanel::ResetSell()
 {
-    bSelling=false;SellInstance.Invalidate();SellItemRevision=0;SellQuotePrice=0;SellName.Reset();
+    bSelling=false;bUpgrading=false;UpgradeQuotePrice=0;SellInstance.Invalidate();SellItemRevision=0;SellQuotePrice=0;SellName.Reset();
     if(SellPanel){SellPanel->SetVisibility(ESlateVisibility::Collapsed);}
 }
 void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* ContentDefs)
@@ -153,8 +155,9 @@ void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* Equip
     {
         // The confirmation answers one exact item at one price: a changed item or quote withdraws it, never redirects it.
         const FLDShopSellView* SellEntry=Latest.Sellable.FindByPredicate([this](const FLDShopSellView& SellRow){return SellRow.Instance==SellInstance&&SellRow.ItemRevision==SellItemRevision;});
-        if(!SellEntry){ResetSell();ShopPanelText(Feedback,TEXT("装备已变化，卖出确认已撤销"));}
-        else if(SellEntry->SellPrice!=SellQuotePrice){ResetSell();ShopPanelText(Feedback,TEXT("卖价已变化，卖出确认已撤销，请重新确认"));}
+        if(!SellEntry){ResetSell();ShopPanelText(Feedback,TEXT("装备已变化，确认已撤销"));}
+        else if(bUpgrading&&(!SellEntry->bCanUpgrade||Latest.UpgradePrice!=UpgradeQuotePrice)){ResetSell();ShopPanelText(Feedback,TEXT("进阶条件已变化，确认已撤销"));}
+        else if(!bUpgrading&&SellEntry->SellPrice!=SellQuotePrice){ResetSell();ShopPanelText(Feedback,TEXT("卖价已变化，卖出确认已撤销，请重新确认"));}
     }
     if(bOpen){RefreshShop();}
 }
@@ -191,12 +194,17 @@ void ULDShopPanel::RefreshShop()
     for(uint8 SlotIdx=0;SlotIdx<2;++SlotIdx)
     {
         const FLDEquipmentSlotView* EquipSlot=bEquipKnown?ShopPanelEquipSlot(LatestEquipment,SlotIdx):nullptr;
-        const FString Holding=!EquipSlot?FString(TEXT("同步中")):EquipSlot->bOccupied?LDHUD::ContentName(LatestContent,EquipSlot->DefinitionId.ToString()):FString(TEXT("空"));
+        const FString Holding=!EquipSlot?FString(TEXT("同步中")):EquipSlot->bOccupied
+            ?LDHUD::ContentName(LatestContent,EquipSlot->DefinitionId.ToString())+(EquipSlot->bUpgraded?TEXT("（已进阶）"):TEXT("")):FString(TEXT("空"));
         ShopPanelText(EquipNames[SlotIdx],FString::Printf(TEXT("装备 %d：%s"),SlotIdx+1,*Holding));
         const FLDShopSellView* SellEntry=SellableFor(SlotIdx);
         const bool bCanSell=SellEntry&&Block.IsEmpty()&&!bSelling;
         SellButtons[SlotIdx]->SetIsEnabled(bCanSell);
         ShopPanelText(CastChecked<UTextBlock>(SellButtons[SlotIdx]->GetContent()),bCanSell?FString::Printf(TEXT("卖出 +%lld"),SellEntry->SellPrice):FString(TEXT("卖出")));
+        const bool bCanUpgrade=bCanSell&&SellEntry->bCanUpgrade;
+        UpgradeButtons[SlotIdx]->SetIsEnabled(bCanUpgrade);
+        ShopPanelText(CastChecked<UTextBlock>(UpgradeButtons[SlotIdx]->GetContent()),
+            bLatestView&&Latest.bUpgradeUsed?FString(TEXT("进阶已用")):bCanUpgrade?FString::Printf(TEXT("进阶 -%lld"),Latest.UpgradePrice):FString(TEXT("进阶")));
     }
     SyncItemButtons();
     for(int32 ItemIdx=0;ItemIdx<ShownItems.Num();++ItemIdx)
@@ -211,7 +219,15 @@ void ULDShopPanel::RefreshShop()
     {
         const LDHUD::FShopItemView ShownItem=LDHUD::ShopItem(Latest.Items[Selected],bEquipKnown?LatestEquipment.Gold:0,bLatestClock,LatestNowMs,LatestContent);
         ShopPanelText(DetailName,ShownItem.Name);ShopPanelText(DetailPrice,ShownItem.Price);
-        ShopPanelText(DetailLines,FString::Join(ShownItem.Lines,TEXT("\n")));
+        FString Detail=FString::Join(ShownItem.Lines,TEXT("\n"));
+        const FString ShownId=Latest.Items[Selected].DefinitionId.ToString();
+        if(const FLDDemoEquipmentDefinition* Definition=LatestContent?LatestContent->Equipment.FindByPredicate([&ShownId](const FLDDemoEquipmentDefinition& D){return D.Id==ShownId;}):nullptr)
+        {
+            if(LDDemoEquipment::Upgradable(*Definition))
+            {Detail+=FString::Printf(TEXT("\n进阶后（每局一次，%lld %s）：\n"),Latest.UpgradePrice,LDTerms::Gold)+FString::Join(LDHUD::UpgradeLines(*Definition),TEXT("\n"));}
+            else{Detail+=TEXT("\n暂不能进阶");}
+        }
+        ShopPanelText(DetailLines,Detail);
         // Display hints only: Buy stays available and the server's own refusal is what the feedback reports.
         TArray<FString> HintParts;
         if(bEquipKnown&&!ShownItem.bAffordable){HintParts.Add(LDTerms::NotEnoughGold());}
@@ -225,6 +241,7 @@ void ULDShopPanel::RefreshShop()
     }
     BuyButton->SetIsEnabled(Latest.Items.IsValidIndex(Selected)&&Block.IsEmpty()&&!bSelling);
     SellConfirmButton->SetIsEnabled(bSelling&&Block.IsEmpty());
+    ShopPanelText(CastChecked<UTextBlock>(SellConfirmButton->GetContent()),bUpgrading?TEXT("确认进阶"):TEXT("确认卖出"));
 }
 void ULDShopPanel::SyncItemButtons()
 {
@@ -284,12 +301,39 @@ bool ULDShopPanel::RequestSell(uint8 SlotIndex)
     ShopPanelText(Feedback,TEXT("请确认是否卖出"));
     RefreshShop();return true;
 }
+bool ULDShopPanel::RequestUpgrade(uint8 SlotIndex)
+{
+    if(!bOpen){ShopPanelText(Feedback,FString(LDTerms::Shop)+TEXT("未打开"));return false;}
+    if(bSelling){ShopPanelText(Feedback,TEXT("请先确认或返回当前的确认"));return false;}
+    const FString Block=CommandBlock();
+    if(!Block.IsEmpty()){ShopPanelText(Feedback,Block);return false;}
+    const FLDShopSellView* Entry=SlotIndex<2?SellableFor(SlotIndex):nullptr;
+    if(!Entry||!Entry->bCanUpgrade)
+    {ShopPanelText(Feedback,Latest.bUpgradeUsed?TEXT("本局的装备进阶已经用过了"):TEXT("这个装备槽当前没有可进阶的装备"));return false;}
+    bSelling=true;bUpgrading=true;SellInstance=Entry->Instance;SellItemRevision=Entry->ItemRevision;UpgradeQuotePrice=Latest.UpgradePrice;
+    SellName=LDHUD::ContentName(LatestContent,Entry->DefinitionId.ToString());
+    ShopPanelText(SellPrompt,FString::Printf(TEXT("花 %lld %s 进阶 %s：固定属性提高，被动与主动增强一档。每局只能进阶一次，卖出这件后进阶随之失去，费用不返还；冷却不刷新。"),
+        UpgradeQuotePrice,LDTerms::Gold,*SellName));
+    if(SellPanel){SellPanel->SetVisibility(ESlateVisibility::Visible);}
+    ShopPanelText(Feedback,TEXT("请确认是否进阶"));
+    RefreshShop();return true;
+}
 void ULDShopPanel::ConfirmSell()
 {
     if(!bSelling){ShopPanelText(Feedback,TEXT("请先点选要卖出的装备"));return;}
     const FString Block=CommandBlock();
     if(!Block.IsEmpty()){ShopPanelText(Feedback,Block);return;}
     const FLDShopSellView* SellEntry=Latest.Sellable.FindByPredicate([this](const FLDShopSellView& SellRow){return SellRow.Instance==SellInstance&&SellRow.ItemRevision==SellItemRevision;});
+    if(bUpgrading)
+    {
+        if(!SellEntry||!SellEntry->bCanUpgrade||Latest.UpgradePrice!=UpgradeQuotePrice)
+        {ResetSell();ShopPanelText(Feedback,TEXT("进阶条件已变化，确认已撤销"));RefreshShop();return;}
+        FLDShopCommand Command;
+        if(!FillCommand(ELDShopCommandKind::Upgrade,Command)){return;}
+        Command.Instance=SellEntry->Instance;Command.ExpectedItemRevision=SellEntry->ItemRevision;Command.UpgradePrice=UpgradeQuotePrice;
+        if(Send(Command,SellName)){ResetSell();RefreshShop();}
+        return;
+    }
     if(!SellEntry||SellEntry->SellPrice!=SellQuotePrice)
     {
         ResetSell();ShopPanelText(Feedback,SellEntry?TEXT("卖价已变化，卖出确认已撤销，请重新确认"):TEXT("装备已变化，卖出确认已撤销"));RefreshShop();return;
@@ -323,7 +367,7 @@ bool ULDShopPanel::Send(const FLDShopCommand& Command,FString ItemName)
     // and an answer that already arrived keeps its own feedback and pending state.
     const uint64 PeekedRequest=PeekRequestId?PeekRequestId():0;
     PendingRequest=PeekedRequest;PendingKind=Command.Kind;PendingName=MoveTemp(ItemName);
-    PendingPrice=Command.Kind==ELDShopCommandKind::Buy?Command.BuyPrice:Command.SellPrice;
+    PendingPrice=Command.Kind==ELDShopCommandKind::Buy?Command.BuyPrice:Command.Kind==ELDShopCommandKind::Upgrade?Command.UpgradePrice:Command.SellPrice;
     const uint32 AnswersBefore=AnswerCount;
     ELDGrowthReason RefusalReason=ELDGrowthReason::None;
     const uint64 AllocatedRequest=SubmitShopCommand(Command,RefusalReason);
@@ -402,6 +446,7 @@ FString ULDShopPanel::AppliedNotice(const FLDShopReceipt& Receipt) const
         return Summary;
     }
     if(DoneKind==ELDShopCommandKind::Sell){return FString::Printf(TEXT("已卖出 %s，获得 %lld %s"),*ItemName,Receipt.ActualGoldDelta,LDTerms::Gold);}
+    if(DoneKind==ELDShopCommandKind::Upgrade){return FString::Printf(TEXT("已进阶 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);}
     UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_RECEIPT_KIND_INVALID Request %llu was applied with shop kind %d."),PendingRequest,int32(Receipt.Kind));
     return TEXT("交易已成交，请以当前状态为准");
 }

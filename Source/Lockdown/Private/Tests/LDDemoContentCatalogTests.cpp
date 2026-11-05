@@ -870,8 +870,8 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
     // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
-    // Statuses 1..14 and the #112 statuses 20..24 (knockback, breach, heal cut, damage guard, vulnerable).
-    const int32 Statuses = int32(ELDDemoStatusId::Empowered) + (int32(ELDDemoStatusId::Vulnerable) - int32(ELDDemoStatusId::Knockback) + 1);
+    // Statuses 1..14 and the four #112 C2 statuses (knockback, heal cut, damage guard, vulnerable; a breach shows as exposed).
+    const int32 Statuses = int32(ELDDemoStatusId::Empowered) + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);

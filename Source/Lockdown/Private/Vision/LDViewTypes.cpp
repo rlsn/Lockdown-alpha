@@ -31,7 +31,6 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Disarm:
     case ELDDemoStatusId::Stun:
     case ELDDemoStatusId::Knockback:
-    case ELDDemoStatusId::Breach:
     case ELDDemoStatusId::HealCut:
         return true;
     default:
