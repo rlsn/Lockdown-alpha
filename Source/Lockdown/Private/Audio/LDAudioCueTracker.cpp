@@ -122,9 +122,18 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             HitMaxHPP2 = Combat->MaxHPP2;
             HitShieldP2 = Combat->ShieldP2;
             HitShieldEndsAtMs = Shield ? Shield->ExpiresAtMs : 0;
+            AttackReleasedAtMs = Combat->Cues.ReleasedAtMs;
         }
         else if (Combat->Revision > HitRevision)
         {
+            // A newer release in the own cue facts; only a basic one sounds (Q/W/1/2/D sound from their receipts).
+            // One body releases at most one action per authority ms, so a later release time is a new release.
+            const FLDCombatCueFacts& Facts = Combat->Cues;
+            if (Facts.ReleasedAtMs > AttackReleasedAtMs)
+            {
+                if (Facts.bReleasedBasic && Frame.OwnLifePhase == ELDLifePhase::Alive) { LDAudio::AddUnique(Out, ELDAudioCue::SelfAttack); }
+                AttackReleasedAtMs = Facts.ReleasedAtMs;
+            }
             // Lost points with an unchanged or larger maximum: a smaller maximum (sold equipment) only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
