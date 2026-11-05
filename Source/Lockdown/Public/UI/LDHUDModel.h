@@ -227,13 +227,22 @@ namespace LDHUD
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
     // Effect lines of one rank; actives add their mana cost and cooldown.
     LOCKDOWN_API TArray<FString> RankLines(const FLDDemoRankDefinition& Rank,bool bActive);
+    // Placeholder icon family of a card until real art lands (#93): each family has its own shape and colour, and the card's
+    // kind line names it, so no card relies on colour alone.
+    enum class EChoiceIcon : uint8 {Unknown,Active,Passive,Attribute};
     struct FChoiceCardView
     {
         FString Kind;
         FString Name;
         FString RankText;
+        // The compact card's single second line, "<kind> · <rank>".
+        FString Summary;
         FString Description;
         TArray<FString> Lines;
+        // Display-table icon reference (empty when the definition has no display row); the placeholder draws Icon + Glyph.
+        FString IconId;
+        EChoiceIcon Icon=EChoiceIcon::Unknown;
+        FString Glyph;
         bool bNeedsReplacement=false;
     };
     // One of the three fixed options of the current offer; a learn-active card with both Q/W filled needs an explicit replacement.

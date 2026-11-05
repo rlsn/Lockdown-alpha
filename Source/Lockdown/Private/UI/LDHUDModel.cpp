@@ -765,19 +765,23 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
     const FString Id=Option.DefinitionId.ToString();
     Card.Name=ContentName(Content,Id);
     FString Description;if(ContentText(Content,Id,true,Description)){Card.Description=Description;}
+    if(const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr)
+    {Card.IconId=Display->IconId;}
+    Card.Glyph=Card.Name.IsEmpty()?FString(TEXT("?")):Card.Name.Left(1);
     switch(Option.Kind)
     {
-    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动技能");break;
-    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动技能升级");break;
-    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动技能");break;
-    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动技能升级");break;
-    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性提升");break;
+    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动技能");Card.Icon=EChoiceIcon::Active;break;
+    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动技能升级");Card.Icon=EChoiceIcon::Active;break;
+    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动技能");Card.Icon=EChoiceIcon::Passive;break;
+    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动技能升级");Card.Icon=EChoiceIcon::Passive;break;
+    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性提升");Card.Icon=EChoiceIcon::Attribute;break;
     default: Card.Kind=TEXT("未知选项");break;
     }
     if(Option.Kind==ELDChoiceOptionKind::Attribute)
     {
         const FLDAttributeCardView* Owned=Progression.AttributeCards.FindByPredicate([&Option](const FLDAttributeCardView& C){return C.DefinitionId==Option.DefinitionId;});
         Card.RankText=FString::Printf(TEXT("已选 %d 次"),Owned?int32(Owned->Count):0);
+        Card.Summary=Card.Kind+TEXT(" · ")+Card.RankText;
         if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
         {for(const FLDDemoStatBonus& Stat:Definition->Stats){Card.Lines.Add(StatLine(Stat));}for(const FLDDemoStatBonus& Penalty:Definition->Penalties){Card.Lines.Add(PenaltyLine(Penalty));}}
         return Card;
@@ -797,6 +801,7 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         int32 Filled=0;for(const FLDLearnedSkillView& Skill:Progression.Skills){if(Skill.bActive){++Filled;}}
         Card.bNeedsReplacement=Filled>=2;
     }
+    Card.Summary=Card.Kind+TEXT(" · ")+Card.RankText+(Card.bNeedsReplacement?TEXT(" · 需替换"):TEXT(""));
     return Card;
 }
 TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
