@@ -151,7 +151,7 @@ public:
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
-    // D27 (#79) 通报批评: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
+    // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
     bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
     int64 NextLeaderDueMs() const;
     // The bounty a kill of Victim earns now (zero unless Victim is the shown leader); Combat locks it at the fatal moment.

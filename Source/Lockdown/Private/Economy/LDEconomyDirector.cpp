@@ -390,17 +390,25 @@ ELDRewardOutcome ALDEconomyDirector::CommitEventReward(const FGuid& Recipient, F
         Reason = ELDGrowthReason::DataInvalid;
         return ELDRewardOutcome::PermanentlyRejected;
     }
-    TArray<uint8> KeyBytes;
+    // The business key is the event alone, so the ledger itself pays each event once whoever claims it; the recipient
+    // and amounts are its terms, and a second claimant of the same event is a conflicting reuse of the key.
+    TArray<uint8> KeyBytes, TermBytes;
     {
         FMemoryWriter Writer(KeyBytes);
         FString Tag = TEXT("map-event-reward");
         FString EventName = Event.ToString();
         FGuid LedgerMatch = Match.LedgerMatch;
+        Writer << Tag << LedgerMatch << EventName << Serial;
+    }
+    {
+        TermBytes = KeyBytes;
+        FMemoryWriter Writer(TermBytes, false, true);
         FGuid Contender = Recipient;
-        Writer << Tag << LedgerMatch << EventName << Serial << Contender << XP << Gold;
+        int64 TermXP = XP, TermGold = Gold;
+        Writer << Contender << TermXP << TermGold;
     }
     uint8 EventTerms[32] = {};
-    Terms(KeyBytes, EventTerms);
+    Terms(TermBytes, EventTerms);
     LDProgression::FRewardAmounts Amounts;
     Amounts.XP = XP;
     Amounts.Gold = Gold;
@@ -777,6 +785,8 @@ FLDGrowthOwnerView ALDEconomyDirector::ReadOwnerView(const FGuid& ContenderId) c
     View.Progression = M->Development->ReadProgression(ContenderId);
     View.Equipment = M->Inventory->ReadEquipment(ContenderId);
     View.Shop = M->Vendor->ReadShop(ContenderId);
+    const FLDAirdropState& Drop = M->GetAirdrop();
+    View.AirdropClaimedSerial = Drop.Phase == ELDAirdropPhase::Claimed && Drop.ClaimedBy == ContenderId ? Drop.Serial : 0;
     return View;
 }
 

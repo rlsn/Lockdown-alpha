@@ -94,5 +94,7 @@ private:
     TMap<FGuid, TWeakObjectPtr<ALDCampMemberCharacter>> Bodies;
     TMap<FGuid, FMotion> Motion;
     TMap<FGuid, FLDCampReturnWatch> Returns;
+    // #28: members whose current life was last reset in place, not at home (they hold their ground beyond the leash).
+    TSet<FGuid> Stranded;
     TSet<int32> BlockedRefresh;
 };

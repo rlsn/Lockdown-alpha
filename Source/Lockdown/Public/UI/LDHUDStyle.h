@@ -2,7 +2,7 @@
 #include "CoreMinimal.h"
 
 // Shared in-match presentation tokens, so the HUD band, overhead bars, world feedback and minimap keep one visual
-// language: the own body reads green, other contenders red, camp members amber, mana blue and 淡定 the bright cyan of
+// language: the own body reads green, other contenders red, camp members amber, mana blue and the shield the bright cyan of
 // the body's shield marker.
 // Local presentation only; no gameplay value or rule lives here. Sizes are Slate units at the 1080p reference.
 namespace LDHUDStyle

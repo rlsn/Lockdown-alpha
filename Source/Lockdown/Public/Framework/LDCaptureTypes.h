@@ -30,11 +30,10 @@ struct FLDAirdropView
     UPROPERTY() FName PointId;
     UPROPERTY() FVector PositionCm = FVector::ZeroVector;
     UPROPERTY() int64 LandAtMs = 0;
-    UPROPERTY() FGuid ClaimedBy;
-    UPROPERTY() int64 ClaimedAtMs = 0;
+    // Claimed says only that the drop is gone: neither who took it nor when (App Spec §6.3).
 };
 
-// D27 (#79) 通报批评: the current leader notice, public to every connection: who, a fuzzy circle that contains the
+// D27 (#79) 上热搜: the current leader notice, public to every connection: who, a fuzzy circle that contains the
 // leader's foot at the refresh, and the bounty on top of the normal kill reward. Empty when nobody is named.
 USTRUCT()
 struct FLDLeaderView

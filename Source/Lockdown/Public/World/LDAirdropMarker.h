@@ -8,7 +8,7 @@
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
-// Placeholder presentation of the current airdrop (空投, D26 #79): a flat painted ring at the approved
+// Placeholder presentation of the current airdrop (天降外卖, D26 #79): a flat painted ring at the approved
 // AIRDROP.PickupRadiusCm around the public drop point while it is announced, plus a crate once it has landed. It only
 // mirrors the accepted public airdrop view; it is never replicated and has no collision, navigation, sight or height
 // effect. Final art belongs to the presentation ticket.

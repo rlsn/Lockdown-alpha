@@ -29,7 +29,7 @@ struct FLDOpponentRequestTally
     uint32 DormEntries = 0;
     // D26 evidence: public airdrops this adapter's contender claimed, read from the public match view.
     uint32 AirdropClaims = 0;
-    // D27 evidence: times this adapter's decisions turned to hunting a named 通报批评 leader.
+    // D27 evidence: times this adapter's decisions turned to hunting a named 上热搜 leader.
     uint32 LeaderHunts = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;

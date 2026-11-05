@@ -6,7 +6,7 @@
 
 class FLDDemoContentSnapshot;
 
-// D27 (#79) 通报批评. Every LEADER.RefreshSec from the match start the authority names the leader: among the contenders
+// D27 (#79) 上热搜. Every LEADER.RefreshSec from the match start the authority names the leader: among the contenders
 // still in the match, the unique highest level of at least LEADER.MinLevel, ties broken by kills, otherwise nobody. A
 // leader who is dead at the refresh is not shown. The public view shows a LEADER.CircleRadiusCm circle whose centre is
 // the leader's foot moved by a uniform random offset of at most LEADER.CircleMaxOffsetCm (never more than the radius,

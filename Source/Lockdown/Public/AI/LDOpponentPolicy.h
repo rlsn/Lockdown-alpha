@@ -14,7 +14,9 @@ class FLDDemoContentSnapshot;
 
 enum class ELDOpponentMode : uint8
 {
-    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Shop, Contest, Farm, Explore
+    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Shop, Contest, Farm, Explore,
+    // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
+    Airdrop
 };
 
 // Bounded diagnostic cause of a decision; never a coordinate, wallet or private source.
@@ -108,7 +110,7 @@ struct FLDOpponentPublicMatch
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;
     bool bAirdropLanded = false;
-    // D27: the public 通报批评 notice; Leader invalid when nobody is named.
+    // D27: the public 上热搜 notice; Leader invalid when nobody is named.
     FGuid Leader;
     FVector LeaderCircleCentreCm = FVector::ZeroVector;
 };

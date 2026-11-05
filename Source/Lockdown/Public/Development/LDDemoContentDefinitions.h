@@ -132,7 +132,7 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
     UPROPERTY() int64 AirdropRewardGold = 0;
-    // D27 (#79) 通报批评: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
+    // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
     UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;

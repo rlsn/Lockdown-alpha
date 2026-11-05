@@ -7,7 +7,7 @@
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
-// Placeholder presentation of one dorm (宿舍, D21 #79): a flat painted ring on the registered ground at the approved
+// Placeholder presentation of one 躺平角 (dorm, D21 #79): a flat painted ring on the registered ground at the approved
 // DORM.RadiusCm around the dorm anchor. Each machine builds it from its own world data; it is never replicated and has
 // no collision, navigation, sight or height effect. Final art belongs to the presentation ticket.
 UCLASS(NotPlaceable, Transient)
