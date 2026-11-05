@@ -129,7 +129,7 @@ D34 的文档同步规则持续有效。后续任何删除仍须先做 C3/C4，�
 | D21 | `SourceData\Catalogs\V08` 作者域、B84 运行产物/manifest 与 `LDB84Contract.h` | 唯一链：`SourceData\Demo\{content,content.schema,native_ids}.json` → `Scripts\SyncDemoContentData.py` → `Content\Lockdown\Data\Demo\{demo_content,manifest}.json` 与 `LDDemoContentContract.h` → `ULDDemoContentCatalog`。不并行生成，不手改哈希。 |
 | D22 | `SourceData\Catalogs\V07` 与 `Scripts\SyncV07*.py` | 同 D21。 |
 | D23 | `SourceData\Character\prototype_rules.json`、`LDPrototypeTuning`、`DA_CharacterCatalog`、`Generated\V07\DA_*Catalog` 与 `DA_PrototypeTuning` | 角色参数只来自 D21 的唯一内容域；缺必要输入显式失败，不以默认对象补位。 |
-| D24 | 旧输入动作资产与 IMC，`M_{Soil,Fuel,Metal,River}` | 保留有消费者的 `M_Ground/M_Stone`（世界 Builder 与两张图）、`M_Tree`（`L_Frontend`）、`M_Character`（人形表现）、`M_Fog/T_FogClosed`（视野 relay）与 `WBP_UIRoot`。 |
+| D24 | 旧输入动作资产与 IMC，`M_{Soil,Fuel,Metal,River}` | `M_Ground/M_Stone/M_Tree` 只被旧 `L_Frontend` 占位场景使用，已随该场景删除（`L_Frontend` 现为空关卡）；保留有消费者的 `M_Character`（人形表现）、`M_Fog/T_FogClosed`（视野 relay）与 `WBP_UIRoot`。 |
 | D25 | `Config\{RegionLayout,V07RegionLayout,V08RegionLayout}.json`、BootstrapLayout 旧图要求、DefaultGame 旧容量/书价与 CommonUI 无消费者配置 | 有效配置只含当前入口、GameMode/GI/Engine 类、网络、导航、渲染与打包所需节。 |
 | D26 | Build.cs、uproject、Target、`.gitattributes` 与打包/启动脚本中的旧载荷、旧 map/profile、多版本生成分派 | RuntimeDependencies 只含 Demo 内容/世界载荷与根 manifest（[Lockdown.Build.cs](../../Source/Lockdown/Lockdown.Build.cs)）；Bootstrap 对 `RebuildRegionMaps/RebuildV08Region` 显式拒绝。 |
 

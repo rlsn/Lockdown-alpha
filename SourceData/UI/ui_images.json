@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "images": [
+    {
+      "id": "title_background",
+      "path": "title_background.png",
+      "sha256": "5b1c3535e28495273da303603ce9b66e4eef9ef7cf699b9089cedf62c01fe6e8",
+      "width": 1672,
+      "height": 941,
+      "purpose": "Title screen (frontend) full-screen background",
+      "provenance": "Supplied by the project owner in the 2026-11-06 UI request; converted losslessly from WebP to PNG."
+    },
+    {
+      "id": "lobby_background",
+      "path": "lobby_background.png",
+      "sha256": "974ec57e0d6589c06152e6d7259137d340f90efcbab3cf400e14245e1e32990f",
+      "width": 1672,
+      "height": 941,
+      "purpose": "Room lobby full-screen background",
+      "provenance": "Supplied by the project owner in the 2026-11-06 UI request; converted losslessly from WebP to PNG."
+    }
+  ]
+}

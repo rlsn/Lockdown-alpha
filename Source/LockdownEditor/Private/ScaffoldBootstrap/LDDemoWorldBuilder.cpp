@@ -8,6 +8,7 @@
 #include "Region/LDRegionNavBounds.h"
 #include "Navigation/LDDemoNavigationSystem.h"
 #include "AI/NavigationSystemConfig.h"
+#include "ActorEditorUtils.h"
 #include "AssetCompilingManager.h"
 #include "Builders/CubeBuilder.h"
 #include "Components/BrushComponent.h"
@@ -576,6 +577,35 @@ bool LDDemoWorldBuilder::SaveAsset(UObject& Asset, const FString& PackagePath, F
     Args.TopLevelFlags = RF_Public | RF_Standalone;
     return UPackage::SavePackage(Asset.GetOutermost(), &Asset, *File, Args)
         || Fail(Error, TEXT("Generated asset could not be saved: ") + File);
+}
+
+bool LDDemoWorldBuilder::GenerateFrontend(UWorld*& Out, FString& Error)
+{
+    UWorld* World = UEditorLoadingAndSavingUtils::NewBlankMap(false);
+    if (!World || !World->GetWorldSettings()) { return Fail(Error, TEXT("Cannot create the frontend editor world.")); }
+    World->GetWorldSettings()->DefaultGameMode = ALDGameMode::StaticClass();
+    if (!ValidateFrontend(*World, Error)) { return false; }
+    if (!UEditorLoadingAndSavingUtils::SaveMap(World, LDDemoEntry::FrontendMap))
+    {
+        return Fail(Error, TEXT("The blank frontend map could not be saved."));
+    }
+    Out = World;
+    Error.Reset();
+    return true;
+}
+
+bool LDDemoWorldBuilder::ValidateFrontend(const UWorld& World, FString& Error)
+{
+    if (!World.PersistentLevel) { return Fail(Error, TEXT("The frontend map has no persistent level.")); }
+    for (AActor* Actor : World.PersistentLevel->Actors)
+    {
+        // Transient actors (the engine's default physics volume) are never saved with the map.
+        if (!Actor || Actor->HasAnyFlags(RF_Transient) || Actor->IsA<AWorldSettings>() || FActorEditorUtils::IsABuilderBrush(Actor)) { continue; }
+        return Fail(Error, FString::Printf(TEXT("The frontend map holds the scene actor %s (%s); the title screen shows only its UI and ")
+            TEXT("background image. Run BootstrapAssets.ps1 -Mode RegenerateFrontend."), *Actor->GetName(), *Actor->GetClass()->GetName()));
+    }
+    Error.Reset();
+    return true;
 }
 
 bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoContentSnapshot& Content, UWorld*& Out, FString& Error)

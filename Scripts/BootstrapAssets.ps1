@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [ValidateSet('Generate','Validate','Regenerate','RefreshDefinitions')][string]$Mode='Validate')
+param([string]$EngineRoot, [ValidateSet('Generate','Validate','Regenerate','RefreshDefinitions','RegenerateFrontend')][string]$Mode='Validate')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs

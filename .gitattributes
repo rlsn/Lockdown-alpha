@@ -7,6 +7,8 @@
 /SourceData/Art/**/*.gltf filter=lfs diff=lfs merge=lfs -text
 /SourceData/Art/**/*.glb filter=lfs diff=lfs merge=lfs -text
 /SourceData/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
+# UI: full-screen background images supplied by the project owner.
+/SourceData/UI/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Human-readable documentation uses one portable text format.
 *.md text eol=lf

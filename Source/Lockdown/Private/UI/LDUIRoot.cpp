@@ -9,6 +9,7 @@
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIBackgrounds.h"
 #include "UI/LDWidgets.h"
 #include "UI/LDWorldFeedback.h"
 #include "UI/LDWorldLabels.h"
@@ -20,6 +21,8 @@
 #include "Components/EditableTextBox.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
+#include "Components/ScaleBox.h"
 #include "Components/ScrollBox.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -27,6 +30,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/Engine.h"
 #include "Engine/PendingNetGame.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Kismet/GameplayStatics.h"
@@ -117,6 +121,8 @@ TSharedRef<SWidget> ULDUIRoot::RebuildWidget()
 void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
 {
     const ULDStartPageDraft* Draft=StartDraft();
+    // The title screen is this root over its picture; the frontend map itself renders nothing.
+    AddBackground(Canvas,LDUIBackgrounds::TitleAsset);
     UVerticalBox* Content=nullptr;
     FrontendPage=MakePage(Canvas,660,Content);
     auto Add=[](UVerticalBox* Box,UWidget* Child,float Gap){Box->AddChildToVerticalBox(Child)->SetPadding(FMargin(0,Gap));};
@@ -230,6 +236,8 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
     HeaderPanel->SetVisibility(ESlateVisibility::Collapsed);
 
     UVerticalBox* Lobby=nullptr;
+    LobbyBackground=AddBackground(Canvas,LDUIBackgrounds::LobbyAsset);
+    if(LobbyBackground){LobbyBackground->SetVisibility(ESlateVisibility::Collapsed);}
     LobbyPage=MakePage(Canvas,860,Lobby);
     LobbyPage->SetVisibility(ESlateVisibility::Collapsed);
     Add(Lobby,Label(TEXT("房间"),30,TitleColor),6);
@@ -370,6 +378,29 @@ UEditableTextBox* ULDUIRoot::MakeTextBox(const FString& Hint,FName Name)
     return Box;
 }
 
+UWidget* ULDUIRoot::AddBackground(UCanvasPanel& Canvas,const TCHAR* AssetPath)
+{
+    UTexture2D* Texture=LoadObject<UTexture2D>(nullptr,AssetPath);
+    if(!Texture)
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportBackgrounds."),AssetPath);
+        return nullptr;
+    }
+    auto* Picture=WidgetTree->ConstructWidget<UImage>();
+    Picture->SetBrushFromTexture(Texture,true);
+    // Scale to fill: the picture covers any aspect ratio, cropping the overflow around its centre instead of stretching.
+    auto* Fill=WidgetTree->ConstructWidget<UScaleBox>();
+    Fill->SetStretch(EStretch::ScaleToFill);
+    Fill->SetContent(Picture);
+    Fill->SetVisibility(ESlateVisibility::HitTestInvisible);
+    UCanvasPanelSlot* FillSlot=Canvas.AddChildToCanvas(Fill);
+    FillSlot->SetAnchors(FAnchors(0,0,1,1));
+    FillSlot->SetOffsets(FMargin(0));
+    // Under the overhead labels and feedback (-1) and every page.
+    FillSlot->SetZOrder(-2);
+    return Fill;
+}
+
 USizeBox* ULDUIRoot::MakePage(UCanvasPanel& Canvas,float Width,UVerticalBox*& Content)
 {
     Content=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -494,6 +525,7 @@ void ULDUIRoot::TickWorld(ALDPlayerController& PC)
         bRosterBuilt=false;
         if(bInLobby&&bMenuOpen){bMenuOpen=false;MenuPage->SetVisibility(ESlateVisibility::Collapsed);}
         LobbyPage->SetVisibility(bInLobby?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+        if(LobbyBackground){LobbyBackground->SetVisibility(bInLobby?ESlateVisibility::HitTestInvisible:ESlateVisibility::Collapsed);}
         PC.SetMenuOpen(bInLobby);
     }
     if(bResultsNow!=bInResults)
