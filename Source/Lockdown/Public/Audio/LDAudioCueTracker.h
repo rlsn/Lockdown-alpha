@@ -67,6 +67,7 @@ private:
     int64 HitShieldP2 = 0;
     int64 HitShieldEndsAtMs = 0;    // end of the shield status listed with the baseline; 0 when none was listed
     double LastHitAt = -1e9;
+    int64 AttackReleasedAtMs = 0;   // the last own release (any kind) seen in this life; 0 when none was released
     uint32 GrowthMatch = 0;
     uint8 GrowthLevel = 0;
     uint8 GrowthEarned = 0;
