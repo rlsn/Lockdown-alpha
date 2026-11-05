@@ -157,6 +157,7 @@ void ALDOpponentController::ForgetBodyWork()
     StopTrack = FStopTrack();
     Action = FActionTrack();
     Visit = FShopVisit();
+    bWasInDorm = false;
 }
 
 void ALDOpponentController::HandleLifeCommitted(const FLDLifeNotice& Notice)
@@ -197,11 +198,11 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds, Tally.PausedHoldsKept,
-        Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks);
+        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
+        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -285,6 +286,13 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     {
         SettleOrders(Reads, Frame.Self, NowMs, Problem);
         SettleDirectAction(*Mode, Reads, Frame.Self, NowMs, Problem);
+        Tally.DormEntries += Reads.Combat.bInDorm && !bWasInDorm ? 1 : 0;
+        bWasInDorm = Reads.Combat.bInDorm;
+    }
+    if (Reads.ClaimedAirdrop && Reads.ClaimedAirdrop != LastClaimedAirdrop)
+    {
+        LastClaimedAirdrop = Reads.ClaimedAirdrop;
+        ++Tally.AirdropClaims;
     }
     SettleShop(*Mode, Reads, Frame.Self, NowMs, Problem);
     SettleBuild(*Mode, Frame.Self, NowMs, Problem);
@@ -336,6 +344,15 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.DueAtMs = Public.DueAtMs;
     Frame.Public.Owner = Public.GraffitiOwner;
     Frame.Public.GuardDueAtMs = Public.GuardDueAtMs;
+    Frame.Public.Leader = Public.Leader.Leader;
+    Frame.Public.LeaderCircleCentreCm = Public.Leader.CircleCentreCm;
+    // The own claim comes from the owner view; the public view never names the claimer.
+    Reads.ClaimedAirdrop = Own.Growth.AirdropClaimedSerial;
+    if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
+    {
+        Frame.Public.AirdropPOI = Public.Airdrop.PointId;
+        Frame.Public.bAirdropLanded = Public.Airdrop.Phase == ELDAirdropPhase::Landed;
+    }
     FLDOpponentSelf& Me = Frame.Self;
     Me.ContenderId = Own.ContenderId;
     Me.Phase = Own.LifePhase;
@@ -516,6 +533,7 @@ void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& 
         Settle = ELDOpponentSettle::Failed;
     }
     Action.bFinal = true;
+    Tally.DashesLanded += Settle == ELDOpponentSettle::Succeeded && Action.Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;
     Learn(Action.Intent.Key, Settle, Self, NowMs);
 }
 
@@ -695,6 +713,7 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         }
         DirectSequence = Request.DirectSequence;
         ++Tally.Actions;
+        Tally.Dashes += Intent.Source == ELDOpponentSourceSlot::Dash ? 1 : 0;
         const ELDOpponentSettle Settle = LDOpponentRequests::SettleAction(Mode.Combat->SubmitAction(Reads.CombatCaller, Request));
         Action = FActionTrack();
         Action.bHas = true;
@@ -804,6 +823,8 @@ void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const 
     const FString& Problem)
 {
     if (Decision.Mode == ReportedMode && Decision.Reason == ReportedReason && Problem == ReportedProblem) { return; }
+    Tally.LeaderHunts += Decision.Reason == ELDOpponentReason::HuntLeader && ReportedReason != ELDOpponentReason::HuntLeader ? 1 : 0;
+    Tally.BossAvoids += Decision.Reason == ELDOpponentReason::AvoidBoss && ReportedReason != ELDOpponentReason::AvoidBoss ? 1 : 0;
     ReportedMode = Decision.Mode;
     ReportedReason = Decision.Reason;
     ReportedProblem = Problem;

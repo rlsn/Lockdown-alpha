@@ -8,6 +8,11 @@
 #include "Framework/LDMatchProviders.h"
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
+#include "World/LDAirdrop.h"
+#include "World/LDDormZones.h"
+#include "World/LDLeaderNotice.h"
+#include "World/LDDormMarker.h"
+#include "World/LDAirdropMarker.h"
 #include "Vision/LDViewTypes.h"
 #include "LDGameMode.generated.h"
 
@@ -38,11 +43,24 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     // Local presentation only: the visible flagpole boundary of the current match, never replicated.
     const ALDCaptureMarker* GetCaptureMarker() const { return CaptureMarker.Get(); }
+    // Local presentation only: the dorm boundaries of the current match (D21, #79), never replicated.
+    TArray<const ALDDormMarker*> GetDormMarkers() const;
+    // Local presentation only: the current public airdrop (D26, #79), never replicated.
+    const ALDAirdropMarker* GetAirdropMarker() const { return AirdropMarker.Get(); }
 private:
     // Builds the boundary from this machine's world data for an active public match, and removes it otherwise.
     void SyncCaptureMarker();
     TWeakObjectPtr<ALDCaptureMarker> CaptureMarker;
     uint32 CaptureMarkerFailedGeneration = 0;
+    // The same for every dorm ring.
+    void SyncDormMarkers();
+    void ClearDormMarkers();
+    TArray<TWeakObjectPtr<ALDDormMarker>> DormMarkers;
+    uint32 DormMarkerFailedGeneration = 0;
+    // The airdrop ring and crate, rebuilt for each drop serial.
+    void SyncAirdropMarker();
+    TWeakObjectPtr<ALDAirdropMarker> AirdropMarker;
+    uint32 AirdropMarkerFailedGeneration = 0;
     FLDLobbyView LatestDemoLobby;
     FLDDemoClockView LatestDemoClock;
     FLDPublicMatchView LatestPublicMatch;
@@ -123,6 +141,25 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
+    // D21 (#79): the public dorm disks of this match; empty outside a running match.
+    const FLDDormZones& GetDormZones() const { return DormZones; }
+    // D26 (#79): the current airdrop of this match; inactive outside a running match.
+    const FLDAirdropState& GetAirdrop() const { return Airdrop; }
+    // RespawnsAndWorld: announces and lands the scheduled drop. False only on an authority fault.
+    bool AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions (growth applies only there or in DeathsAndRewards): the first living contender inside the pickup disk
+    // of a landed drop claims it through the growth reward composite. False only on an authority fault.
+    bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
+    int64 NextAirdropDueMs() const;
+    // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
+    bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
+    int64 NextLeaderDueMs() const;
+    // The bounty a kill of Victim earns now (zero unless Victim is the shown leader); Combat locks it at the fatal moment.
+    int64 LeaderBountyFor(const FGuid& Victim) const;
+    const FLDLeaderState& GetLeaderNotice() const { return LeaderNotice; }
+    // A world owner (the camp director's Boss) changed what the public match view shows.
+    void MarkPublicMatchDirty() { bPublicMatchDirty = true; }
     // Right after Motion: whether this step's motion completes a guard strictly before the step's end (a guard a
     // sole sprayer paused resumes). If so the driver skips the later gameplay phases of the step, retries owed
     // rewards, and Capture/Close lock the result at that earlier instant.
@@ -193,6 +230,7 @@ private:
     friend class FLDCombatCommitControlTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
     friend class ALDCombatDirector;
@@ -331,6 +369,9 @@ private:
     };
     FLDCaptureReducer CaptureReducer;
     FLDCaptureCircle CaptureCircle;
+    FLDDormZones DormZones;
+    FLDAirdropState Airdrop;
+    FLDLeaderState LeaderNotice;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
     TSet<FLDDeathKey> CountedDeaths;

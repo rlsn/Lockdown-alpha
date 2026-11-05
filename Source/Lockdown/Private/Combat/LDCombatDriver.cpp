@@ -32,6 +32,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     const auto Consider=[&Due,NowMs](int64 At) { if (At>NowMs && At<Due) { Due=At; } };
     const FLDDemoContentSnapshot* Content=Catalog();
     const int64 RecoveryDelayMs=Content ? Content->Get().Parameters.OutOfCombatRegenDelayMs : -1;
+    const int64 DormDelayMs=Content ? Content->Get().Parameters.DormRegenDelayMs : -1;
     for (const auto& Pair : Bodies)
     {
         const auto& Body=Pair.Value;
@@ -51,6 +52,9 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // D21: a contender's out-of-combat recovery starts on its own exact boundary.
         if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
         { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
+        // D21 (#79): so does the dorm's fast recovery of a contender standing in a dorm.
+        if (Body.bInDorm && DormDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-DormDelayMs)
+        { Consider(Body.LastCombatAtMs+DormDelayMs); }
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
@@ -86,6 +90,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         Consider(Mode->NextCaptureDueMs());
         // A cleared camp refreshes exactly at its integer deadline, not on the following boundary.
         if (Mode->Camps) { Consider(Mode->Camps->NextRefreshDueMs()); }
+        // D26: an airdrop is announced and lands on its exact boundary.
+        Consider(Mode->NextAirdropDueMs());
+        // D27: the leader notice refreshes on its exact boundary.
+        Consider(Mode->NextLeaderDueMs());
     }
     return Due;
 }
@@ -169,12 +177,13 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::RespawnsAndWorld,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Camps) { Error=TEXT("Camp lifecycles require the camp owner of this match."); return false; }
-                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error);
+                return Mode->RespawnDueContenders(Permit,Error) && Mode->Camps->AdvanceCamps(Permit,Error)
+                    && Mode->AdvanceAirdrop(Permit,Error) && Mode->AdvanceLeaderNotice(Permit,Error);
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
                 if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
-                return Mode->Economy->ProcessTransactions(Permit,Error);
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->Economy->ProcessTransactions(Permit,Error);
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)

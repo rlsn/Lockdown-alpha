@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -169,7 +170,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     {
         Killer = Event.CreditContender.IsValid() ? FindContender(Event.CreditContender) : nullptr;
         if (!(Event.DeathKey == DeathKey) || CountedDeaths.Contains(DeathKey)
-            || uint8(Event.KillCause) > uint8(ELDKillCause::Unowned)
+            || uint8(Event.KillCause) > uint8(ELDKillCause::Boss)
             || (Event.KillCause == ELDKillCause::Contender) != Event.CreditContender.IsValid()
             || Event.CreditContender == Id || (Event.CreditContender.IsValid() && !Killer)
             || (!Killer && !Event.Assisters.IsEmpty()))
@@ -202,6 +203,13 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
         for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
+        // D27: the shown leader's death spends the notice; its bounty was locked with the death.
+        if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
+        {
+            bPublicMatchDirty = true;
+            UE_LOG(LogTemp, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s bounty=%lld"), *Id.ToString(),
+                *Event.CreditContender.ToString(), LeaderNotice.LastDownBountyGold);
+        }
         FLDKillNotice& Notice = KillNotices.AddDefaulted_GetRef();
         Notice.Serial = ++NextKillSerial;
         Notice.Victim = Id;
@@ -557,6 +565,9 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.GuardDueAtMs = CaptureReducer.GetGuardDueAtMs();
     View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
+    View.Airdrop = Airdrop.View();
+    View.Leader = LeaderNotice.View();
+    View.Boss = Camps ? Camps->BossView() : FLDBossView();
     return View;
 }
 

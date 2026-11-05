@@ -39,7 +39,13 @@ def content_fixture():
         ("MATCH.DevelopmentSec", "s", 90), ("LIFE.RespawnSec", "s", 22), ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
+        ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
+        ("DORM.MaxMPRatioPerSec", "ratio", 0.05),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
+        ("CAMP.ReturnDeadEndSec", "s", 4),
+        ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
+        ("AIRDROP.PickupRadiusCm", "cm", 120),
+        ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
         ("REWARD.AssistWindowSec", "s", 10), ("REWARD.AssistGoldRatio", "ratio", 0.4),
         ("SHOP.UpgradeStatBonusRatio", "ratio", 0.4), ("CHOICE.UpgradeWeight", "ratio", 2.5),
         ("CHOICE.NewActiveOpenSlotWeight", "ratio", 1.75), ("CHOICE.NewActiveFullSlotWeight", "ratio", 0.25),
@@ -57,6 +63,8 @@ def content_fixture():
         "SHOP.StartingGold": 10, "SHOP.UpgradeCost": 30, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
+        "CAMP.ReturnDeadEndPlans": 2, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
+        "LEADER.MinLevel": 2, "LEADER.BountyGoldPerRefresh": 40, "LEADER.BountyGoldMax": 200,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -222,10 +230,16 @@ def content_fixture():
         "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_guardian"}
                        for identity in ("l1", "h1", "l2", "h2", "l3")],
     }
+    boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
+            "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
+            "collision_radius": q("cm", 20), "aggro_radius": q("cm", 150), "attacker_memory": q("s", 2), "appear_at": q("s", 20),
+            "reward_xp": 30, "reward_gold": 25,
+            "approval": {"duration": q("s", 15), "stats": {"ADBonusRatio": q("ratio", 0.1), "APBonusRatio": q("ratio", 0.1),
+                                                           "MoveSpeedBonusRatio": q("ratio", 0.05)}}}
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -237,7 +251,7 @@ def content_fixture():
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps,
+        "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps, "boss": boss,
         "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810],
                         "opening_offer": {"active_count": 2, "passive_count": 1}, "reroll_levels": [3, 6]},

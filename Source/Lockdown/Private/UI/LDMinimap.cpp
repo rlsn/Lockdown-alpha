@@ -3,6 +3,7 @@
 #include "UI/LDTerms.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDDemoEntry.h"
+#include "Framework/LDGameMode.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Vision/LDWorldViewRelay.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -27,8 +28,10 @@
 struct FLDMinimapStatic
 {
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight.
-    enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone };
-    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp };
+    enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone };
+    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint };
+    // D27: the approved leader circle radius, read with the static map.
+    double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
     struct FSite { ESite Kind=ESite::Shop; FVector2D Cm=FVector2D::ZeroVector; };
     struct FRun { FVector2f Position=FVector2f::ZeroVector; FVector2f Extent=FVector2f::ZeroVector; FLinearColor Color=FLinearColor::White; };
@@ -179,6 +182,10 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     }
     const FLDDemoRational& Radius=Approved.Parameters.CaptureRadiusCm;
     const double RadiusCm=Radius.Denominator>0?double(Radius.Numerator)/double(Radius.Denominator):0.;
+    const FLDDemoRational& DormRadius=Approved.Parameters.DormRadiusCm;
+    const FLDDemoRational& LeaderRadius=Approved.Parameters.LeaderCircleRadiusCm;
+    Cache.LeaderRadiusCm=LeaderRadius.Denominator>0?double(LeaderRadius.Numerator)/double(LeaderRadius.Denominator):0.;
+    const double DormRadiusCm=DormRadius.Denominator>0?double(DormRadius.Numerator)/double(DormRadius.Denominator):0.;
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
@@ -200,6 +207,18 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
             if(!Monster){Error=Anchor.Id+TEXT(": camp has no approved placement or monster tier.");return false;}
             Site.Kind=Monster->Tier==ELDDemoCampTier::High?FLDMinimapStatic::ESite::HighCamp:FLDMinimapStatic::ESite::LowCamp;
         }
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Dorm)
+        {
+            // D21 (#79): the public dorm disk, drawn like the capture zone in its own colour.
+            if(!FMath::IsFinite(DormRadiusCm)||DormRadiusCm<=0){Error=TEXT("DORM.RadiusCm is not a positive approved length.");return false;}
+            Site.Kind=FLDMinimapStatic::ESite::Dorm;FLDMinimapStatic::FArea Zone;Zone.Style=FLDMinimapStatic::EArea::DormZone;
+            for(int32 Step=0;Step<32;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/32.;Zone.Cm.Add(Site.Cm+FVector2D(FMath::Cos(Angle),FMath::Sin(Angle))*DormRadiusCm);}
+            if(Keep(Zone)){Cache.Areas.Insert(MoveTemp(Zone),0);}
+        }
+        // D26 (#79): an airdrop point is drawn only while it holds the current public drop (see NativePaint).
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
+        // D26 (#79): a public Boss patrol point, a small gold ring.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
@@ -226,6 +245,7 @@ void MinimapLayoutStatic(FLDMinimapStatic& Cache,const FVector2D& Origin,double 
         case FLDMinimapStatic::EArea::LowWall:Fill=FLinearColor(.48f,.34f,.18f,.40f);Rim=FLinearColor(.90f,.68f,.40f);Thickness=1.5f;break;
         case FLDMinimapStatic::EArea::SightScreen:Fill=FLinearColor(.20f,.46f,.26f,.35f);Rim=FLinearColor(.52f,.90f,.56f);Thickness=1.5f;bDashed=true;break;
         case FLDMinimapStatic::EArea::CaptureZone:Fill=FLinearColor(1.f,.84f,.30f,.16f);Rim=FLinearColor(1.f,.84f,.34f,.95f);Thickness=1.5f;break;
+        case FLDMinimapStatic::EArea::DormZone:Fill=FLinearColor(.25f,.62f,1.f,.18f);Rim=FLinearColor(.45f,.75f,1.f,.95f);Thickness=1.5f;break;
         }
         TArray<FVector2f> Points;for(const FVector2D& Cm:Area.Cm){Points.Add(FVector2f(float((Cm.X-Origin.X)*Scale),float((Cm.Y-Origin.Y)*Scale)));}
         MinimapScanRuns(Points,[&Cache,&Fill](float X,float Y,float Width)
@@ -392,7 +412,31 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 case FLDMinimapStatic::ESite::Capture:Box(5,At+FVector2f(-.75f,-9.f),FVector2f(1.5f,9.5f),FLinearColor(.94f,.94f,.90f));Box(6,At+FVector2f(.75f,-9.f),FVector2f(6.f,4.f),FLinearColor(.92f,.20f,.16f));break;
                 case FLDMinimapStatic::ESite::LowCamp:Diamond(5,At,6.5f,Ink);Diamond(6,At,4.5f,FLinearColor(.96f,.66f,.30f));break;
                 case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,12.f,FLinearColor(1.f,.93f,.76f));Diamond(6,At,9.f,FLinearColor(.80f,.22f,.17f));Diamond(7,At,3.5f,Ink);break;
+                // Dorm: a small bed, a white pillow on a blue frame.
+                case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
+                // Boss patrol point: a gold dot on an ink disc.
+                case FLDMinimapStatic::ESite::BossWaypoint:Disc(5,At,8.f,Ink);Disc(6,At,5.f,FLinearColor(.95f,.72f,.12f));break;
                 }
+            }
+        }
+        // D26: the current public airdrop, a crate on an orange plate (outlined while it is only announced).
+        if(const auto* Public=GetWorld()?GetWorld()->GetGameState<ALDGameState>():nullptr)
+        {
+            const FLDAirdropView& Drop=Public->PublicMatch.Airdrop;
+            // D27: the public 上热搜 circle, a dashed red ring of the approved radius around the published fuzzy centre.
+            const FLDLeaderView& Notice=Public->PublicMatch.Leader;
+            if(Public->PublicMatch.Generation==Own.Match&&Notice.Leader.IsValid()&&Cache.LeaderRadiusCm>0)
+            {
+                TArray<FVector2f> Ring;
+                for(int32 Step=0;Step<=40;++Step){const double Angle=UE_DOUBLE_TWO_PI*Step/40.;Ring.Add(Spot(Notice.CircleCentreCm+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0.)*Cache.LeaderRadiusCm));}
+                FSlateDrawElement::MakeDashedLines(E,Base+5,G.ToPaintGeometry(),MoveTemp(Ring),ESlateDrawEffect::None,FLinearColor(1.f,.32f,.28f,.95f),2.f,5.f);
+            }
+            if(Public->PublicMatch.Generation==Own.Match&&(Drop.Phase==ELDAirdropPhase::Announced||Drop.Phase==ELDAirdropPhase::Landed))
+            {
+                const FVector2f At=Spot(Drop.PositionCm);const FLinearColor Orange=ALDAirdropMarker::Color();
+                Box(5,At-FVector2f(7.f,7.f),FVector2f(14.f,14.f),Ink);Box(6,At-FVector2f(6.f,6.f),FVector2f(12.f,12.f),Orange);
+                if(Drop.Phase==ELDAirdropPhase::Landed){Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.55f,.36f,.16f));Box(7,At-FVector2f(4.f,.75f),FVector2f(8.f,1.5f),Ink);}
+                else{Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Ink);}
             }
         }
         if(Frame)

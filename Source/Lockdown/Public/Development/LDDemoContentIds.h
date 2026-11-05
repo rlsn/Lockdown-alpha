@@ -28,7 +28,7 @@ enum class ELDDemoEquipmentId : uint8
     ItemSlingshot=106, ItemPaperBox=107, ItemNailUniform=108,
     ItemMegaphone=109, ItemDossier=110, ItemPrivacyScreen=111, ItemSkateboard=112, ItemDecoyWig=113, ItemEnergyDrink=114
 };
-enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2 };
+enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3 };
 // Public statuses travel in a 32-bit observation mask, so status ids stay below 32 (#112 C2 uses 20..24).
 enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4,
     Slow=5, StatBoost=6, Enraged=7, AmbushReady=8, Exposed=9, Taunt=10, Stealth=11,

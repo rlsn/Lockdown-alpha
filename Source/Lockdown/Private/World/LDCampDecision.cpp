@@ -1,6 +1,36 @@
 #include "World/LDCampDecision.h"
 #include "Development/LDDemoContentCatalog.h"
 
+void FLDCampReturnWatch::Observe(uint64 InEpoch,double NowSeconds)
+{
+    if(Epoch==InEpoch){return;}
+    *this={};
+    Epoch=InEpoch;
+    LastProgressSeconds=LastTickSeconds=NowSeconds;
+}
+
+void FLDCampReturnWatch::Tick(double NowSeconds,bool bFreeToMove)
+{
+    if(!bFreeToMove&&NowSeconds>LastTickSeconds){LastProgressSeconds+=NowSeconds-LastTickSeconds;}
+    LastTickSeconds=FMath::Max(LastTickSeconds,NowSeconds);
+}
+
+bool FLDCampReturnWatch::PlanRefused(double NowSeconds,int32 MaxRefused,double RetrySeconds)
+{
+    if(bDeadEnd){return false;}
+    ++RefusedPlans;
+    NextPlanSeconds=NowSeconds+RetrySeconds;
+    bDeadEnd=RefusedPlans>=MaxRefused;
+    return bDeadEnd;
+}
+
+bool FLDCampReturnWatch::Stalled(double NowSeconds,double LimitSeconds)
+{
+    if(bDeadEnd||NowSeconds-LastProgressSeconds<LimitSeconds){return false;}
+    bDeadEnd=true;
+    return true;
+}
+
 namespace LDCampDecision
 {
 namespace
@@ -125,7 +155,12 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
         else if(Input.MovementAllowed)
         {Result.Intent=ELDCampIntent::ReturnHome;Result.GoalFootCm=Input.MemberHome.PositionCm;}
     };
-    if(Input.Brain.Phase==ELDCampBrainPhase::Returning||AnchorDistance>Leash*Leash)
+    const bool bBeyondLeash=AnchorDistance>Leash*Leash;
+    // #28: a member reset in place beyond its leash fights where it stands; the leash cannot send it back to a
+    // dead end that would reset it again at full health.
+    const bool bHoldGround=Input.bStrandedInPlace&&bBeyondLeash;
+    if(Input.Brain.Phase==ELDCampBrainPhase::Returning
+        ||(Input.Brain.Phase==ELDCampBrainPhase::Engaged&&bBeyondLeash&&!bHoldGround))
     {Returning();}
     else if(Input.Brain.Phase==ELDCampBrainPhase::Idle)
     {Result.NextBrain.LostTargetSinceSeconds.Reset();}
@@ -146,7 +181,7 @@ bool Evaluate(const FLDDemoContentSnapshot& Catalog,FName CampId,const FLDCampDe
         {
             if(Input.AttackAllowed&&Input.BasicAttackReady){Result.Intent=ELDCampIntent::RequestBasicAttack;}
         }
-        else if(Input.MovementAllowed){Result.Intent=ELDCampIntent::Chase;}
+        else if(Input.MovementAllowed&&!bHoldGround){Result.Intent=ELDCampIntent::Chase;}
     }
     Out=MoveTemp(Result);
     return true;

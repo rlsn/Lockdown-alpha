@@ -286,11 +286,53 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 每秒恢复 `REGEN.OutOfCombatMaxHPRatioPerSec=0.015` 倍当前精神状态上限和 `REGEN.OutOfCombatMaxMPRatioPerSec=0.015` 倍
 当前电量上限（约 65 秒从零回满）；进入战斗立即停止。战斗事件与「发疯文学」共用下述唯一战斗时间，二者各按自己的延迟
 起算并叠加；死体不回复，复活时刻是新生命的脱战起点。按 `POLICY.RegenIntegration` 积分（`LDTactical::SettleRegen`），
-导入器要求延迟为正、比例为正且是 0.001 的整数倍，使任意 P2 上限都能精确到每毫秒 1e-6 P2。地图边缘的躺平角（D21，快速回复点）未实现，见 #79。
+导入器要求延迟为正、比例为正且是 0.001 的整数倍，使任意 P2 上限都能精确到每毫秒 1e-6 P2。
+
+**躺平角（D21，#79）**：参赛者（不含野怪）脚点在躺平角圆形判定区 `DORM.RadiusCm=400` 内（边界算在内），且自上次战斗事件满
+`DORM.OutOfCombatDelaySec=3` 秒后，每秒恢复 `DORM.MaxHPRatioPerSec=0.10` 倍当前精神状态上限和 `DORM.MaxMPRatioPerSec=0.10` 倍
+当前电量上限（约 10 秒从零回满）；与上面的脱战慢回和「发疯文学」共用唯一战斗时间，各按自己的延迟起算并叠加
+（3 秒后 10%/秒，5 秒后 11.5%/秒）。判定读取每个权威步结算时的脚点，离开或死亡后下一步停止。
+首版两处躺平角位于地图对角 `dorm_nw` (-4400, 4400) 与 `dorm_se` (4400, -4400)，是 `SourceData/World/demo_world.json` 中的
+`Dorm` 锚点（技术标识仍为 Dorm）；地图重新布局（#97）时随布局调整。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、商店交互圆和营地净空区重叠，
+两处的标识必须是 `dorm_nw` 与 `dorm_se`。同样要求比例是 0.001 的整数倍。数值由用户在 2026-11-04 批准为首轮试玩值，未经平衡验证。
+
+**天降外卖（D26，#79，技术标识 airdrop）**：第 n 份外卖（从 0 数）在开局后 `AIRDROP.FirstLandSec=45` + n × `AIRDROP.IntervalSec=75` 秒落地
+（45、120、195 s…），提前 `AIRDROP.AnnounceLeadSec=15` 秒公开落点和倒计时。落地后第一个脚点进入
+`AIRDROP.PickupRadiusCm=150` 圆内、且不在复活保护中的存活参赛者获得 `AIRDROP.RewardXP=200` 流量和 `AIRDROP.RewardGold=150` 米
+（约 1.25 个大野怪营地），走与击杀奖励相同的结算，账本原因 `MapEventReward`，业务键只含对局、事件与序号，每份只付一次。
+同一拍内多人在圈内时离中心最近者得，仍并列时由服务器随机决定（不按参赛者编号）。下一次公开时当前外卖被取代。
+首版三处落点 `airdrop_ne` (1940, 2670)、`airdrop_nw` (-1940, 2670)、`airdrop_s` (0, -3300) 位于中墙外、相邻营地之间，
+与地图一样左右对称，是 `SourceData/World/demo_world.json` 的 `Airdrop` 锚点，随 #97 重新布局调整。
+每份外卖由只在服务器的随机种子从上一份以外的两处中选一处，公告时才公开，所以后续落点无法提前推知。
+公开视图只说“已被领走”，不公开领取者和领取时间；领取者从本人视图得知。世界生成器要求拾取圆是合法站立地面，且不与占领圈、商店、
+营地净空区和躺平角重叠；内容校验要求公开提前量不超过首次落地时间且小于间隔。
+节奏、落点数量与奖励由用户在 2026-11-04 批准（“Approve as proposed (Recommended)”）；落点选择（“Server random, not repeat
+(Recommended)”）、领取规则（“No protected; random tie (Recommended)”）与只公开“已领走”（“Only 'claimed' (Recommended)”）
+在 2026-11-05 批准。均为首轮试玩值，未经平衡验证。
+
+**上热搜（D27，#79）**：从开局起每 `LEADER.RefreshSec=10` 秒刷新。仍在对局中、等级不低于 `LEADER.MinLevel=3` 的参赛者里
+等级唯一最高者上热搜，等级相同按击杀数，仍相同则无人上热搜；此刻已死亡也不上热搜。公开圆半径 `LEADER.CircleRadiusCm=1500`，
+圆心是刷新瞬间脚点加均匀随机偏移，最多 `LEADER.CircleMaxOffsetCm=1000`（内容校验要求不超过半径，上热搜者总在圈内）；
+随机流只由对局身份和刷新序号决定。赏金是 `LEADER.BountyGoldPerRefresh=50` × 连续上热搜的刷新次数（首次即 50），
+最多 `LEADER.BountyGoldMax=250`；击杀者在 `REWARD.PlayerGold` 之外另得致死瞬间锁定的赏金，同一笔 `DeathReward` 结算。
+上热搜者死亡结束本次上热搜，下次刷新重新计数。用户在 2026-11-04 批准（“By level (Recommended)”）为首轮试玩值，未经平衡验证。
 首版不使用 Break/复杂 proc 递归等额外内容；若工程保留相应原语，也不自动把它们加入目录。
 失败尝试虽然已按用户规则解除保护，仍不算「发疯文学」的成功战斗事件；
 纯移动/dash、自保盾/回蓝、购物/选择不刷新该脱战时钟。成功伤害技能释放即使后来打空也刷新。
 副击对受害者造成正mitigated伤害仍刷新其受击时钟，不能被“禁追加proc”错误过滤。
+
+**画饼老板 Boss（D26，#79）**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。开局后 `appear_at=60` 秒
+出现在 `boss_patrol_1`，以 `move_speed=300` cm/s 沿 `boss_patrol_1..4` 循环巡逻：(2400, 2400) → (-2400, 2400) →
+(-2400, -2400) → (2400, -2400)，位于中墙外、营地环与出生环之间、左右对称，是 `SourceData/World/demo_world.json` 的
+`BossWaypoint` 锚点，随 #97 重新布局调整。精神状态 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
+`attack=70` 物理伤害（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
+碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
+内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活。最后一击得 `reward_xp=300` 流量 + `reward_gold=250` 米
+（走 `DeathReward` 结算），并“吃到大饼”（技术标识 `approval`）：`approval.duration=90` 秒内 `ADBonusRatio` +25%、`APBonusRatio` +25%、
+`MoveSpeedBonusRatio` +10%（`APBonusRatio` 是新增的仅限临时增益的属性）。内容校验要求碰撞半径等于参赛者、攻击距离覆盖两者半径、
+索敌半径大于攻击距离、前摇短于攻击间隔、移速在移速上下限内、“吃到大饼”只含正的临时比例属性。
+数值由用户在 2026-11-04 批准（“Approve as proposed (Recommended)”），前摇（“0.5 s (Recommended)”）与巡逻点
+（“Four diagonals (Recommended)”）在 2026-11-05 批准，为首轮试玩值，未经平衡验证。
 
 ### 4.3 属性奖励：永久、可重复且每次有效
 
@@ -481,6 +523,14 @@ Root 只会暂时禁止运动，不把返回订单变成追击。沿合法路径
 100cm归位区有至少401.769409cm静态余量。导航agent-overlap不能再加40变成140cm成功判定，
 也不强行snap到被占的home中心；home坐标不随reset漂移。
 两个归位区可以重叠，实体仍遵守动态防重叠；多人围堵及原生实际接近尚须运行验收。
+
+**回位无路收尾（#28）**：回位中的成员连续 `CAMP.ReturnDeadEndPlans=3` 次规划被拒（每次被拒后等 2 s 再规划），
+或可以移动却累计 `CAMP.ReturnDeadEndSec=6` 秒没有沿路径前进（受控制期间暂停计时，已累计的时间保留），就在原地重置：
+满已定义精神状态/电量、清临时效果与仇恨、技能就绪，不发奖励、不增加生命，记一次 `LD_CAMP_RETURN_DEAD_END`。
+不传送回家；营地活动范围仍按营地锚点计算，只约束交战中的成员。原地重置后、在活动范围外的成员坚守原地：
+受击后就地反击（目标在攻击距离内才出手，不追击），不因活动范围返回；失去目标且宽限期结束后才再次尝试回家，
+回到家中重置后恢复正常规则。用户在 2026-11-04 批准（“sounds good, go with your recommendation”）；
+坚守原地在 2026-11-05 批准（“Fight back in place (Recommended)”）。是首轮值，未经试玩验证。
 
 例如一组低怪先死一只，发40XP/30金币；另一只回位只回血，奖励仍未发、原 life 不变。
 之后它在t=10s死亡，整组从t=10开始25s等待，于t=35生成两个全新生命。

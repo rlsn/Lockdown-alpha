@@ -183,6 +183,7 @@ struct FLDRewardBasis
     uint64 VictimBuildRevisionAtDeath=0;      // contender branch only (last build revision Combat installed)
     bool bCreditOwnerEligibleAtDeath=false;   // another contender, still in the match at the fatal time
     ELDNoRewardReason NoRewardReason=ELDNoRewardReason::NoOwner; // None iff eligible
+    int64 LeaderBountyGoldAtDeath=0;          // D27 contender branch only: the shown leader's bounty at the fatal moment
 };
 
 // Locked once at the first zero-HP commit; never rebuilt from HP, last attacker or current pawn.
@@ -323,6 +324,8 @@ struct FLDCampResetInput
     FLDCombatBodyRef Body;                 // current live CampMember body
     uint64 ReturnEpoch=0;                  // World-owned; reset key = LedgerMatch + Victim + ReturnEpoch
     FVector HomeFootCm=FVector::ZeroVector;
+    // #28: World proved this return a dead end (CAMP.ReturnDeadEnd*); the reset applies where the member stands.
+    bool bInPlace=false;
     uint64 ExpectedResourceRevision=0;     // from ReadCombatBody
     uint64 ExpectedStateRevision=0;
 };
@@ -477,6 +480,9 @@ struct FLDCombatOwnerView
     UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
     UPROPERTY() TArray<FName> UpgradedEquipmentPassives; // 112 §7: families applying their upgraded terms
     UPROPERTY() bool bOutOfCombatRegenActive=false;
+    // D21 (#79): the own body stands in a dorm, and the dorm's fast recovery is running.
+    UPROPERTY() bool bInDorm=false;
+    UPROPERTY() bool bDormRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;
 };

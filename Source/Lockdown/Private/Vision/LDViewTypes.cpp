@@ -71,6 +71,7 @@ bool IsPublicCreatureId(uint8 Id)
     {
     case ELDDemoMonsterId::MonsterScavenger:
     case ELDDemoMonsterId::MonsterGuardian:
+    case ELDDemoMonsterId::MonsterDean:
         return true;
     default:
         return false;

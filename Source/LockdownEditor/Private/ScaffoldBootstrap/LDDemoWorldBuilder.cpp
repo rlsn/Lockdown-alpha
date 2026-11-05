@@ -792,7 +792,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     auto* Registry = World.GetSubsystem<ULDMapRegistry>();
     FString BindingError;
     const bool Bound = Registry && Registry->Rebuild(BindingError);
-    Check(Bound, TEXT("Native world registry binds all seventeen anchors and ten exact starts: ") + BindingError);
+    Check(Bound, TEXT("Native world registry binds every approved anchor and the ten exact starts: ") + BindingError);
     TArray<FLDLegalGround> Locations;
     int32 PlacementChecks = 0, PathChecks = 0, ShopApproaches = 0, CaptureApproaches = 0;
     double LongestCaptureRoute = 0;

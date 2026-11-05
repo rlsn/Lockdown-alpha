@@ -16,7 +16,53 @@ enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded };
 
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
-enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned };
+// Boss (#79 D26) is appended so earlier causes keep their wire values.
+enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss };
+
+// D26 (#79): the public phase of the current airdrop.
+UENUM()
+enum class ELDAirdropPhase : uint8 { None, Announced, Landed, Claimed };
+UENUM()
+// D26 (#79) 画饼老板 Boss: None outside a match, Pending until it appears, Alive while it patrols, Down once killed.
+enum class ELDBossPhase : uint8 { None, Pending, Alive, Down };
+
+// D26 (#79): the current airdrop, public to every connection: point, landing instant and claimer. None before the
+// first announcement. The next announcement replaces it.
+USTRUCT()
+struct FLDAirdropView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() ELDAirdropPhase Phase = ELDAirdropPhase::None;
+    UPROPERTY() FName PointId;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() int64 LandAtMs = 0;
+    // Claimed says only that the drop is gone: neither who took it nor when (App Spec §6.3).
+};
+
+// D27 (#79) 上热搜: the current leader notice, public to every connection: who, a fuzzy circle that contains the
+// leader's foot at the refresh, and the bounty on top of the normal kill reward. Empty when nobody is named.
+USTRUCT()
+struct FLDLeaderView
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid Leader;
+    UPROPERTY() FVector CircleCentreCm = FVector::ZeroVector;
+    UPROPERTY() int64 RefreshedAtMs = 0;
+    UPROPERTY() int64 BountyGold = 0;
+};
+
+// D26 (#79) 画饼老板 Boss, public to every connection: when it appears and who landed the last hit. Its body is seen only
+// through the ordinary fog of war, never through this view.
+USTRUCT()
+struct FLDBossView
+{
+    GENERATED_BODY()
+    UPROPERTY() ELDBossPhase Phase = ELDBossPhase::None;
+    UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() FGuid KilledBy;
+    UPROPERTY() int64 DownAtMs = 0;
+};
 
 // Whole-room spray and guard state. It names at most the spray progress holder and the graffiti owner and never
 // lists bodies in the zone, hidden positions, protection or private build data. Live time comes from DemoClock.
@@ -50,6 +96,9 @@ struct FLDPublicMatchView
     UPROPERTY() int64 GuardDueAtMs = 0;
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
+    UPROPERTY() FLDAirdropView Airdrop;
+    UPROPERTY() FLDLeaderView Leader;
+    UPROPERTY() FLDBossView Boss;
 };
 
 USTRUCT()

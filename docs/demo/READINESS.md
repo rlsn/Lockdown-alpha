@@ -72,17 +72,17 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | D14 | [内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次构筑扩展已批准方向未进入运行输入)扩展第一波 | 由 D25 扩大为全部接入 |
 | D17 | 1 级两人只用普攻对打，击杀时间为 10–12 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：基础物攻 70、攻速 0.90，离线复算约 11.4 秒 |
 | D18 | 伤害技能约等于 2–3 下普攻，冷却降 20%，全部吃力大砖飞加成 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：天外飞瓶、扒裤子加力大砖飞加成并降冷却 20%；天外飞瓶改为物理超度（[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
-| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 电量，不受整活频率影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 已通过；拥有连接场景与打包版满员局都没有记录 AI 实际冲刺；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
+| D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 电量，不受整活频率影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 已通过；满员局 `RunDemoOpponentCheck.ps1` 现在逐个 AI 记录冲刺，“至少一个 AI 实际完成冲刺”作为报告项（不卡门槛，多局验证见 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)），编辑器版单局出现过，打包版未复跑；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
 | D20 | 《润学指南》改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「说润就润」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 已通过 |
-| D21 | 人人脱战慢回；地图边缘 2–3 处躺平角（快速回复点），不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；躺平角未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
+| D21 | 人人脱战慢回；地图边缘 2–3 处躺平角（快速回复点），不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；躺平角已实现：两处对角躺平角、400 cm 判定圆、脱战 3 s 后每秒 10%，与慢回叠加，AI 恢复时会去躺平角（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)，规则 `DemoCombatStatus.DormRecovery`、`DemoOpponentPolicy.DormRecovery`；拥有连接场景未覆盖躺平角） |
 | D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒由 D33 的喷漆 3.5 秒 + 守护 20 秒取代 |
 | D23 | 低档营地刷新 25 秒，初始的米足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始的米 320 |
 | #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
 | #82 追加 | 属性卡：V 我 50 吃顿好的 +100→+60 精神状态上限，我不听我不听双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
 | D24 | 开局三选一：2 张随机基础属性卡（吃了口蛋白粉、伸手党、我不听我不听、V 我 50 吃顿好的，不含 5G 冲浪）加 1 个随机被动；升级三选一保持完全随机 | 由 D33 取代：开局一组改为 2 个 1 级主动 + 1 个 1 级被动，升级三选一按技能池权重与机制标签亲和抽取 |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
-| D26 | 公开的天降外卖（空投）；中期出现、会反击所有人的画饼老板 Boss（打赢即“吃到大饼”） | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；天降外卖需要修改 App Spec §4.1“不开设采集” |
-| D27 | 上热搜：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
+| D26 | 公开的天降外卖（空投）；中期出现、会反击所有人的画饼老板 Boss（打赢即“吃到大饼”） | 天降外卖已实现：45 s 起每 75 s、三处公开落点（服务器随机、不连续重复，公告时才公开）、首个进入 150 cm 且不在复活保护中的参赛者得 200 流量 + 150 米，公开视图不公开领取者，AI 会争夺，App Spec §4.1 已改（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)，规则 `DemoAirdrop.Rules`、`DemoOpponentPolicy.Airdrop`；真人拥有连接场景未覆盖）；画饼老板 Boss 已实现：60 s 出现、沿四个公开巡逻点巡逻、先追 5 s 内打过它的人否则打 400 cm 内最近者、每局一次、最后一击得 300 流量 + 250 米和 90 s“吃到大饼”，AI 会避开（规则 `DemoBoss.Rules`、`DemoBoss.Reward`（最后一击的奖励与“吃到大饼”只给存活的最后一击者）、`DemoOpponentPolicy.AvoidBoss`；真人击杀 Boss 的拥有连接场景未覆盖，外观暂用放大的教师模型） |
+| D27 | 上热搜：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已实现：每 10 s 按等级（≥3，击杀数决胜）选出上热搜者，15 m 模糊圆、偏移 ≤10 m，赏金每次 +50 至 250，HUD 与小地图公开，AI 会追猎；App Spec §6.3 已列为公开例外（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)，规则 `DemoLeader.Rules`、`DemoOpponentPolicy.HuntLeader`；真人拥有连接的赏金结算场景未覆盖） |
 | D28 | 胜利条件不变 | 由 D33 取代：唯一胜利条件改为喷漆后守护 |
 | D29 | 整蛊表现：被扒裤子、被年轻人不讲武德等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
 | D30 | 地图布局与野怪可以重新设计；数量不变（1 个占领点、10 个出生点、5 组 2 档野怪、1 个商店） | 已决定，未实现（[#97](https://github.com/rlsn/Lockdown-alpha/issues/97)）；App Spec §6.1 随实现修改 |
@@ -189,7 +189,8 @@ Demo 的完整流程已经跑通，但还没有经过人类试玩和平衡，**�
 | D 键冲刺、《润学指南》、开局卡池和脱战慢回（D19–D21、D24）；核心数值（D17、D18、D22、D23）已进入运行输入，待试玩 | [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) |
 | 内容报告 §15 的全部 20 个技能和 10 件装备：数据、说明文案和接入（D25） | [#81](https://github.com/rlsn/Lockdown-alpha/issues/81) |
 | 构筑扩展的新机制：减速、限时与条件增益、自身范围伤害；缴械与眩晕、强化下一击、跳跃、反伤、背后判定；嘲讽与隐身 | [#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83) |
-| 地图事件：躺平角、天降外卖、画饼老板 Boss、上热搜（D21、D26、D27）；营地回位无路时的收尾；AI 使用全部新内容并应对各类事件 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| 地图事件：躺平角（D21）、天降外卖与画饼老板 Boss（D26）、上热搜（D27）及 AI 应对，与营地回位无路收尾（#28，规则 `DemoCamp.ReturnDeadEnd`，原生场景未注入无路情形）已实现 | [#79](https://github.com/rlsn/Lockdown-alpha/issues/79) |
+| AI 使用全部新技能与装备；Opponent 满员场景的严格门槛稳定通过 | [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) |
 | 地图布局与野怪重新设计（D30） | [#97](https://github.com/rlsn/Lockdown-alpha/issues/97) |
 | 打击感与核心手感：命中反馈、前后摇、移动和冲刺的手感 | [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
 

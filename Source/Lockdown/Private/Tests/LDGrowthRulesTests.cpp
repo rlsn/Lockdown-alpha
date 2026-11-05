@@ -2082,7 +2082,8 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
 {
     // Any field added to the private growth views must be added here deliberately (and told to UI).
     bool bGood = GrowthTestExactFields(Test, FLDGrowthOwnerView::StaticStruct(),
-        {TEXT("Generation"), TEXT("PublishRevision"), TEXT("Progression"), TEXT("Equipment"), TEXT("Shop")});
+        {TEXT("Generation"), TEXT("PublishRevision"), TEXT("Progression"), TEXT("Equipment"), TEXT("Shop"),
+            TEXT("AirdropClaimedSerial")});
     bGood &= GrowthTestExactFields(Test, FLDProgressionView::StaticStruct(),
         {TEXT("bValid"), TEXT("Generation"), TEXT("Life"), TEXT("LifePhase"), TEXT("bCanChoose"), TEXT("Level"), TEXT("MaxLevel"),
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
@@ -3484,6 +3485,21 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An owed assist keeps the assister's account from retiring"), Driver->OwesRewardTo(A2) && Driver->OwesRewardTo(Killer)
         && !Driver->OwesRewardTo(A1));
     Driver->RetryRewards.Reset();
+
+    // D27 (#79): the 上热搜 bounty is extra bounty. The killer gets it on top of the kill gold; the assist share is
+    // still half the base kill gold only (APP_SPEC: 不含额外赏金).
+    {
+        FLDCommittedDeath Leader = ContenderDeath(9, {A1});
+        const int64 Bounty = Tuning.LeaderBountyGoldPerRefresh;
+        Leader.RewardBasis.LeaderBountyGoldAtDeath = Bounty;
+        const int64 KillerBefore = Gold(Killer), AssisterBefore = Gold(A1);
+        FLDRewardReceipt LeaderReceipt;
+        if (!Settle(Leader, LeaderReceipt)) { return false; }
+        TestTrue(TEXT("A leader kill with an assister is granted"), Bounty > 0 && LeaderReceipt.Outcome == ELDRewardOutcome::Granted);
+        TestEqual(TEXT("The killer gets the kill gold and the whole leader bounty"), Gold(Killer), KillerBefore + Base.Gold + Bounty);
+        TestEqual(TEXT("The assister's gold leaves the leader bounty out of the assist base"), Gold(A1),
+            AssisterBefore + Base.Gold * Tuning.AssistGoldBp / 10000);
+    }
     return true;
 }
 

@@ -92,6 +92,26 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         RetireMatchDomains();
         return false;
     }
+    // D21 (#79): the public dorm disks that Combat's recovery reads for this match.
+    const ULDMapRegistry* DormRegistry = GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!DemoContent || !DormRegistry || !LDDormZones::Resolve(*DormRegistry, *DemoContent, DormZones, Error))
+    {
+        if (Error.IsEmpty()) { Error = TEXT("Dorm initialization requires the approved content and the Demo world registry."); }
+        RetireMatchDomains();
+        return false;
+    }
+    // D26 (#79): the airdrop schedule from this match's start.
+    if (!LDAirdrop::Resolve(*DormRegistry, *DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, Airdrop, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
+    // D27 (#79): the leader notice refreshes from this match's start.
+    if (!LDLeaderNotice::Resolve(*DemoContent, MatchStartedAtMs, MatchContext.LedgerMatch, LeaderNotice, Error))
+    {
+        RetireMatchDomains();
+        return false;
+    }
     bAuthorityInitialized = true;
     if (!PublishAuthorityClock(Error))
     {
@@ -111,6 +131,9 @@ void ALDGameMode::RetireMatchDomains()
     ALDEconomyDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
+    DormZones={};
+    Airdrop={};
+    LeaderNotice={};
     CaptureTracks.Reset();
     PendingCapture.Reset();
     bAuthorityInitialized=false;

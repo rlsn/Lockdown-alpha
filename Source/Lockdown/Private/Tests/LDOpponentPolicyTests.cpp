@@ -1046,12 +1046,24 @@ bool RunProjections(FAutomationTestBase& Test)
     FLDDemoWorldGeometry World;
     World.Anchors = {Anchor(TEXT("capture"), ELDDemoWorldAnchorKind::Capture, 0, 3000),
         Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
+        Anchor(TEXT("airdrop_ne"), ELDDemoWorldAnchorKind::Airdrop, 1940, 2670),
+        Anchor(TEXT("airdrop_nw"), ELDDemoWorldAnchorKind::Airdrop, -1940, 2670),
+        Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
+        // D26: Boss patrol points are not places a body goes; the projection leaves them out.
+        Anchor(TEXT("boss_patrol_1"), ELDDemoWorldAnchorKind::BossWaypoint, 2400, 2400),
         Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
         Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
-        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2)};
+        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2),
+        Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
-        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 8);
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 13);
+    const auto* DropPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("airdrop_s"); });
+    bGood &= Test.TestTrue(TEXT("D26: each airdrop point is a public place"),
+        DropPOI && DropPOI->Kind == ELDOpponentPOIKind::Airdrop && DropPOI->FootCm.Equals(FVector(0, -3300, 0)));
+    const auto* DormPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("dorm_se"); });
+    bGood &= Test.TestTrue(TEXT("D21: each dorm is public recovery ground"),
+        DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
     const auto* High = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("h1"); });
     const auto* Low = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("l2"); });
     const auto* Spawn = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("s00"); });
@@ -1059,11 +1071,17 @@ bool RunProjections(FAutomationTestBase& Test)
         High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
+    auto OneDorm = World;
+    OneDorm.Anchors.RemoveAt(OneDorm.Anchors.Num() - 1);
+    bGood &= Test.TestFalse(TEXT("A world without both dorms is refused"), LDOpponentFrame::ReadPublicPOIs(OneDorm, C, POIs, Error));
+    auto TwoDrops = World;
+    TwoDrops.Anchors.RemoveAt(3);
+    bGood &= Test.TestFalse(TEXT("A world without all three airdrop points is refused"), LDOpponentFrame::ReadPublicPOIs(TwoDrops, C, POIs, Error));
     auto Unplaced = World;
     Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));
     bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
     auto MissingCamp = World;
-    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 1);
+    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 3);
     bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"), LDOpponentFrame::ReadPublicPOIs(MissingCamp, C, POIs, Error));
     auto NoShop = World;
     NoShop.Anchors.RemoveAt(1);
@@ -1803,7 +1821,372 @@ bool RunInnateDash(FAutomationTestBase& Test)
         IsDash(LDOpponentPolicy::Decide(Frame, C, Calm)));
     return bGood;
 }
+
+// #79: §6.1 P2 outranks P6. A recovering body that can afford an improvement finishes its escape before it turns to
+// the shop, however often the pursuer slips in and out of sight, and only then shops.
+bool RunEscapeBeforeShop(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Frame;
+    if (!BaseFrame(Test, C, Frame)) { return false; }
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    const FLDOpponentUnit Pursuer = Unit(2, ELDOpponentUnitKind::Contender, 300, 0);
+    FLDOpponentPolicyState State;
+    Frame.Units = {Pursuer};
+    const auto Fled = LDOpponentPolicy::Decide(Frame, C, State);
+    bool bGood = Expect(Test, TEXT("Below the retreat line with the approved starting gold, a visible threat still comes first"),
+        Fled, EMode::Disengage, EBody::MoveGround, TEXT("l3"));
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = Fled.Body.POI;
+    bool bKept = true;
+    for (int32 Glimpse = 0; Glimpse < 6; ++Glimpse)
+    {
+        Frame.Units.Reset();
+        if (Glimpse % 2) { Frame.Units.Add(Pursuer); }
+        const auto Step = LDOpponentPolicy::Decide(Frame, C, State);
+        bKept &= Expect(Test, FString::Printf(TEXT("Glimpse %d: the escape under way keeps walking instead of turning to the shop"),
+            Glimpse), Step, EMode::Disengage, EBody::Keep, TEXT("l3"));
+    }
+    bGood &= bKept;
+    Frame.Units.Reset();
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    const auto Arrived = LDOpponentPolicy::Decide(Frame, C, State);
+    bGood &= Expect(Test, TEXT("Arrived and unseen, a recovering body with an affordable improvement goes shopping"), Arrived,
+        EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame.Order.Kind = ELDOpponentOrderKind::ApproachShop;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("shop");
+    Frame.Units = {Pursuer};
+    bGood &= Expect(Test, TEXT("A threat seen on the way to the shop starts a new escape"),
+        LDOpponentPolicy::Decide(Frame, C, State), EMode::Disengage, EBody::MoveGround);
+    return bGood;
 }
+
+// D21 (#79): a recovering body uses the public dorms. With nothing to buy it walks to the nearest one; inside it waits
+// for the fast recovery before shopping and stays until full; the dorm is not a safe zone, so a threat still sends it off.
+bool RunDormRecovery(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("dorm_nw"), ELDOpponentPOIKind::Dorm, -4000, 4000));
+    Base.POIs.Add(POI(TEXT("dorm_se"), ELDOpponentPOIKind::Dorm, 4000, -4000));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    Base.Self.HpP2 = Base.Self.MaxHpP2 / 5;
+    const FVector InDorm(4100, -4000, 0);
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Walk;
+    bool bGood = Expect(Test, TEXT("Recovering with nothing to buy, the body walks to the nearest dorm"),
+        LDOpponentPolicy::Decide(Frame, C, Walk), EMode::Disengage, EBody::MoveGround, TEXT("dorm_se"));
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("dorm_se");
+    bGood &= Expect(Test, TEXT("The walk to the dorm keeps its order"), LDOpponentPolicy::Decide(Frame, C, Walk),
+        EMode::Disengage, EBody::Keep, TEXT("dorm_se"));
+
+    Frame = Base;
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    FLDOpponentPolicyState Buyer;
+    bGood &= Expect(Test, TEXT("Outside a dorm an affordable improvement is still bought first"),
+        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame.Self.FootCm = InDorm;
+    FLDOpponentPolicyState Rester;
+    const auto Resting = LDOpponentPolicy::Decide(Frame, C, Rester);
+    bGood &= Expect(Test, TEXT("Inside a dorm the fast recovery comes before shopping"), Resting, EMode::Disengage, EBody::None)
+        && Test.TestTrue(TEXT("Resting is a recovery decision"), Resting.Reason == ELDOpponentReason::Recover);
+
+    // Past the resume line a body in a dorm stays until full; elsewhere it resumes at once.
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 * 7 / 10;
+    bGood &= Expect(Test, TEXT("Above the resume line a recovering body in a dorm stays"),
+        LDOpponentPolicy::Decide(Frame, C, Rester), EMode::Disengage, EBody::None);
+    auto Away = Frame;
+    Away.Self.FootCm = Base.Self.FootCm;
+    Away.Self.Gold = 150;
+    FLDOpponentPolicyState Resumed = Rester;
+    bGood &= Expect(Test, TEXT("Above the resume line outside a dorm the body farms again"),
+        LDOpponentPolicy::Decide(Away, C, Resumed), EMode::Farm, EBody::MoveGround);
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2;
+    bGood &= Test.TestTrue(TEXT("Full in a dorm, recovery ends and the body moves on"),
+        LDOpponentPolicy::Decide(Frame, C, Rester).Mode != EMode::Disengage && !Rester.bRecovering);
+
+    // While a rival holds the circle alone, a recovering body does not walk off to a corner dorm.
+    Frame = Base;
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.CapturePathCm = 600.;
+    FLDOpponentPolicyState Held;
+    const auto Waiting = LDOpponentPolicy::Decide(Frame, C, Held);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A rival's solo hold keeps the recovering body from a corner dorm (mode %u body %u poi %s)"),
+        uint8(Waiting.Mode), uint8(Waiting.Body.Kind), *Waiting.Body.POI.ToString()),
+        Waiting.Body.POI != TEXT("dorm_se") && Waiting.Body.POI != TEXT("dorm_nw"));
+    // The same holds while a rival guards its graffiti: its public guard is just as urgent to answer.
+    Frame.Public.Circle = ELDOpponentCircle::Guarded;
+    Frame.Public.Occupier = FGuid();
+    Frame.Public.DueAtMs = 0;
+    Frame.Public.Owner = FGuid(0xE0, 0, 0, 5);
+    Frame.Public.GuardDueAtMs = Frame.Public.NowMs + 60000;
+    FLDOpponentPolicyState Guarded;
+    const auto Guarding = LDOpponentPolicy::Decide(Frame, C, Guarded);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A rival's guard keeps the recovering body from a corner dorm (mode %u body %u poi %s)"),
+        uint8(Guarding.Mode), uint8(Guarding.Body.Kind), *Guarding.Body.POI.ToString()),
+        Guarding.Body.POI != TEXT("dorm_se") && Guarding.Body.POI != TEXT("dorm_nw"));
+
+    Frame = Base;
+    Frame.Self.FootCm = InDorm;
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 4400, -4000)};
+    FLDOpponentPolicyState Threatened;
+    bGood &= Expect(Test, TEXT("A visible threat in the dorm sends the body away: it is not a safe zone"),
+        LDOpponentPolicy::Decide(Frame, C, Threatened), EMode::Disengage, EBody::MoveGround);
+    return bGood;
+}
+
+bool RunAirdrop(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.Self.FootCm = FVector(500, -500, 0);
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Farmer;
+    bool bGood = Expect(Test, TEXT("Without a public drop the healthy body farms"),
+        LDOpponentPolicy::Decide(Frame, C, Farmer), EMode::Farm, EBody::MoveGround);
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    FLDOpponentPolicyState Runner;
+    const auto Run = LDOpponentPolicy::Decide(Frame, C, Runner);
+    bGood &= Expect(Test, TEXT("D26: an announced drop draws a healthy body to its public point"), Run, EMode::Airdrop,
+        EBody::MoveGround, TEXT("airdrop_s"))
+        && Test.TestTrue(TEXT("Going for the drop is its own reason"), Run.Reason == ELDOpponentReason::ContestAirdrop);
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = TEXT("airdrop_s");
+    bGood &= Expect(Test, TEXT("The walk to the drop keeps its order"), LDOpponentPolicy::Decide(Frame, C, Runner),
+        EMode::Airdrop, EBody::Keep, TEXT("airdrop_s"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.FootCm = FVector(20, -3300, 0);
+    FLDOpponentPolicyState Waiter;
+    bGood &= Expect(Test, TEXT("On the point the body waits for the landing instead of re-ordering the walk"),
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
+    Frame.Public.bAirdropLanded = true;
+    bGood &= Expect(Test, TEXT("A landed drop under the body is held the same way until the authority grants it"),
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
+
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.Gold = C.Get().Parameters.StartingGold;
+    FLDOpponentPolicyState Buyer;
+    bGood &= Expect(Test, TEXT("An affordable improvement is still bought first"),
+        LDOpponentPolicy::Decide(Frame, C, Buyer), EMode::Shop, EBody::ApproachShop, TEXT("shop"));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestTrue(TEXT("A recovering body does not go for the drop"),
+        LDOpponentPolicy::Decide(Frame, C, Hurt).Reason != ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = Frame.Self.ContenderId;
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.Self.FootCm = FVector(0, 3000, 0);
+    FLDOpponentPolicyState Holder;
+    bGood &= Expect(Test, TEXT("Holding the circle alone outranks the drop"),
+        LDOpponentPolicy::Decide(Frame, C, Holder), EMode::DefendOrHold, EBody::None);
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("unknown_point");
+    FLDOpponentPolicyState Stray;
+    bGood &= Test.TestTrue(TEXT("A drop that names no public airdrop point is ignored"),
+        LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
+
+    // A stop-loss exit from the drop is not a failed contest of the circle: after more such exits than the retry policy
+    // allows, an urgent public defence is still answered. The same exits from a contest of the circle do suppress it.
+    const auto ExitsThenDefends = [&](EMode Prior)
+    {
+        FLDOpponentPolicyState S;
+        auto Hurt = Base;
+        Hurt.Self.HpP2 = 1;
+        for (int32 Exit = 0; Exit < 5; ++Exit)
+        {
+            S.Mode = Prior;
+            LDOpponentPolicy::Decide(Hurt, C, S);
+        }
+        auto Urgent = Base;
+        Urgent.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Urgent.Public.Circle = ELDOpponentCircle::Solo;
+        Urgent.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Urgent.Public.DueAtMs = Urgent.Public.NowMs + 5000;
+        Urgent.CapturePathCm = 3000.;
+        return LDOpponentPolicy::Decide(Urgent, C, S).Reason == ELDOpponentReason::PublicCaptureUrgent;
+    };
+    bGood &= Test.TestTrue(TEXT("Stop-loss exits from a drop never cost the circle: an urgent defence is still answered"),
+        ExitsThenDefends(EMode::Airdrop));
+    bGood &= Test.TestFalse(TEXT("Control: the same exits from a contest of the circle do stop urgent defences"),
+        ExitsThenDefends(EMode::Contest));
+    return bGood;
+}
+
+bool RunHuntLeader(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.POIs.Add(POI(TEXT("airdrop_s"), ELDOpponentPOIKind::Airdrop, 0, -3300));
+    Base.Self.FootCm = FVector(500, -500, 0);
+    Base.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel);
+    Base.Public.Leader = FGuid(0xE0, 0, 0, 7);
+    Base.Public.LeaderCircleCentreCm = FVector(1400, 1400, 0);
+    auto IsHunt = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::HuntLeader; };
+
+    auto Frame = Base;
+    FLDOpponentPolicyState Hunter;
+    const auto Hunt = LDOpponentPolicy::Decide(Frame, C, Hunter);
+    bool bGood = Expect(Test, TEXT("D27: a strong healthy body walks to the public place nearest the leader's circle"), Hunt,
+        EMode::Explore, EBody::MoveGround, TEXT("h1"))
+        && Test.TestTrue(TEXT("Hunting the leader is its own reason"), IsHunt(Hunt));
+    Frame = Base;
+    Frame.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel - 1);
+    FLDOpponentPolicyState Weak;
+    bGood &= Test.TestFalse(TEXT("A body below the notice's minimum level does not hunt"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Weak)));
+    Frame = Base;
+    Frame.Public.Leader = Frame.Self.ContenderId;
+    FLDOpponentPolicyState Named;
+    bGood &= Test.TestFalse(TEXT("The named leader does not hunt itself"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Named)));
+    Frame = Base;
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Test.TestFalse(TEXT("A hurt body does not hunt"), IsHunt(LDOpponentPolicy::Decide(Frame, C, Hurt)));
+    Frame = Base;
+    Frame.Public.LeaderCircleCentreCm = FVector(-3000, 0, 0);
+    FLDOpponentPolicyState Shopside;
+    bGood &= Test.TestFalse(TEXT("A circle with only the shop inside gives no place to hunt"),
+        IsHunt(LDOpponentPolicy::Decide(Frame, C, Shopside)));
+    Frame = Base;
+    Frame.Public.AirdropPOI = TEXT("airdrop_s");
+    FLDOpponentPolicyState Both;
+    bGood &= Test.TestTrue(TEXT("A public airdrop outranks the hunt"),
+        LDOpponentPolicy::Decide(Frame, C, Both).Reason == ELDOpponentReason::ContestAirdrop);
+    Frame = Base;
+    Frame.Public.Leader.Invalidate();
+    FLDOpponentPolicyState Nobody;
+    bGood &= Expect(Test, TEXT("Without a named leader the body farms"), LDOpponentPolicy::Decide(Frame, C, Nobody),
+        EMode::Farm, EBody::MoveGround);
+    return bGood;
+}
+
+bool RunAvoidBoss(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.Self.FootCm = FVector(500, -500, 0);
+    const TCHAR* Dean = *C.Get().Boss.Id;
+    auto IsAvoid = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::AvoidBoss; };
+
+    auto Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    FLDOpponentPolicyState Near;
+    const auto Step = LDOpponentPolicy::Decide(Frame, C, Near);
+    bool bGood = Expect(Test, TEXT("D26: a healthy body inside the Boss's acquire band steps away from it"), Step,
+        EMode::Disengage, EBody::MoveGround)
+        && Test.TestTrue(TEXT("Stepping away from the Boss is its own reason"), IsAvoid(Step))
+        && Test.TestTrue(TEXT("It walks away from the Boss, not past it"),
+            FVector::DotProduct((Frame.POIs.FindByPredicate([&Step](const FLDOpponentPOI& P) { return P.Id == Step.Body.POI; })->FootCm
+                - Frame.Self.FootCm).GetSafeNormal2D(), (Frame.Self.FootCm - FVector(700, -400, 0)).GetSafeNormal2D()) >= 0);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 2500, -500, Dean)};
+    FLDOpponentPolicyState Far;
+    bGood &= Test.TestFalse(TEXT("Out of the band a healthy body carries on"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Far)));
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
+    FLDOpponentPolicyState Hurt;
+    bGood &= Expect(Test, TEXT("A hurt body near the Boss escapes as recovery"), LDOpponentPolicy::Decide(Frame, C, Hurt),
+        EMode::Disengage, EBody::MoveGround);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 200, 3100, Dean)};
+    Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle = ELDOpponentCircle::Solo;
+    Frame.Public.Occupier = Frame.Self.ContenderId;
+    Frame.Public.DueAtMs = Frame.Public.NowMs + 60000;
+    Frame.Self.FootCm = FVector(0, 3000, 0);
+    FLDOpponentPolicyState Holder;
+    bGood &= Expect(Test, TEXT("Holding the circle alone outranks stepping away"), LDOpponentPolicy::Decide(Frame, C, Holder),
+        EMode::DefendOrHold, EBody::None);
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, TEXT("monster_scavenger"))};
+    FLDOpponentPolicyState Camp;
+    bGood &= Test.TestFalse(TEXT("A camp member is not the Boss"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Camp)));
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAirdropTest, "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentAirdropTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunAirdrop(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentHuntLeaderTest, "Lockdown.Rules.DemoOpponentPolicy.HuntLeader",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentHuntLeaderTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunHuntLeader(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAvoidBossTest, "Lockdown.Rules.DemoOpponentPolicy.AvoidBoss",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentAvoidBossTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunAvoidBoss(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentDormRecoveryTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunDormRecovery(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentEscapeBeforeShopTest, "Lockdown.Rules.DemoOpponentPolicy.EscapeBeforeShop",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentEscapeBeforeShopTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunEscapeBeforeShop(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentInnateDashTest, "Lockdown.Rules.DemoOpponentPolicy.InnateDash",

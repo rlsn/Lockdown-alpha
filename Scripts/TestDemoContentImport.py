@@ -645,6 +645,58 @@ class DemoContentImport(unittest.TestCase):
                 sync.synchronize(self.root)
             self.assert_outputs_equal()
 
+    def test_dorm_disks_must_be_legal_ground_apart_from_other_zones(self):
+        # D21 (#79): exactly two dorms; each disk stands on legal ground and keeps apart from the capture circle,
+        # the shop disk and every camp clearing.
+        def anchor(data, identity):
+            return next(row for row in data["anchors"] if row["id"] == identity)
+
+        def move(identity, x, y):
+            return lambda data: anchor(data, identity)["position_cm"].update(x=x, y=y)
+
+        source = self.root / demo.WORLD_SOURCE
+        original = source.read_bytes()
+        mutations = (
+            (lambda data: data["anchors"].remove(anchor(data, "dorm_se")), "26..26 entries"),
+            (lambda data: anchor(data, "dorm_nw").update(kind="Spawn"), "anchor/member counts"),
+            (lambda data: anchor(data, "dorm_nw").update(id="dorm_ne"), "dorm ids must be dorm_nw and dorm_se"),
+            (move("dorm_nw", -4900, 4400), "dorm disk lacks legal capsule support"),
+            (move("dorm_nw", 0, 500), "dorm disk overlaps the capture or shop disk"),
+            (move("dorm_se", 2473, 1503), "dorm disk overlaps a camp clearing"),
+        )
+        for mutation, message in mutations:
+            self.edit(mutation, demo.WORLD_SOURCE)
+            with self.subTest(message=message), self.assertRaisesRegex(demo.ContentError, message):
+                world_sync.synchronize(self.root)
+            source.write_bytes(original)
+            self.assert_outputs_equal()
+
+    def test_airdrop_points_must_be_legal_ground_apart_from_other_zones(self):
+        # D26 (#79): exactly three airdrop points; each pickup disk stands on legal ground and keeps apart from the
+        # capture circle, the shop disk, every camp clearing and every other event disk.
+        def anchor(data, identity):
+            return next(row for row in data["anchors"] if row["id"] == identity)
+
+        def move(identity, x, y):
+            return lambda data: anchor(data, identity)["position_cm"].update(x=x, y=y)
+
+        source = self.root / demo.WORLD_SOURCE
+        original = source.read_bytes()
+        mutations = (
+            (lambda data: data["anchors"].remove(anchor(data, "airdrop_s")), "26..26 entries"),
+            (lambda data: anchor(data, "airdrop_ne").update(kind="Spawn"), "anchor/member counts"),
+            (move("airdrop_ne", 4950, 2670), "airdrop disk lacks legal capsule support"),
+            (move("airdrop_ne", 0, 300), "airdrop disk overlaps the capture or shop disk"),
+            (move("airdrop_ne", 2473, 1100), "airdrop disk overlaps a camp clearing"),
+            (move("airdrop_nw", -4400, 4300), "disk overlaps another event disk"),
+        )
+        for mutation, message in mutations:
+            self.edit(mutation, demo.WORLD_SOURCE)
+            with self.subTest(message=message), self.assertRaisesRegex(demo.ContentError, message):
+                world_sync.synchronize(self.root)
+            source.write_bytes(original)
+            self.assert_outputs_equal()
+
     def test_exact_file_bytes_including_newlines_are_required(self):
         for relative in demo.OUTPUT_PATHS:
             path = self.root / relative

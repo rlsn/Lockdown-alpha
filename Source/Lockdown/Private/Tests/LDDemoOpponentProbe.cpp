@@ -500,9 +500,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 {
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
-    bool Moved = true, WinnerGrew = false, Bought = false, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
+    bool Moved = true, WinnerGrew = false, Bought = false, EveryBought = true, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
     bool OpeningPicks = true, DevGrowth = true;
-    uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0;
+    uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0, DashesLanded = 0, DormEntries = 0, AirdropClaims = 0, LeaderHunts = 0, BossAvoids = 0;
     uint32 PausedHolds = 0, PausedHoldsKept = 0, PausedHoldsBroken = 0, Challenges = 0, ChallengesKept = 0, ChallengesBroken = 0;
     TArray<TSharedPtr<FJsonValue>> Rows;
     for (FLDOpponentProbeTrack& Track : Tracks)
@@ -527,6 +527,14 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         // An AI that loses an even opening fight may spend the match recovering; the winner shows the full growth loop.
         if (Track.Contender == Result.Winner) { WinnerGrew = Track.MaxLevel >= 2 && Track.MaxConsumed >= 1; }
         Bought |= Track.MaxItems > 0;
+        // The approved starting gold already affords the cheapest item, but one match is not enough evidence to gate every
+        // AI on it yet (#117): it is reported, not required.
+        EveryBought &= Track.MaxItems > 0;
+        DashesLanded += T.DashesLanded;
+        DormEntries += T.DormEntries;
+        AirdropClaims += T.AirdropClaims;
+        LeaderHunts += T.LeaderHunts;
+        BossAvoids += T.BossAvoids;
         RespawnsOnTime &= Track.bRespawnsValid;
         Respawns += Track.Respawns;
         RespawnsChecked += Track.RespawnsChecked;
@@ -569,6 +577,12 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("stops"), T.Stops);
         Value->SetNumberField(TEXT("actions"), T.Actions);
         Value->SetNumberField(TEXT("actions_refused"), T.ActionsRefused);
+        Value->SetNumberField(TEXT("dashes"), T.Dashes);
+        Value->SetNumberField(TEXT("dashes_landed"), T.DashesLanded);
+        Value->SetNumberField(TEXT("dorm_entries"), T.DormEntries);
+        Value->SetNumberField(TEXT("airdrop_claims"), T.AirdropClaims);
+        Value->SetNumberField(TEXT("leader_hunts"), T.LeaderHunts);
+        Value->SetNumberField(TEXT("boss_avoids"), T.BossAvoids);
         Value->SetNumberField(TEXT("shop_opens"), T.ShopOpens);
         Value->SetNumberField(TEXT("choice_requests"), T.Choices);
         Value->SetNumberField(TEXT("trades"), T.Trades);
@@ -588,6 +602,24 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Check(Moved, TEXT("Every AI moved through the map on its own orders"));
     Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its growth choices"));
     Check(Bought, TEXT("At least one AI bought equipment through the shop"));
+    // Reported until multi-match runs show they hold (#117): every AI shopping, and a landed D19 dash.
+    Record(EveryBought ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("Every AI bought equipment through the shop"));
+    Record(DashesLanded > 0 ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D19: at least one AI landed an innate dash"));
+    // D21: an AI walks to a dorm only while recovering with nothing to buy, which a match may never produce.
+    Record(DormEntries ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D21: an AI stepped into a dorm"));
+    // D26: drops land at fixed public times inside the run and healthy AIs walk to them; a match where a human always
+    // got there first only did not exercise it.
+    Record(AirdropClaims ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D26: an AI claimed a public airdrop"));
+    // D27: a leader is named only when one contender is uniquely ahead at a refresh, and only strong healthy AIs hunt.
+    Record(LeaderHunts ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D27: an AI hunted a named leader"));
+    // D26: the Boss patrols from its public appearance time; an AI that comes near it steps away.
+    Record(BossAvoids ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
+        TEXT("D26: an AI stepped away from the Boss"));
     // A late or missing respawn fails even when no respawn completed; a match where none was due only did not exercise it.
     Record(!RespawnsOnTime ? ELDOpponentProbeCheck::Failed
         : Respawns ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,

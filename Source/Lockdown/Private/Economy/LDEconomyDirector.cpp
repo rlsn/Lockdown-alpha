@@ -374,12 +374,21 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
 
     LDProgression::FRewardAmounts Amounts;
     ELDGrowthReason AmountReason = ELDGrowthReason::None;
+    int64 Bounty = 0;
     if (bContenderVictim)
     {
         AmountReason = Basis.RewardDefinitionId == FName(*Content->Get().Character.Id)
             ? LDProgression::ContenderKillReward(Content->Get().Parameters, uint8(Content->Get().Progression.MaxLevel),
                 Basis.VictimLevelAtDeath, Amounts)
             : ELDGrowthReason::DataInvalid;
+        // D27: the leader bounty locked at the fatal moment comes on top of the killer's normal kill gold. It is
+        // extra bounty, so it stays out of the assist base (APP_SPEC: 不含额外赏金).
+        Bounty = Basis.LeaderBountyGoldAtDeath;
+        if (AmountReason == ELDGrowthReason::None
+            && (Bounty < 0 || Bounty > Content->Get().Parameters.LeaderBountyGoldMax || Amounts.Gold > MAX_int64 - Bounty))
+        {
+            AmountReason = ELDGrowthReason::DataInvalid;
+        }
     }
     else
     {
@@ -400,7 +409,7 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     TArray<FRewardShare> Shares;
     FRewardShare& Killer = Shares.AddDefaulted_GetRef();
     Killer.Recipient = Recipient;
-    Killer.Amounts.Gold = Split.KillerGold;
+    Killer.Amounts.Gold = Split.KillerGold + Bounty;
     Killer.Amounts.XP = Split.KillerXP;
     EconomyDeathKeyBytes(Death.Key, Killer.KeyBytes);
     for (const FGuid& Assister : Death.Assisters)
@@ -421,6 +430,40 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     Finish(ELDRewardOutcome::Granted, ELDGrowthReason::None);
     RecordReward(Receipt);
     return Receipt;
+}
+
+ELDRewardOutcome ALDEconomyDirector::CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
+    int64 Gold, const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
+{
+    Reason = ELDGrowthReason::None;
+    if (!Recipient.IsValid() || Event.IsNone() || !Serial || XP < 0 || Gold < 0 || (XP == 0 && Gold == 0))
+    {
+        Reason = ELDGrowthReason::DataInvalid;
+        return ELDRewardOutcome::PermanentlyRejected;
+    }
+    // The business key is the event alone, so the ledger itself pays each event once whoever claims it; the recipient
+    // and amounts are its terms, and a second claimant of the same event is a conflicting reuse of the key.
+    TArray<uint8> KeyBytes, TermBytes;
+    {
+        FMemoryWriter Writer(KeyBytes);
+        FString Tag = TEXT("map-event-reward");
+        FString EventName = Event.ToString();
+        FGuid LedgerMatch = Match.LedgerMatch;
+        Writer << Tag << LedgerMatch << EventName << Serial;
+    }
+    {
+        TermBytes = KeyBytes;
+        FMemoryWriter Writer(TermBytes, false, true);
+        FGuid Contender = Recipient;
+        int64 TermXP = XP, TermGold = Gold;
+        Writer << Contender << TermXP << TermGold;
+    }
+    uint8 EventTerms[32] = {};
+    Terms(TermBytes, EventTerms);
+    LDProgression::FRewardAmounts Amounts;
+    Amounts.XP = XP;
+    Amounts.Gold = Gold;
+    return CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::MapEventReward, KeyBytes, EventTerms, Permit, Receipt, Reason);
 }
 
 ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
@@ -864,6 +907,8 @@ FLDGrowthOwnerView ALDEconomyDirector::ReadOwnerView(const FGuid& ContenderId) c
     View.Progression = M->Development->ReadProgression(ContenderId);
     View.Equipment = M->Inventory->ReadEquipment(ContenderId);
     View.Shop = M->Vendor->ReadShop(ContenderId);
+    const FLDAirdropState& Drop = M->GetAirdrop();
+    View.AirdropClaimedSerial = Drop.Phase == ELDAirdropPhase::Claimed && Drop.ClaimedBy == ContenderId ? Drop.Serial : 0;
     return View;
 }
 

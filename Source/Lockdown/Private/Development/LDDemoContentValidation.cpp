@@ -181,6 +181,35 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
+    // D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    {
+        const auto& Radius = P.LeaderCircleRadiusCm;
+        const auto& Offset = P.LeaderCircleMaxOffsetCm;
+        const bool bContained = Radius.Denominator > 0 && Offset.Denominator > 0 && Offset.Numerator > 0
+            && double(Offset.Numerator) / double(Offset.Denominator) <= double(Radius.Numerator) / double(Radius.Denominator);
+        if (!Check.Require(bContained && P.LeaderMinLevel >= 1 && P.LeaderMinLevel <= D.Progression.MaxLevel
+            && P.LeaderBountyGoldPerRefresh > 0 && P.LeaderBountyGoldPerRefresh <= P.LeaderBountyGoldMax, TEXT("LEADER"),
+            TEXT("the circle must contain the leader, the level must exist and the cap must be reachable")))
+        {
+            return false;
+        }
+    }
+    // D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
+    if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
+        && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),
+        TEXT("the announcement lead must fit before the first landing and inside one interval")))
+    {
+        return false;
+    }
+    // D21 (#79): the dorm's fast recovery uses the same exact integration as out-of-combat recovery.
+    for (const int64 Bp : {P.DormMaxHPRegenBp, P.DormMaxMPRegenBp})
+    {
+        if (!Check.Require(P.DormRegenDelayMs > 0 && Bp > 0 && Bp <= 10000 && Bp % 10 == 0, TEXT("DORM"),
+            TEXT("dorm recovery needs a positive delay and a positive multiple of 0.001 of the maximum per second")))
+        {
+            return false;
+        }
+    }
     const FLDDemoProgressionDefinition& Opening = D.Progression;
     int32 Actives = 0, Passives = 0;
     for (const auto& Ability : D.Abilities)
@@ -243,12 +272,38 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    if (!Check.Require(D.Monsters[0].Tier != D.Monsters[1].Tier, TEXT("camps"), TEXT("both difficulty tiers are required")))
+    if (!Check.Require(D.Monsters.Num() == 3 && D.Monsters[0].Tier != D.Monsters[1].Tier
+        && D.Monsters[0].Tier != ELDDemoCampTier::Boss && D.Monsters[1].Tier != ELDDemoCampTier::Boss
+        && D.Monsters[2].Tier == ELDDemoCampTier::Boss && D.Monsters[2].Id == D.Boss.Id, TEXT("camps"),
+        TEXT("both camp difficulty tiers and exactly one Boss row are required")))
     {
         return false;
     }
+    // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
+    // interval, stays inside the move speed clamp, and its approval buff is positive temporary ratios only.
+    {
+        const FLDDemoMonsterDefinition& Body = D.Monsters[2];
+        bool bApproval = !D.Boss.ApprovalStats.IsEmpty() && D.Boss.ApprovalDurationMs > 0;
+        for (const FLDDemoStatBonus& Bonus : D.Boss.ApprovalStats)
+        {
+            bApproval &= Bonus.Amount > 0 && (Bonus.Stat == ELDDemoBonusStat::ADBonusRatio || Bonus.Stat == ELDDemoBonusStat::APBonusRatio
+                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
+        }
+        if (!Check.Require(N.EQ(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm))
+                && N.LE(N.Add(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm)), N.Value(Body.AttackRangeCm))
+                && N.LT(N.Value(Body.AttackRangeCm), N.Value(D.Boss.AggroRadiusCm)), TEXT("boss"), TEXT("invalid Boss collision/range/aggro geometry"))
+            || !Check.Require(Body.AttackWindupMs < Body.AttackIntervalMs && D.Boss.AppearAtMs > 0 && D.Boss.AttackerMemoryMs > 0,
+                TEXT("boss"), TEXT("invalid Boss timing"))
+            || !Check.Require(N.LE(N.Value(P.MoveSpeedCmPerSec.Min), N.Value(Body.MoveSpeedCmPerSec))
+                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp"))
+            || !Check.Require(bApproval, TEXT("boss.approval"), TEXT("the approval buff needs positive temporary ratio stats and a duration")))
+        {
+            return false;
+        }
+    }
     for (const auto& Monster : D.Monsters)
     {
+        if (Monster.Tier == ELDDemoCampTier::Boss) { continue; }
         int64 RewardTotal;
         if (!N.Interval(Monster.AttackSpeed, Interval, Monster.Id)
             || !Check.Require(Interval == Monster.AttackIntervalMs && Monster.AttackWindupMs < Interval,

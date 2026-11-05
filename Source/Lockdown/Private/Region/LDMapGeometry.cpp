@@ -232,7 +232,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
 {
     FCheck& Check = Root.Check;
     const TArray<FValue>* Rows;
-    if (!Array(Root.Take(TEXT("anchors")), Rows, Check, TEXT("world.anchors"), 17, 17)) { return false; }
+    if (!Array(Root.Take(TEXT("anchors")), Rows, Check, TEXT("world.anchors"), 26, 26)) { return false; }
     TSet<FString> Ids, MemberIds;
     const FExact Radius = N.Value(Content.Parameters.CollisionRadiusCm);
     for (const FValue& Value : *Rows)
@@ -254,6 +254,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("Camp"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Camp; }
         else if (Kind.Equals(TEXT("Shop"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Shop; }
         else if (Kind.Equals(TEXT("Capture"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Capture; }
+        else if (Kind.Equals(TEXT("Dorm"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Dorm; }
+        else if (Kind.Equals(TEXT("Airdrop"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Airdrop; }
+        else if (Kind.Equals(TEXT("BossWaypoint"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::BossWaypoint; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
@@ -264,6 +267,18 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         {
             KnownId = Anchor.Id == TEXT("l1") || Anchor.Id == TEXT("h1") || Anchor.Id == TEXT("l2")
                 || Anchor.Id == TEXT("h2") || Anchor.Id == TEXT("l3");
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm)
+        {
+            KnownId = Anchor.Id == TEXT("dorm_nw") || Anchor.Id == TEXT("dorm_se");
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop)
+        {
+            KnownId = Anchor.Id == TEXT("airdrop_ne") || Anchor.Id == TEXT("airdrop_nw") || Anchor.Id == TEXT("airdrop_s");
+        }
+        else if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
+        {
+            for (int32 I = 1; I <= 4; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("boss_patrol_%d"), I), ESearchCase::CaseSensitive); }
         }
         else { KnownId = Anchor.Id == (Anchor.Kind == ELDDemoWorldAnchorKind::Shop ? TEXT("shop") : TEXT("capture")); }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
@@ -295,7 +310,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop)
         {
             const FExact Clearance = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? N.Value(Out.CampClearanceCm)
-                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm) : Radius;
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
             if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), Clearance, Out, N), Anchor.Id, TEXT("anchor clearance intersects static geometry")))
             {
                 return false;
@@ -324,6 +341,45 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     if (!Reference(Content.World.ShopId, ELDDemoWorldAnchorKind::Shop)
         || !Reference(Content.World.CaptureId, ELDDemoWorldAnchorKind::Capture)
         || !Check.Require(Referenced.Num() == 17, Root.Path, TEXT("unreferenced anchor")))
+    {
+        return false;
+    }
+    // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the
+    // circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
+    auto ZoneRadius = [&](ELDDemoWorldAnchorKind Kind) -> TOptional<FExact>
+    {
+        switch (Kind)
+        {
+        case ELDDemoWorldAnchorKind::Capture: return N.Value(Content.Parameters.CaptureRadiusCm);
+        case ELDDemoWorldAnchorKind::Shop: return N.Value(Content.Parameters.ShopInteractRadiusCm);
+        case ELDDemoWorldAnchorKind::Camp: return N.Value(Out.CampClearanceCm);
+        case ELDDemoWorldAnchorKind::Dorm: return N.Value(Content.Parameters.DormRadiusCm);
+        case ELDDemoWorldAnchorKind::Airdrop: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
+        default: return {};
+        }
+    };
+    int32 Dorms = 0, Airdrops = 0, Waypoints = 0;
+    for (const auto& Zone : Out.Anchors)
+    {
+        Waypoints += Zone.Kind == ELDDemoWorldAnchorKind::BossWaypoint ? 1 : 0;
+        if (Zone.Kind != ELDDemoWorldAnchorKind::Dorm && Zone.Kind != ELDDemoWorldAnchorKind::Airdrop) { continue; }
+        ++(Zone.Kind == ELDDemoWorldAnchorKind::Dorm ? Dorms : Airdrops);
+        const FExact Own = ZoneRadius(Zone.Kind).GetValue();
+        for (const auto& Other : Out.Anchors)
+        {
+            const TOptional<FExact> OtherRadius = ZoneRadius(Other.Kind);
+            if (&Other == &Zone || !OtherRadius.IsSet()) { continue; }
+            const FExact Reach = N.Add(Own, OtherRadius.GetValue());
+            if (!Check.Require(N.LT(N.Mul(Reach, Reach), DistanceSquared(XY(Zone.PositionCm, N), XY(Other.PositionCm, N), N)),
+                Zone.Id, TEXT("event disk overlaps the capture, shop, a camp clearing or another event disk")))
+            {
+                return false;
+            }
+        }
+    }
+    if (!Check.Require(Dorms == 2 && Airdrops == 3 && Waypoints == 4 && N.LT(N.Value(0), N.Value(Content.Parameters.DormRadiusCm))
+        && N.LT(N.Value(0), N.Value(Content.Parameters.AirdropPickupRadiusCm)),
+        Root.Path, TEXT("exactly two dorms, three airdrop points and four Boss waypoints, with positive radii, are required")))
     {
         return false;
     }
@@ -477,12 +533,14 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
         return false;
     }
     const TArray<FValue>* Refs;
-    if (!Array(Root.Take(TEXT("parameter_refs")), Refs, Check, TEXT("world.parameter_refs"), 8, 8)) { return false; }
     const TCHAR* Expected[] = {
-        TEXT("CAMP.ResetArrivalRadiusCm"), TEXT("CAPTURE.RadiusCm"), TEXT("SHOP.InteractRadiusCm"),
+        TEXT("AIRDROP.PickupRadiusCm"), TEXT("CAMP.ResetArrivalRadiusCm"), TEXT("CAPTURE.RadiusCm"), TEXT("DORM.RadiusCm"),
+        TEXT("SHOP.InteractRadiusCm"),
         TEXT("TIMING.DefendRouteBudgetSec"), TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"),
         TEXT("UNIT.MoveSpeedCmPerSec"), TEXT("VISION.RadiusCm")};
-    for (int32 I = 0; I < 8; ++I)
+    constexpr int32 RefCount = UE_ARRAY_COUNT(Expected);
+    if (!Array(Root.Take(TEXT("parameter_refs")), Refs, Check, TEXT("world.parameter_refs"), RefCount, RefCount)) { return false; }
+    for (int32 I = 0; I < RefCount; ++I)
     {
         FString Ref;
         if (!String((*Refs)[I], Ref, Check, TEXT("world.parameter_refs"))

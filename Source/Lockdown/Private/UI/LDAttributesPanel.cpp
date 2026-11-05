@@ -117,6 +117,9 @@ FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 Now
         Lines.Add(MoveTemp(Line));
     }
     if(Combat->bOutOfCombatRegenActive){Lines.Add(LDTerms::OutOfCombatRegen);}
+    // D21 (#79): the 躺平角 fast recovery, or the reminder that it starts once out of combat.
+    if(Combat->bDormRegenActive){Lines.Add(LDTerms::DormRegenActive());}
+    else if(Combat->bInDorm){Lines.Add(LDTerms::InDorm());}
     return AttrPanelLines(Lines);
 }
 }

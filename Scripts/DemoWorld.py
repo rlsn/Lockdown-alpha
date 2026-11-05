@@ -18,10 +18,14 @@ SOURCE = content.WORLD_SOURCE
 SCHEMA_SOURCE = content.WORLD_SCHEMA_SOURCE
 OUTPUT_PATHS = (content.WORLD_OUTPUT, content.WORLD_CONTRACT)
 PARAMETER_REFS = (
-    "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "SHOP.InteractRadiusCm",
+    "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
     "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
     "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm",
 )
+# D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
+# pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
+# D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
+ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint")
 ROOT_KEYS = {
     "schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision",
     "source_sha256", "author_schema_sha256", "approval", "geometry", "placement",
@@ -206,11 +210,11 @@ def validate_author_contract(author):
             identifier(connection[field], at + "." + field)
         for wall, identity in _author_rows(connection["wall_ids"], at + ".wall_ids", 2):
             identifier(identity, f"{at}.wall_ids[{wall}]")
-    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 17):
+    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 26):
         at = f"{path}.anchors[{index}]"
         require(type(anchor) is dict, "AuthorShape", at, "expected an anchor object")
         kind = anchor.get("kind")
-        require(type(kind) is str and kind in ("Spawn", "Camp", "Shop", "Capture"),
+        require(type(kind) is str and kind in ANCHOR_KINDS,
                 "AuthorShape", at + ".kind", "unsupported anchor kind")
         fields = ("id", "kind", "surface_id", "position_cm") + (("members",) if kind == "Camp" else ())
         _author_fields(anchor, fields, at)
@@ -326,8 +330,9 @@ def validate_payload(raw):
             "WorldPlacement", "world.placement", "center-first unique offsets and a positive validation envelope are required")
     require(all(offset[2] == 0 and squared_distance(offset, (0, 0)) <= bounded(envelope * envelope) for offset in offsets),
             "WorldPlacement", "world.placement", "offset changes layer or exceeds its fixed validation envelope")
-    require(type(world["anchors"]) is list and len(world["anchors"]) == 17,
-            "WorldAnchors", "world.anchors", "ten spawns, five camps, one shop and one capture are required")
+    require(type(world["anchors"]) is list and len(world["anchors"]) == 26,
+            "WorldAnchors", "world.anchors",
+            "ten spawns, five camps, one shop, one capture, two dorms, three airdrop points and four Boss waypoints are required")
     anchors = {}
     member_count = 0
     for row in world["anchors"]:
@@ -338,7 +343,7 @@ def validate_payload(raw):
         keys(row, fields, "world.anchor")
         claim(row["id"], "world.anchor")
         require(row["surface_id"] == surface["id"], "InvalidReference", row["id"], "unknown anchor surface")
-        require(row["kind"] in ("Spawn", "Camp", "Shop", "Capture"), "WorldAnchors", row["id"], "unknown anchor kind")
+        require(row["kind"] in ANCHOR_KINDS, "WorldAnchors", row["id"], "unknown anchor kind")
         position = point(row["position_cm"], row["id"])
         require(all(a <= p <= b for a, p, b in zip(minimum, position, maximum)),
                 "InvalidGeometry", row["id"], "anchor outside the surface or off its layer")
@@ -354,9 +359,12 @@ def validate_payload(raw):
                 member_count += 1
         anchors[row["id"]] = row
     require(member_count == 8 and {kind: sum(row["kind"] == kind for row in anchors.values())
-                                  for kind in ("Spawn", "Camp", "Shop", "Capture")}
-            == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1},
+                                  for kind in ANCHOR_KINDS}
+            == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1, "Dorm": 2, "Airdrop": 3, "BossWaypoint": 4},
             "WorldAnchors", "world", "incorrect anchor/member counts")
+    # The native importer knows the dorms by id, so a rename must fail here rather than only at the native import.
+    require({identity for identity, row in anchors.items() if row["kind"] == "Dorm"} == {"dorm_nw", "dorm_se"},
+            "WorldAnchors", "world", "dorm ids must be dorm_nw and dorm_se")
     require(type(world["connections"]) is list and len(world["connections"]) == 5,
             "InvalidReference", "world.connections", "five named inner/outer connections are required")
     connected_camps, wall_degrees = set(), {}
@@ -540,6 +548,35 @@ def validate_bindings(world, data):
     require(geometry.legal(capture, radius + capture_radius), "InvalidGeometry", "capture", "capture disk lacks legal capsule support")
     require(squared_distance(capture, shop) > bounded((capture_radius + shop_radius) ** 2),
             "InvalidGeometry", "shop", "shop eligibility and capture disks overlap")
+    # D21 dorms and D26 airdrop points: every point of the disk is legal standing ground, and the disk stays apart
+    # from the circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
+    camp_clearance = content._wire_fraction(world["geometry"]["camp_clearance_cm"], "camp clearance")
+    # D26 Boss waypoints are canonical boss_patrol_1..4 on legal standing ground for one capsule; the path between
+    # them is the runtime's legal navigation.
+    waypoints = sorted(identity for identity, row in anchors.items() if row["kind"] == "BossWaypoint")
+    require(waypoints == [f"boss_patrol_{n}" for n in range(1, 5)], "WorldAnchors", "boss_patrol",
+            "the Boss waypoints must be boss_patrol_1 to boss_patrol_4")
+    for identity in waypoints:
+        require(geometry.legal(point(anchors[identity]["position_cm"], identity), radius), "InvalidGeometry", identity,
+                "Boss waypoint lacks legal capsule support")
+    zone_radius = {"Dorm": p("DORM.RadiusCm"), "Airdrop": p("AIRDROP.PickupRadiusCm")}
+    zones = [(identity, row["kind"].lower(), point(row["position_cm"], identity), zone_radius[row["kind"]])
+             for identity, row in anchors.items() if row["kind"] in zone_radius]
+    for identity, label, centre, zone in zones:
+        require(zone > 0 and geometry.legal(centre, radius + zone), "InvalidGeometry", identity,
+                f"{label} disk lacks legal capsule support")
+        for other, other_radius in ((capture, capture_radius), (shop, shop_radius)):
+            require(squared_distance(centre, other) > bounded((zone + other_radius) ** 2),
+                    "InvalidGeometry", identity, f"{label} disk overlaps the capture or shop disk")
+        for camp_id, camp_row in anchors.items():
+            if camp_row["kind"] == "Camp":
+                require(squared_distance(centre, point(camp_row["position_cm"], camp_id))
+                        > bounded((zone + camp_clearance) ** 2), "InvalidGeometry", identity,
+                        f"{label} disk overlaps a camp clearing")
+        for other_id, _, other_centre, other_zone in zones:
+            if other_id != identity:
+                require(squared_distance(centre, other_centre) > bounded((zone + other_zone) ** 2),
+                        "InvalidGeometry", identity, f"{label} disk overlaps another event disk")
     stalls = [identity for identity, row in geometry.rows.items() if not row["blocks_sight"]]
     require(len(stalls) == 1 and inside(shop, geometry.polygons[stalls[0]]),
             "InvalidGeometry", "shop", "shop anchor must be in the single non-sight-blocking stall")

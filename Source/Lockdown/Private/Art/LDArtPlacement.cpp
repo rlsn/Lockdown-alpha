@@ -41,8 +41,9 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     const auto& Parameters = Content.Get().Parameters;
     const double Body = PlaceValue(Parameters.CollisionRadiusCm), CaptureRadius = PlaceValue(Parameters.CaptureRadiusCm);
     const double ShopRadius = PlaceValue(Parameters.ShopInteractRadiusCm), SightHeight = PlaceValue(World.SightSampleHeightCm);
+    const double AirdropRadius = PlaceValue(Parameters.AirdropPickupRadiusCm);
     const double CampClearance = PlaceValue(World.CampClearanceCm), SpawnRadius = PlaceValue(World.SpawnValidationRadiusCm);
-    if (!(Body > 0 && CaptureRadius > 0 && ShopRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0))
+    if (!(Body > 0 && CaptureRadius > 0 && ShopRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0 && AirdropRadius > 0))
     {
         return PlaceFail(Error, TEXT("The approved body, capture, shop, sight, camp and spawn sizes are required to check decorations."));
     }
@@ -57,6 +58,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     TArray<FPlaceKeepOut> KeepOuts;
     for (const FLDDemoWorldAnchor& Anchor : World.Anchors)
     {
+        // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
+        // nor hides one, and the dorm's own ring marks it.
+        // D26: a Boss waypoint is a patrol target only; props keep the path open through the navmesh like anywhere else.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;
@@ -67,6 +72,8 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         case ELDDemoWorldAnchorKind::Camp: KeepOut.Radius = CampClearance; break;
         case ELDDemoWorldAnchorKind::Shop: KeepOut.Radius = ShopRadius + Body; break;
         case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
+        // D26: the pickup disk stays clear so the crate and every body reaching it read plainly.
+        case ELDDemoWorldAnchorKind::Airdrop: KeepOut.Radius = AirdropRadius + Body; break;
         default: return PlaceFail(Error, TEXT("Unknown Demo world anchor kind: ") + Anchor.Id);
         }
     }

@@ -101,6 +101,11 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DevMarkerText;
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
+    UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
+    UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
+    UPROPERTY() TObjectPtr<UTextBlock> BossText;
+    // D26: when this screen first saw the current drop claimed (match generation and drop serial), for the notice.
+    uint32 AirdropClaimSeenGeneration=0;uint64 AirdropClaimSeenSerial=0;int64 AirdropClaimSeenAtMs=0;
     UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
