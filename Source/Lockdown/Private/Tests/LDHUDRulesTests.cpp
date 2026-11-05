@@ -367,9 +367,18 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content);
     TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动技能")&&Card.RankText==TEXT("1 级"));
     TestTrue(TEXT("The card shows the target form and the rank's typed parameters"),Card.Lines.Num()==3&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm"));
+    TestTrue(TEXT("The compact card line names the kind, rank and the replacement"),Card.Summary==TEXT("新主动技能 · 1 级 · 需替换"));
+    TestTrue(TEXT("An active card draws the active placeholder icon with the name's first character"),
+        Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId.IsEmpty());
     FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
     const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content);
     TestTrue(TEXT("An upgrade states both ranks and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("1 → 2 级"));
+    FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
+    FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;
+    TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content).Icon==LDHUD::EChoiceIcon::Passive
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content).Summary==TEXT("属性提升 · 已选 0 次"));
+    FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");Content.Display.Add(BoltDisplay);
+    TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);

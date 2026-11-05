@@ -6,12 +6,16 @@
 #include "LDChoicesPanel.generated.h"
 class UTextBlock;
 class UBorder;
-class UVerticalBox;
+class USizeBox;
+class UCanvasPanel;
+class UCanvasPanelSlot;
 struct FLDDemoContentDefinitions;
 
 // Three-card level-up choice (APP_SPEC 4.2, UI 3.2): a normal main panel over one fixed server offer.
-// Cards only preview; the command carries stable OfferId/OptionId and versions, never a row index. A learn-active card
-// with both Q/W filled opens the replacement child confirmation, which never picks a slot by default.
+// Compact cards show a placeholder icon, the name and one kind/rank line; hovering or focusing a card pops its full
+// description beside it. Clicking a card submits it at once; the command carries stable OfferId/OptionId and versions,
+// never a row index. A learn-active card with both Q/W filled opens the replacement child confirmation instead, which
+// never picks a slot by default; clicking the Q or W slot there is the replacement's confirmation.
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -26,8 +30,13 @@ public:
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDChoiceReceiptQueryResult& Result);
+    // A card click: submits that card, or opens the replacement child confirmation when it needs one.
+    bool ChooseCard(int32 Index);
+    // Shows a card's detail popup without choosing it, as hovering does (automation and review captures).
     bool PreviewChoice(int32 Index);
-    bool PreviewReplacement(uint8 SkillSlot);
+    // A slot click in the replacement child: forgets that slot's skill and submits the replacement at once.
+    bool ChooseReplacement(uint8 SkillSlot);
+    // Submits the chosen card (or the chosen replacement); a card click and a slot click both end here.
     void ConfirmChoice();
     // 112 §6: spends one free reroll on the shown offer (one per offer, never paid with gold).
     bool Reroll();
@@ -42,29 +51,39 @@ public:
     void MarkOpenedAutomatically();
     // Called on every HUD refresh with whether the own body was hit since the last one; folds the open panel when due.
     void UpdateFold(bool bOwnHit);
-    // A previewed card, the replacement confirmation or a request in flight.
-    bool IsEngaged() const {return Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
+    // A card being read (hovered, focused or previewed), a chosen card, the replacement confirmation or a request in flight.
+    bool IsEngaged() const {return DetailCard!=INDEX_NONE||Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
+    // The card whose detail popup is showing, or INDEX_NONE.
+    int32 GetDetailCard() const {return DetailCard;}
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
+    virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
     virtual UWidget* FocusScope() const override;
     virtual UWidget* HitArea() const override;
 private:
     struct FCardWidgets
     {
         TObjectPtr<ULDCommandButton> Button;
-        TObjectPtr<UTextBlock> Kind,Name,Rank,Body;
+        TObjectPtr<USizeBox> IconSize;
+        TObjectPtr<UBorder> IconShape;
+        TObjectPtr<UTextBlock> Glyph,Name,Summary;
     };
     TArray<FCardWidgets> Cards;
+    TArray<LDHUD::FChoiceCardView> CardViews;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> ReplacePanel;
-    UPROPERTY() TObjectPtr<class UScrollBox> CardScroll;
+    // The detail popup lives on its own full-panel canvas layer, so its size never moves the card column.
+    UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> DetailSlot;
+    UPROPERTY() TObjectPtr<UBorder> Detail;
+    UPROPERTY() TObjectPtr<UTextBlock> DetailName;
+    UPROPERTY() TObjectPtr<UTextBlock> DetailSummary;
+    UPROPERTY() TObjectPtr<UTextBlock> DetailBody;
     UPROPERTY() TObjectPtr<UTextBlock> Header;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> ReplaceText;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ConfirmButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> RerollButton;
     UPROPERTY() TObjectPtr<ULDCommandButton> ReplaceSlotButtons[2];
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReplaceConfirmButton;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardWidgets;
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;
@@ -73,6 +92,10 @@ private:
     FGuid ShownOffer;
     uint64 ShownOfferRevision=0;
     int32 Selected=INDEX_NONE;
+    // PreviewChoice's pinned card, shown when no card is hovered or focused; DetailCard is the one on screen.
+    int32 PinnedPreview=INDEX_NONE;
+    int32 DetailCard=INDEX_NONE;
+    bool bDetailStale=true;
     int32 ReplaceSlot=INDEX_NONE;
     FName ReplaceSkill;
     uint8 ReplaceRank=0;
@@ -90,4 +113,5 @@ private:
     void FinishRequest();
     void RefreshSelection();
     void ResetReplacement();
+    void UpdateDetail();
 };
