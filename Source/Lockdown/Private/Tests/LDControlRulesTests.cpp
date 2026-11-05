@@ -533,8 +533,13 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
     const auto Step = [&](int64 AtMs, const TArray<FLDCombatHit>& Hits)
     {
         const auto Pass = [](const FLDGameplayWritePermit&) { return true; };
-        return Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, AtMs) == ELDCommitReject::None
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Pass, Error)
+        const ELDCommitReject Begin = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, AtMs);
+        if (Begin != ELDCommitReject::None)
+        {
+            Error = FString::Printf(TEXT("the step to %lld ms was refused (%u)"), AtMs, uint32(Begin));
+            return false;
+        }
+        return Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Pass, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Actions, Pass, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Effects, [&](const FLDGameplayWritePermit&)
             {
@@ -555,20 +560,20 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
     Slow.SlowDurationMs = 1000;
     FLDCombatHit Disarm = Hit(AttackerBody, 0);
     Disarm.DisarmDurationMs = 500;
-    if (!TestTrue(FString::Printf(TEXT("Damage, slow and disarm step: %s"), *Error), Step(40, {Damage, Slow, Disarm}))) { return false; }
+    if (!TestTrue(FString::Printf(TEXT("Damage, slow and disarm step: %s"), *Error), Step(10, {Damage, Slow, Disarm}))) { return false; }
     TestTrue(TEXT("Ordinary damage, a slow and a disarm leave the spray running"),
         Sprayer.Resources.HpP2 < 100000 && Mode->CaptureReducer.GetState() == ELDCircleState::Solo
         && Mode->CaptureReducer.GetOccupier() == Rival && Mode->CaptureReducer.GetSoloSinceMs() == 1
         && Mode->CaptureReducer.GetDueAtMs() == 101);
     TestTrue(TEXT("The damage is the attacker's assist contribution"), Sprayer.AssistContributions.ContainsByPredicate(
-        [&](const FLDAssistContribution& Each) { return Each.Contributor == Attacker && Each.LastAtMs == 40; }));
+        [&](const FLDAssistContribution& Each) { return Each.Contributor == Attacker && Each.LastAtMs == 10; }));
 
     FLDCombatHit Stun = Hit(ControllerBody, 0);
     Stun.StunDurationMs = 300;
-    if (!TestTrue(FString::Printf(TEXT("Stun step: %s"), *Error), Step(80, {Stun}))) { return false; }
+    if (!TestTrue(FString::Printf(TEXT("Stun step: %s"), *Error), Step(20, {Stun}))) { return false; }
     TestTrue(TEXT("A stun from a real hit clears the spray at its instant; still alone, the rival restarts from zero"),
         Mode->CaptureReducer.GetState() == ELDCircleState::Solo && Mode->CaptureReducer.GetOccupier() == Rival
-        && Mode->CaptureReducer.GetSoloSinceMs() == 80 && Mode->CaptureReducer.GetDueAtMs() == 180);
+        && Mode->CaptureReducer.GetSoloSinceMs() == 20 && Mode->CaptureReducer.GetDueAtMs() == 120);
     TestTrue(TEXT("The damage-free stun is its owner's assist contribution, recorded once by the control path"),
         Sprayer.AssistContributions.FilterByPredicate(
             [&](const FLDAssistContribution& Each) { return Each.Contributor == Controller; }).Num() == 1);
