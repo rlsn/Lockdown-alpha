@@ -685,7 +685,7 @@ private:
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
             // Every attribute clamps last to its catalog bounds (#112 §4): repeatable cards may push a sum past a cap,
             // and a wild card's explicit deduction stops at the floor (max HP 1, move speed 300, attack range 80).
-            bool bClamped = false;
+            bool bClamped = false, bAboveMax = false;
             FExact Min, Max;
             Bounds(Attribute, Min, Max);
             if (Numbers.LT(Value, Min))
@@ -696,11 +696,17 @@ private:
             else if (Numbers.LT(Max, Value))
             {
                 Value = Max;
-                bClamped = true;
+                bClamped = bAboveMax = true;
             }
             if (!Check.Good)
             {
                 return ArithmeticFailure(Field);
+            }
+            // DEV terms never lean on the clamp: one that leaves its attribute past the maximum refuses.
+            const FExact Zero = Numbers.Value(0);
+            if (bAboveMax && (Numbers.LT(Zero, Sum.Dev.Flat) || Numbers.LT(Zero, Sum.Dev.Ratio)))
+            {
+                return Refuse(EError::OutOfBounds, Field, Field + TEXT(" with its DEV term is past its catalog maximum"));
             }
             if (!StoreFinal(Attribute, Value, Out.Final))
             {

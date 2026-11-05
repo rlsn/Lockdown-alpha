@@ -224,7 +224,7 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
   反震一次（区域命中 + `GrantShieldTo`）。
 - **负面状态计数**：`NegativeKindsOf` 给出定身、减速、缴械、眩晕、嘲讽、破防（含持续伤害）六种；实锤冲塔按命中前计数放大。
 - **负属性与夹取**：`FLDDemoAttributeDefinition::Penalties` 在 `LDAttributeProjection` 中作为同类扣减项参与相加；所有属性最终统一夹到
-  目录上下限（不再拒绝构筑），内容验证 `BuildEnvelope` 只检查极值下伤害/护盾不溢出。
+  目录上下限（不再拒绝构筑；只有带 DEV 测试项的属性超过上限时拒绝，DEV 项不靠夹取），内容验证 `BuildEnvelope` 只检查极值下伤害/护盾不溢出。
 - 离局 `CancelEntityEffects` 一并移除其区域、连射、诱饵、击退、持续伤害与减疗；营地回位清空全部。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
