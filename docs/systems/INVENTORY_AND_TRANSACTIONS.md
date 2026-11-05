@@ -28,7 +28,7 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
 本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`（Listen Host 的本地控制器由 `SyncOwner` 直接写入并调用
 `OnRep_OwnerState`）；`ReadOwnShop` 只在当前生命已 Opened 时有效。
-小卖部页面是 HUD 停靠的
+砍一刀小摊页面是 HUD 停靠的
 `ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订；
 三选一页面 `ULDChoicesPanel` 同样只读 `ReadOwnProgression`，经 `SubmitChoice` 提交；开局 Offer 首次到达本人、
 尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择；
@@ -134,7 +134,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
 测试层只由 Combat 持有：成长域的 `PrepareBuildChange` 输入不得带它（`InvalidInput`），Combat 把已安装的测试层带进每次真实构筑变更；
 投影把它作为单独的 `FLDAttributeContributions::Dev` 行（本人属性视图的 `Dev`/`DevPercent`、HUD 来源“测试”），
-最终值与临时项、隐身腿速一样把它计入加和；测试层与真实构筑合计越界时，那次真实选择或买卖同样按投影拒绝；新局重建 Combat 记录，测试层不带入下一局。
+最终值与临时项、隐身润速一样把它计入加和；测试层与真实构筑合计越界时，那次真实选择或买卖同样按投影拒绝；新局重建 Combat 记录，测试层不带入下一局。
 控制台入口 `ld.Dev.XP <数量>`、`ld.Dev.Gold <数量>`、`ld.Dev.Refill`、`ld.Dev.ResetCooldowns`、`ld.Dev.Learn <id> [Q|W]`、
 `ld.Dev.Buy <id>`、`ld.Dev.Sell <1|2>`、`ld.Dev.Attr <属性> <数值>`、`ld.Dev.ClearAttr`、`ld.Dev.Reset`、`ld.Dev.RefreshCamps`、`ld.Dev.OpenCapture` 与 HUD 的测试面板（`UI/LDDevTestPanel.*`）
 都只是本地发送者，共用 `LDDevTest::StatFields`、`ParseAmount`、`ParseScaled` 与 `OpLabel`（`ld.Dev.List` 打印本进程已加载的批准目录），
@@ -171,8 +171,8 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 用自己的攻击命令击杀买方；买方死亡等待中确认一次选择：按 Dead 阶段受理并应用，仍为同一 Life 与复活时间、
 无身体、HP 为零，只有下一条命的最大 HP 增长，正常复活后满血满蓝。Host 随后走到低档营地 L1 补掉两只野怪；
 作为 Listen Host 的击杀者，它对买方和两只野怪的每笔奖励都要在本人 `OwnerState.Growth`（本地控制器由 `SyncOwner`
-直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的零花钱/等级文本里达到精确的新值，
-渲染的画面回馈（`ULDWorldFeedback`，DEV 构建记录本局呈现过的奖励行）也必须以“+N 零花钱”“+N 经验”收尾且合计等于该笔奖励。Host 导出账本证据由
+直接写入并调用 `OnRep_OwnerState`，不走复制）与渲染 HUD 的米/等级文本里达到精确的新值，
+渲染的画面回馈（`ULDWorldFeedback`，DEV 构建记录本局呈现过的奖励行）也必须以“+N 米”“+N 流量”收尾且合计等于该笔奖励。Host 导出账本证据由
 `CheckEconomyEvidence.py --dev-fixture` 复算并与双方本人投影比对，且只列出 Host 自己那笔夹具铸币。
 随后 Host 无胜者结束本局并回到新一代 Lobby，
 两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、

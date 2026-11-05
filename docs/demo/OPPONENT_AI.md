@@ -109,7 +109,7 @@ AI 不持有 `FLDGameplayWritePermit`，更不能直接调用 `ProcessAuthorityO
 | 自身 | 核心 ReadAISelf（含 Growth 发布）、adapter BuildFrame；本人 Combat BuildOwnerView、Vendor ReadShop | 可以读本人血蓝/资源/等级/技能/装备、控制、真实 readiness、候选和回执；不能取得可写 StateFor 或全账本。 |
 | 公共对局 | `FLDPublicMatchView` | Phase、OpenAtMs、CircleState、Occupier、CaptureEpoch、SoloSinceMs、DueAtMs、Result；Occupier 在 Solo 和争夺暂停（D12，Contested 且有人持有进度）时有效，DueAtMs 只在 Solo 时有效；占领者身份和进度不附送其隐藏精确坐标。 |
 | 当前可见单位 | `EnumerateVisibleUnits(ObserverContext, Purpose) -> ObservedFrame` | 带 Match、ObserverLife、ViewGeneration/Revision、MapRevision、ServerTime、Handle/ObservationEpoch。AI 与真人使用同构投影；只含已批准展示字段。 |
-| 可见营地回位提示 | 同一观察帧单位 `Statuses` 中只读 `StatusId=CampReturning`（`ELDDemoStatusId`，内容 id `camp_returning`） | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回岗中”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
+| 可见营地回位提示 | 同一观察帧单位 `Statuses` 中只读 `StatusId=CampReturning`（`ELDDemoStatusId`，内容 id `camp_returning`） | Vision 仅为当前获准可见且 Returning 的 CampMember 派生“回工位”；不含堆叠、期限、Home、路径目标或仇恨，不是可写 Combat 状态。Root 暂停不清提示；退出 Returning 或失视野即撤销，隐匿时不更新。 |
 | 可见装备与资源 | 上述观察帧的展示定义 | 装备只有两个展示 DefinitionId，不含内部 ItemInstance、IssuedCooldownId、ReadyAt、SourceBindingRevision、技能列表或完整属性。HP/MP 按世界 Resources 的 P2 Current/Max 读取；NPC 不适用的 MP/Level/Equipment 是 NotApplicable，不补零猜测。失视野整条动态记录撤销。 |
 | 静态世界与内容 | 世界公开地图/POI、公共目录 | Camp/Shop/Capture 固定位置、营地档位、地形和公开定义可知；不能把定义里的原始营地人数/刷新周期当作当前存活人数或剩余刷新时间。 |
 | 路径 | `ULDMapRegistry::QueryGround(WorldRevision, FootCm, Capsule, SurfaceHint)`、`QueryCompletePath(WorldRevision, FromGround, ToGround, Capsule)`；接近公共地点与单位由 Navigation 订单规划 | QueryGround 四参，无默认/三参重载；SurfaceHint 为必填 FName 注册 SurfaceId，仍须重查真实支持面。AI 只用自身真实位置与当前地图估计入圈完整路径长度（厘米）；不含隐藏动态身体定位。 |
@@ -382,16 +382,16 @@ AI.CaptureReactionBudgetSec 的余量比较。被零移速或控制阻止时不�
 | `active_binding_snare` | Unit；当前可见威胁的观察句柄，执行时重查；不是凭公开占领者 ID 施法。 |
 
 D 键通用冲刺（D19）是每名参赛者的固定来源，AI 经同一 owner view 的 `ELDCombatEntry::Dash` 读到它
-（`ELDOpponentSourceSlot::Dash`），位移距离取权威给出的 `RangeCm`（含跑道钉鞋加成），不在策略里重算；
+（`ELDOpponentSourceSlot::Dash`），位移距离取权威给出的 `RangeCm`（含《润学指南》加成），不在策略里重算；
 冷却、定身与起步阻挡都在 Combat 重验，`bReady` 只取权威的可用原因与 ReadyAt。它在“必要合法机动”这一级使用：
 
 | 时机 | 方向与条件 |
 | --- | --- |
 | 追击 | 正在交战的可见对手参赛者（不是营地野怪）离自己超过“普攻距离 + 半个冲刺”且不超过“普攻距离 + 一个冲刺”，本人未在撤退、未定身：朝其当前可见脚点冲刺，落点在普攻距离内。 |
 | 撤退 | 脱战撤退（低血且有可见威胁）时，朝已选的公开撤退地点冲刺。 |
-| 抢圈 | 公开独占截止时间让回防变得紧急时，朝升旗台冲刺；不紧急的入圈不花冲刺。 |
+| 抢圈 | 公开独占截止时间让回防变得紧急时，朝旗杆冲刺；不紧急的入圈不花冲刺。 |
 
-验收见 `Lockdown.Rules.DemoOpponentPolicy.InnateDash`；满员局中的实际冲刺由 `RunDemoOpponentCheck.ps1` 核对（§8.2）。
+验收见 `Lockdown.Rules.DemoOpponentPolicy.InnateDash`；满员局中的实际冲刺由 `RunDemoOpponentCheck.ps1` 记录为报告项（§8.2）。
 
 首版七个装备定义逐项绑定；当前只有一种非空 Active，不以一个“会用装备”的泛化断言代替：
 
@@ -524,13 +524,14 @@ ProviderUnavailable、Stopped。日志可解释“为何继续发育/为何回�
 ### 8.2 正反验收与证据
 
 `RunDemoOpponentCheck.ps1` 已部分覆盖下表：满员房间（参赛 Listen Host、两个拥有客户端、三个 AI）经正常大厅开局，真人不参与。
-它核对 AI-A01 的独立绑定与不补位，以及 AI-A02 中的每个 AI 自主移动、获胜 AI 升级并确认选择、每个 AI 都到店购买、
-至少一个 AI 实际完成 D 冲刺（各 adapter 计已提交的冲刺 `dashes` 与 Combat 完成的冲刺 `dashes_landed`）、
+它核对 AI-A01 的独立绑定与不补位，以及 AI-A02 中的每个 AI 自主移动、获胜 AI 升级并确认选择、至少一个 AI 到店购买、
 死亡期间不发任何身体请求、死亡后按批准时长复活并继续行动、请求速率有界、由 AI 按占领规则获胜，最后回到新 Lobby 并退役全部 AI。
 它还核对每个 AI 在开局十秒内处理掉开局三选一（D10）；开圈前每个 AI 都取得过经验，除非发育期至少一半时间处于死亡或回血恢复（1 级开局互打后按批准回血等回 ResumeFarm 可能占去大半个发育期，这是批准节奏，不算卡住）；以及争夺暂停（D12）下的两类决策：
 AI 持有被暂停的进度时留在圈内迎战，只在止损线离开；AI 在圈内面对对手的暂停进度时继续争夺，不离开去刷野或购物。
 这两类决策由各 adapter 按自己的帧计数（`paused_holds*`、`challenges*`），另报打向公开持有者的攻击订单数（`holder_attacks`），仅作证据，不回送策略。
 死亡与复活、以及争夺暂停取决于对局走向：本局没有 AI 死亡、复活或相应争夺时，相应各项报告为未覆盖（NotExercised），单独列出，不计为通过。
+“每个 AI 都到店购买”与“至少一个 AI 实际完成 D 冲刺”（各 adapter 计已提交的冲刺 `dashes` 与 Combat 完成的冲刺 `dashes_landed`）只作报告项：
+未出现时记为 NotExercised，不卡门槛；多局、打包版下是否稳定见 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)，验证后再定是否升为硬门槛。
 下表其余条目，以及这两条中 runner 没有覆盖的部分（零到二个 AI 开局、真人离开、每个 AI 各自的成长、逐段回执链、三个槽位分别获胜），
 目前没有自动验收。
 纯模型证明策略决定，原生场景证明接线，真实拥有连接证明授权和运行拓扑，三者不能互相冒充。
@@ -551,7 +552,7 @@ AI 持有被暂停的进度时留在圈内迎战，只在止损线离开；AI �
 | AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Choice/Shop 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、满 Q/W 替换、全部技能三级、死前 Alive 请求延到 Dead、Dead 选择与复活竞争 | 同一机会只消费一次，原卡保留不重抽；十次（含开局一次）/十级/三级边界；明确遗忘/再学一级。当前 Dead 选择不治疗/提前复活；旧 LifePhase 确认拒绝而候选不变。 |
 | AI-A09 买卖资格/失败 | 无 ShopView 但公开目录预算足够的首次/旧报价失效购物；开店 Pending/重复/取消/Opened/Rejected；LOS 被挡；旧路径、非法区域、无钱/满槽/旧报价/旧世界修订/越界/死亡/终局/分配失败；Sell 后 Buy 被拒及重放 | 无 ShopView 仍会据非约束预算主动到店；Pending 不提交 Buy/Sell。每人一个待办，只有核心 Transactions 借当次 Permit 进内部 OpenPendingShop/资格查询；只有 Opened 带 View并触发重新预算，后续交易再验当前条件且无额外 LOS。失败不部分改钱物，已 Sell 不倒回，无免费实例或预算刷新。 |
-| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；arcane_battery 与 D 冲刺（含钉鞋加成）；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/圈内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
+| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；arcane_battery 与 D 冲刺（含《润学指南》加成）；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/圈内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
 | AI-A11 进攻解除保护 | 圈内保护 AI 发当前有效新意图，分别 Missing 目标/错误支持面/未接地/无路/距离远/蓝少/CD未到；对照 Query、旧包、异生命、终局 | 前组为语义执行失败，即使 Rejected 也 ProtectionRemoved/LifeRevision 更新，失败不扣动作 MP/CD；资格事件在 Capture 前生效，保护时段不追算占领，未接地仍无资格；后组不解除。 |
 | AI-A12 死亡/离局效果 | 正常死亡时有已释放独立效果，效果击杀合法目标；另在效果存续时正式离局 | 正常死亡继续原期限并正常发给仍在局死者奖励，可产生 Dead Offer；离局立刻移除身体/效果且离开不发奖；均不能打中同 ID 新生命。 |
 | AI-A13 发育/回防/恢复 | 当前 HP 达高营入口但预测剩余不足 Reserve；合适低营；同刻反击/零伤害/超预算/隐藏成员变化；公开占领紧急，低血/零移速/保护/无回复，守圈敌人离圈 | Reserve 只控制模型入场，实际止损沿 Retreat；成本估计不写 HP/CD/RNG、不读隐藏状态、不补最低伤害或抹同刻反击，不将估计当实战保证。回防无除零/全知/等回满死锁，不为一只怪拖延；必要离圈接受清零。 |

@@ -1,4 +1,5 @@
 #include "Tests/LDDemoGrowthProbe.h"
+#include "UI/LDTerms.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
@@ -262,7 +263,7 @@ const TArray<FString>* GrowthProbeRewardLines(const ALDPlayerController& PC)
 }
 
 // True when the presented lines end with rewards adding up to exactly Gold and XP: walking back from the newest line,
-// "+N 零花钱" and "+N 经验" lines are summed until both totals are reached. Every reward with gold floats a gold line.
+// "+N <LDTerms::Gold>" and "+N <LDTerms::Experience>" lines are summed until both totals are reached. Every reward with gold floats a gold line.
 bool GrowthProbeRewardTail(const TArray<FString>& Lines, int64 Gold, int64 XP, FString& Seen)
 {
     int64 SumGold = 0, SumXP = 0;
@@ -271,8 +272,8 @@ bool GrowthProbeRewardTail(const TArray<FString>& Lines, int64 Gold, int64 XP, F
     {
         Seen = Lines[Index] + (Seen.IsEmpty() ? FString() : TEXT(" | ") + Seen);
         FString Number = Lines[Index];
-        const bool bGold = Number.RemoveFromEnd(TEXT(" 零花钱"));
-        const bool bXP = !bGold && Number.RemoveFromEnd(TEXT(" 经验"));
+        const bool bGold = Number.RemoveFromEnd(FString(TEXT(" ")) + LDTerms::Gold);
+        const bool bXP = !bGold && Number.RemoveFromEnd(FString(TEXT(" ")) + LDTerms::Experience);
         if ((!bGold && !bXP) || !Number.RemoveFromStart(TEXT("+")) || !Number.IsNumeric()) { return false; }
         (bGold ? SumGold : SumXP) += FCString::Atoi64(*Number);
         GoldLines += bGold ? 1 : 0;
@@ -1212,7 +1213,7 @@ public:
             OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision, *GoldText, *LevelText);
         const bool bView = OwnProgression && OwnEquipment && OwnProgression->CumulativeXP == ExpectXP && OwnEquipment->Gold == ExpectGold
             && PC.OwnerState.Growth.PublishRevision > Mark.PublishBefore;
-        // The rendered world feedback floats the same reward beside the own body: "+N 零花钱" with "+N 经验".
+        // The rendered world feedback floats the same reward beside the own body: "+N <LDTerms::Gold>" with "+N <LDTerms::Experience>".
         const TArray<FString>* Lines = LDDemoGrowthScenario::GrowthProbeRewardLines(PC);
         FString Floated;
         const bool bFloated = Lines && LDDemoGrowthScenario::GrowthProbeRewardTail(*Lines, ExpectGold - Mark.GoldBefore,

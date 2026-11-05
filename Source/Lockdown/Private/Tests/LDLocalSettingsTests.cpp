@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "UI/LDTerms.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDGameInstance.h"
 #include "GameFramework/GameUserSettings.h"
@@ -202,7 +203,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     FString Error;
     TestTrue(TEXT("Draft binding change is legal"), Draft->Rebind(TEXT("Skill1"), EKeys::F6, Error));
     TestTrue(TEXT("EditingDraft cannot save"), Draft->SaveLocalSettings().Status == ELDLocalSettingsSaveStatus::Invalid);
-    TestFalse(TEXT("A draft cannot set the applied player name"), Draft->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestFalse(TEXT("A draft cannot set the applied player name"), Draft->SetAppliedPlayerName(TEXT("王小明"), Error));
     TestTrue(TEXT("A refused draft name leaves the draft unset"), Draft->PlayerName.IsEmpty());
     TestFalse(TEXT("Draft did not create a file"), IFileManager::Get().FileExists(*Fixture.Storage.Filename()));
     TestEqual(TEXT("Draft does not mutate applied preferences"), Applied->TextScale, 1.f);
@@ -215,7 +216,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
         && Loaded.Settings->TextScale == 1.25f && !Loaded.Settings->bEdgePan && Loaded.Settings->Key(TEXT("Skill1")) == EKeys::F6
         && Loaded.Settings->GetMinimapOrientation() == ELDMinimapOrientation::Facing);
     TestTrue(TEXT("An unset (empty) name is valid, saves and reloads as unset"), Loaded.Settings && Loaded.Settings->PlayerName.IsEmpty());
-    const FString ChineseName = TEXT("阴人王 小明");
+    const FString ChineseName = TEXT("王 小明");
     TestTrue(TEXT("The applied owner accepts a Chinese name with an inner space"), Applied->SetAppliedPlayerName(ChineseName, Error));
     TestTrue(TEXT("A chosen name is applied but not yet saved"), Applied->IsDirty());
     TestTrue(TEXT("The current schema saves the player name"), Applied->SaveLocalSettings().IsSaved());
@@ -227,7 +228,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     uint32 SavedSchema = 0;
     TestTrue(TEXT("The verified file declares the current schema"),
         FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
-    TestFalse(TEXT("An invalid name is refused on the applied owner"), Applied->SetAppliedPlayerName(TEXT("阴人王?"), Error));
+    TestFalse(TEXT("An invalid name is refused on the applied owner"), Applied->SetAppliedPlayerName(TEXT("王小明?"), Error));
     TestTrue(TEXT("A refused name keeps the applied name and explains why"),
         Applied->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive) && !Error.IsEmpty());
 
@@ -243,7 +244,7 @@ bool FLDLocalSettingsPersistenceTest::RunTest(const FString& Parameters)
     Applied->ResetBindings();
     TestTrue(TEXT("Binding recovery does not reset other preferences or the name"), Applied->TextScale == 1.25f && !Applied->bEdgePan
         && Applied->PlayerName.Equals(ChineseName, ESearchCase::CaseSensitive));
-    Applied->PlayerName = TEXT(" 阴人王");
+    Applied->PlayerName = TEXT(" 王小明");
     const auto RefusedName = Applied->SaveLocalSettings();
     TestTrue(TEXT("A raw invalid non-empty name refuses save with an explicit name error"),
         RefusedName.Status == ELDLocalSettingsSaveStatus::Invalid && RefusedName.Message.Contains(TEXT("名称")));
@@ -323,17 +324,17 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     Smile.AppendChar(TCHAR(0xD83D));
     Smile.AppendChar(TCHAR(0xDE00));
     LoneSurrogate.AppendChar(TCHAR(0xD83D));
-    for (const FString& ValidName : { FString(TEXT("阴人王")), FString(TEXT("Player 1")),
+    for (const FString& ValidName : { FString(TEXT("王小明")), FString(TEXT("Player 1")),
         FString::ChrN(ULDControlSettings::MaxPlayerNameChars, TEXT('王')), FString::ChrN(ULDControlSettings::MaxPlayerNameChars - 1, TEXT('王')) + Smile })
     { TestTrue(TEXT("A valid name passes the local rule; a surrogate pair counts as one character"), ULDControlSettings::ValidatePlayerName(ValidName, NameError) && NameError.IsEmpty()); }
-    for (const FString& InvalidName : { FString(), FString(TEXT(" 阴人王")), FString(TEXT("阴人王 ")), FString::ChrN(ULDControlSettings::MaxPlayerNameChars + 1, TEXT('王')),
+    for (const FString& InvalidName : { FString(), FString(TEXT(" 王小明")), FString(TEXT("王小明 ")), FString::ChrN(ULDControlSettings::MaxPlayerNameChars + 1, TEXT('王')),
         FString(TEXT("a?b")), FString(TEXT("a=b")), FString(TEXT("a#b")), FString(TEXT("a/b")), FString(TEXT("a\\b")), FString(TEXT("a:b")), FString(TEXT("a%b")),
         FString(TEXT("a&b")), FString(TEXT("a\"b")), FString(TEXT("a'b")), FString(TEXT("a<b")), FString(TEXT("a>b")), FString(TEXT("a|b")), FString(TEXT("a\tb")), LoneSurrogate })
     {
         TestFalse(TEXT("An empty, padded, overlong, reserved-character, control or broken name fails the local rule"), ULDControlSettings::ValidatePlayerName(InvalidName, NameError));
         TestFalse(TEXT("Every name rejection explains itself"), NameError.IsEmpty());
     }
-    for (const TCHAR* BadName : { TEXT(" 阴人王"), TEXT("阴人王?"), TEXT("a\tb") })
+    for (const TCHAR* BadName : { TEXT(" 王小明"), TEXT("王小明?"), TEXT("a\tb") })
     {
         Values->PlayerName = BadName;
         Write(FixtureBytes(*Values));
@@ -347,7 +348,7 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     Values->PlayerName = NulName;
     Write(FixtureBytes(*Values));
     ExpectRejected(ELDLocalSettingsLoadStatus::Corrupt);
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     Values->Bindings.Remove(TEXT("Attributes"));
     Values->Bindings.Add(TEXT("Development"), EKeys::P);
     const auto UnknownBindings = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
@@ -360,13 +361,13 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Recovery data never carries a rejected binding name"),
         Rejected.RecoverablePreferences && !Rejected.RecoverablePreferences->Bindings.Contains(TEXT("Development")));
     TestTrue(TEXT("Recovery data keeps the validated player name"),
-        Rejected.RecoverablePreferences && Rejected.RecoverablePreferences->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        Rejected.RecoverablePreferences && Rejected.RecoverablePreferences->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     auto* Instance = NewObject<ULDGameInstance>();
     auto* Recovered = Instance->UseIsolatedLocalSettings(Fixture.Id);
     TestTrue(TEXT("Recovery preserves validated unrelated preferences"),
         Recovered->TextScale == 1.25f && Recovered->Zoom == 1600 && !Recovered->bEdgePan);
     TestTrue(TEXT("Recovery keeps the validated player name in the session settings"),
-        Recovered->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        Recovered->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     TestTrue(TEXT("Runtime bindings require explicit replacement approval"), Recovered->NeedsRecovery() && Recovered->Valid());
     TestFalse(TEXT("Retired action cannot reappear at runtime"), Recovered->Bindings.Contains(TEXT("Development")));
     TestTrue(TEXT("Session bindings are exactly the Demo defaults, including the missing action"), HasExactDemoDefaults(*Recovered));
@@ -380,7 +381,7 @@ bool FLDLocalSettingsRejectionTest::RunTest(const FString& Parameters)
         Confirmed.Status == ELDLocalSettingsLoadStatus::Loaded && Confirmed.Settings && Confirmed.Settings->Zoom == 1600
         && Confirmed.Settings->TextScale == 1.25f && !Confirmed.Settings->bEdgePan && Confirmed.Settings->Valid());
     TestTrue(TEXT("Confirmed recovery writes the validated player name back"),
-        Confirmed.Settings && Confirmed.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        Confirmed.Settings && Confirmed.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
 
     // A schema-4 file from the retired multi-registry layout is incompatible: nothing is migrated, prefs use recovery.
     auto RetiredBindings = RetiredLayoutBindings();
@@ -511,17 +512,17 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Full volume is a supported volume"), Applied->SetAppliedMasterVolume(1.f, Error) && Applied->MasterVolume == 1.f);
 
     // Restoring local defaults covers the volume but never the player name.
-    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("王小明"), Error));
     TestTrue(TEXT("Prepare a non-default volume"), Applied->SetAppliedMasterVolume(.2f, Error));
     Applied->ResetLocalDefaults();
     TestTrue(TEXT("Restoring local defaults returns the volume to full and keeps the player name"),
         Applied->MasterVolume == GetDefault<ULDControlSettings>()->MasterVolume && Applied->MasterVolume == 1.f
-        && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+        && Applied->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Applied->Valid());
 
     // A saved volume outside 0..1 rejects the whole file like an out-of-range zoom, and the file is left alone.
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     for (float BadVolume : { 1.5f, -.01f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity() })
     {
         Values->MasterVolume = BadVolume;
@@ -545,7 +546,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A schema 6 file is an explicit successful migration, never plain Loaded"),
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
     TestTrue(TEXT("The migration keeps the name, bindings and camera preferences and uses the full default volume"), Migrated.Settings
-        && Migrated.Settings->MasterVolume == 1.f && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->MasterVolume == 1.f && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
         && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
         && Migrated.Settings->Valid());
     TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"),
@@ -559,7 +560,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The rewritten file loads as current with the kept name and the default volume"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->MasterVolume == 1.f
-        && Upgraded.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Upgraded.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
         && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Upgraded.Settings->Zoom == 1550);
     Values->Bindings.Add(TEXT("Development"), EKeys::F9);
     Write(FixtureBytes(*Values, VolumelessFixtureSchema, 0));
@@ -567,7 +568,7 @@ bool FLDLocalSettingsMasterVolumeTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A schema 6 file with a retired action keeps the rejection and recovery path, with the default volume"),
         VolumelessRejected.Status == ELDLocalSettingsLoadStatus::Corrupt && !VolumelessRejected.Settings && VolumelessRejected.RecoverablePreferences
         && VolumelessRejected.RecoverablePreferences->MasterVolume == 1.f && VolumelessRejected.Message.Contains(TEXT("Development"))
-        && VolumelessRejected.RecoverablePreferences->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        && VolumelessRejected.RecoverablePreferences->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     Values->Bindings.Remove(TEXT("Development"));
     auto DamagedVolumeless = VolumelessFile;
     DamagedVolumeless.Last() ^= 1;
@@ -687,15 +688,15 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     }
 
     // Restoring local defaults covers the pan speed but never the player name.
-    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("王小明"), Error));
     Applied->ResetLocalDefaults();
     TestTrue(TEXT("Restoring local defaults returns the pan speed to 1800 cm/s and keeps the player name"),
-        Applied->GetCameraPanCmPerSec() == DefaultPan && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+        Applied->GetCameraPanCmPerSec() == DefaultPan && Applied->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Applied->Valid());
 
     // A saved pan speed outside the domain rejects the whole file like an out-of-range zoom or volume; the file is left alone.
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     for (float BadPan : { 899.f, 3601.f, std::numeric_limits<float>::quiet_NaN(), std::numeric_limits<float>::infinity() })
     {
         Values->CameraPanCmPerSec = BadPan;
@@ -721,7 +722,7 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
     TestTrue(TEXT("The migration keeps the name, volume, bindings and camera preferences and uses the default pan speed"), Migrated.Settings
         && Migrated.Settings->GetCameraPanCmPerSec() == DefaultPan && Migrated.Settings->MasterVolume == .4f
-        && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
         && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
         && Migrated.Settings->Valid());
     TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"), Migrated.Settings
@@ -735,7 +736,7 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     const auto Upgraded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("The rewritten file loads as current with the kept values and the default pan speed"),
         Upgraded.Status == ELDLocalSettingsLoadStatus::Loaded && Upgraded.Settings && Upgraded.Settings->GetCameraPanCmPerSec() == DefaultPan
-        && Upgraded.Settings->MasterVolume == .4f && Upgraded.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Upgraded.Settings->MasterVolume == .4f && Upgraded.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
         && Upgraded.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Upgraded.Settings->Zoom == 1550);
     Values->Bindings.Add(TEXT("Development"), EKeys::F9);
     Write(FixtureBytes(*Values, PanlessFixtureSchema, 0));
@@ -788,7 +789,7 @@ bool FLDLocalSettingsCameraPanSpeedTest::RunTest(const FString& Parameters)
     const auto Restored = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Restart restores the default pan speed and keeps the player name"),
         Restored.Status == ELDLocalSettingsLoadStatus::Loaded && Restored.Settings && Restored.Settings->GetCameraPanCmPerSec() == DefaultPan
-        && Restored.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        && Restored.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     return true;
 }
 
@@ -840,15 +841,15 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
     }
 
     // Restoring local defaults returns to 跟随镜头 but never clears the player name.
-    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("Prepare a chosen name"), Applied->SetAppliedPlayerName(TEXT("王小明"), Error));
     Applied->ResetLocalDefaults();
     TestTrue(TEXT("Restoring local defaults returns the orientation to Camera and keeps the player name"),
-        Applied->GetMinimapOrientation() == Camera && Applied->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Applied->Valid());
+        Applied->GetMinimapOrientation() == Camera && Applied->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Applied->Valid());
 
     // A stored orientation outside the enumeration rejects the whole file like an out-of-range zoom; the file is left alone.
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     for (const uint8 Invalid : { uint8(3), uint8(255) })
     {
         Values->MinimapOrientation = static_cast<ELDMinimapOrientation>(Invalid);
@@ -875,7 +876,7 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.RecoverablePreferences);
     TestTrue(TEXT("The migration keeps the name, volume, pan speed, bindings and camera preferences and uses Camera"), Migrated.Settings
         && Migrated.Settings->GetMinimapOrientation() == Camera && Migrated.Settings->GetCameraPanCmPerSec() == 2700.f
-        && Migrated.Settings->MasterVolume == .4f && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->MasterVolume == .4f && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
         && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->Zoom == 1550 && !Migrated.Settings->bEdgePan
         && Migrated.Settings->Valid());
     TestTrue(TEXT("Migrated values are applied and dirty, not persistence verified or recovery gated"), Migrated.Settings
@@ -941,7 +942,7 @@ bool FLDLocalSettingsMinimapOrientationTest::RunTest(const FString& Parameters)
     const auto Restored = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Restart restores Camera and keeps the player name"),
         Restored.Status == ELDLocalSettingsLoadStatus::Loaded && Restored.Settings && Restored.Settings->GetMinimapOrientation() == Camera
-        && Restored.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        && Restored.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     return true;
 }
 
@@ -986,19 +987,19 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     const auto Before = Settings->Bindings;
     TestFalse(TEXT("Conflicting key is rejected, never relocated"), Settings->Rebind(TEXT("PanUp"), EKeys::Q, Error));
     TestTrue(TEXT("Rejected rebind preserves every binding"), Settings->Bindings.OrderIndependentCompareEqual(Before));
-    TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("阴人王"), Error));
+    TestTrue(TEXT("The applied owner accepts a chosen name"), Settings->SetAppliedPlayerName(TEXT("王小明"), Error));
     Settings->TextScale = 1.25f;
     Settings->Zoom = 1600;
     Settings->MinimapOrientation = ELDMinimapOrientation::North;
     Settings->ResetBindings();
     TestTrue(TEXT("Resetting bindings preserves unrelated preferences and the name"), Settings->TextScale == 1.25f && Settings->Zoom == 1600
-        && Settings->MinimapOrientation == ELDMinimapOrientation::North && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive));
+        && Settings->MinimapOrientation == ELDMinimapOrientation::North && Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive));
     Settings->ResetLocalDefaults();
     const auto* Defaults = GetDefault<ULDControlSettings>();
     TestTrue(TEXT("Restoring local defaults resets keys, camera, text and the minimap orientation but never deletes the player name"),
         Settings->TextScale == Defaults->TextScale && Settings->Zoom == Defaults->Zoom && HasExactDemoDefaults(*Settings)
         && Settings->MinimapOrientation == Defaults->MinimapOrientation
-        && Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Settings->Valid());
+        && Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Settings->Valid());
     auto* Draft = Settings->CreateDraft();
     Draft->Bindings.Add(TEXT("Sprint"), EKeys::LeftShift);
     TestFalse(TEXT("A draft carrying a retired action cannot be applied"), Settings->ApplyLocalSettings(*Draft, Error));
@@ -1380,13 +1381,13 @@ bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
     // A schema 9 file has no quick cast field: it migrates with quick cast off, whatever the writer held.
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     Values->bQuickCast = true;
     Write(FixtureBytes(*Values, QuickCastlessFixtureSchema, 0));
     const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("A schema 9 file migrates explicitly with quick cast off and its other preferences kept"),
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && !Migrated.Settings->GetQuickCast()
-        && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive) && Migrated.Message.Contains(TEXT("快速施法默认关闭")));
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive) && Migrated.Message.Contains(TEXT("快速施法默认关闭")));
 
     // A stored flag other than 0 or 1 is malformed, never read as on.
     TArray<uint8> Bad = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
@@ -1413,7 +1414,7 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit dash fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
     auto* Values = NewObject<ULDControlSettings>();
     Values->ResetBindings();
-    Values->PlayerName = TEXT("阴人王");
+    Values->PlayerName = TEXT("王小明");
     Values->bQuickCast = true;
     Values->Bindings.Remove(TEXT("Dash"));
     Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
@@ -1422,8 +1423,8 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A schema 10 file keeps every preference and binding and takes the default D for the new dash"),
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
         && Migrated.Settings->Key(TEXT("Dash")) == EKeys::D && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
-        && Migrated.Settings->GetQuickCast() && Migrated.Settings->PlayerName.Equals(TEXT("阴人王"), ESearchCase::CaseSensitive)
-        && Migrated.Message.Contains(TEXT("冲刺键使用默认值")));
+        && Migrated.Settings->GetQuickCast() && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(FString(TEXT("“"))+LDTerms::Dash+TEXT("”键使用默认值")));
     TestTrue(TEXT("The migrated values are dirty until the next verified save"),
         Migrated.Settings && Migrated.Settings->IsDirty() && !Migrated.Settings->NeedsRecovery());
 
@@ -1431,7 +1432,7 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("An older migrated layout also takes the default dash key"),
         Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings && Older.Settings->Key(TEXT("Dash")) == EKeys::D
-        && Older.Message.Contains(TEXT("快速施法默认关闭")) && Older.Message.Contains(TEXT("冲刺键使用默认值")));
+        && Older.Message.Contains(TEXT("快速施法默认关闭")) && Older.Message.Contains(FString(TEXT("“"))+LDTerms::Dash+TEXT("”键使用默认值")));
 
     // The player already put D on another action: the dash is never given a colliding key or another key silently.
     Values->Bindings.Add(TEXT("Skill1"), EKeys::D);

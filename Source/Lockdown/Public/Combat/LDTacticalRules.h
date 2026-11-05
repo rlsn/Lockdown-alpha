@@ -82,6 +82,11 @@ namespace LDTactical
     // LastCombatAtMs + its own delay; the maxima are the ones held over the whole interval (a change settles first).
     LOCKDOWN_API bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
         int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error);
+    struct FRegenRates { double HP=0, MP=0; };
+    // Read-only instantaneous rates from validated authority inputs, before full-pool clipping.
+    // Uses the same terms and activation boundaries as SettleRegen; no resource integration or mutation.
+    LOCKDOWN_API FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
+        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs);
     // Whether an out-of-combat term with DelayMs is running at NowMs.
     LOCKDOWN_API bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs);
 }

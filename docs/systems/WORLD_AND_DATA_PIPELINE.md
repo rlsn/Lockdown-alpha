@@ -121,7 +121,7 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 同一次生成还用代码重建三份只用引擎能力的表现材质，并布置场景光照：
 `M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹（条纹间约 1 米柔和过渡，叠加几米尺度的低频明暗）、
 外圈红色跑道与白色内线，`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；
-`M_DemoApron` 是比草坪暗的暖灰校园铺地（约 2 米见方的板块、深色缝和轻微风化），
+`M_DemoApron` 是比草坪暗的暖灰铺地（约 2 米见方的板块、深色缝和轻微风化），
 铺在地面下方 1cm、每边超出场地 40m 的纯视觉铺地上，让墙外的装饰和建筑站在地面上而不是悬在虚空中；
 一个投影阴影（含短接触阴影）的大气太阳、SkyAtmosphere、
 实时捕获的较弱天光、轻度高度雾和一个无界后期（曝光补偿 -0.8、局部曝光对比还原为 1、泛光、饱和度、对比度、暗角）。
@@ -242,7 +242,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、若干 Kenney 套件），
 只提交实际选用的 `.gltf`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
-逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、纪律委员、体育老师）的显示身高、着色槽、右手骨骼、
+逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、已读不回的 HR、追着办卡的私教）的显示身高、着色槽、右手骨骼、
 朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与两档野怪各用哪个身体；道具的基础缩放，
 以及每个装饰的放置区域、位置与朝向。出手时刻与 Run 参考速度由 `Scripts\MeasureDemoArt.py` 从 glTF 数据测得，
 `--check` 拒绝与清单不符的数值。
@@ -256,8 +256,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 `ULDArtSubsystem` 在游戏实例启动时解析目录一次；缺失或不完整时记录 `LD_ART_CATALOG_INVALID` 并返回空，
 不用占位身体；身体接线拿不到条目时记录 `LD_BODY_ART_UNAVAILABLE` 且不绘制。
 
-身体：参赛者六个座位共用 Quaternius `Casual_2`（显示身高 175 cm），纪律委员（`monster_scavenger`）用女装
-`Suit`（170 cm），体育老师（`monster_guardian`）用 `Casual_Hoodie`（205 cm）。只改显示，不改胶囊
+身体：参赛者六个座位共用 Quaternius `Casual_2`（显示身高 175 cm），已读不回的 HR（`monster_scavenger`）用女装
+`Suit`（170 cm），追着办卡的私教（`monster_guardian`）用 `Casual_Hoodie`（205 cm）。只改显示，不改胶囊
 （半径 40、半高 90）。目录给出每个身体的 `MeshTransform`（缩放 = 显示身高 / 绑定姿势身高，偏航由清单的
 朝向骨骼算出、使模型正前方对齐 +X，脚底落在胶囊底面）、`TintSlots`（着色材质槽）、`HandBone`（`Wrist_R`）与 `RunSpeedCmPerSec`
 （Run 播放速率 = 移动速度 / 该值）。Interchange 把 glTF 骨骼名中的 `.` 换成 `_`。
@@ -273,8 +273,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
 `outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
-`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与升旗台；
-`capture`/`shop` 是覆盖其锚点的细小地标（升旗台旗杆、小卖部摊位），小卖部高度不超过 150 cm，
+`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与旗杆；
+`capture`/`shop` 是覆盖其锚点的细小地标（旗杆、砍一刀小摊的摊位），摊位高度不超过 150 cm，
 以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。

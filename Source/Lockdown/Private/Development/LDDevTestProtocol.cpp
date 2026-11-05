@@ -2,6 +2,7 @@
 
 #include "Development/LDDemoContentDefinitions.h"
 #include "Combat/LDAttributeProjection.h"
+#include "UI/LDTerms.h"
 
 bool FLDDevTestCommand::SameTerms(const FLDDevTestCommand& Other) const
 {
@@ -173,9 +174,9 @@ const TCHAR* LDDevTest::OpLabel(ELDDevTestOp Op)
 {
     switch (Op)
     {
-    case ELDDevTestOp::GrantExperience: return TEXT("加经验");
-    case ELDDevTestOp::GrantGold: return TEXT("加零花钱");
-    case ELDDevTestOp::RefillResources: return TEXT("补满生命与法力");
+    case ELDDevTestOp::GrantExperience: { static const FString Label=FString(TEXT("加"))+LDTerms::Experience; return *Label; }
+    case ELDDevTestOp::GrantGold: { static const FString Label=FString(TEXT("加"))+LDTerms::Gold; return *Label; }
+    case ELDDevTestOp::RefillResources: { static const FString Label=FString(TEXT("补满"))+LDTerms::Health+TEXT("与")+LDTerms::Mana; return *Label; }
     case ELDDevTestOp::ResetCooldowns: return TEXT("重置冷却");
     case ELDDevTestOp::LearnOption: return TEXT("选择卡牌");
     case ELDDevTestOp::BuyItem: return TEXT("购买装备");
