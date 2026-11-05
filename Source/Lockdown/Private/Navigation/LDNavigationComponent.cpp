@@ -618,11 +618,12 @@ void ULDNavigationComponent::ClickMove()
     if (PC->ObservedUnderPointer(Observed,ObservationEpoch)) { AttackUnit(Observed,ObservationEpoch); return; }
     FHitResult GroundHit;
     if (!GroundUnderPointer(GroundHit)) { return; }
-    // A right click on the shop model walks there (arrival opens the session quietly); the left click opens the page.
-    FName Shop;
-    if (ShopUnderPointer(Shop)) { ApproachShop(Shop); return; }
+    // The stall model takes a right click like a wall: an ordinary ground order to the nearest walkable point beside it.
+    // The left click opens the shop page.
+    FVector Goal;
+    if (!PointerGoal(GroundHit,Goal)) { return; }
     const uint32 Before=Local.Order;
-    Navigate(GroundHit.ImpactPoint);
+    Navigate(Goal);
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing.
     bHeldMove=Local.Order!=Before;
     HeldSentAt=GetWorld()->GetTimeSeconds();
@@ -669,6 +670,33 @@ bool ULDNavigationComponent::ShopUnderPointer(FName& OutShop)
     for (const FBox& Model : Art->ShopModelBounds)
     {
         if (FMath::LineBoxIntersection(Model,Start,End,End-Start)) { OutShop=ShopId; return true; }
+    }
+    return false;
+}
+
+bool ULDNavigationComponent::PointerGoal(const FHitResult& GroundHit, FVector& OutGoal)
+{
+    OutGoal=GroundHit.ImpactPoint;
+    FName Shop;
+    if (!ShopUnderPointer(Shop)) { return true; }
+    // The ground trace passes through the collision-free stall, so its own point would lead into the model.
+    auto* PC=Controller();
+    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
+    if (!Body || !Art) { return false; }
+    FBox2D Footprint(ForceInit);
+    for (const FBox& Model : Art->ShopModelBounds) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
+    const FVector Foot=Body->GetNavAgentLocation();
+    FVector Front;
+    // Already standing beside the model: nothing nearer to walk to.
+    if (!LDOrderRules::ShopFrontPoint(Footprint,Foot,Body->GetCapsuleComponent()->GetScaledCapsuleRadius(),Front)) { return false; }
+    for (FVector Candidate : LDOrderRules::ShopStopCandidates(Front,Foot,ShopStopStepCm))
+    {
+        if (FVector::DistSquared2D(Candidate,Foot)<1.) { break; }
+        Candidate.Z=GroundHit.ImpactPoint.Z;
+        bool bKnown=false;
+        // An unknown local route is still sent: the server judges it like any ground order.
+        if (ProbeGround(Candidate,bKnown) || !bKnown) { OutGoal=Candidate; return true; }
     }
     return false;
 }
@@ -776,13 +804,15 @@ void ULDNavigationComponent::TickHeldMove()
     if (PC->RootUI && PC->RootUI->PointerOverUI()) { return; }
     const double Now=GetWorld()->GetTimeSeconds();
     FHitResult GroundHit;
-    if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)) { return; }
+    FVector Goal;
+    if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)
+        || !PointerGoal(GroundHit,Goal)) { return; }
     bool bKnown=false;
     const FName Hint=GroundSurfaceHint();
-    if (Hint.IsNone() || (!ProbeGround(GroundHit.ImpactPoint,bKnown) && bKnown)) { return; }
+    if (Hint.IsNone() || (!ProbeGround(Goal,bKnown) && bKnown)) { return; }
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::MoveGround;
-    Request.GroundCm=GroundHit.ImpactPoint;
+    Request.GroundCm=Goal;
     Request.SurfaceHint=Hint;
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind)))
     {

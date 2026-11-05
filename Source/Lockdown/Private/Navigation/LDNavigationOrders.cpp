@@ -11,8 +11,6 @@
 #include "Vision/LDVisionDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Region/LDMapRegistry.h"
-#include "Art/LDArtPlacement.h"
-#include "Art/LDArtSubsystem.h"
 #include "Engine/World.h"
 
 // Authority order book: one current order per contender body, Navigation is its only writer.
@@ -679,43 +677,6 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
             UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
             return false;
         }
-        // The approach reaches the interaction radius; the walk goes on at full speed to the nearest walkable point beside
-        // the stall. Its footprint is the stall model's own bounds where this machine has the art catalog (the decoration
-        // never collides, so it changes no path, only where the walk ends); otherwise the largest footprint the placement
-        // rules allow around the anchor. Each candidate from the model's side back to the radius endpoint must be legal
-        // ground with a complete path; when none is, the order keeps the radius endpoint.
-        FBox2D Footprint(ForceInit);
-        if (const FLDArtResolved* Art=ULDArtSubsystem::Get(this))
-        {
-            for (const FBox& Model : Art->ShopModelBounds) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
-        }
-        if (!Footprint.bIsValid)
-        {
-            const FVector2D Half(LDArt::ShopLandmarkHalfExtentCm,LDArt::ShopLandmarkHalfExtentCm);
-            Footprint=FBox2D(FVector2D(Shop->Position)-Half,FVector2D(Shop->Position)+Half);
-        }
-        FVector FrontCm;
-        ELDWorldQueryFailure FrontFailure=ELDWorldQueryFailure::None;
-        FString FrontDetail;
-        if (LDOrderRules::ShopFrontPoint(Footprint,Approach.FootCm,Capsule.GetCapsuleRadius(),FrontCm))
-        {
-            bool bStopped=false;
-            for (const FVector& Candidate : LDOrderRules::ShopStopCandidates(FrontCm,Approach.FootCm,ShopStopStepCm))
-            {
-                if (FVector::DistSquared2D(Candidate,Approach.FootCm)<1.) { break; }
-                FLDLegalGround Front;
-                FLDCompletePath Onward;
-                if (!Registry->QueryGround(Registry->Revision(),Candidate,Capsule,Shop->Surface,Front,FrontFailure,FrontDetail)
-                    || !Registry->QueryCompletePath(Registry->Revision(),Approach,Front,Capsule,Onward,FrontFailure,FrontDetail)
-                    || Onward.Points.IsEmpty()) { continue; }
-                if (!Path.Points.IsEmpty() && FVector::DistSquared2D(Path.Points.Last(),Onward.Points[0])<1.) { Onward.Points.RemoveAt(0); }
-                Path.Points.Append(Onward.Points);
-                Approach=Front;
-                bStopped=true;
-                break;
-            }
-            if (!bStopped) { UE_LOG(LogTemp,Display,TEXT("LD_NAV_SHOP_FRONT_UNAVAILABLE order=%u %s"),Request.Identity.Order,*FrontDetail); }
-        }
         Order.Points=MoveTemp(Path.Points);
         Order.Surface=Shop->Surface;
         Order.Goal=Approach.SurfaceCm;
@@ -793,11 +754,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         FString Detail;
         if (Registry && Registry->QueryShopReach(Registry->Revision(),ALDCombatDirector::FootOf(Body),bWithin,Failure,Detail))
         {
-            // Arrival is the end of the route (the front of the stall) inside the shop's reach, not the first step into it.
-            const FActiveOrder& Order=ActiveOrder.GetValue();
-            const bool bAtEnd=Order.Points.IsEmpty() || (Order.PointIndex>=Order.Points.Num()-1
-                && FVector::DistSquared2D(ALDCombatDirector::FootOf(Body),Order.Points.Last())<=FMath::Square(LDPathSteering::WaypointToleranceCm));
-            if (bWithin && bAtEnd) { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
+            if (bWithin) { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
             return true;
         }
         if (Failure==ELDWorldQueryFailure::NotGrounded || Failure==ELDWorldQueryFailure::Blocked) { return true; }
@@ -997,7 +954,7 @@ FVector ULDNavigationComponent::AuthoritySteering(const ALDCharacter& Body)
     else if (Order.Request.Kind==ELDSpatialOrderKind::ApproachShop && Order.PointIndex>=Order.Points.Num()-1
         && FVector::DistSquared2D(Foot,Order.Points.Last())<=FMath::Square(LDPathSteering::WaypointToleranceCm))
     {
-        // A route that could only end on the interaction radius eases inward until the shop reports reach.
+        // The approach endpoint lies on the interaction radius; ease inward until the shop reports reach.
         return (Order.ShopCentre-Foot).GetSafeNormal2D()*.25;
     }
     return LDPathSteering::Steering(Order.Points,Order.PointIndex,Body);

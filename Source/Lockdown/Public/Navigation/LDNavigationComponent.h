@@ -44,6 +44,9 @@ public:
     bool GroundUnderPointer(FHitResult& Out) const;
     // The public shop whose decoration model lies under the pointer ray (its mesh bounds, not the interaction radius).
     bool ShopUnderPointer(FName& OutShop);
+    // The ground goal of a right click: the pointer's ground point, or over the stall model the nearest walkable point
+    // beside it (the model takes a right click like a wall). False when there is nowhere to walk.
+    bool PointerGoal(const FHitResult& GroundHit, FVector& OutGoal);
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
@@ -107,7 +110,7 @@ private:
     static constexpr double OrderNoProgressSeconds=2.;
     static constexpr double GoalShiftCm=50.;
     static constexpr double GoalAcceptanceCm=40.;
-    // Spacing of the shop stop candidates tried from beside the stall back toward the interaction radius.
+    // Spacing of the goals tried from beside the stall back toward the body when the stall model is right-clicked.
     static constexpr double ShopStopStepCm=25.;
     static constexpr int32 MaxOrderRecords=16;
     struct FPendingOrder

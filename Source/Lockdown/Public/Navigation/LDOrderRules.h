@@ -45,12 +45,12 @@ namespace LDOrderRules
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
 
-    // Where a shop approach stops: the point nearest FromCm on the stall's planar footprint grown by the body radius, so
-    // the body stands right beside the model, never inside it. Planar; Z is FromCm's. Returns false when FromCm already
+    // Where a right click on the stall model walks to: the point nearest FromCm on the stall's planar footprint grown by
+    // the body radius, so the body stands right beside the model, never inside it (the decoration has no collision). Planar; Z is FromCm's. Returns false when FromCm already
     // touches that grown footprint (the body stays where it is) or the footprint is empty.
     LOCKDOWN_API bool ShopFrontPoint(const FBox2D& FootprintCm, const FVector& FromCm, double BodyRadiusCm, FVector& OutCm);
-    // Candidate stops from Front back toward From every StepCm (Front first, From last): the first legal, reachable one
-    // is the nearest walkable point beside the stall.
+    // Candidate goals from Front back toward From every StepCm (Front first, From last): the first reachable one is the
+    // nearest walkable point beside the stall.
     LOCKDOWN_API TArray<FVector> ShopStopCandidates(const FVector& FrontCm, const FVector& FromCm, double StepCm);
 
     // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
