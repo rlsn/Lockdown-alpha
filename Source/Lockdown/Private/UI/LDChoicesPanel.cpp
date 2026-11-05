@@ -63,8 +63,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();Bottom->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,6,0,0));
         ConfirmButton=LDWidgets::Button(WidgetTree,TEXT("确认本次选择"),[this](){ConfirmChoice();},false,TEXT("ChoicesConfirm"));
         Actions->AddChildToHorizontalBox(ConfirmButton)->SetPadding(FMargin(0,0,8,0));
+        // The reroll button takes its own row: next to confirm, its remaining-count label overflows the card column.
         RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
-        Actions->AddChildToHorizontalBox(RerollButton);
+        Bottom->AddChildToVerticalBox(RerollButton)->SetPadding(FMargin(0,6,0,0));
         auto* Replace=WidgetTree->ConstructWidget<UVerticalBox>();
         ReplaceText=Text(TEXT(""),16);Replace->AddChildToVerticalBox(ReplaceText);
         auto* Slots=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(Slots)->SetPadding(FMargin(0,8));

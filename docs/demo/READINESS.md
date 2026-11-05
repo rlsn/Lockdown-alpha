@@ -158,6 +158,7 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
 - **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
 - **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；
+  #112 的假发片诱饵没有可见模型（只有被诱者走向诱饵点），键盘连喷暂用天外飞瓶的弹体外观；新主动与新装备主动的 AI 施放归 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)，在此之前这些新主动不进卡池；
   截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
   玩法与 AI 的场景覆盖缺口见 [#89](https://github.com/rlsn/Lockdown-alpha/issues/89)，画面与 UI 的验收缺口见 [#87](https://github.com/rlsn/Lockdown-alpha/issues/87)。
 

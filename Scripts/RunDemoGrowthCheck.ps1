@@ -31,8 +31,9 @@ function Start-GrowthRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     # The Host is a participating Listen Host with a real RHI main view and the DEV growth fixture that presets the buyer's
-    # offers and grants its own XP and gold; the owning client needs no renderer and never carries the fixture.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-nullrhi' }
+    # offers and grants its own XP and gold; the owning client never carries the fixture and renders offscreen only for its
+    # shop review screenshot (#112 upgrade entries).
+    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen -ResX=1280 -ResY=720 -port=$port -LDDevGrowthFixture" } else { '-windowed -RenderOffScreen -ResX=1280 -ResY=720' }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoGrowthProbe -LDDemoGrowthRole={2} -LDDemoGrowthTimeout={3} -LDDemoGrowthOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }

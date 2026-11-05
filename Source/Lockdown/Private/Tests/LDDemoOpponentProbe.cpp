@@ -23,6 +23,10 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "Vision/LDWorldViewRelay.h"
+#include "Navigation/LDNavigationComponent.h"
+#include "World/LDCaptureMarker.h"
+#include "UI/LDHUD.h"
+#include "UI/LDChoicesPanel.h"
 
 // Three humans ready a full room with three opponent AI and then stay out of play, so every growth step, trade,
 // fight and the capture win below come from the AI's own requests through the shared domain entries.
@@ -133,6 +137,15 @@ public:
     int64 LastHostHPP2 = -1;
     TArray<TSharedPtr<FJsonValue>> Screenshots;
     void CaptureHost(const ALDPlayerController& Owner);
+    // Rendered Host only, #112 review evidence (never a check): the opening three-choice with its reroll button, a
+    // visible opponent's Q/W card, a kill notice naming assisters, the spray and guard HUD over the flagpole graffiti
+    // and the results with their assist column. Each is taken at most once, one request at a time.
+    TSet<FString> ReviewTaken;
+    FString ReviewPending;
+    double ReviewDueAt = 0, LastReviewAt = 0;
+    uint64 ReviewKillSerial = 0;
+    bool bPannedToFlagpole = false;
+    void ReviewShots(ALDPlayerController& Owner, const ALDGameState& Public, bool bResults);
     TSet<FGuid> OpponentIds;
     TArray<FLDOpponentProbeTrack> Tracks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -373,6 +386,8 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
     if (!FApp::CanEverRender() || Shots >= 3) { return; }
     const double Now = FPlatformTime::Seconds();
     if (MatchSeenAt == 0) { MatchSeenAt = Now; }
+    // One screenshot request at a time with the #112 review shots.
+    if (!ReviewPending.IsEmpty() || Now - LastReviewAt < .6) { return; }
     int32 Visible = 0;
     if (const ALDWorldViewRelay* Relay = Owner.LocalView())
     {
@@ -399,6 +414,86 @@ void FLDDemoOpponentProbe::CaptureHost(const ALDPlayerController& Owner)
     LastShotAt = Now;
     FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, File), true, false);
     Screenshots.Add(MakeShared<FJsonValueString>(File));
+}
+
+void FLDDemoOpponentProbe::ReviewShots(ALDPlayerController& Owner, const ALDGameState& Public, bool bResults)
+{
+    if (!FApp::CanEverRender()) { return; }
+    const double Now = FPlatformTime::Seconds();
+    if (MatchSeenAt == 0) { MatchSeenAt = Now; }
+    if (!ReviewPending.IsEmpty())
+    {
+        if (Now < ReviewDueAt) { return; }
+        FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, ReviewPending + TEXT(".png")), true, false);
+        Screenshots.Add(MakeShared<FJsonValueString>(ReviewPending + TEXT(".png")));
+        ReviewTaken.Add(ReviewPending);
+        ReviewPending.Reset();
+        LastReviewAt = Now;
+        return;
+    }
+    if (Now - LastReviewAt < .6 || Now - LastShotAt < .6) { return; }
+    const auto Queue = [&](const TCHAR* Name, double Delay)
+    {
+        if (ReviewTaken.Contains(Name)) { return false; }
+        ReviewPending = Name;
+        ReviewDueAt = Now + Delay;
+        return true;
+    };
+    if (bResults) { Queue(TEXT("HostResults"), .5); return; }
+    // The opening three-choice with its reroll button (remaining free rerolls). The Host opens it and previews the first
+    // card only so a hit does not fold it before the shot; it never confirms.
+    if (Now - MatchSeenAt >= 2. && !ReviewTaken.Contains(TEXT("HostChoices")))
+    {
+        ULDChoicesPanel* Panel = Owner.HUDUI ? Owner.HUDUI->ChoicesPanel.Get() : nullptr;
+        if (Panel)
+        {
+            if (!Panel->IsPanelOpen()) { Panel->OpenPanel(); }
+            Panel->PreviewChoice(0);
+        }
+        if (Queue(TEXT("HostChoices"), .4)) { return; }
+    }
+    for (const FLDKillNotice& Notice : Public.KillFeed.Notices)
+    {
+        if (Notice.Serial <= ReviewKillSerial) { continue; }
+        ReviewKillSerial = Notice.Serial;
+        if (!Notice.Assisters.IsEmpty() && Queue(TEXT("HostKillAssist"), .2)) { return; }
+    }
+    const FLDPublicMatchView& View = Public.PublicMatch;
+    const bool bSpray = View.CircleState == ELDCircleState::Solo || View.CircleState == ELDCircleState::Contested;
+    const bool bGuard = View.GraffitiOwner.IsValid();
+    if ((bSpray && !ReviewTaken.Contains(TEXT("HostSpray"))) || (bGuard && !ReviewTaken.Contains(TEXT("HostGuard"))))
+    {
+        // The idle Host's camera leaves its body for the flagpole so the zone ring and graffiti board are in view.
+        if (!bPannedToFlagpole && Owner.Navigation)
+        {
+            for (TActorIterator<ALDCaptureMarker> It(Owner.GetWorld()); It; ++It)
+            {
+                Owner.Navigation->PanTo(It->GetActorLocation());
+                bPannedToFlagpole = true;
+                break;
+            }
+        }
+        if (bGuard && Queue(TEXT("HostGuard"), 1.)) { return; }
+        if (bSpray && Queue(TEXT("HostSpray"), 1.)) { return; }
+    }
+    if (!ReviewTaken.Contains(TEXT("HostOpponentCard")))
+    {
+        if (const ALDWorldViewRelay* Relay = Owner.LocalView())
+        {
+            const FLDObservedFrameRead Read = Relay->ReadObservedFrame();
+            if (Read.Frame && Read.Status == ELDObservedViewStatus::Current)
+            {
+                for (const FLDObservedUnitView& Unit : Read.Frame->Units)
+                {
+                    if (Unit.Kind != ELDObservedUnitKind::Contender || !OpponentIds.Contains(Unit.ContenderId)
+                        || (Unit.Actives.Abilities[0] == 0 && Unit.Actives.Abilities[1] == 0)) { continue; }
+                    Owner.Inspect(Unit.Handle, Unit.ObservationEpoch);
+                    Queue(TEXT("HostOpponentCard"), .4);
+                    return;
+                }
+            }
+        }
+    }
 }
 
 void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const FLDResultView& Result)
@@ -623,7 +718,8 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Match:
     {
-        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen)) { Sample(*World, *Mode); CaptureHost(*PC); }
+        if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen))
+        { Sample(*World, *Mode); CaptureHost(*PC); ReviewShots(*PC, *Public, false); }
         if (!bHost)
         {
             // Ordinary vision decides what an owning client sees of the AI; this is evidence, not a requirement.
@@ -662,7 +758,10 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Results:
     {
-        if (bHost && !ReturnSent && AllMarkers(TEXT("Results.json")))
+        // The rendered Host keeps the results page up until its review screenshot of it has been taken.
+        if (bHost) { ReviewShots(*PC, *Public, true); }
+        if (bHost && !ReturnSent && AllMarkers(TEXT("Results.json"))
+            && (!FApp::CanEverRender() || (ReviewTaken.Contains(TEXT("HostResults")) && FPlatformTime::Seconds() - LastReviewAt >= 1.)))
         {
             PC->ReturnDemoToLobby();
             ReturnSent = true;
