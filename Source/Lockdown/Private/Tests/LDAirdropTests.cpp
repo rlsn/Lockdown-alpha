@@ -127,7 +127,7 @@ bool FLDAirdropRulesTest::RunTest(const FString& Parameters)
         Late.Advance(Land0 + 5) && Late.Serial == 1 && Late.Phase == ELDAirdropPhase::Landed);
     FLDAirdropState Skip = MakeState();
     TestTrue(TEXT("Skipping drops still draws each point from the one before it"),
-        Skip.Advance(Announce1 + 2 * State.Schedule.IntervalMs) && Skip.Serial == 3 && Skip.CurrentPoint()->Id == Points[P3].Id);
+        Skip.Advance(Announce1 + State.Schedule.IntervalMs) && Skip.Serial == 3 && Skip.CurrentPoint()->Id == Points[P3].Id);
     FLDAirdropState Unseeded = MakeState();
     Unseeded.Schedule.Seed = 0;
     TestFalse(TEXT("A schedule without its server seed is not valid"), Unseeded.IsActive());
