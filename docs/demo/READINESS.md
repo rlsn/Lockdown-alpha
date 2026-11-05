@@ -40,6 +40,13 @@ Vision 的隐身段（检查组 `#ST`/`#STH`）在打包版上确认：两个受
 PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host 记录的权威隐身结束时刻给帧分类；
 `844d5e1` 的候选包上重跑打包版 Vision 通过（其余场景未在该候选包上重跑，候选包随后删除，已知可用构建仍为上面的包）。
 
+[#112](https://github.com/rlsn/Lockdown-alpha/issues/112) 集成后（提交 `11f2232` 的 Development 包，manifest 无未提交改动）：
+`BuildEditor.ps1`、`BuildGame.ps1`（`-FullUnity`）、Sync world/content `--check`、Python 测试（156 项）、`BootstrapAssets.ps1`（Validate）、
+`RunTests.ps1`（210 项必需规则）通过；打包版 Growth、Capture（含第二局）、Opponent 满员（AI 以喷漆守护获胜，本局所有检查都被覆盖）通过；
+编辑器版 Combat、Vision、Opponent 遥测（2 局，均为 AI 守护成功）通过。打包版 Core、Combat、Camp、Vision、SessionFault 与网络模拟满员局本次未运行。
+#112 的界面截图（重抽按钮、商店进阶入口、击杀播报助攻者、结算助攻列、对手 Q/W 卡、喷漆与守护 HUD 和旗杆涂鸦）已人工审阅，见“App Spec 完成标准的覆盖”。
+遥测中 AI 在持有重抽令牌时没有用过重抽，并会购买自己暂不施放主动的新装备（假发片），留给 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 与试玩判断。
+
 [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) 的打包版实测项中，本次场景只能部分读到：
 满员局三个 AI 在开局约 0.8 秒都决定去商店，最终两个 AI 持有装备，另一个整局未开店；
 购买时间、AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景用 DEV 预置的开局选项）和 1 级普攻击杀时间都没有场景记录，
@@ -134,19 +141,22 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | 营地反击与回位 | 场景 Camp：未受击不先手、整组反击、拴绳回营只重置一次且不发奖、清营后按批准时长整组刷新，另存回工位与刷新截图。规则：`DemoCamp.*`、`CampDecision` | 回营途中的受伤与控制没有拥有连接场景 |
 | 从零发育 | 场景：Camp 中两次低档营地最后一击按批准值发放并升到 2 级；Growth 只靠真实击杀获得经验与金币，完成选择并购买；Opponent 中 AI 从零发育、购物并获胜 | — |
 | 普攻成长 | 场景 Combat：学到增程属性后，右键追击在超出基础射程处命中。规则：`DemoAttributeProjection.*` 覆盖射程加成与群攻被动的来源归属 | 群攻（自拍杆横扫）只有规则层覆盖 |
+| 三选一与重抽 | 规则：`DemoGrowthDraft`（技能池权重、标签亲和、每组上限、开局 2 主动 + 1 被动、重抽避开上一组、替换降级等级）、`DemoGrowthReroll`（令牌、每组一次、回执重放）。场景：Opponent 的 `HostChoices.png` 截图审阅重抽按钮（开局 0 次时置灰）；Opponent 遥测记录 AI 重抽与替换 | 真人点重抽没有拥有连接场景；遥测中 AI 有令牌时也未用过重抽 |
 | 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
 | 上限变化 | 场景 Growth：死亡期间选择精神状态上限属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
-| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
+| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*`、`DemoGrowthDraft`（新主动从 max(1, 旧等级 − 1) 开始） | 替换降级只在规则层；Growth 场景替换的是 2 级技能 |
 | 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | D 键冲刺与《润学指南》加成没有拥有连接场景 |
-| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 米 / +X 流量”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)） |
+| 装备进阶 | 规则：`DemoGrowthUpgrade`（账本、一次性、生效定义与属性投影、卖出失去）、`DemoCombatSources.InnateDash`（《润学指南》进阶值与假发片后跳加成）。场景 Growth：`Client1ShopUpgrade.png` 截图审阅商店进阶入口 | 进阶没有拥有连接场景 |
+| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 米 / +X 流量”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)）；助攻分配由规则 `DemoAssist.*` 覆盖，满员局 `HostKillAssist.png` 只截到播报，助攻奖励只在遥测与规则层 |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
-| 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |
-| 视野一致 | 场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
-| AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的占领者留圈迎战，最终按占领获胜 | 本局没有出现的情形报告为未覆盖，不计为通过 |
-| UI 完整 | 规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
+| 喷漆与守护 | 场景 Capture：开局关闭；争夺暂停与续计、喷上涂鸦、主人出区守护照常、他人独自改漆暂停守护并在完成前出区（改漆清零、守护续计）、守护满时长以 `GuardSucceeded` 唯一锁定；场景 Opponent：AI 以喷漆守护获胜，`HostSpray.png`/`HostGuard.png` 截图审阅喷漆与守护 HUD 和旗杆涂鸦。规则：`DemoCapture.*`（含 `SprayAndGuard`、`SprayInterrupt`、`GraffitiCleared`、`CombatHitInterrupt`：真实命中的眩晕与击退在施加瞬间清零喷漆） | 喷漆者死亡、硬控打断、主人死亡清除涂鸦与被击退出区只在规则层 |
+| 战斗原语 | 规则：`DemoCombatPrimitives.*`（硬控递减、冷却缩减、破防、攻速减速与解除、回复激增、唯一控制入口）、`DemoCombatEvaluation.AbilityCrit/Mitigation`、`DemoMechanics.*`（减疗减盾、护盾事件、击退、破防层、负面状态计数、周期效果）、`DemoAttributeProjection.*`（负属性与夹取）。场景 Combat：定身、护盾、天外飞瓶命中照常 | 击退位移、诱饵与新主动只在规则层（新主动不进卡池，AI 施放归 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)） |
+| 视野一致 | 场景 Opponent：`HostOpponentCard.png` 截图审阅可见 AI 的 Q/W 卡（技能名与等级，无冷却/被动/金币）；规则 `DemoVision.OpponentActives`。场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
+| AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的喷漆进度持有者留区迎战，最终以喷漆守护获胜；遥测记录改漆与守护用时 | 本局没有出现的情形报告为未覆盖，不计为通过 |
+| UI 完整 | #112 截图审阅：`HostChoices.png`（重抽按钮）、`Client1ShopUpgrade.png`（进阶入口）、`HostKillAssist.png`（播报助攻者）、`HostResults.png`（助攻列）、`HostOpponentCard.png`、`HostSpray.png`/`HostGuard.png`。规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
 | 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、三真人满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断 |
 | 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、金币、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
-| 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 占领获胜、结果和回 Lobby；Capture 中真人占领获胜后开第二局 | 三名真人的完整对局与人类试玩 |
+| 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 喷漆守护获胜、结果和回 Lobby；Capture 中真人守护获胜后开第二局 | 三名真人的完整对局与人类试玩 |
 
 ## 未运行、未实现与已知限制
 
