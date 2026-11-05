@@ -1,5 +1,6 @@
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
@@ -100,9 +101,9 @@ TArray<LDDevPanel::FItemRow> LDDevPanel::ItemRows(const FLDDemoContentDefinition
 
 FString LDDevPanel::StatusLine(const FLDProgressionView* Progression,const FLDEquipmentView* Equipment)
 {
-    const FString Level=Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · 经验 %lld · 未用选择机会 %d"),
-        int32(Progression->Level),Progression->CumulativeXP,int32(Progression->PendingChoiceCount)):FString(TEXT("等级 同步中"));
-    const FString Gold=Equipment&&Equipment->bValid?LDHUD::Gold(Equipment->Gold):FString(TEXT("零花钱 同步中"));
+    const FString Level=Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · %s %lld · 未用选择机会 %d"),
+        int32(Progression->Level),LDTerms::Experience,Progression->CumulativeXP,int32(Progression->PendingChoiceCount)):FString(TEXT("等级 同步中"));
+    const FString Gold=Equipment&&Equipment->bValid?LDHUD::Gold(Equipment->Gold):FString(LDTerms::Gold)+TEXT(" 同步中");
     return Level+TEXT(" · ")+Gold;
 }
 
@@ -173,7 +174,7 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         Root->AddChildToVerticalBox(FeedbackLine)->SetPadding(FMargin(0,4,0,0));
 
         auto* Body=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto Heading=[&](const TCHAR* Title){Body->AddChildToVerticalBox(MakeText(Title,16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));};
+        auto Heading=[&](const FString& Title){Body->AddChildToVerticalBox(MakeText(Title,16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));};
         auto Row=[&](){auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();Body->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,4));return Line;};
         auto AddButton=[&](UHorizontalBox* Line,const FString& Label,TFunction<void()> Callback,FName Name)
         {Line->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,Label,MoveTemp(Callback),false,Name))->SetPadding(FMargin(6,0,0,0));};
@@ -181,15 +182,15 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
         Heading(TEXT("资源与重复试验"));
         {
             UHorizontalBox* Line=Row();
-            const auto XP=MakeBox(TEXT("经验"),TEXT("DevTestXPAmount"));XPBox=XP.Key;Line->AddChildToHorizontalBox(XP.Value)->SetVerticalAlignment(VAlign_Center);
-            AddButton(Line,TEXT("加经验"),[this](){SendAmount(ELDDevTestOp::GrantExperience,XPBox->GetText().ToString());},TEXT("DevTestXP"));
-            const auto Gold=MakeBox(TEXT("零花钱"),TEXT("DevTestGoldAmount"));GoldBox=Gold.Key;
+            const auto XP=MakeBox(LDTerms::Experience,TEXT("DevTestXPAmount"));XPBox=XP.Key;Line->AddChildToHorizontalBox(XP.Value)->SetVerticalAlignment(VAlign_Center);
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantExperience),[this](){SendAmount(ELDDevTestOp::GrantExperience,XPBox->GetText().ToString());},TEXT("DevTestXP"));
+            const auto Gold=MakeBox(LDTerms::Gold,TEXT("DevTestGoldAmount"));GoldBox=Gold.Key;
             Line->AddChildToHorizontalBox(Gold.Value)->SetPadding(FMargin(16,0,0,0));
-            AddButton(Line,TEXT("加零花钱"),[this](){SendAmount(ELDDevTestOp::GrantGold,GoldBox->GetText().ToString());},TEXT("DevTestGold"));
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantGold),[this](){SendAmount(ELDDevTestOp::GrantGold,GoldBox->GetText().ToString());},TEXT("DevTestGold"));
         }
         {
             UHorizontalBox* Line=Row();
-            AddButton(Line,TEXT("补满生命与法力"),[this](){Send(ELDDevTestOp::RefillResources);},TEXT("DevTestRefill"));
+            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::RefillResources),[this](){Send(ELDDevTestOp::RefillResources);},TEXT("DevTestRefill"));
             AddButton(Line,TEXT("重置冷却"),[this](){Send(ELDDevTestOp::ResetCooldowns);},TEXT("DevTestCooldowns"));
             AddButton(Line,TEXT("重置到开局"),[this](){Send(ELDDevTestOp::ResetToMatchStart);},TEXT("DevTestReset"));
         }
@@ -218,7 +219,7 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             AddButton(Line,TEXT("清除全部测试属性"),[this](){Send(ELDDevTestOp::ClearAttributes);},TEXT("DevTestClearAttr"));
         }
 
-        Heading(TEXT("装备（按目录价格，不用去小卖部）"));
+        Heading(FString(TEXT("装备（按目录价格，不用去"))+LDTerms::Shop+TEXT("）"));
         for(uint8 SlotNumber=1;SlotNumber<=2;++SlotNumber)
         {
             UHorizontalBox* Line=Row();
@@ -348,8 +349,8 @@ void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDEqu
         DevPanelShow(LearnReplace[Index],bBothHeld&&Now[Index].bActiveSkill&&Now[Index].Held==0,ESlateVisibility::SelfHitTestInvisible);
     }
     const bool bChoice=Progression&&Progression->bValid&&Progression->PendingChoiceCount>0;
-    DevPanelSetText(LearnHint,bChoice?TEXT("学习受真实规则约束：等级上限、Q/W 两槽与选择数上限；Q/W 都满时用“替换”。")
-        :TEXT("现在没有未用的选择机会：先加经验升级，再学习。"));
+    DevPanelSetText(LearnHint,bChoice?FString(TEXT("学习受真实规则约束：等级上限、Q/W 两槽与选择数上限；Q/W 都满时用“替换”。"))
+        :FString::Printf(TEXT("现在没有未用的选择机会：先加%s升级，再学习。"),LDTerms::Experience));
     DevPanelShow(HostSection,bHost,ESlateVisibility::SelfHitTestInvisible);
 }
 

@@ -43,7 +43,7 @@ D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEn
 `ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`；它不是进攻意图，不解除保护。
 每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
 释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）计算距离与冷却：
-`dash_boost` 乘冷却比例、加距离比例，时长不变，冷却不吃鬼点子；结束时刻写成绝对 ReadyAt，之后换装不改写。
+`dash_boost` 乘冷却比例、加距离比例，时长不变，冷却不吃整活频率；结束时刻写成绝对 ReadyAt，之后换装不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
@@ -55,8 +55,8 @@ Q/W/装备 1/2 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveG
 或被嘲讽者已观察不到嘲讽者（视线、距离或隐身）的嘲讽；离局另由 `CancelEntityEffects` 清除。
 订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
 `stealth` 效果给施放者一段隐身：敌方（参赛者、对手 AI、野怪）只能在 `reveal_radius` 内观察到它，规则走
-Vision 的同一观察链；隐身期间腿速按 `FORMULA.MoveSpeed` 多一项负的加成比例（`move_speed_penalty`）。
-普攻开始、任何 Q/W/装备主动被准入、或受到正伤害（含被淡定全部吸收）/控制时立即现身；重复释放重新计时。
+Vision 的同一观察链；隐身期间润速按 `FORMULA.MoveSpeed` 多一项负的加成比例（`move_speed_penalty`）。
+普攻开始、任何 Q/W/装备主动被准入、或受到正伤害（含被心理防线全部吸收）/控制时立即现身；重复释放重新计时。
 嘲讽与隐身只出现在本人 `CombatView` 的状态里（`Taunt`/`Stealth` 及到期），不进入他人可见的公开状态。
 同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
 拥有客户端的预输入（`LDCombatPreInput`）只在本地暂存前摇期间的一次按键并在前摇结束后作为普通 Direct 请求发出，
@@ -112,23 +112,23 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 受击闪白转红与出现辉光走材质 `Flash` 自发光；
 普攻整体前冲并在出手的手部闪光；施法时手部聚能球；受击整体后退、胸前闪光，本人镜头轻微震动；
 状态标记对所有单位使用固定状态色，与六个座位色、草坪和红色跑道都拉开：定身为深色描边上的脉动品红圆盘加品红脚镣，
-淡定为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；淡定与复活保护的每个标记背后沿本机视线放一个稍大的
+心理防线为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；心理防线与复活保护的每个标记背后沿本机视线放一个稍大的
 近黑副本作为描边，在同色系座位（青色、黄色）身上也能分开；
 带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地播放死亡片段倒地，再下沉、缩没
-（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；粉笔头飞行由 `ULDFlightTrailComponent` 拖出粉尘。
+（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；天外飞瓶飞行由 `ULDFlightTrailComponent` 拖出粉尘。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
 
 临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
-`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、急了一类的条件增益与最强一个减速
-（负比例），点数类向下取整并夹紧到目录上下限；最大面子/胆量不接受临时项。`RefreshAllTemporary` 在 Actions
+`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、他急了一类的条件增益与最强一个减速
+（负比例），点数类向下取整并夹紧到目录上下限；精神状态上限/电量上限不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
 减速、限时增益和控制标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`ApplyTimedBonus`、`ApplyExposure`、`TemporaryTerms`）。
-伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者最大面子，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带最大面子系数。技能命中载荷在释放时快照（含施放者 AD/AP/最大面子）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者精神状态上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带精神状态上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/精神状态上限）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
 的逐目标合法性与视线检查）各得一份；减速随命中施加，定身随命中经 `MarkControlled` 打开施放者的控制增伤标记，
-之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。暗中观察的附加伤害是独立的技能伤害实例：
+之后同一施放者的命中以 `DamageAmplifyBp` 在抗性前放大。潜水党的附加伤害是独立的技能伤害实例：
 普攻在开始挥击时、伤害技能在释放时判定脱战窗口。施放者离局时 `CancelEntityEffects` 一并移除其减速与标记，
-营地回岗清空全部临时项。
+营地回工位清空全部临时项。
 
 ### 控制、背后判定、强化下一击、反伤与跳跃
 
@@ -148,11 +148,11 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
   额外伤害是独立的技能类命中（不暴击、不吸血、不横扫）；到期在 Effects 阶段移除。
 - **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（只记录等级，不产生属性项），装备被动按同名家族一次。
   命中后持有者仍存活、伤害为正、命中类别符合（主普攻，或允许时的技能命中）、距离不超过半径、非免疫的背后来袭，
-  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+抗揍×比例（被暴击时乘
+  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+嘴硬×比例（被暴击时乘
   `CriticalMultiplierBp`），走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤。
 - **跳到指定点**（目标 `GroundPoint`、效果 `jump`）：请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），
   距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与占领照常由运动链计算）；
-  同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，暗中观察就绪时各附一次附加伤害（泰山压顶），
+  同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，潜水党就绪时各附一次附加伤害（体重即正义），
   死亡或换命丢弃落地。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
@@ -182,11 +182,11 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值、Root/屏障/回复/冷却规则、来源轨道回绑、
 攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
-低血线/暗中观察窗口与控制增伤标记的纯规则，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
+低血线/潜水党窗口与控制增伤标记的纯规则，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
 `DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
-强制目标与恢复，以及隐身的观察授权与撤销、近距离发现、现身与腿速；成长与商店的纯规则是
+强制目标与恢复，以及隐身的观察授权与撤销、近距离发现、现身与润速；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
@@ -195,13 +195,13 @@ Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地
 远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、死亡期间小地图平移驱动的静态镜头、
 十点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
 随后 Host 的 DEV 成长夹具（只有 Host 带 `-LDDevGrowthFixture`；选项在 Lobby 按 Start 前暂存，第一组即开局 Offer）为双方预置开局与下一组选项并发放经验（升级比所学卡多一级，最后一次机会不选），
-Host 经普通 `SubmitChoice` 学会 attr_reach 与扒裤衩，Client1 学会假装无事发生与粉笔头，再经快捷入口的准备与确认施放：
-扒裤衩定身 Client1 且 Host 的观察帧看到 Root、假装无事发生在定身到期前加护盾并解除定身、
-Client1 从较远的对决点扔出的粉笔头作为 Chalk 投射物事实飞向 Host 并命中、增程卡让右键追击在基础射程之外落下普攻。
+Host 经普通 `SubmitChoice` 学会 attr_reach 与扒裤子，Client1 学会我没事我很好与天外飞瓶，再经快捷入口的准备与确认施放：
+扒裤子定身 Client1 且 Host 的观察帧看到 Root、我没事我很好在定身到期前加护盾并解除定身、
+Client1 从较远的对决点扔出的天外飞瓶作为 Chalk 投射物事实飞向 Host 并命中、增程卡让右键追击在基础射程之外落下普攻。
 Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回可能卡住游戏线程数秒，先在这里吸收）、
 在对决点旁的地面右键（DEV 指针代替鼠标，走普通 `ClickMove`）后的落点标记、本人被远程普攻击中、
 右键击杀前指针悬停在 Client1 身上的悬停环与十字光标、右键后的攻击标记、
-自己的观察帧显示定身、护盾、粉笔头飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
+自己的观察帧显示定身、护盾、天外飞瓶飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
 以及本人普攻挥击时各读回一帧
 （`HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），
 只在读回的那一帧仍显示该时刻时保存，供人工审阅画面可读性，不做像素比对；

@@ -10,6 +10,7 @@
 #include "Internationalization/StringTableRegistry.h"
 #include "Region/LDMapDefinition.h"
 #include "Misc/AutomationTest.h"
+#include "UI/LDTerms.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
@@ -882,13 +883,14 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
             Table->GetSourceString(FTextKey(Row.DescriptionKey), Description)
             && Description.Equals(Row.DescriptionText, ESearchCase::CaseSensitive));
     }
+    // The statuses system text names directly read the same in the table as in the glossary (#111).
     for (const TPair<const TCHAR*, const TCHAR*>& Expected : {
-        TPair<const TCHAR*, const TCHAR*>(TEXT("active_arc_bolt.name"), TEXT("\u7c89\u7b14\u5934")),
-        TPair<const TCHAR*, const TCHAR*>(TEXT("monster_scavenger.name"), TEXT("\u7eaa\u5f8b\u59d4\u5458")),
-        TPair<const TCHAR*, const TCHAR*>(TEXT("root.name"), TEXT("\u5b9a\u8eab"))})
+        TPair<const TCHAR*, const TCHAR*>(TEXT("root.name"), LDTerms::Root),
+        TPair<const TCHAR*, const TCHAR*>(TEXT("shield.name"), LDTerms::Shield),
+        TPair<const TCHAR*, const TCHAR*>(TEXT("respawn_protection.name"), LDTerms::RespawnProtection)})
     {
         FString Text;
-        TestTrue(FString::Printf(TEXT("Approved campus name for %s"), Expected.Key),
+        TestTrue(FString::Printf(TEXT("Approved glossary name for %s"), Expected.Key),
             Table->GetSourceString(FTextKey(Expected.Key), Text) && Text.Equals(Expected.Value, ESearchCase::CaseSensitive));
     }
 

@@ -5,6 +5,7 @@
 #include "Character/LDFlightTrailComponent.h"
 #include "Combat/LDCombatCues.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
@@ -535,6 +536,21 @@ public:
         }
         const bool bSettled = Feel.SteadySince >= 0 && Feel.LastFrameAt - Feel.SteadySince >= LDDemoCombatScenario::CombatProbeFeelSettleSeconds;
         if (!bSettled && Now - Feel.SpawnAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+        // Start with full pools and wait through the recovery delay: no HP/MP mutation can trigger publication.
+        // Both the Listen Host and its real owning client must receive the changed effective rates anyway.
+        const auto& RegenParameters=Catalog->Get().Parameters;
+        if(Now-Feel.SpawnAt<double(RegenParameters.OutOfCombatRegenDelayMs)/1000.+.5){return true;}
+        const auto& View=PC.CombatView;
+        const auto HP=View.Attributes.FindByPredicate([](const FLDCombatAttributeRowView& Row){return Row.Attribute==uint8(ELDProjectedAttribute::HPRegen);});
+        const auto MP=View.Attributes.FindByPredicate([](const FLDCombatAttributeRowView& Row){return Row.Attribute==uint8(ELDProjectedAttribute::MPRegen);});
+        const double ExpectedHP=HP?LDDemoCombatScenario::CombatProbeRational(HP->Final)+double(View.MaxHPP2)*double(RegenParameters.OutOfCombatMaxHPRegenBp)/1000000.:-1;
+        const double ExpectedMP=MP?LDDemoCombatScenario::CombatProbeRational(MP->Final)+double(View.MaxMPP2)*double(RegenParameters.OutOfCombatMaxMPRegenBp)/1000000.:-1;
+        if(!Check(View.Generation==PC.OwnerState.Match&&View.Life==PC.OwnerState.Life&&View.bHasBody
+            &&View.HPP2==View.MaxHPP2&&View.MPP2==View.MaxMPP2&&ExpectedHP>0&&ExpectedMP>0
+            &&FMath::IsNearlyEqual(View.HPRegenPerSec,ExpectedHP)&&FMath::IsNearlyEqual(View.MPRegenPerSec,ExpectedMP),TEXT("Start"),
+            TEXT("Full resources still publish effective HP/MP regen after the recovery delay on this owning connection"),
+            FString::Printf(TEXT("hp_regen=%.3f expected=%.3f mp_regen=%.3f expected=%.3f"),View.HPRegenPerSec,ExpectedHP,View.MPRegenPerSec,ExpectedMP)))
+        {return Finish();}
         const FGuid StagedHost = HostId, StagedClient = ClientId;
         if (!ResolveRoster(PC, Lobby) || !PrepareSites(Registry)) { return Finish(); }
         Check(PC.OwnerState.Life == 1 && PC.OwnerState.ProtectedUntilMs == 0, TEXT("Start"),

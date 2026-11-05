@@ -241,7 +241,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         ++Body->StateRevision;
         AbandonAction(*Body,ELDCombatReject::ControlBlocked);
     }
-    // A Root or Stun this source just applied opens its control damage amplification on this life (社死现场).
+    // A Root or Stun this source just applied opens its control damage amplification on this life (passive_public_shame).
     if ((bRoots || bStuns) && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     if (Healed && HealP2>0)

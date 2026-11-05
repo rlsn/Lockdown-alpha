@@ -103,7 +103,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=3;Combat.HPP2=1000;Frame.LocalSeconds=4;
     TestTrue(TEXT("An older combat revision is ignored"),AudioSample(Tracker,Frame).IsEmpty());
 
-    // 淡定 (shield): the own projection lists the shield status with its end; nothing else is read.
+    // The shield: the own projection lists the shield status with its end; nothing else is read.
     FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.ExpiresAtMs=9000;Shield.AmountP2=3000;
     Combat.Revision=5;Combat.HPP2=40000;Combat.ShieldP2=3000;Combat.Statuses={Shield};Combat.AsOfMs=5000;Frame.LocalSeconds=4.5;
     TestTrue(TEXT("Gaining a shield is silent"),AudioSample(Tracker,Frame).IsEmpty());

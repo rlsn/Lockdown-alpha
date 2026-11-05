@@ -307,6 +307,16 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
     Dorm.MaxHPBpPerSec = P.DormMaxHPRegenBp;
     Dorm.MaxMPBpPerSec = P.DormMaxMPRegenBp;
     if (!TestTrue(TEXT("The dorm starts before the slow recovery"), Dorm.DelayMs < Slow.DelayMs)) { return false; }
+    {
+        FLDAttributeProjection Flat;
+        Flat.Final.HPRegenPerSec = {0, 1};
+        Flat.Final.MPRegenPerSec = {0, 1};
+        const auto Shown = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs, &Dorm);
+        const auto Away = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs);
+        bGood &= TestTrue(TEXT("The displayed rate inside a dorm adds the dorm share to the slow one"),
+            FMath::IsNearlyEqual(Shown.HP - Away.HP, 100000. * Dorm.MaxHPBpPerSec / 1000000.)
+            && FMath::IsNearlyEqual(Shown.MP - Away.MP, 50000. * Dorm.MaxMPBpPerSec / 1000000.));
+    }
     const double Radius = double(P.DormRadiusCm.Numerator) / double(P.DormRadiusCm.Denominator);
     FLDDormZones Zones;
     Zones.RadiusCm = Radius;
@@ -421,6 +431,40 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
     bGood &= Settle(T4 + Dorm.DelayMs + 10000);
     bGood &= TestTrue(TEXT("Ten seconds of dorm recovery fill an empty pool"), E.Resources.HpP2 == E.Resources.MaxHpP2);
     return bGood;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRegenRatesTest,"Lockdown.Rules.DemoCombat.RegenRates",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
+{
+    FLDAttributeProjection Attributes;
+    Attributes.Final.HPRegenPerSec={8,5};Attributes.Final.MPRegenPerSec={6,5};
+    FLDOutOfCombatRegenTerm Passive;Passive.DelayMs=6000;Passive.HPPerSec={3,1};
+    Attributes.OutOfCombatHPRegen=Passive;
+    const LDTactical::FOutOfCombatRecovery Recovery{5000,150,150};
+    const auto Before=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,5999);
+    TestTrue(TEXT("Before the boundary only always-on rates are displayed"),FMath::IsNearlyEqual(Before.HP,1.6)&&FMath::IsNearlyEqual(Before.MP,1.2));
+    const auto Boundary=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,6000);
+    TestTrue(TEXT("Recovery appears exactly at its own delay, before the passive"),FMath::IsNearlyEqual(Boundary.HP,10.9)&&FMath::IsNearlyEqual(Boundary.MP,5.7));
+    // Compare the displayed instantaneous rates to the existing integrator's actual one-second gain, including remainders.
+    for(const int64 At:{int64(5999),int64(6000),int64(7000)})
+    {
+        const auto Rates=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,At);
+        LDTactical::FRegenPools Pools;Pools.MaxHpP2=62000;Pools.MaxMpP2=30000;
+        FString Error;
+        // At=5999 would cross a boundary; sample that case wholly before it.
+        const int64 Start=At==5999?4999:At;
+        if(!TestTrue(TEXT("The existing integrator accepts the same rate inputs"),LDTactical::SettleRegen(Attributes,&Recovery,1000,Start,Start+1000,Pools,Error))){return false;}
+        TestTrue(TEXT("Displayed HP rate matches settled points plus fractional remainder"),
+            FMath::IsNearlyEqual(Rates.HP,(double(Pools.HpP2)+double(Pools.HpMicroP2)/1000000.)/100.));
+        TestTrue(TEXT("Displayed MP rate matches settled points plus fractional remainder"),
+            FMath::IsNearlyEqual(Rates.MP,(double(Pools.MpP2)+double(Pools.MpMicroP2)/1000000.)/100.));
+    }
+    const auto ChangedMax=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,1000,7000);
+    TestTrue(TEXT("Maxima and active passive contribute to the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,23.2)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
+    const auto Combat=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,7000,7000);
+    TestTrue(TEXT("A combat event removes conditional terms immediately"),FMath::IsNearlyEqual(Combat.HP,1.6)&&FMath::IsNearlyEqual(Combat.MP,1.2));
+    return true;
 }
 
 #endif

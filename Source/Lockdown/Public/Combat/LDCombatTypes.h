@@ -453,6 +453,9 @@ struct FLDCombatOwnerView
     UPROPERTY() int64 MPP2=0;
     UPROPERTY() int64 MaxMPP2=0;
     UPROPERTY() int64 ShieldP2=0;
+    // Current effective regeneration in points/second; owner-only display, not writable resource state.
+    UPROPERTY() double HPRegenPerSec=0;
+    UPROPERTY() double MPRegenPerSec=0;
     UPROPERTY() uint64 SourceRevision=0;
     UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Item1, Item2, Dash
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
