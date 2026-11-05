@@ -358,8 +358,13 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
         400, INDEX_NONE, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("Full pair: sell the survival piece for a strictly better active pair"), TEXT("item_edge_blade"),
         TEXT("item_iron_plate"), 199, 1, TEXT("item_arcane_battery"));
+    // #112: the edge blade and iron plate each carry a passive, so no cheaper trade strictly improves that pair.
+    bGood &= Plan(Test, C, TEXT("One gold short of that: no affordable trade strictly improves the pair"),
+        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, INDEX_NONE, TEXT(""));
+    bGood &= Plan(Test, C, TEXT("A basic-only pair trades for its strictly better active pair"), TEXT("item_edge_blade"),
+        TEXT("item_slingshot"), 192, 1, TEXT("item_arcane_battery"));
     bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_echo_maul"));
+        TEXT("item_edge_blade"), TEXT("item_slingshot"), 191, 1, TEXT("item_iron_plate"));
     bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_echo_maul"),
         TEXT("item_arcane_battery"), 100000, INDEX_NONE, TEXT(""));
     FLDEquipmentPairRank Rank;
@@ -370,6 +375,19 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Two identical actives are two independent sources"),
         LDOpponentPolicy::RankEquipmentPair(TEXT("item_arcane_battery"), TEXT("item_arcane_battery"), C, Rank, Error)
         && Rank.ActiveSources == 2 && Rank.BasicGrowth == 0 && Rank.Survival == 1);
+    // #112 C1: the reworked item passives classify on their own, without the items' attribute stats.
+    const auto PassiveOnly = [&C](const TCHAR* Id)
+    {
+        const FLDDemoEquipmentDefinition* Item = C.Get().Equipment.FindByPredicate(
+            [Id](const FLDDemoEquipmentDefinition& Row) { return Row.Id == Id; });
+        FLDDemoEquipmentDefinition Copy = Item ? *Item : FLDDemoEquipmentDefinition();
+        Copy.Stats.Reset();
+        return LDOpponentPolicy::EquipmentUsage(Copy);
+    };
+    const FLDOpponentUsage Plate = PassiveOnly(TEXT("item_iron_plate"));
+    const FLDOpponentUsage Blade = PassiveOnly(TEXT("item_edge_blade"));
+    bGood &= Test.TestTrue(TEXT("Critical damage reduction is a survival use"), Plate.bSurvival && !Plate.bBasicGrowth);
+    bGood &= Test.TestTrue(TEXT("An every-Nth-basic bonus is a basic-growth use"), Blade.bBasicGrowth && !Blade.bSurvival);
     FLDOpponentSelf Unknown;
     Unknown.Equipment[0] = TEXT("item_unknown");
     TOptional<FLDOpponentEquipmentPlan> Out;

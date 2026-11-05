@@ -116,7 +116,13 @@ struct FLDOutOfCombatRegenTerm
     FString AbilityId;
     uint8 Rank = 0;
     int64 DelayMs = 0;
-    FLDDemoRational HPPerSec;
+    // Share of the current max HP regenerated per second out of combat (basis points; a whole 0.001 share).
+    int64 MaxHPBpPerSec = 0;
+    // After an ability hit the always-on HP/MP rates are multiplied for SurgeMs; 0 = none.
+    int64 SurgeMs = 0;
+    int64 SurgeMultiplierBp = 0;
+    // Share of the out-of-combat rate kept during combat time; 0 = none.
+    int64 InCombatRatioBp = 0;
 };
 
 // Passive whose stats apply only while current HP is strictly below ThresholdBp of max HP.
@@ -126,6 +132,8 @@ struct FLDLowHPBonusTerm
     uint8 Rank = 0;
     int64 ThresholdBp = 0;
     TArray<FLDDemoStatBonus> Stats;
+    // Omnivamp of every damage hit the owner deals while the bonus is active; 0 = none.
+    int64 OmnivampBp = 0;
 };
 
 // Passive extra damage of the first damaging action committed after DelayMs out of combat.
@@ -138,15 +146,19 @@ struct FLDAmbushDamageTerm
     int64 ADRatioBp = 0;
     int64 APRatioBp = 0;
     ELDDemoDamageType DamageType = ELDDemoDamageType::Magical;
+    // Readiness credit of each dash or jump (D dash included); 0 = none.
+    int64 DashCreditMs = 0;
+    // Both resistances of the struck body shredded by this ratio for this long; 0 = none.
+    int64 ShredRatioBp = 0;
+    int64 ShredDurationMs = 0;
 };
 
-// Passive amplification of the owner's damage against a body the owner controlled, for DurationMs after the control.
+// Passive amplification of the owner's damage against a body under any control or slow.
 struct FLDControlDamageAmpTerm
 {
     FString AbilityId;
     uint8 Rank = 0;
     int64 RatioBp = 0;
-    int64 DurationMs = 0;
 };
 
 struct FLDEquipmentPassiveFamily
@@ -159,7 +171,8 @@ struct FLDEquipmentPassiveFamily
     bool bUpgraded = false;
 };
 
-// A learned passive whose rank is a combat trigger (thorns) rather than an attribute term.
+// A learned passive rank whose effects are combat triggers (thorns, cooldown refunds, crits, stacks, reach, mana,
+// shields) rather than attribute terms; Combat reads the rank's effects through ALDCombatDirector::CollectPassiveEffects.
 struct FLDLearnedTriggerTerm
 {
     FString AbilityId;
@@ -190,13 +203,15 @@ struct FLDAttributeProjectionResult
     bool IsSuccess() const { return Value.IsSet() && Error.Code == ELDAttributeProjectionError::None; }
 };
 
-// Temporary terms of one body at one instant: active timed bonuses, an active conditional passive and the strongest slow.
+// Temporary terms of one body at one instant: active timed bonuses, an active conditional passive and the strongest
+// slow (move and attack speed).
 struct FLDTemporaryAttributeTerms
 {
     TArray<FLDDemoStatBonus> Bonuses;
     int64 MoveSlowBp = 0;
+    int64 AttackSlowBp = 0;
 
-    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0; }
+    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0 && AttackSlowBp == 0; }
     bool operator==(const FLDTemporaryAttributeTerms& Other) const;
     bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };

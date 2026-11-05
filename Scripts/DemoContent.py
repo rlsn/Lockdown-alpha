@@ -47,7 +47,10 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "out_of_combat_regen", "lifesteal", "dash", "restore_mana", "cleave", "dash_boost",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
                        "ambush_damage", "control_damage_amp", "taunt", "stealth",
-                       "disarm", "stun", "empower_basic", "jump", "thorns", "backstab"))
+                       "disarm", "stun", "empower_basic", "jump", "thorns", "backstab",
+                       "cooldown_refund", "ability_crit", "resist_shred", "momentum", "taunt_retaliate",
+                       "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
+                       "mana_on_hit", "dispel_slow", "path_slow"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # 112 §1: the only mechanic tags; the native ELDDemoMechanicTag mirrors this set.
@@ -58,7 +61,12 @@ TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat",
                              "CritChanceBonusRatio", "ADBonusRatio"))
 # Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off: self effects,
 # and hit effects delivered to every legal body in the self_area around the landing foot.
-JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "restore_mana", "self_area", *HOSTILE_OPS))
+JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "dispel_slow", "restore_mana", "self_area", "triggered_shield",
+                              *HOSTILE_OPS))
+# Passive effects Combat reads as triggers; they add no attribute term.
+TRIGGER_OPS = frozenset(("lifesteal", "cleave", "dash_boost", "thorns", "cooldown_refund", "ability_crit",
+                         "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
+                         "mana_on_hit"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -485,19 +493,21 @@ def _validate_thorns(effect, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "restore_mana", "timed_stat_bonus", "self_area", "taunt", "stealth",
-                           *HOSTILE_OPS)),
-        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "backstab")),
-        "DirectionProjectile": frozenset(("damage", "slow")),
-        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", *HOSTILE_OPS)),
+        "Self": frozenset(("shield", "dispel_root", "dispel_slow", "restore_mana", "timed_stat_bonus", "self_area", "taunt",
+                           "stealth", "cooldown_refund", "momentum", "taunt_retaliate", *HOSTILE_OPS)),
+        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "backstab", "cooldown_refund", "ability_crit")),
+        "DirectionProjectile": frozenset(("damage", "slow", "resist_shred")),
+        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "cooldown_refund", "path_slow", *HOSTILE_OPS)),
         "GroundPoint": frozenset(("jump",)) | JUMP_LANDING_OPS,
     }[mode]
     signature = None
     for rank in ranks:
         ops = _effect_set(rank["effects"], path)
         require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
-        require(signature is None or signature == ops, "RankShape", path, "ranks must use the same handlers")
-        signature = ops
+        # Rank 3 may add its qualitative change; lower ranks share one handler set that rank 3 keeps.
+        require(signature is None or signature == ops or (rank["rank"] == 3 and signature < ops),
+                "RankShape", path, "ranks must use the same handlers (rank 3 may add its own)")
+        signature = signature if signature is not None and rank["rank"] == 3 else ops
         if mode in ("Self", "DirectionDash", "GroundPoint"):
             require(("self_area" in ops) == bool(ops & HOSTILE_OPS), "TargetEffectMismatch", path,
                     "hit effects of a self, dash or jump action need exactly one self_area to name their targets")
@@ -521,8 +531,18 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] == "restore_mana":
                 require(quantity(effect["ratio"]) > 0, "IneffectiveEffect", path, "restore ratio must be positive")
-            if effect["op"] == "slow":
+            if effect["op"] in ("slow", "path_slow"):
                 require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
+            if effect["op"] == "cooldown_refund":
+                require(("cooldown" in effect) != ("ratio" in effect), "ObjectShape", path, "one refund magnitude")
+                require((effect["trigger"] == "BasicHit") == ("duration" in effect), "ObjectShape", path,
+                        "a basic-hit refund lasts a window; no other trigger has one")
+            if effect["op"] == "ability_crit":
+                require((effect["mode"] == "Chance") == ("abilities" in effect and "ratio" in effect), "ObjectShape", path,
+                        "a chance crit names its abilities and share")
+            if effect["op"] == "resist_shred":
+                require(quantity(effect["armor_ratio"]) > 0 or quantity(effect["magic_resist_ratio"]) > 0,
+                        "IneffectiveEffect", path, "a shred removes some resistance")
             if effect["op"] == "self_area":
                 require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
             if effect["op"] == "timed_stat_bonus":
@@ -556,31 +576,34 @@ def validate_definitions(data, ids):
     for row in (*data["abilities"], *data["equipment"]):
         _validate_tags(row["tags"], row["id"])
 
+    # (target mode, handlers of every rank, handlers rank 3 adds as its qualitative change)
     active_contracts = {
-        "active_arc_bolt": ("DirectionProjectile", {"damage"}),
-        "active_guard_pulse": ("Self", {"shield", "dispel_root"}),
-        "active_binding_snare": ("Unit", {"damage", "root"}),
-        "active_slipper_throw": ("Unit", {"damage", "slow"}),
-        "active_fart_dash": ("DirectionDash", {"dash", "self_area", "damage", "slow"}),
-        "active_combo_flurry": ("Self", {"timed_stat_bonus"}),
-        "active_slick_moves": ("Self", {"timed_stat_bonus"}),
-        "active_monkey_peach": ("Unit", {"damage", "disarm"}),
-        "active_thousand_year": ("Unit", {"damage", "backstab"}),
-        "active_lunge": ("DirectionDash", {"dash", "empower_basic"}),
-        "active_body_slam": ("GroundPoint", {"jump", "self_area", "damage", "slow"}),
-        "active_come_here": ("Self", {"taunt", "timed_stat_bonus"}),
+        "active_arc_bolt": ("DirectionProjectile", {"damage"}, {"resist_shred"}),
+        "active_guard_pulse": ("Self", {"shield", "dispel_root", "dispel_slow"}, {"cooldown_refund"}),
+        "active_binding_snare": ("Unit", {"damage", "root"}, set()),
+        "active_slipper_throw": ("Unit", {"damage", "slow"}, set()),
+        "active_fart_dash": ("DirectionDash", {"dash", "self_area", "damage", "slow"}, set()),
+        "active_combo_flurry": ("Self", {"timed_stat_bonus"}, {"cooldown_refund"}),
+        "active_slick_moves": ("Self", {"timed_stat_bonus"}, {"dispel_slow", "momentum"}),
+        "active_monkey_peach": ("Unit", {"damage", "disarm", "cooldown_refund"}, {"ability_crit"}),
+        "active_thousand_year": ("Unit", {"damage", "backstab"}, set()),
+        "active_lunge": ("DirectionDash", {"dash", "empower_basic"}, {"cooldown_refund", "path_slow"}),
+        "active_body_slam": ("GroundPoint", {"jump", "self_area", "damage", "slow"}, {"triggered_shield"}),
+        "active_come_here": ("Self", {"taunt", "timed_stat_bonus"}, {"taunt_retaliate"}),
     }
-    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"}, "active_slick_moves": {"MoveSpeedBonusRatio"},
+    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"},
+                   "active_slick_moves": {"MoveSpeedBonusRatio", "AttackRangeCmFlat"},
                    "active_come_here": {"ArmorFlat", "MagicResistFlat"}}
+    # (handlers of every rank, stats of the stat-bearing handler or None, handlers rank 3 adds)
     passive_contracts = {
-        "passive_battle_rhythm": ("stat_bonus", {"AttackSpeedBonusRatio"}),
-        "passive_second_wind": ("out_of_combat_regen", None),
-        "passive_precision": ("stat_bonus", {"CritChanceBonusRatio"}),
-        "passive_cornered": ("low_hp_stat_bonus", {"ADBonusRatio"}),
-        "passive_lurking": ("ambush_damage", None),
-        "passive_public_shame": ("control_damage_amp", None),
-        "passive_eagle_eye": ("stat_bonus", {"AttackRangeCmFlat"}),
-        "passive_iron_crotch": ("thorns", None),
+        "passive_battle_rhythm": ({"stat_bonus", "basic_stacks"}, {"AttackSpeedBonusRatio"}, set()),
+        "passive_second_wind": ({"out_of_combat_regen"}, None, set()),
+        "passive_precision": ({"stat_bonus", "cooldown_refund"}, {"CritChanceBonusRatio"}, {"ability_crit"}),
+        "passive_cornered": ({"low_hp_stat_bonus"}, {"ADBonusRatio"}, {"triggered_shield"}),
+        "passive_lurking": ({"ambush_damage"}, None, set()),
+        "passive_public_shame": ({"control_damage_amp"}, None, {"mana_on_hit"}),
+        "passive_eagle_eye": ({"stat_bonus", "long_reach"}, {"AttackRangeCmFlat"}, set()),
+        "passive_iron_crotch": ({"thorns"}, None, set()),
     }
     cooldown_families = {}
     for ability in data["abilities"]:
@@ -589,10 +612,11 @@ def validate_definitions(data, ids):
                 "RankShape", identity, "three complete ranks in order 1,2,3 are required")
         if ability["kind"] == "active":
             require(identity in active_contracts, "MissingHandler", identity, "no active definition projection")
-            mode, effects = active_contracts[identity]
+            mode, effects, rank3 = active_contracts[identity]
             require(ability["target"]["mode"] == mode, "TargetEffectMismatch", identity, "wrong definition target")
             _validate_action(ability["target"], ability["ranks"], identity)
-            require(all(_effect_set(rank["effects"], identity) == effects for rank in ability["ranks"]),
+            require(all(_effect_set(rank["effects"], identity) == (effects | rank3 if rank["rank"] == 3 else effects)
+                        for rank in ability["ranks"]),
                     "MissingHandler", identity, "definition has missing or extra effects")
             if identity in timed_stats:
                 require(all(set(effect["stats"]) == timed_stats[identity] for rank in ability["ranks"]
@@ -603,26 +627,37 @@ def validate_definitions(data, ids):
             cooldown_families[family] = identity
         else:
             require(identity in passive_contracts, "MissingHandler", identity, "no passive definition projection")
-            operation, stat_fields = passive_contracts[identity]
+            operations, stat_fields, rank3 = passive_contracts[identity]
             for rank in ability["ranks"]:
-                require(_effect_set(rank["effects"], identity) == {operation},
+                require(_effect_set(rank["effects"], identity) == (operations | rank3 if rank["rank"] == 3 else operations),
                         "MissingHandler", identity, "invalid passive handlers")
-                effect = rank["effects"][0]
-                if stat_fields is not None:
-                    require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
-                    _positive_stats(effect["stats"], identity)
-                if operation == "low_hp_stat_bonus":
-                    require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", identity,
-                            "the HP threshold must lie strictly inside the pool")
-                elif operation == "thorns":
-                    _validate_thorns(effect, identity)
-                elif operation == "out_of_combat_regen":
-                    require(quantity(effect["rate"]) > 0, "NumericDomain", identity, "regen bonus must be positive")
-                elif operation == "ambush_damage":
-                    require(any(quantity(effect[field]) > 0 for field in ("base", "ad_ratio", "ap_ratio")),
-                            "IneffectiveEffect", identity, "effect has neither magnitude nor scaling")
-                elif operation == "control_damage_amp":
-                    require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
+                for effect in rank["effects"]:
+                    operation = effect["op"]
+                    if operation in ("stat_bonus", "low_hp_stat_bonus") and stat_fields is not None:
+                        require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
+                        _positive_stats(effect["stats"], identity)
+                    if operation == "low_hp_stat_bonus":
+                        require(0 < quantity(effect["threshold"]) < 1, "NumericDomain", identity,
+                                "the HP threshold must lie strictly inside the pool")
+                    elif operation == "thorns":
+                        _validate_thorns(effect, identity)
+                    elif operation == "out_of_combat_regen":
+                        require(effect["max_hp_ratio"]["bp"] > 0 and effect["max_hp_ratio"]["bp"] % 10 == 0, "NumericDomain",
+                                identity, "regen share must be a positive whole 0.001 of the maximum per second")
+                    elif operation == "ambush_damage":
+                        require(any(quantity(effect[field]) > 0 for field in ("base", "ad_ratio", "ap_ratio")),
+                                "IneffectiveEffect", identity, "effect has neither magnitude nor scaling")
+                    elif operation == "control_damage_amp":
+                        require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
+                    elif operation == "triggered_shield":
+                        require(effect["trigger"] == "LowHP" and 0 < quantity(effect["threshold"]) < 1, "NumericDomain",
+                                identity, "a low-HP shield needs a threshold inside the pool")
+                    elif operation == "cooldown_refund":
+                        require(effect["trigger"] == "BasicCrit", "InvalidReference", identity,
+                                "a passive cooldown refund triggers on critical basics")
+                    elif operation == "ability_crit":
+                        require(effect["mode"] == "Chance" and set(effect["abilities"]) <= set(active_contracts),
+                                "InvalidReference", identity, "a passive ability crit names approved actives")
     attribute_stats = {
         "attr_might": {"ADFlat"}, "attr_focus": {"APFlat"}, "attr_vitality": {"MaxHPFlat"},
         "attr_resolve": {"ArmorFlat", "MagicResistFlat"}, "attr_reach": {"AttackRangeCmFlat"},
@@ -663,6 +698,9 @@ def validate_definitions(data, ids):
         "item_paper_box": ("Self", {"stealth"}, "cd_paper_box"),
     }
     item_passives = {
+        "item_iron_plate": ("passive_crit_guard", {"crit_damage_reduction"}),
+        "item_edge_blade": ("passive_third_strike", {"nth_basic_bonus"}),
+        "item_runic_focus": ("passive_mana_refund", {"mana_on_hit"}),
         "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),
         "item_phase_anchor": ("passive_stride", {"dash_boost"}),
         "item_echo_maul": ("passive_cleave", {"cleave"}),
@@ -713,6 +751,8 @@ def validate_definitions(data, ids):
                     continue
                 if effect["op"] == "thorns":
                     _validate_thorns(effect, identity)
+                    continue
+                if effect["op"] in ("nth_basic_bonus", "mana_on_hit"):
                     continue
                 require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "passive ratio must be positive")
                 if effect["op"] == "cleave":
@@ -812,6 +852,8 @@ def validate_numbers(data):
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
+    require(p("STAT.AbilityCritMultiplier") >= 1, "NumericDomain", "STAT.AbilityCritMultiplier",
+            "ability critical multiplier must not reduce damage")
     require(quantity(data["character"]["basic_attack"]["ad_ratio"]) == 1,
             "NumericDomain", "basic_attack", "initial basic damage is exactly AD")
     dash = data["character"]["dash"]
@@ -900,8 +942,6 @@ def _choice_bonus(data, field):
             for effect in rank["effects"]:
                 if effect["op"] == "stat_bonus":
                     bonus += quantity(effect["stats"].get(field, {"p2": 0}))
-                elif effect["op"] == "out_of_combat_regen" and field == "HPRegen":
-                    bonus += quantity(effect["rate"])
             alternatives.append((rank["rank"], bonus))
         best = [max(best[spent - cost] + bonus for cost, bonus in alternatives if cost <= spent)
                 for spent in range(budget + 1)]
@@ -960,6 +1000,8 @@ def _validate_build_envelope(data):
             elif effect["op"] == "thorns":
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])
+                if "max_hp_ratio" in effect:
+                    numerator = checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
                 checked_mul(numerator, effect["critical_multiplier"]["bp"], row["id"])
 
 

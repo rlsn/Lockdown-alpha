@@ -54,12 +54,22 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
-        for (const auto& Exposure : Body.Exposures) { Consider(Exposure.ExpiresAtMs); }
-        if (Body.BuildProjection.Ambush.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.BuildProjection.Ambush->DelayMs)
-        { Consider(Body.LastCombatAtMs+Body.BuildProjection.Ambush->DelayMs); }
+        for (const auto& Breach : Body.Breaches) { Consider(Breach.ExpiresAtMs); }
+        for (const auto& Mark : Body.VampMarks) { Consider(Mark.ExpiresAtMs); }
+        if (Body.BuildProjection.Ambush.IsSet())
+        {
+            // Dash and stealth credit bring the ambush window closer.
+            const int64 Credit=Body.AmbushCreditFromMs==Body.LastCombatAtMs ? Body.AmbushCreditMs : 0;
+            const int64 Wait=FMath::Max<int64>(0,Body.BuildProjection.Ambush->DelayMs-Credit);
+            if (Body.LastCombatAtMs<=MAX_int64-Wait) { Consider(Body.LastCombatAtMs+Wait); }
+        }
+        if (Body.Momentum.IsSet()) { Consider(Body.Momentum->AccumulateUntilMs); Consider(Body.Momentum->ConsumeUntilMs); }
+        if (Body.Retaliation.IsSet()) { Consider(Body.Retaliation->EndAtMs); }
+        if (Body.RegenSurgeUntilMs>0) { Consider(Body.RegenSurgeUntilMs); }
     }
-    // A jump lands on its exact boundary.
+    // A jump lands on its exact boundary; a dash's path sweep resolves when it ends.
     for (const auto& Landing : Landings) { Consider(Landing.LandAtMs); }
+    for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
     for (const auto& Pair : Records)
     {
@@ -277,7 +287,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    if (!ResolveLandings(Error) || !AdvanceProjectiles(Error)) { return false; }
+    AdvanceMomentum(Now);
+    if (!ResolveLandings(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error) || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

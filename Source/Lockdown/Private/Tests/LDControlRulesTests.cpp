@@ -7,6 +7,14 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Misc/AutomationTest.h"
+#include "Combat/LDCombatDirector.h"
+#include "Framework/LDGameMode.h"
+#include "Framework/LDCaptureReducer.h"
+#include "Character/LDCharacter.h"
+#include "Components/BoxComponent.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Dom/JsonObject.h"
@@ -442,6 +450,130 @@ bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A slow still applies while hidden"), LDControl::MoveSpeedCmPerSec(Slowed, Effect->RatioBp, Bounds, SlowedHidden)
         && FMath::IsNearlyEqual(SlowedHidden, FMath::Clamp(Base * (1. + BoxRatio - .30 - Penalty), Cm(Bounds.Min), Cm(Bounds.Max)), 1e-6)
         && SlowedHidden < Hidden);
+    return true;
+}
+// #112 §9 + §8: a real combat hit through ApplyHit -> CommitControl reaches the spray zone. Damage, slow and disarm leave the
+// sprayer's progress alone; a stun clears it at its instant, and the control alone (no damage) is its owner's assist contribution.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureCombatInterruptTest, "Lockdown.Rules.DemoCapture.CombatHitInterrupt",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Fixture world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Public = World->SpawnActor<ALDGameState>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* RivalActor = World->SpawnActor<ALDCharacter>();
+    if (!Mode || !Public || !Driver || !RivalActor) { AddError(TEXT("Fixture actors")); return false; }
+    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
+    Mode->GameState = Public;
+    World->CopyGameState(Mode, Public);
+    Mode->MatchContext = {1, FGuid::NewGuid()};
+    Mode->MatchPhase = ELDMatchPhase::Development;
+    Mode->RosterRevision = 1;
+    Mode->Combat = Driver;
+    Mode->DemoContent = Catalog;
+    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
+    const FGuid Attacker = FGuid::NewGuid(), Controller = FGuid::NewGuid(), Rival = FGuid::NewGuid();
+    for (const FGuid& Id : {Attacker, Controller, Rival})
+    {
+        FLDCombatEntityRecord& Record = Driver->Records.Add(Id);
+        Record.Kind = ELDVictimKind::Contender;
+        Record.Entity = Id;
+        Record.Build.Level = 1;
+    }
+    const FLDCombatBodyRef RivalBody{{ELDVictimKind::Contender, Rival, 1}, FGuid::NewGuid()};
+    const FLDCombatBodyRef AttackerBody{{ELDVictimKind::Contender, Attacker, 1}, FGuid::NewGuid()};
+    const FLDCombatBodyRef ControllerBody{{ELDVictimKind::Contender, Controller, 1}, FGuid::NewGuid()};
+    {
+        FLDBodyCombatState State;
+        State.Identity = RivalBody.BodyIdentity;
+        State.Victim = RivalBody.Victim;
+        State.Resources.MaxHpP2 = State.Resources.HpP2 = 100000;
+        Driver->Bodies.Add(RivalActor, MoveTemp(State));
+    }
+    FString Error;
+    const auto Fact = [&](ELDCaptureEventKind Kind, const FLDCombatBodyRef& Body, double Seconds, ELDCommitPhase Phase, bool Inside)
+    {
+        FLDCaptureEvent Event;
+        Event.Kind = Kind;
+        Event.Body = Body;
+        Event.Phase = Phase;
+        Event.bInside = Inside;
+        return FLDCaptureEventTime::FromSeconds(Seconds, Event.Time, Error) && Mode->CaptureReducer.Enqueue(Event, Error);
+    };
+    // Open at 0 with a 100 ms spray; the rival sprays alone from 1 ms, the others stay outside.
+    if (!Mode->CaptureReducer.Begin(0, 100, 5000, Error)
+        || !Fact(ELDCaptureEventKind::Joined, RivalBody, .001, ELDCommitPhase::RespawnsAndWorld, true)
+        || !Fact(ELDCaptureEventKind::Joined, AttackerBody, .001, ELDCommitPhase::RespawnsAndWorld, false)
+        || !Fact(ELDCaptureEventKind::Joined, ControllerBody, .001, ELDCommitPhase::RespawnsAndWorld, false))
+    { AddError(Error); return false; }
+    World->Tick(LEVELTICK_TimeOnly, .025f);
+    Mode->CaptureCircle.CaptureId = TEXT("capture_fixture");
+    Mode->CaptureCircle.RadiusCm = 300;
+    Mode->CaptureCircle.Ground = NewObject<UBoxComponent>(GetTransientPackage());
+    const auto Hit = [&](const FLDCombatBodyRef& From, int64 BaseP2)
+    {
+        FLDCombatHit Out;
+        Out.HitId = Out.EffectId = FGuid::NewGuid();
+        Out.Target = RivalBody;
+        Out.SourceBody = From;
+        Out.SourceEntity = Out.CreditOwner = From.Victim.EntityId;
+        Out.HitClass = ELDCombatHitClass::Ability;
+        Out.BaseP2 = BaseP2;
+        return Out;
+    };
+    // One authority step to AtMs whose Effects phase applies Hits through the real combat path.
+    const auto Step = [&](int64 AtMs, const TArray<FLDCombatHit>& Hits)
+    {
+        const auto Pass = [](const FLDGameplayWritePermit&) { return true; };
+        return Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, AtMs) == ELDCommitReject::None
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, Pass, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Actions, Pass, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Effects, [&](const FLDGameplayWritePermit&)
+            {
+                for (const FLDCombatHit& Each : Hits) { if (!Driver->ApplyHit(Each, Error)) { return false; } }
+                return true;
+            }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Capture,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteCapturePhase(Permit, Error); }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Close,
+                [&](const FLDGameplayWritePermit& Permit) { return Mode->ExecuteClosePhase(Permit, Error); }, Error)
+            && Mode->FinishAuthorityStep(*Driver, Error);
+    };
+    const FLDBodyCombatState& Sprayer = Driver->Bodies.FindChecked(RivalActor);
+
+    FLDCombatHit Damage = Hit(AttackerBody, 1000);
+    FLDCombatHit Slow = Hit(AttackerBody, 0);
+    Slow.SlowBp = 3000;
+    Slow.SlowDurationMs = 1000;
+    FLDCombatHit Disarm = Hit(AttackerBody, 0);
+    Disarm.DisarmDurationMs = 500;
+    if (!TestTrue(FString::Printf(TEXT("Damage, slow and disarm step: %s"), *Error), Step(40, {Damage, Slow, Disarm}))) { return false; }
+    TestTrue(TEXT("Ordinary damage, a slow and a disarm leave the spray running"),
+        Sprayer.Resources.HpP2 < 100000 && Mode->CaptureReducer.GetState() == ELDCircleState::Solo
+        && Mode->CaptureReducer.GetOccupier() == Rival && Mode->CaptureReducer.GetSoloSinceMs() == 1
+        && Mode->CaptureReducer.GetDueAtMs() == 101);
+    TestTrue(TEXT("The damage is the attacker's assist contribution"), Sprayer.AssistContributions.ContainsByPredicate(
+        [&](const FLDAssistContribution& Each) { return Each.Contributor == Attacker && Each.LastAtMs == 40; }));
+
+    FLDCombatHit Stun = Hit(ControllerBody, 0);
+    Stun.StunDurationMs = 300;
+    if (!TestTrue(FString::Printf(TEXT("Stun step: %s"), *Error), Step(80, {Stun}))) { return false; }
+    TestTrue(TEXT("A stun from a real hit clears the spray at its instant; still alone, the rival restarts from zero"),
+        Mode->CaptureReducer.GetState() == ELDCircleState::Solo && Mode->CaptureReducer.GetOccupier() == Rival
+        && Mode->CaptureReducer.GetSoloSinceMs() == 80 && Mode->CaptureReducer.GetDueAtMs() == 180);
+    TestTrue(TEXT("The damage-free stun is its owner's assist contribution, recorded once by the control path"),
+        Sprayer.AssistContributions.FilterByPredicate(
+            [&](const FLDAssistContribution& Each) { return Each.Contributor == Controller; }).Num() == 1);
+    const FLDCaptureDevTally::FHolder* Holder = Mode->CaptureReducer.DevTally().Holders.Find(Rival);
+    TestTrue(TEXT("The tally counts exactly one interruption"), Holder && Holder->Interrupted == 1);
     return true;
 }
 #endif

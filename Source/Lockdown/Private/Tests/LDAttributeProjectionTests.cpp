@@ -400,7 +400,8 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         const FLDOutOfCombatRegenTerm& X = A.OutOfCombatHPRegen.GetValue();
         const FLDOutOfCombatRegenTerm& Y = B.OutOfCombatHPRegen.GetValue();
         bSame = X.AbilityId.Equals(Y.AbilityId, ESearchCase::CaseSensitive) && X.Rank == Y.Rank
-            && X.DelayMs == Y.DelayMs && SameRational(X.HPPerSec, Y.HPPerSec);
+            && X.DelayMs == Y.DelayMs && X.MaxHPBpPerSec == Y.MaxHPBpPerSec && X.SurgeMs == Y.SurgeMs
+            && X.SurgeMultiplierBp == Y.SurgeMultiplierBp && X.InCombatRatioBp == Y.InCombatRatioBp;
     }
     return bSame;
 }
@@ -609,13 +610,14 @@ bool RunDuplicateEquipment(FAutomationTestBase& Test)
         int64 MoveSpeedNumerator;
         int64 MoveSpeedDenominator;
         int64 CooldownHasteP2;
+        const TCHAR* Family;
     };
     for (const FDuplicateCase& Case : {
-        FDuplicateCase{TEXT("item_iron_plate"), 98000, 28000, 7000, 0, 4800, 1800, 9, 10, 520, 1, 0},
-        FDuplicateCase{TEXT("item_edge_blade"), 62000, 28000, 11000, 0, 1800, 1800, 27, 25, 520, 1, 0},
-        FDuplicateCase{TEXT("item_runic_focus"), 62000, 28000, 7000, 6000, 1800, 1800, 9, 10, 520, 1, 3000},
-        FDuplicateCase{TEXT("item_phase_anchor"), 62000, 28000, 7000, 0, 1800, 1800, 9, 10, 3224, 5, 0},
-        FDuplicateCase{TEXT("item_arcane_battery"), 62000, 52000, 7000, 0, 1800, 3800, 9, 10, 520, 1, 0}})
+        FDuplicateCase{TEXT("item_iron_plate"), 98000, 28000, 7000, 0, 4800, 1800, 9, 10, 520, 1, 0, TEXT("passive_crit_guard")},
+        FDuplicateCase{TEXT("item_edge_blade"), 62000, 28000, 11000, 0, 1800, 1800, 27, 25, 520, 1, 0, TEXT("passive_third_strike")},
+        FDuplicateCase{TEXT("item_runic_focus"), 62000, 28000, 7000, 6000, 1800, 1800, 9, 10, 520, 1, 3000, TEXT("passive_mana_refund")},
+        FDuplicateCase{TEXT("item_phase_anchor"), 62000, 28000, 7000, 0, 1800, 1800, 9, 10, 3224, 5, 0, TEXT("passive_stride")},
+        FDuplicateCase{TEXT("item_arcane_battery"), 62000, 52000, 7000, 0, 1800, 3800, 9, 10, 520, 1, 0, nullptr}})
     {
         const FString Label = FString::Printf(TEXT("Two %s"), Case.Item);
         Expected = ApprovedLevel(1);
@@ -633,11 +635,9 @@ bool RunDuplicateEquipment(FAutomationTestBase& Test)
             return false;
         }
         bGood &= ExpectAttributes(Test, Label + TEXT(" add every fixed stat per copy"), Projection.Final, Expected);
-        // D20: the spikes carry one dash-boost passive family, which two copies still list once.
-        const bool bSpikes = FCString::Strcmp(Case.Item, TEXT("item_phase_anchor")) == 0;
-        bGood &= bSpikes
-            ? ExpectFamilies(Test, Label + TEXT(" list the stride passive once"), Projection,
-                {{TEXT("passive_stride"), TEXT("item_phase_anchor"), {0, 1}}})
+        // D20/#112: a passive family is listed once however many copies carry it.
+        bGood &= Case.Family
+            ? ExpectFamilies(Test, Label + TEXT(" list their passive once"), Projection, {{Case.Family, Case.Item, {0, 1}}})
             : ExpectFamilies(Test, Label + TEXT(" without passives"), Projection, {});
     }
     if (!ProjectBuild(Test, TEXT("Two phase anchors"),
@@ -714,9 +714,13 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     // Rank values replace lower ranks: 0.08/0.14/0.20 attack speed and crit, 3/5/7 HP per second.
     const int64 RankRatioNumerators[] = {2, 7, 1};
     const int64 RankRatioDenominators[] = {25, 50, 5};
-    const int64 RhythmSpeedNumerators[] = {513, 27, 567};
-    const int64 RhythmSpeedDenominators[] = {500, 25, 500};
-    const int64 SecondWindRates[] = {3, 5, 7};
+    // #112: passive_battle_rhythm grants 0.12/0.20/0.28 attack speed.
+    const int64 RhythmRatioNumerators[] = {3, 1, 7};
+    const int64 RhythmRatioDenominators[] = {25, 5, 25};
+    const int64 RhythmSpeedNumerators[] = {531, 567, 603};
+    const int64 RhythmSpeedDenominators[] = {500, 500, 500};
+    // #112: passive_second_wind regenerates 0.8/1.2/1.6% of max HP per second out of combat.
+    const int64 SecondWindRates[] = {80, 120, 160};
     for (uint8 Rank = 1; Rank <= 3; ++Rank)
     {
         const int32 Slot = int32(Rank) - 1;
@@ -731,7 +735,8 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
         }
         bGood &= ExpectAttributes(Test, RhythmLabel, Projection.Final, Rhythm);
         bGood &= ExpectTerms(Test, RhythmLabel + TEXT(" passive terms"),
-            Projection.Contributions[int32(EAttribute::AttackSpeed)].Passives, MakeRational(0), RankRatio);
+            Projection.Contributions[int32(EAttribute::AttackSpeed)].Passives, MakeRational(0),
+            MakeRational(RhythmRatioNumerators[Slot], RhythmRatioDenominators[Slot]));
 
         const FString PrecisionLabel = FString::Printf(TEXT("Precision rank %d at level 4"), int32(Rank));
         FExpectedAttributes Precision = ApprovedLevel(4);
@@ -760,13 +765,15 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
         bGood &= Test.TestEqual(WindLabel + TEXT(" source"), Wind.AbilityId, FString(TEXT("passive_second_wind")));
         bGood &= Test.TestEqual(WindLabel + TEXT(" rank"), int32(Wind.Rank), int32(Rank));
         bGood &= Test.TestEqual(WindLabel + TEXT(" delay"), Wind.DelayMs, int64(6000));
-        bGood &= ExpectRational(Test, WindLabel + TEXT(" bonus rate"), Wind.HPPerSec, MakeRational(SecondWindRates[Slot]));
+        bGood &= Test.TestEqual(WindLabel + TEXT(" max-HP share per second"), Wind.MaxHPBpPerSec, SecondWindRates[Slot]);
+        bGood &= Test.TestTrue(WindLabel + TEXT(" surge after ability hits"), Wind.SurgeMs == 3000 && Wind.SurgeMultiplierBp == 20000);
+        bGood &= Test.TestEqual(WindLabel + TEXT(" in-combat share only at rank 3"), Wind.InCombatRatioBp, int64(Rank == 3 ? 5000 : 0));
         bGood &= ExpectTerms(Test, WindLabel + TEXT(" is not folded into always-on regeneration"),
             Projection.Contributions[int32(EAttribute::HPRegen)].Passives, MakeRational(0), MakeRational(0));
     }
 
     FExpectedAttributes AllPassives = ApprovedLevel(10);
-    AllPassives.AttackSpeed = MakeRational(621, 500);
+    AllPassives.AttackSpeed = MakeRational(657, 500);
     AllPassives.CritChanceBp = 2000;
     FLDAttributeProjection Reversed;
     if (!ProjectBuild(Test, TEXT("Three rank-three passives"), MakeBuild(10, {
@@ -857,8 +864,8 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 1.422"), Projection.Final.AttackSpeed, MakeRational(711, 500));
-    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 704, 159);
+    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 1.494"), Projection.Final.AttackSpeed, MakeRational(747, 500));
+    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 670, 151);
     if (!Envelope(TEXT("Move-speed envelope"), MakeBuild(10, {}, {}, {TEXT("item_phase_anchor"), TEXT("item_phase_anchor")})))
     {
         return false;
@@ -881,13 +888,8 @@ bool RunEnvelope(FAutomationTestBase& Test)
     {
         return false;
     }
-    FString MathError;
-    LDDemoContent::FCheck Check(MathError);
-    LDDemoContent::FNumbers N(Check);
-    const LDDemoContent::FExact Peak = N.Add(N.Value(Projection.Final.HPRegenPerSec),
-        N.Value(Projection.OutOfCombatHPRegen->HPPerSec));
-    bGood &= Test.TestTrue(TEXT("Always-on plus out-of-combat regeneration is 9.68 and within the HP regeneration bound"),
-        N.EQ(Peak, N.Value(242, 25)) && N.LE(Peak, N.Value(Catalog->Get().Parameters.HPRegen.Max)));
+    // The out-of-combat share scales with the live max HP, so it is not part of the always-on regeneration bound.
+    bGood &= Test.TestEqual(TEXT("Regeneration envelope keeps its max-HP share"), Projection.OutOfCombatHPRegen->MaxHPBpPerSec, int64(160));
 
     TArray<FString> ItemIds;
     for (const FLDDemoEquipmentDefinition& Item : Catalog->Get().Equipment)
@@ -1281,18 +1283,28 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         return false;
     }
     FString Error;
-    const auto RankEffect = [&Catalog, &Error](const TCHAR* Id, int32 Rank) -> const FLDDemoEffectDefinition*
+    // #112: a rank may carry further effects (Lv3 additions); each passive has exactly one effect of its family.
+    const auto RankEffect = [&Catalog, &Error](const TCHAR* Id, int32 Rank, ELDDemoEffectOp Op) -> const FLDDemoEffectDefinition*
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
         if (!Catalog->FindAbility(Id, Ability, Error)) { return nullptr; }
         const FLDDemoRankDefinition* Row = Ability->Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R) { return R.Rank == Rank; });
-        return Row && Row->Effects.Num() == 1 ? &Row->Effects[0] : nullptr;
+        if (!Row) { return nullptr; }
+        const FLDDemoEffectDefinition* Found = nullptr;
+        for (const FLDDemoEffectDefinition& Effect : Row->Effects)
+        {
+            if (Effect.GetOp() != Op) { continue; }
+            if (Found) { return nullptr; }
+            Found = &Effect;
+        }
+        return Found;
     };
-    const FLDDemoEffectDefinition* Cornered = RankEffect(TEXT("passive_cornered"), 3);
-    const FLDDemoEffectDefinition* Lurking = RankEffect(TEXT("passive_lurking"), 2);
-    const FLDDemoEffectDefinition* Shame = RankEffect(TEXT("passive_public_shame"), 1);
-    const FLDDemoEffectDefinition* Eye = RankEffect(TEXT("passive_eagle_eye"), 3);
-    if (!Test.TestTrue(TEXT("Approved expansion passives have one effect per rank: ") + Error, Cornered && Lurking && Shame && Eye))
+    const FLDDemoEffectDefinition* Cornered = RankEffect(TEXT("passive_cornered"), 3, ELDDemoEffectOp::LowHpStatBonus);
+    const FLDDemoEffectDefinition* Lurking = RankEffect(TEXT("passive_lurking"), 2, ELDDemoEffectOp::AmbushDamage);
+    const FLDDemoEffectDefinition* Shame = RankEffect(TEXT("passive_public_shame"), 1, ELDDemoEffectOp::ControlDamageAmp);
+    const FLDDemoEffectDefinition* Eye = RankEffect(TEXT("passive_eagle_eye"), 3, ELDDemoEffectOp::StatBonus);
+    if (!Test.TestTrue(TEXT("Approved expansion passives have one effect of their family per rank: ") + Error,
+        Cornered && Lurking && Shame && Eye))
     {
         return false;
     }
@@ -1313,8 +1325,8 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2
         && Projection.Ambush->ADRatioBp == Lurking->ADRatioBp && Projection.Ambush->APRatioBp == Lurking->APRatioBp
         && Projection.Ambush->DamageType == Lurking->DamageType);
-    bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio and duration"), Projection.ControlAmp.IsSet()
-        && Projection.ControlAmp->RatioBp == Shame->RatioBp && Projection.ControlAmp->DurationMs == Shame->DurationMs);
+    bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio"), Projection.ControlAmp.IsSet()
+        && Projection.ControlAmp->RatioBp == Shame->RatioBp);
     bGood &= Test.TestTrue(TEXT("A plain build carries no conditional terms"),
         !Plain.LowHPBonus.IsSet() && !Plain.Ambush.IsSet() && !Plain.ControlAmp.IsSet());
     FLDAttributeProjection Enraged;

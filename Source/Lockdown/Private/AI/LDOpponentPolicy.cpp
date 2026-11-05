@@ -74,9 +74,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Damage:
     case ELDDemoEffectOp::Root:
     case ELDDemoEffectOp::Slow:
+    case ELDDemoEffectOp::PathSlow:
+    case ELDDemoEffectOp::ResistShred:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
+    case ELDDemoEffectOp::LongReach:
         Usage.bEngage = true;
         break;
     case ELDDemoEffectOp::AmbushDamage:
@@ -88,9 +91,16 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Thorns:
+    case ELDDemoEffectOp::CritDamageReduction:
+        Usage.bSurvival = true;
+        break;
+    case ELDDemoEffectOp::TriggeredShield:
+        Usage.bSelfProtect = true;
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::EmpowerBasic:
+    case ELDDemoEffectOp::BasicStacks:
+    case ELDDemoEffectOp::NthBasicBonus:
         Usage.bBasicGrowth = true;
         break;
     case ELDDemoEffectOp::Jump:
@@ -98,6 +108,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
+    case ELDDemoEffectOp::DispelSlow:
     case ELDDemoEffectOp::RestoreMana:
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
@@ -108,6 +119,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         break;
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
+    case ELDDemoEffectOp::Momentum:
         Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Cleave:
@@ -118,6 +130,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::LowHpStatBonus:
         for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
         break;
+    // Cooldown, crit and mana riders, and the taunt family, add no structural usage of their own.
+    case ELDDemoEffectOp::CooldownRefund:
+    case ELDDemoEffectOp::AbilityCrit:
+    case ELDDemoEffectOp::ManaOnHit:
+    case ELDDemoEffectOp::TauntRetaliate:
     default:
         break;
     }

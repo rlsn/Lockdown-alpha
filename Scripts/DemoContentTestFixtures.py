@@ -28,7 +28,7 @@ def content_fixture():
     for key, unit, value in (
         ("STAT.BaseAttackSpeed", "attacks/s", 1), ("STAT.AttackSpeedPerLevelRatio", "ratio", 0.03),
         ("STAT.AttackSpeed.Min", "attacks/s", 0.1), ("STAT.AttackSpeed.Max", "attacks/s", 4),
-        ("STAT.CritChance.Base", "ratio", 0), ("STAT.CritMultiplier", "ratio", 1.5),
+        ("STAT.CritChance.Base", "ratio", 0), ("STAT.CritMultiplier", "ratio", 1.5), ("STAT.AbilityCritMultiplier", "ratio", 1.25),
         ("STAT.CooldownHaste.Base", "points", 0), ("STAT.CooldownHaste.Max", "points", 100),
         ("UNIT.MoveSpeedCmPerSec", "cm/s", 500), ("STAT.MoveSpeed.Min", "cm/s", 100), ("STAT.MoveSpeed.Max", "cm/s", 1200),
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
@@ -87,7 +87,9 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
                 "effects": [{"op": "damage", "base": q("points", 8 * rank), "ad_ratio": q("ratio", 0),
-                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}],
+                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}]
+                + ([{"op": "resist_shred", "armor_ratio": q("ratio", 0.1), "magic_resist_ratio": q("ratio", 0), "duration": q("s", 1)}]
+                   if rank == 3 else []),
             } for rank in range(1, 4)],
         },
         {
@@ -96,7 +98,8 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 4 * rank), "cooldown": q("s", 7),
                 "effects": [{"op": "shield", "base": q("hp", 20 * rank), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
-                            {"op": "dispel_root"}],
+                            {"op": "dispel_root"}, {"op": "dispel_slow"}]
+                + ([{"op": "cooldown_refund", "trigger": "Cleanse", "entries": "Self", "ratio": q("ratio", 0.25)}] if rank == 3 else []),
             } for rank in range(1, 4)],
         },
         {
@@ -110,17 +113,22 @@ def content_fixture():
         },
         {
             "id": "passive_battle_rhythm", "kind": "passive", "tags": ["BasicAttack", "Mobility"], "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": q("ratio", value)}}]}
+            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": q("ratio", value)}},
+                                                 {"op": "basic_stacks", "stats": {"MoveSpeedBonusRatio": q("ratio", 0.01)},
+                                                  "duration": q("s", 1), "max_stacks": 2}]}
                       for rank, value in enumerate((0.02, 0.04, 0.06), 1)],
         },
         {
             "id": "passive_second_wind", "kind": "passive", "tags": ["Tank", "Breach"], "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "out_of_combat_regen", "delay": q("s", 2.5), "rate": q("hp/s", rank)}]}
+            "ranks": [{"rank": rank, "effects": [{"op": "out_of_combat_regen", "delay": q("s", 2.5), "max_hp_ratio": q("ratio", 0.001 * rank)}]}
                       for rank in range(1, 4)],
         },
         {
             "id": "passive_precision", "kind": "passive", "tags": ["BasicAttack", "Breach"], "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}}]}
+            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}},
+                                                 {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": q("s", 0.5)}]
+                       + ([{"op": "ability_crit", "mode": "Chance", "ratio": q("ratio", 0.5), "abilities": ["active_binding_snare"]}]
+                          if rank == 3 else [])}
                       for rank, value in enumerate((0.03, 0.06, 0.09), 1)],
         },
     ]
@@ -132,9 +140,12 @@ def content_fixture():
         {"id": "attr_reach", "stats": {"AttackRangeCmFlat": q("cm", 10)}},
     ]
     equipment = [
-        {"id": "item_iron_plate", "buy_price": 51, "tags": ["Tank"], "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None, "passive": None},
-        {"id": "item_edge_blade", "buy_price": 52, "tags": ["BasicAttack"], "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)}, "active": None, "passive": None},
-        {"id": "item_runic_focus", "buy_price": 53, "tags": ["Breach"], "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None, "passive": None},
+        {"id": "item_iron_plate", "buy_price": 51, "tags": ["Tank"], "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None,
+         "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": q("ratio", 0.1)}]}},
+        {"id": "item_edge_blade", "buy_price": 52, "tags": ["BasicAttack"], "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+         "passive": {"family": "passive_third_strike", "effects": [{"op": "nth_basic_bonus", "count": 3, "base": q("points", 5), "damage_type": "Physical"}]}},
+        {"id": "item_runic_focus", "buy_price": 53, "tags": ["Breach"], "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None,
+         "passive": {"family": "passive_mana_refund", "effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": q("mp", 2)}]}},
         {"id": "item_siphon_emblem", "buy_price": 54, "tags": ["BasicAttack", "Tank"], "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)}, "active": None,
          "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}],
                      "upgraded": {"effects": [{"op": "lifesteal", "ratio": q("ratio", 0.15)}]}}},

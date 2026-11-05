@@ -33,5 +33,8 @@ enum class ELDDemoEffectOp : uint8
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
     OutOfCombatRegen=6, Lifesteal=7, Dash=8, RestoreMana=9, Cleave=10, DashBoost=11,
     Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, AmbushDamage=16, ControlDamageAmp=17,
-    Taunt=18, Stealth=19, Disarm=20, Stun=21, EmpowerBasic=22, Jump=23, Thorns=24, Backstab=25
+    Taunt=18, Stealth=19, Disarm=20, Stun=21, EmpowerBasic=22, Jump=23, Thorns=24, Backstab=25,
+    CooldownRefund=26, AbilityCrit=27, ResistShred=28, Momentum=29, TauntRetaliate=30, TriggeredShield=31,
+    BasicStacks=32, LongReach=33, CritDamageReduction=34, NthBasicBonus=35, ManaOnHit=36, DispelSlow=37,
+    PathSlow=38
 };
