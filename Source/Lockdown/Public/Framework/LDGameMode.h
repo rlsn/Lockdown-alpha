@@ -222,6 +222,7 @@ private:
     friend class FLDCaptureInsideStepTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDBossRewardTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord
