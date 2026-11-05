@@ -30,6 +30,34 @@ bool ExpireHealCuts(TArray<FLDCombatHealCut>& Cuts, int64 AtMs)
     return Cuts.RemoveAll([AtMs](const FLDCombatHealCut& Cut) { return Cut.ExpiresAtMs <= AtMs; }) > 0;
 }
 
+namespace
+{
+bool VulnerableLive(const FLDCombatVulnerable& Row, const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+{
+    return Row.ExpiresAtMs > AtMs && Roots.ContainsByPredicate([&Row, AtMs](const FLDCombatRoot& Root)
+    { return Root.EffectId == Row.EffectId && Root.ExpiresAtMs > AtMs; });
+}
+}
+
+int64 VulnerableBp(const TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+{
+    int64 Best = 0;
+    for (const FLDCombatVulnerable& Row : Rows) { if (VulnerableLive(Row, Roots, AtMs)) { Best = FMath::Max(Best, Row.RatioBp); } }
+    return Best;
+}
+
+int64 VulnerableUntilMs(const TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+{
+    int64 Until = 0;
+    for (const FLDCombatVulnerable& Row : Rows) { if (VulnerableLive(Row, Roots, AtMs)) { Until = FMath::Max(Until, Row.ExpiresAtMs); } }
+    return Until;
+}
+
+bool PruneVulnerabilities(TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs)
+{
+    return Rows.RemoveAll([&Roots, AtMs](const FLDCombatVulnerable& Row) { return !VulnerableLive(Row, Roots, AtMs); }) > 0;
+}
+
 int64 ReduceByBp(int64 AmountP2, int64 CutBp)
 {
     if (AmountP2 <= 0) { return 0; }

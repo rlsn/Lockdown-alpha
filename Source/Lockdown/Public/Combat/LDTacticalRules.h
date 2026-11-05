@@ -57,8 +57,14 @@ namespace LDTactical
     LOCKDOWN_API int64 BreachUntilMs(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
     // The same source refreshes its mark.
     LOCKDOWN_API void ApplyVampMark(TArray<FLDCombatVampMark>& Marks, const FLDCombatVampMark& Mark);
-    LOCKDOWN_API int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const FGuid& Source, int64 AtMs);
-    // Drops every slow, timed bonus, breach and vamp mark whose half-open deadline has passed; true when anything ended.
+    // The mark's ratio while its bound slow is still active on the same body; 0 otherwise.
+    LOCKDOWN_API int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, const FGuid& Source,
+        int64 AtMs);
+    // Drops vamp marks whose bound slow is gone or lapsed and carries a refreshed slow's deadline onto its mark; true when
+    // anything changed.
+    LOCKDOWN_API bool SyncVampMarks(TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, int64 AtMs);
+    // Drops every slow, timed bonus, breach and vamp mark whose half-open deadline has passed (and every mark whose slow
+    // ended); true when anything ended.
     LOCKDOWN_API bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
         TArray<FLDCombatBreach>& Breaches, TArray<FLDCombatVampMark>& VampMarks, int64 AtMs);
     // HP strictly below ThresholdBp of MaxHP (a dead or empty pool never counts).

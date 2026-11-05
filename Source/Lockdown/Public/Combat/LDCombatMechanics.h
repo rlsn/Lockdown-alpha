@@ -107,6 +107,13 @@ namespace LDCombatMechanics
     LOCKDOWN_API bool ApplyHealCut(TArray<FLDCombatHealCut>& Cuts, const FLDCombatHealCut& Candidate, int64 AtMs);
     // Drops lapsed reductions; true when any ended.
     LOCKDOWN_API bool ExpireHealCuts(TArray<FLDCombatHealCut>& Cuts, int64 AtMs);
+    // Vulnerability (binding snare Lv3) lasts only as long as the root that installed it (same EffectId): a row whose
+    // root expired, was cleansed or was removed with its leaving source counts for nothing.
+    LOCKDOWN_API int64 VulnerableBp(const TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs);
+    // Latest deadline of a vulnerability whose root is still active, or 0.
+    LOCKDOWN_API int64 VulnerableUntilMs(const TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs);
+    // Drops lapsed rows and rows whose root is gone or lapsed; true when anything was removed.
+    LOCKDOWN_API bool PruneVulnerabilities(TArray<FLDCombatVulnerable>& Rows, const TArray<FLDCombatRoot>& Roots, int64 AtMs);
     // floor(AmountP2 x (10000 - CutBp) / 10000) for a nonnegative amount; the cut is clamped to 0..10000.
     LOCKDOWN_API int64 ReduceByBp(int64 AmountP2, int64 CutBp);
 

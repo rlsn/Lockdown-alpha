@@ -140,6 +140,25 @@ bool FLDDemoMechanicsBreachTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A lapsed dox record restarts from one layer"), LDTactical::BreachedResistanceP2(Breaches, 6000, true, 3001), int64(5600));
     TestTrue(TEXT("Any active record is a breach"), LDTactical::HasBreach(Breaches, 5999));
     TestFalse(TEXT("None after the last ends"), LDTactical::HasBreach(Breaches, 6000));
+    // active_binding_snare Lv3: the vulnerability lasts only as long as the root it rode on (same effect id).
+    {
+        const FGuid Snare = Id(11), Other = Id(12);
+        TArray<FLDCombatVulnerable> Rows;
+        Rows.Add({Snare, 1500, 2000});
+        TArray<FLDCombatRoot> Roots;
+        Roots.Add({Snare, Id(13), 2000});
+        TestEqual(TEXT("A rooted target is vulnerable"), LDCombatMechanics::VulnerableBp(Rows, Roots, 1000), int64(1500));
+        TestEqual(TEXT("The status shows the root's deadline"), LDCombatMechanics::VulnerableUntilMs(Rows, Roots, 1000), int64(2000));
+        TArray<FLDCombatRoot> Unrelated;
+        Unrelated.Add({Other, Id(13), 2000});
+        TestEqual(TEXT("Another root does not keep it"), LDCombatMechanics::VulnerableBp(Rows, Unrelated, 1000), int64(0));
+        const TArray<FLDCombatRoot> Cleared;
+        TestTrue(TEXT("A cleansed or removed root ends it at once"), LDCombatMechanics::VulnerableBp(Rows, Cleared, 1000) == 0
+            && LDCombatMechanics::VulnerableUntilMs(Rows, Cleared, 1000) == 0);
+        TArray<FLDCombatVulnerable> Pruned = Rows;
+        TestTrue(TEXT("Pruning drops the row whose root is gone"), LDCombatMechanics::PruneVulnerabilities(Pruned, Cleared, 1000) && Pruned.IsEmpty());
+        TestFalse(TEXT("Pruning keeps a row whose root lasts"), LDCombatMechanics::PruneVulnerabilities(Rows, Roots, 1000));
+    }
     return true;
 }
 

@@ -466,13 +466,37 @@ namespace LDTactical
         Marks.Add(Mark);
     }
 
-    int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const FGuid& Source, int64 AtMs)
+    int64 VampMarkBp(const TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, const FGuid& Source, int64 AtMs)
     {
         for (const FLDCombatVampMark& Mark : Marks)
         {
-            if (Source.IsValid() && Mark.SourceEntity == Source && Mark.ExpiresAtMs > AtMs) { return Mark.RatioBp; }
+            if (!Source.IsValid() || Mark.SourceEntity != Source) { continue; }
+            const bool bSlowed = Slows.ContainsByPredicate([&Mark, AtMs](const FLDCombatSlow& Slow)
+            { return Slow.EffectId == Mark.SlowEffectId && Slow.ExpiresAtMs > AtMs; });
+            return bSlowed ? Mark.RatioBp : 0;
         }
         return 0;
+    }
+
+    bool SyncVampMarks(TArray<FLDCombatVampMark>& Marks, const TArray<FLDCombatSlow>& Slows, int64 AtMs)
+    {
+        bool bChanged = false;
+        for (int32 Index = Marks.Num() - 1; Index >= 0; --Index)
+        {
+            FLDCombatVampMark& Mark = Marks[Index];
+            const FLDCombatSlow* Slow = Slows.FindByPredicate([&Mark](const FLDCombatSlow& Row) { return Row.EffectId == Mark.SlowEffectId; });
+            if (!Slow || Slow->ExpiresAtMs <= AtMs)
+            {
+                Marks.RemoveAt(Index);
+                bChanged = true;
+            }
+            else if (Mark.ExpiresAtMs != Slow->ExpiresAtMs)
+            {
+                Mark.ExpiresAtMs = Slow->ExpiresAtMs;
+                bChanged = true;
+            }
+        }
+        return bChanged;
     }
 
     bool ExpireTemporaryStatuses(TArray<FLDCombatSlow>& Slows, TArray<FLDCombatTimedBonus>& Bonuses,
@@ -482,7 +506,8 @@ namespace LDTactical
             + Bonuses.RemoveAll([AtMs](const FLDCombatTimedBonus& Bonus) { return Bonus.ExpiresAtMs <= AtMs; })
             + Breaches.RemoveAll([AtMs](const FLDCombatBreach& Breach) { return Breach.ExpiresAtMs <= AtMs; })
             + VampMarks.RemoveAll([AtMs](const FLDCombatVampMark& Mark) { return Mark.ExpiresAtMs <= AtMs; });
-        return Removed > 0;
+        const bool bMarks = SyncVampMarks(VampMarks, Slows, AtMs);
+        return Removed > 0 || bMarks;
     }
 
     bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp)

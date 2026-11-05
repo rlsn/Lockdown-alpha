@@ -82,6 +82,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoMechanics.Breach",
         "Lockdown.Rules.DemoMechanics.NegativeKinds",
         "Lockdown.Rules.DemoMechanics.Periodic",
+        "Lockdown.Rules.DemoMechanics.EffectLifetimes",
         "Lockdown.Rules.DemoCombatEvaluation.Mitigation",
         "Lockdown.Rules.DemoControl.TauntRestore",
         "Lockdown.Rules.DemoControl.StealthObservation",

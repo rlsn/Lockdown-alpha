@@ -1047,6 +1047,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             }
             else if (Effect.GetOp()==ELDDemoEffectOp::DispelSlow && LDTactical::DispelSlows(Body.Slows,Now)>0)
             {
+                // The cleansed slows end the vamp marks bound to them.
+                LDTactical::SyncVampMarks(Body.VampMarks,Body.Slows,Now);
                 bCleansed=true;
                 ++Body.StateRevision;
                 bTimedBonus=true;
@@ -1359,6 +1361,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         {
             FLDCombatProjectile Projectile;
             Projectile.EffectId=EffectId;
+            Projectile.FlightId=FGuid::NewGuid();
             Projectile.Token=Action.Token;
             Projectile.SourceBody=SelfRef;
             Projectile.SourceEntity=Body.Victim.EntityId;
@@ -1445,7 +1448,11 @@ bool ALDCombatDirector::ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoE
         if (LDTactical::DispelRoots(Body.Roots)>0) { ++Body.StateRevision; }
         return true;
     case ELDDemoEffectOp::DispelSlow:
-        if (LDTactical::DispelSlows(Body.Slows,NowMs)>0) { ++Body.StateRevision; }
+        if (LDTactical::DispelSlows(Body.Slows,NowMs)>0)
+        {
+            LDTactical::SyncVampMarks(Body.VampMarks,Body.Slows,NowMs);
+            ++Body.StateRevision;
+        }
         return true;
     case ELDDemoEffectOp::RestoreMana:
     {

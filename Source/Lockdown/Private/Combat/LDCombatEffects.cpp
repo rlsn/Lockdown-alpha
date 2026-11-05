@@ -188,7 +188,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     int64 VulnerableBp=0;
     if (Hit.bPeriodic || Hit.HitClass==ELDCombatHitClass::BasicPrimary)
     {
-        for (const FLDCombatVulnerable& Row : Body->Vulnerabilities) { if (Row.ExpiresAtMs>NowMs) { VulnerableBp=FMath::Max(VulnerableBp,Row.RatioBp); } }
+        VulnerableBp=LDCombatMechanics::VulnerableBp(Body->Vulnerabilities,Body->Roots,NowMs);
     }
     for (const int64 Factor : {Hit.ExtraAmplifyBp, 10000+VulnerableBp, LDCombatMechanics::NegativeKindsAmplifyBp(NegativeKinds,Hit.NegativeAmpBp)})
     {
@@ -233,7 +233,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         if (Hit.OnHitScaleBp>0 && Hit.bLifesteal) { VampBp+=Hit.LifestealRatioBp; }
         if (Hit.OmnivampBp>0 && LDTactical::BelowHPThreshold(Source->Resources.HpP2,Source->Resources.MaxHpP2,Hit.OmnivampThresholdBp))
         { VampBp+=Hit.OmnivampBp; }
-        VampBp+=LDTactical::VampMarkBp(Body->VampMarks,Hit.SourceEntity,NowMs);
+        VampBp+=LDTactical::VampMarkBp(Body->VampMarks,Body->Slows,Hit.SourceEntity,NowMs);
     }
     int64 HealP2=0;
     if (VampBp>0)
@@ -308,13 +308,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             {
                 for (FLDCombatSlow& Slow : Body->Slows) { if (Slow.EffectId==Hit.EffectId) { Slow.DurationMs=Hit.SlowDurationMs; } }
             }
-            // active_slipper_throw Lv3: while this slow lasts the source vamps against this body.
-            if (bApplied && Hit.SlowVampBp>0)
+            // active_slipper_throw Lv3: while this slow lasts the source vamps against this body; the mark is bound to it.
+            const FLDCombatSlow* Bound=bApplied && Hit.SlowVampBp>0
+                ? Body->Slows.FindByPredicate([&Hit](const FLDCombatSlow& Slow) { return Slow.EffectId==Hit.EffectId; }) : nullptr;
+            if (Bound)
             {
                 FLDCombatVampMark Mark;
                 Mark.SourceEntity=Hit.SourceEntity;
                 Mark.RatioBp=Hit.SlowVampBp;
-                if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.SlowDurationMs,Mark.ExpiresAtMs,Error)) { return false; }
+                Mark.ExpiresAtMs=Bound->ExpiresAtMs;
+                Mark.SlowEffectId=Bound->EffectId;
                 LDTactical::ApplyVampMark(Body->VampMarks,Mark);
             }
         }
@@ -440,6 +443,8 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             if (Slow.SourceEntity==Hit.SourceEntity && Slow.DurationMs>0 && Slow.ExpiresAtMs>NowMs
                 && !LDMatchLifecycle::AddDurationMs(NowMs,Slow.DurationMs,Slow.ExpiresAtMs,Error)) { return false; }
         }
+        // A refreshed slow carries its vamp mark along.
+        LDTactical::SyncVampMarks(Body->VampMarks,Body->Slows,NowMs);
         for (FLDCombatDot& Dot : Body->Dots)
         {
             if (Dot.SourceEntity!=Hit.SourceEntity || Dot.ExpiresAtMs<=NowMs) { continue; }

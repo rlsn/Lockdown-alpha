@@ -100,19 +100,30 @@ bool FLDBuildExpansionConditionalTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A two-second credit opens the window two seconds early"), AmbushReady(1000, 4000, 3000, 2000));
     TestFalse(TEXT("The credit window is exact"), AmbushReady(1000, 4000, 2999, 2000));
     TestTrue(TEXT("A full credit readies at once (item_paper_box)"), AmbushReady(1000, 4000, 1000, 4000));
-    // Vamp marks (active_slipper_throw Lv3): one per source, refreshed by that source, invisible to every other source.
+    // Vamp marks (active_slipper_throw Lv3): one per source, bound to the slow that made it, refreshed by that source,
+    // invisible to every other source, and only while the bound slow lasts.
     TArray<FLDCombatVampMark> Marks;
-    const FGuid Thrower = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    ApplyVampMark(Marks, {Thrower, 1000, 3000});
-    ApplyVampMark(Marks, {Thrower, 1500, 4500});
-    TestTrue(TEXT("The same source refreshes its mark with the newest ratio"), Marks.Num() == 1 && VampMarkBp(Marks, Thrower, 4000) == 1500);
-    TestEqual(TEXT("Another source gains nothing from the mark"), VampMarkBp(Marks, Other, 4000), int64(0));
-    TestEqual(TEXT("An invalid source gains nothing"), VampMarkBp(Marks, FGuid(), 4000), int64(0));
-    TestEqual(TEXT("The mark ends at its deadline"), VampMarkBp(Marks, Thrower, 4500), int64(0));
-    TArray<FLDCombatSlow> NoSlows;
+    const FGuid Thrower = FGuid::NewGuid(), Other = FGuid::NewGuid(), FirstSlow = FGuid::NewGuid(), SecondSlow = FGuid::NewGuid();
+    TArray<FLDCombatSlow> Slowed;
+    Slowed.Add({FirstSlow, Thrower, 2500, 3000, 0, 2000});
+    Slowed.Add({SecondSlow, Thrower, 2500, 4500, 0, 2000});
+    ApplyVampMark(Marks, {Thrower, 1000, 3000, FirstSlow});
+    ApplyVampMark(Marks, {Thrower, 1500, 4500, SecondSlow});
+    TestTrue(TEXT("The same source refreshes its mark with the newest ratio"), Marks.Num() == 1 && VampMarkBp(Marks, Slowed, Thrower, 4000) == 1500);
+    TestEqual(TEXT("Another source gains nothing from the mark"), VampMarkBp(Marks, Slowed, Other, 4000), int64(0));
+    TestEqual(TEXT("An invalid source gains nothing"), VampMarkBp(Marks, Slowed, FGuid(), 4000), int64(0));
+    TestEqual(TEXT("The mark ends with its slow"), VampMarkBp(Marks, Slowed, Thrower, 4500), int64(0));
+    TArray<FLDCombatSlow> Refreshed = Slowed;
+    Refreshed[1].ExpiresAtMs = 6000;
+    TestTrue(TEXT("A refreshed slow carries its mark's deadline along"), SyncVampMarks(Marks, Refreshed, 4000)
+        && Marks.Num() == 1 && Marks[0].ExpiresAtMs == 6000 && VampMarkBp(Marks, Refreshed, Thrower, 5000) == 1500);
+    TArray<FLDCombatSlow> Cleansed;
+    TestEqual(TEXT("A cleansed slow leaves no vamp even before the mark's deadline"), VampMarkBp(Marks, Cleansed, Thrower, 4000), int64(0));
+    TArray<FLDCombatVampMark> Kept = Marks;
+    TestTrue(TEXT("Syncing after the cleanse removes the mark"), SyncVampMarks(Kept, Cleansed, 4000) && Kept.IsEmpty());
     TArray<FLDCombatTimedBonus> NoBonuses;
     TArray<FLDCombatBreach> NoBreaches;
-    TestTrue(TEXT("A lapsed mark is removed"), ExpireTemporaryStatuses(NoSlows, NoBonuses, NoBreaches, Marks, 4500) && Marks.IsEmpty());
+    TestTrue(TEXT("A lapsed mark is removed"), ExpireTemporaryStatuses(Refreshed, NoBonuses, NoBreaches, Marks, 6000) && Marks.IsEmpty());
     return true;
 }
 

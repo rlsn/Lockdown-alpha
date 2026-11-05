@@ -126,12 +126,15 @@ struct FLDCombatBreach
     int64 ExpiresAtMs = 0;
 };
 
-// A source's vamp against one target life while the mark lasts (active_slipper_throw Lv3).
+// A source's vamp against one target life while the slow that made it lasts (active_slipper_throw Lv3). The mark is
+// bound to that slow instance (SlowEffectId): it only counts while the slow is active, so a cleanse or removal of the
+// slow ends it, and a refresh of the slow carries ExpiresAtMs along.
 struct FLDCombatVampMark
 {
     FGuid SourceEntity;
     int64 RatioBp = 0;
     int64 ExpiresAtMs = 0;
+    FGuid SlowEffectId;
 };
 
 struct FLDStatusExpiry

@@ -135,7 +135,9 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 （负比例），点数类向下取整并夹紧到目录上下限；精神状态上限/电量上限不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
 减速、限时增益、破防与吸血标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`DispelSlows`、`ApplyTimedBonus`、`ApplyBreach`/`HasBreach`/`BreachedResistanceP2`、
-`ApplyVampMark`/`VampMarkBp`、`TemporaryTerms`）；减速可带 `AttackRatioBp`（手速减成，取最强一个）。
+`ApplyVampMark`/`VampMarkBp`/`SyncVampMarks`、`TemporaryTerms`）；减速可带 `AttackRatioBp`（手速减成，取最强一个）。
+吸血标记（珍珠奶茶泼脸 3 级）绑定产生它的那次减速（`SlowEffectId`）：只在该减速仍生效时计入，减速被净化或移除即失效，
+减速被刷新时标记期限随之更新。
 伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者精神状态上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带精神状态上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/精神状态上限）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
 的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。潜水党的附加伤害是独立的技能伤害实例：
 普攻在开始挥击时、伤害技能在释放时判定脱战窗口；冲刺或跳跃按 `DashCreditMs` 提前就绪（只对当前这段脱战有效，`AmbushReadyNow`）。
@@ -212,7 +214,7 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
 - **治疗入口**：一次性治疗（吸血/全能吸血/吸血标记、实锤冲塔 3 级）经 `HealBody` 按最强减疗缩减；自然与脱战回复不经过它。
   减疗记录 `FLDCombatHealCut` 每来源一份，取最强（`StrongestHealCutBp`），公开状态 `heal_cut`。
 - **持续伤害**：`FLDCombatDot`（挂人小作文为定次，开盒大师为叠层共用计时），`AdvanceMechanics` 在 Effects 命中前按到期点生成
-  `bPeriodic` 命中（不暴击、受扒裤子 3 级易伤影响、伤害吃施放时快照的大喇叭倍率）；双抗削减写入 C1 的 `FLDCombatBreach`，
+  `bPeriodic` 命中（不暴击、受扒裤子 3 级易伤影响——易伤只在安装它的那次定身（同一 EffectId）仍生效时计入，定身被净化、到期或随施放者离局移除即失效，见 `LDCombatMechanics::VulnerableBp`、伤害吃施放时快照的大喇叭倍率）；双抗削减写入 C1 的 `FLDCombatBreach`，
   每层一次 `LDTactical::ApplyBreach`（`Stacks=1`、`MaxStacks` 为层数上限）。开盒大师由 `StackDox` 叠层：系数命中经
   `ApplyOnHitEffects`、伤害技能命中经 `OnHitLanded`。
 - **区域**：`FLDCombatZone` 按 `NextPulseAtMs` 的定次脉冲（自身护盾、区域伤害并以系数快照命中特效 `SnapshotOnHit`），减速每

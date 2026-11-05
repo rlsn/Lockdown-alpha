@@ -331,7 +331,10 @@ struct FLDCombatLanding
 // Released straight, non-homing projectile: first legal hostile body or blocking terrain ends it.
 struct FLDCombatProjectile
 {
+    // The combat effect this flight delivers; several flights of one release (active_barrage_rant's volley) share it.
     FGuid EffectId;
+    // This flight's own identity, fixed when it is scheduled and distinct from every other flight; observers key on it.
+    FGuid FlightId;
     uint64 Token=0;
     FLDCombatBodyRef SourceBody;
     FGuid SourceEntity;
@@ -528,6 +531,7 @@ private:
     friend class ALDGameMode;
     friend class FLDDemoCoreTest;
     friend class FLDCaptureCombatInterruptTest;
+    friend class FLDDemoMechanicsEffectLifetimesTest;
     friend class FLDRewardSettlementTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;

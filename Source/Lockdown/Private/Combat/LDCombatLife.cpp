@@ -276,8 +276,14 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     {
         auto& Body=Pair.Value;
         const auto FromEntity=[&Entity](const FLDCombatRoot& Instance) { return Instance.SourceEntity==Entity; };
+        // The vulnerability its roots installed (binding snare Lv3) ends with them.
+        int32 Removed=Body.Vulnerabilities.RemoveAll([&Body,&Entity](const FLDCombatVulnerable& Row)
+        {
+            return Body.Roots.ContainsByPredicate([&Row,&Entity](const FLDCombatRoot& Root)
+            { return Root.SourceEntity==Entity && Root.EffectId==Row.EffectId; });
+        });
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
-        int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
+        Removed+=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
             + Body.Breaches.RemoveAll([&Entity](const FLDCombatBreach& Breach) { return Breach.SourceEntity==Entity; })
             + Body.VampMarks.RemoveAll([&Entity](const FLDCombatVampMark& Mark) { return Mark.SourceEntity==Entity; })

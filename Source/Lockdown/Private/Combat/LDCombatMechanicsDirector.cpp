@@ -397,7 +397,7 @@ bool ALDCombatDirector::ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs)
 {
     bool bChanged=LDCombatMechanics::ExpireHealCuts(Body.HealCuts,NowMs);
     bChanged|=Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
-    bChanged|=Body.Vulnerabilities.RemoveAll([NowMs](const FLDCombatVulnerable& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
+    bChanged|=LDCombatMechanics::PruneVulnerabilities(Body.Vulnerabilities,Body.Roots,NowMs);
     bChanged|=Body.Dots.RemoveAll([NowMs](const FLDCombatDot& Dot) { return Dot.ExpiresAtMs<=NowMs; })>0;
     if (Body.Guard.IsSet() && Body.Guard->ExpiresAtMs<=NowMs)
     {
@@ -747,6 +747,8 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
             FLDCombatVolleyShot& Later=VolleyShots.AddDefaulted_GetRef();
             Later.Body=SelfRef;
             Later.Template=*First;
+            // Each later shot is its own flight (the effect identity stays shared).
+            Later.Template.FlightId=FGuid::NewGuid();
             if (!LDMatchLifecycle::AddDurationMs(Now,Volley->IntervalMs*Shot,Later.AtMs,Error)) { return false; }
         }
     }
@@ -832,8 +834,7 @@ void ALDCombatDirector::AppendMechanicsStatuses(const FLDBodyCombatState& Body, 
     if (CutUntil>0) { Out.Add({uint8(ELDDemoStatusId::HealCut),1,CutUntil}); }
     if (!bOwner) { return; }
     if (Body.Guard.IsSet() && Body.Guard->ExpiresAtMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::DamageGuard),1,Body.Guard->ExpiresAtMs}); }
-    int64 VulnerableUntil=0;
-    for (const FLDCombatVulnerable& Row : Body.Vulnerabilities) { if (Row.ExpiresAtMs>NowMs) { VulnerableUntil=FMath::Max(VulnerableUntil,Row.ExpiresAtMs); } }
+    const int64 VulnerableUntil=LDCombatMechanics::VulnerableUntilMs(Body.Vulnerabilities,Body.Roots,NowMs);
     if (VulnerableUntil>0) { Out.Add({uint8(ELDDemoStatusId::Vulnerable),1,VulnerableUntil}); }
 }
 

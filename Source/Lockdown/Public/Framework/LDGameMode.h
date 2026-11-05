@@ -189,6 +189,7 @@ private:
     friend class FLDRewardSettlementTest;
     friend class FLDCaptureInsideStepTest;
     friend class FLDCaptureCombatInterruptTest;
+    friend class FLDDemoMechanicsEffectLifetimesTest;
     friend class FLDCombatCommitControlTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;

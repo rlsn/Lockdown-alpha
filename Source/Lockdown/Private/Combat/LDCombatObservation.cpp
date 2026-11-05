@@ -95,7 +95,8 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
             return false;
         }
         FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
-        Fact.Key=Projectile.EffectId;
+        // Flights of one volley share their effect but each is observed as its own flight.
+        Fact.Key=Projectile.FlightId;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
         Fact.Look=ELDObservedProjectileLook::Chalk;
