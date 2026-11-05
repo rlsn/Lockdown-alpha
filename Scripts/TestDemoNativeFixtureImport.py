@@ -80,7 +80,7 @@ class DemoNativeFixturesTest(unittest.TestCase):
     def assert_reflected_projection(self, root_type, expected, *headers):
         structs = {}
         for relative in headers:
-            header = (demo.ROOT / relative).read_text()
+            header = (demo.ROOT / relative).read_text(encoding="utf-8")
             for name, body in re.findall(r"struct (?:LOCKDOWN_API )?(\w+)\s*\{(.*?)\n\};", header, re.S):
                 structs[name] = re.findall(r"UPROPERTY\(\)\s+([\w<>]+)\s+(\w+)(?:\[(\d+)\])?", body)
 
