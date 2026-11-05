@@ -12,7 +12,7 @@
 
 ## 1. 结论与唯一实施方向
 
-必须保持一张地图、一个占领点、五组两档野怪、一个商店、两处宿舍、三处空投点、四个 Boss 巡逻点、十个出生锚点。
+必须保持一张地图、一个占领点、五组两档野怪、一个商店、两处躺平角、三处天降外卖落点、四个画饼老板巡逻点、十个出生锚点。
 开局和每次复活对同一十点等概率、有放回抽样，允许重复；
 不得按敌距、视野、危险程度、胜率、初始点或剩余空闲点重新加权。
 重复落点只在已经抽中的锚点附近做必要的合法落地和防重叠。
@@ -87,9 +87,9 @@
 采用单层静态平地和一个 NavMeshBounds，不加入坡地、城市、河流、楼层、可破坏建筑、梯绳或隐身地形。
 地面、占领标记和出生/营地标记不挡视线；占领圈不是实体碰撞体。
 
-校园表现按 [App Spec §1/§6.1](../APP_SPEC.md)；本报告已批准的单层地图布局、点位、高度和技术标签不随换皮改变。
-SHOP 显示为小卖部、CAPTURE 显示为升旗台；升旗台主题不新增可站立高层或实体碰撞。
-当前世界中的升旗台边界是各端本地生成的平线（`ALDCaptureMarker`，见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)），
+雾港显示文字按 [App Spec §1/§6.1](../APP_SPEC.md)；本报告已批准的单层地图布局、点位、高度和技术标签不随换皮改变。
+SHOP 显示为砍一刀小摊、CAPTURE 显示为旗杆；旗杆主题不新增可站立高层或实体碰撞。
+当前世界中的旗杆边界是各端本地生成的平线（`ALDCaptureMarker`，见[架构与网络](../systems/ARCHITECTURE_AND_NETWORKING.md)），
 按注册锚点与 `CAPTURE.RadiusCm` 绘制、随公开圈态变色，无碰撞且不挡视线。
 
 五营地在约2600cm环上，每个正对一个入口；十出生点在约4400cm外环上。
@@ -115,12 +115,12 @@ SHOP 显示为小卖部、CAPTURE 显示为升旗台；升旗台主题不新增�
 | H2 | (-1528,-2103) | (-1528,-2103) | 无 | High，一只；入口234° |
 | L3 | (1528,-2103) | (1589,-2059) | (1467,-2147) | Low，两只；入口306° |
 | SHOP | (778,778) | 不适用 | 不适用 | 唯一不可攻击商店；非安全区 |
-| dorm_nw | (-4400,4400) | 不适用 | 不适用 | 宿舍快回判定圆（D21，`DORM.RadiusCm`）；无碰撞/导航/视线影响，非安全区 |
+| dorm_nw | (-4400,4400) | 不适用 | 不适用 | 躺平角判定圆（D21，`DORM.RadiusCm`）；无碰撞/导航/视线影响，非安全区 |
 | dorm_se | (4400,-4400) | 不适用 | 不适用 | 同上，与 dorm_nw 关于中心对称 |
-| airdrop_ne | (1940,2670) | 不适用 | 不适用 | 空投落点（D26，`AIRDROP.PickupRadiusCm`）；无碰撞/导航/视线影响 |
+| airdrop_ne | (1940,2670) | 不适用 | 不适用 | 天降外卖落点（D26，`AIRDROP.PickupRadiusCm`）；无碰撞/导航/视线影响 |
 | airdrop_nw | (-1940,2670) | 不适用 | 不适用 | 同上，与 airdrop_ne 左右对称 |
 | airdrop_s | (0,-3300) | 不适用 | 不适用 | 同上，在 h2 与 l3 之间 |
-| boss_patrol_1 | (2400,2400) | 不适用 | 不适用 | 教导主任出现点与第一个巡逻点（D26）；仅为路径目标，无碰撞/导航/视线影响 |
+| boss_patrol_1 | (2400,2400) | 不适用 | 不适用 | 画饼老板出现点与第一个巡逻点（D26）；仅为路径目标，无碰撞/导航/视线影响 |
 | boss_patrol_2 | (-2400,2400) | 不适用 | 不适用 | 第二个巡逻点，与 1 左右对称 |
 | boss_patrol_3 | (-2400,-2400) | 不适用 | 不适用 | 第三个巡逻点 |
 | boss_patrol_4 | (2400,-2400) | 不适用 | 不适用 | 第四个巡逻点，之后回到 1 |
@@ -613,7 +613,10 @@ Low 部分清理后，已死亡成员保持死亡，直到该组真正清空再�
 计数：连续 `CAMP.ReturnDeadEndPlans` 次被拒，或可移动却 `CAMP.ReturnDeadEndSec` 内没有路径进展（受控制暂停计时），
 就记一次 `LD_CAMP_RETURN_DEAD_END` 并停止移动；下一个 RespawnsAndWorld 对站在合法支持面上的该成员走同一
 `PrepareCampReset/ApplyCampReset`（`bInPlace`，Combat 只免除到家距离校验），日志 `LD_CAMP_RESET … in_place=1`（#28）。
-原地重置后的成员是 Idle，不因站在 Leash 外而立即再回位；再次受击进入 Engaged 后才按 Leash 返回。
+原地重置后的成员是 Idle，不因站在 Leash 外而立即再回位。导演记下这条生命“原地重置过”（`bStrandedInPlace`，
+到家重置或死亡时清除）：它在 Leash 外受击进入 Engaged 后坚守原地，攻击距离内就地反击、不追击，也不按 Leash 返回；
+失去目标且 `LoseTargetGraceSec` 到期后才再次 Returning。这样它不会每约 4s 原地回满一次、变得打不死（#28）。
+受控制期间 `FLDCampReturnWatch::Tick` 把无进展计时往后推，实现暂停而不是清零。
 刷新落点被动态占用时保留同一 ticket，在原营地局部合法落点每个 RespawnsAndWorld 边界重试
 （首次记 `LD_CAMP_REFRESH_BLOCKED`），不随机换营地；开局整组落点被占则开局失败。
 无法完整生成的状态不公开成“已刷新”。
@@ -763,7 +766,7 @@ HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性�
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
 
 可见Returning统一使用同一 `Statuses` 中已注册的公共显示定义
-`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回岗中”）。
+`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回工位”）。
 它由 `ALDCampDirector::AppendObservedFacts` 在 Vision 发布当前获准可见、确处于Returning的CampMember时追加，
 无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
 被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。

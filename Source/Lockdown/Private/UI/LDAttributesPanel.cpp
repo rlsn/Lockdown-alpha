@@ -1,5 +1,6 @@
 #include "UI/LDAttributesPanel.h"
 #include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDGrowthProtocol.h"
@@ -17,24 +18,29 @@
 namespace
 {
 constexpr int32 AttrPanelRowCount=int32(ELDProjectedAttribute::Count);
-// Approved meanings (APP_SPEC 3.2) in the player terms of APP_SPEC 1.2, in ELDProjectedAttribute order.
-const TCHAR* const AttrPanelNotes[]=
+// Approved meanings (APP_SPEC 3.2) in the player terms of LDTerms, in ELDProjectedAttribute order.
+FString AttrPanelNote(int32 Row)
 {
-    TEXT("存活资源的上限；面子归零即社死。"),
-    TEXT("技能资源的上限。"),
-    TEXT("决定弹脑瓜崩及具有手劲加成的技能效果。"),
-    TEXT("决定具有缺德值加成的技能效果；不会让弹脑瓜崩变成社死伤害。"),
-    TEXT("影响承受的皮肉伤。"),
-    TEXT("影响承受的社死伤害。"),
-    TEXT("影响弹脑瓜崩的频率。"),
-    TEXT("影响行走与追击速度。"),
-    TEXT("影响弹脑瓜崩的有效距离，不等同于技能的施法距离。"),
-    TEXT("面子的自然恢复。"),
-    TEXT("胆量的自然恢复。"),
-    TEXT("影响允许正中要害的攻击；不是所有技能都能正中要害。"),
-    TEXT("影响适用主动技能的再次使用时间。")
-};
-static_assert(int32(UE_ARRAY_COUNT(AttrPanelNotes))==AttrPanelRowCount,"One approved note per projected attribute.");
+    const FString Basic(LDTerms::BasicAttack);
+    const FString Notes[]=
+    {
+        FString(TEXT("存活资源的上限；"))+LDTerms::Health+TEXT("归零就")+LDTerms::Dead+TEXT("。"),
+        TEXT("技能资源的上限。"),
+        TEXT("决定")+Basic+TEXT("及具有")+LDTerms::AttackDamage+TEXT("加成的技能效果。"),
+        FString(TEXT("决定具有"))+LDTerms::AbilityPower+TEXT("加成的技能效果；不会让")+Basic+TEXT("变成")+LDTerms::MagicalDamage+TEXT("。"),
+        FString(TEXT("影响承受的"))+LDTerms::PhysicalDamage+TEXT("。"),
+        FString(TEXT("影响承受的"))+LDTerms::MagicalDamage+TEXT("。"),
+        TEXT("影响")+Basic+TEXT("的频率。"),
+        TEXT("影响行走与追击速度。"),
+        TEXT("影响")+Basic+TEXT("的有效距离，不等同于技能的施法距离。"),
+        FString(LDTerms::Health)+TEXT("的自然恢复。"),
+        FString(LDTerms::Mana)+TEXT("的自然恢复。"),
+        FString(TEXT("影响允许"))+LDTerms::Crit+TEXT("的攻击；不是所有技能都能")+LDTerms::Crit+TEXT("。"),
+        TEXT("影响适用主动技能的再次使用时间。")
+    };
+    static_assert(int32(UE_ARRAY_COUNT(Notes))==AttrPanelRowCount,"One approved note per projected attribute.");
+    return Notes[Row];
+}
 const TCHAR* const AttrPanelSyncing=TEXT("同步中");
 const TCHAR* const AttrPanelEmpty=TEXT("暂无");
 const FLinearColor AttrPanelBright(.9f,.94f,.96f),AttrPanelSecondary(.74f,.81f,.85f),AttrPanelDim(.55f,.63f,.68f),
@@ -103,14 +109,14 @@ FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 Now
     {
         FString Line=LDHUD::StatusName(Definitions,Status.StatusId);
         // Shield points round up so a live shield never reads 0; a remainder needs the matching authority clock.
-        if(Status.AmountP2>0){Line+=FString::Printf(TEXT(" · 淡定 %lld"),Status.AmountP2/100+(Status.AmountP2%100!=0?1:0));}
+        if(Status.AmountP2>0){Line+=FString::Printf(TEXT(" · %s %lld"),LDTerms::Shield,Status.AmountP2/100+(Status.AmountP2%100!=0?1:0));}
         if(Status.ExpiresAtMs>0&&bClock){Line+=TEXT(" · 剩余 ")+LDHUD::TenthsUp(Status.ExpiresAtMs-NowMs);}
         Lines.Add(MoveTemp(Line));
     }
-    if(Combat->bOutOfCombatRegenActive){Lines.Add(TEXT("脱战回复生效中"));}
-    // D21 (#79): the dorm's fast recovery, or the reminder that it starts once out of combat.
-    if(Combat->bDormRegenActive){Lines.Add(TEXT("宿舍快回生效中"));}
-    else if(Combat->bInDorm){Lines.Add(TEXT("在宿舍 · 脱战后快速回复"));}
+    if(Combat->bOutOfCombatRegenActive){Lines.Add(LDTerms::OutOfCombatRegen);}
+    // D21 (#79): the 躺平角 fast recovery, or the reminder that it starts once out of combat.
+    if(Combat->bDormRegenActive){Lines.Add(LDTerms::DormRegenActive());}
+    else if(Combat->bInDorm){Lines.Add(LDTerms::InDorm());}
     return AttrPanelLines(Lines);
 }
 }
@@ -148,7 +154,7 @@ TSharedRef<SWidget> ULDAttributesPanel::RebuildWidget()
             FinalSlot->SetPadding(FMargin(12,0,0,0));FinalSlot->SetHorizontalAlignment(HAlign_Right);FinalSlot->SetVerticalAlignment(VAlign_Center);
             UTextBlock* BreakdownText=MakeText(TEXT(""),13,AttrPanelSecondary,true);BreakdownText->SetVisibility(ESlateVisibility::Collapsed);
             Lines->AddChildToVerticalBox(BreakdownText)->SetPadding(FMargin(0,2,0,0));
-            Lines->AddChildToVerticalBox(MakeText(AttrPanelNotes[RowIndex],13,AttrPanelDim,true))->SetPadding(FMargin(0,2,0,0));
+            Lines->AddChildToVerticalBox(MakeText(AttrPanelNote(RowIndex),13,AttrPanelDim,true))->SetPadding(FMargin(0,2,0,0));
             Body->AddChildToVerticalBox(MakeCard(Lines))->SetPadding(FMargin(0,0,0,6));
             RowFinals.Add(FinalText);RowBreakdowns.Add(BreakdownText);
         }

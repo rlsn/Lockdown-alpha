@@ -632,6 +632,7 @@ class DemoContentImport(unittest.TestCase):
         mutations = (
             (lambda data: data["anchors"].remove(anchor(data, "dorm_se")), "26..26 entries"),
             (lambda data: anchor(data, "dorm_nw").update(kind="Spawn"), "anchor/member counts"),
+            (lambda data: anchor(data, "dorm_nw").update(id="dorm_ne"), "dorm ids must be dorm_nw and dorm_se"),
             (move("dorm_nw", -4900, 4400), "dorm disk lacks legal capsule support"),
             (move("dorm_nw", 0, 500), "dorm disk overlaps the capture or shop disk"),
             (move("dorm_se", 2473, 1503), "dorm disk overlaps a camp clearing"),

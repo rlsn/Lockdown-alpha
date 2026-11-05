@@ -132,7 +132,7 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
     UPROPERTY() int64 AirdropRewardGold = 0;
-    // D27 (#79) 通报批评: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
+    // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
     UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;
@@ -237,7 +237,7 @@ UENUM()
 enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 
 UENUM()
-// Boss is the D26 教导主任's monster row: one roaming body, never placed in a camp.
+// Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
 enum class ELDDemoCampTier : uint8 { Low, High, Boss };
 
 UENUM()
@@ -401,7 +401,7 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() FLDDemoEquipmentActive Dash;
 };
 
-// D26 (#79) 教导主任 Boss: the boss-only rules. Its body stats are the Monsters row with Id and Tier Boss (aggro radius as
+// D26 (#79) 画饼老板 Boss: the boss-only rules. Its body stats are the Monsters row with Id and Tier Boss (aggro radius as
 // its perception radius), so Combat, vision and rewards find it like any monster.
 USTRUCT()
 struct FLDDemoBossDefinition

@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDTerms.h"
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
 #include "Navigation/LDPointerFeedback.h"
@@ -40,14 +41,14 @@ namespace LDNavigationDetail
         case ELDOrderFailure::NoCompletePath: return TEXT("无法到达该位置");
         case ELDOrderFailure::PathBlocked: return TEXT("路线受阻");
         case ELDOrderFailure::TargetUnavailable: return TEXT("目标不可见");
-        case ELDOrderFailure::TargetDied: return TEXT("目标已社死");
-        case ELDOrderFailure::ShopUnavailable: return TEXT("小卖部不可用");
-        case ELDOrderFailure::Dead: return TEXT("已社死");
+        case ELDOrderFailure::TargetDied: { static const FString Text=FString(TEXT("目标已经"))+LDTerms::Dead; return *Text; }
+        case ELDOrderFailure::ShopUnavailable: { static const FString Text=FString(LDTerms::Shop)+TEXT("不可用"); return *Text; }
+        case ELDOrderFailure::Dead: { static const FString Text=FString(TEXT("你已经"))+LDTerms::Dead; return *Text; }
         case ELDOrderFailure::MatchEnded: return TEXT("本局已结束");
         case ELDOrderFailure::Superseded: return TEXT("已被新订单替换");
         case ELDOrderFailure::Stopped: return TEXT("已停止");
         case ELDOrderFailure::Expired: return TEXT("订单已过期");
-        case ELDOrderFailure::Taunted: return TEXT("被嘲讽，只能弹嘲讽你的人");
+        case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能找喊你的人")+LDTerms::BasicAttackVerb; return *Text; }
         default: return TEXT("订单失败");
         }
     }
@@ -58,19 +59,19 @@ namespace LDNavigationDetail
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("攻击请求已发送");
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动已发送");
-        case ELDSpatialOrderKind::ApproachShop: return TEXT("正在前往小卖部");
+        case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("正在前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动请求已发送");
         }
     }
 
     const TCHAR* RunningText(const FLDOrderReceipt& Receipt)
     {
-        if (Receipt.bEngaged) { return TEXT("正在弹脑瓜崩"); }
+        if (Receipt.bEngaged) { static const FString Text=FString(TEXT("正在"))+LDTerms::BasicAttackVerb; return *Text; }
         switch (Receipt.Kind)
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("追击目标");
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动中");
-        case ELDSpatialOrderKind::ApproachShop: return TEXT("前往小卖部");
+        case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动中");
         }
     }
@@ -88,7 +89,7 @@ namespace LDNavigationDetail
         default: Text=FailureText(Receipt.Failure); break;
         }
         if (Receipt.bProtectionRemoved && (Receipt.Status==ELDOrderStatus::Activated || Receipt.Status==ELDOrderStatus::Rejected))
-        { Text+=TEXT("（复活保护已解除）"); }
+        { Text+=TEXT("（")+LDTerms::ProtectionRemoved()+TEXT("）"); }
         return Text;
     }
 
@@ -102,7 +103,7 @@ namespace LDNavigationDetail
             && Receipt.Failure!=ELDOrderFailure::Stopped;
         FString Text=bFailed?FString(FailureText(Receipt.Failure)):FString();
         if (Receipt.bProtectionRemoved && (Receipt.Status==ELDOrderStatus::Activated || Receipt.Status==ELDOrderStatus::Rejected))
-        { Text+=Text.IsEmpty()?TEXT("复活保护已解除"):TEXT("（复活保护已解除）"); }
+        { Text+=Text.IsEmpty()?LDTerms::ProtectionRemoved():TEXT("（")+LDTerms::ProtectionRemoved()+TEXT("）"); }
         return Text;
     }
 
@@ -243,7 +244,7 @@ bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop, 
     const FLDMapBinding* Shop=Registry && !ShopId.IsNone()?Registry->Resolve(ShopId,Registry->Generation):nullptr;
     if (!Shop || Loaded->Get().Parameters.ShopInteractRadiusCm.Denominator<=0)
     {
-        if (auto* PC=Controller(); PC && bNotify) { Status=TEXT("小卖部不可用"); PC->PostIntentNotice(Status); }
+        if (auto* PC=Controller(); PC && bNotify) { Status=FString(LDTerms::Shop)+TEXT("不可用"); PC->PostIntentNotice(Status); }
         return false;
     }
     const auto& Radius=Loaded->Get().Parameters.ShopInteractRadiusCm;

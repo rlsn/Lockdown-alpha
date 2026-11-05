@@ -18,7 +18,7 @@ struct FLDCommittedDeath;
 struct FLDObservedPublicFacts;
 
 // Server-only owner of the five Demo camps: whole-group spawn and refresh, retaliation brains,
-// native-motion steering and home resets. It also owns the D26 (#79) 教导主任 Boss, the one roaming monster body: it
+// native-motion steering and home resets. It also owns the D26 (#79) 画饼老板 Boss, the one roaming monster body: it
 // appears once per match, patrols the public waypoints and attacks through the same Combat entries as a camp member. The Camps match provider spawns it during Starting and
 // destroys it on MatchReset; every write entry runs inside the Combat-driven phase named on it.
 UCLASS(NotBlueprintable)
@@ -111,6 +111,8 @@ private:
     TMap<FGuid, TWeakObjectPtr<ALDCampMemberCharacter>> Bodies;
     TMap<FGuid, FMotion> Motion;
     TMap<FGuid, FLDCampReturnWatch> Returns;
+    // #28: members whose current life was last reset in place, not at home (they hold their ground beyond the leash).
+    TSet<FGuid> Stranded;
     TSet<int32> BlockedRefresh;
     FLDBossState Boss;
     bool bBossBlockedLogged = false;

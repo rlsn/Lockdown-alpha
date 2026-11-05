@@ -154,7 +154,7 @@ struct FLDCombatHit
     int64 BaseP2=0, ADRatioBp=0, APRatioBp=0;
     ELDDemoDamageType DamageType=ELDDemoDamageType::Physical;
     int64 SourceADP2=0, SourceAPP2=0;
-    // Coefficient of the source's max HP and that max HP snapshotted at release (泰山压顶).
+    // Coefficient of the source's max HP and that max HP snapshotted at release (active_body_slam).
     int64 MaxHPRatioBp=0, SourceMaxHPP2=0;
     bool bCritical=false;
     int64 RootDurationMs=0;

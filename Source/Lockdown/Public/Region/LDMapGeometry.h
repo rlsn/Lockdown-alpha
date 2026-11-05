@@ -50,7 +50,7 @@ struct FLDDemoWorldMemberHome
 UENUM()
 // D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 // pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
-// D26 (#79): a BossWaypoint is one of the four public points the 教导主任 Boss patrols in id order; a point only.
+// D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
 enum class ELDDemoWorldAnchorKind : uint8 { Spawn, Camp, Shop, Capture, Dorm, Airdrop, BossWaypoint };
 
 USTRUCT()

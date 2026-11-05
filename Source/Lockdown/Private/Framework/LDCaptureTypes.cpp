@@ -52,8 +52,6 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;
     if (uint8(Drop.Phase) > uint8(ELDAirdropPhase::Claimed) || bDrop != (Drop.Serial != 0) || bDrop == Drop.PointId.IsNone()
         || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= View.StartedAtMs : Drop.LandAtMs != 0)
-        || (Drop.Phase == ELDAirdropPhase::Claimed) != Drop.ClaimedBy.IsValid()
-        || (Drop.Phase == ELDAirdropPhase::Claimed ? Drop.ClaimedAtMs < Drop.LandAtMs : Drop.ClaimedAtMs != 0)
         || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
     { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
     const FLDBossView& Boss = View.Boss;

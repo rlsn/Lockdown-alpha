@@ -456,16 +456,16 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 
 按已批准首版内容，Root 以 effect/cast+完整目标生命保存独立实例和原期限，任一未到期实例即生效，
 显示最大剩余时间；同实例重发不续期，一个较早到期不能清掉另一来源。
-「假装无事发生」的净化删除当时全部 Root，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
+「我没事我很好」的净化删除当时全部 Root，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
 
 `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾的**当前剩余量**：
 新量不少于剩余量时，用新量、新 source context、新截止完整替换，相等也刷新；
 较弱则保留旧量/旧源/旧期限。弱盾抑制是明示的子效果结果，不是整次释放失败，
-组合 Root 净化或保温杯回蓝仍正常执行，合法 Release 仍支付 MP/CD。
+组合 Root 净化或充电宝回蓝仍正常执行，合法 Release 仍支付 MP/CD。
 后续 Max/装备/AP 变化不重算已快照盾，不能继承旧 helper 的严格大于判定或旧盾上限。
 这些逐定义语义及数值以内容报告的已批准首版内容（D01）为准，不在这里维护另一组参数。
 未选 Stun/Silence/Mute/Disarm/免死/反射等已删除，不保留禁用生产者或空 handler。
-本段针对当前首轮池；2026-11-02 已批准后续接入反伤等校园扩展，按[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次校园构筑扩展已批准方向未进入运行输入)
+本段针对当前首轮池；2026-11-02 已批准后续接入反伤等构筑扩展，按[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次构筑扩展已批准方向未进入运行输入)
 逐批建立处理器与验证，不因此保留整套旧效果或在文档换皮时提前启用。
 
 公开拒绝为 `ELDCombatReject`：InvalidRequest/NotOwner、StaleMatch/StaleLife/StaleRequest、
@@ -537,7 +537,7 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 
 每个次击独立 VictimKey/HitKey，读取当前目标防御，沿同一物理 Damage 和 DeathKey 通路。
 所有次击共用该普攻源 AD 快照，不因首个击杀奖励升级改变伤害。
-两把同款值日扫帚普通属性相加，但 family 只一轮；每 `(AttackId, 完整 VictimKey, passive_cleave)` 最多一击。
+两把同款自拍杆普通属性相加，但 family 只一轮；每 `(AttackId, 完整 VictimKey, passive_cleave)` 最多一击。
 按 `POLICY.BasicSecondaryTriggers=Disabled`，副击不暴击、不 on-hit/吸血/再群攻、
 不创建新 Attack 或重抽。不是对 N 个目标调用 N 次 RequestBody，也不是保留旧反应体系。
 该限制只禁止攻击者的追加 proc，不是 `SuppressAllTriggers`：
@@ -711,7 +711,7 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 `AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板仍不显示技能列表、等级或 CD。
 
 **弹体。** `ReadObservedProjectiles` 把仍在飞行的弹体按当前位置与平面朝向交给观察所有者采样；
-唯一获准外观为粉笔（`active_arc_bolt`，`ELDObservedProjectileLook::Chalk`），其他来源没有外观则整体失败。
+唯一获准外观为粉笔（天外飞瓶 `active_arc_bolt` 的现有美术，`ELDObservedProjectileLook::Chalk`），其他来源没有外观则整体失败。
 
 **身体表现。** `ULDHumanoidVisualComponent` 用 Demo 美术目录（`ULDArtSubsystem`，`DA_DemoArt`）的骨骼身体和
 单节点动画片段，只绘制被告知的外观、提示字节（动作与状态位）与出现/倒下事件，不持有玩法状态；
@@ -780,7 +780,7 @@ Normal Listen Host 持有权威 Actor 也必须经同一呈现授权，覆盖 Me
 | A18 释放原子 | 角色/装备非零 MP、容量/分配失败、取消、来源改变 | 成功Release才一次支付/注册；准备不毁旧状态；失败无空效果成功，已释放Miss不退款。 |
 | A19 源/目标时态 | Release 后源升级/卖装/遗忘/死亡重生，目标买抗性/加盾 | 源快照不变、目标当次防御生效；独立效果继续，旧目标 Hit 不改绑新 Life。 |
 | A20 接触/吸血/暴击 | 仅盾吸收、实际损失、过量、保护、重复 AttackId；非暴击技能 | contact≠HP损失；一次采样，主击实际损失一次吸血，不治死者/新身体、不递归。 |
-| A21 普攻群攻 | 正主击/盾全吸收/Miss/保护/量化零，双扫帚、副目标阻挡/隐藏/死亡、主击杀升级、副击野怪 | 只正contact一轮次击；主脚点锚/逐副LOS，共用旧AD/AttackId；副击无攻击者crit/proc/吸血/再群攻，但固有受击/受害时钟/营地反击/死亡照常，每生命独立DeathKey。 |
+| A21 普攻群攻 | 正主击/盾全吸收/Miss/保护/量化零，双自拍杆、副目标阻挡/隐藏/死亡、主击杀升级、副击野怪 | 只正contact一轮次击；主脚点锚/逐副LOS，共用旧AD/AttackId；副击无攻击者crit/proc/吸血/再群攻，但固有受击/受害时钟/营地反击/死亡照常，每生命独立DeathKey。 |
 | A22 一生命唯一 | 同时多来源致零、重复 Die、改 DeathSerial、同 VictimLife 重注册Body | 首次PendingDeath唯一致死源/Key；不被后续伤害夺奖，不因重注册再奖励。 |
 | A23 同批互杀 | 双方独立效果互杀；第一份奖励使另一已死受害者升级，交换支付顺序 | 当前Effects集合先锁完受害Level/BuildRevision与信用；奖励输入不受顺序污染，来源Alive不是领奖条件。 |
 | A24 无主/非击杀 | 先玩家打伤后无主致死、自杀、离局清理、营地回位 | 无历史Owner兜底；NoReward也终态；回位不奖、不覆盖更早PendingDeath。 |
@@ -815,7 +815,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 | `DemoCombatSources.CooldownTracks` | 持久冷却轨道、同款两条独立、债优先回绑 |
 | `DemoCombatStatus.Roots/Shield/Regen/Cooldown` | Root 实例与净化、盾替换政策、回复积分、冷却期限 |
 | `DemoOrders.AttackMoveCandidate/BookIsolation` | 攻击移动候选与订单簿隔离 |
-| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、粉笔弹体、观察白名单 |
+| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、天外飞瓶弹体、观察白名单 |
 | `DemoControlFeel.PreInput`；`LocalSettingsQuickCast` | 预输入判定；快速施法本地设置 |
 | `DemoCore.BodyIdentity/CheckedTime/ClockProjection/ScopedAuthority` | 身体身份、受检时间、时钟投影、写许可作用域 |
 | `DemoCamp.Retaliation/ReturnReset/Lifecycle/Roster/ObservedFacts`；`CampDecision` | 营地反击、到家重置与生命周期账目 |
@@ -827,7 +827,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
   攻击移动接近、S 停止、打开设置期间已接受的行走订单继续而不接受新世界命令、右键击杀与击杀播报归属、死亡镜头、
   复活延迟、在十个出生锚点之一的批准偏移处复活、复活保护窗口及观察到的 `respawn_protection`、
   空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具的普通选择学习技能后，`active_binding_snare` 定身、
-  `active_guard_pulse` 加盾并净化定身、`active_arc_bolt` 的粉笔弹体被观察、`attr_reach` 扩大普攻距离；
+  `active_guard_pulse` 加盾并净化定身、`active_arc_bolt` 的弹体被观察、`attr_reach` 扩大普攻距离；
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。
 - `Scripts\RunDemoGrowthCheck.ps1`：两件同款装备中使用一件的主动只冷却自己的轨道；出售后冷却债务保留并由报价继承；新局无债务。
 - `Scripts\RunDemoCampCheck.ps1`：野怪不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置。
@@ -866,4 +866,4 @@ Bootstrap Validate 和相关场景；网络、成长、交易、胜负变更必�
 双持、独立主动冷却、失源计时、比例资源、死亡选择、意图失保、观察粒度、独立效果存续/离局均为已确认规则，
 不是待选玩法。首版内容（公式、精度、角色/技能/装备/营地参数及逐定义语义）已批准为试玩输入（D01），
 唯一维护于 [CONTENT_AND_BALANCE.md](CONTENT_AND_BALANCE.md)，未经平衡测试；
-其 §15 的校园扩展是已批准方向，尚未进入运行输入。当前验证覆盖与缺口见 §13。
+其 §15 的构筑扩展是已批准方向，尚未进入运行输入。当前验证覆盖与缺口见 §13。

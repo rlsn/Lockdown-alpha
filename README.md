@@ -2,10 +2,10 @@
 
 **v0.10.0 · Unreal Engine 5.8.4 · Windows PC**
 
-**对外标题：谁是校园最强阴人王**。技术项目名仍为 Lockdown。
+**对外标题：谁是雾港最强淫人王**（“淫”是雾港黑话，只指把人揍趴下）。技术项目名仍为 Lockdown。
 
-一款采用 MOBA 点击操作和俯视斜角镜头的自由混战游戏：打野与战斗获取成长，
-通过三选一和装备建立优势，最终独占升旗台控制区获胜。
+雾港大学城后街的烂尾球场上，脆皮大学生无差别大乱斗：一款采用 MOBA 点击操作和俯视斜角镜头的自由混战游戏。
+打野与战斗获取成长，通过三选一（开盲盒）和装备建立优势，最终独占旗杆、插旗成为淫人王。
 
 ## 当前状态
 
@@ -52,7 +52,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 179 项） | `.\Scripts\RunTests.ps1` |
+| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 183 项） | `.\Scripts\RunTests.ps1` |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
 | Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |
 | 生成资产、音效与美术校验 | `.\Scripts\BootstrapAssets.ps1`（默认 Validate，同时校验音效与美术目录） |

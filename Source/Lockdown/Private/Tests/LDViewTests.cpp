@@ -23,9 +23,9 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss")},TEXT("The public circle names only the single progress holder and its progress"));
-    // D26: the current airdrop names only its public point, landing instant and claimer; never a contender position.
-    ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs"),
-        TEXT("ClaimedBy"),TEXT("ClaimedAtMs")},TEXT("The public airdrop names only its public point, landing and claimer"));
+    // D26: the current 天降外卖 names only its public point and landing instant; never its claimer or claim time (§6.3).
+    ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs")},
+        TEXT("The public airdrop names only its public point and landing"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
     ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("BountyGold")},
         TEXT("The public leader notice names only the leader, a fuzzy circle and the bounty"));

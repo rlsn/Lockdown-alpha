@@ -22,20 +22,41 @@ namespace
     }
 }
 
-bool LDAirdrop::PickClaimer(const FVector& CentreCm, double RadiusCm, TConstArrayView<FCandidate> Candidates, FGuid& Out)
+uint64 LDAirdrop::Mix(uint64 Value)
+{
+    Value += 0x9E3779B97F4A7C15ull;
+    Value = (Value ^ (Value >> 30)) * 0xBF58476D1CE4E5B9ull;
+    Value = (Value ^ (Value >> 27)) * 0x94D049BB133111EBull;
+    return Value ^ (Value >> 31);
+}
+
+int32 LDAirdrop::NextPoint(uint64 Seed, uint64 Serial, int32 Previous, int32 Count)
+{
+    if (Count <= 0) { return INDEX_NONE; }
+    const uint64 Roll = Mix(Seed ^ Mix(Serial));
+    if (Count == 1 || Previous < 0 || Previous >= Count) { return int32(Roll % uint64(Count)); }
+    return int32((uint64(Previous) + 1 + Roll % uint64(Count - 1)) % uint64(Count));
+}
+
+bool LDAirdrop::PickClaimer(const FVector& CentreCm, double RadiusCm, TConstArrayView<FCandidate> Candidates,
+    uint64 TieSeed, FGuid& Out)
 {
     Out.Invalidate();
     double Best = 0;
+    uint64 BestDraw = 0;
     const double Limit = RadiusCm * RadiusCm;
     for (const FCandidate& Candidate : Candidates)
     {
-        if (!Candidate.Contender.IsValid() || Candidate.FootCm.ContainsNaN()) { continue; }
+        if (!Candidate.Contender.IsValid() || Candidate.bProtected || Candidate.FootCm.ContainsNaN()) { continue; }
         const double Distance = FVector::DistSquared2D(CentreCm, Candidate.FootCm);
         if (!FMath::IsFinite(Distance) || Distance > Limit) { continue; }
-        if (!Out.IsValid() || Distance < Best || (Distance == Best && Candidate.Contender < Out))
+        const FGuid& Id = Candidate.Contender;
+        const uint64 Draw = Mix(TieSeed ^ Mix((uint64(Id.A) << 32 | Id.B) ^ Mix(uint64(Id.C) << 32 | Id.D)));
+        if (!Out.IsValid() || Distance < Best || (Distance == Best && Draw < BestDraw))
         {
-            Out = Candidate.Contender;
+            Out = Id;
             Best = Distance;
+            BestDraw = Draw;
         }
     }
     return Out.IsValid();
@@ -44,7 +65,7 @@ bool LDAirdrop::PickClaimer(const FVector& CentreCm, double RadiusCm, TConstArra
 bool FLDAirdropSchedule::IsValid() const
 {
     if (StartedAtMs < 0 || FirstLandMs <= 0 || IntervalMs <= 0 || AnnounceLeadMs <= 0 || AnnounceLeadMs > FirstLandMs
-        || AnnounceLeadMs >= IntervalMs || Points.IsEmpty() || PointOffset < 0 || PointOffset >= Points.Num()
+        || AnnounceLeadMs >= IntervalMs || Points.IsEmpty() || Seed == 0
         || !FMath::IsFinite(PickupRadiusCm) || PickupRadiusCm <= 0)
     {
         return false;
@@ -68,11 +89,6 @@ bool FLDAirdropSchedule::AnnounceAtMs(uint64 Index, int64& Out) const
     return LandAtMs(Index, Land) && AirdropAdd(Land, -AnnounceLeadMs, Out);
 }
 
-const LDAirdrop::FPoint& FLDAirdropSchedule::PointOf(uint64 Index) const
-{
-    return Points[int32((uint64(PointOffset) + Index) % uint64(Points.Num()))];
-}
-
 bool FLDAirdropState::Advance(int64 NowMs)
 {
     int64 FirstAnnounce = 0;
@@ -84,6 +100,12 @@ bool FLDAirdropState::Advance(int64 NowMs)
     const ELDAirdropPhase Timed = NowMs >= LandAt ? ELDAirdropPhase::Landed : ELDAirdropPhase::Announced;
     if (Serial != Index + 1)
     {
+        if (Serial > Index) { Serial = 0; PointIndex = INDEX_NONE; }
+        // Each point depends on the previous drop's, so every drop up to this one is drawn in order.
+        for (uint64 Next = Serial + 1; Next <= Index + 1; ++Next)
+        {
+            PointIndex = LDAirdrop::NextPoint(Schedule.Seed, Next, PointIndex, Schedule.Points.Num());
+        }
         Serial = Index + 1;
         Phase = Timed;
         ClaimedBy.Invalidate();
@@ -123,7 +145,7 @@ bool FLDAirdropState::Claim(const FGuid& Contender, int64 NowMs)
 
 const LDAirdrop::FPoint* FLDAirdropState::CurrentPoint() const
 {
-    return Schedule.IsValid() && Serial > 0 ? &Schedule.PointOf(Serial - 1) : nullptr;
+    return Schedule.IsValid() && Serial > 0 && Schedule.Points.IsValidIndex(PointIndex) ? &Schedule.Points[PointIndex] : nullptr;
 }
 
 FLDAirdropView FLDAirdropState::View() const
@@ -136,8 +158,6 @@ FLDAirdropView FLDAirdropState::View() const
     Out.PointId = Point->Id;
     Out.PositionCm = Point->PositionCm;
     Schedule.LandAtMs(Serial - 1, Out.LandAtMs);
-    Out.ClaimedBy = ClaimedBy;
-    Out.ClaimedAtMs = ClaimedAtMs;
     return Out;
 }
 
@@ -172,11 +192,10 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
         }
         S.Points.Add({Id, Binding->Position});
     }
-    // Compiled anchor order is canonical; the per-match offset only chooses where the rotation starts.
-    if (!S.Points.IsEmpty())
-    {
-        S.PointOffset = int32(uint32(LedgerMatch.A ^ LedgerMatch.B ^ LedgerMatch.C ^ LedgerMatch.D) % uint32(S.Points.Num()));
-    }
+    // A fresh server-only seed: nothing public (match identity, anchors, clock) predicts the next drop's point.
+    const FGuid Random = FGuid::NewGuid();
+    S.Seed = LDAirdrop::Mix((uint64(Random.A) << 32 | Random.B) ^ LDAirdrop::Mix(uint64(Random.C) << 32 | Random.D));
+    S.Seed = S.Seed ? S.Seed : 1;
     if (P.AirdropRewardXP <= 0 || P.AirdropRewardGold <= 0 || !S.IsValid())
     {
         Error = TEXT("The approved airdrop parameters or compiled airdrop points are invalid.");

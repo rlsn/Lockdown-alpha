@@ -318,7 +318,7 @@ struct FContext
         const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
         return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
     }
-    // D27: the public place nearest the centre of another contender's 通报批评 circle, inside that circle, when its walk
+    // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
     // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
     // minimum level with high-camp entry health.
     const FLDOpponentPOI* LeaderHuntTarget() const
@@ -1603,7 +1603,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     {
         EndVisit(State, false);
         Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
-        return Finish(EMode::Contest, EReason::ContestAirdrop);
+        return Finish(EMode::Airdrop, EReason::ContestAirdrop);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

@@ -43,6 +43,9 @@ namespace LDHUD
     LOCKDOWN_API FResourceView Resource(const FString& Label,double Current,double Max,bool bRoundUp);
     LOCKDOWN_API FResourceView ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp);
 
+    // Empty when the matching living owner projection is unavailable; never estimate from HP/MP deltas.
+    LOCKDOWN_API FString RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Combat,bool bHealth);
+
     struct FLevelView
     {
         FString Level;
@@ -90,12 +93,13 @@ namespace LDHUD
     // Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
     // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
-    // seconds who claimed it. Empty when there is no drop to show.
-    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs);
+    // seconds that it was claimed (the own claim says so). Empty when there is no drop to show.
+    // ClaimSeenAtMs: when this screen first saw the current drop claimed (the public view carries no claim time).
+    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bOwnClaim,int64 ClaimSeenAtMs,bool bClock,int64 NowMs);
     // D26 (#79): the public Boss line: a countdown shortly before it appears, a reminder while it patrols, and who
     // landed the last hit for a few seconds afterwards. Empty otherwise.
     LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName,bool bClock,int64 NowMs);
-    // D27 (#79): the public 通报批评 line: who is named and the bounty on them; the own player is told directly.
+    // D27 (#79): the public 上热搜 line: who is named and the bounty on them; the own player is told directly.
     // Empty when nobody is named.
     LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
@@ -171,7 +175,7 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. 胆量 30; empty without one
+        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. "<LDTerms::Mana> 30"; empty without one
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty

@@ -381,6 +381,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             Input.MovementAllowed = Body.bMovementAllowed;
             Input.AttackAllowed = Body.bAttackAllowed;
             Input.BasicAttackReady = Body.bBasicAttackReady;
+            Input.bStrandedInPlace = Stranded.Contains(Entity);
             FLDCampDecision Decision;
             bool bBeganReturn = false;
             if (!LDCampDecision::Evaluate(*Content, Spec.CampId, Input, Member.HostileSources, Candidates, Decision, Error)
@@ -399,8 +400,9 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             {
                 Watch = &Returns.FindOrAdd(Entity);
                 Watch->Observe(Epoch, Now);
-                // Control pauses the return (ReturnHome needs MovementAllowed); paused time is not a stall.
-                if (Decision.Intent != ELDCampIntent::ReturnHome) { Watch->Progressed(Now); }
+                // Control pauses the return (ReturnHome needs MovementAllowed): paused time is not a stall, and it does
+                // not wipe the time already spent without progress either.
+                Watch->Tick(Now, Decision.Intent == ELDCampIntent::ReturnHome);
             }
             auto DeadEnd = [&](const TCHAR* Cause)
             {
@@ -655,6 +657,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     const FGuid Entity = Fact.Key.Victim.EntityId;
     Motion.Remove(Entity);
     Returns.Remove(Entity);
+    Stranded.Remove(Entity);
     if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
     Bodies.Remove(Entity);
     UE_LOG(LogTemp, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
@@ -719,6 +722,8 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     if (!State.CompleteReset(Key, Mode->GetAuthorityNowSeconds(), Error)) { return false; }
     StopMotion(Ref.Victim.EntityId);
     Returns.Remove(Ref.Victim.EntityId);
+    // Only a reset at home ends the stranded hold; another in-place reset keeps it.
+    if (bInPlace) { Stranded.Add(Ref.Victim.EntityId); } else { Stranded.Remove(Ref.Victim.EntityId); }
     UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RESET camp=%s slot=%d life=%u epoch=%llu in_place=%d"),
         *Spec.CampId.ToString(), Slot, Ref.Victim.Life, Key.ReturnEpoch, bInPlace ? 1 : 0);
     return true;
@@ -1010,6 +1015,7 @@ void ALDCampDirector::EndMatch()
     Bodies.Reset();
     Motion.Reset();
     Returns.Reset();
+    Stranded.Reset();
     BlockedRefresh.Reset();
     Boss = {};
     bBossBlockedLogged = false;

@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "UI/LDTerms.h"
 #include "Containers/StringConv.h"
 #include "Internationalization/Regex.h"
 #include "GameFramework/GameUserSettings.h"
@@ -177,11 +178,11 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
     // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
     static const TArray<FLDControlBinding> Values={
         {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),TEXT("移动 / 攻击 / 前往小卖部"),EKeys::RightMouseButton},
+        {TEXT("Navigate"),FString(TEXT("移动 / 攻击 / 前往"))+LDTerms::Shop,EKeys::RightMouseButton},
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
         {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
-        {TEXT("Dash"),TEXT("冲刺（立即朝指针）"),EKeys::D},
+        {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
@@ -543,7 +544,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         if (Dash && !Settings->Bindings.FindKey(Dash->Key))
         {
             Settings->Bindings.Add(DashAction, Dash->Key);
-            DashDefault = TEXT("新增的冲刺键使用默认值 ") + Dash->Key.GetDisplayName().ToString() + TEXT("。");
+            DashDefault = FString(TEXT("新增的“")) + LDTerms::Dash + TEXT("”键使用默认值 ") + Dash->Key.GetDisplayName().ToString() + TEXT("。");
         }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");

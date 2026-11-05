@@ -8,7 +8,7 @@
 class FLDDemoContentSnapshot;
 struct FLDDemoWorldGeometry;
 
-// D26 (#79) 教导主任 Boss. One body per match appears BOSS appear_at after the match start on the first public
+// D26 (#79) 画饼老板 Boss. One body per match appears BOSS appear_at after the match start on the first public
 // waypoint and walks the four waypoints in id order on legal navigation. It attacks anyone who hit it within
 // attacker_memory (the nearest such attacker first), otherwise the nearest visible contender within aggro_radius.
 // It never respawns; the last hit gets its reward and the approval buff.

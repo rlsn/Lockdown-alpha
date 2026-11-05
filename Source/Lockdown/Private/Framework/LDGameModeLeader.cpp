@@ -2,7 +2,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 
-// D27 (#79) 通报批评: the pure FLDLeaderState names the leader at each refresh boundary; this file only gathers the
+// D27 (#79) 上热搜: the pure FLDLeaderState names the leader at each refresh boundary; this file only gathers the
 // committed levels, kill counts and current feet of the contenders still in the match.
 
 int64 ALDGameMode::NextLeaderDueMs() const

@@ -241,7 +241,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         ++Body->StateRevision;
         AbandonAction(*Body,ELDCombatReject::ControlBlocked);
     }
-    // A Root or Stun this source just applied opens its control damage amplification on this life (社死现场).
+    // A Root or Stun this source just applied opens its control damage amplification on this life (passive_public_shame).
     if ((bRoots || bStuns) && !MarkControlled(*Body,Hit,NowMs,Error)) { return false; }
     MarkViewChanged(Hit.Target.Victim.EntityId);
     if (Healed && HealP2>0)
@@ -786,7 +786,9 @@ void ALDCombatDirector::ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& O
         const FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Actor=Pair.Key.Get();
         if (!Actor || Body.bPendingDeath || Body.Resources.HpP2<=0 || Body.Victim.Kind!=ELDVictimKind::Contender) { continue; }
-        Out.Add({Body.Victim.EntityId,FootOf(*Actor)});
+        // D26: respawn protection is read here so the pure pickup rule can refuse it.
+        const ALDGameMode* M=Core();
+        Out.Add({Body.Victim.EntityId,FootOf(*Actor),M && M->IsContenderProtected(Body.Victim.EntityId)});
     }
 }
 

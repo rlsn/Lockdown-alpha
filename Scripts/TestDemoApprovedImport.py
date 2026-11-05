@@ -147,32 +147,32 @@ class ApprovedDemoData(unittest.TestCase):
             "id": "respawn_protection", "namespace": "DemoContent",
             "name_key": "respawn_protection.name", "description_key": "respawn_protection.description",
             "icon_id": "icon_respawn_protection"})
-        self.assertEqual(entries[0]["name_text"], "复活保护")
+        self.assertEqual(entries[0]["name_text"], "免死金牌")
         self.assertEqual(self.catalog.parameter("LIFE.ProtectionSec"), {"unit": "ms", "ms": 3000})
         for row in (*self.data["abilities"], *self.data["equipment"]):
             self.assertNotIn("respawn_protection", {effect["op"] for effect in content.all_effects(row)})
 
-    def test_display_names_are_the_approved_campus_names(self):
-        # CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5 approved display names; respawn_protection is the approved interim name.
+    def test_display_names_are_the_approved_fog_harbor_names(self):
+        # #111 雾港 v2 display names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); exposed reads 被截图了 because display names are unique.
         self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"]}, {
-            "character_demo": "大一新生",
-            "active_arc_bolt": "粉笔头", "active_guard_pulse": "假装无事发生", "active_binding_snare": "扒裤衩",
-            "passive_battle_rhythm": "单身二十年的手速", "passive_second_wind": "多喝热水", "passive_precision": "正中要害",
-            "active_slipper_throw": "老妈的拖鞋", "active_fart_dash": "屁遁", "active_combo_flurry": "夺命连环掏",
-            "active_slick_moves": "风骚走位", "passive_cornered": "急了", "passive_lurking": "暗中观察",
-            "passive_public_shame": "社死现场", "passive_eagle_eye": "视力5.0", "item_slingshot": "弹弓",
-            "active_monkey_peach": "猴子偷桃", "active_thousand_year": "千年杀", "active_lunge": "一个箭步",
-            "passive_iron_crotch": "铁裆功", "item_nail_uniform": "钉子户校服",
-            "active_body_slam": "泰山压顶", "active_come_here": "你过来啊",
-            "attr_might": "举铁", "attr_focus": "刷整蛊视频", "attr_vitality": "食堂加餐", "attr_resolve": "穿秋裤",
-            "attr_reach": "长臂猿",
-            "item_iron_plate": "《五年挨打三年模拟》", "item_edge_blade": "鸡毛掸子", "item_runic_focus": "辣条",
-            "item_siphon_emblem": "老爸的皮带", "item_phase_anchor": "跑道钉鞋", "item_arcane_battery": "保温杯",
-            "item_echo_maul": "值日扫帚", "item_paper_box": "纸箱",
-            "monster_scavenger": "纪律委员", "monster_guardian": "体育老师", "monster_dean": "教导主任",
-            "root": "定身", "shield": "淡定", "camp_returning": "回岗中", "respawn_protection": "复活保护",
-            "slow": "减速", "stat_boost": "来劲了", "enraged": "上头", "ambush_ready": "伺机而动", "exposed": "当众出丑",
-            "taunt": "被嘲讽", "stealth": "隐身", "disarm": "缴械", "stun": "眩晕", "empowered": "蓄势待发",
+            "character_demo": "脆皮大学生",
+            "active_arc_bolt": "天外飞瓶", "active_guard_pulse": "我没事我很好", "active_binding_snare": "扒裤子",
+            "passive_battle_rhythm": "抢票练出来的手速", "passive_second_wind": "发疯文学", "passive_precision": "专攻下三路",
+            "active_slipper_throw": "珍珠奶茶泼脸", "active_fart_dash": "放个屁就润", "active_combo_flurry": "无影大比兜",
+            "active_slick_moves": "秦王绕柱", "passive_cornered": "他急了", "passive_lurking": "潜水党",
+            "passive_public_shame": "已截图", "passive_eagle_eye": "网线够长", "item_slingshot": "大号滋水枪",
+            "active_monkey_peach": "掏蛋子", "active_thousand_year": "年轻人不讲武德", "active_lunge": "一个滑铲",
+            "passive_iron_crotch": "祖传铁裆", "item_nail_uniform": "扎心铆钉皮衣",
+            "active_body_slam": "体重即正义", "active_come_here": "你瞅啥",
+            "attr_might": "吃了口蛋白粉", "attr_focus": "5G 冲浪", "attr_vitality": "V 我 50 吃顿好的", "attr_resolve": "我不听我不听",
+            "attr_reach": "伸手党",
+            "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
+            "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
+            "item_echo_maul": "自拍杆", "item_paper_box": "路人甲 T 恤",
+            "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
+            "root": "提裤子", "shield": "心理防线", "camp_returning": "回工位", "respawn_protection": "免死金牌",
+            "slow": "腿软", "stat_boost": "上头", "enraged": "急了", "ambush_ready": "蹲到了", "exposed": "被截图了",
+            "taunt": "瞅你咋地", "stealth": "查无此人", "disarm": "捂裆", "stun": "CPU 干烧了", "empowered": "蓄力大比兜",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -226,7 +226,7 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(row["effects"][0]["base"]["p2"], damage * 100)
             self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], ap)
             self.assertEqual(row["effects"][0]["ad_ratio"]["bp"], 8000)
-            # #81: the chalk throw is Physical (皮肉伤); its amounts follow the core-numbers ticket (D18).
+            # #81: the thrown bottle (active_arc_bolt) is Physical; its amounts follow the core-numbers ticket (D18).
             self.assertEqual(row["effects"][0]["damage_type"], "Physical")
             self.assertEqual(row["mana_cost"]["p2"], mana * 100)
             self.assertEqual(row["cooldown"]["ms"], cooldown)

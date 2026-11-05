@@ -123,7 +123,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
             // Lost points with an unchanged or larger maximum: a smaller maximum (sold equipment) only clamps.
             // A lethal hit is left to the death cue.
             const bool bLost = Combat->HPP2 < HitHPP2 && Combat->MaxHPP2 >= HitMaxHPP2 && Combat->HPP2 > 0;
-            // A hit the own 淡定 took whole: shield points lost while the shield is still listed or before its listed end
+            // A hit the own shield took whole: shield points lost while the shield is still listed or before its listed end
             // (the same rule as the shield-absorbed number); a shield that merely ran out stays silent.
             const bool bAbsorbed = !bLost && Combat->ShieldP2 < HitShieldP2 && Combat->HPP2 >= HitHPP2
                 && (Shield || HitShieldEndsAtMs > Combat->AsOfMs);

@@ -1835,23 +1835,23 @@ bool RunAirdrop(FAutomationTestBase& Test)
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
     FLDOpponentPolicyState Runner;
     const auto Run = LDOpponentPolicy::Decide(Frame, C, Runner);
-    bGood &= Expect(Test, TEXT("D26: an announced drop draws a healthy body to its public point"), Run, EMode::Contest,
+    bGood &= Expect(Test, TEXT("D26: an announced drop draws a healthy body to its public point"), Run, EMode::Airdrop,
         EBody::MoveGround, TEXT("airdrop_s"))
         && Test.TestTrue(TEXT("Going for the drop is its own reason"), Run.Reason == ELDOpponentReason::ContestAirdrop);
     Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
     Frame.Order.Status = ELDOpponentOrderStatus::Active;
     Frame.Order.POI = TEXT("airdrop_s");
     bGood &= Expect(Test, TEXT("The walk to the drop keeps its order"), LDOpponentPolicy::Decide(Frame, C, Runner),
-        EMode::Contest, EBody::Keep, TEXT("airdrop_s"));
+        EMode::Airdrop, EBody::Keep, TEXT("airdrop_s"));
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
     Frame.Self.FootCm = FVector(20, -3300, 0);
     FLDOpponentPolicyState Waiter;
     bGood &= Expect(Test, TEXT("On the point the body waits for the landing instead of re-ordering the walk"),
-        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Contest, EBody::None);
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
     Frame.Public.bAirdropLanded = true;
     bGood &= Expect(Test, TEXT("A landed drop under the body is held the same way until the authority grants it"),
-        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Contest, EBody::None);
+        LDOpponentPolicy::Decide(Frame, C, Waiter), EMode::Airdrop, EBody::None);
 
     Frame = Base;
     Frame.Public.AirdropPOI = TEXT("airdrop_s");
@@ -1880,6 +1880,31 @@ bool RunAirdrop(FAutomationTestBase& Test)
     FLDOpponentPolicyState Stray;
     bGood &= Test.TestTrue(TEXT("A drop that names no public airdrop point is ignored"),
         LDOpponentPolicy::Decide(Frame, C, Stray).Reason != ELDOpponentReason::ContestAirdrop);
+
+    // A stop-loss exit from the drop is not a failed contest of the circle: after more such exits than the retry policy
+    // allows, an urgent public defence is still answered. The same exits from a contest of the circle do suppress it.
+    const auto ExitsThenDefends = [&](EMode Prior)
+    {
+        FLDOpponentPolicyState S;
+        auto Hurt = Base;
+        Hurt.Self.HpP2 = 1;
+        for (int32 Exit = 0; Exit < 5; ++Exit)
+        {
+            S.Mode = Prior;
+            LDOpponentPolicy::Decide(Hurt, C, S);
+        }
+        auto Urgent = Base;
+        Urgent.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Urgent.Public.Circle = ELDOpponentCircle::Solo;
+        Urgent.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Urgent.Public.DueAtMs = Urgent.Public.NowMs + 5000;
+        Urgent.CapturePathCm = 3000.;
+        return LDOpponentPolicy::Decide(Urgent, C, S).Reason == ELDOpponentReason::PublicCaptureUrgent;
+    };
+    bGood &= Test.TestTrue(TEXT("Stop-loss exits from a drop never cost the circle: an urgent defence is still answered"),
+        ExitsThenDefends(EMode::Airdrop));
+    bGood &= Test.TestFalse(TEXT("Control: the same exits from a contest of the circle do stop urgent defences"),
+        ExitsThenDefends(EMode::Contest));
     return bGood;
 }
 

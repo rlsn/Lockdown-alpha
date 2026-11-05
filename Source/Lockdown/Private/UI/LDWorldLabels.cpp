@@ -39,7 +39,7 @@ float WorldBarWidth(const LDWorldLabels::FLabel& Label)
 const FLinearColor WorldLabelContenderInk(.96f,.97f,1.f);
 const FLinearColor WorldLabelCampInk(1.f,.8f,.42f);
 const FLinearColor WorldLabelStatusInk(.8f,.93f,1.f);
-// Status text shares the body markers' tints (Combat's LDHumanoidVisualComponent): root magenta, 淡定 cyan, respawn
+// Status text shares the body markers' tints (Combat's LDHumanoidVisualComponent): root magenta, shield cyan, respawn
 // protection white-gold; other statuses keep the plain status ink.
 FLinearColor WorldStatusInk(uint8 StatusId)
 {
@@ -94,7 +94,7 @@ LDWorldLabels::FOwnBars LDWorldLabels::OwnBars(const FLDOwnerState& Own,uint32 P
 {
     FOwnBars Bars;
     // The HUD band's gate (ULDHUD::RefreshReadModel): the own combat projection of the current public match and this
-    // life, alive with a body. Unknown or malformed 面子 shows no bars rather than empty ones.
+    // life, alive with a body. Unknown or malformed health shows no bars rather than empty ones.
     if(PublicGeneration==0||PublicGeneration!=Own.Match||Own.Life==0||Own.LifePhase!=ELDLifePhase::Alive||Combat.Generation!=Own.Match
         ||Combat.Life!=Own.Life||!Combat.bHasBody||Combat.MaxHPP2<=0||Combat.HPP2<0){return Bars;}
     Bars.bVisible=true;
@@ -187,7 +187,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))
         {
-            // Bottom-up from the anchor: the Q/W/1/2 readiness pips, then 胆量 under 面子 (淡定 after its fill) in one rim.
+            // Bottom-up from the anchor: the Q/W/1/2 readiness pips, then mana under health (the shield after its fill) in one rim.
             const float PipRow=WorldPipHeight+2.f,RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMana?OwnManaHeight+1.f:0.f);
             const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-PipRow-WorldRowGap-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
             Box(1,FVector2f(RimLeft,RimTop),FVector2f(RimW,RimH),LDHUDStyle::Rim);
@@ -293,7 +293,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             const float Mid=Bottom-Entry.Row*.5f,BarLeft=CentreX-(BarWidth+2.f)*.5f,BarTop=Mid-BarRimHeight*.5f;
             Box(1,FVector2f(BarLeft,BarTop),FVector2f(BarWidth+2.f,BarRimHeight),LDHUDStyle::Rim);
             float TrackTop=BarTop+1.f;
-            // 淡定 is a line across the top of the bar; the status line below names it too.
+            // The shield is a line across the top of the bar; the status line below names it too.
             if(Label.bShield){Box(3,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldShieldLine),LDHUDStyle::Shield);TrackTop+=WorldShieldLine;}
             Box(2,FVector2f(BarLeft+1.f,TrackTop),FVector2f(BarWidth,WorldBarHeight),LDHUDStyle::BarTrack);
             if(Label.HealthFraction>0.f)

@@ -89,7 +89,7 @@ FLDCombatBodyRef Contender(uint32 Id, uint32 Life = 1)
 FLDCombatBodyRef CampMember(uint32 Slot)
 { return {{ELDVictimKind::CampMember, FGuid(9, 0, 0, Slot), 1}, FGuid(9, 1, 0, Slot)}; }
 
-// The taunt of 你过来啊 is not in the catalog yet (assembled at integration); CONTENT_AND_BALANCE 15.3 rank 1 terms.
+// The taunt of active_come_here is not in the catalog yet (assembled at integration); CONTENT_AND_BALANCE 15.3 rank 1 terms.
 constexpr double TauntRadiusCm = 300;
 constexpr int64 TauntMs = 1000;
 
@@ -426,7 +426,7 @@ bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
         && FMath::IsNearlyEqual(Hidden, Base * (1. + (Bonus->Amount - Effect->RatioBp) / 10000.), 1e-6) && Hidden < Plain);
     double Refused = 0;
     TestFalse(TEXT("A full penalty is refused"), LDControl::MoveSpeedCmPerSec(Row, 10000, Bounds, Refused));
-    // Temporary terms stay: a timed boost (风骚走位 +30%) or the strongest slow (-30%) still applies while hidden.
+    // Temporary terms stay: a timed boost (active_slick_moves +30%) or the strongest slow (-30%) still applies while hidden.
     const double BoxRatio = Bonus->Amount / 10000., Penalty = Effect->RatioBp / 10000.;
     FLDAttributeContributions Boosted = Row;
     Boosted.Temporary.AdditiveRatio.Numerator = 3000;

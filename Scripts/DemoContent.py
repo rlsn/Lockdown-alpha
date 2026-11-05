@@ -835,7 +835,7 @@ def validate_numbers(data):
         checked_mul(monster["count_per_camp"], monster["reward_gold"], path)
         monster["attack_interval_ms"] = interval
         monster["perception_radius"] = dict(monster["leash_radius"])
-    # D26 (#79): the 教导主任 Boss is one roaming body: its own block, not a camp tier.
+    # D26 (#79): the 画饼老板 Boss is one roaming body: its own block, not a camp tier.
     boss = data["boss"]
     require(boss["id"] not in monsters, "DuplicateId", "boss", "the Boss is not a camp monster")
     require(quantity(boss["hp"]) > 0 and quantity(boss["attack"]) > 0, "NumericDomain", "boss", "Boss HP/attack must be positive")
