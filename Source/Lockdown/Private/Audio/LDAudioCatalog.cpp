@@ -11,7 +11,7 @@ namespace
         TEXT("None"), TEXT("KillNotice"), TEXT("CaptureOpened"), TEXT("CaptureStarted"), TEXT("CaptureContested"),
         TEXT("MatchVictory"), TEXT("MatchDefeat"), TEXT("MatchEndedNoWinner"), TEXT("SelfHit"), TEXT("SelfCast"),
         TEXT("PurchaseSucceeded"), TEXT("TradeRejected"), TEXT("LevelUp"), TEXT("SelfDeath"), TEXT("SelfRespawn"),
-        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("BasicAttack")
+        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack")
     };
     static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue needs exactly one stable id.");
 }

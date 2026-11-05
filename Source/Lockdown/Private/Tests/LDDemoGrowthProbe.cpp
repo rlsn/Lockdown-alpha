@@ -476,6 +476,8 @@ public:
         int64 GoldBefore = 0;
         uint64 PublishBefore = 0;
         double Since = 0;
+        // D27: the last leader death the authority recorded before this kill; a newer one naming the victim pays a bounty.
+        int64 LeaderDownBeforeMs = 0;
     };
     FHostReward HostKillReward, HostCampReward;
     uint8 HostKillVictimLevel = 0;
@@ -1161,7 +1163,8 @@ public:
             bHostGranted = true;
             HostAttackOrders = 0;
             HostKillStartedAt = Now;
-            HostKillReward = {OwnProgression->CumulativeXP, OwnEquipment->Gold, PC.OwnerState.Growth.PublishRevision, 0};
+            HostKillReward = {OwnProgression->CumulativeXP, OwnEquipment->Gold, PC.OwnerState.Growth.PublishRevision, 0,
+                Mode.GetLeaderNotice().LastDownAtMs};
             return true;
         }
         const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
@@ -1249,12 +1252,19 @@ public:
             {
                 return Finish();
             }
+            // D27: a buyer shown as 上热搜 leader at its death also pays the leader bounty the authority locked then.
+            const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+            const FLDLeaderState* Notice = Mode ? &Mode->GetLeaderNotice() : nullptr;
+            const int64 LeaderBounty = Notice && Notice->LastDownLeader == ClientId && Notice->LastDownAtMs > HostKillReward.LeaderDownBeforeMs
+                ? Notice->LastDownBountyGold : 0;
+            Bounty.Gold += LeaderBounty;
             const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitHostReward(Now, PC, HostKillReward,
                 HostKillReward.XPBefore + Bounty.XP, HostKillReward.GoldBefore + Bounty.Gold, Detail);
             if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
             if (!Check(Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Ready, TEXT("N03"),
                 TEXT("The Listen Host's own kill of a contender pays the exact bounty into its own owner view and rendered HUD"),
-                FString::Printf(TEXT("victim L%u +%lld XP +%lld gold; %s"), uint32(HostKillVictimLevel), Bounty.XP, Bounty.Gold, *Detail)))
+                FString::Printf(TEXT("victim L%u +%lld XP +%lld gold (leader bounty %lld); %s"), uint32(HostKillVictimLevel), Bounty.XP,
+                    Bounty.Gold, LeaderBounty, *Detail)))
             {
                 return Finish();
             }
@@ -1262,6 +1272,7 @@ public:
             HostKillerRow->SetNumberField(TEXT("contender_victim_level"), HostKillVictimLevel);
             HostKillerRow->SetNumberField(TEXT("contender_xp"), double(Bounty.XP));
             HostKillerRow->SetNumberField(TEXT("contender_gold"), double(Bounty.Gold));
+            HostKillerRow->SetNumberField(TEXT("leader_bounty_gold"), double(LeaderBounty));
             bHostKillRewardSeen = true;
             HostCampNavigate = 0;
             NextCommandAt = 0;

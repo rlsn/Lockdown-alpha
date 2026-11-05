@@ -250,4 +250,101 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
     Reject(TEXT("Hostile sources are validated while Idle"),Bad,{CampMember(2)},{},CampId);
     return true;
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCampReturnDeadEndTest,"Lockdown.Rules.DemoCamp.ReturnDeadEnd",
+    EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDCampReturnDeadEndTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCampDecisionTests;
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if(!ReadApprovedFixture(*this,Catalog)){return false;}
+    const FLDDemoContentParameters& P=Catalog->Get().Parameters;
+    if(!TestTrue(TEXT("Approved #28 dead-end limits are positive"),P.CampReturnDeadEndPlans>0&&P.CampReturnDeadEndMs>0)){return false;}
+    const int32 Plans=int32(P.CampReturnDeadEndPlans);
+    const double Limit=double(P.CampReturnDeadEndMs)/1000.,Retry=2.;
+
+    FLDCampReturnWatch W;W.Observe(1,10);
+    TestTrue(TEXT("A new Returning cycle starts clean"),
+        W.Epoch==1&&W.RefusedPlans==0&&!W.bDeadEnd&&!W.bWarned&&W.MayPlan(10)&&W.LastProgressSeconds==10);
+    double Now=10;bool bEnded=false;
+    for(int32 Refusal=1;Refusal<Plans;++Refusal)
+    {
+        bEnded|=W.PlanRefused(Now,Plans,Retry);
+        TestFalse(TEXT("A refused plan waits the retry spacing before planning again"),W.MayPlan(Now+Retry*.5));
+        Now+=Retry;
+        TestTrue(TEXT("The retry spacing elapses"),W.MayPlan(Now));
+    }
+    TestFalse(TEXT("Fewer than the approved consecutive refusals keep returning"),bEnded||W.bDeadEnd);
+    TestTrue(TEXT("The approved consecutive refusal ends the return"),W.PlanRefused(Now,Plans,Retry)&&W.bDeadEnd);
+    TestFalse(TEXT("A dead end never plans again"),W.MayPlan(Now+100));
+    TestFalse(TEXT("A dead end is reported once"),W.PlanRefused(Now,Plans,Retry)||W.Stalled(Now+100,Limit));
+    W.Observe(1,Now+1);
+    TestTrue(TEXT("The same epoch keeps its dead end"),W.bDeadEnd&&W.Epoch==1);
+    W.Observe(2,Now+1);
+    TestTrue(TEXT("A later Returning cycle starts over"),W.Epoch==2&&!W.bDeadEnd&&W.RefusedPlans==0&&W.LastProgressSeconds==Now+1);
+    if(Plans>1)
+    {
+        for(int32 Refusal=1;Refusal<Plans;++Refusal){W.PlanRefused(Now,Plans,Retry);}
+        W.PlanAccepted();
+        TestFalse(TEXT("An accepted plan restarts the consecutive refusal count"),W.PlanRefused(Now,Plans,Retry)||W.bDeadEnd);
+    }
+
+    FLDCampReturnWatch S;S.Observe(5,0);
+    TestFalse(TEXT("Short of the approved no-progress span the return continues"),S.Stalled(Limit-.5,Limit));
+    S.Progressed(4);
+    TestFalse(TEXT("Path progress restarts the no-progress clock"),S.Stalled(4+Limit-.5,Limit));
+    TestTrue(TEXT("The approved no-progress span is inclusive and ends the return"),S.Stalled(4+Limit,Limit)&&S.bDeadEnd);
+
+    // Control pauses the clock: alternating control between free stretches cannot keep the span from filling.
+    FLDCampReturnWatch C;C.Observe(6,0);
+    double T=0,Free=0;
+    while(Free+1.<Limit)
+    {
+        T+=1.;C.Tick(T,true);Free+=1.;
+        T+=3.;C.Tick(T,false);
+        TestFalse(TEXT("Controlled time does not count toward the span"),C.Stalled(T,Limit));
+    }
+    T+=Limit-Free-.25;C.Tick(T,true);
+    TestFalse(TEXT("Free time short of the span keeps the return going"),C.Stalled(T,Limit));
+    T+=.25;C.Tick(T,true);
+    TestTrue(TEXT("The free time accumulated across control windows ends the return at the span"),C.Stalled(T,Limit));
+
+    FString Error;
+    const auto& Camp=Catalog->Get().Camps[0];
+    const FName CampId(*Camp.AnchorId);const FLDDemoMonsterDefinition* Monster=nullptr;
+    if(!Catalog->FindMonster(Camp.MonsterId,Monster,Error)){AddError(Error);return false;}
+    const double Leash=Ratio(Monster->LeashRadiusCm),Attack=Ratio(Monster->AttackRangeCm);
+    FLDCampDecisionInput Input=InputFor(*Catalog);FLDCampDecision Out;
+    Input.FootCm=Input.CampAnchorFootCm+FVector(Leash+1,0,0);
+    const TArray<FLDCombatBodyRef> Hostile={Contender(3)};
+    const TArray<FLDAuthorityTargetSample> Candidates={Sample(Input,Contender(3),Input.FootCm+FVector(Attack*.5,0,0))};
+    TestTrue(TEXT("A member reset where it stood holds beyond the leash until attacked"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,{},{},Out,Error)
+        &&Out.Intent==ELDCampIntent::Hold&&Out.NextBrain.Phase==ELDCampBrainPhase::Idle);
+    Input.Brain.Phase=ELDCampBrainPhase::Engaged;
+    TestTrue(TEXT("Once attacked beyond the leash it heads home again instead of fighting"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,Hostile,Candidates,Out,Error)
+        &&Out.Intent==ELDCampIntent::ReturnHome&&Out.NextBrain.Phase==ELDCampBrainPhase::Returning&&!Out.Target.IsSet());
+
+    // Once reset in place it holds its ground beyond the leash: it fights back where it stands and stays killable.
+    Input.bStrandedInPlace=true;
+    TestTrue(TEXT("A member reset in place fights back beyond the leash instead of returning"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,Hostile,Candidates,Out,Error)
+        &&Out.Intent==ELDCampIntent::RequestBasicAttack&&Out.NextBrain.Phase==ELDCampBrainPhase::Engaged
+        &&Out.Target.IsSet()&&Out.Target.GetValue()==Contender(3));
+    const TArray<FLDAuthorityTargetSample> Away={Sample(Input,Contender(3),Input.FootCm+FVector(Attack*1.5,0,0))};
+    TestTrue(TEXT("It holds its ground instead of chasing an attacker out of reach"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,Hostile,Away,Out,Error)
+        &&Out.Intent==ELDCampIntent::Hold&&Out.NextBrain.Phase==ELDCampBrainPhase::Engaged);
+    Input.Brain.LostTargetSinceSeconds=Input.NowSeconds;
+    Input.NowSeconds+=double(Monster->LoseTargetGraceMs)/1000.;
+    TestTrue(TEXT("Once its target is lost and the grace has run out it heads home again"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,Hostile,{},Out,Error)
+        &&Out.Intent==ELDCampIntent::ReturnHome&&Out.NextBrain.Phase==ELDCampBrainPhase::Returning);
+    Input=InputFor(*Catalog);Input.bStrandedInPlace=true;Input.Brain.Phase=ELDCampBrainPhase::Engaged;
+    const TArray<FLDAuthorityTargetSample> Inside={Sample(Input,Contender(3),Input.FootCm+FVector(Attack*1.5,0,0))};
+    TestTrue(TEXT("Inside the leash the stranded flag changes nothing: it chases as usual"),
+        LDCampDecision::Evaluate(*Catalog,CampId,Input,Hostile,Inside,Out,Error)&&Out.Intent==ELDCampIntent::Chase);
+    return true;
+}
 #endif

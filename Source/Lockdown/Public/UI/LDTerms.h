@@ -45,6 +45,29 @@ inline constexpr TCHAR CapturePoint[]=TEXT("旗杆");
 inline constexpr TCHAR CampLow[]=TEXT("小野怪");
 inline constexpr TCHAR CampHigh[]=TEXT("大野怪");
 
+// 地图事件（#79）
+inline constexpr TCHAR Dorm[]=TEXT("躺平角");
+inline FString DormRegenActive(){return FString(Dorm)+TEXT("回血中");}
+inline FString InDorm(){return FString(TEXT("在"))+Dorm+TEXT(" · 脱战后快速回复");}
+inline constexpr TCHAR Airdrop[]=TEXT("天降外卖");
+inline FString AirdropCountdown(const FString& Clock){return FString(Airdrop)+TEXT(" ")+Clock+TEXT(" 后落地 · 小地图橙色标记");}
+inline FString AirdropSoon(){return FString(Airdrop)+TEXT("即将落地 · 小地图橙色标记");}
+inline constexpr TCHAR AirdropLanded[]=TEXT("外卖到了 · 先到先得");
+inline FString AirdropOwnClaim(){return FString(TEXT("你抢到了"))+Airdrop+TEXT("！");}
+inline FString AirdropTaken(){return FString(Airdrop)+TEXT("被人抢走了");}
+inline constexpr TCHAR Boss[]=TEXT("画饼老板");
+inline constexpr TCHAR BossBuff[]=TEXT("吃到大饼");
+inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
+inline FString BossSoon(const FString& Name){return Name+TEXT(" 即将出现");}
+inline FString BossPatrol(const FString& Name){return Name+TEXT(" 巡逻中 · 打它会被它追着打");}
+inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossBuff+TEXT("！");}
+inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name+TEXT("，")+BossBuff;}
+inline FString BossDown(const FString& Name){return Name+TEXT(" 倒下了");}
+inline constexpr TCHAR Leader[]=TEXT("上热搜");
+inline FString LeaderBounty(int64 Amount){return FString::Printf(TEXT("赏金 +%lld %s"),Amount,Gold);}
+inline FString LeaderNamed(const FString& Name,int64 Amount){return FString(Leader)+TEXT("：")+Name+TEXT(" · ")+LeaderBounty(Amount);}
+inline FString LeaderSelf(int64 Amount){return FString(TEXT("你"))+Leader+TEXT("了！位置已在小地图公开 · ")+LeaderBounty(Amount);}
+
 // 状态名：与目录 display 行同名
 inline constexpr TCHAR Shield[]=TEXT("心理防线");
 inline constexpr TCHAR Root[]=TEXT("提裤子");

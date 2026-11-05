@@ -57,7 +57,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-十 Spawn、五 Camp、一 Shop、一 Capture 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
+十 Spawn、五 Camp、一 Shop、一 Capture、两 Dorm、三 Airdrop、四 BossWaypoint 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
 **不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
@@ -326,7 +326,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
   Actions 读取 Combat 身体状态、用 `TraceSight` 从成员脚点证明来源可见后调用 `LDCampDecision`，
   普攻经 Combat `SubmitAction` 提交；Effects 消费已提交的 `FLDCombatHostileContact`；
   DeathsAndRewards 在核心结束生命后只记账并销毁野怪身体，奖励由成长唯一 sink 支付；
-  RespawnsAndWorld 先对真实到家（同一支持面、`CAMP.ResetArrivalRadiusCm` 内）的存活成员调用
+  RespawnsAndWorld 先对真实到家（同一支持面、`CAMP.ResetArrivalRadiusCm` 内）的存活成员，
+  以及被 `FLDCampReturnWatch` 判为回位无路的成员（`CAMP.ReturnDeadEnd*`，原地、`bInPlace`）调用
   Combat `PrepareCampReset/ApplyCampReset`，再处理到期的整组刷新。`NextRefreshDueMs` 向 Combat 驱动报告最早的
   待刷新期限，使刷新恰好落在该步边界。刷新落点被动态占用时保留同一票据，
   只在本营成员 home 的局部偏移内重试，不换营地、不发布半组。落点原点与参赛者出生相同

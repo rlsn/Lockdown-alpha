@@ -127,7 +127,7 @@
 | 画面回馈（浮动数字、奖励、击败、升级） | `ULDWorldFeedback`（与头顶标签同层同显隐）由纯值 `LDWorldFeedback::FTracker` 比较相邻样本得出事件，第一次样本、换局、换命或视图失效只重设基线，不补发历史。本人：`CombatView` 同代同命相邻修订的精神状态差（回血按 25 点/秒 × 间隔 + 1 的容差不飘字，精神状态上限变化不算伤害或治疗）与心理防线差（增加、被打掉；自然到期不飘）；可见单位：相邻当前帧中同一 Handle/Epoch、同一最大值的精神状态差（营地无回血，容差 1 点），按帧的采样时刻等呈现时钟到达再显示，单位不再呈现即丢弃；施法名：可见施法者的新 `Cast` 提示带 `ActionAbility/ActionEquipment` 时，在其身旁飘一次技能或装备显示名（`LDHUD::AbilityName`/内容表），不含等级、冷却，首见样本只建基线、无来源不显示（D16，CB-P10/SC-07 白名单例外）；奖励：同一次成长发布里 `CumulativeXP` 增加才飘“+流量”，金币同时增加才飘“+米”，买卖只改金币不飘；击败：公开击杀通知中击杀者是本人且新鲜（6 s 规则）才出“淫了 某某！”；升级：等级上升出“涨粉了！LvN”横幅与本人脚下光环、光柱，新获得三选一时加副行“获得一次开盲盒机会”。不读其他身体 Actor 或他人投影 |
 | 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、砍一刀小摊、旗杆喷漆区、两档营地标记；当前覆盖与当前可见单位（参赛者用座位色圆点，位置取代理的呈现位置，不可呈现时退回帧内脚点）；不画探索层或出生点。朝向按本地设置 `MinimapOrientation`（跟随镜头/跟随角色朝向/固定正北），三种都是真实俯视的旋转加统一缩放，不镜像；`LDMinimap::MakeView/ToFrame/ToWorld` 是绘制、镜头框与拖图/右键移动共用的唯一换算，旋转模式只显示不超过地面内切圆的圆形视窗（框角用框体底色遮住，避免露出地面外的深色角），并在圆边内侧标出“北”（世界 −Y） |
 | 属性 P | `ULDAttributesPanel` 只格式化 `CombatView.Attributes` 的各来源与最终值、已学被动、装备被动和临时状态；行固定，刷新不重置滚动 |
-| 三选一 | `ULDChoicesPanel` 读当前 Offer 的三张固定卡，命令带 OfferId/OptionId/各修订；Q/W 已满时进入替换子确认，不默认槽位；同一机会的修订刷新保留原选项。面板停靠在小地图下方的右侧窄列（宽 340u，半透明底板，三卡纵排；卡列与替换子确认共用最高 440u 的滚动区），对局不暂停，不遮挡画面中央的本人及周围。开局 Offer（第 1 次机会、尚未消费）为真人自动打开一次：等 Growth 发布该 Offer 后用 `ShowMainPanel` 打开，Root 尚在离开 Lobby 时最多重试 5 s，超时记录 `LD_HUD_OPENING_CHOICE_NOT_SHOWN`；玩家已开自己的面板或输入被捕获时放弃这一次，不覆盖玩家的 UI，也不替玩家选择。面板仍盖住右侧约 1/5 的世界，由 `LDHUD::FChoicesFold` 决定自动收起回金色待选提示（只隐藏，机会、Offer、选中卡与在途请求不变）：自动打开的面板 6 s（`AutoOpenSeconds`）内玩家没有点选卡片、进入替换子确认或提交请求则收起，操作过即不再计时；本人受击（HUD 用与世界飘字同一 `LDWorldFeedback::FTracker` 的本人精神状态下降/心理防线被吸收事件，只读本人投影）时，未在操作的打开面板收起，受击收起后玩家下一次手动打开不再因受击收起直到关闭 |
+| 三选一 | `ULDChoicesPanel` 读当前 Offer 的三张固定卡，命令带 OfferId/OptionId/各修订；Q/W 已满时进入替换子确认，不默认槽位；同一机会的修订刷新保留原选项。面板停靠在小地图下方的右侧窄列（宽 340u，半透明底板，三张最低 64u 的等高紧凑卡纵排，替换子确认在卡列下方展开，不滚动）；卡片只显示按类别区分形状/颜色的占位图标、名称和“类别 · 等级”一行，悬停或键盘聚焦时在卡列左侧与该卡平齐处弹出宽 300u 的详情层（描述与效果行，固定换行宽度；放在覆盖整个面板的独立 Canvas 层上，尺寸不影响卡列布局；HitTestInvisible，不挡世界点击）；点卡即提交该卡（`ChooseCard`），没有单独的确认按钮，满槽新主动卡点击后进入替换子确认，子确认的槽按钮只写 Q/W，点槽即提交替换（`ChooseReplacement`），对局不暂停，不遮挡画面中央的本人及周围。开局 Offer（第 1 次机会、尚未消费）为真人自动打开一次：等 Growth 发布该 Offer 后用 `ShowMainPanel` 打开，Root 尚在离开 Lobby 时最多重试 5 s，超时记录 `LD_HUD_OPENING_CHOICE_NOT_SHOWN`；玩家已开自己的面板或输入被捕获时放弃这一次，不覆盖玩家的 UI，也不替玩家选择。面板仍盖住右侧约 1/5 的世界，由 `LDHUD::FChoicesFold` 决定自动收起回金色待选提示（只隐藏，机会、Offer、选中卡与在途请求不变）：自动打开的面板 6 s（`AutoOpenSeconds`）内玩家没有悬停/聚焦或点选卡片、进入替换子确认或提交请求则收起，操作过即不再计时；本人受击（HUD 用与世界飘字同一 `LDWorldFeedback::FTracker` 的本人精神状态下降/心理防线被吸收事件，只读本人投影）时，未在操作的打开面板收起，受击收起后玩家下一次手动打开不再因受击收起直到关闭 |
 | 砍一刀小摊 | `ULDShopPanel` 读当前 Opened 会话报价（`ReadOwnShop`）与本人两槽装备；只有 `OnShopOpenResult` 的 Opened 与 Combat 的 `ReadShopInteraction` 同代次、同生命、同砍一刀小摊时才开页，迟到或旧交互结果不弹出；远端客户端在下一次成长发布前先用 Opened 自带的报价。买卖命令带所显示的会话、报价与修订，卖出需子确认；死亡、换命、换局或会话结束自动关闭，受伤不关闭 |
 | 旗杆喷漆与守护、击杀通知与结果 | `ALDGameState::PublicMatch`（唯一阶段来源，校验代次）经 `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)` 显示喷漆行与涂鸦/守护行：独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（十分位，无持有者时“谁也没存下进度”）；守护运行“旗杆上是 X 的涂鸦 · 再守 <秒>s”，被独自改漆暂停时“旗杆上是 X 的涂鸦 · 有人在改漆，守护暂停（再守 <秒>s）”；无主且无人时“旗杆空着，没人敢上？”；两部分用“ · ”连接。进度条独自喷漆时为喷漆进度、争夺时为暂存喷漆进度，其余为守护进度。`KillFeed`（按序号去重，只含参赛者死亡）、`MatchResult`（与 `PublicMatch.ResultId` 一致才显示，缺失时“结算同步中”而非零表；守护胜利标题“守护成功 · X 的涂鸦守住了，恭喜成为今晚的淫人王！”，房主结束“房主结束了本局 · 没人守住涂鸦”）；倒计时到零只等待权威状态，不宣布开放、喷上涂鸦或胜利 |
 | 命中、失败与进度 | 经裁剪的自身反馈，而非完整服务器日志 |
@@ -180,8 +180,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 旗杆开放 / 新喷上涂鸦 / 开始喷漆或换人 / 争夺 | `PublicMatch` 的开放状态、`CaptureEpoch` 与 `GraffitiOwner`（只在 CaptureOpen 阶段）；出现新的有效涂鸦主人时播放开放同款旗杆号角（`CaptureOpened`），优先于本次喷漆区变化的提示音；否则 Solo 为 `CaptureStarted`、Contested 为 `CaptureContested` | 每个 epoch 一次；喷漆区类提示 1 秒内最多一次，新喷上的涂鸦不受这一限频 |
 | 本人胜 / 负 / 无胜者结束 | 与 `PublicMatch.ResultId` 一致的 `MatchResult` | 每个 ResultId 一次；冻结 10 秒后才首次看到则不响 |
 | 本人受击 | 同 Match/Life 的 `CombatView` 新 Revision 中精神状态下降且上限未降；致死一击交给本人死亡音效 | 0.2 秒内最多一次 |
-| 本人普攻出手（`BasicAttack`，不是命中确认） | 本人 `CombatView.Cues` 的 `bReleasedBasic` 与新增 `ReleasedAtMs`：权威 `ReleaseBasic` 未拒绝后才写入；起手、受击与血量差都不作为本人出手依据 | 同 Match/Life、新 Revision 且释放时间超过已见水位，每次采样最多一次；首样本只建立基线，死亡、旧生命与重放不响 |
-| 本人心理防线吸收（`SelfShieldHit`） | 同一投影中精神状态未降而心理防线减少，且心理防线状态仍在或在其列出的到期前消失（与
+| 本人心理防线吸收（`SelfShieldHit`） | 同一投影中精神状态未降而心理防线减少，且心理防线状态仍在或在其列出的到期前消失（与心理防线吸收飘字同一规则）；心理防线自然到期不响 | 与本人受击共用 0.2 秒限频 |
+| 本人普攻出手（`SelfAttack`，不是命中确认） | 同 Match/Life 的 `CombatView` 新 Revision 中 `Cues.ReleasedAtMs` 晚于上次所见且 `bReleasedBasic`（近战出手或飞行物发射的时刻，Nav 与 Direct 来源相同）；技能与装备的释放交给下一行的回执 | 每次出手一次；新 Life 的首个投影只建立基线，死亡、旧生命与重放不响 |
 | 本人技能、装备主动或 D 冲刺释放成功 | 本人回执日志 `CombatReceipts` 中音效游标之后的每条回执：Q/W/1/2/D，Finished/Released 且无拒绝 | 每个请求一次（同一帧到达的多条回执逐条判断，前一条的释放不会被后一条覆盖；同一帧多次释放合成一次）；别局或别条命的回执不响 |
 | 购买或出售成功 / 交易被拒 | 本人砍一刀小摊提交结果与回执的最终 Applied/Rejected，及未保留序号的受理拒绝 | 每个请求的最终结果一次；重复或迟到回执不响 |
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
@@ -196,14 +196,14 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
 逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
 一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如心理防线吸收复用受击的 `impactGeneric_light_000.ogg`；
-本人普攻出手复用 `SelfCast` 的短促 `drop_002.ogg`，独立导入为 `SW_BasicAttack`，不用受击采样伪装命中。
+本人普攻出手使用独立的 `SW_SelfAttack`，只表示释放，不作为命中确认。
 释放事实只保留最后一次动作；同一采样间隔内被后续技能释放覆盖的普攻不能补放，不从其他单位血量推断。
 kenney.nl 的下载地址是会过期的签名链接，包以 `zip_sha256` 识别。
 各包的许可原文 `License.txt` 与文件放在同一目录。
 每条音效的播放音量（SoundWave `Volume`）由创作脚本 `Scripts\MeasureDemoAudioLoudness.py --write` 测得：
 BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中位数，提升以样本峰值 0.95 为上限，
 结果连同 `loudness_lufs` 写入清单的 `volume`，导入时应用，源文件字节不变。
-复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（心理防线吸收为 -6 dB，音量约为受击的一半）；被复用的文件只计一次中位数。
+复用文件的条目可带 `level_db`，在归一与峰值上限之后再叠加（心理防线吸收为 -6 dB，音量约为受击的一半）；不复用文件的条目也可带它，本人普攻 `impactPunch_medium_000.ogg` 为 -6 dB，连续普攻不刺耳；被复用的文件只计一次中位数。
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
 很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；

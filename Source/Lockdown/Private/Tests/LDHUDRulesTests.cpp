@@ -272,11 +272,14 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("A running guard never claims a winner"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,125000,3500,20000).Line.Contains(LDTerms::Winner));
     }
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;
-    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh),LDTerms::KillLine(TEXT("甲"),TEXT("乙")));
+    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),LDTerms::KillLine(TEXT("甲"),TEXT("乙")));
     Notice.Cause=ELDKillCause::CampHigh;
-    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh),LDTerms::KilledByLine(TEXT("乙"),LDTerms::CampHigh));
+    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),LDTerms::KilledByLine(TEXT("乙"),LDTerms::CampHigh));
     Notice.Cause=ELDKillCause::Unowned;
-    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),LDTerms::CampLow,LDTerms::CampHigh),FString(TEXT("乙 "))+LDTerms::Dead+TEXT("（无参赛者击杀）"));
+    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),FString(TEXT("乙 "))+LDTerms::Dead+TEXT("（无参赛者击杀）"));
+    Notice.Cause=ELDKillCause::Boss;
+    TestEqualSensitive(TEXT("A Boss death names the 画饼老板"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),
+        LDTerms::KilledByLine(TEXT("乙"),LDTerms::Boss));
     FLDResultView Result;Result.Reason=ELDMatchEndReason::GuardSucceeded;Result.Winner=FGuid::NewGuid();
     TestEqualSensitive(TEXT("A guard win names its end reason and crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),FString(TEXT("守护成功 · "))+LDTerms::Crowned(TEXT("甲")));
     TestTrue(TEXT("The crowning names the winner and the winner title"),LDTerms::Crowned(TEXT("甲")).StartsWith(TEXT("甲 "))&&LDTerms::Crowned(TEXT("甲")).Contains(LDTerms::Winner));
@@ -288,6 +291,51 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     const LDHUD::FResultRowView Shown=LDHUD::ResultRow(Row,Row.ContenderId,FGuid());
     TestTrue(TEXT("A frozen row keeps the departed AI and its statistics"),Shown.Name==TEXT("机器人（AI）（已离开）")&&Shown.Kills==TEXT("3")&&Shown.Deaths==TEXT("1")&&Shown.Level==TEXT("7")&&Shown.bWinner);
     TestFalse(TEXT("Statistics never mark a winner on their own"),LDHUD::ResultRow(Row,FGuid(),FGuid()).bWinner);
+    // D26: the public airdrop line.
+    FLDAirdropView Drop;
+    TestTrue(TEXT("No drop shows no airdrop line"),LDHUD::AirdropLine(Drop,false,0,true,0).IsEmpty());
+    Drop.Serial=1;Drop.Phase=ELDAirdropPhase::Announced;Drop.PointId=TEXT("airdrop_s");Drop.LandAtMs=45000;
+    TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,false,0,true,30001),
+        LDTerms::AirdropCountdown(TEXT("0:15")));
+    TestTrue(TEXT("The countdown names the 天降外卖"),LDHUD::AirdropLine(Drop,false,0,true,30001).StartsWith(LDTerms::Airdrop));
+    TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0,false,0),
+        LDTerms::AirdropSoon());
+    Drop.Phase=ELDAirdropPhase::Landed;
+    TestEqualSensitive(TEXT("A landed drop is first come, first served"),LDHUD::AirdropLine(Drop,false,0,true,46000),
+        FString(LDTerms::AirdropLanded));
+    Drop.Phase=ELDAirdropPhase::Claimed;
+    TestEqualSensitive(TEXT("The own claim (from the owner view) is announced to its owner"),LDHUD::AirdropLine(Drop,true,47000,true,48000),
+        LDTerms::AirdropOwnClaim());
+    TestEqualSensitive(TEXT("Everyone else only learns that the drop is gone, never who took it"),LDHUD::AirdropLine(Drop,false,47000,true,48000),
+        LDTerms::AirdropTaken());
+    TestTrue(TEXT("The claim notice leaves a few seconds after this screen saw it"),LDHUD::AirdropLine(Drop,false,47000,true,60000).IsEmpty());
+    const FGuid Me=FGuid::NewGuid();
+    // D26: the Boss line counts down shortly before it appears and names the last hit afterwards.
+    FLDBossView Dean;
+    TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,0).IsEmpty());
+    Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;
+    TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,30000).IsEmpty());
+    TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,51000),
+        LDTerms::BossCountdown(LDTerms::Boss,TEXT("0:10")));
+    TestTrue(TEXT("The countdown names the 画饼老板"),LDHUD::BossLine(Dean,Me,FString(),FString(),true,51000).StartsWith(LDTerms::Boss));
+    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,false,51000).IsEmpty());
+    Dean.Phase=ELDBossPhase::Down;Dean.KilledBy=Me;Dean.DownAtMs=90000;
+    TestEqualSensitive(TEXT("The last hit is told it ate the pie"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,91000),
+        LDTerms::BossDownSelf(LDTerms::Boss));
+    TestTrue(TEXT("The buff is called 吃到大饼"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,91000).Contains(LDTerms::BossBuff));
+    TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossLine(Dean,FGuid::NewGuid(),TEXT("甲"),LDTerms::Boss,true,91000),
+        LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
+    TestTrue(TEXT("The result leaves after a few seconds"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,99001).IsEmpty());
+    // D27: the 上热搜 line names the leader and the bounty; the leader is told directly.
+    FLDLeaderView Named;
+    TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named,Me,FString()).IsEmpty());
+    Named.Leader=FGuid::NewGuid();Named.BountyGold=100;Named.RefreshedAtMs=20000;
+    TestEqualSensitive(TEXT("Another contender's notice names the public roster name and the bounty"),LDHUD::LeaderLine(Named,Me,TEXT("甲")),
+        LDTerms::LeaderNamed(TEXT("甲"),100));
+    TestTrue(TEXT("The notice is called 上热搜 and pays in 米"),LDHUD::LeaderLine(Named,Me,TEXT("甲")).StartsWith(LDTerms::Leader)
+        &&LDHUD::LeaderLine(Named,Me,TEXT("甲")).Contains(LDTerms::Gold));
+    Named.Leader=Me;
+    TestEqualSensitive(TEXT("The leader is told its place is public"),LDHUD::LeaderLine(Named,Me,TEXT("我")),LDTerms::LeaderSelf(100));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDContentParametersTest,"Lockdown.Rules.HUDContentParameters",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -319,9 +367,18 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content);
     TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动技能")&&Card.RankText==TEXT("1 级"));
     TestTrue(TEXT("The card shows the target form and the rank's typed parameters"),Card.Lines.Num()==3&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm"));
+    TestTrue(TEXT("The compact card line names the kind, rank and the replacement"),Card.Summary==TEXT("新主动技能 · 1 级 · 需替换"));
+    TestTrue(TEXT("An active card draws the active placeholder icon with the name's first character"),
+        Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId.IsEmpty());
     FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
     const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content);
     TestTrue(TEXT("An upgrade states both ranks and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("1 → 2 级"));
+    FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
+    FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;
+    TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content).Icon==LDHUD::EChoiceIcon::Passive
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content).Summary==TEXT("属性提升 · 已选 0 次"));
+    FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");Content.Display.Add(BoltDisplay);
+    TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);
@@ -490,14 +547,14 @@ bool FLDHUDDeathCauseTest::RunTest(const FString& Parameters)
     FLDKillFeedView Feed;Feed.Generation=7;
     auto AddNotice=[&Feed](uint64 Serial,const FGuid& Victim,const FGuid& By,ELDKillCause Kind,int64 AtMs)
     {FLDKillNotice Entry;Entry.Serial=Serial;Entry.Victim=Victim;Entry.Killer=By;Entry.Cause=Kind;Entry.OccurredAtMs=AtMs;Feed.Notices.Add(Entry);};
-    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,LDTerms::CampLow,LDTerms::CampHigh);};
+    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss);};
     AddNotice(1,Self,FGuid(),ELDKillCause::CampHigh,10000);
     AddNotice(2,Other,Rival,ELDKillCause::Contender,30000);
     AddNotice(3,Self,Rival,ELDKillCause::Contender,50000);
     TestEqualSensitive(TEXT("The newest own death names its killer from the public roster"),CauseAt(7,40000),LDTerms::KilledBy(TEXT("玩家甲")));
     TestTrue(TEXT("A feed of another generation is not this match"),CauseAt(8,0).IsEmpty()&&CauseAt(0,0).IsEmpty());
     TestTrue(TEXT("Before this life's notice arrives an older death never stands in"),CauseAt(7,60000).IsEmpty());
-    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,LDTerms::CampLow,LDTerms::CampHigh).IsEmpty());
+    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss).IsEmpty());
     Feed.Notices.RemoveAt(2);
     TestEqualSensitive(TEXT("A camp death names the approved creature of its tier"),CauseAt(7,0),LDTerms::KilledBy(LDTerms::CampHigh));
     TestTrue(TEXT("Another contender's death is never the player's cause"),CauseAt(7,20000).IsEmpty());
@@ -518,7 +575,7 @@ bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
 {
     const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid();
     auto Line=[](const FLDKillNotice& Source,const FGuid& Viewer,const TCHAR* VictimName,const TCHAR* KillerName)
-    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,LDTerms::CampLow,LDTerms::CampHigh);};
+    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss);};
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;Notice.Victim=Rival;Notice.Killer=Self;
     LDHUD::FKillFeedLineView Shown=Line(Notice,Self,TEXT("乙"),TEXT("我"));
     TestTrue(TEXT("The player's own kill says 你 and is highlighted"),Shown.bSelf&&Shown.Text==LDTerms::KillLine(TEXT("你"),TEXT("乙")));

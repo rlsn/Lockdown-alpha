@@ -79,7 +79,7 @@ bool FLDArtCatalogTest::RunTest(const FString& Parameters)
     Copy = ArtCopy(*Source); Copy->Seats[3].Character = TEXT("nobody");
     ArtExpectRejected(*this, *Copy, TEXT("A seat look naming no catalog character is an error"), TEXT("nobody"));
     Copy = ArtCopy(*Source); Copy->Monsters.Pop();
-    ArtExpectRejected(*this, *Copy, TEXT("A missing camp tier look is an error"), TEXT("camp tier looks"));
+    ArtExpectRejected(*this, *Copy, TEXT("A missing monster look is an error"), TEXT("monster looks"));
     Copy = ArtCopy(*Source); Copy->Monsters[0].Character = Copy->Seats[0].Character;
     ArtExpectRejected(*this, *Copy, TEXT("A camp tier wearing a contender body is an error"), TEXT("also a contender body"));
     Copy = ArtCopy(*Source); Copy->Monsters[1].Character = Copy->Monsters[0].Character;
@@ -142,10 +142,13 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
     const FLDArtCharacter* Contender = Art.ForSeat(0);
     const FLDArtCharacter* Monitor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterScavenger));
     const FLDArtCharacter* Teacher = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterGuardian));
-    TestTrue(TEXT("Every seat, both camp tiers and nothing else resolve"), Contender && Monitor && Teacher && !Art.ForSeat(LDArt::SeatCount)
-        && !Art.ForMonster(0) && !Art.ForMonster(3));
-    TestTrue(TEXT("The teacher is the tallest body"), Contender && Monitor && Teacher && Teacher->HeightCm > Contender->HeightCm
+    const FLDArtCharacter* Dean = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterDean));
+    TestTrue(TEXT("Every seat, both camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
+        && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(4));
+    TestTrue(TEXT("The teacher is the tallest camp body"), Contender && Monitor && Teacher && Teacher->HeightCm > Contender->HeightCm
         && Teacher->HeightCm > Monitor->HeightCm);
+    TestTrue(TEXT("D26: the Boss is its own body, taller than every other"), Dean && Teacher && Dean != Teacher
+        && Dean->HeightCm > Teacher->HeightCm);
     const float HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
     for (const FLDArtCharacter& Body : Catalog->Characters)
     {

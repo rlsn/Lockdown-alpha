@@ -709,7 +709,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), Geometry.Get(),
             FPaths::Combine(Root, TEXT("native_world_expected.json")), Actual)) { return false; }
         TestEqual(TEXT("World keeps ten actual polygon blockers"), Geometry->Blockers.Num(), 10);
-        TestEqual(TEXT("World keeps seventeen authored anchors"), Geometry->Anchors.Num(), 17);
+        TestEqual(TEXT("World keeps twenty-six authored anchors"), Geometry->Anchors.Num(), 26);
         TestEqual(TEXT("World keeps seven local placements, not seventy spawn IDs"), Geometry->SpawnOffsetsCm.Num(), 7);
     }
     return true;
@@ -832,7 +832,7 @@ bool FLDDemoWorldAssetTest::RunTest(const FString& Parameters)
         && !BadReader.IsError() && !BadRestored->Read(*Catalog, AfterFailure, Error));
     *Stored = Original;
     TestTrue(TEXT("Restoring the isolated mutations recovers the original asset"), Validate(Error));
-    TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 17);
+    TestEqual(TEXT("Earlier immutable world snapshot remains unchanged"), First->Anchors.Num(), 26);
     return true;
 }
 
@@ -937,11 +937,15 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     }
     const bool bConflictRegistered = LDDemoContentText::Register(*Runtime, Error);
     const FString ConflictError = Error;
+    FString EntryError;
+    const bool bEntryVerified = LDDemoEntry::VerifyRuntimeFiles(EntryError);
     Registry.UnregisterStringTable(LDDemoContentText::TableId());
     Registry.RegisterStringTable(LDDemoContentText::TableId(), Registered.ToSharedRef());
     TestTrue(TEXT("A conflicting table can be prepared for the refusal check"), bBuiltForeign && bUnregistered);
     TestFalse(TEXT("Different text under the DemoContent ID is refused, not mixed"), bConflictRegistered);
     TestTrue(TEXT("Conflict refusal is explicit: ") + ConflictError, ConflictError.Contains(TEXT("already registered")));
+    TestFalse(TEXT("Entry verification revalidates even when runtime content was cached"), bEntryVerified);
+    TestTrue(TEXT("Entry verification reports the conflicting table: ") + EntryError, EntryError.Contains(TEXT("already registered")));
     const bool bRestored = LDDemoContentText::Register(*Runtime, Error);
     TestTrue(TEXT("The verified table is restored and accepted again: ") + Error, bRestored);
     return true;

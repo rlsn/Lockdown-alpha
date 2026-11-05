@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approval relayed on 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move. 2026-11-04: #82 D17-D24, D dash, expansions CONTENT_AND_BALANCE 15.4, 15.7-15.9. 2026-11-05: #112 spray-guard and builds (15.2,15.6,15.10-15.11); approved movement/camera group: player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400). First implementation/playtest baseline, not a balance-validation claim."
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 movement/camera: player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400). First implementation/playtest baseline, not a balance-validation claim."
     }
   },
   "parameters": {
@@ -70,6 +70,10 @@
     "REGEN.OutOfCombatDelaySec": {"unit": "s", "value": 5},
     "REGEN.OutOfCombatMaxHPRatioPerSec": {"unit": "ratio", "value": 0.015},
     "REGEN.OutOfCombatMaxMPRatioPerSec": {"unit": "ratio", "value": 0.015},
+    "DORM.RadiusCm": {"unit": "cm", "value": 400},
+    "DORM.OutOfCombatDelaySec": {"unit": "s", "value": 3},
+    "DORM.MaxHPRatioPerSec": {"unit": "ratio", "value": 0.1},
+    "DORM.MaxMPRatioPerSec": {"unit": "ratio", "value": 0.1},
     "SHOP.StartingGold": 320,
     "SHOP.SellRatio": {"unit": "ratio", "value": 0.65},
     "SHOP.UpgradeCost": 240,
@@ -82,6 +86,20 @@
     "CHOICE.AffinityCap": {"unit": "ratio", "value": 1.70},
     "CHOICE.ThirdSlotAttributeChance": {"unit": "ratio", "value": 0.65},
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
+    "CAMP.ReturnDeadEndPlans": 3,
+    "CAMP.ReturnDeadEndSec": {"unit": "s", "value": 6},
+    "AIRDROP.FirstLandSec": {"unit": "s", "value": 45},
+    "AIRDROP.IntervalSec": {"unit": "s", "value": 75},
+    "AIRDROP.AnnounceLeadSec": {"unit": "s", "value": 15},
+    "AIRDROP.PickupRadiusCm": {"unit": "cm", "value": 150},
+    "AIRDROP.RewardXP": 200,
+    "AIRDROP.RewardGold": 150,
+    "LEADER.MinLevel": 3,
+    "LEADER.RefreshSec": {"unit": "s", "value": 10},
+    "LEADER.CircleRadiusCm": {"unit": "cm", "value": 1500},
+    "LEADER.CircleMaxOffsetCm": {"unit": "cm", "value": 1000},
+    "LEADER.BountyGoldPerRefresh": 50,
+    "LEADER.BountyGoldMax": 250,
     "XP.BaseToNext": 80,
     "XP.IncreasePerLevel": 20,
     "REWARD.PlayerXP.Base": 100,
@@ -562,6 +580,14 @@
       {"anchor_id": "l3", "monster_id": "monster_scavenger"}
     ]
   },
+  "boss": {
+    "id": "monster_dean",
+    "hp": {"unit": "hp", "value": 1500}, "armor": {"unit": "points", "value": 30}, "magic_resist": {"unit": "points", "value": 30}, "attack": {"unit": "points", "value": 70},
+    "attack_interval": {"unit": "s", "value": 1.5}, "attack_windup": {"unit": "s", "value": 0.5}, "attack_range": {"unit": "cm", "value": 250},
+    "move_speed": {"unit": "cm/s", "value": 300}, "collision_radius": {"unit": "cm", "value": 40}, "aggro_radius": {"unit": "cm", "value": 400},
+    "attacker_memory": {"unit": "s", "value": 5}, "appear_at": {"unit": "s", "value": 60}, "reward_xp": 300, "reward_gold": 250,
+    "approval": {"duration": {"unit": "s", "value": 90}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.25}, "APBonusRatio": {"unit": "ratio", "value": 0.25}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.10}}}
+  },
   "progression": {
     "max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
     "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440],
@@ -643,6 +669,7 @@
     {"id": "vulnerable", "namespace": "DemoContent", "name_key": "vulnerable.name", "name_text": "裤子没了", "description_key": "vulnerable.description", "description_text": "提裤子期间更怕打：受到的持续伤害和大比兜伤害提高。", "icon_id": "icon_vulnerable"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回工位。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "追着办卡的私教", "description_key": "monster_guardian.description", "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回工位。", "icon_id": "icon_monster_guardian"},
+    {"id": "monster_dean", "namespace": "DemoContent", "name_key": "monster_dean.name", "name_text": "画饼老板", "description_key": "monster_dean.description", "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。", "icon_id": "icon_monster_dean"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "提裤子", "description_key": "root.description", "description_text": "裤子被扒了，忙着提：不能移动和润，但仍可以抽大比兜、放技能和用装备。", "icon_id": "icon_root"},
     {"id": "shield", "namespace": "DemoContent", "name_key": "shield.name", "name_text": "心理防线", "description_key": "shield.description", "description_text": "先替你挡下伤害，被打穿或到时间就没了。", "icon_id": "icon_shield"},
     {"id": "camp_returning", "namespace": "DemoContent", "name_key": "camp_returning.name", "name_text": "回工位", "description_key": "camp_returning.description", "description_text": "野怪正在回工位，途中不攻击也不换目标，但仍会挨打；回到工位后精神状态回满。", "icon_id": "icon_camp_returning"},

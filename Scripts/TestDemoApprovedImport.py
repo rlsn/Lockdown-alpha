@@ -84,7 +84,14 @@ class ApprovedDemoData(unittest.TestCase):
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
+            ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
+            ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
+            ("CAMP.ReturnDeadEndSec", "ms", "6"),
+            ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "75"),
+            ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
+            ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
+            ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistGoldRatio", "ratio", ".5"),
             ("SHOP.UpgradeStatBonusRatio", "ratio", ".35"), ("CHOICE.UpgradeWeight", "ratio", "2.2"),
             ("CHOICE.NewActiveOpenSlotWeight", "ratio", "1.5"), ("CHOICE.NewActiveFullSlotWeight", "ratio", ".30"),
@@ -102,6 +109,8 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOP.StartingGold", 320), ("SHOP.UpgradeCost", 240), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("CAMP.ReturnDeadEndPlans", 3), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
+            ("LEADER.MinLevel", 3), ("LEADER.BountyGoldPerRefresh", 50), ("LEADER.BountyGoldMax", 250),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))
@@ -181,7 +190,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
             "item_echo_maul": "自拍杆", "item_paper_box": "路人甲 T 恤",
-            "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教",
+            "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "root": "提裤子", "shield": "心理防线", "camp_returning": "回工位", "respawn_protection": "免死金牌",
             "slow": "腿软", "stat_boost": "上头", "enraged": "急了", "ambush_ready": "蹲到了", "exposed": "破防了",
             "taunt": "瞅你咋地", "stealth": "查无此人", "disarm": "捂裆", "stun": "CPU 干烧了", "empowered": "蓄力大比兜",
@@ -637,12 +646,28 @@ class ApprovedDemoData(unittest.TestCase):
                               row["attack_interval_ms"]), (windup, grace, respawn, interval))
             self.assertTrue(all(amount(row[key]) == 0 for key in ("hp_regen", "max_mp", "mp_regen", "ap", "crit_chance")))
 
+    def test_approved_boss(self):
+        # D26 (#79), user-approved 2026-11-04 ("Approve as proposed (Recommended)") and 2026-11-05 (windup, waypoints).
+        boss = self.data["boss"]
+        self.assertEqual(boss["id"], "monster_dean")
+        for key, expected in (("hp", 1500), ("armor", 30), ("magic_resist", 30), ("attack", 70), ("attack_range", 250),
+                              ("move_speed", 300), ("collision_radius", 40), ("aggro_radius", 400)):
+            self.assertEqual(amount(boss[key]), expected, key)
+        self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
+                          boss["appear_at"]["ms"], boss["reward_xp"], boss["reward_gold"]), (1500, 500, 5000, 60000, 300, 250))
+        self.assertEqual(boss["approval"]["duration"]["ms"], 90000)
+        self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
+                         {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
+
     def test_exact_world_surface_anchors_and_member_homes(self):
         expected = {
             "s00": (4400, 0), "s01": (3560, 2586), "s02": (1360, 4185), "s03": (-1360, 4185), "s04": (-3560, 2586),
             "s05": (-4400, 0), "s06": (-3560, -2586), "s07": (-1360, -4185), "s08": (1360, -4185), "s09": (3560, -2586),
             "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
-            "shop": (778, 778), "capture": (0, 0),
+            "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
+            "airdrop_ne": (1940, 2670), "airdrop_nw": (-1940, 2670), "airdrop_s": (0, -3300),
+            "boss_patrol_1": (2400, 2400), "boss_patrol_2": (-2400, 2400), "boss_patrol_3": (-2400, -2400),
+            "boss_patrol_4": (2400, -2400),
         }
         self.assertEqual(set(self.anchors), set(expected))
         for identity, xy in expected.items():
@@ -690,7 +715,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("g162", ("midwall_126", "midwall_198"), "l2"), ("g234", ("midwall_198", "midwall_270"), "h2"),
             ("g306", ("midwall_270", "midwall_342"), "l3")])
         self.assertEqual(self.world.world["parameter_refs"], (
-            "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
+            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
 
     def test_published_route_lengths_and_whole_ground_budget(self):

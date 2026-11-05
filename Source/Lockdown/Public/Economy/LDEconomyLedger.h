@@ -55,6 +55,8 @@ namespace LDEconomy
         None, DeathReward, Buy, Sell, AccountRetire,
         // 112 §7: Burn SHOP.UpgradeCost + upgrade one owned instance; spends the account's one upgrade.
         Upgrade,
+        // D26 (#79): a map event payout (airdrop pickup) minted to one account, never a death or a trade.
+        MapEventReward,
 #if WITH_DEV_AUTOMATION_TESTS
         // DEV growth fixture grant (-LDDevGrowthFixture only): Mint to one account, never a death or a trade.
         DevFixture,

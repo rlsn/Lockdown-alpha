@@ -95,10 +95,11 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
 {
     FLDAudioCueTracker Tracker;
     FLDCombatOwnerView Combat;Combat.Generation=3;Combat.Life=1;Combat.bHasBody=true;Combat.Revision=1;Combat.HPP2=50000;Combat.MaxHPP2=50000;
+    Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Combat.AsOfMs=500;
     FLDProgressionView Growth;Growth.bValid=true;Growth.Generation=3;Growth.Life=1;Growth.Level=1;
     FLDAudioFrame Frame;Frame.Self=FGuid::NewGuid();Frame.OwnMatch=3;Frame.OwnLife=1;Frame.OwnLifePhase=ELDLifePhase::Alive;
     Frame.OwnCombat=&Combat;Frame.OwnProgression=&Growth;Frame.LocalSeconds=1;
-    TestTrue(TEXT("The first own sample only primes"),AudioSample(Tracker,Frame).IsEmpty());
+    TestTrue(TEXT("The first own sample only primes, including a basic attack released before it"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Revision=2;Combat.HPP2=45000;Frame.LocalSeconds=2;
     TestTrue(TEXT("Lost own points sound a hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfHit}));
     TestTrue(TEXT("The same revision never repeats"),AudioSample(Tracker,Frame).IsEmpty());
@@ -128,6 +129,19 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=12;Combat.ShieldP2=0;Combat.Statuses.Reset();Combat.AsOfMs=7600;Frame.LocalSeconds=10;
     TestTrue(TEXT("A shield broken before its end by a hit sounds the shield hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfShieldHit}));
 
+    // The own basic attack: each newer basic release in the owner projection's cue facts sounds once.
+    Combat.Revision=13;Combat.Cues.ReleasedStartedAtMs=7700;Combat.Cues.ReleasedAtMs=8000;Combat.AsOfMs=8000;Frame.LocalSeconds=10.5;
+    TestTrue(TEXT("A released own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
+    TestTrue(TEXT("The same revision never repeats the attack"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=14;Combat.Cues.bActing=true;Combat.Cues.bActingBasic=true;Combat.Cues.ActingStartedAtMs=8300;Frame.LocalSeconds=10.6;
+    TestTrue(TEXT("A republished release and a new windup stay silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=15;Combat.Cues.bActing=false;Combat.Cues.bActingBasic=false;Combat.Cues.ReleasedStartedAtMs=8300;Combat.Cues.ReleasedAtMs=8600;Combat.AsOfMs=8600;Frame.LocalSeconds=10.9;
+    TestTrue(TEXT("Consecutive basic attacks each sound"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
+    Combat.Revision=16;Combat.Cues.bReleasedBasic=false;Combat.Cues.ReleasedStartedAtMs=8700;Combat.Cues.ReleasedAtMs=9000;Combat.AsOfMs=9000;Frame.LocalSeconds=11.2;
+    TestTrue(TEXT("A released skill is left to its receipt"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Revision=17;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
+    TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
+
     Growth.Level=2;Growth.EarnedThrough=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
     TestTrue(TEXT("The same level stays silent"),AudioSample(Tracker,Frame).IsEmpty());
@@ -141,8 +155,12 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Waiting dead stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Frame.OwnLife=2;Frame.OwnLifePhase=ELDLifePhase::Alive;
     TestTrue(TEXT("The next life sounds a respawn; the old life's view cannot hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfRespawn}));
-    Combat.Life=2;Combat.Revision=1;Combat.HPP2=50000;Combat.MaxHPP2=50000;
-    TestTrue(TEXT("A new life's first combat view primes"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Life=2;Combat.Revision=1;Combat.HPP2=50000;Combat.MaxHPP2=50000;Combat.Cues.ReleasedStartedAtMs=9700;Combat.Cues.ReleasedAtMs=10000;Combat.AsOfMs=10000;
+    TestTrue(TEXT("A new life's first combat view primes, including its release"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Life=1;Combat.Revision=20;Combat.Cues.ReleasedAtMs=11000;
+    TestTrue(TEXT("A release in the old life's view stays silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Combat.Life=2;Combat.Revision=2;Combat.Cues.ReleasedStartedAtMs=10700;Combat.Cues.ReleasedAtMs=11000;Combat.AsOfMs=11000;
+    TestTrue(TEXT("The new life's own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;
     TestTrue(TEXT("A new match never sounds a respawn or level"),AudioSample(Tracker,Frame).IsEmpty());
 
@@ -214,9 +232,11 @@ bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
     Tracker.ObserveCombatReceipt(Refused,5,1,Out);
     TestTrue(TEXT("A cancelled basic receipt cannot manufacture a swing"),Out.IsEmpty());
 
+    ++Combat.Revision;Combat.AsOfMs=1200;Combat.Cues.ReleasedAtMs=1300;
+    TestTrue(TEXT("A release later than its projection cannot sound"),AudioSample(Tracker,Frame).IsEmpty());
     ++Combat.Revision;Combat.AsOfMs=1400;Combat.Cues.ReleasedAtMs=1400;
     TestTrue(TEXT("An own successful basic release sounds a swing without any HP change"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     TestTrue(TEXT("An identical projection cannot replay the swing"),AudioSample(Tracker,Frame).IsEmpty());
     ++Combat.Revision;
     TestTrue(TEXT("A newer projection with the same release cannot replay it"),AudioSample(Tracker,Frame).IsEmpty());
@@ -236,7 +256,7 @@ bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Gaining HP does not manufacture a landed hit or swing"),AudioSample(Tracker,Frame).IsEmpty());
     ++Combat.Revision;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedAtMs=1800;Combat.AsOfMs=1800;
     TestTrue(TEXT("The next actual basic release sounds independently of HP"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
 
     ++Combat.Revision;Combat.Cues.ReleasedAtMs=1900;Combat.AsOfMs=1900;Combat.HPP2=0;Frame.OwnLifePhase=ELDLifePhase::Dead;
     TestTrue(TEXT("A release first delivered with own death does not sound a swing"),
@@ -251,13 +271,13 @@ bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A late old owner life cannot rewind the release tracker"),AudioSample(Tracker,Frame).IsEmpty());
     Frame.OwnLife=2;Combat.Life=2;Combat.Revision=2;Combat.AsOfMs=2200;Combat.Cues.ReleasedAtMs=2200;
     TestTrue(TEXT("An old life cannot swallow the new life's next release"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     Frame.OwnMatch=6;Frame.OwnLife=1;Combat.Generation=6;Combat.Life=1;Combat.Revision=1;
     Combat.AsOfMs=100;Combat.Cues.ReleasedAtMs=100;
     TestTrue(TEXT("A new match primes without a respawn or an old swing"),AudioSample(Tracker,Frame).IsEmpty());
     ++Combat.Revision;Combat.AsOfMs=200;Combat.Cues.ReleasedAtMs=200;
     TestTrue(TEXT("The new match can sound its own release at a lower timestamp"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     ++Combat.Revision;Combat.AsOfMs=300;Combat.Cues.ReleasedAtMs=300;Combat.Generation=5;
     TestTrue(TEXT("Another match's combat projection cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Generation=6;Combat.Life=2;
@@ -266,7 +286,7 @@ bool FLDAudioCueBasicAttackTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A projection without an own body cannot supply a swing"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.bHasBody=true;
     TestTrue(TEXT("A valid current body release is still observed after invalid projections"),
-        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::BasicAttack}));
+        AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
     return true;
 }
 
@@ -274,7 +294,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioCatalogTest,"Lockdown.Rules.AudioCatalo
 bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
-    TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::BasicAttack),uint8(17));
+    TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
     for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
     {
         ELDAudioCue Parsed=ELDAudioCue::None;

@@ -62,12 +62,12 @@ private:
     uint32 HitMatch = 0;
     uint32 HitLife = 0;
     uint64 HitRevision = 0;
-    int64 BasicReleasedAtMs = 0; // All releases advance the watermark; only basic releases sound.
     int64 HitHPP2 = 0;
     int64 HitMaxHPP2 = 0;
     int64 HitShieldP2 = 0;
     int64 HitShieldEndsAtMs = 0;    // end of the shield status listed with the baseline; 0 when none was listed
     double LastHitAt = -1e9;
+    int64 AttackReleasedAtMs = 0;   // the last own release (any kind) seen in this life; 0 when none was released
     uint32 GrowthMatch = 0;
     uint8 GrowthLevel = 0;
     uint8 GrowthEarned = 0;

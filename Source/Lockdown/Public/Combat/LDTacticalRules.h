@@ -96,17 +96,20 @@ namespace LDTactical
     };
 
     // FORMULA.Regen over [FromMs, NowMs) of one living body: the always-on rates of Attributes, its passive
-    // out-of-combat bonus and, when given, the contender Recovery. Each out-of-combat term runs exactly from
-    // LastCombatAtMs + its own delay; the maxima are the ones held over the whole interval (a change settles first).
+    // out-of-combat bonus and, when given, the contender Recovery and the dorm's fast Dorm recovery (D21, #79).
+    // Each out-of-combat term runs exactly from LastCombatAtMs + its own delay and they all stack; the maxima are
+    // the ones held over the whole interval (a change settles first).
     // passive_second_wind: before SurgeUntilMs the always-on rates are multiplied by the passive's surge multiplier, and during combat
     // time the passive keeps its in-combat share of its out-of-combat rate.
     LOCKDOWN_API bool SettleRegen(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error, int64 SurgeUntilMs = 0);
+        int64 LastCombatAtMs, int64 FromMs, int64 NowMs, FRegenPools& InOut, FString& Error, int64 SurgeUntilMs = 0,
+        const FOutOfCombatRecovery* Dorm = nullptr);
     struct FRegenRates { double HP=0, MP=0; };
     // Read-only instantaneous rates from validated authority inputs, before full-pool clipping.
-    // Uses the same terms and activation boundaries as SettleRegen; no resource integration or mutation.
+    // Uses the same terms (including the D21 躺平角 term when given) and activation boundaries as SettleRegen; no resource integration or mutation.
     LOCKDOWN_API FRegenRates RegenRates(const FLDAttributeProjection& Attributes, const FOutOfCombatRecovery* Recovery,
-        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, int64 SurgeUntilMs = 0);
+        int64 MaxHpP2, int64 MaxMpP2, int64 LastCombatAtMs, int64 NowMs, int64 SurgeUntilMs = 0,
+        const FOutOfCombatRecovery* Dorm = nullptr);
     // Whether an out-of-combat term with DelayMs is running at NowMs.
     LOCKDOWN_API bool OutOfCombatAt(int64 LastCombatAtMs, int64 DelayMs, int64 NowMs);
 }

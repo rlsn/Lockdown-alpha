@@ -14,7 +14,9 @@ class FLDDemoContentSnapshot;
 
 enum class ELDOpponentMode : uint8
 {
-    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Shop, Contest, Farm, Explore
+    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Shop, Contest, Farm, Explore,
+    // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
+    Airdrop
 };
 
 // Bounded diagnostic cause of a decision; never a coordinate, wallet or private source.
@@ -22,7 +24,7 @@ enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
     EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner
+    AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
@@ -117,6 +119,12 @@ struct FLDOpponentPublicMatch
     FGuid Owner;
     // Real instant the owner's running guard wins; zero without an owner or while a sole sprayer pauses it.
     int64 GuardDueAtMs = 0;
+    // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
+    FName AirdropPOI;
+    bool bAirdropLanded = false;
+    // D27: the public 上热搜 notice; Leader invalid when nobody is named.
+    FGuid Leader;
+    FVector LeaderCircleCentreCm = FVector::ZeroVector;
 };
 
 enum class ELDOpponentUnitKind : uint8 { Contender, CampMember };
@@ -137,7 +145,7 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture };
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture, Dorm, Airdrop };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI

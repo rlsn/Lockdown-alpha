@@ -4841,6 +4841,84 @@
       }
     }
   ],
+  "boss": {
+    "aggro_radius": {
+      "denominator": 1,
+      "numerator": 400,
+      "unit": "cm"
+    },
+    "appear_at": {
+      "ms": 60000,
+      "unit": "ms"
+    },
+    "approval": {
+      "duration": {
+        "ms": 90000,
+        "unit": "ms"
+      },
+      "stats": {
+        "ADBonusRatio": {
+          "bp": 2500,
+          "unit": "ratio"
+        },
+        "APBonusRatio": {
+          "bp": 2500,
+          "unit": "ratio"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 1000,
+          "unit": "ratio"
+        }
+      }
+    },
+    "armor": {
+      "p2": 3000,
+      "unit": "points"
+    },
+    "attack": {
+      "p2": 7000,
+      "unit": "points"
+    },
+    "attack_interval": {
+      "ms": 1500,
+      "unit": "ms"
+    },
+    "attack_range": {
+      "denominator": 1,
+      "numerator": 250,
+      "unit": "cm"
+    },
+    "attack_windup": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "attacker_memory": {
+      "ms": 5000,
+      "unit": "ms"
+    },
+    "collision_radius": {
+      "denominator": 1,
+      "numerator": 40,
+      "unit": "cm"
+    },
+    "hp": {
+      "p2": 150000,
+      "unit": "hp"
+    },
+    "id": "monster_dean",
+    "magic_resist": {
+      "p2": 3000,
+      "unit": "points"
+    },
+    "move_speed": {
+      "denominator": 1,
+      "numerator": 300,
+      "unit": "cm/s"
+    },
+    "native_id": 3,
+    "reward_gold": 250,
+    "reward_xp": 300
+  },
   "camps": {
     "monsters": [
       {
@@ -5599,6 +5677,15 @@
       "id": "knockback",
       "name_key": "knockback.name",
       "name_text": "被掀飞",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_dean.description",
+      "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。",
+      "icon_id": "icon_monster_dean",
+      "id": "monster_dean",
+      "name_key": "monster_dean.name",
+      "name_text": "画饼老板",
       "namespace": "DemoContent"
     },
     {
@@ -7122,7 +7209,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approval relayed on 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move. 2026-11-04: #82 D17-D24, D dash, expansions CONTENT_AND_BALANCE 15.4, 15.7-15.9. 2026-11-05: #112 spray-guard and builds (15.2,15.6,15.10-15.11); approved movement/camera group: player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400). First implementation/playtest baseline, not a balance-validation claim.",
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 movement/camera: player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400). First implementation/playtest baseline, not a balance-validation claim.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -7175,10 +7262,34 @@
       "ms": 500,
       "unit": "ms"
     },
+    "AIRDROP.AnnounceLeadSec": {
+      "ms": 15000,
+      "unit": "ms"
+    },
+    "AIRDROP.FirstLandSec": {
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "AIRDROP.IntervalSec": {
+      "ms": 75000,
+      "unit": "ms"
+    },
+    "AIRDROP.PickupRadiusCm": {
+      "denominator": 1,
+      "numerator": 150,
+      "unit": "cm"
+    },
+    "AIRDROP.RewardGold": 150,
+    "AIRDROP.RewardXP": 200,
     "CAMP.ResetArrivalRadiusCm": {
       "denominator": 1,
       "numerator": 100,
       "unit": "cm"
+    },
+    "CAMP.ReturnDeadEndPlans": 3,
+    "CAMP.ReturnDeadEndSec": {
+      "ms": 6000,
+      "unit": "ms"
     },
     "CAPTURE.GuardSec": {
       "ms": 20000,
@@ -7225,6 +7336,40 @@
       "denominator": 1,
       "numerator": 120,
       "unit": "deg"
+    },
+    "DORM.MaxHPRatioPerSec": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "DORM.MaxMPRatioPerSec": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "DORM.OutOfCombatDelaySec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "DORM.RadiusCm": {
+      "denominator": 1,
+      "numerator": 400,
+      "unit": "cm"
+    },
+    "LEADER.BountyGoldMax": 250,
+    "LEADER.BountyGoldPerRefresh": 50,
+    "LEADER.CircleMaxOffsetCm": {
+      "denominator": 1,
+      "numerator": 1000,
+      "unit": "cm"
+    },
+    "LEADER.CircleRadiusCm": {
+      "denominator": 1,
+      "numerator": 1500,
+      "unit": "cm"
+    },
+    "LEADER.MinLevel": 3,
+    "LEADER.RefreshSec": {
+      "ms": 10000,
+      "unit": "ms"
     },
     "LIFE.ProtectionSec": {
       "ms": 3000,

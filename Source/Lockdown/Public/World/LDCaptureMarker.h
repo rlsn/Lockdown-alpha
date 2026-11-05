@@ -9,6 +9,21 @@ class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 
+class UPrimitiveComponent;
+
+// A flat painted ring of chords on the registered ground, shared by the capture and dorm boundaries. Presentation only:
+// no collision, overlap, navigation or shadow, and its dimensions never change an approved radius or rule.
+namespace LDGroundRing
+{
+    // Constructor-time: the ring component on the cooked engine cube with every gameplay influence off.
+    LOCKDOWN_API UInstancedStaticMeshComponent* Create(AActor& Owner, FName Name);
+    // Lays the chords of a closed circle of RadiusCm around the owner's origin; false when it cannot be drawn.
+    LOCKDOWN_API bool Lay(UInstancedStaticMeshComponent* Ring, double RadiusCm);
+    // Tints the ring with the generated character material; false with a reason when it is missing.
+    LOCKDOWN_API bool Paint(AActor& Owner, UInstancedStaticMeshComponent& Ring, UMaterialInstanceDynamic*& OutPaint, FString& Error);
+    LOCKDOWN_API bool IsPresentationOnly(const UPrimitiveComponent* Component);
+}
+
 // Local presentation of the single spray zone: a flat painted ring on the registered ground at the approved radius
 // around the flagpole anchor, and the graffiti board on the flagpole painted in its owner's public identity tint.
 // Each machine builds it from its own world data and only mirrors the accepted public spray state; it is never

@@ -66,7 +66,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Shops = 0, Captures = 0;
+    int32 Shops = 0, Captures = 0, Dorms = 0, Airdrops = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -78,6 +78,8 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             }
             continue;
         }
+        // D26: a Boss patrol point is the Boss's route, not a place a body goes; the visible Boss is a unit.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
         FLDOpponentPOI POI;
         POI.Id = FName(*Anchor.Id);
         POI.SurfaceId = FName(*Anchor.SurfaceId);
@@ -98,6 +100,18 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             bApproved = Anchor.Id.Equals(References.CaptureId, ESearchCase::CaseSensitive);
             ++Captures;
             break;
+        case ELDDemoWorldAnchorKind::Dorm:
+            // D21: public recovery ground; the world import has already required its two canonical identities.
+            POI.Kind = ELDOpponentPOIKind::Dorm;
+            bApproved = true;
+            ++Dorms;
+            break;
+        case ELDDemoWorldAnchorKind::Airdrop:
+            // D26: a public drop point; whether it holds the current drop is the public match view's business.
+            POI.Kind = ELDOpponentPOIKind::Airdrop;
+            bApproved = true;
+            ++Airdrops;
+            break;
         default:
             break;
         }
@@ -114,10 +128,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != 1 || Captures != 1)
+    if (Shops != 1 || Captures != 1 || Dorms != 2 || Airdrops != 3)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose exactly one shop and one capture place."));
+        return Fail(Error, TEXT("The public world must expose exactly one shop, one capture place, two dorms and three airdrop points."));
     }
     Error.Reset();
     return true;

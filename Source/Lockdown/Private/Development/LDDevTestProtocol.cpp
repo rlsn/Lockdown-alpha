@@ -69,7 +69,7 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     {
         return ELDGrowthReason::NumericDomain;
     }
-    // ADBonusRatio is a timed/conditional-only stat, so the permanent DEV layer ends at CritChanceBonusRatio.
+    // ADBonusRatio and APBonusRatio are timed/conditional-only stats, so the permanent DEV layer ends at CritChanceBonusRatio.
     if (bSetAttribute ? Command.Stat > uint8(ELDDemoBonusStat::CritChanceBonusRatio) : Command.Stat != 0)
     {
         return ELDGrowthReason::InvalidRequest;

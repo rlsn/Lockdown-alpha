@@ -72,7 +72,7 @@
       "duration_sec": 0.881,
       "purpose": "全场击杀通知",
       "loudness_lufs": -12.88,
-      "volume": 0.993
+      "volume": 0.934
     },
     {
       "cue": "CaptureOpened",
@@ -83,7 +83,7 @@
       "duration_sec": 0.866,
       "purpose": "占领点开放",
       "loudness_lufs": -11.59,
-      "volume": 0.855
+      "volume": 0.805
     },
     {
       "cue": "CaptureStarted",
@@ -94,7 +94,7 @@
       "duration_sec": 0.522,
       "purpose": "开始占领或占领者变化",
       "loudness_lufs": -14.0,
-      "volume": 1.076
+      "volume": 1.063
     },
     {
       "cue": "CaptureContested",
@@ -105,7 +105,7 @@
       "duration_sec": 0.731,
       "purpose": "占领点争夺",
       "loudness_lufs": -12.95,
-      "volume": 1.0
+      "volume": 0.941
     },
     {
       "cue": "MatchVictory",
@@ -116,7 +116,7 @@
       "duration_sec": 0.909,
       "purpose": "本人获胜",
       "loudness_lufs": -9.81,
-      "volume": 0.697
+      "volume": 0.656
     },
     {
       "cue": "MatchDefeat",
@@ -127,7 +127,7 @@
       "duration_sec": 1.74,
       "purpose": "本人落败",
       "loudness_lufs": -15.65,
-      "volume": 1.365
+      "volume": 1.285
     },
     {
       "cue": "MatchEndedNoWinner",
@@ -138,7 +138,7 @@
       "duration_sec": 0.933,
       "purpose": "无胜者结束",
       "loudness_lufs": -12.56,
-      "volume": 0.956
+      "volume": 0.9
     },
     {
       "cue": "SelfHit",
@@ -193,7 +193,7 @@
       "duration_sec": 0.522,
       "purpose": "升级或出现新的三选一",
       "loudness_lufs": -11.65,
-      "volume": 0.861
+      "volume": 0.81
     },
     {
       "cue": "SelfDeath",
@@ -204,7 +204,7 @@
       "duration_sec": 0.496,
       "purpose": "本人死亡",
       "loudness_lufs": -12.52,
-      "volume": 0.952
+      "volume": 0.896
     },
     {
       "cue": "SelfRespawn",
@@ -215,7 +215,7 @@
       "duration_sec": 0.539,
       "purpose": "本人复活",
       "loudness_lufs": -12.04,
-      "volume": 0.901
+      "volume": 0.848
     },
     {
       "cue": "UIClick",
@@ -241,15 +241,16 @@
       "volume": 0.55
     },
     {
-      "cue": "BasicAttack",
-      "pack": "kenney-interface-sounds",
-      "source": "Kenney/InterfaceSounds/drop_002.ogg",
-      "pack_path": "Audio/drop_002.ogg",
-      "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218",
-      "duration_sec": 0.191,
-      "purpose": "本人普攻成功出手（挥击），不表示命中；复用短促释放音，不使用受击音",
-      "loudness_lufs": -20.61,
-      "volume": 1.073
+      "cue": "SelfAttack",
+      "pack": "kenney-impact-sounds",
+      "source": "Kenney/ImpactSounds/impactPunch_medium_000.ogg",
+      "pack_path": "Audio/impactPunch_medium_000.ogg",
+      "sha256": "486988aa2d6440ffc4c62a0e8ccf3c23673ba84424bd4723378d451b7255eb5c",
+      "duration_sec": 0.431,
+      "purpose": "本人普攻出手：低 6 dB，连续普攻不刺耳",
+      "loudness_lufs": -16.67,
+      "level_db": -6.0,
+      "volume": 0.541
     }
   ]
 }

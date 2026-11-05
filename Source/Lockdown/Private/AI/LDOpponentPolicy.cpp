@@ -268,6 +268,12 @@ struct FContext
     const FLDOpponentPOI* Capture = nullptr;
     const FLDOpponentPOI* Shop = nullptr;
     double CaptureRadiusCm = 0;
+    double DormRadiusCm = 0;
+    double AirdropRadiusCm = 0;
+    double LeaderRadiusCm = 0;
+    // D26: the visible Boss and the band in which it acquires a contender (its aggro radius plus its reach).
+    const FLDOpponentUnit* Boss = nullptr;
+    double BossBandCm = 0;
     double AttackRangeCm = 0;
     double AcquireRadiusCm = 0;
     double VisionRadiusCm = 0;
@@ -285,10 +291,16 @@ struct FContext
             if (POI.Kind == ELDOpponentPOIKind::Shop && !Shop) { Shop = &POI; }
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
+        DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
+        AirdropRadiusCm = ToDouble(Content.Parameters.AirdropPickupRadiusCm);
+        LeaderRadiusCm = ToDouble(Content.Parameters.LeaderCircleRadiusCm);
+        const FLDDemoMonsterDefinition* BossBody = Content.Monsters.FindByPredicate(
+            [&Content](const FLDDemoMonsterDefinition& M) { return M.Tier == ELDDemoCampTier::Boss && M.Id == Content.Boss.Id; });
+        BossBandCm = BossBody ? ToDouble(Content.Boss.AggroRadiusCm) + ToDouble(BossBody->AttackRangeCm) : 0.;
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture || !Shop)
         {
             return false;
         }
@@ -300,6 +312,12 @@ struct FContext
             if (Unit.Kind == ELDOpponentUnitKind::Contender && Unit.ContenderId != Self.ContenderId)
             {
                 Enemies.Add(&Unit);
+                Threats.Add(&Unit);
+            }
+            else if (Unit.Kind == ELDOpponentUnitKind::CampMember && Unit.MonsterId.Equals(Catalog.Get().Boss.Id, ESearchCase::CaseSensitive))
+            {
+                // D26: the Boss turns on anyone near it, so a seen Boss is always a threat; AIs never pick a fight with it.
+                Boss = &Unit;
                 Threats.Add(&Unit);
             }
             else if (Unit.Kind == ELDOpponentUnitKind::CampMember && !Unit.bReturning && !State.VisitPOI.IsNone()
@@ -335,6 +353,52 @@ struct FContext
     }
 
     double Distance(const FVector& Point) const { return FVector::Dist2D(Self.FootCm, Point); }
+    // D21: the public dorm this body's foot stands in (closed disk, as the authority judges it), or nullptr.
+    const FLDOpponentPOI* DormAt() const
+    {
+        return Frame.POIs.FindByPredicate([this](const FLDOpponentPOI& POI)
+            { return POI.Kind == ELDOpponentPOIKind::Dorm && Distance(POI.FootCm) <= DormRadiusCm; });
+    }
+    // The nearest public dorm whose walk is not suppressed by failure memory; ties by stable id.
+    const FLDOpponentPOI* NearestDorm() const
+    {
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind != ELDOpponentPOIKind::Dorm || !CanAttempt(PathKey(POI.Id))) { continue; }
+            if (!Best || Distance(POI.FootCm) < Distance(Best->FootCm)
+                || (Distance(POI.FootCm) == Distance(Best->FootCm) && POI.Id.Compare(Best->Id) < 0)) { Best = &POI; }
+        }
+        return Best;
+    }
+    // D26: the public point of the current airdrop when its walk is not suppressed by failure memory, or nullptr.
+    const FLDOpponentPOI* AirdropTarget() const
+    {
+        const FLDOpponentPOI* Drop = Frame.Public.AirdropPOI.IsNone() ? nullptr : FindPOI(Frame.Public.AirdropPOI);
+        return Drop && Drop->Kind == ELDOpponentPOIKind::Airdrop && CanAttempt(PathKey(Drop->Id)) ? Drop : nullptr;
+    }
+    // D27: the public place nearest the centre of another contender's 上热搜 circle, inside that circle, when its walk
+    // is not suppressed; a seen leader is then engaged by the ordinary engage branch. Only for a body at the notice's
+    // minimum level with high-camp entry health.
+    const FLDOpponentPOI* LeaderHuntTarget() const
+    {
+        if (!Frame.Public.Leader.IsValid() || Frame.Public.Leader == Self.ContenderId
+            || Self.Level < Catalog.Get().Parameters.LeaderMinLevel || !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.HighCampEntryHPBp))
+        {
+            return nullptr;
+        }
+        const FVector& Centre = Frame.Public.LeaderCircleCentreCm;
+        const FLDOpponentPOI* Best = nullptr;
+        for (const auto& POI : Frame.POIs)
+        {
+            if (POI.Kind == ELDOpponentPOIKind::Shop || !CanAttempt(PathKey(POI.Id))
+                || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
+            const double Distance = FVector::Dist2D(POI.FootCm, Centre);
+            if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)
+                || (Distance == FVector::Dist2D(Best->FootCm, Centre) && POI.Id.Compare(Best->Id) < 0)) { Best = &POI; }
+        }
+        return Best;
+    }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
     bool NeedProtection() const { return !Threats.IsEmpty() && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ResumeFarmHPBp); }
 
@@ -1513,8 +1577,9 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     const bool bActionLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action;
 
     const bool bWasRecovering = State.bRecovering;
+    // D21: a recovering body that reached a dorm stays until full instead of leaving at the resume line.
     State.bRecovering = bWasRecovering
-        ? !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.ResumeFarmHPBp)
+        ? !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.DormAt() ? 10000 : C.AI.ResumeFarmHPBp)
         : !RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.RetreatHPBp);
     if (State.bRecovering && !bWasRecovering)
     {
@@ -1591,6 +1656,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(DisengageBody(C));
         return Finish(EMode::Disengage, EReason::Recover);
     }
+    // D26 (#79): a body inside the Boss's acquire band steps away from it before anything but the circle; out of the
+    // band it carries on, and a recovering body has already disengaged above.
+    if (C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm && !bHoldingSolo)
+    {
+        EndVisit(State, false);
+        Body(DisengageBody(C));
+        return Finish(EMode::Disengage, EReason::AvoidBoss);
+    }
     if (!State.bRecovering)
     {
         if (const FLDOpponentUnit* Target = SelectEngageTarget(C))
@@ -1606,6 +1679,25 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     {
         Body(Halt(C));
         return Finish(EMode::Stopped, EReason::ProviderUnavailable);
+    }
+    if (State.bRecovering)
+    {
+        // §6.1 P2 above P6: an escape under way finishes its walk before any shopping, also once the pursuer has
+        // dropped out of sight. Otherwise every glimpse at the edge of sight flips the body between the shop and
+        // the escape, and it never reaches either (#79).
+        const auto& Order = Frame.Order;
+        const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
+        if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
+        {
+            Body(MoveTo(C, *Retreat));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
+        // D21: inside a dorm the fast recovery comes before shopping; a visible threat above still sends it away.
+        if (C.DormAt())
+        {
+            Body(Halt(C));
+            return Finish(EMode::Disengage, EReason::Recover);
+        }
     }
     const FLDOpponentRetryKey ShopKey = FContext::ShopKey(C.Shop->Id);
     if (Plan.IsSet() && C.CanAttempt(ShopKey) && C.CanAttempt(FContext::PathKey(C.Shop->Id)))
@@ -1630,13 +1722,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     }
     if (State.bRecovering)
     {
-        // No free healing zone exists: wait on genuine regeneration, but still answer defence and shopping above.
-        // An escape under way finishes its walk instead of stopping as soon as the pursuer drops out of sight.
-        const auto& Order = Frame.Order;
-        const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
-        if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
+        // D21: with nothing to buy, walk to the nearest dorm for its fast recovery; it is not a safe zone, so defence,
+        // threats and shopping above still come first. While a rival sprays alone or guards its graffiti the body stays
+        // within its defence reach instead: walking off to a corner would flip the public urgency on and off at every step.
+        // Without a reachable dorm, wait on genuine regeneration.
+        const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
+        if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
         {
-            Body(MoveTo(C, *Retreat));
+            Body(MoveTo(C, *Dorm));
             return Finish(EMode::Disengage, EReason::Recover);
         }
         FActivationNeed Need;
@@ -1644,11 +1737,28 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(Activation.IsSet() ? Activation.GetValue() : Halt(C));
         return Finish(EMode::Disengage, EReason::Recover);
     }
+    // D26 (#79): a healthy body goes for a public airdrop that is announced or on the ground; first come, first served.
+    // It stays below defending, holding and an active contest of the circle, and does not leave a camp fight it began.
+    // On the point it waits for the landing instead of re-ordering the same walk.
+    if (const FLDOpponentPOI* Drop = State.VisitEngagedAtMs == 0 ? C.AirdropTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
+        return Finish(EMode::Airdrop, EReason::ContestAirdrop);
+    }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {
         EndVisit(State, false);
         Body(Intent);
         return Finish(EMode::Contest, EReason::ContestCapture);
+    }
+    // D27 (#79): a strong, healthy body hunts a named leader for the bounty: below the circle and the airdrop, above
+    // farming, and never out of a camp fight it began. Once the leader is in sight the engage branch takes over.
+    if (const FLDOpponentPOI* Hunt = State.VisitEngagedAtMs == 0 ? C.LeaderHuntTarget() : nullptr)
+    {
+        EndVisit(State, false);
+        Body(MoveTo(C, *Hunt));
+        return Finish(EMode::Explore, EReason::HuntLeader);
     }
     if (FarmBody(C, Intent))
     {

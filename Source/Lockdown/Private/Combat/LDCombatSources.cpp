@@ -1225,7 +1225,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             const auto& Parameters=Content->Get().Parameters;
             const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
                 Parameters.OutOfCombatMaxHPRegenBp,Parameters.OutOfCombatMaxMPRegenBp};
-            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs,Body->RegenSurgeUntilMs);
+            // Inside a 躺平角 (D21) its term is part of the displayed rate, as it is of the settled one.
+            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp,
+                Parameters.DormMaxMPRegenBp};
+            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs,
+                Body->RegenSurgeUntilMs,Body->bInDorm ? &Dorm : nullptr);
             Out.HPRegenPerSec=Regen.HP;
             Out.MPRegenPerSec=Regen.MP;
             // The passive bonus or the D21 contender recovery (this view is a contender's) is running.
@@ -1236,6 +1240,9 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.bOutOfCombatRegenActive|=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
                     Projection.OutOfCombatHPRegen->DelayMs,NowMs);
             }
+            Out.bInDorm=Body->bInDorm;
+            Out.bDormRegenActive=Body->bInDorm
+                && LDTactical::OutOfCombatAt(Body->LastCombatAtMs,Content->Get().Parameters.DormRegenDelayMs,NowMs);
         }
     }
     else
@@ -1326,7 +1333,7 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
             TEXT("StaleBuild: the camp member's resources or statuses changed after the reset was read."));
     }
     const double ArrivalCm=LDCombatSourcesDetail::RationalValue(Content->Get().Parameters.CampResetArrivalRadiusCm);
-    if (!(ArrivalCm>0) || FVector::DistSquared2D(FootOf(*Actor),Input.HomeFootCm)>ArrivalCm*ArrivalCm)
+    if (!(ArrivalCm>0) || (!Input.bInPlace && FVector::DistSquared2D(FootOf(*Actor),Input.HomeFootCm)>ArrivalCm*ArrivalCm))
     {
         return LDCombatSourcesDetail::CampResetFailure(EPrepare::InvalidInput,
             TEXT("InvalidInput: the camp member foot is outside CAMP.ResetArrivalRadiusCm of its home."));

@@ -11,6 +11,9 @@
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
 
+struct FLDDormZones;
+namespace LDAirdrop { struct FCandidate; }
+
 class ALDCharacter;
 class ALDGameMode;
 class ALDPlayerController;
@@ -165,6 +168,8 @@ struct FLDBodyCombatState
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
     int64 RegenThroughMs=0;
+    // D21 (#79): this contender's foot stood inside a dorm at the last regeneration settle.
+    bool bInDorm=false;
     int64 HpRegenMicroP2=0, MpRegenMicroP2=0; // sub-P2 remainders in 1e-6 P2
     int64 MonsterNextAttackAtMs=0;         // contenders keep their cadence on the persistent record
     int64 DashUntilMs=0;
@@ -409,6 +414,8 @@ public:
     const FLDBodyCombatState* StateFor(const ALDCharacter* Body) const;
     // Authority footpoint: capsule centre minus scaled half-height (same as Vision).
     static FVector FootOf(const ALDCharacter& Body);
+    // D26 (#79): the current foot of every registered living contender body (no pending death), for the airdrop pickup.
+    void ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& Out) const;
     // The sole authority driver: advances native steps and runs every commit phase in order.
     bool AdvanceAuthority(const FLDMatchContext& Match,int64 ThroughMs,FString& Error);
 
@@ -506,6 +513,10 @@ public:
 
     // ---- Camps.
     FLDCampResetPrepareResult PrepareCampReset(const FLDCampResetInput& Input, const FLDGameplayWritePermit& Permit) const;
+    // D26 (#79): DeathsAndRewards grants a timed stat bonus (the Boss approval buff) to one living contender body; a
+    // body already gone or dying gets nothing (bOutApplied false). False only on an authority fault.
+    bool GrantTimedBonus(const FLDCombatBodyRef& Body, FName Source, const TArray<FLDDemoStatBonus>& Stats, int64 DurationMs,
+        const FLDGameplayWritePermit& Permit, bool& bOutApplied, FString& Error);
     void ApplyCampReset(FLDPreparedCampReset&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // ---- Shared combat primitives (#112 section 5).
@@ -536,7 +547,9 @@ private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
     friend class FLDCombatRecoveryTest;
+    friend class FLDCombatDormRecoveryTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
 
@@ -620,8 +633,11 @@ private:
     // Stealth ends at an accepted attack/ability/item or a positive hit.
     void RevealStealth(FLDBodyCombatState& Body);
     bool Regenerate(int64 NowMs, FString& Error);
-    // Settles every living body through NowMs; only contender bodies receive the D21 Recovery.
-    bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error);
+    // Settles every living body through NowMs; only contender bodies receive the D21 Recovery, and a contender whose
+    // foot stands inside one of Dorms at this settle also receives DormRecovery for the interval (#79).
+    bool RegenerateBodies(const LDTactical::FOutOfCombatRecovery& Recovery, int64 NowMs, FString& Error,
+        const LDTactical::FOutOfCombatRecovery* DormRecovery = nullptr, const FLDDormZones* Dorms = nullptr);
+
     bool LockDeath(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatHit& Hit, FString& Error);
     // Every live body other than the source within RadiusCm (planar foot distance) of Anchor with clear sight from it,
     // excluding protected contenders and Excluded; sorted by entity. Shared by cleave and self-origin areas.

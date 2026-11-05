@@ -156,9 +156,11 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         { return ArtFail(Error, FString::Printf(TEXT("Seat look %d must be seat %d with a catalog character, found seat %d '%s'."), Seat, Seat, Seats[Seat].Seat, *Seats[Seat].Character)); }
         Out.Seats[Seat] = Body;
     }
-    const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian) };
+    // The two camp tiers, then the D26 Boss (its own taller body, so it reads apart from the tier it resembles).
+    const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian),
+        uint8(ELDDemoMonsterId::MonsterDean) };
     if (Monsters.Num() != UE_ARRAY_COUNT(Tiers))
-    { return ArtFail(Error, FString::Printf(TEXT("Expected %d camp tier looks, found %d."), int32(UE_ARRAY_COUNT(Tiers)), Monsters.Num())); }
+    { return ArtFail(Error, FString::Printf(TEXT("Expected %d monster looks, found %d."), int32(UE_ARRAY_COUNT(Tiers)), Monsters.Num())); }
     for (int32 Index = 0; Index < Monsters.Num(); ++Index)
     {
         const FLDArtMonsterLook& Look = Monsters[Index];
@@ -172,7 +174,7 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         }
         for (const TPair<uint8, const FLDArtCharacter*>& Other : Out.Monsters)
         {
-            if (Other.Value == Body) { return ArtFail(Error, TEXT("Both camp tiers use the same body: ") + Look.Character); }
+            if (Other.Value == Body) { return ArtFail(Error, TEXT("Two monster looks use the same body: ") + Look.Character); }
         }
         Out.Monsters.Add(Look.CreatureId, Body);
     }

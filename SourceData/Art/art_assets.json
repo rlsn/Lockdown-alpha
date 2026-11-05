@@ -451,6 +451,63 @@
           "substitute": "No appear clip in the pack; a wave greets the field on arrival."
         }
       ]
+    },
+    {
+      "id": "dean",
+      "source": "Quaternius/UltimateModularMen/Casual_Hoodie.gltf",
+      "height_cm": 240,
+      "run_speed_cm_per_sec": 387.3,
+      "hand_bone": "Wrist_R",
+      "foot_bone": "Foot_L",
+      "forward_bones": [
+        "PT_L",
+        "PT_R"
+      ],
+      "tint_slots": [
+        "Purple"
+      ],
+      "animations": [
+        {
+          "state": "Idle",
+          "clip": "Idle",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Run",
+          "clip": "Run",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Attack",
+          "clip": "Punch_Right",
+          "play_rate": 1.0,
+          "impact_sec": 0.565,
+          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+        },
+        {
+          "state": "Cast",
+          "clip": "Interact",
+          "play_rate": 1.0,
+          "impact_sec": 0.635,
+          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+        },
+        {
+          "state": "Hit",
+          "clip": "HitRecieve",
+          "play_rate": 1.9
+        },
+        {
+          "state": "Death",
+          "clip": "Death",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Spawn",
+          "clip": "Wave",
+          "play_rate": 1.0,
+          "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ]
     }
   ],
   "seats": [
@@ -469,6 +526,10 @@
     {
       "creature": "monster_guardian",
       "character": "teacher"
+    },
+    {
+      "creature": "monster_dean",
+      "character": "dean"
     }
   ],
   "props": [

@@ -22,6 +22,17 @@ struct FLDOpponentRequestTally
     uint32 Stops = 0;
     uint32 Actions = 0;
     uint32 ActionsRefused = 0;
+    // D19 evidence: innate dash activations among Actions, and those Combat finished (the body really moved).
+    uint32 Dashes = 0;
+    uint32 DashesLanded = 0;
+    // D21 evidence: times this adapter's living body stepped into a dorm, read from its own owner view.
+    uint32 DormEntries = 0;
+    // D26 evidence: public airdrops this adapter's contender claimed, read from the public match view.
+    uint32 AirdropClaims = 0;
+    // D27 evidence: times this adapter's decisions turned to hunting a named 上热搜 leader.
+    uint32 LeaderHunts = 0;
+    // D26 evidence: times this adapter's decisions turned to stepping away from the Boss.
+    uint32 BossAvoids = 0;
     uint32 ShopOpens = 0;
     uint32 Choices = 0;
     uint32 Trades = 0;
@@ -121,6 +132,8 @@ private:
         FLDCombatCaller CombatCaller;
         FLDCombatOwnerView Combat;
         FLDShopOpenResult Shop;
+        // D26: serial of the public airdrop this contender holds as claimed, zero when none.
+        uint64 ClaimedAirdrop = 0;
     };
 
     bool BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& Reads, FLDOpponentDecisionFrame& Frame, FString& Error) const;
@@ -164,6 +177,8 @@ private:
     bool bClosed = false;
     bool bRetiring = false;
     bool bTallyReported = false;
+    bool bWasInDorm = false;
+    uint64 LastClaimedAirdrop = 0;
     FLDOpponentRequestTally Tally;
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

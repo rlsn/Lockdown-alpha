@@ -132,12 +132,35 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
     UPROPERTY() int64 OutOfCombatMaxHPRegenBp = 0;
     UPROPERTY() int64 OutOfCombatMaxMPRegenBp = 0;
+    // D21 (#79): fast recovery for a contender whose foot stands inside a public dorm disk once this long without combat.
+    UPROPERTY() FLDDemoRational DormRadiusCm;
+    UPROPERTY() int64 DormRegenDelayMs = 0;
+    UPROPERTY() int64 DormMaxHPRegenBp = 0;
+    UPROPERTY() int64 DormMaxMPRegenBp = 0;
     UPROPERTY() int64 StartingGold = 0;
     UPROPERTY() int64 SellRatioBp = 0;
     // 112 §7: one upgrade per contender and match costs UpgradeCost; fixed stats rise by UpgradeStatBonusBp.
     UPROPERTY() int64 UpgradeCost = 0;
     UPROPERTY() int64 UpgradeStatBonusBp = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
+    // #28: a Returning member with this many consecutive refused path plans, or this long without path progress
+    // while free to move, resets where it stands instead of retrying forever.
+    UPROPERTY() int64 CampReturnDeadEndPlans = 0;
+    UPROPERTY() int64 CampReturnDeadEndMs = 0;
+    // D26 (#79) airdrop: landings at FirstLand + n * Interval from the match start, each public AnnounceLead earlier.
+    UPROPERTY() int64 AirdropFirstLandMs = 0;
+    UPROPERTY() int64 AirdropIntervalMs = 0;
+    UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
+    UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
+    UPROPERTY() int64 AirdropRewardXP = 0;
+    UPROPERTY() int64 AirdropRewardGold = 0;
+    // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
+    UPROPERTY() int64 LeaderMinLevel = 0;
+    UPROPERTY() int64 LeaderRefreshMs = 0;
+    UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;
+    UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
+    UPROPERTY() int64 LeaderBountyGoldPerRefresh = 0;
+    UPROPERTY() int64 LeaderBountyGoldMax = 0;
     // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
     UPROPERTY() FLDDemoRational RearArcDeg;
     UPROPERTY() int64 XPBaseToNext = 0;
@@ -257,7 +280,8 @@ UENUM()
 enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 
 UENUM()
-enum class ELDDemoCampTier : uint8 { Low, High };
+// Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
+enum class ELDDemoCampTier : uint8 { Low, High, Boss };
 
 // 112 §1: the only mechanic tags of skills and equipment; draft affinity counts shared tags, the UI never shows them as schools.
 UENUM()
@@ -271,7 +295,9 @@ enum class ELDDemoBonusStat : uint8
     // Percent of the projected AD; only conditional and timed bonuses may use it (floored to P2 when applied).
     ADBonusRatio,
     // Always-on HP regeneration in hp/s (an exact rational, stored in FLDDemoStatBonus::Cm like the range).
-    HPRegenFlat
+    HPRegenFlat,
+    // Percent of the projected AP; timed bonuses only (the D26 Boss approval buff), floored to P2 when applied.
+    APBonusRatio
 };
 
 USTRUCT()
@@ -478,6 +504,21 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() FLDDemoEquipmentActive Dash;
 };
 
+// D26 (#79) 画饼老板 Boss: the boss-only rules. Its body stats are the Monsters row with Id and Tier Boss (aggro radius as
+// its perception radius), so Combat, vision and rewards find it like any monster.
+USTRUCT()
+struct FLDDemoBossDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() FLDDemoRational AggroRadiusCm;
+    UPROPERTY() int64 AttackerMemoryMs = 0;
+    UPROPERTY() int64 ApprovalDurationMs = 0;
+    UPROPERTY() TArray<FLDDemoStatBonus> ApprovalStats;
+};
+
 USTRUCT()
 struct FLDDemoMonsterDefinition
 {
@@ -603,6 +644,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoEquipmentDefinition> Equipment;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
+    UPROPERTY() FLDDemoBossDefinition Boss;
     UPROPERTY() FLDDemoProgressionDefinition Progression;
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;

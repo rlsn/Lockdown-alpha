@@ -75,7 +75,8 @@
   },
   "monsters": {
     "monster_scavenger": 1,
-    "monster_guardian": 2
+    "monster_guardian": 2,
+    "monster_dean": 3
   },
   "statuses": {
     "root": 1,
