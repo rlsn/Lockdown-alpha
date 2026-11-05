@@ -292,7 +292,7 @@ void ULDNavigationComponent::Navigate(const FVector& Surface)
     NavigateGround(Surface,Hint);
 }
 
-void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint)
+void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
@@ -304,7 +304,7 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     // server's own refusal still follows as the notice).
     bool bKnown=false;
     const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable); }
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(MarkerCm?*MarkerCm:Surface,bReachable); }
 }
 
 void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch)
@@ -621,9 +621,12 @@ void ULDNavigationComponent::ClickMove()
     // The stall model takes a right click like a wall: an ordinary ground order to the nearest walkable point beside it.
     // The left click opens the shop page.
     FVector Goal;
-    if (!PointerGoal(GroundHit,Goal)) { return; }
+    PointerGoal(GroundHit,Goal);
     const uint32 Before=Local.Order;
-    Navigate(Goal);
+    const FName Hint=GroundSurfaceHint();
+    if (Hint.IsNone()) { Navigate(Goal); }
+    // The marker stays where the click landed, as for any obstacle; only the order's point moves beside the model.
+    else { NavigateGround(Goal,Hint,&GroundHit.ImpactPoint); }
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing.
     bHeldMove=Local.Order!=Before;
     HeldSentAt=GetWorld()->GetTimeSeconds();
@@ -674,31 +677,29 @@ bool ULDNavigationComponent::ShopUnderPointer(FName& OutShop)
     return false;
 }
 
-bool ULDNavigationComponent::PointerGoal(const FHitResult& GroundHit, FVector& OutGoal)
+void ULDNavigationComponent::PointerGoal(const FHitResult& GroundHit, FVector& OutGoal)
 {
     OutGoal=GroundHit.ImpactPoint;
     FName Shop;
-    if (!ShopUnderPointer(Shop)) { return true; }
+    if (!ShopUnderPointer(Shop)) { return; }
     // The ground trace passes through the collision-free stall, so its own point would lead into the model.
     auto* PC=Controller();
     const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
-    if (!Body || !Art) { return false; }
+    if (!Body || !Art) { return; }
     FBox2D Footprint(ForceInit);
     for (const FBox& Model : Art->ShopModelBounds) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
-    const FVector Foot=Body->GetNavAgentLocation();
+    FVector Foot=Body->GetNavAgentLocation();
+    Foot.Z=GroundHit.ImpactPoint.Z;
     FVector Front;
-    // Already standing beside the model: nothing nearer to walk to.
-    if (!LDOrderRules::ShopFrontPoint(Footprint,Foot,Body->GetCapsuleComponent()->GetScaledCapsuleRadius(),Front)) { return false; }
-    for (FVector Candidate : LDOrderRules::ShopStopCandidates(Front,Foot,ShopStopStepCm))
+    // Already standing beside the model: the nearest walkable point is where the body is.
+    if (!LDOrderRules::ShopFrontPoint(Footprint,Foot,Body->GetCapsuleComponent()->GetScaledCapsuleRadius(),Front)) { OutGoal=Foot; return; }
+    for (const FVector& Candidate : LDOrderRules::ShopStopCandidates(Front,Foot,ShopStopStepCm))
     {
-        if (FVector::DistSquared2D(Candidate,Foot)<1.) { break; }
-        Candidate.Z=GroundHit.ImpactPoint.Z;
         bool bKnown=false;
         // An unknown local route is still sent: the server judges it like any ground order.
-        if (ProbeGround(Candidate,bKnown) || !bKnown) { OutGoal=Candidate; return true; }
+        if (ProbeGround(Candidate,bKnown) || !bKnown) { OutGoal=Candidate; return; }
     }
-    return false;
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
@@ -805,8 +806,8 @@ void ULDNavigationComponent::TickHeldMove()
     const double Now=GetWorld()->GetTimeSeconds();
     FHitResult GroundHit;
     FVector Goal;
-    if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)
-        || !PointerGoal(GroundHit,Goal)) { return; }
+    if (!GroundUnderPointer(GroundHit) || !LDOrderRules::ShouldRepeatHeldMove(Now,HeldSentAt,HeldPoint,GroundHit.ImpactPoint)) { return; }
+    PointerGoal(GroundHit,Goal);
     bool bKnown=false;
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone() || (!ProbeGround(Goal,bKnown) && bKnown)) { return; }

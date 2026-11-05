@@ -29,7 +29,9 @@ public:
     bool Enabled() const;
     // ---- Owning client intents; each takes a fresh local identity.
     void Navigate(const FVector& Surface);
-    void NavigateGround(const FVector& Surface, FName SurfaceHint);
+    // MarkerCm is where the move marker appears when it is not the order's own point (a right click on the stall model
+    // walks beside it but marks where the click landed); its colour still answers the order's own point.
+    void NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm=nullptr);
     void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch);
     void AttackMove(const FVector& Surface, FName SurfaceHint);
     void ApproachShop(FName ShopId);
@@ -45,8 +47,8 @@ public:
     // The public shop whose decoration model lies under the pointer ray (its mesh bounds, not the interaction radius).
     bool ShopUnderPointer(FName& OutShop);
     // The ground goal of a right click: the pointer's ground point, or over the stall model the nearest walkable point
-    // beside it (the model takes a right click like a wall). False when there is nowhere to walk.
-    bool PointerGoal(const FHitResult& GroundHit, FVector& OutGoal);
+    // beside it (the model takes a right click like a wall: where the body already stands when it is beside the model).
+    void PointerGoal(const FHitResult& GroundHit, FVector& OutGoal);
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
