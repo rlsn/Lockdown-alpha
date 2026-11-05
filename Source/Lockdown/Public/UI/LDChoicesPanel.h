@@ -55,6 +55,8 @@ public:
     bool IsEngaged() const {return DetailCard!=INDEX_NONE||Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
     // The card whose detail popup is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
+    // Distance of the card column's bottom edge from the screen bottom: the HUD keeps it right above its shop entry.
+    void SetBottomDock(float Bottom);
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
@@ -71,6 +73,8 @@ private:
     TArray<FCardWidgets> Cards;
     TArray<LDHUD::FChoiceCardView> CardViews;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
+    UPROPERTY() TObjectPtr<UBorder> DockFrame;
+    float BottomDock=96.f;
     UPROPERTY() TObjectPtr<UBorder> ReplacePanel;
     // The detail popup lives on its own full-panel canvas layer, so its size never moves the card column.
     UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
@@ -103,6 +107,8 @@ private:
     uint64 PendingRequest=0;
     uint32 Answers=0;
     FString PendingName;
+    // The last request's result while the panel was open; toasted if the panel then closes itself (nothing left to pick).
+    FString ResultNotice;
     bool bPendingReroll=false;
     bool bOpen=false;
     bool bReplacing=false;

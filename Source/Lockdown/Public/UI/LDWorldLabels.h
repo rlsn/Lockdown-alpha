@@ -67,7 +67,8 @@ namespace LDWorldLabels
 // Full-viewport layer under the HUD that is never hit-tested or focused; ULDUIRoot shows it exactly while the in-match
 // HUD is shown. Every paint reads the owner's current frame of this match and life and labels only units presented
 // right now; a dead, stale or foreign frame labels nothing and no unit is remembered between frames. The own body's
-// bars and readiness pips read only this controller's own projections, so they show even with no other unit in sight.
+// bars, level badge and readiness pips read only this controller's own projections, so they show even with no other unit
+// in sight.
 UCLASS()
 class LOCKDOWN_API ULDWorldLabels : public UUserWidget
 {

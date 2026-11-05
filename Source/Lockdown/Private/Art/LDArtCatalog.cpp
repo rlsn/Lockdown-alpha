@@ -201,6 +201,7 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         Placed.Add(Decoration.Prop);
         Out.DecorationProps.Add(Prop);
         Out.DecorationTransforms.Add(Decoration.Transform);
+        if (Decoration.Zone == ELDArtZone::Shop) { Out.ShopModelBounds.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
     }
     for (const FLDArtProp& Prop : Props)
     {

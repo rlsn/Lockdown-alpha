@@ -887,7 +887,7 @@ PlayerState 或 GameState 不可因“公开名字”顺便广播全部私有资
 | 已实现 | `SourceData\World\demo_world.json`、对应 closed schema、`Scripts\SyncDemoWorldData.py` | 严格作者字段/类型/cm语义与确定性生成已落地；只引用中央内容，不复制另一份战斗数值 |
 | 已生成 | `Content\Lockdown\Data\Demo\world.json`、`Private\World\LDDemoWorldContract.h` | 由Sync产生world2字节与contract；原生/生成链回核实际来源，不手写hash，不把整份SourceData目录加入运行包 |
 | 唯一已生成根 | `Content\Lockdown\Generated\Maps\L_Demo.umap`、`Content\Lockdown\Generated\Data\DA_DemoWorld.uasset` | 同一Bootstrap生成/重载验证唯一Anchor、完整凸多边形、native/cooked bounds、同源NavAgent与地点路径；不是动态营地或实际多人移动验收 |
-| 共享表现保留/改造 | `M_Character`、`M_Ground/M_Stone`、`DA_PrototypeTuning`、`WBP_UIRoot`、保留输入动作、`M_Fog/T_FogClosed` | Character、代理、PlayerController、Bootstrap字符串和Blueprint默认值仍引用；雾栅格改造不等于可以删全部材质/UI/Input |
+| 共享表现保留/改造 | `M_Character`、`DA_PrototypeTuning`、`WBP_UIRoot`、保留输入动作、`M_Fog/T_FogClosed` | Character、代理、PlayerController、Bootstrap字符串和Blueprint默认值仍引用；雾栅格改造不等于可以删全部材质/UI/Input |
 
 本表简写原生路径均对应 `Source\Lockdown\Public` 的头或 `Source\Lockdown\Private` 的实现；
 Builder 位于 `Source\LockdownEditor\Private\ScaffoldBootstrap`。

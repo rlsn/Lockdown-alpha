@@ -142,9 +142,26 @@ void ALDPlayerController::HandleShopArrived(FName ShopId, uint32 Life)
     {
         return;
     }
+    ELDGrowthReason Reason = ELDGrowthReason::None;
+    if (RequestShopSession(ShopId, Life, Reason))
+    {
+        return;
+    }
+    // Nothing was sent: report the local refusal on the same channel as the server's open results.
+    FLDShopOpenResult Refused;
+    Refused.Generation = OwnerState.Match;
+    Refused.Life = Life;
+    Refused.ShopId = ShopId;
+    Refused.OpenStatus = ELDShopOpenStatus::Rejected;
+    Refused.Reason = LDGrowthWire::Raw(Reason);
+    OnShopOpenResult.Broadcast(Refused);
+}
+
+bool ALDPlayerController::RequestShopSession(FName ShopId, uint32 Life, ELDGrowthReason& Reason)
+{
     const ULDMapRegistry* Registry = GetWorld() ? GetWorld()->GetSubsystem<ULDMapRegistry>() : nullptr;
     FLDShopOpenCommand Command;
-    ELDGrowthReason Reason = ELDGrowthReason::None;
+    Reason = ELDGrowthReason::None;
     if (OwnerState.Match == 0 || !Registry || !Registry->Revision().IsValid())
     {
         Reason = ELDGrowthReason::DataNotReady;
@@ -169,19 +186,9 @@ void ALDPlayerController::HandleShopArrived(FName ShopId, uint32 Life)
     {
         Command.WorldLayoutRevision = Registry->Revision().LayoutRevision;
         Command.WorldGeometryRevision = Registry->Revision().GeometryRevision;
-        if (SubmitShopOpen(Command, Reason))
-        {
-            return;
-        }
+        return SubmitShopOpen(Command, Reason);
     }
-    // Nothing was sent: report the local refusal on the same channel as the server's open results.
-    FLDShopOpenResult Refused;
-    Refused.Generation = OwnerState.Match;
-    Refused.Life = Life;
-    Refused.ShopId = ShopId;
-    Refused.OpenStatus = ELDShopOpenStatus::Rejected;
-    Refused.Reason = LDGrowthWire::Raw(Reason);
-    OnShopOpenResult.Broadcast(Refused);
+    return false;
 }
 
 void ALDPlayerController::QueryGrowthReceipt(const FLDReceiptQuery& Query)

@@ -293,39 +293,35 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Statistics never mark a winner on their own"),LDHUD::ResultRow(Row,FGuid(),FGuid()).bWinner);
     // D26: the public airdrop line.
     FLDAirdropView Drop;
-    TestTrue(TEXT("No drop shows no airdrop line"),LDHUD::AirdropLine(Drop,false,0,true,0).IsEmpty());
+    TestTrue(TEXT("No drop shows no airdrop line"),LDHUD::AirdropLine(Drop,true,0).IsEmpty());
     Drop.Serial=1;Drop.Phase=ELDAirdropPhase::Announced;Drop.PointId=TEXT("airdrop_s");Drop.LandAtMs=45000;
-    TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,false,0,true,30001),
+    TestEqualSensitive(TEXT("An announced drop counts down to its landing"),LDHUD::AirdropLine(Drop,true,30001),
         LDTerms::AirdropCountdown(TEXT("0:15")));
-    TestTrue(TEXT("The countdown names the 天降外卖"),LDHUD::AirdropLine(Drop,false,0,true,30001).StartsWith(LDTerms::Airdrop));
-    TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0,false,0),
+    TestTrue(TEXT("The countdown names the 天降外卖"),LDHUD::AirdropLine(Drop,true,30001).StartsWith(LDTerms::Airdrop));
+    TestEqualSensitive(TEXT("Without the authority clock the landing time is not guessed"),LDHUD::AirdropLine(Drop,false,0),
         LDTerms::AirdropSoon());
     Drop.Phase=ELDAirdropPhase::Landed;
-    TestEqualSensitive(TEXT("A landed drop is first come, first served"),LDHUD::AirdropLine(Drop,false,0,true,46000),
+    TestEqualSensitive(TEXT("A landed drop is first come, first served"),LDHUD::AirdropLine(Drop,true,46000),
         FString(LDTerms::AirdropLanded));
     Drop.Phase=ELDAirdropPhase::Claimed;
-    TestEqualSensitive(TEXT("The own claim (from the owner view) is announced to its owner"),LDHUD::AirdropLine(Drop,true,47000,true,48000),
-        LDTerms::AirdropOwnClaim());
-    TestEqualSensitive(TEXT("Everyone else only learns that the drop is gone, never who took it"),LDHUD::AirdropLine(Drop,false,47000,true,48000),
-        LDTerms::AirdropTaken());
-    TestTrue(TEXT("The claim notice leaves a few seconds after this screen saw it"),LDHUD::AirdropLine(Drop,false,47000,true,60000).IsEmpty());
+    TestTrue(TEXT("A claimed drop is an event of the feed, not a standing line"),LDHUD::AirdropLine(Drop,true,48000).IsEmpty());
     const FGuid Me=FGuid::NewGuid();
-    // D26: the Boss line counts down shortly before it appears and names the last hit afterwards.
+    // D26: the Boss line counts down shortly before it appears; the last hit is named by the event feed.
     FLDBossView Dean;
-    TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,0).IsEmpty());
+    TestTrue(TEXT("No Boss shows no Boss line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,0).IsEmpty());
     Dean.Phase=ELDBossPhase::Pending;Dean.AppearAtMs=61000;
-    TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,30000).IsEmpty());
-    TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,51000),
+    TestTrue(TEXT("Long before it appears there is no countdown"),LDHUD::BossLine(Dean,LDTerms::Boss,true,30000).IsEmpty());
+    TestEqualSensitive(TEXT("Shortly before it appears the Boss counts down"),LDHUD::BossLine(Dean,LDTerms::Boss,true,51000),
         LDTerms::BossCountdown(LDTerms::Boss,TEXT("0:10")));
-    TestTrue(TEXT("The countdown names the 画饼老板"),LDHUD::BossLine(Dean,Me,FString(),FString(),true,51000).StartsWith(LDTerms::Boss));
-    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,false,51000).IsEmpty());
+    TestTrue(TEXT("The countdown names the 画饼老板"),LDHUD::BossLine(Dean,FString(),true,51000).StartsWith(LDTerms::Boss));
+    TestTrue(TEXT("Without the authority clock no countdown is guessed"),LDHUD::BossLine(Dean,LDTerms::Boss,false,51000).IsEmpty());
     Dean.Phase=ELDBossPhase::Down;Dean.KilledBy=Me;Dean.DownAtMs=90000;
-    TestEqualSensitive(TEXT("The last hit is told it ate the pie"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,91000),
+    TestTrue(TEXT("A downed Boss leaves the standing line"),LDHUD::BossLine(Dean,LDTerms::Boss,true,91000).IsEmpty());
+    TestEqualSensitive(TEXT("The last hit is told it ate the pie"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss),
         LDTerms::BossDownSelf(LDTerms::Boss));
-    TestTrue(TEXT("The buff is called 吃到大饼"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,91000).Contains(LDTerms::BossBuff));
-    TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossLine(Dean,FGuid::NewGuid(),TEXT("甲"),LDTerms::Boss,true,91000),
+    TestTrue(TEXT("The buff is called 吃到大饼"),LDHUD::BossDownLine(Dean,Me,FString(),LDTerms::Boss).Contains(LDTerms::BossBuff));
+    TestEqualSensitive(TEXT("Others see the public roster name"),LDHUD::BossDownLine(Dean,FGuid::NewGuid(),TEXT("甲"),LDTerms::Boss),
         LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
-    TestTrue(TEXT("The result leaves after a few seconds"),LDHUD::BossLine(Dean,Me,FString(),LDTerms::Boss,true,99001).IsEmpty());
     // D27: the 上热搜 line names the leader and the bounty; the leader is told directly.
     FLDLeaderView Named;
     TestTrue(TEXT("Nobody named shows no leader line"),LDHUD::LeaderLine(Named,Me,FString()).IsEmpty());
@@ -591,6 +587,100 @@ bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Only a contender kill can credit the player"),!Shown.bSelf&&Shown.Text==LDTerms::KilledByLine(TEXT("丙"),LDTerms::CampHigh));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDScoreboardTest,"Lockdown.Rules.HUDScoreboard",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDScoreboardTest::RunTest(const FString& Parameters)
+{
+    const FGuid Ana=FGuid::NewGuid(),Bo=FGuid::NewGuid(),Cy=FGuid::NewGuid(),Di=FGuid::NewGuid(),Gone=FGuid::NewGuid();
+    FLDLobbyView Lobby;Lobby.Generation=3;
+    for(const TPair<FGuid,const TCHAR*>& Member:TArray<TPair<FGuid,const TCHAR*>>{{Ana,TEXT("阿娜")},{Bo,TEXT("阿博")},{Cy,TEXT("阿西")},{Di,TEXT("阿迪")}})
+    {FLDLobbyMember& Row=Lobby.Members.AddDefaulted_GetRef();Row.ContenderId=Member.Key;Row.Name=Member.Value;}
+    Lobby.Members[3].Kind=ELDContenderKind::OpponentAI;
+    FLDKillFeedView Feed;Feed.Generation=3;
+    Feed.Scores={{Ana,1,2,5},{Bo,3,4,0},{Cy,3,1,1},{Di,1,2,0},{Gone,0,0,0}};
+    const TArray<LDHUD::FScoreLine> Lines=LDHUD::Scoreboard(Feed,3,Lobby,Ana);
+    if(!TestEqual(TEXT("Every contender of the match has a row"),Lines.Num(),5)){return false;}
+    TestEqual(TEXT("Most kills first; the tie goes to fewer deaths"),Lines[0].Name,FString(TEXT("阿西")));
+    TestEqual(TEXT("Then the other three-kill contender"),Lines[1].Name,FString(TEXT("阿博")));
+    TestEqual(TEXT("Equal kills and deaths keep roster order; the own row says so"),Lines[2].Name,FString(TEXT("阿娜（你）")));
+    TestTrue(TEXT("Only the own row is marked as the player"),Lines[2].bSelf&&!Lines[0].bSelf&&!Lines[3].bSelf);
+    TestEqual(TEXT("An AI opponent is named as one"),Lines[3].Name,FString(TEXT("阿迪（AI）")));
+    TestEqual(TEXT("A contender no longer in the room is shown as having left"),Lines[4].Name,FString(TEXT("（已离开）")));
+    TestTrue(TEXT("The row keeps its own kills, deaths and assists"),Lines[2].Kills==1&&Lines[2].Deaths==2&&Lines[2].Assists==5);
+    TestTrue(TEXT("Another match's feed shows no scoreboard"),LDHUD::Scoreboard(Feed,4,Lobby,Ana).IsEmpty());
+    TestTrue(TEXT("No match shows no scoreboard"),LDHUD::Scoreboard(Feed,0,Lobby,Ana).IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDShopPreorderTest,"Lockdown.Rules.HUDShopPreorder",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDShopPreorderTest::RunTest(const FString& Parameters)
+{
+    // The catalog lists every approved item at its approved prices, for browsing and pre-ordering away from the shop.
+    FLDDemoContentDefinitions Content;
+    {FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_a");Item.BuyPrice=300;Item.SellGold=150;Item.HasActive=true;Content.Equipment.Add(Item);}
+    {FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_b");Item.BuyPrice=120;Item.SellGold=60;Content.Equipment.Add(Item);}
+    const TArray<FLDShopItemView> Catalog=LDHUD::CatalogItems(&Content);
+    TestTrue(TEXT("The catalog lists each approved item with its prices"),Catalog.Num()==2&&Catalog[0].DefinitionId==FName(TEXT("item_a"))&&Catalog[0].BuyPrice==300
+        &&Catalog[0].SellGold==150&&Catalog[0].bHasActive&&Catalog[1].BuyPrice==120&&!Catalog[1].bHasActive);
+    TestTrue(TEXT("Without content there is no catalog"),LDHUD::CatalogItems(nullptr).IsEmpty());
+    const TArray<FName> Queue={FName(TEXT("item_a")),FName(TEXT("item_b"))};
+    TestEqual(TEXT("Queue order first: the first pre-order the gold covers"),LDHUD::NextPreorder(Queue,Catalog,400,2),0);
+    TestEqual(TEXT("An unaffordable first pre-order lets an affordable later one buy"),LDHUD::NextPreorder(Queue,Catalog,200,2),1);
+    TestEqual(TEXT("Too little gold for either buys nothing"),LDHUD::NextPreorder(Queue,Catalog,100,2),int32(INDEX_NONE));
+    TestEqual(TEXT("No empty equipment slot buys nothing"),LDHUD::NextPreorder(Queue,Catalog,1000,0),int32(INDEX_NONE));
+    // The session quote decides the price: an item it does not list, or lists dearer, is not bought at the catalog price.
+    TArray<FLDShopItemView> Quote=Catalog;Quote.RemoveAt(0);Quote[0].BuyPrice=250;
+    TestEqual(TEXT("An item the quote does not list is never bought"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Quote,1000,2),int32(INDEX_NONE));
+    TestEqual(TEXT("The quote price, not the catalog price, must be covered"),LDHUD::NextPreorder({FName(TEXT("item_b"))},Quote,200,2),int32(INDEX_NONE));
+    TestEqual(TEXT("An empty queue buys nothing"),LDHUD::NextPreorder(TArray<FName>(),Catalog,1000,2),int32(INDEX_NONE));
+    TestEqual(TEXT("Two pre-orders at most"),LDHUD::MaxShopPreorders,2);
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDEventFeedTest,"Lockdown.Rules.HUDEventFeed",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
+{
+    const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid();
+    FLDLobbyView Lobby;
+    {FLDLobbyMember Member;Member.ContenderId=Self;Member.Name=TEXT("我");Lobby.Members.Add(Member);}
+    {FLDLobbyMember Member;Member.ContenderId=Rival;Member.Name=TEXT("甲");Lobby.Members.Add(Member);}
+    FLDPublicMatchView Public;Public.Generation=3;Public.Phase=ELDMatchPhase::Development;
+    Public.Airdrop.Serial=1;Public.Airdrop.Phase=ELDAirdropPhase::Claimed;Public.Boss.Phase=ELDBossPhase::Pending;
+    Public.Leader.Leader=Rival;Public.Leader.BountyGold=100;
+    FLDKillFeedView Kills;Kills.Generation=3;
+    FLDKillNotice Old;Old.Serial=1;Old.Cause=ELDKillCause::Contender;Old.Victim=Rival;Old.Killer=Self;Old.OccurredAtMs=1000;Kills.Notices.Add(Old);
+    LDHUD::FEventFeedInput In;In.Public=&Public;In.Kills=&Kills;In.Lobby=&Lobby;In.Self=Self;In.bClock=true;In.NowMs=20000;In.LocalSeconds=100;
+    In.LowCampName=LDTerms::CampLow;In.HighCampName=LDTerms::CampHigh;In.BossName=LDTerms::Boss;
+    LDHUD::FEventFeed Feed;
+    auto Texts=[&Feed](){TArray<FString> Out;for(const LDHUD::FEventLine& Line:Feed.Lines()){Out.Add(Line.Text);}return Out;};
+    Feed.Observe(In);
+    TestTrue(TEXT("Joining mid-match replays neither old kills nor the state already in place"),Feed.Lines().IsEmpty());
+    // A fresh kill, the flagpole opening, a new drop landing, the Boss appearing, a new leader and a new graffiti owner.
+    FLDKillNotice Fresh;Fresh.Serial=2;Fresh.Cause=ELDKillCause::Contender;Fresh.Victim=Self;Fresh.Killer=Rival;Fresh.OccurredAtMs=19500;Kills.Notices.Add(Fresh);
+    Public.Phase=ELDMatchPhase::CaptureOpen;Public.Airdrop.Serial=2;Public.Airdrop.Phase=ELDAirdropPhase::Landed;Public.Boss.Phase=ELDBossPhase::Alive;
+    Public.Leader.Leader=Self;Public.GraffitiOwner=Rival;
+    In.LocalSeconds=101;Feed.Observe(In);
+    const TArray<FString> Told={LDTerms::KillLine(TEXT("甲"),TEXT("你")),FString(LDTerms::CaptureOpened),FString(LDTerms::AirdropLanded),LDTerms::BossAppeared(LDTerms::Boss),
+        LDTerms::LeaderSelf(100),LDTerms::GraffitiSprayed(TEXT("甲"))};
+    TestTrue(TEXT("Each change is told once, oldest first so the newest sits at the bottom"),Texts()==Told);
+    TestTrue(TEXT("Lines about the player are highlighted"),Feed.Lines()[0].bSelf&&!Feed.Lines()[1].bSelf&&Feed.Lines()[4].bSelf&&!Feed.Lines()[5].bSelf);
+    In.LocalSeconds=102;Feed.Observe(In);
+    TestEqual(TEXT("An unchanged state tells nothing again"),Feed.Lines().Num(),Told.Num());
+    // The drop is claimed: everyone hears it is gone until the own claim serial says this screen took it.
+    Public.Airdrop.Phase=ELDAirdropPhase::Claimed;In.LocalSeconds=103;Feed.Observe(In);
+    TestEqual(TEXT("Beyond the row limit the oldest line leaves early"),Feed.Lines().Num(),LDHUD::FEventFeed::MaxLines);
+    TestEqualSensitive(TEXT("A claim without the own serial only says the drop is gone"),Feed.Lines().Last().Text,LDTerms::AirdropTaken());
+    In.OwnAirdropClaimSerial=2;In.LocalSeconds=103.5;Feed.Observe(In);
+    TestTrue(TEXT("The own claim, arriving later, relabels the shown line"),Feed.Lines().Last().Text==LDTerms::AirdropOwnClaim()&&Feed.Lines().Last().bSelf);
+    Public.Boss.Phase=ELDBossPhase::Down;Public.Boss.KilledBy=Rival;In.LocalSeconds=104;Feed.Observe(In);
+    TestEqualSensitive(TEXT("A downed Boss names its last hit"),Feed.Lines().Last().Text,LDTerms::BossDownBy(TEXT("甲"),LDTerms::Boss));
+    In.LocalSeconds=106.2;Feed.Observe(In);
+    TestTrue(TEXT("Each line leaves after its five seconds"),Feed.Lines().Num()==2&&Feed.Lines()[0].Text==LDTerms::AirdropOwnClaim());
+    In.LocalSeconds=110;Feed.Observe(In);
+    TestTrue(TEXT("All lines are gone once their time is up"),Feed.Lines().IsEmpty());
+    // A new match starts empty and does not tell the state it opens with.
+    Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();In.LocalSeconds=111;Feed.Observe(In);
+    TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDNextStepTest,"Lockdown.Rules.HUDNextStep",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
 {
@@ -610,7 +700,7 @@ bool FLDHUDNextStepTest::RunTest(const FString& Parameters)
     Wallet.Slots[0].bOccupied=true;Wallet.Slots[1].bOccupied=true;Growth.Level=3;
     TestTrue(TEXT("Full slots and a grown contender need no hint"),Step().IsEmpty());
     Growth.PendingChoiceCount=2;
-    TestEqualSensitive(TEXT("A pending growth choice comes first"),Step(),FString::Printf(TEXT("下一步：%s ×2（点技能栏上方的金色提示）"),LDTerms::Choice));
+    TestEqualSensitive(TEXT("A pending growth choice comes first"),Step(),FString::Printf(TEXT("下一步：%s ×2（点右下角的%s按钮）"),LDTerms::Choice,LDTerms::Choice));
     Growth.PendingChoiceCount=0;Public.Phase=ELDMatchPhase::CaptureOpen;
     TestEqualSensitive(TEXT("An open capture point is the next goal"),Step(),FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo);
     Public.CircleState=ELDCircleState::Solo;Public.Occupier=Self;

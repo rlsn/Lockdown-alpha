@@ -94,6 +94,8 @@ struct LOCKDOWN_API FLDArtResolved
     TMap<uint8, const FLDArtCharacter*> Monsters;
     TArray<const FLDArtProp*> DecorationProps;
     TArray<FTransform> DecorationTransforms;
+    // World bounds (cm) of every shop-zone decoration: the shop is clicked on its model, not on the ground around it.
+    TArray<FBox> ShopModelBounds;
     // Null for a seat outside the roster or an unknown camp tier.
     const FLDArtCharacter* ForSeat(uint8 Seat) const;
     const FLDArtCharacter* ForMonster(uint8 CreatureId) const;

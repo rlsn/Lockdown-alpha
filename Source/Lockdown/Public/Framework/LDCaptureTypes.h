@@ -146,13 +146,26 @@ struct FLDKillNotice
     UPROPERTY() TArray<FGuid> Assisters;
 };
 
-// Bounded ring of the most recent contender deaths, oldest first; Serial increases per match.
+// One contender's kills, deaths and assists so far, for the hold-Tab scoreboard. Public like the kill notices that move it.
+USTRUCT()
+struct FLDScoreRow
+{
+    GENERATED_BODY()
+    UPROPERTY() FGuid ContenderId;
+    UPROPERTY() uint64 Kills = 0;
+    UPROPERTY() uint64 Deaths = 0;
+    UPROPERTY() uint64 Assists = 0;
+};
+
+// Bounded ring of the most recent contender deaths, oldest first; Serial increases per match. Scores lists every contender
+// of the match in roster order; only a death moves it, so it is never newer than the last notice.
 USTRUCT()
 struct FLDKillFeedView
 {
     GENERATED_BODY()
     UPROPERTY() uint32 Generation = 0;
     UPROPERTY() TArray<FLDKillNotice> Notices;
+    UPROPERTY() TArray<FLDScoreRow> Scores;
 };
 
 // One real authority instant. Seconds orders facts across providers; BucketMs is the integer
@@ -191,6 +204,8 @@ struct FLDCaptureEligibilityEvent
 namespace LDCapture
 {
     inline constexpr int32 MaxKillNotices = 8;
+    // A match has at most this many contenders, so the scoreboard at most this many rows.
+    inline constexpr int32 MaxScoreRows = 6;
     LOCKDOWN_API bool ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error);
     LOCKDOWN_API bool ValidateResultView(const FLDResultView& View, FString& Error);
     LOCKDOWN_API bool ValidateKillFeed(const FLDKillFeedView& View, FString& Error);

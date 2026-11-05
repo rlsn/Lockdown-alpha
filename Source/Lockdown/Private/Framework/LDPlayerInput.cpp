@@ -233,7 +233,13 @@ void ALDPlayerController::V05Pressed(FName Action)
         if (ConfirmArmedCombat()) { return; }
         FGuid Handle;
         uint32 ObservationEpoch=0;
-        ObservedUnderPointer(Handle,ObservationEpoch);
+        FName Shop;
+        // A left click on the shop model opens the shop page without moving; a unit in front of it is inspected.
+        if (!ObservedUnderPointer(Handle,ObservationEpoch) && RootUI && Navigation->ShopUnderPointer(Shop))
+        {
+            RootUI->ShowMainPanel(ELDUIMainPanel::Shop);
+            return;
+        }
         Inspect(Handle,ObservationEpoch);
     }
     else if (Action==TEXT("Navigate"))

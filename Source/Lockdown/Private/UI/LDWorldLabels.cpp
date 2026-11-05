@@ -2,6 +2,7 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
+#include "Character/LDCharacter.h"
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
@@ -222,8 +223,36 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 Box(1,FVector2f(PipX-1.f,PipTop-1.f),FVector2f(WorldPipWidth+2.f,PipRow),LDHUDStyle::Rim);
                 Box(3,FVector2f(PipX,PipTop),FVector2f(WorldPipWidth,WorldPipHeight),PipTint);
             }
+            // The own level badge left of the bars, like every contender's: the own progression of this match, in the own
+            // identity tint. Without a known level there is no badge rather than a guessed number.
+            const FLDProgressionView* Progression=PC->ReadOwnProgression();
+            const ALDCharacter* OwnCharacter=Cast<ALDCharacter>(OwnBody);
+            const bool bOwnBadge=Progression&&Progression->Level>=1&&Progression->Level<=Progression->MaxLevel&&OwnCharacter;
+            float ReachLeft=RimLeft;
+            if(bOwnBadge)
+            {
+                const float BadgeLeft=RimLeft-WorldBadgeGap-BadgeRim,BadgeTop=RimTop+RimH*.5f-BadgeRim*.5f;
+                Box(1,FVector2f(BadgeLeft,BadgeTop),FVector2f(BadgeRim,BadgeRim),LDHUDStyle::Rim);
+                Box(2,FVector2f(BadgeLeft+1.f,BadgeTop+1.f),FVector2f(BadgeSide,BadgeSide),LDHUD::PaletteColor(OwnCharacter->PresentationKey));
+                const FString LevelText=FString::FromInt(Progression->Level);const FVector2f LevelExtent=FontMeasure->Measure(LevelText,LevelFont);
+                const FVector2f LevelAt(BadgeLeft+BadgeRim*.5f-LevelExtent.X*.5f,BadgeTop+BadgeRim*.5f-LevelExtent.Y*.5f);
+                FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(LevelExtent,FSlateLayoutTransform(LevelAt)),LevelText,LevelFont,ESlateDrawEffect::None,FLinearColor::White);
+                ReachLeft=BadgeLeft;
+            }
+            // The own public roster name over the bars, as every other unit's name sits over its bar; an unlisted name is
+            // left out rather than invented.
+            float ReachTop=bOwnBadge?FMath::Min(RimTop,RimTop+RimH*.5f-BadgeRim*.5f):RimTop;
+            float ReachRight=RimLeft+RimW;
+            const FString OwnName=LDHUD::RosterName(Public->DemoLobby,Own.ContenderId);
+            if(!OwnName.IsEmpty())
+            {
+                const FVector2f NameExtent=FontMeasure->Measure(OwnName,ContenderFont);
+                float NameBottom=ReachTop-WorldRowGap;
+                Line(OwnName,ContenderFont,WorldLabelContenderInk,OwnX,NameBottom);
+                ReachTop=NameBottom;ReachLeft=FMath::Min(ReachLeft,OwnX-NameExtent.X*.5f);ReachRight=FMath::Max(ReachRight,OwnX+NameExtent.X*.5f);
+            }
             // Placed before any label, so a unit's label moves above the own bars instead of covering them.
-            Placed.Add(FSlateRect(RimLeft,RimTop,RimLeft+RimW,OwnBottom));
+            Placed.Add(FSlateRect(ReachLeft,ReachTop,ReachRight,OwnBottom));
         }
     }
     // Labels are measured first and placed lowest-on-screen first; a label that would overlap one already placed (the own

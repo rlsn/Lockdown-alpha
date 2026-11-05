@@ -58,7 +58,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
         Header=Text(TEXT(""),17);Top->AddChildToHorizontalBox(Header)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        Top->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("关闭"),[this](){ClosePanel();},false,TEXT("ChoicesClose")));
+        // No close button: the HUD's blind-box button toggles the panel, and Back closes it like every main panel.
         // The three compact cards stack in a right-hand column, so the panel never covers the own body and its surroundings
         // while the match keeps running. A click on a card is the choice; there is no separate confirm button.
         auto* Row=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -107,12 +107,13 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         Feedback=Text(TEXT(""),14);Bottom->AddChildToVerticalBox(Feedback);
         RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
         Bottom->AddChildToVerticalBox(RerollButton)->SetPadding(FMargin(0,6,0,0));
-        // A see-through backing in a right-hand column under the minimap: clear of the centre (the own body and about 5 m
-        // around it at either resolution) and of the bottom band.
+        // A see-through backing in the bottom-right corner, right above the HUD's shop entry (SetBottomDock): clear of the
+        // centre (the own body and about 5 m around it at either resolution) and of the bottom band.
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
         auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(340);Width->SetContent(MainPanel);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Right);Frame->SetVerticalAlignment(VAlign_Top);
-        Frame->SetPadding(FMargin(0,350,16,0));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Width);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Right);Frame->SetVerticalAlignment(VAlign_Bottom);
+        Frame->SetPadding(FMargin(0,0,16,BottomDock));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Width);
+        DockFrame=Frame;
         // The full description of the hovered or focused card pops up left of the column, level with that card. It sits on its
         // own canvas layer over the whole panel, so its size never moves or squeezes the cards (which would drop the hover and
         // flicker), and it wraps at a fixed width so it measures the same from its first frame. It takes no pointer input, so
@@ -179,17 +180,22 @@ void ULDChoicesPanel::UpdateDetail()
         if(!DetailSlot->GetPosition().Equals(Place,.5f)){DetailSlot->SetPosition(Place);}
     }
 }
+void ULDChoicesPanel::SetBottomDock(float Bottom)
+{
+    BottomDock=Bottom;
+    if(DockFrame){DockFrame->SetPadding(FMargin(0,0,16,Bottom));}
+}
 UWidget* ULDChoicesPanel::FocusScope() const{return bReplacing?static_cast<UWidget*>(ReplacePanel.Get()):static_cast<UWidget*>(MainPanel.Get());}
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
-    bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
+    bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
     if(!PendingRequest){ChoicesText(Feedback,TEXT("点卡片即选定；悬停或聚焦查看详情。对局不会暂停。"));}
 }
 bool ULDChoicesPanel::ClosePanel()
 {
     // Closing only hides the panel: the opportunity, the offer and any submitted request keep their real state.
-    ResetReplacement();PinnedPreview=INDEX_NONE;bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
+    ResetReplacement();PinnedPreview=INDEX_NONE;ResultNotice.Reset();bOpen=false;SetVisibility(ESlateVisibility::Collapsed);Fold.Closed();UpdateDetail();return true;
 }
 double ULDChoicesPanel::UiNow() const{const UWorld* World=GetWorld();return World?World->GetRealTimeSeconds():0.;}
 void ULDChoicesPanel::MarkOpenedAutomatically()
@@ -247,6 +253,14 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
             ChoicesIcon(Card.IconSize,Card.IconShape,Shown.Icon);
         }
         if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}
+    }
+    // Nothing left to pick: an open panel would only say so, so it closes itself. The last result still reaches the
+    // player as a toast. A pending count whose offer has not arrived yet keeps it open.
+    if(bOpen&&bUsable&&!bOffer&&!PendingRequest&&View.PendingChoiceCount==0)
+    {
+        const FString Result=ResultNotice;ClosePanel();
+        if(!Result.IsEmpty()&&Notify){Notify(FString(LDTerms::Choice)+TEXT("：")+Result);}
+        return;
     }
     else if(bReplacing&&ReplaceBuildRevision!=0&&View.BuildRevision!=ReplaceBuildRevision)
     {
@@ -371,8 +385,10 @@ void ULDChoicesPanel::Send(const FLDChoiceCommand& Command)
 void ULDChoicesPanel::FinishRequest()
 {
     PendingRequest=0;RefreshSelection();
-    // A result that arrives after the panel was closed still reaches the player, without reopening the panel.
+    // A result that arrives after the panel was closed still reaches the player, without reopening the panel; while it
+    // is open the result is kept for the toast in case the panel closes itself with nothing left to pick.
     if(!bOpen&&Notify&&Feedback){Notify(FString(LDTerms::Choice)+TEXT("：")+Feedback->GetText().ToString());}
+    else if(Feedback){ResultNotice=Feedback->GetText().ToString();}
 }
 void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
 {

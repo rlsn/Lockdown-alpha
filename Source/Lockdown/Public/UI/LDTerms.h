@@ -59,6 +59,7 @@ inline constexpr TCHAR Boss[]=TEXT("画饼老板");
 inline constexpr TCHAR BossBuff[]=TEXT("吃到大饼");
 inline FString BossCountdown(const FString& Name,const FString& Clock){return Name+TEXT(" ")+Clock+TEXT(" 后出现 · 小地图金色巡逻点");}
 inline FString BossSoon(const FString& Name){return Name+TEXT(" 即将出现");}
+inline FString BossAppeared(const FString& Name){return Name+TEXT(" 出现了 · 小地图金色巡逻点");}
 inline FString BossPatrol(const FString& Name){return Name+TEXT(" 巡逻中 · 打它会被它追着打");}
 inline FString BossDownSelf(const FString& Name){return FString(TEXT("你击败了"))+Name+TEXT("，")+BossBuff+TEXT("！");}
 inline FString BossDownBy(const FString& Killer,const FString& Name){return Killer+TEXT(" 击败了")+Name+TEXT("，")+BossBuff;}
@@ -102,6 +103,7 @@ inline FString ProgressKept(const FString& Holder){return Holder+TEXT(" 的喷�
 inline constexpr TCHAR NoProgressKept[]=TEXT("谁也没存下进度");
 inline constexpr TCHAR CaptureGo[]=TEXT("去中心喷漆");
 inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上是 "))+Owner+TEXT(" 的涂鸦");}
+inline FString GraffitiSprayed(const FString& Owner){return Owner+TEXT(" 在旗杆上喷上了涂鸦");}
 inline constexpr TCHAR GuardLeft[]=TEXT("再守");
 inline constexpr TCHAR GuardPaused[]=TEXT("有人在改漆，守护暂停");
 inline constexpr TCHAR GuardOwn[]=TEXT("守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）");
@@ -119,6 +121,7 @@ inline FString KillFloat(const FString& Victim){return FString(TEXT("淫了 "))+
 inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 的涂鸦守住了，恭喜成为今晚的")+Winner+TEXT("！");}
 inline constexpr TCHAR NoWinner[]=TEXT("没人守住涂鸦 · 全员摆烂");
 inline constexpr TCHAR NoCapture[]=TEXT("没人守住涂鸦");
+inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
 inline constexpr TCHAR ResultAssists[]=TEXT("助攻");

@@ -4,6 +4,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Audio/LDAudioCueTracker.h"
 #include "UI/LDWorldFeedback.h"
+#include "UI/LDHUDModel.h"
 #include "LDHUD.generated.h"
 class UBorder;
 class UCanvasPanelSlot;
@@ -52,14 +53,6 @@ struct FLDHUDActionSlot
     double NoticeAt=-1;
 };
 
-// A shown kill feed line; it fades on local time only.
-struct FLDHUDKillLine
-{
-    double At=0;
-    FString Text;
-    bool bSelf=false;
-};
-
 UCLASS()
 class LOCKDOWN_API ULDHUD : public UUserWidget
 {
@@ -104,10 +97,14 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
     UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
     UPROPERTY() TObjectPtr<UTextBlock> BossText;
-    // D26: when this screen first saw the current drop claimed (match generation and drop serial), for the notice.
-    uint32 AirdropClaimSeenGeneration=0;uint64 AirdropClaimSeenSerial=0;int64 AirdropClaimSeenAtMs=0;
-    UPROPERTY() TObjectPtr<UBorder> KillFeedPanel;
-    UPROPERTY() TArray<TObjectPtr<UTextBlock>> KillFeedRows;
+    // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.
+    UPROPERTY() TObjectPtr<UBorder> EventFeedPanel;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> EventFeedRows;
+    LDHUD::FEventFeed EventFeed;
+    // Hold-Tab scoreboard (LDHUD::Scoreboard), centred: one row per contender, four cells a row (name, K, D, A).
+    UPROPERTY() TObjectPtr<UBorder> ScorePanel;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> ScoreRows;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> ScoreCells;
     UPROPERTY() TObjectPtr<UBorder> ResultPanel;
     UPROPERTY() TObjectPtr<UTextBlock> ResultTitle;
     UPROPERTY() TObjectPtr<UTextBlock> ResultSubtitle;
@@ -119,6 +116,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
+    // Bottom offset applied to the shop and blind-box panels, which dock right above the shop entry.
+    float AppliedPanelDock=-1;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     UPROPERTY() TObjectPtr<UTextBlock> SightText;
     UPROPERTY() TObjectPtr<UBorder> Band;
@@ -138,14 +137,22 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> HealthRegenText;
     UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
-    UPROPERTY() TObjectPtr<UTextBlock> LevelText;
-    UPROPERTY() TObjectPtr<UTextBlock> GoldText;
+    FString LevelTip;
+    // Bottom-right shop entry: own gold and pre-orders; it opens the shop panel anywhere (buying still needs the shop).
+    UPROPERTY() TObjectPtr<UBorder> ShopEntry;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ShopButton;
+    UPROPERTY() TObjectPtr<UTextBlock> ShopButtonText;
+    // Throttles the automatic session request for pre-orders (local presentation time of the last request).
+    double PreorderOpenAt=-1;
+    uint32 PreorderOpenLife=0;
     UPROPERTY() TObjectPtr<UTextBlock> CameraText;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     TArray<FString> ActionTips;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // Pending-choice pill over the Q/W group: it pulses for a few seconds after the count rises, then stays steady.
+    // Blind-box button in the bottom-right corner, left of the shop entry: disabled without a pending choice; it pulses for
+    // a few seconds after the count rises, then stays steady.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
+    UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptCount=0;
     double PromptPulseAt=-1;
@@ -176,10 +183,7 @@ private:
     void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
     void HandleShopReceipt(const FLDShopReceiptQueryResult& Result);
     void HandleShopOpen(const FLDShopOpenResult& Result);
-    // Kill notices already shown, by public serial within one match generation; each fades on local time only.
-    uint32 KillGeneration=0;
-    uint64 KillSerial=0;
-    TArray<FLDHUDKillLine> KillLines;
+    void RefreshScoreboard(const class ALDGameState& Public,const FLDOwnerState& Own);
     // Authority time at which the current life was first seen alive; the death banner takes its cause only from notices
     // at or after it, so a previous death never stands in while this one's notice is still on its way.
     uint32 LifeSeenMatch=0;
@@ -193,7 +197,7 @@ private:
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;
     bool bDisplayContentTried=false;
     const FLDDemoContentDefinitions* DisplayDefinitions();
-    void RefreshKillFeed(const class ALDGameState& Public,const FGuid& Self,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
+    void RefreshEventFeed(const class ALDGameState& Public,const FLDOwnerState& Own,const FLDDemoContentDefinitions* Content,bool bClock,int64 NowMs);
     void RefreshResult(class ALDPlayerController& PC,const class ALDGameState& Public);
     bool IsUIAt(FVector2D Absolute) const;
     TArray<ULDPanel*,TInlineAllocator<4>> MainPanels() const;

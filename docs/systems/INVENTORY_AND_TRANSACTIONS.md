@@ -24,12 +24,16 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 拥有连接的 RPC 在 `Framework\LDPlayerGrowth.cpp`：`SubmitChoice/SubmitShopCommand`
 分配本族 RequestId 并在 RPC 前记入在途，服务器入口只调用对应 `Queue*`。
 开店意图没有请求号：`BeginPlay` 绑定 `Navigation->OnShopArrived`，拥有者客户端在当前 ApproachShop
-绑定到达时以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；本地拒绝与服务器结果
-都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
+绑定到达时经 `RequestShopSession(ShopId, Life)` 以该 Life 和本地 `ULDMapRegistry::Revision()` 发送一次 `SubmitShopOpen`；
+本地拒绝与服务器结果都经 `OnShopOpenResult` 通知，HUD 用 `ReadShopInteraction` 判断结果是否仍属当前绑定。
+第二个开店时机：本人身体站在小摊交互半径内（`ULDNavigationComponent::OwnBodyAtShop`）、本命还没有会话，
+且商店页面开着或预购中有按目录价米够且有空槽的一件时，HUD 经同一 `RequestShopSession` 请求会话（约 3 s 才重试一次）；
+这类结果不属于任何交互绑定，不弹出页面，会话随下一次成长发布进入 `ReadOwnShop` 后由面板自动买入。
 本人视图随 `SyncOwner` 一起复制在 `FLDOwnerState.Growth`（Listen Host 的本地控制器由 `SyncOwner` 直接写入并调用
 `OnRep_OwnerState`）；`ReadOwnShop` 只在当前生命已 Opened 时有效。
 砍一刀小摊页面是 HUD 停靠的
-`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`，买卖经 `SubmitShopCommand` 提交所见报价与修订；
+`ULDShopPanel`，只格式化 `ReadOwnShop/ReadOwnEquipment`（没有本命会话时列已批准目录，只能浏览与预购），
+买卖与预购的自动买入都经 `SubmitShopCommand` 提交所见报价与修订；
 三选一页面 `ULDChoicesPanel` 同样只读 `ReadOwnProgression`，经 `SubmitChoice` 提交；开局 Offer 首次到达本人、
 尚未消费且没有其他主面板或输入占用时，HUD 自动打开它一次（界面未就绪时最多重试约 5 秒），不替玩家选择；
 玩家 6 s 内未点选卡片时面板自动收起为待选提示（`LDHUD::FChoicesFold`），收起不改变机会与 Offer。

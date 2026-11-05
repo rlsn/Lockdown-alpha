@@ -29,7 +29,9 @@ public:
     bool Enabled() const;
     // ---- Owning client intents; each takes a fresh local identity.
     void Navigate(const FVector& Surface);
-    void NavigateGround(const FVector& Surface, FName SurfaceHint);
+    // MarkerCm is where the move marker appears when it is not the order's own point (a right click on the stall model
+    // walks beside it but marks where the click landed); its colour still answers the order's own point.
+    void NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm=nullptr);
     void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch);
     void AttackMove(const FVector& Surface, FName SurfaceHint);
     void ApproachShop(FName ShopId);
@@ -42,6 +44,11 @@ public:
     bool PointerPosition(FVector2D& Out) const;
     // The ground under the pointer on the world-click channel.
     bool GroundUnderPointer(FHitResult& Out) const;
+    // The public shop whose decoration model lies under the pointer ray (its mesh bounds, not the interaction radius).
+    bool ShopUnderPointer(FName& OutShop);
+    // The ground goal of a right click: the pointer's ground point, or over the stall model the nearest walkable point
+    // beside it (the model takes a right click like a wall: where the body already stands when it is beside the model).
+    void PointerGoal(const FHitResult& GroundHit, FVector& OutGoal);
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
@@ -70,6 +77,9 @@ public:
     // The shop domain requests its session from here; Navigation itself never opens a shop.
     DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnShopArrived, FName /*ShopId*/, uint32 /*Life*/);
     FLDOnShopArrived OnShopArrived;
+    // Owning client: whether the own body's feet stand inside the shop's interaction radius, by the same check as a
+    // right-click on the shop. A local trigger for shop pre-orders only; the server re-checks reach on every trade.
+    bool OwnBodyAtShop(FName& OutShop);
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
@@ -102,6 +112,8 @@ private:
     static constexpr double OrderNoProgressSeconds=2.;
     static constexpr double GoalShiftCm=50.;
     static constexpr double GoalAcceptanceCm=40.;
+    // Spacing of the goals tried from beside the stall back toward the body when the stall model is right-clicked.
+    static constexpr double ShopStopStepCm=25.;
     static constexpr int32 MaxOrderRecords=16;
     struct FPendingOrder
     {

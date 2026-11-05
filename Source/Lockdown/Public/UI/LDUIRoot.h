@@ -91,6 +91,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> SettingsStatus;
     UPROPERTY() TObjectPtr<USizeBox> LobbyPage;
+    // Full-screen picture behind the lobby page (LDUIBackgrounds), shown exactly while the lobby is; null when missing.
+    UPROPERTY() TObjectPtr<UWidget> LobbyBackground;
     UPROPERTY() TObjectPtr<UVerticalBox> RosterRows;
     UPROPERTY() TObjectPtr<UHorizontalBox> AIButtonRow;
     UPROPERTY() TArray<TObjectPtr<ULDCommandButton>> AIButtons;
@@ -168,4 +170,7 @@ private:
     ULDCommandButton* MakeButton(const FString& Text, FName Name, TFunction<void()> Action, int32 Size = 18);
     UEditableTextBox* MakeTextBox(const FString& Hint, FName Name);
     USizeBox* MakePage(UCanvasPanel& Canvas, float Width, UVerticalBox*& Content);
+    // A picture filling the whole viewport (cropped, never stretched) under every page of this root; null with
+    // LD_UI_BACKGROUND_MISSING when the texture is not there.
+    UWidget* AddBackground(UCanvasPanel& Canvas, const TCHAR* AssetPath);
 };

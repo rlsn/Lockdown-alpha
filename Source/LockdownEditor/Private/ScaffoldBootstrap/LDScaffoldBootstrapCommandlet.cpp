@@ -1,6 +1,7 @@
 #include "LDScaffoldBootstrapCommandlet.h"
 #include "LDDemoWorldBuilder.h"
 #include "Art/LDDemoArtImport.h"
+#include "Art/LDDemoUIImageImport.h"
 #include "Audio/LDDemoAudioImport.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -42,10 +43,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     const bool ValidateOnly = FParse::Param(*Params, TEXT("Validate"));
     const bool Regenerate = FParse::Param(*Params, TEXT("Regenerate"));
     const bool RefreshDefinitions = FParse::Param(*Params, TEXT("RefreshDefinitions"));
+    // Rebuilds only the blank title-screen map; the Demo world and its definitions are validated as they are.
+    const bool RegenerateFrontend = FParse::Param(*Params, TEXT("RegenerateFrontend"));
     FString Error, DigestHex, Output;
-    if ((ValidateOnly && Regenerate) || (RefreshDefinitions && (ValidateOnly || Regenerate)))
+    if (int32(ValidateOnly) + int32(Regenerate) + int32(RefreshDefinitions) + int32(RegenerateFrontend) > 1)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Validate, Regenerate and RefreshDefinitions are exclusive."));
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Validate, Regenerate, RefreshDefinitions and RegenerateFrontend are exclusive."));
         return 1;
     }
     if (!FParse::Value(*Params, TEXT("Output="), Output))
@@ -164,6 +167,14 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         {
             World = UEditorLoadingAndSavingUtils::LoadMap(FPackageName::LongPackageNameToFilename(PackagePath, FPackageName::GetMapPackageExtension()));
         }
+        else if (!ValidateOnly && (Regenerate || RegenerateFrontend || !FPackageName::DoesPackageExist(PackagePath)))
+        {
+            if (!LDDemoWorldBuilder::GenerateFrontend(World, Error))
+            {
+                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Frontend map generation failed: %s"), *Error);
+                return 6;
+            }
+        }
         else
         {
             UPackage* Package = LoadPackage(nullptr, PackagePath, LOAD_None);
@@ -176,7 +187,15 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
             UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Missing world or retired GameMode: %s"), PackagePath);
             return 5;
         }
-        if (!IsDemoWorld) { continue; }
+        if (!IsDemoWorld)
+        {
+            if (!LDDemoWorldBuilder::ValidateFrontend(*World, Error))
+            {
+                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED %s"), *Error);
+                return 6;
+            }
+            continue;
+        }
         if (!LDDemoWorldBuilder::Validate(*World, *WorldDefinition, *Catalog, Output, Error))
         {
             UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native world geometry/navigation validation failed: %s"), *Error);
@@ -193,6 +212,12 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!LDDemoArtImport::Validate(Error))
     {
         UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo art: %s"), *Error);
+        return 8;
+    }
+    // UI: the title and lobby backgrounds must match their owner-supplied sources.
+    if (!LDDemoUIImageImport::Validate(Error))
+    {
+        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI backgrounds: %s"), *Error);
         return 8;
     }
     UE_LOG(LogTemp, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));
