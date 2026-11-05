@@ -688,17 +688,34 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
     FFixtures Fixtures;
     if (!FixtureIndex(*this, Fixtures)) { return false; }
     FString Error;
+    TArray<uint8> BaseWorld, BaseExpected;
+    int32 Imported = 0, SharedBase = 0;
     for (const auto& Case : Fixtures.Valid)
     {
         const FString Root = FPaths::Combine(Fixtures.Root, Case.Name);
+        const FString ExpectedFile = FPaths::Combine(Root, TEXT("native_world_expected.json"));
         FLDDemoContentBundle Bundle;
+        TArray<uint8> Expected;
+        if (!FLDDemoContentBundle::ReadImportFiles(Root, Bundle, Error) || !ReadFile(ExpectedFile, Expected, Error))
+        {
+            AddError(Case.Name + TEXT(": ") + Error);
+            return false;
+        }
+        if (!Case.MutatedQuantity.IsEmpty())
+        {
+            // A rank quantity mutation only changes ability/equipment ranks. Its world payload and expected world
+            // projection must match base byte for byte, so importing it again would only repeat base's assertions.
+            if (!TestTrue(*FString::Printf(TEXT("%s keeps the base world payload and expected world projection"), *Case.Name),
+                !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected)) { return false; }
+            ++SharedBase;
+            continue;
+        }
         auto* Content = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
         TUniquePtr<FLDDemoPreparedContent> Prepared;
         TSharedPtr<const FLDDemoContentSnapshot> Catalog;
         auto* World = NewObject<ULDMapDefinition>(GetTransientPackage());
         TSharedPtr<const FLDDemoWorldGeometry> Geometry;
-        if (!FLDDemoContentBundle::ReadImportFiles(Root, Bundle, Error)
-            || !ULDDemoContentCatalog::PrepareImport(*Content, Bundle, Case.Digest, Prepared, Error)
+        if (!ULDDemoContentCatalog::PrepareImport(*Content, Bundle, Case.Digest, Prepared, Error)
             || !Content->CommitImport(Prepared, Case.Digest, Error) || !Content->Read(Case.Digest, Catalog, Error)
             || !World->Import(Bundle.World, *Catalog, Error) || !World->Read(*Catalog, Geometry, Error))
         {
@@ -706,12 +723,19 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
             return false;
         }
         TMap<FString, FString> Actual;
-        if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), Geometry.Get(),
-            FPaths::Combine(Root, TEXT("native_world_expected.json")), Actual)) { return false; }
+        if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), Geometry.Get(), ExpectedFile, Actual)) { return false; }
         TestEqual(TEXT("World keeps ten actual polygon blockers"), Geometry->Blockers.Num(), 10);
         TestEqual(TEXT("World keeps twenty-six authored anchors"), Geometry->Anchors.Num(), 26);
         TestEqual(TEXT("World keeps seven local placements, not seventy spawn IDs"), Geometry->SpawnOffsetsCm.Num(), 7);
+        if (Case.Name == TEXT("base"))
+        {
+            BaseWorld = Bundle.World;
+            BaseExpected = Expected;
+        }
+        ++Imported;
     }
+    TestTrue(TEXT("Every non-rank case is fully imported and every case is covered"),
+        !BaseWorld.IsEmpty() && Imported > 1 && Imported + SharedBase == Fixtures.Valid.Num());
     return true;
 }
 

@@ -4,10 +4,12 @@ Nothing here is a production content source or an approval decision. All output
 must be a new directory under this worktree's ignored Artifacts directory.
 """
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from decimal import Decimal
 import json
 import math
+import os
 from pathlib import Path
 
 from CatalogTools import encode
@@ -499,13 +501,61 @@ def _quantities(value, path=()):
             yield from _quantities(child, path + (index,))
 
 
-def export(output, *, rank_mutations=True):
-    # Most cases share the fixture world and its binding sections; validate each distinct pair once.
+_worker_reuse = None
+
+
+def default_jobs():
+    # Windows ProcessPoolExecutor refuses more than 61 workers.
+    return min(os.cpu_count() or 1, 61)
+
+
+def _init_worker():
+    # Each worker process keeps its own binding-report reuse for the life of the pool.
+    global _worker_reuse
+    _worker_reuse = DemoWorld.reuse_binding_reports()
+    _worker_reuse.__enter__()
+
+
+def _valid_job(output, name, author, world, literal):
+    compilation, assertions = _valid_case(output, name, author, world, literal)
+    return compilation.digest.hex(), assertions
+
+
+def _approved_job(output):
+    return _approved_case(output).digest.hex()
+
+
+class _InlinePool:
+    """Runs jobs immediately in this process, for jobs=1."""
+
+    class _Done:
+        def __init__(self, value):
+            self._value = value
+
+        def result(self):
+            return self._value
+
+    def submit(self, function, *args):
+        return self._Done(function(*args))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def export(output, *, rank_mutations=True, jobs=None):
+    """Write every fixture case. Valid cases compile in up to `jobs` processes (default: CPU count); the written
+    bytes and index order do not depend on `jobs`."""
+    jobs = default_jobs() if jobs is None else jobs
+    demo.require(type(jobs) is int and jobs >= 1, "FixtureJobs", output, "jobs must be a positive integer")
+    # Most cases share the fixture world and its binding sections; validate each distinct pair once per process.
     with DemoWorld.reuse_binding_reports():
-        return _export(output, rank_mutations=rank_mutations)
+        return _export(output, rank_mutations=rank_mutations, jobs=jobs)
 
 
-def _export(output, *, rank_mutations):
+def _export(output, *, rank_mutations, jobs):
     output = Path(output)
     resolved = output.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
@@ -516,16 +566,29 @@ def _export(output, *, rank_mutations):
     index = {"format": "demo-native-fixtures-1", "test_only": True, "valid": [], "invalid": []}
     base, base_assertions = _valid_case(output, "base")
     index["valid"].append({"name": "base", "catalog_sha256": base.digest.hex(), "changed_paths": [], "mutated_quantity": ""})
-    approved = _approved_case(output)
-    index["valid"].append({"name": "approved_base", "catalog_sha256": approved.digest.hex(),
-                          "changed_paths": [], "mutated_quantity": ""})
+    pool = _InlinePool() if jobs == 1 else ProcessPoolExecutor(jobs, initializer=_init_worker)
+    with pool:
+        approved = pool.submit(_approved_job, output)
+        pending = []
 
-    def valid(name, author=None, world=None, literal=None, mutated_quantity=""):
-        compilation, assertions = _valid_case(output, name, author, world, literal)
-        changes = [key for key, value in assertions.items() if not key.startswith("Identity.") and base_assertions.get(key) != value]
-        index["valid"].append({"name": name, "catalog_sha256": compilation.digest.hex(),
-                              "changed_paths": changes, "mutated_quantity": mutated_quantity})
+        def valid(name, author=None, world=None, literal=None, mutated_quantity=""):
+            # Snapshot the inputs now: callers reuse and mutate the same author between cases.
+            job = pool.submit(_valid_job, output, name, deepcopy(author), deepcopy(world), literal)
+            pending.append((name, mutated_quantity, job))
 
+        _export_cases(output, index, base, rank_mutations, valid)
+        index["valid"].append({"name": "approved_base", "catalog_sha256": approved.result(),
+                              "changed_paths": [], "mutated_quantity": ""})
+        for name, mutated_quantity, job in pending:
+            digest, assertions = job.result()
+            changes = [key for key, value in assertions.items() if not key.startswith("Identity.") and base_assertions.get(key) != value]
+            index["valid"].append({"name": name, "catalog_sha256": digest,
+                                  "changed_paths": changes, "mutated_quantity": mutated_quantity})
+    _save(output / "index.json", encode(demo.canonical(index)))
+    return index
+
+
+def _export_cases(output, index, base, rank_mutations, valid):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
@@ -737,16 +800,15 @@ def _export(output, *, rank_mutations):
     bundle.pop(demo.WORLD_OUTPUT)
     invalid("missing_world", bundle, base.digest.hex(), "missing")
     invalid("stale_expected_root", _bundle(base), "0" * 64, "expected root")
-    _save(output / "index.json", encode(demo.canonical(index)))
-    return index
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--jobs", type=int, default=None, help="worker processes for valid cases (default: CPU count)")
     args = parser.parse_args()
     try:
-        index = export(args.output)
+        index = export(args.output, jobs=args.jobs)
     except (demo.ContentError, OSError) as error:
         parser.exit(1, f"Demo native fixture export failed: {error}\n")
     print(f"TEST ONLY: {len(index['valid'])} valid and {len(index['invalid'])} refusal cases: {args.output}")
