@@ -56,6 +56,9 @@ public:
     uint64 PeekGrowthRequestId(ELDGrowthFamily Family) const;
     // Open intents have no request sequence: true when sent; the terminal result arrives as OnShopOpenResult.
     bool SubmitShopOpen(const FLDShopOpenCommand& Command, ELDGrowthReason& OutLocalReason);
+    // Owning client: requests ShopId's session for the given (current) life with the registered world revision; false with
+    // the local reason when nothing was sent. The arrival of an ApproachShop order and shop pre-orders both open here.
+    bool RequestShopSession(FName ShopId, uint32 Life, ELDGrowthReason& OutLocalReason);
     void QueryGrowthReceipt(const FLDReceiptQuery& Query);
     // Own accepted projection only; null while the view is invalid. ReadOwnShop is non-null only for an Opened session.
     const FLDProgressionView* ReadOwnProgression() const;

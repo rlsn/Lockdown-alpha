@@ -42,6 +42,8 @@ public:
     bool PointerPosition(FVector2D& Out) const;
     // The ground under the pointer on the world-click channel.
     bool GroundUnderPointer(FHitResult& Out) const;
+    // The public shop whose decoration model lies under the pointer ray (its mesh bounds, not the interaction radius).
+    bool ShopUnderPointer(FName& OutShop);
     // The visible unit a right click would attack now (the hover ring and attack cursor); false when none.
     bool ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const;
     // DEV scenarios (WITH_DEV_AUTOMATION_TESTS) stand in for the mouse; an empty value restores it. Inert otherwise.
@@ -70,6 +72,9 @@ public:
     // The shop domain requests its session from here; Navigation itself never opens a shop.
     DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnShopArrived, FName /*ShopId*/, uint32 /*Life*/);
     FLDOnShopArrived OnShopArrived;
+    // Owning client: whether the own body's feet stand inside the shop's interaction radius, by the same check as a
+    // right-click on the shop. A local trigger for shop pre-orders only; the server re-checks reach on every trade.
+    bool OwnBodyAtShop(FName& OutShop);
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
@@ -102,6 +107,8 @@ private:
     static constexpr double OrderNoProgressSeconds=2.;
     static constexpr double GoalShiftCm=50.;
     static constexpr double GoalAcceptanceCm=40.;
+    // Spacing of the shop stop candidates tried from beside the stall back toward the interaction radius.
+    static constexpr double ShopStopStepCm=25.;
     static constexpr int32 MaxOrderRecords=16;
     struct FPendingOrder
     {

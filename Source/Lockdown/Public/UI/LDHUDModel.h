@@ -95,13 +95,14 @@ namespace LDHUD
     // only; never a hidden unit or another wallet. Empty when nothing applies or the match is not running.
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,
         const FString& OwnerName=FString());
-    // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
-    // seconds that it was claimed (the own claim says so). Empty when there is no drop to show.
-    // ClaimSeenAtMs: when this screen first saw the current drop claimed (the public view carries no claim time).
-    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bOwnClaim,int64 ClaimSeenAtMs,bool bClock,int64 NowMs);
-    // D26 (#79): the public Boss line: a countdown shortly before it appears, a reminder while it patrols, and who
-    // landed the last hit for a few seconds afterwards. Empty otherwise.
-    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName,bool bClock,int64 NowMs);
+    // D26 (#79): the public airdrop line under the capture state: the landing countdown and the landed drop. Empty when
+    // there is no drop to show; the claim is an event of the event feed (FEventFeed), not a standing line.
+    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 NowMs);
+    // D26 (#79): the public Boss line: a countdown shortly before it appears and a reminder while it patrols. Empty
+    // otherwise; who landed the last hit is an event of the event feed (FEventFeed).
+    LOCKDOWN_API FString BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 NowMs);
+    // The event feed's line for a downed Boss: the own last hit is told it ate the pie, others see the public roster name.
+    LOCKDOWN_API FString BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName);
     // D27 (#79): the public 上热搜 line: who is named and the bounty on them; the own player is told directly.
     // Empty when nobody is named.
     LOCKDOWN_API FString LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName);
@@ -131,6 +132,17 @@ namespace LDHUD
     };
     // One frozen row in locked roster order; statistics are display only and never decide the winner.
     LOCKDOWN_API FResultRowView ResultRow(const FLDResultRow& Row,const FGuid& Winner,const FGuid& Self);
+    struct FScoreLine
+    {
+        FString Name;
+        uint64 Kills=0;
+        uint64 Deaths=0;
+        uint64 Assists=0;
+        bool bSelf=false;
+    };
+    // The hold-Tab scoreboard of that match: most kills first, then fewest deaths, then roster order. Names come from the
+    // room roster; a contender no longer in it is shown as having left. Empty for another match's feed.
+    LOCKDOWN_API TArray<FScoreLine> Scoreboard(const FLDKillFeedView& Feed,uint32 Generation,const FLDLobbyView& Lobby,const FGuid& Self);
 
     enum class EActionSlot : uint8 { Q, W, Item1, Item2, Dash };
     enum EActionBlock : uint32
@@ -255,6 +267,14 @@ namespace LDHUD
         bool bAffordable=false;
     };
     LOCKDOWN_API FShopItemView ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    // Shop pre-orders (like a quick-buy list): at most this many queued items, kept locally for one match.
+    constexpr int32 MaxShopPreorders=2;
+    // The approved catalog as shop rows (definition, buy and sell price, active), for browsing and pre-ordering away from
+    // the shop; a session's quote replaces it whenever one is shown. Empty without content.
+    LOCKDOWN_API TArray<FLDShopItemView> CatalogItems(const FLDDemoContentDefinitions* Content);
+    // Index into Queue of the pre-order to buy next: queue order, the first one the listing prices, the gold covers and an
+    // empty equipment slot can hold. INDEX_NONE when none qualifies (no free slot, too little gold, or not listed).
+    LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots);
     // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive/active terms); empty parts are omitted.
     LOCKDOWN_API TArray<FString> UpgradeLines(const FLDDemoEquipmentDefinition& Item);
     struct FAttributeRowView
@@ -309,5 +329,53 @@ namespace LDHUD
         bool bHitImmune=false;
         bool bFoldedByHit=false;
         double OpenedAt=0;
+    };
+
+    // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line
+    // stays LineSeconds on local presentation time; beyond MaxLines the oldest leaves early. Sources are the public match
+    // view, the public kill feed and the public roster; the only owner fact is the own airdrop claim serial, which tells
+    // its owner 你抢到了 while everyone else only learns that the drop is gone.
+    struct FEventFeedInput
+    {
+        const FLDPublicMatchView* Public=nullptr;
+        const FLDKillFeedView* Kills=nullptr;
+        const FLDLobbyView* Lobby=nullptr;
+        FGuid Self;
+        uint64 OwnAirdropClaimSerial=0;
+        bool bClock=false;
+        int64 NowMs=0;
+        double LocalSeconds=0;
+        FString LowCampName,HighCampName,BossName;
+    };
+    struct FEventLine
+    {
+        FString Text;
+        bool bSelf=false;   // the line is about the player (said with 你), so the feed can highlight it
+        double At=0;        // local presentation time it was first shown
+        uint64 AirdropClaimSerial=0;  // a drop claim line: relabelled while shown, as the owner view may arrive later
+    };
+    // Kills are told when their notice arrives, unless it was already older than StaleKillMs (a late join). Every other
+    // event is a change between two observations of the same match: the first observation of a match only records the
+    // state, so a screen that joins mid-match never replays what already happened. Told events: the flagpole opening, a
+    // drop landing and being claimed, the Boss appearing and going down, a new 上热搜 leader and a new graffiti owner.
+    class LOCKDOWN_API FEventFeed
+    {
+    public:
+        static constexpr double LineSeconds=5.;
+        static constexpr int32 MaxLines=6;
+        static constexpr int64 StaleKillMs=6000;
+        void Observe(const FEventFeedInput& Input);
+        const TArray<FEventLine>& Lines() const {return Shown;}
+    private:
+        TArray<FEventLine> Shown;
+        uint32 Generation=0;
+        bool bPrimed=false;
+        uint64 KillSerial=0;
+        ELDMatchPhase Phase=ELDMatchPhase::Faulted;
+        uint64 AirdropSerial=0;
+        ELDAirdropPhase AirdropPhase=ELDAirdropPhase::None;
+        ELDBossPhase BossPhase=ELDBossPhase::None;
+        FGuid Leader;
+        FGuid GraffitiOwner;
     };
 }

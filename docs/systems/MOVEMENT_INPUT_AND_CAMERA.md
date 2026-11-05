@@ -208,7 +208,7 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
-`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、
+`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
 没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
@@ -255,8 +255,10 @@ schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10
 schema 11、12 已有全部绑定和偏好，显式迁移到 13 时不补 Dash。schema 5–11 必须先按旧 1100–1700 cm、
 schema 12 按旧 1100–1900 cm 范围校验 Zoom；在当前 1300–2400 cm 内原样保留（包括旧默认 1400、1850），
 低于 1300 cm 的调整为 1300 cm 并在提示中说明；超出各自旧范围的值仍按损坏拒绝，不因新范围扩大而变合法。
-迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成 schema 13。
-schema 5–12 中的损坏、非法偏好或注册表外动作
+迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成 schema 14。
+schema 13 字段与范围都与当前相同，只是按键表早于排行榜：schema 5–13 迁移时若缺 `Scoreboard` 且默认键 Tab 未被其他动作占用，
+补上默认 Tab 并在提示中说明（schema 13 不再附镜头距离说明）；Tab 已被占用时按 `Corrupt` 走恢复；schema 14 缺它不补。
+schema 5–13 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。
 schema 4 是已退役的多注册表格式：读取时只校验完整性并列出其中的退役动作，返回
 `UnsupportedSchema`，不加载也不迁移任何旧绑定（包括 Demo 仍在使用的动作名）；

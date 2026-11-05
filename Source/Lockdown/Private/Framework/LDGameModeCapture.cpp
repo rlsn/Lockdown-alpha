@@ -481,6 +481,10 @@ void ALDGameMode::PublishMatchOutcome()
         FLDKillFeedView Feed;
         Feed.Generation = MatchContext.Generation;
         Feed.Notices = KillNotices;
+        for (const FGuid& Id : RosterOrder)
+        {
+            if (const FLDContenderRecord* Record = FindContender(Id)) { Feed.Scores.Add({Id, Record->Kills, Record->Deaths, Record->Assists}); }
+        }
         FString Error;
         if (!LDCapture::ValidateKillFeed(Feed, Error)) { UE_LOG(LogTemp, Error, TEXT("LD_KILL_FEED_INVALID %s"), *Error); }
         else

@@ -93,7 +93,7 @@ FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const
 {
     if(Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
-    if(bGrowth&&Progression->PendingChoiceCount>0){return FString::Printf(TEXT("下一步：%s ×%d（点技能栏上方的金色提示）"),LDTerms::Choice,int32(Progression->PendingChoiceCount));}
+    if(bGrowth&&Progression->PendingChoiceCount>0){return FString::Printf(TEXT("下一步：%s ×%d（点右下角的%s按钮）"),LDTerms::Choice,int32(Progression->PendingChoiceCount),LDTerms::Choice);}
     if(Public.Phase==ELDMatchPhase::CaptureOpen)
     {
         if(Public.CircleState==ELDCircleState::Solo&&Self.IsValid()&&Public.Occupier==Self){return FString(TEXT("稳住：你"))+LDTerms::Holding;}
@@ -303,26 +303,20 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
         return View;
     }
 }
-FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bOwnClaim,int64 ClaimSeenAtMs,bool bClock,int64 NowMs)
+FString LDHUD::AirdropLine(const FLDAirdropView& Drop,bool bClock,int64 NowMs)
 {
-    // Presentation only: how long the claim notice stays on screen after this screen first saw the drop claimed.
-    constexpr int64 ClaimNoticeMs=5000;
     switch(Drop.Phase)
     {
     case ELDAirdropPhase::Announced:
         return bClock?LDTerms::AirdropCountdown(Clock(Drop.LandAtMs-NowMs)):LDTerms::AirdropSoon();
     case ELDAirdropPhase::Landed: return LDTerms::AirdropLanded;
-    case ELDAirdropPhase::Claimed:
-        // The public view says only that it is gone; the own claim comes from the owner view.
-        if(bClock&&NowMs-ClaimSeenAtMs>ClaimNoticeMs){return FString();}
-        return bOwnClaim?LDTerms::AirdropOwnClaim():LDTerms::AirdropTaken();
     default: return FString();
     }
 }
-FString LDHUD::BossLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName,bool bClock,int64 NowMs)
+FString LDHUD::BossLine(const FLDBossView& Boss,const FString& BossName,bool bClock,int64 NowMs)
 {
-    // Presentation only: how early the countdown shows and how long the result stays on screen.
-    constexpr int64 CountdownMs=15000,DownNoticeMs=8000;
+    // Presentation only: how early the countdown shows.
+    constexpr int64 CountdownMs=15000;
     const FString Name=BossName.IsEmpty()?FString(LDTerms::Boss):BossName;
     switch(Boss.Phase)
     {
@@ -330,13 +324,83 @@ FString LDHUD::BossLine(const FLDBossView& Boss,const FGuid& Self,const FString&
         if(!bClock||Boss.AppearAtMs-NowMs>CountdownMs){return FString();}
         return Boss.AppearAtMs>NowMs?LDTerms::BossCountdown(Name,Clock(Boss.AppearAtMs-NowMs)):LDTerms::BossSoon(Name);
     case ELDBossPhase::Alive: return LDTerms::BossPatrol(Name);
-    case ELDBossPhase::Down:
-        if(bClock&&NowMs-Boss.DownAtMs>DownNoticeMs){return FString();}
-        if(Self.IsValid()&&Boss.KilledBy==Self){return LDTerms::BossDownSelf(Name);}
-        if(!Boss.KilledBy.IsValid()){return LDTerms::BossDown(Name);}
-        return LDTerms::BossDownBy(KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName,Name);
     default: return FString();
     }
+}
+FString LDHUD::BossDownLine(const FLDBossView& Boss,const FGuid& Self,const FString& KillerName,const FString& BossName)
+{
+    const FString Name=BossName.IsEmpty()?FString(LDTerms::Boss):BossName;
+    if(Self.IsValid()&&Boss.KilledBy==Self){return LDTerms::BossDownSelf(Name);}
+    if(!Boss.KilledBy.IsValid()){return LDTerms::BossDown(Name);}
+    return LDTerms::BossDownBy(KillerName.IsEmpty()?FString(TEXT("未列名参赛者")):KillerName,Name);
+}
+void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
+{
+    const double Now=In.LocalSeconds;
+    const uint32 Match=In.Public?In.Public->Generation:0;
+    // A new match (or none) starts an empty feed whose first observation only records the state.
+    if(Match!=Generation){Generation=Match;bPrimed=false;KillSerial=0;Shown.Reset();}
+    auto Add=[this,Now](const FString& Text,bool bSelf,uint64 ClaimSerial=0)
+    {
+        if(Text.IsEmpty()){return;}
+        FEventLine& Line=Shown.AddDefaulted_GetRef();Line.Text=Text;Line.bSelf=bSelf;Line.At=Now;Line.AirdropClaimSerial=ClaimSerial;
+    };
+    auto Name=[&In](const FGuid& Id){return In.Lobby?RosterName(*In.Lobby,Id):FString();};
+    if(Match!=0)
+    {
+        const FLDPublicMatchView& Public=*In.Public;
+        if(In.Kills&&In.Kills->Generation==Match)
+        {
+            TArray<const FLDKillNotice*> Fresh;
+            for(const FLDKillNotice& Notice:In.Kills->Notices){if(Notice.Serial>KillSerial){Fresh.Add(&Notice);}}
+            Fresh.Sort([](const FLDKillNotice& A,const FLDKillNotice& B){return A.Serial<B.Serial;});
+            for(const FLDKillNotice* Notice:Fresh)
+            {
+                KillSerial=Notice->Serial;
+                // Notices already old when first seen (e.g. a late join) are marked seen without a line.
+                if(In.bClock&&In.NowMs-Notice->OccurredAtMs>StaleKillMs){continue;}
+                TArray<FString> Assisters;
+                for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
+                const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.BossName,Assisters);
+                Add(Line.Text,Line.bSelf);
+            }
+        }
+        if(bPrimed)
+        {
+            if(Public.Phase!=Phase&&Public.Phase==ELDMatchPhase::CaptureOpen){Add(LDTerms::CaptureOpened,false);}
+            if(Public.Airdrop.Serial!=AirdropSerial||Public.Airdrop.Phase!=AirdropPhase)
+            {
+                if(Public.Airdrop.Phase==ELDAirdropPhase::Landed){Add(LDTerms::AirdropLanded,false);}
+                // Labelled below from the own claim serial; the public view never says who took it.
+                else if(Public.Airdrop.Phase==ELDAirdropPhase::Claimed){Add(LDTerms::AirdropTaken(),false,Public.Airdrop.Serial);}
+            }
+            if(Public.Boss.Phase!=BossPhase)
+            {
+                const FString Boss=In.BossName.IsEmpty()?FString(LDTerms::Boss):In.BossName;
+                if(Public.Boss.Phase==ELDBossPhase::Alive){Add(LDTerms::BossAppeared(Boss),false);}
+                else if(Public.Boss.Phase==ELDBossPhase::Down)
+                {Add(BossDownLine(Public.Boss,In.Self,Name(Public.Boss.KilledBy),Boss),In.Self.IsValid()&&Public.Boss.KilledBy==In.Self);}
+            }
+            if(Public.Leader.Leader.IsValid()&&Public.Leader.Leader!=Leader)
+            {Add(LeaderLine(Public.Leader,In.Self,Name(Public.Leader.Leader)),In.Self.IsValid()&&Public.Leader.Leader==In.Self);}
+            if(Public.GraffitiOwner.IsValid()&&Public.GraffitiOwner!=GraffitiOwner)
+            {
+                const bool bOwn=In.Self.IsValid()&&Public.GraffitiOwner==In.Self;
+                const FString Owner=bOwn?FString(TEXT("你")):Name(Public.GraffitiOwner);
+                Add(LDTerms::GraffitiSprayed(Owner.IsEmpty()?FString(TEXT("未列名参赛者")):Owner),bOwn);
+            }
+        }
+        bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
+        Leader=Public.Leader.Leader;GraffitiOwner=Public.GraffitiOwner;
+    }
+    for(FEventLine& Line:Shown)
+    {
+        if(Line.AirdropClaimSerial==0){continue;}
+        const bool bOwn=In.OwnAirdropClaimSerial==Line.AirdropClaimSerial;
+        Line.Text=bOwn?LDTerms::AirdropOwnClaim():LDTerms::AirdropTaken();Line.bSelf=bOwn;
+    }
+    Shown.RemoveAll([Now](const FEventLine& Line){return Now-Line.At>=LineSeconds;});
+    if(Shown.Num()>MaxLines){Shown.RemoveAt(0,Shown.Num()-MaxLines);}
 }
 FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName)
 {
@@ -405,6 +469,23 @@ FString LDHUD::ResultHeadline(const FLDResultView& Result,const FString& WinnerN
     case ELDMatchEndReason::HostEnded: return FString(TEXT("房主结束了本局 · "))+LDTerms::NoCapture;
     default: return TEXT("对局结束 · 原因未知");
     }
+}
+TArray<LDHUD::FScoreLine> LDHUD::Scoreboard(const FLDKillFeedView& Feed,uint32 Generation,const FLDLobbyView& Lobby,const FGuid& Self)
+{
+    TArray<FScoreLine> Lines;
+    if(!Generation||Feed.Generation!=Generation){return Lines;}
+    for(const FLDScoreRow& Row:Feed.Scores)
+    {
+        FScoreLine& Line=Lines.AddDefaulted_GetRef();
+        const FLDLobbyMember* Member=Lobby.Members.FindByPredicate([&Row](const FLDLobbyMember& M){return M.ContenderId==Row.ContenderId;});
+        Line.Name=!Member?FString(TEXT("（已离开）")):Member->Name.IsEmpty()?FString(TEXT("未列名参赛者")):Member->Name;
+        if(Member&&Member->Kind==ELDContenderKind::OpponentAI){Line.Name+=TEXT("（AI）");}
+        Line.bSelf=Self.IsValid()&&Row.ContenderId==Self;
+        if(Line.bSelf){Line.Name+=TEXT("（你）");}
+        Line.Kills=Row.Kills;Line.Deaths=Row.Deaths;Line.Assists=Row.Assists;
+    }
+    Lines.StableSort([](const FScoreLine& A,const FScoreLine& B){return A.Kills!=B.Kills?A.Kills>B.Kills:A.Deaths<B.Deaths;});
+    return Lines;
 }
 LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winner,const FGuid& Self)
 {
@@ -816,6 +897,28 @@ TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
         for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
     }
     return Lines;
+}
+TArray<FLDShopItemView> LDHUD::CatalogItems(const FLDDemoContentDefinitions* Content)
+{
+    TArray<FLDShopItemView> Items;
+    if(!Content){return Items;}
+    for(const FLDDemoEquipmentDefinition& Definition:Content->Equipment)
+    {
+        FLDShopItemView& Row=Items.AddDefaulted_GetRef();
+        Row.DefinitionId=FName(*Definition.Id);Row.BuyPrice=Definition.BuyPrice;Row.SellGold=Definition.SellGold;Row.bHasActive=Definition.HasActive;
+    }
+    return Items;
+}
+int32 LDHUD::NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots)
+{
+    if(FreeSlots<=0){return INDEX_NONE;}
+    for(int32 Index=0;Index<Queue.Num();++Index)
+    {
+        const FName Wanted=Queue[Index];
+        const FLDShopItemView* Row=Listing.FindByPredicate([Wanted](const FLDShopItemView& Item){return Item.DefinitionId==Wanted;});
+        if(Row&&Row->BuyPrice>0&&Row->BuyPrice<=Gold){return Index;}
+    }
+    return INDEX_NONE;
 }
 LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
 {

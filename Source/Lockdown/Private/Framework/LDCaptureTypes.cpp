@@ -155,6 +155,16 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
         }
         Previous = Notice.Serial;
     }
+    if (View.Scores.Num() > MaxScoreRows) { return FailCaptureView(Error, TEXT("Too many scoreboard rows.")); }
+    for (int32 Index = 0; Index < View.Scores.Num(); ++Index)
+    {
+        const FGuid& Id = View.Scores[Index].ContenderId;
+        for (int32 Earlier = 0; Earlier < Index; ++Earlier)
+        {
+            if (View.Scores[Earlier].ContenderId == Id) { return FailCaptureView(Error, TEXT("Duplicate scoreboard contender.")); }
+        }
+        if (!Id.IsValid()) { return FailCaptureView(Error, TEXT("Invalid scoreboard contender.")); }
+    }
     Error.Reset();
     return true;
 }

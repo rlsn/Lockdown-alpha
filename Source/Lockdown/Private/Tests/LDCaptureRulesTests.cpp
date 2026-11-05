@@ -729,6 +729,16 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     BadFeed([](FLDKillFeedView& View) { View.Notices[0].Killer.Invalidate(); }, TEXT("A contender kill names its killer"));
     BadFeed([](FLDKillFeedView& View) { View.Notices[1].Serial = 1; }, TEXT("Notice serials strictly increase"));
     BadFeed([](FLDKillFeedView& View) { View.Notices[0].Killer = View.Notices[0].Victim; }, TEXT("A suicide names no killer"));
+    FLDKillFeedView Scored = Feed;
+    Scored.Generation = 4;
+    Scored.Scores = {{Open.Occupier, 1, 1, 0}, {Result.Rows[1].ContenderId, 0, 1, 0}};
+    TestEqual(TEXT("A feed with one score row per contender is accepted"), LDCapture::AcceptKillFeed(Scored, LatestFeed, Error),
+        ELDLobbyProjectionResult::Accepted);
+    BadFeed([](FLDKillFeedView& View) { View.Scores = {{FGuid(), 0, 0, 0}}; }, TEXT("A score row names a contender"));
+    BadFeed([&Open](FLDKillFeedView& View) { View.Scores = {{Open.Occupier, 1, 0, 0}, {Open.Occupier, 0, 1, 0}}; },
+        TEXT("A contender has one score row"));
+    BadFeed([](FLDKillFeedView& View) { View.Scores.SetNum(LDCapture::MaxScoreRows + 1); for (FLDScoreRow& Row : View.Scores) { Row.ContenderId = FGuid::NewGuid(); } },
+        TEXT("The scoreboard has at most one row per seat"));
     return true;
 }
 

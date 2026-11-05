@@ -62,6 +62,8 @@ namespace
     constexpr uint32 DashlessFixtureSchema = 10;
     constexpr uint32 PreviousZoomFixtureSchema = 11;
 constexpr uint32 NearZoomFixtureSchema = 12;
+    // Schema 13 writes every current preference; only its key list predates the hold-Tab scoreboard.
+    constexpr uint32 ScoreboardlessFixtureSchema = 13;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -956,7 +958,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -977,7 +979,8 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
         && Settings->Key(TEXT("Item1")) == EKeys::One && Settings->Key(TEXT("Item2")) == EKeys::Two
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
-        && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape);
+        && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape
+        && Settings->Key(TEXT("Scoreboard")) == EKeys::Tab);
     FString Error;
     for (const TCHAR* Name : RetiredActions)
     {
@@ -1451,6 +1454,55 @@ bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsScoreboardMigrationTest, "Lockdown.Rules.LocalSettingsScoreboardMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsScoreboardMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit scoreboard fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("王小明");
+    Values->bQuickCast = true;
+    Values->Zoom = 2100;
+    Values->Bindings.Remove(TEXT("Scoreboard"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, ScoreboardlessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 13 file keeps every preference, binding and its current-range zoom and takes Tab for the scoreboard"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("Scoreboard")) == EKeys::Tab && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Migrated.Settings->Zoom == 2100.f && Migrated.Settings->GetQuickCast()
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(FString(TEXT("“"))+LDTerms::Scoreboard+TEXT("”键使用默认值")));
+    TestTrue(TEXT("The migrated values are dirty until the next verified save"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && !Migrated.Settings->NeedsRecovery());
+
+    Values->Bindings.Remove(TEXT("Dash"));
+    Values->Zoom = 1400;
+    Write(FixtureBytes(*Values, DashlessFixtureSchema, 0));
+    const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A layout older than the dash takes both new default keys"),
+        Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings && Older.Settings->Key(TEXT("Dash")) == EKeys::D
+        && Older.Settings->Key(TEXT("Scoreboard")) == EKeys::Tab && Older.Message.Contains(FString(TEXT("“"))+LDTerms::Scoreboard+TEXT("”键使用默认值")));
+    Values->Bindings.Add(TEXT("Dash"), EKeys::D);
+
+    // The player already put Tab on another action: the scoreboard is never given a colliding key.
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::Tab);
+    Write(FixtureBytes(*Values, ScoreboardlessFixtureSchema, 0));
+    const auto Taken = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A layout holding Tab elsewhere is refused with recovery, naming the missing scoreboard"),
+        Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
+        && Taken.Message.Contains(TEXT("Scoreboard")));
+
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values));
+    const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The current schema never repairs a missing scoreboard binding"),
+        Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
@@ -1458,7 +1510,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 13);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 14);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1570,8 +1622,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 13"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 13);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 14"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 14);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom

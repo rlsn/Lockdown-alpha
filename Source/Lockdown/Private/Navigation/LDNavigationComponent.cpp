@@ -23,6 +23,7 @@
 #include "Character/LDCameraSettings.h"
 #include "UI/LDHUD.h"
 #include "UI/LDMinimap.h"
+#include "Art/LDArtSubsystem.h"
 
 namespace LDNavigationDetail
 {
@@ -253,6 +254,15 @@ bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop, 
     const double Reach=double(Radius.Numerator)/double(Radius.Denominator);
     if (FVector::DistSquared2D(GroundPoint,Shop->Position)<=FMath::Square(Reach)) { OutShop=ShopId; }
     return true;
+}
+
+bool ULDNavigationComponent::OwnBodyAtShop(FName& OutShop)
+{
+    OutShop=NAME_None;
+    auto* PC=Controller();
+    const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
+    if (!Body || !Body->GetCharacterMovement()) { return false; }
+    return ShopAt(Body->GetCharacterMovement()->GetActorFeetLocation(),OutShop,false) && !OutShop.IsNone();
 }
 
 bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out)
@@ -608,9 +618,9 @@ void ULDNavigationComponent::ClickMove()
     if (PC->ObservedUnderPointer(Observed,ObservationEpoch)) { AttackUnit(Observed,ObservationEpoch); return; }
     FHitResult GroundHit;
     if (!GroundUnderPointer(GroundHit)) { return; }
+    // A right click on the shop model walks there (arrival opens the session quietly); the left click opens the page.
     FName Shop;
-    if (!ShopAt(GroundHit.ImpactPoint,Shop)) { return; }
-    if (!Shop.IsNone()) { ApproachShop(Shop); return; }
+    if (ShopUnderPointer(Shop)) { ApproachShop(Shop); return; }
     const uint32 Before=Local.Order;
     Navigate(GroundHit.ImpactPoint);
     // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing.
@@ -640,6 +650,27 @@ bool ULDNavigationComponent::GroundUnderPointer(FHitResult& Out) const
     const auto* PC=Controller();
     FVector2D At;
     return PC && PointerPosition(At) && PC->GetHitResultAtScreenPosition(At,ECC_GameTraceChannel1,false,Out);
+}
+
+bool ULDNavigationComponent::ShopUnderPointer(FName& OutShop)
+{
+    OutShop=NAME_None;
+    const auto* PC=Controller();
+    const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
+    const auto* Loaded=DemoContent();
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    FVector2D At;
+    FVector Start, Direction;
+    if (!PC || !Art || Art->ShopModelBounds.IsEmpty() || !Loaded || !Registry || !PointerPosition(At)
+        || !PC->DeprojectScreenPositionToWorld(float(At.X),float(At.Y),Start,Direction)) { return false; }
+    const FName ShopId(*Loaded->Get().World.ShopId);
+    if (ShopId.IsNone() || !Registry->Resolve(ShopId,Registry->Generation)) { return false; }
+    const FVector End=Start+Direction*1000000.;
+    for (const FBox& Model : Art->ShopModelBounds)
+    {
+        if (FMath::LineBoxIntersection(Model,Start,End,End-Start)) { OutShop=ShopId; return true; }
+    }
+    return false;
 }
 
 bool ULDNavigationComponent::ReadHovered(FGuid& OutHandle, uint32& OutEpoch) const
@@ -714,7 +745,7 @@ void ULDNavigationComponent::TickPointer()
         FName Shop;
         if (PC->ObservedUnderPointer(Hovered,HoveredEpoch)
             || PC->IsAttackMoveArmed() || PC->ReadArmedCombatEntry(Armed)) { Cursor=EMouseCursor::Crosshairs; }
-        else if (GroundUnderPointer(GroundHit) && ShopAt(GroundHit.ImpactPoint,Shop,false) && !Shop.IsNone()) { Cursor=EMouseCursor::Hand; }
+        else if (ShopUnderPointer(Shop)) { Cursor=EMouseCursor::Hand; }
     }
     PC->CurrentMouseCursor=Cursor;
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->SetHover(Hovered,HoveredEpoch); }

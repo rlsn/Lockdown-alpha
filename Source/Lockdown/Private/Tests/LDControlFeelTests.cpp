@@ -32,6 +32,27 @@ bool FLDControlFeelHeldMoveTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelShopFrontTest, "Lockdown.Rules.DemoControlFeel.ShopFront",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDControlFeelShopFrontTest::RunTest(const FString& Parameters)
+{
+    // A 160 x 100 cm stall around (778, 778).
+    const FBox2D Stall(FVector2D(698, 728), FVector2D(858, 828));
+    FVector Front;
+    TestTrue(TEXT("From straight east the stop is the east face plus the body radius, level with the body"),
+        LDOrderRules::ShopFrontPoint(Stall, FVector(1128, 790, 15), 40, Front) && Front.Equals(FVector(898, 790, 15), .01));
+    TestTrue(TEXT("From a diagonal the stop is beside the nearest corner, not on a wider circle"),
+        LDOrderRules::ShopFrontPoint(Stall, FVector(1100, 1100, 0), 40, Front) && Front.Equals(FVector(898, 868, 0), .01));
+    TestFalse(TEXT("A body already beside the stall stays where it is"),
+        LDOrderRules::ShopFrontPoint(Stall, FVector(778, 700, 0), 40, Front));
+    TestFalse(TEXT("No footprint, no stop"), LDOrderRules::ShopFrontPoint(FBox2D(ForceInit), FVector(1128, 790, 0), 40, Front));
+    const TArray<FVector> Candidates = LDOrderRules::ShopStopCandidates(FVector(898, 790, 0), FVector(1128, 790, 0), 50);
+    TestTrue(TEXT("Stop candidates go from the stall back to the radius endpoint"),
+        Candidates.Num() == 6 && Candidates[0].Equals(FVector(898, 790, 0)) && Candidates[1].Equals(FVector(948, 790, 0))
+        && Candidates.Last().Equals(FVector(1128, 790, 0)));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelPreInputTest, "Lockdown.Rules.DemoControlFeel.PreInput",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

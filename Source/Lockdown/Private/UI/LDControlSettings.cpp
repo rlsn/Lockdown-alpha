@@ -34,10 +34,13 @@ namespace
     constexpr uint32 PreviousZoomSchema = 11;
     // Schema 12 has the schema 11 layout; only its zoom range (1100-1900 cm) predates the current camera range.
     constexpr uint32 NearZoomSchema = 12;
+    // Schema 13 has the current layout and zoom range; only its key list predates the hold-Tab scoreboard.
+    constexpr uint32 ScoreboardlessSchema = 13;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
     const FName DashAction(TEXT("Dash"));
+    const FName ScoreboardAction(TEXT("Scoreboard"));
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -191,6 +194,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
+        {TEXT("Scoreboard"),FString(TEXT("按住显示"))+LDTerms::Scoreboard,EKeys::Tab},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
         {TEXT("PanLeft"),TEXT("镜头左移"),EKeys::Left},{TEXT("PanRight"),TEXT("镜头右移"),EKeys::Right},
         {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Home},
@@ -482,7 +486,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     const bool Migrating = Magic == LocalSettingsMagic
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
-            || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema);
+            || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -528,8 +532,9 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容不完整或包含多余数据。文件未被替换。") }; }
     FString Error;
     const float LegacyZoomMax = SavedSchema == NearZoomSchema ? NearZoomMax : LegacyMaxZoom;
-    const bool LegacyZoomValid = FMath::IsFinite(Settings->Zoom)
-        && Settings->Zoom >= LegacyMinZoom && Settings->Zoom <= LegacyZoomMax;
+    // Schema 13 already has the current camera range.
+    const bool LegacyZoomValid = SavedSchema == ScoreboardlessSchema ? LDCamera::IsValidArmLength(Settings->Zoom)
+        : FMath::IsFinite(Settings->Zoom) && Settings->Zoom >= LegacyMinZoom && Settings->Zoom <= LegacyZoomMax;
     // An old zoom valid in its own range is kept when the current range holds it; a value below the current minimum
     // is raised to it and reported, never rejected for a range the old build did not have.
     const float StoredZoom = Settings->Zoom;
@@ -550,16 +555,19 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating && !LegacyZoomValid)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, FString::Printf(TEXT("旧版本镜头缩放超出原有 %.0f–%.0f cm 范围，无法迁移。文件未被替换。"), LegacyMinZoom, LegacyZoomMax) }; }
-    // Layouts before schema 11 predate the D dash: a missing Dash binding takes its default key when no other action holds it;
-    // otherwise the binding stays missing and the file is refused below like any other incomplete key list.
+    // Layouts before schema 11 predate the D dash and layouts before schema 14 the hold-Tab scoreboard: such a missing
+    // binding takes its default key when no other action holds it; otherwise it stays missing and the file is refused below
+    // like any other incomplete key list.
     FString DashDefault;
-    if (Migrating && SavedSchema <= DashlessSchema && !Settings->Bindings.Contains(DashAction))
+    struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
+    for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash}, FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard} })
     {
-        const FLDControlBinding* Dash = Definitions().FindByPredicate([](const FLDControlBinding& B) { return B.Action == DashAction; });
-        if (Dash && !Settings->Bindings.FindKey(Dash->Key))
+        if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
+        const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
+        if (Default && !Settings->Bindings.FindKey(Default->Key))
         {
-            Settings->Bindings.Add(DashAction, Dash->Key);
-            DashDefault = FString(TEXT("新增的“")) + LDTerms::Dash + TEXT("”键使用默认值 ") + Dash->Key.GetDisplayName().ToString() + TEXT("。");
+            Settings->Bindings.Add(Added.Action, Default->Key);
+            DashDefault += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
         }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
@@ -573,7 +581,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–12 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–13 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -591,6 +599,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == QuickCastlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
+        if (SavedSchema == ScoreboardlessSchema)
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
         const FString ZoomNote = ZoomRaised
             ? FString::Printf(TEXT("旧镜头距离 %.0f cm 低于当前最小值，已调整为 %.0f cm"), StoredZoom, Settings->Zoom)
             : FString::Printf(TEXT("旧镜头距离 %.0f cm 原样保留"), Settings->Zoom);

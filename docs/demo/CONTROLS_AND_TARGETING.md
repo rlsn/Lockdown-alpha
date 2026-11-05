@@ -46,7 +46,8 @@
 | 右键地面 | 发送一个 `MoveGround`；同帧在点击点显示绿色收缩虚线圈，本地路线检查失败时改为红叉 | 服务器按点击点严格求完整路径，CMC 实际行走；partial path 不报告到达。 |
 | 按住右键拖动 | 指针地面点相对上次订单移动 ≥ 40 cm 时，最多每 0.125 s 再发一个普通 `MoveGround` | 每次重复都是带新身份的普通订单，仍受服务器激活节流与最新待受理替换约束；本地路线检查已失败的点直接跳过，不发送。 |
 | 右键当前可见单位 | 发送一个 `AttackUnit`；目标脚下显示红色收拢圈 | 服务器重查观察权限后接近、追击，在射程内逐次申请普攻（§4.2）。 |
-| 右键砍一刀小摊交互范围内的地面 | 发送一个 `ApproachShop` | 到达交互范围后由拥有客户端请求商店会话；到达本身不是购买（§4.3）。 |
+| 右键砍一刀小摊模型 | 发送一个 `ApproachShop`；不弹出商店页面 | 走到小摊正前方后由拥有客户端请求商店会话；到达本身不是购买（§4.3）。 |
+| 左键砍一刀小摊模型 | 原地打开商店页面（指针下有可见单位时仍是检查该单位） | 不移动、不发送订单。 |
 | 左键，未准备动作 | 检查指针下的当前可见单位；点空地清除检查对象 | 不移动、不攻击、不发送订单。 |
 | A，然后左键 | A 进入攻击移动准备；左键把指针下地面作为 `AttackMove` 目的地发送 | A 按下本身不攻击；指针下无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
@@ -54,6 +55,7 @@
 | 1/2 | 同 Q/W，来源为对应装备实例的主动 | 无主动的装备同样发送并被明确拒绝，不回退到角色技能。 |
 | D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
+| 按住 Tab | 显示局内排行榜，松开收起 | 只读公开 `KillFeed.Scores`；不是世界命令。 |
 | 方向键/屏幕边缘 | 沿固定俯视平面平移镜头 | 不移动角色、不改变视野或订单。 |
 | Space | 按住期间镜头跟住自己，松开恢复原跟随/自由状态 | 不改持久跟随偏好、不停止订单。 |
 | Home | 切换镜头跟随并保存该偏好 | 本地偏好，不是服务器状态。 |
@@ -63,7 +65,8 @@
 
 **鼠标取消规则：** 已有准备态（Q/W/1/2/D 或 A）时，右键只取消准备并消费这次点击，不移动、
 不攻击、不前往砍一刀小摊；再次右键才走普通分派（`ALDPlayerController::V05Pressed`）。
-右键分派顺序为：指针下的当前可见单位 → 砍一刀小摊交互范围 → 地面（`ULDNavigationComponent::ClickMove`）；
+右键分派顺序为：指针下的当前可见单位 → 砍一刀小摊模型 → 地面（`ULDNavigationComponent::ClickMove`）；
+小摊模型的判定是指针射线与美术目录里小摊装饰网格包围盒相交（`ShopUnderPointer`），模型周围的地面是普通地面；
 一次点击只产生一个类别的订单，被拒绝时不改发另一类订单。
 
 **指针反馈**（`ALDPointerFeedback`，仅拥有客户端本地生成，不复制、无碰撞、不参与寻路）：
@@ -142,12 +145,12 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 滚轮轴绑定到 `V05Zoom`。重建前先移除旧绑定句柄与旧 context，并要求所有键松开后才接受新世界命令；
 重建不会停止已接受订单。仓库中没有静态 IA/IMC 输入资产。
 
-动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Item1`、`Item2`、`Stop`、`Attributes`、
+动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Item1`、`Item2`、`Dash`、`Stop`、`Attributes`、`Scoreboard`（按住 Tab）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom`、`Back`。
 `Back` 的 Esc 是保留键；重绑校验冲突，不静默交换两个动作。
 
-本地设置 schema 当前为 13（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
-旧 schema 5–12 显式迁移并标记为未保存；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
+本地设置 schema 当前为 14（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
+旧 schema 5–13 显式迁移并标记为未保存（schema 13 只缺 `Scoreboard`，缺时在 Tab 未被占用时补默认 Tab）；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
 在当前 1300–2400 cm 范围内则原样保留（包括旧默认 1400、1850），低于 1300 cm 的调整为 1300 cm 并在提示中说明；
 不猜测用户意图或自动替换距离。schema 4 的多注册表布局被明确拒绝，其可恢复偏好也遵守旧范围。
 新安装默认 2250 cm；设置页“采用推荐镜头”只修改 Zoom，不重置姓名、绑定、音量、跟随或其他偏好。
@@ -243,10 +246,13 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 
 ### 4.3 商店接近
 
-右键落在砍一刀小摊交互范围（脚点到砍一刀小摊中心的 XY 距离不超过 `SHOP.InteractRadiusCm`）时发送
-`ApproachShop`，携带公共 POI ID，不扫描 Actor。服务器用 `ULDMapRegistry::FindPublicApproach`
-求接近点与完整路径，以 `QueryShopReach` 判断真实到达；到达交互半径后订单 `Completed`。
-路径终点在交互半径上，最后一段缓慢向内贴近直到判定到达，不放大交互半径。
+右键指着砍一刀小摊模型时发送 `ApproachShop`，携带公共 POI ID，不扫描 Actor。服务器用
+`ULDMapRegistry::FindPublicApproach` 求交互半径上的接近点与完整路径，再接一段到小摊正前方的完整路径：
+停点由 `LDOrderRules::ShopFrontPoint` 取：小摊占地向外扩一个身体半径后，离接近点最近的那一点，所以身体停在模型最近的一面旁、
+不与模型重叠；已经贴着时不再移动。占地是本机美术目录里小摊模型的包围盒（装饰无碰撞，不改变任何路径，只决定停在哪里），
+没有美术目录时才用摆放规则允许的最大占地（锚点周围半边长 `LDArt::ShopLandmarkHalfExtentCm` 的方块）。
+`ShopStopCandidates` 从模型旁每 25 cm 退向接近点，取第一个合法且有完整路径的点，即模型旁最近的可走点。整段都是正常速度。走到路线终点且 `QueryShopReach` 判定在交互半径内时订单 `Completed`；
+停点不是合法地面或接不上完整路径时退回只走到交互半径上的接近点，最后一段缓慢向内贴近直到判定到达，不放大交互半径。
 
 拥有客户端在当前 `ApproachShop` 订单 `Completed` 时对该绑定只广播一次 `OnShopArrived`，
 由控制器的成长模块请求商店会话（`SubmitShopOpen`）；Navigation 本身不开店、不交易。
@@ -411,7 +417,8 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 | `STAT.AttackRangeCm` / `FORMULA.AttackRange` | AttackUnit/AttackMove 的射程，每次从 `ReadCombatBody` 读取当前值。 |
 | `TARGET.AttackMoveAcquireRadiusCm` | A 搜敌半径（内容公式按视野半径与当前射程计算）。 |
 | `VISION.RadiusCm` | 视野服务与 A 搜敌半径公式。 |
-| `SHOP.InteractRadiusCm` | 右键是否落在砍一刀小摊范围、`QueryShopReach` 判定。 |
+| `SHOP.InteractRadiusCm` | 接近点、本人是否在小摊范围（预购自动买入）、`QueryShopReach` 判定。 |
+| `UNIT.CollisionRadiusCm` | 经内容胶囊决定小摊正前方停点外推的身体半径。 |
 | 各 `ABILITY.*` / `ITEM.*.Active` 的 `TargetMode` 等字段 | 决定 Q/W/1/2 的目标模式与几何；无主动的装备明确不可用。D 冲刺读 `character.dash` 与装备被动 `dash_boost`。 |
 
 **本地设置**（`ULDControlSettings`，只影响本机呈现，不影响世界距离、视野或角色速度）：
@@ -421,7 +428,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 | `Bindings` | `Definitions()` 的默认键 | 无冲突，Esc 保留给 Back |
 | `bEdgePan` | 开 | — |
 | `bStartFollowing` | 开 | — |
-| `Zoom`（镜头臂长 cm） | 2250 | 1300–2400；旧 schema 5–11 按原 1100–1700、schema 12 按原 1100–1900 校验，低于 1300 的调整为 1300，其余原值迁移 |
+| `Zoom`（镜头臂长 cm） | 2250 | 1300–2400；旧 schema 5–11 按原 1100–1700、schema 12 按原 1100–1900、schema 13 按当前范围校验，低于 1300 的调整为 1300，其余原值迁移 |
 | `TextScale` | 1 | 1–1.25 |
 | `CameraPanCmPerSec` | 1800 | 900–3600 |
 | `MinimapOrientation` | `Camera` | `Camera/Facing/North`（HUD 小地图使用，`LDMinimap::MakeView`） |
