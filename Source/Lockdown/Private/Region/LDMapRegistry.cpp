@@ -114,7 +114,8 @@ void ULDMapRegistry::OnWorldBeginPlay(UWorld& W)
 }
 bool ULDMapRegistry::Ensure(FString& Error)
 {
-    if (Enabled() && Bindings.Num() == 17) { Error.Reset(); return true; }
+    // Every approved anchor is bound once; the count follows the world payload instead of a fixed number.
+    if (Enabled() && Bindings.Num() == Geometry->Anchors.Num()) { Error.Reset(); return true; }
     return Rebuild(Error);
 }
 

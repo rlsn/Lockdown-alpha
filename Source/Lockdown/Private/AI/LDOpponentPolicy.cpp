@@ -1559,7 +1559,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
     {
         EndVisit(State, false);
         Body(C.Distance(Drop->FootCm) * 2. <= C.AirdropRadiusCm ? Halt(C) : MoveTo(C, *Drop));
-        return Finish(EMode::Contest, EReason::ContestAirdrop);
+        return Finish(EMode::Airdrop, EReason::ContestAirdrop);
     }
     if (C.bCaptureOpen && bMayContest && CircleBody(C, false, Intent))
     {

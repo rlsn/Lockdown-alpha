@@ -361,6 +361,9 @@ def validate_payload(raw):
                                   for kind in ANCHOR_KINDS}
             == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1, "Dorm": 2, "Airdrop": 3},
             "WorldAnchors", "world", "incorrect anchor/member counts")
+    # The native importer knows the dorms by id, so a rename must fail here rather than only at the native import.
+    require({identity for identity, row in anchors.items() if row["kind"] == "Dorm"} == {"dorm_nw", "dorm_se"},
+            "WorldAnchors", "world", "dorm ids must be dorm_nw and dorm_se")
     require(type(world["connections"]) is list and len(world["connections"]) == 5,
             "InvalidReference", "world.connections", "five named inner/outer connections are required")
     connected_camps, wall_degrees = set(), {}

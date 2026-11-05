@@ -30,8 +30,7 @@ struct FLDAirdropView
     UPROPERTY() FName PointId;
     UPROPERTY() FVector PositionCm = FVector::ZeroVector;
     UPROPERTY() int64 LandAtMs = 0;
-    UPROPERTY() FGuid ClaimedBy;
-    UPROPERTY() int64 ClaimedAtMs = 0;
+    // Claimed says only that the drop is gone: neither who took it nor when (App Spec §6.3).
 };
 
 // Whole-room capture state. It names at most the single occupier and never lists bodies in the

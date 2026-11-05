@@ -1113,6 +1113,16 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             }
             Out.Cues=CueFactsOf(*Body);
             Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move);
+            const auto& Parameters=Content->Get().Parameters;
+            const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
+                Parameters.OutOfCombatMaxHPRegenBp,Parameters.OutOfCombatMaxMPRegenBp};
+            // Inside a 躺平角 (D21) its term is part of the displayed rate, as it is of the settled one.
+            const LDTactical::FOutOfCombatRecovery Dorm{Parameters.DormRegenDelayMs,Parameters.DormMaxHPRegenBp,
+                Parameters.DormMaxMPRegenBp};
+            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs,
+                Body->bInDorm ? &Dorm : nullptr);
+            Out.HPRegenPerSec=Regen.HP;
+            Out.MPRegenPerSec=Regen.MP;
             // The passive bonus or the D21 contender recovery (this view is a contender's) is running.
             Out.bOutOfCombatRegenActive=LDTactical::OutOfCombatAt(Body->LastCombatAtMs,
                 Content->Get().Parameters.OutOfCombatRegenDelayMs,NowMs);

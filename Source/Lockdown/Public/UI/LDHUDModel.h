@@ -43,6 +43,9 @@ namespace LDHUD
     LOCKDOWN_API FResourceView Resource(const FString& Label,double Current,double Max,bool bRoundUp);
     LOCKDOWN_API FResourceView ResourceP2(const FString& Label,int64 CurrentP2,int64 MaxP2,bool bRoundUp);
 
+    // Empty when the matching living owner projection is unavailable; never estimate from HP/MP deltas.
+    LOCKDOWN_API FString RegenText(const FLDOwnerState& Own,const FLDCombatOwnerView* Combat,bool bHealth);
+
     struct FLevelView
     {
         FString Level;
@@ -91,7 +94,8 @@ namespace LDHUD
     LOCKDOWN_API FString NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content);
     // D26 (#79): the public airdrop line under the capture state: the landing countdown, the landed drop, and for a few
     // seconds who claimed it. Empty when there is no drop to show.
-    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,const FGuid& Self,const FString& ClaimerName,bool bClock,int64 NowMs);
+    // ClaimSeenAtMs: when this screen first saw the current drop claimed (the public view carries no claim time).
+    LOCKDOWN_API FString AirdropLine(const FLDAirdropView& Drop,bool bOwnClaim,int64 ClaimSeenAtMs,bool bClock,int64 NowMs);
     // Public contender death notice; names come from the public roster and camp tiers from approved display text.
     LOCKDOWN_API FString KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName);
     struct FKillFeedLineView
@@ -165,7 +169,7 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. 胆量 30; empty without one
+        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. "<LDTerms::Mana> 30"; empty without one
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
     // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty

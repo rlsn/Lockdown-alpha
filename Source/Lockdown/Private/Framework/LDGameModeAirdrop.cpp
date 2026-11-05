@@ -46,7 +46,8 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     TArray<LDAirdrop::FCandidate> Candidates;
     Combat->ReadLivingContenderFeet(Candidates);
     FGuid Claimer;
-    if (!Point || !LDAirdrop::PickClaimer(Point->PositionCm, Airdrop.Schedule.PickupRadiusCm, Candidates, Claimer)) { return true; }
+    if (!Point || !LDAirdrop::PickClaimer(Point->PositionCm, Airdrop.Schedule.PickupRadiusCm, Candidates, Airdrop.TieSeed(),
+        Claimer)) { return true; }
     const auto& Parameters = DemoContent->Get().Parameters;
     FLDRewardReceipt Receipt;
     ELDGrowthReason Reason = ELDGrowthReason::None;

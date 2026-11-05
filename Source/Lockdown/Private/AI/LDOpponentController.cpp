@@ -338,8 +338,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
         ? Public.Occupier : FGuid();
     Frame.Public.DueAtMs = Public.DueAtMs;
-    Reads.ClaimedAirdrop = Public.Airdrop.Phase == ELDAirdropPhase::Claimed && Public.Airdrop.ClaimedBy == Own.ContenderId
-        ? Public.Airdrop.Serial : 0;
+    // The own claim comes from the owner view; the public view never names the claimer.
+    Reads.ClaimedAirdrop = Own.Growth.AirdropClaimedSerial;
     if (Public.Airdrop.Phase == ELDAirdropPhase::Announced || Public.Airdrop.Phase == ELDAirdropPhase::Landed)
     {
         Frame.Public.AirdropPOI = Public.Airdrop.PointId;

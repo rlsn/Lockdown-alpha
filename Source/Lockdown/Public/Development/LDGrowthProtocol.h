@@ -443,6 +443,9 @@ struct LOCKDOWN_API FLDGrowthOwnerView
     UPROPERTY() FLDProgressionView Progression;
     UPROPERTY() FLDEquipmentView Equipment;
     UPROPERTY() FLDShopOpenResult Shop;
+    // D26: the serial of the current 天降外卖 when this contender claimed it; 0 otherwise. Owner-only: the public
+    // view never names the claimer.
+    UPROPERTY() uint64 AirdropClaimedSerial = 0;
 };
 
 // Local presentation notifications on the owning controller; listeners never write gameplay state.
