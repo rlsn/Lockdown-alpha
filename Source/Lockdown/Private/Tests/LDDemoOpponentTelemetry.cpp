@@ -5,6 +5,8 @@
 #include "Containers/Ticker.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDProgressionRules.h"
+#include "Economy/LDEconomyDirector.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -31,7 +33,7 @@ namespace LDDemoOpponentTelemetryDetail
 constexpr uint8 OpponentCount = 3;
 constexpr int64 CurveMs = 1000;
 constexpr int32 MaxMatches = 50;
-constexpr uint32 MatchSchema = 1;
+constexpr uint32 MatchSchema = 2;
 
 const TCHAR* KindName(ELDContenderKind Kind) { return Kind == ELDContenderKind::OpponentAI ? TEXT("OpponentAI") : TEXT("Human"); }
 
@@ -58,6 +60,18 @@ const TCHAR* CauseName(ELDKillCause Cause)
 
 FString Id(const FGuid& Value) { return Value.IsValid() ? Value.ToString(EGuidFormats::Digits) : FString(); }
 
+const TCHAR* OutcomeName(ELDRewardOutcome Outcome)
+{
+    switch (Outcome)
+    {
+    case ELDRewardOutcome::Granted: return TEXT("Granted");
+    case ELDRewardOutcome::NoReward: return TEXT("NoReward");
+    default: return TEXT("Other");
+    }
+}
+
+FString TagName(ELDDemoMechanicTag Tag) { return StaticEnum<ELDDemoMechanicTag>()->GetNameStringByValue(int64(Tag)); }
+
 TArray<TSharedPtr<FJsonValue>> Numbers(const TArray<int64>& Values)
 {
     TArray<TSharedPtr<FJsonValue>> Out;
@@ -78,6 +92,12 @@ struct FLDTelemetryContender
     // Instances currently held; a new instance is a purchase and a vanished one a sale.
     TMap<FGuid, FName> Held;
     TArray<TSharedPtr<FJsonValue>> Purchases, Sales;
+    // 112 §13: the build as last read, its first active and every active it replaced (a Q/W active that vanished).
+    uint64 BuildRevision = 0;
+    TArray<FLDLearnedSkillView> Skills;
+    int64 FirstActiveMs = -1;
+    TArray<TSharedPtr<FJsonValue>> Replacements;
+    FLDProgressionView Final;
 };
 
 class FLDDemoOpponentTelemetry : public TSharedFromThis<FLDDemoOpponentTelemetry>
@@ -100,6 +120,9 @@ public:
     TArray<TSharedPtr<FJsonValue>> Kills;
     TArray<FLDTelemetryContender> Rows;
     FLDCaptureDevTally Capture;
+    // Contender deaths with their committed killer and assist rewards, once per victim life.
+    TSet<FLDDeathKey> SeenRewards;
+    TArray<TSharedPtr<FJsonValue>> Deaths;
 
     bool Resend()
     {
@@ -158,6 +181,8 @@ public:
         Kills.Reset();
         Rows.Reset();
         Capture = FLDCaptureDevTally();
+        SeenRewards.Reset();
+        Deaths.Reset();
         int32 Slot = 0;
         for (const FLDLobbyMember& Member : Lobby.Members)
         {
@@ -191,17 +216,22 @@ public:
             Kill->SetStringField(TEXT("victim"), Id(Notice.Victim));
             Kill->SetStringField(TEXT("killer"), Id(Notice.Killer));
             Kill->SetStringField(TEXT("cause"), CauseName(Notice.Cause));
+            TArray<TSharedPtr<FJsonValue>> Assisters;
+            for (const FGuid& Assister : Notice.Assisters) { Assisters.Add(MakeShared<FJsonValueString>(Id(Assister))); }
+            Kill->SetArrayField(TEXT("assisters"), Assisters);
             Kills.Add(MakeShared<FJsonValueObject>(Kill));
         }
+        if (Mode.Economy) { TrackRewards(Mode.Economy->DevRecentRewards(), Now - StartedAtMs); }
         const bool bCurve = Now - StartedAtMs >= NextCurveMs;
         if (bCurve) { NextCurveMs = (Now - StartedAtMs) / CurveMs * CurveMs + CurveMs; }
         for (FLDTelemetryContender& Row : Rows)
         {
             const FLDEquipmentView Equipment = Mode.Inventory ? Mode.Inventory->ReadEquipment(Row.Contender) : FLDEquipmentView();
             if (Equipment.bValid) { TrackItems(Row, Equipment, Now - StartedAtMs); }
-            if (!bCurve) { continue; }
             const FLDProgressionView Progression = Mode.Development ? Mode.Development->ReadProgression(Row.Contender)
                 : FLDProgressionView();
+            if (Progression.bValid) { TrackBuild(Row, Progression, Now - StartedAtMs); }
+            if (!bCurve) { continue; }
             Row.CurveMs.Add(Now - StartedAtMs);
             Row.Level.Add(Progression.bValid ? Progression.Level : -1);
             Row.XP.Add(Progression.bValid ? Progression.CumulativeXP : -1);
@@ -240,6 +270,89 @@ public:
         Row.Held = MoveTemp(Now);
     }
 
+    void TrackBuild(FLDTelemetryContender& Row, const FLDProgressionView& Progression, int64 At)
+    {
+        Row.Final = Progression;
+        if (Progression.BuildRevision == Row.BuildRevision) { return; }
+        for (const FLDLearnedSkillView& Old : Row.Skills)
+        {
+            if (!Old.bActive || Progression.Skills.ContainsByPredicate([&Old](const FLDLearnedSkillView& Now)
+                { return Now.DefinitionId == Old.DefinitionId; }))
+            { continue; }
+            const FLDLearnedSkillView* Incoming = Progression.Skills.FindByPredicate([&Old](const FLDLearnedSkillView& Now)
+            { return Now.bActive && Now.Slot == Old.Slot; });
+            auto Replacement = MakeShared<FJsonObject>();
+            Replacement->SetNumberField(TEXT("t_ms"), double(At));
+            Replacement->SetNumberField(TEXT("level"), Progression.Level);
+            Replacement->SetStringField(TEXT("replaced"), Old.DefinitionId.ToString());
+            Replacement->SetNumberField(TEXT("replaced_rank"), Old.Rank);
+            Replacement->SetStringField(TEXT("new"), Incoming ? Incoming->DefinitionId.ToString() : FString());
+            Replacement->SetNumberField(TEXT("new_rank"), Incoming ? Incoming->Rank : 0);
+            Row.Replacements.Add(MakeShared<FJsonValueObject>(Replacement));
+        }
+        if (Row.FirstActiveMs < 0 && Progression.Skills.ContainsByPredicate([](const FLDLearnedSkillView& Skill) { return Skill.bActive; }))
+        { Row.FirstActiveMs = At; }
+        Row.BuildRevision = Progression.BuildRevision;
+        Row.Skills = Progression.Skills;
+    }
+
+    void TrackRewards(const TArray<FLDRewardReceipt>& Rewards, int64 At)
+    {
+        using namespace LDDemoOpponentTelemetryDetail;
+        for (const FLDRewardReceipt& Reward : Rewards)
+        {
+            if (Reward.Key.Victim.Kind != ELDVictimKind::Contender
+                || (Reward.Outcome != ELDRewardOutcome::Granted && Reward.Outcome != ELDRewardOutcome::NoReward)
+                || SeenRewards.Contains(Reward.Key))
+            { continue; }
+            SeenRewards.Add(Reward.Key);
+            auto Death = MakeShared<FJsonObject>();
+            Death->SetNumberField(TEXT("t_ms"), double(At));
+            Death->SetStringField(TEXT("victim"), Id(Reward.Key.Victim.EntityId));
+            Death->SetNumberField(TEXT("life"), Reward.Key.Victim.Life);
+            Death->SetStringField(TEXT("outcome"), OutcomeName(Reward.Outcome));
+            const bool bGranted = Reward.Outcome == ELDRewardOutcome::Granted;
+            Death->SetStringField(TEXT("killer"), bGranted ? Id(Reward.Recipient) : FString());
+            Death->SetNumberField(TEXT("killer_gold"), bGranted ? double(Reward.GoldDelta) : 0.);
+            Death->SetNumberField(TEXT("killer_xp"), bGranted ? double(Reward.XPDelta) : 0.);
+            TArray<TSharedPtr<FJsonValue>> Assists;
+            for (const FLDRewardShareReceipt& Share : Reward.Assists)
+            {
+                auto Part = MakeShared<FJsonObject>();
+                Part->SetStringField(TEXT("contender"), Id(Share.Recipient));
+                Part->SetNumberField(TEXT("gold"), double(Share.GoldDelta));
+                Part->SetNumberField(TEXT("xp"), double(Share.XPDelta));
+                Assists.Add(MakeShared<FJsonValueObject>(Part));
+            }
+            Death->SetArrayField(TEXT("assists"), Assists);
+            Deaths.Add(MakeShared<FJsonValueObject>(Death));
+        }
+    }
+
+    // Mechanic tags of the final build: one count per learned skill and per held item carrying the tag.
+    TSharedRef<FJsonObject> BuildTags(const FLDTelemetryContender& Row) const
+    {
+        using namespace LDDemoOpponentTelemetryDetail;
+        TMap<FString, int32> Counts;
+        FString LookupError;
+        for (const FLDLearnedSkillView& Skill : Row.Final.Skills)
+        {
+            const FLDDemoAbilityDefinition* Ability = nullptr;
+            if (!Content || !Content->FindAbility(Skill.DefinitionId.ToString(), Ability, LookupError) || !Ability) { continue; }
+            for (const ELDDemoMechanicTag Tag : Ability->Tags) { ++Counts.FindOrAdd(TagName(Tag)); }
+        }
+        for (const TPair<FGuid, FName>& Item : Row.Held)
+        {
+            const FLDDemoEquipmentDefinition* Definition = nullptr;
+            if (!Content || !Content->FindEquipment(Item.Value.ToString(), Definition, LookupError) || !Definition) { continue; }
+            for (const ELDDemoMechanicTag Tag : Definition->Tags) { ++Counts.FindOrAdd(TagName(Tag)); }
+        }
+        Counts.KeySort(TLess<FString>());
+        auto Out = MakeShared<FJsonObject>();
+        for (const TPair<FString, int32>& Pair : Counts) { Out->SetNumberField(Pair.Key, Pair.Value); }
+        return Out;
+    }
+
     bool WriteMatch(const FLDResultView& Result)
     {
         using namespace LDDemoOpponentTelemetryDetail;
@@ -260,6 +373,14 @@ public:
         Match->SetNumberField(TEXT("kill_feed_gaps"), KillFeedGaps);
         Match->SetArrayField(TEXT("kills"), Kills);
         Match->SetNumberField(TEXT("capture_contests"), Capture.Contests);
+        Match->SetNumberField(TEXT("capture_sprays"), Capture.Sprays);
+        Match->SetNumberField(TEXT("capture_repaints"), Capture.Repaints);
+        Match->SetNumberField(TEXT("graffiti_cleared_by_death"), Capture.ClearedByDeath);
+        Match->SetNumberField(TEXT("graffiti_cleared_by_leave"), Capture.ClearedByLeave);
+        // The winning graffiti's guard time: from its spray to the locked result; -1 without a guard win.
+        Match->SetNumberField(TEXT("guard_success_ms"), Result.Reason == ELDMatchEndReason::GuardSucceeded && Capture.GraffitiSinceMs >= 0
+            ? double(Result.EndedAtMs - Capture.GraffitiSinceMs) : -1.);
+        Match->SetArrayField(TEXT("deaths"), Deaths);
         TArray<TSharedPtr<FJsonValue>> Contenders;
         for (const FLDTelemetryContender& Row : Rows)
         {
@@ -276,6 +397,32 @@ public:
             Value->SetNumberField(TEXT("final_level"), Final->FinalLevel);
             Value->SetNumberField(TEXT("kills"), double(Final->Kills));
             Value->SetNumberField(TEXT("deaths"), double(Final->Deaths));
+            Value->SetNumberField(TEXT("assists"), double(Final->Assists));
+            Value->SetNumberField(TEXT("capture_sprays"), Hold ? Hold->Sprays : 0);
+            Value->SetNumberField(TEXT("capture_interrupted"), Hold ? Hold->Interrupted : 0);
+            // 112 §13 growth: first active, final skills, Lv3 count, rerolls earned/used, choices and replacements.
+            const int32 MaxRank = Content ? Content->Get().Progression.MaxSkillRank : 0;
+            int32 MaxedSkills = 0;
+            TArray<TSharedPtr<FJsonValue>> Skills;
+            for (const FLDLearnedSkillView& Skill : Row.Final.Skills)
+            {
+                auto Learned = MakeShared<FJsonObject>();
+                Learned->SetStringField(TEXT("id"), Skill.DefinitionId.ToString());
+                Learned->SetNumberField(TEXT("rank"), Skill.Rank);
+                Learned->SetBoolField(TEXT("active"), Skill.bActive);
+                Skills.Add(MakeShared<FJsonValueObject>(Learned));
+                MaxedSkills += MaxRank > 0 && Skill.Rank >= MaxRank ? 1 : 0;
+            }
+            const int32 Earned = Content && Row.Final.bValid
+                ? LDProgression::RerollTokensEarned(Content->Get().Progression, Row.Final.Level) : 0;
+            Value->SetNumberField(TEXT("first_active_ms"), double(Row.FirstActiveMs));
+            Value->SetArrayField(TEXT("skills"), Skills);
+            Value->SetNumberField(TEXT("max_rank_skills"), MaxedSkills);
+            Value->SetNumberField(TEXT("rerolls_earned"), Earned);
+            Value->SetNumberField(TEXT("rerolls_used"), FMath::Max(0, Earned - int32(Row.Final.RerollTokens)));
+            Value->SetNumberField(TEXT("choices"), Row.Final.ConsumedThrough);
+            Value->SetArrayField(TEXT("replacements"), Row.Replacements);
+            Value->SetObjectField(TEXT("tags"), BuildTags(Row));
             Value->SetNumberField(TEXT("capture_attempts"), Hold ? Hold->Attempts : 0);
             Value->SetNumberField(TEXT("capture_resumes"), Hold ? Hold->Resumes : 0);
             Value->SetNumberField(TEXT("capture_paused"), Hold ? Hold->Paused : 0);
@@ -378,7 +525,11 @@ bool FLDDemoOpponentTelemetry::Tick()
         {
             const FLDEquipmentView Equipment = Mode->Inventory ? Mode->Inventory->ReadEquipment(Row.Contender) : FLDEquipmentView();
             if (Equipment.bValid) { TrackItems(Row, Equipment, Result.EndedAtMs - StartedAtMs); }
+            const FLDProgressionView Progression = Mode->Development ? Mode->Development->ReadProgression(Row.Contender)
+                : FLDProgressionView();
+            if (Progression.bValid) { TrackBuild(Row, Progression, Result.EndedAtMs - StartedAtMs); }
         }
+        if (Mode->Economy) { TrackRewards(Mode->Economy->DevRecentRewards(), Result.EndedAtMs - StartedAtMs); }
         if (!WriteMatch(Result)) { return false; }
         ReturnSent = false;
         ReturnedAt = 0;

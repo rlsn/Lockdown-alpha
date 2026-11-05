@@ -238,10 +238,14 @@ python -B -m unittest discover -s .\Scripts -p "Test*.py"
 
 AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <1-50>` 只启动一个无渲染的 Listen Host，
 它作为唯一真人留在房间里不动，与三个 AI 经正常大厅连打 N 局（每局各有 `-TimeoutSeconds`，局间回 Lobby）。
-每局写一份 `MatchNN.json`：结束原因（`GuardSucceeded`/`HostEnded`/`None`）与胜者、旗杆开放与首杀（以及首个死亡）时刻、全部击杀、每名参赛者每秒的等级/经验/金币曲线、
-买入与卖出（由装备实例的出现与消失得出，附目录价格）、喷漆尝试/续喷/被争夺暂停/失去与争夺次数
-（取自喷漆与守护归约的 DEV 计数 `FLDCaptureDevTally`，边界内的中间变化也计入）；`SummarizeOpponentTelemetry.py` 汇总为 `Summary.json`
-（胜负方式、各槽获胜数、时长与首杀分布、每分钟等级与金币、购买次数等）。这些数字只描述这几局，不作为平衡目标，也不判断 AI 行为对错。
+每局写一份 `MatchNN.json`：结束原因（`GuardSucceeded`/`HostEnded`/`None`）与胜者、旗杆开放与首杀（以及首个死亡）时刻、全部击杀及其助攻者、
+每次参赛者死亡的击杀者与助攻者各自所得金币/经验（取自 `ALDEconomyDirector::DevRecentRewards`，每条生命一次）、每名参赛者每秒的等级/经验/金币曲线、
+买入与卖出（由装备实例的出现与消失得出，附目录价格）、喷漆尝试/续喷/被争夺暂停/失去/被打断/喷成次数、争夺、喷成、改漆与涂鸦因主人死亡或离局被清除的次数、
+获胜涂鸦的守护用时（结果时刻减喷上时刻）（取自喷漆与守护归约的 DEV 计数 `FLDCaptureDevTally`，边界内的中间变化也计入），
+以及 #112 §13 的成长记录：首个主动的获得时刻、终局技能与 Lv3 技能数、按等级应得与已用的重抽令牌、已做选择数、每次主动替换（时刻、等级、被替换技能与等级、新技能与等级，由构筑修订前后 Q/W 主动的消失得出）、
+终局构筑的机制标签计数（每个已学技能和持有装备各计一次）；`SummarizeOpponentTelemetry.py` 汇总为 `Summary.json`
+（胜负方式、各槽获胜数、时长与首杀分布、每分钟等级与金币、购买次数、喷漆/改漆/清除原因与守护用时、死亡与助攻奖励、
+首个主动时刻、Lv3 数量分布、重抽使用率（已用/应得）、主动替换率（替换次数/选择次数）与替换时等级、获胜者的机制标签构成等）。这些数字只描述这几局，不作为平衡目标，也不判断 AI 行为对错。
 
 其余场景（Core、Combat、Camp、Growth、Capture、SessionFault）放在里程碑或发布冻结后的完整验收里，在打包版上各跑一次。
 改到某个场景覆盖的系统时，PR 里也要跑那个场景。

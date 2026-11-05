@@ -72,6 +72,9 @@ public:
     static FGuid BusinessKey(const TArray<uint8>& Canonical);
     static void Terms(const TArray<uint8>& Canonical, uint8 (&Out)[32]);
 
+    // DEV telemetry reads the bounded window of recent reward receipts; nothing else depends on it.
+    const TArray<FLDRewardReceipt>& DevRecentRewards() const { return RecentRewards; }
+
 private:
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
