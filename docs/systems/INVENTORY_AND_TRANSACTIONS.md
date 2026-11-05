@@ -12,7 +12,7 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 | `Economy\LDEconomyDirector` | 成长/商店域枢纽：唯一账本、死亡奖励汇点、Transactions 分派、账户退休与拥有者发布 |
 | `Development\LDDevelopmentDirector` | 等级/XP、机会队列与唯一持久三选一、Q/W 与被动、属性卡 |
 | `Inventory\LDInventoryDirector` | 从账本读取自身两槽装备与可见对手装备外观；不持有第二份库存 |
-| `Inventory\LDVendorDirector` | 商店会话、报价、单件 Buy/Sell 复合事务与回执 |
+| `Inventory\LDVendorDirector` | 商店会话、报价、单件 Buy/Sell/Upgrade 复合事务与回执 |
 | `Development\LDGrowthProtocol.h` | 命令、回执、查询、提交结果与三类本人视图的线协议 |
 | `Economy\LDGrowthProviders.cpp` | 向对局门禁注册 Progression/Shop 提供者及最终等级读取 |
 
@@ -37,7 +37,8 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 ## 物品身份不是格子
 
 每件装备实例由账本发行：`InstanceId` 一一编码本局 `LedgerMatch` 与 `IssueSerial`，
-记录定义、拥有者、槽位（0/1）与 ItemRevision。一个实例只有一个位置，两槽之外没有背包或地面位置。
+记录定义、拥有者、槽位（0/1）、ItemRevision 与是否已进阶（`bUpgraded`）。一个实例只有一个位置，两槽之外没有背包或地面位置。
+进阶状态属于这件实例：出售时随实例消失，出售价仍按定义买价计算；账户另记整局只有一次的 `bUpgradeUsed`，卖出后也不恢复。
 同款两件是两个实例；第三件在准备阶段以 `EquipmentFull` 拒绝（先于余额检查，满槽时先卖是唯一出路），
 不自动出售或替换。
 来源冷却身份（`IssuedCooldownId`）与回绑由 Combat 持有，买卖只把变更后的完整装备列表交给 Combat 准备。
@@ -49,9 +50,9 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 
 | 事务 | 同次提交 |
 | --- | --- |
-| `CommitDeathReward` | DeathKey 去重与事实指纹；Mint 金币 + 累计 XP + 逐级机会；升级时 Combat 投影；无主/自杀/离局为 NoReward |
-| `CommitPendingChoice` | 原卡/版本/生死阶段重查；学习、升阶、属性或确认替换；消费一次机会；之后才抽下一组 |
-| `CommitPendingShopCommand` | 会话/报价/世界资格/余额/槽位重查；Burn+Create 或 Consume+Mint；BuildRevision 与 Combat 投影 |
+| `CommitDeathReward` | DeathKey 去重与事实指纹（含冻结的助攻者名单）；击杀者与每名助攻者各一份 Mint 金币 + 累计 XP + 逐级机会（`CommitRewardShares`，`LDAssist::SplitKillReward` 分配），升级时各自 Combat 投影，全部准备后一起安装；无主/自杀/离局为 NoReward 且没有助攻 |
+| `CommitPendingChoice` | 原卡/版本/生死阶段重查；学习、升阶、属性或确认替换；消费一次机会；之后才抽下一组。重抽（`bReroll`，`OptionId` 为空）只核对队头 Offer/修订与剩余令牌，原地换成同规则新抽的一组（尽量避开上一组三张）并标 `bRerolled`，不消费机会 |
+| `CommitPendingShopCommand` | 会话/报价/世界资格/余额/槽位重查；Burn+Create、Consume+Mint 或 Upgrade（Burn `SHOP.UpgradeCost` + 标记实例进阶 + 账户用掉唯一一次）；BuildRevision 与 Combat 投影 |
 
 `ProcessTransactions` 按服务器受理顺序处理开店意图、选择与买卖，之后退休已离局账户并压缩账本。
 单条请求失败只形成拒绝回执；只有失去写许可等权威故障才返回 false。
@@ -60,16 +61,18 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 账本接口
 
 `LDEconomy::FLedger` 不参与 UObject 复制。`Initialize` 只在新局建立一次；`Prepare(FTransaction)`
-按 Cause 固定形状（DeathReward、Buy、Sell、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币，
+按 Cause 固定形状（DeathReward、Buy、Sell、Upgrade、AccountRetire；DEV 构建另有只供夹具使用的 DevFixture 铸币，
 以及 DEV 测试重置的 DevReset：只 Consume 一件不退款，或只一次非零金币变动回到开局金币，增为 Mint、减为 Burn）在完整后像上校验，返回可移动的
-`FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。
+`FPreparedCommit`；`ApplyPrepared` 只交换已准备的状态并追加日志尾部。一笔复合提交要动多个账户时（参赛者击杀的击杀者与助攻者），
+每个账户仍是一条单账户条目：`PrepareAfter(Previous, FTransaction)` 在尚未应用的前一份计划之后准备下一条（连续序号，
+尾部容量与业务键按整条链检查，基准被其他提交抢先时以 `InvalidTransaction` 拒绝），全部准备成功后按顺序 `ApplyPrepared`。
 提交序号与发行序号独立于尾部长度，失败不推进任何计数。
 
 尾部容量为 64 条工程限额，不是对局次数上限。`TryCompactResolvedPrefix` 在维护点从旧前缀独立重放
 全部尾部，与当前状态逐账户、实例、库存修订与总量比对一致后折叠成新前缀；被 pin、序号不符或历史不一致时
 不覆盖。`Reconcile` 以同一重放核对 `初始总量 + Mint - Burn`。
 账户退休是带核心离局戳的独立提交：金币和冻结装备仍参与审计，之后不再接受金钱或物品变化。
-仍有已锁死亡奖励欠给该离局参赛者（本边界待结算或待重试，`ALDCombatDirector::OwesRewardTo`）时暂不退休，
+仍有已锁死亡奖励欠给该离局参赛者（作为击杀者或助攻者，本边界待结算或待重试，`ALDCombatDirector::OwesRewardTo`）时暂不退休，
 待下一边界的唯一重试结清后再退休，重试不会命中 `RetiredAccount`。
 
 业务去重分层完成：请求序号屏障（每族 64 份回执窗口与终结水位）、DeathKey 生命水位与事实指纹、
@@ -84,10 +87,11 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 检查入口
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
-`DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
-等级/候选/替换纯规则、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）与本人视图隐私白名单。
+`DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthOpeningPool`、`DemoGrowthDraft`、`DemoGrowthReroll`、`DemoGrowthUpgrade`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
+等级/候选/替换纯规则（替换降级、卡位与权重、标签亲和、`draftable` 排除）、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）、
+免费重抽的令牌/去重/每组一次、装备进阶事务（整局一次、出售失去、属性/被动/主动生效值）与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
-导出 schema 4 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块：DevFixture 铸币 `grants` 与 DevReset 条目 `resets`），`python -B Scripts\CheckEconomyEvidence.py <证据>`
+导出 schema 5 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块：DevFixture 铸币 `grants` 与 DevReset 条目 `resets`），`python -B Scripts\CheckEconomyEvidence.py <证据>`
 逐条按 `ApplyEntry` 规则重放并要求等于当前状态；`DemoGrowthLedger` 带 `-LDGrowthLedgerEvidence=<文件>`
 时写出一份覆盖全部 cause 的原生样本，`TestEconomyEvidence.py` 用合成证据覆盖拒绝分支。
 
@@ -128,7 +132,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 | `SetAttribute`（Stat，数量 ≥ 0）/ `ClearAttributes`（数量 0） | `ALDCombatDirector::DevSetAttribute`：改 Combat 已安装构筑的测试层 `FLDBuildProjectionInput::DevBonuses`（每个属性至多一项、按属性排序；点数 P2、比例基点、射程整厘米；不接受只限临时项的 `ADBonusRatio`；0 去掉该项，Clear 全部去掉），经 `PrepareProjected`/`ApplyBuildChange` 重投影安装：资源上限按比例换算，活着的身体保留本命临时项，不推进构筑或库存修订，成长域在途请求不失效；投影拒绝（最终值越界）为 `NumericDomain`、不改任何状态；Alive 或 Dead（首次出生前还没有 Combat 记录，为 `DataInvalid`） |
 | `ResetToMatchStart`（什么都不带） | `ALDEconomyDirector::CommitDevReset` 一笔复合提交：先在账本副本上演练 DevReset 条目（按槽序每件装备一条不退款的 Consume，再一条金币变动回到 `SHOP.StartingGold`），再按其结果准备 `ALDDevelopmentDirector::DevPrepareReset`（1 级、0 经验、无技能与属性卡、只有开局机会、Apply 时与 `BeginMatch` 一样抽开局 Offer；各修订继续递增，旧状态的在途选择按过期拒绝）与 `ALDCombatDirector::DevPrepareReset`（经 `PrepareProjected` 安装空的 1 级构筑、去掉测试层），全部可行才依次安装，随后 `DevFinishReset` 丢弃全部技能与装备冷却轨道、冲刺就绪、活着的身体补满；日志尾已满时保留待下一阶段；Alive 或 Dead |
 | `RefreshCamps`（只限 Host） | `ALDCampDirector::DevRefreshCleared` → `FLDCampMatchState::DevRefreshNow`：每个已清空、等待刷新的营地截止时间提前到本边界（不推迟更早的截止），下一个 RespawnsAndWorld 经 `AdvanceCamps` 正常整组刷新（含出生点被占时的等待）；存活营地不动；回执写出等待中的营地数；没有营地 director 为 `DataNotReady` |
-| `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放圈的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；占领所需时间与全部占领规则不变；其他阶段为 `StaleContext` |
+| `OpenCapture`（只限 Host） | `ALDGameMode::DevOpenCaptureNow` → `FLDCaptureReducer::DevOpenAt`：只在 Development，把未开放旗杆的开放时刻提前到本边界，同一步随后的 Capture 阶段照常开放并进入 CaptureOpen；喷漆、守护时长与全部规则不变；其他阶段为 `StaleContext` |
 
 终态回执在 `PublishGrowth` 的 `SyncOwner` 之后经 `ClientDevTestResult` 送达，受理结果同一通道立即返回。
 普通学习、换装、死亡与复活都不会顺带补满或重置冷却，只有显式命令会。新局重建成长域，命令流与回执不带入下一局。
@@ -178,7 +182,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 两人 Ready 后正常开第二局：双方按本人投影核对等级/经验/金币回到开局值、无技能/属性卡/装备、
 只有本局新抽的一次开局机会（不是第一局的任何 Offer），Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
 且不改任何状态；第二局新开的商店报价不继承冷却；第二局账本在新 LedgerMatch 下重新初始化并经复算。
-开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、抢圈或终局。
+开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、喷漆守护或终局。
 已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。

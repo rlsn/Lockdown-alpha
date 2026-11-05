@@ -447,6 +447,22 @@ FValue FFields::Take(const FString& Key)
     return Value;
 }
 
+bool FFields::Has(const TCHAR* Key) const
+{
+    if (!Check.Good || !Object)
+    {
+        return false;
+    }
+    for (const auto& Pair : Object->Values)
+    {
+        if (Pair.Key.ToView().Equals(FStringView(Key), ESearchCase::CaseSensitive))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool FFields::Done()
 {
     if (!Check.Good || !Object)

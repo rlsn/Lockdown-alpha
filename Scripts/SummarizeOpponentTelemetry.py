@@ -1,8 +1,11 @@
 """Summarize a DEV opponent telemetry run (RunDemoOpponentCheck.ps1 -Telemetry -MatchCount N) into one report.
 
 The Host writes Telemetry.json and one MatchNN.json per match (LDDemoOpponentTelemetry.cpp): the end reason and
-winner, the circle opening, the first kill, every kill, each contender's level, XP and gold curves, purchases, sales
-and the reduced capture attempts, resumes and contests. This aggregates them across matches. The numbers describe how
+winner, the flagpole opening, the first kill, every kill with its assisters, every contender death with its killer and
+assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level, XP and gold curves,
+purchases, sales, spray attempts, and the growth record of #112 §13 (first active, final skills and Lv3 count, rerolls
+earned and used, choices, active replacements with their level, mechanic tags of the final build). This aggregates them
+across matches. The numbers describe how
 these matches went; they are not balance targets and the summary judges nothing.
 """
 
@@ -12,12 +15,14 @@ from pathlib import Path
 import re
 import statistics
 
-MATCH_SCHEMA = 1
-SUMMARY_SCHEMA = 1
+MATCH_SCHEMA = 2
+SUMMARY_SCHEMA = 2
 OPPONENTS = 3
-REASONS = ("CaptureCompleted", "HostEnded", "None")
+REASONS = ("GuardSucceeded", "HostEnded", "None")
 KINDS = ("Human", "OpponentAI")
 CAUSES = ("Contender", "CampLow", "CampHigh", "Unowned")
+OUTCOMES = ("Granted", "NoReward")
+TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
 MATCH_FILE = re.compile(r"Match[0-9]{2}\.json")
 MINUTE_MS = 60000
 
@@ -79,12 +84,39 @@ def check_match(match, index):
         value = field(match, name, int)
         require(-1 <= value <= duration, f"{where}: {name} outside the match")
     require(field(match, "kill_feed_gaps", int) >= 0, f"{where}: negative kill feed gaps")
-    require(field(match, "capture_contests", int) >= 0, f"{where}: negative contests")
+    for name in ("capture_contests", "capture_sprays", "capture_repaints", "graffiti_cleared_by_death",
+                 "graffiti_cleared_by_leave"):
+        require(field(match, name, int) >= 0, f"{where}: negative {name}")
+    guard = field(match, "guard_success_ms", int)
+    require((guard >= 0) == (match["reason"] == "GuardSucceeded") and guard <= duration,
+            f"{where}: a guard time belongs to exactly a guard win")
     for kill in field(match, "kills", list):
         require(field(kill, "cause", str) in CAUSES, f"{where}: unknown kill cause")
         require(0 <= field(kill, "t_ms", int) <= duration, f"{where}: kill outside the match")
+        assisters = field(kill, "assisters", list)
+        require(not assisters or kill["cause"] == "Contender", f"{where}: only a contender kill has assisters")
+        require(kill["killer"] not in assisters and len(set(assisters)) == len(assisters),
+                f"{where}: an assister repeats or is the killer")
     contenders = field(match, "contenders", list)
     winner = field(match, "winner", str)
+    roster = {field(row, "contender", str) for row in contenders}
+    for death in field(match, "deaths", list):
+        require(0 <= field(death, "t_ms", int) <= duration, f"{where}: death outside the match")
+        require(field(death, "victim", str) in roster, f"{where}: a death names no contender")
+        require(field(death, "life", int) >= 1, f"{where}: a death without a life")
+        outcome = field(death, "outcome", str)
+        require(outcome in OUTCOMES, f"{where}: unknown reward outcome")
+        killer = field(death, "killer", str)
+        require((outcome == "Granted") == bool(killer), f"{where}: only a granted reward names a killer")
+        require(not killer or killer in roster, f"{where}: the killer is not on the roster")
+        for name in ("killer_gold", "killer_xp"):
+            require(field(death, name, int) >= 0, f"{where}: negative {name}")
+        parts = field(death, "assists", list)
+        require(not parts or outcome == "Granted", f"{where}: assists without a granted reward")
+        for part in parts:
+            require(field(part, "contender", str) in roster and part["contender"] not in (killer, death["victim"]),
+                    f"{where}: an assister is off the roster, the killer or the victim")
+            require(field(part, "gold", int) >= 0 and field(part, "xp", int) >= 0, f"{where}: negative assist reward")
     ids = set()
     slots = []
     for row in contenders:
@@ -99,8 +131,26 @@ def check_match(match, index):
             slots.append(slot)
         require(field(row, "winner", bool) == (contender == winner), f"{where}: winner flag disagrees with the result")
         require(field(row, "final_level", int) >= 1, f"{where}: final level below one")
-        for name in ("kills", "deaths", "capture_attempts", "capture_resumes", "capture_paused", "capture_lost"):
+        for name in ("kills", "deaths", "assists", "capture_attempts", "capture_resumes", "capture_paused", "capture_lost",
+                     "capture_sprays", "capture_interrupted", "max_rank_skills", "rerolls_used", "choices"):
             require(field(row, name, int) >= 0, f"{where}: negative {name}")
+        require(field(row, "rerolls_used", int) <= field(row, "rerolls_earned", int), f"{where}: more rerolls used than earned")
+        require(-1 <= field(row, "first_active_ms", int) <= duration, f"{where}: first active outside the match")
+        skills = field(row, "skills", list)
+        for skill in skills:
+            field(skill, "id", str)
+            require(field(skill, "rank", int) >= 1, f"{where}: a learned skill below rank one")
+            field(skill, "active", bool)
+        require(row["max_rank_skills"] <= len(skills), f"{where}: more Lv3 skills than skills")
+        require((row["first_active_ms"] >= 0) or not any(skill["active"] for skill in skills),
+                f"{where}: an active learned without a first-active time")
+        for change in field(row, "replacements", list):
+            require(0 <= field(change, "t_ms", int) <= duration, f"{where}: replacement outside the match")
+            require(field(change, "level", int) >= 1, f"{where}: replacement below level one")
+            field(change, "replaced", str)
+            require(field(change, "replaced_rank", int) >= 1, f"{where}: a replaced active below rank one")
+        for tag, count in field(row, "tags", dict).items():
+            require(tag in TAGS and isinstance(count, int) and count > 0, f"{where}: unknown or empty mechanic tag")
         for name in ("purchases", "sales"):
             for trade in field(row, name, list):
                 require(0 <= field(trade, "t_ms", int) <= duration, f"{where}: trade outside the match")
@@ -166,7 +216,7 @@ def summarize(matches):
         ais.extend(match_ais)
         winner = next((row for row in rows if row["winner"]), None)
         winner_slot = winner["slot"] if winner else -1
-        if winner and winner["kind"] == "OpponentAI" and match["reason"] == "CaptureCompleted":
+        if winner and winner["kind"] == "OpponentAI" and match["reason"] == "GuardSucceeded":
             ai_capture_wins += 1
             wins_by_slot[str(winner_slot)] += 1
         per_match.append({
@@ -175,11 +225,30 @@ def summarize(matches):
             "capture_open_ms": match["capture_open_ms"], "first_kill_ms": match["first_kill_ms"],
             "capture_attempts": sum(row["capture_attempts"] for row in rows),
             "capture_contests": match["capture_contests"],
+            "sprays": match["capture_sprays"], "repaints": match["capture_repaints"],
+            "guard_success_ms": match["guard_success_ms"],
             "ai_purchases": sum(len(row["purchases"]) for row in match_ais),
             "ai_final_levels": [row["final_level"] for row in match_ais],
         })
     longest = max(match["duration_ms"] for match in checked)
     first_purchases = [min((t["t_ms"] for t in ai["purchases"]), default=-1) for ai in ais]
+    deaths = [death for match in checked for death in match["deaths"]]
+    granted = [death for death in deaths if death["outcome"] == "Granted"]
+    assist_parts = [part for death in granted for part in death["assists"]]
+    replacements = [change for ai in ais for change in ai["replacements"]]
+    choices = sum(ai["choices"] for ai in ais)
+    earned = sum(ai["rerolls_earned"] for ai in ais)
+    max_rank = {}
+    for ai in ais:
+        max_rank[str(ai["max_rank_skills"])] = max_rank.get(str(ai["max_rank_skills"]), 0) + 1
+    winner_tags = {}
+    winners = 0
+    for match in checked:
+        for row in match["contenders"]:
+            if row["winner"]:
+                winners += 1
+                for tag, count in row["tags"].items():
+                    winner_tags[tag] = winner_tags.get(tag, 0) + count
     return {
         "schema": SUMMARY_SCHEMA,
         "matches": len(checked),
@@ -198,10 +267,43 @@ def summarize(matches):
             "attempts": stats(row["capture_attempts"] for row in per_match),
             "contests": stats(match["capture_contests"] for match in checked),
             "resumes": stats(sum(r["capture_resumes"] for r in match["contenders"]) for match in checked),
+            "sprays": stats(match["capture_sprays"] for match in checked),
+            "repaints": stats(match["capture_repaints"] for match in checked),
+            "cleared_by_death": sum(match["graffiti_cleared_by_death"] for match in checked),
+            "cleared_by_leave": sum(match["graffiti_cleared_by_leave"] for match in checked),
+            "cleared_by_repaint": sum(match["capture_repaints"] for match in checked),
+            "guard_success_ms": optional_stats(match["guard_success_ms"] for match in checked),
         },
+        # Every contender death of every match with its committed rewards (a NoReward death has no killer).
+        "deaths": {
+            "count": len(deaths),
+            "granted": len(granted),
+            "assisters_per_kill": stats(len(death["assists"]) for death in granted),
+            "kills_with_assist": sum(1 for death in granted if death["assists"]),
+            "killer_gold": stats(death["killer_gold"] for death in granted),
+            "killer_xp": stats(death["killer_xp"] for death in granted),
+            "assist_gold": stats(part["gold"] for part in assist_parts),
+            "assist_xp": stats(part["xp"] for part in assist_parts),
+        },
+        # AI growth (#112 §13): reroll use is used / earned; the replacement rate is replaced actives per consumed choice.
+        "growth": {
+            "first_active_ms": optional_stats(ai["first_active_ms"] for ai in ais),
+            "max_rank_skills": dict(sorted(max_rank.items(), key=lambda item: int(item[0]))),
+            "rerolls_earned": earned,
+            "rerolls_used": sum(ai["rerolls_used"] for ai in ais),
+            "reroll_use_rate": round(sum(ai["rerolls_used"] for ai in ais) / earned, 3) if earned else None,
+            "choices": choices,
+            "replacements": len(replacements),
+            "replacement_rate": round(len(replacements) / choices, 3) if choices else None,
+            "replacement_level": stats(change["level"] for change in replacements),
+            "replaced_rank": stats(change["replaced_rank"] for change in replacements),
+        },
+        # Mechanic tags of every winner's final build: one per learned skill and held item carrying the tag.
+        "winner_tags": {"winners": winners, "tags": dict(sorted(winner_tags.items()))},
         "ai": {
             "final_level": stats(ai["final_level"] for ai in ais),
             "kills": stats(ai["kills"] for ai in ais),
+            "assists": stats(ai["assists"] for ai in ais),
             "deaths": stats(ai["deaths"] for ai in ais),
             "purchases": stats(len(ai["purchases"]) for ai in ais),
             "sales": stats(len(ai["sales"]) for ai in ais),
@@ -220,19 +322,26 @@ def seconds(value):
 def describe(summary):
     lines = []
     for row in summary["per_match"]:
-        lines.append("Match {match}: {reason}, winner {winner}, {duration}, circle {circle}, first kill {kill}, "
-                     "attempts {attempts}, contests {contests}, AI purchases {purchases}, AI levels {levels}".format(
+        lines.append("Match {match}: {reason}, winner {winner}, {duration}, flagpole {circle}, first kill {kill}, "
+                     "attempts {attempts}, contests {contests}, sprays {sprays}, repaints {repaints}, guard {guard}, "
+                     "AI purchases {purchases}, AI levels {levels}".format(
                          match=row["match"], reason=row["reason"],
                          winner=f"AI slot {row['winner_slot']}" if row["winner_kind"] == "OpponentAI"
                          else (row["winner_kind"] or "none"),
                          duration=seconds(row["duration_ms"]), circle=seconds(row["capture_open_ms"]),
                          kill=seconds(row["first_kill_ms"]), attempts=row["capture_attempts"],
-                         contests=row["capture_contests"], purchases=row["ai_purchases"],
+                         contests=row["capture_contests"], sprays=row["sprays"], repaints=row["repaints"],
+                         guard=seconds(row["guard_success_ms"]), purchases=row["ai_purchases"],
                          levels="/".join(str(v) for v in row["ai_final_levels"])))
     duration = summary["duration_ms"]
     lines.append(f"{summary['matches']} match(es): AI capture wins {summary['ai_capture_wins']} "
                  f"(by slot {summary['wins_by_slot']}), duration {seconds(duration['min'])}-{seconds(duration['max'])} "
                  f"(median {seconds(duration['median'])}), kill feed gaps {summary['kill_feed_gaps']}")
+    deaths, growth = summary["deaths"], summary["growth"]
+    lines.append(f"Deaths {deaths['count']} ({deaths['granted']} rewarded, {deaths['kills_with_assist']} with assists); "
+                 f"AI rerolls {growth['rerolls_used']}/{growth['rerolls_earned']}, replacements {growth['replacements']} "
+                 f"of {growth['choices']} choices, Lv3 skills per AI {growth['max_rank_skills']}; "
+                 f"winner tags {summary['winner_tags']['tags']}")
     return lines
 
 

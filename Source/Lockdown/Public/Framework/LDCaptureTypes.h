@@ -5,18 +5,21 @@
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCaptureTypes.generated.h"
 
+// Spray zone state. Solo: exactly one effective contender is inside and he is not the graffiti owner, so he sprays.
+// Contested: two or more effective contenders are inside. Guarded: the graffiti owner is the only one inside; he
+// never sprays his own graffiti.
 UENUM()
-enum class ELDCircleState : uint8 { NotOpen, Empty, Solo, Contested };
+enum class ELDCircleState : uint8 { NotOpen, Empty, Solo, Contested, Guarded };
 
 UENUM()
-enum class ELDMatchEndReason : uint8 { None, CaptureCompleted, HostEnded };
+enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded };
 
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
 enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned };
 
-// Whole-room capture state. It names at most the single occupier and never lists bodies in the
-// circle, hidden positions, protection or private build data. Live time comes from DemoClock.
+// Whole-room spray and guard state. It names at most the spray progress holder and the graffiti owner and never
+// lists bodies in the zone, hidden positions, protection or private build data. Live time comes from DemoClock.
 USTRUCT()
 struct FLDPublicMatchView
 {
@@ -28,16 +31,24 @@ struct FLDPublicMatchView
     UPROPERTY() int64 StartedAtMs = 0;
     UPROPERTY() int64 OpenAtMs = 0;
     UPROPERTY() ELDCircleState CircleState = ELDCircleState::NotOpen;
-    // The progress holder: the sole contender while Solo, or the contender whose progress a
-    // contest has paused while Contested. Invalid otherwise.
+    // The spray progress holder: the sole sprayer while Solo, or the contender whose spray progress a contest has
+    // paused while Contested. Invalid otherwise.
     UPROPERTY() FGuid Occupier;
     UPROPERTY() uint64 CaptureEpoch = 0;
     // Solo only. After a resume SoloSinceMs is the resume instant minus the paused progress,
-    // so DueAtMs is the real completion instant of the resumed segment.
+    // so DueAtMs is the real instant the graffiti is sprayed.
     UPROPERTY() int64 SoloSinceMs = 0;
     UPROPERTY() int64 DueAtMs = 0;
-    // Contested with a holder only: his progress frozen by the contest.
+    // Contested with a holder only: his spray progress frozen by the contest.
     UPROPERTY() int64 PausedProgressMs = 0;
+    // The contender whose graffiti the flagpole shows; invalid while it is bare. GraffitiPresentation is the owner's
+    // public identity slot (his start roster position, the body tint key), zero without an owner.
+    UPROPERTY() FGuid GraffitiOwner;
+    UPROPERTY() uint8 GraffitiPresentation = 0;
+    // With an owner: the real instant the running guard wins (every state except Solo), or the guard progress a
+    // sole sprayer has paused (Solo only). Both zero without an owner.
+    UPROPERTY() int64 GuardDueAtMs = 0;
+    UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
 };
 
@@ -52,6 +63,7 @@ struct FLDResultRow
     UPROPERTY() uint64 Kills = 0;
     UPROPERTY() uint64 Deaths = 0;
     UPROPERTY() uint8 FinalLevel = 0;
+    UPROPERTY() uint64 Assists = 0;
 };
 
 // Frozen public result. Rows follow the locked start roster; statistics never choose the winner.
@@ -81,6 +93,8 @@ struct FLDKillNotice
     UPROPERTY() FGuid Killer;
     UPROPERTY() ELDKillCause Cause = ELDKillCause::Unowned;
     UPROPERTY() int64 OccurredAtMs = 0;
+    // Contender cause with a rewarded killer only: the assisters of this death, sorted (public like the killer).
+    UPROPERTY() TArray<FGuid> Assisters;
 };
 
 // Bounded ring of the most recent contender deaths, oldest first; Serial increases per match.
@@ -121,6 +135,8 @@ struct FLDCaptureEligibilityEvent
     FLDDeathKey DeathKey;
     FGuid CreditContender;
     ELDKillCause KillCause = ELDKillCause::Unowned;
+    // The locked fact's assisters (FLDCommittedDeath::Assisters); empty without a Contender cause.
+    TArray<FGuid> Assisters;
 };
 
 namespace LDCapture

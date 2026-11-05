@@ -196,6 +196,9 @@ struct FLDCommittedDeath
     FLDCombatSourceRef ReleasedSource;    // fingerprint only
     FLDCombatBodyRef SourceBodyAtRelease; // fingerprint only
     FLDRewardBasis RewardBasis;
+    // Contender victims with an eligible killer only: the other contenders still in the match whose latest assist
+    // contribution fell within REWARD.AssistWindowSec before the fatal hit, sorted. Frozen with the fact.
+    TArray<FGuid> Assisters;
     ELDDeathCause Cause=ELDDeathCause::Damage;
     double OccurredAtSeconds=0;           // raw authority time of the fatal hit
     int64 OccurredAtMs=0;                 // checked ceil bucket of OccurredAtSeconds
@@ -226,6 +229,8 @@ struct FLDEquippedItemValue
     FGuid Instance;
     FName DefinitionId;
     uint64 ItemRevision=0;
+    // 112 §7: read stats, passive and active terms through LDDemoEquipment::Effective*.
+    bool bUpgraded=false;
 };
 
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
@@ -416,6 +421,8 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
     UPROPERTY() FLDDemoRational Temporary;           // timed/conditional flat terms of the current life
     UPROPERTY() FLDDemoRational TemporaryPercent;    // timed/conditional ratio terms minus the strongest slow (signed)
+    UPROPERTY() FLDDemoRational Penalty;             // wild-card flat deduction (positive magnitude, subtracted)
+    UPROPERTY() FLDDemoRational PenaltyPercent;      // wild-card ratio deduction (positive magnitude, subtracted)
     UPROPERTY() FLDDemoRational Final;
     UPROPERTY() bool bClamped=false;
 };
@@ -468,6 +475,7 @@ struct FLDCombatOwnerView
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
     UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
+    UPROPERTY() TArray<FName> UpgradedEquipmentPassives; // 112 §7: families applying their upgraded terms
     UPROPERTY() bool bOutOfCombatRegenActive=false;
     // The own body's action cue facts; the owner selects its cue with LDCombatCues at the public clock.
     UPROPERTY() FLDCombatCueFacts Cues;

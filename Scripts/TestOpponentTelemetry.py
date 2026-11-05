@@ -17,7 +17,15 @@ def contender(kind, slot, ident, level_curve, gold_curve, final_level, winner=Fa
     times = [i * 1000 for i in range(len(level_curve))]
     return {"contender": ident, "name": ident[-4:], "kind": kind, "slot": slot, "winner": winner, "left": False,
             "final_level": final_level, "kills": 1, "deaths": 2, "capture_attempts": attempts, "capture_resumes": 1,
-            "capture_paused": 1, "capture_lost": 0,
+            "capture_paused": 1, "capture_lost": 0, "assists": 1, "capture_sprays": 1, "capture_interrupted": 0,
+            "first_active_ms": 2000 if kind == "OpponentAI" else -1,
+            "skills": [{"id": "active_lunge", "rank": 3, "active": True}, {"id": "passive_lurking", "rank": 1, "active": False}]
+            if kind == "OpponentAI" else [],
+            "max_rank_skills": 1 if kind == "OpponentAI" else 0, "rerolls_earned": 2 if kind == "OpponentAI" else 0,
+            "rerolls_used": 1 if kind == "OpponentAI" else 0, "choices": 4 if kind == "OpponentAI" else 1,
+            "replacements": [{"t_ms": 50000, "level": 5, "replaced": "active_arc_bolt", "replaced_rank": 2,
+                              "new": "active_lunge", "new_rank": 1}] if slot == 0 else [],
+            "tags": {"BasicAttack": 2, "Mobility": 1} if kind == "OpponentAI" else {},
             "purchases": [{"t_ms": t, "item": "item_edge_blade", "slot": 0, "price": 150, "gold_after": 50}
                           for t in purchases],
             "sales": [], "curve": {"t_ms": times, "level": level_curve, "xp": [0] * len(times), "gold": gold_curve}}
@@ -32,12 +40,17 @@ def match(index, duration_ms=125000, winner_slot=1, first_kill=30000):
         gold = [200 + 10 * i for i in range(samples)]
         rows.append(contender("OpponentAI", slot, ai_id(slot), level, gold, level[-1], ai_id(slot) == winner,
                               purchases=(40000,) if slot != 2 else (), attempts=2))
-    return {"schema": 1, "match": index, "generation": index, "result_id": f"{index:032x}",
+    return {"schema": 2, "match": index, "generation": index, "result_id": f"{index:032x}",
             "content_root": "ab" * 32, "dev_content_reload": False,
-            "reason": "CaptureCompleted" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
+            "reason": "GuardSucceeded" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
             "capture_open_ms": 60000, "first_kill_ms": first_kill, "first_death_ms": 20000, "kill_feed_gaps": 0,
-            "kills": [{"t_ms": first_kill, "victim": HUMAN, "killer": ai_id(0), "cause": "Contender"}] if first_kill >= 0 else [],
-            "capture_contests": 3, "contenders": rows}
+            "kills": [{"t_ms": first_kill, "victim": HUMAN, "killer": ai_id(0), "cause": "Contender",
+                       "assisters": [ai_id(1)]}] if first_kill >= 0 else [],
+            "deaths": [{"t_ms": first_kill, "victim": HUMAN, "life": 1, "outcome": "Granted", "killer": ai_id(0),
+                        "killer_gold": 300, "killer_xp": 60, "assists": [{"contender": ai_id(1), "gold": 75, "xp": 60}]}]
+            if first_kill >= 0 else [],
+            "capture_contests": 3, "capture_sprays": 2, "capture_repaints": 1, "graffiti_cleared_by_death": 1,
+            "graffiti_cleared_by_leave": 0, "guard_success_ms": 20000 if winner else -1, "contenders": rows}
 
 
 class SummaryTest(unittest.TestCase):
@@ -46,7 +59,7 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(summary["matches"], 2)
         self.assertEqual(summary["content_roots"], ["ab" * 32])
         self.assertFalse(summary["dev_content_reload"])
-        self.assertEqual(summary["reasons"]["CaptureCompleted"], 2)
+        self.assertEqual(summary["reasons"]["GuardSucceeded"], 2)
         self.assertEqual(summary["ai_capture_wins"], 2)
         self.assertEqual(summary["wins_by_slot"], {"0": 1, "1": 1, "2": 0})
         self.assertEqual(summary["duration_ms"]["min"], 125000)
@@ -63,17 +76,45 @@ class SummaryTest(unittest.TestCase):
         self.assertEqual(minutes[3]["count"], 3)
         self.assertEqual(summary["per_match"][1]["ai_final_levels"], [4, 4, 4])
         self.assertTrue(any("AI slot 0" in line for line in describe(summary)))
+        # 112 §13
+        self.assertEqual(summary["capture"]["sprays"]["mean"], 2)
+        self.assertEqual(summary["capture"]["cleared_by_repaint"], 2)
+        self.assertEqual(summary["capture"]["cleared_by_death"], 2)
+        self.assertEqual(summary["capture"]["guard_success_ms"]["median"], 20000)
+        self.assertEqual(summary["deaths"]["count"], 1)
+        self.assertEqual(summary["deaths"]["kills_with_assist"], 1)
+        self.assertEqual(summary["deaths"]["assist_gold"]["max"], 75)
+        self.assertEqual(summary["growth"]["first_active_ms"]["median"], 2000)
+        self.assertEqual(summary["growth"]["max_rank_skills"], {"1": 6})
+        self.assertEqual(summary["growth"]["reroll_use_rate"], 0.5)
+        self.assertEqual(summary["growth"]["replacements"], 2)
+        self.assertEqual(summary["growth"]["replacement_rate"], round(2 / 24, 3))
+        self.assertEqual(summary["growth"]["replacement_level"]["mean"], 5)
+        self.assertEqual(summary["winner_tags"], {"winners": 2, "tags": {"BasicAttack": 4, "Mobility": 2}})
+        self.assertEqual(summary["ai"]["assists"]["count"], 6)
 
     def test_host_ended_match_has_no_winner_slot(self):
         summary = summarize([match(1, winner_slot=-1)])
         self.assertEqual(summary["reasons"]["HostEnded"], 1)
         self.assertEqual(summary["ai_capture_wins"], 0)
         self.assertEqual(summary["per_match"][0]["winner_slot"], -1)
+        self.assertEqual(summary["capture"]["guard_success_ms"]["missing"], 1)
+        self.assertEqual(summary["winner_tags"], {"winners": 0, "tags": {}})
 
     def test_rejects_inconsistent_matches(self):
         cases = []
         bad = match(1); bad["match"] = 2; cases.append(bad)
-        bad = match(1); bad["schema"] = 2; cases.append(bad)
+        bad = match(1); bad["schema"] = 1; cases.append(bad)
+        bad = match(1); bad["guard_success_ms"] = -1; cases.append(bad)
+        bad = match(1, winner_slot=-1); bad["guard_success_ms"] = 100; cases.append(bad)
+        bad = match(1); bad["kills"][0]["assisters"] = [ai_id(0)]; cases.append(bad)
+        bad = match(1); bad["deaths"][0]["outcome"] = "NoReward"; cases.append(bad)
+        bad = match(1); bad["deaths"][0]["assists"][0]["contender"] = HUMAN; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["rerolls_used"] = 3; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["first_active_ms"] = -1; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["max_rank_skills"] = 3; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["tags"] = {"School": 1}; cases.append(bad)
+        bad = match(1); del bad["contenders"][1]["replacements"]; cases.append(bad)
         bad = match(1); bad["contenders"][1]["curve"]["gold"].pop(); cases.append(bad)
         bad = match(1); bad["contenders"][1]["curve"]["t_ms"][3] = 0; cases.append(bad)
         bad = match(1); bad["contenders"][1]["winner"] = True; cases.append(bad)

@@ -124,9 +124,14 @@ namespace LDCombatSourcesDetail
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
         TArray<FString> Equipped;
+        TArray<bool> Upgraded;
         for (const ELDCombatEntry Slot : GearEntries)
         {
-            if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot)) { Equipped.Add(Item->DefinitionId.ToString()); }
+            if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot))
+            {
+                Equipped.Add(Item->DefinitionId.ToString());
+                Upgraded.Add(Item->bUpgraded);
+            }
         }
         if (Equipped.Num()!=Build.Equipment.Num())
         {
@@ -137,6 +142,7 @@ namespace LDCombatSourcesDetail
             return Refused;
         }
         FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
+        Values.EquippedUpgraded=MoveTemp(Upgraded);
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
     }
@@ -431,7 +437,13 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
             Error=FString::Printf(TEXT("Catalog: equipment passive %s has no approved definition. %s"),*Family.Family,*LookupError);
             return false;
         }
-        for (const FLDDemoEffectDefinition& Effect : Item->Passive.Effects)
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,Family.bUpgraded);
+        if (!Effects)
+        {
+            Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
+            return false;
+        }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
             const int64 Scale=10000+Effect.DistanceBonusBp;
@@ -473,6 +485,58 @@ ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input,
         || (Input.Roots && LDTactical::RootBlocks(*Input.Roots,Input.NowMs,Policies,ELDDemoRootBlock::Dash))))
     { return ELDCombatReject::ControlBlocked; }
     return ELDCombatReject::None;
+}
+
+int64 LDCombatSourceRules::ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs)
+{
+    if (AmountMs<=0 || ReadyAtMs<=NowMs) { return ReadyAtMs; }
+    return AmountMs>=ReadyAtMs-NowMs ? NowMs : ReadyAtMs-AmountMs;
+}
+
+bool LDCombatSourceRules::DisplacesCaster(const FLDDemoRankDefinition& Rank)
+{
+    return Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
+    {
+        const ELDDemoEffectOp Op=Effect.GetOp();
+        return Op==ELDDemoEffectOp::Dash || Op==ELDDemoEffectOp::Jump || Op==ELDDemoEffectOp::LeapBack;
+    });
+}
+
+bool LDCombatSourceRules::SkillDisplacementBoost(const FLDDemoContentSnapshot& Content,
+    const TArray<FLDEquipmentPassiveFamily>& Passives, int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error)
+{
+    OutCooldownRatioBp=10000;
+    OutDistanceBonusBp=0;
+    for (const FLDEquipmentPassiveFamily& Family : Passives)
+    {
+        const FLDDemoEquipmentDefinition* Item=nullptr;
+        FString LookupError;
+        if (!Content.FindEquipment(Family.EquipmentId,Item,LookupError) || !Item || !Item->HasPassive)
+        {
+            Error=FString::Printf(TEXT("Catalog: equipment passive %s has no approved definition. %s"),*Family.Family,*LookupError);
+            return false;
+        }
+        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,Family.bUpgraded);
+        if (!Effects)
+        {
+            Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
+            return false;
+        }
+        for (const FLDDemoEffectDefinition& Effect : *Effects)
+        {
+            if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
+            if (Effect.SkillCooldownRatioBp<0 || Effect.SkillCooldownRatioBp>10000 || Effect.SkillDistanceBonusBp<0)
+            {
+                Error=FString::Printf(TEXT("NumericDomain: skill dash boost of %s is outside the checked domain."),*Item->Id);
+                return false;
+            }
+            // Absent terms (0) are not approved yet and change nothing.
+            if (Effect.SkillCooldownRatioBp>0) { OutCooldownRatioBp=OutCooldownRatioBp*Effect.SkillCooldownRatioBp/10000; }
+            OutDistanceBonusBp+=Effect.SkillDistanceBonusBp;
+        }
+    }
+    Error.Reset();
+    return true;
 }
 
 bool ALDCombatDirector::ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const
@@ -562,8 +626,11 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
         OutSource.Kind=ELDCombatSourceKind::Gear;
         OutSource.DefinitionId=Item->DefinitionId;
         OutSource.ItemInstance=Item->Instance;
-        // Equipment actives have one fixed rank; gear without an active resolves and is refused by the caller.
-        OutRank=Equipment->HasActive ? static_cast<uint8>(Equipment->Active.Rank.Rank) : 0;
+        // Equipment actives have one fixed rank, the upgraded rank once the instance is upgraded (112 §7); gear without an
+        // active resolves and is refused by the caller.
+        const FLDDemoRankDefinition* Effective=LDDemoEquipment::EffectiveActiveRank(*Equipment,Item->bUpgraded);
+        if (Equipment->HasActive && !Effective) { return false; }
+        OutRank=Effective ? static_cast<uint8>(Effective->Rank) : 0;
         OutEquipment=Equipment;
         return true;
     }
@@ -587,7 +654,9 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, c
     else if (Equipment && Equipment->HasActive)
     {
         OutTarget=&Equipment->Active.Target;
-        OutRank=&Equipment->Active.Rank;
+        // The rank number names the effective row: the base rank, or the upgraded rank of an upgraded instance.
+        OutRank=LDDemoEquipment::EffectiveActiveRank(*Equipment,
+            Equipment->Active.HasUpgradedRank && Rank==Equipment->Active.UpgradedRank.Rank);
         OutWindupMs=Equipment->Active.WindupMs;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
@@ -672,6 +741,17 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
             ? RankRow->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
             : nullptr;
         View.RangeCm=LDCombatSourcesDetail::DisplayCm(Dash ? Dash->DistanceCm : Target->RangeCm);
+        // The owner sees the reach this body has right now (passive_eagle_eye Lv3, active_arc_bolt's share of attack range, item_phase_anchor).
+        if (Body && Source.Kind!=ELDCombatSourceKind::Innate)
+        {
+            FString RangeError;
+            double RangeCm=0;
+            int64 CooldownRatioBp=10000, DistanceBonusBp=0;
+            if (!Dash && CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
+            else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.EquipmentPassives,
+                CooldownRatioBp,DistanceBonusBp,RangeError))
+            { View.RangeCm=int32(FMath::RoundToDouble(LDCombatSourcesDetail::RationalValue(Dash->DistanceCm)*double(10000+DistanceBonusBp)/10000.)); }
+        }
         FLDInnateDashTerms Innate;
         FString TermsError;
         if (Source.Kind==ELDCombatSourceKind::Innate)
@@ -818,6 +898,27 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareProjected(const ALDGameMode& Mo
     return Result;
 }
 
+bool ALDCombatDirector::PublicActivesOf(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content,
+    FLDObservedActivesView& Out)
+{
+    Out=FLDObservedActivesView();
+    const int32 MaxRank=Content.Get().Progression.MaxSkillRank;
+    for (const FLDLearnedActiveValue& Active : Build.Actives)
+    {
+        const int32 Slot=Active.Entry==ELDCombatEntry::Q ? 0 : Active.Entry==ELDCombatEntry::W ? 1 : INDEX_NONE;
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        FString LookupError;
+        if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0 || Active.Rank<1 || int32(Active.Rank)>MaxRank
+            || int32(Active.Rank)>LDObservation::MaxActiveRank
+            || !Content.FindAbility(Active.AbilityId.ToString(),Ability,LookupError) || !Ability
+            || Ability->Kind!=ELDDemoAbilityKind::Active || Ability->NativeId==0)
+        { return false; }
+        Out.Abilities[Slot]=Ability->NativeId;
+        Out.Ranks[Slot]=Active.Rank;
+    }
+    return true;
+}
+
 void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit)
 {
     ALDGameMode* Mode=Core();
@@ -858,6 +959,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     }
     FLDBasicTiming Timing;
     FLDObservedEquipmentView PublicSlots;
+    FLDObservedActivesView PublicActives;
     float WalkSpeed=0;
     if (bValid && Body)
     {
@@ -866,6 +968,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         bValid=LDCombatSourcesDetail::ProjectedBasicTiming(Prepared.Projection,*Content,Timing,Code,Reason)
             && LDCombatSourcesDetail::NativeWalkSpeed(Prepared.Projection.Final.MoveSpeedCmPerSec,WalkSpeed)
             && LDCombatSourcesDetail::PublicEquipment(Prepared.Input,*Content,PublicSlots)
+            && PublicActivesOf(Prepared.Input,*Content,PublicActives)
             && Prepared.NewMaxHPP2==Prepared.Projection.Final.MaxHPP2 && Prepared.NewMaxMPP2==Prepared.Projection.Final.MaxMPP2;
     }
     if (!bValid)
@@ -915,6 +1018,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         if (!Body->PublicFacts.IsSet()) { Body->PublicFacts.Emplace(); }
         Body->PublicFacts->Level=Prepared.Input.Level;
         Body->PublicFacts->Equipment=PublicSlots;
+        Body->PublicFacts->Actives=PublicActives;
         Actor->GetCharacterMovement()->MaxWalkSpeed=WalkSpeed;
         // The new build keeps this life's slows, timed bonuses and HP condition on top of it.
         FString Error;
@@ -1057,11 +1161,14 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 StunStatus.ExpiresAtMs=StunnedUntilMs;
                 StunStatus.ControlBlocks=LDCombatControl::StunBlockBits();
             }
-            if (Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs)
+            // An armed next-basic bonus (active_lunge, or active_slick_moves Lv3 once its gathering ended) is the owner's Empowered status.
+            const bool bMomentum=Body->Momentum.IsSet() && NowMs>=Body->Momentum->AccumulateUntilMs && NowMs<Body->Momentum->ConsumeUntilMs;
+            if ((Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs) || bMomentum)
             {
                 FLDCombatStatusView& EmpowerStatus=Out.Statuses.AddDefaulted_GetRef();
                 EmpowerStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Empowered);
-                EmpowerStatus.ExpiresAtMs=Body->Empower->ExpiresAtMs;
+                EmpowerStatus.ExpiresAtMs=FMath::Max(Body->Empower.IsSet() ? Body->Empower->ExpiresAtMs : 0,
+                    bMomentum ? Body->Momentum->ConsumeUntilMs : 0);
             }
             if (Body->Shield.IsSet() && Body->Resources.ShieldP2>0)
             {
@@ -1074,16 +1181,17 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             TArray<FLDObservedStatus> Temporary;
             if (const int64 SlowUntil=LDTactical::StrongestSlowUntilMs(Body->Slows,NowMs); SlowUntil>0)
             { Temporary.Add({uint8(ELDDemoStatusId::Slow),1,SlowUntil}); }
-            int64 BoostUntil=0, ExposedUntil=0;
+            int64 BoostUntil=0;
             for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
-            for (const auto& Exposure : Body->Exposures) { if (Exposure.ExpiresAtMs>NowMs) { ExposedUntil=FMath::Max(ExposedUntil,Exposure.ExpiresAtMs); } }
             if (BoostUntil>0) { Temporary.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
-            if (ExposedUntil>0) { Temporary.Add({uint8(ELDDemoStatusId::Exposed),1,ExposedUntil}); }
+            if (const int64 BreachUntil=LDTactical::BreachUntilMs(Body->Breaches,NowMs); BreachUntil>0)
+            { Temporary.Add({uint8(ELDDemoStatusId::Exposed),1,BreachUntil}); }
             if (Projection.LowHPBonus.IsSet()
                 && LDTactical::BelowHPThreshold(Body->Resources.HpP2,Body->Resources.MaxHpP2,Projection.LowHPBonus->ThresholdBp))
             { Temporary.Add({uint8(ELDDemoStatusId::Enraged),1,0}); }
-            if (Projection.Ambush.IsSet() && LDTactical::AmbushReady(Body->LastCombatAtMs,Projection.Ambush->DelayMs,NowMs))
+            if (AmbushReadyNow(*Body,NowMs))
             { Temporary.Add({uint8(ELDDemoStatusId::AmbushReady),1,0}); }
+            AppendMechanicsStatuses(*Body,NowMs,true,Temporary);
             for (const FLDObservedStatus& Status : Temporary)
             {
                 FLDCombatStatusView& View=Out.Statuses.AddDefaulted_GetRef();
@@ -1112,11 +1220,12 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 Out.ActionReleaseAtMs=Body->Action->ReleaseAtMs;
             }
             Out.Cues=CueFactsOf(*Body);
-            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move);
+            Out.bRooted=LDCombatControl::Blocks(Body->Roots,Body->Disarms,Body->Stuns,NowMs,Policies,ELDCombatControlAction::Move)
+                || Body->Knockbacks.ContainsByPredicate([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>NowMs; });
             const auto& Parameters=Content->Get().Parameters;
             const LDTactical::FOutOfCombatRecovery Recovery{Parameters.OutOfCombatRegenDelayMs,
                 Parameters.OutOfCombatMaxHPRegenBp,Parameters.OutOfCombatMaxMPRegenBp};
-            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs);
+            const auto Regen=LDTactical::RegenRates(Projection,&Recovery,Out.MaxHPP2,Out.MaxMPP2,Body->LastCombatAtMs,NowMs,Body->RegenSurgeUntilMs);
             Out.HPRegenPerSec=Regen.HP;
             Out.MPRegenPerSec=Regen.MP;
             // The passive bonus or the D21 contender recovery (this view is a contender's) is running.
@@ -1154,6 +1263,8 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
         RowView.TemporaryPercent=Row.Temporary.AdditiveRatio;
+        RowView.Penalty=Row.Penalties.Flat;
+        RowView.PenaltyPercent=Row.Penalties.AdditiveRatio;
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
         if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus)
@@ -1166,7 +1277,11 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             return false;
         }
     }
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives) { Out.EquipmentPassives.Add(FName(*Family.Family)); }
+    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
+    {
+        Out.EquipmentPassives.Add(FName(*Family.Family));
+        if (Family.bUpgraded) { Out.UpgradedEquipmentPassives.Add(FName(*Family.Family)); }
+    }
     return true;
 }
 
@@ -1258,11 +1373,22 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     LDTactical::DispelRoots(Body->Roots);
     Body->Slows.Reset();
     Body->TimedBonuses.Reset();
-    Body->Exposures.Reset();
+    Body->Breaches.Reset();
+    Body->VampMarks.Reset();
+    Body->Momentum.Reset();
+    Body->Retaliation.Reset();
+    Body->BasicHitRefund.Reset();
     Body->Disarms.Reset();
     Body->Stuns.Reset();
     Body->Empower.Reset();
     Body->Shield.Reset();
+    // #112 records end with the reset too (the knockback window, breaches, damage over time, heal cuts).
+    Body->Knockbacks.Reset();
+    Body->Breaches.Reset();
+    Body->Dots.Reset();
+    Body->HealCuts.Reset();
+    Body->Vulnerabilities.Reset();
+    Body->Guard.Reset();
     AbandonAction(*Body,ELDCombatReject::Cancelled);
     Body->Resources.ShieldP2=0;
     Body->Resources.MaxHpP2=Prepared.MaxHPP2;

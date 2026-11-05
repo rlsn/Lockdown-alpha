@@ -190,6 +190,7 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
         Record.SessionRequests = FLDSessionRequestWindow();
         Record.Kills = 0;
         Record.Deaths = 0;
+        Record.Assists = 0;
     }
     for (FGuid& Slot : LobbyAISlots) { Slot = FGuid::NewGuid(); }
     LockedAISlots.Reset();

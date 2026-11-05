@@ -49,12 +49,14 @@ walking 的 ledge 分支通过原生 `GetLedgeMove/CheckFall` 结果见证非 vi
 每个身体最多保留 256 个未消费批次，每批最多 128 条记录，超限在推进前背压或显式故障，
 不静默覆盖前一帧。精确前缀确认只释放已读记录，错误身体/未来前缀不能删除历史；
 身体退休后已接纳的证据仍保留在核心记录中，直到消费。
-参赛者批次在 `CompleteNativeMotion` 接纳前同步交给占领归约器（`PublishCaptureMotion` 提取圈进出）；
+参赛者批次在 `CompleteNativeMotion` 接纳前同步交给喷漆与守护归约器（`PublishCaptureMotion` 提取喷漆区进出）；
 driver 在下一步开始时释放已被消费的前缀，营地成员批次没有其他消费者，同样在下一步释放。
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
-都不是最终 Motion Fence、Sealing 或占领完成证明。Demo 没有击退或根运动（骨骼动画都原地播放）。
-没有按住加速或地表减速的独立运动分派；D 冲刺只在 Combat 成功释放后经 `StartDemoDash` 写入原生 CMC，
+都不是最终 Motion Fence、Sealing 或喷漆/守护完成证明。骨骼动画没有根运动（都原地播放）。
+没有按住加速或地表减速的独立运动分派；D 冲刺、技能冲刺与假发片后跳只在 Combat 成功释放后、击退（#112）只在
+`CommitControl` 提交成功后经 `StartDemoDash` 写入原生 CMC 的服务器位移，沿地面积分、遇阻挡停在最远合法位置，不瞬移；
+击退同时递增 `KnockbackSerial`，导航据此以 `ELDOrderFailure::KnockedBack` 放弃当前订单。冲刺
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
 
 ## 命令与取消
@@ -129,8 +131,8 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 无有效支持面不借瞄准 SurfaceHint 向下补接地。服务器保留独立的命令身份和合法性校验；
 原生 correction 不是可以跳过命令验证的理由。环境碰撞更新与路径重算的关系见
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
-`FindPublicApproach` 仅为已注册商店/占领点求合法范围内的完整路径，范围取同一内容定义；
-不走入被阻挡的商店中心，不增加商店 LOS 条件，也不授予成交或占领资格。
+`FindPublicApproach` 仅为已注册商店/旗杆喷漆区求合法范围内的完整路径，范围取同一内容定义；
+不走入被阻挡的商店中心，不增加商店 LOS 条件，也不授予成交或喷漆资格。
 所有路线规划的起点由共享的 `LDPathSteering::PlanStart` 给出（参赛者经 `QueryPlanStart`/`PlanRoute`，营地成员同样复用）：
 先确认身体在注册支持面上的合法地面，若身体因贴墙、贴身或转角切内侧停在 Recast 保守收缩的边缘外，
 只把平面起点移到一个胶囊半径内最近的 navmesh 点，该点须在同一支持面上重新通过 `QueryGround`；

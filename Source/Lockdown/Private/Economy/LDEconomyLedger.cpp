@@ -97,6 +97,8 @@ const TCHAR* LDEconomy::FLedger::ErrorName(EPrepareError Error)
     case EPrepareError::DuplicateBusinessKey: return TEXT("DuplicateBusinessKey");
     case EPrepareError::BusinessKeyConflict: return TEXT("BusinessKeyConflict");
     case EPrepareError::JournalFull: return TEXT("JournalFull");
+    case EPrepareError::UpgradeUsed: return TEXT("UpgradeUsed");
+    case EPrepareError::AlreadyUpgraded: return TEXT("AlreadyUpgraded");
     }
     return TEXT("Unknown");
 }
@@ -128,35 +130,41 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
     const bool bCreate = T.Create.IsSet();
     const bool bConsume = T.Consume.IsSet();
     const bool bRetire = T.Retire.IsSet();
-    bool bShape = false;
+    const bool bUpgrade = T.Upgrade.IsSet();
+    bool bShape = !bUpgrade || T.Cause == ECause::Upgrade;
     switch (T.Cause)
     {
     case ECause::DeathReward:
-        bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
+        bShape &= bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
+        break;
+    case ECause::Upgrade:
+        bShape &= bGold && bUpgrade && !bCreate && !bConsume && !bRetire && T.Gold->Delta < 0 && T.Gold->Delta != MIN_int64
+            && T.Burn == -T.Gold->Delta && T.Mint == 0 && T.Upgrade->Owner == T.Gold->Account;
         break;
     case ECause::Buy:
-        bShape = bGold && bCreate && !bConsume && !bRetire && T.Gold->Delta < 0 && T.Gold->Delta != MIN_int64
+        bShape &= bGold && bCreate && !bConsume && !bRetire && T.Gold->Delta < 0 && T.Gold->Delta != MIN_int64
             && T.Burn == -T.Gold->Delta && T.Mint == 0 && T.Create->Owner == T.Gold->Account;
         break;
     case ECause::Sell:
-        bShape = bGold && bConsume && !bCreate && !bRetire && T.Gold->Delta >= 0 && T.Mint == T.Gold->Delta && T.Burn == 0
+        bShape &= bGold && bConsume && !bCreate && !bRetire && T.Gold->Delta >= 0 && T.Mint == T.Gold->Delta && T.Burn == 0
             && T.Consume->Owner == T.Gold->Account;
         break;
     case ECause::AccountRetire:
-        bShape = bRetire && !bGold && !bCreate && !bConsume && T.Mint == 0 && T.Burn == 0;
+        bShape &= bRetire && !bGold && !bCreate && !bConsume && T.Mint == 0 && T.Burn == 0;
         break;
 #if WITH_DEV_AUTOMATION_TESTS
     case ECause::DevFixture:
-        bShape = bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
+        bShape &= bGold && !bCreate && !bConsume && !bRetire && T.Gold->Delta > 0 && T.Mint == T.Gold->Delta && T.Burn == 0;
         break;
     case ECause::DevReset:
-        bShape = !bCreate && !bRetire && (bConsume
+        bShape &= !bCreate && !bRetire && (bConsume
             ? !bGold && T.Mint == 0 && T.Burn == 0
             : bGold && T.Gold->Delta != 0 && T.Gold->Delta != MIN_int64
                 && T.Mint == FMath::Max<int64>(T.Gold->Delta, 0) && T.Burn == FMath::Max<int64>(-T.Gold->Delta, 0));
         break;
 #endif
     default:
+        bShape = false;
         break;
     }
     if (!bShape)
@@ -302,6 +310,52 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
         ConsumedInstance = C.Instance;
     }
 
+    FGuid UpgradedInstance;
+    FItem UpgradedItem;
+    if (bUpgrade)
+    {
+        const FUpgradeItem& U = *T.Upgrade;
+        const FItem* Item = State.LiveItems.Find(U.Instance);
+        if (!Item)
+        {
+            return LedgerFail(Error, Message, E::UnknownItem, TEXT("Equipment instance is not live."));
+        }
+        if (Item->Owner != U.Owner)
+        {
+            return LedgerFail(Error, Message, E::NotOwner, TEXT("Equipment instance belongs to another owner."));
+        }
+        if (Item->Revision != U.ExpectedItemRevision)
+        {
+            return LedgerFail(Error, Message, E::ItemStale, TEXT("Equipment item revision changed."));
+        }
+        if (Item->bUpgraded)
+        {
+            return LedgerFail(Error, Message, E::AlreadyUpgraded, TEXT("Equipment instance is already upgraded."));
+        }
+        // The gold change above already proved the account live, current and solvent.
+        if (NewAccount.bUpgradeUsed)
+        {
+            return LedgerFail(Error, Message, E::UpgradeUsed, TEXT("The account already spent its one upgrade of the match."));
+        }
+        Inventory = State.InventoryRevisions.Find(U.Owner);
+        if (!Inventory)
+        {
+            return LedgerFail(Error, Message, E::UnknownAccount, TEXT("Equipment owner is not part of this match."));
+        }
+        if (*Inventory != U.ExpectedInventoryRevision)
+        {
+            return LedgerFail(Error, Message, E::InventoryStale, TEXT("Inventory revision changed."));
+        }
+        UpgradedItem = *Item;
+        if (!LedgerCheckedIncrement(*Inventory, NewInventory) || !LedgerCheckedIncrement(Item->Revision, UpgradedItem.Revision))
+        {
+            return LedgerFail(Error, Message, E::Overflow, TEXT("Inventory or item revision would overflow."));
+        }
+        UpgradedItem.bUpgraded = true;
+        UpgradedInstance = U.Instance;
+        NewAccount.bUpgradeUsed = true;
+    }
+
     if (bRetire)
     {
         const FRetireAccount& R = *T.Retire;
@@ -367,6 +421,10 @@ bool LDEconomy::ApplyEntry(FAuditState& State, FJournalEntry& Entry, bool bRepla
     if (bConsume)
     {
         State.LiveItems.Remove(ConsumedInstance);
+    }
+    if (bUpgrade)
+    {
+        State.LiveItems.FindChecked(UpgradedInstance) = UpgradedItem;
     }
     State.Minted = Minted;
     State.Burned = Burned;
@@ -497,6 +555,26 @@ int64 LDEconomy::FLedger::TotalGold() const
 
 LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transaction) const
 {
+    return PrepareFrom(Current, TArray<FGuid>(), Transaction);
+}
+
+LDEconomy::FPrepareResult LDEconomy::FLedger::PrepareAfter(const FPreparedCommit& Previous, const FTransaction& Transaction) const
+{
+    if (IsInitialized() && Previous.AfterState.ThroughSerial != Previous.ExpectedCommittedSerial + 1)
+    {
+        FPrepareResult Result;
+        Result.Error = EPrepareError::InvalidTransaction;
+        Result.Message = TEXT("A chained plan must follow a prepared commit.");
+        return Result;
+    }
+    TArray<FGuid> Keys = Previous.ChainKeys;
+    Keys.Add(Previous.Journal.Transaction.BusinessKey);
+    return PrepareFrom(Previous.AfterState, Keys, Transaction);
+}
+
+LDEconomy::FPrepareResult LDEconomy::FLedger::PrepareFrom(const FAuditState& Base, const TArray<FGuid>& ChainKeys,
+    const FTransaction& Transaction) const
+{
     FPrepareResult Result;
     if (!IsInitialized())
     {
@@ -504,10 +582,22 @@ LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transa
         Result.Message = TEXT("Ledger is not initialized for a match.");
         return Result;
     }
-    if (Tail.Num() >= JournalTailCapacity)
+    if (Tail.Num() + ChainKeys.Num() >= JournalTailCapacity)
     {
         Result.Error = EPrepareError::JournalFull;
         Result.Message = TEXT("Ledger journal tail is full; compact the resolved prefix first.");
+        return Result;
+    }
+    if (Base.Match != Current.Match || Base.ThroughSerial != Current.ThroughSerial + uint64(ChainKeys.Num()))
+    {
+        Result.Error = EPrepareError::InvalidTransaction;
+        Result.Message = TEXT("A chained plan does not continue the current committed serial.");
+        return Result;
+    }
+    if (ChainKeys.Contains(Transaction.BusinessKey))
+    {
+        Result.Error = EPrepareError::BusinessKeyConflict;
+        Result.Message = TEXT("Business key repeats inside one composite commit.");
         return Result;
     }
     for (const FJournalEntry& Old : Tail)
@@ -522,9 +612,10 @@ LDEconomy::FPrepareResult LDEconomy::FLedger::Prepare(const FTransaction& Transa
         }
     }
     FPreparedCommit Prepared;
-    Prepared.ExpectedCommittedSerial = Current.ThroughSerial;
+    Prepared.ExpectedCommittedSerial = Base.ThroughSerial;
     Prepared.Journal.Transaction = Transaction;
-    Prepared.AfterState = Current;
+    Prepared.AfterState = Base;
+    Prepared.ChainKeys = ChainKeys;
     if (!ApplyEntry(Prepared.AfterState, Prepared.Journal, false, Result.Error, Result.Message))
     {
         return Result;
@@ -650,6 +741,7 @@ const TCHAR* LedgerJsonCause(LDEconomy::ECause Cause)
     case LDEconomy::ECause::Buy: return TEXT("Buy");
     case LDEconomy::ECause::Sell: return TEXT("Sell");
     case LDEconomy::ECause::AccountRetire: return TEXT("AccountRetire");
+    case LDEconomy::ECause::Upgrade: return TEXT("Upgrade");
     case LDEconomy::ECause::DevFixture: return TEXT("DevFixture");
     case LDEconomy::ECause::DevReset: return TEXT("DevReset");
     case LDEconomy::ECause::None: break;
@@ -681,6 +773,7 @@ TSharedRef<FJsonObject> LedgerJsonState(const LDEconomy::FAuditState& State)
         Row->SetStringField(TEXT("retireSerial"), LedgerJsonU64(Account.RetireSerial));
         Row->SetNumberField(TEXT("retireLife"), Account.RetireStamp.Life);
         Row->SetStringField(TEXT("retireLifeRevision"), LedgerJsonU64(Account.RetireStamp.LifeRevision));
+        Row->SetBoolField(TEXT("upgradeUsed"), Account.bUpgradeUsed);
         Accounts.Add(MakeShared<FJsonValueObject>(Row));
     }
     Out->SetArrayField(TEXT("accounts"), Accounts);
@@ -717,6 +810,7 @@ TSharedRef<FJsonObject> LedgerJsonState(const LDEconomy::FAuditState& State)
         Row->SetStringField(TEXT("owner"), LedgerJsonGuid(Pair.Value.Owner));
         Row->SetNumberField(TEXT("slot"), Pair.Value.Slot);
         Row->SetStringField(TEXT("revision"), LedgerJsonU64(Pair.Value.Revision));
+        Row->SetBoolField(TEXT("upgraded"), Pair.Value.bUpgraded);
         Items.Add(MakeShared<FJsonValueObject>(Row));
     }
     Out->SetArrayField(TEXT("items"), Items);
@@ -772,6 +866,19 @@ TSharedRef<FJsonObject> LedgerJsonEntry(const LDEconomy::FJournalEntry& Entry)
     {
         Out->SetField(TEXT("consume"), MakeShared<FJsonValueNull>());
     }
+    if (T.Upgrade.IsSet())
+    {
+        TSharedRef<FJsonObject> Upgrade = MakeShared<FJsonObject>();
+        Upgrade->SetStringField(TEXT("instance"), LedgerJsonGuid(T.Upgrade->Instance));
+        Upgrade->SetStringField(TEXT("expectedItemRevision"), LedgerJsonU64(T.Upgrade->ExpectedItemRevision));
+        Upgrade->SetStringField(TEXT("owner"), LedgerJsonGuid(T.Upgrade->Owner));
+        Upgrade->SetStringField(TEXT("expectedInventoryRevision"), LedgerJsonU64(T.Upgrade->ExpectedInventoryRevision));
+        Out->SetObjectField(TEXT("upgrade"), Upgrade);
+    }
+    else
+    {
+        Out->SetField(TEXT("upgrade"), MakeShared<FJsonValueNull>());
+    }
     if (T.Retire.IsSet())
     {
         TSharedRef<FJsonObject> Retire = MakeShared<FJsonObject>();
@@ -810,7 +917,7 @@ bool LDEconomy::ExportEvidence(const FLedger& Ledger, int64 StartingGold, FStrin
         return false;
     }
     TSharedRef<FJsonObject> Root = MakeShared<FJsonObject>();
-    Root->SetNumberField(TEXT("schemaVersion"), 4);
+    Root->SetNumberField(TEXT("schemaVersion"), 5);
     Root->SetStringField(TEXT("match"), LedgerJsonGuid(Ledger.GetMatch()));
     Root->SetStringField(TEXT("startingGold"), LedgerJsonI64(StartingGold));
     // Every DevFixture mint of the match, also those already folded into the prefix, and whether this process ran

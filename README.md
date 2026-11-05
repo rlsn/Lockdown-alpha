@@ -5,12 +5,12 @@
 **对外标题：谁是雾港最强淫人王**（“淫”是雾港黑话，只指把人揍趴下）。技术项目名仍为 Lockdown。
 
 雾港大学城后街的烂尾球场上，脆皮大学生无差别大乱斗：一款采用 MOBA 点击操作和俯视斜角镜头的自由混战游戏。
-打野与战斗获取成长，通过三选一（开盲盒）和装备建立优势，最终独占旗杆、插旗成为淫人王。
+打野与战斗获取成长，通过三选一（开盲盒）和装备建立优势，最终在旗杆上喷上自己的涂鸦并守住，成为淫人王。
 
 ## 当前状态
 
 Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）→ 从零打野、对抗、
-三选一与购物 → 开圈争夺 → 唯一结果 → Host 带房间回 Lobby 开新局。
+三选一与购物 → 旗杆开放后喷漆、守护与围攻 → 唯一结果 → Host 带房间回 Lobby 开新局。
 运行入口只有前端和唯一 Demo 地图，旧模式代码已经删除。
 
 - 首版内容与数值是用户批准的首次试玩输入，**没有做过平衡测试**。
@@ -52,7 +52,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 183 项） | `.\Scripts\RunTests.ps1` |
+| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 190 项） | `.\Scripts\RunTests.ps1` |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
 | Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |
 | 生成资产、音效与美术校验 | `.\Scripts\BootstrapAssets.ps1`（默认 Validate，同时校验音效与美术目录） |

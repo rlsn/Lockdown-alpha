@@ -13,7 +13,7 @@ bool LDControl::IsTaunted(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs)
 bool LDControl::TauntAllows(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs, bool bBasicAttack, const FLDCombatBodyRef& Target)
 {
     if (!IsTaunted(Taunt,AtMs)) { return true; }
-    return bBasicAttack && Target.IsValid() && Target==Taunt->SourceBody;
+    return !Taunt->bDecoy && bBasicAttack && Target.IsValid() && Target==Taunt->SourceBody;
 }
 
 bool LDControl::ApplyTaunt(TOptional<FLDCombatTaunt>& Taunt, const FLDCombatTaunt& Candidate, int64 AtMs)
@@ -91,10 +91,11 @@ bool LDControl::MoveSpeedCmPerSec(const FLDAttributeContributions& Row, int64 Pe
     // with the stealth penalty as one more additive ratio.
     const double Flat=ControlRational(Row.Base)+ControlRational(Row.LevelGrowth.Flat)+ControlRational(Row.PermanentChoices.Flat)
         +ControlRational(Row.Passives.Flat)+ControlRational(Row.Equipment.Flat)+ControlRational(Row.Dev.Flat)
-        +ControlRational(Row.Temporary.Flat);
+        +ControlRational(Row.Temporary.Flat)-ControlRational(Row.Penalties.Flat);
     const double Ratio=ControlRational(Row.LevelGrowth.AdditiveRatio)+ControlRational(Row.PermanentChoices.AdditiveRatio)
         +ControlRational(Row.Passives.AdditiveRatio)+ControlRational(Row.Equipment.AdditiveRatio)
-        +ControlRational(Row.Dev.AdditiveRatio)+ControlRational(Row.Temporary.AdditiveRatio)-double(PenaltyBp)/10000.;
+        +ControlRational(Row.Dev.AdditiveRatio)+ControlRational(Row.Temporary.AdditiveRatio)-ControlRational(Row.Penalties.AdditiveRatio)
+        -double(PenaltyBp)/10000.;
     const double Min=ControlRational(Bounds.Min), Max=ControlRational(Bounds.Max);
     const double Speed=Flat*(1.+Ratio);
     if (!FMath::IsFinite(Speed) || !FMath::IsFinite(Min) || !FMath::IsFinite(Max) || !(Min>0) || Max<Min) { return false; }
@@ -104,8 +105,9 @@ bool LDControl::MoveSpeedCmPerSec(const FLDAttributeContributions& Row, int64 Pe
 
 bool LDControl::TauntBlocks(const TOptional<FLDCombatTaunt>& Taunt, int64 AtMs, ELDCombatControlAction Action)
 {
+    // A decoy lure also forbids every basic attack (#112 §5).
     return IsTaunted(Taunt, AtMs) && (Action == ELDCombatControlAction::Cast || Action == ELDCombatControlAction::Gear
-        || Action == ELDCombatControlAction::Displacement);
+        || Action == ELDCombatControlAction::Displacement || (Taunt->bDecoy && Action == ELDCombatControlAction::Basic));
 }
 
 bool LDControl::TauntVictim(TOptional<FLDCombatTaunt>& Taunt, TOptional<FLDCombatStealth>& Stealth,

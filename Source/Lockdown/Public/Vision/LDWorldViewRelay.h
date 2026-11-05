@@ -40,6 +40,9 @@ struct LOCKDOWN_API FLDObservedCatalog
     TSet<uint8> Equipment;
     TSet<uint8> Creatures;
     TSet<uint8> Abilities;
+    // Active abilities only: the Q/W slots a visible contender shows.
+    TSet<uint8> ActiveAbilities;
+    uint8 MaxSkillRank = 0;
     bool Build(const FLDDemoContentSnapshot& Content, FString& Error);
     bool Accepts(const FLDObservedUnitView& Unit, FString& Error) const;
 };

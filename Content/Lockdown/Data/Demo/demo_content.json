@@ -2,6 +2,7 @@
   "abilities": [
     {
       "cooldown_family": "cd_arc_bolt",
+      "draftable": true,
       "id": "active_arc_bolt",
       "kind": "active",
       "native_id": 62,
@@ -100,6 +101,22 @@
               },
               "op": "damage",
               "opcode": 1
+            },
+            {
+              "armor_ratio": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "magic_resist_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "resist_shred",
+              "opcode": 28
             }
           ],
           "mana_cost": {
@@ -109,7 +126,20 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Mobility",
+        "Breach"
+      ],
       "target": {
+        "attack_range_bonus_cap": {
+          "denominator": 1,
+          "numerator": 300,
+          "unit": "cm"
+        },
+        "attack_range_ratio": {
+          "bp": 5000,
+          "unit": "ratio"
+        },
         "mode": "DirectionProjectile",
         "projectile_radius": {
           "denominator": 1,
@@ -133,7 +163,192 @@
       }
     },
     {
+      "cooldown_family": "cd_barrage_rant",
+      "draftable": false,
+      "id": "active_barrage_rant",
+      "kind": "active",
+      "native_id": 84,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 3500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "count": 3,
+              "interval": {
+                "ms": 150,
+                "unit": "ms"
+              },
+              "op": "volley",
+              "opcode": 44
+            },
+            {
+              "op": "refresh_debuffs",
+              "opcode": 45
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 7200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "count": 3,
+              "interval": {
+                "ms": 150,
+                "unit": "ms"
+              },
+              "op": "volley",
+              "opcode": 44
+            },
+            {
+              "op": "refresh_debuffs",
+              "opcode": 45
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 6400,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "count": 3,
+              "interval": {
+                "ms": 150,
+                "unit": "ms"
+              },
+              "op": "volley",
+              "opcode": 44
+            },
+            {
+              "op": "refresh_debuffs",
+              "opcode": 45
+            },
+            {
+              "op": "on_hit",
+              "opcode": 46,
+              "scale": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Breach",
+        "BasicAttack"
+      ],
+      "target": {
+        "mode": "DirectionProjectile",
+        "projectile_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "projectile_speed": {
+          "denominator": 1,
+          "numerator": 1800,
+          "unit": "cm/s"
+        },
+        "range": {
+          "denominator": 1,
+          "numerator": 450,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_binding_snare",
+      "draftable": true,
       "id": "active_binding_snare",
       "kind": "active",
       "native_id": 64,
@@ -256,6 +471,14 @@
               },
               "op": "root",
               "opcode": 4
+            },
+            {
+              "op": "vulnerable",
+              "opcode": 57,
+              "ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              }
             }
           ],
           "mana_cost": {
@@ -264,6 +487,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Control",
+        "Breach"
       ],
       "target": {
         "mode": "Unit",
@@ -280,6 +507,7 @@
     },
     {
       "cooldown_family": "cd_body_slam",
+      "draftable": true,
       "id": "active_body_slam",
       "kind": "active",
       "native_id": 80,
@@ -465,6 +693,23 @@
                 "bp": 3000,
                 "unit": "ratio"
               }
+            },
+            {
+              "base": {
+                "p2": 0,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
+              "op": "triggered_shield",
+              "opcode": 31,
+              "trigger": "LandingHit"
             }
           ],
           "mana_cost": {
@@ -473,6 +718,11 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "Tank",
+        "Control"
       ],
       "target": {
         "mode": "GroundPoint",
@@ -488,7 +738,175 @@
       }
     },
     {
+      "cooldown_family": "cd_cancel_blast",
+      "draftable": false,
+      "id": "active_cancel_blast",
+      "kind": "active",
+      "native_id": 85,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 11200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 10500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "debuff_amp",
+              "opcode": 47,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 10400,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 13500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "debuff_amp",
+              "opcode": 47,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 9600,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "op": "debuff_amp",
+              "opcode": 47,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            },
+            {
+              "op": "shield_shatter",
+              "opcode": 48,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            },
+            {
+              "max_hp_ratio": {
+                "bp": 400,
+                "unit": "ratio"
+              },
+              "op": "debuff_heal",
+              "opcode": 49
+            }
+          ],
+          "mana_cost": {
+            "p2": 7000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Control",
+        "Breach"
+      ],
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 500,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_combo_flurry",
+      "draftable": true,
       "id": "active_combo_flurry",
       "kind": "active",
       "native_id": 70,
@@ -566,6 +984,20 @@
                   "unit": "ratio"
                 }
               }
+            },
+            {
+              "cooldown": {
+                "ms": 400,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "entries": "OtherActives",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "trigger": "BasicHit"
             }
           ],
           "mana_cost": {
@@ -574,6 +1006,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "BasicAttack",
+        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -585,6 +1021,7 @@
     },
     {
       "cooldown_family": "cd_come_here",
+      "draftable": true,
       "id": "active_come_here",
       "kind": "active",
       "native_id": 81,
@@ -713,6 +1150,29 @@
                   "unit": "points"
                 }
               }
+            },
+            {
+              "armor_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hits": 6,
+              "op": "taunt_retaliate",
+              "opcode": 30,
+              "per_hit": {
+                "p2": 2500,
+                "unit": "points"
+              },
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
             }
           ],
           "mana_cost": {
@@ -721,6 +1181,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Control",
+        "Tank"
       ],
       "target": {
         "mode": "Self"
@@ -731,7 +1195,167 @@
       }
     },
     {
+      "cooldown_family": "cd_expose_post",
+      "draftable": false,
+      "id": "active_expose_post",
+      "kind": "active",
+      "native_id": 83,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 9600,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 3600,
+                "unit": "points"
+              },
+              "count": 3,
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "dot",
+              "opcode": 42,
+              "shred": {
+                "p2": 600,
+                "unit": "points"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 8800,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4600,
+                "unit": "points"
+              },
+              "count": 3,
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "dot",
+              "opcode": 42,
+              "shred": {
+                "p2": 600,
+                "unit": "points"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 8000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5600,
+                "unit": "points"
+              },
+              "count": 3,
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "dot",
+              "opcode": 42,
+              "shred": {
+                "p2": 600,
+                "unit": "points"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 6000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "mobility_punish",
+              "opcode": 43
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Breach",
+        "Control"
+      ],
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 550,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_fart_dash",
+      "draftable": true,
       "id": "active_fart_dash",
       "kind": "active",
       "native_id": 69,
@@ -932,6 +1556,53 @@
                 "bp": 3000,
                 "unit": "ratio"
               }
+            },
+            {
+              "count": 3,
+              "delay": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "zone",
+              "opcode": 50,
+              "radius": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              }
+            },
+            {
+              "ad_ratio": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "zone_damage",
+              "opcode": 54
+            },
+            {
+              "op": "on_hit",
+              "opcode": 46,
+              "scale": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
             }
           ],
           "mana_cost": {
@@ -940,6 +1611,11 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "Control",
+        "Breach"
       ],
       "target": {
         "mode": "DirectionDash"
@@ -951,6 +1627,7 @@
     },
     {
       "cooldown_family": "cd_guard_pulse",
+      "draftable": true,
       "id": "active_guard_pulse",
       "kind": "active",
       "native_id": 63,
@@ -974,12 +1651,20 @@
                 "ms": 2500,
                 "unit": "ms"
               },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
               "op": "shield",
               "opcode": 2
             },
             {
               "op": "dispel_root",
               "opcode": 3
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
             }
           ],
           "mana_cost": {
@@ -1007,12 +1692,20 @@
                 "ms": 2500,
                 "unit": "ms"
               },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
               "op": "shield",
               "opcode": 2
             },
             {
               "op": "dispel_root",
               "opcode": 3
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
             }
           ],
           "mana_cost": {
@@ -1036,9 +1729,17 @@
                 "p2": 22000,
                 "unit": "hp"
               },
+              "cleanse_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
+              },
               "duration": {
                 "ms": 2500,
                 "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
               },
               "op": "shield",
               "opcode": 2
@@ -1046,6 +1747,20 @@
             {
               "op": "dispel_root",
               "opcode": 3
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
+            },
+            {
+              "entries": "Self",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "trigger": "Cleanse"
             }
           ],
           "mana_cost": {
@@ -1054,6 +1769,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Shield",
+        "Control"
       ],
       "target": {
         "mode": "Self"
@@ -1065,6 +1784,7 @@
     },
     {
       "cooldown_family": "cd_lunge",
+      "draftable": true,
       "id": "active_lunge",
       "kind": "active",
       "native_id": 78,
@@ -1202,6 +1922,33 @@
               },
               "op": "empower_basic",
               "opcode": 22
+            },
+            {
+              "cooldown": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "entries": "Self",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "trigger": "EmpowerHit"
+            },
+            {
+              "duration": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "half_width": {
+                "denominator": 1,
+                "numerator": 80,
+                "unit": "cm"
+              },
+              "op": "path_slow",
+              "opcode": 38,
+              "ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              }
             }
           ],
           "mana_cost": {
@@ -1210,6 +1957,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
       ],
       "target": {
         "mode": "DirectionDash"
@@ -1221,6 +1972,7 @@
     },
     {
       "cooldown_family": "cd_monkey_peach",
+      "draftable": true,
       "id": "active_monkey_peach",
       "kind": "active",
       "native_id": 76,
@@ -1259,6 +2011,16 @@
               },
               "op": "disarm",
               "opcode": 20
+            },
+            {
+              "entries": "Basic",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "ratio": {
+                "bp": 10000,
+                "unit": "ratio"
+              },
+              "trigger": "Release"
             }
           ],
           "mana_cost": {
@@ -1301,6 +2063,16 @@
               },
               "op": "disarm",
               "opcode": 20
+            },
+            {
+              "entries": "Basic",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "ratio": {
+                "bp": 10000,
+                "unit": "ratio"
+              },
+              "trigger": "Release"
             }
           ],
           "mana_cost": {
@@ -1343,6 +2115,21 @@
               },
               "op": "disarm",
               "opcode": 20
+            },
+            {
+              "entries": "Basic",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "ratio": {
+                "bp": 10000,
+                "unit": "ratio"
+              },
+              "trigger": "Release"
+            },
+            {
+              "mode": "Impaired",
+              "op": "ability_crit",
+              "opcode": 27
             }
           ],
           "mana_cost": {
@@ -1351,6 +2138,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "BasicAttack",
+        "Control"
       ],
       "target": {
         "mode": "Unit",
@@ -1366,7 +2157,469 @@
       }
     },
     {
+      "cooldown_family": "cd_pie_chart",
+      "draftable": false,
+      "id": "active_pie_chart",
+      "kind": "active",
+      "native_id": 86,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 16000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "delay": {
+                "ms": 0,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "zone",
+              "opcode": 50,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "zone_shield",
+              "opcode": 51
+            },
+            {
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "linger": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "zone_slow",
+              "opcode": 52,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 15000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "delay": {
+                "ms": 0,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "zone",
+              "opcode": 50,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5500,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "zone_shield",
+              "opcode": 51
+            },
+            {
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "linger": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "zone_slow",
+              "opcode": 52,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 14000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "count": 3,
+              "delay": {
+                "ms": 0,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "zone",
+              "opcode": 50,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 7000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "zone_shield",
+              "opcode": 51
+            },
+            {
+              "interval": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "linger": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "op": "zone_slow",
+              "opcode": 52,
+              "ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              }
+            },
+            {
+              "duration": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "op": "zone_root",
+              "opcode": 53
+            }
+          ],
+          "mana_cost": {
+            "p2": 7000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Shield",
+        "Control"
+      ],
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 600,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown_family": "cd_porcelain_flop",
+      "draftable": false,
+      "id": "active_porcelain_flop",
+      "kind": "active",
+      "native_id": 82,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 16000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "damage_guard",
+              "opcode": 55,
+              "ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "trigger_damage": {
+                "p2": 8000,
+                "unit": "points"
+              }
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "slow",
+              "opcode": 12,
+              "ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 6000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            }
+          ],
+          "mana_cost": {
+            "p2": 5000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 14000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "damage_guard",
+              "opcode": 55,
+              "ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "trigger_damage": {
+                "p2": 8000,
+                "unit": "points"
+              }
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "slow",
+              "opcode": 12,
+              "ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 9000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            }
+          ],
+          "mana_cost": {
+            "p2": 5500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 12000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "damage_guard",
+              "opcode": 55,
+              "ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "trigger_damage": {
+                "p2": 8000,
+                "unit": "points"
+              }
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              }
+            },
+            {
+              "duration": {
+                "ms": 800,
+                "unit": "ms"
+              },
+              "op": "stun",
+              "opcode": 21
+            },
+            {
+              "ap_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 12000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 500,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Tank",
+        "Control",
+        "Shield"
+      ],
+      "target": {
+        "mode": "Self"
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_slick_moves",
+      "draftable": true,
       "id": "active_slick_moves",
       "kind": "active",
       "native_id": 71,
@@ -1385,6 +2638,11 @@
               "op": "timed_stat_bonus",
               "opcode": 13,
               "stats": {
+                "AttackRangeCmFlat": {
+                  "denominator": 1,
+                  "numerator": 60,
+                  "unit": "cm"
+                },
                 "MoveSpeedBonusRatio": {
                   "bp": 3000,
                   "unit": "ratio"
@@ -1412,6 +2670,11 @@
               "op": "timed_stat_bonus",
               "opcode": 13,
               "stats": {
+                "AttackRangeCmFlat": {
+                  "denominator": 1,
+                  "numerator": 60,
+                  "unit": "cm"
+                },
                 "MoveSpeedBonusRatio": {
                   "bp": 4000,
                   "unit": "ratio"
@@ -1439,10 +2702,39 @@
               "op": "timed_stat_bonus",
               "opcode": 13,
               "stats": {
+                "AttackRangeCmFlat": {
+                  "denominator": 1,
+                  "numerator": 60,
+                  "unit": "cm"
+                },
                 "MoveSpeedBonusRatio": {
                   "bp": 5000,
                   "unit": "ratio"
                 }
+              }
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
+            },
+            {
+              "base": {
+                "p2": 500,
+                "unit": "points"
+              },
+              "cap": {
+                "p2": 10000,
+                "unit": "points"
+              },
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "momentum",
+              "opcode": 29,
+              "window": {
+                "ms": 3000,
+                "unit": "ms"
               }
             }
           ],
@@ -1452,6 +2744,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
@@ -1463,6 +2759,7 @@
     },
     {
       "cooldown_family": "cd_slipper_throw",
+      "draftable": true,
       "id": "active_slipper_throw",
       "kind": "active",
       "native_id": 68,
@@ -1596,6 +2893,10 @@
               "ratio": {
                 "bp": 3500,
                 "unit": "ratio"
+              },
+              "vamp": {
+                "bp": 1500,
+                "unit": "ratio"
               }
             }
           ],
@@ -1605,6 +2906,10 @@
           },
           "rank": 3
         }
+      ],
+      "tags": [
+        "Control",
+        "BasicAttack"
       ],
       "target": {
         "mode": "Unit",
@@ -1620,7 +2925,218 @@
       }
     },
     {
+      "cooldown_family": "cd_table_flip",
+      "draftable": false,
+      "id": "active_table_flip",
+      "kind": "active",
+      "native_id": 87,
+      "ranks": [
+        {
+          "cooldown": {
+            "ms": 12800,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 5000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 400,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              }
+            },
+            {
+              "base": {
+                "p2": 5000,
+                "unit": "points"
+              },
+              "cap": {
+                "p2": 30000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "shield_burst",
+              "opcode": 56,
+              "shield_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        {
+          "cooldown": {
+            "ms": 12000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 6500,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 400,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              }
+            },
+            {
+              "base": {
+                "p2": 6000,
+                "unit": "points"
+              },
+              "cap": {
+                "p2": 30000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "shield_burst",
+              "opcode": 56,
+              "shield_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 6500,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        {
+          "cooldown": {
+            "ms": 11200,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 8000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 400,
+                "unit": "ratio"
+              },
+              "op": "shield",
+              "opcode": 2
+            },
+            {
+              "op": "self_area",
+              "opcode": 14,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              }
+            },
+            {
+              "base": {
+                "p2": 7000,
+                "unit": "points"
+              },
+              "cap": {
+                "p2": 30000,
+                "unit": "points"
+              },
+              "damage_type": "Physical",
+              "op": "shield_burst",
+              "opcode": 56,
+              "shield_ratio": {
+                "bp": 12000,
+                "unit": "ratio"
+              }
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 160,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "knockback",
+              "opcode": 40
+            }
+          ],
+          "mana_cost": {
+            "p2": 7000,
+            "unit": "mp"
+          },
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Shield",
+        "Mobility"
+      ],
+      "target": {
+        "mode": "Self"
+      },
+      "windup": {
+        "ms": 0,
+        "unit": "ms"
+      }
+    },
+    {
       "cooldown_family": "cd_thousand_year",
+      "draftable": true,
       "id": "active_thousand_year",
       "kind": "active",
       "native_id": 77,
@@ -1749,6 +3265,7 @@
                 "ms": 800,
                 "unit": "ms"
               },
+              "impaired": true,
               "op": "backstab",
               "opcode": 25,
               "ratio": {
@@ -1764,6 +3281,10 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Control",
+        "Mobility"
+      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -1778,6 +3299,7 @@
       }
     },
     {
+      "draftable": true,
       "id": "passive_battle_rhythm",
       "kind": "passive",
       "native_id": 65,
@@ -1789,28 +3311,28 @@
               "opcode": 5,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 800,
+                  "bp": 1200,
+                  "unit": "ratio"
+                }
+              }
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "basic_stacks",
+              "opcode": 32,
+              "stats": {
+                "MoveSpeedBonusRatio": {
+                  "bp": 400,
                   "unit": "ratio"
                 }
               }
             }
           ],
           "rank": 1
-        },
-        {
-          "effects": [
-            {
-              "op": "stat_bonus",
-              "opcode": 5,
-              "stats": {
-                "AttackSpeedBonusRatio": {
-                  "bp": 1400,
-                  "unit": "ratio"
-                }
-              }
-            }
-          ],
-          "rank": 2
         },
         {
           "effects": [
@@ -1823,16 +3345,70 @@
                   "unit": "ratio"
                 }
               }
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "basic_stacks",
+              "opcode": 32,
+              "stats": {
+                "MoveSpeedBonusRatio": {
+                  "bp": 400,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "op": "stat_bonus",
+              "opcode": 5,
+              "stats": {
+                "AttackSpeedBonusRatio": {
+                  "bp": 2800,
+                  "unit": "ratio"
+                }
+              }
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "basic_stacks",
+              "opcode": 32,
+              "stats": {
+                "MoveSpeedBonusRatio": {
+                  "bp": 400,
+                  "unit": "ratio"
+                }
+              },
+              "windup_reduction": {
+                "bp": 2000,
+                "unit": "ratio"
+              }
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "BasicAttack",
+        "Mobility"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_cornered",
       "kind": "passive",
       "native_id": 72,
@@ -1840,11 +3416,15 @@
         {
           "effects": [
             {
+              "omnivamp": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
               "op": "low_hp_stat_bonus",
               "opcode": 15,
               "stats": {
                 "ADBonusRatio": {
-                  "bp": 1000,
+                  "bp": 1200,
                   "unit": "ratio"
                 }
               },
@@ -1859,11 +3439,15 @@
         {
           "effects": [
             {
+              "omnivamp": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
               "op": "low_hp_stat_bonus",
               "opcode": 15,
               "stats": {
                 "ADBonusRatio": {
-                  "bp": 1600,
+                  "bp": 1800,
                   "unit": "ratio"
                 }
               },
@@ -1878,11 +3462,15 @@
         {
           "effects": [
             {
+              "omnivamp": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
               "op": "low_hp_stat_bonus",
               "opcode": 15,
               "stats": {
                 "ADBonusRatio": {
-                  "bp": 2200,
+                  "bp": 2400,
                   "unit": "ratio"
                 }
               },
@@ -1890,16 +3478,178 @@
                 "bp": 5000,
                 "unit": "ratio"
               }
+            },
+            {
+              "base": {
+                "p2": 15000,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "interval": {
+                "ms": 20000,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "triggered_shield",
+              "opcode": 31,
+              "threshold": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "trigger": "LowHP"
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Tank",
+        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
+      "id": "passive_dox_master",
+      "kind": "passive",
+      "native_id": 88,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 400,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "heal_cut": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "breach_stacks",
+              "opcode": 61,
+              "shred": {
+                "p2": 400,
+                "unit": "points"
+              }
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 600,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "heal_cut": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "breach_stacks",
+              "opcode": 61,
+              "shred": {
+                "p2": 600,
+                "unit": "points"
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 300,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 800,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "heal_cut": {
+                "bp": 3500,
+                "unit": "ratio"
+              },
+              "interval": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "max_stacks": 3,
+              "op": "breach_stacks",
+              "opcode": 61,
+              "shred": {
+                "p2": 800,
+                "unit": "points"
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "BasicAttack",
+        "Breach"
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "draftable": true,
       "id": "passive_eagle_eye",
       "kind": "passive",
       "native_id": 75,
@@ -1915,6 +3665,18 @@
                   "numerator": 80,
                   "unit": "cm"
                 }
+              }
+            },
+            {
+              "cap": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "op": "long_reach",
+              "opcode": 33,
+              "ratio": {
+                "bp": 250,
+                "unit": "ratio"
               }
             }
           ],
@@ -1932,6 +3694,18 @@
                   "unit": "cm"
                 }
               }
+            },
+            {
+              "cap": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "op": "long_reach",
+              "opcode": 33,
+              "ratio": {
+                "bp": 250,
+                "unit": "ratio"
+              }
             }
           ],
           "rank": 2
@@ -1948,16 +3722,38 @@
                   "unit": "cm"
                 }
               }
+            },
+            {
+              "cap": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "cast_range": {
+                "denominator": 1,
+                "numerator": 80,
+                "unit": "cm"
+              },
+              "op": "long_reach",
+              "opcode": 33,
+              "ratio": {
+                "bp": 250,
+                "unit": "ratio"
+              }
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_iron_crotch",
       "kind": "passive",
       "native_id": 79,
@@ -1981,6 +3777,10 @@
               "interval": {
                 "ms": 500,
                 "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 150,
+                "unit": "ratio"
               },
               "op": "thorns",
               "opcode": 24,
@@ -2015,6 +3815,10 @@
                 "ms": 500,
                 "unit": "ms"
               },
+              "max_hp_ratio": {
+                "bp": 150,
+                "unit": "ratio"
+              },
               "op": "thorns",
               "opcode": 24,
               "radius": {
@@ -2039,6 +3843,14 @@
                 "p2": 3000,
                 "unit": "points"
               },
+              "cripple_duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "cripple_ratio": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
               "critical_multiplier": {
                 "bp": 20000,
                 "unit": "ratio"
@@ -2047,6 +3859,10 @@
               "interval": {
                 "ms": 500,
                 "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 150,
+                "unit": "ratio"
               },
               "op": "thorns",
               "opcode": 24,
@@ -2062,11 +3878,104 @@
           "rank": 3
         }
       ],
+      "tags": [
+        "Tank",
+        "Control"
+      ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
+      "id": "passive_keyboard_warrior",
+      "kind": "passive",
+      "native_id": 91,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "basic_rider",
+              "opcode": 64
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 1000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "basic_rider",
+              "opcode": 64
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "ap_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 1500,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "op": "basic_rider",
+              "opcode": 64
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "cast_frenzy",
+              "opcode": 65,
+              "stats": {
+                "AttackRangeCmFlat": {
+                  "denominator": 1,
+                  "numerator": 50,
+                  "unit": "cm"
+                },
+                "AttackSpeedBonusRatio": {
+                  "bp": 2500,
+                  "unit": "ratio"
+                }
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Breach",
+        "BasicAttack"
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "draftable": true,
       "id": "passive_lurking",
       "kind": "passive",
       "native_id": 73,
@@ -2087,6 +3996,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "dash_credit": {
+                "ms": 2000,
+                "unit": "ms"
+              },
               "delay": {
                 "ms": 4000,
                 "unit": "ms"
@@ -2113,6 +4026,10 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "dash_credit": {
+                "ms": 2000,
+                "unit": "ms"
+              },
               "delay": {
                 "ms": 4000,
                 "unit": "ms"
@@ -2139,22 +4056,183 @@
                 "unit": "points"
               },
               "damage_type": "Magical",
+              "dash_credit": {
+                "ms": 2000,
+                "unit": "ms"
+              },
               "delay": {
                 "ms": 4000,
                 "unit": "ms"
               },
               "op": "ambush_damage",
-              "opcode": 16
+              "opcode": 16,
+              "shred_duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "shred_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              }
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Mobility",
+        "Breach"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
+      "id": "passive_mental_gymnastics",
+      "kind": "passive",
+      "native_id": 90,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 3000,
+                "unit": "points"
+              },
+              "cooldown_cut": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "damage_type": "Magical",
+              "internal_cooldown": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "shield_pulse",
+              "opcode": 63,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              },
+              "slow": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "slow_duration": {
+                "ms": 0,
+                "unit": "ms"
+              }
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 4500,
+                "unit": "points"
+              },
+              "cooldown_cut": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "damage_type": "Magical",
+              "internal_cooldown": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "shield_pulse",
+              "opcode": 63,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              },
+              "slow": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "slow_duration": {
+                "ms": 0,
+                "unit": "ms"
+              }
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 1500,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 2500,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 6000,
+                "unit": "points"
+              },
+              "cooldown_cut": {
+                "ms": 1000,
+                "unit": "ms"
+              },
+              "damage_type": "Magical",
+              "internal_cooldown": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "shield_pulse",
+              "opcode": 63,
+              "radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              },
+              "slow": {
+                "bp": 2000,
+                "unit": "ratio"
+              },
+              "slow_duration": {
+                "ms": 1000,
+                "unit": "ms"
+              }
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Shield",
+        "Breach"
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "draftable": true,
       "id": "passive_precision",
       "kind": "passive",
       "native_id": 67,
@@ -2170,6 +4248,16 @@
                   "unit": "ratio"
                 }
               }
+            },
+            {
+              "cooldown": {
+                "ms": 800,
+                "unit": "ms"
+              },
+              "entries": "Actives",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "trigger": "BasicCrit"
             }
           ],
           "rank": 1
@@ -2185,6 +4273,16 @@
                   "unit": "ratio"
                 }
               }
+            },
+            {
+              "cooldown": {
+                "ms": 800,
+                "unit": "ms"
+              },
+              "entries": "Actives",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "trigger": "BasicCrit"
             }
           ],
           "rank": 2
@@ -2200,16 +4298,46 @@
                   "unit": "ratio"
                 }
               }
+            },
+            {
+              "cooldown": {
+                "ms": 800,
+                "unit": "ms"
+              },
+              "entries": "Actives",
+              "op": "cooldown_refund",
+              "opcode": 26,
+              "trigger": "BasicCrit"
+            },
+            {
+              "abilities": [
+                "active_monkey_peach",
+                "active_slipper_throw",
+                "active_binding_snare",
+                "active_thousand_year"
+              ],
+              "mode": "Chance",
+              "op": "ability_crit",
+              "opcode": 27,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "BasicAttack",
+        "Breach"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_public_shame",
       "kind": "passive",
       "native_id": 74,
@@ -2217,10 +4345,6 @@
         {
           "effects": [
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
               "op": "control_damage_amp",
               "opcode": 17,
               "ratio": {
@@ -2234,14 +4358,10 @@
         {
           "effects": [
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
               "op": "control_damage_amp",
               "opcode": 17,
               "ratio": {
-                "bp": 1200,
+                "bp": 1300,
                 "unit": "ratio"
               }
             }
@@ -2251,26 +4371,36 @@
         {
           "effects": [
             {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
               "op": "control_damage_amp",
               "opcode": 17,
               "ratio": {
-                "bp": 1600,
+                "bp": 1800,
                 "unit": "ratio"
               }
+            },
+            {
+              "mana": {
+                "p2": 1200,
+                "unit": "mp"
+              },
+              "op": "mana_on_hit",
+              "opcode": 36,
+              "trigger": "Control"
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Control",
+        "Breach"
       ],
       "target": {
         "mode": "Self"
       }
     },
     {
+      "draftable": true,
       "id": "passive_second_wind",
       "kind": "passive",
       "native_id": 66,
@@ -2282,12 +4412,19 @@
                 "ms": 6000,
                 "unit": "ms"
               },
+              "max_hp_ratio": {
+                "bp": 80,
+                "unit": "ratio"
+              },
               "op": "out_of_combat_regen",
               "opcode": 6,
-              "rate": {
-                "denominator": 1,
-                "numerator": 3,
-                "unit": "hp/s"
+              "surge_duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "surge_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
               }
             }
           ],
@@ -2300,12 +4437,19 @@
                 "ms": 6000,
                 "unit": "ms"
               },
+              "max_hp_ratio": {
+                "bp": 120,
+                "unit": "ratio"
+              },
               "op": "out_of_combat_regen",
               "opcode": 6,
-              "rate": {
-                "denominator": 1,
-                "numerator": 5,
-                "unit": "hp/s"
+              "surge_duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "surge_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
               }
             }
           ],
@@ -2318,17 +4462,135 @@
                 "ms": 6000,
                 "unit": "ms"
               },
+              "in_combat_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "max_hp_ratio": {
+                "bp": 160,
+                "unit": "ratio"
+              },
               "op": "out_of_combat_regen",
               "opcode": 6,
-              "rate": {
-                "denominator": 1,
-                "numerator": 7,
-                "unit": "hp/s"
+              "surge_duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "surge_multiplier": {
+                "bp": 20000,
+                "unit": "ratio"
               }
             }
           ],
           "rank": 3
         }
+      ],
+      "tags": [
+        "Tank",
+        "Breach"
+      ],
+      "target": {
+        "mode": "Self"
+      }
+    },
+    {
+      "draftable": true,
+      "id": "passive_thick_skin",
+      "kind": "passive",
+      "native_id": 89,
+      "ranks": [
+        {
+          "effects": [
+            {
+              "base": {
+                "p2": 4500,
+                "unit": "hp"
+              },
+              "bonus_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "bonus_window": {
+                "ms": 0,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "internal_cooldown": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "op": "mobility_shield",
+              "opcode": 62
+            }
+          ],
+          "rank": 1
+        },
+        {
+          "effects": [
+            {
+              "base": {
+                "p2": 7000,
+                "unit": "hp"
+              },
+              "bonus_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "bonus_window": {
+                "ms": 0,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "internal_cooldown": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "op": "mobility_shield",
+              "opcode": 62
+            }
+          ],
+          "rank": 2
+        },
+        {
+          "effects": [
+            {
+              "base": {
+                "p2": 9500,
+                "unit": "hp"
+              },
+              "bonus_ratio": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "bonus_window": {
+                "ms": 2000,
+                "unit": "ms"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "internal_cooldown": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "op": "mobility_shield",
+              "opcode": 62
+            }
+          ],
+          "rank": 3
+        }
+      ],
+      "tags": [
+        "Mobility",
+        "Control",
+        "Shield"
       ],
       "target": {
         "mode": "Self"
@@ -2341,7 +4603,43 @@
       "native_id": 2,
       "stats": {
         "APFlat": {
-          "p2": 1600,
+          "p2": 1500,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 800,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "id": "attr_focus_as",
+      "native_id": 8,
+      "stats": {
+        "APFlat": {
+          "p2": 1400,
+          "unit": "points"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 800,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "id": "attr_focus_defense",
+      "native_id": 9,
+      "stats": {
+        "APFlat": {
+          "p2": 1400,
+          "unit": "points"
+        },
+        "ArmorFlat": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 800,
           "unit": "points"
         }
       }
@@ -2351,8 +4649,40 @@
       "native_id": 1,
       "stats": {
         "ADFlat": {
+          "p2": 700,
+          "unit": "points"
+        },
+        "CritChanceBonusRatio": {
+          "bp": 500,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "id": "attr_might_haste",
+      "native_id": 7,
+      "stats": {
+        "ADFlat": {
+          "p2": 600,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
           "p2": 800,
           "unit": "points"
+        }
+      }
+    },
+    {
+      "id": "attr_might_hp",
+      "native_id": 6,
+      "stats": {
+        "ADFlat": {
+          "p2": 600,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 5000,
+          "unit": "hp"
         }
       }
     },
@@ -2362,8 +4692,27 @@
       "stats": {
         "AttackRangeCmFlat": {
           "denominator": 1,
-          "numerator": 40,
+          "numerator": 35,
           "unit": "cm"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 600,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "id": "attr_reach_ms",
+      "native_id": 10,
+      "stats": {
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 30,
+          "unit": "cm"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 450,
+          "unit": "ratio"
         }
       }
     },
@@ -2372,12 +4721,34 @@
       "native_id": 4,
       "stats": {
         "ArmorFlat": {
-          "p2": 1000,
+          "p2": 900,
           "unit": "points"
         },
         "MagicResistFlat": {
-          "p2": 1000,
+          "p2": 900,
           "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 4000,
+          "unit": "hp"
+        }
+      }
+    },
+    {
+      "id": "attr_roam_hybrid",
+      "native_id": 11,
+      "stats": {
+        "ADFlat": {
+          "p2": 400,
+          "unit": "points"
+        },
+        "APFlat": {
+          "p2": 800,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 550,
+          "unit": "ratio"
         }
       }
     },
@@ -2385,8 +4756,86 @@
       "id": "attr_vitality",
       "native_id": 3,
       "stats": {
+        "HPRegenFlat": {
+          "denominator": 2,
+          "numerator": 3,
+          "unit": "hp/s"
+        },
         "MaxHPFlat": {
           "p2": 6000,
+          "unit": "hp"
+        },
+        "MaxMPFlat": {
+          "p2": 6000,
+          "unit": "mp"
+        }
+      }
+    },
+    {
+      "id": "attr_wild_brawler",
+      "native_id": 14,
+      "penalties": {
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 30,
+          "unit": "cm"
+        }
+      },
+      "stats": {
+        "AttackSpeedBonusRatio": {
+          "bp": 1400,
+          "unit": "ratio"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 800,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "id": "attr_wild_glass_cannon",
+      "native_id": 12,
+      "penalties": {
+        "MaxHPFlat": {
+          "p2": 5500,
+          "unit": "hp"
+        }
+      },
+      "stats": {
+        "ADFlat": {
+          "p2": 1100,
+          "unit": "points"
+        },
+        "APFlat": {
+          "p2": 2200,
+          "unit": "points"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 800,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "id": "attr_wild_juggernaut",
+      "native_id": 13,
+      "penalties": {
+        "MoveSpeedBonusRatio": {
+          "bp": 400,
+          "unit": "ratio"
+        }
+      },
+      "stats": {
+        "ArmorFlat": {
+          "p2": 1400,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 1400,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 11000,
           "unit": "hp"
         }
       }
@@ -2631,11 +5080,20 @@
   "display": [
     {
       "description_key": "active_arc_bolt.description",
-      "description_text": "朝指定方向甩出一个空酒瓶，直线飞，砸到第一个敌人或障碍就碎；对敌人造成物理超度，能躲开，不会暴击。",
+      "description_text": "朝指定方向甩出一个空酒瓶，直线飞，砸到第一个敌人或障碍就碎；对敌人造成物理超度，能躲开。攻击距离越远扔得越远。满级时砸中的敌人嘴硬降低一段时间。",
       "icon_id": "icon_active_arc_bolt",
       "id": "active_arc_bolt",
       "name_key": "active_arc_bolt.name",
       "name_text": "天外飞瓶",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_barrage_rant.description",
+      "description_text": "朝一个方向连发几句短喷，每句都刷新你挂在目标身上的持续伤害和腿软；满级时每句都能触发命中特效。",
+      "icon_id": "icon_active_barrage_rant",
+      "id": "active_barrage_rant",
+      "name_key": "active_barrage_rant.name",
+      "name_text": "键盘连喷",
       "namespace": "DemoContent"
     },
     {
@@ -2649,7 +5107,7 @@
     },
     {
       "description_key": "active_body_slam.description",
-      "description_text": "跳到指定地点一屁股坐下：落地时对周围的敌人造成物理超度并让其腿软。伤害随力大砖飞和自己的精神状态上限提高，不会暴击。提裤子时跳不起来。",
+      "description_text": "跳到指定地点一屁股坐下：落地时对周围的敌人造成物理超度并让其腿软。伤害随力大砖飞和自己的精神状态上限提高。提裤子时跳不起来。满级时每坐到一个敌人，按精神状态上限获得心理防线。",
       "icon_id": "icon_active_body_slam",
       "id": "active_body_slam",
       "name_key": "active_body_slam.name",
@@ -2657,8 +5115,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_cancel_blast.description",
+      "description_text": "对一个人发出实锤：他身上每有一种负面状态，伤害就更高；满级时先击碎他一部分心理防线，并按状态数回复自己。",
+      "icon_id": "icon_active_cancel_blast",
+      "id": "active_cancel_blast",
+      "name_key": "active_cancel_blast.name",
+      "name_text": "实锤冲塔",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_combo_flurry.description",
-      "description_text": "左右开弓停不下来：短时间内大幅提高手速。",
+      "description_text": "左右开弓停不下来：短时间内大幅提高手速。满级时持续期间每抽中一下大比兜，另一个主动技能的剩余冷却缩短。",
       "icon_id": "icon_active_combo_flurry",
       "id": "active_combo_flurry",
       "name_key": "active_combo_flurry.name",
@@ -2667,11 +5134,20 @@
     },
     {
       "description_key": "active_come_here.description",
-      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被激得「瞅你咋地」，只能追着你抽大比兜，不能放技能、用装备或润；同时短时间内提高自己的嘴硬和心大。",
+      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被激得「瞅你咋地」，只能追着你抽大比兜，不能放技能、用装备或润；同时短时间内提高自己的嘴硬和心大。满级时瞅你咋地结束，按期间挨打的次数对周围造成精神攻击。",
       "icon_id": "icon_active_come_here",
       "id": "active_come_here",
       "name_key": "active_come_here.name",
       "name_text": "你瞅啥",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_expose_post.description",
+      "description_text": "指定一个人挂出小作文：持续造成精神攻击，每跳都让他的嘴硬和心大再降一截；满级时他在此期间位移会再挨一下。",
+      "icon_id": "icon_active_expose_post",
+      "id": "active_expose_post",
+      "name_key": "active_expose_post.name",
+      "name_text": "挂人小作文",
       "namespace": "DemoContent"
     },
     {
@@ -2685,7 +5161,7 @@
     },
     {
       "description_key": "active_guard_pulse.description",
-      "description_text": "嘴上说没事，顺手把裤子提好：给自己加上心理防线，并立刻解除身上所有提裤子。心理防线随阴阳怪气提高。",
+      "description_text": "嘴上说没事，顺手把裤子提好：给自己加上心理防线，并立刻解除身上的提裤子和腿软。心理防线随阴阳怪气和自己的精神状态上限提高。满级时若真解除了提裤子或腿软，心理防线翻倍并返还一部分冷却。",
       "icon_id": "icon_active_guard_pulse",
       "id": "active_guard_pulse",
       "name_key": "active_guard_pulse.name",
@@ -2694,7 +5170,7 @@
     },
     {
       "description_key": "active_lunge.description",
-      "description_text": "朝指定方向滑铲出一段距离，碰到阻挡就停下；之后一段时间内的下一次大比兜额外造成物理超度。提裤子时不能用。",
+      "description_text": "朝指定方向滑铲出一段距离，碰到阻挡就停下；之后一段时间内的下一次大比兜额外造成物理超度，会暴击、吸血和横扫。提裤子时不能用。满级时滑铲路上的敌人腿软，强化大比兜打中后本技能冷却缩短。",
       "icon_id": "icon_active_lunge",
       "id": "active_lunge",
       "name_key": "active_lunge.name",
@@ -2703,7 +5179,7 @@
     },
     {
       "description_key": "active_monkey_peach.description",
-      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理超度并让其捂裆，期间抽不了大比兜，仍可移动、放技能和用装备。伤害随力大砖飞提高，不会暴击。",
+      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理超度并让其捂裆，期间抽不了大比兜，仍可移动、放技能和用装备；出手后马上能抽下一下大比兜。伤害随力大砖飞提高。满级时对方正被控住或破防了，这一掏必定暴击。",
       "icon_id": "icon_active_monkey_peach",
       "id": "active_monkey_peach",
       "name_key": "active_monkey_peach.name",
@@ -2711,8 +5187,26 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_pie_chart.description",
+      "description_text": "在一块地上拉群画饼：你站在里面会反复获得心理防线，敌人在里面腿软；满级时结束那一刻把还在圈里的人提裤子。",
+      "icon_id": "icon_active_pie_chart",
+      "id": "active_pie_chart",
+      "name_key": "active_pie_chart.name",
+      "name_text": "拉群画饼",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_porcelain_flop.description",
+      "description_text": "往地上一躺：短时间内受到的伤害降低；期间挨的打够多就反震周围的人并获得心理防线，满级反震改为让人 CPU 干烧。",
+      "icon_id": "icon_active_porcelain_flop",
+      "id": "active_porcelain_flop",
+      "name_key": "active_porcelain_flop.name",
+      "name_text": "碰瓷倒地",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_slick_moves.description",
-      "description_text": "绕着柱子跑，谁也追不上：短时间内大幅提高润速。",
+      "description_text": "绕着柱子跑，谁也追不上：短时间内大幅提高润速和攻击距离。满级时施放先解除自身腿软，之后一小会儿跑出的路程攒成下一次大比兜的额外物理超度。",
       "icon_id": "icon_active_slick_moves",
       "id": "active_slick_moves",
       "name_key": "active_slick_moves.name",
@@ -2721,7 +5215,7 @@
     },
     {
       "description_key": "active_slipper_throw.description",
-      "description_text": "朝一名看得见的敌人泼一杯珍珠奶茶，必定命中，造成物理超度，黏糊糊的让对方腿软。伤害随力大砖飞提高，不会暴击。",
+      "description_text": "朝一名看得见的敌人泼一杯珍珠奶茶，必定命中，造成物理超度，黏糊糊的让对方腿软。伤害随力大砖飞提高。满级时对方腿软期间，你打他掉的精神状态有一部分回到自己身上。",
       "icon_id": "icon_active_slipper_throw",
       "id": "active_slipper_throw",
       "name_key": "active_slipper_throw.name",
@@ -2729,8 +5223,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_table_flip.description",
+      "description_text": "先获得心理防线，再把当前这层心理防线整个掀出去，伤到周围的人；满级时把周围的人掀飞出去。",
+      "icon_id": "icon_active_table_flip",
+      "id": "active_table_flip",
+      "name_key": "active_table_flip.name",
+      "name_text": "掀桌不干了",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_thousand_year.description",
-      "description_text": "专挑背后下手：对贴身的一名看得见的敌人造成精神攻击，伤害随力大砖飞和阴阳怪气提高，不会暴击。从对方背后出手时伤害更高，并让对方 CPU 干烧了。",
+      "description_text": "专挑背后下手：对贴身的一名看得见的敌人造成精神攻击，伤害随力大砖飞和阴阳怪气提高。从对方背后出手时伤害更高，并让对方 CPU 干烧了。满级时对方提裤子、腿软或瞅你咋地期间也算背后。",
       "icon_id": "icon_active_thousand_year",
       "id": "active_thousand_year",
       "name_key": "active_thousand_year.name",
@@ -2748,7 +5251,7 @@
     },
     {
       "description_key": "attr_focus.description",
-      "description_text": "网上冲浪学来的话术：本局永久提高阴阳怪气。",
+      "description_text": "网上冲浪学来的话术：本局永久提高阴阳怪气和整活频率，可以重复选。",
       "icon_id": "icon_attr_focus",
       "id": "attr_focus",
       "name_key": "attr_focus.name",
@@ -2756,8 +5259,26 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "attr_focus_as.description",
+      "description_text": "打字比说话快：本局永久提高阴阳怪气和手速，可以重复选。",
+      "icon_id": "icon_attr_focus_as",
+      "id": "attr_focus_as",
+      "name_key": "attr_focus_as.name",
+      "name_text": "键盘钢琴家",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_focus_defense.description",
+      "description_text": "心里早骂过了：本局永久提高阴阳怪气、嘴硬和心大，可以重复选。",
+      "icon_id": "icon_attr_focus_defense",
+      "id": "attr_focus_defense",
+      "name_key": "attr_focus_defense.name",
+      "name_text": "表面笑嘻嘻",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "attr_might.description",
-      "description_text": "本局永久提高力大砖飞。",
+      "description_text": "本局永久提高力大砖飞和暴击率，可以重复选。",
       "icon_id": "icon_attr_might",
       "id": "attr_might",
       "name_key": "attr_might.name",
@@ -2765,8 +5286,26 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "attr_might_haste.description",
+      "description_text": "出手又快又狠：本局永久提高力大砖飞和整活频率，可以重复选。",
+      "icon_id": "icon_attr_might_haste",
+      "id": "attr_might_haste",
+      "name_key": "attr_might_haste.name",
+      "name_text": "武德充沛",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_might_hp.description",
+      "description_text": "操场加练：本局永久提高力大砖飞和精神状态上限，可以重复选。",
+      "icon_id": "icon_attr_might_hp",
+      "id": "attr_might_hp",
+      "name_key": "attr_might_hp.name",
+      "name_text": "体育生特训",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "attr_reach.description",
-      "description_text": "伸手就够得着：本局永久提高大比兜的攻击距离。",
+      "description_text": "伸手就够得着：本局永久提高大比兜的攻击距离和手速，可以重复选。",
       "icon_id": "icon_attr_reach",
       "id": "attr_reach",
       "name_key": "attr_reach.name",
@@ -2774,8 +5313,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "attr_reach_ms.description",
+      "description_text": "打一下就跑：本局永久提高大比兜的攻击距离和润速，可以重复选。",
+      "icon_id": "icon_attr_reach_ms",
+      "id": "attr_reach_ms",
+      "name_key": "attr_reach_ms.name",
+      "name_text": "放风筝专家",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "attr_resolve.description",
-      "description_text": "捂住耳朵就不疼：本局永久同时提高嘴硬和心大。",
+      "description_text": "捂住耳朵就不疼：本局永久提高精神状态上限、嘴硬和心大，可以重复选。",
       "icon_id": "icon_attr_resolve",
       "id": "attr_resolve",
       "name_key": "attr_resolve.name",
@@ -2783,12 +5331,48 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "attr_roam_hybrid.description",
+      "description_text": "一天打卡八个点：本局永久提高润速、力大砖飞和阴阳怪气，可以重复选。",
+      "icon_id": "icon_attr_roam_hybrid",
+      "id": "attr_roam_hybrid",
+      "name_key": "attr_roam_hybrid.name",
+      "name_text": "特种兵跑图",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "attr_vitality.description",
-      "description_text": "吃饱了心态就好：本局永久提高精神状态上限，当前精神状态按比例一起涨。",
+      "description_text": "吃饱了心态就好：本局永久提高精神状态上限、电量上限和精神状态回复，当前值按比例一起涨，可以重复选。",
       "icon_id": "icon_attr_vitality",
       "id": "attr_vitality",
       "name_key": "attr_vitality.name",
       "name_text": "V 我 50 吃顿好的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_wild_brawler.description",
+      "description_text": "贴脸输出：本局永久大幅提高手速和润速，但大比兜的攻击距离缩短，可以重复选。",
+      "icon_id": "icon_attr_wild_brawler",
+      "id": "attr_wild_brawler",
+      "name_key": "attr_wild_brawler.name",
+      "name_text": "社交悍匪",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_wild_glass_cannon.description",
+      "description_text": "豁出去了：本局永久大幅提高力大砖飞、阴阳怪气和手速，但精神状态上限降低，可以重复选。",
+      "icon_id": "icon_attr_wild_glass_cannon",
+      "id": "attr_wild_glass_cannon",
+      "name_key": "attr_wild_glass_cannon.name",
+      "name_text": "彻底疯狂",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "attr_wild_juggernaut.description",
+      "description_text": "谁也推不动：本局永久大幅提高精神状态上限、嘴硬和心大，但润速降低，可以重复选。",
+      "icon_id": "icon_attr_wild_juggernaut",
+      "id": "attr_wild_juggernaut",
+      "name_key": "attr_wild_juggernaut.name",
+      "name_text": "半吨重坦",
       "namespace": "DemoContent"
     },
     {
@@ -2809,6 +5393,15 @@
       "name_text": "脆皮大学生",
       "namespace": "DemoContent",
       "portrait_icon_id": "portrait_character_demo"
+    },
+    {
+      "description_key": "damage_guard.description",
+      "description_text": "躺在地上碰瓷：受到的伤害降低，挨的打够多就反震。",
+      "icon_id": "icon_damage_guard",
+      "id": "damage_guard",
+      "name_key": "damage_guard.name",
+      "name_text": "碰瓷中",
+      "namespace": "DemoContent"
     },
     {
       "description_key": "disarm.description",
@@ -2839,11 +5432,20 @@
     },
     {
       "description_key": "exposed.description",
-      "description_text": "丑态被人截图了：刚被控住，一段时间内受到对方的伤害提高。",
+      "description_text": "嘴硬或心大被削了：一段时间内受到的物理超度或精神攻击更高。",
       "icon_id": "icon_exposed",
       "id": "exposed",
       "name_key": "exposed.name",
-      "name_text": "被截图了",
+      "name_text": "破防了",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "heal_cut.description",
+      "description_text": "黑料缠身：受到的治疗和心理防线减少，同类效果只按最狠的算。",
+      "icon_id": "icon_heal_cut",
+      "id": "heal_cut",
+      "name_key": "heal_cut.name",
+      "name_text": "被开盒",
       "namespace": "DemoContent"
     },
     {
@@ -2856,8 +5458,26 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "item_decoy_wig.description",
+      "description_text": "提高力大砖飞和阴阳怪气；主动：解除自己的提裤子和腿软，向后一跳，原地留下假发片诱饵，让周围的人追着诱饵瞅。",
+      "icon_id": "icon_item_decoy_wig",
+      "id": "item_decoy_wig",
+      "name_key": "item_decoy_wig.name",
+      "name_text": "假发片",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_dossier.description",
+      "description_text": "提高阴阳怪气和精神状态上限；主动：对一个人抖黑料，造成精神攻击并让他一段时间内受到的治疗和心理防线减少。",
+      "icon_id": "icon_item_dossier",
+      "id": "item_dossier",
+      "name_key": "item_dossier.name",
+      "name_text": "黑料小本本",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "item_echo_maul.description",
-      "description_text": "提高力大砖飞和攻击距离。被动「一杆清」：大比兜命中时顺带扫到目标附近的其他敌人，造成一部分物理超度。",
+      "description_text": "提高力大砖飞和攻击距离。被动「一杆清」：大比兜命中时顺带扫到目标附近的其他敌人，造成主击一部分的物理超度。",
       "icon_id": "icon_item_echo_maul",
       "id": "item_echo_maul",
       "name_key": "item_echo_maul.name",
@@ -2866,7 +5486,7 @@
     },
     {
       "description_key": "item_edge_blade.description",
-      "description_text": "提高力大砖飞和手速。",
+      "description_text": "提高力大砖飞和手速。被动：每第几下大比兜额外造成物理超度。",
       "icon_id": "icon_item_edge_blade",
       "id": "item_edge_blade",
       "name_key": "item_edge_blade.name",
@@ -2874,8 +5494,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "item_energy_drink.description",
+      "description_text": "提高整活频率和手速；主动：两个技能里冷却快好的那个立即就绪。",
+      "icon_id": "icon_item_energy_drink",
+      "id": "item_energy_drink",
+      "name_key": "item_energy_drink.name",
+      "name_text": "红牛",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "item_iron_plate.description",
-      "description_text": "提高精神状态上限和嘴硬。",
+      "description_text": "提高精神状态上限和嘴硬。被动：受到的暴击伤害降低。",
       "icon_id": "icon_item_iron_plate",
       "id": "item_iron_plate",
       "name_key": "item_iron_plate.name",
@@ -2883,8 +5512,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "item_megaphone.description",
+      "description_text": "提高阴阳怪气和整活频率；你造成的持续伤害更高，施加的腿软更狠。",
+      "icon_id": "icon_item_megaphone",
+      "id": "item_megaphone",
+      "name_key": "item_megaphone.name",
+      "name_text": "大喇叭",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "item_nail_uniform.description",
-      "description_text": "提高精神状态上限和嘴硬。被动「扎心了老铁」：被近处敌人的大比兜打中时，让对方受到精神攻击，随嘴硬提高；同一人短时间内只触发一次。",
+      "description_text": "提高精神状态上限和嘴硬。被动「扎心了老铁」：被近处敌人的大比兜打中时，让对方受到精神攻击，随嘴硬和精神状态上限提高；同一人短时间内只触发一次。",
       "icon_id": "icon_item_nail_uniform",
       "id": "item_nail_uniform",
       "name_key": "item_nail_uniform.name",
@@ -2893,7 +5531,7 @@
     },
     {
       "description_key": "item_paper_box.description",
-      "description_text": "提高阴阳怪气和润速。主动「泯然众人」：混进人群查无此人一小会儿，润速略降；离得很近的敌人仍能认出你，抽大比兜、放技能、用装备或挨打都会现身。",
+      "description_text": "提高阴阳怪气和润速。主动「泯然众人」：混进人群查无此人一小会儿，润速略降，潜水党立刻就绪；离得很近的敌人仍能认出你，抽大比兜、放技能、用装备或挨打都会现身。",
       "icon_id": "icon_item_paper_box",
       "id": "item_paper_box",
       "name_key": "item_paper_box.name",
@@ -2902,7 +5540,7 @@
     },
     {
       "description_key": "item_phase_anchor.description",
-      "description_text": "提高润速。被动「说润就润」：带着时润的冷却缩短、润得更远；两本同款只算一次。",
+      "description_text": "提高润速。被动「说润就润」：带着时润的冷却缩短、润得更远；带冲刺或跳跃的技能和装备主动也冲得更远、冷却更短。两本同款只算一次。",
       "icon_id": "icon_item_phase_anchor",
       "id": "item_phase_anchor",
       "name_key": "item_phase_anchor.name",
@@ -2910,8 +5548,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "item_privacy_screen.description",
+      "description_text": "提高精神状态上限和阴阳怪气；心理防线被打破时，对打破者造成精神攻击并让他腿软。",
+      "icon_id": "icon_item_privacy_screen",
+      "id": "item_privacy_screen",
+      "name_key": "item_privacy_screen.name",
+      "name_text": "防窥膜",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "item_runic_focus.description",
-      "description_text": "键盘侠专用：提高阴阳怪气和整活频率。",
+      "description_text": "键盘侠专用：提高阴阳怪气和整活频率。被动：技能命中时回一点电量，每次施放一次。",
       "icon_id": "icon_item_runic_focus",
       "id": "item_runic_focus",
       "name_key": "item_runic_focus.name",
@@ -2920,11 +5567,20 @@
     },
     {
       "description_key": "item_siphon_emblem.description",
-      "description_text": "提高力大砖飞和心大。被动「回本」：大比兜让对方实际掉的精神状态，按比例回到自己身上。",
+      "description_text": "提高力大砖飞和心大。被动「回本」：大比兜（含强化大比兜）让对方实际掉的精神状态，按比例回到自己身上。",
       "icon_id": "icon_item_siphon_emblem",
       "id": "item_siphon_emblem",
       "name_key": "item_siphon_emblem.name",
       "name_text": "大金链子",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "item_skateboard.description",
+      "description_text": "提高力大砖飞和润速；大比兜打中人后短时间内润得更快。",
+      "icon_id": "icon_item_skateboard",
+      "id": "item_skateboard",
+      "name_key": "item_skateboard.name",
+      "name_text": "滑板鞋",
       "namespace": "DemoContent"
     },
     {
@@ -2934,6 +5590,15 @@
       "id": "item_slingshot",
       "name_key": "item_slingshot.name",
       "name_text": "大号滋水枪",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "knockback.description",
+      "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、润、抽大比兜、放技能和用装备。",
+      "icon_id": "icon_knockback",
+      "id": "knockback",
+      "name_key": "knockback.name",
+      "name_text": "被掀飞",
       "namespace": "DemoContent"
     },
     {
@@ -2956,7 +5621,7 @@
     },
     {
       "description_key": "passive_battle_rhythm.description",
-      "description_text": "抢过演唱会门票的手：学会后持续提高手速。",
+      "description_text": "抢过演唱会门票的手：学会后持续提高手速；每抽一下大比兜短暂提高润速，可叠几层。满级时叠满后大比兜出手更快。",
       "icon_id": "icon_passive_battle_rhythm",
       "id": "passive_battle_rhythm",
       "name_key": "passive_battle_rhythm.name",
@@ -2965,7 +5630,7 @@
     },
     {
       "description_key": "passive_cornered.description",
-      "description_text": "急眼了劲更大：精神状态低于一定比例时，力大砖飞按比例提高；精神状态回升后恢复。",
+      "description_text": "急眼了劲更大：精神状态低于一定比例时，力大砖飞按比例提高，造成的伤害按比例回到自己身上；精神状态回升后恢复。满级时跌破更低比例时获得心理防线，有内置冷却。",
       "icon_id": "icon_passive_cornered",
       "id": "passive_cornered",
       "name_key": "passive_cornered.name",
@@ -2973,8 +5638,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "passive_dox_master.description",
+      "description_text": "大比兜和伤害技能打中人时给他叠上破防：持续掉精神状态，嘴硬和心大降低；满级时叠满的人受到的治疗和心理防线减少。",
+      "icon_id": "icon_passive_dox_master",
+      "id": "passive_dox_master",
+      "name_key": "passive_dox_master.name",
+      "name_text": "开盒大师",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "passive_eagle_eye.description",
-      "description_text": "顺着网线就能打到你：学会后提高大比兜的攻击距离。",
+      "description_text": "顺着网线就能打到你：学会后提高大比兜的攻击距离；离目标越远，你对他的伤害越高，有上限。满级时扔东西和指向技能的距离也变远。",
       "icon_id": "icon_passive_eagle_eye",
       "id": "passive_eagle_eye",
       "name_key": "passive_eagle_eye.name",
@@ -2983,7 +5657,7 @@
     },
     {
       "description_key": "passive_iron_crotch.description",
-      "description_text": "掏蛋流的天敌：被近处敌人的大比兜或技能打中时，让对方受到精神攻击，随嘴硬提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。",
+      "description_text": "专治手欠：被近处敌人的大比兜或技能打中时，让对方受到精神攻击，随嘴硬和精神状态上限提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。满级时反伤让对方手速和润速短暂降低。",
       "icon_id": "icon_passive_iron_crotch",
       "id": "passive_iron_crotch",
       "name_key": "passive_iron_crotch.name",
@@ -2991,8 +5665,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "passive_keyboard_warrior.description",
+      "description_text": "每次大比兜额外附带一次精神攻击；满级时放完技能后一段时间内手速和攻击距离提高。",
+      "icon_id": "icon_passive_keyboard_warrior",
+      "id": "passive_keyboard_warrior",
+      "name_key": "passive_keyboard_warrior.name",
+      "name_text": "阴阳大师",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "passive_lurking.description",
-      "description_text": "潜水够久，冒泡第一下最疼：脱离战斗一段时间后，下一次大比兜或伤害技能额外造成精神攻击。伤害随力大砖飞和阴阳怪气提高。",
+      "description_text": "潜水够久，冒泡第一下最疼：脱离战斗一段时间后，下一次大比兜或伤害技能额外造成精神攻击；每次润或跳都让准备时间缩短。伤害随力大砖飞和阴阳怪气提高。满级时这一下让对方嘴硬和心大降低一段时间。",
       "icon_id": "icon_passive_lurking",
       "id": "passive_lurking",
       "name_key": "passive_lurking.name",
@@ -3000,8 +5683,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "passive_mental_gymnastics.description",
+      "description_text": "心理防线被打破或成功刷新时，对周围造成精神攻击，并让技能冷却缩短；满级时附带腿软。",
+      "icon_id": "icon_passive_mental_gymnastics",
+      "id": "passive_mental_gymnastics",
+      "name_key": "passive_mental_gymnastics.name",
+      "name_text": "精神胜利法",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "passive_precision.description",
-      "description_text": "招招往下三路招呼：学会后提高大比兜的暴击率，对技能无效。",
+      "description_text": "招招往下三路招呼：学会后提高大比兜的暴击率；大比兜暴击时，两个主动技能的剩余冷却缩短。满级时掏蛋子、珍珠奶茶泼脸、扒裤子、年轻人不讲武德能以一半暴击率暴击。",
       "icon_id": "icon_passive_precision",
       "id": "passive_precision",
       "name_key": "passive_precision.name",
@@ -3010,7 +5702,7 @@
     },
     {
       "description_key": "passive_public_shame.description",
-      "description_text": "丑态已截图，存档备用：被你控住的敌人，之后一段时间内受到你的伤害提高。",
+      "description_text": "丑态已截图，存档备用：对被提裤子、CPU 干烧了、捂裆、瞅你咋地或腿软的敌人，你造成的伤害提高。满级时亲手控住或让人腿软时回一点电量。",
       "icon_id": "icon_passive_public_shame",
       "id": "passive_public_shame",
       "name_key": "passive_public_shame.name",
@@ -3019,11 +5711,20 @@
     },
     {
       "description_key": "passive_second_wind.description",
-      "description_text": "发完疯就舒服了：脱离战斗一段时间后，精神状态额外回暖；一进入战斗，额外回暖立刻停止。",
+      "description_text": "发完疯就舒服了：脱离战斗一段时间后，每秒按精神状态上限回暖；挨了技能后短时间内回暖和回电加倍。满级时战斗中也保留一半脱战回暖。",
       "icon_id": "icon_passive_second_wind",
       "id": "passive_second_wind",
       "name_key": "passive_second_wind.name",
       "name_text": "发疯文学",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "passive_thick_skin.description",
+      "description_text": "每次位移或控住别人都会获得心理防线，有内置冷却；满级时获得后不久的下一次攻击附带伤害。",
+      "icon_id": "icon_passive_thick_skin",
+      "id": "passive_thick_skin",
+      "name_key": "passive_thick_skin.name",
+      "name_text": "社交牛逼症",
       "namespace": "DemoContent"
     },
     {
@@ -3097,6 +5798,15 @@
       "name_key": "taunt.name",
       "name_text": "瞅你咋地",
       "namespace": "DemoContent"
+    },
+    {
+      "description_key": "vulnerable.description",
+      "description_text": "提裤子期间更怕打：受到的持续伤害和大比兜伤害提高。",
+      "icon_id": "icon_vulnerable",
+      "id": "vulnerable",
+      "name_key": "vulnerable.name",
+      "name_text": "裤子没了",
+      "namespace": "DemoContent"
     }
   ],
   "equipment": [
@@ -3143,6 +5853,43 @@
         "target": {
           "mode": "Self"
         },
+        "upgraded_rank": {
+          "cooldown": {
+            "ms": 40000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "restore_mana",
+              "opcode": 9,
+              "ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              }
+            },
+            {
+              "ap_ratio": {
+                "bp": 5600,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 16800,
+                "unit": "hp"
+              },
+              "duration": {
+                "ms": 2500,
+                "unit": "ms"
+              },
+              "op": "shield",
+              "opcode": 2
+            }
+          ],
+          "mana_cost": {
+            "p2": 0,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
         "windup": {
           "ms": 0,
           "unit": "ms"
@@ -3161,6 +5908,301 @@
         "MaxMPFlat": {
           "p2": 12000,
           "unit": "mp"
+        }
+      },
+      "tags": [
+        "Shield",
+        "Breach"
+      ],
+      "upgraded_stats": {
+        "MagicResistFlat": {
+          "p2": 1350,
+          "unit": "points"
+        },
+        "MaxMPFlat": {
+          "p2": 16200,
+          "unit": "mp"
+        }
+      }
+    },
+    {
+      "active": {
+        "cooldown_family": "cd_decoy_wig",
+        "rank": {
+          "cooldown": {
+            "ms": 40000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "dispel_root",
+              "opcode": 3
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "leap_back",
+              "opcode": 59
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "decoy",
+              "opcode": 58,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "taunt_duration": {
+                "ms": 1000,
+                "unit": "ms"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "Self"
+        },
+        "upgraded_rank": {
+          "cooldown": {
+            "ms": 32000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "dispel_root",
+              "opcode": 3
+            },
+            {
+              "op": "dispel_slow",
+              "opcode": 37
+            },
+            {
+              "distance": {
+                "denominator": 1,
+                "numerator": 200,
+                "unit": "cm"
+              },
+              "duration": {
+                "ms": 250,
+                "unit": "ms"
+              },
+              "op": "leap_back",
+              "opcode": 59
+            },
+            {
+              "duration": {
+                "ms": 1500,
+                "unit": "ms"
+              },
+              "op": "decoy",
+              "opcode": 58,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "taunt_duration": {
+                "ms": 1250,
+                "unit": "ms"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        "windup": {
+          "ms": 0,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 400,
+      "id": "item_decoy_wig",
+      "native_id": 113,
+      "passive": null,
+      "sell_gold": 260,
+      "stats": {
+        "ADFlat": {
+          "p2": 1500,
+          "unit": "points"
+        },
+        "APFlat": {
+          "p2": 1500,
+          "unit": "points"
+        }
+      },
+      "tags": [
+        "Mobility",
+        "Control"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 2025,
+          "unit": "points"
+        },
+        "APFlat": {
+          "p2": 2025,
+          "unit": "points"
+        }
+      }
+    },
+    {
+      "active": {
+        "cooldown_family": "cd_dossier",
+        "rank": {
+          "cooldown": {
+            "ms": 30000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 10000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "heal_cut",
+              "opcode": 41,
+              "ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "Unit",
+          "range": {
+            "denominator": 1,
+            "numerator": 550,
+            "unit": "cm"
+          }
+        },
+        "upgraded_rank": {
+          "cooldown": {
+            "ms": 30000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ad_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "ap_ratio": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 14000,
+                "unit": "points"
+              },
+              "damage_type": "Magical",
+              "max_hp_ratio": {
+                "bp": 0,
+                "unit": "ratio"
+              },
+              "op": "damage",
+              "opcode": 1
+            },
+            {
+              "duration": {
+                "ms": 3000,
+                "unit": "ms"
+              },
+              "op": "heal_cut",
+              "opcode": 41,
+              "ratio": {
+                "bp": 5000,
+                "unit": "ratio"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        "windup": {
+          "ms": 200,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 400,
+      "id": "item_dossier",
+      "native_id": 110,
+      "passive": null,
+      "sell_gold": 260,
+      "stats": {
+        "APFlat": {
+          "p2": 2500,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 12000,
+          "unit": "hp"
+        }
+      },
+      "tags": [
+        "Breach",
+        "Control"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 3375,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 16200,
+          "unit": "hp"
         }
       }
     },
@@ -3185,7 +6227,24 @@
             }
           }
         ],
-        "family": "passive_cleave"
+        "family": "passive_cleave",
+        "upgraded": {
+          "effects": [
+            {
+              "op": "cleave",
+              "opcode": 10,
+              "radius": {
+                "denominator": 1,
+                "numerator": 180,
+                "unit": "cm"
+              },
+              "ratio": {
+                "bp": 4900,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
       },
       "sell_gold": 260,
       "stats": {
@@ -3198,6 +6257,21 @@
           "numerator": 40,
           "unit": "cm"
         }
+      },
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 1890,
+          "unit": "points"
+        },
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 54,
+          "unit": "cm"
+        }
       }
     },
     {
@@ -3205,7 +6279,35 @@
       "buy_price": 320,
       "id": "item_edge_blade",
       "native_id": 100,
-      "passive": null,
+      "passive": {
+        "effects": [
+          {
+            "base": {
+              "p2": 2000,
+              "unit": "points"
+            },
+            "count": 3,
+            "damage_type": "Physical",
+            "op": "nth_basic_bonus",
+            "opcode": 35
+          }
+        ],
+        "family": "passive_third_strike",
+        "upgraded": {
+          "effects": [
+            {
+              "base": {
+                "p2": 2800,
+                "unit": "points"
+              },
+              "count": 3,
+              "damage_type": "Physical",
+              "op": "nth_basic_bonus",
+              "opcode": 35
+            }
+          ]
+        }
+      },
       "sell_gold": 208,
       "stats": {
         "ADFlat": {
@@ -3216,6 +6318,94 @@
           "bp": 1000,
           "unit": "ratio"
         }
+      },
+      "tags": [
+        "BasicAttack"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 2700,
+          "unit": "points"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 1350,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "active": {
+        "cooldown_family": "cd_energy_drink",
+        "rank": {
+          "cooldown": {
+            "ms": 45000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "cooldown_refresh",
+              "opcode": 60
+            }
+          ],
+          "mana_cost": {
+            "p2": 0,
+            "unit": "mp"
+          },
+          "rank": 1
+        },
+        "target": {
+          "mode": "Self"
+        },
+        "upgraded_rank": {
+          "cooldown": {
+            "ms": 36000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "op": "cooldown_refresh",
+              "opcode": 60
+            }
+          ],
+          "mana_cost": {
+            "p2": 0,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
+        "windup": {
+          "ms": 0,
+          "unit": "ms"
+        }
+      },
+      "buy_price": 380,
+      "id": "item_energy_drink",
+      "native_id": 114,
+      "passive": null,
+      "sell_gold": 247,
+      "stats": {
+        "AttackSpeedBonusRatio": {
+          "bp": 1000,
+          "unit": "ratio"
+        },
+        "CooldownHasteFlat": {
+          "p2": 1500,
+          "unit": "points"
+        }
+      },
+      "tags": [
+        "Breach",
+        "BasicAttack"
+      ],
+      "upgraded_stats": {
+        "AttackSpeedBonusRatio": {
+          "bp": 1350,
+          "unit": "ratio"
+        },
+        "CooldownHasteFlat": {
+          "p2": 2025,
+          "unit": "points"
+        }
       }
     },
     {
@@ -3223,7 +6413,31 @@
       "buy_price": 310,
       "id": "item_iron_plate",
       "native_id": 99,
-      "passive": null,
+      "passive": {
+        "effects": [
+          {
+            "op": "crit_damage_reduction",
+            "opcode": 34,
+            "ratio": {
+              "bp": 1500,
+              "unit": "ratio"
+            }
+          }
+        ],
+        "family": "passive_crit_guard",
+        "upgraded": {
+          "effects": [
+            {
+              "op": "crit_damage_reduction",
+              "opcode": 34,
+              "ratio": {
+                "bp": 2000,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
+      },
       "sell_gold": 201,
       "stats": {
         "ArmorFlat": {
@@ -3233,6 +6447,83 @@
         "MaxHPFlat": {
           "p2": 18000,
           "unit": "hp"
+        }
+      },
+      "tags": [
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ArmorFlat": {
+          "p2": 2025,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 24300,
+          "unit": "hp"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 360,
+      "id": "item_megaphone",
+      "native_id": 109,
+      "passive": {
+        "effects": [
+          {
+            "dot_ratio": {
+              "bp": 2500,
+              "unit": "ratio"
+            },
+            "op": "affliction_amp",
+            "opcode": 66,
+            "slow_scale": {
+              "bp": 11000,
+              "unit": "ratio"
+            }
+          }
+        ],
+        "family": "passive_megaphone",
+        "upgraded": {
+          "effects": [
+            {
+              "dot_ratio": {
+                "bp": 3500,
+                "unit": "ratio"
+              },
+              "op": "affliction_amp",
+              "opcode": 66,
+              "slow_scale": {
+                "bp": 11400,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
+      },
+      "sell_gold": 234,
+      "stats": {
+        "APFlat": {
+          "p2": 2500,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 1000,
+          "unit": "points"
+        }
+      },
+      "tags": [
+        "Breach",
+        "Control"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 3375,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 1350,
+          "unit": "points"
         }
       }
     },
@@ -3261,6 +6552,10 @@
               "ms": 500,
               "unit": "ms"
             },
+            "max_hp_ratio": {
+              "bp": 100,
+              "unit": "ratio"
+            },
             "op": "thorns",
             "opcode": 24,
             "radius": {
@@ -3272,7 +6567,43 @@
             "trigger": "Basic"
           }
         ],
-        "family": "passive_prickle"
+        "family": "passive_prickle",
+        "upgraded": {
+          "effects": [
+            {
+              "armor_ratio": {
+                "bp": 1400,
+                "unit": "ratio"
+              },
+              "base": {
+                "p2": 2800,
+                "unit": "points"
+              },
+              "critical_multiplier": {
+                "bp": 10000,
+                "unit": "ratio"
+              },
+              "damage_type": "Magical",
+              "interval": {
+                "ms": 500,
+                "unit": "ms"
+              },
+              "max_hp_ratio": {
+                "bp": 140,
+                "unit": "ratio"
+              },
+              "op": "thorns",
+              "opcode": 24,
+              "radius": {
+                "denominator": 1,
+                "numerator": 300,
+                "unit": "cm"
+              },
+              "rear_exempt": false,
+              "trigger": "Basic"
+            }
+          ]
+        }
       },
       "sell_gold": 247,
       "stats": {
@@ -3282,6 +6613,19 @@
         },
         "MaxHPFlat": {
           "p2": 15000,
+          "unit": "hp"
+        }
+      },
+      "tags": [
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ArmorFlat": {
+          "p2": 2430,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 20250,
           "unit": "hp"
         }
       }
@@ -3296,6 +6640,7 @@
           },
           "effects": [
             {
+              "ambush_ready": true,
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
@@ -3322,6 +6667,37 @@
         "target": {
           "mode": "Self"
         },
+        "upgraded_rank": {
+          "cooldown": {
+            "ms": 45000,
+            "unit": "ms"
+          },
+          "effects": [
+            {
+              "ambush_ready": true,
+              "duration": {
+                "ms": 4000,
+                "unit": "ms"
+              },
+              "move_speed_penalty": {
+                "bp": 1000,
+                "unit": "ratio"
+              },
+              "op": "stealth",
+              "opcode": 19,
+              "reveal_radius": {
+                "denominator": 1,
+                "numerator": 250,
+                "unit": "cm"
+              }
+            }
+          ],
+          "mana_cost": {
+            "p2": 4000,
+            "unit": "mp"
+          },
+          "rank": 2
+        },
         "windup": {
           "ms": 0,
           "unit": "ms"
@@ -3339,6 +6715,19 @@
         },
         "MoveSpeedBonusRatio": {
           "bp": 800,
+          "unit": "ratio"
+        }
+      },
+      "tags": [
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 2700,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 1080,
           "unit": "ratio"
         }
       }
@@ -3360,10 +6749,42 @@
               "unit": "ratio"
             },
             "op": "dash_boost",
-            "opcode": 11
+            "opcode": 11,
+            "skill_cooldown_ratio": {
+              "bp": 8000,
+              "unit": "ratio"
+            },
+            "skill_distance_bonus": {
+              "bp": 2500,
+              "unit": "ratio"
+            }
           }
         ],
-        "family": "passive_stride"
+        "family": "passive_stride",
+        "upgraded": {
+          "effects": [
+            {
+              "cooldown_ratio": {
+                "bp": 4000,
+                "unit": "ratio"
+              },
+              "distance_bonus": {
+                "bp": 7000,
+                "unit": "ratio"
+              },
+              "op": "dash_boost",
+              "opcode": 11,
+              "skill_cooldown_ratio": {
+                "bp": 7200,
+                "unit": "ratio"
+              },
+              "skill_distance_bonus": {
+                "bp": 3500,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
       },
       "sell_gold": 260,
       "stats": {
@@ -3371,15 +6792,130 @@
           "bp": 1200,
           "unit": "ratio"
         }
+      },
+      "tags": [
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "MoveSpeedBonusRatio": {
+          "bp": 1620,
+          "unit": "ratio"
+        }
       }
     },
     {
       "active": null,
-      "buy_price": 360,
+      "buy_price": 380,
+      "id": "item_privacy_screen",
+      "native_id": 111,
+      "passive": {
+        "effects": [
+          {
+            "internal_cooldown": {
+              "ms": 6000,
+              "unit": "ms"
+            },
+            "op": "shield_break_retort",
+            "opcode": 67,
+            "ratio": {
+              "bp": 4000,
+              "unit": "ratio"
+            },
+            "slow": {
+              "bp": 3000,
+              "unit": "ratio"
+            },
+            "slow_duration": {
+              "ms": 1500,
+              "unit": "ms"
+            }
+          }
+        ],
+        "family": "passive_privacy_screen",
+        "upgraded": {
+          "effects": [
+            {
+              "internal_cooldown": {
+                "ms": 6000,
+                "unit": "ms"
+              },
+              "op": "shield_break_retort",
+              "opcode": 67,
+              "ratio": {
+                "bp": 5600,
+                "unit": "ratio"
+              },
+              "slow": {
+                "bp": 3000,
+                "unit": "ratio"
+              },
+              "slow_duration": {
+                "ms": 1500,
+                "unit": "ms"
+              }
+            }
+          ]
+        }
+      },
+      "sell_gold": 247,
+      "stats": {
+        "APFlat": {
+          "p2": 2000,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 15000,
+          "unit": "hp"
+        }
+      },
+      "tags": [
+        "Shield",
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 2700,
+          "unit": "points"
+        },
+        "MaxHPFlat": {
+          "p2": 20250,
+          "unit": "hp"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 320,
       "id": "item_runic_focus",
       "native_id": 101,
-      "passive": null,
-      "sell_gold": 234,
+      "passive": {
+        "effects": [
+          {
+            "mana": {
+              "p2": 500,
+              "unit": "mp"
+            },
+            "op": "mana_on_hit",
+            "opcode": 36,
+            "trigger": "AbilityHit"
+          }
+        ],
+        "family": "passive_mana_refund",
+        "upgraded": {
+          "effects": [
+            {
+              "mana": {
+                "p2": 700,
+                "unit": "mp"
+              },
+              "op": "mana_on_hit",
+              "opcode": 36,
+              "trigger": "AbilityHit"
+            }
+          ]
+        }
+      },
+      "sell_gold": 208,
       "stats": {
         "APFlat": {
           "p2": 3000,
@@ -3387,6 +6923,19 @@
         },
         "CooldownHasteFlat": {
           "p2": 1500,
+          "unit": "points"
+        }
+      },
+      "tags": [
+        "Breach"
+      ],
+      "upgraded_stats": {
+        "APFlat": {
+          "p2": 4050,
+          "unit": "points"
+        },
+        "CooldownHasteFlat": {
+          "p2": 2025,
           "unit": "points"
         }
       }
@@ -3407,7 +6956,19 @@
             }
           }
         ],
-        "family": "passive_siphon"
+        "family": "passive_siphon",
+        "upgraded": {
+          "effects": [
+            {
+              "op": "lifesteal",
+              "opcode": 7,
+              "ratio": {
+                "bp": 2100,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
       },
       "sell_gold": 234,
       "stats": {
@@ -3419,15 +6980,93 @@
           "p2": 1200,
           "unit": "points"
         }
+      },
+      "tags": [
+        "BasicAttack",
+        "Tank"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 1620,
+          "unit": "points"
+        },
+        "MagicResistFlat": {
+          "p2": 1620,
+          "unit": "points"
+        }
       }
     },
     {
       "active": null,
-      "buy_price": 360,
+      "buy_price": 380,
+      "id": "item_skateboard",
+      "native_id": 112,
+      "passive": {
+        "effects": [
+          {
+            "duration": {
+              "ms": 1200,
+              "unit": "ms"
+            },
+            "op": "hit_haste",
+            "opcode": 68,
+            "ratio": {
+              "bp": 1500,
+              "unit": "ratio"
+            }
+          }
+        ],
+        "family": "passive_skateboard",
+        "upgraded": {
+          "effects": [
+            {
+              "duration": {
+                "ms": 1200,
+                "unit": "ms"
+              },
+              "op": "hit_haste",
+              "opcode": 68,
+              "ratio": {
+                "bp": 2100,
+                "unit": "ratio"
+              }
+            }
+          ]
+        }
+      },
+      "sell_gold": 247,
+      "stats": {
+        "ADFlat": {
+          "p2": 1500,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 1000,
+          "unit": "ratio"
+        }
+      },
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "ADFlat": {
+          "p2": 2025,
+          "unit": "points"
+        },
+        "MoveSpeedBonusRatio": {
+          "bp": 1350,
+          "unit": "ratio"
+        }
+      }
+    },
+    {
+      "active": null,
+      "buy_price": 320,
       "id": "item_slingshot",
       "native_id": 106,
       "passive": null,
-      "sell_gold": 234,
+      "sell_gold": 208,
       "stats": {
         "AttackRangeCmFlat": {
           "denominator": 1,
@@ -3436,6 +7075,21 @@
         },
         "AttackSpeedBonusRatio": {
           "bp": 1200,
+          "unit": "ratio"
+        }
+      },
+      "tags": [
+        "BasicAttack",
+        "Mobility"
+      ],
+      "upgraded_stats": {
+        "AttackRangeCmFlat": {
+          "denominator": 1,
+          "numerator": 162,
+          "unit": "cm"
+        },
+        "AttackSpeedBonusRatio": {
+          "bp": 1620,
           "unit": "ratio"
         }
       }
@@ -3468,7 +7122,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. User approval relayed on 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, and every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). First implementation/playtest baseline, not a balance-validation claim.",
+      "decision": "User approval relayed on 2026-11-02: D01 existing first content and balance, D02 the single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, every build expansion entry and rule (CONTENT_AND_BALANCE 15.4, 15.7-15.9). 2026-11-05: #112 build and spray-guard endgame rework with its values (D33; CONTENT_AND_BALANCE 15.2, 15.6, 15.10-15.11). First implementation/playtest baseline, not a balance-validation claim.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -3526,16 +7180,47 @@
       "numerator": 100,
       "unit": "cm"
     },
-    "CAPTURE.HoldSec": {
-      "ms": 25000,
+    "CAPTURE.GuardSec": {
+      "ms": 20000,
       "unit": "ms"
     },
     "CAPTURE.RadiusCm": {
       "denominator": 1,
-      "numerator": 600,
+      "numerator": 300,
       "unit": "cm"
     },
-    "CHOICE.BaseWeight": 1,
+    "CAPTURE.SpraySec": {
+      "ms": 3500,
+      "unit": "ms"
+    },
+    "CHOICE.AffinityCap": {
+      "bp": 17000,
+      "unit": "ratio"
+    },
+    "CHOICE.AffinityStep": {
+      "bp": 13000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewActiveFullSlotWeight": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewActiveOpenSlotWeight": {
+      "bp": 15000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewPassiveWeight": {
+      "bp": 10000,
+      "unit": "ratio"
+    },
+    "CHOICE.ThirdSlotAttributeChance": {
+      "bp": 6500,
+      "unit": "ratio"
+    },
+    "CHOICE.UpgradeWeight": {
+      "bp": 22000,
+      "unit": "ratio"
+    },
     "COMBAT.RearArcDeg": {
       "denominator": 1,
       "numerator": 120,
@@ -3565,6 +7250,14 @@
       "bp": 150,
       "unit": "ratio"
     },
+    "REWARD.AssistGoldRatio": {
+      "bp": 5000,
+      "unit": "ratio"
+    },
+    "REWARD.AssistWindowSec": {
+      "ms": 15000,
+      "unit": "ms"
+    },
     "REWARD.PlayerGold.Base": 80,
     "REWARD.PlayerGold.PerLevel": 10,
     "REWARD.PlayerXP.Base": 100,
@@ -3579,6 +7272,11 @@
       "unit": "ratio"
     },
     "SHOP.StartingGold": 320,
+    "SHOP.UpgradeCost": 240,
+    "SHOP.UpgradeStatBonusRatio": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
     "STAT.AD.Base": {
       "p2": 7000,
       "unit": "points"
@@ -3610,6 +7308,10 @@
     "STAT.AP.PerLevel": {
       "p2": 0,
       "unit": "points"
+    },
+    "STAT.AbilityCritMultiplier": {
+      "bp": 15000,
+      "unit": "ratio"
     },
     "STAT.Armor.Base": {
       "p2": 1800,
@@ -3771,7 +7473,7 @@
       "unit": "cm/s"
     },
     "TIMING.DefendRouteBudgetSec": {
-      "ms": 18000,
+      "ms": 19000,
       "unit": "ms"
     },
     "UNIT.BasicAttackRangeCm": {
@@ -3837,15 +7539,13 @@
     "max_level": 10,
     "max_skill_rank": 3,
     "opening_offer": {
-      "attribute_count": 2,
-      "attribute_ids": [
-        "attr_might",
-        "attr_reach",
-        "attr_resolve",
-        "attr_vitality"
-      ],
+      "active_count": 2,
       "passive_count": 1
     },
+    "reroll_levels": [
+      4,
+      7
+    ],
     "xp_start": 0,
     "xp_thresholds": [
       0,

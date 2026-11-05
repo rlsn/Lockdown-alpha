@@ -9,7 +9,7 @@
 ## 结论与使用边界
 
 **v0.10.0 Demo 的完整流程已经实现。** 流程为：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）
-→ 从零打野、对抗、三选一与购物 → 开圈争夺 → 唯一结果 → Host 带仍在线的房间回 Lobby 开新局。
+→ 从零打野、对抗、三选一与购物 → 旗杆开放后喷漆、守护与围攻 → 唯一结果 → Host 带仍在线的房间回 Lobby 开新局。
 运行入口只有前端与唯一 Demo 世界；旧 profile、旧地图与旧选择会被明确拒绝，
 [架构审计](ARCHITECTURE.md) §3.2 的删除闭包（含玩家交易与世界检查点）已经完成。
 所有联机验证都在同一台机器的回环连接上运行。
@@ -40,6 +40,13 @@ Vision 的隐身段（检查组 `#ST`/`#STH`）在打包版上确认：两个受
 PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host 记录的权威隐身结束时刻给帧分类；
 `844d5e1` 的候选包上重跑打包版 Vision 通过（其余场景未在该候选包上重跑，候选包随后删除，已知可用构建仍为上面的包）。
 
+[#112](https://github.com/rlsn/Lockdown-alpha/issues/112) 集成后（提交 `11f2232` 的 Development 包，manifest 无未提交改动）：
+`BuildEditor.ps1`、`BuildGame.ps1`（`-FullUnity`）、Sync world/content `--check`、Python 测试（156 项）、`BootstrapAssets.ps1`（Validate）、
+`RunTests.ps1`（210 项必需规则）通过；打包版 Growth、Capture（含第二局）、Opponent 满员（AI 以喷漆守护获胜，本局所有检查都被覆盖）通过；
+编辑器版 Combat、Vision、Opponent 遥测（2 局，均为 AI 守护成功）通过。打包版 Core、Combat、Camp、Vision、SessionFault 与网络模拟满员局本次未运行。
+#112 的界面截图（重抽按钮、商店进阶入口、击杀播报助攻者、结算助攻列、对手 Q/W 卡、喷漆与守护 HUD 和旗杆涂鸦）已人工审阅，见“App Spec 完成标准的覆盖”。
+遥测中 AI 在持有重抽令牌时没有用过重抽，并会购买自己暂不施放主动的新装备（假发片），留给 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 与试玩判断。
+
 [#82](https://github.com/rlsn/Lockdown-alpha/issues/82) 的打包版实测项中，本次场景只能部分读到：
 满员局三个 AI 在开局约 0.8 秒都决定去商店，最终两个 AI 持有装备，另一个整局未开店；
 购买时间、AI 是否实际使用 D 冲刺、开局三选一的卡面构成（真人场景用 DEV 预置的开局选项）和 1 级普攻击杀时间都没有场景记录，
@@ -57,7 +64,7 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | D07 | 小地图朝向设置：跟随镜头（默认）、跟随角色朝向、固定正北 | 已实现 |
 | D08 | CC0 骨骼角色与校园装饰道具，道具只做装饰 | 已实现；旗杆遮挡时淡化 |
 | D10 | 开局三选一：开局一次，每次升级一次，整局最多 10 次 | 已实现，AI 同样处理 |
-| D12 | 旗杆争夺暂停原占领者进度，恢复独占后续计 | 已实现；复活时长等相关数值未改 |
+| D12 | 旗杆争夺暂停原占领者进度，恢复独占后续计 | 由 D33 的喷漆与守护取代（争夺暂停所有人的喷漆进度，恢复独自喷漆后续计） |
 | D15 | 保持 MOBA 点击操作并打磨手感：点击与悬停标记、按住右键持续移动、施法预输入、可选快速施法（默认关闭） | 已实现 |
 | D16 | 施法那一刻显示技能或装备名称，不显示等级与冷却 | 已实现 |
 | D09、D11 | 技能伤害与冷却调整、人人脱战回复 | 由 D18、D21 取代 |
@@ -68,19 +75,20 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | D19 | D 键通用冲刺，AI 也会用 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：300cm/0.2s、18s 冷却、0 电量，不受整活频率影响、不解除复活保护；AI 用于追击、撤退和紧急回防。规则 `DemoCombatSources.InnateDash`、`DemoMotionProbe.DashStopsAtWall`、`DemoOpponentPolicy.InnateDash`、`LocalSettingsDashMigration` 已通过；拥有连接场景与打包版满员局都没有记录 AI 实际冲刺；冲刺手感见 [#80](https://github.com/rlsn/Lockdown-alpha/issues/80) |
 | D20 | 《润学指南》改为强化冲刺的被动 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：被动「说润就润」冲刺冷却 ×0.5、距离 +50%，同名只算一次；释放后的冷却结束时间不因换装改变。规则 `DemoCombatSources.InnateDash` 已通过 |
 | D21 | 人人脱战慢回；地图边缘 2–3 处躺平角（快速回复点），不是安全区 | 脱战慢回已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoCombatStatus.OutOfCombatRecovery`，未做拥有连接场景验证）；躺平角未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)） |
-| D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒不变 |
+| D22 | 发育期 120 秒，复活 15 秒 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；占领时长 25 秒由 D33 的喷漆 3.5 秒 + 守护 20 秒取代 |
 | D23 | 低档营地刷新 25 秒，初始的米足够开局买第一件装备 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）：初始的米 320 |
 | #82 追加 | 基础移速 600→520 cm/s，野怪移速同比例下调为 416/451；镜头不改 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)）；回防路线验证预算随之由 16 秒改为 18 秒 |
 | #82 追加 | 属性卡：V 我 50 吃顿好的 +100→+60 精神状态上限，我不听我不听双抗各 +6→+10 | 已进入运行输入，未做平衡测试（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)） |
-| D24 | 开局三选一：2 张随机基础属性卡（吃了口蛋白粉、伸手党、我不听我不听、V 我 50 吃顿好的，不含 5G 冲浪）加 1 个随机被动；升级三选一保持完全随机 | 已实现（[#82](https://github.com/rlsn/Lockdown-alpha/issues/82)，规则测试 `DemoGrowthOpeningPool`，未做场景验证） |
+| D24 | 开局三选一：2 张随机基础属性卡（吃了口蛋白粉、伸手党、我不听我不听、V 我 50 吃顿好的，不含 5G 冲浪）加 1 个随机被动；升级三选一保持完全随机 | 由 D33 取代：开局一组改为 2 个 1 级主动 + 1 个 1 级被动，升级三选一按技能池权重与机制标签亲和抽取 |
 | D25 | 内容报告 §15 的全部 20 个技能和 10 件装备一起接入，含嘲讽、隐身、反伤等新机制 | 已进入运行输入，数值与规则 2026-11-04 用户批准作为试玩输入（[内容报告 §15.4、§15.7–15.9](CONTENT_AND_BALANCE.md#157-构筑扩展-a已接入条目与数值7781)），未做平衡测试；规则测试 `DemoBuildExpansion.*`、`DemoControl.*`、`DemoAttributeProjection.TemporaryTerms/ExpansionPassives`、`DemoCombatEvaluation.ControlAmplify`；对手 AI 尚不使用自身范围、跳跃与嘲讽类技能（[#77](https://github.com/rlsn/Lockdown-alpha/issues/77)、[#84](https://github.com/rlsn/Lockdown-alpha/issues/84)、[#83](https://github.com/rlsn/Lockdown-alpha/issues/83)、[#81](https://github.com/rlsn/Lockdown-alpha/issues/81)） |
 | D26 | 公开的天降外卖（空投）；中期出现、会反击所有人的画饼老板 Boss（打赢即“吃到大饼”） | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；天降外卖需要修改 App Spec §4.1“不开设采集” |
 | D27 | 上热搜：领先者在小地图上有模糊位置提示，击杀他有额外赏金 | 已决定，未实现（[#79](https://github.com/rlsn/Lockdown-alpha/issues/79)）；是 App Spec §6.3 的明确公开例外 |
-| D28 | 胜利条件不变 | 无需改动 |
+| D28 | 胜利条件不变 | 由 D33 取代：唯一胜利条件改为喷漆后守护 |
 | D29 | 整蛊表现：被扒裤子、被年轻人不讲武德等有夸张的可见状态，跟随现有控制状态 | 已决定，未实现（[#85](https://github.com/rlsn/Lockdown-alpha/issues/85)） |
 | D30 | 地图布局与野怪可以重新设计；数量不变（1 个占领点、10 个出生点、5 组 2 档野怪、1 个商店） | 已决定，未实现（[#97](https://github.com/rlsn/Lockdown-alpha/issues/97)）；App Spec §6.1 随实现修改 |
 | D31 | 2026-11-04 用户批准全部待批数值与规则（构筑扩展 A/B、路人甲 T 恤与嘲讽细则、体重即正义与你瞅啥），并采纳“按 D 立即朝指针冲刺” | 已进入运行输入，作为试玩输入，未经平衡测试；D 冲刺按下即朝指针方向发出、不再左键确认、与快速施法无关（规则 `DemoControlFeel.PreInput`）。原话：“全部批准，并采纳‘按 D 立即朝指针冲刺’” |
 | D32 | 世界观改为雾港大学城，纯文字换皮（贴吧整活 v2）：对外标题“谁是雾港最强淫人王”，公开使用“淫”（雾港黑话，只指把人揍趴下），击杀播报“X 把 Y 淫了”；中心占领点叫“旗杆”；必须有扒裤子和掏蛋子；世界观术语集中到一张术语表，界面和测试都引用它；美术、音效、数值、机制与内容 ID 不变（[App Spec §1.1–1.2](../APP_SPEC.md#11-雾港世界观与表现)） | 已实现，[#111](https://github.com/rlsn/Lockdown-alpha/issues/111)：术语表 `Source/Lockdown/Public/UI/LDTerms.h`、52 行内容显示文字、运行时界面与测试（`Lockdown.Rules.HUDTermsGlossary` 等）均已落地，取代 D04、D05 的校园文字；与 v2 的偏差：状态 `exposed` 显示为“被截图了”（显示名必须唯一，被动已叫“已截图”）。已验证：Sync 检查、Python 测试、编辑器/游戏构建、Bootstrap Validate、184 个规则测试，以及编辑器版 Combat、Vision、Growth、Capture、Opponent、Frontend 场景与截图核对；打包版场景未运行。原话：“如果我们游戏的世界观换成 [雾港世界观] 这个版本，我们的游戏内容要有多大的改动 - 不动美术和音效。只改文字”；“必须要包含扒裤子和掏蛋子”；“还是不够有趣，还是略中二和严肃，你的想象力得天马行空，有简中互联网贴吧一样的文化氛围和梗，重做”；“公开用‘淫’：标题‘谁是雾港最强淫人王’，击杀播报‘X 把 Y 淫了’，修改 App Spec 的对外限制”；中心占领点“叫‘旗杆’”；“集中到一张术语表，界面和测试都引用它”；“now start the implementation”。#79 的地图事件同步改名（2026-11-05）：躺平角、天降外卖、画饼老板、上热搜，规则不变，原话：“采用：躺平角、天降外卖、画饼老板、上热搜，写进文档并在 #79 留言” |
+| D33 | #112 构筑与终局重做：构筑不分流派，只用六个机制标签做有上限的抽卡亲和；30 技能（18 主动 + 12 被动）各带 Lv3 质变、16 件装备、14 张复合属性卡；开局 2 主动 + 1 被动，升级三选一按权重抽、每组最多 1 张属性卡，4、7 级各得一次免费重抽；满槽替换新主动从 max(1, 旧等级 − 1) 级开始；每人每局一次装备进阶；参赛者击杀有助攻（15 秒窗口，助攻者平分 50% 基础击杀金币，经验平分）；硬控递减、击退、技能暴击与命中特效不递归等战斗原语；终局改为喷漆 3.5 秒、守护 20 秒，硬控与离区打断喷漆，主人死亡或离局清除涂鸦；可见对手显示 Q/W 主动与等级；AI 满局遥测加入 #112 §13 度量 | 已进入运行输入，数值作为试玩输入，未做平衡测试（[#112](https://github.com/rlsn/Lockdown-alpha/issues/112)，数值见[内容报告 §15](CONTENT_AND_BALANCE.md)）；取代 D12、D22 的占领时长、D24、D28。新主动与新装备主动的 AI 施放归 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)。原话（2026-11-05）：“我也认为我们目前深度不够，流派/技能/装备都可以再加一些”；“我其实不想把流派搞得太固定，仿佛一个流派就只有一个最佳玩法一样……你的设计要考虑到灵活搭配，权重可以有但不要太多。而且设计过程中可以稍微模糊一下流派边界，一看就知道是什么流派不太好”；“复合属性卡需要更多你不认为吗”；“最终胜利改为喷漆吧，喷漆需要时间，喷完需要守护一段时间，期间可以打但不打断，只计算连续喷漆存在的时间”；“不考虑延期的问题 - 都做的完”；“助攻算法参考LOL”；“喷漆逻辑不变，要的就是围攻主人”；“主动技能调整降一级，不搞完整继承和反钱”；“连续硬控效果递减可以接受，减速不递减”；“其他问题里提到的都要修” |
 
 ## 已确认的实施方向
 
@@ -103,10 +111,10 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | E03 | [LDProgressionRules.h](../../Source/Lockdown/Public/Development/LDProgressionRules.h)，[LDGrowthProtocol.h](../../Source/Lockdown/Public/Development/LDGrowthProtocol.h)，[LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp) | 等级/经验、持久三选一机会队列、Q/W 与被动构筑、两装备来源与来源失效已实现，经同一账本与回执提交 | 纯值规则或回执通过就等于拥有连接下的成长与商店完成（真实连接见 `RunDemoGrowthCheck.ps1`） |
 | E04 | [LDOrderTypes.h](../../Source/Lockdown/Public/Navigation/LDOrderTypes.h)，[LDNavigationComponent.h](../../Source/Lockdown/Public/Navigation/LDNavigationComponent.h) | `FLDMoveIdentity` 的 Match/Life/Order/Epoch、移动/攻击单位/攻击移动/商店接近订单、导航确认/停止、镜头接口存在 | 订单类型存在就等于拥有连接下的端到端行为（真实连接见 `RunDemoCombatCheck.ps1`） |
 | E05 | [LDCombatTypes.h](../../Source/Lockdown/Public/Combat/LDCombatTypes.h)，[LDCombatActions.cpp](../../Source/Lockdown/Private/Combat/LDCombatActions.cpp)，[LDCombatDriver.cpp](../../Source/Lockdown/Private/Combat/LDCombatDriver.cpp) | 来源/目标/版本请求、动作受理与同一到期边界的命中/死亡提交链 | 公式已批准就等于每个效果的实际命中结果正确（见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
-| E06 | [LDCaptureReducer.h](../../Source/Lockdown/Public/Framework/LDCaptureReducer.h)，[LDGameModeCapture.cpp](../../Source/Lockdown/Private/Framework/LDGameModeCapture.cpp) | 连续独占圈归约、完成提案与唯一结果锁定已实现；旧工作/Claim/路线/deadline 目标规则已删除 | 纯归约测试通过就等于拥有连接下的占领与终局（真实连接见 `RunDemoCaptureCheck.ps1`） |
+| E06 | [LDCaptureReducer.h](../../Source/Lockdown/Public/Framework/LDCaptureReducer.h)，[LDGameModeCapture.cpp](../../Source/Lockdown/Private/Framework/LDGameModeCapture.cpp) | 喷漆与守护归约（独自喷漆、争夺暂停、硬控打断、涂鸦覆盖与清除、守护暂停与续计）、完成提案与唯一结果锁定已实现；旧独占计时与工作/Claim/路线/deadline 目标规则已删除 | 纯归约测试通过就等于拥有连接下的喷漆、守护与终局（真实连接见 `RunDemoCaptureCheck.ps1`） |
 | E07 | [LDEconomyLedger.h](../../Source/Lockdown/Public/Economy/LDEconomyLedger.h)，[LDVendorDirector.h](../../Source/Lockdown/Public/Inventory/LDVendorDirector.h) | 账本有事务 ID、Cause、原子金币与物品变更；商店会话/报价/回执由 `ALDVendorDirector` 实现 | 账本复算通过就等于拥有连接下的买卖、满槽与死亡保留都正确（真实连接见 `RunDemoGrowthCheck.ps1`） |
 | E08 | [LDViewTypes.h](../../Source/Lockdown/Public/Vision/LDViewTypes.h)，[视野与 UI](../systems/VISION_AND_UI.md) | 自身投影与观测记录分开；有 generation/revision 与隐藏/过期机制 | 任意现有地图格式都能直接接入，或 AI/UI 可读取全部服务器状态 |
-| E09 | [LDOpponentController.h](../../Source/Lockdown/Public/AI/LDOpponentController.h)，[LDOpponentPolicy.h](../../Source/Lockdown/Public/AI/LDOpponentPolicy.h) | 每个 AI 槽由独立 `ALDOpponentController` 驱动，经与真人相同的领域入口发育、选择、购物并争圈 | 纯策略测试通过就等于满员对局可玩（真实连接见 `RunDemoOpponentCheck.ps1`） |
+| E09 | [LDOpponentController.h](../../Source/Lockdown/Public/AI/LDOpponentController.h)，[LDOpponentPolicy.h](../../Source/Lockdown/Public/AI/LDOpponentPolicy.h) | 每个 AI 槽由独立 `ALDOpponentController` 驱动，经与真人相同的领域入口发育、选择、购物并喷漆、守护与围攻 | 纯策略测试通过就等于满员对局可玩（真实连接见 `RunDemoOpponentCheck.ps1`） |
 | E10 | [SourceData/Demo](../../SourceData/Demo)，[SyncDemoContentData.py](../../Scripts/SyncDemoContentData.py)，[数据管线](../systems/WORLD_AND_DATA_PIPELINE.md) | 唯一作者域、schema、稳定 ID 与载荷契约；首版内容与数值已于 2026-11-02 获批 | 首次试玩输入获批就是平衡测试结论 |
 | E11 | [LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)，[LDCombatSourceRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDCombatSourceRulesTests.cpp) | `Lockdown.Rules.DemoGrowth*` 与战斗来源用例覆盖等级/机会、三选一、替换、两装备与来源冷却 | 规则套件全绿就满足拥有连接下的 Demo 行为 |
 | E12 | [RunTests.ps1](../../Scripts/RunTests.ps1)，[CheckRuleReport.py](../../Scripts/CheckRuleReport.py)，[开发指南](../DEVELOPMENT.md#最小验证选择) | 已有构建、生成、规则和场景入口；总入口核对明确的当前用例集合，拒绝缺项、重复、失败与未完成 | 当前组件套件通过就等于 Demo 专属规则与真实场景均已实现 |
@@ -133,19 +141,22 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
 | 营地反击与回位 | 场景 Camp：未受击不先手、整组反击、拴绳回营只重置一次且不发奖、清营后按批准时长整组刷新，另存回工位与刷新截图。规则：`DemoCamp.*`、`CampDecision` | 回营途中的受伤与控制没有拥有连接场景 |
 | 从零发育 | 场景：Camp 中两次低档营地最后一击按批准值发放并升到 2 级；Growth 只靠真实击杀获得经验与金币，完成选择并购买；Opponent 中 AI 从零发育、购物并获胜 | — |
 | 普攻成长 | 场景 Combat：学到增程属性后，右键追击在超出基础射程处命中。规则：`DemoAttributeProjection.*` 覆盖射程加成与群攻被动的来源归属 | 群攻（自拍杆横扫）只有规则层覆盖 |
+| 三选一与重抽 | 规则：`DemoGrowthDraft`（技能池权重、标签亲和、每组上限、开局 2 主动 + 1 被动、重抽避开上一组、替换降级等级）、`DemoGrowthReroll`（令牌、每组一次、回执重放）。场景：Opponent 的 `HostChoices.png` 截图审阅重抽按钮（开局 0 次时置灰）；Opponent 遥测记录 AI 重抽与替换 | 真人点重抽没有拥有连接场景；遥测中 AI 有令牌时也未用过重抽 |
 | 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
 | 上限变化 | 场景 Growth：死亡期间选择精神状态上限属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
-| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*` | — |
+| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从 1 级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*`、`DemoGrowthDraft`（新主动从 max(1, 旧等级 − 1) 开始） | 替换降级只在规则层；Growth 场景替换的是 2 级技能 |
 | 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）、两件独立冷却、卖出后冷却债由新件继承。规则：`DemoAttributeProjection.DuplicateEquipment`、`DemoCombatSources.CooldownTracks` | D 键冲刺与《润学指南》加成没有拥有连接场景 |
-| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 米 / +X 流量”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)） |
+| 装备进阶 | 规则：`DemoGrowthUpgrade`（账本、一次性、生效定义与属性投影、卖出失去）、`DemoCombatSources.InnateDash`（《润学指南》进阶值与假发片后跳加成）。场景 Growth：`Client1ShopUpgrade.png` 截图审阅商店进阶入口 | 进阶没有拥有连接场景 |
+| 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 米 / +X 流量”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)）；助攻分配由规则 `DemoAssist.*` 覆盖，满员局 `HostKillAssist.png` 只截到播报，助攻奖励只在遥测与规则层 |
 | 复活保护 | 场景 Combat：在十个出生锚点之一复活，保护窗口精确，空 Q 即解除保护且被拒动作不恢复。规则：`DemoSpawn.UnbiasedSample`、`DemoCapture.ProtectionAndContracts` | 保护期间免伤免控没有拥有连接场景 |
-| 占领规则 | 场景 Capture：开局关闭；两次争夺都暂停原占领者进度并由他续计；争夺中原占领者离圈后清零，另一参赛者从零独占；圈空后原占领者从零完成；唯一结果并关闭写闸。场景 Opponent：AI 作为被暂停的占领者留圈迎战。规则：`DemoCapture.*`（含 `ContestPause`） | 争夺中原占领者死亡清零只在规则层 |
-| 视野一致 | 场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
-| AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的占领者留圈迎战，最终按占领获胜 | 本局没有出现的情形报告为未覆盖，不计为通过 |
-| UI 完整 | 规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
+| 喷漆与守护 | 场景 Capture：开局关闭；争夺暂停与续计、喷上涂鸦、主人出区守护照常、他人独自改漆暂停守护并在完成前出区（改漆清零、守护续计）、守护满时长以 `GuardSucceeded` 唯一锁定；场景 Opponent：AI 以喷漆守护获胜，`HostSpray.png`/`HostGuard.png` 截图审阅喷漆与守护 HUD 和旗杆涂鸦。规则：`DemoCapture.*`（含 `SprayAndGuard`、`SprayInterrupt`、`GraffitiCleared`、`CombatHitInterrupt`：真实命中的眩晕与击退在施加瞬间清零喷漆） | 喷漆者死亡、硬控打断、主人死亡清除涂鸦与被击退出区只在规则层 |
+| 战斗原语 | 规则：`DemoCombatPrimitives.*`（硬控递减、冷却缩减、破防、攻速减速与解除、回复激增、唯一控制入口）、`DemoCombatEvaluation.AbilityCrit/Mitigation`、`DemoMechanics.*`（减疗减盾、护盾事件、击退、破防层、负面状态计数、周期效果）、`DemoAttributeProjection.*`（负属性与夹取）。场景 Combat：定身、护盾、天外飞瓶命中照常 | 击退位移、诱饵与新主动只在规则层（新主动不进卡池，AI 施放归 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)） |
+| 视野一致 | 场景 Opponent：`HostOpponentCard.png` 截图审阅可见 AI 的 Q/W 卡（技能名与等级，无冷却/被动/金币）；规则 `DemoVision.OpponentActives`。场景 Vision：客户端只持有本人身体与当前帧代理，丢帧超时后清除且没有 LastSeen，Listen Host 不显示非本人的权威身体。规则：`DemoVision.*`、`ViewPrivacySchema`、`HUDObservationBoundary`；施法名只在施法那一刻随批准来源出现（`DemoVision.ActionCues`、`WorldFeedback.Casts`） | 失视停止追击已实现，没有拥有连接场景 |
+| AI 可玩 | 场景 Opponent：AI 自主移动、升级并确认选择（含开局三选一）、到店购买、死亡期间不发身体请求、复活后行动、请求有界、开圈前取得经验，争夺暂停下的喷漆进度持有者留区迎战，最终以喷漆守护获胜；遥测记录改漆与守护用时 | 本局没有出现的情形报告为未覆盖，不计为通过 |
+| UI 完整 | #112 截图审阅：`HostChoices.png`（重抽按钮）、`Client1ShopUpgrade.png`（进阶入口）、`HostKillAssist.png`（播报助攻者）、`HostResults.png`（助攻列）、`HostOpponentCard.png`、`HostSpray.png`/`HostGuard.png`。规则：`HUD*`、`WorldFeedback.*`、`WorldLabels.*`、`Minimap.*`、`LocalSettings*` 覆盖行动栏与冷却、资源、生命状态、飘字与升级提示、头顶标签、小地图三种朝向、下一步提示与设置保存；`Audio*` 与 `LocalSettingsMasterVolume` 覆盖音效与主音量。场景：Capture 与 SessionFault 的结果行与局内离开菜单；Vision、Camp、Combat、Opponent 保存截图供人工审阅；Frontend 渲染设置页 | 截图之外的人工界面审阅与音效人工试听 |
 | 网络失败 | 场景 SessionFault：局中离开、Host 失联回菜单、地址不可达的加入失败；真实加入按钮遇到版本不兼容、三真人满员与对局已开始，各自显示中文原因与原因码且不进入房间；加入已通过 PreLogin 后 Host 开局，最终准入检查拒绝并显示“对局已开始”；Host 经局内菜单离开，客户端回主菜单显示“房主已离开”；Host 进程在客户端仍连接时正常退出，Host 日志无权威故障，客户端回主菜单显示会话中断。规则：`DemoLobbyAuthority`、`DemoEntry`（原因码映射，含 InvalidName）、`DemoOwnerViewTeardown`（拆除与关房期间不发布本人视图，对局中的真实投影不一致仍判故障） | 跨机器局域网与公网；网络损伤只有同机模拟；Host 进程被结束时客户端约 60 秒后显示会话中断 |
 | 新局隔离 | 场景 Capture 与 Growth 的第二局：开局成长、金币、构筑、冷却、营地与抢圈全部复位，旧代请求被拒。规则：`DemoOrders.BookIsolation`、`DemoMatchIdentity` | — |
-| 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 占领获胜、结果和回 Lobby；Capture 中真人占领获胜后开第二局 | 三名真人的完整对局与人类试玩 |
+| 正常完整对局 | 场景：Opponent 的满员房间从大厅开局到 AI 喷漆守护获胜、结果和回 Lobby；Capture 中真人守护获胜后开第二局 | 三名真人的完整对局与人类试玩 |
 
 ## 未运行、未实现与已知限制
 
@@ -157,6 +168,7 @@ PR 评审后，probe 改为经 relay 的 DEV 钩子逐帧审计，并按 Host �
   音效的人工试听（[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)；场景以 `-nosound` 运行，只有一次有声运行确认设备初始化、音效目录与混音生效）。
 - **只有同机模拟**：延迟、抖动与丢包只用引擎包模拟参数在同机运行，不代表真实网络。
 - **已知限制**：Host 进程消失后客户端约 60 秒才判定断开（引擎默认 ConnectionTimeout，未调整，[#91](https://github.com/rlsn/Lockdown-alpha/issues/91)）；
+  #112 的假发片诱饵没有可见模型（只有被诱者走向诱饵点），键盘连喷暂用天外飞瓶的弹体外观；新主动与新装备主动的 AI 施放归 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117)，在此之前这些新主动不进卡池；
   截图只供人工审阅，不做像素比对；新包第一次带渲染运行的退出较慢（驱动管线缓存，最长超过 120 秒），退出码仍为 0。
   玩法与 AI 的场景覆盖缺口见 [#89](https://github.com/rlsn/Lockdown-alpha/issues/89)，画面与 UI 的验收缺口见 [#87](https://github.com/rlsn/Lockdown-alpha/issues/87)。
 

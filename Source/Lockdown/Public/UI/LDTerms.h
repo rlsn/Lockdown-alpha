@@ -67,28 +67,36 @@ inline constexpr TCHAR Choice[]=TEXT("开盲盒");
 inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%d"),Level);}
 inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
 
-// 阶段与旗杆
+// 阶段与旗杆（喷漆守护终局）
 inline constexpr TCHAR Development[]=TEXT("猥琐发育中，别浪");
 inline constexpr TCHAR CaptureOpened[]=TEXT("旗杆开放了，冲！");
-inline constexpr TCHAR CaptureRule[]=TEXT("一个人守住旗杆就能插旗");
+inline constexpr TCHAR CaptureRule[]=TEXT("一个人在旗杆下喷上涂鸦，再守住它就赢");
 inline constexpr TCHAR CircleEmpty[]=TEXT("旗杆空着，没人敢上？");
 inline constexpr TCHAR CircleContested[]=TEXT("旗杆底下打成一锅粥");
-inline constexpr TCHAR Holding[]=TEXT("正在旗杆底下装");
+inline constexpr TCHAR Holding[]=TEXT("正在旗杆上喷漆");
 inline constexpr TCHAR HoldLeft[]=TEXT("剩");
-inline FString ProgressKept(const FString& Holder){return Holder+TEXT(" 的进度先存着");}
+inline FString ProgressKept(const FString& Holder){return Holder+TEXT(" 的喷漆进度先存着");}
 inline constexpr TCHAR NoProgressKept[]=TEXT("谁也没存下进度");
-inline constexpr TCHAR CaptureGo[]=TEXT("去中心插旗");
+inline constexpr TCHAR CaptureGo[]=TEXT("去中心喷漆");
+inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上是 "))+Owner+TEXT(" 的涂鸦");}
+inline constexpr TCHAR GuardLeft[]=TEXT("再守");
+inline constexpr TCHAR GuardPaused[]=TEXT("有人在改漆，守护暂停");
+inline constexpr TCHAR GuardOwn[]=TEXT("守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）");
+inline FString Besiege(const FString& Owner){return FString(TEXT("下一步：去围攻 "))+Owner+TEXT("，或者去旗杆改漆");}
 
 // 击杀与结算
 inline constexpr TCHAR Winner[]=TEXT("淫人王");
 inline constexpr TCHAR UnknownVictim[]=TEXT("对面");
 inline FString KillLine(const FString& Killer,const FString& Victim){return Killer+TEXT(" 把 ")+Victim+TEXT(" 淫了");}
+inline constexpr TCHAR Assist[]=TEXT("助攻");
+inline FString AssistSuffix(const TArray<FString>& Assisters){return Assisters.IsEmpty()?FString():FString(TEXT("（"))+Assist+TEXT("：")+FString::Join(Assisters,TEXT("、"))+TEXT("）");}
 inline FString KilledByLine(const FString& Victim,const FString& By){return Victim+TEXT(" 被 ")+By+TEXT(" 淫了");}
 inline FString KilledBy(const FString& By){return FString(TEXT("被 "))+By+TEXT(" 淫了");}
 inline FString KillFloat(const FString& Victim){return FString(TEXT("淫了 "))+Victim+TEXT("！");}
-inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 插旗成功，恭喜成为今晚的")+Winner+TEXT("！");}
-inline constexpr TCHAR NoWinner[]=TEXT("无人插旗 · 全员摆烂");
-inline constexpr TCHAR NoCapture[]=TEXT("无人插旗");
+inline FString Crowned(const FString& WinnerName){return WinnerName+TEXT(" 的涂鸦守住了，恭喜成为今晚的")+Winner+TEXT("！");}
+inline constexpr TCHAR NoWinner[]=TEXT("没人守住涂鸦 · 全员摆烂");
+inline constexpr TCHAR NoCapture[]=TEXT("没人守住涂鸦");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
+inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
 }

@@ -80,6 +80,7 @@ struct FLDContenderRecord
     bool bLeft = false;
     uint64 Kills = 0;
     uint64 Deaths = 0;
+    uint64 Assists = 0;
 };
 
 UCLASS()
@@ -122,9 +123,9 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
-    // Right after Motion: whether this step's motion completes a capture segment strictly before the step's
-    // end (a paused holder sole again). If so the driver skips the later gameplay phases of the step, retries
-    // owed rewards, and Capture/Close lock the result at that earlier instant.
+    // Right after Motion: whether this step's motion completes a guard strictly before the step's end (a guard a
+    // sole sprayer paused resumes). If so the driver skips the later gameplay phases of the step, retries owed
+    // rewards, and Capture/Close lock the result at that earlier instant.
     bool CaptureCompletesInsideStep();
     // Driver phase entries, called in order after Transactions with the matching permit.
     bool ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FString& Error);
@@ -136,6 +137,10 @@ public:
     ELDCommitReject PublishCaptureMotion(const FLDGameplayWritePermit& Permit, const FLDNativeMotionBatch& Batch);
     // Life provider: Joined/Respawned/ProtectionEnded/Died facts; Left is core-only.
     ELDCommitReject PublishCaptureEligibility(const FLDGameplayWritePermit& Permit, const FLDCaptureEligibilityEvent& Event);
+    // Combat's control path (Actions or Effects permit): a root, stun, taunt or knockback just committed on this
+    // living contender body at the permit's boundary instant. It clears that body's spray progress; disarm, slow
+    // and plain damage never reach it.
+    ELDCommitReject PublishCaptureInterrupt(const FLDGameplayWritePermit& Permit, const FLDCombatBodyRef& Body);
     void NotifyLifeCommitted(const FLDLifeNotice& Notice);
     FLDPublicMatchView ReadPublicMatch() const;
     FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
@@ -168,11 +173,11 @@ public:
     // Camps: spawned and destroyed by the Camps match provider (World/LDCampDirector.cpp).
     UPROPERTY() TObjectPtr<class ALDCampDirector> Camps;
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV test session (Transactions permit, Development only): the capture circle opens at this boundary's Capture phase
-    // instead of after the full development time (FLDCaptureReducer::DevOpenAt); the hold and every capture rule stay.
+    // DEV test session (Transactions permit, Development only): the flagpole opens at this boundary's Capture phase
+    // instead of after the full development time (FLDCaptureReducer::DevOpenAt); spray, guard and every rule stay.
     // bOutsideDevelopment when the match is in another phase; false with Detail when nothing changed.
     bool DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail);
-    // DEV telemetry only: the current match's reduced capture segment changes; empty outside a match.
+    // DEV telemetry only: the current match's reduced spray and guard changes; empty outside a match.
     const FLDCaptureDevTally& DevCaptureTally() const { return CaptureReducer.DevTally(); }
 #endif
 private:
@@ -183,8 +188,13 @@ private:
     friend class FLDDemoCoreProbe;
     friend class FLDRewardSettlementTest;
     friend class FLDCaptureInsideStepTest;
+    friend class FLDCaptureCombatInterruptTest;
+    friend class FLDDemoMechanicsEffectLifetimesTest;
+    friend class FLDCombatCommitControlTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
+    friend class FLDDemoAssistSettlementTest;
+    friend class FLDDemoGrowthRerollTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

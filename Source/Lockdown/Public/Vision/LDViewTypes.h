@@ -9,7 +9,7 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 3;
+    constexpr uint32 Schema = 4;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -23,9 +23,11 @@ namespace LDObservation
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
-    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32 };
-    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment;
+    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32, Actives = 64 };
+    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
+    // Highest public rank of a Q/W active (APP_SPEC: every character skill tops out at 3); a full rank is the Lv3 mark.
+    constexpr uint8 MaxActiveRank = 3;
 }
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };
@@ -60,6 +62,15 @@ struct FLDObservedEquipmentView
     UPROPERTY() uint8 Slots[2] = {0, 0}; // ELDDemoEquipmentId; 0 = empty slot
 };
 
+// The two Q/W actives of a visible contender and their ranks (#112 §10). No cooldown, passive, mana cost or other field.
+USTRUCT()
+struct FLDObservedActivesView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Abilities[2] = {0, 0}; // ELDDemoAbilityId in Q, W order; 0 = empty slot
+    UPROPERTY() uint8 Ranks[2] = {0, 0};     // 1..MaxActiveRank with an ability, 0 for an empty slot
+};
+
 USTRUCT()
 struct FLDObservedUnitView
 {
@@ -86,6 +97,7 @@ struct FLDObservedUnitView
     UPROPERTY() FLDObservedResource Mana;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
     UPROPERTY() FLDObservedEquipmentView Equipment;
+    UPROPERTY() FLDObservedActivesView Actives;
 };
 
 USTRUCT()
@@ -174,6 +186,7 @@ struct FLDObservedPublicFacts
     uint8 Level = 0;
     uint8 CreatureId = 0;
     FLDObservedEquipmentView Equipment;
+    FLDObservedActivesView Actives;
     TArray<FLDObservedStatus> Statuses;
     // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
     ELDObservedActionCue ActionCue = ELDObservedActionCue::None;

@@ -296,7 +296,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 渲染身体、动画姿势、场地俯视与路线遮挡扫描，`Scripts\DrawDemoArtLayout.py` 画出道具布局图；输出在
 `Artifacts`。原始下载包不入库。
 
-## 营地与占领的复用边界
+## 营地与旗杆的复用边界
 
 营地追击、回位、活动范围和稳定选敌保留为参数化纯决策 `LDCampDecision`，不读取 Actor/World 全局，
 也不创建另一份身体、战斗或奖励状态。调用方须从批准内容、地图注册表和新观测服务提供输入。
@@ -337,15 +337,16 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 
 旧营地 Actor、职业/技能初始包、三营地/有限刷新预算、Boss/Tower/圣坛与探索奖励不作备用实现。
 
-唯一占领归约和结果所有者是 GameMode 核心的 `FLDCaptureReducer`（`Framework\LDCaptureReducer`，
-圈内进出由 `World\LDCaptureCircle` 提取），不再保留独立 Objective Actor、HeartSensor、
+唯一喷漆与守护归约和结果所有者是 GameMode 核心的 `FLDCaptureReducer`（`Framework\LDCaptureReducer`，
+喷漆区进出由 `World\LDCaptureCircle` 提取，半径为 `CAPTURE.RadiusCm`），不再保留独立 Objective Actor、HeartSensor、
 Seal/路线/hold/deadline 或 Claim fallback。复用的是恰一次结果与先关写闸再清理/发布的语义；
 归约、完成提案与关闭顺序见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)。
 调参热重载时 `LDDemoEntry::LoadRuntimeContent` 返回一份固定快照，只在 `InitializeAuthorityCore`（新局开始）经 `RefreshDevContent` 替换；
 `ULDMapDefinition::Read` 接受仍绑定编译根的 `DA_DemoWorld`，但世界字节与按重载数值重新投影的完整几何必须逐字段一致；`PreLogin` 拒绝远程客户端。
-DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放圈的开放时刻提前到一个尚未关闭的边界，开放仍由 `CloseBoundary` 完成。
-DEV 构建中 `DevTally()`（经 `ALDGameMode::DevCaptureTally`）按每次归约后的状态变化计数：每名持有者的尝试（从零开始独占）、
-续占（暂停的进度恢复）、被争夺暂停和失去，以及进入争夺的次数；只供遥测读取，任何规则都不读它，`Reset` 时清空。
+DEV 测试会话的 `FLDCaptureReducer::DevOpenAt` 只把未开放旗杆的开放时刻提前到一个尚未关闭的边界，开放仍由 `CloseBoundary` 完成。
+DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCaptureTally`）按每次归约后的状态变化计数：每名持有者的尝试（从零开始喷漆）、
+续喷（暂停的进度恢复）、被争夺暂停、失去、被硬控打断和喷成次数，以及全局的进入争夺、喷成、覆盖（喷在别人涂鸦上）、
+因主人死亡/离局清除涂鸦的次数和当前涂鸦的喷上时刻（无主为 -1）；只供遥测读取，任何规则都不读它，`Reset` 时清空。
 
 ## 保存与复位边界
 
@@ -364,7 +365,7 @@ DEV 构建中 `DevTally()`（经 `ALDGameMode::DevCaptureTally`）按每次归�
 几何与导航使用当前 `Lockdown.Rules.DemoWorld` 和 Bootstrap 校验；
 观察的有界编码、隐私、句柄和遮挡使用 `Lockdown.Rules.DemoVision.*`。
 真实拥有连接使用 `RunDemoWorldRoomCheck.ps1`（Lobby）、`RunDemoCoreCheck.ps1`（身体与地面）、
-`RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（占领与终局 N02）；
+`RunDemoCampCheck.ps1`（营地 N03）和 `RunDemoCaptureCheck.ps1`（喷漆、守护与终局 N02）；
 全部场景及打包版运行方式见[开发指南](../DEVELOPMENT.md#最小验证选择)。
 旧 B90/B91、World/Objective/Region probe 已删除，不作为验收入口。
 模型/数据检查、原生路径、实际运动、限制客户端表现分别证明不同事情。
