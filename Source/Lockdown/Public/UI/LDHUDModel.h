@@ -192,18 +192,15 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. "<LDTerms::Mana> 30"; empty without one
+        FString Cost;             // the active's mana cost rounded like the shown mana, number only, e.g. "30"; empty without one
+        FString Glyph;            // the placeholder icon's character (the name's first); empty without a source
+        FString Rank;             // the learned rank of Q/W, number only; empty for equipment, the dash and empty slots
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
-    // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty
+    // Slot look: the slot face says its state by colour alone (the tooltip keeps the words). A dead, unsynced or empty
     // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
     enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
-    struct FActionLookView
-    {
-        EActionLook Look=EActionLook::Blocked;
-        FString Caption;
-    };
-    LOCKDOWN_API FActionLookView ActionLook(const FActionView& View,bool bArmed);
+    LOCKDOWN_API EActionLook ActionLook(const FActionView& View,bool bArmed);
 
     struct FObservedCard
     {

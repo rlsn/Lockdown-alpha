@@ -94,8 +94,9 @@ static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUN
 constexpr float HudSideWidth=300.f;
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
-constexpr float HudSlotWidth=124.f;
-constexpr float HudSlotHeight=106.f;
+// Square slots: the icon fills the face inside a 3u state ring; the key, rank and cost ride on its corners.
+constexpr float HudSlotWidth=96.f;
+constexpr float HudSlotHeight=96.f;
 constexpr float HudSlotGap=8.f;
 constexpr float HudGroupGap=24.f;
 constexpr float HudCentreWidth=5*HudSlotWidth+2*HudSlotGap+2*HudGroupGap;
@@ -115,21 +116,44 @@ struct FHudLookStyle
     FLinearColor Fill;
     FLinearColor Edge;
     float EdgeWidth=1.f;
-    FLinearColor Caption;
-    FLinearColor Name;
 };
-// Ready, armed and controlled slots get a crisp 2u edge; slot text carries a 1u outline because the fills are mid-tones.
+// The ring round the icon names the state: ready, armed and controlled slots get a crisp edge, the rest a quiet one.
 FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
 {
     switch(Look)
     {
-    case LDHUD::EActionLook::Ready: return {LDHUDStyle::SlotReady,HudReadyEdge,2.f,HudReadyEdge,LDHUDStyle::TextPrimary};
-    case LDHUD::EActionLook::Armed: return {LDHUDStyle::SlotArmed,LDHUDStyle::TextAccent,2.f,LDHUDStyle::TextAccent,LDHUDStyle::TextPrimary};
-    // Cooling keeps the ready fill, so the part the mask has already uncovered shows how far the slot has come back.
-    case LDHUD::EActionLook::Cooling: return {LDHUDStyle::SlotReady,FLinearColor(.10f,.26f,.28f),1.f,LDHUDStyle::TextSecondary,LDHUDStyle::TextPrimary};
-    case LDHUD::EActionLook::NoMana: return {LDHUDStyle::SlotNoMana,FLinearColor(.18f,.28f,.62f),1.f,HudManaText,HudManaText};
-    case LDHUD::EActionLook::Controlled: return {LDHUDStyle::SlotControlled,HudControlEdge,2.f,HudControlEdge,LDHUDStyle::TextPrimary};
-    default: return {LDHUDStyle::SlotBlocked,FLinearColor(.10f,.13f,.16f),1.f,LDHUDStyle::TextSecondary,LDHUDStyle::TextSecondary};
+    case LDHUD::EActionLook::Ready: return {LDHUDStyle::SlotReady,HudReadyEdge,2.f};
+    case LDHUD::EActionLook::Armed: return {LDHUDStyle::SlotArmed,LDHUDStyle::TextAccent,3.f};
+    case LDHUD::EActionLook::Cooling: return {LDHUDStyle::SlotReady,FLinearColor(.10f,.26f,.28f),1.f};
+    case LDHUD::EActionLook::NoMana: return {LDHUDStyle::SlotNoMana,FLinearColor(.18f,.28f,.62f),2.f};
+    case LDHUD::EActionLook::Controlled: return {LDHUDStyle::SlotControlled,HudControlEdge,3.f};
+    default: return {LDHUDStyle::SlotBlocked,FLinearColor(.10f,.13f,.16f),1.f};
+    }
+}
+// Placeholder icon colours, shared with the shop and blind-box icons: actives orange, a source without an active blue;
+// the innate dash is slate and an empty slot dark grey.
+enum class EHudIconKind : uint8 { Active, Passive, Dash, Empty };
+FLinearColor HudIconBase(EHudIconKind Kind)
+{
+    switch(Kind)
+    {
+    case EHudIconKind::Active: return FLinearColor(.62f,.22f,.04f);
+    case EHudIconKind::Passive: return FLinearColor(.08f,.28f,.52f);
+    case EHudIconKind::Dash: return FLinearColor(.20f,.26f,.32f);
+    default: return FLinearColor(.12f,.13f,.15f);
+    }
+}
+// The icon also carries the state: missing mana turns it blue, control and blocks drain its colour; the cooldown mask
+// darkens a cooling icon on its own.
+FLinearColor HudIconColor(EHudIconKind Kind,LDHUD::EActionLook Look)
+{
+    const FLinearColor Base=HudIconBase(Kind);
+    switch(Look)
+    {
+    case LDHUD::EActionLook::NoMana: return FMath::Lerp(Base,FLinearColor(.10f,.20f,.75f),.7f);
+    case LDHUD::EActionLook::Controlled: return Base.Desaturate(.6f)*.6f;
+    case LDHUD::EActionLook::Blocked: return Base.Desaturate(1.f)*.45f;
+    default: return Base;
     }
 }
 // Camp tiers are named after their approved creature, never a guessed or hidden attacker.
@@ -176,7 +200,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 RegenSlot->SetVerticalAlignment(VAlign_Center);RegenSlot->SetPadding(FMargin(0,0,10,0));
                 *OutRegen=Regen;
                 // Reserve equal space on both sides so the current/max value stays centred and cannot overlap regen.
-                TextSlot->SetHorizontalAlignment(HAlign_Fill);TextSlot->SetPadding(FMargin(150,0));
+                TextSlot->SetHorizontalAlignment(HAlign_Fill);TextSlot->SetPadding(FMargin(80,0));
             }
             return Box;
         };
@@ -366,37 +390,41 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         for(int32 Index=0;Index<HudActionCount;++Index)
         {
             FLDHUDActionSlot& Entry=ActionSlots.AddDefaulted_GetRef();
-            auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
-            // Every line stays inside the slot: the key ends in an ellipsis, the name wraps and ends in an ellipsis on its last
-            // visible line, and the tooltip keeps the full text. Slot text carries a 1u outline over the mid-tone fills.
-            Lines->SetClipping(EWidgetClipping::ClipToBounds);
-            auto* Head=WidgetTree->ConstructWidget<UHorizontalBox>();Lines->AddChildToVerticalBox(Head);
-            Entry.Key=OneLine(TEXT(""),16,0);HudFace(Entry.Key,true,1);Entry.Key->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Entry.Key->SetColorAndOpacity(LDHUDStyle::TextAccent);
-            auto* KeySlot=Head->AddChildToHorizontalBox(Entry.Key);KeySlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));KeySlot->SetVerticalAlignment(VAlign_Center);
-            Entry.Cost=OneLine(TEXT(""),13,0);Entry.Cost->SetColorAndOpacity(HudManaText);
-            Entry.CostChip=WidgetTree->ConstructWidget<UBorder>();Entry.CostChip->SetBrush(HudRound(4.f,FLinearColor(.18f,.28f,.62f),1.f));Entry.CostChip->SetBrushColor(FLinearColor(.015f,.03f,.09f,.92f));
-            Entry.CostChip->SetPadding(FMargin(5,0));Entry.CostChip->SetContent(Entry.Cost);Entry.CostChip->SetVisibility(ESlateVisibility::Collapsed);
-            auto* CostSlot=Head->AddChildToHorizontalBox(Entry.CostChip);CostSlot->SetVerticalAlignment(VAlign_Center);CostSlot->SetPadding(FMargin(4,0,0,0));
-            Entry.Name=Text(TEXT(""),15);HudFace(Entry.Name,false,1);Entry.Name->SetTextOverflowPolicy(ETextOverflowPolicy::MultilineEllipsis);Entry.Name->SetClipping(EWidgetClipping::ClipToBounds);
-            auto* NameLine=Lines->AddChildToVerticalBox(Entry.Name);NameLine->SetSize(FSlateChildSize(ESlateSizeRule::Fill));NameLine->SetPadding(FMargin(0,2,0,0));
-            Entry.State=Text(TEXT(""),13);HudFace(Entry.State,false,1);Lines->AddChildToVerticalBox(Entry.State);
-            Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(8,4));Entry.Frame->SetContent(Lines);
-            // Over the face, in order: the cooldown mask shrinking with the remainder, the remaining time, the control badge and
-            // the ready flash. None takes input; the button under them does.
-            auto* Stack=WidgetTree->ConstructWidget<UOverlay>();
+            // The face: the icon filling the state ring, the cooldown mask and its remaining time over it, and the key
+            // (top-left), the rank (bottom-left) and the mana cost (bottom-right) on its corners. Corner text carries a 2u
+            // outline because it sits on the icon colours.
+            auto* Face=WidgetTree->ConstructWidget<UOverlay>();Face->SetClipping(EWidgetClipping::ClipToBounds);
             auto FillLayer=[](UOverlaySlot* Layer){Layer->SetHorizontalAlignment(HAlign_Fill);Layer->SetVerticalAlignment(VAlign_Fill);};
-            FillLayer(Stack->AddChildToOverlay(Entry.Frame));
+            Entry.Glyph=OneLine(TEXT(""),30,0);HudFace(Entry.Glyph,true,2);Entry.Glyph->SetJustification(ETextJustify::Center);
+            Entry.Icon=WidgetTree->ConstructWidget<UBorder>();Entry.Icon->SetBrush(HudRound(6.f,FLinearColor(1,1,1,.18f),1.f));
+            Entry.Icon->SetHorizontalAlignment(HAlign_Center);Entry.Icon->SetVerticalAlignment(VAlign_Center);Entry.Icon->SetContent(Entry.Glyph);
+            FillLayer(Face->AddChildToOverlay(Entry.Icon));
             Entry.Cooldown=WidgetTree->ConstructWidget<UProgressBar>();
             FProgressBarStyle MaskStyle;MaskStyle.SetBackgroundImage(FSlateNoResource()).SetFillImage(FSlateRoundedBoxBrush(FLinearColor::White,6.f)).SetMarqueeImage(FSlateNoResource());
             Entry.Cooldown->SetWidgetStyle(MaskStyle);Entry.Cooldown->SetBarFillType(EProgressBarFillType::TopToBottom);Entry.Cooldown->SetFillColorAndOpacity(LDHUDStyle::SlotCooldownMask);
-            Entry.Cooldown->SetPercent(0);Entry.Cooldown->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Cooldown));
+            Entry.Cooldown->SetPercent(0);Entry.Cooldown->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Face->AddChildToOverlay(Entry.Cooldown));
             Entry.Countdown=OneLine(TEXT(""),26,0);HudFace(Entry.Countdown,true,2);Entry.Countdown->SetJustification(ETextJustify::Center);Entry.Countdown->SetColorAndOpacity(FLinearColor::White);
             Entry.Countdown->SetVisibility(ESlateVisibility::Collapsed);
-            auto* CountdownLayer=Stack->AddChildToOverlay(Entry.Countdown);CountdownLayer->SetHorizontalAlignment(HAlign_Center);CountdownLayer->SetVerticalAlignment(VAlign_Center);
-            auto* BadgeText=OneLine(TEXT("控"),13,0);HudFace(BadgeText,true,0);BadgeText->SetColorAndOpacity(HudPromptInk);
-            Entry.Badge=WidgetTree->ConstructWidget<UBorder>();Entry.Badge->SetBrush(HudRound(4.f,HudControlEdge,1.f));Entry.Badge->SetBrushColor(HudControlEdge);
-            Entry.Badge->SetPadding(FMargin(5,0));Entry.Badge->SetContent(BadgeText);Entry.Badge->SetVisibility(ESlateVisibility::Collapsed);
-            auto* BadgeLayer=Stack->AddChildToOverlay(Entry.Badge);BadgeLayer->SetHorizontalAlignment(HAlign_Right);BadgeLayer->SetVerticalAlignment(VAlign_Top);BadgeLayer->SetPadding(FMargin(0,5,8,0));
+            auto* CountdownLayer=Face->AddChildToOverlay(Entry.Countdown);CountdownLayer->SetHorizontalAlignment(HAlign_Center);CountdownLayer->SetVerticalAlignment(VAlign_Center);
+            Entry.Key=OneLine(TEXT(""),16,0);HudFace(Entry.Key,true,2);Entry.Key->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Entry.Key->SetColorAndOpacity(LDHUDStyle::TextAccent);
+            auto* KeyLayer=Face->AddChildToOverlay(Entry.Key);KeyLayer->SetHorizontalAlignment(HAlign_Left);KeyLayer->SetVerticalAlignment(VAlign_Top);KeyLayer->SetPadding(FMargin(5,2,5,0));
+            auto Chip=[&](UTextBlock*& OutText,const FLinearColor& Ink,const FLinearColor& Edge,const FLinearColor& Fill)
+            {
+                OutText=OneLine(TEXT(""),13,0);HudFace(OutText,true,0);OutText->SetColorAndOpacity(Ink);
+                auto* Border=WidgetTree->ConstructWidget<UBorder>();Border->SetBrush(HudRound(4.f,Edge,1.f));Border->SetBrushColor(Fill);
+                Border->SetPadding(FMargin(5,0));Border->SetContent(OutText);Border->SetVisibility(ESlateVisibility::Collapsed);
+                return Border;
+            };
+            UTextBlock* ChipText=nullptr;
+            Entry.RankChip=Chip(ChipText,LDHUDStyle::TextAccent,LDHUDStyle::TextAccent,FLinearColor(.02f,.03f,.05f,.92f));Entry.Rank=ChipText;
+            auto* RankLayer=Face->AddChildToOverlay(Entry.RankChip);RankLayer->SetHorizontalAlignment(HAlign_Left);RankLayer->SetVerticalAlignment(VAlign_Bottom);RankLayer->SetPadding(FMargin(3,0,0,3));
+            Entry.CostChip=Chip(ChipText,HudManaText,FLinearColor(.18f,.28f,.62f),FLinearColor(.015f,.03f,.09f,.92f));Entry.Cost=ChipText;
+            auto* CostLayer=Face->AddChildToOverlay(Entry.CostChip);CostLayer->SetHorizontalAlignment(HAlign_Right);CostLayer->SetVerticalAlignment(VAlign_Bottom);CostLayer->SetPadding(FMargin(0,0,3,3));
+            Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(3));
+            Entry.Frame->SetHorizontalAlignment(HAlign_Fill);Entry.Frame->SetVerticalAlignment(VAlign_Fill);Entry.Frame->SetContent(Face);
+            // The ready flash covers the whole slot; neither layer takes input, the button under them does.
+            auto* Stack=WidgetTree->ConstructWidget<UOverlay>();
+            FillLayer(Stack->AddChildToOverlay(Entry.Frame));
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
             const ELDCombatEntry Activated=HudActionEntries[Index];
@@ -406,8 +434,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
             Entry.Button->SetContent(Stack);
             if(UButtonSlot* StackSlot=Cast<UButtonSlot>(Stack->Slot)){StackSlot->SetPadding(FMargin(0));StackSlot->SetHorizontalAlignment(HAlign_Fill);StackSlot->SetVerticalAlignment(VAlign_Fill);}
-            // 124 leaves a 108-unit text box (frame padding 8+8): five size-15 CJK glyphs per line, also with the rounded glyph
-            // advances of the 720p UI scale; 106 holds the key row, two name lines and the state line.
             Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
             // Character actives (Q/W), equipment actives (1/2) and the innate dash (D) are separate groups, never one merged bar.
             Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2||Index==4?HudGroupGap:HudSlotGap,0,0,0));
@@ -417,15 +443,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Bottom->AddChildToHorizontalBox(CentreWidth)->SetVerticalAlignment(VAlign_Bottom);
         Band=LDWidgets::Panel(WidgetTree,Bottom,FMargin(HudBandPadX,10));HitPanels.Add(Band);
 
-        // Above the band, bottom-up: the pending-choice pill over the right end of the health bar, the toast, then the armed
-        // prompt. The stack grows upward from the band, so a taller band (text scale) never overlaps them; only the pill takes
-        // input. The band has no right block, so the stack is shifted left by half the identity block: the centre block stays
-        // on the screen centre, under the character, and the centred prompts are padded back over it.
+        // Above the band: the toast, the only line that says what went wrong (a refused request such as 目标不可用); an armed
+        // entry or attack move is shown by its slot ring and the world preview alone. The stack grows upward from the band,
+        // so a taller band (text scale) never overlaps it. The band has no right block, so the stack is shifted left by half
+        // the identity block: the centre block stays on the screen centre, under the character, and the toast is padded
+        // back over it.
         const float HudLeftReach=HudSideWidth+HudBlockGap+1;
         auto* BandStack=WidgetTree->ConstructWidget<UVerticalBox>();BandStack->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        ArmedText=OneLine(TEXT(""),16,640);ArmedText->SetColorAndOpacity(LDHUDStyle::TextAccent);
-        ArmedPanel=Panel(ArmedText,false);ArmedPanel->SetVisibility(ESlateVisibility::Collapsed);
-        auto* ArmedSlot=BandStack->AddChildToVerticalBox(ArmedPanel);ArmedSlot->SetHorizontalAlignment(HAlign_Center);ArmedSlot->SetPadding(FMargin(HudLeftReach,0,0,8));
         Toast=OneLine(TEXT(""),16,640);ToastPanel=Panel(Toast,false);ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
         auto* ToastSlot=BandStack->AddChildToVerticalBox(ToastPanel);ToastSlot->SetHorizontalAlignment(HAlign_Center);ToastSlot->SetPadding(FMargin(HudLeftReach,0,0,8));
         BandStack->AddChildToVerticalBox(Band)->SetHorizontalAlignment(HAlign_Center);
@@ -565,7 +589,7 @@ void ULDHUD::RefreshReadModel()
     if(!bShow)
     {
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ArmedPanel.Get()),static_cast<UWidget*>(ScorePanel.Get())}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
+            static_cast<UWidget*>(ScorePanel.Get())}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         return;
     }
 
@@ -781,13 +805,12 @@ void ULDHUD::RefreshReadModel()
         for(const FLDCombatActionReceipt& Receipt:Arrived)
         {
             if(Receipt.Generation!=O.Match||Receipt.Life!=O.Life){continue;}
-            // The pressed slot repeats the reason where the player is looking; the toast keeps the full notice.
-            const FString SlotNotice=LDHUD::CombatReceiptSlotNotice(Receipt);
-            for(int32 Pressed=0;Pressed<ActionSlots.Num()&&!SlotNotice.IsEmpty();++Pressed)
-            {if(HudActionEntries[Pressed]==Receipt.Entry){ActionSlots[Pressed].Notice=SlotNotice;ActionSlots[Pressed].NoticeAt=UiNow;}}
+            // The pressed slot's ring turns red for a moment where the player is looking; the toast says why.
+            const bool bSlotRefused=!LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty();
+            for(int32 Pressed=0;Pressed<ActionSlots.Num()&&bSlotRefused;++Pressed)
+            {if(HudActionEntries[Pressed]==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
         }
     }
-    FString ArmedName;
     uint8 ControlBits=0;
     if(OwnCombat){for(const FLDCombatStatusView& Status:OwnCombat->Statuses){ControlBits|=Status.ControlBlocks;}}
     ActionTips.SetNum(ActionSlots.Num());
@@ -804,32 +827,34 @@ void ULDHUD::RefreshReadModel()
         Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
-        const bool bThisArmed=bArmed&&ArmedEntry==Wanted;
-        if(bThisArmed){ArmedName=View.Name;}
-        const LDHUD::FActionLookView Look=LDHUD::ActionLook(View,bThisArmed);
+        const LDHUD::EActionLook Look=LDHUD::ActionLook(View,bArmed&&ArmedEntry==Wanted);
         const bool bCooling=View.CooldownRemainingMs>0;
         // A cooldown that runs out on a usable slot within the same life flashes that slot once.
-        if(Entry.bCooling&&!bCooling&&Entry.CoolingMatch==O.Match&&Entry.CoolingLife==O.Life&&Look.Look==LDHUD::EActionLook::Ready){Entry.FlashAt=UiNow;}
+        if(Entry.bCooling&&!bCooling&&Entry.CoolingMatch==O.Match&&Entry.CoolingLife==O.Life&&Look==LDHUD::EActionLook::Ready){Entry.FlashAt=UiNow;}
         Entry.bCooling=bCooling;Entry.CoolingMatch=O.Match;Entry.CoolingLife=O.Life;
-        const FHudLookStyle Style=HudLookStyle(Look.Look);
+        const FHudLookStyle Style=HudLookStyle(Look);
+        const EHudIconKind IconKind=(View.ExecutionBlocks&LDHUD::ActionEmpty)?EHudIconKind::Empty:(View.ExecutionBlocks&LDHUD::ActionNoActive)?EHudIconKind::Passive
+            :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
-        const int32 LookKey=int32(Look.Look)*2+(bHover?1:0);
+        const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<HudNoticeSeconds;
+        const int32 LookKey=((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0);
         if(Entry.AppliedLook!=LookKey)
         {
-            // Hovering brightens the edge; the fill keeps naming the state.
+            // Hovering brightens the edge and a refused press turns the ring red; the fill and the icon keep naming the state.
             Entry.AppliedLook=LookKey;
-            const FLinearColor Edge=bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
-            Entry.Frame->SetBrush(HudRound(6.f,Edge,bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth));Entry.Frame->SetBrushColor(Style.Fill);
+            const FLinearColor Edge=bRejected?LDHUDStyle::TextDanger:bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
+            const float EdgeWidth=bRejected?3.f:bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth;
+            Entry.Frame->SetBrush(HudRound(8.f,Edge,EdgeWidth));Entry.Frame->SetBrushColor(bRejected?FMath::Lerp(Style.Fill,LDHUDStyle::TextDanger,.5f):Style.Fill);
+            Entry.Icon->SetBrushColor(HudIconColor(IconKind,Look));
+            HudSetColor(Entry.Glyph,Look==LDHUD::EActionLook::Blocked||Look==LDHUD::EActionLook::Empty?LDHUDStyle::TextSecondary:LDHUDStyle::TextPrimary);
         }
-        const bool bNotice=!Entry.Notice.IsEmpty()&&UiNow-Entry.NoticeAt<HudNoticeSeconds;
-        HudSetText(Entry.Key,View.Key);HudSetText(Entry.Name,View.Name);HudSetColor(Entry.Name,Style.Name);
-        HudSetText(Entry.State,bNotice?Entry.Notice:Look.Caption);HudSetColor(Entry.State,bNotice?LDHUDStyle::TextDanger:Style.Caption);
-        HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty()&&Look.Look!=LDHUD::EActionLook::Controlled,ESlateVisibility::HitTestInvisible);
-        HudSetShown(Entry.Badge,Look.Look==LDHUD::EActionLook::Controlled,ESlateVisibility::HitTestInvisible);
+        HudSetText(Entry.Key,View.Key);HudSetText(Entry.Glyph,View.Glyph);
+        HudSetText(Entry.Rank,View.Rank);HudSetShown(Entry.RankChip,!View.Rank.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
         // An empty slot or a source without an active fades as a whole; the ready flash pops the slot and fades out.
-        const float Opacity=Look.Look==LDHUD::EActionLook::Empty?.45f:1.f;
+        const float Opacity=Look==LDHUD::EActionLook::Empty?.45f:1.f;
         if(Entry.AppliedOpacity!=Opacity){Entry.AppliedOpacity=Opacity;Entry.Box->SetRenderOpacity(Opacity);}
         const double FlashAge=Entry.FlashAt>=0?UiNow-Entry.FlashAt:LDHUDStyle::ReadyFlashSeconds;
         const bool bFlash=FlashAge<LDHUDStyle::ReadyFlashSeconds;
@@ -847,10 +872,6 @@ void ULDHUD::RefreshReadModel()
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
         if(ActionTips[Index]!=View.Tooltip){ActionTips[Index]=View.Tooltip;Entry.Button->SetToolTipText(FText::FromString(View.Tooltip));}
     }
-    FString ArmedLine;
-    if(bArmed){ArmedLine=(ArmedName.IsEmpty()?LDHUD::EntryLabel(ArmedEntry):ArmedName)+TEXT(" 准备中：左键确认目标 · 右键或 ")+PC->BindingLabel(TEXT("Back"))+TEXT(" 取消");}
-    else if(PC->IsAttackMoveArmed()){ArmedLine=TEXT("攻击移动：左键选择地点或目标 · 右键或 ")+PC->BindingLabel(TEXT("Back"))+TEXT(" 取消");}
-    HudSetText(ArmedText,ArmedLine);HudSetShown(ArmedPanel,!ArmedLine.IsEmpty(),ESlateVisibility::HitTestInvisible);
     HudSetText(CameraText,PC->Navigation->bFollowCamera?FString(TEXT("镜头：跟随")):TEXT("镜头：自由 · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" 跟随"));
 
     const ALDWorldViewRelay* Relay=PC->LocalView();

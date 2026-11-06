@@ -535,7 +535,9 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
     View.Countdown=CooldownText(View.CooldownRemainingMs);
-    if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%s %lld"),LDTerms::Mana,HudWholePoints(Input.ManaCostP2,false));}
+    if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
+    if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
+    if(bLearned&&Input.bHasSource&&Input.Rank>0){View.Rank=FString::FromInt(Input.Rank);}
     View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
     if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n%s消耗 %lld"),LDTerms::Mana,HudWholePoints(Input.ManaCostP2,false));}
     if(bDash&&Input.bHasSource){View.Tooltip+=FString::Printf(TEXT("\n朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s；释放后的冷却不因换装改变"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash);}
@@ -543,21 +545,17 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
 }
-LDHUD::FActionLookView LDHUD::ActionLook(const FActionView& View,bool bArmed)
+LDHUD::EActionLook LDHUD::ActionLook(const FActionView& View,bool bArmed)
 {
-    FActionLookView Look;
     const uint32 Blocks=View.ExecutionBlocks;
-    auto Set=[&Look](EActionLook Kind,const FString& Caption){Look.Look=Kind;Look.Caption=Caption;return Look;};
-    if(Blocks&(ActionUnsynced|ActionNotPlaying|ActionDead)){return Set(EActionLook::Blocked,View.State);}
-    // An empty slot is already named by its name line; a source without an active says so.
-    if(Blocks&ActionEmpty){return Set(EActionLook::Empty,FString());}
-    if(Blocks&ActionNoActive){return Set(EActionLook::Empty,View.State);}
-    if(bArmed){return Set(EActionLook::Armed,TEXT("选择目标"));}
-    if(Blocks&ActionControlled){return Set(EActionLook::Controlled,TEXT("受控"));}
-    if(Blocks&ActionCooldown){return Set(EActionLook::Cooling,TEXT("冷却中"));}
-    if(Blocks&ActionMana){return Set(EActionLook::NoMana,LDTerms::NotEnoughMana());}
-    if(Blocks&ActionServer){return Set(EActionLook::Blocked,View.State);}
-    return Set(EActionLook::Ready,TEXT("就绪"));
+    if(Blocks&(ActionUnsynced|ActionNotPlaying|ActionDead)){return EActionLook::Blocked;}
+    if(Blocks&(ActionEmpty|ActionNoActive)){return EActionLook::Empty;}
+    if(bArmed){return EActionLook::Armed;}
+    if(Blocks&ActionControlled){return EActionLook::Controlled;}
+    if(Blocks&ActionCooldown){return EActionLook::Cooling;}
+    if(Blocks&ActionMana){return EActionLook::NoMana;}
+    if(Blocks&ActionServer){return EActionLook::Blocked;}
+    return EActionLook::Ready;
 }
 
 LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec)

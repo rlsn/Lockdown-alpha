@@ -22,8 +22,9 @@ struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// One Q/W/1/2 entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
-// can be submitted; execution limits grey and explain it but never replace the server's decision.
+// One Q/W/1/2/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
+// can be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
+// the icon, the rank and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
 {
@@ -31,15 +32,17 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<USizeBox> Box;
     UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
+    // Placeholder icon until real art lands (#93): a rounded square in the entry kind's colour with the name's first glyph.
+    UPROPERTY() TObjectPtr<UBorder> Icon;
+    UPROPERTY() TObjectPtr<UTextBlock> Glyph;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
+    UPROPERTY() TObjectPtr<UBorder> RankChip;
+    UPROPERTY() TObjectPtr<UTextBlock> Rank;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
-    UPROPERTY() TObjectPtr<UTextBlock> Name;
-    UPROPERTY() TObjectPtr<UTextBlock> State;
-    // Full-slot cooldown mask, its remaining time, the control badge and the ready flash, drawn over the slot in that order.
+    // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
-    UPROPERTY() TObjectPtr<UBorder> Badge;
     UPROPERTY() TObjectPtr<UBorder> Flash;
     // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
     int32 AppliedLook=-1;
@@ -49,8 +52,7 @@ struct FLDHUDActionSlot
     uint32 CoolingMatch=0;
     uint32 CoolingLife=0;
     double FlashAt=-1;
-    FString Notice;
-    double NoticeAt=-1;
+    double RejectedAt=-1;
 };
 
 UCLASS()
@@ -128,8 +130,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfStatusText;
     UPROPERTY() TObjectPtr<UTextBlock> PassiveText;
-    UPROPERTY() TObjectPtr<UBorder> ArmedPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> ArmedText;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
