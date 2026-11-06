@@ -353,8 +353,12 @@ App Spec §3.1（2026-11-07 用户决定）：Q/W/1/2/D 的请求被拒绝（冷
 
 - `CastUnit/CastPoint`：不带 Shift 时收件即判定（§4.6），被拒绝不进入待受理槽；就绪的施放激活时再判定一次，失败同样保留原订单。
 - Direct 技能（Self、冲刺类、D、缺目标）：本来就不改当前订单。队列里有步骤时，`ULDNavigationComponent::RefuseUnreadyDirect`
-  先判定，未就绪的请求不交给 Combat（不推进 Combat 的 Direct 序号窗口，队列里序号更小的技能步骤仍可执行），直接回拒绝回执，
+  先判定，未就绪的请求不交给 Combat，而是记入 Combat 的 Direct 回执窗口但不推进其序号高水位：重放同一请求得到原拒绝，
+  条款不同为 `RequestConflict`，队列里序号更小的技能步骤仍可执行；直接回拒绝回执，
   Q/W/1/2 仍在下一次 Actions 阶段解除保护；交给 Combat 的请求等判定后才清队列（§4.5）。
+  交给 Combat 后被拒（如自身前摇中按 D 判为 `Busy`）时高水位已越过排队步骤，但排队步骤在入队时已确认 Combat 未见过，
+  轮到时以排队步骤身份提交（`SubmitAction`/`StartNavCast` 的 `bQueuedStep`），不因更新的序号过期，仍只执行一次；
+  与排队步骤同序号的 Direct 请求以 `RequestConflict` 拒绝。判定共用 `LDCombatSourceRules::DirectSequenceVerdict`。
 - 客户端发送施放订单时不提前清掉本地排队标记，被丢弃步骤的 `Cancelled` 回执才移除标记；确认技能不发送 Stop。
 - 已受理后才失败的施放（接近途中目标失效、视线、来源变化等）仍按 §4.6 结束施放订单并原地站立。
 

@@ -488,6 +488,13 @@ ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input,
     return ELDCombatReject::None;
 }
 
+ELDDirectSequenceVerdict LDCombatSourceRules::DirectSequenceVerdict(bool bRecorded, bool bSameTerms, uint64 Sequence,
+    uint64 HighWater, bool bQueuedStep)
+{
+    if (bRecorded) { return bSameTerms ? ELDDirectSequenceVerdict::Replay : ELDDirectSequenceVerdict::Conflict; }
+    return Sequence<=HighWater && !bQueuedStep ? ELDDirectSequenceVerdict::Expired : ELDDirectSequenceVerdict::Fresh;
+}
+
 ELDCombatReject LDCombatSourceRules::BasicReleaseGate(const FLDBasicReleaseInput& Input)
 {
     if (Input.bAttackBlocked) { return ELDCombatReject::ControlBlocked; }

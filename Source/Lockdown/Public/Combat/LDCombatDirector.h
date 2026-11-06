@@ -421,8 +421,15 @@ public:
 
     // ---- Commands shared by human RPCs, the opponent AI and registered camp members.
     bool ResolveControllerCaller(const AController& Controller, FLDCombatCaller& Out, FString& Error) const;
-    // Receipt only; Queued intents are admitted in the next Actions phase.
-    FLDCombatActionReceipt SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request);
+    // Receipt only; Queued intents are admitted in the next Actions phase. bQueuedStep: a shift-queued step Navigation
+    // checked as unseen when it was queued; a newer Direct sequence judged since then does not expire it
+    // (LDCombatSourceRules::DirectSequenceVerdict).
+    FLDCombatActionReceipt SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, bool bQueuedStep=false);
+    // Navigation refused a fresh Direct request before Combat judged it (2026-11-07: a skill that cannot start keeps the
+    // current order and the shift queue). Records the refusal in the receipt window without moving the high-water mark,
+    // so a replay answers the same refusal, changed terms conflict, and older queued sequences stay runnable.
+    bool RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, ELDCombatReject Reject,
+        FLDCombatActionReceipt& Out);
     FLDCombatActionReceipt CancelAction(const FLDCombatCaller& Caller, const FLDCombatCancelRequest& Request);
     FLDCombatActionReceipt QueryActionReceipt(const FLDCombatCaller& Caller, uint64 DirectSequence) const;
     FLDCombatEntryView QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const;
@@ -437,9 +444,9 @@ public:
     // owner's Direct request now, inside the Actions permit, exactly as a queued Direct request would be judged.
     // OutOfRange and Busy (and Blocked sight to a unit) leave the request unrecorded (bFinal false) so the order keeps
     // closing in or waiting; every other outcome records, reports and returns it like an ordinary Direct receipt
-    // (bFinal true). False only on an authority fault.
+    // (bFinal true). False only on an authority fault. bQueuedStep: the cast order came from the shift queue.
     bool StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, const FLDGameplayWritePermit& Permit,
-        FLDCombatActionReceipt& Out, bool& bFinal, FString& Error);
+        FLDCombatActionReceipt& Out, bool& bFinal, FString& Error, bool bQueuedStep=false);
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
     // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());

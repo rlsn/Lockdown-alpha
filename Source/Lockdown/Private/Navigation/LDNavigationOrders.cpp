@@ -405,16 +405,29 @@ bool ULDNavigationComponent::RefuseUnreadyDirect(const FLDCombatActionRequest& R
     if (Queue.IsEmpty() || !Mode->Combat->ResolveControllerCaller(*PC,CombatCaller,Error)) { return false; }
     // A sequence Combat already knows keeps Combat's own answer (a replay or a conflict).
     if (Mode->Combat->QueryActionReceipt(CombatCaller,Request.DirectSequence).Reject!=ELDCombatReject::StaleRequest) { return false; }
-    const ELDCombatReject Unavailable=Mode->Combat->QueryAvailability(CombatCaller,Request.Entry).Unavailable;
+    // The shift queue owns this sequence already: it runs once from there, never also as a Direct request.
+    const bool bQueuedHere=Queue.ContainsByPredicate([&Request](const FQueuedStep& Step)
+        {
+            return (Step.bAction || Step.Order.Kind==ELDSpatialOrderKind::CastUnit || Step.Order.Kind==ELDSpatialOrderKind::CastPoint)
+                && Step.Action.DirectSequence==Request.DirectSequence;
+        });
+    const ELDCombatReject Unavailable=bQueuedHere ? ELDCombatReject::RequestConflict
+        : Mode->Combat->QueryAvailability(CombatCaller,Request.Entry).Unavailable;
     if (LDOrderRules::SkillRequestReady(Unavailable)) { return false; }
-    Out={};
-    Out.Generation=Request.Generation;
-    Out.Life=Request.Life;
-    Out.Origin=ELDCombatRequestOrigin::Direct;
-    Out.DirectSequence=Request.DirectSequence;
-    Out.Entry=Request.Entry;
-    Out.Phase=ELDCombatPhase::Rejected;
-    Out.Reject=Unavailable;
+    // Recorded in Combat's receipt window without moving its high-water mark: a replay answers this same refusal and the
+    // older queued sequences stay runnable.
+    if (bQueuedHere || !Mode->Combat->RecordDirectRefusal(CombatCaller,Request,Unavailable,Out))
+    {
+        Out={};
+        Out.Generation=Request.Generation;
+        Out.Life=Request.Life;
+        Out.Origin=ELDCombatRequestOrigin::Direct;
+        Out.DirectSequence=Request.DirectSequence;
+        Out.Entry=Request.Entry;
+        Out.Phase=ELDCombatPhase::Rejected;
+        Out.Reject=Unavailable;
+    }
+    if (bQueuedHere) { return true; }
     // Every Q/W/1/2 attempt is an aggressive intent, refused or not (the D dash is movement, APP_SPEC 7.1).
     if (Request.Entry!=ELDCombatEntry::Dash && !QueueOwedAggression)
     {
@@ -829,7 +842,8 @@ void ULDNavigationComponent::StartQueuedAction(ALDGameMode& Mode, FQueuedStep St
     const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     if (Step.bAimPoint && Body && LDOrderRules::QueuedAimDirection(ALDCombatDirector::FootOf(*Body),Step.AimCm,Direction))
     { Request.Target.Direction=Direction; }
-    Receipt=Mode.Combat->SubmitAction(CombatCaller,Request);
+    // Navigation checked this sequence unseen when it was queued; a newer Direct request judged since does not expire it.
+    Receipt=Mode.Combat->SubmitAction(CombatCaller,Request,true);
     if (IsHumanOwner()) { PC->ClientCombatReceipt(Receipt); }
     if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
     UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUE_ACTION sequence=%llu entry=%u phase=%u reject=%u left=%d"),Request.DirectSequence,
@@ -1483,7 +1497,7 @@ bool ULDNavigationComponent::TryNavCast(ALDGameMode& Mode, const FLDCombatAction
     }
     FLDCombatActionReceipt Receipt;
     bool bFinal=false;
-    if (!Mode.Combat->StartNavCast(Caller,Request,Permit,Receipt,bFinal,Error)) { return false; }
+    if (!Mode.Combat->StartNavCast(Caller,Request,Permit,Receipt,bFinal,Error,ActiveOrder->Request.bQueue)) { return false; }
     Reject=Receipt.Reject;
     if (!bFinal)
     {

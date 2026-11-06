@@ -195,7 +195,8 @@ void ALDCombatDirector::EndMatchActions()
     for (auto& Pair : Bodies) { AbandonAction(Pair.Value,ELDCombatReject::MatchClosed); }
 }
 
-FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request)
+FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    bool bQueuedStep)
 {
     FLDCombatActionReceipt Receipt;
     Receipt.Generation=Request.Generation;
@@ -233,14 +234,17 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
         Shape=false;
     }
     if (!Shape) { return Refuse(ELDCombatReject::InvalidRequest); }
-    if (Request.DirectSequence<=Record->DirectHighWater)
+    const auto* Known=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    switch (LDCombatSourceRules::DirectSequenceVerdict(Known!=nullptr,Known && LDCA::SameTerms(Known->Request,Request),
+        Request.DirectSequence,Record->DirectHighWater,bQueuedStep))
     {
-        if (const auto* Known=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
-            { return Entry.Request.DirectSequence==Request.DirectSequence; }))
-        { return LDCA::SameTerms(Known->Request,Request) ? Known->Receipt : Refuse(ELDCombatReject::RequestConflict); }
-        return Refuse(ELDCombatReject::ReceiptExpired);
+    case ELDDirectSequenceVerdict::Replay: return Known->Receipt;
+    case ELDDirectSequenceVerdict::Conflict: return Refuse(ELDCombatReject::RequestConflict);
+    case ELDDirectSequenceVerdict::Expired: return Refuse(ELDCombatReject::ReceiptExpired);
+    default: break;
     }
-    Record->DirectHighWater=Request.DirectSequence;
+    Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     if (Request.DirectSequence<=Record->CancelledThrough)
     {
         Refuse(ELDCombatReject::Cancelled);
@@ -462,7 +466,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
 }
 
 bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
-    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error)
+    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error, bool bQueuedStep)
 {
     bFinal=true;
     Out={};
@@ -486,7 +490,12 @@ bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCom
     const bool bShape=Request.DirectSequence!=0 && Request.Life!=0 && LDCA::IsContenderEntry(Request.Entry)
         && Request.Entry!=ELDCombatEntry::Dash && bAim;
     if (!bShape) { Out.Reject=ELDCombatReject::InvalidRequest; return true; }
-    if (Request.DirectSequence<=Record->DirectHighWater) { Out.Reject=ELDCombatReject::StaleRequest; return true; }
+    const bool bRecorded=Record->Recent.ContainsByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    // A cast order judges its request once: any recorded or expired sequence is stale here.
+    if (LDCombatSourceRules::DirectSequenceVerdict(bRecorded,false,Request.DirectSequence,Record->DirectHighWater,bQueuedStep)
+        !=ELDDirectSequenceVerdict::Fresh)
+    { Out.Reject=ELDCombatReject::StaleRequest; return true; }
     FLDCombatActionReceipt Judged;
     if (!ProcessDirect(*Record,Request,Permit,Judged,Error)) { return false; }
     if (Judged.Phase==ELDCombatPhase::Rejected && (Judged.Reject==ELDCombatReject::OutOfRange
@@ -499,10 +508,40 @@ bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCom
     }
     Record=FindRecord(Caller.EntityId);
     if (!Record) { Out=Judged; return true; }
-    Record->DirectHighWater=Request.DirectSequence;
+    Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     StoreReceipt(*Record,Request,Judged);
     Out=Record->Recent.Last().Receipt;
     SendReceipt(*Record,Out);
+    return true;
+}
+
+bool ALDCombatDirector::RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    ELDCombatReject Reject, FLDCombatActionReceipt& Out)
+{
+    Out={};
+    Out.Generation=Request.Generation;
+    Out.Life=Request.Life;
+    Out.Origin=ELDCombatRequestOrigin::Direct;
+    Out.DirectSequence=Request.DirectSequence;
+    Out.Entry=Request.Entry;
+    Out.Phase=ELDCombatPhase::Rejected;
+    Out.Reject=Reject;
+    const auto* Mode=Core();
+    auto* Record=FindRecord(Caller.EntityId);
+    if (!Mode || Caller.Match!=Mode->GetMatchContext() || !Record || Record->Kind!=Caller.Kind || !Request.DirectSequence
+        || Reject==ELDCombatReject::None)
+    { return false; }
+    // Only a sequence the window has never seen: a recorded or expired one keeps Combat's own answer.
+    const bool bRecorded=Record->Recent.ContainsByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    if (LDCombatSourceRules::DirectSequenceVerdict(bRecorded,false,Request.DirectSequence,Record->DirectHighWater,false)
+        !=ELDDirectSequenceVerdict::Fresh)
+    { return false; }
+    StoreReceipt(*Record,Request,Out);
+    const auto* Stored=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    if (!Stored) { return false; }
+    Out=Stored->Receipt;
     return true;
 }
 

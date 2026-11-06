@@ -563,4 +563,28 @@ bool FLDOrderChasePressTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatDirectSequenceWindowTest, "Lockdown.Rules.DemoCombatSources.DirectSequenceWindow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatDirectSequenceWindowTest::RunTest(const FString& Parameters)
+{
+    using LDCombatSourceRules::DirectSequenceVerdict;
+    // Queued Q/W at 5 and 6, then a non-Shift D at 7 refused for cooldown before Combat judged it: the refusal is
+    // recorded above the high-water mark (4), which does not move.
+    TestTrue(TEXT("A replay of the refused request answers the recorded refusal, never runs after the cooldown"),
+        DirectSequenceVerdict(true, true, 7, 4, false) == ELDDirectSequenceVerdict::Replay);
+    TestTrue(TEXT("The refused sequence with changed terms conflicts"),
+        DirectSequenceVerdict(true, false, 7, 4, false) == ELDDirectSequenceVerdict::Conflict);
+    TestTrue(TEXT("The queued steps below it stay fresh"), DirectSequenceVerdict(false, false, 5, 4, true) == ELDDirectSequenceVerdict::Fresh);
+    // A D at 8 pressed during the own windup went to Combat (the high-water mark is now 8) and was refused as Busy.
+    TestTrue(TEXT("A queued step older than a newer judged request still runs once from the queue"),
+        DirectSequenceVerdict(false, false, 6, 8, true) == ELDDirectSequenceVerdict::Fresh);
+    TestTrue(TEXT("The same old sequence sent as a plain Direct request has expired"),
+        DirectSequenceVerdict(false, false, 6, 8, false) == ELDDirectSequenceVerdict::Expired);
+    TestTrue(TEXT("A queued step already judged replays instead of running twice"),
+        DirectSequenceVerdict(true, true, 6, 8, true) == ELDDirectSequenceVerdict::Replay);
+    TestTrue(TEXT("A new sequence above the mark is fresh"), DirectSequenceVerdict(false, false, 9, 8, false) == ELDDirectSequenceVerdict::Fresh);
+    return true;
+}
+
 #endif

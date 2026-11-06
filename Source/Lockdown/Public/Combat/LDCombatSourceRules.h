@@ -55,8 +55,22 @@ struct FLDBasicReleaseInput
     bool bSelf=false;
 };
 
+// How the Direct receipt window answers one owner sequence.
+enum class ELDDirectSequenceVerdict : uint8
+{
+    Fresh,      // judge it now
+    Replay,     // a recorded request with the same terms: answer its receipt
+    Conflict,   // a recorded sequence with different terms
+    Expired     // at or below the high-water mark and no longer recorded: never judged again
+};
+
 namespace LDCombatSourceRules
 {
+    // The receipt window is consulted first, so a refusal recorded above the high-water mark (Navigation refused it
+    // before Combat judged it) replays. A shift-queued step was checked unseen when it was queued and runs once from
+    // the queue, so a newer sequence judged meanwhile does not expire it.
+    LOCKDOWN_API ELDDirectSequenceVerdict DirectSequenceVerdict(bool bRecorded, bool bSameTerms, uint64 Sequence,
+        uint64 HighWater, bool bQueuedStep);
     // Persistent source and cooldown identity of the innate dash on every contender record.
     LOCKDOWN_API const FName& InnateDashId();
     // D19/D20: approved CHARACTER dash terms; each held passive family with a DashBoost effect applies once,
