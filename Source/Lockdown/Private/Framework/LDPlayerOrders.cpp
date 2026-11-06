@@ -8,6 +8,7 @@
 #include "UI/LDControlSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
 
 namespace LDPlayerOrdersDetail
 {
@@ -60,8 +61,13 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     SendCombatAction(Entry,Aim,IsQueueModifierDown());
 }
 
+// Shift is no mapped action, so the player input's key state may never see it; Slate's modifier state is the fallback.
 bool ALDPlayerController::IsQueueModifierDown() const
-{ return IsLocalController() && (IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift)); }
+{
+    if (!IsLocalController()) { return false; }
+    if (IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift)) { return true; }
+    return FSlateApplication::IsInitialized() && FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+}
 
 bool ALDPlayerController::ReadArmedCombatEntry(ELDCombatEntry& Out) const
 {
