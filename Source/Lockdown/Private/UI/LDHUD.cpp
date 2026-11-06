@@ -1161,17 +1161,15 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
         FLinearColor Preview(1,.85f,.45f,.9f);
         if(bUnitTarget&&RangeCm>0)
         {
-            // The unit the pointer would pick (the same selection as a click), from the current authorized frame only:
-            // green when its feet are within the server's foot-to-foot range, red otherwise.
+            // The unit the pointer would pick (the same selection as a click), from the current authorized frame only, turns
+            // the range ring green when its feet are within the server's foot-to-foot range and red otherwise; the unit
+            // itself gets no frame (its hover ring already marks it).
             FGuid Handle;uint32 Epoch=0;FLDObservedUnitView Hovered;
             const ALDWorldViewRelay* Relay=PC->LocalView();
             if(PC->ObservedUnderPointer(Handle,Epoch)&&Relay&&Relay->ReadUnit(Handle,Epoch,Hovered))
             {
                 const bool bInRange=FVector::Dist2D(Feet,FVector(Hovered.FeetCm))<=RangeCm;
                 Preview=bInRange?FLinearColor(.35f,1.f,.45f,.95f):FLinearColor(1.f,.35f,.3f,.95f);
-                FVector Presented;FVector2D Mark;
-                if(Relay->ReadPresentedLocation(Handle,Epoch,Presented)&&Project(Presented,Mark))
-                {Lines({Mark+FVector2D(-26,-34),Mark+FVector2D(26,-34),Mark+FVector2D(26,34),Mark+FVector2D(-26,34),Mark+FVector2D(-26,-34)},Preview,2.5f);}
             }
         }
         if(RangeCm>0){RangeRing(Feet,RangeCm,Preview,1.5f);}
