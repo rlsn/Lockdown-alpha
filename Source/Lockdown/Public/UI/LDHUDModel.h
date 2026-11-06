@@ -156,7 +156,9 @@ namespace LDHUD
         bool bProjected=false;    // a current owner combat projection exists for this match and life
         bool bHasSource=false;
         FString Name;             // display name of the bound definition
+        FName DefinitionId;       // the bound definition, for the hover description
         uint8 Rank=0;             // learned rank; equipment has none
+        bool bUpgraded=false;     // the bound equipment instance is upgraded (112 §7)
         bool bHasActive=false;
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -184,7 +186,6 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString State;
-        FString Tooltip;
         // Intent submission and execution limits are separate (UI 4): blocks grey the slot and explain why, but an
         // explicit activation is still sent so the server decides, including protection removal and EmptySource.
         bool bCanSubmitIntent=false;
@@ -201,6 +202,15 @@ namespace LDHUD
     // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
     enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
     LOCKDOWN_API EActionLook ActionLook(const FActionView& View,bool bArmed);
+    // The hover description of a slot, laid out like the shop and blind-box popups: the name, "<kind> [<key>] · <state>",
+    // then the description, the targeting and the current rank's (or the equipment's, upgraded when it is) effect lines.
+    struct FActionDetailView
+    {
+        FString Name;
+        FString Summary;
+        FString Body;
+    };
+    LOCKDOWN_API FActionDetailView ActionDetail(const FActionView& View,const FActionInput& Input,const FActionContext& Context,const FLDDemoContentDefinitions* Content);
 
     struct FObservedCard
     {

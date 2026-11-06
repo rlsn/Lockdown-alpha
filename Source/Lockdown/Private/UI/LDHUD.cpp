@@ -101,6 +101,7 @@ constexpr float HudSlotGap=8.f;
 constexpr float HudGroupGap=24.f;
 constexpr float HudCentreWidth=5*HudSlotWidth+2*HudSlotGap+2*HudGroupGap;
 constexpr double HudNoticeSeconds=2.;
+constexpr float HudDetailWidth=300.f;
 constexpr double HudPulseSeconds=6.;
 const FLinearColor HudReadyEdge(FColor(0x7F,0xE0,0xD0));
 const FLinearColor HudManaText(FColor(0x8F,0xB0,0xFF));
@@ -454,6 +455,19 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ToastSlot=BandStack->AddChildToVerticalBox(ToastPanel);ToastSlot->SetHorizontalAlignment(HAlign_Center);ToastSlot->SetPadding(FMargin(HudLeftReach,0,0,8));
         BandStack->AddChildToVerticalBox(Band)->SetHorizontalAlignment(HAlign_Center);
         Place(BandStack,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(-HudLeftReach*.5f,-12));
+        {
+            // The hovered slot's description: the shop and blind-box popup's look, wrapped at a fixed width, centred above
+            // the slot (RefreshReadModel places it each frame) and taking no pointer input.
+            auto* DetailBox=WidgetTree->ConstructWidget<UVerticalBox>();
+            auto FixedWrap=[&](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetWrapTextAt(HudDetailWidth-28.f);return Line;};
+            ActionDetailName=FixedWrap(17);DetailBox->AddChildToVerticalBox(ActionDetailName);
+            ActionDetailSummary=FixedWrap(13);ActionDetailSummary->SetColorAndOpacity(LDHUDStyle::TextAccent);DetailBox->AddChildToVerticalBox(ActionDetailSummary)->SetPadding(FMargin(0,2,0,0));
+            ActionDetailBody=FixedWrap(14);DetailBox->AddChildToVerticalBox(ActionDetailBody)->SetPadding(FMargin(0,8,0,0));
+            auto* DetailPanel=LDWidgets::Panel(WidgetTree,DetailBox,FMargin(14,12));DetailPanel->SetBrushColor(FLinearColor(.02f,.035f,.055f,.94f));
+            auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(HudDetailWidth);DetailWidth->SetContent(DetailPanel);
+            DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
+            ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
+        }
 
         // Bottom-right corner, left to right: the blind-box button and the shop entry. Each toggles its own panel, which
         // docks right above them; neither has a hotkey. The blind-box button is the Choices panel's only entry besides the
@@ -589,7 +603,7 @@ void ULDHUD::RefreshReadModel()
     if(!bShow)
     {
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
-            static_cast<UWidget*>(ScorePanel.Get())}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
+            static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         return;
     }
 
@@ -813,14 +827,21 @@ void ULDHUD::RefreshReadModel()
     }
     uint8 ControlBits=0;
     if(OwnCombat){for(const FLDCombatStatusView& Status:OwnCombat->Statuses){ControlBits|=Status.ControlBlocks;}}
-    ActionTips.SetNum(ActionSlots.Num());
+    // The slot under the pointer (by its laid-out box, so a disabled slot explains itself as well) gets the description.
+    const FVector2D Pointer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetCursorPos():FVector2D(-1,-1);
+    int32 DetailIndex=INDEX_NONE;LDHUD::FActionDetailView DetailView;
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
         const ELDCombatEntry Wanted=HudActionEntries[Index];
         const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr;
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
-        if(Source){Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;}
+        if(Source)
+        {
+            Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;
+            const FLDEquipmentSlotView* Held=Equipment&&Source->ItemInstance.IsValid()?Equipment->Slots.FindByPredicate([Source](const FLDEquipmentSlotView& Row){return Row.bOccupied&&Row.Instance==Source->ItemInstance;}):nullptr;
+            Input.bUpgraded=Held&&Held->bUpgraded;
+        }
         LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);Context.bOwnContext=bOwnMatch&&O.Life!=0;
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
         Context.bInputCaptured=bInputSuppressed;
@@ -870,7 +891,25 @@ void ULDHUD::RefreshReadModel()
         const float Pop=bFlash?1.f+.08f*FMath::Sin(UE_PI*FlashPhase):1.f;
         if(Entry.AppliedPop!=Pop){Entry.AppliedPop=Pop;Entry.Box->SetRenderScale(FVector2D(Pop,Pop));}
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
-        if(ActionTips[Index]!=View.Tooltip){ActionTips[Index]=View.Tooltip;Entry.Button->SetToolTipText(FText::FromString(View.Tooltip));}
+        if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
+    }
+    if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
+    {
+        HudSetShown(Popup,DetailIndex!=INDEX_NONE,ESlateVisibility::HitTestInvisible);
+        if(DetailIndex!=INDEX_NONE)
+        {
+            HudSetText(ActionDetailName,DetailView.Name);HudSetText(ActionDetailSummary,DetailView.Summary);
+            HudSetText(ActionDetailBody,DetailView.Body);HudSetShown(ActionDetailBody,!DetailView.Body.IsEmpty(),ESlateVisibility::HitTestInvisible);
+            // Centred 8 units above the slot, read from last frame's layout; the slot never depends on the popup, so this
+            // never feeds back. The popup is only pushed sideways to stay on screen.
+            const FGeometry& Area=GetCachedGeometry();const FGeometry& Over=ActionSlots[DetailIndex].Box->GetCachedGeometry();
+            const FVector2D Top=Area.AbsoluteToLocal(Over.GetAbsolutePosition());
+            const FVector2D Size=Area.AbsoluteToLocal(Over.GetAbsolutePosition()+Over.GetAbsoluteSize())-Top;
+            const float Half=HudDetailWidth*.5f+8.f;const float Wide=float(Area.GetLocalSize().X);
+            const float X=Wide>2*Half?FMath::Clamp(float(Top.X+Size.X*.5),Half,Wide-Half):float(Top.X+Size.X*.5);
+            const FVector2D Place(FMath::RoundToFloat(X),FMath::RoundToFloat(float(Top.Y)-8.f));
+            if(!ActionDetailSlot->GetPosition().Equals(Place,.5f)){ActionDetailSlot->SetPosition(Place);}
+        }
     }
     HudSetText(CameraText,PC->Navigation->bFollowCamera?FString(TEXT("镜头：跟随")):TEXT("镜头：自由 · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" 跟随"));
 

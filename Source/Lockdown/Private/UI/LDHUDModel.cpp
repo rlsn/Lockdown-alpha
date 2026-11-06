@@ -538,12 +538,55 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
     if(bLearned&&Input.bHasSource&&Input.Rank>0){View.Rank=FString::FromInt(Input.Rank);}
-    View.Tooltip=FString::Printf(TEXT("%s [%s]：%s\n%s"),*View.Kind,*View.Key,*View.Name,*View.State);
-    if(Input.bProjected&&Input.bHasActive&&Input.ManaCostP2>0){View.Tooltip+=FString::Printf(TEXT("\n%s消耗 %lld"),LDTerms::Mana,HudWholePoints(Input.ManaCostP2,false));}
-    if(bDash&&Input.bHasSource){View.Tooltip+=FString::Printf(TEXT("\n朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s；释放后的冷却不因换装改变"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash);}
-    else if(!bLearned&&Input.bHasSource){View.Tooltip+=TEXT("\n装备主动没有角色等级；两件同款各自独立冷却");}
-    if(Context.bInputCaptured){View.Tooltip+=TEXT("\n当前输入暂不可用：界面占用或按键尚未松开");}
     return View;
+}
+LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActionInput& Input,const FActionContext& Context,const FLDDemoContentDefinitions* Content)
+{
+    FActionDetailView Detail;
+    Detail.Name=View.Name;
+    Detail.Summary=FString::Printf(TEXT("%s [%s] · %s"),*View.Kind,*View.Key,*View.State);
+    const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W;
+    const bool bDash=Input.Slot==EActionSlot::Dash;
+    TArray<FString> Lines;
+    const FString Id=Input.DefinitionId.ToString();
+    if(Input.bHasSource&&!bDash&&!Input.DefinitionId.IsNone())
+    {
+        FString Description;if(ContentText(Content,Id,true,Description)&&!Description.IsEmpty()){Lines.Add(Description);Lines.Add(FString());}
+    }
+    if(bDash&&Input.bHasSource)
+    {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s；释放后的冷却不因换装改变"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
+    else if(bLearned&&Input.bHasSource)
+    {
+        if(const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr)
+        {
+            Lines.Add(TargetLine(Ability->Target));
+            if(const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Input](const FLDDemoRankDefinition& R){return R.Rank==Input.Rank;}))
+            {Lines.Append(RankLines(*Rank,true));}
+            else{Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),Input.Rank));}
+        }
+        else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
+    }
+    else if(Input.bHasSource)
+    {
+        if(const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr)
+        {
+            if(Input.bUpgraded){Detail.Name+=TEXT("（已进阶）");}
+            for(const FLDDemoStatBonus& Stat:LDDemoEquipment::EffectiveStats(*Item,Input.bUpgraded)){Lines.Add(StatLine(Stat));}
+            if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(*Item,Input.bUpgraded))
+            {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
+            if(const FLDDemoRankDefinition* Active=Item->HasActive?LDDemoEquipment::EffectiveActiveRank(*Item,Input.bUpgraded):nullptr)
+            {
+                Lines.Add(TEXT("主动：")+TargetLine(Item->Active.Target));
+                for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
+            }
+            else{Lines.Add(TEXT("无主动效果"));}
+        }
+        else if(Content){Lines.Add(TEXT("内容目录中找不到该装备"));}
+        Lines.Add(TEXT("装备主动没有角色等级；两件同款各自独立冷却"));
+    }
+    if(Context.bInputCaptured){Lines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
+    Detail.Body=FString::Join(Lines,TEXT("\n"));
+    return Detail;
 }
 LDHUD::EActionLook LDHUD::ActionLook(const FActionView& View,bool bArmed)
 {
@@ -1070,6 +1113,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     // The innate dash is no content definition with display text; its slot names the action itself.
     if(Input.bHasSource){Input.Name=Slot==EActionSlot::Dash?FString(LDTerms::Dash):ContentName(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
+    Input.DefinitionId=Entry.DefinitionId;
     Input.Rank=Entry.Rank;Input.bHasActive=Entry.bHasActive;Input.ManaCostP2=Entry.ManaCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);

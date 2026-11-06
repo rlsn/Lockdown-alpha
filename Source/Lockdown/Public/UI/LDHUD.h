@@ -147,7 +147,11 @@ private:
     uint32 PreorderOpenLife=0;
     UPROPERTY() TObjectPtr<UTextBlock> CameraText;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
-    TArray<FString> ActionTips;
+    // The hovered slot's full description, popped up above it like the shop and blind-box descriptions; it takes no input.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailName;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // Blind-box button in the bottom-right corner, left of the shop entry: disabled without a pending choice; it pulses for
     // a few seconds after the count rises, then stays steady.
