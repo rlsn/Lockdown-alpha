@@ -28,6 +28,8 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -111,6 +113,21 @@ const FLinearColor HudPromptPress(FColor(0xE6,0xAE,0x2A));
 const FLinearColor HudPromptInk(FColor(0x1A,0x13,0x00));
 const FLinearColor HudPromptIdle(.16f,.17f,.19f);
 const FLinearColor HudPromptIdleInk(.52f,.55f,.58f);
+// The corner buttons (blind box, shop) share one shape, size and colour scheme: lit is the gold fill, greyed out is the
+// idle grey (disabled), and the shop entry out of range keeps the shared button face (still clickable).
+constexpr float HudCornerRadius=6.f;
+FButtonStyle HudCornerStyle(const FButtonStyle& Shared,bool bLit)
+{
+    FButtonStyle Style=Shared;
+    if(bLit)
+    {
+        Style.Normal=FSlateRoundedBoxBrush(HudPromptFill,HudCornerRadius);Style.Hovered=FSlateRoundedBoxBrush(HudPromptHover,HudCornerRadius);
+        Style.Pressed=FSlateRoundedBoxBrush(HudPromptPress,HudCornerRadius);
+    }
+    Style.Disabled=FSlateRoundedBoxBrush(HudPromptIdle,HudCornerRadius);
+    Style.NormalPadding=FMargin(16,10);Style.PressedPadding=FMargin(16,10);
+    return Style;
+}
 struct FHudLookStyle
 {
     FLinearColor Fill;
@@ -456,10 +473,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         // back over it.
         const float HudLeftReach=HudSideWidth+HudBlockGap+1;
         auto* BandStack=WidgetTree->ConstructWidget<UVerticalBox>();BandStack->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        Toast=OneLine(TEXT(""),16,640);ToastPanel=Panel(Toast,false);ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
-        auto* ToastSlot=BandStack->AddChildToVerticalBox(ToastPanel);ToastSlot->SetHorizontalAlignment(HAlign_Center);ToastSlot->SetPadding(FMargin(HudLeftReach,0,0,8));
         BandStack->AddChildToVerticalBox(Band)->SetHorizontalAlignment(HAlign_Center);
         Place(BandStack,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(-HudLeftReach*.5f,-12));
+        // The toast is centred on the screen centre by its own canvas slot, 8 units above the band (RefreshReadModel follows
+        // the band's height), so its width never shifts it off centre; a translucent face keeps the world visible behind it.
+        Toast=OneLine(TEXT(""),16,640);Toast->SetJustification(ETextJustify::Center);
+        ToastPanel=Panel(Toast,false);ToastPanel->SetBrushColor(LDHUDStyle::PanelFill.CopyWithNewOpacity(.72f));ToastPanel->SetVisibility(ESlateVisibility::Collapsed);
+        ToastSlot=Canvas->AddChildToCanvas(ToastPanel);ToastSlot->SetAnchors(FAnchors(.5f,1));ToastSlot->SetAlignment(FVector2D(.5f,1));ToastSlot->SetAutoSize(true);
+        ToastSlot->SetPosition(FVector2D(0,-12-8));
         {
             // The hovered slot's description: the shop and blind-box popup's look, wrapped at a fixed width, centred above
             // the slot (RefreshReadModel places it each frame) and taking no pointer input.
@@ -490,20 +511,25 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
-        if(UButtonSlot* PromptSlot=Cast<UButtonSlot>(PromptText->Slot)){PromptSlot->SetPadding(FMargin(0));}
-        auto PromptStyle=Prompt->GetStyle();PromptStyle.Normal=FSlateRoundedBoxBrush(HudPromptFill);PromptStyle.Hovered=FSlateRoundedBoxBrush(HudPromptHover);PromptStyle.Pressed=FSlateRoundedBoxBrush(HudPromptPress);
-        PromptStyle.Disabled=FSlateRoundedBoxBrush(HudPromptIdle);
-        PromptStyle.NormalPadding=FMargin(16,10);PromptStyle.PressedPadding=FMargin(16,10);Prompt->SetStyle(PromptStyle);
+        // The blind-box button is always the lit corner style; disabled draws it greyed out.
+        Prompt->SetStyle(HudCornerStyle(Prompt->GetStyle(),true));
         PendingPrompt=WidgetTree->ConstructWidget<UBorder>();PendingPrompt->SetBrushColor(FLinearColor::Transparent);PendingPrompt->SetPadding(FMargin(0));PendingPrompt->SetContent(Prompt);
         PendingPrompt->SetRenderTransformPivot(FVector2D(.5f,.5f));
         ShopButton=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Shop);}},true,TEXT("HUDShop"));
         ShopButtonText=CastChecked<UTextBlock>(ShopButton->GetContent());HudFace(ShopButtonText,true,0);ShopButtonText->SetColorAndOpacity(LDHUDStyle::GoldGain);
+        ShopSharedStyle=ShopButton->GetStyle();ShopButton->SetStyle(HudCornerStyle(ShopSharedStyle,false));
+        for(UTextBlock* Caption:{PromptText.Get(),ShopButtonText.Get()})
         {
-            auto ShopStyle=ShopButton->GetStyle();ShopStyle.NormalPadding=FMargin(16,10);ShopStyle.PressedPadding=FMargin(16,10);ShopButton->SetStyle(ShopStyle);
+            Caption->SetJustification(ETextJustify::Center);
+            if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(Caption->Slot)){CaptionSlot->SetPadding(FMargin(0));CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetVerticalAlignment(VAlign_Center);}
         }
-        auto* CornerRow=WidgetTree->ConstructWidget<UHorizontalBox>();
-        CornerRow->AddChildToHorizontalBox(PendingPrompt)->SetVerticalAlignment(VAlign_Fill);
-        CornerRow->AddChildToHorizontalBox(ShopButton)->SetPadding(FMargin(8,0,0,0));
+        // A uniform grid gives both buttons the same size: the larger of the two, so neither caption is clipped.
+        auto* CornerRow=WidgetTree->ConstructWidget<UUniformGridPanel>();CornerRow->SetSlotPadding(FMargin(4,0));
+        for(int32 Column=0;Column<2;++Column)
+        {
+            UUniformGridSlot* Cell=CornerRow->AddChildToUniformGrid(Column?static_cast<UWidget*>(ShopButton.Get()):static_cast<UWidget*>(PendingPrompt.Get()),0,Column);
+            Cell->SetHorizontalAlignment(HAlign_Fill);Cell->SetVerticalAlignment(VAlign_Fill);
+        }
         auto* ShopFrame=Panel(CornerRow,true);ShopFrame->SetPadding(FMargin(4));
         Place(ShopFrame,FAnchors(1,1),FVector2D(1,1),FVector2D(-16,-16));
         ShopEntry=ShopFrame;
@@ -829,6 +855,14 @@ void ULDHUD::RefreshReadModel()
             if(!PC->RequestShopSession(NearShop,O.Life,Reason))
             {UE_LOG(LogTemp,Warning,TEXT("LD_HUD_PREORDER_SESSION_NOT_SENT %s"),*LDHUD::GrowthReasonText(Reason));}
         }
+        // Lit while the own body stands in the shop's range, where buying, selling and pre-orders happen.
+        const int8 ShopLit=bNearShop?1:0;
+        if(AppliedShopLit!=ShopLit)
+        {
+            AppliedShopLit=ShopLit;
+            ShopButton->SetStyle(HudCornerStyle(ShopSharedStyle,bNearShop));
+            HudSetColor(ShopButtonText,bNearShop?HudPromptInk:LDHUDStyle::GoldGain);
+        }
         HudSetText(ShopButtonText,(Equipment?FString::Printf(TEXT("%lld %s"),Equipment->Gold,LDTerms::Gold):FString(LDTerms::Gold)+TEXT(" 同步中"))
             +(ShopPanel->Preorders().IsEmpty()?FString():FString::Printf(TEXT(" · 预购 %d"),ShopPanel->Preorders().Num())));
     }
@@ -1027,6 +1061,11 @@ void ULDHUD::RefreshReadModel()
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
     HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    if(ToastSlot&&Band)
+    {
+        const FVector2D Above(0,-FMath::RoundToFloat(12.f+float(Band->GetDesiredSize().Y)+8.f));
+        if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
+    }
 }
 void ULDHUD::ShowToast(const FString& Text)
 {

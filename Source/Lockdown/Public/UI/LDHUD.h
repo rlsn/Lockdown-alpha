@@ -147,6 +147,13 @@ private:
     UPROPERTY() TObjectPtr<UBorder> ShopEntry;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopButton;
     UPROPERTY() TObjectPtr<UTextBlock> ShopButtonText;
+    // The shop entry is lit (the blind-box button's gold) while the own body stands in the shop's range; -1 before the
+    // first refresh.
+    int8 AppliedShopLit=-1;
+    // The shop entry's shared button faces, restored when it is no longer lit.
+    FButtonStyle ShopSharedStyle;
+    // The toast's own canvas slot, kept right above the band.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
     // Throttles the automatic session request for pre-orders (local presentation time of the last request).
     double PreorderOpenAt=-1;
     uint32 PreorderOpenLife=0;
