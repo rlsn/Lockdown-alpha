@@ -266,9 +266,12 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
             &&Guard.Line==LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardLeft+TEXT(" 15.0s"));
         Guarded.CircleState=ELDCircleState::Empty;
         TestEqualSensitive(TEXT("An owner away from the zone still guards"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000).Line,Guard.Line);
-        Guarded.CircleState=ELDCircleState::Contested;
-        TestEqualSensitive(TEXT("A contest beside the owner names the running guard"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000).Line,
-            FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept+TEXT(" · ")+Guard.Line);
+        Guarded.CircleState=ELDCircleState::Contested;Guarded.GuardDueAtMs=0;Guarded.GuardKeptMs=5000;
+        const LDHUD::FCircleView Frozen=LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000);
+        TestTrue(TEXT("A contest beside the owner names the frozen guard"),Frozen.Line==FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept
+            +TEXT(" · ")+LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardPaused+TEXT("（")+LDTerms::GuardLeft+TEXT(" 15.0s）")
+            &&Frozen.bProgress&&FMath::IsNearlyEqual(Frozen.Progress,.25f,.0001f));
+        Guarded.CircleState=ELDCircleState::Guarded;Guarded.GuardDueAtMs=120000;Guarded.GuardKeptMs=0;
         TestFalse(TEXT("A running guard never claims a winner"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,125000,3500,20000).Line.Contains(LDTerms::Winner));
     }
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;
@@ -684,8 +687,18 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Each line leaves after its five seconds"),Feed.Lines().Num()==2&&Feed.Lines()[0].Text==LDTerms::AirdropOwnClaim());
     In.LocalSeconds=110;Feed.Observe(In);
     TestTrue(TEXT("All lines are gone once their time is up"),Feed.Lines().IsEmpty());
+    // The owner's guard frozen by a challenger drops to zero when he leaves the zone; only that drop is told.
+    Public.CircleState=ELDCircleState::Contested;Public.GuardKeptMs=4000;In.LocalSeconds=111;Feed.Observe(In);
+    TestTrue(TEXT("A guard freezing is no event line"),Feed.Lines().IsEmpty());
+    Public.CircleState=ELDCircleState::Solo;Public.GuardKeptMs=0;In.LocalSeconds=112;Feed.Observe(In);
+    TestTrue(TEXT("A frozen guard dropping to zero tells that its owner left the zone"),
+        Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GuardReset&&!Feed.Lines()[0].bSelf);
+    In.LocalSeconds=113;Feed.Observe(In);
+    TestEqual(TEXT("A guard reset is told once"),Feed.Lines().Num(),1);
+    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=50000;In.LocalSeconds=114;Feed.Observe(In);
+    TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),1);
     // A new match starts empty and does not tell the state it opens with.
-    Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();In.LocalSeconds=111;Feed.Observe(In);
+    Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;In.LocalSeconds=120;Feed.Observe(In);
     TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());
     return true;
 }

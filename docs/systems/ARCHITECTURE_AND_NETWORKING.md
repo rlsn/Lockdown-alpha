@@ -89,7 +89,7 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   （未开放/无人/独自喷漆/争夺/主人独守，即 `NotOpen/Empty/Solo/Contested/Guarded`）、唯一喷漆进度持有者
   （独自喷漆者，或争夺中被暂停的喷漆者及其 `PausedProgressMs`）、CaptureEpoch 及喷漆起点/喷上时刻，
   涂鸦主人 `GraffitiOwner` 与其身份色槽位 `GraffitiPresentation`、运行中守护的获胜时刻 `GuardDueAtMs`
-  或被独自喷漆暂停的守护进度 `GuardKeptMs`；不列喷漆区内人数、
+  或被冻结的守护进度 `GuardKeptMs`；不列喷漆区内人数、
   保护者或隐藏坐标。实时显示时间取同代 `DemoClock.NowMs`。`MatchResult` 仅在 Results 发布一次，
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
@@ -169,10 +169,11 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 全部保留；保护者既不喷也不争，开放前不计时，Solo 起点取向上取整桶。区内只有一名有效参赛者且他不是涂鸦主人时他喷漆，
 争夺冻结喷漆者的进度（其他人不累积），他再次独自在区内时 `SoloSinceMs` 回拨暂停值续计；他离区、死亡、离局或被打断即清零，
 别人不继承。喷漆到期严格早于某条事实时先喷上；与到期同刻的死亡、离局、控制、离区先处理。
-喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护除 Solo 外都运行（主人在不在区内都一样），
-Solo 时暂停于 `GuardKept`，独自喷漆停止后从暂停处续计；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
+喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护只在 Empty/Guarded 运行，Solo/Contested（区内有主人以外的
+有效参赛者）时冻结于 `GuardKept`，非主人全部离开后从冻结值续计；冻结期间主人从区内走出、且该原始秒的事实全部归约后
+守护仍冻结，`GuardKept` 清零而涂鸦保留（2026-11-07 用户决定，同刻离开不清零）；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
 `FLDCaptureProposal{Epoch, Winner, GuardSinceMs, DueAtMs}`。`NextDueMs` 给驱动的停靠边界：未开放时为开放时刻、
-独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停不给驱动额外停靠边界：步内能让被暂停的守护恢复的
+独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停与守护冻结不给驱动额外停靠边界：步内能让被冻结的守护恢复的
 只有 Motion 的离区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
 `CaptureCompletesInsideStep`，由 `FLDCaptureReducer::CompletionInsideMs` 在归约器副本上预演已入队事实；
 若恢复后的守护获胜时刻早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
@@ -261,7 +262,7 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
-喷上涂鸦、主人离区后守护照常、他人独自改漆使守护暂停且改漆失败后守护续计、以 `GuardSucceeded` 守护成功的
+喷上涂鸦、主人离区后守护照常、他人独自改漆使守护冻结且改漆失败后守护续计、冻结期间主人走出使守护清零而涂鸦保留、以 `GuardSucceeded` 守护成功的
 唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
 空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、旗杆与涂鸦复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。

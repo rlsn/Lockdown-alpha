@@ -136,12 +136,13 @@ bool FLDCaptureSprayGuardTest::RunTest(const FString& Parameters)
     Probe.ExpectGuard(A, ELDCircleState::Guarded, 3450, 0, TEXT("The owner alone in the zone does not spray and his guard runs on"));
     Probe.Add(CapturePresence(BodyB, CaptureMs(1900), true), TEXT("B joins the owner"));
     Probe.Close(1900, false, TEXT("Owner and challenger"));
-    Probe.ExpectGuard(A, ELDCircleState::Contested, 3450, 0, TEXT("Nobody sprays alone, so the guard keeps running"));
-    TestFalse(TEXT("A challenger beside the owner holds no progress"), Probe.Reducer.GetOccupier().IsValid());
+    Probe.ExpectGuard(A, ELDCircleState::Contested, 0, 450, TEXT("A challenger beside the owner freezes the guard"));
+    TestTrue(TEXT("A challenger beside the owner holds no progress and the frozen guard adds no stop"),
+        !Probe.Reducer.GetOccupier().IsValid() && Probe.Reducer.NextDueMs() == MAX_int64);
     Probe.Add(CapturePresence(BodyA, CaptureMs(2000), false), TEXT("The owner leaves the challenger alone"));
     Probe.Close(2000, false, TEXT("Challenger alone"));
     Probe.ExpectSolo(B, 2000, 2350, TEXT("The challenger sprays as soon as he is alone"));
-    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 550, TEXT("His spray pauses the guard again"));
+    Probe.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("The owner leaving under a challenger resets his frozen guard; the graffiti stays"));
 
     Probe.Close(2350, false, TEXT("The repaint lands"));
     Probe.ExpectGuard(B, ELDCircleState::Guarded, 4350, 0, TEXT("A repaint covers the old graffiti and starts the new owner's guard from zero"));
@@ -165,6 +166,112 @@ bool FLDCaptureSprayGuardTest::RunTest(const FString& Parameters)
         Proposal.IsSet() && Proposal->Winner == B && Proposal->GuardSinceMs == 2350 && Proposal->DueAtMs == 4350
         && Proposal->Epoch == Probe.Reducer.GetEpoch());
     (void)BodyC;
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureGuardFreezeTest, "Lockdown.Rules.DemoCapture.GuardFreeze",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDCaptureGuardFreezeTest::RunTest(const FString& Parameters)
+{
+    // 2026-11-07 user decision: anyone but the owner in the zone freezes the guard; it continues once they are all
+    // gone, and the owner leaving the zone while it is frozen resets it to zero without clearing the graffiti.
+    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
+    const FLDCombatBodyRef BodyA = CaptureTestBody(A, 1), BodyB = CaptureTestBody(B, 1), BodyC = CaptureTestBody(C, 1);
+    FCaptureReducerProbe Probe{*this};
+    TestTrue(TEXT("Reducer begins"), Probe.Reducer.Begin(0, 500, 2000, Probe.Error));
+    Probe.Add(CaptureJoined(BodyA, true), TEXT("A joins inside"));
+    Probe.Add(CaptureJoined(BodyB, false), TEXT("B joins outside"));
+    Probe.Add(CaptureJoined(BodyC, false), TEXT("C joins outside"));
+    Probe.Close(0, false, TEXT("Open"));
+    Probe.Close(500, false, TEXT("A sprays"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 2500, 0, TEXT("A guards from zero"));
+
+    Probe.Add(CapturePresence(BodyB, CaptureMs(600), true), TEXT("B enters beside the owner"));
+    Probe.Close(600, false, TEXT("Owner and challenger"));
+    Probe.ExpectGuard(A, ELDCircleState::Contested, 0, 100, TEXT("A contest with the owner inside freezes the guard"));
+    Probe.Close(900, false, TEXT("A long contest"));
+    Probe.ExpectGuard(A, ELDCircleState::Contested, 0, 100, TEXT("The frozen guard does not advance"));
+    TestEqual(TEXT("A frozen guard adds no driver stop"), Probe.Reducer.NextDueMs(), MAX_int64);
+    Probe.Add(CapturePresence(BodyB, CaptureMs(1000), false), TEXT("B leaves"));
+    Probe.Close(1000, false, TEXT("Challenger gone"));
+    Probe.ExpectGuard(A, ELDCircleState::Guarded, 2900, 0, TEXT("The guard continues from its frozen value once the challenger leaves"));
+
+    FCaptureReducerProbe Reset = Probe;
+    Reset.Add(CapturePresence(BodyB, CaptureMs(1100), true), TEXT("B enters again"));
+    Reset.Close(1100, false, TEXT("Frozen again"));
+    Reset.ExpectGuard(A, ELDCircleState::Contested, 0, 200, TEXT("The guard freezes again"));
+    Reset.Add(CapturePresence(BodyA, CaptureMs(1200), false), TEXT("The owner leaves while B is inside"));
+    Reset.Close(1200, false, TEXT("Owner leaves under a challenger"));
+    Reset.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("The owner leaving under a challenger resets the guard and keeps his graffiti"));
+    Reset.ExpectSolo(B, 1200, 1700, TEXT("The challenger left alone sprays from zero"));
+    TestEqual(TEXT("The tally counts the guard reset"), Reset.Reducer.DevTally().GuardResets, uint32(1));
+    Reset.Add(CapturePresence(BodyB, CaptureMs(1300), false), TEXT("B gives up"));
+    Reset.Close(1300, false, TEXT("Zone empty"));
+    Reset.ExpectGuard(A, ELDCircleState::Empty, 3300, 0, TEXT("The reset guard counts from zero once unfrozen"));
+
+    FCaptureReducerProbe Away = Probe;
+    Away.Add(CapturePresence(BodyA, CaptureMs(1100), false), TEXT("The owner walks away"));
+    Away.Close(1100, false, TEXT("Owner away"));
+    Away.ExpectGuard(A, ELDCircleState::Empty, 2900, 0, TEXT("Without a challenger the owner leaves freely"));
+    Away.Add(CapturePresence(BodyB, CaptureMs(1200), true), TEXT("B enters with the owner away"));
+    Away.Close(1200, false, TEXT("Sole sprayer"));
+    Away.ExpectGuard(A, ELDCircleState::Solo, 0, 300, TEXT("An owner already outside only has his guard frozen"));
+    Away.Add(CapturePresence(BodyC, CaptureMs(1300), true), TEXT("C joins B"));
+    Away.Close(1300, false, TEXT("Two challengers"));
+    Away.ExpectGuard(A, ELDCircleState::Contested, 0, 300, TEXT("Two challengers keep the guard frozen"));
+    Away.Add(CapturePresence(BodyB, CaptureMs(1400), false), TEXT("B leaves"));
+    Away.Add(CapturePresence(BodyC, CaptureMs(1500), false), TEXT("C leaves"));
+    Away.Close(1500, false, TEXT("Challengers gone"));
+    Away.ExpectGuard(A, ELDCircleState::Empty, 3200, 0, TEXT("The guard continues once the last challenger leaves"));
+    TestEqual(TEXT("No reset while the owner stayed away"), Away.Reducer.DevTally().GuardResets, uint32(0));
+    Away.Add(CapturePresence(BodyC, CaptureMs(1600), true), TEXT("C enters alone"));
+    Away.Add(CapturePresence(BodyA, CaptureMs(1700), true), TEXT("The owner comes back under the challenger"));
+    Away.Close(1700, false, TEXT("Owner returns"));
+    Away.ExpectGuard(A, ELDCircleState::Contested, 0, 400, TEXT("The returning owner leaves the guard frozen"));
+    Away.Add(CapturePresence(BodyA, CaptureMs(1800), false), TEXT("The owner leaves again"));
+    Away.Close(1800, false, TEXT("Owner leaves under a challenger"));
+    Away.ExpectGuard(A, ELDCircleState::Solo, 0, 0, TEXT("An owner who came back and left again resets the frozen guard"));
+    Away.ExpectSolo(C, 1700, 2200, TEXT("The challenger resumes his paused spray"));
+
+    FCaptureReducerProbe Together = Probe;
+    Together.Add(CapturePresence(BodyB, CaptureMs(1100), true), TEXT("B enters"));
+    Together.Close(1100, false, TEXT("Frozen"));
+    Together.Add(CapturePresence(BodyA, CaptureMs(1200), false), TEXT("The owner leaves"));
+    Together.Add(CapturePresence(BodyB, CaptureMs(1200), false), TEXT("The challenger leaves at the same instant"));
+    Together.Close(1200, false, TEXT("Simultaneous exits"));
+    Together.ExpectGuard(A, ELDCircleState::Empty, 3000, 0, TEXT("An owner and the last challenger leaving at one instant reset nothing"));
+    TestEqual(TEXT("No reset is counted"), Together.Reducer.DevTally().GuardResets, uint32(0));
+
+    FCaptureReducerProbe Swap = Probe;
+    Swap.Add(CapturePresence(BodyB, CaptureMs(1100), true), TEXT("B enters"));
+    Swap.Add(CapturePresence(BodyA, CaptureMs(1100), false), TEXT("The owner leaves at the same instant"));
+    Swap.Close(1100, false, TEXT("Simultaneous entry and exit"));
+    Swap.ExpectGuard(A, ELDCircleState::Solo, 0, 200, TEXT("An owner leaving as a challenger enters only freezes the guard"));
+    Swap.ExpectSolo(B, 1100, 1600, TEXT("The challenger sprays alone"));
+
+    FCaptureReducerProbe Shielded = Probe;
+    const FLDCombatBodyRef SecondC = CaptureTestBody(C, 2);
+    Shielded.Add(CaptureFact(ELDCaptureEventKind::Died, BodyC, CaptureMs(1100), ELDCommitPhase::DeathsAndRewards), TEXT("C dies"));
+    Shielded.Add(CaptureFact(ELDCaptureEventKind::Respawned, SecondC, CaptureMs(1200), ELDCommitPhase::RespawnsAndWorld, true, 1500),
+        TEXT("C respawns protected inside the zone"));
+    Shielded.Close(1200, false, TEXT("Protected challenger"));
+    Shielded.ExpectGuard(A, ELDCircleState::Guarded, 2900, 0, TEXT("A protected body in the zone freezes nothing"));
+    Shielded.Add(CaptureFact(ELDCaptureEventKind::ProtectionEnded, SecondC, CaptureMs(1500), ELDCommitPhase::Session), TEXT("Protection ends"));
+    Shielded.Close(1500, false, TEXT("Protection ends inside"));
+    Shielded.ExpectGuard(A, ELDCircleState::Contested, 0, 600, TEXT("The challenger counts, and freezes the guard, once protection ends"));
+
+    FCaptureReducerProbe Step = Probe;
+    Step.Close(2890, false, TEXT("Quiet boundary before the win"));
+    Step.Add(CapturePresence(BodyB, CaptureMs(2895), true), TEXT("B enters just before the win"));
+    Step.Close(2895, false, TEXT("Frozen near the end"));
+    Step.ExpectGuard(A, ELDCircleState::Contested, 0, 1995, TEXT("The guard freezes five milliseconds short"));
+    Step.Add(CapturePresence(BodyB, CaptureSeconds(2.8965), false), TEXT("B leaves inside the step"));
+    TestEqual(TEXT("The unfrozen guard completes inside the step"), Step.Reducer.CompletionInsideMs(2950), int64(2902));
+    TOptional<FLDCaptureProposal> Proposal;
+    TestTrue(FString::Printf(TEXT("The step closes through the completion: %s"), *Step.Error),
+        Step.Reducer.CloseThroughCompletion(2950, Proposal, Step.Error));
+    TestTrue(TEXT("The owner wins at his exact unfrozen guard instant"),
+        Proposal.IsSet() && Proposal->Winner == A && Proposal->DueAtMs == 2902 && Proposal->GuardSinceMs == 902);
     return true;
 }
 
@@ -246,8 +353,8 @@ bool FLDCaptureContestPauseTest::RunTest(const FString& Parameters)
     Inside.Add(CapturePresence(BodyB, CaptureMs(515), true), TEXT("B re-enters after the resumed spray"));
     TestEqual(TEXT("A spray inside a step never ends the match"), Inside.Reducer.CompletionInsideMs(520), MAX_int64);
     Inside.Close(520, false, TEXT("The step closes through the resumed spray"));
-    Inside.ExpectGuard(A, ELDCircleState::Contested, 5510, 0,
-        TEXT("The resumed spray lands at its real instant inside the step; the later entry only meets the owner"));
+    Inside.ExpectGuard(A, ELDCircleState::Contested, 0, 5,
+        TEXT("The resumed spray lands at its real instant inside the step; the later entry meets the owner and freezes his guard"));
     TestEqual(TEXT("The graffiti dates from the resumed spray instant"), Inside.Reducer.DevTally().GraffitiSinceMs, int64(510));
     FCaptureReducerProbe Interrupted = Cap;
     Interrupted.Add(CapturePresence(BodyB, CaptureMs(460), false), TEXT("B leaves"));
@@ -666,6 +773,15 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     MalformedOwned(Guarded, [](FLDPublicMatchView& View) { View.GuardDueAtMs = 0; }, TEXT("A running guard names its win instant"));
     MalformedOwned(Guarded, [](FLDPublicMatchView& View) { View.GraffitiOwner.Invalidate(); View.GraffitiPresentation = 0; View.GuardDueAtMs = 0; },
         TEXT("A guarded zone names its owner"));
+    FLDPublicMatchView Frozen = Guarded;
+    Frozen.CircleState = ELDCircleState::Contested;
+    Frozen.GuardDueAtMs = 0;
+    Frozen.GuardKeptMs = 4000;
+    FLDPublicMatchView FrozenLatest = Latest;
+    TestEqual(TEXT("A contest under a graffiti shows the frozen guard"),
+        LDCapture::AcceptPublicMatchView(Frozen, FrozenLatest, Error), ELDLobbyProjectionResult::Accepted);
+    MalformedOwned(Frozen, [](FLDPublicMatchView& View) { View.GuardDueAtMs = 140000; View.GuardKeptMs = 0; },
+        TEXT("A contest never runs the owner's guard"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Development; },
         TEXT("Development cannot publish an open circle"));
     Malformed([](FLDPublicMatchView& View) { View.Phase = ELDMatchPhase::Lobby; }, TEXT("Lobby publishes no capture state"));

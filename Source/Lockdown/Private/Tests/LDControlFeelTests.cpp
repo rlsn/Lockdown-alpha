@@ -170,4 +170,45 @@ bool FLDControlFeelShiftQueueTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelAttackClickTest, "Lockdown.Rules.DemoControlFeel.AttackClick",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelAttackClickTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOrderRules;
+    // 2026-11-07 decision: A then a left click on an attackable visible unit is the right-click attack on that unit.
+    TestTrue(TEXT("A-click on a visible unit attacks that unit, never the nearest one"),
+        AttackConfirmKind(true) == ELDSpatialOrderKind::AttackUnit);
+    TestTrue(TEXT("A-click on the ground stays an attack-move"), AttackConfirmKind(false) == ELDSpatialOrderKind::AttackMove);
+    FLDSpatialOrderRequest Click;
+    Click.Identity = {1, 1, 4, 1};
+    Click.Kind = AttackConfirmKind(true);
+    TestTrue(TEXT("The unit attack from an A-click is an aggressive intent like a right click"), Click.IsAggressive());
+    Click.Kind = AttackConfirmKind(false);
+    TestTrue(TEXT("So is the ground attack-move"), Click.IsAggressive());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelRefusedSkillKeepsOrderTest, "Lockdown.Rules.DemoControlFeel.RefusedSkillKeepsOrder",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelRefusedSkillKeepsOrderTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOrderRules;
+    // 2026-11-07 decision: a skill, item or D request that cannot start is refused at once and leaves the current move or
+    // attack order, the pending request and the shift queue as they were; only a ready one goes on to replace them.
+    TestTrue(TEXT("A ready entry goes on"), SkillRequestReady(ELDCombatReject::None));
+    TestTrue(TEXT("The own ability windup only delays the request"), SkillRequestReady(ELDCombatReject::Busy));
+    for (const ELDCombatReject Refused : {ELDCombatReject::Cooldown, ELDCombatReject::InsufficientMana,
+        ELDCombatReject::ControlBlocked, ELDCombatReject::NoActiveEffect, ELDCombatReject::SourceUnavailable,
+        ELDCombatReject::Dead, ELDCombatReject::MatchClosed, ELDCombatReject::AuthorityDataUnavailable})
+    {
+        TestFalse(FString::Printf(TEXT("Unavailability %u is refused without touching the current order"), uint32(Refused)),
+            SkillRequestReady(Refused));
+    }
+    TestTrue(TEXT("A refused cast step moves on to the next queued step instead of dropping the queue"),
+        QueueAfter(ELDOrderFailure::CastRefused) == EQueueAfter::Next);
+    return true;
+}
+
 #endif

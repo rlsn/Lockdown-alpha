@@ -20,6 +20,7 @@
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
@@ -29,13 +30,16 @@
 #include "Serialization/JsonSerializer.h"
 
 // Host stays at its spawn and Client1 sprays. Client2's contest pauses Client1's spray progress and Client1 resumes
-// it until his graffiti lands. The owner then walks away (his guard runs on); Client2 repaints alone, pausing the
-// guard, and walks out before his spray lands, losing his progress, so the guard resumes from where it paused and
-// wins. After the result the Host returns the same connections to a new Lobby generation and starts a second match.
+// it until his graffiti lands. The owner then walks away (his guard runs on); Client2 repaints alone, freezing the
+// guard, and walks out before his spray lands, losing his progress, so the guard resumes from its frozen value. The
+// owner walks back in, Client2 joins him (the guard freezes again) and the owner walks out under Client2, which resets
+// the frozen guard to zero (2026-11-07 user decision); Client2 walks out before repainting and the guard wins from
+// zero. After the result the Host returns the same connections to a new Lobby generation and starts a second match.
 enum class ELDCaptureProbeStage : uint8 { Join, Lobby, Starting, Match, Results, SecondLobby, SecondMatch, Done };
 
 // The public spray and guard sequence every role must observe in the first match.
-enum class ELDCaptureProbeSeen : uint8 { None, Solo, Paused, Resumed, Sprayed, OwnerAway, Repainting, GuardResumed };
+enum class ELDCaptureProbeSeen : uint8
+{ None, Solo, Paused, Resumed, Sprayed, OwnerAway, Repainting, GuardResumed, OwnerBack, GuardFrozen, GuardReset, GuardRestarted };
 
 class FLDDemoCaptureProbe : public TSharedFromThis<FLDDemoCaptureProbe>
 {
@@ -49,12 +53,14 @@ public:
     bool Passed = true, Written = false, ReadySent = false, NamesChecked = false, StartSent = false, ReturnSent = false;
     bool SecondStartSent = false;
     bool PauseShown = false, Resumed = false, Sprayed = false, OwnerAway = false, RepaintPaused = false, GuardResumed = false;
+    bool OwnerBack = false, GuardFrozen = false, GuardReset = false, GuardRestarted = false;
     uint32 FirstGeneration = 0, SecondGeneration = 0;
     FGuid CapturerId, ContesterId;
     FLDCombatBodyRef FirstBody;
     TSet<FGuid> FirstCampMembers;
     int64 FirstSoloSinceMs = -1, FirstPausedMs = 0, ResumedDueMs = 0, SprayedAtMs = -1;
     int64 RepaintSinceMs = 0, RepaintKeptMs = 0, ResumedGuardDueMs = 0;
+    int64 FrozenKeptMs = 0, ResetAtMs = 0, RestartedGuardDueMs = 0;
     int32 MarkerObservations = 0, MarkerMismatches = 0;
     int64 SprayMs = 0, GuardMs = 0, DevelopmentMs = 0;
     FVector Center = FVector::ZeroVector, Staging = FVector::ZeroVector, Inside = FVector::ZeroVector;
@@ -240,6 +246,40 @@ public:
             Seen = ELDCaptureProbeSeen::GuardResumed;
             return;
         }
+        case ELDCaptureProbeSeen::GuardResumed:
+            if (View.CircleState != ELDCircleState::Guarded || View.GraffitiOwner != CapturerId) { return; }
+            OwnerBack = View.GuardDueAtMs == ResumedGuardDueMs && !View.GuardKeptMs;
+            Seen = ELDCaptureProbeSeen::OwnerBack;
+            return;
+        case ELDCaptureProbeSeen::OwnerBack:
+        {
+            if (View.CircleState != ELDCircleState::Contested || View.GraffitiOwner != CapturerId) { return; }
+            FrozenKeptMs = View.GuardKeptMs;
+            // A challenger beside the owner froze the running guard at his entry; nobody holds spray progress.
+            const int64 FrozenAtMs = ResumedGuardDueMs - GuardMs + FrozenKeptMs;
+            GuardFrozen = !View.GuardDueAtMs && !View.Occupier.IsValid() && FrozenKeptMs > RepaintKeptMs && FrozenKeptMs < GuardMs
+                && FrozenAtMs <= View.ServerNowMs;
+            Seen = ELDCaptureProbeSeen::GuardFrozen;
+            return;
+        }
+        case ELDCaptureProbeSeen::GuardFrozen:
+            if (View.CircleState != ELDCircleState::Solo || View.Occupier != ContesterId) { return; }
+            // The owner walked out under the challenger: the graffiti stays, the frozen guard is back at zero.
+            ResetAtMs = View.SoloSinceMs;
+            GuardReset = View.GraffitiOwner == CapturerId && !View.GuardDueAtMs && !View.GuardKeptMs && FullSpray
+                && ResetAtMs <= View.ServerNowMs;
+            Seen = ELDCaptureProbeSeen::GuardReset;
+            return;
+        case ELDCaptureProbeSeen::GuardReset:
+        {
+            if (View.CircleState != ELDCircleState::Empty || View.GraffitiOwner != CapturerId) { return; }
+            RestartedGuardDueMs = View.GuardDueAtMs;
+            // The reset guard counts again from zero at the challenger's exit, before his spray could land.
+            const int64 RestartAtMs = RestartedGuardDueMs - GuardMs;
+            GuardRestarted = RestartAtMs > ResetAtMs && RestartAtMs < ResetAtMs + SprayMs && RestartAtMs <= View.ServerNowMs;
+            Seen = ELDCaptureProbeSeen::GuardRestarted;
+            return;
+        }
         default:
             return;
         }
@@ -367,6 +407,8 @@ bool FLDDemoCaptureProbe::Tick()
         const auto* Body = Cast<ALDCharacter>(PC->GetPawn());
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Body
             || PC->OwnerState.LifePhase != ELDLifePhase::Alive || !PC->CanWorldCommand()) { return true; }
+        // A freshly spawned body may still be settling; a ground order sent before it stands fails its local plan.
+        if (!Body->GetCharacterMovement() || !Body->GetCharacterMovement()->IsMovingOnGround()) { return true; }
         const FLDLobbyMember* Capturer = Lobby.Members.FindByPredicate([](const FLDLobbyMember& Row)
         { return Row.Name.Equals(ChosenName(TEXT("Client1")), ESearchCase::CaseSensitive); });
         CapturerId = Capturer ? Capturer->ContenderId : FGuid();
@@ -412,11 +454,17 @@ bool FLDDemoCaptureProbe::Tick()
             else if (After(ELDCaptureProbeSeen::Paused, 1, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 3; }
             else if (After(ELDCaptureProbeSeen::OwnerAway, 3, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 5; }
             else if (After(ELDCaptureProbeSeen::Repainting, 5, 1.)) { Nav->NavigateGround(Staging, Surface); ContestStep = 7; }
+            // Join the owner once he is back in the zone, then give up the repaint the owner's exit hands over.
+            else if (After(ELDCaptureProbeSeen::OwnerBack, 7, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 9; }
+            else if (After(ELDCaptureProbeSeen::GuardReset, 9, 1.)) { Nav->NavigateGround(Staging, Surface); ContestStep = 11; }
         }
         else if (Role == TEXT("Client1") && View.Phase == ELDMatchPhase::CaptureOpen)
         {
-            // The owner leaves freely once his graffiti stands; his guard keeps running.
+            // The owner leaves freely once his graffiti stands; his guard keeps running. He comes back after the
+            // abandoned repaint and walks out again under the challenger, which resets his frozen guard.
             if (After(ELDCaptureProbeSeen::Sprayed, 0, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 2; }
+            else if (After(ELDCaptureProbeSeen::GuardResumed, 2, 1.)) { Nav->NavigateGround(Inside, Surface); ContestStep = 4; }
+            else if (After(ELDCaptureProbeSeen::GuardFrozen, 4, 1.5)) { Nav->NavigateGround(Staging, Surface); ContestStep = 6; }
         }
         if (View.Phase != ELDMatchPhase::Results) { return true; }
         const FLDResultView& Result = Public->MatchResult;
@@ -426,11 +474,13 @@ bool FLDDemoCaptureProbe::Tick()
         Check(Seeing(ELDCaptureProbeSeen::GuardResumed) && PauseShown && Resumed && Sprayed,
             TEXT("C07"), TEXT("A real contest paused the sprayer's progress; he resumed it as the sole sprayer and his graffiti landed"));
         Check(Seeing(ELDCaptureProbeSeen::GuardResumed) && OwnerAway && RepaintPaused && GuardResumed,
-            TEXT("C18"), TEXT("The owner left freely with his guard running; a sole repaint paused the guard and, abandoned, lost its progress while the guard resumed from where it paused"));
-        Check(Result.EndedAtMs == ResumedGuardDueMs && View.GuardDueAtMs == ResumedGuardDueMs && View.GraffitiOwner == CapturerId
-            && Result.EndedAtMs - SprayedAtMs > GuardMs && ResumedDueMs - SprayedAtMs == 0
+            TEXT("C18"), TEXT("The owner left freely with his guard running; a challenger entering alone froze the guard and, abandoning his repaint, lost its progress while the guard resumed from its frozen value"));
+        Check(Seeing(ELDCaptureProbeSeen::GuardRestarted) && OwnerBack && GuardFrozen && GuardReset && GuardRestarted,
+            TEXT("C19"), TEXT("A challenger beside the returned owner froze the guard; the owner walking out under him reset it to zero with the graffiti kept, and it counted again from zero once the challenger left"));
+        Check(Result.EndedAtMs == RestartedGuardDueMs && View.GuardDueAtMs == RestartedGuardDueMs && View.GraffitiOwner == CapturerId
+            && Result.EndedAtMs - SprayedAtMs > GuardMs && Result.EndedAtMs - ResetAtMs > GuardMs && ResumedDueMs - SprayedAtMs == 0
             && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs,
-            TEXT("C08"), TEXT("The spray took its approved duration and the guard won after its approved duration plus the paused repaint, timed by the server"));
+            TEXT("C08"), TEXT("The spray took its approved duration and the guard won its approved duration after the reset, timed by the server"));
         Check(Result.Rows.Num() == 3 && !Result.Rows.ContainsByPredicate([](const FLDResultRow& Row)
             { return Row.FinalLevel < 1 || Row.bLeft; }),
             TEXT("C09"), TEXT("The frozen result lists every contender with a committed final level"));
@@ -459,6 +509,9 @@ bool FLDDemoCaptureProbe::Tick()
         Summary->SetNumberField(TEXT("repaint_since_ms"), double(RepaintSinceMs));
         Summary->SetNumberField(TEXT("repaint_kept_guard_ms"), double(RepaintKeptMs));
         Summary->SetNumberField(TEXT("resumed_guard_due_ms"), double(ResumedGuardDueMs));
+        Summary->SetNumberField(TEXT("frozen_guard_kept_ms"), double(FrozenKeptMs));
+        Summary->SetNumberField(TEXT("guard_reset_at_ms"), double(ResetAtMs));
+        Summary->SetNumberField(TEXT("restarted_guard_due_ms"), double(RestartedGuardDueMs));
         Summary->SetNumberField(TEXT("ended_at_ms"), double(Result.EndedAtMs));
         Summary->SetNumberField(TEXT("epoch"), double(View.CaptureEpoch));
         Summary->SetStringField(TEXT("winner"), Result.Winner.ToString(EGuidFormats::Digits));

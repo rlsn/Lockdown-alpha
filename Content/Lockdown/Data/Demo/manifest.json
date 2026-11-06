@@ -2,7 +2,7 @@
   "author_schema_sha256": "863d10246d3fc82c09ab2379ce5aff554a3b1d5f3fc6f665d8d319ab499bad4f",
   "content": {
     "file": "demo_content.json",
-    "sha256": "1f12efd3c467184b791d2084f0e5566fb52e1620407af848fc846f4366acbf73"
+    "sha256": "ad9a4a78017885aa217fb7b1059e3a099563151acfab6a525fb5a96191fff3cc"
   },
   "display_sha256": "4847b0f9bafd9451bb017375d69db3a2fe5a95dc81f4895e11038efdeb9cd3e2",
   "format": "lockdown-demo-content",

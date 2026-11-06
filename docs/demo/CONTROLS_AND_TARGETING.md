@@ -49,9 +49,9 @@
 | 右键砍一刀小摊模型 | 与右键墙一样：移动标记落在点击处，发送的普通 `MoveGround` 目的地换成模型旁最近的可走点（`ULDNavigationComponent::PointerGoal`，§4.3）；不弹出商店页面 | 与右键地面完全相同的订单；按住右键拖过模型时同样改用模型旁的点。 |
 | 左键砍一刀小摊模型 | 原地打开商店页面（指针下有可见单位时仍是检查该单位） | 不移动、不发送订单。 |
 | 左键，未准备动作 | 检查指针下的当前可见单位；点空地清除检查对象 | 不移动、不攻击、不发送订单。 |
-| A，然后左键 | A 进入攻击移动准备；左键把指针下地面作为 `AttackMove` 目的地发送 | A 按下本身不攻击；指针下无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
+| A，然后左键 | A 进入攻击移动准备；左键时先用与右键攻击相同的指针拾取（`ObservedUnderPointer`，约 12 px 容差）：指在可攻击的可见单位上时等同右键攻击该单位，发送 `AttackUnit` 并显示攻击标记；否则把指针下地面作为 `AttackMove` 目的地发送（`LDOrderRules::AttackConfirmKind`，2026-11-07 用户决定） | A 按下本身不攻击；两种确认都按 Shift 排队、都解除保护；指针下无单位也无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
-| Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认。对单位的确认发出 `CastUnit` 订单（§4.6），不经预输入 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝。对单位施放在距离外时先接近再施放。 |
+| Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认。对单位的确认发出 `CastUnit` 订单（§4.6），不经预输入 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝，被拒绝的请求不打断当前移动或攻击订单、不清队列（§4.7）。对单位施放在距离外时先接近再施放。 |
 | 1/2 | 同 Q/W，来源为对应装备实例的主动 | 无主动的装备同样发送并被明确拒绝，不回退到角色技能。 |
 | D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
@@ -230,13 +230,24 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 - 在射程内且普攻就绪时，以 Nav 形 `FLDCombatRequestKey`（订单身份 + 递增的 `AttackCycle`）调用
   `ALDCombatDirector::StartNavAttack`；Combat 分配动作身份并负责前摇、节拍与命中。
   Combat 以 `OutOfRange/Blocked` 拒绝时订单贴近并重算路线。
-- 不在射程内时追击：目标移动 ≥ 50 cm 且距上次规划 ≥ 0.1 s 时重算路线。
-- Combat 动作进行中或在射程内时订单保持“交战”，客户端停止本地转向。
+- 不在射程内时追击：目标移动 ≥ 50 cm 且距上次规划 ≥ 0.1 s 时重算路线；从“交战”转回追击（出手后、
+  等待结束）时当即重算，不沿交战前的旧路线走。
+- 只有仍在前摇的动作或在射程内等待时订单保持“交战”，客户端停止本地转向。
+  本 Actions 阶段到点出手的普攻（`ReleaseDue` 在导航之后执行）不再占住身体，订单当即转为追击
+  （`LDOrderRules::ActionHoldsChase`、`FLDCombatBodyRead::ActionReleaseAtMs`）。
+- 在射程内等下一次节拍时，目标比上一次样本沿两者连线后退 ≥ 1 cm 即继续贴近（press），
+  向自己走来才停下等待，静止样本维持原状态；样本跳变超过 200 cm（换目标、被位移）不算走开
+  （`LDOrderRules::ChasePress`）。贴近期间回执的接近半径为 0，客户端预测不在射程边缘停下。
+  这样同速追击是“接近 → 射程内起手 → 必定命中 → 继续追 → 再次进入射程起手”，不在射程边缘走走停停
+  （2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”，见 [战斗与属性](COMBAT_AND_ATTRIBUTES.md) §6.3）。
+- 对同一观察目标（同句柄与 epoch）重新下达 AttackUnit（例如追击中连点右键）时，新订单经
+  `ALDCombatDirector::AdoptNavAttack` 接管尚未出手的普攻；其他新订单、S 与订单结束仍取消它，已承诺节拍不退回。
 - 被定身时没有自愿转向输入，已提交的 root motion 继续。
 
 订单只锁定一个主目标；群攻与副击由 Combat/内容处理，不生成副目标订单。
 
-**AttackMove：** 唯一目的地是确认时的地面点（严格规划）。每个 Actions 阶段在没有锁定目标时，
+**AttackMove：** 只由 A 后左键点在地面上产生；A 后左键点在可攻击的可见单位上时发出的是对该单位的 `AttackUnit`，
+与右键该单位完全相同，不按最近单位搜敌（2026-11-07 用户决定）。唯一目的地是确认时的地面点（严格规划）。每个 Actions 阶段在没有锁定目标时，
 从 `EnumerateVisibleUnits(..., AttackMoveCandidate)` 的当前可见单位中，按自身脚点平面距离选最近者
 （`LDOrderRules::NearestCandidate`），同距取较小的观察句柄，排除自己；
 搜敌半径为 `TARGET.AttackMoveAcquireRadiusCm`（内容公式见 [内容与数值](CONTENT_AND_BALANCE.md)）。
@@ -246,6 +257,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 
 **失去视野：** 取消锁定并结束这条订单（AttackUnit 与已锁定目标的 AttackMove 都是
 `Cancelled/TargetUnavailable`），不走向最后可见位置、不恢复原 A 目的地，重新可见也不重启旧订单。
+已在前摇的普攻照样出手命中（2026-11-07），订单原地等它出手后才结束，不因失去视野作废这一下。
 只有授权观察到的死亡才让 AttackUnit 以 `Completed/TargetDied` 结束、让 AttackMove 续行；
 隐藏、过期或 `TargetUnavailable` 都不被当作死亡。
 
@@ -299,10 +311,12 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
 - **结束一步**：当前订单结束或排队步骤被拒绝时按 `LDOrderRules::QueueAfter` 处理——到达、路线不通/受阻、
   目标不可见/死亡、被掀飞等跳到下一步；Stop、死亡、过期租约、旧生命/旧局、不是拥有者、嘲讽/诱饵清空队列。
   后面还有地面步骤时，到达不调用 `HaltLocomotion`，客户端预测也不停身体。
-- **清空**：不带 Shift 的订单（`SubmitOrder`）、S（`CancelOrder`）、被 Combat 收下的不带 Shift 的 Direct 技能
-  （`ServerSubmitCombatAction`）、`EndLifeOrders`/`ResetMatch`、嘲讽与诱饵都调用 `ClearQueue`：
+- **清空**：不带 Shift 的订单（`SubmitOrder`）、S（`CancelOrder`）、`EndLifeOrders`/`ResetMatch`、嘲讽与诱饵都调用 `ClearQueue`：
   空间步骤回 `Cancelled` 及原因，技能步骤回 Combat 的拒绝回执（`Cancelled/Dead/MatchClosed/ControlBlocked`）。
-  不带 Shift 的技能只清队列，不改当前订单。
+  不带 Shift 的技能只在**被受理后**清掉它之前排的步骤（`ClearQueue(Failure, BeforeStep)`，按步骤到达序号 `FQueuedStep::Serial` 截断，
+  之后才排的步骤保留），且不改当前订单：Direct 技能在 Combat 判定后（`AwaitDirectVerdict`/`SettleDirectVerdicts`，
+  Actions 阶段开头，判定前不推进队列），`CastUnit/CastPoint` 在激活准入成功时（`FPendingOrder::QueueCut`）。
+  被拒绝的技能不清队列（2026-11-07 用户决定，§4.7）。
 - **客户端**：`ALDPlayerController::IsQueueModifierDown` 读左右 Shift（固定键，`ULDControlSettings` 拒绝把它绑给动作）。
   Shift 右键不会按住重复，Shift 技能不经预输入暂存。`FQueuedMark` 记下自己排队的地面步骤，
   `ALDPointerFeedback::SetQueue` 画小圈与从身体经当前目的地到各点的虚线；步骤开始或结束、Stop、新生命时移除。
@@ -313,6 +327,8 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `EL
 （按 Shift 时排进 §4.5 的队列），经 `ServerSubmitCast` / `SubmitCast` 与它的 Direct 请求一同收件。
 
 - **收件**：Direct 请求必须是非 D 的条目、`Unit` 目标且与订单的观察句柄一致，序号未被 Combat 见过。
+  不带 Shift 的施放在收件时先做一次就绪判定（`CastReady`），无法施放即回 `Rejected/CastRefused` 并发出 Combat 拒绝回执，
+  不占待受理槽、不动当前订单和队列；这次尝试仍在下一次 Actions 阶段解除保护（`QueueOwedAggression`，§4.7）。
 - **激活**（`AdmitOrder`）：先用 `ALDCombatDirector::QueryAvailability` 判定就绪——冷却、电量、受控、空槽、非单位技能
   立即 `CastRefused` 并以 Combat 拒绝回执报告原因；自身前摇（`Busy`）只让施放延后。施法距离取该视图的 `RangeCm`
   减 `CastMarginCm`（10 cm）。随后与 AttackUnit 同样重查观察句柄并绑定。
@@ -326,6 +342,25 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `EL
   以 `Point` 原样或从当前脚点朝该点重新求 `Direction` 调用 `StartNavCast`。对点施放只有 `Busy` 原地等待，
   其余结果都结束订单；走到路线终点仍不在距离内以 `NoCompletePath` 结束。`DirectionDash` 技能与 D 没有施法距离，不走这条路。
 - 对手 AI 仍直接调用 Combat 的 `SubmitAction`，不使用 `CastUnit/CastPoint`。
+
+### 4.7 被拒绝的技能不打断当前订单
+
+App Spec §3.1（2026-11-07 用户决定）：Q/W/1/2/D 的请求被拒绝（冷却未好、电量不足、受控制、空槽、无主动等任何准入失败）时，
+不取消、不替换、不暂停当前的移动或攻击订单，也不清空 Shift 队列；角色继续移动或攻击，拒绝原因仍经 Combat 回执提示。
+只有被受理的施放才按 §4.5/§4.6 取代当前订单或清掉之前排的步骤。判定共用 `LDOrderRules::SkillRequestReady`：
+`ALDCombatDirector::QueryAvailability` 的当前可用性为 `None` 或自身前摇 `Busy` 才算就绪（服务器按权威时间现算，
+不读客户端 owner view 里只供显示的 `Unavailable`）。
+
+- `CastUnit/CastPoint`：不带 Shift 时收件即判定（§4.6），被拒绝不进入待受理槽；就绪的施放激活时再判定一次，失败同样保留原订单。
+- Direct 技能（Self、冲刺类、D、缺目标）：本来就不改当前订单。队列里有步骤时，`ULDNavigationComponent::RefuseUnreadyDirect`
+  先判定，未就绪的请求不交给 Combat，而是记入 Combat 的 Direct 回执窗口但不推进其序号高水位：重放同一请求得到原拒绝，
+  条款不同为 `RequestConflict`，队列里序号更小的技能步骤仍可执行；直接回拒绝回执，
+  Q/W/1/2 仍在下一次 Actions 阶段解除保护；交给 Combat 的请求等判定后才清队列（§4.5）。
+  交给 Combat 后被拒（如自身前摇中按 D 判为 `Busy`）时高水位已越过排队步骤，但排队步骤在入队时已确认 Combat 未见过，
+  轮到时以排队步骤身份提交（`SubmitAction`/`StartNavCast` 的 `bQueuedStep`），不因更新的序号过期，仍只执行一次；
+  与排队步骤同序号的 Direct 请求以 `RequestConflict` 拒绝。判定共用 `LDCombatSourceRules::DirectSequenceVerdict`。
+- 客户端发送施放订单时不提前清掉本地排队标记，被丢弃步骤的 `Cancelled` 回执才移除标记；确认技能不发送 Stop。
+- 已受理后才失败的施放（接近途中目标失效、视线、来源变化等）仍按 §4.6 结束施放订单并原地站立。
 
 ## 5. SC-09 正式对接表
 
@@ -353,9 +388,10 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `EL
 | `ELDOrderCancelReason` | `Stop/FocusLost/LifeEnded/Left/MatchClosed`。 |
 | `SubmitOrder(Caller, Request) -> FLDOrderReceipt` | 真人 RPC 与 AI 共用的收件入口；只校验、去重、排队，返回 `Queued` 或前置 `Rejected`，不激活、不解除保护。 |
 | `CancelOrder(Caller, Identity, Reason) -> FLDOrderReceipt` | Stop 语义：Order 与 Epoch 都必须前进；排入待受理槽，在 Actions 阶段结束当前订单。 |
-| `SubmitCast(Caller, Request, Cast) -> FLDOrderReceipt` / `ServerSubmitCast` | 对单位施放订单收件（§4.6）；普通 `SubmitOrder` 拒绝 `CastUnit`。 |
+| `SubmitCast(Caller, Request, Cast) -> FLDOrderReceipt` / `ServerSubmitCast` | 对单位或地面点施放订单收件（§4.6）；不带 Shift 时未就绪即拒绝（§4.7）；普通 `SubmitOrder` 拒绝 `CastUnit/CastPoint`。 |
 | `QueryOrder(Caller, Identity) -> FLDOrderReceipt` | 只读：返回窗口内的回执，已被逐出的旧身份为 `Expired`。 |
-| `QueueAction(Caller, Request, AimCm) -> FLDCombatActionReceipt` / `ClearQueue(Failure)` | Shift 技能收件（§4.5）；清空未开始的排队步骤。 |
+| `QueueAction(Caller, Request, AimCm) -> FLDCombatActionReceipt` / `ClearQueue(Failure, BeforeStep)` | Shift 技能收件（§4.5）；清空未开始的排队步骤（给出 `BeforeStep` 时只清该序号之前排的）。 |
+| `RefuseUnreadyDirect(Request, Out)` / `AwaitDirectVerdict(Sequence)` | 不带 Shift 的 Direct 技能：队列非空时未就绪即在 Combat 之前拒绝；交给 Combat 的等受理后才清之前的步骤（§4.7）。 |
 | `ProcessAuthorityOrders(Permit, Error)` | Actions 阶段推进 Shift 队列、激活待受理订单并推进当前订单（追击、搜敌、普攻申请）。 |
 | `AdvanceAuthorityMotion(Step, Body, Permit, Error)` | Motion 阶段把转向输入交给 `ULDCharacterMovementComponent::AdvanceAuthorityMovement`。 |
 | `EndLifeOrders(Reason)` / `ResetMatch()` | 死亡、离开、终局结束订单；换局时丢弃整个订单簿与内容缓存（回执序号保留）。 |
@@ -547,6 +583,9 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 | `Lockdown.Rules.DemoControlFeel.ModelPicking` / `PresentedModelPicking` | 三角面边界、空隙、正反面与深度；宽松拾取体的穿过、容差内外、身后与遮挡截断；真实导入骨骼模型的站立/攻击/施法头脚与侧缘拾取、拾取体与模型身高一致、隐藏和倒地拒绝。 |
 | `Lockdown.Rules.DemoOrders.AttackMoveCandidate` | A 搜敌的最近者、半径与平局排序。 |
 | `Lockdown.Rules.DemoOrders.BookIsolation` | 订单簿按局/生命隔离与重置。 |
+| `Lockdown.Rules.DemoOrders.ChasePress` | 普攻追击不发呆：到点出手的普攻不再占住订单，射程内等节拍时目标走开即贴近。 |
+| `Lockdown.Rules.DemoControlFeel.AttackClick` | A 后左键点单位等同右键攻击该单位，点地面为攻击移动（2026-11-07）。 |
+| `Lockdown.Rules.DemoControlFeel.RefusedSkillKeepsOrder` | 未就绪的技能请求被立即拒绝而不动当前订单与队列；前摇只延后；被拒的技能步骤不清队列（2026-11-07）。 |
 | `Lockdown.Rules.ControlMappings` | 唯一动作注册表与绑定。 |
 | `Lockdown.Rules.Minimap.*`、`Lockdown.Rules.LocalSettingsMinimapOrientation` | 小地图朝向与设置。 |
 

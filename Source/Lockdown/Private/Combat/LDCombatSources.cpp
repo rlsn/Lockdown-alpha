@@ -488,6 +488,23 @@ ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input,
     return ELDCombatReject::None;
 }
 
+ELDDirectSequenceVerdict LDCombatSourceRules::DirectSequenceVerdict(bool bRecorded, bool bSameTerms, uint64 Sequence,
+    uint64 HighWater, bool bQueuedStep)
+{
+    if (bRecorded) { return bSameTerms ? ELDDirectSequenceVerdict::Replay : ELDDirectSequenceVerdict::Conflict; }
+    return Sequence<=HighWater && !bQueuedStep ? ELDDirectSequenceVerdict::Expired : ELDDirectSequenceVerdict::Fresh;
+}
+
+ELDCombatReject LDCombatSourceRules::BasicReleaseGate(const FLDBasicReleaseInput& Input)
+{
+    if (Input.bAttackBlocked) { return ELDCombatReject::ControlBlocked; }
+    if (Input.bSelf || !Input.Committed.IsValid() || Input.Current!=Input.Committed || Input.bCurrentPendingDeath
+        || !Input.bTargetPresent)
+    { return ELDCombatReject::TargetUnavailable; }
+    if (!Input.bTauntAllows) { return ELDCombatReject::ControlBlocked; }
+    return ELDCombatReject::None;
+}
+
 int64 LDCombatSourceRules::ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs)
 {
     if (AmountMs<=0 || ReadyAtMs<=NowMs) { return ReadyAtMs; }

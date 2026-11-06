@@ -50,11 +50,13 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
                    : View.PausedProgressMs != 0))
     { return FailCaptureView(Error, TEXT("Spray holder and progress do not match the zone state.")); }
     const bool Owned = View.GraffitiOwner.IsValid();
+    // A sole sprayer or a contest always holds a challenger in the zone, which freezes the owner's guard.
+    const bool GuardFrozen = Solo || View.CircleState == ELDCircleState::Contested;
     if ((View.CircleState == ELDCircleState::Guarded && !Owned) || (Owned && View.Occupier == View.GraffitiOwner)
         || View.GraffitiPresentation >= CapturePresentationSlots || (!Owned && View.GraffitiPresentation != 0)
         || (!Owned ? (View.GuardDueAtMs != 0 || View.GuardKeptMs != 0)
-            : Solo ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > View.ServerNowMs - View.OpenAtMs)
-                   : (View.GuardDueAtMs <= View.OpenAtMs || View.GuardKeptMs != 0)))
+            : GuardFrozen ? (View.GuardDueAtMs != 0 || View.GuardKeptMs < 0 || View.GuardKeptMs > View.ServerNowMs - View.OpenAtMs)
+                          : (View.GuardDueAtMs <= View.OpenAtMs || View.GuardKeptMs != 0)))
     { return FailCaptureView(Error, TEXT("Graffiti owner and guard progress do not match the zone state.")); }
     const FLDAirdropView& Drop = View.Airdrop;
     const bool bDrop = Drop.Phase != ELDAirdropPhase::None;

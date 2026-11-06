@@ -256,14 +256,14 @@ LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString&
     case ELDMatchPhase::CaptureOpen:
     {
         const FString Sprayer=SprayerName.IsEmpty()?FString(TEXT("未列名参赛者")):SprayerName;
-        // The graffiti and its guard are public in every open state; a sole sprayer pauses the guard.
+        // The graffiti and its guard are public in every open state; anyone else in the zone freezes the guard.
         FString Guard;
         float GuardProgress=0.f;
         bool bGuardProgress=false;
         if(Public.GraffitiOwner.IsValid())
         {
             Guard=LDTerms::GraffitiOf(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);
-            if(Public.CircleState==ELDCircleState::Solo)
+            if(Public.CircleState==ELDCircleState::Solo||Public.CircleState==ELDCircleState::Contested)
             {
                 Guard+=FString(TEXT(" · "))+LDTerms::GuardPaused;
                 if(GuardMs>0)
@@ -407,9 +407,13 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 const FString Owner=bOwn?FString(TEXT("你")):Name(Public.GraffitiOwner);
                 Add(LDTerms::GraffitiSprayed(Owner.IsEmpty()?FString(TEXT("未列名参赛者")):Owner),bOwn);
             }
+            // A frozen guard only drops to zero when its owner leaves the zone under a challenger; a guard that was
+            // running cannot freeze at zero for the same owner, since the spray that started it needs the zone alone.
+            else if(Public.GraffitiOwner.IsValid()&&!Public.GuardDueAtMs&&!Public.GuardKeptMs&&(GuardKeptMs>0||GuardDueAtMs))
+            {Add(LDTerms::GuardReset,In.Self.IsValid()&&Public.GraffitiOwner==In.Self);}
         }
         bPrimed=true;Phase=Public.Phase;AirdropSerial=Public.Airdrop.Serial;AirdropPhase=Public.Airdrop.Phase;BossPhase=Public.Boss.Phase;
-        Leader=Public.Leader.Leader;GraffitiOwner=Public.GraffitiOwner;
+        Leader=Public.Leader.Leader;GraffitiOwner=Public.GraffitiOwner;GuardKeptMs=Public.GuardKeptMs;GuardDueAtMs=Public.GuardDueAtMs;
     }
     for(FEventLine& Line:Shown)
     {

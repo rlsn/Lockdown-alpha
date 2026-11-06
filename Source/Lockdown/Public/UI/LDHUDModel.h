@@ -383,7 +383,8 @@ namespace LDHUD
     // Kills are told when their notice arrives, unless it was already older than StaleKillMs (a late join). Every other
     // event is a change between two observations of the same match: the first observation of a match only records the
     // state, so a screen that joins mid-match never replays what already happened. Told events: the flagpole opening, a
-    // drop landing and being claimed, the Boss appearing and going down, a new 上热搜 leader and a new graffiti owner.
+    // drop landing and being claimed, the Boss appearing and going down, a new 上热搜 leader, a new graffiti owner and the
+    // same owner's frozen guard dropping to zero (he left the zone while a challenger was in it).
     class LOCKDOWN_API FEventFeed
     {
     public:
@@ -403,5 +404,8 @@ namespace LDHUD
         ELDBossPhase BossPhase=ELDBossPhase::None;
         FGuid Leader;
         FGuid GraffitiOwner;
+        // The guard as last observed: frozen progress, or a running guard (GuardDueAtMs set).
+        int64 GuardKeptMs=0;
+        int64 GuardDueAtMs=0;
     };
 }

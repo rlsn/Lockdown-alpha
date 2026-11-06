@@ -116,7 +116,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
      按键即按同一确认路径朝指针施放；对单位技能指针下无单位时仍进入普通武装、左键确认。
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，
-     400 cm/s 基础移速约 50 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
+     300 cm/s 基础移速约 38 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
 AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中选离自身最近者（同距取较小观察句柄），
 搜敌半径取 `TARGET.AttackMoveAcquireRadiusCm`；目标被观察到死亡后重新选敌，无目标时走向原地面目的地，

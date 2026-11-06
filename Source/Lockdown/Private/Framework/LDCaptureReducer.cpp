@@ -179,7 +179,13 @@ bool FLDCaptureReducer::Enqueue(const FLDCaptureEvent& Event, FString& Error)
     return true;
 }
 
-bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, FString& Error)
+bool FLDCaptureReducer::IsOwnerInFrozenGuard() const
+{
+    const FMember* Member = Owner.IsValid() && !IsGuardRunning() ? Reduced.Find(Owner) : nullptr;
+    return Member && Member->Phase == ELDLifePhase::Alive && Member->bInside;
+}
+
+bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, const FGuid& ResetOwner, FString& Error)
 {
     if (!bOpen) { return true; }
     const int64 Now = At.BucketMs;
@@ -244,17 +250,24 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         NextHolder.Invalidate();
         NextPaused = 0;
     }
-    // The guard pauses only while a sole sprayer accumulates and continues from the paused value afterwards.
+    // Any effective contender other than the owner in the zone freezes the guard (2026-11-07 user decision); it
+    // continues from the frozen value once none is left. The owner leaving the zone while it stays frozen resets it.
     int64 NextGuardDue = 0;
     int64 NextGuardKept = 0;
+    bool bGuardReset = false;
     if (NextOwner.IsValid())
     {
         const bool bWasRunning = IsGuardRunning();
-        const bool bRuns = Next != ELDCircleState::Solo;
+        const bool bRuns = GuardRunsIn(Next);
         if (bWasRunning && bRuns) { NextGuardDue = GuardDue; }
         else if (!bWasRunning && !bRuns) { NextGuardKept = GuardKept; }
         else if (bWasRunning) { NextGuardKept = Now - (GuardDue - Guard); }
         else if (!LDMatchLifecycle::AddDurationMs(Now - GuardKept, Guard, NextGuardDue, Error)) { return false; }
+        if (!bRuns && ResetOwner.IsValid() && ResetOwner == NextOwner && OwnerMember && !OwnerMember->bInside)
+        {
+            bGuardReset = NextGuardKept != 0;
+            NextGuardKept = 0;
+        }
     }
     if (Next == State && NextHolder == Occupier && NextSince == SoloSince && NextDue == DueAt && NextPaused == Paused
         && NextOwner == Owner && NextGuardDue == GuardDue && NextGuardKept == GuardKept)
@@ -287,8 +300,10 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         ++(OwnerMember && OwnerMember->Phase == ELDLifePhase::Dead ? DevCounts.ClearedByDeath : DevCounts.ClearedByLeave);
         DevCounts.GraffitiSinceMs = -1;
     }
+    DevCounts.GuardResets += bGuardReset ? 1 : 0;
 #else
     (void)bResumed;
+    (void)bGuardReset;
 #endif
     State = Next;
     Occupier = NextHolder;
@@ -398,8 +413,10 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
         return Left.Ordinal < Right.Ordinal;
     });
     bool bCompleted = false;
-    for (const FLDCaptureEvent& Event : Batch)
+    FGuid ResetOwner;
+    for (int32 Index = 0; Index < Batch.Num(); ++Index)
     {
+        const FLDCaptureEvent& Event = Batch[Index];
         // A spray or guard due before this fact happened at its due instant; facts at that very instant (deaths,
         // departures, controls, exits) are reduced first, so nothing later can rewrite it.
         if (!Advance(Event.Time.BucketMs, false, bCompleteInside, bCompleted, Error)) { return false; }
@@ -410,6 +427,11 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
             return false;
         }
         LastReducedSeconds = Event.Time.Seconds;
+        // Exactly simultaneous facts settle a guard reset together: the owner must have been in the zone under a frozen
+        // guard as the instant began and be out of it, with the guard still frozen, once all of them are reduced.
+        if (Index == 0 || Batch[Index - 1].Time.Seconds != Event.Time.Seconds)
+        { ResetOwner = IsOwnerInFrozenGuard() ? Owner : FGuid(); }
+        const bool bInstantEnd = Index + 1 == Batch.Num() || Batch[Index + 1].Time.Seconds != Event.Time.Seconds;
         FGuid Interrupted;
         if (Event.Kind == ELDCaptureEventKind::Open) { bOpen = true; }
         else
@@ -419,7 +441,7 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
             // A retired life's late interruption touches nobody's progress.
             if (Target && Target->Body == Event.Body && Target->Phase == ELDLifePhase::Alive) { Interrupted = Event.Body.Victim.EntityId; }
         }
-        if (!Evaluate(Event.Time, Interrupted, Error)) { return false; }
+        if (!Evaluate(Event.Time, Interrupted, bInstantEnd ? ResetOwner : FGuid(), Error)) { return false; }
     }
     if (!bCompleted && !Advance(AtMs, true, bCompleteInside, bCompleted, Error)) { return false; }
     const int64 ReducedThrough = bCompleted ? GuardDue : AtMs;

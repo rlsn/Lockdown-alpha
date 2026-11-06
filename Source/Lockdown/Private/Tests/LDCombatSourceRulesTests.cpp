@@ -436,4 +436,155 @@ bool FLDOrderBookIsolationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommittedBasicReleaseTest, "Lockdown.Rules.DemoCombatSources.CommittedBasicRelease",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// 2026-11-07 user decision: once a basic windup legally started, its release always lands on the committed target life,
+// however far it ran and whether or not it is still seen; only the target life ending or the attacker's own control
+// ends the swing.
+bool FLDCombatCommittedBasicReleaseTest::RunTest(const FString& Parameters)
+{
+    FLDCombatBodyRef Target;
+    Target.Victim.Kind = ELDVictimKind::Contender;
+    Target.Victim.EntityId = FGuid::NewGuid();
+    Target.Victim.Life = 3;
+    Target.BodyIdentity = FGuid::NewGuid();
+    FLDBasicReleaseInput Gate;
+    Gate.Committed = Target;
+    Gate.Current = Target;
+    Gate.bTargetPresent = true;
+    // The gate has no distance, visibility or sight input at all: a target that ran out of range, out of sight or behind
+    // a wall during the windup is the same standing life, and the swing lands on it.
+    TestTrue(TEXT("A started windup hits a target that ran out of range or out of sight"),
+        LDCombatSourceRules::BasicReleaseGate(Gate) == ELDCombatReject::None);
+    FLDBasicReleaseInput Camp = Gate;
+    Camp.Committed.Victim.Kind = Camp.Current.Victim.Kind = ELDVictimKind::CampMember;
+    TestTrue(TEXT("A camp member target lands the same way"), LDCombatSourceRules::BasicReleaseGate(Camp) == ELDCombatReject::None);
+
+    FLDBasicReleaseInput Dead = Gate;
+    Dead.bCurrentPendingDeath = true;
+    TestTrue(TEXT("A target that died during the windup cancels the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Dead) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Gone = Gate;
+    Gone.Current = FLDCombatBodyRef();
+    TestTrue(TEXT("A retired target body (dead and removed) cancels the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Gone) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Respawned = Gate;
+    Respawned.Current.Victim.Life = 4;
+    Respawned.Current.BodyIdentity = FGuid::NewGuid();
+    TestTrue(TEXT("A new life of the target cancels the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Respawned) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Rebodied = Gate;
+    Rebodied.Current.BodyIdentity = FGuid::NewGuid();
+    TestTrue(TEXT("Another body identity of the same life number cancels the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Rebodied) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Left = Gate;
+    Left.bTargetPresent = false;
+    TestTrue(TEXT("A target that left the match cancels the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Left) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Self = Gate;
+    Self.bSelf = true;
+    TestTrue(TEXT("The attacker itself is never a release target"),
+        LDCombatSourceRules::BasicReleaseGate(Self) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Unbound = Gate;
+    Unbound.Committed = Unbound.Current = FLDCombatBodyRef();
+    TestTrue(TEXT("A swing without a committed life lands on nobody"),
+        LDCombatSourceRules::BasicReleaseGate(Unbound) == ELDCombatReject::TargetUnavailable);
+
+    FLDBasicReleaseInput Disarmed = Gate;
+    Disarmed.bAttackBlocked = true;
+    TestTrue(TEXT("The attacker's own Disarm/Stun/knockback during the windup still ends it"),
+        LDCombatSourceRules::BasicReleaseGate(Disarmed) == ELDCombatReject::ControlBlocked);
+    Disarmed.bCurrentPendingDeath = true;
+    TestTrue(TEXT("The attacker's control is judged before the target"),
+        LDCombatSourceRules::BasicReleaseGate(Disarmed) == ELDCombatReject::ControlBlocked);
+    FLDBasicReleaseInput Taunted = Gate;
+    Taunted.bTauntAllows = false;
+    TestTrue(TEXT("A taunt toward another body during the windup still ends it"),
+        LDCombatSourceRules::BasicReleaseGate(Taunted) == ELDCombatReject::ControlBlocked);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDOrderChasePressTest, "Lockdown.Rules.DemoOrders.ChasePress",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+// A basic-attack chase at a similar speed must not idle: approach, windup in range, certain hit, keep chasing.
+bool FLDOrderChasePressTest::RunTest(const FString& Parameters)
+{
+    TestTrue(TEXT("A basic still winding up holds the chase"),
+        LDOrderRules::ActionHoldsChase(true, ELDCombatEntry::Basic, 1250, 1249));
+    TestFalse(TEXT("A basic due now releases in this phase and frees the chase at once"),
+        LDOrderRules::ActionHoldsChase(true, ELDCombatEntry::Basic, 1250, 1250));
+    TestTrue(TEXT("An ability windup due now still holds the body"),
+        LDOrderRules::ActionHoldsChase(true, ELDCombatEntry::Q, 1250, 1250));
+    TestFalse(TEXT("No action holds nothing"), LDOrderRules::ActionHoldsChase(false, ELDCombatEntry::None, 0, 1250));
+
+    LDOrderRules::FChasePressInput Press;
+    Press.bInRange = true;
+    Press.bAttackAllowed = true;
+    Press.AttackerFootCm = FVector(0, 0, 0);
+    Press.PreviousTargetFootCm = FVector(200, 0, 0);
+    Press.TargetFootCm = FVector(210, 0, 0);
+    TestTrue(TEXT("Waiting for the beat in range, a target walking away is followed"), LDOrderRules::ChasePress(Press));
+    LDOrderRules::FChasePressInput Still = Press;
+    Still.PreviousTargetFootCm = Still.TargetFootCm;
+    Still.bWasPressing = true;
+    TestTrue(TEXT("A still sample keeps pressing"), LDOrderRules::ChasePress(Still));
+    Still.bWasPressing = false;
+    TestFalse(TEXT("A still sample keeps holding"), LDOrderRules::ChasePress(Still));
+    LDOrderRules::FChasePressInput Closer = Press;
+    Closer.bWasPressing = true;
+    Closer.TargetFootCm = FVector(190, 0, 0);
+    TestFalse(TEXT("A target walking closer is waited for"), LDOrderRules::ChasePress(Closer));
+    LDOrderRules::FChasePressInput Sideways = Press;
+    Sideways.TargetFootCm = FVector(200, 10, 0);
+    TestFalse(TEXT("A sideways step does not start a press"), LDOrderRules::ChasePress(Sideways));
+    LDOrderRules::FChasePressInput Jump = Press;
+    Jump.bWasPressing = true;
+    Jump.PreviousTargetFootCm = FVector(-500, 0, 0);
+    TestFalse(TEXT("A sample jump (another target, a displacement) is no walk"), LDOrderRules::ChasePress(Jump));
+    LDOrderRules::FChasePressInput Acting = Press;
+    Acting.bWasPressing = Acting.bActing = true;
+    TestFalse(TEXT("An action in progress never presses"), LDOrderRules::ChasePress(Acting));
+    LDOrderRules::FChasePressInput Ready = Press;
+    Ready.bWasPressing = Ready.bBeatReady = true;
+    TestFalse(TEXT("A ready beat never presses (the windup starts instead)"), LDOrderRules::ChasePress(Ready));
+    LDOrderRules::FChasePressInput CloseIn = Press;
+    CloseIn.bWasPressing = CloseIn.bCloseIn = true;
+    TestFalse(TEXT("Closing in after a refused start never presses"), LDOrderRules::ChasePress(CloseIn));
+    LDOrderRules::FChasePressInput Out = Press;
+    Out.bWasPressing = true;
+    Out.bInRange = false;
+    TestFalse(TEXT("Out of range is the ordinary chase, not a press"), LDOrderRules::ChasePress(Out));
+    LDOrderRules::FChasePressInput Disarmed = Press;
+    Disarmed.bWasPressing = true;
+    Disarmed.bAttackAllowed = false;
+    TestFalse(TEXT("A body that cannot attack holds in range"), LDOrderRules::ChasePress(Disarmed));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatDirectSequenceWindowTest, "Lockdown.Rules.DemoCombatSources.DirectSequenceWindow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDCombatDirectSequenceWindowTest::RunTest(const FString& Parameters)
+{
+    using LDCombatSourceRules::DirectSequenceVerdict;
+    // Queued Q/W at 5 and 6, then a non-Shift D at 7 refused for cooldown before Combat judged it: the refusal is
+    // recorded above the high-water mark (4), which does not move.
+    TestTrue(TEXT("A replay of the refused request answers the recorded refusal, never runs after the cooldown"),
+        DirectSequenceVerdict(true, true, 7, 4, false) == ELDDirectSequenceVerdict::Replay);
+    TestTrue(TEXT("The refused sequence with changed terms conflicts"),
+        DirectSequenceVerdict(true, false, 7, 4, false) == ELDDirectSequenceVerdict::Conflict);
+    TestTrue(TEXT("The queued steps below it stay fresh"), DirectSequenceVerdict(false, false, 5, 4, true) == ELDDirectSequenceVerdict::Fresh);
+    // A D at 8 pressed during the own windup went to Combat (the high-water mark is now 8) and was refused as Busy.
+    TestTrue(TEXT("A queued step older than a newer judged request still runs once from the queue"),
+        DirectSequenceVerdict(false, false, 6, 8, true) == ELDDirectSequenceVerdict::Fresh);
+    TestTrue(TEXT("The same old sequence sent as a plain Direct request has expired"),
+        DirectSequenceVerdict(false, false, 6, 8, false) == ELDDirectSequenceVerdict::Expired);
+    TestTrue(TEXT("A queued step already judged replays instead of running twice"),
+        DirectSequenceVerdict(true, true, 6, 8, true) == ELDDirectSequenceVerdict::Replay);
+    TestTrue(TEXT("A new sequence above the mark is fresh"), DirectSequenceVerdict(false, false, 9, 8, false) == ELDDirectSequenceVerdict::Fresh);
+    return true;
+}
+
 #endif

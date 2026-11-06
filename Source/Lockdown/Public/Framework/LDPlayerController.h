@@ -123,7 +123,8 @@ public:
     void ArmAttackMove();
     // Clears any armed entry or attack-move without sending anything; true if something was armed.
     bool CancelArmedCombat();
-    // Left-click confirmation of the armed entry or attack-move; false when nothing was armed.
+    // Left-click confirmation of the armed entry or attack-move; false when nothing was armed. An armed attack-move on an
+    // attackable visible unit under the pointer attacks that unit like a right click; elsewhere it attack-moves.
     bool ConfirmArmedCombat();
     // Confirms the armed Q/W/1/2 entry on an explicit aim (an observed unit handle or a planar direction) instead of
     // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed. AimCm is
