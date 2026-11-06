@@ -7,6 +7,7 @@
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
 #include "World/LDWorldQueryTypes.h"
+#include "Core/LDLog.h"
 #include "LDNavigationComponent.generated.h"
 
 class ALDPlayerController;
@@ -96,6 +97,9 @@ public:
     // content cache. The receipt serial stays: it is the owning connection's monotonic order, not match state.
     void ResetMatch();
     bool AuthorizesMove(const FLDMoveIdentity& Identity) const;
+    // Server playtest heartbeat: the current authority order as "<kind>#<order>[:engaged][:forced][:lure]" with its fixed
+    // destination or pinned target foot, "none" without one; a queued replacement adds "+pending".
+    FString DescribeAuthorityOrder(FVector& OutPoint, bool& bOutHasPoint) const;
     bool AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
     bool ProcessAuthorityOrders(const FLDGameplayWritePermit& Permit, FString& Error);
@@ -199,6 +203,9 @@ private:
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).
     bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
+    // Owning client playtest log of a sent order (LD_SELF_ORDER), rate-limited; own intent and public identities only.
+    void LogOwnOrder(const FLDSpatialOrderRequest& Request);
+    LDLog::FRateLimit OrderLogLimit{.25};
     void ApplyPrediction();
     void RefreshLocalActive();
     void Face(const FVector& Direction);

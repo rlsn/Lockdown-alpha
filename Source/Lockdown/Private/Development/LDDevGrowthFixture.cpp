@@ -1,4 +1,5 @@
 #include "Development/LDDevGrowthFixture.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Engine/World.h"
@@ -145,7 +146,7 @@ bool LDDevGrowthFixture::StageOffer(const UWorld* World, const FGuid& Contender,
         return false;
     }
     const int32 Position = Staged.Add(DefinitionIds) + 1;
-    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE staged offer for the next match contender=%s position=%d cards=%s,%s,%s"),
+    UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE staged offer for the next match contender=%s position=%d cards=%s,%s,%s"),
         *Contender.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
     return true;
 }
@@ -162,7 +163,7 @@ void LDDevGrowthFixture::TakeStaged(const TArray<FGuid>& Roster, TMap<FGuid, TAr
         }
         else
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s staged in the Lobby is not in the locked roster"),
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s staged in the Lobby is not in the locked roster"),
                 *Entry.Key.ToString());
         }
     }

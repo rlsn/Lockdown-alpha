@@ -1,4 +1,5 @@
 #include "Tests/LDDemoEntryProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
@@ -67,7 +68,7 @@ bool TickRoom(const TSharedRef<FRoomProbe>& Probe)
         Probe->ReadyWritten = Save(Ready, FPaths::Combine(Probe->Output, TEXT("HostReady.json")));
         if (!Probe->ReadyWritten)
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ROOM_PROBE Could not persist Host readiness."));
+            UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_ROOM_PROBE Could not persist Host readiness."));
             FPlatformMisc::RequestExitWithStatus(false, 2);
             return false;
         }
@@ -148,7 +149,7 @@ bool TickRoom(const TSharedRef<FRoomProbe>& Probe)
     Report->SetStringField(TEXT("scope"), TEXT("Three real human Lobby connections, native saved-world/agent/ground/path binding and no gameplay activation. Not AI, sparse vision, CMC traversal or a playable match."));
     Report->SetArrayField(TEXT("checks"), Checks);
     Probe->ResultWritten = Save(Report, FPaths::Combine(Probe->Output, Probe->Role + TEXT(".json")));
-    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ROOM_PROBE role=%s passed=%d"), *Probe->Role, Passed && Probe->ResultWritten);
+    UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_ROOM_PROBE role=%s passed=%d"), *Probe->Role, Passed && Probe->ResultWritten);
     if (!Passed || !Probe->ResultWritten)
     {
         FPlatformMisc::RequestExitWithStatus(false, 2);
@@ -172,7 +173,7 @@ void LDDemoTests::StartWorldRoomProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ROOM_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_ROOM_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

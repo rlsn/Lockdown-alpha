@@ -40,6 +40,11 @@ public:
     virtual bool ServerShouldUseAuthoritativePosition(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
         const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
         FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
+    // Server: counts the client moves this server answers with a correction (the Host's per-connection playtest summary).
+    virtual bool ServerCheckClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
+        const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
+        FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode) override;
+    uint32 ServerCorrectionCount=0;
     bool AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FVector& Input, const FLDGameplayWritePermit& Permit, FString& Error);
     // Demo dash on the server authority body: one planar override root-motion source (Distance/Duration,

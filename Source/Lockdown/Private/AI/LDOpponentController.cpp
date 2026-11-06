@@ -1,4 +1,5 @@
 #include "AI/LDOpponentController.h"
+#include "Core/LDLog.h"
 #include "AI/LDOpponentFrame.h"
 #include "CollisionShape.h"
 #include "Combat/LDCombatDirector.h"
@@ -197,7 +198,7 @@ void ALDOpponentController::ReportTally()
 {
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
-    UE_LOG(LogTemp, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
@@ -238,7 +239,7 @@ void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, c
 
 void ALDOpponentController::ClientTravelInternal_Implementation(const FString&, ETravelType, bool, FGuid)
 {
-    UE_LOG(LogTemp, Display, TEXT("LD_AI_TRAVEL_IGNORED contender=%s"), *Binding.GetContender().ToString());
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_TRAVEL_IGNORED contender=%s"), *Binding.GetContender().ToString());
 }
 
 void ALDOpponentController::Tick(float DeltaSeconds)
@@ -829,7 +830,7 @@ void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const 
     ReportedReason = Decision.Reason;
     ReportedProblem = Problem;
     // Bounded reason codes and own input revisions only; never another contender's private state.
-    UE_LOG(LogTemp, Display, TEXT("LD_AI_DECISION contender=%s gen=%u life=%u view=%u mode=%u reason=%u body=%u build=%u%s%s"),
+    UE_LOG(LogLDAI, Display, TEXT("LD_AI_DECISION contender=%s gen=%u life=%u view=%u mode=%u reason=%u body=%u build=%u%s%s"),
         *Binding.GetContender().ToString(), Frame.Generation, Frame.Self.Life, Frame.ViewRevision, uint32(Decision.Mode),
         uint32(Decision.Reason), uint32(Decision.Body.Kind), uint32(Decision.Build.Kind),
         Problem.IsEmpty() ? TEXT("") : TEXT(" problem="), *Problem);

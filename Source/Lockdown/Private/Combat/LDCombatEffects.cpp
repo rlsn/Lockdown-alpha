@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDControlRules.h"
@@ -99,6 +100,45 @@ namespace LDCombatEffectsDetail
         OutFraction=Fraction;
         return true;
     }
+
+    // Controls one committed hit applied, for its LD_HIT line.
+    constexpr uint8 KnockbackBit=1<<4;
+    uint8 ControlBit(ELDControlKind Kind)
+    {
+        switch (Kind)
+        {
+        case ELDControlKind::Root: return 1;
+        case ELDControlKind::Stun: return 1<<1;
+        case ELDControlKind::Disarm: return 1<<2;
+        case ELDControlKind::Taunt: return 1<<3;
+        case ELDControlKind::Knockback: return KnockbackBit;
+        case ELDControlKind::Slow: return 1<<5;
+        default: return 0;
+        }
+    }
+    FString ControlNames(uint8 Mask)
+    {
+        static const TCHAR* Names[]={TEXT("root"),TEXT("stun"),TEXT("disarm"),TEXT("taunt"),TEXT("knockback"),TEXT("slow")};
+        FString Out;
+        for (int32 Bit=0; Bit<UE_ARRAY_COUNT(Names); ++Bit)
+        {
+            if (!(Mask&(1<<Bit))) { continue; }
+            if (!Out.IsEmpty()) { Out+=TEXT("+"); }
+            Out+=Names[Bit];
+        }
+        return Out.IsEmpty() ? FString(TEXT("-")) : Out;
+    }
+    const TCHAR* HitClassName(ELDCombatHitClass Class)
+    {
+        switch (Class)
+        {
+        case ELDCombatHitClass::BasicPrimary: return TEXT("basic");
+        case ELDCombatHitClass::BasicSecondary: return TEXT("basic_secondary");
+        case ELDCombatHitClass::Ability: return TEXT("ability");
+        default: return TEXT("none");
+        }
+    }
+    const TCHAR* VictimKindName(ELDVictimKind Kind) { return Kind==ELDVictimKind::CampMember ? TEXT("camp") : TEXT("contender"); }
 }
 
 bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
@@ -259,6 +299,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Damage.DamageP2>0) { Body->LastCombatAtMs=NowMs; }
     // Controls and slows go through the single control path (diminishing returns, interruptions, spray, assists).
     bool bControlled=false;
+    uint8 ControlMask=0;
     const auto Control=[&](ELDControlKind Kind, int64 DurationMs, int64 RatioBp, int64 AttackRatioBp, bool& bOut)
     {
         FLDControlApplication App;
@@ -273,6 +314,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         bOut=false;
         if (!CommitControl(*Body,App,NowMs,bOut,Error)) { return false; }
         bControlled|=bOut;
+        if (bOut) { ControlMask|=LDCombatEffectsDetail::ControlBit(Kind); }
         return true;
     };
     if (bControllable)
@@ -292,6 +334,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         {
             if (!ApplyKnockback(*Actor,*Body,Hit,NowMs,bApplied,Error)) { return false; }
             bControlled|=bApplied;
+            if (bApplied) { ControlMask|=LDCombatEffectsDetail::KnockbackBit; }
         }
         if (Hit.SlowDurationMs>0 && Hit.SlowBp>0)
         {
@@ -380,6 +423,24 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         { return false; }
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
+    // Host playtest record of this committed hit (docs/DEVELOPMENT.md): every term the player could ask about afterwards.
+    if (UE_LOG_ACTIVE(LogLDCombat,Log))
+    {
+        using namespace LDCombatEffectsDetail;
+        const FLDCombatEntityRecord* SourceRecord=FindRecord(Hit.SourceEntity);
+        const FName SourceMonster=Source ? Source->MonsterId : (SourceRecord ? SourceRecord->MonsterId : NAME_None);
+        UE_LOG(LogLDCombat,Log,TEXT("LD_HIT t=%lld src=%s src_kind=%s src_monster=%s credit=%s victim=%s victim_life=%u victim_kind=%s victim_monster=%s via=%s class=%s type=%s dmg=%s pre=%s absorbed=%s shattered=%s hp_lost=%s hp=%s->%s max_hp=%s shield=%s->%s amp_bp=%lld resist=%s mitigate_bp=%lld crit=%d backstab=%d protected=%d periodic=%d reflect=%d added=%d controls=%s vamp=%s lethal=%d"),
+            NowMs,*LDLog::Id(Hit.SourceEntity),VictimKindName(Hit.SourceBody.Victim.Kind),
+            SourceMonster.IsNone() ? TEXT("-") : *SourceMonster.ToString(),*LDLog::Id(Hit.CreditOwner),
+            *LDLog::Id(Body->Victim.EntityId),Body->Victim.Life,VictimKindName(Body->Victim.Kind),
+            Body->MonsterId.IsNone() ? TEXT("-") : *Body->MonsterId.ToString(),*LDLog::Source(Hit.Source),HitClassName(Hit.HitClass),
+            bPhysical ? TEXT("physical") : TEXT("magical"),*LDLog::P2(Damage.DamageP2),*LDLog::P2(Damage.PreMitigationP2),
+            *LDLog::P2(Damage.ShieldAbsorbedP2),*LDLog::P2(ShatteredP2),*LDLog::P2(Damage.HPLostP2),*LDLog::P2(HPBefore),
+            *LDLog::P2(Body->Resources.HpP2),*LDLog::P2(Body->Resources.MaxHpP2),*LDLog::P2(ShieldBeforeP2),
+            *LDLog::P2(Body->Resources.ShieldP2),Evaluation.AmplifyBp,*LDLog::P2(Evaluation.TargetResistanceP2.Get(0)),
+            Evaluation.MitigateBp,bCritical,bBehind,bProtected,Hit.bPeriodic,Hit.bReflect,Hit.bAddedDamage,*ControlNames(ControlMask),
+            *LDLog::P2(HealP2),Body->Resources.HpP2==0);
+    }
     if (Source)
     {
         // A one-time heal: it passes the source's heal cut (#112 §5).

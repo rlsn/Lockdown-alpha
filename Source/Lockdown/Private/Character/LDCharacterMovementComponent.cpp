@@ -1,4 +1,5 @@
 #include "Character/LDCharacterMovementComponent.h"
+#include "Core/LDLog.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/RootMotionSource.h"
 #include "Components/CapsuleComponent.h"
@@ -141,7 +142,7 @@ void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
             || Mode->ValidateMotionStep(Mode->GetAuthorityStep(),NativeBody)!=ELDCommitReject::None)
         {
             ++RejectedAuthorityMoves;
-            UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_NATIVE_MOVE_REJECTED Native integration requires the current body step."));
+            UE_LOG(LogLDNav, Warning, TEXT("LD_DEMO_NATIVE_MOVE_REJECTED Native integration requires the current body step."));
             return;
         }
         TGuardValue<bool> NativeScope(bNativeIntegrationActive,true);
@@ -259,7 +260,7 @@ void ULDCharacterMovementComponent::ServerMove_PerformMovement(const FCharacterN
             || Data.Navigation.Match!=Mode->GetMatchContext().Generation || Data.Navigation.Life!=Ref.Victim.Life)
         {
             ++RejectedAuthorityMoves;
-            UE_LOG(LogTemp, Verbose, TEXT("LD_DEMO_NETWORK_MOVE_REJECTED Stale body identity."));
+            UE_LOG(LogLDNav, Verbose, TEXT("LD_DEMO_NETWORK_MOVE_REJECTED Stale body identity."));
             return;
         }
         ++NetworkBookkeepingMoves;
@@ -276,6 +277,16 @@ bool ULDCharacterMovementComponent::ServerShouldUseAuthoritativePosition(float C
     if (LDCharacterMovementDetail::IsDemoMovement(GetWorld())) { return false; }
     return Super::ServerShouldUseAuthoritativePosition(ClientTimeStamp,DeltaTime,Accel,ClientWorldLocation,
         RelativeClientLocation,ClientBase,ClientBaseBoneName,ClientMovementMode);
+}
+
+bool ULDCharacterMovementComponent::ServerCheckClientError(float ClientTimeStamp, float DeltaTime, const FVector& Accel,
+    const FVector& ClientWorldLocation, const FVector& RelativeClientLocation,
+    FMovementBaseInterfaceData* ClientBase, FName ClientBaseBoneName, uint8 ClientMovementMode)
+{
+    const bool bError=Super::ServerCheckClientError(ClientTimeStamp,DeltaTime,Accel,ClientWorldLocation,RelativeClientLocation,
+        ClientBase,ClientBaseBoneName,ClientMovementMode);
+    if (bError && ServerCorrectionCount<MAX_uint32) { ++ServerCorrectionCount; }
+    return bError;
 }
 
 bool ULDCharacterMovementComponent::AdvanceAuthorityMovement(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,

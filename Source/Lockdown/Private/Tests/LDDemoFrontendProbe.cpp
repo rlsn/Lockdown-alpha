@@ -1,4 +1,5 @@
 #include "Tests/LDDemoEntryProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDGameInstance.h"
@@ -98,7 +99,7 @@ namespace
             FString Json;
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
                 && FFileHelper::SaveStringToFile(Json, *(Directory / TEXT("FrontendSettings.json")), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-            UE_LOG(LogTemp, Display, TEXT("LD_DEMO_FRONTEND_UI_PROBE passed=%d report=%s"), !Failed && Written, *(Directory / TEXT("FrontendSettings.json")));
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_FRONTEND_UI_PROBE passed=%d report=%s"), !Failed && Written, *(Directory / TEXT("FrontendSettings.json")));
             FPlatformMisc::RequestExitWithStatus(false, !Failed && Written ? 0 : 1);
             return false;
         }
@@ -241,7 +242,7 @@ void LDDemoTests::StartFrontendSettingsProbe(UWorld& World)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Directory),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("Frontend UI fixture requires a directory under Artifacts."));
+        UE_LOG(LogLDTest, Error, TEXT("Frontend UI fixture requires a directory under Artifacts."));
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }

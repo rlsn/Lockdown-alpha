@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatCues.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -65,7 +66,7 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
         const FLDDemoEquipmentDefinition* Item=nullptr;
         if (Content->FindEquipment(Source.DefinitionId.ToString(),Item,Error)) { OutEquipment=Item->NativeId; return true; }
     }
-    UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
+    UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
     return false;
 }
 

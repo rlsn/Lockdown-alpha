@@ -363,6 +363,7 @@ struct FLDCombatBodyRead
     uint64 StateRevision=0;
     int64 RootedUntilMs=0;               // 0 when not rooted
     bool bActionInProgress=false;
+    ELDCombatEntry ActionEntry=ELDCombatEntry::None;  // the winding-up action's entry while bActionInProgress
     int64 NextAttackAtMs=0;
     double AttackRangeCm=0;
     bool bMovementAllowed=false;         // alive, not pending death, neither rooted nor stunned

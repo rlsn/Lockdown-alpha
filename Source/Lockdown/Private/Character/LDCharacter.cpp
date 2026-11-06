@@ -1,4 +1,5 @@
 #include "Character/LDCharacter.h"
+#include "Core/LDLog.h"
 #include "Character/LDCameraSettings.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -92,14 +93,14 @@ void ALDCharacter::BeginPlay()
     FString Error;
     if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED Body creation is outside the registered Demo world."));
+        UE_LOG(LogLDNav,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED Body creation is outside the registered Demo world."));
         Destroy();
         return;
     }
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!LDDemoEntry::LoadRuntimeContent(Content,Error) || !ConfigureDemoMovement(*Content,Error))
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"),*Error);
+        UE_LOG(LogLDNav,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"),*Error);
         Destroy();
         return;
     }

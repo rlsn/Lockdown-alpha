@@ -219,6 +219,7 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
 `Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
+`Mark`（F9 试玩标记，见[开发指南](../DEVELOPMENT.md#试玩问题排查)）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
 没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
@@ -233,8 +234,10 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
 schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS` 和绑定是完整正向清单。
-当前文件 schema 是 15，与产品/网络版本无关；schema 5–14 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
+当前文件 schema 是 16，与产品/网络版本无关；schema 5–15 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
 schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关闭；加载本身不改写旧文件。
+schema 15 字段与当前相同，只是按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
+补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；schema 16 缺它不补。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
@@ -266,7 +269,7 @@ schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10
 schema 11、12 已有全部绑定和偏好，显式迁移到 13 时不补 Dash。schema 5–11 必须先按旧 1100–1700 cm、
 schema 12 按旧 1100–1900 cm 范围校验 Zoom；在当前 1300–2400 cm 内原样保留（包括旧默认 1400、1850），
 低于 1300 cm 的调整为 1300 cm 并在提示中说明；超出各自旧范围的值仍按损坏拒绝，不因新范围扩大而变合法。
-迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成 schema 14。
+迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成当前 schema。
 schema 13 字段与范围都与当前相同，只是按键表早于排行榜：schema 5–13 迁移时若缺 `Scoreboard` 且默认键 Tab 未被其他动作占用，
 补上默认 Tab 并在提示中说明（schema 13 不再附镜头距离说明）；Tab 已被占用时按 `Corrupt` 走恢复；schema 14 缺它不补。
 schema 5–13 中的损坏、非法偏好或注册表外动作

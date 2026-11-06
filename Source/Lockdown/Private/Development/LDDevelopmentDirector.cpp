@@ -1,4 +1,5 @@
 #include "Development/LDDevelopmentDirector.h"
+#include "Core/LDLog.h"
 
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -296,7 +297,7 @@ FLDSubmitResult ALDDevelopmentDirector::QueueChoice(const FGuid& ContenderId, co
     ALDGameMode* GameMode = Mode();
     if (!GameMode || !GameMode->Economy)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
             *ContenderId.ToString());
         Result.Reason = LDGrowthWire::Raw(ELDGrowthReason::NotAuthority);
         return Result;
@@ -374,7 +375,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     const auto* PendingEntry = Record ? Record->Choices.GetPending() : nullptr;
     if (!PendingEntry)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s: no pending choice to commit"), *ContenderId.ToString());
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s: no pending choice to commit"), *ContenderId.ToString());
         FLDChoiceCommand Missing;
         Missing.Generation = Match.Generation;
         return DevelopmentFaultReceipt(Missing, FLDPendingReceiptInfo());
@@ -388,7 +389,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     if (PermitReject != ELDCommitReject::None || !GameMode->Combat || !GameMode->Economy || !Content.IsValid()
         || Permit.GetBoundary().Match != Match)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu permit=%d: no Transactions permit or domain"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu permit=%d: no Transactions permit or domain"),
             *ContenderId.ToString(), Command.RequestId, int32(PermitReject));
         return DevelopmentFaultReceipt(Command, Info);
     }
@@ -501,7 +502,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Command.bReplace ? &Replacement : nullptr, Command.RequestId, Permit, AppliedOption);
     if (InstallReason == ELDGrowthReason::AuthorityFault)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu: permit lost before apply"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu: permit lost before apply"),
             *ContenderId.ToString(), Command.RequestId);
         return DevelopmentFaultReceipt(Command, Info);
     }
@@ -537,6 +538,11 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Receipt.Header.Revisions.bHasOffer = true;
         Receipt.Header.Revisions.OfferRevision = Record->Progression.Offer->Revision;
     }
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_CHOICE t=%lld contender=%s ordinal=%u kind=%s card=%s rank=%u replaced=%s level=%u pending=%u"),
+        GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), *LDLog::EnumName(AppliedOption.Kind),
+        *AppliedOption.DefinitionId.ToString(), uint32(AppliedOption.NewRank),
+        AppliedOption.bReplaced ? *FString::Printf(TEXT("%s:%u"), *AppliedOption.ReplacedId.ToString(), uint32(AppliedOption.ReplacedRank)) : TEXT("-"),
+        uint32(Record->Build.Level), uint32(Record->Progression.PendingCount()));
     Record->Choices.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
     GameMode->Economy->MarkDirty(ContenderId);
@@ -612,7 +618,7 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
         const ELDGrowthReason CombatReason = DevelopmentCombatReason(Projection.Error);
         if (CombatReason == ELDGrowthReason::DataInvalid || CombatReason == ELDGrowthReason::PrepareUnavailable)
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_CHOICE_PROJECTION contender=%s %s: %s"), *ContenderId.ToString(),
+            UE_LOG(LogLDGrowth, Warning, TEXT("LD_GROWTH_CHOICE_PROJECTION contender=%s %s: %s"), *ContenderId.ToString(),
                 LDGrowthWire::ReasonName(CombatReason), *Projection.Message);
         }
         return CombatReason;
@@ -805,12 +811,12 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
         PresetError);
     if (!PresetError.IsEmpty())
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s ordinal=%u, drawn normally: %s"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_DEV_FIXTURE_PRESET_REFUSED contender=%s ordinal=%u, drawn normally: %s"),
             *ContenderId.ToString(), uint32(Ordinal), *PresetError);
     }
     else if (bPreset)
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE preset offer contender=%s ordinal=%u cards=%s,%s,%s"),
+        UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE preset offer contender=%s ordinal=%u cards=%s,%s,%s"),
             *ContenderId.ToString(), uint32(Ordinal), *Picked[0].DefinitionId.ToString(), *Picked[1].DefinitionId.ToString(),
             *Picked[2].DefinitionId.ToString());
     }
@@ -822,10 +828,10 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
     const ELDGrowthReason DrawReason = LDProgression::DrawOffer(Input, Pool, Picked);
 #endif
     verifyf(DrawReason == ELDGrowthReason::None && Picked.Num() == 3, TEXT("The prepared head pool must yield three distinct options."));
-    InstallHead(Record, Ordinal, false, Picked);
+    InstallHead(ContenderId, Record, Ordinal, false, Picked);
 }
 
-void ALDDevelopmentDirector::InstallHead(FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked)
+void ALDDevelopmentDirector::InstallHead(const FGuid& ContenderId, FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked)
 {
     FLDProgressionState& Progression = Record.Progression;
     FLDChoiceOfferState Offer;
@@ -845,6 +851,20 @@ void ALDDevelopmentDirector::InstallHead(FRecord& Record, uint8 Ordinal, bool bR
     Offer.GeneratedBuildRevision = Record.Build.Revision;
     Offer.GuardBuildRevision = Record.Build.Revision;
     Offer.Revision = ++Progression.LastOfferRevision;
+    // Host playtest record of the three cards shown (docs/DEVELOPMENT.md).
+    if (UE_LOG_ACTIVE(LogLDGrowth, Log))
+    {
+        FString Cards;
+        for (const FLDChoiceOption& Option : Offer.Options)
+        {
+            Cards += FString::Printf(TEXT("%s%s:%s:%u>%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *LDLog::EnumName(Option.Kind),
+                *Option.DefinitionId.ToString(), uint32(Option.FromRank), uint32(Option.ToRank));
+        }
+        const ALDGameMode* GameMode = Mode();
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_OFFER t=%lld contender=%s ordinal=%u rerolled=%d level=%u cards=%s"),
+            GameMode ? GameMode->GetAuthorityNowMs() : int64(0), *LDLog::Id(ContenderId), uint32(Ordinal), bRerolled ? 1 : 0,
+            uint32(Record.Build.Level), *Cards);
+    }
     Progression.Offer.Emplace(MoveTemp(Offer));
 }
 
@@ -917,7 +937,7 @@ ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRe
     ++Progression.RerollsUsed;
     ++Progression.Revision;
     Progression.Offer.Reset();
-    InstallHead(Record, Ordinal, true, Picked);
+    InstallHead(ContenderId, Record, Ordinal, true, Picked);
     return ELDGrowthReason::None;
 }
 
@@ -1026,7 +1046,7 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
         return false;
     }
     const int32 Position = DevOfferQueue.FindOrAdd(ContenderId).Add(DefinitionIds) + 1;
-    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued offer contender=%s position=%d cards=%s,%s,%s"),
+    UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued offer contender=%s position=%d cards=%s,%s,%s"),
         *ContenderId.ToString(), Position, *DefinitionIds[0].ToString(), *DefinitionIds[1].ToString(), *DefinitionIds[2].ToString());
     return true;
 }

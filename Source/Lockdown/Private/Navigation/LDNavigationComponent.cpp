@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "Core/LDLog.h"
 #include "UI/LDTerms.h"
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
@@ -24,6 +25,7 @@
 #include "UI/LDHUD.h"
 #include "UI/LDMinimap.h"
 #include "Art/LDArtSubsystem.h"
+#include "Vision/LDWorldViewRelay.h"
 
 namespace LDNavigationDetail
 {
@@ -165,7 +167,7 @@ const FLDDemoContentSnapshot* ULDNavigationComponent::DemoContent()
         if (!LDDemoEntry::LoadRuntimeContent(Content,Error))
         {
             Content.Reset();
-            UE_LOG(LogTemp,Error,TEXT("LD_NAV_CONTENT_UNAVAILABLE %s"),*Error);
+            UE_LOG(LogLDNav,Error,TEXT("LD_NAV_CONTENT_UNAVAILABLE %s"),*Error);
             return nullptr;
         }
     }
@@ -272,7 +274,7 @@ bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out
     {
         Status=TEXT("订单编号已用尽，无法再下达新订单");
         if (PC) { PC->PostIntentNotice(Status); }
-        UE_LOG(LogTemp, Error, TEXT("LD_NAV_IDENTITY_EXHAUSTED"));
+        UE_LOG(LogLDNav, Error, TEXT("LD_NAV_IDENTITY_EXHAUSTED"));
         return false;
     }
     if (Cancel) { ++Epoch; }
@@ -344,6 +346,7 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand() || !NextLocalIdentity(false,Local)) { return false; }
     Request.Identity=Local;
+    LogOwnOrder(Request);
     // Only the newest local order can carry the shop interaction binding.
     ShopBindingId=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Request.ShopId : NAME_None;
     ShopBindingIdentity=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Local : FLDMoveIdentity();
@@ -374,7 +377,31 @@ void ULDNavigationComponent::Stop()
     Status=TEXT("停止请求已发送");
     if (!PC->HasAuthority()) { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
     LocalSentAt=FPlatformTime::Seconds();
+    UE_LOG(LogLDNav,Log,TEXT("LD_SELF_ORDER kind=Stop match=%u life=%u order=%u"),Local.Match,Local.Life,Local.Order);
     ServerStop(Local);
+}
+
+void ULDNavigationComponent::LogOwnOrder(const FLDSpatialOrderRequest& Request)
+{
+    if (!UE_LOG_ACTIVE(LogLDNav,Log)) { return; }
+    // A held move button repeats up to eight times a second; the log keeps at most four of them.
+    uint32 Suppressed=0;
+    if (!OrderLogLimit.Allow(FPlatformTime::Seconds(),Suppressed)) { return; }
+    FString Target;
+    if (Request.Kind==ELDSpatialOrderKind::AttackUnit)
+    {
+        // The observer-local handle means nothing later; the visible unit's public identity does.
+        FLDObservedUnitView Unit;
+        const auto* PC=Controller();
+        const auto* Relay=PC?PC->LocalView():nullptr;
+        Target=!Relay || !Relay->ReadUnit(Request.Observed,Request.ObservationEpoch,Unit) ? FString(TEXT(" target=unseen"))
+            : Unit.Kind==ELDObservedUnitKind::Contender ? FString::Printf(TEXT(" target=%s"),*LDLog::Id(Unit.ContenderId))
+            : FString::Printf(TEXT(" target_monster=%u"),uint32(Unit.CreatureId));
+    }
+    else if (Request.Kind==ELDSpatialOrderKind::ApproachShop) { Target=TEXT(" shop=")+Request.ShopId.ToString(); }
+    else { Target=TEXT(" point=")+LDLog::Cm(Request.GroundCm); }
+    UE_LOG(LogLDNav,Log,TEXT("LD_SELF_ORDER kind=%s match=%u life=%u order=%u%s suppressed=%u"),*LDLog::EnumName(Request.Kind),
+        Request.Identity.Match,Request.Identity.Life,Request.Identity.Order,*Target,Suppressed);
 }
 
 void ULDNavigationComponent::ResetLife()
@@ -510,11 +537,11 @@ void ULDNavigationComponent::ApplyPrediction()
         bFollowing=false;
         if (ActiveKind==ELDSpatialOrderKind::MoveGround)
         {
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
+            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
             Stop();
             Status=TEXT("无法到达该位置"); PC->PostIntentNotice(Status);
         }
-        else { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_PREDICTION_UNAVAILABLE %s"),*Error); }
+        else { UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_PREDICTION_UNAVAILABLE %s"),*Error); }
         return;
     }
     PointIndex=Points.Num()>1?1:0;
@@ -599,7 +626,7 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
             { PointIndex=Points.Num()>1?1:0; }
             else
             {
-                UE_LOG(LogTemp,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
+                UE_LOG(LogLDNav,Display,TEXT("LD_NAV_PREDICTION_FAILED %s"),*Error);
                 Stop();
                 Status=TEXT("无法到达该位置"); PC->PostIntentNotice(Status);
             }
@@ -735,7 +762,7 @@ ALDPointerFeedback* ULDNavigationComponent::EnsurePointer()
     auto* Spawned=World->SpawnActor<ALDPointerFeedback>(ALDPointerFeedback::StaticClass(),FTransform::Identity,Params);
     if (!Spawned)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_POINTER_FEEDBACK_UNAVAILABLE The local pointer feedback could not be placed."));
+        UE_LOG(LogLDNav,Error,TEXT("LD_POINTER_FEEDBACK_UNAVAILABLE The local pointer feedback could not be placed."));
         return nullptr;
     }
     Spawned->Bind(*PC);
@@ -872,7 +899,7 @@ void ULDNavigationComponent::UpdateLocalCamera(float Delta)
     if (!Geometry || Geometry->Surfaces.Num()!=1 || !Geometry->Surfaces[0].MinCm.ToVector(Min,Error)
         || !Geometry->Surfaces[0].MaxCm.ToVector(Max,Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_CAMERA_WORLD_UNAVAILABLE %s"), *Error);
+        UE_LOG(LogLDNav, Error, TEXT("LD_CAMERA_WORLD_UNAVAILABLE %s"), *Error);
         return;
     }
     CameraCentre.X=FMath::Clamp(CameraCentre.X,Min.X,Max.X);

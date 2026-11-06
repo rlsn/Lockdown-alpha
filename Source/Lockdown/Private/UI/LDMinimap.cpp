@@ -1,4 +1,5 @@
 #include "UI/LDMinimap.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "Framework/LDPlayerController.h"
@@ -280,7 +281,7 @@ void MinimapResolveRevision(FLDMinimapStatic& Cache,const UWorld* World,const FB
     {
         Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);
         const FString Reason=Cache.Content?Error:TEXT("Approved Demo content unavailable: ")+Cache.ContentError;
-        UE_LOG(LogTemp,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE %s %s"),*Cache.World.MapId.ToString(),*Reason);
+        UE_LOG(LogLDUI,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE %s %s"),*Cache.World.MapId.ToString(),*Reason);
     }
 }
 // A layer resolved for another world revision is never drawn or fitted.
@@ -347,7 +348,7 @@ void ULDMinimap::NativeTick(const FGeometry& G,float D)
     const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());FLDMinimapStatic& Cache=MinimapCache(StaticMap);FBox2D Ground(ForceInit);
     const bool bGround=MinimapGroundBounds(GetWorld(),Ground);
     if(bGround){MinimapResolveRevision(Cache,GetWorld(),Ground);}
-    else if(!Cache.bGroundLogged){Cache.bGroundLogged=true;UE_LOG(LogTemp,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE No single registered ground surface; only the background is drawn."));}
+    else if(!Cache.bGroundLogged){Cache.bGroundLogged=true;UE_LOG(LogLDUI,Warning,TEXT("LD_MINIMAP_STATIC_UNAVAILABLE No single registered ground surface; only the background is drawn."));}
     // Death alone keeps a drag; it ends when panning is invalid or the owner moved to another match or life.
     if(bDragging&&(PC->IsFrontend()||!bGround||PC->OwnerState.Match!=DragMatch||PC->OwnerState.Life!=DragLife)){bDragging=false;}
 }

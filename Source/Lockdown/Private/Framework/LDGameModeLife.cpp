@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -325,7 +326,7 @@ FLDProtectionReceipt ALDGameMode::EndProtectionForAggressiveIntent(AController& 
     Receipt.bProtectionRemoved = true;
     SyncOwner(Controller);
     NotifyLife(Body, ELDLifeChange::ProtectionEnded, Life->Revision, AuthorityNowMs);
-    UE_LOG(LogTemp, Display, TEXT("LD_PROTECTION_REMOVED contender=%s life=%u intent=%u"),
+    UE_LOG(LogLDMatch, Display, TEXT("LD_PROTECTION_REMOVED contender=%s life=%u intent=%u"),
         *Body.Victim.EntityId.ToString(), Body.Victim.Life, uint32(Intent.Kind));
     return Receipt;
 }
@@ -423,8 +424,14 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     Life->Actor.Reset();
     if (Controller) { SyncOwner(Controller); }
     NotifyLife(Fact.VictimBody, ELDLifeChange::Died, Life->Revision, Fact.OccurredAtMs);
-    UE_LOG(LogTemp, Display, TEXT("LD_DEATH_RECEIPT contender=%s life=%u respawn_at_ms=%lld"),
-        *Fact.Key.Victim.EntityId.ToString(), Fact.Key.Victim.Life, RespawnAt);
+    // Killer (credit owner), fatal source and assisters are appended after the original fields (docs/DEVELOPMENT.md).
+    FString Assisters;
+    for (const FGuid& Assister : Fact.Assisters) { Assisters += (Assisters.IsEmpty() ? TEXT("") : TEXT(",")) + LDLog::Id(Assister); }
+    UE_LOG(LogLDMatch, Display, TEXT("LD_DEATH_RECEIPT contender=%s life=%u respawn_at_ms=%lld t=%lld killer=%s cause=%s fatal=%s fatal_body=%s assisters=%s no_reward=%s victim_level=%u bounty=%lld"),
+        *Fact.Key.Victim.EntityId.ToString(), Fact.Key.Victim.Life, RespawnAt, Fact.OccurredAtMs, *LDLog::Id(Fact.CreditOwner),
+        *LDLog::EnumName(Died.KillCause), *LDLog::Source(Fact.ReleasedSource), *LDLog::Id(Fact.SourceBodyAtRelease.Victim.EntityId),
+        Assisters.IsEmpty() ? TEXT("-") : *Assisters, *LDLog::EnumName(Fact.RewardBasis.NoRewardReason),
+        uint32(Fact.RewardBasis.VictimLevelAtDeath), Fact.RewardBasis.LeaderBountyGoldAtDeath);
     Error.Reset();
     return true;
 }
@@ -447,6 +454,9 @@ bool ALDGameMode::EndCampMemberLife(const FLDCommittedDeath& Fact, const FLDGame
     ++Life->Revision;
     Life->Body = {};
     Life->Actor.Reset();
+    UE_LOG(LogLDMatch, Log, TEXT("LD_CAMP_DEATH member=%s life=%u monster=%s t=%lld killer=%s fatal=%s no_reward=%s"),
+        *LDLog::Id(Fact.Key.Victim.EntityId), Fact.Key.Victim.Life, *Fact.RewardBasis.RewardDefinitionId.ToString(), Fact.OccurredAtMs,
+        *LDLog::Id(Fact.CreditOwner), *LDLog::Source(Fact.ReleasedSource), *LDLog::EnumName(Fact.RewardBasis.NoRewardReason));
     Error.Reset();
     return true;
 }
@@ -562,7 +572,7 @@ void ALDGameMode::ReleasePlacedBody(FLDPlacedBody& Placed)
         auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
         if (!Registry || !Registry->ReleaseSpawnReservation(Placed.Reservation, CleanupError))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_SPAWN_PREPARE_CLEANUP_FAILED %s"), *CleanupError);
+            UE_LOG(LogLDMatch, Error, TEXT("LD_SPAWN_PREPARE_CLEANUP_FAILED %s"), *CleanupError);
         }
         Placed.Reservation.Reset();
     }
@@ -769,7 +779,7 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
         {
             if (bFirstAttempt)
             {
-                UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_RESPAWN_WAITING contender=%s unconsumed_motion=%d"),
+                UE_LOG(LogLDMatch, Warning, TEXT("LD_DEMO_RESPAWN_WAITING contender=%s unconsumed_motion=%d"),
                     *Id.ToString(), Life.NativeMotion.Num());
             }
             continue;
@@ -791,7 +801,7 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
             // Same selected anchor, one attempt per authority boundary; the life stays Dead meanwhile.
             if (bFirstAttempt)
             {
-                UE_LOG(LogTemp, Warning, TEXT("LD_DEMO_RESPAWN_BLOCKED contender=%s life=%u %s"), *Id.ToString(), NewLife, *Error);
+                UE_LOG(LogLDMatch, Warning, TEXT("LD_DEMO_RESPAWN_BLOCKED contender=%s life=%u %s"), *Id.ToString(), NewLife, *Error);
             }
             continue;
         }
@@ -814,7 +824,7 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
             return false;
         }
         NotifyLife(Committed.Body, ELDLifeChange::Respawned, Committed.Revision, AuthorityNowMs);
-        UE_LOG(LogTemp, Display, TEXT("LD_RETURN_RECEIPT contender=%s life=%u protected_until_ms=%lld"),
+        UE_LOG(LogLDMatch, Display, TEXT("LD_RETURN_RECEIPT contender=%s life=%u protected_until_ms=%lld"),
             *Id.ToString(), NewLife, ProtectedUntil);
     }
     Error.Reset();

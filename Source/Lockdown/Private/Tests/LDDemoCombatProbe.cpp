@@ -1,4 +1,5 @@
 #include "Tests/LDDemoCombatProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
@@ -2197,7 +2198,7 @@ public:
         FString Text;
         FJsonSerializer::Serialize(Out, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));
         Check(bTaken, TEXT("Feel"), TEXT("The first right-click walk, the S and the next walk are timed on this connection's own body"), Text);
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_FEEL role=%s %s"), *Role, *Text);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_FEEL role=%s %s"), *Role, *Text);
         return Out;
     }
 
@@ -2267,7 +2268,7 @@ public:
         Row->SetNumberField(TEXT("height"), Height);
         Row->SetStringField(TEXT("shows"), Facts);
         Screenshots.Add(MakeShared<FJsonValueObject>(Row));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_SCREENSHOT %s %s"), *Path, *Shot->Facts);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_SCREENSHOT %s %s"), *Path, *Shot->Facts);
     }
 
     bool ShotPending() const
@@ -2416,7 +2417,7 @@ public:
             Report->SetNumberField(TEXT("root_until_ms"), double(RootUntilMs));
         }
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
             FPlatformMisc::RequestExitWithStatus(false, 2);
@@ -2442,7 +2443,7 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_COMBAT_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_COMBAT_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

@@ -52,9 +52,10 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 190 项） | `.\Scripts\RunTests.ps1` |
+| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 242 项） | `.\Scripts\RunTests.ps1` |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
 | Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |
+| 试玩日志整理（房主与客户端日志合并成每局时间线） | `python -B .\Scripts\SummarizePlaytestLog.py <日志或目录>…`，见[开发指南](docs/DEVELOPMENT.md#试玩问题排查) |
 | 生成资产、音效与美术校验 | `.\Scripts\BootstrapAssets.ps1`（默认 Validate，同时校验音效与美术目录） |
 | 拥有连接场景 | `.\Scripts\RunDemo<Core/Combat/Camp/Growth/Capture/Vision/Opponent/SessionFault>Check.ps1`，加 `-PackageRoot <包的 Archive 目录>` 在打包版上运行 |
 | 全新检出验证 | `.\Scripts\VerifyCleanCheckout.ps1` |

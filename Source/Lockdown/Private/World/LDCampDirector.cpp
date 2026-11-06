@@ -1,4 +1,5 @@
 #include "World/LDCampDirector.h"
+#include "Core/LDLog.h"
 #include "World/LDCampMember.h"
 #include "World/LDCampDecision.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -323,7 +324,7 @@ bool ALDCampDirector::AdvanceMemberMotion(const FLDAuthorityStep& Step, const FL
     }
     if (Step.EndServerSeconds - Track.LastProgressSeconds >= CampStallSeconds)
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_PATH_STALLED member=%s goal=%s"), *Ref.Victim.EntityId.ToString(), *Track.Goal.ToString());
+        UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_PATH_STALLED member=%s goal=%s"), *Ref.Victim.EntityId.ToString(), *Track.Goal.ToString());
         StopMotion(Ref.Victim.EntityId);
     }
     return true;
@@ -391,7 +392,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             }
             if (bBeganReturn)
             {
-                UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RETURN camp=%s slot=%d life=%u epoch=%llu"),
+                UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_RETURN camp=%s slot=%d life=%u epoch=%llu"),
                     *Spec.CampId.ToString(), Slot, Ref.Victim.Life, State.FindLiving(Ref)->ReturnEpoch);
             }
             const uint64 Epoch = State.FindLiving(Ref)->ReturnEpoch;
@@ -407,7 +408,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
             auto DeadEnd = [&](const TCHAR* Cause)
             {
                 StopMotion(Entity);
-                UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_RETURN_DEAD_END camp=%s slot=%d epoch=%llu cause=%s refused=%d"),
+                UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_RETURN_DEAD_END camp=%s slot=%d epoch=%llu cause=%s refused=%d"),
                     *Spec.CampId.ToString(), Slot, Epoch, Cause, Watch->RefusedPlans);
             };
             switch (Decision.Intent)
@@ -447,13 +448,13 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
                 StopMotion(Entity);
                 if (!bReturn)
                 {
-                    UE_LOG(LogTemp, Verbose, TEXT("LD_CAMP_CHASE_PATH_REJECTED camp=%s slot=%d %s"), *Spec.CampId.ToString(), Slot, *PlanError);
+                    UE_LOG(LogLDWorld, Verbose, TEXT("LD_CAMP_CHASE_PATH_REJECTED camp=%s slot=%d %s"), *Spec.CampId.ToString(), Slot, *PlanError);
                     break;
                 }
                 if (!Watch->bWarned)
                 {
                     Watch->bWarned = true;
-                    UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_RETURN_BLOCKED camp=%s slot=%d epoch=%llu %s"),
+                    UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_RETURN_BLOCKED camp=%s slot=%d epoch=%llu %s"),
                         *Spec.CampId.ToString(), Slot, Epoch, *PlanError);
                 }
                 // Refused plans are spaced by the stall interval, so the limit spans seconds rather than ticks.
@@ -481,7 +482,7 @@ bool ALDCampDirector::ProcessAuthorityIntents(const FLDGameplayWritePermit& Perm
                 Request.Target.Kind = ELDCombatTargetKind::Unit;
                 Request.Target.ServerBody = Decision.Target.GetValue();
                 const FLDCombatActionReceipt Receipt = Mode->Combat->SubmitAction(Caller, Request);
-                UE_LOG(LogTemp, Verbose, TEXT("LD_CAMP_ATTACK camp=%s slot=%d sequence=%llu phase=%u reject=%u"),
+                UE_LOG(LogLDWorld, Verbose, TEXT("LD_CAMP_ATTACK camp=%s slot=%d sequence=%llu phase=%u reject=%u"),
                     *Spec.CampId.ToString(), Slot, Sequence, uint8(Receipt.Phase), uint8(Receipt.Reject));
                 break;
             }
@@ -563,7 +564,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
             return;
         }
         StopMotion(Entity);
-        UE_LOG(LogTemp, Warning, TEXT("LD_BOSS_PATH_REJECTED %s %s"), What, *PlanError);
+        UE_LOG(LogLDWorld, Warning, TEXT("LD_BOSS_PATH_REJECTED %s %s"), What, *PlanError);
     };
     switch (Decision.Intent)
     {
@@ -571,7 +572,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
         // A reached waypoint hands over to the next one; the loop never ends while the Boss lives.
         if (LDPathSteering::AtGoal(*Self.Body, Boss.PatrolGoal(), CampGoalToleranceCm))
         {
-            UE_LOG(LogTemp, Display, TEXT("LD_BOSS_WAYPOINT reached=%d at_ms=%lld"), Boss.Waypoint + 1, Permit.GetBoundary().AtMs);
+            UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_WAYPOINT reached=%d at_ms=%lld"), Boss.Waypoint + 1, Permit.GetBoundary().AtMs);
             Boss.ReachedWaypoint();
         }
         Walk(Boss.PatrolGoal(), TEXT("patrol"));
@@ -594,7 +595,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
         Request.Target.Kind = ELDCombatTargetKind::Unit;
         Request.Target.ServerBody = Decision.Target;
         const FLDCombatActionReceipt Receipt = Mode->Combat->SubmitAction(Caller, Request);
-        UE_LOG(LogTemp, Display, TEXT("LD_BOSS_ATTACK target=%s sequence=%llu phase=%u reject=%u"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_ATTACK target=%s sequence=%llu phase=%u reject=%u"),
             *Decision.Target.Victim.EntityId.ToString(), Request.DirectSequence, uint8(Receipt.Phase), uint8(Receipt.Reject));
         break;
     }
@@ -623,7 +624,7 @@ bool ALDCampDirector::OnCombatHostileContact(const FLDCombatHostileContact& Fact
     if (Result == ELDCampContactResult::Rejected) { return false; }
     if (Result == ELDCampContactResult::Retaliating)
     {
-        UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RETALIATE victim=%s source=%s life=%u at=%.3f"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_RETALIATE victim=%s source=%s life=%u at=%.3f"),
             *Fact.VictimBody.Victim.EntityId.ToString(), *Fact.SourceBody.Victim.EntityId.ToString(),
             Fact.SourceBody.Victim.Life, Fact.OccurredAtSeconds);
     }
@@ -642,7 +643,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
         if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
         Bodies.Remove(Entity);
         AuthorityMode()->MarkPublicMatchDirty();
-        UE_LOG(LogTemp, Display, TEXT("LD_BOSS_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
+        UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_DOWN killer=%s at_ms=%lld"), *Fact.CreditOwner.ToString(), Fact.OccurredAtMs);
         return GrantApproval(Fact.CreditOwner, Permit, Error);
     }
     int32 Camp = INDEX_NONE;
@@ -660,7 +661,7 @@ bool ALDCampDirector::ConsumeMemberDeath(const FLDCommittedDeath& Fact, const FL
     Stranded.Remove(Entity);
     if (ALDCampMemberCharacter* Body = Bodies.FindRef(Entity).Get()) { Body->Destroy(); }
     Bodies.Remove(Entity);
-    UE_LOG(LogTemp, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_DEATH camp=%s life=%u owner=%s cleared=%d due_ms=%lld"),
         *State.GetRoster()->Camps[Camp].CampId.ToString(), Fact.Key.Victim.Life, *Fact.CreditOwner.ToString(),
         Result == ELDCampDeathResult::CampCleared, State.FindCamp(Camp)->RespawnDueMs);
     Error.Reset();
@@ -712,7 +713,7 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     {
         if (!Prepared.Value.IsSet())
         {
-            UE_LOG(LogTemp, Verbose, TEXT("LD_CAMP_RESET_DEFERRED camp=%s slot=%d epoch=%llu error=%u %s"),
+            UE_LOG(LogLDWorld, Verbose, TEXT("LD_CAMP_RESET_DEFERRED camp=%s slot=%d epoch=%llu error=%u %s"),
                 *Spec.CampId.ToString(), Slot, Key.ReturnEpoch, uint8(Prepared.Error), *Prepared.Message);
             Error.Reset();
             return true;
@@ -724,7 +725,7 @@ bool ALDCampDirector::TryReset(int32 Camp, int32 Slot, const FLDGameplayWritePer
     Returns.Remove(Ref.Victim.EntityId);
     // Only a reset at home ends the stranded hold; another in-place reset keeps it.
     if (bInPlace) { Stranded.Add(Ref.Victim.EntityId); } else { Stranded.Remove(Ref.Victim.EntityId); }
-    UE_LOG(LogTemp, Display, TEXT("LD_CAMP_RESET camp=%s slot=%d life=%u epoch=%llu in_place=%d"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_RESET camp=%s slot=%d life=%u epoch=%llu in_place=%d"),
         *Spec.CampId.ToString(), Slot, Ref.Victim.Life, Key.ReturnEpoch, bInPlace ? 1 : 0);
     return true;
 }
@@ -758,7 +759,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
         // The ticket stays pending on the same camp; refresh retries at its own local placements.
         if (!BlockedRefresh.Contains(Camp))
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_CAMP_REFRESH_BLOCKED camp=%s %s"), *State.GetRoster()->Camps[Camp].CampId.ToString(), *Error);
+            UE_LOG(LogLDWorld, Warning, TEXT("LD_CAMP_REFRESH_BLOCKED camp=%s %s"), *State.GetRoster()->Camps[Camp].CampId.ToString(), *Error);
             BlockedRefresh.Add(Camp);
         }
     }
@@ -769,7 +770,7 @@ bool ALDCampDirector::AdvanceCamps(const FLDGameplayWritePermit& Permit, FString
         // A blocked appearance retries at the next boundary on the same waypoint.
         if (bBlocked && !bBossBlockedLogged)
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_BOSS_SPAWN_BLOCKED %s"), *Error);
+            UE_LOG(LogLDWorld, Warning, TEXT("LD_BOSS_SPAWN_BLOCKED %s"), *Error);
             bBossBlockedLogged = true;
         }
     }
@@ -807,7 +808,7 @@ bool ALDCampDirector::SpawnBoss(const FLDGameplayWritePermit& Permit, bool& bBlo
     Body->SetActorHiddenInGame(false);
     Body->SetActorTickEnabled(true);
     Mode->MarkPublicMatchDirty();
-    UE_LOG(LogTemp, Display, TEXT("LD_BOSS_SPAWN life=%u at_ms=%lld waypoint=%s"), Refs[0].Victim.Life, Mode->GetAuthorityNowMs(),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_SPAWN life=%u at_ms=%lld waypoint=%s"), Refs[0].Victim.Life, Mode->GetAuthorityNowMs(),
         *Boss.Rules.Waypoints[0].ToString());
     Error.Reset();
     return true;
@@ -829,7 +830,7 @@ bool ALDCampDirector::GrantApproval(const FGuid& Killer, const FLDGameplayWriteP
     {
         return false;
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_BOSS_APPROVAL contender=%s applied=%d duration_ms=%lld"), *Killer.ToString(), bApplied ? 1 : 0,
+    UE_LOG(LogLDWorld, Display, TEXT("LD_BOSS_APPROVAL contender=%s applied=%d duration_ms=%lld"), *Killer.ToString(), bApplied ? 1 : 0,
         Rules.ApprovalDurationMs);
     return true;
 }
@@ -956,7 +957,7 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Spawned[Slot]->SetActorHiddenInGame(false);
         Spawned[Slot]->SetActorTickEnabled(true);
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u at=%.3f"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u at=%.3f"),
         *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, Mode->GetAuthorityNowSeconds());
     Error.Reset();
     return true;

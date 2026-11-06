@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDControlRules.h"
@@ -144,7 +145,7 @@ void ALDCombatDirector::SendReceipt(const FLDCombatEntityRecord& Record, const F
 void ALDCombatDirector::FinishAction(FLDBodyCombatState& Body, ELDCombatReject Reason, bool bReleased)
 {
     if (!Body.Action.IsSet()) { return; }
-    UE_LOG(LogTemp,Verbose,TEXT("LD_COMBAT_ACTION_END token=%llu released=%d reason=%u"),Body.Action->Token,bReleased,uint8(Reason));
+    UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_ACTION_END token=%llu released=%d reason=%u"),Body.Action->Token,bReleased,uint8(Reason));
     Body.Action.Reset();
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
@@ -1485,6 +1486,7 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     Out.StateRevision=Body->StateRevision;
     Out.RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,Now);
     Out.bActionInProgress=Body->Action.IsSet();
+    Out.ActionEntry=Body->Action.IsSet() ? Body->Action->Entry : ELDCombatEntry::None;
     const auto* Record=FindRecord(Ref.Victim.EntityId);
     Out.NextAttackAtMs=Ref.Victim.Kind==ELDVictimKind::Contender ? (Record ? Record->NextAttackAtMs : 0) : Body->MonsterNextAttackAtMs;
     Out.AttackRangeCm=LDCA::ToDouble(Body->AttributeProjection.Final.AttackRangeCm);

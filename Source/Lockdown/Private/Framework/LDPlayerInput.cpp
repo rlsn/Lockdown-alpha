@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
@@ -110,7 +111,7 @@ void ALDPlayerController::RebuildV05Mappings()
     auto* Subsystem=Local->GetSubsystem<UEnhancedInputLocalPlayerSubsystem>();
     if (!Subsystem)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_INPUT_CONTEXT_MISSING"));
+        UE_LOG(LogLDUI,Error,TEXT("LD_DEMO_INPUT_CONTEXT_MISSING"));
         return;
     }
     for (uint32 Handle : V05BindingHandles) { Input->RemoveBindingByHandle(Handle); }
@@ -148,7 +149,7 @@ void ALDPlayerController::UpdateV05Inputs(float Delta)
     if (Navigation->Enabled() && !IsFrontend() && !HUDUI)
     {
         HUDUI=CreateWidget<ULDHUD>(this);
-        if (!HUDUI) { UE_LOG(LogTemp,Error,TEXT("LD_DEMO_HUD_CREATION_FAILED")); return; }
+        if (!HUDUI) { UE_LOG(LogLDUI,Error,TEXT("LD_DEMO_HUD_CREATION_FAILED")); return; }
         HUDUI->AddToViewport(30);
     }
     if (!bNavigationContextActive) { RebuildV05Mappings(); Navigation->bFollowCamera=Controls->bStartFollowing; }
@@ -185,7 +186,7 @@ void ALDPlayerController::ToggleControlsPanel()
     if (!ControlsUI)
     {
         ControlsUI=CreateWidget<ULDControlsPanel>(this);
-        if (!ControlsUI) { UE_LOG(LogTemp,Error,TEXT("LD_DEMO_CONTROLS_CREATION_FAILED")); return; }
+        if (!ControlsUI) { UE_LOG(LogLDUI,Error,TEXT("LD_DEMO_CONTROLS_CREATION_FAILED")); return; }
         ControlsUI->AddToViewport(25);
     }
     ControlsUI->Open();
@@ -210,6 +211,8 @@ void ALDPlayerController::V05Pressed(FName Action)
     if (Action==TEXT("Attributes")) { if (RootUI) { RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes); } return; }
     // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
     if (IsWorldInputCaptured()) { return; }
+    // The playtest mark works alive or dead: it only writes the logs and never commands the world.
+    if (Action==TEXT("Mark")) { PlaytestMark(); return; }
     if (Action==TEXT("Stop")) { StopCombatAndOrders(); return; }
     if (Action==TEXT("Recenter") || Action==TEXT("Follow"))
     {
