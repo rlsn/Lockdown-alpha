@@ -57,10 +57,6 @@ public:
     bool WantsSession() const;
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDShopReceiptQueryResult& Result);
-    // Preview only, never submits.
-    bool SelectItem(int32 Index);
-    // Submits Buy for the selected item at the price the panel shows.
-    void Buy();
     // Opens the sell child confirmation for that equipment slot.
     bool RequestSell(uint8 SlotIndex);
     // 112 §7: opens the same child confirmation for upgrading that slot's item (one upgrade per match).
@@ -94,7 +90,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<USizeBox>> ItemCells;
     UPROPERTY() TArray<TObjectPtr<UBorder>> ItemShapes;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> ItemGlyphs;
-    // Last applied icon look per button (active, affordable, selected), so a refresh only restyles what changed.
+    // Last applied icon look per button (active, affordable), so a refresh only restyles what changed.
     TArray<uint8> ItemLooks;
     // The hover description beside the panel: its own canvas layer over the whole panel.
     UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
@@ -107,7 +103,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DetailLines;
     UPROPERTY() TObjectPtr<UTextBlock> DetailHint;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
-    UPROPERTY() TObjectPtr<ULDCommandButton> BuyButton;
     UPROPERTY() TObjectPtr<UTextBlock> PreorderLine;
     UPROPERTY() TObjectPtr<ULDCommandButton> PreorderChips[2];
     UPROPERTY() TObjectPtr<UTextBlock> SellPrompt;
@@ -135,8 +130,6 @@ private:
     const FLDDemoContentDefinitions* LatestContent=nullptr;
     bool bPresented=false;
     TArray<FName> ShownItems;
-    FName SelectedItem;
-    int32 Selected=INDEX_NONE;
     bool bOpen=false;
     bool bSelling=false;
     // The open child confirmation upgrades instead of selling.

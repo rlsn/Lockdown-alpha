@@ -34,13 +34,13 @@ void ShopPanelTint(ULDCommandButton* Tinted,const FLinearColor& Tint)
     TintedStyle.Normal.TintColor=FSlateColor(Tint);TintedStyle.Hovered.TintColor=FSlateColor(Tint*1.6f);Tinted->SetStyle(TintedStyle);
 }
 // Placeholder item icons until real art lands: a rounded square with the name's first character, orange for an item with
-// an active effect and blue for a passive-only one; dimmed while the gold does not cover it, gold-rimmed when selected.
-void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordable,bool bSelected)
+// an active effect and blue for a passive-only one; dimmed while the gold does not cover it.
+void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordable)
 {
     const FLinearColor Base=bActive?FLinearColor(.62f,.22f,.04f):FLinearColor(.08f,.28f,.52f);
     const FLinearColor Fill=bAffordable?Base:Base*.4f;
-    const FLinearColor Rim=bSelected?FLinearColor(1.f,.78f,.25f):FLinearColor(1,1,1,bAffordable?.45f:.2f);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,Rim,bSelected?3.f:1.5f));Shape->SetBrushColor(Fill);
+    const FLinearColor Rim(1,1,1,bAffordable?.45f:.2f);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,Rim,1.5f));Shape->SetBrushColor(Fill);
     Glyph->SetColorAndOpacity(FSlateColor(bAffordable?FLinearColor::White:FLinearColor(.6f,.6f,.62f)));
 }
 void ShopPanelText(UTextBlock* Block,const FString& Wanted)
@@ -88,13 +88,9 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         auto* GridScroll=WidgetTree->ConstructWidget<UScrollBox>();GridScroll->SetConsumeMouseWheel(EConsumeMouseWheel::WhenScrollingPossible);GridScroll->AddChild(ItemGrid);
         auto* GridBox=WidgetTree->ConstructWidget<USizeBox>();GridBox->SetMaxDesiredHeight(4*(ShopIconSize+ShopIconGap));GridBox->SetContent(GridScroll);
         Layout->AddChildToVerticalBox(GridBox)->SetPadding(FMargin(-ShopIconGap*.5f,10,-ShopIconGap*.5f,0));
-        auto* FootRow=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(FootRow)->SetPadding(FMargin(0,14,0,0));
-        Feedback=MakeText(TEXT(""),15);
-        UHorizontalBoxSlot* FeedbackCell=FootRow->AddChildToHorizontalBox(Feedback);
-        FeedbackCell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));FeedbackCell->SetPadding(FMargin(0,0,12,0));FeedbackCell->SetVerticalAlignment(VAlign_Center);
-        // A right click on an icon buys it at the shop or pre-orders it anywhere else (QuickBuy); there is no pre-order button.
-        BuyButton=LDWidgets::Button(WidgetTree,TEXT("购买"),[this](){Buy();},false,TEXT("ShopBuy"));
-        FootRow->AddChildToHorizontalBox(BuyButton)->SetVerticalAlignment(VAlign_Center);
+        // A right click on an icon buys it at the shop or pre-orders it anywhere else (QuickBuy); there is no selection,
+        // buy or pre-order button.
+        Feedback=MakeText(TEXT(""),15);Layout->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,14,0,0));
         // The pre-order list: a line that says how it buys, then one chip per queued item (clicking it removes it).
         PreorderLine=MakeText(TEXT(""),14);PreorderLine->SetColorAndOpacity(ShopPanelHintColor);
         Layout->AddChildToVerticalBox(PreorderLine)->SetPadding(FMargin(0,10,0,0));
@@ -195,12 +191,6 @@ void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* Equip
     bLatestBuildKnown=bBuildKnown;LatestBuildRevision=BuildRevision;LatestMatch=Match;LatestLife=Life;LatestPhase=Phase;
     bLatestClock=bClock;LatestNowMs=NowMs;LatestContent=ContentDefs;bPresented=true;bLatestNear=bNearShop;
     Listing=HasSession()?Latest.Items:LDHUD::CatalogItems(ContentDefs);
-    if(Selected!=INDEX_NONE&&(!Listing.IsValidIndex(Selected)||Listing[Selected].DefinitionId!=SelectedItem))
-    {
-        // A new session, quote or catalog keeps the preview only while the same definition is still listed.
-        Selected=Listing.IndexOfByPredicate([this](const FLDShopItemView& ItemView){return ItemView.DefinitionId==SelectedItem;});
-        if(Selected==INDEX_NONE){SelectedItem=NAME_None;if(bOpen&&!PendingRequest){ShopPanelText(Feedback,TEXT("商品列表已更新，请重新选择"));}}
-    }
     if(bSelling)
     {
         // The confirmation answers one exact item at one price: a changed item or quote withdraws it, never redirects it.
@@ -231,12 +221,12 @@ bool ULDShopPanel::QuickBuy(int32 Index)
 {
     if(bSelling){ShopPanelText(Feedback,TEXT("请先确认或返回当前的确认"));return false;}
     if(!Listing.IsValidIndex(Index)){return false;}
-    Selected=Index;SelectedItem=Listing[Index].DefinitionId;
+    const FName Wanted=Listing[Index].DefinitionId;
     // In the shop's range with this life's quote it buys right away; anywhere else it joins the pre-orders.
-    if(!bLatestNear||!HasSession()){return AddPreorder(SelectedItem);}
+    if(!bLatestNear||!HasSession()){return AddPreorder(Wanted);}
     const FString Block=CommandBlock();
     if(!Block.IsEmpty()){ShopPanelText(Feedback,Block);RefreshShop();return false;}
-    return BuyItem(SelectedItem,false);
+    return BuyItem(Wanted,false);
 }
 FReply ULDShopPanel::NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event)
 {
@@ -340,14 +330,11 @@ void ULDShopPanel::RefreshShop()
         ShopPanelText(ItemGlyphs[ItemIdx],Name.Left(1));
         // Unknown gold shows every icon as affordable; the hover hint and the server decide.
         const bool bAffordable=!bEquipKnown||ItemView.BuyPrice<=LatestEquipment.Gold;
-        const uint8 Look=uint8(ItemView.bHasActive)|uint8(bAffordable)<<1|uint8(ItemIdx==Selected)<<2|0x80;
-        if(ItemLooks[ItemIdx]!=Look){ItemLooks[ItemIdx]=Look;ShopPanelIcon(ItemShapes[ItemIdx],ItemGlyphs[ItemIdx],ItemView.bHasActive,bAffordable,ItemIdx==Selected);}
+        const uint8 Look=uint8(ItemView.bHasActive)|uint8(bAffordable)<<1|0x80;
+        if(ItemLooks[ItemIdx]!=Look){ItemLooks[ItemIdx]=Look;ShopPanelIcon(ItemShapes[ItemIdx],ItemGlyphs[ItemIdx],ItemView.bHasActive,bAffordable);}
         ItemButtons[ItemIdx]->SetIsEnabled(!bSelling);
     }
     bDetailStale=true;
-    const bool bPicked=Listing.IsValidIndex(Selected);
-    ShopPanelText(CastChecked<UTextBlock>(BuyButton->GetContent()),bPicked?FString::Printf(TEXT("购买 %lld"),Listing[Selected].BuyPrice):FString(TEXT("购买")));
-    BuyButton->SetIsEnabled(Listing.IsValidIndex(Selected)&&Block.IsEmpty()&&!bSelling);
     RefreshPreorders();
     SellConfirmButton->SetIsEnabled(bSelling&&Block.IsEmpty());
     ShopPanelText(CastChecked<UTextBlock>(SellConfirmButton->GetContent()),bUpgrading?TEXT("确认进阶"):TEXT("确认卖出"));
@@ -361,7 +348,8 @@ void ULDShopPanel::SyncItemButtons()
     // so a stable name never refers to a second widget and hover, focus and scroll survive owner updates.
     for(int32 ItemIdx=ItemButtons.Num();ItemIdx<ListedIds.Num();++ItemIdx)
     {
-        ULDCommandButton* ItemButton=LDWidgets::Button(WidgetTree,TEXT(""),[this,ItemIdx](){SelectItem(ItemIdx);},false,FName(*FString::Printf(TEXT("ShopItem%d"),ItemIdx)));
+        // The icon only explains itself on hover or focus; a left click does nothing, the right click (QuickBuy) trades.
+        ULDCommandButton* ItemButton=LDWidgets::Button(WidgetTree,TEXT(""),[](){},false,FName(*FString::Printf(TEXT("ShopItem%d"),ItemIdx)));
         // The button's own backing stays clear: the icon shape is the whole face.
         ShopPanelTint(ItemButton,FLinearColor::Transparent);
         if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(ItemButton->GetContentSlot()))
@@ -431,28 +419,13 @@ void ULDShopPanel::FillDetail(int32 Index)
         else{Body+=TEXT("\n暂不能进阶");}
     }
     ShopPanelText(DetailLines,Body);
-    // Display hints only: Buy stays available and the server's own refusal is what the feedback reports.
+    // Display hints only: the right click stays available and the server's own refusal is what the feedback reports.
     TArray<FString> HintParts;
     if(bEquipKnown&&!ShownItem.bAffordable){HintParts.Add(LDTerms::NotEnoughGold());}
     if(bEquipKnown&&ShopPanelEquipSlot(LatestEquipment,0)->bOccupied&&ShopPanelEquipSlot(LatestEquipment,1)->bOccupied){HintParts.Add(TEXT("装备槽已满，请先卖出一件"));}
     if(PreorderQueue.Contains(Item.DefinitionId)){HintParts.Add(TEXT("已在预购中"));}
     HintParts.Add(bLatestNear&&HasSession()?TEXT("右键直接购买"):TEXT("右键加入预购，到了自动买"));
     ShopPanelText(DetailHint,FString::Join(HintParts,TEXT("；")));
-}
-bool ULDShopPanel::SelectItem(int32 Index)
-{
-    if(bSelling||!Listing.IsValidIndex(Index)){return false;}
-    Selected=Index;SelectedItem=Listing[Index].DefinitionId;
-    if(!PendingRequest){ShopPanelText(Feedback,TEXT("已选中 ")+LDHUD::ContentName(LatestContent,SelectedItem.ToString())+(bLatestNear&&HasSession()?TEXT("，可以点购买，或右键图标直接购买"):TEXT("，右键图标可以加入预购")));}
-    RefreshShop();return true;
-}
-void ULDShopPanel::Buy()
-{
-    if(bSelling){ShopPanelText(Feedback,TEXT("请先确认或返回当前的卖出确认"));return;}
-    const FString Block=CommandBlock();
-    if(!Block.IsEmpty()){ShopPanelText(Feedback,Block);return;}
-    if(!Listing.IsValidIndex(Selected)){ShopPanelText(Feedback,TEXT("请先点选一件商品"));return;}
-    BuyItem(Listing[Selected].DefinitionId,false);
 }
 bool ULDShopPanel::BuyItem(FName DefinitionId,bool bAuto)
 {
