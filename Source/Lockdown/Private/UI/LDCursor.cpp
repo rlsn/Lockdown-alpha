@@ -104,8 +104,14 @@ public:
         for(const FVector2f& Corner:Corners){Verts.Add(FSlateVertex::Make<ESlateVertexRounding::Disabled>(ToWindow,Corner,FVector2f(0.f,0.f),CursorFace.ToFColor(true)));}
         const TArray<SlateIndex> Indices={0,1,2,0,2,3};
         FSlateDrawElement::MakeCustomVerts(Elements,Layer+1,White,Verts,Indices,nullptr,0,0);
-        // The dark outline as a solid band, so its corners are as full as its sides.
-        CursorBand(Elements,Layer+2,White,ToWindow,Corners,0.f,CursorEdgeWidth*Unit,CursorEdge,CursorEdge);
+        // The dark outline as a solid band, so its corners are as full as its sides. A mesh has no anti-aliasing of its own:
+        // a fringe about one pixel wide fades the outline into the face on the inside and into the glow or the world on
+        // the outside, so both edges stay smooth at any cursor scale.
+        const float Fringe=1.2f/FMath::Max(Geometry.Scale,.01f);
+        const float Edge=CursorEdgeWidth*Unit;
+        CursorBand(Elements,Layer+2,White,ToWindow,Corners,-Fringe,0.f,CursorEdge.CopyWithNewOpacity(0.f),CursorEdge);
+        CursorBand(Elements,Layer+2,White,ToWindow,Corners,0.f,Edge,CursorEdge,CursorEdge);
+        CursorBand(Elements,Layer+2,White,ToWindow,Corners,Edge,Edge+Fringe,CursorEdge,CursorEdge.CopyWithNewOpacity(0.f));
         return Layer+2;
     }
 private:
