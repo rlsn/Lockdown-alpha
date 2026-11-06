@@ -7,7 +7,21 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/World.h"
 
-bool ULDMapRegistry::QueryShopReach(const FLDWorldRevision& Expected, const FVector& FootCm,
+FName ULDMapRegistry::NearestShop(const FVector& FootCm) const
+{
+    FName Best;
+    double BestDistance = TNumericLimits<double>::Max();
+    if (!Enabled() || !Content) { return Best; }
+    for (const FString& Id : Content->Get().World.ShopIds)
+    {
+        const auto* Shop = Resolve(FName(*Id), Generation);
+        const double Distance = Shop ? FVector::DistSquared2D(FootCm, Shop->Position) : TNumericLimits<double>::Max();
+        if (Distance < BestDistance) { BestDistance = Distance; Best = FName(*Id); }
+    }
+    return Best;
+}
+
+bool ULDMapRegistry::QueryShopReach(const FLDWorldRevision& Expected, FName ShopId, const FVector& FootCm,
     bool& WithinReach, ELDWorldQueryFailure& Failure, FString& Error) const
 {
     WithinReach=false;
@@ -16,12 +30,11 @@ bool ULDMapRegistry::QueryShopReach(const FLDWorldRevision& Expected, const FVec
     { Error=TEXT("Shop geometry has no registered Demo world."); return false; }
     if (Expected!=WorldRevision)
     { Failure=ELDWorldQueryFailure::StaleWorld; Error=TEXT("Shop geometry belongs to another world revision."); return false; }
-    const FName ShopId(*Content->Get().World.ShopId);
-    const auto* Shop=Resolve(ShopId,Generation);
+    const auto* Shop=Content->Get().World.ShopIds.Contains(ShopId.ToString()) ? Resolve(ShopId,Generation) : nullptr;
     const auto* ShopDefinition=Geometry->Anchors.FindByPredicate([&](const auto& Row)
-    { return Row.Id==Content->Get().World.ShopId && Row.Kind==ELDDemoWorldAnchorKind::Shop; });
+    { return Row.Id==ShopId.ToString() && Row.Kind==ELDDemoWorldAnchorKind::Shop; });
     if (!Shop || !ShopDefinition)
-    { Error=TEXT("The unique compiled Shop anchor is missing."); return false; }
+    { Error=TEXT("The named compiled Shop anchor is missing: ")+ShopId.ToString(); return false; }
     FCollisionShape Capsule;
     FLDLegalGround Ground;
     if (!ContentCapsule(*Content,Capsule,Error)
@@ -54,11 +67,11 @@ FLDShopEligibilityResult ULDMapRegistry::QueryShopEligibility(const FLDGameplayW
     Result.CommitFailure=Mode->ResolveBody(Permit.GetBoundary().Match,Buyer,Body);
     if (Result.CommitFailure!=ELDCommitReject::None)
     { Result.Error=TEXT("Shop eligibility requires the current living buyer body."); return Result; }
-    if (!Enabled() || !Content || ShopId!=FName(*Content->Get().World.ShopId))
+    if (!Enabled() || !Content || !Content->Get().World.ShopIds.Contains(ShopId.ToString()))
     { Result.Error=TEXT("Unknown shop or unregistered world."); return Result; }
     const auto* Movement=Body->GetCharacterMovement();
     if (!Movement->IsMovingOnGround() || !Movement->CurrentFloor.IsWalkableFloor()
-        || Movement->CurrentFloor.HitResult.GetComponent()!=GroundComponent.Get())
+        || !IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent()))
     {
         Result.WorldFailure=ELDWorldQueryFailure::NotGrounded;
         Result.Error=TEXT("Buyer has no current native support on the registered shop ground.");
@@ -75,7 +88,7 @@ FLDShopEligibilityResult ULDMapRegistry::QueryShopEligibility(const FLDGameplayW
         return Result;
     }
     Result.FootCm=Movement->GetActorFeetLocation();
-    if (!QueryShopReach(Expected,Result.FootCm,Result.WithinReach,Result.WorldFailure,Result.Error)) { return Result; }
+    if (!QueryShopReach(Expected,ShopId,Result.FootCm,Result.WithinReach,Result.WorldFailure,Result.Error)) { return Result; }
     Result.Succeeded=true;
     Result.Buyer=Buyer;
     Result.ShopId=ShopId;

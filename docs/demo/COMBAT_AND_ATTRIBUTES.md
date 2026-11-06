@@ -832,7 +832,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 
 - `Scripts\RunDemoCombatCheck.ps1` + `LDDemoCombatProbe.cpp`（Host + Client1，可选 `-NetEmulation` 与打包运行）：
   攻击移动接近、S 停止、打开设置期间已接受的行走订单继续而不接受新世界命令、右键击杀与击杀播报归属、死亡镜头、
-  复活延迟、在十个出生锚点之一的批准偏移处复活、复活保护窗口及观察到的 `respawn_protection`、
+  复活延迟、在出生锚点之一的批准偏移处复活、复活保护窗口及观察到的 `respawn_protection`、
   空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具的普通选择学习技能后，`active_binding_snare` 定身、
   `active_guard_pulse` 加盾并净化定身、`active_arc_bolt` 的弹体被观察、`attr_reach` 扩大普攻距离；
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。

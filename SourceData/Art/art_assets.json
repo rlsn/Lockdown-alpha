@@ -616,8 +616,15 @@
     {
       "prop": "snack_stall",
       "zone": "shop",
-      "x": 778,
-      "y": 778,
+      "x": 769,
+      "y": 2475,
+      "yaw": 180
+    },
+    {
+      "prop": "snack_stall",
+      "zone": "shop",
+      "x": -525,
+      "y": -2536,
       "yaw": 180
     },
     {
@@ -849,308 +856,352 @@
       "zone": "wall_base",
       "x": -4200,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -3000,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 3000,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4200,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": -3600,
       "y": 4920,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": 3600,
       "y": 4920,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
-      "x": -2000,
+      "x": -1900,
       "y": 4880,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
-      "x": 2000,
+      "x": 1600,
       "y": 4880,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": -600,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": 600,
       "y": 4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -4200,
       "y": -4900,
-      "yaw": 180
+      "yaw": 180,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -3000,
       "y": -4900,
-      "yaw": 180
+      "yaw": 180,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
-      "x": 3000,
+      "x": 3100,
       "y": -4900,
-      "yaw": 180
+      "yaw": 180,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4200,
       "y": -4900,
-      "yaw": 180
+      "yaw": 180,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": -3600,
       "y": -4920,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": 3600,
       "y": -4920,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
-      "x": -2000,
+      "x": -1700,
       "y": -4880,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": 2000,
       "y": -4880,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": -600,
       "y": -4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": 600,
       "y": -4900,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4900,
       "y": -4200,
-      "yaw": -90
+      "yaw": -90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4900,
-      "y": -3000,
-      "yaw": -90
+      "y": -3100,
+      "yaw": -90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4900,
-      "y": 3000,
-      "yaw": -90
+      "y": 3100,
+      "yaw": -90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": 4900,
       "y": 4200,
-      "yaw": -90
+      "yaw": -90,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": 4920,
       "y": -3600,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": 4920,
       "y": 3600,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": 4880,
       "y": -2000,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": 4880,
       "y": 2000,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": 4900,
       "y": -600,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": 4900,
       "y": 600,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -4900,
       "y": -4200,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -4900,
       "y": -3000,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -4900,
       "y": 3000,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "bench",
       "zone": "wall_base",
       "x": -4900,
       "y": 4200,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": -4920,
       "y": -3600,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "trash_bin",
       "zone": "wall_base",
       "x": -4920,
       "y": 3600,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": -4880,
       "y": -2000,
-      "yaw": 0
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": -4880,
-      "y": 2000,
-      "yaw": 0
+      "y": 1900,
+      "yaw": 0,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": -4900,
       "y": -600,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "planter",
       "zone": "wall_base",
       "x": -4900,
       "y": 600,
-      "yaw": 90
+      "yaw": 90,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": 4800,
       "y": 4800,
-      "yaw": 45
+      "yaw": 45,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": -4800,
       "y": 4800,
-      "yaw": 45
+      "yaw": 45,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": 4800,
       "y": -4800,
-      "yaw": 45
+      "yaw": 45,
+      "z": 100
     },
     {
       "prop": "flower_bed",
       "zone": "wall_base",
       "x": -4800,
       "y": -4800,
-      "yaw": 45
+      "yaw": 45,
+      "z": 100
     }
   ]
 }

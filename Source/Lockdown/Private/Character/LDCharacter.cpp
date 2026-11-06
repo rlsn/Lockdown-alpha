@@ -33,7 +33,10 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     UCharacterMovementComponent* Movement = GetCharacterMovement();
     Movement->MaxAcceleration = 8000;
     Movement->BrakingDecelerationWalking = 8000;
+    // #97: no step-up anywhere (generated geometry refuses it); bodies climb only walkable floor. MaxStepHeight is
+    // then only how far the floor is followed down, e.g. over a ramp's crest. A ramp keeps the flat-ground speed.
     Movement->MaxStepHeight = 35;
+    Movement->bMaintainHorizontalGroundVelocity = true;
     Movement->SetWalkableFloorAngle(40);
     // #97: cliffs are not traversable in either direction; a body stops at a ledge instead of falling off it.
     Movement->bCanWalkOffLedges = false;

@@ -9,13 +9,14 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 4;
+    constexpr uint32 Schema = 5;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
     constexpr int32 CoverageBytes = CoverageCells / 8;
-    // BeginMatch rejects a locked roster plus approved camp members that could exceed this.
-    constexpr int32 MaxUnits = 16;
+    // BeginMatch rejects a locked roster plus approved camp members that could exceed this. #97: sized for six
+    // contenders and up to 32 camps of the approved members; the wire counts are uint8.
+    constexpr int32 MaxUnits = 48;
     constexpr int32 MaxStatuses = 8;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.

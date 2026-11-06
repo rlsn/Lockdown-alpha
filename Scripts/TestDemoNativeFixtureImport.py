@@ -135,7 +135,7 @@ class DemoNativeFixturesTest(unittest.TestCase):
         world = json.loads(compilation.inputs[demo.WORLD_OUTPUT])
         self.assertEqual(len(expected["Blockers"]), len(world["geometry"]["blockers"]))
         self.assertIn(1, {row["Shape"] for row in expected["Blockers"]})
-        self.assertEqual(len(expected["Anchors"]), 26)
+        self.assertEqual(len(expected["Anchors"]), len(json.loads((demo.ROOT / demo.WORLD_SOURCE).read_bytes())["anchors"]))
         self.assertEqual(len(expected["SpawnOffsetsCm"]), 7)
         self.assertNotIn("Connections", expected)
 

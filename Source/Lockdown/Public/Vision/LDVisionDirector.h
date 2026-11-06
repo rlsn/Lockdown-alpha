@@ -98,6 +98,15 @@ public:
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
 private:
     bool SegmentBlocked(const FVector2D& From, const FVector2D& To) const;
+    // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
+    // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
+    void BuildGrid();
+    void CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const;
+    static constexpr double GridCellCm = 400.;
+    int32 GridWidth = 0, GridHeight = 0;
+    double MaxCircleRadius = 0;
+    TArray<TArray<int32>> CellPolygons;
+    TArray<TArray<int32>> CellCircles;
     struct FCircle
     {
         FVector2D Centre = FVector2D::ZeroVector;

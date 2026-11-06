@@ -994,7 +994,7 @@ public:
     {
         if (bSitesReady) { return true; }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        ShopId = FName(*Defs.World.ShopId);
+        ShopId = Defs.World.ShopIds.IsEmpty() ? FName() : FName(*Defs.World.ShopIds[0]);
         const FLDMapBinding* ShopAnchor = Registry.Resolve(ShopId, Registry.Generation);
         const FLDMapBinding* CaptureAnchor = Registry.Resolve(FName(*Defs.World.CaptureId), Registry.Generation);
         ShopReach = LDDemoGrowthScenario::GrowthProbeRational(Defs.Parameters.ShopInteractRadiusCm);
@@ -1022,7 +1022,7 @@ public:
             bool bWithin = true;
             bLegal = bLegal
                 && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                && Registry.QueryShopReach(Registry.Revision(), Site, bWithin, SiteFailure, SiteError) && !bWithin
+                && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
                 && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
         }
         bSitesReady = bLegal;

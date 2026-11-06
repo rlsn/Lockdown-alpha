@@ -665,7 +665,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.world.world["map_id"], "demo_world")
         self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
-        self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 500)
+        self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 300)
 
     def test_exact_placement_and_parameter_references(self):
         placement = self.world.world["placement"]
@@ -843,6 +843,12 @@ class ApprovedDemoRefusals(unittest.TestCase):
     def test_coordinated_schema_extensions_reject_every_nested_author_object_kind(self):
         source_raw = (self.root / content.WORLD_SOURCE).read_bytes()
         schema_raw = (self.root / content.WORLD_SCHEMA_SOURCE).read_bytes()
+        # One row of each author shape, wherever the current layout puts it.
+        source = json.loads(source_raw)
+        polygon = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "polygon")
+        cylinder = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "cylinder")
+        place = next(i for i, row in enumerate(source["anchors"]) if "members" not in row)
+        camp = next(i for i, row in enumerate(source["anchors"]) if len(row.get("members", ())) == 2)
         cases = (
             ((), ()),
             (("approval",), ("properties", "approval")),
@@ -850,17 +856,17 @@ class ApprovedDemoRefusals(unittest.TestCase):
             (("geometry", "surfaces", 0), ("properties", "geometry", "properties", "surfaces", "items")),
             (("geometry", "surfaces", 0, "min_cm"), ("$defs", "vector")),
             (("geometry", "surfaces", 0, "max_cm"), ("$defs", "vector")),
-            (("geometry", "blockers", 9), ("$defs", "blocker", "oneOf", 0)),
-            (("geometry", "blockers", 9, "polygon_cm", 3), ("$defs", "vector")),
-            (("geometry", "blockers", 10), ("$defs", "blocker", "oneOf", 1)),
-            (("geometry", "blockers", 10, "center_cm"), ("$defs", "vector")),
+            (("geometry", "blockers", polygon), ("$defs", "blocker", "oneOf", 0)),
+            (("geometry", "blockers", polygon, "polygon_cm", 3), ("$defs", "vector")),
+            (("geometry", "blockers", cylinder), ("$defs", "blocker", "oneOf", 1)),
+            (("geometry", "blockers", cylinder, "center_cm"), ("$defs", "vector")),
             (("placement",), ("properties", "placement")),
             (("placement", "spawn_offsets_cm", 6), ("$defs", "vector")),
-            (("anchors", 16), ("$defs", "anchor", "oneOf", 0)),
-            (("anchors", 16, "position_cm"), ("$defs", "vector")),
-            (("anchors", 14), ("$defs", "anchor", "oneOf", 1)),
-            (("anchors", 14, "members", 1), ("$defs", "anchor", "oneOf", 1, "properties", "members", "items")),
-            (("anchors", 14, "members", 1, "position_cm"), ("$defs", "vector")),
+            (("anchors", place), ("$defs", "anchor", "oneOf", 0)),
+            (("anchors", place, "position_cm"), ("$defs", "vector")),
+            (("anchors", camp), ("$defs", "anchor", "oneOf", 1)),
+            (("anchors", camp, "members", 1), ("$defs", "anchor", "oneOf", 1, "properties", "members", "items")),
+            (("anchors", camp, "members", 1, "position_cm"), ("$defs", "vector")),
         )
         for author_path, schema_path in cases:
             with self.subTest(path=author_path):
@@ -904,18 +910,28 @@ class ApprovedDemoRefusals(unittest.TestCase):
 
     def test_bad_full_world_input_refuses_without_partial_outputs(self):
         original = (self.root / content.WORLD_SOURCE).read_bytes()
+        source = json.loads(original)
+        rows = source["geometry"]["blockers"]
+        # Cases pick their rows by kind, not by a position in one layout's file.
+        # The boundary wall reaches farthest from the centre; without it a ground edge stays open.
+        reach = lambda row: max(abs(v[a]) for v in row["polygon_cm"] for a in "xy")
+        wall = max((i for i, row in enumerate(rows) if row["shape"] == "polygon"), key=lambda i: reach(rows[i]))
+        polygon = next(i for i, row in enumerate(rows) if row["shape"] == "polygon")
+        stall = next(i for i, row in enumerate(rows) if row["id"].endswith("_stall"))
+        tree = next(i for i, row in enumerate(rows) if row["shape"] == "cylinder")
+        capture = next(row for row in source["anchors"] if row["kind"] == "Capture")["position_cm"]
         for change in (
             lambda d: d.update(coordinate_unit="m"),
             lambda d: d["approval"].update(status="pending"),
-            lambda d: d["geometry"]["blockers"].pop(5),
-            lambda d: d["geometry"]["blockers"][0]["polygon_cm"].reverse(),
-            lambda d: d["geometry"]["blockers"][0]["polygon_cm"][0].update(z=1),
-            lambda d: d["geometry"]["blockers"][0].update(height_cm=0),
-            lambda d: d["geometry"]["blockers"][9].update(blocks_sight=True),
-            lambda d: d["geometry"]["blockers"][10]["center_cm"].update(z=1),
-            lambda d: d["geometry"]["blockers"][10].update(radius_cm=0),
-            lambda d: d["geometry"]["blockers"][10].update(shape="polygon"),
-            lambda d: d["geometry"]["blockers"][10]["center_cm"].update(x=-3560, y=-2586),
+            lambda d: d["geometry"]["blockers"].pop(wall),
+            lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"].reverse(),
+            lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"][0].update(z=1),
+            lambda d: d["geometry"]["blockers"][polygon].update(height_cm=0),
+            lambda d: d["geometry"]["blockers"][stall].update(blocks_sight=True),
+            lambda d: d["geometry"]["blockers"][tree]["center_cm"].update(z=1),
+            lambda d: d["geometry"]["blockers"][tree].update(radius_cm=0),
+            lambda d: d["geometry"]["blockers"][tree].update(shape="polygon"),
+            lambda d: d["geometry"]["blockers"][tree]["center_cm"].update(x=capture["x"], y=capture["y"]),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=300),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=True),
             lambda d: d["parameter_refs"].append("UNAPPROVED.NumericDefault"),

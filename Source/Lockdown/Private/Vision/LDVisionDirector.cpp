@@ -217,8 +217,39 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     BlockerLevels = MoveTemp(PreparedLevels);
     Circles = MoveTemp(PreparedCircles);
     Terrain = MoveTemp(PreparedTerrain);
+    BuildGrid();
     Error.Reset();
     return true;
+}
+
+void FLDSightGeometry::CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const
+{
+    X0 = FMath::Clamp(FMath::FloorToInt32((Low.X - Min.X) / GridCellCm), 0, GridWidth - 1);
+    Y0 = FMath::Clamp(FMath::FloorToInt32((Low.Y - Min.Y) / GridCellCm), 0, GridHeight - 1);
+    X1 = FMath::Clamp(FMath::FloorToInt32((High.X - Min.X) / GridCellCm), 0, GridWidth - 1);
+    Y1 = FMath::Clamp(FMath::FloorToInt32((High.Y - Min.Y) / GridCellCm), 0, GridHeight - 1);
+}
+
+void FLDSightGeometry::BuildGrid()
+{
+    GridWidth = FMath::Max(1, FMath::CeilToInt32((Max.X - Min.X) / GridCellCm));
+    GridHeight = FMath::Max(1, FMath::CeilToInt32((Max.Y - Min.Y) / GridCellCm));
+    CellPolygons.SetNum(GridWidth * GridHeight);
+    CellCircles.SetNum(GridWidth * GridHeight);
+    int32 X0, Y0, X1, Y1;
+    for (int32 Index = 0; Index < Blockers.Num(); ++Index)
+    {
+        FBox2D Box(ForceInit);
+        for (const FVector2D& Point : Blockers[Index]) { Box += Point; }
+        CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
+        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellPolygons[Y * GridWidth + X].Add(Index); } }
+    }
+    for (int32 Index = 0; Index < Circles.Num(); ++Index)
+    {
+        MaxCircleRadius = FMath::Max(MaxCircleRadius, Circles[Index].Radius);
+        CellRange(Circles[Index].Centre, Circles[Index].Centre, X0, Y0, X1, Y1);
+        CellCircles[Y0 * GridWidth + X0].Add(Index);
+    }
 }
 
 bool FLDSightGeometry::InBounds(const FVector& FootCm) const
@@ -236,19 +267,38 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
         if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
     }
     const int32 Level = Observer / 2;
-    for (int32 Blocker = 0; Blocker < Blockers.Num(); ++Blocker)
+    const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
+    int32 X0, Y0, X1, Y1;
+    // Polygons are listed in every cell their bounds touch; circles only in their centre's cell, so widen by a radius.
+    CellRange(Low, High, X0, Y0, X1, Y1);
+    for (int32 Y = Y0; Y <= Y1; ++Y)
     {
-        if (BlockerLevels[Blocker] < Level) { continue; }
-        const TArray<FVector2D>& Polygon = Blockers[Blocker];
-        if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
-        for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+        for (int32 X = X0; X <= X1; ++X)
         {
-            if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
+            for (const int32 Blocker : CellPolygons[Y * GridWidth + X])
+            {
+                if (BlockerLevels[Blocker] < Level) { continue; }
+                const TArray<FVector2D>& Polygon = Blockers[Blocker];
+                if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
+                for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+                {
+                    if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
+                }
+            }
         }
     }
-    for (const FCircle& Circle : Circles)
+    const FVector2D Reach(MaxCircleRadius, MaxCircleRadius);
+    CellRange(Low - Reach, High + Reach, X0, Y0, X1, Y1);
+    for (int32 Y = Y0; Y <= Y1; ++Y)
     {
-        if (Circle.Level >= Level && SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
+        for (int32 X = X0; X <= X1; ++X)
+        {
+            for (const int32 Index : CellCircles[Y * GridWidth + X])
+            {
+                const FCircle& Circle = Circles[Index];
+                if (Circle.Level >= Level && SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
+            }
+        }
     }
     return false;
 }
@@ -728,9 +778,10 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         CampMembers += Monster->CountPerCamp;
     }
     const int64 Contenders = Core->ReadLobby().Members.Num();
-    if (Contenders < 1 || Contenders + CampMembers - 1 > LDObservation::MaxUnits)
+    // An observer sees at most every other contender, every camp member and the Boss.
+    if (Contenders < 1 || Contenders + CampMembers > LDObservation::MaxUnits)
     {
-        Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders and %lld camp members exceed the %d-unit observation bound."),
+        Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders, %lld camp members and the Boss exceed the %d-unit observation bound."),
             Contenders, CampMembers, LDObservation::MaxUnits);
         return false;
     }

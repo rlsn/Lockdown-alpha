@@ -88,22 +88,9 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         Blockers.Add(Box);
         BlockerIds.Add(Blocker.Id);
     }
-    // #97: a wall-base decoration stands on the ground, never on a plateau or ramp.
-    const auto Raised = [&](const FString& Id, const TArray<FLDDemoWorldPoint>& Polygon)
-    {
-        FBox Box(ForceInit);
-        for (const FLDDemoWorldPoint& Point : Polygon)
-        {
-            FVector Cm;
-            if (!Point.ToVector(Cm, Error)) { return false; }
-            Box += FVector(Cm.X, Cm.Y, 0);
-        }
-        Blockers.Add(Box);
-        BlockerIds.Add(Id);
-        return true;
-    };
-    for (const FLDDemoWorldPlateau& Plateau : World.Plateaus) { if (!Raised(Plateau.Id, Plateau.PolygonCm)) { return false; } }
-    for (const FLDDemoWorldRamp& Ramp : World.Ramps) { if (!Raised(Ramp.Id, Ramp.PolygonCm)) { return false; } }
+    // #97: a wall-base decoration stands wholly on one flat level, at that level's height.
+    LDDemoWorld::FTerrain Terrain;
+    if (!Terrain.Build(World, Error)) { return false; }
     TMap<FString, const FLDArtProp*> Props;
     for (const FLDArtProp& Prop : Catalog.Props) { Props.Add(Prop.Id, &Prop); }
     for (int32 Index = 0; Index < Catalog.Decorations.Num(); ++Index)
@@ -125,8 +112,19 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             const double Reach = FMath::Min(FMath::Min(Box.Min.X - FloorMin.X, FloorMax.X - Box.Max.X), FMath::Min(Box.Min.Y - FloorMin.Y, FloorMax.Y - Box.Max.Y));
             if (!bOnFloor || Reach > WallBaseReachCm)
             { return PlaceFail(Error, FString::Printf(TEXT("%s must stand on the floor within %.0f cm of an outer wall."), *Label, WallBaseReachCm)); }
-            if (Box.Max.Z > SightHeight)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall, above the %.0f cm sight sample; it would read as a sight blocker."), *Label, Box.Max.Z, SightHeight)); }
+            const int32 Tier = Terrain.Tier(FVector2D(Box.GetCenter()));
+            bool bFlat = Tier % 2 == 0;
+            for (const FVector2D Corner : { FVector2D(Box.Min.X, Box.Min.Y), FVector2D(Box.Max.X, Box.Min.Y),
+                                             FVector2D(Box.Max.X, Box.Max.Y), FVector2D(Box.Min.X, Box.Max.Y) })
+            {
+                bFlat &= Terrain.Tier(Corner) == Tier;
+            }
+            const double Floor = Terrain.StepCm * (Tier / 2);
+            // The prop's footprint pivot puts its lowest point on the floor it names.
+            if (!bFlat || FMath::Abs(Box.Min.Z - Floor) > 1.)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s must stand wholly on one flat level, at its %.0f cm floor."), *Label, Floor)); }
+            if (Box.Max.Z - Box.Min.Z > SightHeight)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall, above the %.0f cm sight sample; it would read as a sight blocker."), *Label, Box.Max.Z - Box.Min.Z, SightHeight)); }
             for (const FPlaceKeepOut& KeepOut : KeepOuts)
             {
                 if (PlaceDistance2D(Box, KeepOut.Centre) < KeepOut.Radius)
@@ -143,7 +141,15 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         {
             const bool bCapture = Decoration.Zone == ELDArtZone::Capture;
             const ELDDemoWorldAnchorKind Kind = bCapture ? ELDDemoWorldAnchorKind::Capture : ELDDemoWorldAnchorKind::Shop;
-            const FPlaceKeepOut* Anchor = KeepOuts.FindByPredicate([Kind](const FPlaceKeepOut& KeepOut) { return KeepOut.Kind == Kind; });
+            // #97: several shops; each landmark sits on the nearest anchor of its kind.
+            const FPlaceKeepOut* Anchor = nullptr;
+            for (const FPlaceKeepOut& KeepOut : KeepOuts)
+            {
+                if (KeepOut.Kind == Kind && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
+                {
+                    Anchor = &KeepOut;
+                }
+            }
             const double Limit = bCapture ? CaptureLandmarkHalfExtentCm : ShopLandmarkHalfExtentCm;
             // The transform carries the footprint pivot, so the anchor must lie within the landmark itself.
             if (!Anchor || PlaceDistance2D(Box, Anchor->Centre) > LandmarkCentreToleranceCm)

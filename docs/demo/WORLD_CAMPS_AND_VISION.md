@@ -258,6 +258,11 @@ High中心有怪物，Low中心到两个成员约75cm，也不能当作40+40cm�
 reachability etc. tests should be focus on function not map, e.g. tree blocks sight, wall blocks walk, etc.”）。
 原生资产验证不再检查出生点到商店/喷漆区或锚点之间的路线，也不在固定坐标上取样；只逐元素验证：
 锚点与成员站位合法、每个墙/围栏/摊位阻挡移动且按声明阻挡或放行视线、每棵树阻挡移动与视线、每条坡道可走、每段悬崖不可走。
+同日用户决定层高只为视线服务（原话：“elevations modeled too high. no need for it to be visually accurate so long as vision works.
+make it proly 0.5m high. trees too large, make its hitbox diameter the same as characters”）：每层 50 cm，树的直径 80 cm 与身体相同；
+悬崖由隐形挡块封住而不靠高度（原话：“don't rely on height to make cliffs unwalkable, use a air block or something”）；
+身体没有迈台阶，只能走上可走的坡面，坡上移速不变（原话：“characters don't need step-up or something either, they can climb a ramp
+only because it's walkable, movement speed should remain the same on ramp”）。
 Python 侧的布局逐值断言改为合成小世界上的同类功能测试。
 
 本次70个精确出生候选均合法且连到各自锚点，喷漆区边模型路径最短4075.611cm、最长4276.064cm。

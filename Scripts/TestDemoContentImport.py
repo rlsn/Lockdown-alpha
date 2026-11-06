@@ -7,6 +7,7 @@ from decimal import Decimal, localcontext
 from fractions import Fraction
 import io
 import json
+import math
 import os
 from pathlib import Path
 import stat
@@ -645,57 +646,95 @@ class DemoContentImport(unittest.TestCase):
                 sync.synchronize(self.root)
             self.assert_outputs_equal()
 
-    def test_dorm_disks_must_be_legal_ground_apart_from_other_zones(self):
-        # D21 (#79): exactly two dorms; each disk stands on legal ground and keeps apart from the capture circle,
-        # the shop disk and every camp clearing.
-        def anchor(data, identity):
-            return next(row for row in data["anchors"] if row["id"] == identity)
+    def zone_cases(self, kind, zone):
+        """Mutations of the first anchor of `kind` (a dorm or airdrop disk of radius `zone`) found on the current
+        layout: bounds, illegal ground, and a legal spot overlapping each neighbouring zone rule in turn."""
+        import DemoWorld
 
-        def move(identity, x, y):
-            return lambda data: anchor(data, identity)["position_cm"].update(x=x, y=y)
+        author = json.loads((self.root / demo.WORLD_SOURCE).read_bytes())
+        geometry = DemoWorld.Geometry(world_fixture())
+        rows = {row["id"]: row for row in author["anchors"]}
+        target = next(identity for identity, row in rows.items() if row["kind"] == kind)
+        body, camp_clear, shop_reach, dorm_reach = 40, author["geometry"]["camp_clearance_cm"], 600, 400
 
+        def at(identity):
+            p = rows[identity]["position_cm"]
+            return p["x"], p["y"], p["z"]
+
+        def near(centre, within, rule):
+            for distance in range(0, 1500, 25):
+                for step in range(48):
+                    angle = 2 * math.pi * step / 48
+                    for z in (0, 150, 300):
+                        p = (round(centre[0] + distance * math.cos(angle)), round(centre[1] + distance * math.sin(angle)), z)
+                        if (math.dist(p[:2], centre[:2]) < within and rule(p)
+                                and geometry.legal(tuple(Fraction(v) for v in p), Fraction(body + zone))):
+                            return p
+            return None
+
+        def apart(p, others):
+            return all(math.dist(p[:2], c[:2]) > r for c, r in others)
+
+        capture = (at("capture"), 300 + zone)
+        shops = [(at(i), shop_reach + zone) for i, r in rows.items() if r["kind"] == "Shop"]
+        camps = [(at(i), camp_clear + zone) for i, r in rows.items() if r["kind"] == "Camp"]
+        events = [(at(i), (dorm_reach if r["kind"] == "Dorm" else 150) + zone) for i, r in rows.items()
+                  if r["kind"] in ("Dorm", "Airdrop") and i != target]
+
+        def move(p):
+            return lambda data: next(row for row in data["anchors"] if row["id"] == target)["position_cm"].update(
+                x=p[0], y=p[1], z=p[2])
+
+        def first(spots):
+            spot = next((p for p in spots if p), None)
+            self.assertIsNotNone(spot, f"the layout offers a legal {kind} spot for this case")
+            return spot
+
+        def against_tree():
+            # A body fits beside a trunk, but the disk round it does not.
+            for row in author["geometry"]["blockers"]:
+                if row["shape"] == "cylinder":
+                    c = row["center_cm"]
+                    p = (c["x"] + row["radius_cm"] + body + 20, c["y"], c["z"])
+                    q = tuple(Fraction(v) for v in p)
+                    if (geometry.legal(q, Fraction(body)) and not geometry.legal(q, Fraction(body + zone))
+                            and apart(p, [capture] + shops + camps + events)):
+                        yield p
+
+        label = kind.lower()
+        on_capture = first([near(capture[0], capture[1], lambda p: apart(p, shops + camps + events))])
+        by_camp = first(near(c[0], c[1], lambda p: apart(p, [capture] + shops + events)) for c in camps)
+        cases = [
+            (lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
+             f"expected 1..[0-9]+ {kind} anchors, found 0"),
+            (move(first(against_tree())), f"{label} disk lacks legal capsule support"),
+            (move(on_capture), f"{label} disk overlaps the capture or shop disk"),
+            (move(by_camp), f"{label} disk overlaps a camp clearing"),
+        ]
+        if events:
+            cases.append((move(first(near(c[0], c[1], lambda p: apart(p, [capture] + shops + camps)) for c in events)),
+                          "disk overlaps another event disk"))
+        return cases
+
+    def check_zone_cases(self, cases):
         source = self.root / demo.WORLD_SOURCE
         original = source.read_bytes()
-        mutations = (
-            (lambda data: data["anchors"].remove(anchor(data, "dorm_se")), "26..26 entries"),
-            (lambda data: anchor(data, "dorm_nw").update(kind="Spawn"), "anchor/member counts"),
-            (lambda data: anchor(data, "dorm_nw").update(id="dorm_ne"), "dorm ids must be dorm_nw and dorm_se"),
-            (move("dorm_nw", -4900, 4400), "dorm disk lacks legal capsule support"),
-            (move("dorm_nw", 0, 500), "dorm disk overlaps the capture or shop disk"),
-            (move("dorm_se", 2473, 1503), "dorm disk overlaps a camp clearing"),
-        )
-        for mutation, message in mutations:
+        for mutation, message in cases:
             self.edit(mutation, demo.WORLD_SOURCE)
             with self.subTest(message=message), self.assertRaisesRegex(demo.ContentError, message):
                 world_sync.synchronize(self.root)
             source.write_bytes(original)
             self.assert_outputs_equal()
+
+    def test_dorm_disks_must_be_legal_ground_apart_from_other_zones(self):
+        # D21 (#79): each dorm disk stands on legal ground and keeps apart from the capture circle, the shop disks,
+        # every camp clearing and every other event disk.
+        self.check_zone_cases(self.zone_cases("Dorm", 400))
 
     def test_airdrop_points_must_be_legal_ground_apart_from_other_zones(self):
-        # D26 (#79): exactly three airdrop points; each pickup disk stands on legal ground and keeps apart from the
-        # capture circle, the shop disk, every camp clearing and every other event disk.
-        def anchor(data, identity):
-            return next(row for row in data["anchors"] if row["id"] == identity)
-
-        def move(identity, x, y):
-            return lambda data: anchor(data, identity)["position_cm"].update(x=x, y=y)
-
-        source = self.root / demo.WORLD_SOURCE
-        original = source.read_bytes()
-        mutations = (
-            (lambda data: data["anchors"].remove(anchor(data, "airdrop_s")), "26..26 entries"),
-            (lambda data: anchor(data, "airdrop_ne").update(kind="Spawn"), "anchor/member counts"),
-            (move("airdrop_ne", 4950, 2670), "airdrop disk lacks legal capsule support"),
-            (move("airdrop_ne", 0, 300), "airdrop disk overlaps the capture or shop disk"),
-            (move("airdrop_ne", 2473, 1100), "airdrop disk overlaps a camp clearing"),
-            (move("airdrop_nw", -4400, 4300), "disk overlaps another event disk"),
-        )
-        for mutation, message in mutations:
-            self.edit(mutation, demo.WORLD_SOURCE)
-            with self.subTest(message=message), self.assertRaisesRegex(demo.ContentError, message):
-                world_sync.synchronize(self.root)
-            source.write_bytes(original)
-            self.assert_outputs_equal()
+        # D26 (#79): each airdrop pickup disk stands on legal ground and keeps apart from the capture circle, the
+        # shop disks, every camp clearing and every other event disk.
+        self.check_zone_cases(self.zone_cases("Airdrop", 150))
 
     def test_exact_file_bytes_including_newlines_are_required(self):
         for relative in demo.OUTPUT_PATHS:

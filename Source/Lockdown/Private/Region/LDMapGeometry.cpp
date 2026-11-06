@@ -505,7 +505,7 @@ bool Geometry(FFields& Root, FLDDemoWorldGeometry& Out, FNumbers& N)
     Out.Surfaces.Add(MoveTemp(Ground));
     if (!Elevation(Fields, Out, N)) { return false; }
     const TArray<FValue>* Blockers;
-    if (!Array(Fields.Take(TEXT("blockers")), Blockers, Check, Fields.Path, 4, 256)) { return false; }
+    if (!Array(Fields.Take(TEXT("blockers")), Blockers, Check, Fields.Path, 4, LDDemoWorld::MaxBlockers)) { return false; }
     TSet<FString> Seen;
     // Each ground edge is closed by exactly one boundary wall: an axis-aligned rectangle outside the surface.
     TSet<int32> ClosedEdges;
@@ -640,7 +640,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
 {
     FCheck& Check = Root.Check;
     const TArray<FValue>* Rows;
-    if (!Array(Root.Take(TEXT("anchors")), Rows, Check, TEXT("world.anchors"), 26, 26)) { return false; }
+    if (!Array(Root.Take(TEXT("anchors")), Rows, Check, TEXT("world.anchors"), 1, LDDemoWorld::MaxAnchors)) { return false; }
     TSet<FString> Ids, MemberIds;
     const FExact Radius = N.Value(Content.Parameters.CollisionRadiusCm);
     for (const FValue& Value : *Rows)
@@ -667,28 +667,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         else if (Kind.Equals(TEXT("BossWaypoint"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::BossWaypoint; }
         else { return Check.Require(false, Anchor.Id, TEXT("unknown anchor kind")); }
         bool KnownId = false;
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
+        // Only the Boss patrol order is canonical; every other anchor is named by the world and the content refers to it.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
         {
-            for (int32 I = 0; I < 10; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("s%02d"), I), ESearchCase::CaseSensitive); }
+            for (int32 I = 1; I <= LDDemoWorld::BossWaypoints; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("boss_patrol_%d"), I), ESearchCase::CaseSensitive); }
         }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
-        {
-            KnownId = Anchor.Id == TEXT("l1") || Anchor.Id == TEXT("h1") || Anchor.Id == TEXT("l2")
-                || Anchor.Id == TEXT("h2") || Anchor.Id == TEXT("l3");
-        }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm)
-        {
-            KnownId = Anchor.Id == TEXT("dorm_nw") || Anchor.Id == TEXT("dorm_se");
-        }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop)
-        {
-            KnownId = Anchor.Id == TEXT("airdrop_ne") || Anchor.Id == TEXT("airdrop_nw") || Anchor.Id == TEXT("airdrop_s");
-        }
-        else if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
-        {
-            for (int32 I = 1; I <= 4; ++I) { KnownId |= Anchor.Id.Equals(FString::Printf(TEXT("boss_patrol_%d"), I), ESearchCase::CaseSensitive); }
-        }
-        else { KnownId = Anchor.Id == (Anchor.Kind == ELDDemoWorldAnchorKind::Shop ? TEXT("shop") : TEXT("capture")); }
+        else { KnownId = true; }
         if (!Check.Require(KnownId, Anchor.Id, TEXT("unknown canonical Demo anchor"))) { return false; }
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
         {
@@ -754,9 +738,18 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         if (!Reference(Id, ELDDemoWorldAnchorKind::Camp)) { return false; }
     }
-    if (!Reference(Content.World.ShopId, ELDDemoWorldAnchorKind::Shop)
-        || !Reference(Content.World.CaptureId, ELDDemoWorldAnchorKind::Capture)
-        || !Check.Require(Referenced.Num() == 17, Root.Path, TEXT("unreferenced anchor")))
+    for (const FString& Id : Content.World.ShopIds)
+    {
+        if (!Reference(Id, ELDDemoWorldAnchorKind::Shop)) { return false; }
+    }
+    int32 Named = 0;
+    for (const auto& Anchor : Out.Anchors)
+    {
+        Named += Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::Camp
+            || Anchor.Kind == ELDDemoWorldAnchorKind::Shop || Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? 1 : 0;
+    }
+    if (!Reference(Content.World.CaptureId, ELDDemoWorldAnchorKind::Capture)
+        || !Check.Require(Referenced.Num() == Named, Root.Path, TEXT("unreferenced anchor")))
     {
         return false;
     }
@@ -793,9 +786,10 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
         }
     }
-    if (!Check.Require(Dorms == 2 && Airdrops == 3 && Waypoints == 4 && N.LT(N.Value(0), N.Value(Content.Parameters.DormRadiusCm))
+    if (!Check.Require(Dorms >= 1 && Dorms <= LDDemoWorld::MaxDorms && Airdrops >= 1 && Airdrops <= LDDemoWorld::MaxAirdrops
+        && Waypoints == LDDemoWorld::BossWaypoints && N.LT(N.Value(0), N.Value(Content.Parameters.DormRadiusCm))
         && N.LT(N.Value(0), N.Value(Content.Parameters.AirdropPickupRadiusCm)),
-        Root.Path, TEXT("exactly two dorms, three airdrop points and four Boss waypoints, with positive radii, are required")))
+        Root.Path, TEXT("dorms, airdrop points and four Boss waypoints within their bounds, with positive radii, are required")))
     {
         return false;
     }
@@ -814,8 +808,9 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         Placed.Add(Placement.AnchorId);
         Tiers.Add(Monster->Tier);
     }
-    return Check.Require(Placed.Num() == 5 && Tiers.Num() == 2 && MemberIds.Num() == 8,
-        Root.Path, TEXT("five camps must bind eight members across both tiers"));
+    int32 CampAnchors = 0;
+    for (const auto& Anchor : Out.Anchors) { CampAnchors += Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? 1 : 0; }
+    return Check.Require(Placed.Num() == CampAnchors, Root.Path, TEXT("every camp anchor must bind one content placement"));
 }
 
 bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWorldGeometry& Out, FNumbers& N)

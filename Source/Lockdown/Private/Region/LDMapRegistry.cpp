@@ -196,9 +196,9 @@ bool ULDMapRegistry::Rebuild(FString& Error)
     TSharedPtr<const FLDDemoWorldGeometry> CandidateGeometry;
     if (AnchorCount != 1 || FloorCount != 1 || !CandidateDefinition || !Floor
         || CandidateDefinition->GetPathName() != FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")
-        || Starts.Num() != 10)
+        || Starts.IsEmpty())
     {
-        Error = TEXT("Demo world requires its unique native definition, ground and ten player starts.");
+        Error = TEXT("Demo world requires its unique native definition, ground and player starts.");
         return false;
     }
     if (!LDDemoEntry::LoadRuntimeContent(CandidateContent, Error)
@@ -259,6 +259,11 @@ bool ULDMapRegistry::Rebuild(FString& Error)
             SpawnIds.Add(Binding.Id);
         }
         Sites.Add(MoveTemp(Binding));
+    }
+    if (SpawnIds.Num() != Starts.Num())
+    {
+        Error = TEXT("Every saved player start must be one approved spawn anchor.");
+        return false;
     }
     Definition = CandidateDefinition;
     Content = MoveTemp(CandidateContent);

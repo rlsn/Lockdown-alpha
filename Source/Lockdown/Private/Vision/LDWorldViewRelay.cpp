@@ -944,7 +944,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     }
     if (FadeableProps.IsEmpty()) { return; }
     // Targets: the own living body and every unit presented right now (head and chest), never a hidden or stale one.
-    TArray<FVector, TInlineAllocator<34>> Targets;
+    TArray<FVector, TInlineAllocator<2 * (1 + LDObservation::MaxUnits)>> Targets;
     const APawn* Own = Owning.OwnerState.LifePhase == ELDLifePhase::Alive ? Owning.GetPawn().Get() : nullptr;
     if (Own) { Targets.Add(Own->GetActorLocation()); Targets.Add(Own->GetActorLocation() + FVector(0, 0, 70)); }
     for (const auto& Pair : Proxies)

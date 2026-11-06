@@ -353,7 +353,13 @@ namespace
             {
                 return ArtFail(Error, FString::Printf(TEXT("Decoration %d scale must be 0.1..10."), Index));
             }
-            Spec.Location = FVector(X, Y, 0.);
+            // #97: the floor height the prop stands on (a raised level), 0 on the ground.
+            float Z = 0.f;
+            if ((*Object)->HasField(TEXT("z")) && !ArtNumberField(*Object, TEXT("z"), 0., 1000., Z))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Decoration %d z must be 0..1000."), Index));
+            }
+            Spec.Location = FVector(X, Y, Z);
             Out.Decorations.Add(MoveTemp(Spec));
         }
         return true;

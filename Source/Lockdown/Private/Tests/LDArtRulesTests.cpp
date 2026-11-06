@@ -8,6 +8,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDDemoEntry.h"
+#include "Region/LDMapDefinition.h"
 #include "Engine/Engine.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/SkeletalMesh.h"
@@ -51,6 +53,38 @@ namespace
         const bool bPlaced = LDArt::CheckPlacementsAgainstDemoWorld(Catalog, Error);
         Test.TestFalse(What, bPlaced);
         Test.TestTrue(What + TEXT(" is reported by name: ") + Error, !bPlaced && Error.Contains(Mention));
+    }
+
+    // The spawn nearest the outer wall in the saved Demo world, and a spot on its wall walkway 150 cm from the wall at
+    // the spawn's floor height: a wall-base prop there keeps to the wall but crowds that spawn's ring.
+    bool ArtSpawnByWall(FAutomationTestBase& Test, FString& Id, FVector& Spot)
+    {
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        TSharedPtr<const FLDDemoWorldGeometry> World;
+        FString Error;
+        const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+        FVector Min = FVector::ZeroVector, Max = FVector::ZeroVector;
+        const bool bRead = LDDemoEntry::LoadRuntimeContent(Content, Error) && Content
+            && Definition && Definition->Read(*Content, World, Error) && World && World->Surfaces.Num() == 1
+            && World->Surfaces[0].MinCm.ToVector(Min, Error) && World->Surfaces[0].MaxCm.ToVector(Max, Error);
+        if (!Test.TestTrue(TEXT("The saved Demo world is readable: ") + Error, bRead)) { return false; }
+        double Best = TNumericLimits<double>::Max();
+        for (const FLDDemoWorldAnchor& Anchor : World->Anchors)
+        {
+            FVector Foot;
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn || !Anchor.PositionCm.ToVector(Foot, Error)) { continue; }
+            const double Gaps[] = {Foot.X - Min.X, Max.X - Foot.X, Foot.Y - Min.Y, Max.Y - Foot.Y};
+            for (int32 Side = 0; Side < 4; ++Side)
+            {
+                if (Gaps[Side] >= Best) { continue; }
+                Best = Gaps[Side];
+                Id = Anchor.Id;
+                Spot = Foot;
+                const double Wall = Side == 0 ? Min.X + 150 : Side == 1 ? Max.X - 150 : Side == 2 ? Min.Y + 150 : Max.Y - 150;
+                (Side < 2 ? Spot.X : Spot.Y) = Wall;
+            }
+        }
+        return Test.TestFalse(TEXT("The saved Demo world has a spawn"), Id.IsEmpty());
     }
 
     int32 ArtFindDecoration(const ULDArtCatalog& Catalog, ELDArtZone Zone)
@@ -202,7 +236,7 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
     FString Error;
     if (!Catalog || !TestTrue(TEXT("The Demo art catalog resolves"), Catalog->Resolve(Art, Error))) { return false; }
 
-    // Placement zones against the approved D02 layout.
+    // Placement zones against the saved Demo world.
     const int32 WallBase = ArtFindDecoration(*Catalog, ELDArtZone::WallBase), Outside = ArtFindDecoration(*Catalog, ELDArtZone::Outside);
     const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture), Shop = ArtFindDecoration(*Catalog, ELDArtZone::Shop);
     if (TestTrue(TEXT("The catalog has wall-base, outside, capture and shop decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
@@ -214,9 +248,17 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[WallBase].Transform.SetScale3D(Copy->Decorations[WallBase].Transform.GetScale3D() * FVector(1, 1, 20));
         ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop taller than the sight sample is rejected"), TEXT("sight"));
+        FString SpawnId;
+        FVector Spot;
+        if (ArtSpawnByWall(*this, SpawnId, Spot))
+        {
+            Copy = ArtCopy(*Catalog);
+            Copy->Decorations[WallBase].Transform.SetLocation(Spot);
+            ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop beside a spawn point is rejected"), SpawnId);
+        }
         Copy = ArtCopy(*Catalog);
-        Copy->Decorations[WallBase].Transform.SetLocation(FVector(4650, 0, 0));
-        ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop beside a spawn point is rejected"), TEXT("s00"));
+        Copy->Decorations[WallBase].Transform.AddToTranslation(FVector(0, 0, -300));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop sunk below its level's floor is rejected"), TEXT("flat level"));
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Outside].Transform.SetLocation(FVector(4000, 4000, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("An outside prop moved over the floor is rejected"), TEXT("arena floor"));

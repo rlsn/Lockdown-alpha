@@ -163,7 +163,7 @@ public:
             bPrepared=!Hooks || !Hooks->Prepare || Hooks->Prepare(Mode,Start,Error);
         }
         if (!Check(bPrepared,TEXT("Fixture prepares every registered provider like a normal start"))) { return false; }
-        const FName ShopId(*Content->Get().World.ShopId);
+        const FName ShopId=Content->Get().World.ShopIds.IsEmpty() ? FName() : FName(*Content->Get().World.ShopIds[0]);
         const auto* Shop=Registry.Resolve(ShopId,Registry.Generation);
         if (!Shop) { Error=TEXT("Shop geometry fixture has no approved anchor."); return false; }
         const auto& ShopRadius=Content->Get().Parameters.ShopInteractRadiusCm;
@@ -171,21 +171,21 @@ public:
         bool WithinReach=false;
         ELDWorldQueryFailure ShopFailure;
         FString ShopError;
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius-1,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius-1,0,0),
             WithinReach,ShopFailure,ShopError) && WithinReach && ShopFailure==ELDWorldQueryFailure::None,
             TEXT("Registered shop reach accepts a legal in-range foot point"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,0),
             WithinReach,ShopFailure,ShopError) && WithinReach,
             TEXT("Registered shop reach includes its exact approved radius"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius+1,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius+1,0,0),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::None && ShopError.IsEmpty(),
             TEXT("Outside shop range is a successful false query, not a world failure"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(!Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius,0,50),
+        if (!Check(!Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,50),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::NotGrounded && !ShopError.IsEmpty(),
             TEXT("Invalid shop support is explicitly rejected rather than treated as out of range"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
         auto StaleShopWorld=Registry.Revision();
         ++StaleShopWorld.GeometryRevision;
-        if (!Check(!Registry.QueryShopReach(StaleShopWorld,Shop->Position+FVector(Radius,0,0),
+        if (!Check(!Registry.QueryShopReach(StaleShopWorld,ShopId,Shop->Position+FVector(Radius,0,0),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::StaleWorld && !ShopError.IsEmpty(),
             TEXT("Shop reach rejects a stale registered world before range evaluation"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
         bool Registered=Mode.ExecuteAuthorityPhase(*Mode.Combat,ELDCommitPhase::RespawnsAndWorld,

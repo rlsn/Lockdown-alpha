@@ -59,9 +59,9 @@ bool BuildRoster(const FLDDemoContentDefinitions& Content, const FLDDemoWorldGeo
         Camps.Add(CampId);
         Candidate.Camps.Add(MoveTemp(Spec));
     }
-    if (Candidate.Camps.Num() != 5 || Content.Camps.Num() != Candidate.Camps.Num() || !bLow || !bHigh)
+    if (Candidate.Camps.IsEmpty() || Content.Camps.Num() != Candidate.Camps.Num() || !bLow || !bHigh)
     {
-        Error = TEXT("The Demo requires exactly five placed camps covering both tiers.");
+        Error = TEXT("The Demo requires every placed camp in the roster, covering both tiers.");
         return false;
     }
     Out = MoveTemp(Candidate);

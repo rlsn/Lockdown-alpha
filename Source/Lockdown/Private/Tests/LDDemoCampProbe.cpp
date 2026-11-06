@@ -541,7 +541,7 @@ public:
         if (!bCampsReady)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;
-            bool bFirstGeneration = State->NumCamps() == 5;
+            bool bFirstGeneration = State->NumCamps() == Roster->Camps.Num();
             for (int32 Camp = 0; Camp < State->NumCamps(); ++Camp)
             {
                 const FLDCampGroupState& Group = *State->FindCamp(Camp);

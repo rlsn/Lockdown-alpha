@@ -5102,23 +5102,67 @@
     ],
     "placements": [
       {
-        "anchor_id": "h1",
+        "anchor_id": "h01",
         "monster_id": "monster_guardian"
       },
       {
-        "anchor_id": "h2",
+        "anchor_id": "h02",
         "monster_id": "monster_guardian"
       },
       {
-        "anchor_id": "l1",
+        "anchor_id": "h03",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h04",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "l01",
         "monster_id": "monster_scavenger"
       },
       {
-        "anchor_id": "l2",
+        "anchor_id": "l02",
         "monster_id": "monster_scavenger"
       },
       {
-        "anchor_id": "l3",
+        "anchor_id": "l03",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l04",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l05",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l06",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l07",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l08",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l09",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l10",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l11",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l12",
         "monster_id": "monster_scavenger"
       }
     ]
@@ -7714,15 +7758,29 @@
   },
   "world": {
     "camp_ids": [
-      "h1",
-      "h2",
-      "l1",
-      "l2",
-      "l3"
+      "h01",
+      "h02",
+      "h03",
+      "h04",
+      "l01",
+      "l02",
+      "l03",
+      "l04",
+      "l05",
+      "l06",
+      "l07",
+      "l08",
+      "l09",
+      "l10",
+      "l11",
+      "l12"
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
-    "shop_id": "shop",
+    "shop_ids": [
+      "shop_n",
+      "shop_s"
+    ],
     "spawn_ids": [
       "s00",
       "s01",
@@ -7733,7 +7791,9 @@
       "s06",
       "s07",
       "s08",
-      "s09"
+      "s09",
+      "s10",
+      "s11"
     ]
   }
 }

@@ -591,7 +591,7 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         const FLDCampRoster* Roster = State ? State->GetRoster() : nullptr;
         int32 Expected = 0, Fresh = 0;
         bool bCamps = State && State->IsActive() && State->GetMatch() == Mode->GetMatchContext() && Roster && Mode->Combat
-            && State->NumCamps() == 5 && Roster->Camps.Num() == State->NumCamps() && Defs.Camps.Num() == State->NumCamps();
+            && State->NumCamps() > 0 && Roster->Camps.Num() == State->NumCamps() && Defs.Camps.Num() == State->NumCamps();
         for (int32 Camp = 0; bCamps && Camp < State->NumCamps(); ++Camp)
         {
             const FLDCampGroupState& Group = *State->FindCamp(Camp);

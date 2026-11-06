@@ -1,4 +1,5 @@
 #include "LDDemoContentJson.h"
+#include "Region/LDMapGeometry.h"
 
 namespace LDDemoContent
 {
@@ -1817,10 +1818,10 @@ bool Definitions(const FValue& Value, TArray<T>& Out, FCheck& Check, const FStri
     return true;
 }
 
-bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString& Path, int32 Count)
+bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString& Path, int32 Min, int32 Max)
 {
     const TArray<FValue>* Rows;
-    if (!Array(Value, Rows, Check, Path, Count, Count))
+    if (!Array(Value, Rows, Check, Path, Min, Max))
     {
         return false;
     }
@@ -1954,7 +1955,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         return false;
     }
     const TArray<FValue>* Placements;
-    if (!Array(Camps.Take(TEXT("placements")), Placements, Check, Camps.Path, 5, 5))
+    if (!Array(Camps.Take(TEXT("placements")), Placements, Check, Camps.Path, 1, LDDemoWorld::MaxCamps))
     {
         return false;
     }
@@ -2020,9 +2021,11 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     }
     FFields World(Check, F.Take(TEXT("world")), TEXT("content.world"));
     if (!World.Identifier(TEXT("map_id"), Out.World.MapId)
-        || !Ids(World.Take(TEXT("spawn_ids")), Out.World.SpawnIds, Check, World.Path + TEXT(".spawn_ids"), 10)
-        || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 5)
-        || !World.Identifier(TEXT("shop_id"), Out.World.ShopId) || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
+        || !Ids(World.Take(TEXT("spawn_ids")), Out.World.SpawnIds, Check, World.Path + TEXT(".spawn_ids"),
+            LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
+        || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
+        || !Ids(World.Take(TEXT("shop_ids")), Out.World.ShopIds, Check, World.Path + TEXT(".shop_ids"), 1, LDDemoWorld::MaxShops)
+        || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
         || !World.Done())
     {
         return false;

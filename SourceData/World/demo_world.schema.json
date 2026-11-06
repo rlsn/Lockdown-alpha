@@ -55,7 +55,7 @@
             }
           }
         },
-        "blockers": {"type": "array", "minItems": 4, "maxItems": 256, "items": {"$ref": "#/$defs/blocker"}},
+        "blockers": {"type": "array", "minItems": 4, "maxItems": 2048, "items": {"$ref": "#/$defs/blocker"}},
         "sight_sample_height_cm": {"$ref": "#/$defs/positive_cm"},
         "camp_clearance_cm": {"$ref": "#/$defs/positive_cm"}
       }
@@ -78,7 +78,7 @@
         ]
       }
     },
-    "anchors": {"type": "array", "minItems": 26, "maxItems": 26, "items": {"$ref": "#/$defs/anchor"}}
+    "anchors": {"type": "array", "minItems": 1, "maxItems": 128, "items": {"$ref": "#/$defs/anchor"}}
   },
   "$defs": {
     "id": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^[a-z][a-z0-9_]*$"},

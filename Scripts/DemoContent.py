@@ -1136,7 +1136,7 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Shop": [refs["shop_id"]], "Capture": [refs["capture_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Shop": refs["shop_ids"], "Capture": [refs["capture_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
@@ -1227,7 +1227,8 @@ def _sort_definitions(data, fields):
     arrays.extend((("content.camps.monsters", data["camps"]["monsters"], "id"),
                    ("content.camps.placements", data["camps"]["placements"], "anchor_id"),
                    ("content.world.spawn_ids", data["world"]["spawn_ids"], None),
-                   ("content.world.camp_ids", data["world"]["camp_ids"], None)))
+                   ("content.world.camp_ids", data["world"]["camp_ids"], None),
+                   ("content.world.shop_ids", data["world"]["shop_ids"], None)))
     for path, rows, key in arrays:
         identity_for = (lambda row: row[key]) if key is not None else (lambda row: row)
         order = [identity_for(row) for row in rows]

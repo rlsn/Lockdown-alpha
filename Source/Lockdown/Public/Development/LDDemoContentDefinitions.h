@@ -587,7 +587,8 @@ struct FLDDemoWorldReferences
     UPROPERTY() FString MapId;
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
-    UPROPERTY() FString ShopId;
+    // #97: every shop anchor, ordinal-sorted; a match may have several shops.
+    UPROPERTY() TArray<FString> ShopIds;
     UPROPERTY() FString CaptureId;
 };
 

@@ -572,11 +572,22 @@
       }
     ],
     "placements": [
-      {"anchor_id": "l1", "monster_id": "monster_scavenger"},
-      {"anchor_id": "h1", "monster_id": "monster_guardian"},
-      {"anchor_id": "l2", "monster_id": "monster_scavenger"},
-      {"anchor_id": "h2", "monster_id": "monster_guardian"},
-      {"anchor_id": "l3", "monster_id": "monster_scavenger"}
+      {"anchor_id": "h01", "monster_id": "monster_guardian"},
+      {"anchor_id": "h02", "monster_id": "monster_guardian"},
+      {"anchor_id": "h03", "monster_id": "monster_guardian"},
+      {"anchor_id": "h04", "monster_id": "monster_guardian"},
+      {"anchor_id": "l01", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l02", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l03", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l04", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l05", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l06", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l07", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l08", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l09", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l10", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l11", "monster_id": "monster_scavenger"},
+      {"anchor_id": "l12", "monster_id": "monster_scavenger"}
     ]
   },
   "boss": {
@@ -595,9 +606,9 @@
   },
   "world": {
     "map_id": "demo_world",
-    "spawn_ids": ["s00", "s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09"],
-    "camp_ids": ["l1", "h1", "l2", "h2", "l3"],
-    "shop_id": "shop",
+    "spawn_ids": ["s00", "s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09", "s10", "s11"],
+    "camp_ids": ["h01", "h02", "h03", "h04", "l01", "l02", "l03", "l04", "l05", "l06", "l07", "l08", "l09", "l10", "l11", "l12"],
+    "shop_ids": ["shop_n", "shop_s"],
     "capture_id": "capture"
   },
   "display": [

@@ -113,12 +113,22 @@ python -B -m unittest discover -s .\Scripts -p "TestDemoContentImport.py"
 前端、`L_Demo` 和 WBP 根。纯载荷检查不要求尚待生成的 DataAsset；正常运行入口仍要求原生资产校验，
 不能用生成前置检查代替游戏准入。
 Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、唯一 MapAnchor、
-十个唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent，以及逐元素的功能检查
+与内容引用一一对应的唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent，以及逐元素的功能检查
 （墙/围栏/摊位/树按声明阻挡移动与视线、坡道可走、悬崖不可走、锚点站位合法）；不检查当前布局的地点间连通或路线长度。
 它不把资产存在当作导航、战斗或真实联机验收。
 
-`LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、十个真实多边形阻挡、
-十个出生标记与一个原生导航区域。旋转墙不是 AABB 近似，商店台面阻走但不阻视线。
+`LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、高台与坡道、全部真实阻挡、
+每个出生锚点一个出生标记与一个原生导航区域。#97 起锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
+（`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxShops`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
+阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
+与两份 schema 保持同一范围。同尺寸的树共用一个树干 mesh（`SM_Demo_trunk_r<半径>_h<高度>`，放在各自圆心），
+墙、围栏、摊位与地形仍各有自己的精确凸 mesh。
+#97 悬崖不靠高度挡人：生成器沿每条朝向更低平地的高台边与每条坡道的两侧放置隐形的薄挡块（`cliff_*`，
+引擎立方体，2 cm 厚，高过最高层上整个胶囊），只阻挡 Pawn 与导航，对地面、视线、可见性和镜头通道都放行，
+所以高处仍能隔着悬崖看见低处。Validate 按同一规则重算挡块并逐个核对位置与通道，
+再在每段悬崖上方把胶囊抬过高侧横扫，确认被挡块拦下。所有生成几何 `CanCharacterStepUpOn = No`：
+身体不能迈上任何东西，只能走上可走的坡面；`MaxStepHeight` 只是下坡顶时贴地跟随的距离，
+`bMaintainHorizontalGroundVelocity` 让坡上水平速度与平地相同。内容的 `world.shop_ids` 列出全部商店，每个商店锚点站在自己的低台面内。旋转墙不是 AABB 近似，商店台面阻走但不阻视线。
 同一次生成还用代码重建三份只用引擎能力的表现材质，并布置场景光照：
 `M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹（条纹间约 1 米柔和过渡，叠加几米尺度的低频明暗）、
 外圈红色跑道与白色内线，`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；
@@ -275,7 +285,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
 `outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
 `wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与旗杆；
-`capture`/`shop` 是覆盖其锚点的细小地标（旗杆、砍一刀小摊的摊位），摊位高度不超过 150 cm，
+它整块站在同一平层上（#97 地图四周是高台，装饰的可选 `z` 写所在层高度，例如二层高台 100），世界在墙内侧留出无树走道；
+`capture`/`shop` 是覆盖其锚点的细小地标（旗杆、每个商店一个砍一刀小摊的摊位，各自对准最近的商店锚点），摊位高度不超过 150 cm，
 以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。

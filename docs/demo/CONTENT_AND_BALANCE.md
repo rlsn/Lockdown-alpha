@@ -29,6 +29,12 @@
 **2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
 世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
 ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。
+**2026-11-06 #97 试玩地图：** 用户批准安装新布局（“Install and build”）。营地净空由 5 m 改为 3 m
+（世界 `camp_clearance_cm=300`；原话：“then camp's 5m clearance is too large, make it 3”）；两个商店分处北、南两路旁，
+距旗杆约 28 m（原话：“place two shops farther part from each other, away from the pole too”）；树林拆成同尺寸树的小树丛
+（原话：“forest cluster too large, separate into smaller ones”，此前：“all trees should be equal size”）。
+同日层高改为 50 cm、树的直径改为与身体相同的 80 cm（原话：“make it proly 0.5m high. trees too large, make its hitbox
+diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_world.json` 为准，下文首版坐标只是历史记录。
 本文 §3–8 的样例按新值离线复算；这些是可复算模型结果，**未经过平衡测试**。世界观与玩家显示术语只以 App Spec §1 为准。
 后续构筑扩展集中在 §15：方向已批准，建议数值仍须逐批复核，不在当前运行输入中。
 其中首个扩展批次的条目选择（主动 珍珠奶茶泼脸、秦王绕柱、无影大比兜、放个屁就润，被动 网线够长、他急了，装备 大号滋水枪）
@@ -299,18 +305,17 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 `DORM.OutOfCombatDelaySec=3` 秒后，每秒恢复 `DORM.MaxHPRatioPerSec=0.10` 倍当前精神状态上限和 `DORM.MaxMPRatioPerSec=0.10` 倍
 当前电量上限（约 10 秒从零回满）；与上面的脱战慢回和「发疯文学」共用唯一战斗时间，各按自己的延迟起算并叠加
 （3 秒后 10%/秒，5 秒后 11.5%/秒）。判定读取每个权威步结算时的脚点，离开或死亡后下一步停止。
-首版两处躺平角位于地图对角 `dorm_nw` (-4400, 4400) 与 `dorm_se` (4400, -4400)，是 `SourceData/World/demo_world.json` 中的
-`Dorm` 锚点（技术标识仍为 Dorm）；地图重新布局（#97）时随布局调整。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、商店交互圆和营地净空区重叠，
-两处的标识必须是 `dorm_nw` 与 `dorm_se`。同样要求比例是 0.001 的整数倍。数值由用户在 2026-11-04 批准为首轮试玩值，未经平衡验证。
+#97 地图的两处躺平角是东北、西南两个高台角上的 `dorm_ne` 与 `dorm_sw`（`SourceData/World/demo_world.json` 的
+`Dorm` 锚点，技术标识仍为 Dorm）。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、商店交互圆、营地净空区和其他事件圆重叠；
+数量在 1..8 之间，标识不再固定。同样要求比例是 0.001 的整数倍。数值由用户在 2026-11-04 批准为首轮试玩值，未经平衡验证。
 
 **天降外卖（D26，#79，技术标识 airdrop）**：第 n 份外卖（从 0 数）在开局后 `AIRDROP.FirstLandSec=45` + n × `AIRDROP.IntervalSec=75` 秒落地
 （45、120、195 s…），提前 `AIRDROP.AnnounceLeadSec=15` 秒公开落点和倒计时。落地后第一个脚点进入
 `AIRDROP.PickupRadiusCm=150` 圆内、且不在复活保护中的存活参赛者获得 `AIRDROP.RewardXP=200` 流量和 `AIRDROP.RewardGold=150` 米
 （约 1.25 个大野怪营地），走与击杀奖励相同的结算，账本原因 `MapEventReward`，业务键只含对局、事件与序号，每份只付一次。
 同一拍内多人在圈内时离中心最近者得，仍并列时由服务器随机决定（不按参赛者编号）。下一次公开时当前外卖被取代。
-首版三处落点 `airdrop_ne` (1940, 2670)、`airdrop_nw` (-1940, 2670)、`airdrop_s` (0, -3300) 位于中墙外、相邻营地之间，
-与地图一样左右对称，是 `SourceData/World/demo_world.json` 的 `Airdrop` 锚点，随 #97 重新布局调整。
-每份外卖由只在服务器的随机种子从上一份以外的两处中选一处，公告时才公开，所以后续落点无法提前推知。
+#97 地图有四处落点：西北、东南两座坡地的坡顶，以及东、西两路上的开阔处（`SourceData/World/demo_world.json` 的
+`Airdrop` 锚点）。每份外卖由只在服务器的随机种子从上一份以外的落点中选一处，公告时才公开，所以后续落点无法提前推知。
 公开视图只说“已被领走”，不公开领取者和领取时间；领取者从本人视图得知。世界生成器要求拾取圆是合法站立地面，且不与占领圈、商店、
 营地净空区和躺平角重叠；内容校验要求公开提前量不超过首次落地时间且小于间隔。
 节奏、落点数量与奖励由用户在 2026-11-04 批准（“Approve as proposed (Recommended)”）；落点选择（“Server random, not repeat
@@ -329,9 +334,9 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 副击对受害者造成正mitigated伤害仍刷新其受击时钟，不能被“禁追加proc”错误过滤。
 
 **画饼老板 Boss（D26，#79）**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。开局后 `appear_at=60` 秒
-出现在 `boss_patrol_1`，以 `move_speed=300` cm/s 沿 `boss_patrol_1..4` 循环巡逻：(2400, 2400) → (-2400, 2400) →
-(-2400, -2400) → (2400, -2400)，位于中墙外、营地环与出生环之间、左右对称，是 `SourceData/World/demo_world.json` 的
-`BossWaypoint` 锚点，随 #97 重新布局调整。精神状态 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
+出现在 `boss_patrol_1`，以 `move_speed=300` cm/s 沿 `boss_patrol_1..4` 循环巡逻；#97 地图把四个巡逻点放在旗杆盆地内、
+围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
+`BossWaypoint` 锚点。精神状态 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
 `attack=70` 物理伤害（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
 碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
 内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活。最后一击得 `reward_xp=300` 流量 + `reward_gold=250` 米
@@ -750,7 +755,7 @@ Mute、Disarm 等控制已随旧战斗链删除，未进入首版目录的控制
 `SourceData\Demo` 作者域由 `content.json`、严格 `content.schema.json`
 及稳定 `native_ids.json` 组成。角色、属性/公式、三级能力、装备、成长和营地放在
 同一内容文件内，只有一条生成管线。地图坐标来自世界模块自己的作者域（`SourceData\World`），
-这里只引用五个营地、商店、旗杆喷漆区和出生点的稳定锚点。
+这里只引用营地、商店、旗杆喷漆区和出生点的稳定锚点（#97 起数量随世界，见 `content.json` 的 `world`）。
 
 | 作者段与稳定键 | 必须投影的内容 | 当前消费者/生成产物 |
 | --- | --- | --- |

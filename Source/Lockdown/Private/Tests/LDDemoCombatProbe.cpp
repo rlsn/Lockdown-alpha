@@ -634,7 +634,8 @@ public:
     {
         if (bSitesReady) { return true; }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        const FLDMapBinding* ShopAnchor = Registry.Resolve(FName(*Defs.World.ShopId), Registry.Generation);
+        const FName ShopId = Defs.World.ShopIds.IsEmpty() ? FName() : FName(*Defs.World.ShopIds[0]);
+        const FLDMapBinding* ShopAnchor = Registry.Resolve(ShopId, Registry.Generation);
         const FLDMapBinding* CaptureAnchor = Registry.Resolve(FName(*Defs.World.CaptureId), Registry.Generation);
         const double ShopReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.ShopInteractRadiusCm);
         const double CaptureReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.CaptureRadiusCm);
@@ -659,7 +660,7 @@ public:
             ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
             bool bWithin = true;
             return Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                && Registry.QueryShopReach(Registry.Revision(), Site, bWithin, SiteFailure, SiteError) && !bWithin
+                && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
                 && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
         };
         FLDLegalGround HostGround;
@@ -2123,7 +2124,7 @@ public:
             FLDCompletePath Route;
             bool bWithin = true;
             if (Registry->QueryGround(Registry->Revision(), Point, Capsule, Surface, To, Failure, Problem)
-                && Registry->QueryShopReach(Registry->Revision(), Point, bWithin, Failure, Problem) && !bWithin
+                && Registry->QueryShopReach(Registry->Revision(), Registry->NearestShop(Point), Point, bWithin, Failure, Problem) && !bWithin
                 && Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Route, Failure, Problem)
                 && Route.LengthCm <= 1.3 * LDDemoCombatScenario::CombatProbeBesideCm
                 && PC.ProjectWorldLocationToScreen(To.SurfaceCm, Screen)

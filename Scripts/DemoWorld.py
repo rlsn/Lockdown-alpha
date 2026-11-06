@@ -24,6 +24,13 @@ PARAMETER_REFS = (
 # pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 # D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
 ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint")
+# #97: anchor counts follow the authored world within these bounds. At least one spawn per match seat; one capture;
+# the Boss patrols exactly four waypoints.
+MAX_ANCHORS = 128
+# #97: forests of body-sized trunks need well over a thousand blockers.
+MAX_BLOCKERS = 2048
+ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 32), "Shop": (1, 8), "Capture": (1, 1), "Dorm": (1, 8),
+                 "Airdrop": (1, 16), "BossWaypoint": (4, 4)}
 # A blocker is a convex polygon prism (walls, stalls) or an upright cylinder (trees); each carries its own height and
 # movement/sight classification.
 BLOCKER_SHAPES = ("polygon", "cylinder")
@@ -209,7 +216,7 @@ def validate_author_contract(author):
         identifier(surface["id"], at + ".id")
         _author_vector(surface["min_cm"], at + ".min_cm")
         _author_vector(surface["max_cm"], at + ".max_cm")
-    for index, blocker in _author_rows(geometry["blockers"], path + ".geometry.blockers", 4, 256):
+    for index, blocker in _author_rows(geometry["blockers"], path + ".geometry.blockers", 4, MAX_BLOCKERS):
         at = f"{path}.geometry.blockers[{index}]"
         require(type(blocker) is dict and blocker.get("shape") in BLOCKER_SHAPES,
                 "AuthorShape", at + ".shape", "unsupported blocker shape")
@@ -231,7 +238,7 @@ def validate_author_contract(author):
     integer(placement["spawn_validation_radius_cm"], path + ".placement.spawn_validation_radius_cm", 1)
     for index, offset in _author_rows(placement["spawn_offsets_cm"], path + ".placement.spawn_offsets_cm", 7):
         _author_vector(offset, f"{path}.placement.spawn_offsets_cm[{index}]")
-    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 26):
+    for index, anchor in _author_rows(author["anchors"], path + ".anchors", 1, MAX_ANCHORS):
         at = f"{path}.anchors[{index}]"
         require(type(anchor) is dict, "AuthorShape", at, "expected an anchor object")
         kind = anchor.get("kind")
@@ -337,8 +344,8 @@ def validate_payload(raw):
     sight_height = content._wire_fraction(geometry["sight_sample_height_cm"], "world sight height")
     clearance = content._wire_fraction(geometry["camp_clearance_cm"], "world camp clearance")
     require(sight_height > 0 and clearance > 0, "InvalidGeometry", "world.geometry", "positive geometry dimensions are required")
-    require(type(geometry["blockers"]) is list and 4 <= len(geometry["blockers"]) <= 256,
-            "InvalidGeometry", "world.blockers", "four boundary walls and at most 256 blockers in total are required")
+    require(type(geometry["blockers"]) is list and 4 <= len(geometry["blockers"]) <= MAX_BLOCKERS,
+            "InvalidGeometry", "world.blockers", f"four boundary walls and at most {MAX_BLOCKERS} blockers in total are required")
     for row in geometry["blockers"]:
         require(type(row) is dict and row.get("shape") in BLOCKER_SHAPES,
                 "WireShape", "world.blocker", "unknown blocker shape")
@@ -379,9 +386,8 @@ def validate_payload(raw):
             "WorldPlacement", "world.placement", "center-first unique offsets and a positive validation envelope are required")
     require(all(offset[2] == 0 and squared_distance(offset, (0, 0)) <= bounded(envelope * envelope) for offset in offsets),
             "WorldPlacement", "world.placement", "offset changes layer or exceeds its fixed validation envelope")
-    require(type(world["anchors"]) is list and len(world["anchors"]) == 26,
-            "WorldAnchors", "world.anchors",
-            "ten spawns, five camps, one shop, one capture, two dorms, three airdrop points and four Boss waypoints are required")
+    require(type(world["anchors"]) is list and 1 <= len(world["anchors"]) <= MAX_ANCHORS,
+            "WorldAnchors", "world.anchors", f"expected 1..{MAX_ANCHORS} anchors")
     anchors = {}
     member_count = 0
     for row in world["anchors"]:
@@ -411,13 +417,9 @@ def validate_payload(raw):
                         "InvalidGeometry", member["id"], "member home outside the surface or off its level's height")
                 member_count += 1
         anchors[row["id"]] = row
-    require(member_count == 8 and {kind: sum(row["kind"] == kind for row in anchors.values())
-                                  for kind in ANCHOR_KINDS}
-            == {"Spawn": 10, "Camp": 5, "Shop": 1, "Capture": 1, "Dorm": 2, "Airdrop": 3, "BossWaypoint": 4},
-            "WorldAnchors", "world", "incorrect anchor/member counts")
-    # The native importer knows the dorms by id, so a rename must fail here rather than only at the native import.
-    require({identity for identity, row in anchors.items() if row["kind"] == "Dorm"} == {"dorm_nw", "dorm_se"},
-            "WorldAnchors", "world", "dorm ids must be dorm_nw and dorm_se")
+    for kind, (low, high) in ANCHOR_COUNTS.items():
+        count = sum(row["kind"] == kind for row in anchors.values())
+        require(low <= count <= high, "WorldAnchors", "world", f"expected {low}..{high} {kind} anchors, found {count}")
     for rows in (geometry["surfaces"], geometry["blockers"], world["anchors"]):
         require([row["id"] for row in rows] == sorted(row["id"] for row in rows),
                 "NonCanonical", "world", "definition rows must be ordinal-sorted by ID")
@@ -646,11 +648,15 @@ def validate_bindings(world, data):
     radius = p("UNIT.CollisionRadiusCm")
     geometry = Geometry(world)
     capture = point(anchors[data["world"]["capture_id"]]["position_cm"], "capture")
-    shop = point(anchors[data["world"]["shop_id"]]["position_cm"], "shop")
+    shops = {identity: point(anchors[identity]["position_cm"], identity) for identity in data["world"]["shop_ids"]}
     capture_radius, shop_radius = p("CAPTURE.RadiusCm"), p("SHOP.InteractRadiusCm")
     require(geometry.legal(capture, radius + capture_radius), "InvalidGeometry", "capture", "capture disk lacks legal capsule support")
-    require(squared_distance(capture, shop) > bounded((capture_radius + shop_radius) ** 2),
-            "InvalidGeometry", "shop", "shop eligibility and capture disks overlap")
+    for identity, shop in shops.items():
+        require(squared_distance(capture, shop) > bounded((capture_radius + shop_radius) ** 2),
+                "InvalidGeometry", identity, "shop eligibility and capture disks overlap")
+        for other, elsewhere in shops.items():
+            require(other == identity or squared_distance(shop, elsewhere) > bounded((2 * shop_radius) ** 2),
+                    "InvalidGeometry", identity, "two shops' eligibility disks overlap")
     # D21 dorms and D26 airdrop points: every point of the disk is legal standing ground, and the disk stays apart
     # from the circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
     camp_clearance = content._wire_fraction(world["geometry"]["camp_clearance_cm"], "camp clearance")
@@ -668,7 +674,7 @@ def validate_bindings(world, data):
     for identity, label, centre, zone in zones:
         require(zone > 0 and geometry.legal(centre, radius + zone), "InvalidGeometry", identity,
                 f"{label} disk lacks legal capsule support")
-        for other, other_radius in ((capture, capture_radius), (shop, shop_radius)):
+        for other, other_radius in ((capture, capture_radius), *((shop, shop_radius) for shop in shops.values())):
             require(squared_distance(centre, other) > bounded((zone + other_radius) ** 2),
                     "InvalidGeometry", identity, f"{label} disk overlaps the capture or shop disk")
         for camp_id, camp_row in anchors.items():
@@ -680,10 +686,14 @@ def validate_bindings(world, data):
             if other_id != identity:
                 require(squared_distance(centre, other_centre) > bounded((zone + other_zone) ** 2),
                         "InvalidGeometry", identity, f"{label} disk overlaps another event disk")
-    # A shop anchor stands in its own low counter: a polygon blocker that stops movement but not sight.
-    stalls = [identity for identity, row in geometry.rows.items()
-              if not row["blocks_sight"] and identity in geometry.polygons and inside(shop, geometry.polygons[identity])]
-    require(len(stalls) == 1, "InvalidGeometry", "shop", "shop anchor must stand in exactly one low non-sight-blocking stall")
+    # Each shop anchor stands in its own low counter: a polygon blocker that stops movement but not sight.
+    counters = set()
+    for identity, shop in shops.items():
+        stalls = [stall for stall, row in geometry.rows.items()
+                  if not row["blocks_sight"] and stall in geometry.polygons and inside(shop, geometry.polygons[stall])]
+        require(len(stalls) == 1 and stalls[0] not in counters, "InvalidGeometry", identity,
+                "shop anchor must stand in exactly one low non-sight-blocking stall of its own")
+        counters.add(stalls[0])
     offsets = [point(value, "spawn offset") for value in world["placement"]["spawn_offsets_cm"]]
     for i, offset in enumerate(offsets):
         for other in offsets[:i]:
