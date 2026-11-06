@@ -27,11 +27,13 @@ const FLinearColor ShopPanelHintColor(1.f,.66f,.36f);
 // Grid geometry (1080p reference units): six icons a row, the hover description beside the panel at a fixed width.
 constexpr int32 ShopGridColumns=6;
 constexpr float ShopIconSize=56.f,ShopIconGap=8.f,ShopDetailWidth=300.f,ShopQueueIconSize=44.f;
-void ShopPanelTint(ULDCommandButton* Tinted,const FLinearColor& Tint)
+// An icon button: its own face and padding are cleared, so the icon shape is the whole button (the shared button padding
+// would otherwise shrink a 44-56u icon to a small blob in its middle).
+void ShopPanelIconButton(ULDCommandButton* Icon)
 {
-    FButtonStyle TintedStyle=Tinted->GetStyle();
-    if(TintedStyle.Normal.TintColor==FSlateColor(Tint)){return;}
-    TintedStyle.Normal.TintColor=FSlateColor(Tint);TintedStyle.Hovered.TintColor=FSlateColor(Tint*1.6f);Tinted->SetStyle(TintedStyle);
+    FButtonStyle Bare=Icon->GetStyle();
+    for(FSlateBrush* Face:{&Bare.Normal,&Bare.Hovered,&Bare.Pressed,&Bare.Disabled}){Face->TintColor=FSlateColor(FLinearColor::Transparent);}
+    Bare.NormalPadding=FMargin(0);Bare.PressedPadding=FMargin(0);Icon->SetStyle(Bare);
 }
 // Placeholder item icons until real art lands: a rounded square with the name's first character, orange for an item with
 // an active effect and blue for a passive-only one; dimmed while the gold does not cover it.
@@ -107,7 +109,7 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         for(int32 ChipIdx=0;ChipIdx<2;++ChipIdx)
         {
             ULDCommandButton* Chip=LDWidgets::Button(WidgetTree,TEXT(""),[this,ChipIdx](){RemovePreorder(ChipIdx);},false,ChipIdx?FName(TEXT("ShopPreorder1")):FName(TEXT("ShopPreorder0")));
-            ShopPanelTint(Chip,FLinearColor::Transparent);
+            ShopPanelIconButton(Chip);
             if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Chip->GetContentSlot()))
             {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
             auto* Face=WidgetTree->ConstructWidget<UOverlay>();
@@ -371,7 +373,7 @@ void ULDShopPanel::SyncItemButtons()
         // The icon only explains itself on hover or focus; a left click does nothing, the right click (QuickBuy) trades.
         ULDCommandButton* ItemButton=LDWidgets::Button(WidgetTree,TEXT(""),[](){},false,FName(*FString::Printf(TEXT("ShopItem%d"),ItemIdx)));
         // The button's own backing stays clear: the icon shape is the whole face.
-        ShopPanelTint(ItemButton,FLinearColor::Transparent);
+        ShopPanelIconButton(ItemButton);
         if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(ItemButton->GetContentSlot()))
         {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
         auto* Face=WidgetTree->ConstructWidget<UOverlay>();
