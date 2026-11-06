@@ -13,6 +13,7 @@
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/IConsoleManager.h"
 #include "GameFramework/GameUserSettings.h"
 #include "Dom/JsonObject.h"
 #include "HAL/FileManager.h"
@@ -77,12 +78,39 @@ namespace
         return Binding ? Binding->Key : FKey();
     }
 
+    // Synthetic Slate pointer input through the window's real hit test (no OS cursor): the widget path under the target's
+    // centre gets a move (hover), a press and a release, routed exactly as a mouse click, so panel previews see it first.
+    // False when the hit test does not reach the target.
+    bool SendClick(UWidget* Target, const FKey& Button)
+    {
+        if (!Target || !FSlateApplication::IsInitialized()) { return false; }
+        const TSharedPtr<SWidget> Slate = Target->GetCachedWidget();
+        auto& App = FSlateApplication::Get();
+        const TSharedPtr<SWindow> Window = Slate ? App.FindWidgetWindow(Slate.ToSharedRef()) : nullptr;
+        if (!Window) { return false; }
+        const FVector2D Point = Target->GetCachedGeometry().GetAbsolutePositionAtCoordinates(FVector2D(.5, .5));
+        const uint32 User = App.GetUserIndexForMouse();
+        TArray<FWidgetAndPointer> Hits = Window->GetHittestGrid().GetBubblePath(Point, 0.f, false, User);
+        const FWidgetPath Path(Hits);
+        if (!Path.IsValid() || !Path.ContainsWidget(Slate.Get())) { return false; }
+        const uint32 Pointer = FSlateApplicationBase::CursorPointerIndex;
+        App.RoutePointerMoveEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>(), EKeys::Invalid, 0, FModifierKeysState()), false);
+        App.RoutePointerDownEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>({ Button }), Button, 0, FModifierKeysState()));
+        App.RoutePointerUpEvent(Path, FPointerEvent(User, Pointer, Point, Point, TSet<FKey>(), Button, 0, FModifierKeysState()));
+        return true;
+    }
+
     struct FFrontendProbe
     {
         TWeakObjectPtr<UWorld> World;
         FString Directory, PendingImage, RHIName, PhysicalSettings, PhysicalQuality;
         FLDLocalSettingsStorage Storage;
         FLDDisplaySettings OriginalDisplay;
+        // The pending zoom whose debounced save fails while Settings is open, the file that save targets, and the
+        // scalability group locked to make a display apply fail.
+        static constexpr float PendingZoom = 1850.f;
+        FString SettingsFile;
+        IConsoleVariable* Shadow = nullptr;
         TArray<TSharedPtr<FJsonValue>> Checks, Images;
         double StartedAt = FPlatformTime::Seconds(), NextAt = 0;
         int32 Stage = 0;
@@ -378,11 +406,20 @@ namespace
                     TEXT("A preference page reset leaves the applied display values alone"));
             }
             else if (Stage == 25) { if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); } }
-            // Closed from the interface page with nothing pending, Settings reopen on that page.
+            // Closed from the interface page with nothing pending, Settings reopen on that page. A zoom change made just
+            // before is still waiting for its debounced save, and that save is made to fail while Settings is open.
             else if (Stage == 26)
             {
                 Check(!PC->ControlsUI->IsOpen(), TEXT("With the draft applied, Back closes the panel at once"));
+                SettingsFile = FPaths::ConvertRelativePathToFull(Storage.Filename());
+                FString ZoomError;
+                auto& Files = IFileManager::Get();
+                if (!Check(PC->Controls->SetAppliedZoom(PendingZoom, ZoomError) && Files.Delete(*SettingsFile) && Files.MakeDirectory(*SettingsFile),
+                    TEXT("A pending zoom save is arranged to fail: the settings file is replaced by a folder"))) { return Finish(); }
+                Instance->RequestLocalSettingsFlush();
                 if (!Click(PC->RootUI, TEXT("Settings"))) { return Finish(); }
+                Check(Instance->IsLocalSettingsFlushPending() && !OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("RetryLocalSave"))),
+                    TEXT("Settings open while the zoom save is still on its way, without a save action yet"));
             }
             else if (Stage == 27)
             {
@@ -390,11 +427,80 @@ namespace
                     && OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("ToggleFPS")))
                     && !OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("VSyncDraft"))),
                     TEXT("Settings reopen on the non-display page they were closed from"));
+            }
+            else if (Stage == 28)
+            {
+                Check(!Instance->IsLocalSettingsFlushPending() && PC->Controls->IsDirty()
+                    && OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("RetryLocalSave"))),
+                    TEXT("A debounced zoom save that fails while Settings is open shows the save action at once"));
+                if (!Check(IFileManager::Get().DeleteDirectory(*SettingsFile, false, false), TEXT("Remove the folder that blocked the save"))
+                    || !Click(PC->ControlsUI, TEXT("RetryLocalSave"))) { return Finish(); }
+                const auto Loaded = ULDControlSettings::LoadLocalSettings(Storage);
+                Check(!PC->Controls->IsDirty() && Loaded.Settings && Loaded.Settings->Zoom == PendingZoom
+                    && !OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("RetryLocalSave"))),
+                    TEXT("The footer save action saves and reads back the pending zoom, then hides"));
+            }
+            // A category tab clicked during a key capture switches pages instead of becoming the binding. Real Slate pointer
+            // routing: the panel previews every press before the button under it.
+            else if (Stage == 29)
+            {
+                if (!ShowPage(PC->ControlsUI, TEXT("TabControls"), ECategory::Controls, TEXT("BindStop"))) { return Finish(); }
+                Reveal(FindButton(PC->ControlsUI, TEXT("BindStop")));
+            }
+            else if (Stage == 30)
+            {
+                auto* Key = FindButton(PC->ControlsUI, TEXT("BindStop"));
+                if (!Click(PC->ControlsUI, TEXT("BindStop"))) { return Finish(); }
+                Check(SendClick(Key, EKeys::RightMouseButton) && PC->ControlsUI->HasChildConfirmation()
+                    && PC->Controls->Key(TEXT("Stop")) == DefaultKey(TEXT("Stop")),
+                    TEXT("A routed mouse press reaches the capture: a button used by another action is refused and the capture waits"));
+                Check(SendClick(FindButton(PC->ControlsUI, TEXT("TabCamera")), EKeys::LeftMouseButton)
+                    && !PC->ControlsUI->HasChildConfirmation() && PC->ControlsUI->GetCategory() == ECategory::Camera
+                    && PC->Controls->Key(TEXT("Stop")) == DefaultKey(TEXT("Stop")),
+                    TEXT("A routed click on a category tab during a capture ends it unchanged and switches the page"));
+            }
+            // A failed apply stays unresolved: going away and back, or reverting, still leaves a change to apply. A
+            // console-priority scalability value blocks the requested quality, as an engine override would.
+            else if (Stage == 31)
+            {
+                Shadow = IConsoleManager::Get().FindConsoleVariable(TEXT("sg.ShadowQuality"));
+                if (!Check(Shadow != nullptr, TEXT("The shadow quality group exists"))
+                    || !ShowPage(PC->ControlsUI, TEXT("TabDisplay"), ECategory::Display, TEXT("VSyncDraft"))) { return Finish(); }
+                Shadow->Set(0, ECVF_SetByConsole);
+                // Any preset other than the lowest differs from the locked group, so the requested quality cannot be taken.
+                auto* Higher = FindButton(PC->ControlsUI, TEXT("QualityDraftHigher"));
+                const bool bUp = Higher && Higher->GetIsEnabled();
+                const TCHAR* Step = bUp ? TEXT("QualityDraftHigher") : TEXT("QualityDraftLower");
+                const TCHAR* Back = bUp ? TEXT("QualityDraftLower") : TEXT("QualityDraftHigher");
+                if (!Click(PC->ControlsUI, Step) || !Click(PC->ControlsUI, TEXT("ApplyDisplayDraft"))) { return Finish(); }
+                Check(Instance->GetDisplaySettingsResult().Status == ELDDisplaySettingsStatus::ApplyFailed
+                    && !FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"))->GetIsEnabled(),
+                    TEXT("A quality the engine does not take fails to apply, and the same draft is not offered again"));
+                if (!Click(PC->ControlsUI, Back) || !Click(PC->ControlsUI, Step)) { return Finish(); }
+                Check(FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"))->GetIsEnabled(),
+                    TEXT("Going away and back to the refused quality is a new request, not a clean page"));
+                if (!Click(PC->ControlsUI, TEXT("RevertDisplayDraft"))) { return Finish(); }
+                Check(FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"))->GetIsEnabled() && FindButton(PC->ControlsUI, TEXT("RevertDisplayDraft"))->GetIsEnabled(),
+                    TEXT("Reverting after a failed apply returns to the verified values, which still need applying"));
+                if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
+                Check(PC->ControlsUI->IsOpen() && PC->ControlsUI->HasChildConfirmation()
+                    && OnScreen(PC->ControlsUI, FindButton(PC->ControlsUI, TEXT("DiscardDisplayDraft"))),
+                    TEXT("Back after an unresolved failed apply still asks before leaving"));
+            }
+            else if (Stage == 32)
+            {
+                Shadow->Unset(ECVF_SetByConsole);
+                if (!Click(PC->ControlsUI, TEXT("ContinueEditing")) || !Click(PC->ControlsUI, TEXT("ApplyDisplayDraft"))) { return Finish(); }
+                const auto Live = FLDDisplaySettings::Read(*GEngine->GetGameUserSettings());
+                Check(Instance->GetDisplaySettingsResult().Status == ELDDisplaySettingsStatus::PersistenceVerified
+                    && Live.Quality == OriginalDisplay.Quality && Live.bVSync != OriginalDisplay.bVSync
+                    && !FindButton(PC->ControlsUI, TEXT("ApplyDisplayDraft"))->GetIsEnabled(),
+                    TEXT("Once the engine takes it again, applying the verified values resolves the failure"));
                 if (!Click(PC->ControlsUI, TEXT("Close"))) { return Finish(); }
             }
             else
             {
-                Check(!PC->ControlsUI->IsOpen(), TEXT("Back closes the reopened panel at once"));
+                Check(!PC->ControlsUI->IsOpen(), TEXT("Back closes the panel at once once nothing is pending"));
                 return Finish();
             }
             ++Stage;

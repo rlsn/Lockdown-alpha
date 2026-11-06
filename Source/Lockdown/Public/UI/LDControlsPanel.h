@@ -87,8 +87,13 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> BindingNotes;
     TWeakObjectPtr<ULDGameInstance> SettingsInstance;
     FLDDisplaySettings DisplayDraft;
+    // Display values the engine verifiably took: read while no apply had failed, or the last successful apply or retry.
+    // The draft is compared with these, never with settings fields that a failed apply has already written.
+    FLDDisplaySettings AppliedDisplay;
+    bool bAppliedDisplayKnown = false;
     bool bDisplayAvailable = false;
-    // The draft differs from the live display values; Apply, Revert and the close prompt follow it.
+    // The draft differs from the verified display values, or a failed apply is still unresolved; Apply, Revert and the
+    // close prompt follow it.
     bool bDisplayDraftDirty = false;
     // The instance refused this exact draft; applying it again would only repeat the failure, so Apply waits for an edit.
     bool bDisplayDraftRejected = false;
@@ -102,17 +107,30 @@ private:
     bool bSyncingVolume=false;
     // A volume change waits for the instance's debounced flush; its real result is shown once the flush has run.
     bool bVolumeSavePending=false;
+    // The instance's debounced save (volume, zoom or follow) as last seen, so its end is noticed whoever requested it.
+    bool bSeenFlushPending=false;
+    // The save actions the footer currently offers; any change in the settings state that alters them refreshes it.
+    bool bShownRetrySave=false;
+    bool bShownRecover=false;
     ELDDisplaySettingsStatus SeenDisplayStatus = ELDDisplaySettingsStatus::Unavailable;
     void ShowCategory(ECategory Next);
+    // True when Point (screen space) is over a shown category tab; a tab click during a key capture switches pages instead.
+    bool IsCategoryTabAt(const FVector2D& Point) const;
     void Populate();
     void PopulatePreferences();
     void PopulateBindings();
     void PopulateDisplay();
     void PopulateFooter();
+    void FooterActions(bool& bRetrySave, bool& bRecover) const;
     void SetFeedback(const FString& Message, bool bProblem);
     void ShowPageHint();
     void RefreshDisplayDraft();
     void EditDisplayDraft();
+    // A failed apply wrote its request into the settings fields without the engine taking it; until an apply or a retry
+    // confirms the live values again, the display page keeps an unapplied change.
+    bool DisplayApplyUnresolved() const;
+    // After a retry (here or elsewhere) confirms the live values, they become the verified values the draft is compared with.
+    void AdoptVerifiedDisplay();
     void StepQuality(int32 Direction);
     void SetDisplayMessage(const FLDDisplaySettingsResult& Result);
     void ChangePreference(TFunction<void(ULDControlSettings&)> Change);

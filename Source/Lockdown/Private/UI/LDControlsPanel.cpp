@@ -280,7 +280,13 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             auto BarButton=[Tree,Bar](const TCHAR* Label,FName Name,TFunction<void()> Action)
             {auto* Placed=Bar->AddChildToHorizontalBox(MakeButton(Tree,Label,MoveTemp(Action),Name,ActionSize));Placed->SetVerticalAlignment(VAlign_Center);Placed->SetPadding(FMargin(8,0,0,0));};
             BarButton(TEXT("重试保存"),TEXT("RetryDisplaySave"),[this]()
-            {if(auto* Owner=SettingsInstance.Get()){SetDisplayMessage(Owner->RetryDisplaySave());SeenDisplayStatus=Owner->GetDisplaySettingsResult().Status;PopulateDisplay();}});
+            {
+                if(auto* Owner=SettingsInstance.Get())
+                {
+                    SetDisplayMessage(Owner->RetryDisplaySave());SeenDisplayStatus=Owner->GetDisplaySettingsResult().Status;
+                    AdoptVerifiedDisplay();PopulateDisplay();
+                }
+            });
             BarButton(TEXT("撤销更改"),TEXT("RevertDisplayDraft"),[this]()
             {
                 // A save that still failed keeps its own message beside its retry; otherwise the bar confirms the revert.
@@ -503,18 +509,24 @@ void ULDControlsPanel::PopulateBindings()
     }
 }
 
-void ULDControlsPanel::PopulateFooter()
+void ULDControlsPanel::FooterActions(bool& bRetrySave,bool& bRecover) const
 {
-    if(!Feedback){return;}
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     const ULDControlSettings* Applied=PC?PC->Controls.Get():nullptr;
     const auto* Instance=SettingsInstance.Get();
-    const bool bRecover=Applied&&Applied->NeedsRecovery();
     // Unconfirmed values offer an explicit save only once no automatic flush is still on its way; a file that needs
     // recovery offers the recovery instead, because saving waits for that confirmation.
-    Show(Find(WidgetTree,TEXT("RetryLocalSave")),Instance&&Applied&&!bRecover&&Applied->IsDirty()&&!Instance->IsLocalSettingsFlushPending());
-    Show(Find(WidgetTree,TEXT("RecoverLocalSettings")),bRecover);
-    Find(WidgetTree,TEXT("ResetCategoryDefaults"))->SetIsEnabled(Instance&&(Category!=ECategory::Display||bDisplayAvailable));
+    bRecover=Applied&&Applied->NeedsRecovery();
+    bRetrySave=Instance&&Applied&&!bRecover&&Applied->IsDirty()&&!Instance->IsLocalSettingsFlushPending();
+}
+
+void ULDControlsPanel::PopulateFooter()
+{
+    if(!Feedback){return;}
+    FooterActions(bShownRetrySave,bShownRecover);
+    Show(Find(WidgetTree,TEXT("RetryLocalSave")),bShownRetrySave);
+    Show(Find(WidgetTree,TEXT("RecoverLocalSettings")),bShownRecover);
+    Find(WidgetTree,TEXT("ResetCategoryDefaults"))->SetIsEnabled(SettingsInstance.Get()&&(Category!=ECategory::Display||bDisplayAvailable));
 }
 
 void ULDControlsPanel::ChangePreference(TFunction<void(ULDControlSettings&)> Change)
@@ -624,21 +636,41 @@ void ULDControlsPanel::RefreshDisplayDraft()
     auto* Instance=SettingsInstance.Get();
     bDisplayAvailable=false;bDisplayDraftDirty=false;bDisplayDraftRejected=false;
     if(!Instance){DisplayMessage=TEXT("画面设置不可用：找不到本地设置的所有者。");bDisplayMessageProblem=true;PopulateDisplay();return;}
-    const auto Result=Instance->ReadDisplaySettings(DisplayDraft);
+    FLDDisplaySettings Live;
+    const auto Result=Instance->ReadDisplaySettings(Live);
     bDisplayAvailable=Result.Status==ELDDisplaySettingsStatus::Loaded;
-    // A plain read is not news; an unavailable display explains itself, and an applied value whose save still failed keeps
-    // that failure beside its retry.
-    if(!bDisplayAvailable){SetDisplayMessage(Result);}
-    else if(Instance->AreDisplaySettingsDirty()){SetDisplayMessage(Instance->GetDisplaySettingsResult());}
+    if(!bDisplayAvailable){SetDisplayMessage(Result);PopulateDisplay();return;}
+    // After a failed apply the settings fields hold the refused request, so they are not taken as the live values: the draft
+    // restarts from the last verified values and stays pending until an apply or a retry succeeds.
+    const bool bUnresolved=DisplayApplyUnresolved();
+    if(!bUnresolved||!bAppliedDisplayKnown){AppliedDisplay=Live;bAppliedDisplayKnown=true;}
+    DisplayDraft=AppliedDisplay;
+    bDisplayDraftDirty=bUnresolved;
+    // A plain read is not news; an unresolved apply, or an applied value whose save still failed, keeps its failure in view.
+    if(bUnresolved||Instance->AreDisplaySettingsDirty()){SetDisplayMessage(Instance->GetDisplaySettingsResult());}
     else{DisplayMessage.Reset();bDisplayMessageProblem=false;}
     PopulateDisplay();
 }
 
+bool ULDControlsPanel::DisplayApplyUnresolved() const
+{
+    const auto* Instance=SettingsInstance.Get();
+    return Instance&&Instance->GetDisplaySettingsResult().Status==ELDDisplaySettingsStatus::ApplyFailed;
+}
+
+void ULDControlsPanel::AdoptVerifiedDisplay()
+{
+    auto* Instance=SettingsInstance.Get();FLDDisplaySettings Live;
+    if(!bDisplayAvailable||!Instance||DisplayApplyUnresolved()||Instance->ReadDisplaySettings(Live).Status!=ELDDisplaySettingsStatus::Loaded){return;}
+    AppliedDisplay=Live;bAppliedDisplayKnown=true;
+    bDisplayDraftDirty=!(DisplayDraft==AppliedDisplay);
+}
+
 void ULDControlsPanel::EditDisplayDraft()
 {
-    // A draft edited back to the live values leaves nothing to apply or to confirm on Back.
-    FLDDisplaySettings Live;auto* Instance=SettingsInstance.Get();
-    bDisplayDraftDirty=!Instance||Instance->ReadDisplaySettings(Live).Status!=ELDDisplaySettingsStatus::Loaded||!(DisplayDraft==Live);
+    // A draft edited back to the verified values leaves nothing to apply or to confirm on Back, unless a failed apply is
+    // still unresolved: then even the verified values have to be applied again.
+    bDisplayDraftDirty=!bAppliedDisplayKnown||DisplayApplyUnresolved()||!(DisplayDraft==AppliedDisplay);
     bDisplayDraftRejected=false;DisplayMessage.Reset();bDisplayMessageProblem=false;
     PopulateDisplay();
 }
@@ -667,17 +699,16 @@ void ULDControlsPanel::PopulateDisplay()
     SetNote(DisplayUnavailable,Available?FString():DisplayMessage,LDHUDStyle::TextWarning);
     PopulateFooter();
     if(!Available){return;}
-    FLDDisplaySettings Live;
-    const bool bLive=Instance->ReadDisplaySettings(Live).Status==ELDDisplaySettingsStatus::Loaded;
+    const bool bUnresolved=DisplayApplyUnresolved();
     SetSwitch(WidgetTree,TEXT("VSyncDraft"),DisplayDraft.bVSync);
     const int32 Level=DisplayDraft.Quality.GetSingleQualityLevel();
     SetStepper(WidgetTree,TEXT("QualityDraftLower"),TEXT("QualityDraftHigher"),TEXT("QualityDraftValue"),QualityName(DisplayDraft.Quality),
         Level!=0,Level<QualityLevels-1);
-    const bool bVSyncChanged=bLive&&Live.bVSync!=DisplayDraft.bVSync;
-    const bool bQualityChanged=bLive&&!(Live.Quality==DisplayDraft.Quality);
-    SetNote(VSyncNote,bVSyncChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),OnOff(Live.bVSync)):FString(VSyncHint),
+    const bool bVSyncChanged=AppliedDisplay.bVSync!=DisplayDraft.bVSync;
+    const bool bQualityChanged=!(AppliedDisplay.Quality==DisplayDraft.Quality);
+    SetNote(VSyncNote,bVSyncChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),OnOff(AppliedDisplay.bVSync)):FString(VSyncHint),
         bVSyncChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
-    SetNote(QualityNote,bQualityChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),*QualityName(Live.Quality)):FString(QualityHint),
+    SetNote(QualityNote,bQualityChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),*QualityName(AppliedDisplay.Quality)):FString(QualityHint),
         bQualityChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
     auto* Apply=Find(WidgetTree,TEXT("ApplyDisplayDraft"));Apply->SetIsEnabled(CanApply);MarkChosen(Apply,CanApply,RestStyle);
     Find(WidgetTree,TEXT("RevertDisplayDraft"))->SetIsEnabled(bDisplayDraftDirty);
@@ -687,9 +718,10 @@ void ULDControlsPanel::PopulateDisplay()
     else if(bDisplayDraftDirty)
     {
         TArray<FString> Changes;
-        if(bVSyncChanged){Changes.Add(FString::Printf(TEXT("垂直同步 %s → %s"),OnOff(Live.bVSync),OnOff(DisplayDraft.bVSync)));}
-        if(bQualityChanged){Changes.Add(FString::Printf(TEXT("画质 %s → %s"),*QualityName(Live.Quality),*QualityName(DisplayDraft.Quality)));}
+        if(bVSyncChanged){Changes.Add(FString::Printf(TEXT("垂直同步 %s → %s"),OnOff(AppliedDisplay.bVSync),OnOff(DisplayDraft.bVSync)));}
+        if(bQualityChanged){Changes.Add(FString::Printf(TEXT("画质 %s → %s"),*QualityName(AppliedDisplay.Quality),*QualityName(DisplayDraft.Quality)));}
         Line=Changes.IsEmpty()?FString(TEXT("有未应用的画面更改。")):TEXT("未应用：")+FString::Join(Changes,TEXT(" · "));
+        if(bUnresolved){Line+=TEXT("\n上次应用没有完全生效，需要再次应用。");}
         Color=LDHUDStyle::TextAccent;
     }
     else if(!DisplayMessage.IsEmpty()){Line=DisplayMessage;Color=bDisplayMessageProblem?LDHUDStyle::TextWarning:LDHUDStyle::TextSecondary;}
@@ -710,7 +742,10 @@ bool ULDControlsPanel::ApplyDisplay(FString& Message)
         SeenDisplayStatus=Result.Status;Message=Result.Message;
         // Applied means saved, or applied with only the save left to retry ("重试保存").
         if(Result.Status==ELDDisplaySettingsStatus::PersistenceVerified||Result.Status==ELDDisplaySettingsStatus::PersistenceFailed)
-        {bDisplayDraftDirty=false;bDisplayDraftRejected=false;SetDisplayMessage(Result);PopulateDisplay();return true;}
+        {
+            AppliedDisplay=DisplayDraft;bAppliedDisplayKnown=true;
+            bDisplayDraftDirty=false;bDisplayDraftRejected=false;SetDisplayMessage(Result);PopulateDisplay();return true;
+        }
         bDisplayDraftRejected=true;
     }
     DisplayMessage=Message;bDisplayMessageProblem=true;
@@ -761,9 +796,11 @@ void ULDControlsPanel::RestoreDisplayDefaults(ULDGameInstance& Instance)
     {DisplayMessage=TEXT("画面没有恢复默认：")+Read.Message;bDisplayMessageProblem=true;PopulateDisplay();return;}
     if(!FLDDisplaySettings::ProductDefaults(*LiveSettings,Defaults,Error))
     {DisplayMessage=Error;bDisplayMessageProblem=true;PopulateDisplay();return;}
-    // The confirmed reset replaces any unapplied draft.
+    // The confirmed reset replaces any unapplied draft; after a failed apply the defaults are applied even when they equal
+    // the verified values, because the engine's current values are not known.
     RefreshDisplayDraft();
-    if(Defaults==Current){DisplayMessage=TEXT("垂直同步与画质已是默认值。");bDisplayMessageProblem=false;PopulateDisplay();return;}
+    if(!DisplayApplyUnresolved()&&Defaults==AppliedDisplay)
+    {DisplayMessage=TEXT("垂直同步与画质已是默认值。");bDisplayMessageProblem=false;PopulateDisplay();return;}
     DisplayDraft=Defaults;bDisplayDraftDirty=true;
     ApplyDisplay();
 }
@@ -779,8 +816,9 @@ void ULDControlsPanel::Open()
     Show(MatchNote,!PC->IsFrontend(),ESlateVisibility::HitTestInvisible);
     ShowChild(EChildConfirmation::None);PendingFocus=NAME_None;
     auto* Instance=SettingsInstance.Get();
-    // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again.
-    if(Instance){SeenDisplayStatus=Instance->GetDisplaySettingsResult().Status;}
+    // Only results that arrive while the panel is open are news; the last apply of an earlier visit is not shown again. A
+    // debounced save already on its way is followed until it ends.
+    if(Instance){SeenDisplayStatus=Instance->GetDisplaySettingsResult().Status;bSeenFlushPending=Instance->IsLocalSettingsFlushPending();}
     SetKeyboardFocus();Populate();RefreshDisplayDraft();
     // The panel reopens on the page it was left on.
     ShowCategory(Category);
@@ -858,15 +896,23 @@ void ULDControlsPanel::NativeTick(const FGeometry& Geometry,float Delta)
     if(PendingRevealRow&&GFrameCounter>PendingRevealFrame+1){RevealRow(PendingRevealRow);PendingRevealRow=nullptr;}
     // A save retried elsewhere (travel, exit) reports here; the panel's own applies already recorded their status.
     const auto& Result=Instance->GetDisplaySettingsResult();
-    if(Result.Status!=SeenDisplayStatus){SetDisplayMessage(Result);PopulateDisplay();}
+    if(Result.Status!=SeenDisplayStatus){SetDisplayMessage(Result);AdoptVerifiedDisplay();PopulateDisplay();}
     SeenDisplayStatus=Result.Status;
-    if(bVolumeSavePending&&!Instance->IsLocalSettingsFlushPending())
+    // Whoever requested the debounced save (the volume slider, a zoom or a follow change made before Settings opened), its
+    // end is reported here; a failure stays in the footer beside the action that answers it.
+    const bool bFlushPending=Instance->IsLocalSettingsFlushPending();
+    if((bSeenFlushPending||bVolumeSavePending)&&!bFlushPending)
     {
-        bVolumeSavePending=false;
         const ULDControlSettings* Applied=CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls.Get();
-        SetFeedback(Instance->GetLocalSettingsMessage(),Applied&&(Applied->IsDirty()||Applied->NeedsRecovery()));
-        PopulatePreferences();PopulateFooter();
+        const bool bProblem=Applied&&(Applied->IsDirty()||Applied->NeedsRecovery());
+        if(bProblem||bVolumeSavePending||!bFeedbackProblem){SetFeedback(Instance->GetLocalSettingsMessage(),bProblem);}
+        bVolumeSavePending=false;
+        PopulatePreferences();
     }
+    bSeenFlushPending=bFlushPending;
+    // The offered save actions follow the settings state itself, not only the panel's own actions.
+    bool bRetrySave=false,bRecover=false;FooterActions(bRetrySave,bRecover);
+    if(bRetrySave!=bShownRetrySave||bRecover!=bShownRecover){PopulateFooter();}
 }
 FReply ULDControlsPanel::CaptureKey(FKey Key)
 {
@@ -897,7 +943,25 @@ FReply ULDControlsPanel::NativeOnKeyDown(const FGeometry& G,const FKeyEvent& E)
 FReply ULDControlsPanel::NativeOnPreviewKeyDown(const FGeometry& G,const FKeyEvent& E)
 {if(!Capture.IsNone()){return E.IsRepeat()?FReply::Handled():CaptureKey(E.GetKey());}if(E.GetKey()==EKeys::Escape){if(!E.IsRepeat()){Close();}return FReply::Handled();}return Super::NativeOnPreviewKeyDown(G,E);}
 FReply ULDControlsPanel::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
-{if(!Capture.IsNone()){return CaptureKey(E.GetEffectingButton());}return Super::NativeOnPreviewMouseButtonDown(G,E);}
+{
+    if(!Capture.IsNone())
+    {
+        // A category tab stays a page switch during a capture: the capture ends with the key unchanged and the tab below
+        // takes the click. Any other press is the new binding.
+        if(IsCategoryTabAt(E.GetScreenSpacePosition())){EndCapture();return Super::NativeOnPreviewMouseButtonDown(G,E);}
+        return CaptureKey(E.GetEffectingButton());
+    }
+    return Super::NativeOnPreviewMouseButtonDown(G,E);
+}
+bool ULDControlsPanel::IsCategoryTabAt(const FVector2D& Point) const
+{
+    for(const FCategoryInfo& Info:Categories)
+    {
+        const UWidget* Tab=WidgetTree?WidgetTree->FindWidget(Info.Tab):nullptr;
+        if(Tab&&Tab->IsVisible()&&Tab->GetCachedGeometry().IsUnderLocation(Point)){return true;}
+    }
+    return false;
+}
 FReply ULDControlsPanel::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {if(!Capture.IsNone()){return CaptureKey(E.GetEffectingButton());}return FReply::Handled();}
 FReply ULDControlsPanel::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
