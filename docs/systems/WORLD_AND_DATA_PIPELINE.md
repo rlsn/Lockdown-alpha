@@ -113,7 +113,8 @@ python -B -m unittest discover -s .\Scripts -p "TestDemoContentImport.py"
 前端、`L_Demo` 和 WBP 根。纯载荷检查不要求尚待生成的 DataAsset；正常运行入口仍要求原生资产校验，
 不能用生成前置检查代替游戏准入。
 Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、唯一 MapAnchor、
-十个唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent 和地点连通。
+十个唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent，以及逐元素的功能检查
+（墙/围栏/摊位/树按声明阻挡移动与视线、坡道可走、悬崖不可走、锚点站位合法）；不检查当前布局的地点间连通或路线长度。
 它不把资产存在当作导航、战斗或真实联机验收。
 
 `LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、十个真实多边形阻挡、
@@ -235,7 +236,7 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 观察使用单一 `TraceSight`/Observer 边界，不以 `ClearSegment` 代替。
 
 定义中的地址与视觉 Actor 不是同一身份；重复导入、世界重载不能重复生成地点、奖励源或权威记录。
-新地图先验证合法出生、地点连通、入口与阻挡，再接入交互。
+新地图先验证合法站位与各元素功能，再接入交互；测试不针对具体布局。
 
 ### 美术素材与装饰
 

@@ -1,8 +1,10 @@
-"""Exact approved baseline and complete-world assertions; not a native/play-balance test."""
+"""Exact approved content baseline, world contract, and world-element function tests on synthetic geometry.
+
+Not a native or play-balance test, and nothing here pins the current map layout.
+"""
 from decimal import Decimal
 from fractions import Fraction
 import json
-import math
 from pathlib import Path
 import shutil
 import tempfile
@@ -29,7 +31,6 @@ class ApprovedDemoData(unittest.TestCase):
         cls.root_bundle = content.compile_content()
         cls.data = cls.catalog.data
         cls.geometry = world.Geometry(cls.world.world)
-        cls.model = world.PathModel(cls.geometry, Fraction(40))
         cls.anchors = {row["id"]: row for row in cls.world.world["anchors"]}
 
     def test_approval_and_complete_selected_directory(self):
@@ -40,7 +41,8 @@ class ApprovedDemoData(unittest.TestCase):
         for text in ("2026-11-02", "D01", "D02", "D03", "2026-11-04", "#82", "15.7-15.9", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
-        self.assertIn("player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400)", approval["decision"])
+        self.assertIn("player 400, camps 320/347, move-speed floor 230, camera 2250 (1300-2400)", approval["decision"])
+        self.assertIn("2026-11-06 #97 route budget removed.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 16, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -80,7 +82,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("TIMING.DefendRouteBudgetSec", "ms", "26"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -659,79 +661,10 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
                          {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
 
-    def test_exact_world_surface_anchors_and_member_homes(self):
-        expected = {
-            "s00": (4400, 0), "s01": (3560, 2586), "s02": (1360, 4185), "s03": (-1360, 4185), "s04": (-3560, 2586),
-            "s05": (-4400, 0), "s06": (-3560, -2586), "s07": (-1360, -4185), "s08": (1360, -4185), "s09": (3560, -2586),
-            "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
-            "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
-            "airdrop_ne": (1940, 2670), "airdrop_nw": (-1940, 2670), "airdrop_s": (0, -3300),
-            "boss_patrol_1": (2400, 2400), "boss_patrol_2": (-2400, 2400), "boss_patrol_3": (-2400, -2400),
-            "boss_patrol_4": (2400, -2400),
-        }
-        self.assertEqual(set(self.anchors), set(expected))
-        for identity, xy in expected.items():
-            self.assertEqual(world.point(self.anchors[identity]["position_cm"], identity), (*xy, 0))
-        homes = {member["id"]: world.point(member["position_cm"], member["id"]) for row in self.anchors.values() for member in row.get("members", ())}
-        self.assertEqual(homes, {"l1_0": (2450, 874, 0), "l1_1": (2496, 732, 0), "h1_0": (0, 2600, 0),
-                                 "l2_0": (-2496, 732, 0), "l2_1": (-2450, 874, 0), "h2_0": (-1528, -2103, 0),
-                                 "l3_0": (1589, -2059, 0), "l3_1": (1467, -2147, 0)})
-        self.assertEqual(self.geometry.minimum, (-5000, -5000, 0))
-        self.assertEqual(self.geometry.maximum, (5000, 5000, 0))
+    def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")
         self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
-
-    def test_exact_polygons_heights_and_collision_classification(self):
-        polygons = {
-            "midwall_054": ((1748, 832), (1983, 1155), (486, 2243), (251, 1919)),
-            "midwall_126": ((-251, 1919), (-486, 2243), (-1983, 1155), (-1748, 832)),
-            "midwall_198": ((-1903, 354), (-2283, 231), (-1711, -1529), (-1331, -1405)),
-            "midwall_270": ((-925, -1700), (-925, -2100), (925, -2100), (925, -1700)),
-            "midwall_342": ((1331, -1405), (1711, -1529), (2283, 231), (1903, 354)),
-            "wall_n": ((-5300, 5000), (5300, 5000), (5300, 5300), (-5300, 5300)),
-            "wall_s": ((-5300, -5300), (5300, -5300), (5300, -5000), (-5300, -5000)),
-            "wall_e": ((5000, -5300), (5300, -5300), (5300, 5300), (5000, 5300)),
-            "wall_w": ((-5300, -5300), (-5000, -5300), (-5000, 5300), (-5300, 5300)),
-            "shop_stall": ((718, 718), (838, 718), (838, 838), (718, 838)),
-            "fence_sw_1": ((-3900, -4500), (-2700, -4500), (-2700, -4480), (-3900, -4480)),
-        }
-        self.assertEqual(set(self.geometry.polygons), set(polygons))
-        for identity, xy in polygons.items():
-            self.assertEqual(self.geometry.polygons[identity], tuple((*p, 0) for p in xy))
-            row = self.geometry.rows[identity]
-            # #97: inner walls are about a body tall; the boundary keeps its height.
-            # A fence stops bodies but stays under the sight sample, so it blocks no vision.
-            height = {"shop_stall": 80, "fence_sw_1": 100}.get(identity, 200 if identity.startswith("midwall_") else 600)
-            self.assertEqual(content._wire_fraction(row["height_cm"], identity), height)
-            self.assertTrue(row["blocks_movement"])
-            self.assertEqual(row["blocks_sight"], identity not in ("shop_stall", "fence_sw_1"))
-            self.assertEqual(row["shape"], "polygon")
-            self.assertNotIn("min_cm", row)
-        # #97 testbed trees: upright cylinders that block movement and sight; tree_ne_1 stands on level 1.
-        trees = {"tree_sw_1": (-3300, -3300, 0), "tree_sw_2": (-2800, -3650, 0), "tree_sw_3": (-3450, -3950, 0),
-                 "tree_sw_4": (-2350, -3250, 0), "tree_ne_1": (3200, 3700, 150)}
-        self.assertEqual(self.geometry.circles, {identity: (xyz, 50) for identity, xyz in trees.items()})
-        for identity in trees:
-            row = self.geometry.rows[identity]
-            self.assertEqual((row["shape"], content._wire_fraction(row["height_cm"], identity), row["blocks_movement"],
-                              row["blocks_sight"]), ("cylinder", 200, True, True))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
-
-    def test_elevation_testbed_levels_ramps_and_tiered_sight(self):
-        elevation = self.world.world["geometry"]["elevation"]
-        self.assertEqual(content._wire_fraction(elevation["level_step_cm"], "step"), 150)
-        self.assertEqual({row["id"]: (row["level"], tuple(world.point(p, row["id"]) for p in row["polygon_cm"]))
-                          for row in elevation["plateaus"]}, {
-            "hill_ne_1": (1, ((2900, 3300, 150), (4500, 3300, 150), (4500, 4500, 150), (2900, 4500, 150))),
-            "hill_ne_2": (2, ((3500, 3900, 300), (4300, 3900, 300), (4300, 4400, 300), (3500, 4400, 300)))})
-        self.assertEqual({row["id"]: row["lower_level"] for row in elevation["ramps"]}, {"ramp_ne_0": 0, "ramp_ne_1": 1})
-        terrain = self.geometry.terrain
-        ground, ramp, low, high = (3650, 2900, 0), (3650, 3150, 0), (3650, 3500, 0), (3900, 4100, 0)
-        self.assertEqual([terrain.tier(p) for p in (ground, ramp, low, high)], [0, 1, 2, 4])
-        clear = self.geometry.sight_clear
-        self.assertEqual((clear(ground, low), clear(low, ground)), (False, True))
-        self.assertEqual((clear(ground, ramp), clear(ramp, ground), clear(ramp, low), clear(low, ramp)), (False, True, False, True))
-        self.assertEqual((clear(low, high), clear(high, low)), (False, True))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 500)
 
     def test_exact_placement_and_parameter_references(self):
@@ -740,68 +673,8 @@ class ApprovedDemoData(unittest.TestCase):
                          [(0, 0, 0), (100, 0, 0), (50, 87, 0), (-50, 87, 0), (-100, 0, 0), (-50, -87, 0), (50, -87, 0)])
         self.assertEqual(content._wire_fraction(placement["spawn_validation_radius_cm"], "envelope"), 200)
         self.assertEqual(self.world.world["parameter_refs"], (
-            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
-            "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
-
-    def test_published_route_lengths_and_whole_ground_budget(self):
-        captures = (4175.255, 4175.436, 4175.833, 4175.833, 4175.436, 4175.255, 4175.554, 4175.820, 4175.820, 4175.554)
-        shops = (3104.614, 2933.627, 3229.117, 3422.275, 4468.133, 4636.361, 4974.744, 4952.690, 4397.008, 4136.503)
-        lows = (
-            (2087.615, 6923.428, 3559.634), (2088.219, 6516.459, 5110.357), (3560.434, 5111.733, 6515.950),
-            (5111.733, 3560.434, 6923.191), (6516.459, 2088.219, 6922.817), (6923.428, 2087.615, 6515.710),
-            (6923.400, 3559.057, 5110.874), (6516.137, 5110.667, 3560.234), (5110.667, 6516.137, 2088.767),
-            (3559.057, 6923.400, 2088.615),
-        )
-        for index in range(10):
-            identity = f"s{index:02d}"
-            route = self.world.report["routes"][identity]
-            self.assertAlmostEqual(route["capture_cm"], captures[index], delta=.00051)
-            self.assertAlmostEqual(route["shop_cm"], shops[index], delta=.00051)
-            start = world.point(self.anchors[identity]["position_cm"], identity)
-            for camp_id, expected in zip(("l1", "l2", "l3"), lows[index]):
-                target = world.point(self.anchors[camp_id]["position_cm"], camp_id)
-                self.assertAlmostEqual(self.model.distance(start, target, 0), expected, delta=.00051)
-        for identity, capture, shop in (
-            ("l1", 2300.103, 1095.505), ("h1", 2300, 1390.297), ("l2", 2300.103, 2651.504),
-            ("h2", 2299.499, 3090.230), ("l3", 2299.499, 2381.535),
-        ):
-            self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
-            self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
-        speed = amount(self.data["parameters"]["UNIT.MoveSpeedCmPerSec"])
-        budget = amount(self.data["parameters"]["TIMING.DefendRouteBudgetSec"])
-        self.assertEqual((speed, budget), (400, 26))
-        # The whole-ground check is a 500 cm grid of legal positions, every one within the budget.
-        self.assertEqual(self.world.report["sampled_route_points"], 377)
-        self.assertAlmostEqual(self.world.report["sampled_route_max_cm"], 6856.026, delta=.00051)
-        self.assertLess(self.world.report["sampled_route_max_cm"], speed * budget)
-        candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
-        self.assertEqual(len(candidates), 70)
-        self.assertAlmostEqual(min(candidates), 4075.611, delta=.00051)
-        self.assertAlmostEqual(max(candidates), 4276.064, delta=.00051)
-
-    def test_actual_melee_opportunities_and_sight_counterexamples(self):
-        self.assertTrue(self.geometry.sight_clear((0, 1500, 0), (0, 2600, 0)))
-        self.assertFalse(self.geometry.sight_clear((0, -1650, 0), (0, -2150, 0)))
-        for identity, approach in (
-            ("l1", (2616, 849, 0)), ("h1", (0, 2800, 0)), ("l2", (-2616, 849, 0)),
-            ("h2", (-1646, -2265, 0)), ("l3", (1616, -2224, 0)),
-        ):
-            self.assertTrue(self.geometry.legal(approach, Fraction(40)))
-            for member in self.anchors[identity]["members"]:
-                home = world.point(member["position_cm"], member["id"])
-                distance = math.sqrt(float(world.squared_distance(approach, home)))
-                self.assertGreaterEqual(distance, 80)
-                self.assertLessEqual(distance, 220)
-                self.assertTrue(self.geometry.sight_clear(approach, home))
-        low = self.anchors["l1"]
-        self.assertLess(world.squared_distance(world.point(low["position_cm"], "l1"),
-                                              world.point(low["members"][0]["position_cm"], "l1_0")), 80 ** 2)
-        self.assertFalse(self.geometry.legal((778, 778, 0), Fraction(40)))
-        # A trunk blocks movement within body radius of its edge and blocks sight through it, not past its tangent.
-        self.assertFalse(self.geometry.legal((-3300, -3300 + 89, 0), Fraction(40)))
-        self.assertTrue(self.geometry.legal((-3300, -3300 + 90, 0), Fraction(40)))
-        self.assertFalse(self.geometry.sight_clear((-3600, -3300, 0), (-3000, -3300, 0)))
-        self.assertTrue(self.geometry.sight_clear((-3600, -3250, 0), (-3000, -3250, 0)))
+            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
+            "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"))
 
     def test_byte_provenance_and_acyclic_producer_order(self):
         self.assertEqual(self.world.world["source_sha256"], content.sha256((content.ROOT / content.WORLD_SOURCE).read_bytes()))
@@ -817,6 +690,98 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(content.verify_runtime_files(content.ROOT, self.root_bundle.digest), self.root_bundle.digest)
         content.check_outputs(content.ROOT, self.root_bundle.outputs)
         world_sync.synchronize(check=True)
+
+
+def wire(value):
+    value = Fraction(value)
+    return {"numerator": value.numerator, "denominator": value.denominator}
+
+
+def vec(x, y, z=0):
+    return {"x": wire(x), "y": wire(y), "z": wire(z)}
+
+
+def box(x0, y0, x1, y1, z=0):
+    return [vec(x0, y0, z), vec(x1, y0, z), vec(x1, y1, z), vec(x0, y1, z)]
+
+
+class WorldGeometryFunctions(unittest.TestCase):
+    """What each world element does, on a small synthetic world instead of the current map layout."""
+
+    @classmethod
+    def setUpClass(cls):
+        def polygon(identity, points, height, sight):
+            return {"id": identity, "shape": "polygon", "polygon_cm": points, "height_cm": wire(height),
+                    "blocks_movement": True, "blocks_sight": sight}
+        blockers = [
+            polygon("wall", box(-100, -1000, 100, 1000), 200, True),
+            polygon("fence", box(-1000, 2000, 1000, 2020), 100, False),
+            {"id": "tree", "shape": "cylinder", "center_cm": vec(-2000, -3000), "radius_cm": wire(50), "height_cm": wire(200),
+             "blocks_movement": True, "blocks_sight": True},
+            {"id": "high_tree", "shape": "cylinder", "center_cm": vec(2200, 300, 150), "radius_cm": wire(50),
+             "height_cm": wire(200), "blocks_movement": True, "blocks_sight": True},
+        ]
+        elevation = {
+            "level_step_cm": wire(150),
+            "plateaus": [{"id": "hill_1", "level": 1, "polygon_cm": box(2000, -500, 3000, 500, 150)},
+                         {"id": "hill_2", "level": 2, "polygon_cm": box(2400, -200, 2800, 200, 300)}],
+            "ramps": [{"id": "ramp_0", "lower_level": 0,
+                       "polygon_cm": [vec(1700, 100), vec(1700, -100), vec(2000, -100, 150), vec(2000, 100, 150)]}],
+        }
+        cls.geometry = world.Geometry({"geometry": {
+            "surfaces": [{"id": "ground", "min_cm": vec(-5000, -5000), "max_cm": vec(5000, 5000)}],
+            "elevation": elevation, "blockers": blockers}})
+        cls.radius = Fraction(40)
+
+    def test_wall_blocks_walking_and_sight(self):
+        g = self.geometry
+        self.assertFalse(g.legal((0, 0, 0), self.radius))
+        self.assertFalse(g.legal((-139, 0, 0), self.radius))
+        self.assertTrue(g.legal((-140, 0, 0), self.radius))
+        self.assertFalse(g.sight_clear((-500, 0, 0), (500, 0, 0)))
+        self.assertTrue(g.sight_clear((-500, 1500, 0), (500, 1500, 0)))
+
+    def test_fence_blocks_walking_but_not_sight(self):
+        g = self.geometry
+        self.assertFalse(g.legal((0, 2010, 0), self.radius))
+        self.assertFalse(g.legal((0, 1961, 0), self.radius))
+        self.assertTrue(g.legal((0, 1960, 0), self.radius))
+        self.assertTrue(g.sight_clear((0, 1500, 0), (0, 2500, 0)))
+
+    def test_tree_blocks_walking_within_body_radius_and_sight_through_its_trunk(self):
+        g = self.geometry
+        self.assertFalse(g.legal((-2000, -3000 + 89, 0), self.radius))
+        self.assertTrue(g.legal((-2000, -3000 + 90, 0), self.radius))
+        self.assertFalse(g.sight_clear((-2300, -3000, 0), (-1700, -3000, 0)))
+        self.assertTrue(g.sight_clear((-2300, -2950, 0), (-1700, -2950, 0)))
+
+    def test_standing_follows_the_level_under_the_whole_body(self):
+        g = self.geometry
+        self.assertTrue(g.legal((2500, -400, 150), self.radius))
+        self.assertFalse(g.legal((2500, -400, 0), self.radius))
+        # A body across a cliff edge stands on no single level.
+        self.assertFalse(g.legal((2010, -400, 150), self.radius))
+        self.assertFalse(g.legal((1990, -400, 0), self.radius))
+        self.assertEqual([g.terrain.tier(p) for p in ((1000, 0), (1850, 0), (2100, 0), (2600, 0))], [0, 1, 2, 4])
+
+    def test_high_ground_sees_low_ground_not_the_reverse(self):
+        clear = self.geometry.sight_clear
+        ground, ramp, low, high = (1000, 0, 0), (1850, 0, 75), (2100, 0, 150), (2600, 0, 300)
+        self.assertEqual((clear(ground, low), clear(low, ground)), (False, True))
+        self.assertEqual((clear(ground, ramp), clear(ramp, ground)), (False, True))
+        self.assertEqual((clear(ramp, low), clear(low, ramp)), (False, True))
+        self.assertEqual((clear(low, high), clear(high, low)), (False, True))
+        self.assertTrue(clear(high, (1500, 0, 0)))
+        # A plateau between two ground points hides them from each other.
+        self.assertFalse(clear((1500, 0, 0), (3500, 0, 0)))
+        self.assertTrue(clear((1500, 700, 0), (3500, 700, 0)))
+
+    def test_obstacles_hide_only_from_their_level_and_below(self):
+        clear = self.geometry.sight_clear
+        self.assertFalse(clear((1000, 0, 0), (-300, 0, 0)))
+        self.assertTrue(clear((2100, 0, 150), (-300, 0, 0)))
+        self.assertFalse(clear((2050, 300, 150), (2350, 300, 150)))
+        self.assertTrue(clear((2500, 150, 300), (2100, 380, 150)))
 
 
 class ApprovedDemoRefusals(unittest.TestCase):

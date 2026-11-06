@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from fractions import Fraction
-import heapq
 import math
 from pathlib import Path
 from types import MappingProxyType
@@ -17,12 +16,9 @@ PROJECTION_REVISION = 3
 SOURCE = content.WORLD_SOURCE
 SCHEMA_SOURCE = content.WORLD_SCHEMA_SOURCE
 OUTPUT_PATHS = (content.WORLD_OUTPUT, content.WORLD_CONTRACT)
-# Spacing of the whole-ground route sample in validate_bindings.
-ROUTE_SAMPLE_CM = 500
 PARAMETER_REFS = (
     "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
-    "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
-    "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm",
+    "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm",
 )
 # D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 # pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
@@ -563,45 +559,6 @@ class Terrain:
         yield from ((2 * level, plateau) for level, plateau in self.plateaus.values())
         yield from ((2 * lower + 1, ramp) for lower, ramp in self.ramps.values())
 
-    def barriers(self):
-        """Cliff segments: plateau edge pieces no ramp meets and no plateau as high covers, plus every ramp side."""
-        pieces = []
-        for identity, (level, plateau) in self.plateaus.items():
-            for a, b in edges(plateau):
-                edge = sub(b[:2], a[:2])
-                length = dot(edge, edge)
-                covered = []
-                for lower, (c, d) in ((lower, ramp[2:]) for lower, ramp in self.ramps.values()):
-                    if lower + 1 == level and cross(edge, sub(c[:2], a[:2])) == 0 == cross(edge, sub(d[:2], a[:2])):
-                        span = sorted((dot(sub(c[:2], a[:2]), edge) / length, dot(sub(d[:2], a[:2]), edge) / length))
-                        covered.append(tuple(span))
-                for other, (height, polygon) in self.plateaus.items():
-                    if other != identity and height >= level:
-                        lower, upper = Fraction(0), Fraction(1)
-                        for p, q in edges(polygon):
-                            delta = sub(q[:2], p[:2])
-                            constant, slope = cross(delta, sub(a[:2], p[:2])), cross(delta, edge)
-                            if slope == 0:
-                                if constant < 0:
-                                    lower, upper = Fraction(1), Fraction(0)
-                                    break
-                            elif slope > 0:
-                                lower = max(lower, -constant / slope)
-                            else:
-                                upper = min(upper, -constant / slope)
-                        if lower < upper:
-                            covered.append((lower, upper))
-                cursor = Fraction(0)
-                for lower, upper in sorted(covered):
-                    if lower > cursor:
-                        pieces.append((tuple(a[i] + edge[i] * cursor for i in (0, 1)), tuple(a[i] + edge[i] * lower for i in (0, 1))))
-                    cursor = max(cursor, upper)
-                if cursor < 1:
-                    pieces.append((tuple(a[i] + edge[i] * cursor for i in (0, 1)), tuple(b[:2])))
-        for _, ramp in self.ramps.values():
-            pieces += [(ramp[1][:2], ramp[2][:2]), (ramp[3][:2], ramp[0][:2])]
-        return pieces
-
 
 class Geometry:
     def __init__(self, world):
@@ -680,128 +637,6 @@ class Geometry:
         return True
 
 
-class PathModel:
-    """Conservative static miter/visibility-graph model, never a runtime movement provider."""
-    EPS = 1e-7
-    # A cylinder enters the model as a regular polygon whose capsule-radius miter expansion circumscribes the
-    # expanded disc, so the true swept disc lies inside it and modelled routes stay conservative.
-    CIRCLE_SIDES = 16
-    # A cliff or ramp side enters the model as a rectangle this many centimetres either side of its line.
-    CLIFF_HALF_WIDTH = .5
-
-    def __init__(self, geometry, radius):
-        self.bounds = (float(geometry.minimum[0] + radius), float(geometry.minimum[1] + radius),
-                       float(geometry.maximum[0] - radius), float(geometry.maximum[1] - radius))
-        self.polygons, self.planes = [], []
-        self.by_id = {}
-        shapes = list(geometry.polygons.items())
-        for index, (a, b) in enumerate(geometry.terrain.barriers()):
-            dx, dy = float(b[0] - a[0]), float(b[1] - a[1])
-            length = math.hypot(dx, dy)
-            if length < self.EPS:
-                continue
-            nx, ny = -dy / length * self.CLIFF_HALF_WIDTH, dx / length * self.CLIFF_HALF_WIDTH
-            ax, ay, bx, by = float(a[0]), float(a[1]), float(b[0]), float(b[1])
-            shapes.append((f"cliff_{index}", ((ax - nx, ay - ny), (bx - nx, by - ny), (bx + nx, by + ny), (ax + nx, ay + ny))))
-        for identity, (centre, size) in geometry.circles.items():
-            # The footprint polygon circumscribes the trunk (apothem = radius); its capsule-radius expansion then
-            # circumscribes the expanded disc.
-            outer = float(size) / math.cos(math.pi / self.CIRCLE_SIDES)
-            shapes.append((identity, tuple(
-                (float(centre[0]) + outer * math.cos(2 * math.pi * i / self.CIRCLE_SIDES),
-                 float(centre[1]) + outer * math.sin(2 * math.pi * i / self.CIRCLE_SIDES), 0)
-                for i in range(self.CIRCLE_SIDES))))
-        for identity, polygon in shapes:
-            lines = []
-            for a, b in edges(polygon):
-                dx, dy = float(b[0] - a[0]), float(b[1] - a[1])
-                length = math.hypot(dx, dy)
-                nx, ny = -dy / length, dx / length
-                lines.append((nx, ny, nx * float(a[0]) + ny * float(a[1]) - float(radius)))
-            expanded = []
-            for index, (nx, ny, c) in enumerate(lines):
-                px, py, d = lines[index - 1]
-                determinant = px * ny - py * nx
-                require(abs(determinant) > 1e-12, "InvalidGeometry", identity, "degenerate miter corner")
-                expanded.append(((d * ny - py * c) / determinant, (px * c - d * nx) / determinant))
-            self.by_id[identity] = expanded
-            if (max(p[0] for p in expanded) <= self.bounds[0] + self.EPS
-                    or min(p[0] for p in expanded) >= self.bounds[2] - self.EPS
-                    or max(p[1] for p in expanded) <= self.bounds[1] + self.EPS
-                    or min(p[1] for p in expanded) >= self.bounds[3] - self.EPS):
-                continue
-            self.polygons.append(expanded)
-            self.planes.append(lines)
-        self.nodes = [p for polygon in self.polygons for p in polygon if self.legal(p)]
-        self.graph = [[] for _ in self.nodes]
-        for i, a in enumerate(self.nodes):
-            for j in range(i):
-                b = self.nodes[j]
-                if self.clear(a, b):
-                    distance = math.dist(a, b)
-                    self.graph[i].append((j, distance))
-                    self.graph[j].append((i, distance))
-        self.goals = {}
-
-    def legal(self, p):
-        return (self.bounds[0] - self.EPS <= p[0] <= self.bounds[2] + self.EPS
-                and self.bounds[1] - self.EPS <= p[1] <= self.bounds[3] + self.EPS
-                and not any(all(nx * p[0] + ny * p[1] - c > self.EPS for nx, ny, c in lines)
-                            for lines in self.planes))
-
-    def clear(self, a, b):
-        if not self.legal(a) or not self.legal(b):
-            return False
-        for lines in self.planes:
-            lower, upper = 0.0, 1.0
-            for nx, ny, c in lines:
-                constant = nx * a[0] + ny * a[1] - c
-                slope = nx * (b[0] - a[0]) + ny * (b[1] - a[1])
-                if abs(slope) < self.EPS:
-                    if constant <= self.EPS:
-                        break
-                elif slope > 0:
-                    lower = max(lower, (self.EPS - constant) / slope)
-                else:
-                    upper = min(upper, (self.EPS - constant) / slope)
-            else:
-                if lower < upper - 1e-12 and upper > 0 and lower < 1:
-                    return False
-        return True
-
-    def direct_to_circle(self, start, center, radius):
-        distance = math.dist(start, center)
-        if distance <= radius:
-            return 0.0 if self.legal(start) else math.inf
-        end = tuple(center[i] + (start[i] - center[i]) * radius / distance for i in (0, 1))
-        return distance - radius if self.clear(start, end) else math.inf
-
-    def distance(self, start, center, radius):
-        start, center, radius = tuple(map(float, start[:2])), tuple(map(float, center[:2])), float(radius)
-        require(self.legal(start), "WorldPath", "start", "illegal static capsule position")
-        key = (*center, radius)
-        if key not in self.goals:
-            distances = [self.direct_to_circle(node, center, radius) for node in self.nodes]
-            queue = [(value, i) for i, value in enumerate(distances) if math.isfinite(value)]
-            heapq.heapify(queue)
-            while queue:
-                distance, i = heapq.heappop(queue)
-                if distance != distances[i]:
-                    continue
-                for j, length in self.graph[i]:
-                    candidate = distance + length
-                    if candidate < distances[j]:
-                        distances[j] = candidate
-                        heapq.heappush(queue, (candidate, j))
-            self.goals[key] = distances
-        result = self.direct_to_circle(start, center, radius)
-        for node, remaining in zip(self.nodes, self.goals[key]):
-            if math.isfinite(remaining) and self.clear(start, node):
-                result = min(result, math.dist(start, node) + remaining)
-        require(math.isfinite(result), "WorldPath", "goal", "no complete static path to a legal destination boundary")
-        return result
-
-
 def validate_bindings(world, data):
     anchors = content.rows_by_id(world["anchors"], "world anchors")
     content.validate_world_references(data, world, anchors)
@@ -810,7 +645,6 @@ def validate_bindings(world, data):
     p = lambda key: content.quantity(data["parameters"][key])
     radius = p("UNIT.CollisionRadiusCm")
     geometry = Geometry(world)
-    model = PathModel(geometry, radius)
     capture = point(anchors[data["world"]["capture_id"]]["position_cm"], "capture")
     shop = point(anchors[data["world"]["shop_id"]]["position_cm"], "shop")
     capture_radius, shop_radius = p("CAPTURE.RadiusCm"), p("SHOP.InteractRadiusCm")
@@ -859,13 +693,12 @@ def validate_bindings(world, data):
     reset_radius = p("CAMP.ResetArrivalRadiusCm")
     monsters = content.rows_by_id(data["camps"]["monsters"], "monsters")
     placements = {row["anchor_id"]: monsters[row["monster_id"]] for row in data["camps"]["placements"]}
-    starts, candidates, home_clearance = {}, {}, {}
+    candidates, home_clearance = {}, {}
     for identity, row in anchors.items():
         location = point(row["position_cm"], identity)
         if row["kind"] == "Shop":
             continue
         require(geometry.legal(location, radius), "InvalidGeometry", identity, "anchor has no legal static capsule position")
-        starts[identity] = location
         if row["kind"] == "Spawn":
             for index, offset in enumerate(offsets):
                 candidate = tuple(bounded(a + b) for a, b in zip(location, offset))
@@ -887,7 +720,6 @@ def validate_bindings(world, data):
                     require(squared_distance(home, other) >= (2 * monster_radius) ** 2,
                             "InvalidGeometry", member["id"], "member homes overlap")
                 home_clearance[member["id"]] = geometry.clearance(home)
-                starts[member["id"]] = home
     min_x, min_y, _ = geometry.minimum
     max_x, max_y, _ = geometry.maximum
     sides = ((((min_x, min_y), (max_x, min_y)), 1, min_y, -1),
@@ -912,28 +744,7 @@ def validate_bindings(world, data):
     for identity, (centre, size) in geometry.circles.items():
         require(all(geometry.minimum[i] + size <= centre[i] <= geometry.maximum[i] - size for i in (0, 1)),
                 "InvalidGeometry", identity, "inner blocker leaves its surface")
-    routes = {identity: {"capture_cm": model.distance(location, capture, capture_radius),
-                         "shop_cm": model.distance(location, shop, shop_radius)}
-              for identity, location in {**starts, **candidates}.items()}
-    budget = float(p("UNIT.MoveSpeedCmPerSec") * p("TIMING.DefendRouteBudgetSec"))
-    require(all(row["capture_cm"] <= budget for row in routes.values()),
-            "WorldPath", "defend budget", "a required point exceeds the central base-speed route budget")
-    # Whole-ground route check on a regular grid of legal capsule positions. A dense sample, not a proof over every
-    # point: the free layout has no single-crossing argument like the former wall ring.
-    sampled = []
-    steps = int((max_x - min_x) // ROUTE_SAMPLE_CM)
-    for i in range(steps):
-        for j in range(int((max_y - min_y) // ROUTE_SAMPLE_CM)):
-            xy = (min_x + ROUTE_SAMPLE_CM * (i + Fraction(1, 2)), min_y + ROUTE_SAMPLE_CM * (j + Fraction(1, 2)))
-            ground = geometry.standing((*xy, 0), radius)
-            sample = (*xy, ground)
-            # Near a corner the exact disc test can pass inside the model's conservative miter; such a sample is skipped.
-            if ground is not None and geometry.legal(sample, radius) and model.legal(tuple(map(float, xy))):
-                sampled.append(model.distance(sample, capture, capture_radius))
-    require(sampled and max(sampled) <= budget, "WorldPath", "defend budget",
-            "a sampled legal position exceeds the central base-speed route budget")
-    return {"routes": routes, "home_clearance_cm": home_clearance, "sampled_route_max_cm": max(sampled),
-            "sampled_route_points": len(sampled), "spawn_candidates": len(candidates), "member_homes": len(home_clearance)}
+    return {"home_clearance_cm": home_clearance, "spawn_candidates": len(candidates), "member_homes": len(home_clearance)}
 
 
 @dataclass(frozen=True)

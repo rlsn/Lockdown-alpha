@@ -69,13 +69,12 @@
       }
     },
     "parameter_refs": {
-      "type": "array", "minItems": 10, "maxItems": 10,
+      "type": "array", "minItems": 8, "maxItems": 8,
       "items": {
         "type": "string",
         "enum": [
           "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
-          "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
-          "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"
+          "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"
         ]
       }
     },

@@ -123,8 +123,7 @@
   },
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
-    "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",
-    "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"
+    "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"
   ],
   "anchors": [
     {"id": "s00", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": 4400, "y": 0, "z": 0}},

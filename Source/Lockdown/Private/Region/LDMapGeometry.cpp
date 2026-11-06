@@ -892,8 +892,7 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
     const TCHAR* Expected[] = {
         TEXT("AIRDROP.PickupRadiusCm"), TEXT("CAMP.ResetArrivalRadiusCm"), TEXT("CAPTURE.RadiusCm"), TEXT("DORM.RadiusCm"),
         TEXT("SHOP.InteractRadiusCm"),
-        TEXT("TIMING.DefendRouteBudgetSec"), TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"),
-        TEXT("UNIT.MoveSpeedCmPerSec"), TEXT("VISION.RadiusCm")};
+        TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"), TEXT("VISION.RadiusCm")};
     constexpr int32 RefCount = UE_ARRAY_COUNT(Expected);
     if (!Array(Root.Take(TEXT("parameter_refs")), Refs, Check, TEXT("world.parameter_refs"), RefCount, RefCount)) { return false; }
     for (int32 I = 0; I < RefCount; ++I)

@@ -1056,12 +1056,10 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     FString BindingError;
     const bool Bound = Registry && Registry->Rebuild(BindingError);
     Check(Bound, TEXT("Native world registry binds every approved anchor and the ten exact starts: ") + BindingError);
-    TArray<FLDLegalGround> Locations;
-    int32 PlacementChecks = 0, PathChecks = 0, ShopApproaches = 0, CaptureApproaches = 0;
-    double LongestCaptureRoute = 0;
-    const auto& Speed = Content.Get().Parameters.MoveSpeedCmPerSec.Base;
-    const double DefendBudget = double(Speed.Numerator) / double(Speed.Denominator)
-        * double(Content.Get().Parameters.DefendRouteBudgetMs) / 1000.;
+    // Function, not layout: every authored anchor stands on legal ground, each kind of element does what its flags say
+    // (walls, fences and stalls against movement and sight, trees, ramps, cliffs), and the registry refuses bad queries.
+    // No check names a coordinate or a route of this particular map.
+    int32 PlacementChecks = 0, RampChecks = 0;
     if (Bound)
     {
         const FLDWorldRevision Revision = Registry->Revision();
@@ -1072,12 +1070,13 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             const bool Passed = Registry->QueryGround(Revision, Foot, Capsule, TEXT("demo_ground"), Legal, Failure, Why);
             return Check(Passed, TEXT("Local complete-capsule support: ") + Id + TEXT(" ") + Why);
         };
+        FVector Standing = FVector::ZeroVector;
         for (const auto& Anchor : Geometry->Anchors)
         {
             FVector Foot;
             if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
             FLDLegalGround Legal;
-            if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop && GroundAt(Foot, Anchor.Id, Legal)) { Locations.Add(Legal); }
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop && GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
             if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
             {
                 for (const auto& Offset : Geometry->SpawnOffsetsCm)
@@ -1087,55 +1086,23 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                     GroundAt(Foot + Delta, Anchor.Id + TEXT(" placement"), Legal);
                     ++PlacementChecks;
                 }
-                FLDLegalGround Origin;
-                if (GroundAt(Foot, Anchor.Id, Origin))
-                {
-                    for (FName Target : {FName(TEXT("shop")), FName(TEXT("capture"))})
-                    {
-                        FLDLegalGround Approach;
-                        FLDCompletePath Path;
-                        FString Why;
-                        const bool Reached = Registry->FindPublicApproach(Revision, Origin, Target, Capsule, Approach, Path, Failure, Why);
-                        Check(Reached, TEXT("Complete native approach from ") + Anchor.Id + TEXT(" to ") + Target.ToString() + TEXT(": ") + Why);
-                        if (Target == TEXT("shop")) { ++ShopApproaches; }
-                        else
-                        {
-                            ++CaptureApproaches;
-                            if (Reached) { LongestCaptureRoute = FMath::Max(LongestCaptureRoute, Path.LengthCm); }
-                            Check(Reached && Path.LengthCm <= DefendBudget, TEXT("Approved native return-to-circle route budget: ") + Anchor.Id);
-                        }
-                    }
-                }
             }
             for (const auto& Home : Anchor.Members)
             {
                 if (!Home.PositionCm.ToVector(Foot, Error)) { return false; }
-                if (GroundAt(Foot, Home.Id, Legal)) { Locations.Add(Legal); }
-            }
-        }
-        for (int32 I = 0; I < Locations.Num(); ++I)
-        {
-            for (int32 J = I + 1; J < Locations.Num(); ++J)
-            {
-                FLDCompletePath Path;
-                FString Why;
-                const bool Passed = Registry->QueryCompletePath(Revision, Locations[I], Locations[J], Capsule, Path, Failure, Why);
-                Check(Passed, FString::Printf(TEXT("Complete native route %d -> %d: "), I, J) + Why);
-                ++PathChecks;
+                GroundAt(Foot, Home.Id, Legal);
             }
         }
         FLDLegalGround Result;
         FString Why;
-        Check(!Registry->QueryGround(Revision, FVector::ZeroVector, Capsule, NAME_None, Result, Failure, Why)
+        Check(!Registry->QueryGround(Revision, Standing, Capsule, NAME_None, Result, Failure, Why)
             && Failure == ELDWorldQueryFailure::InvalidSurface, TEXT("Missing surface identity is rejected"));
         FLDWorldRevision Stale = Revision;
         ++Stale.GeometryRevision;
-        Check(!Registry->QueryGround(Stale, FVector::ZeroVector, Capsule, TEXT("demo_ground"), Result, Failure, Why)
+        Check(!Registry->QueryGround(Stale, Standing, Capsule, TEXT("demo_ground"), Result, Failure, Why)
             && Failure == ELDWorldQueryFailure::StaleWorld, TEXT("Stale geometry identity is rejected"));
-        Check(!Registry->QueryGround(Revision, FVector(0, 0, 100), Capsule, TEXT("demo_ground"), Result, Failure, Why)
-            && Failure == ELDWorldQueryFailure::NotGrounded, TEXT("Off-ground point is not projected onto a distant floor"));
-        Check(!Registry->QueryGround(Revision, FVector(0, -1900, 0), Capsule, TEXT("demo_ground"), Result, Failure, Why)
-            && Failure == ELDWorldQueryFailure::Blocked, TEXT("A source wall blocks the actual capsule"));
+        Check(!Registry->QueryGround(Revision, Standing + FVector(0, 0, 100), Capsule, TEXT("demo_ground"), Result, Failure, Why)
+            && Failure == ELDWorldQueryFailure::NotGrounded, TEXT("A point above legal ground is not projected onto the floor"));
         // #97: every ramp carries the capsule from the foot of its low edge, over its slope, onto the plateau above. The
         // ends stand a metre clear of the ramp so Recast's simplified seam polygons at its edges do not move them.
         const LDDemoWorld::FTerrain& Ground = Registry->GetTerrain();
@@ -1159,8 +1126,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             FLDCompletePath Path;
             Why.Reset();
             const bool Climbs = Ends && Registry->QueryCompletePath(Revision, Bottom, Top, Capsule, Path, Failure, Why);
-            Check(Climbs, TEXT("Complete native route over ramp: ") + Ramp.Id + TEXT(" ") + Why);
-            ++PathChecks;
+            Check(Climbs, TEXT("A ramp is walkable from its foot to its top: ") + Ramp.Id + TEXT(" ") + Why);
+            ++RampChecks;
         }
     }
     // Every plateau edge outside a ramp is a cliff: its face stops the capsule lifted past the step height.
@@ -1190,65 +1157,49 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                 FString::Printf(TEXT("Cliff stops the capsule above step height: %s edge %d"), *Plateau.Id, I));
         }
     }
+    // Every blocker, on a line through it across its thinnest side: its own collision stops the capsule, and it
+    // spans the eye-height sight line exactly when it is declared to block sight (walls and trees do; fences and the
+    // shop stall stay under the sight sample). Channel responses are checked per blocker above.
     const double Eye = double(Geometry->SightSampleHeightCm.Numerator) / double(Geometry->SightSampleHeightCm.Denominator);
-    Check(!World.LineTraceTestByChannel(FVector(0, 1500, Eye), FVector(0, 2600, Eye), ECC_GameTraceChannel2),
-        TEXT("Sight crosses the actual north entrance"));
-    Check(World.LineTraceTestByChannel(FVector(0, -1650, Eye), FVector(0, -2150, Eye), ECC_GameTraceChannel2),
-        TEXT("Sight is occluded by the actual south inner wall"));
-    const auto* Shop = Geometry->Anchors.FindByPredicate([](const auto& A) { return A.Kind == ELDDemoWorldAnchorKind::Shop; });
-    FVector ShopFoot;
-    if (!Shop || !Shop->PositionCm.ToVector(ShopFoot, Error)) { return false; }
-    const FVector Left = ShopFoot - FVector(150, 0, 0), Right = ShopFoot + FVector(150, 0, 0);
-    Check(!World.LineTraceTestByChannel(Left + FVector(0, 0, Eye), Right + FVector(0, 0, Eye), ECC_GameTraceChannel2),
-        TEXT("The low shop stall does not block sight"));
-    FCollisionQueryParams Sweep(SCENE_QUERY_STAT(DemoShopMovement), false);
-    if (FloorActor) { Sweep.AddIgnoredActor(FloorActor); }
-    Check(World.SweepTestByChannel(Left + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
-        Right + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
-        TEXT("The same shop stall blocks native capsule movement"));
-    // Every tree trunk stops the actual capsule and, when it blocks sight, the eye-height sight trace through it.
     for (const auto& Blocker : Geometry->Blockers)
     {
-        if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder) { continue; }
-        FVector Centre;
-        if (!Blocker.CenterCm.ToVector(Centre, Error)) { return false; }
-        const double Radius = double(Blocker.RadiusCm.Numerator) / double(Blocker.RadiusCm.Denominator);
-        const FVector Across(Radius + Capsule.GetCapsuleRadius() + 10, 0, 0);
-        Check(World.LineTraceTestByChannel(Centre - Across + FVector(0, 0, Eye), Centre + Across + FVector(0, 0, Eye),
-            ECC_GameTraceChannel2) == Blocker.BlocksSight, TEXT("Tree sight classification matches the source: ") + Blocker.Id);
-        Check(World.SweepTestByChannel(Centre - Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
-            Centre + Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
-            TEXT("Tree trunk blocks native capsule movement: ") + Blocker.Id);
-    }
-    // Every fence stops the capsule crossing its thin axis while the eye-height sight trace passes over it.
-    for (const auto& Blocker : Geometry->Blockers)
-    {
-        if (BlockerMaterialPath(*Geometry, Blocker) != FenceMaterialPath) { continue; }
+        const auto* Actor = Meshes.FindRef(Blocker.Id);
+        if (!Actor) { continue; }
         TArray<FVector2D> Footprint;
         if (!LDDemoWorld::Footprint(Blocker, Footprint, Error)) { return false; }
-        FBox2D Box(Footprint);
-        const FVector2D Size = Box.GetSize(), Centre2 = Box.GetCenter();
-        const FVector2D Across = (Size.X < Size.Y ? FVector2D(Size.X * .5, 0) : FVector2D(0, Size.Y * .5))
-            + (Size.X < Size.Y ? FVector2D(1, 0) : FVector2D(0, 1)) * (Capsule.GetCapsuleRadius() + 10);
-        const FVector Centre(Centre2.X, Centre2.Y, Blocker.PolygonCm[0].Z.Denominator > 0
-            ? double(Blocker.PolygonCm[0].Z.Numerator) / double(Blocker.PolygonCm[0].Z.Denominator) : 0);
-        const FVector Side(Across.X, Across.Y, 0);
-        Check(!World.LineTraceTestByChannel(Centre - Side + FVector(0, 0, Eye), Centre + Side + FVector(0, 0, Eye), ECC_GameTraceChannel2),
-            TEXT("A fence does not block sight: ") + Blocker.Id);
-        Check(World.SweepTestByChannel(Centre - Side + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + 1),
-            Centre + Side + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + 1), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
-            TEXT("A fence blocks native capsule movement: ") + Blocker.Id);
+        FVector2D Centre = FVector2D::ZeroVector, Edge = FVector2D::ZeroVector;
+        for (int32 I = 0; I < Footprint.Num(); ++I)
+        {
+            Centre += Footprint[I] / Footprint.Num();
+            const FVector2D Side = Footprint[(I + 1) % Footprint.Num()] - Footprint[I];
+            if (Side.SizeSquared() > Edge.SizeSquared()) { Edge = Side; }
+        }
+        const FVector2D Normal = FVector2D(-Edge.Y, Edge.X).GetSafeNormal();
+        double Reach = 0;
+        for (const FVector2D& Point : Footprint) { Reach = FMath::Max(Reach, FMath::Abs(FVector2D::DotProduct(Point - Centre, Normal))); }
+        const FVector2D Across = Normal * (Reach + Capsule.GetCapsuleRadius() + 10);
+        FVector Base;
+        if (!(Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder ? Blocker.CenterCm : Blocker.PolygonCm[0]).ToVector(Base, Error)) { return false; }
+        const auto Line = [&](double Height, FVector& From, FVector& To)
+        {
+            From = FVector(Centre.X - Across.X, Centre.Y - Across.Y, Base.Z + Height);
+            To = FVector(Centre.X + Across.X, Centre.Y + Across.Y, Base.Z + Height);
+        };
+        FVector From, To;
+        FHitResult Hit;
+        UStaticMeshComponent* Component = Actor->GetStaticMeshComponent();
+        Line(Capsule.GetCapsuleHalfHeight() + 1, From, To);
+        Check(Component->SweepComponent(Hit, From, To, FQuat::Identity, Capsule), TEXT("A blocker stops native capsule movement: ") + Blocker.Id);
+        Line(Eye, From, To);
+        Check(Component->LineTraceComponent(Hit, From, To, FCollisionQueryParams(SCENE_QUERY_STAT(DemoBlockerSight), false)) == Blocker.BlocksSight,
+            TEXT("A blocker spans the eye-height sight line exactly when it blocks sight: ") + Blocker.Id);
     }
     Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
     Report->SetBoolField(TEXT("passed"), Good);
     Report->SetStringField(TEXT("world_sha256"), Definition.Checksum);
     Report->SetStringField(TEXT("catalog_sha256"), Content.Get().Identity.Root.ToHex());
     Report->SetNumberField(TEXT("spawn_placement_checks"), PlacementChecks);
-    Report->SetNumberField(TEXT("native_path_checks"), PathChecks);
-    Report->SetNumberField(TEXT("shop_approach_checks"), ShopApproaches);
-    Report->SetNumberField(TEXT("capture_approach_checks"), CaptureApproaches);
-    Report->SetNumberField(TEXT("max_capture_route_cm"), LongestCaptureRoute);
-    Report->SetNumberField(TEXT("defend_route_budget_cm"), DefendBudget);
+    Report->SetNumberField(TEXT("ramp_checks"), RampChecks);
     Report->SetArrayField(TEXT("checks"), Checks);
     if (!FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(ReportDirectory),
         FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
