@@ -30,9 +30,11 @@ public:
     {
         // The local units are scaled to the drawn size, so the arrow follows the software cursor scale.
         const float Unit=float(Geometry.GetLocalSize().X)/(2.f*CursorHalf);
-        TArray<FVector2f> Loop;
+        // The outline closes on a copy of its first corner: adding an element of the array to itself is refused.
+        TArray<FVector2f> Loop;Loop.Reserve(UE_ARRAY_COUNT(CursorShape)+1);
         for(const FVector2f& Corner:CursorShape){Loop.Add((Corner+FVector2f(CursorHalf,CursorHalf))*Unit);}
-        Loop.Add(Loop[0]);
+        const FVector2f Start=Loop[0];
+        Loop.Add(Start);
         const FPaintGeometry Paint=Geometry.ToPaintGeometry();
         // The glow: wide, faint strokes under the face, narrowing and brightening toward the edge.
         if(Glow.A>0.f)
