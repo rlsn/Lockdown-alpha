@@ -59,7 +59,7 @@
     "STAT.AttackRange.Max": {"unit": "cm", "value": 1000},
     "UNIT.BasicAttackWindupSec": {"unit": "s", "value": 0.250},
     "VISION.RadiusCm": {"unit": "cm", "value": 1400},
-    "SHOP.InteractRadiusCm": {"unit": "cm", "value": 350},
+    "SHOP.InteractRadiusCm": {"unit": "cm", "value": 600},
     "CAPTURE.RadiusCm": {"unit": "cm", "value": 300},
     "CAPTURE.SpraySec": {"unit": "s", "value": 3.5},
     "CAPTURE.GuardSec": {"unit": "s", "value": 20},

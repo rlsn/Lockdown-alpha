@@ -7409,7 +7409,7 @@
     "REWARD.PlayerXP.PerLevel": 20,
     "SHOP.InteractRadiusCm": {
       "denominator": 1,
-      "numerator": 350,
+      "numerator": 600,
       "unit": "cm"
     },
     "SHOP.SellRatio": {

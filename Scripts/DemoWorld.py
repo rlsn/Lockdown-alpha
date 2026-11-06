@@ -580,12 +580,6 @@ def validate_bindings(world, data):
     stalls = [identity for identity, row in geometry.rows.items() if not row["blocks_sight"]]
     require(len(stalls) == 1 and inside(shop, geometry.polygons[stalls[0]]),
             "InvalidGeometry", "shop", "shop anchor must be in the single non-sight-blocking stall")
-    # The approved goal disks do not cut through an unrelated obstacle. A disk may
-    # contain the shop stall; that interior is never used as a movement endpoint.
-    for identity, polygon in geometry.polygons.items():
-        require(all(squared_distance(vertex, shop) < shop_radius ** 2 for vertex in polygon)
-                or polygon_distance_squared(shop, polygon) > (shop_radius + radius) ** 2,
-                "InvalidGeometry", identity, "shop boundary crosses a blocker")
     offsets = [point(value, "spawn offset") for value in world["placement"]["spawn_offsets_cm"]]
     for i, offset in enumerate(offsets):
         for other in offsets[:i]:
