@@ -74,12 +74,15 @@ class PlanTest(unittest.TestCase):
             self.git(root, 'init', '-q')
             self.git(root, 'add', '.')
             self.git(root, 'commit', '-q', '-m', 'one')
-            self.assertEqual(release.plan(root), {'version': '0.10.0', 'bump': False, 'released': False})
+            self.assertEqual(release.plan(root),
+                             {'version': '0.10.0', 'bump': False, 'released': False, 'released_by': ''})
             self.git(root, 'tag', 'v0.10.0')
-            self.assertEqual(release.plan(root), {'version': '0.10.1', 'bump': True, 'released': True})
+            self.assertEqual(release.plan(root),
+                             {'version': '0.10.1', 'bump': True, 'released': True, 'released_by': 'v0.10.0'})
             release.apply('0.10.1', root)
             self.git(root, 'commit', '-q', '-am', 'bump')
-            self.assertEqual(release.plan(root), {'version': '0.10.1', 'bump': False, 'released': False})
+            self.assertEqual(release.plan(root),
+                             {'version': '0.10.1', 'bump': False, 'released': False, 'released_by': ''})
             self.assertEqual((root / 'Config' / 'DefaultGame.ini').read_bytes(),
                              INI.replace(b'0.10.0', b'0.10.1'))
 
@@ -98,11 +101,53 @@ class PlanTest(unittest.TestCase):
             self.git(root, 'commit', '-q', '-am', 'bump')
             self.git(root, 'tag', 'v0.10.1')
             self.git(root, 'switch', '-q', 'main')
-            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': True})
+            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': True,
+                                                  'released_by': 'v0.10.0,v0.10.1'})
             self.git(root, 'commit', '-q', '--allow-empty', '-m', 'two')
-            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': False})
+            self.assertEqual(release.plan(root),
+                             {'version': '0.10.2', 'bump': True, 'released': False, 'released_by': ''})
             self.git(root, 'tag', 'v0.10.2-rc')
             self.assertEqual(release.plan(root)['released'], False)
+
+    def release_on_top(self, root, version):
+        # What the nightly does: a detached version commit on main's tip, reachable only through its tag.
+        self.git(root, 'switch', '-q', '--detach')
+        release.apply(version, root)
+        self.git(root, 'commit', '-q', '-am', f'chore: release version {version}')
+        self.git(root, 'tag', '-a', '-m', version, f'v{version}')
+        self.git(root, 'switch', '-q', 'main')
+
+    def shallow_clone(self, origin, target):
+        # The CI workspace: a depth-1 checkout of main without tags (shared with the PR check), then the nightly's
+        # depth-1 tag fetch.
+        subprocess.run(['git', 'clone', '-q', '--depth=1', '--no-tags', '--branch', 'main', origin.as_uri(), str(target)],
+                       check=True, capture_output=True)
+        self.git(target, 'fetch', '--force', '--prune', '--depth=1', '--quiet', 'origin', '+refs/tags/*:refs/tags/*')
+
+    def test_a_shallow_workspace_sees_the_release_of_its_head(self):
+        with tempfile.TemporaryDirectory() as temp:
+            origin = Path(temp, 'origin')
+            (origin / 'Config').mkdir(parents=True)
+            (origin / 'Config' / 'DefaultGame.ini').write_bytes(INI)
+            self.git(origin, 'init', '-q', '-b', 'main')
+            self.git(origin, 'add', '.')
+            self.git(origin, 'commit', '-q', '-m', 'one')
+            self.release_on_top(origin, '0.10.1')
+            self.git(origin, 'commit', '-q', '--allow-empty', '-m', 'two')
+            self.git(origin, 'commit', '-q', '--allow-empty', '-m', 'three')
+            self.release_on_top(origin, '0.10.2')
+
+            released = Path(temp, 'released')
+            self.shallow_clone(origin, released)
+            self.assertTrue((released / '.git' / 'shallow').is_file())
+            self.assertEqual(release.plan(released), {'version': '0.10.3', 'bump': True, 'released': True,
+                                                      'released_by': 'v0.10.2'})
+
+            self.git(origin, 'commit', '-q', '--allow-empty', '-m', 'four')
+            unreleased = Path(temp, 'unreleased')
+            self.shallow_clone(origin, unreleased)
+            self.assertEqual(release.plan(unreleased),
+                             {'version': '0.10.3', 'bump': True, 'released': False, 'released_by': ''})
 
 
 if __name__ == '__main__':

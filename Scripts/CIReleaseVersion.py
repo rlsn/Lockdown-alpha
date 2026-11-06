@@ -1,13 +1,16 @@
 """Choose and apply the product version for the nightly release.
 
-plan:  print `version=X.Y.Z`, `bump=true|false` and `released=true|false` (a vX.Y.Z tag already contains HEAD).
+plan:  print `version=X.Y.Z`, `bump=true|false`, `released=true|false` and `released_by=<tags>` (the vX.Y.Z tags that
+       already release HEAD, comma-separated).
 apply: write ProjectVersion=X.Y.Z into Config/DefaultGame.ini, changing only that value.
 
 Version rule: when the ini version has no tag yet and is newer than every vX.Y.Z tag (a hand-edited minor/major bump
 merged to main), release it as is. Otherwise release the patch after the newer of the ini version and the latest tag.
 
 The version commit is never pushed to main: the release tag points at it and its parent is the main commit it
-releases, so a tag that contains HEAD means that main commit is already released.
+releases. So HEAD is released when a vX.Y.Z tag's commit is HEAD (the ini version released as is) or has HEAD as its
+first parent. The check reads only the tag commits themselves, so it works in the shallow CI workspace, where the tags
+are fetched at depth 1 and `git tag --contains` cannot see their history.
 """
 
 import argparse
@@ -89,11 +92,34 @@ def _git(root, *args):
     return result.stdout.splitlines()
 
 
+def _first_parent(root, commit):
+    # The raw commit header: a shallow commit's parent line is still there, though git treats it as parentless.
+    for line in _git(root, "cat-file", "commit", commit):
+        if not line:
+            return None
+        if line.startswith("parent "):
+            return line.split()[1]
+    return None
+
+
+def released_by(root=ROOT):
+    """Return the vX.Y.Z tags whose commit is HEAD or has HEAD as its first parent."""
+    head = _git(root, "rev-parse", "--verify", "HEAD")[0]
+    tags = []
+    for tag in _git(root, "tag", "--list", "v*"):
+        if not TAG.match(tag):
+            continue
+        commit = _git(root, "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}")[0]
+        if head in (commit, _first_parent(root, commit)):
+            tags.append(tag)
+    return tags
+
+
 def plan(root=ROOT):
     ini = read_project_version((Path(root) / INI).read_bytes())
     version, bump = next_version(ini, _git(root, "tag", "--list", "v*"))
-    released = bool(tag_versions(_git(root, "tag", "--list", "v*", "--contains", "HEAD")))
-    return {"version": version, "bump": bump, "released": released}
+    tags = released_by(root)
+    return {"version": version, "bump": bump, "released": bool(tags), "released_by": ",".join(tags)}
 
 
 def apply(version, root=ROOT):

@@ -362,7 +362,10 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 `.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行（只能选 `main`）。
 它只在维护者本机的自托管 runner（标签 `lockdown-ue58`）上执行，每次运行发布一个试玩版本，
 检出的是任务开始时 `main` 的最新提交（不是排队时的提交）：
-- `main` 上没有新提交（已有 `vX.Y.Z` tag 包含 HEAD）时直接跳过；手动运行勾选 `force` 时仍发布下一个 patch。
+- `main` 上没有新提交（已有 `vX.Y.Z` tag 指向 HEAD，或指向以 HEAD 为父提交的版本提交）时直接跳过；
+  手动运行勾选 `force` 时仍发布下一个 patch。
+  检出与 PR check 的 `native` 一样只取深度 1，tag 也按深度 1 单独拉取，判断只读 tag 提交本身，不需要历史：
+  两者共用工作区，取全历史会让每次运行都在 PR check 之后重新拉全部历史，这台 runner 的网络上这种长传输会被重置。
 - `Scripts/CIReleaseVersion.py` 选版本：`Config/DefaultGame.ini` 的 `ProjectVersion` 还没有 tag 且比最新 tag 新时
   直接使用（有人经 PR 改到新的 minor/major）；否则取两者较新者的 patch+1。
   需要改 ini 时，工作流在 `main` 最新提交之上本地提交 `chore: release version X`，打包这个提交。
