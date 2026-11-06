@@ -252,7 +252,6 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.WorldLabels.Whitelist",
         "Lockdown.Rules.WorldLabels.HealthBar",
         "Lockdown.Rules.WorldLabels.OwnBars",
-        "Lockdown.Rules.WorldLabels.ReadinessPips",
     }
 )
 

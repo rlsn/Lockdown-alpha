@@ -1,5 +1,6 @@
 #include "Framework/LDGameInstance.h"
 #include "Core/LDLog.h"
+#include "UI/LDCursor.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDDemoEntry.h"
@@ -182,6 +183,13 @@ bool ULDGameInstance::AllocateMatchGeneration(uint32& Generation, FString& Error
         return false;
     }
     return true;
+}
+
+void ULDGameInstance::OnStart()
+{
+    Super::OnStart();
+    // A dedicated server has no viewport and no pointer.
+    if (UGameViewportClient* Viewport = GetGameViewportClient()) { LDCursor::Install(*Viewport); }
 }
 
 void ULDGameInstance::Init()

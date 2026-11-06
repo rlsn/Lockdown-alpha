@@ -33,7 +33,6 @@ constexpr float WorldLabelCullMargin=160.f;
 // Local units at the 1080p reference; every bar, badge and pip also has a one-unit rim.
 constexpr float WorldBarHeight=6.f,WorldShieldLine=2.f,WorldBadgeSide=20.f,WorldBadgeGap=3.f,WorldRowGap=2.f;
 constexpr float OwnBarWidth=84.f,OwnHealthHeight=8.f,OwnManaHeight=4.f;
-constexpr float WorldPipWidth=10.f,WorldPipHeight=4.f,WorldPipGap=2.f;
 // Contenders sit between the two camp tiers; the high-tier camp body is drawn larger, so its bar is wider.
 float WorldBarWidth(const LDWorldLabels::FLabel& Label)
 {return Label.bContender?72.f:Label.CreatureId==uint8(ELDDemoMonsterId::MonsterDean)?110.f
@@ -55,12 +54,6 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     default: return WorldLabelStatusInk;
     }
 }
-const FLinearColor WorldPipCooling(FColor(0x3A,0x3F,0x46));
-const FLinearColor WorldPipControlled(FColor(0xB0,0x4A,0xCF));
-// The HUD band's action order and the own status control bits that forbid each entry kind, as in ULDHUD's action
-// slots: character actives cast, equipment actives use gear.
-const ELDCombatEntry WorldPipEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2};
-const uint8 WorldPipControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Gear)};
 // The UI's default CJK-capable font at the local text scale, outlined so a label reads over any ground or body.
 FSlateFontInfo WorldLabelFont(const FName Typeface,int32 Size,float TextScale,int32 OutlineSize=2)
 {
@@ -107,29 +100,6 @@ LDWorldLabels::FOwnBars LDWorldLabels::OwnBars(const FLDOwnerState& Own,uint32 P
     Bars.bMana=Combat.MaxMPP2>0&&Combat.MPP2>=0;
     if(Bars.bMana){Bars.Mana=float(FMath::Clamp(double(Combat.MPP2)/double(Combat.MaxMPP2),0.,1.));}
     return Bars;
-}
-
-LDWorldLabels::EReadinessPip LDWorldLabels::ReadinessPip(const LDHUD::FActionView& View)
-{
-    const uint32 Blocks=View.ExecutionBlocks;
-    if(Blocks&(LDHUD::ActionEmpty|LDHUD::ActionNoActive|LDHUD::ActionUnsynced|LDHUD::ActionDead|LDHUD::ActionNotPlaying)){return EReadinessPip::Hidden;}
-    if((Blocks&LDHUD::ActionCooldown)||View.CooldownRemainingMs>0){return EReadinessPip::Cooling;}
-    if(Blocks&LDHUD::ActionControlled){return EReadinessPip::Controlled;}
-    if(Blocks&LDHUD::ActionMana){return EReadinessPip::NoMana;}
-    return Blocks?EReadinessPip::Cooling:EReadinessPip::Ready;
-}
-
-LDWorldLabels::EReadinessPip LDWorldLabels::OwnReadinessPip(const FLDCombatOwnerView& Combat,int32 Index,const LDHUD::FActionContext& Context,const FLDDemoContentDefinitions* Content)
-{
-    if(Index<0||Index>=int32(UE_ARRAY_COUNT(WorldPipEntries))){return EReadinessPip::Hidden;}
-    const LDHUD::EActionSlot Kind=static_cast<LDHUD::EActionSlot>(Index);
-    const ELDCombatEntry Wanted=WorldPipEntries[Index];
-    const FLDCombatEntryView* Source=Combat.Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;});
-    uint8 ControlBits=0;
-    for(const FLDCombatStatusView& Status:Combat.Statuses){ControlBits|=Status.ControlBlocks;}
-    LDHUD::FActionInput Input;Input.Slot=Kind;
-    if(Source){Input=LDHUD::ActionInput(*Source,Kind,Content);Input.bControlled=(ControlBits&WorldPipControl[Index])!=0;}
-    return ReadinessPip(LDHUD::Action(Input,Context));
 }
 
 void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
@@ -189,9 +159,9 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))
         {
-            // Bottom-up from the anchor: the Q/W/1/2 readiness pips, then mana under health (the shield after its fill) in one rim.
-            const float PipRow=WorldPipHeight+2.f,RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMana?OwnManaHeight+1.f:0.f);
-            const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-PipRow-WorldRowGap-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
+            // Bottom-up from the anchor: mana under health (the shield after its fill) in one rim.
+            const float RimW=OwnBarWidth+2.f,RimH=OwnHealthHeight+2.f+(SelfBars.bMana?OwnManaHeight+1.f:0.f);
+            const float RimLeft=OwnX-RimW*.5f,RimTop=OwnBottom-RimH,BarX=RimLeft+1.f,HealthTop=RimTop+1.f;
             Box(1,FVector2f(RimLeft,RimTop),FVector2f(RimW,RimH),LDHUDStyle::Rim);
             Box(2,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth,OwnHealthHeight),LDHUDStyle::BarTrack);
             if(SelfBars.Health>0.f){Box(3,FVector2f(BarX,HealthTop),FVector2f(OwnBarWidth*SelfBars.Health,OwnHealthHeight),LDHUDStyle::OwnHealth);}
@@ -201,28 +171,6 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
                 const float ManaTop=HealthTop+OwnHealthHeight+1.f;
                 Box(2,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth,OwnManaHeight),LDHUDStyle::BarTrack);
                 if(SelfBars.Mana>0.f){Box(3,FVector2f(BarX,ManaTop),FVector2f(OwnBarWidth*SelfBars.Mana,OwnManaHeight),LDHUDStyle::Mana);}
-            }
-            // The pips classify the band's own action views under the band's context (ULDHUD::RefreshReadModel).
-            const FLDPublicMatchView& MatchView=Public->PublicMatch;
-            const bool bOwnMatch=MatchView.Generation!=0&&MatchView.Generation==Own.Match;
-            LDHUD::FActionContext ActionContext;
-            ActionContext.bOwnContext=bOwnMatch&&Own.Life!=0;
-            ActionContext.bPlaying=bOwnMatch&&(MatchView.Phase==ELDMatchPhase::Development||MatchView.Phase==ELDMatchPhase::CaptureOpen);
-            ActionContext.bAlive=Own.LifePhase==ELDLifePhase::Alive;
-            int64 NowMs=0;const bool bClock=PC->ReadDemoAuthorityTimeMs(NowMs);
-            ActionContext.bClock=bClock;ActionContext.NowMs=NowMs;
-            ActionContext.bInputCaptured=PC->IsWorldInputSuppressed();
-            ActionContext.bManaKnown=PC->CombatView.bHasBody&&PC->CombatView.MaxMPP2>0;ActionContext.ManaP2=PC->CombatView.MPP2;
-            const float PipLeft=OwnX-(4.f*WorldPipWidth+3.f*WorldPipGap)*.5f,PipTop=OwnBottom-PipRow+1.f;
-            for(int32 Index=0;Index<4;++Index)
-            {
-                const LDWorldLabels::EReadinessPip Pip=LDWorldLabels::OwnReadinessPip(PC->CombatView,Index,ActionContext,Content);
-                if(Pip==LDWorldLabels::EReadinessPip::Hidden){continue;}
-                const FLinearColor& PipTint=Pip==LDWorldLabels::EReadinessPip::Ready?LDHUDStyle::TextAccent:Pip==LDWorldLabels::EReadinessPip::NoMana?LDHUDStyle::Mana
-                    :Pip==LDWorldLabels::EReadinessPip::Controlled?WorldPipControlled:WorldPipCooling;
-                const float PipX=PipLeft+float(Index)*(WorldPipWidth+WorldPipGap);
-                Box(1,FVector2f(PipX-1.f,PipTop-1.f),FVector2f(WorldPipWidth+2.f,PipRow),LDHUDStyle::Rim);
-                Box(3,FVector2f(PipX,PipTop),FVector2f(WorldPipWidth,WorldPipHeight),PipTint);
             }
             // The own level badge left of the bars, like every contender's: the own progression of this match, in the own
             // identity tint. Without a known level there is no badge rather than a guessed number.

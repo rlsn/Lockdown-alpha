@@ -2725,8 +2725,7 @@ public:
         else
         {
             Buy2Receipt = *Seen;
-            // Review evidence of the rendered buyer (never a check): the open shop with both held items and their
-            // #112 upgrade (进阶) entries.
+            // Review evidence of the rendered buyer (never a check): the open shop once both slots hold an item.
             if (FApp::CanEverRender())
             { FScreenshotRequest::RequestScreenshot(FPaths::Combine(Output, Role + TEXT("ShopUpgrade.png")), true, false); }
         }

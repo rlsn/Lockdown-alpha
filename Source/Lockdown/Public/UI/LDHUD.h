@@ -22,8 +22,9 @@ struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// One Q/W/1/2 entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
-// can be submitted; execution limits grey and explain it but never replace the server's decision.
+// One Q/W/1/2/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
+// can be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
+// the icon, the rank and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
 {
@@ -31,15 +32,20 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<USizeBox> Box;
     UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
+    // Placeholder icon until real art lands (#93): a rounded square in the entry kind's colour with the name's first glyph.
+    UPROPERTY() TObjectPtr<UBorder> Icon;
+    UPROPERTY() TObjectPtr<UTextBlock> Glyph;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
+    UPROPERTY() TObjectPtr<UBorder> RankChip;
+    UPROPERTY() TObjectPtr<UTextBlock> Rank;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
-    UPROPERTY() TObjectPtr<UTextBlock> Name;
-    UPROPERTY() TObjectPtr<UTextBlock> State;
-    // Full-slot cooldown mask, its remaining time, the control badge and the ready flash, drawn over the slot in that order.
+    // Equipment slots: the held instance this slot shows (invalid otherwise) and the yellow "S" disc of a pre-sold item.
+    FGuid ItemInstance;
+    UPROPERTY() TObjectPtr<USizeBox> PresellMark;
+    // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
-    UPROPERTY() TObjectPtr<UBorder> Badge;
     UPROPERTY() TObjectPtr<UBorder> Flash;
     // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
     int32 AppliedLook=-1;
@@ -49,8 +55,7 @@ struct FLDHUDActionSlot
     uint32 CoolingMatch=0;
     uint32 CoolingLife=0;
     double FlashAt=-1;
-    FString Notice;
-    double NoticeAt=-1;
+    double RejectedAt=-1;
 };
 
 UCLASS()
@@ -71,6 +76,8 @@ protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    // Opens the item menu on a right click on an own equipment slot and closes it on any press outside it.
+    virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
@@ -135,8 +142,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfStatusText;
     UPROPERTY() TObjectPtr<UTextBlock> PassiveText;
-    UPROPERTY() TObjectPtr<UBorder> ArmedPanel;
-    UPROPERTY() TObjectPtr<UTextBlock> ArmedText;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
@@ -149,12 +154,34 @@ private:
     UPROPERTY() TObjectPtr<UBorder> ShopEntry;
     UPROPERTY() TObjectPtr<ULDCommandButton> ShopButton;
     UPROPERTY() TObjectPtr<UTextBlock> ShopButtonText;
+    // The shop entry is lit (the blind-box button's gold) while the own body stands in the shop's range; -1 before the
+    // first refresh.
+    int8 AppliedShopLit=-1;
+    // The shop entry's shared button faces, restored when it is no longer lit.
+    FButtonStyle ShopSharedStyle;
+    // The toast's own canvas slot, kept right above the band.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
     // Throttles the automatic session request for pre-orders (local presentation time of the last request).
     double PreorderOpenAt=-1;
     uint32 PreorderOpenLife=0;
     UPROPERTY() TObjectPtr<UTextBlock> CameraText;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
-    TArray<FString> ActionTips;
+    // The hovered slot's full description, popped up above it like the shop and blind-box descriptions; it takes no input.
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailName;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
+    UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
+    // The right-click menu of an own equipment slot, above it: one command that marks the held item for selling or
+    // unmarks it (ULDShopPanel::TogglePresell). It belongs to one held instance and closes when that item leaves the slot.
+    UPROPERTY() TObjectPtr<UBorder> ItemMenu;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ItemMenuSlot;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ItemMenuButton;
+    int32 ItemMenuIndex=INDEX_NONE;
+    FGuid ItemMenuInstance;
+    void OpenItemMenu(int32 SlotIndex);
+    void PlaceItemMenu();
+    void CloseItemMenu();
+    void ChooseItemMenu();
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // Blind-box button in the bottom-right corner, left of the shop entry: disabled without a pending choice; it pulses for
     // a few seconds after the count rises, then stays steady.

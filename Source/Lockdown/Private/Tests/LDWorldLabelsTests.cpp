@@ -85,14 +85,6 @@ FLDCombatOwnerView WorldLabelOwnCombat()
     Combat.HPP2=30000;Combat.MaxHPP2=60000;Combat.MPP2=5000;Combat.MaxMPP2=20000;
     return Combat;
 }
-// The four own pips in Q, W, 1, 2 order as words, so a failure names every pip.
-FString WorldLabelPips(const FLDCombatOwnerView& Combat,const LDHUD::FActionContext& Context)
-{
-    const TCHAR* const Names[]={TEXT("hidden"),TEXT("ready"),TEXT("cooling"),TEXT("mana"),TEXT("controlled")};
-    FString Line;
-    for(int32 Index=0;Index<4;++Index){Line+=(Index?TEXT(" "):TEXT(""))+FString(Names[uint8(LDWorldLabels::OwnReadinessPip(Combat,Index,Context,nullptr))]);}
-    return Line;
-}
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsContenderNameTest,"Lockdown.Rules.WorldLabels.ContenderName",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDWorldLabelsContenderNameTest::RunTest(const FString& Parameters)
@@ -286,54 +278,6 @@ bool FLDWorldLabelsOwnBarsTest::RunTest(const FString& Parameters)
     Manaless.MaxMPP2=20000;
     const LDWorldLabels::FOwnBars Spent=LDWorldLabels::OwnBars(Own,5,Manaless);
     TestTrue(TEXT("Known zero mana is an empty mana bar, not a missing one"),Spent.bMana&&Spent.Mana==0.f);
-    return true;
-}
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDWorldLabelsReadinessPipsTest,"Lockdown.Rules.WorldLabels.ReadinessPips",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDWorldLabelsReadinessPipsTest::RunTest(const FString& Parameters)
-{
-    using EPip=LDWorldLabels::EReadinessPip;
-    auto Classify=[](uint32 Blocks,int64 CooldownRemainingMs)
-    {LDHUD::FActionView View;View.ExecutionBlocks=Blocks;View.CooldownRemainingMs=CooldownRemainingMs;return LDWorldLabels::ReadinessPip(View);};
-    TestTrue(TEXT("An action without any execution limit is ready"),Classify(0,0)==EPip::Ready);
-    TestTrue(TEXT("A cooling action shows cooling"),Classify(LDHUD::ActionCooldown,3200)==EPip::Cooling);
-    TestTrue(TEXT("A remaining cooldown alone is never ready"),Classify(0,500)==EPip::Cooling);
-    TestTrue(TEXT("An action short of mana shows it"),Classify(LDHUD::ActionMana,0)==EPip::NoMana);
-    TestTrue(TEXT("A controlled action shows it"),Classify(LDHUD::ActionControlled,0)==EPip::Controlled);
-    TestTrue(TEXT("Cooling comes first, then control, then mana, as in the band's state text"),
-        Classify(LDHUD::ActionCooldown|LDHUD::ActionControlled|LDHUD::ActionMana,3200)==EPip::Cooling&&Classify(LDHUD::ActionControlled|LDHUD::ActionMana,0)==EPip::Controlled);
-    TestTrue(TEXT("An empty slot or one without an active draws no pip"),Classify(LDHUD::ActionEmpty,0)==EPip::Hidden&&Classify(LDHUD::ActionNoActive|LDHUD::ActionServer,0)==EPip::Hidden);
-    TestTrue(TEXT("An action state that is not current draws no pip, whatever else it reports"),
-        Classify(LDHUD::ActionUnsynced|LDHUD::ActionCooldown,3200)==EPip::Hidden&&Classify(LDHUD::ActionDead,0)==EPip::Hidden&&Classify(LDHUD::ActionNotPlaying|LDHUD::ActionMana,0)==EPip::Hidden);
-    TestTrue(TEXT("Any other limit, such as a published server reason, is never ready"),Classify(LDHUD::ActionServer,0)==EPip::Cooling);
-
-    // The band's own action views of one projection: Q ready, W short of mana, item 1 cooling, item 2 without an active.
-    FLDCombatOwnerView Combat=WorldLabelOwnCombat();Combat.MPP2=6000;
-    auto Entry=[](ELDCombatEntry Kind,const TCHAR* Id,bool bActive,int64 ManaCostP2,int64 ReadyAtMs)
-    {FLDCombatEntryView View;View.Entry=Kind;View.DefinitionId=Id?FName(Id):FName();View.bHasActive=bActive;View.ManaCostP2=ManaCostP2;View.ReadyAtMs=ReadyAtMs;View.CooldownMs=8000;return View;};
-    Combat.Entries={Entry(ELDCombatEntry::Q,TEXT("active_arc_bolt"),true,5000,0),Entry(ELDCombatEntry::W,TEXT("active_guard_pulse"),true,8000,0),
-        Entry(ELDCombatEntry::Item1,TEXT("item_phase_anchor"),true,0,9000),Entry(ELDCombatEntry::Item2,TEXT("item_iron_plate"),false,0,0)};
-    LDHUD::FActionContext Context;Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;
-    Context.bManaKnown=true;Context.ManaP2=Combat.MPP2;
-    TestEqualSensitive(TEXT("Each pip follows its own entry's action view"),WorldLabelPips(Combat,Context),FString(TEXT("ready mana cooling hidden")));
-    FLDCombatStatusView Control;Control.StatusId=uint8(ELDDemoStatusId::Root);Control.ControlBlocks=uint8(uint8(ELDCombatControlBlock::Move)|uint8(ELDCombatControlBlock::Displacement));
-    FLDCombatOwnerView Controlled=Combat;Controlled.Statuses.Add(Control);
-    TestEqualSensitive(TEXT("A control that forbids neither casting nor gear changes no pip"),WorldLabelPips(Controlled,Context),FString(TEXT("ready mana cooling hidden")));
-    Controlled.Statuses[0].ControlBlocks=uint8(ELDCombatControlBlock::Cast);
-    TestEqualSensitive(TEXT("A cast control marks Q and W, ahead of mana, and leaves the gear cooling"),WorldLabelPips(Controlled,Context),FString(TEXT("controlled controlled cooling hidden")));
-    Controlled.Statuses[0].ControlBlocks=uint8(ELDCombatControlBlock::Gear);Controlled.Entries[2].ReadyAtMs=0;
-    TestEqualSensitive(TEXT("A gear control marks only the equipment active, never one without an active"),WorldLabelPips(Controlled,Context),FString(TEXT("ready mana controlled hidden")));
-    FLDCombatOwnerView Missing=Combat;Missing.Entries.RemoveAt(1);
-    TestEqualSensitive(TEXT("An entry the projection does not list stays unprojected and draws no pip"),WorldLabelPips(Missing,Context),FString(TEXT("ready hidden cooling hidden")));
-    FLDCombatOwnerView Emptied=Combat;Emptied.Entries[1].DefinitionId=NAME_None;
-    TestEqualSensitive(TEXT("An empty skill slot draws no pip"),WorldLabelPips(Emptied,Context),FString(TEXT("ready hidden cooling hidden")));
-    FLDCombatOwnerView Busy=Combat;Busy.Entries[0].Unavailable=ELDCombatReject::Busy;
-    TestEqualSensitive(TEXT("A published server reason keeps the pip from reading ready"),WorldLabelPips(Busy,Context),FString(TEXT("cooling mana cooling hidden")));
-    LDHUD::FActionContext Later=Context;Later.NowMs=9000;
-    TestEqualSensitive(TEXT("A cooldown that has run out on the authority clock is ready again"),WorldLabelPips(Combat,Later),FString(TEXT("ready mana ready hidden")));
-    LDHUD::FActionContext Unclocked=Context;Unclocked.bClock=false;
-    TestEqualSensitive(TEXT("Without the authority clock a cooldown is unknown and draws no pip; an action without one stays ready"),
-        WorldLabelPips(Combat,Unclocked),FString(TEXT("ready mana hidden hidden")));
-    TestTrue(TEXT("Only Q, W, 1 and 2 have pips"),LDWorldLabels::OwnReadinessPip(Combat,-1,Context,nullptr)==EPip::Hidden&&LDWorldLabels::OwnReadinessPip(Combat,4,Context,nullptr)==EPip::Hidden);
     return true;
 }
 #endif

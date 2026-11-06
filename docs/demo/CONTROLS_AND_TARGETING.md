@@ -25,7 +25,7 @@
 | 订单（服务器） | `Source\Lockdown\Private\Navigation\LDNavigationOrders.cpp` | 收件/去重/拒旧、单一待受理槽、Shift 指令队列、激活节流、准入、追击与攻击移动、租约、终结回执。 |
 | 订单类型与规则 | `Source\Lockdown\Public\Navigation\LDOrderTypes.h`、`LDOrderRules.h`、`Source\Lockdown\Private\Navigation\LDOrderRules.cpp` | `FLDMoveIdentity`、请求/回执/失败码、`FLDOrderBook`、`LDOrderRules::NearestCandidate`、`ShouldRepeatHeldMove`。 |
 | 路径跟随 | `Source\Lockdown\Public\Navigation\LDPathSteering.h`、`Source\Lockdown\Private\Navigation\LDPathSteering.cpp` | `PlanStart`、`PlanRoute`（`EGoal::Ground/Body`）、`Steering`、`AtGoal`、`HaltLocomotion`。 |
-| 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记与悬停圈。 |
+| 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记、悬停圈与选中圈。 |
 | 输入映射与按键分派 | `Source\Lockdown\Public\Framework\LDPlayerController.h`、`Source\Lockdown\Private\Framework\LDPlayerInput.cpp` | 动态映射、按下/释放分派、Esc 返回、缩放、指针下单位拾取、检查对象。 |
 | 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/1/2/D 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
 | 本地设置 | `Source\Lockdown\Public\UI\LDControlSettings.h`、`Source\Lockdown\Private\UI\LDControlSettings.cpp`、`Source\Lockdown\Private\UI\LDControlsPanel.cpp` | 唯一动作注册表、重绑、镜头/文字/音量/小地图/快速施法偏好与保存。 |
@@ -75,11 +75,14 @@
 
 - 自己的地面订单点：绿色收缩虚线圈；本地 `LDPathSteering::PlanRoute` 检查失败时显示红叉，
   服务器拒绝仍以失败提示另行告知。
+- 自己的 A 攻击移动地面点：与地面订单完全相同的收缩虚线圈，只是红色（`ShowMove(..., bAttack=true)`）；路线检查失败时同样是红叉。
 - 自己的 `AttackUnit` 目标：红色收拢圈。
 - 悬停：右键此刻会攻击的可见单位脚下显示红色悬停圈（与攻击标记同色，带近黑描边）。
+- 选中：左键检视的可见单位脚下显示不转动的浅色密点线圈，位于悬停圈之内；HUD 不在其身上画方框。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
-- 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/D/A 准备态时为
-  Crosshairs；在砍一刀小摊交互范围内为 Hand；其他为默认。
+- 光标（`ULDNavigationComponent::TickPointer`，画法见 `LDCursor`）：所有光标类型都映射到游戏自己的软件箭头；
+  A 攻击移动待确认时为 `LDCursor::AttackAim`（红色描边光），主动技能/装备主动待确认时为 `LDCursor::CastAim`（蓝色描边光），
+  其他（含悬停单位、砍一刀小摊、指针在 UI 上）为普通箭头。
 - `ULDNavigationComponent::ReadHovered` 返回当前悬停单位；`PointerPosition` 与 `GroundUnderPointer`
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
   构建中替代鼠标，其他构建无效。
@@ -253,7 +256,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 离本人脚点最近的一点，`ShopStopCandidates` 从那里每 25 cm 退向本人，取第一个本地路线检查可达（或无法判断）的点，
 作为普通 `MoveGround` 发送；已经贴着模型时目的地就是本人所在处。移动标记仍画在点击落点（`NavigateGround` 的 `MarkerCm`），
 颜色按实际目的地是否可达。全程正常速度，到达不开店；左键模型才打开商店页面，
-本人在小摊交互半径内且页面开着或有可买预购时，HUD 才请求本命会话（UI_AND_SETTINGS 的 Shop 行）。
+本人在小摊交互半径内且页面开着、有预售或有可买预购时，HUD 才请求本命会话（UI_AND_SETTINGS 的 Shop 行）。
 
 `ApproachShop` 订单留给服务器 AI 与开店场景测试：服务器用 `ULDMapRegistry::FindPublicApproach`
 求交互半径上的接近点与完整路径，以 `QueryShopReach` 判断真实到达；到达交互半径后订单 `Completed`；

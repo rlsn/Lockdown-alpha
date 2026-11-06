@@ -586,7 +586,7 @@ Query 返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，�
 不另建商店请求流或第二套Pending队列。
 真人的开店意图由拥有者客户端在 Navigation 当前 ApproachShop 绑定的 `OnShopArrived(ShopId, Life)`
 上发送一次（Life 须仍是当前存活生命，附客户端世界修订）；本地拒绝同样以 Rejected 经 `OnShopOpenResult` 反馈。
-本人站在小摊交互半径内、本命还没有会话，且商店页面开着或有可买预购时，HUD 也经同一入口为本命请求会话（APP_SPEC §5 预购）；服务器照常做资格查询。
+本人站在小摊交互半径内、本命还没有会话，且商店页面开着、有预售或有可买预购时，HUD 也经同一入口为本命请求会话（APP_SPEC §5 预购与预售）；服务器照常做资格查询。
 AI 由服务器适配器直接调用 `QueueShopOpen`。
 核心分派时重新解析当前身体并借用当次Permit，OpenShop通过同一资格查询后才创建/复用
 私有会话并返回Opened与合法报价，失败返回Rejected；处理器本身不伪造新的Pending或Permit。

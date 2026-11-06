@@ -172,7 +172,9 @@ namespace LDHUD
         bool bProjected=false;    // a current owner combat projection exists for this match and life
         bool bHasSource=false;
         FString Name;             // display name of the bound definition
+        FName DefinitionId;       // the bound definition, for the hover description
         uint8 Rank=0;             // learned rank; equipment has none
+        bool bUpgraded=false;     // the bound equipment instance is upgraded (112 §7)
         bool bHasActive=false;
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -200,7 +202,6 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString State;
-        FString Tooltip;
         // Intent submission and execution limits are separate (UI 4): blocks grey the slot and explain why, but an
         // explicit activation is still sent so the server decides, including protection removal and EmptySource.
         bool bCanSubmitIntent=false;
@@ -208,18 +209,24 @@ namespace LDHUD
         int64 CooldownRemainingMs=0;
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
-        FString Cost;             // the active's mana cost rounded like the shown mana, e.g. "<LDTerms::Mana> 30"; empty without one
+        FString Cost;             // the active's mana cost rounded like the shown mana, number only, e.g. "30"; empty without one
+        FString Glyph;            // the placeholder icon's character (the name's first); empty without a source
+        FString Rank;             // the learned rank of Q/W, number only; empty for equipment, the dash and empty slots
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
-    // Slot look: every limit has its own look and caption, so no state relies on colour alone. A dead, unsynced or empty
+    // Slot look: the slot face says its state by colour alone (the tooltip keeps the words). A dead, unsynced or empty
     // slot outranks arming; an armed entry outranks its remaining limits, then control, cooldown, mana and server reasons.
     enum class EActionLook : uint8 { Ready, Armed, Cooling, NoMana, Controlled, Empty, Blocked };
-    struct FActionLookView
+    LOCKDOWN_API EActionLook ActionLook(const FActionView& View,bool bArmed);
+    // The hover description of a slot, laid out like the shop and blind-box popups: the name, "<kind> [<key>] · <state>",
+    // then the description, the targeting and the current rank's (or the equipment's, upgraded when it is) effect lines.
+    struct FActionDetailView
     {
-        EActionLook Look=EActionLook::Blocked;
-        FString Caption;
+        FString Name;
+        FString Summary;
+        FString Body;
     };
-    LOCKDOWN_API FActionLookView ActionLook(const FActionView& View,bool bArmed);
+    LOCKDOWN_API FActionDetailView ActionDetail(const FActionView& View,const FActionInput& Input,const FActionContext& Context,const FLDDemoContentDefinitions* Content);
 
     struct FObservedCard
     {
@@ -289,8 +296,11 @@ namespace LDHUD
     // the shop; a session's quote replaces it whenever one is shown. Empty without content.
     LOCKDOWN_API TArray<FLDShopItemView> CatalogItems(const FLDDemoContentDefinitions* Content);
     // Index into Queue of the pre-order to buy next: queue order, the first one the listing prices, the gold covers and an
-    // empty equipment slot can hold. INDEX_NONE when none qualifies (no free slot, too little gold, or not listed).
-    LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots);
+    // empty equipment slot can hold. A definition in Upgradable (a held copy whose upgrade is offered) is bought as that
+    // upgrade instead: at UpgradePrice and without a free slot, never as a second copy. INDEX_NONE when none qualifies
+    // (no free slot, too little gold, or not listed).
+    LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots,
+        const TArray<FName>& Upgradable=TArray<FName>(),int64 UpgradePrice=0);
     // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive/active terms); empty parts are omitted.
     LOCKDOWN_API TArray<FString> UpgradeLines(const FLDDemoEquipmentDefinition& Item);
     struct FAttributeRowView

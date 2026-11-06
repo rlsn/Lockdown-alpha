@@ -27,6 +27,9 @@ enum class ELDAudioCue : uint8
     SelfShieldHit,
     // The own basic attack released (melee strike or projectile launch), from the owner projection's cue facts.
     SelfAttack,
+    // A pre-order added or an item marked for pre-sell (the own shop queue), and either taken back.
+    ShopMarked,
+    ShopUnmarked,
     Count UMETA(Hidden)
 };
 

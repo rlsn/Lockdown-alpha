@@ -8,6 +8,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
+#include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -82,6 +83,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
             Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseCard(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
             Card.Button->SetContent(Face);
+            // After SetContent: replacing the caption makes a new, centred slot, which would shrink the icon and lines to
+            // their own width in the middle of the card; they start at the card's left edge instead.
+            if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
             auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(ChoicesCardWidth);Size->SetMinDesiredHeight(ChoicesCardHeight);Size->SetContent(Card.Button);
             Row->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,0,0,Index<2?8:0));
             CardWidgets.Add(Card.Button);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);

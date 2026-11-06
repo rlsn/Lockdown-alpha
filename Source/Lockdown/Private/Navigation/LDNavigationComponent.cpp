@@ -1,5 +1,6 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "Core/LDLog.h"
+#include "UI/LDCursor.h"
 #include "UI/LDTerms.h"
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
@@ -363,7 +364,12 @@ void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHin
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
     Request.bQueue=bQueue;
-    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind)) || SurfaceHint.IsNone()) { return; }
+    // The ground marker of a right-click move, in red, in the same frame; a point the local route check already refuses
+    // is the same red cross.
+    bool bKnown=false;
+    const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable,true); }
 }
 
 void ULDNavigationComponent::ApproachShop(FName ShopId)
@@ -863,8 +869,9 @@ bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) 
         LDPathSteering::EGoal::Ground,Capsule,Path,To,Failure,Error);
 }
 
-// Hover: the visible unit a right click would attack gets the ring and the attack cursor; the shop's reach gets the
-// interaction cursor; an armed entry or attack-move aims with the attack cursor. Read from the authorized frame only.
+// Hover: the visible unit a right click would attack gets the ring, read from the authorized frame only. The pointer is
+// the plain arrow except while an order waits for its left click: a confirmed attack-move glows red, a confirmed active
+// skill or equipment active blue (LDCursor); hovering a unit or the shop never changes it.
 void ULDNavigationComponent::TickPointer()
 {
     auto* PC=Controller();
@@ -874,14 +881,25 @@ void ULDNavigationComponent::TickPointer()
     ELDCombatEntry Armed=ELDCombatEntry::None;
     if (PC->CanWorldCommand() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
     {
-        FHitResult GroundHit;
-        FName Shop;
-        if (PC->ObservedUnderPointer(Hovered,HoveredEpoch)
-            || PC->IsAttackMoveArmed() || PC->ReadArmedCombatEntry(Armed)) { Cursor=EMouseCursor::Crosshairs; }
-        else if (ShopUnderPointer(Shop)) { Cursor=EMouseCursor::Hand; }
+        PC->ObservedUnderPointer(Hovered,HoveredEpoch);
+        if (PC->IsAttackMoveArmed()) { Cursor=LDCursor::AttackAim; }
+        else if (PC->ReadArmedCombatEntry(Armed)) { Cursor=LDCursor::CastAim; }
     }
-    PC->CurrentMouseCursor=Cursor;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->SetHover(Hovered,HoveredEpoch); }
+    // Slate asks for the cursor only when the pointer moves; a changed aim (A or a skill just armed, or a confirm or
+    // cancel) asks again at once, so the glow shows the moment the key is pressed.
+    if (PC->CurrentMouseCursor!=Cursor)
+    {
+        PC->CurrentMouseCursor=Cursor;
+        if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().QueryCursor(); }
+    }
+    // The inspected unit keeps its selection ring while the current authorized frame still lists it.
+    FLDObservedUnitView Inspected;
+    const bool bInspected=PC->ReadInspected(Inspected);
+    if (ALDPointerFeedback* Feedback=EnsurePointer())
+    {
+        Feedback->SetHover(Hovered,HoveredEpoch);
+        Feedback->SetSelected(bInspected?Inspected.Handle:FGuid(),bInspected?Inspected.ObservationEpoch:0);
+    }
 }
 
 void ULDNavigationComponent::ClearPointer()
@@ -889,8 +907,12 @@ void ULDNavigationComponent::ClearPointer()
     Hovered.Invalidate();
     HoveredEpoch=0;
     bHeldMove=false;
-    if (auto* PC=Controller()) { PC->CurrentMouseCursor=EMouseCursor::Default; }
-    if (ALDPointerFeedback* Feedback=Pointer.Get()) { Feedback->SetHover(FGuid(),0); }
+    if (auto* PC=Controller(); PC && PC->CurrentMouseCursor!=EMouseCursor::Default)
+    {
+        PC->CurrentMouseCursor=EMouseCursor::Default;
+        if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().QueryCursor(); }
+    }
+    if (ALDPointerFeedback* Feedback=Pointer.Get()) { Feedback->SetHover(FGuid(),0); Feedback->SetSelected(FGuid(),0); }
 }
 
 // The held move button: a new ground order toward the pointer at most 8 times a second and only after the pointer's
