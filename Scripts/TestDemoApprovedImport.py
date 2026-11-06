@@ -79,7 +79,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
-            ("SHOP.InteractRadiusCm", "cm", "350"), ("CAPTURE.RadiusCm", "cm", "300"),
+            ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"), ("TIMING.DefendRouteBudgetSec", "ms", "26"),
             ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
@@ -720,7 +720,7 @@ class ApprovedDemoData(unittest.TestCase):
 
     def test_published_route_lengths_and_whole_ground_budget(self):
         captures = (4175.255, 4175.436, 4175.833, 4175.833, 4175.436, 4175.255, 4175.554, 4175.820, 4175.820, 4175.554)
-        shops = (3354.614, 3183.627, 3479.117, 3672.275, 4718.133, 4886.361, 5224.744, 5202.690, 4647.008, 4386.503)
+        shops = (3104.614, 2933.627, 3229.117, 3422.275, 4468.133, 4636.361, 4974.744, 4952.690, 4397.008, 4136.503)
         lows = (
             (2087.615, 6923.428, 3559.634), (2088.219, 6516.459, 5110.357), (3560.434, 5111.733, 6515.950),
             (5111.733, 3560.434, 6923.191), (6516.459, 2088.219, 6922.817), (6923.428, 2087.615, 6515.710),
@@ -737,8 +737,8 @@ class ApprovedDemoData(unittest.TestCase):
                 target = world.point(self.anchors[camp_id]["position_cm"], camp_id)
                 self.assertAlmostEqual(self.model.distance(start, target, 0), expected, delta=.00051)
         for identity, capture, shop in (
-            ("l1", 2300.103, 1345.505), ("h1", 2300, 1640.297), ("l2", 2300.103, 2901.504),
-            ("h2", 2299.499, 3340.230), ("l3", 2299.499, 2631.535),
+            ("l1", 2300.103, 1095.505), ("h1", 2300, 1390.297), ("l2", 2300.103, 2651.504),
+            ("h2", 2299.499, 3090.230), ("l3", 2299.499, 2381.535),
         ):
             self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
             self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
