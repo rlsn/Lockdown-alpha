@@ -656,7 +656,7 @@ void ULDHUD::CloseItemMenu()
 void ULDHUD::ChooseItemMenu()
 {
     const FGuid Chosen=ItemMenuInstance;CloseItemMenu();
-    if(!ShopPanel){UE_LOG(LogTemp,Error,TEXT("LD_HUD_ITEM_MENU_NO_SHOP The item menu has no shop panel to mark the sale with."));return;}
+    if(!ShopPanel){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_ITEM_MENU_NO_SHOP The item menu has no shop panel to mark the sale with."));return;}
     if(Chosen.IsValid()){ShopPanel->TogglePresell(Chosen);}
 }
 FReply ULDHUD::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)

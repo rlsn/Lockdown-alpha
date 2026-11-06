@@ -701,7 +701,7 @@ void ULDShopPanel::RefreshPreorders()
 void ULDShopPanel::Sound(ELDAudioCue Cue) const
 {
     if(PlayCue){PlayCue(Cue);return;}
-    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_CUE_UNAVAILABLE The HUD did not connect shop cues; unplayed: %s"),*LDAudio::CueId(Cue));
+    UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_CUE_UNAVAILABLE The HUD did not connect shop cues; unplayed: %s"),*LDAudio::CueId(Cue));
 }
 void ULDShopPanel::NotifyPlayer(const FString& Notice) const
 {
