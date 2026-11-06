@@ -110,14 +110,15 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         {
             ULDCommandButton* Chip=LDWidgets::Button(WidgetTree,TEXT(""),[this,ChipIdx](){RemovePreorder(ChipIdx);},false,ChipIdx?FName(TEXT("ShopPreorder1")):FName(TEXT("ShopPreorder0")));
             ShopPanelIconButton(Chip);
-            if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Chip->GetContentSlot()))
-            {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
             auto* Face=WidgetTree->ConstructWidget<UOverlay>();
             auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);
             auto* ShapeSlot=Face->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
             UTextBlock* Glyph=MakeText(TEXT(""),18);Glyph->SetAutoWrapText(false);Glyph->SetJustification(ETextJustify::Center);Glyph->SetVisibility(ESlateVisibility::HitTestInvisible);
             auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
             Chip->SetContent(Face);
+            // After SetContent: replacing the caption makes a new, centred slot, which would shrink the face to its glyph.
+            if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Chip->GetContentSlot()))
+            {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
             auto* Cell=WidgetTree->ConstructWidget<USizeBox>();Cell->SetWidthOverride(ShopQueueIconSize);Cell->SetHeightOverride(ShopQueueIconSize);Cell->SetContent(Chip);
             Cell->SetVisibility(ESlateVisibility::Collapsed);
             PreorderRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(0,0,8,0));
@@ -374,8 +375,6 @@ void ULDShopPanel::SyncItemButtons()
         ULDCommandButton* ItemButton=LDWidgets::Button(WidgetTree,TEXT(""),[](){},false,FName(*FString::Printf(TEXT("ShopItem%d"),ItemIdx)));
         // The button's own backing stays clear: the icon shape is the whole face.
         ShopPanelIconButton(ItemButton);
-        if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(ItemButton->GetContentSlot()))
-        {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
         auto* Face=WidgetTree->ConstructWidget<UOverlay>();
         auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);
         auto* ShapeSlot=Face->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
@@ -383,6 +382,9 @@ void ULDShopPanel::SyncItemButtons()
         Glyph->SetVisibility(ESlateVisibility::HitTestInvisible);ScaleNewText(Glyph);
         auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
         ItemButton->SetContent(Face);
+        // After SetContent: replacing the caption makes a new, centred slot, which would shrink the face to its glyph.
+        if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(ItemButton->GetContentSlot()))
+        {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
         auto* Cell=WidgetTree->ConstructWidget<USizeBox>();Cell->SetWidthOverride(ShopIconSize);Cell->SetHeightOverride(ShopIconSize);Cell->SetContent(ItemButton);
         UUniformGridSlot* GridCell=ItemGrid->AddChildToUniformGrid(Cell,ItemIdx/ShopGridColumns,ItemIdx%ShopGridColumns);
         GridCell->SetHorizontalAlignment(HAlign_Left);GridCell->SetVerticalAlignment(VAlign_Top);
@@ -680,7 +682,9 @@ void ULDShopPanel::FinishRequest(const FString& Notice)
 void ULDShopPanel::RefreshPreorders()
 {
     if(!PreorderLine){return;}
-    const int64 Gold=EquipmentKnown()?LatestEquipment.Gold:0;
+    // Lit icons are what the gold buys in queue order (the auto-buy order): each lit item spends its price, so gold for
+    // one of two items lights only the first one it covers, and gold for both lights both.
+    int64 Gold=EquipmentKnown()?LatestEquipment.Gold:0;
     ShopPanelText(PreorderLine,PreorderQueue.IsEmpty()
         ?FString::Printf(TEXT("预购：空（最多 %d 件，到%s附近且%s够时自动买入）"),LDHUD::MaxShopPreorders,LDTerms::Shop,LDTerms::Gold)
         :FString::Printf(TEXT("预购（点图标取消；亮起的%s已够）：到%s附近自动买入"),LDTerms::Gold,LDTerms::Shop));
@@ -695,6 +699,7 @@ void ULDShopPanel::RefreshPreorders()
         const FLDShopItemView* Row=Listing.FindByPredicate([Id](const FLDShopItemView& Item){return Item.DefinitionId==Id;});
         ShopPanelText(PreorderGlyphs[ChipIdx],LDHUD::ContentName(LatestContent,Id.ToString()).Left(1));
         const bool bAffordable=Row&&EquipmentKnown()&&Row->BuyPrice<=Gold;
+        if(bAffordable){Gold-=Row->BuyPrice;}
         const bool bActive=Row&&Row->bHasActive;
         const uint8 Look=uint8(bActive)|uint8(bAffordable)<<1|0x80;
         if(PreorderLooks[ChipIdx]!=Look){PreorderLooks[ChipIdx]=Look;ShopPanelQueueIcon(PreorderShapes[ChipIdx],PreorderGlyphs[ChipIdx],bActive,bAffordable);}
