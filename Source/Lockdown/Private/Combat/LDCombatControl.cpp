@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDControlRules.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
@@ -101,7 +102,7 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
         if (bAlive) { bObserved=LDCombatControlDetail::Observes(*Mode,*GetWorld(),FootOf(*Victim),*Taunter,bFault); }
         if (bFault) { Error=TEXT("Taunt observation failed on a registered body."); return false; }
         if (LDControl::TauntHolds(Body.Taunt.GetValue(),Now,bAlive,bObserved)) { continue; }
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT_END victim=%s alive=%d observed=%d"),
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_TAUNT_END victim=%s alive=%d observed=%d"),
             *Body.Victim.EntityId.ToString(),int32(bAlive),int32(bObserved));
         Body.Taunt.Reset();
         ++Body.StateRevision;
@@ -148,7 +149,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         bool bApplied=false;
         if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
         if (!bApplied) { continue; }
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt.IsSet() ? Victim.Taunt->ExpiresAtMs : 0);
     }
     return true;

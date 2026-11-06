@@ -1,4 +1,5 @@
 #include "Tests/LDDemoEntryProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDGameInstance.h"
@@ -168,7 +169,7 @@ void LDDemoTests::ProbeRejectedEntry(UWorld& World)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_PROBE requires an output file under Artifacts."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_ENTRY_PROBE requires an output file under Artifacts."));
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
@@ -213,7 +214,7 @@ void LDDemoTests::ProbeRejectedEntry(UWorld& World)
     FString Json;
     const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
         && FFileHelper::SaveStringToFile(Json, *Output, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ENTRY_PROBE passed=%d pawns=%d legacy_modes=%d services=%d"), Passed && Written, Pawns, LegacyModes, Services);
+    UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_ENTRY_PROBE passed=%d pawns=%d legacy_modes=%d services=%d"), Passed && Written, Pawns, LegacyModes, Services);
     FPlatformMisc::RequestExitWithStatus(false, Passed && Written ? 0 : 1);
 }
 #endif

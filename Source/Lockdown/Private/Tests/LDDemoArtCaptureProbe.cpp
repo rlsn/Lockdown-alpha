@@ -1,4 +1,5 @@
 #include "Tests/LDDemoArtCaptureProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Art/LDArtCatalog.h"
@@ -73,7 +74,7 @@ namespace
             Entry->SetBoolField(TEXT("passed"), Passed);
             Checks.Add(MakeShared<FJsonValueObject>(Entry));
             Failed |= !Passed;
-            if (!Passed) { UE_LOG(LogTemp, Error, TEXT("LD_ART_CAPTURE_CHECK_FAILED %s"), *Name); }
+            if (!Passed) { UE_LOG(LogLDTest, Error, TEXT("LD_ART_CAPTURE_CHECK_FAILED %s"), *Name); }
             return Passed;
         }
 
@@ -93,7 +94,7 @@ namespace
             const FString Path = Directory / TEXT("DemoArt.json");
             const bool Written = FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Json))
                 && FFileHelper::SaveStringToFile(Json, *Path, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
-            UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ART_CAPTURE passed=%d report=%s"), !Failed && Written, *Path);
+            UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_ART_CAPTURE passed=%d report=%s"), !Failed && Written, *Path);
             FPlatformMisc::RequestExitWithStatus(false, !Failed && Written ? 0 : 1);
             return false;
         }
@@ -425,7 +426,7 @@ void LDDemoTests::StartArtCaptureProbe(UWorld& World)
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoArtCaptureOutput="), Directory)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Directory), FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("The art capture fixture requires an output directory under Artifacts."));
+        UE_LOG(LogLDTest, Error, TEXT("The art capture fixture requires an output directory under Artifacts."));
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }

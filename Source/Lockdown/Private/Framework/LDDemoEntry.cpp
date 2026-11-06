@@ -1,4 +1,5 @@
 #include "Framework/LDDemoEntry.h"
+#include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentText.h"
 #include "Engine/World.h"
@@ -70,7 +71,7 @@ bool LoadDevContent(TSharedPtr<const FLDDemoContentSnapshot>& Out, FString& Erro
         Error = TEXT("内容热重载失败：") + Error;
         return false;
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_DEV_CONTENT_RELOAD root=%s changed=%d"), *DiskHex, Disk != Compiled);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_DEV_CONTENT_RELOAD root=%s changed=%d"), *DiskHex, Disk != Compiled);
     Out = MoveTemp(Loaded);
     Error.Reset();
     return true;

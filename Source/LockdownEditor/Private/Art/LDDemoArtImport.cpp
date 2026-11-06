@@ -1,4 +1,5 @@
 #include "LDDemoArtImport.h"
+#include "LDEditorLog.h"
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtPlacement.h"
 #include "Animation/AnimSequence.h"
@@ -876,7 +877,7 @@ namespace
         Body.HandBone = Spec.HandBone;
         Body.RunSpeedCmPerSec = Spec.RunSpeedCmPerSec;
         if (!ArtBodyTransform(*Mesh, Spec, Body.MeshTransform, Error)) { return false; }
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ART_BODY %s mesh=%s skeleton=%s transform=%s"), *Spec.Id, *Mesh->GetPathName(),
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_BODY %s mesh=%s skeleton=%s transform=%s"), *Spec.Id, *Mesh->GetPathName(),
             *Mesh->GetSkeleton()->GetPathName(), *Body.MeshTransform.ToHumanReadableString());
         for (const FArtClipSpec& Spec2 : Spec.Clips)
         {
@@ -994,7 +995,7 @@ bool LDDemoArtImport::Import(FString& Error)
     {
         if (!ArtSave(*Asset, Error)) { return false; }
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ART_IMPORTED %d assets saved."), Assets.Num());
+    UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_IMPORTED %d assets saved."), Assets.Num());
     Error.Reset();
     return true;
 }

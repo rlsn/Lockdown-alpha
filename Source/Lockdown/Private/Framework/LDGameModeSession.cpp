@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Framework/LDPlayerController.h"
@@ -44,7 +45,7 @@ bool ALDGameMode::AdvanceRoster(FString& Reason)
     {
         MatchPhase = ELDMatchPhase::Faulted;
         Reason = TEXT("房间版本号已用尽，请返回主菜单后重新创建房间。");
-        UE_LOG(LogTemp, Error, TEXT("LD_ROOM_REVISION_EXHAUSTED"));
+        UE_LOG(LogLDMatch, Error, TEXT("LD_ROOM_REVISION_EXHAUSTED"));
         return false;
     }
     ++RosterRevision;
@@ -167,7 +168,7 @@ void ALDGameMode::PublishLobby()
     if (LobbyPublicRevision == MAX_uint64)
     {
         MatchPhase = ELDMatchPhase::Faulted;
-        UE_LOG(LogTemp, Error, TEXT("LD_LOBBY_PUBLIC_REVISION_EXHAUSTED"));
+        UE_LOG(LogLDMatch, Error, TEXT("LD_LOBBY_PUBLIC_REVISION_EXHAUSTED"));
     }
     else { ++LobbyPublicRevision; }
     if (auto* Public = GetGameState<ALDGameState>())
@@ -304,7 +305,7 @@ FLDSessionReceipt ALDGameMode::ProcessSessionCommand(ALDPlayerController* Contro
         if (!WindowReplaced && (!Record || !Record->SessionRequests.Complete(Receipt)))
         {
             MatchPhase = ELDMatchPhase::Faulted;
-            UE_LOG(LogTemp, Error, TEXT("LD_SESSION_RECEIPT_COMMIT_FAILED"));
+            UE_LOG(LogLDMatch, Error, TEXT("LD_SESSION_RECEIPT_COMMIT_FAILED"));
             Receipt.Outcome = ELDSessionOutcome::Rejected;
             Receipt.Reason = ELDSessionReject::AuthorityFault;
             Receipt.Detail = RejectionText(Receipt.Reason);

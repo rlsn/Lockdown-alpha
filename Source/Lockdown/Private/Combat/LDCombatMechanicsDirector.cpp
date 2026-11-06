@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDControlRules.h"
@@ -196,7 +197,7 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     // geometry at the last legal position, never a teleport.
     if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
     { Error=TEXT("Knockback: ")+Error; return false; }
-    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld"),*Body.Victim.EntityId.ToString(),
+    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_KNOCKBACK victim=%s source=%s cm=%.0f ms=%lld"),*Body.Victim.EntityId.ToString(),
         *Hit.SourceEntity.ToString(),Hit.KnockbackCm,Hit.KnockbackMs);
     return true;
 }
@@ -802,7 +803,7 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
             Victim.Taunt->bDecoy=true;
             Victim.Taunt->DecoyPointCm=Decoy.PointCm;
             if (Victim.Action.IsSet()) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
-            UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_DECOY_LURE victim=%s source=%s until=%lld"),
+            UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_DECOY_LURE victim=%s source=%s until=%lld"),
                 *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt->ExpiresAtMs);
         }
     }

@@ -1,4 +1,5 @@
 #include "Art/LDArtSubsystem.h"
+#include "Core/LDLog.h"
 #include "Art/LDDecorationSet.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -24,12 +25,12 @@ void ULDArtSubsystem::Initialize(FSubsystemCollectionBase& Collection)
     else { Error = FString::Printf(TEXT("Art catalog %s is missing."), ULDArtCatalog::AssetPath); }
     if (Catalog)
     {
-        UE_LOG(LogTemp, Display, TEXT("LD_ART_CATALOG_READY %d characters, %d props and %d decorations resolved."),
+        UE_LOG(LogLDContent, Display, TEXT("LD_ART_CATALOG_READY %d characters, %d props and %d decorations resolved."),
             Catalog->Characters.Num(), Catalog->Props.Num(), Catalog->Decorations.Num());
         return;
     }
     Resolved = FLDArtResolved();
-    UE_LOG(LogTemp, Error, TEXT("LD_ART_CATALOG_INVALID %s Run Scripts\\ImportDemoArt.ps1 -Mode Import or restore the LFS assets."), *Error);
+    UE_LOG(LogLDContent, Error, TEXT("LD_ART_CATALOG_INVALID %s Run Scripts\\ImportDemoArt.ps1 -Mode Import or restore the LFS assets."), *Error);
 }
 
 const FLDArtResolved* ULDArtSubsystem::Get(const UObject* WorldContext)
@@ -78,9 +79,9 @@ void ULDArtWorldSubsystem::OnWorldBeginPlay(UWorld& World)
     }
     if (Decorations.IsValid())
     {
-        UE_LOG(LogTemp, Display, TEXT("LD_ART_DECORATIONS_READY %d placements, display only."), Decorations->GetInstanceCount());
+        UE_LOG(LogLDContent, Display, TEXT("LD_ART_DECORATIONS_READY %d placements, display only."), Decorations->GetInstanceCount());
     }
-    else { UE_LOG(LogTemp, Error, TEXT("LD_ART_DECORATIONS_UNAVAILABLE %s"), *Error); }
+    else { UE_LOG(LogLDContent, Error, TEXT("LD_ART_DECORATIONS_UNAVAILABLE %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartArtCaptureProbe(World);
 #endif

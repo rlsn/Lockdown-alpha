@@ -1,4 +1,5 @@
 #include "UI/LDHUD.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -473,7 +474,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             {ELDUIMainPanel::Shop,ShopPanel.Get()},{ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
         for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
         {
-            if(!Entry.Value){UE_LOG(LogTemp,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
+            if(!Entry.Value){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
             auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
@@ -541,7 +542,7 @@ const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
     if(!bDisplayContentTried)
     {
         bDisplayContentTried=true;FString Error;
-        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_HUD_CONTENT_UNAVAILABLE %s"),*Error);}
+        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogLDUI,Error,TEXT("LD_HUD_CONTENT_UNAVAILABLE %s"),*Error);}
     }
     return DisplayContent?&DisplayContent->Get():nullptr;
 }
@@ -758,7 +759,7 @@ void ULDHUD::RefreshReadModel()
         else if(UiTime-AutoChoicesSince>5.)
         {
             AutoChoicesMatch=O.Match;
-            UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
+            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
         }
     }
     if(ChoicesPanel)
@@ -793,7 +794,7 @@ void ULDHUD::RefreshReadModel()
             PreorderOpenLife=O.Life;PreorderOpenAt=UiNow;
             ELDGrowthReason Reason=ELDGrowthReason::None;
             if(!PC->RequestShopSession(NearShop,O.Life,Reason))
-            {UE_LOG(LogTemp,Warning,TEXT("LD_HUD_PREORDER_SESSION_NOT_SENT %s"),*LDHUD::GrowthReasonText(Reason));}
+            {UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_PREORDER_SESSION_NOT_SENT %s"),*LDHUD::GrowthReasonText(Reason));}
         }
         HudSetText(ShopButtonText,(Equipment?FString::Printf(TEXT("%lld %s"),Equipment->Gold,LDTerms::Gold):FString(LDTerms::Gold)+TEXT(" 同步中"))
             +(ShopPanel->Preorders().IsEmpty()?FString():FString::Printf(TEXT(" · 预购 %d"),ShopPanel->Preorders().Num())));
@@ -839,7 +840,7 @@ void ULDHUD::RefreshReadModel()
     if(PC->CombatReceipts.Serial()!=SeenCombatReceipt)
     {
         TArray<FLDCombatActionReceipt> Arrived;
-        if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
         // Every receipt since the last frame presents once; the single toast line joins their distinct notices in order.
         const FString Notice=LDHUD::CombatReceiptsNotice(Arrived,O.Match,O.Life,ToldProtectionLifeRevision);
         if(!Notice.IsEmpty()){ShowToast(Notice);}
@@ -995,7 +996,7 @@ void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)
     if(PC.CombatReceipts.Serial()!=AudioCombatReceipt)
     {
         TArray<FLDCombatActionReceipt> Arrived;
-        if(const uint32 Lost=PC.CombatReceipts.ReadSince(AudioCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        if(const uint32 Lost=PC.CombatReceipts.ReadSince(AudioCombatReceipt,Arrived)){UE_LOG(LogLDUI,Warning,TEXT("LD_AUDIO_COMBAT_RECEIPTS_MISSED %u"),Lost);}
         for(const FLDCombatActionReceipt& Receipt:Arrived){AudioCues.ObserveCombatReceipt(Receipt,O.Match,O.Life,Cues);}
     }
     PlayAudioCues(Cues);
@@ -1004,7 +1005,7 @@ void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)
 {
     if(Cues.IsEmpty()){return;}
     UGameInstance* Instance=GetGameInstance();ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
-    if(!Audio){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
+    if(!Audio){UE_LOG(LogLDUI,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
     for(const ELDAudioCue Cue:Cues){Audio->Play(Cue);}
 }
 void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
@@ -1024,14 +1025,14 @@ void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
     case ELDShopOpenStatus::Opened:
         if(!Result.bHasView||!Result.View.SessionId.IsValid())
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
+            UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
             ShowToast(FString(LDTerms::Shop)+TEXT("结果缺少报价，没有打开"));return;
         }
         OpenedShop=Result;OpenedShopPublish=PC->OwnerState.Growth.PublishRevision;bOpenedShop=true;
         // Arrival only opens the session; the page is opened by a left click on the model or the shop button.
         return;
     default:
-        UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
+        UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
         return;
     }
 }

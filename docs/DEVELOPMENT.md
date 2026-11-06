@@ -194,6 +194,53 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 没有开关的 Host、Shipping 构建、旧局或旧生命的请求都会被明确拒绝。
 测试会话的结果是夹具证据，不能当作无作弊完整对局的验收。实现与限制见[库存与事务](systems/INVENTORY_AND_TRANSACTIONS.md)。
 
+## 试玩问题排查
+
+试玩期玩完一局后，把日志交给 AI 复盘和排查。日志只在已提交的事件和每秒/每 10 秒的采样上写行，没有逐帧日志。
+2026-11-06 的 AI 满员场景实测：对局中房主日志约 150 KiB/分钟（每秒心跳占七成，命中随交战增多），20 分钟一局约 3–5 MiB；
+客户端日志约 16 KiB/分钟。
+
+**日志在哪里**（时间戳为 UTC，如 `[2026.11.06-03.15.10:419][帧号]`）：
+
+| 运行方式 | 日志 |
+| --- | --- |
+| 每日试玩包 / `OpenPackaged.ps1` | `<解压目录>\Archive\Windows\Lockdown\Saved\Logs\Lockdown.log` 是本次运行，更早的运行改名为 `Lockdown-backup-<时间>.log` |
+| `OpenStandalone.ps1` / 编辑器 | 工作区 `Saved\Logs\Lockdown.log` |
+| `RunDemo*Check.ps1` | 输出目录里的 `Host.log`、`Client1.log`… |
+
+每个玩家交自己的日志就能复盘自己的视角；要查“实际为什么”（谁打的、打了多少、为什么没给钱），再要同一局房主的日志。
+房主日志按 #134 的决定记录完整权威信息：开局头（产品版本、源码提交、内容摘要、网络地址）与名单、每次命中、
+每名参赛者每秒一行心跳、死亡的凶手/致命来源/助攻/无奖励原因、经验金币与升级、三选一出卡与选择、买卖、
+每 10 秒每个客户端连接的网络质量和对局结束汇总。客户端日志只有该玩家本来就能看到的信息。
+各标签与字段的契约见[架构与网络](systems/ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)。
+
+**标记键**：对局中遇到奇怪的事立刻按 F9（设置里可改键），本人日志与房主日志都记下这一刻（序号、权威时间、本人状态），
+HUD 提示“已标记 #N”；死亡等待中也能按。抱怨时说“第 N 个标记附近”。
+
+**整理脚本**：
+
+```powershell
+# 房主与客户端日志按 UTC 合并；label=路径 给每份日志起名
+python -B .\Scripts\SummarizePlaytestLog.py 房主=<房主的 Lockdown.log> 我=<自己的 Lockdown.log> --out Artifacts\Playtest.md
+# 只有自己的客户端日志也能整理自己的视角
+python -B .\Scripts\SummarizePlaytestLog.py <自己的 Lockdown.log>
+# 场景输出目录下的全部 *.log；--check-client 核对客户端日志里没有 Host 专有的权威行
+python -B .\Scripts\SummarizePlaytestLog.py <RunDemo 输出目录> --check-client
+```
+
+脚本按局（match generation）切分，把参赛者 GUID 换成名字（同名玩家附 ID 末四位），每局输出：开局头与名单、结果与每人终局构筑、
+每次死亡及死前 10 秒的命中（只有客户端日志时为公开击杀通知里的每次死亡，本人死亡另列死前的本人受伤、受控与所见施法；
+`--death-window` 可改）、经济时间线、每个标记前 30 秒到后 10 秒的事件与标记前最近的状态行（`--mark-before`/`--mark-after`；
+AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能与网络汇总、警告与错误。
+测试：`python -B -m unittest discover -s .\Scripts -p TestSummarizePlaytestLog.py`。
+
+**开关**：
+
+- `-LogCmds="LogLDNav Verbose"` 打开某一分类的 Verbose 行；`-LogCmds="LogLDTrace off"` 关掉每秒心跳和本人状态行（连采样也跳过）。
+  `RunDemoOpponentCheck.ps1 -LogCmds '<同样的值>'` 把它传给每个角色。
+- 需要看清卡在哪一帧时，再按需开启 Unreal Insights：给可执行文件加 `-trace=default,net -statnamedevents -tracefile=<路径>.utrace`，
+  用引擎的 `Engine\Binaries\Win64\UnrealInsights.exe` 打开。追踪文件很大且有开销，只在复现卡顿时开，常规试玩不开。
+
 ## 最小验证选择
 
 | 改动 | 起点 |
@@ -207,7 +254,7 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 | Demo 纯值战斗 / 时间许可 | `Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；纯值成功不等于实际命中提交 |
 | 营地纯决策 | `Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线 |
 | 营地 / 拥有连接 | `Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖五营落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置；唯一渲染的 Client2 另存 `CampGuardianReturning.png`（回工位的高档野怪、名字与回工位标记）和 `CampLowPair.png`（刷新后的低档两只与名字）供表现审阅，不做像素比对。相邻高低营锚点相距约 3057cm，超出固定镜头画面，两档分两张；不代替 3+3、AI、SpawnBlocked/动态占位或网络异常 |
-| 对手 AI / 拥有连接 | `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、至少一个 AI 到店购买、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与被拒订单有界、每个 AI 开局十秒内处理开局三选一（D10）、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野或购物，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；可加 `-PackageRoot` 对打包版运行。本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 #112 的 `HostChoices.png`（开局三选一与重抽按钮）、`HostOpponentCard.png`（可见 AI 的 Q/W 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。“每个 AI 都到店购买”（开局的米已够买最便宜的装备）与“至少一个 AI 实际完成 D 冲刺”（D19；报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，待 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 多局验证后再定是否升为硬门槛；不代替隐藏状态非干扰、字段白名单、真人离开或网络异常 |
+| 对手 AI / 拥有连接 | `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、至少一个 AI 到店购买、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与被拒订单有界、每个 AI 开局十秒内处理开局三选一（D10）、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野或购物，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；可加 `-PackageRoot` 对打包版运行。每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 #112 的 `HostChoices.png`（开局三选一与重抽按钮）、`HostOpponentCard.png`（可见 AI 的 Q/W 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。“每个 AI 都到店购买”（开局的米已够买最便宜的装备）与“至少一个 AI 实际完成 D 冲刺”（D19；报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，待 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 多局验证后再定是否升为硬门槛；不代替隐藏状态非干扰、字段白名单、真人离开或网络异常 |
 | Demo 属性 / 原生记录 | `Lockdown.Rules.DemoAttributeProjection` 覆盖批准属性、双装备、条件被动和资源比例；`Lockdown.Rules.DemoMotionProbe` 用隔离原生物理验证时间分数、回滚、接地转换和缺失记录拒绝；真实拥有身体夹具显式审计保留前缀，不代替最终提供者 Fence |
 | 原生代码 / 反射 | Editor/Game 构建、Bootstrap Validate、相关原生规则 |
 | 入口 / 房间 | `TestDemoEntry.ps1`、`Lockdown.Rules.DemoEntryContract/DemoInputByteIntegrity/DemoMatchIdentity/DemoSessionReceipts/DemoLobbyAuthority` |

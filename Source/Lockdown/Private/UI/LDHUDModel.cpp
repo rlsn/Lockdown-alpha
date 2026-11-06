@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "Core/LDLog.h"
 #include "UI/LDTerms.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Development/LDDemoContentDefinitions.h"
@@ -12,13 +13,16 @@ bool LDHUD::FFrameDiagnostics::AddFrame(double Seconds)
     if (!FMath::IsFinite(Seconds) || Seconds<=0) { return false; }
     Elapsed+=Seconds;
     Peak=FMath::Max(Peak,Seconds);
-    ++Frames;
-    if (Elapsed<.5) { return false; }
-    FPS=Frames/Elapsed;
-    FrameMs=1000*Elapsed/Frames;
+    ++Count;
+    if (HitchSeconds>0 && Seconds>=HitchSeconds) { ++HitchCount; }
+    if (Elapsed<WindowSeconds) { return false; }
+    FPS=Count/Elapsed;
+    FrameMs=1000*Elapsed/Count;
     PeakMs=1000*Peak;
+    Frames=Count;
+    Hitches=HitchCount;
     Elapsed=Peak=0;
-    Frames=0;
+    Count=HitchCount=0;
     return true;
 }
 namespace
@@ -28,7 +32,7 @@ void HudReportMissingText(const FString& Id)
 {
     static TSet<FString> Reported;
     bool bAlready=false;Reported.Add(Id,&bAlready);
-    if(!bAlready){UE_LOG(LogTemp,Error,TEXT("LD_HUD_DISPLAY_TEXT_MISSING %s: the approved DemoContent display text is not registered; showing the stable id."),*Id);}
+    if(!bAlready){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_DISPLAY_TEXT_MISSING %s: the approved DemoContent display text is not registered; showing the stable id."),*Id);}
 }
 const TCHAR* HudStatusContentId(uint8 Id)
 {

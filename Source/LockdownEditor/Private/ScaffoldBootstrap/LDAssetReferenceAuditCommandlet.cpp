@@ -1,4 +1,5 @@
 #include "LDAssetReferenceAuditCommandlet.h"
+#include "LDEditorLog.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Blueprint.h"
@@ -61,13 +62,13 @@ int32 ULDAssetReferenceAuditCommandlet::Main(const FString& Params)
         || !FFileHelper::LoadFileToString(RequestText, *RequestPath)
         || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(RequestText), Request))
     {
-        UE_LOG(LogTemp, Error, TEXT("Asset audit requires readable -Request=<json> and -Report=<json>."));
+        UE_LOG(LogLDEditor, Error, TEXT("Asset audit requires readable -Request=<json> and -Report=<json>."));
         return 1;
     }
     ReportPath = FPaths::ConvertRelativePathToFull(ReportPath);
     if (!FPaths::IsUnderDirectory(ReportPath, FPaths::ConvertRelativePathToFull(FPaths::ProjectDir() / TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("Asset audit reports must be under this worktree's Artifacts directory."));
+        UE_LOG(LogLDEditor, Error, TEXT("Asset audit reports must be under this worktree's Artifacts directory."));
         return 1;
     }
     TArray<FString> Roots;
@@ -75,7 +76,7 @@ int32 ULDAssetReferenceAuditCommandlet::Main(const FString& Params)
     if (!Request->TryGetStringArrayField(TEXT("roots"), Roots) || Roots.IsEmpty()
         || !Request->TryGetArrayField(TEXT("members"), Members))
     {
-        UE_LOG(LogTemp, Error, TEXT("Asset audit request requires nonempty roots and a members array."));
+        UE_LOG(LogLDEditor, Error, TEXT("Asset audit request requires nonempty roots and a members array."));
         return 1;
     }
     TSet<FName> Names;
@@ -92,7 +93,7 @@ int32 ULDAssetReferenceAuditCommandlet::Main(const FString& Params)
         FString Package, Name;
         if (!Root.Split(TEXT("."), &Package, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
         {
-            UE_LOG(LogTemp, Error, TEXT("Asset audit root must be an object path: %s"), *Root);
+            UE_LOG(LogLDEditor, Error, TEXT("Asset audit root must be an object path: %s"), *Root);
             return 1;
         }
         Names.Add(FName(*Name));
@@ -105,7 +106,7 @@ int32 ULDAssetReferenceAuditCommandlet::Main(const FString& Params)
         if (!Value->TryGetObject(Member) || !(*Member)->TryGetStringField(TEXT("owner"), Owner)
             || !(*Member)->TryGetStringField(TEXT("name"), Name) || Name.IsEmpty())
         {
-            UE_LOG(LogTemp, Error, TEXT("Asset audit members require owner and name."));
+            UE_LOG(LogLDEditor, Error, TEXT("Asset audit members require owner and name."));
             return 1;
         }
         Names.Add(FName(*Name));
@@ -298,10 +299,10 @@ int32 ULDAssetReferenceAuditCommandlet::Main(const FString& Params)
     if (!FJsonSerializer::Serialize(Report, TJsonWriterFactory<>::Create(&Output))
         || !FFileHelper::SaveStringToFile(Output, *ReportPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
     {
-        UE_LOG(LogTemp, Error, TEXT("Could not write asset audit report: %s"), *ReportPath);
+        UE_LOG(LogLDEditor, Error, TEXT("Could not write asset audit report: %s"), *ReportPath);
         return 2;
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_ASSET_AUDIT coverage=%s packages=%d hits=%d failures=%d report=%s"),
+    UE_LOG(LogLDEditor, Display, TEXT("LD_ASSET_AUDIT coverage=%s packages=%d hits=%d failures=%d report=%s"),
         Complete ? TEXT("complete") : TEXT("incomplete"), Packages.Num(), HitCount, Failures.Num(), *ReportPath);
     return Complete ? 0 : 3;
 }

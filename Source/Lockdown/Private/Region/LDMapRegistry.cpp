@@ -1,4 +1,5 @@
 #include "Region/LDMapRegistry.h"
+#include "Core/LDLog.h"
 #include "Region/LDMapDefinition.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -106,7 +107,7 @@ void ULDMapRegistry::OnWorldBeginPlay(UWorld& W)
     if (UWorld::RemovePIEPrefix(W.GetOutermost()->GetName()) == LDDemoEntry::WorldMap)
     {
         FString Error;
-        if (!Rebuild(Error)) { UE_LOG(LogTemp, Error, TEXT("LD_DEMO_WORLD_BINDING_REJECTED %s"), *Error); }
+        if (!Rebuild(Error)) { UE_LOG(LogLDWorld, Error, TEXT("LD_DEMO_WORLD_BINDING_REJECTED %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS
         if (Enabled()) { LDDemoTests::ObserveMapRegistry(W, true); }
 #endif

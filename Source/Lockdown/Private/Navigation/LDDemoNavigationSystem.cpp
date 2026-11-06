@@ -1,4 +1,5 @@
 #include "Navigation/LDDemoNavigationSystem.h"
+#include "Core/LDLog.h"
 
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -14,7 +15,7 @@ void ULDDemoNavigationSystem::Configure(const UNavigationSystemConfig& Config)
     {
         SupportedAgents.Reset();
         bAutoCreateNavigationData = false;
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_NAVIGATION_CONFIG_REJECTED %s"), *Error);
+        UE_LOG(LogLDNav, Error, TEXT("LD_DEMO_NAVIGATION_CONFIG_REJECTED %s"), *Error);
         return;
     }
     FNavDataConfig Agent = GetDefault<UNavigationSystemV1>()->GetDefaultSupportedAgentConfig();
@@ -35,7 +36,7 @@ void ULDDemoNavigationSystem::InitializeForWorld(UWorld& World, FNavigationSyste
 {
     if (!bApprovedAgent)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_NAVIGATION_INIT_REJECTED No approved native agent configuration."));
+        UE_LOG(LogLDNav, Error, TEXT("LD_DEMO_NAVIGATION_INIT_REJECTED No approved native agent configuration."));
         return;
     }
     Super::InitializeForWorld(World, Mode);

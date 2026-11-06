@@ -1,4 +1,5 @@
 #include "World/LDCampMember.h"
+#include "Core/LDLog.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
@@ -34,7 +35,7 @@ void ALDCampMemberCharacter::BeginPlay()
     if (!IsValid(this) || IsActorBeingDestroyed()) { return; }
     if (MonsterId.IsNone() || MonsterSpeed <= 0)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_CAMP_BODY_REJECTED Camp body began play without an approved monster definition."));
+        UE_LOG(LogLDWorld, Error, TEXT("LD_CAMP_BODY_REJECTED Camp body began play without an approved monster definition."));
         Destroy();
         return;
     }

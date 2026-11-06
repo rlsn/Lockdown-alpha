@@ -65,6 +65,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     // Schema 13 writes every current preference; only its key list predates the hold-Tab scoreboard.
     constexpr uint32 ScoreboardlessFixtureSchema = 13;
     constexpr uint32 DiagnosticslessFixtureSchema = 14;
+    // Schema 15 writes every current preference; only its key list predates the playtest mark key.
+    constexpr uint32 MarklessFixtureSchema = 15;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -961,7 +963,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -1506,6 +1508,54 @@ bool FLDLocalSettingsScoreboardMigrationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsMarkMigrationTest, "Lockdown.Rules.LocalSettingsMarkMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsMarkMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit mark fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    TestTrue(TEXT("The playtest mark defaults to F9"), Values->Key(TEXT("Mark")) == EKeys::F9);
+    Values->PlayerName = TEXT("王小明");
+    Values->bShowFPS = true;
+    Values->Bindings.Remove(TEXT("Mark"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, MarklessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 15 file keeps every preference and binding and takes F9 for the mark"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("Mark")) == EKeys::F9 && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Migrated.Settings->bShowFPS && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(TEXT("“标记”键使用默认值")));
+    TestTrue(TEXT("The migrated values are dirty until the next verified save"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && Migrated.Settings->SaveLocalSettings().IsSaved());
+    const auto Saved = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The saved file loads as the current schema with the mark key"),
+        Saved.Status == ELDLocalSettingsLoadStatus::Loaded && Saved.Settings && Saved.Settings->Key(TEXT("Mark")) == EKeys::F9);
+
+    Write(FixtureBytes(*Values, DiagnosticslessFixtureSchema, 0));
+    const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 14 file also takes the mark key next to its diagnostics defaults"),
+        Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings && Older.Settings->Key(TEXT("Mark")) == EKeys::F9
+        && !Older.Settings->bShowFPS && Older.Message.Contains(TEXT("网络诊断")) && Older.Message.Contains(TEXT("“标记”键使用默认值")));
+
+    // The player already put F9 on another action: the mark is never given a colliding key.
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F9);
+    Write(FixtureBytes(*Values, MarklessFixtureSchema, 0));
+    const auto Taken = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A layout holding F9 elsewhere is refused with recovery, naming the missing mark"),
+        Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
+        && Taken.Message.Contains(TEXT("Mark")));
+
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values));
+    const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The current schema never repairs a missing mark binding"),
+        Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
@@ -1513,7 +1563,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 15);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 16);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1625,8 +1675,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 15"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 15);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 16"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 16);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom

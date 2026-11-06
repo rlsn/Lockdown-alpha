@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
@@ -25,7 +26,7 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
     {
         bPublicMatchDirty = true;
         const LDAirdrop::FPoint* Point = Airdrop.CurrentPoint();
-        UE_LOG(LogTemp, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s at_ms=%lld"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_%s serial=%llu point=%s at_ms=%lld"),
             Airdrop.Phase == ELDAirdropPhase::Landed ? TEXT("LAND") : TEXT("ANNOUNCE"), Airdrop.Serial,
             Point ? *Point->Id.ToString() : TEXT("none"), NowMs);
     }
@@ -56,7 +57,7 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
     {
         // Nothing was installed; the drop stays on the ground for the next boundary's first toucher.
-        UE_LOG(LogTemp, Warning, TEXT("LD_AIRDROP_CLAIM_DEFERRED serial=%llu contender=%s reason=%s"), Airdrop.Serial,
+        UE_LOG(LogLDWorld, Warning, TEXT("LD_AIRDROP_CLAIM_DEFERRED serial=%llu contender=%s reason=%s"), Airdrop.Serial,
             *Claimer.ToString(), LDGrowthWire::ReasonName(Reason));
         return true;
     }
@@ -67,7 +68,7 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         return false;
     }
     bPublicMatchDirty = true;
-    UE_LOG(LogTemp, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld gold=%lld at_ms=%lld"),
+    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld gold=%lld at_ms=%lld"),
         Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, Receipt.GoldDelta, NowMs);
     return true;
 }

@@ -17,13 +17,21 @@ struct FLDDemoRankDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
+    // Real local frame intervals over a window of at least WindowSeconds (a long frame is never cut; it closes its window
+    // late). AddFrame is true when a window just closed; FPS, FrameMs and PeakMs then describe it, Frames counts its frames
+    // and Hitches the frames of at least HitchSeconds (0 counts none). The HUD uses the half-second default; the playtest
+    // log's ten-second summary and its hitch lines use the same calculation.
     struct LOCKDOWN_API FFrameDiagnostics
     {
+        FFrameDiagnostics()=default;
+        FFrameDiagnostics(double InWindowSeconds,double InHitchSeconds):WindowSeconds(InWindowSeconds),HitchSeconds(InHitchSeconds){}
+        double WindowSeconds=.5, HitchSeconds=0;
         double FPS=0, FrameMs=0, PeakMs=0;
+        uint32 Frames=0, Hitches=0;
         bool AddFrame(double Seconds);
     private:
         double Elapsed=0, Peak=0;
-        uint32 Frames=0;
+        uint32 Count=0, HitchCount=0;
     };
     // Display text of an approved content definition from the DemoContent string table. False when the
     // definition, its display entry, the table or the key is missing: Out then holds the stable content id,

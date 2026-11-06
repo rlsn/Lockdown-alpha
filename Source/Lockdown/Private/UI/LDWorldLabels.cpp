@@ -1,4 +1,5 @@
 #include "UI/LDWorldLabels.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
@@ -137,7 +138,7 @@ void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
     if(bDisplayContentTried){return;}
     // Missing content stays visible: names then read as the HUD reports them (未知野怪 #n, stable status ids).
     bDisplayContentTried=true;FString Error;
-    if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_WORLD_LABELS_CONTENT_UNAVAILABLE %s"),*Error);}
+    if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_LABELS_CONTENT_UNAVAILABLE %s"),*Error);}
 }
 
 int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const

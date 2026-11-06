@@ -93,7 +93,8 @@ private:
     // Combat projection, all prepared before any is installed. Death rewards and the DEV growth fixture share it.
     ELDRewardOutcome CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
         LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
-        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
+        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason,
+        const FString& LogDetail = FString());
     // One recipient's part of a composite reward; KeyBytes is the canonical business key of its ledger mint.
     struct FRewardShare
     {
@@ -103,10 +104,11 @@ private:
     };
     // The same composite for several distinct recipients (a contender kill with its assisters): every part of every
     // recipient is prepared before any is installed, so the whole reward commits once or not at all. Shares[0] fills the
-    // receipt's own fields, the rest fill Receipt.Assists in order.
+    // receipt's own fields, the rest fill Receipt.Assists in order. Every installed part writes its LD_REWARD line (and an
+    // LD_LEVEL_UP line when it raised the level); LogDetail names what paid it (the victim, the map event).
     ELDRewardOutcome CommitRewardShares(const TArray<FRewardShare>& Shares, LDEconomy::ECause Cause,
         const uint8 (&TransactionTerms)[32], const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt,
-        ELDGrowthReason& Reason);
+        ELDGrowthReason& Reason, const FString& LogDetail = FString());
     ALDGameMode* Mode() const;
 #if WITH_DEV_AUTOMATION_TESTS
     // Commits every pending DEV grant in ticket order; false only on an authority fault.

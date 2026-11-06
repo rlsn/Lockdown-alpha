@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "Core/LDLog.h"
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
 #include "Framework/LDCommandLiveness.h"
@@ -240,7 +241,7 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     FString Error;
     if (!AuthorityMode()->CaptureIncomingTime(NotBefore,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
         return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::MatchEnded,false);
     }
     // The step waits behind the current order; it starts like any other request when its turn comes (AdvanceQueue).
@@ -256,7 +257,7 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     { QueueOwedAggression=FOwedAggression{LDNavOrdersDetail::IntentOf(Request),Caller.Match,Caller.Body}; }
     Queue.Add(MoveTemp(Step));
     AddRecord(Request,false);
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUED order=%u epoch=%u kind=%u depth=%d"),Request.Identity.Order,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUED order=%u epoch=%u kind=%u depth=%d"),Request.Identity.Order,
         Request.Identity.Epoch,uint32(Request.Kind),Queue.Num());
     return Reply(Request,ELDOrderStatus::Queued,ELDOrderFailure::None,true);
 }
@@ -300,7 +301,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     int64 NotBefore=0;
     if (!Mode->CaptureIncomingTime(NotBefore,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
         return Refuse(ELDCombatReject::MatchClosed);
     }
     FQueuedStep Step;
@@ -321,7 +322,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
         QueueOwedAggression=FOwedAggression{Intent,Caller.Match,Caller.Body};
     }
     Queue.Add(MoveTemp(Step));
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUED action sequence=%llu entry=%u depth=%d"),Request.DirectSequence,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUED action sequence=%llu entry=%u depth=%d"),Request.DirectSequence,
         uint32(Request.Entry),Queue.Num());
     Receipt.Phase=ELDCombatPhase::Queued;
     Receipt.Reject=ELDCombatReject::None;
@@ -349,7 +350,7 @@ void ULDNavigationComponent::ClearQueue(ELDOrderFailure Failure)
             : Failure==ELDOrderFailure::Taunted?ELDCombatReject::ControlBlocked : ELDCombatReject::Cancelled;
         if (PC && IsHumanOwner()) { PC->ClientCombatReceipt(Cancelled); }
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_CLEARED steps=%d failure=%u"),Dropped.Num(),uint32(Failure));
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUE_CLEARED steps=%d failure=%u"),Dropped.Num(),uint32(Failure));
 }
 
 FLDOrderReceipt ULDNavigationComponent::CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity,
@@ -388,7 +389,7 @@ void ULDNavigationComponent::EnsureBook(const FLDMoveIdentity& Identity)
     if (Book.IsBoundTo(Identity.Match,Identity.Life)) { return; }
     if (PendingOrder || ActiveOrder || !Queue.IsEmpty() || RunningQueuedAction)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_STALE_LIFE_ORDERS_ENDED match=%u life=%u"),Book.Match,Book.Life);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_STALE_LIFE_ORDERS_ENDED match=%u life=%u"),Book.Match,Book.Life);
         EndLifeOrders(ELDOrderCancelReason::LifeEnded);
     }
     ResetBook();
@@ -463,7 +464,7 @@ FLDOrderReceipt ULDNavigationComponent::Enqueue(const FLDOrderCaller& Caller, co
     TOptional<FLDAggressiveIntent> Owed;
     if (!AuthorityMode()->CaptureIncomingTime(NotBefore,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
         return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::MatchEnded,false);
     }
     if (PendingOrder)
@@ -515,7 +516,7 @@ FLDOrderReceipt ULDNavigationComponent::Publish(FLDOrderReceipt Receipt, bool bS
 {
     if (NextReceiptSerial==MAX_uint64)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_NAV_RECEIPT_SERIAL_EXHAUSTED order=%u"),Receipt.Identity.Order);
+        UE_LOG(LogLDNav,Error,TEXT("LD_NAV_RECEIPT_SERIAL_EXHAUSTED order=%u"),Receipt.Identity.Order);
         return Receipt;
     }
     Receipt.ReceiptSerial=++NextReceiptSerial;
@@ -568,6 +569,27 @@ bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) con
     return ValidateCaller(Caller,Identity,Failure) && LeaseFresh(*Mode,*ActiveOrder);
 }
 
+FString ULDNavigationComponent::DescribeAuthorityOrder(FVector& OutPoint, bool& bOutHasPoint) const
+{
+    OutPoint=FVector::ZeroVector;
+    bOutHasPoint=false;
+    FString Text;
+    if (!ActiveOrder) { Text=TEXT("none"); }
+    else
+    {
+        const FActiveOrder& Order=*ActiveOrder;
+        Text=Order.bForced ? FString(TEXT("Taunted")) : Order.bLure ? FString(TEXT("Lured"))
+            : FString::Printf(TEXT("%s#%u"),*LDLog::EnumName(Order.Request.Kind),Order.Request.Identity.Order);
+        if (Order.bEngaged) { Text+=TEXT(":engaged"); }
+        const bool bTarget=Order.bForced || Order.Request.Kind==ELDSpatialOrderKind::AttackUnit
+            || Order.Request.Kind==ELDSpatialOrderKind::CastUnit;
+        OutPoint=Order.bLure ? Order.LurePoint : bTarget ? Order.TargetFoot : Order.Destination;
+        bOutHasPoint=!bTarget || Order.bPinned || Order.bEngaged;
+    }
+    if (PendingOrder) { Text+=TEXT("+pending"); }
+    return Text;
+}
+
 void ULDNavigationComponent::EndLifeOrders(ELDOrderCancelReason Reason)
 {
     const ELDOrderFailure Failure=LDNavOrdersDetail::FromCancel(Reason);
@@ -602,7 +624,7 @@ void ULDNavigationComponent::EndActive(ELDOrderStatus Outcome, ELDOrderFailure F
         Publish(Receipt,true);
         SettleStep(Failure);
     }
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u epoch=%u status=%u failure=%u"),Ended.Request.Identity.Order,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_END order=%u epoch=%u status=%u failure=%u"),Ended.Request.Identity.Order,
         Ended.Request.Identity.Epoch,uint32(Outcome),uint32(Failure));
 }
 
@@ -621,7 +643,7 @@ void ULDNavigationComponent::SettleQueuedAggression(ALDGameMode& Mode, const FLD
     // Removed or NotProtected both settle the debt; a stale life or closed match has nothing left to protect.
     const FLDProtectionReceipt Protection=Mode.EndProtectionForAggressiveIntent(*PC,Owed.Match,Owed.Body,Owed.Intent,Permit);
     if (Protection.Outcome==ELDProtectionOutcome::Rejected)
-    { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_QUEUED_PROTECTION_REJECTED reason=%u"),uint32(Protection.Reason)); }
+    { UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_QUEUED_PROTECTION_REJECTED reason=%u"),uint32(Protection.Reason)); }
 }
 
 bool ULDNavigationComponent::QueueContinuesWalking() const
@@ -666,7 +688,7 @@ void ULDNavigationComponent::AdvanceQueue(ALDGameMode& Mode)
         Next.Body=Head.Body;
         Next.NotBeforeMs=Head.NotBeforeMs;
         PendingOrder=MoveTemp(Next);
-        UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_NEXT order=%u left=%d"),Head.Order.Identity.Order,Queue.Num());
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUE_NEXT order=%u left=%d"),Head.Order.Identity.Order,Queue.Num());
     }
 }
 
@@ -678,7 +700,7 @@ void ULDNavigationComponent::StartQueuedAction(ALDGameMode& Mode, FQueuedStep St
     FLDCombatActionReceipt Receipt;
     if (!PC || !Mode.Combat || !Mode.Combat->ResolveControllerCaller(*PC,CombatCaller,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_QUEUED_ACTION_CALLER %s"),*Error);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_QUEUED_ACTION_CALLER %s"),*Error);
         Receipt.Generation=Step.Action.Generation;
         Receipt.Life=Step.Action.Life;
         Receipt.DirectSequence=Step.Action.DirectSequence;
@@ -698,7 +720,7 @@ void ULDNavigationComponent::StartQueuedAction(ALDGameMode& Mode, FQueuedStep St
     Receipt=Mode.Combat->SubmitAction(CombatCaller,Request);
     if (IsHumanOwner()) { PC->ClientCombatReceipt(Receipt); }
     if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_ACTION sequence=%llu entry=%u phase=%u reject=%u left=%d"),Request.DirectSequence,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_QUEUE_ACTION sequence=%llu entry=%u phase=%u reject=%u left=%d"),Request.DirectSequence,
         uint32(Request.Entry),uint32(Receipt.Phase),uint32(Receipt.Reject),Queue.Num());
 }
 
@@ -713,7 +735,7 @@ void ULDNavigationComponent::ReleaseOrderLinks(const FActiveOrder& Order, bool b
     auto* PC=Controller();
     if (!Mode->Vision || !PC || !Mode->Vision->ReleaseObservedOrder(*PC,Order.Request.Identity,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_PIN_RELEASE_REFUSED order=%u epoch=%u %s"),Order.Request.Identity.Order,
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_PIN_RELEASE_REFUSED order=%u epoch=%u %s"),Order.Request.Identity.Order,
             Order.Request.Identity.Epoch,*Error);
     }
 }
@@ -811,7 +833,7 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
         if (!ForcedRetry.IsDue(Now)) { return true; }
         if (ForcedSerial==MAX_uint32)
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED"));
+            UE_LOG(LogLDNav,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED"));
             return true;
         }
         FActiveOrder Forced;
@@ -824,7 +846,7 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
         Forced.Surface=GroundSurfaceHint();
         Forced.LastHeartbeat=Forced.LastProgress=Now;
         ActiveOrder=MoveTemp(Forced);
-        UE_LOG(LogTemp,Display,TEXT("LD_NAV_TAUNT_FORCED life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_TAUNT_FORCED life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
     }
     auto& Order=ActiveOrder.GetValue();
     auto* PC=Controller();
@@ -866,7 +888,7 @@ bool ULDNavigationComponent::AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, 
     }
     if (ActiveOrder && ActiveOrder->bLure && ActiveOrder->Body==Self && ActiveOrder->LurePoint.Equals(Point,1.)) { return true; }
     if (ActiveOrder) { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Taunted,true); }
-    if (ForcedSerial==MAX_uint32) { UE_LOG(LogTemp,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED")); return true; }
+    if (ForcedSerial==MAX_uint32) { UE_LOG(LogLDNav,Error,TEXT("LD_NAV_TAUNT_SERIAL_EXHAUSTED")); return true; }
     FActiveOrder Lure;
     Lure.Request.Identity={Mode.GetMatchContext().Generation,Self.Victim.Life,0,++ForcedSerial};
     Lure.Request.Kind=ELDSpatialOrderKind::MoveGround;
@@ -882,7 +904,7 @@ bool ULDNavigationComponent::AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, 
     // A decoy the body cannot path to holds it in place for the lure (no fallback order).
     if (!AdmitOrder(Mode,Body,Permit,Lure,Failure,Error)) { return Error.IsEmpty(); }
     ActiveOrder=MoveTemp(Lure);
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_DECOY_LURE life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_DECOY_LURE life=%u serial=%u"),Self.Victim.Life,ForcedSerial);
     return true;
 }
 
@@ -905,14 +927,14 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
         const FLDProtectionReceipt Owed=Mode.EndProtectionForAggressiveIntent(*PC,Next.Match,Next.Body,
             Next.OwedAggression.GetValue(),Permit);
         if (Owed.Outcome==ELDProtectionOutcome::Rejected)
-        { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_OWED_PROTECTION_REJECTED reason=%u"),uint32(Owed.Reason)); }
+        { UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_OWED_PROTECTION_REJECTED reason=%u"),uint32(Owed.Reason)); }
     }
     if (Next.bStop)
     {
         const ELDOrderFailure Reason=LDNavOrdersDetail::FromCancel(Next.Reason);
         EndActive(ELDOrderStatus::Cancelled,Reason,true);
         Reply(Next.Request,ELDOrderStatus::Cancelled,Reason,true);
-        UE_LOG(LogTemp,Display,TEXT("LD_NAV_STOP order=%u epoch=%u"),Next.Request.Identity.Order,Next.Request.Identity.Epoch);
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_STOP order=%u epoch=%u"),Next.Request.Identity.Order,Next.Request.Identity.Epoch);
         return true;
     }
     Book.ArmActivation(Mode.GetAuthorityNowSeconds(),OrderQueryIntervalSeconds);
@@ -958,7 +980,7 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
     }
     ActiveOrder=MoveTemp(Admitted);
     PublishActive(ELDOrderStatus::Activated);
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u kind=%u goal=%s"),Next.Request.Identity.Match,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_ACCEPT match=%u life=%u order=%u epoch=%u kind=%u goal=%s"),Next.Request.Identity.Match,
         Next.Request.Identity.Life,Next.Request.Identity.Order,Next.Request.Identity.Epoch,uint32(Next.Request.Kind),
         *ActiveOrder->Goal.ToString());
     return true;
@@ -976,7 +998,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Ground,Order.Points,Projected,WorldFailure,Detail))
         {
             Failure=LDNavOrdersDetail::FromWorld(WorldFailure);
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
+            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
             return false;
         }
         Order.Surface=Request.SurfaceHint;
@@ -997,7 +1019,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
             || !Registry->FindPublicApproach(Registry->Revision(),From,Request.ShopId,Capsule,Approach,Path,WorldFailure,Detail))
         {
             Failure=ELDOrderFailure::NoCompletePath;
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
+            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
             return false;
         }
         Order.Points=MoveTemp(Path.Points);
@@ -1022,7 +1044,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
             if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Body,Order.Points,Projected,WorldFailure,Detail))
             {
                 Failure=LDNavOrdersDetail::FromWorld(WorldFailure);
-                UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
+                UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
                 return false;
             }
             Order.Goal=Projected;
@@ -1063,7 +1085,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
             if (!Plan(Sample.FootCm,Order.Surface,LDPathSteering::EGoal::Body,Order.Points,Projected,WorldFailure,Detail))
             {
                 Failure=ELDOrderFailure::NoCompletePath;
-                UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
+                UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
                 return false;
             }
             Order.Goal=Projected;
@@ -1073,7 +1095,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         FString BindError;
         if (!Mode.Vision->BindObservedOrder(*PC,Request.Identity,Request.Observed,Request.ObservationEpoch,Permit,BindError))
         {
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*BindError);
+            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*BindError);
             Failure=ELDOrderFailure::TargetUnavailable;
             return false;
         }
@@ -1108,7 +1130,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
             return true;
         }
         if (Failure==ELDWorldQueryFailure::NotGrounded || Failure==ELDWorldQueryFailure::Blocked) { return true; }
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_SHOP_REACH_UNAVAILABLE %s"),*Detail);
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_SHOP_REACH_UNAVAILABLE %s"),*Detail);
         EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::ShopUnavailable,true);
         return true;
     }
@@ -1146,7 +1168,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         FString Detail;
         if (!Plan(Order.Destination,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,Failure,Detail))
         {
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_RESUME_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
+            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_RESUME_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
             EndActive(ELDOrderStatus::Cancelled,LDNavOrdersDetail::FromWorld(Failure),true);
             return true;
         }
@@ -1194,7 +1216,7 @@ bool ULDNavigationComponent::AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body
     if (!Mode.Vision->EnumerateVisibleUnits(*PC,ELDObservationPurpose::AttackMoveCandidate,View,ViewError))
     {
         // No authorized frame yet (for example right after a new life): no candidate this step.
-        UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_ACQUIRE_NO_FRAME %s"),*ViewError);
+        UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_ACQUIRE_NO_FRAME %s"),*ViewError);
         return true;
     }
     const FVector Foot=ALDCombatDirector::FootOf(Body);
@@ -1209,7 +1231,7 @@ bool ULDNavigationComponent::AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body
     if (Resolved!=ELDObservedResolve::Resolved || Out.Target.Victim.EntityId==Order.Body.Victim.EntityId
         || !Mode.Vision->BindObservedOrder(*PC,Order.Request.Identity,Best->Handle,Best->ObservationEpoch,Permit,BindError))
     {
-        UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_ACQUIRE_SKIPPED %s %s"),*Diagnostic,*BindError);
+        UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_ACQUIRE_SKIPPED %s %s"),*Diagnostic,*BindError);
         return true;
     }
     Order.bPinned=true;
@@ -1240,7 +1262,7 @@ bool ULDNavigationComponent::EngageTarget(ALDGameMode& Mode, ALDCharacter& Body,
         FString CallerError;
         if (!Mode.Combat->ResolveControllerCaller(*Controller(),Caller,CallerError) || Caller.EntityId!=Order.Body.Victim.EntityId)
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_NAV_ATTACK_CALLER_UNRESOLVED %s"),*CallerError);
+            UE_LOG(LogLDNav,Error,TEXT("LD_NAV_ATTACK_CALLER_UNRESOLVED %s"),*CallerError);
             EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NotOwner,true);
             return true;
         }
@@ -1302,7 +1324,7 @@ bool ULDNavigationComponent::TryNavCast(ALDGameMode& Mode, const FLDCombatAction
     if (!Mode.Combat || !Mode.Combat->ResolveControllerCaller(*Controller(),Caller,CallerError)
         || Caller.EntityId!=ActiveOrder->Body.Victim.EntityId)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_NAV_CAST_CALLER_UNRESOLVED %s"),*CallerError);
+        UE_LOG(LogLDNav,Error,TEXT("LD_NAV_CAST_CALLER_UNRESOLVED %s"),*CallerError);
         EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NotOwner,true);
         return true;
     }
@@ -1318,7 +1340,7 @@ bool ULDNavigationComponent::TryNavCast(ALDGameMode& Mode, const FLDCombatAction
     // Cast (or refused for good): the order ends and the body stands; a queue waits for the cast to settle.
     if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
     const bool bCast=Receipt.Phase!=ELDCombatPhase::Rejected;
-    UE_LOG(LogTemp,Display,TEXT("LD_NAV_CAST order=%u sequence=%llu phase=%u reject=%u"),ActiveOrder->Request.Identity.Order,
+    UE_LOG(LogLDNav,Display,TEXT("LD_NAV_CAST order=%u sequence=%llu phase=%u reject=%u"),ActiveOrder->Request.Identity.Order,
         Request.DirectSequence,uint32(Receipt.Phase),uint32(Receipt.Reject));
     EndActive(bCast?ELDOrderStatus::Completed:ELDOrderStatus::Cancelled,bCast?ELDOrderFailure::None:ELDOrderFailure::CastRefused,true);
     return true;
@@ -1348,7 +1370,7 @@ bool ULDNavigationComponent::AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& B
     // Only the own windup (Busy) keeps a point cast waiting where it stands.
     if (bRetry && Reject!=ELDCombatReject::Busy)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_CAST_POINT_RETRY order=%u reject=%u"),Order.Request.Identity.Order,uint32(Reject));
+        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_CAST_POINT_RETRY order=%u reject=%u"),Order.Request.Identity.Order,uint32(Reject));
         EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::CastRefused,true);
     }
     return true;
@@ -1423,11 +1445,11 @@ bool ULDNavigationComponent::ChaseTarget(ALDGameMode& Mode, ALDCharacter& Body, 
     }
     if (bProgressReplan || Order.Points.IsEmpty())
     {
-        UE_LOG(LogTemp,Display,TEXT("LD_NAV_CHASE_UNREACHABLE order=%u %s"),Order.Request.Identity.Order,*Detail);
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_CHASE_UNREACHABLE order=%u %s"),Order.Request.Identity.Order,*Detail);
         EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NoCompletePath,true);
         return true;
     }
-    UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_CHASE_REPLAN_DEFERRED order=%u %s"),Order.Request.Identity.Order,*Detail);
+    UE_LOG(LogLDNav,Verbose,TEXT("LD_NAV_CHASE_REPLAN_DEFERRED order=%u %s"),Order.Request.Identity.Order,*Detail);
     return true;
 }
 
@@ -1488,7 +1510,7 @@ void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now,
     FString Detail;
     if (!Plan(Order.Goal,Order.Surface,LDPathSteering::EGoal::Ground,Path,Projected,Failure,Detail))
     {
-        UE_LOG(LogTemp,Display,TEXT("LD_NAV_REPLAN_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REPLAN_REJECTED order=%u %s"),Order.Request.Identity.Order,*Detail);
         EndActive(ELDOrderStatus::Cancelled,LDNavOrdersDetail::FromWorld(Failure),true);
         return;
     }

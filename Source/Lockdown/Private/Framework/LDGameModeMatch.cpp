@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -29,6 +30,9 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
 {
     // The caller verified Lobby, Host, current roster, readiness and the provider gate.
     Reject = ELDSessionReject::None;
+    // Playtest log: everything the start commits from here (the opening three-choice offers, the AI registrations)
+    // belongs to this generation; the header and roster follow once the roster is locked.
+    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTING generation=%u ai=%d"), MatchContext.Generation, LobbyAISlots.Num());
     LockedAISlots = LobbyAISlots;
     MatchPhase = ELDMatchPhase::Starting;
     FString Error;
@@ -37,7 +41,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
         Reject = Why;
         // The player sees the Chinese text of the reject reason; the diagnostic stays in the authority log.
         Detail.Reset();
-        UE_LOG(LogTemp, Warning, TEXT("LD_MATCH_START_ABORTED %s"), Error.IsEmpty() ? TEXT("unknown start failure.") : *Error);
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_MATCH_START_ABORTED %s"), Error.IsEmpty() ? TEXT("unknown start failure.") : *Error);
         if (MatchPhase == ELDMatchPhase::Faulted)
         {
             Reject = ELDSessionReject::AuthorityFault;
@@ -97,8 +101,11 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     bKillFeedDirty = true;
     bLobbyDirty = true;
     PublishMatchOutcome();
-    UE_LOG(LogTemp, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d open_at_ms=%lld"),
+    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d open_at_ms=%lld"),
         MatchContext.Generation, RosterOrder.Num(), CaptureReducer.GetOpenAtMs());
+    HeartbeatGate.Reset();
+    LastMarkAt.Reset();
+    LogPlaytestRoster();
     Detail = TEXT("对局开始。");
     return true;
 }
@@ -207,7 +214,7 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     bPublicMatchDirty = true;
     bLobbyDirty = true;
     PublishMatchOutcome();
-    UE_LOG(LogTemp, Display, TEXT("LD_ROOM_RESET generation=%u aborted_start=%d"), MatchContext.Generation, bAbortedStart);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_ROOM_RESET generation=%u aborted_start=%d"), MatchContext.Generation, bAbortedStart);
     Error.Reset();
     return true;
 }

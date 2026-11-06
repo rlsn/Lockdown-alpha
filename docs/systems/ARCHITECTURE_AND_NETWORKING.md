@@ -198,6 +198,54 @@ Solo 时暂停于 `GuardKept`，独自喷漆停止后从暂停处续计；主人
 规则 `Lockdown.Rules.DemoOwnerViewTeardown` 固定这三种停发条件与对局中真实不一致仍判故障；
 `RunDemoSessionFaultCheck.ps1` 的 HostQuit 段让 Host 在客户端仍连接时正常退出，要求 Host 日志无权威故障。
 
+## 运行日志与试玩记录
+
+运行时的每一行都是 `LD_<TAG> key=value ...`：标签与字段是契约，`Scripts\SummarizePlaytestLog.py` 和各
+`RunDemo*Check.ps1` 按它解析；新增字段只追加在已有字段之后，不改名、不复用标签。值含空格、引号或 `=` 时加引号并转义
+（`LDLog::Quote`），资源为两位小数的点数（P2），身份为 32 位十六进制，时间 `t=` 为同局权威毫秒。
+日志分类在 `Source\Lockdown\Public\Core\LDLog.h`，编辑器 commandlet 用 `LogLDEditor`；
+分类只用于分组与 `-LogCmds="LogLDNav Verbose"` 这类开关，不参与解析。
+
+| 分类 | 内容 |
+| --- | --- |
+| `LogLDMatch` | 入口、房间、开局头与名单、生命与死亡、喷漆守护、结果与对局汇总、标记 |
+| `LogLDCombat` | 战斗驱动、Host 命中行、本人战斗输入与回执、客户端本人受伤/状态/所见施法 |
+| `LogLDGrowth` | 奖励、升级、三选一、商店、账本、DEV 成长夹具，客户端本人成长 |
+| `LogLDNav` / `LogLDAI` / `LogLDWorld` | 订单与移动 / 对手 AI / 营地、Boss、空投、地图注册与视野中继 |
+| `LogLDNet` | 10 秒帧耗时与连接汇总、卡顿行 |
+| `LogLDUI` / `LogLDContent` / `LogLDTest` | 界面与本地设置 / 内容、美术与音效目录 / DEV 场景探针 |
+| `LogLDTrace` | 每秒一行的 Host 心跳与客户端本人状态；`-LogCmds="LogLDTrace off"` 关掉它时连采样也跳过 |
+
+Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息（#134 用户决定“试玩期 Host 日志记完整权威信息”）：
+
+| 标签 | 写入位置 | 字段要点 |
+| --- | --- | --- |
+| `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
+| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、精神状态/电量/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
+| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害、护盾吸收与碎盾、扣血前后、增幅与抗性、暴击/背刺/保护/持续/反伤、控制、吸血（来源实际回复的生命，已计治疗削减和生命上限）、是否致死 |
+| `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
+| `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
+| `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |
+| `LD_SHOP_TRADE` / `LD_SHOP_REJECTED` | `LDVendorDirector.cpp` | 买、卖、进阶成功的物品、槽位、金币变化与结余；拒绝原因 |
+| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
+| `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、金币、K/D/A、技能及等级、属性卡、装备 |
+| `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
+
+远端客户端只记录该玩家本来就能看到的信息（`FLDPlaytestTrace`，读法与 [视野与 UI](VISION_AND_UI.md#ui-只读模型) 的允许来源一致）：
+`LD_SELF_MATCH`/`LD_SELF_ROSTER`（本人身份与公开名单）、`LD_SELF_STATE`（每秒一行本人投影）、`LD_SELF_LIFE`、
+`LD_SELF_HP`/`LD_SELF_STATUS`（本人受伤、护盾吸收、治疗与状态，由与 HUD 飘字同一 `LDWorldFeedback::FTracker` 得出）、
+`LD_SELF_REWARD`/`LD_SELF_LEVEL`/`LD_SELF_OFFER`/`LD_SELF_BUILD`/`LD_SELF_ITEMS`（本人成长投影）、
+`LD_SELF_KILLFEED`/`LD_SELF_DEATH`/`LD_SELF_KILL`/`LD_SELF_RESULT`（公开击杀通知与结果）、`LD_SELF_SEEN_CAST`（当前授权帧内可见单位的施法）、
+`LD_SELF_ORDER` 与已有的 `LD_COMBAT_INPUT`（本人发出的订单与战斗输入，按住右键的重复订单最多每 0.25 秒一行）
+和 `LD_PLAYER_MARK source=self`。客户端日志不含隐藏单位的位置、他人的经济或伤害公式拆解；本人视角各行都在该局的
+`LD_SELF_MATCH` 之后写出，便于按局切分。`SummarizePlaytestLog.py --check-client` 检查每份日志在不作 Host 的时段
+（`LD_DEMO_LOBBY` 之前或 `LD_DEMO_FRONTEND` 之后）里没有 Host 专有标签。
+
+每个进程都写 `LD_PERF`（10 秒窗口的 FPS、平均与峰值帧耗时、帧数与卡顿数，复用 HUD 的 `LDHUD::FFrameDiagnostics`）、
+客户端的 `LD_NET role=client`（RTT、抖动、丢包、本人移动校正次数与误差）和单帧 ≥ 100 ms 时的 `LD_PERF_HITCH`
+（`LDLog::FRateLimit` 每秒最多一行，被省略的条数随下一行报告）。它们与 HUD 的诊断开关无关。
+没有逐帧日志：周期行都经 `FPeriodicGate`/`FRateLimit` 限频，事件行只随已提交的权威事实或本人投影的变化写出。
+
 ## 扩展与检查
 
 新增规则先找 GameMode 所拥有的现有领域服务，保持一个权威状态和一条提交路径。

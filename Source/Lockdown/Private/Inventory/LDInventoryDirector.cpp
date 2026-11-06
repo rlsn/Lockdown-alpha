@@ -1,4 +1,5 @@
 #include "Inventory/LDInventoryDirector.h"
+#include "Core/LDLog.h"
 
 #include "Development/LDDemoContentCatalog.h"
 #include "Economy/LDEconomyDirector.h"
@@ -70,7 +71,7 @@ FLDEquipmentView ALDInventoryDirector::ReadEquipment(const FGuid& ContenderId) c
         const LDEconomy::FItem& Item = Pair.Value;
         if (Item.Slot >= LDEconomy::EquipmentSlots || Slots[Item.Slot].bOccupied)
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_EQUIPMENT_LEDGER_INVALID contender=%s instance=%s: slot %d is out of range or held twice"),
+            UE_LOG(LogLDGrowth, Error, TEXT("LD_EQUIPMENT_LEDGER_INVALID contender=%s instance=%s: slot %d is out of range or held twice"),
                 *ContenderId.ToString(), *Pair.Key.ToString(), int32(Item.Slot));
             return View;
         }

@@ -56,6 +56,7 @@
 | D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
 | 按住 Tab | 显示局内排行榜，松开收起 | 只读公开 `KillFeed.Scores`；不是世界命令。 |
+| F9 | 试玩标记：本机日志写 `LD_PLAYER_MARK`（远端客户端带本人状态），并经 `ServerPlaytestMark` 让房主日志也记下；HUD 提示“已标记 #N” | 不是世界命令；存活或死亡等待中都可用，只在本局进行中生效；房主日志每名参赛者每秒最多一条。 |
 | 方向键/屏幕边缘 | 沿固定俯视平面平移镜头 | 不移动角色、不改变视野或订单。 |
 | Space | 按住期间镜头跟住自己，松开恢复原跟随/自由状态 | 不改持久跟随偏好、不停止订单。 |
 | 按住 Shift 下达上述右键、A 左键、Q/W/1/2/D（含小地图右键） | 订单带 `bQueue`、技能经 `ServerQueueCombatAction` 进入队列，不做预输入暂存、不按住重复；地面步骤显示小圈与虚线路径 | 服务器把它排在当前订单与已排步骤之后，最多 `LDOrderRules::MaxQueuedSteps`（8）步，满时 `QueueFull`/`CapacityUnavailable` 拒绝（§4.5）。 |
@@ -146,12 +147,12 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 滚轮轴绑定到 `V05Zoom`。重建前先移除旧绑定句柄与旧 context，并要求所有键松开后才接受新世界命令；
 重建不会停止已接受订单。仓库中没有静态 IA/IMC 输入资产。
 
-动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Item1`、`Item2`、`Dash`、`Stop`、`Attributes`、`Scoreboard`（按住 Tab）、
+动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Item1`、`Item2`、`Dash`、`Stop`、`Attributes`、`Scoreboard`（按住 Tab）、`Mark`（F9 试玩标记）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom`、`Back`。
 `Back` 的 Esc 是保留键；重绑校验冲突，不静默交换两个动作。
 
-本地设置 schema 当前为 14（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
-旧 schema 5–13 显式迁移并标记为未保存（schema 13 只缺 `Scoreboard`，缺时在 Tab 未被占用时补默认 Tab）；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
+本地设置 schema 当前为 16（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
+旧 schema 5–15 显式迁移并标记为未保存（schema 13 只缺 `Scoreboard`，缺时在 Tab 未被占用时补默认 Tab；schema 15 只缺 `Mark`，缺时在 F9 未被占用时补默认 F9，更早的 schema 同样补）；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
 在当前 1300–2400 cm 范围内则原样保留（包括旧默认 1400、1850），低于 1300 cm 的调整为 1300 cm 并在提示中说明；
 不猜测用户意图或自动替换距离。schema 4 的多注册表布局被明确拒绝，其可恢复偏好也遵守旧范围。
 新安装默认 2250 cm；设置页“采用推荐镜头”只修改 Zoom，不重置姓名、绑定、音量、跟随或其他偏好。

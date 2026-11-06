@@ -1,4 +1,5 @@
 #include "Inventory/LDVendorDirector.h"
+#include "Core/LDLog.h"
 
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -243,7 +244,7 @@ FLDShopOpenResult ALDVendorDirector::QueueShopOpen(const FGuid& ContenderId, con
     ALDGameMode* GameMode = Mode();
     if (!GameMode || !GameMode->Economy)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_OPEN_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_SHOP_OPEN_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
             *ContenderId.ToString());
         return Reject(ELDGrowthReason::NotAuthority);
     }
@@ -371,7 +372,7 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         const FLDGearBindingPreview Preview = GameMode->Combat->PreviewGearBinding(Caller, Item.DefinitionId);
         if (!Preview.bValid)
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_PREVIEW_UNAVAILABLE contender=%s item=%s: %s"), *ContenderId.ToString(),
+            UE_LOG(LogLDGrowth, Warning, TEXT("LD_SHOP_PREVIEW_UNAVAILABLE contender=%s item=%s: %s"), *ContenderId.ToString(),
                 *Definition.Id, *Preview.Error);
             continue;
         }
@@ -430,7 +431,7 @@ FLDSubmitResult ALDVendorDirector::QueueShopCommand(const FGuid& ContenderId, co
     ALDGameMode* GameMode = Mode();
     if (!GameMode || !GameMode->Economy)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_COMMAND_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_SHOP_COMMAND_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
             *ContenderId.ToString());
         return Reject(ELDGrowthReason::NotAuthority);
     }
@@ -524,7 +525,7 @@ FLDShopOpenResult ALDVendorDirector::OpenPendingShop(const FGuid& ContenderId, c
         }
         Result.OpenStatus = ELDShopOpenStatus::Rejected;
         Result.Reason = LDGrowthWire::Raw(ELDGrowthReason::AuthorityFault);
-        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_OPEN_FAULT contender=%s: no pending open, growth domain or current Transactions permit"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_SHOP_OPEN_FAULT contender=%s: no pending open, growth domain or current Transactions permit"),
             *ContenderId.ToString());
         return Result;
     }
@@ -651,7 +652,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
         Header.OriginalLifePhase = Info.OriginalLifePhase;
         Header.Outcome = ELDReceiptOutcome::Rejected;
         Header.Reason = LDGrowthWire::Raw(ELDGrowthReason::AuthorityFault);
-        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_COMMIT_FAULT contender=%s request=%llu: %s"), *ContenderId.ToString(),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_SHOP_COMMIT_FAULT contender=%s request=%llu: %s"), *ContenderId.ToString(),
             Command.RequestId, Diagnostic);
         return Receipt;
     };
@@ -727,7 +728,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
     const LDEconomy::FAccount* Account = Ledger.Account(ContenderId);
     if (!Account)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_SHOP_ACCOUNT_MISSING contender=%s"), *ContenderId.ToString());
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_SHOP_ACCOUNT_MISSING contender=%s"), *ContenderId.ToString());
         return Reject(ELDGrowthReason::DataInvalid);
     }
     if (Account->Revision != Command.ExpectedAccountRevision)
@@ -940,7 +941,7 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
         const ELDGrowthReason LedgerReason = VendorLedgerReason(PreparedLedger.Error);
         if (LedgerReason == ELDGrowthReason::DataInvalid)
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_LEDGER_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
+            UE_LOG(LogLDGrowth, Warning, TEXT("LD_SHOP_LEDGER_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
                 Command.RequestId, LDEconomy::FLedger::ErrorName(PreparedLedger.Error), *PreparedLedger.Message);
         }
         return LedgerReason;
@@ -974,7 +975,7 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
         const ELDGrowthReason CombatReason = VendorCombatReason(PreparedCombat.Error);
         if (CombatReason == ELDGrowthReason::DataInvalid || CombatReason == ELDGrowthReason::PrepareUnavailable)
         {
-            UE_LOG(LogTemp, Warning, TEXT("LD_SHOP_PROJECTION_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
+            UE_LOG(LogLDGrowth, Warning, TEXT("LD_SHOP_PROJECTION_REJECTED contender=%s request=%llu %s: %s"), *ContenderId.ToString(),
                 Command.RequestId, LDGrowthWire::ReasonName(CombatReason), *PreparedCombat.Message);
         }
         return CombatReason;
@@ -1022,6 +1023,11 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
     PreparedGrowth.Value->SetCombatInstall(Install);
     GameMode->Development->ApplyPreparedGrowth(MoveTemp(PreparedGrowth.Value.GetValue()), Permit);
     GameMode->Combat->ApplyBuildChange(MoveTemp(PreparedCombat.Value.GetValue()), Permit);
+    // Host playtest record of the committed trade (failures keep their own lines and receipts).
+    const LDEconomy::FAccount* After = Ledger.Account(ContenderId);
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP_TRADE t=%lld contender=%s kind=%s item=%s slot=%u gold_delta=%lld gold_after=%lld request=%llu"),
+        Permit.GetBoundary().AtMs, *LDLog::Id(ContenderId), *LDLog::EnumName(Command.Kind), *DefinitionId.ToString(),
+        uint32(SlotIndex) + 1, Gold.Delta, After ? After->Gold : int64(-1), Command.RequestId);
     return ELDGrowthReason::None;
 }
 
@@ -1065,6 +1071,11 @@ FLDShopReceipt ALDVendorDirector::Finish(const FGuid& ContenderId, FRecord& Reco
     Header.OriginalLifePhase = Pending->Info.OriginalLifePhase;
     Header.Outcome = Reason == ELDGrowthReason::None ? ELDReceiptOutcome::Applied : ELDReceiptOutcome::Rejected;
     Header.Reason = LDGrowthWire::Raw(Reason);
+    if (Reason != ELDGrowthReason::None)
+    {
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_SHOP_REJECTED t=%lld contender=%s kind=%s request=%llu reason=%s"), Permit.GetBoundary().AtMs,
+            *LDLog::Id(ContenderId), *LDLog::EnumName(Pending->Command.Kind), Pending->Command.RequestId, LDGrowthWire::ReasonName(Reason));
+    }
     Header.bHasCommitBatch = true;
     Header.CommitBatch = Permit.GetBoundary().BatchSerial;
     Record.Requests.Finalize(Receipt);

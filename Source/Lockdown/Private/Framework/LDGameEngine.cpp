@@ -1,4 +1,5 @@
 #include "Framework/LDGameEngine.h"
+#include "Core/LDLog.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
@@ -43,7 +44,7 @@ EBrowseReturnVal::Type ULDGameEngine::Browse(FWorldContext& Context, FURL URL, F
 #if WITH_DEV_AUTOMATION_TESTS
             if (Instance) { LDDemoTests::ObserveEntryBeforeWorld(*Instance); }
 #endif
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BROWSE_REJECTED %s"), *Rejection);
+            UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_BROWSE_REJECTED %s"), *Rejection);
             return EBrowseReturnVal::Failure;
         }
     }

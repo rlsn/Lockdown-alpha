@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Core/LDLog.h"
 #include "Framework/LDGameMode.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -192,7 +193,7 @@ void ALDPlayerController::PostIntentNotice(const FString& Text)
     if (Text.IsEmpty() || !IsLocalController()) { return; }
     if (IntentFeedbackSerial==MAX_uint32)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_INTENT_FEEDBACK_EXHAUSTED"));
+        UE_LOG(LogLDCombat,Error,TEXT("LD_INTENT_FEEDBACK_EXHAUSTED"));
         return;
     }
     ++IntentFeedbackSerial;
@@ -209,7 +210,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         QueuedCombat={};
         FLDCombatActionRequest Request;
         if (!NextCombatRequest(Entry,Aim,Request)) { return; }
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
             Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
         Navigation->CastAtUnit(Request,bQueue);
         return;
@@ -228,7 +229,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
             QueuedCombat={};
             FLDCombatActionRequest Request;
             if (!NextCombatRequest(Entry,Aim,Request)) { return; }
-            UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT point-cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+            UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT point-cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
                 Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
             Navigation->CastAtPoint(Request,Point,bQueue);
             return;
@@ -241,7 +242,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         QueuedCombat={};
         FLDCombatActionRequest Request;
         if (!NextCombatRequest(Entry,Aim,Request)) { return; }
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT queued-step match=%u life=%u sequence=%llu entry=%u target=%u"),
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT queued-step match=%u life=%u sequence=%llu entry=%u target=%u"),
             Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind));
         Navigation->QueueCombatAction(Request,Aim.Kind==ELDCombatTargetKind::Direction?AimCm:nullptr);
         return;
@@ -252,7 +253,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
     if (bCurrentView && LDCombatPreInput::IsDirectEntry(Entry) && LDCombatPreInput::IsWindingUp(CombatView,NowMs))
     {
         QueuedCombat={Entry,Aim,OwnerState.Match,OwnerState.Life,FPlatformTime::Seconds(),CombatView.SourceRevision};
-        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT queued match=%u life=%u entry=%u source=%llu"),
+        UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT queued match=%u life=%u entry=%u source=%llu"),
             OwnerState.Match,OwnerState.Life,uint32(Entry),CombatView.SourceRevision);
         return;
     }
@@ -314,7 +315,7 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     if (!IsLocalController()) { return; }
     FLDCombatActionRequest Request;
     if (!NextCombatRequest(Entry,Aim,Request)) { return; }
-    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
+    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
         Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);
 }
@@ -328,7 +329,7 @@ void ALDPlayerController::ServerSubmitCombatAction_Implementation(const FLDComba
     FString Error;
     if (!Mode || !Mode->Combat || !Mode->Combat->ResolveControllerCaller(*this,Caller,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_COMBAT_CALLER_REJECTED %s"),*Error);
+        UE_LOG(LogLDCombat,Warning,TEXT("LD_COMBAT_CALLER_REJECTED %s"),*Error);
         FLDCombatActionReceipt Receipt;
         Receipt.Generation=Request.Generation;
         Receipt.Life=Request.Life;
@@ -353,7 +354,7 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
     FString Error;
     if (!Mode || !Mode->Combat || !Mode->Combat->ResolveControllerCaller(*this,Caller,Error))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_COMBAT_CALLER_REJECTED %s"),*Error);
+        UE_LOG(LogLDCombat,Warning,TEXT("LD_COMBAT_CALLER_REJECTED %s"),*Error);
         FLDCombatActionReceipt Receipt;
         Receipt.Generation=Request.Generation;
         Receipt.Life=Request.Life;
@@ -370,10 +371,10 @@ void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDComba
 void ALDPlayerController::ClientCombatReceipt_Implementation(const FLDCombatActionReceipt& Receipt)
 {
     if (Receipt.Generation!=OwnerState.Match) { return; }
-    UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT receipt match=%u life=%u sequence=%llu entry=%u phase=%u reject=%u token=%llu"),
+    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT receipt match=%u life=%u sequence=%llu entry=%u phase=%u reject=%u token=%llu"),
         Receipt.Generation,Receipt.Life,Receipt.DirectSequence,uint32(Receipt.Entry),uint32(Receipt.Phase),
         uint32(Receipt.Reject),Receipt.CombatToken);
-    if (!CombatReceipts.Push(Receipt)) { UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
+    if (!CombatReceipts.Push(Receipt)) { UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_RECEIPT_SERIAL_EXHAUSTED")); }
 }
 
 void ALDPlayerController::OnRep_CombatView()

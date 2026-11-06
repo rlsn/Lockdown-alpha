@@ -1,4 +1,5 @@
 #include "LDDemoWorldBuilder.h"
+#include "LDEditorLog.h"
 
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
@@ -694,7 +695,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         {
             Good = false;
             if (FirstFailure.IsEmpty()) { FirstFailure = Name; }
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_WORLD_CHECK_FAILED %s"), *Name);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_WORLD_CHECK_FAILED %s"), *Name);
         }
         return Passed;
     };

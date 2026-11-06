@@ -1,4 +1,5 @@
 #include "UI/LDControlSettings.h"
+#include "Core/LDLog.h"
 #include "UI/LDTerms.h"
 #include "Containers/StringConv.h"
 #include "Internationalization/Regex.h"
@@ -37,11 +38,14 @@ namespace
     // Schema 13 has the current layout and zoom range; only its key list predates the hold-Tab scoreboard.
     constexpr uint32 ScoreboardlessSchema = 13;
     constexpr uint32 DiagnosticslessSchema = 14;
+    // Schema 15 has the current layout; only its key list predates the playtest mark key.
+    constexpr uint32 MarklessSchema = 15;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
     const FName DashAction(TEXT("Dash"));
     const FName ScoreboardAction(TEXT("Scoreboard"));
+    const FName MarkAction(TEXT("Mark"));
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -196,6 +200,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
         {TEXT("Scoreboard"),FString(TEXT("按住显示"))+LDTerms::Scoreboard,EKeys::Tab},
+        {TEXT("Mark"),TEXT("标记此刻（写入试玩日志）"),EKeys::F9},
         {TEXT("PanUp"),TEXT("镜头上移"),EKeys::Up},{TEXT("PanDown"),TEXT("镜头下移"),EKeys::Down},
         {TEXT("PanLeft"),TEXT("镜头左移"),EKeys::Left},{TEXT("PanRight"),TEXT("镜头右移"),EKeys::Right},
         {TEXT("Recenter"),TEXT("按住镜头回到自己"),EKeys::SpaceBar},{TEXT("Follow"),TEXT("切换镜头跟随"),EKeys::Home},
@@ -512,7 +517,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
-            || SavedSchema == DiagnosticslessSchema);
+            || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -585,12 +590,12 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating && !LegacyZoomValid)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, FString::Printf(TEXT("旧版本镜头缩放超出原有 %.0f–%.0f cm 范围，无法迁移。文件未被替换。"), LegacyMinZoom, LegacyZoomMax) }; }
-    // Layouts before schema 11 predate the D dash and layouts before schema 14 the hold-Tab scoreboard: such a missing
-    // binding takes its default key when no other action holds it; otherwise it stays missing and the file is refused below
-    // like any other incomplete key list.
+    // Layouts before schema 11 predate the D dash, layouts before schema 14 the hold-Tab scoreboard and layouts before
+    // schema 16 the playtest mark key: such a missing binding takes its default key when no other action holds it;
+    // otherwise it stays missing and the file is refused below like any other incomplete key list.
     FString DashDefault;
     struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
-    for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash}, FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard} })
+    for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash}, FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard}, FAddedAction{MarkAction, MarklessSchema, TEXT("标记")} })
     {
         if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
         const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
@@ -611,7 +616,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–14 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–15 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -629,8 +634,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == QuickCastlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
+        if (SavedSchema == MarklessSchema)
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
         if (SavedSchema == DiagnosticslessSchema)
-        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") }; }
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") + DashDefault }; }
         if (SavedSchema == ScoreboardlessSchema)
         { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
         const FString ZoomNote = ZoomRaised
@@ -681,7 +688,7 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
     auto RemoveTemporary = [&]()
     {
         if (Files.FileExists(*Temporary) && !Files.Delete(*Temporary, false, false, true))
-        { UE_LOG(LogTemp, Warning, TEXT("Could not remove local settings temporary file: %s"), *Temporary); }
+        { UE_LOG(LogLDUI, Warning, TEXT("Could not remove local settings temporary file: %s"), *Temporary); }
     };
     if (!FFileHelper::SaveArrayToFile(Bytes, *Temporary))
     {

@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -205,7 +206,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         // No result locks over an owed reward, so only a fault closes the gate here: the reward stays explicitly unpaid.
         for (const auto& Fact : RetryRewards)
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_REWARD_UNPAID_AT_FAULT victim=%s life=%u"),
+            UE_LOG(LogLDCombat,Error,TEXT("LD_REWARD_UNPAID_AT_FAULT victim=%s life=%u"),
                 *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life);
         }
         RetryRewards.Reset();
@@ -385,7 +386,7 @@ bool ALDCombatDirector::CommitReward(const FLDCommittedDeath& Fact, bool bRetry,
     if (Receipt.Outcome==ELDRewardOutcome::Granted || Receipt.Outcome==ELDRewardOutcome::NoReward) { return true; }
     if (Receipt.Outcome==ELDRewardOutcome::RetryableNotCommitted && !bRetry)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_REWARD_RETRY victim=%s life=%u reason=%u"),
+        UE_LOG(LogLDCombat,Warning,TEXT("LD_REWARD_RETRY victim=%s life=%u reason=%u"),
             *Fact.Key.Victim.EntityId.ToString(),Fact.Key.Victim.Life,uint32(Receipt.Reason));
         RetryRewards.Add(Fact);
         return true;

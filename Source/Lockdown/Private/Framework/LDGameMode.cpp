@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
@@ -23,8 +24,8 @@ void ALDGameState::OnRep_DemoLobby()
     if (Result==ELDLobbyProjectionResult::Accepted) { return; }
     DemoLobby=LatestDemoLobby;
     if (Result==ELDLobbyProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_LOBBY_PROJECTION_REJECTED %s"),*Error); }
-    else { UE_LOG(LogTemp,Verbose,TEXT("LD_LOBBY_PROJECTION_STALE")); }
+    { UE_LOG(LogLDMatch,Warning,TEXT("LD_LOBBY_PROJECTION_REJECTED %s"),*Error); }
+    else { UE_LOG(LogLDMatch,Verbose,TEXT("LD_LOBBY_PROJECTION_STALE")); }
 }
 
 void ALDGameState::OnRep_DemoClock()
@@ -34,7 +35,7 @@ void ALDGameState::OnRep_DemoClock()
     if (Result==ELDClockProjectionResult::Accepted) { return; }
     DemoClock=LatestDemoClock;
     if (Result==ELDClockProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_CLOCK_PROJECTION_REJECTED %s"),*Error); }
+    { UE_LOG(LogLDMatch,Warning,TEXT("LD_CLOCK_PROJECTION_REJECTED %s"),*Error); }
 }
 
 void ALDGameState::OnRep_PublicMatch()
@@ -45,7 +46,7 @@ void ALDGameState::OnRep_PublicMatch()
     {
         PublicMatch=LatestPublicMatch;
         if (Result==ELDLobbyProjectionResult::Malformed)
-        { UE_LOG(LogTemp,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
+        { UE_LOG(LogLDMatch,Warning,TEXT("LD_PUBLIC_MATCH_REJECTED %s"),*Error); }
     }
     SyncCaptureMarker();
     SyncDormMarkers();
@@ -90,7 +91,7 @@ void ALDGameState::SyncAirdropMarker()
         if (Marker) { Marker->Destroy(); }
         if (Error.IsEmpty()) { Error=TEXT("The airdrop marker actor could not be spawned."); }
         AirdropMarkerFailedGeneration=PublicMatch.Generation;
-        UE_LOG(LogTemp,Error,TEXT("LD_AIRDROP_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+        UE_LOG(LogLDMatch,Error,TEXT("LD_AIRDROP_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
         return;
     }
     AirdropMarker=Marker;
@@ -154,7 +155,7 @@ void ALDGameState::SyncDormMarkers()
     {
         ClearDormMarkers();
         DormMarkerFailedGeneration=PublicMatch.Generation;
-        UE_LOG(LogTemp,Error,TEXT("LD_DORM_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+        UE_LOG(LogLDMatch,Error,TEXT("LD_DORM_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
     }
 }
 
@@ -199,7 +200,7 @@ void ALDGameState::SyncCaptureMarker()
         {
             if (Marker) { Marker->Destroy(); }
             CaptureMarkerFailedGeneration=PublicMatch.Generation;
-            UE_LOG(LogTemp,Error,TEXT("LD_CAPTURE_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
+            UE_LOG(LogLDMatch,Error,TEXT("LD_CAPTURE_MARKER_UNAVAILABLE generation=%u %s"),PublicMatch.Generation,*Error);
             return;
         }
         CaptureMarker=Marker;
@@ -215,7 +216,7 @@ void ALDGameState::OnRep_MatchResult()
     if (Result==ELDLobbyProjectionResult::Accepted) { return; }
     MatchResult=LatestMatchResult;
     if (Result==ELDLobbyProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_MATCH_RESULT_REJECTED %s"),*Error); }
+    { UE_LOG(LogLDMatch,Warning,TEXT("LD_MATCH_RESULT_REJECTED %s"),*Error); }
 }
 
 void ALDGameState::OnRep_KillFeed()
@@ -225,7 +226,7 @@ void ALDGameState::OnRep_KillFeed()
     if (Result==ELDLobbyProjectionResult::Accepted) { return; }
     KillFeed=LatestKillFeed;
     if (Result==ELDLobbyProjectionResult::Malformed)
-    { UE_LOG(LogTemp,Warning,TEXT("LD_KILL_FEED_REJECTED %s"),*Error); }
+    { UE_LOG(LogLDMatch,Warning,TEXT("LD_KILL_FEED_REJECTED %s"),*Error); }
 }
 
 void ALDGameState::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
@@ -257,20 +258,20 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     {
         if (ErrorMessage.IsEmpty()) { ErrorMessage=TEXT("Retired GameMode override. Demo uses the native LDGameMode only."); }
         EntryFailure=ErrorMessage;
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_ENTRY_REJECTED %s"),*ErrorMessage);
+        UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_ENTRY_REJECTED %s"),*ErrorMessage);
         return;
     }
     bDemoWorld=Package==LDDemoEntry::WorldMap;
     if (!bDemoWorld)
     {
         bEntryAccepted=true;
-        UE_LOG(LogTemp,Display,TEXT("LD_DEMO_FRONTEND"));
+        UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_FRONTEND"));
         return;
     }
     if (!LDDemoEntry::VerifyRuntimeFiles(ErrorMessage,&EntryCatalogDigest) || !LDDemoEntry::VerifyWorldPackages(ErrorMessage))
     {
         EntryFailure=ErrorMessage;
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_ENTRY_REJECTED %s"),*ErrorMessage);
+        UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_ENTRY_REJECTED %s"),*ErrorMessage);
         return;
     }
     auto* Instance=GetGameInstance<ULDGameInstance>();
@@ -288,13 +289,13 @@ void ALDGameMode::InitGame(const FString& MapName,const FString& Options,FString
     // Three humans plus three AI never reallocate record storage that callers briefly hold.
     Contenders.Reserve(6);
     if (GameSession) { GameSession->MaxPlayers=3; }
-    UE_LOG(LogTemp,Display,TEXT("LD_DEMO_LOBBY generation=%u"),MatchContext.Generation);
+    UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_LOBBY generation=%u"),MatchContext.Generation);
 }
 
 void ALDGameMode::RestartPlayer(AController* NewPlayer)
 {
     if (!bEntryAccepted || !bDemoWorld || MatchPhase==ELDMatchPhase::Lobby) { return; }
-    UE_LOG(LogTemp,Error,TEXT("LD_DEMO_SPAWN_REJECTED Body creation requires the committed Demo lifecycle."));
+    UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_SPAWN_REJECTED Body creation requires the committed Demo lifecycle."));
 }
 
 void ALDGameMode::StartPlay()
@@ -309,7 +310,7 @@ void ALDGameMode::StartPlay()
         {
             EntryFailure=Error.IsEmpty()?TEXT("Demo world registry is unavailable."):Error;
             MatchPhase=ELDMatchPhase::Faulted;
-            UE_LOG(LogTemp,Error,TEXT("LD_DEMO_WORLD_ENTRY_REJECTED %s"),*EntryFailure);
+            UE_LOG(LogLDMatch,Error,TEXT("LD_DEMO_WORLD_ENTRY_REJECTED %s"),*EntryFailure);
         }
         PublishLobby();
         PublishPublicMatch();
@@ -367,7 +368,7 @@ void ALDGameMode::PostLogin(APlayerController* NewPlayer)
     FString Reason;
     if (!AdmitRoomMember(Cast<ALDPlayerController>(NewPlayer),Reason))
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_DEMO_ADMISSION_REJECTED %s"),*Reason);
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_DEMO_ADMISSION_REJECTED %s"),*Reason);
         if (NewPlayer && (!GameSession || !GameSession->KickPlayer(NewPlayer,FText::FromString(Reason)))) { NewPlayer->Destroy(); }
         return;
     }
@@ -382,6 +383,8 @@ void ALDGameMode::Logout(AController* Exiting)
     if (Record && IsMemberPresent(Record->Session))
     {
         const FGuid Session=Record->Session;
+        UE_LOG(LogLDMatch,Display,TEXT("LD_MEMBER_LEFT contender=%s name=%s generation=%u phase=%s t=%lld host=%d"),*LDLog::Id(Session),
+            *LDLog::Quote(Record->Name),MatchContext.Generation,*LDLog::EnumName(MatchPhase),AuthorityNowMs,LobbyHost==Controller?1:0);
         if (LobbyHost==Controller) { CloseRoomForHostDeparture(Controller); }
         // An ordinary leave is not a death: no reward, no automatic win. The body leaves now,
         // the reducer receives the leave at its actual receipt instant and the result row stays.
@@ -434,7 +437,7 @@ void ALDGameMode::HostWorldUnloading(const FWorldContext& Context,const FString&
     // connection, ahead of its close.
     const ALDPlayerController* Host=LobbyHost.Get();
     if (Context.World()!=GetWorld() || GetNetMode()!=NM_ListenServer || !Host || !Host->IsLocalController()) { return; }
-    UE_LOG(LogTemp,Display,TEXT("LD_DEMO_ROOM_CLOSED_BY_HOST generation=%u next=%s"),MatchContext.Generation,*Map);
+    UE_LOG(LogLDMatch,Display,TEXT("LD_DEMO_ROOM_CLOSED_BY_HOST generation=%u next=%s"),MatchContext.Generation,*Map);
     CloseRoomForHostDeparture(Host);
 }
 
@@ -470,14 +473,14 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
         if (State->Revision==MAX_uint64)
         {
             MatchPhase=ELDMatchPhase::Faulted;
-            UE_LOG(LogTemp,Error,TEXT("LD_OWNER_REVISION_EXHAUSTED"));
+            UE_LOG(LogLDMatch,Error,TEXT("LD_OWNER_REVISION_EXHAUSTED"));
             return;
         }
         FString Error;
         if (IsDemoRoom() && !ProjectLife(*PC,*State,Error))
         {
             if (MatchPhase!=ELDMatchPhase::Faulted) { FaultAuthority(Error); }
-            else { UE_LOG(LogTemp,Warning,TEXT("LD_OWNER_PROJECTION_REJECTED %s"),*Error); }
+            else { UE_LOG(LogLDMatch,Warning,TEXT("LD_OWNER_PROJECTION_REJECTED %s"),*Error); }
             return;
         }
         State->Match=MatchContext.Generation;

@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Core/LDLog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDModelPicking.h"
 #include "Character/LDBodyPuppet.h"
@@ -382,7 +383,7 @@ void ALDObservedEntityProxy::PlayDeathFall() const
 {
     if (IsValid(Body) && !ALDBodyPuppet::SpawnFall(*Body))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
+        UE_LOG(LogLDWorld, Warning, TEXT("LD_OBSERVATION_DEATH_FALL_UNAVAILABLE The observed death is shown without a falling body."));
     }
 }
 
@@ -569,7 +570,7 @@ bool ALDWorldViewRelay::ExpectedWorld(FLDWorldRevision& Out) const
 
 void ALDWorldViewRelay::Refuse(const FString& Error)
 {
-    UE_LOG(LogTemp, Error, TEXT("LD_OBSERVATION_PROTOCOL_REJECTED %s"), *Error);
+    UE_LOG(LogLDWorld, Error, TEXT("LD_OBSERVATION_PROTOCOL_REJECTED %s"), *Error);
     TArray<FLDObservedClear> Cleared;
     Receiver.Reset(ELDObservedClearReason::ProtocolRejected, Cleared);
     Present(Cleared);
@@ -984,7 +985,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
             }
             if (!Prop.bParameter)
             {
-                UE_LOG(LogTemp, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
+                UE_LOG(LogLDWorld, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
                     *Primitive->GetPathName());
             }
         }

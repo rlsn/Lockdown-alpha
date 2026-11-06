@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -82,7 +83,7 @@ ELDCommitReject ALDGameMode::PublishCaptureMotion(const FLDGameplayWritePermit& 
     FString Error;
     if (!LDCaptureCircle::Extract(CaptureCircle, Batch, Inside, Crossings, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
+        UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
         return ELDCommitReject::GeometryUnavailable;
     }
     // Buckets stay inside (last closed boundary, this boundary]; the step end is exact.
@@ -100,13 +101,13 @@ ELDCommitReject ALDGameMode::PublishCaptureMotion(const FLDGameplayWritePermit& 
         if (Crossing.Seconds < Batch.Step.EndServerSeconds
             && !LDMatchLifecycle::AuthoritySecondsToEventMs(Crossing.Seconds, Bucket, Error))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
+            UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
             return ELDCommitReject::GeometryUnavailable;
         }
         Fact.Time.BucketMs = FMath::Clamp(Bucket, FirstOpenMs, AtMs);
         if (!CaptureReducer.Enqueue(Fact, Error))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
+            UE_LOG(LogLDMatch, Error, TEXT("LD_CAPTURE_MOTION_REJECTED %s"), *Error);
             return ELDCommitReject::GeometryUnavailable;
         }
     }
@@ -189,7 +190,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     FString Error;
     if (!CaptureReducer.Enqueue(Fact, Error))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
         return ELDCommitReject::InvalidRequest;
     }
     if (Kind == ELDCaptureEventKind::Joined || Kind == ELDCaptureEventKind::Respawned)
@@ -207,7 +208,7 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
         {
             bPublicMatchDirty = true;
-            UE_LOG(LogTemp, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s bounty=%lld"), *Id.ToString(),
+            UE_LOG(LogLDMatch, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s bounty=%lld"), *Id.ToString(),
                 *Event.CreditContender.ToString(), LeaderNotice.LastDownBountyGold);
         }
         FLDKillNotice& Notice = KillNotices.AddDefaulted_GetRef();
@@ -240,7 +241,7 @@ ELDCommitReject ALDGameMode::PublishCaptureInterrupt(const FLDGameplayWritePermi
     // The control lands at this boundary instant: before any spray or guard completion due at the same instant.
     if (!FLDCaptureEventTime::FromMs(Permit.GetBoundary().AtMs, Fact.Time, Error) || !CaptureReducer.Enqueue(Fact, Error))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
+        UE_LOG(LogLDMatch, Warning, TEXT("LD_CAPTURE_FACT_REJECTED %s"), *Error);
         return ELDCommitReject::InvalidRequest;
     }
     return ELDCommitReject::None;
@@ -328,7 +329,7 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;
         bLobbyDirty = true;
-        UE_LOG(LogTemp, Display, TEXT("LD_CAPTURE_OPEN generation=%u at_ms=%lld"), MatchContext.Generation, Permit.GetBoundary().AtMs);
+        UE_LOG(LogLDMatch, Display, TEXT("LD_CAPTURE_OPEN generation=%u at_ms=%lld"), MatchContext.Generation, Permit.GetBoundary().AtMs);
     }
     bPublicMatchDirty |= WasOpen != CaptureReducer.IsOpen() || EpochBefore != CaptureReducer.GetEpoch();
     PendingCapture = Proposal;
@@ -364,7 +365,7 @@ bool ALDGameMode::ExecuteClosePhase(const FLDGameplayWritePermit& Permit, FStrin
         }
         // The guard is complete at this instant, but a reward of a death up to it is still owed. The proposal
         // waits for a settlement boundary at the same instant: its single retry first, then this Close.
-        UE_LOG(LogTemp, Display, TEXT("LD_CAPTURE_CLOSE_AWAITS_REWARD generation=%u due_ms=%lld"),
+        UE_LOG(LogLDMatch, Display, TEXT("LD_CAPTURE_CLOSE_AWAITS_REWARD generation=%u due_ms=%lld"),
             MatchContext.Generation, Proposal.DueAtMs);
         return true;
     }
@@ -444,8 +445,9 @@ bool ALDGameMode::TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, i
     bResultLocked = true;
     bResultPublished = false;
     bPublicMatchDirty = true;
-    UE_LOG(LogTemp, Display, TEXT("LD_MATCH_RESULT generation=%u reason=%u winner=%s ended_ms=%lld"),
+    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_RESULT generation=%u reason=%u winner=%s ended_ms=%lld"),
         MatchContext.Generation, uint8(Reason), *Winner.ToString(EGuidFormats::Digits), EndedAtMs);
+    LogPlaytestSummary(ResultView);
     Error.Reset();
     return true;
 }
@@ -486,7 +488,7 @@ void ALDGameMode::PublishMatchOutcome()
             if (const FLDContenderRecord* Record = FindContender(Id)) { Feed.Scores.Add({Id, Record->Kills, Record->Deaths, Record->Assists}); }
         }
         FString Error;
-        if (!LDCapture::ValidateKillFeed(Feed, Error)) { UE_LOG(LogTemp, Error, TEXT("LD_KILL_FEED_INVALID %s"), *Error); }
+        if (!LDCapture::ValidateKillFeed(Feed, Error)) { UE_LOG(LogLDMatch, Error, TEXT("LD_KILL_FEED_INVALID %s"), *Error); }
         else
         {
             Public->KillFeed = MoveTemp(Feed);
@@ -582,7 +584,7 @@ void ALDGameMode::PublishPublicMatch()
     if (!Public || !MatchContext.IsValid()) { return; }
     if (PublicMatchRevision == MAX_uint64)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_PUBLIC_MATCH_REVISION_EXHAUSTED"));
+        UE_LOG(LogLDMatch, Error, TEXT("LD_PUBLIC_MATCH_REVISION_EXHAUSTED"));
         return;
     }
     ++PublicMatchRevision;
@@ -590,7 +592,7 @@ void ALDGameMode::PublishPublicMatch()
     FString Error;
     if (!LDCapture::ValidatePublicMatchView(View, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_PUBLIC_MATCH_INVALID %s"), *Error);
+        UE_LOG(LogLDMatch, Error, TEXT("LD_PUBLIC_MATCH_INVALID %s"), *Error);
         return;
     }
     Public->PublicMatch = MoveTemp(View);

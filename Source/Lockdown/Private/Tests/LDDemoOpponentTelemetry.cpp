@@ -1,4 +1,5 @@
 #include "Tests/LDDemoOpponentProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentController.h"
@@ -159,7 +160,7 @@ public:
         Report->SetArrayField(TEXT("files"), Files);
         Report->SetStringField(TEXT("scope"), TEXT("DEV-only telemetry: one idle Listen Host and three opponent AI through the normal lobby, several matches in a row. Records how the matches went; it does not judge the AI or the balance."));
         const bool bWritten = Save(Report, TEXT("Telemetry.json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY passed=%d matches=%d/%d detail=%s"), bPassed && bWritten,
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY passed=%d matches=%d/%d detail=%s"), bPassed && bWritten,
             Completed, Matches, *Error);
         FPlatformMisc::RequestExitWithStatus(false, bPassed && bWritten ? 0 : 2);
         return false;
@@ -442,7 +443,7 @@ public:
         if (!Save(Match, Name)) { return Fail(TEXT("Could not persist telemetry file ") + Name); }
         Files.Add(MakeShared<FJsonValueString>(Name));
         ++Completed;
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY match=%d reason=%s duration_ms=%lld"), Completed,
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_TELEMETRY match=%d reason=%s duration_ms=%lld"), Completed,
             ReasonName(Result.Reason), Result.DurationMs);
         return true;
     }
@@ -572,7 +573,7 @@ void LDDemoTests::StartOpponentTelemetry(ALDPlayerController& Controller, const 
     if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoOpponentMatches="), Telemetry->Matches)
         || Telemetry->Matches < 1 || Telemetry->Matches > MaxMatches)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_OPPONENT_TELEMETRY Invalid match count."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_TELEMETRY Invalid match count."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

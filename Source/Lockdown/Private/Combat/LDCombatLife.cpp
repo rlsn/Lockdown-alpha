@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
@@ -259,7 +260,7 @@ void ALDCombatDirector::RemoveRegisteredBody(const FLDCombatBodyRef& Ref)
             return;
         }
     }
-    UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_RETIRE_MISMATCH"));
+    UE_LOG(LogLDCombat,Error,TEXT("LD_DEMO_BODY_RETIRE_MISMATCH"));
 }
 
 void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)

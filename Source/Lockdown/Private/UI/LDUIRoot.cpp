@@ -1,4 +1,5 @@
 #include "UI/LDUIRoot.h"
+#include "Core/LDLog.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameInstance.h"
@@ -216,7 +217,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         LabelSlot->SetZOrder(-1);
         WorldLabels->SetVisibility(ESlateVisibility::Collapsed);
     }
-    else{UE_LOG(LogTemp,Error,TEXT("LD_WORLD_LABELS_CREATION_FAILED Overhead unit names are unavailable in this world."));}
+    else{UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_LABELS_CREATION_FAILED Overhead unit names are unavailable in this world."));}
     // Floating feedback over the bodies: above the names in the same bottom layer, never hit-tested or focused.
     WorldFeedback=CreateWidget<ULDWorldFeedback>(GetOwningPlayer());
     if(WorldFeedback)
@@ -227,7 +228,7 @@ void ULDUIRoot::BuildWorld(UCanvasPanel& Canvas)
         FeedbackSlot->SetZOrder(-1);
         WorldFeedback->SetVisibility(ESlateVisibility::Collapsed);
     }
-    else{UE_LOG(LogTemp,Error,TEXT("LD_WORLD_FEEDBACK_CREATION_FAILED Floating numbers, rewards and level-up and kill confirmations are unavailable in this world."));}
+    else{UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_FEEDBACK_CREATION_FAILED Floating numbers, rewards and level-up and kill confirmations are unavailable in this world."));}
     Status=Label(FString(),18);
     HeaderPanel=LDWidgets::Panel(WidgetTree,Status,FMargin(20,12));
     UCanvasPanelSlot* HeaderSlot=Canvas.AddChildToCanvas(HeaderPanel);
@@ -383,7 +384,7 @@ UWidget* ULDUIRoot::AddBackground(UCanvasPanel& Canvas,const TCHAR* AssetPath)
     UTexture2D* Texture=LoadObject<UTexture2D>(nullptr,AssetPath);
     if(!Texture)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportBackgrounds."),AssetPath);
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportBackgrounds."),AssetPath);
         return nullptr;
     }
     auto* Picture=WidgetTree->ConstructWidget<UImage>();
@@ -936,7 +937,7 @@ void ULDUIRoot::ToggleMainPanel(ELDUIMainPanel Panel)
     ULDPanel* Target=Index==INDEX_NONE?nullptr:MainPanels[Index].Get();
     if(!Target)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_UI_MAIN_PANEL_UNREGISTERED %d"),int32(Panel));
+        UE_LOG(LogLDUI,Warning,TEXT("LD_UI_MAIN_PANEL_UNREGISTERED %d"),int32(Panel));
         PC->PostIntentNotice(TEXT("该面板在当前版本尚未接入。"));
         return;
     }
@@ -984,7 +985,7 @@ void ULDUIRoot::RegisterMainPanel(ELDUIMainPanel Panel,ULDPanel* Widget)
     const int32 Index=MainPanelIndex(Panel);
     if(Index==INDEX_NONE)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices, Shop and DevTest are registered panels."),int32(Panel));
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices, Shop and DevTest are registered panels."),int32(Panel));
         return;
     }
     MainPanels[Index]=Widget;

@@ -1,4 +1,5 @@
 #include "UI/LDWorldFeedback.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -392,6 +393,24 @@ void ULDWorldFeedback::Present(const LDWorldFeedback::FEvent& Event,double Now)
     while(Floaters.Num()>WorldFeedbackMaxFloaters){Floaters.RemoveAt(0);}
 }
 
+void LDWorldFeedback::MakeSample(const ALDPlayerController& PC,const ALDGameState& Public,const FLDDemoContentDefinitions* Content,FSample& Out)
+{
+    const FLDOwnerState& Own=PC.OwnerState;
+    const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC.LocalView():nullptr;
+    const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
+    const FLDCombatOwnerView& Combat=PC.CombatView;
+    Out=FSample();
+    Out.Match=Own.Match;Out.Life=Own.Life;Out.LifePhase=Own.LifePhase;Out.Self=Own.ContenderId;
+    Out.OwnCombat=Own.Life!=0&&Combat.bHasBody&&Combat.Generation==Own.Match&&Combat.Life==Own.Life?&Combat:nullptr;
+    Out.Progression=PC.ReadOwnProgression();Out.Equipment=PC.ReadOwnEquipment();
+    Out.KillFeed=&Public.KillFeed;Out.PublicGeneration=Public.PublicMatch.Generation;
+    Out.bClock=PC.ReadDemoAuthorityTimeMs(Out.NowMs);
+    Out.Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;
+    const ALDGameState* PublicState=&Public;
+    Out.RosterName=[PublicState](const FGuid& Contender){return LDHUD::RosterName(PublicState->DemoLobby,Contender);};
+    Out.CastName=[Content](uint8 Ability,uint8 Equipment){return Ability!=0?LDHUD::AbilityName(Content,Ability):LDHUD::EquipmentName(Content,Equipment);};
+}
+
 void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
@@ -399,7 +418,7 @@ void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
     {
         // Missing content stays visible: a cast then reads by its stable id (未知技能 #n).
         bDisplayContentTried=true;FString Error;
-        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_WORLD_FEEDBACK_CONTENT_UNAVAILABLE %s"),*Error);}
+        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_FEEDBACK_CONTENT_UNAVAILABLE %s"),*Error);}
     }
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());const UWorld* World=GetWorld();
     const ALDGameState* Public=World?World->GetGameState<ALDGameState>():nullptr;
@@ -416,19 +435,9 @@ void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)
     // Shown feedback belongs to one match and life; a new one starts clean.
     if(Own.Match!=ShownMatch||Own.Life!=ShownLife){ShownMatch=Own.Match;ShownLife=Own.Life;ClearShown();}
     const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC->LocalView():nullptr;
-    const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    const FLDWorldView* Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;
-    const FLDCombatOwnerView& Combat=PC->CombatView;
     LDWorldFeedback::FSample Sample;
-    Sample.Match=Own.Match;Sample.Life=Own.Life;Sample.LifePhase=Own.LifePhase;Sample.Self=Own.ContenderId;
-    Sample.OwnCombat=Own.Life!=0&&Combat.bHasBody&&Combat.Generation==Own.Match&&Combat.Life==Own.Life?&Combat:nullptr;
-    Sample.Progression=PC->ReadOwnProgression();Sample.Equipment=PC->ReadOwnEquipment();
-    Sample.KillFeed=&Public->KillFeed;Sample.PublicGeneration=Public->PublicMatch.Generation;
-    Sample.bClock=PC->ReadDemoAuthorityTimeMs(Sample.NowMs);
-    Sample.Frame=Frame;
-    Sample.RosterName=[Public](const FGuid& Contender){return LDHUD::RosterName(Public->DemoLobby,Contender);};
-    const FLDDemoContentDefinitions* Content=DisplayContent?&DisplayContent->Get():nullptr;
-    Sample.CastName=[Content](uint8 Ability,uint8 Equipment){return Ability!=0?LDHUD::AbilityName(Content,Ability):LDHUD::EquipmentName(Content,Equipment);};
+    LDWorldFeedback::MakeSample(*PC,*Public,DisplayContent?&DisplayContent->Get():nullptr,Sample);
+    const FLDWorldView* Frame=Sample.Frame;
     TArray<LDWorldFeedback::FEvent> Events;
     Tracker.Observe(Sample,Events);
     for(const LDWorldFeedback::FEvent& Event:Events)
