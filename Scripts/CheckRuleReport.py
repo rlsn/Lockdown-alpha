@@ -205,6 +205,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.PlaytestLog.PerfWindow",
         "Lockdown.Rules.PlaytestLog.MarkMatch",
         "Lockdown.Rules.PlaytestLog.HitVamp",
+        "Lockdown.Rules.LocalSettingsPreferenceGroups",
         "Lockdown.Rules.DemoControlFeel.FixedCamera",
         "Lockdown.Rules.DemoControlFeel.OwnerCorrectionSmoothing",
         "Lockdown.Rules.HUDFrameDiagnostics",

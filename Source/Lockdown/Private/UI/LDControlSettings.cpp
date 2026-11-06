@@ -447,19 +447,37 @@ bool ULDControlSettings::SetAppliedPlayerName(const FString& Name, FString& Erro
 
 void ULDControlSettings::ResetLocalDefaults()
 {
-    const auto* CurrentDefaults = GetDefault<ULDControlSettings>();
     Schema = CurrentSchema;
-    bEdgePan = CurrentDefaults->bEdgePan;
-    bStartFollowing = CurrentDefaults->bStartFollowing;
-    TextScale = CurrentDefaults->TextScale;
-    Zoom = CurrentDefaults->Zoom;
-    MasterVolume = CurrentDefaults->MasterVolume;
-    CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
-    MinimapOrientation = CurrentDefaults->MinimapOrientation;
-    bQuickCast = CurrentDefaults->bQuickCast;
-    bShowNetworkDiagnostics = CurrentDefaults->bShowNetworkDiagnostics;
-    bShowFPS = CurrentDefaults->bShowFPS;
-    ResetBindings();
+    for (const ELDPreferenceGroup Group : { ELDPreferenceGroup::Audio, ELDPreferenceGroup::Controls,
+        ELDPreferenceGroup::Camera, ELDPreferenceGroup::Interface })
+    { ResetPreferenceGroup(Group); }
+}
+
+void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
+{
+    const auto* CurrentDefaults = GetDefault<ULDControlSettings>();
+    switch (Group)
+    {
+    case ELDPreferenceGroup::Audio:
+        MasterVolume = CurrentDefaults->MasterVolume;
+        break;
+    case ELDPreferenceGroup::Controls:
+        bQuickCast = CurrentDefaults->bQuickCast;
+        ResetBindings();
+        break;
+    case ELDPreferenceGroup::Camera:
+        Zoom = CurrentDefaults->Zoom;
+        bEdgePan = CurrentDefaults->bEdgePan;
+        bStartFollowing = CurrentDefaults->bStartFollowing;
+        CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
+        break;
+    case ELDPreferenceGroup::Interface:
+        TextScale = CurrentDefaults->TextScale;
+        MinimapOrientation = CurrentDefaults->MinimapOrientation;
+        bShowNetworkDiagnostics = CurrentDefaults->bShowNetworkDiagnostics;
+        bShowFPS = CurrentDefaults->bShowFPS;
+        break;
+    }
 }
 
 FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalSettingsStorage& InStorage)

@@ -26,6 +26,7 @@ ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunc
 #include "Components/ScrollBox.h"
 #include "Components/Slider.h"
 #include "Components/Border.h"
+#include "Layout/Clipping.h"
 #include "Rendering/DrawElements.h"
 UWidget* ULDPanel::FocusScope() const{return WidgetTree?WidgetTree->RootWidget:nullptr;}
 bool ULDPanel::IsPanelHit(FVector2D Absolute) const
@@ -82,7 +83,14 @@ int32 ULDPanel::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateR
     for(auto* W:PanelFocusTargets()){if(W->HasKeyboardFocus()||W->HasFocusedDescendants())
     {
         const auto& WG=W->GetCachedGeometry();const FVector2D P=G.AbsoluteToLocal(WG.LocalToAbsolute(FVector2D::ZeroVector)),Q=G.AbsoluteToLocal(WG.LocalToAbsolute(WG.GetLocalSize()));
-        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,FLinearColor(1,.82f,.28f),true,3);break;
+        // A focused target scrolled out of its list keeps focus; its outline is clipped to the list instead of floating over
+        // the rest of the panel.
+        const UScrollBox* List=nullptr;
+        for(const UWidget* Parent=W->GetParent();Parent&&!List;Parent=Parent->GetParent()){List=Cast<UScrollBox>(Parent);}
+        if(List){E.PushClip(FSlateClippingZone(List->GetCachedGeometry()));}
+        FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),{P,FVector2D(Q.X,P.Y),Q,FVector2D(P.X,Q.Y),P},ESlateDrawEffect::None,FLinearColor(1,.82f,.28f),true,3);
+        if(List){E.PopClip();}
+        break;
     }}return Base+1;
 }
 UBorder* LDWidgets::Panel(UWidgetTree* Tree,UWidget* Child,FMargin Padding)

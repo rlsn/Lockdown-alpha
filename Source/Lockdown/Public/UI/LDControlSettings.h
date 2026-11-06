@@ -110,6 +110,15 @@ struct FLDControlBinding
 // Which ground direction the minimap draws straight up (LDMinimap): the camera's ground forward, the own living body's
 // facing (the camera's while there is no body) or world -Y. Saved as this value; any other stored value is rejected.
 UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 };
+// The local-preference groups the settings page restores one page at a time (UI_AND_SETTINGS 8); together they are exactly
+// ResetLocalDefaults. Display values belong to UGameUserSettings and are restored through the display apply instead.
+enum class ELDPreferenceGroup : uint8
+{
+    Audio,      // MasterVolume
+    Controls,   // Bindings, bQuickCast
+    Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
+    Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS
+};
 UCLASS()
 class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
@@ -173,10 +182,12 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
-    // Restores keys, camera (including the pan speed), text, master volume and minimap orientation only; the player name is
-    // never cleared by a defaults reset. Display values belong to UGameUserSettings; the settings panel restores them through
-    // the display trial.
+    // Restores every preference group (keys, quick cast, camera including the pan speed, text, minimap orientation,
+    // diagnostics and master volume); the player name is never cleared by a defaults reset. Display values belong to
+    // UGameUserSettings; the settings panel restores them through the display apply.
     void ResetLocalDefaults();
+    // Restores one group only; every other preference and the player name keep their values.
+    void ResetPreferenceGroup(ELDPreferenceGroup Group);
 private:
     void CopyPreferences(const ULDControlSettings& Other);
     FLDLocalSettingsStorage Storage;
