@@ -46,6 +46,15 @@ bool SightSegmentsTouch(const FVector2D& A, const FVector2D& B, const FVector2D&
         || (O3 == 0 && SightWithinBox(C, D, A)) || (O4 == 0 && SightWithinBox(C, D, B));
 }
 
+// Closed disc test: a segment touching a trunk's edge blocks sight, as a polygon edge does.
+bool SightSegmentTouchesDisc(const FVector2D& A, const FVector2D& B, const FVector2D& Centre, double Radius)
+{
+    const FVector2D Delta = B - A;
+    const double Length = Delta.SizeSquared();
+    const double T = Length > 0 ? FMath::Clamp(FVector2D::DotProduct(Centre - A, Delta) / Length, 0.0, 1.0) : 0.0;
+    return FVector2D::DistSquared(A + Delta * T, Centre) <= Radius * Radius;
+}
+
 bool SightInsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point)
 {
     for (int32 Index = 0; Index < Polygon.Num(); ++Index)
@@ -108,6 +117,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         return false;
     }
     TArray<TArray<FVector2D>> Prepared;
+    TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
         double Height = 0;
@@ -117,9 +127,27 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
             return false;
         }
         if (!Blocker.BlocksSight) { continue; }
-        if (Height <= SampleHeight || Blocker.PolygonCm.Num() < 3)
+        if (Height <= SampleHeight)
         {
-            Error = FString::Printf(TEXT("Sight blocker %s must be a polygon taller than the sight sample."), *Blocker.Id);
+            Error = FString::Printf(TEXT("Sight blocker %s must be taller than the sight sample."), *Blocker.Id);
+            return false;
+        }
+        if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder)
+        {
+            FVector Centre;
+            FCircle Circle;
+            if (!Blocker.CenterCm.ToVector(Centre, Error) || !SightRationalValue(Blocker.RadiusCm, Circle.Radius) || Circle.Radius <= 0)
+            {
+                Error = FString::Printf(TEXT("Sight blocker %s has an invalid cylinder."), *Blocker.Id);
+                return false;
+            }
+            Circle.Centre = FVector2D(Centre.X, Centre.Y);
+            PreparedCircles.Add(Circle);
+            continue;
+        }
+        if (Blocker.PolygonCm.Num() < 3)
+        {
+            Error = FString::Printf(TEXT("Sight blocker %s must be a polygon of at least three vertices."), *Blocker.Id);
             return false;
         }
         TArray<FVector2D> Polygon;
@@ -144,6 +172,7 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Max = FVector2D(SurfaceMax.X, SurfaceMax.Y);
     RadiusCm = RadiusValue;
     Blockers = MoveTemp(Prepared);
+    Circles = MoveTemp(PreparedCircles);
     Error.Reset();
     return true;
 }
@@ -163,6 +192,10 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
         {
             if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
         }
+    }
+    for (const FCircle& Circle : Circles)
+    {
+        if (SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
     }
     return false;
 }

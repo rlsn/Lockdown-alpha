@@ -1,9 +1,9 @@
 {
-  "schema_version": 2,
-  "projection_revision": 2,
+  "schema_version": 3,
+  "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 1,
-  "geometry_revision": 1,
+  "layout_revision": 2,
+  "geometry_revision": 2,
   "approval": {
     "status": "approved",
     "decision": "User approvals: 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, build expansion entries and rules (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05: #112 build and spray-guard endgame rework and values (D33; CONTENT_AND_BALANCE 15.2, 15.6, 15.10-15.11); #79 Boss windup and patrol. A playtest baseline, not a balance check."
@@ -15,54 +15,74 @@
     ],
     "blockers": [
       {
-        "id": "midwall_054", "surface_id": "demo_ground",
+        "id": "midwall_054", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": 1748, "y": 832, "z": 0}, {"x": 1983, "y": 1155, "z": 0}, {"x": 486, "y": 2243, "z": 0}, {"x": 251, "y": 1919, "z": 0}],
-        "height_cm": 600, "blocks_movement": true, "blocks_sight": true
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "midwall_126", "surface_id": "demo_ground",
+        "id": "midwall_126", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -251, "y": 1919, "z": 0}, {"x": -486, "y": 2243, "z": 0}, {"x": -1983, "y": 1155, "z": 0}, {"x": -1748, "y": 832, "z": 0}],
-        "height_cm": 600, "blocks_movement": true, "blocks_sight": true
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "midwall_198", "surface_id": "demo_ground",
+        "id": "midwall_198", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -1903, "y": 354, "z": 0}, {"x": -2283, "y": 231, "z": 0}, {"x": -1711, "y": -1529, "z": 0}, {"x": -1331, "y": -1405, "z": 0}],
-        "height_cm": 600, "blocks_movement": true, "blocks_sight": true
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "midwall_270", "surface_id": "demo_ground",
+        "id": "midwall_270", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -925, "y": -1700, "z": 0}, {"x": -925, "y": -2100, "z": 0}, {"x": 925, "y": -2100, "z": 0}, {"x": 925, "y": -1700, "z": 0}],
-        "height_cm": 600, "blocks_movement": true, "blocks_sight": true
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "midwall_342", "surface_id": "demo_ground",
+        "id": "midwall_342", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": 1331, "y": -1405, "z": 0}, {"x": 1711, "y": -1529, "z": 0}, {"x": 2283, "y": 231, "z": 0}, {"x": 1903, "y": 354, "z": 0}],
-        "height_cm": 600, "blocks_movement": true, "blocks_sight": true
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "wall_n", "surface_id": "demo_ground",
+        "id": "wall_n", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -5300, "y": 5000, "z": 0}, {"x": 5300, "y": 5000, "z": 0}, {"x": 5300, "y": 5300, "z": 0}, {"x": -5300, "y": 5300, "z": 0}],
         "height_cm": 600, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "wall_s", "surface_id": "demo_ground",
+        "id": "wall_s", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -5300, "y": -5300, "z": 0}, {"x": 5300, "y": -5300, "z": 0}, {"x": 5300, "y": -5000, "z": 0}, {"x": -5300, "y": -5000, "z": 0}],
         "height_cm": 600, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "wall_e", "surface_id": "demo_ground",
+        "id": "wall_e", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": 5000, "y": -5300, "z": 0}, {"x": 5300, "y": -5300, "z": 0}, {"x": 5300, "y": 5300, "z": 0}, {"x": 5000, "y": 5300, "z": 0}],
         "height_cm": 600, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "wall_w", "surface_id": "demo_ground",
+        "id": "wall_w", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": -5300, "y": -5300, "z": 0}, {"x": -5000, "y": -5300, "z": 0}, {"x": -5000, "y": 5300, "z": 0}, {"x": -5300, "y": 5300, "z": 0}],
         "height_cm": 600, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "shop_stall", "surface_id": "demo_ground",
+        "id": "shop_stall", "shape": "polygon", "surface_id": "demo_ground",
         "polygon_cm": [{"x": 718, "y": 718, "z": 0}, {"x": 838, "y": 718, "z": 0}, {"x": 838, "y": 838, "z": 0}, {"x": 718, "y": 838, "z": 0}],
         "height_cm": 80, "blocks_movement": true, "blocks_sight": false
+      },
+      {
+        "id": "tree_sw_1", "shape": "cylinder", "surface_id": "demo_ground",
+        "center_cm": {"x": -3300, "y": -3300, "z": 0}, "radius_cm": 50,
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
+      },
+      {
+        "id": "tree_sw_2", "shape": "cylinder", "surface_id": "demo_ground",
+        "center_cm": {"x": -2800, "y": -3650, "z": 0}, "radius_cm": 50,
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
+      },
+      {
+        "id": "tree_sw_3", "shape": "cylinder", "surface_id": "demo_ground",
+        "center_cm": {"x": -3450, "y": -3950, "z": 0}, "radius_cm": 50,
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
+      },
+      {
+        "id": "tree_sw_4", "shape": "cylinder", "surface_id": "demo_ground",
+        "center_cm": {"x": -2350, "y": -3250, "z": 0}, "radius_cm": 50,
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       }
     ],
     "sight_sample_height_cm": 120,
@@ -80,13 +100,6 @@
     ],
     "spawn_validation_radius_cm": 200
   },
-  "connections": [
-    {"id": "g018", "wall_ids": ["midwall_342", "midwall_054"], "camp_id": "l1"},
-    {"id": "g090", "wall_ids": ["midwall_054", "midwall_126"], "camp_id": "h1"},
-    {"id": "g162", "wall_ids": ["midwall_126", "midwall_198"], "camp_id": "l2"},
-    {"id": "g234", "wall_ids": ["midwall_198", "midwall_270"], "camp_id": "h2"},
-    {"id": "g306", "wall_ids": ["midwall_270", "midwall_342"], "camp_id": "l3"}
-  ],
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
     "TIMING.DefendRouteBudgetSec", "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm",

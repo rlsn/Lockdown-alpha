@@ -2106,7 +2106,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
     const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Bundle.WorldContract.GetData()), Bundle.WorldContract.Num());
     const FString WorldText(Decoded.Length(), Decoded.Get());
     const FString ExpectedWorld = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION 2\n#define LD_DEMO_WORLD_PROJECTION_REVISION 2\n")
+        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION 3\n#define LD_DEMO_WORLD_PROJECTION_REVISION 3\n")
         TEXT("#define LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT(\"%s\")\n"), *Identity.World.ToHex());
     return Check.Require(WorldText.Replace(TEXT("\r\n"), TEXT("\n")).Equals(ExpectedWorld, ESearchCase::CaseSensitive),
         TEXT("world contract"), TEXT("world schema, projection, byte digest or contract shape differs"));
@@ -2146,8 +2146,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
         return false;
     }
     FFields Contract(Check, WorldRef.Take(TEXT("contract")), TEXT("manifest.world.contract"));
-    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, 2, 2)
-        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision, 2, 2)
+    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, 3, 3)
+        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision, 3, 3)
         || !Contract.Digest(TEXT("sha256"), Out.WorldContract) || !Contract.Done() || !WorldRef.Done() || !Root.Done())
     {
         return false;

@@ -103,20 +103,40 @@ bool ConvexShapeMatches(const UBodySetup& Body, const TArray<FVector>& Expected)
 
 FString MeshPath(const FString& Id) { return FString(GeometryRoot) + TEXT("SM_Demo_") + Id; }
 
+// Prism vertices: the footprint ring at the ground, then the same ring at the blocker's height. A cylinder's ring is
+// the regular LDDemoWorld::CylinderSides-gon inscribed in its radius, so the physical trunk never reaches past the
+// circle every rule tests against.
 bool BlockerVertices(const FLDDemoWorldBlocker& Blocker, TArray<FVector>& Out, FString& Error)
 {
-    if (Blocker.PolygonCm.Num() != 4 || Blocker.HeightCm.Denominator <= 0)
+    if (Blocker.HeightCm.Denominator <= 0 || Blocker.HeightCm.Numerator <= 0)
     {
         return Fail(Error, TEXT("Invalid typed blocker geometry."));
     }
     const double Height = double(Blocker.HeightCm.Numerator) / double(Blocker.HeightCm.Denominator);
-    for (const auto& Source : Blocker.PolygonCm)
+    if (Blocker.Shape == ELDDemoWorldBlockerShape::Polygon)
     {
-        FVector Point;
-        if (!Source.ToVector(Point, Error)) { return false; }
-        Out.Add(Point);
+        if (Blocker.PolygonCm.Num() < 3) { return Fail(Error, TEXT("Invalid typed blocker polygon.")); }
+        for (const auto& Source : Blocker.PolygonCm)
+        {
+            FVector Point;
+            if (!Source.ToVector(Point, Error)) { return false; }
+            Out.Add(Point);
+        }
     }
-    for (int32 I = 0; I < 4; ++I) { Out.Add(Out[I] + FVector(0, 0, Height)); }
+    else
+    {
+        FVector Centre;
+        if (!Blocker.CenterCm.ToVector(Centre, Error)) { return false; }
+        if (Blocker.RadiusCm.Denominator <= 0 || Blocker.RadiusCm.Numerator <= 0) { return Fail(Error, TEXT("Invalid typed blocker cylinder.")); }
+        const double Radius = double(Blocker.RadiusCm.Numerator) / double(Blocker.RadiusCm.Denominator);
+        for (int32 I = 0; I < LDDemoWorld::CylinderSides; ++I)
+        {
+            const double Angle = 2 * UE_DOUBLE_PI * I / LDDemoWorld::CylinderSides;
+            Out.Add(Centre + FVector(Radius * FMath::Cos(Angle), Radius * FMath::Sin(Angle), 0));
+        }
+    }
+    const int32 Ring = Out.Num();
+    for (int32 I = 0; I < Ring; ++I) { Out.Add(Out[I] + FVector(0, 0, Height)); }
     return true;
 }
 
@@ -160,13 +180,17 @@ UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Che
         }
         Description.CreatePolygon(Group, Instances);
     };
-    Triangle(0, 2, 1); Triangle(0, 3, 2);
-    Triangle(4, 5, 6); Triangle(4, 6, 7);
-    for (int32 I = 0; I < 4; ++I)
+    const int32 Ring = Points.Num() / 2;
+    for (int32 I = 1; I + 1 < Ring; ++I)
     {
-        const int32 Next = (I + 1) % 4;
-        Triangle(I, Next, Next + 4);
-        Triangle(I, Next + 4, I + 4);
+        Triangle(0, I + 1, I);
+        Triangle(Ring, Ring + I, Ring + I + 1);
+    }
+    for (int32 I = 0; I < Ring; ++I)
+    {
+        const int32 Next = (I + 1) % Ring;
+        Triangle(I, Next, Next + Ring);
+        Triangle(I, Next + Ring, I + Ring);
     }
     auto& Settings = Mesh->GetSourceModel(0).BuildSettings;
     Settings.bRecomputeNormals = true;
@@ -220,6 +244,7 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
 const TCHAR* FieldMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoField");
 const TCHAR* WallMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoWall");
 const TCHAR* ApronMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoApron");
+const TCHAR* TreeMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoTree");
 // Paving reaches this far past the field on every side, so props and buildings outside the walls stand on ground.
 constexpr double ApronMarginCm = 4000.;
 const TCHAR* ApronTag = TEXT("LDDemoApron");
@@ -374,6 +399,28 @@ UMaterial* BuildWallMaterial(FString& Error)
     UMaterialExpression* Wall = ChooseNode(*Material, Height, 45.f, ColorNode(*Material, FLinearColor(.42f, .1f, .07f)),
         ColorNode(*Material, FLinearColor(.72f, .66f, .55f)));
     return FinishMaterial(*Material, Wall, .85f, .35f, WallMaterialPath, Error);
+}
+
+// Trees: a dark bark foot under a mottled leafy green, so a trunk reads apart from the cream walls.
+UMaterial* BuildTreeMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(TreeMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    auto* Mottle = AddNode<UMaterialExpressionNoise>(*Material);
+    Mottle->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
+    Mottle->Scale = .02f;
+    Mottle->NoiseFunction = NOISEFUNCTION_GradientALU;
+    Mottle->Quality = 1;
+    Mottle->Levels = 2;
+    Mottle->bTurbulence = false;
+    Mottle->OutputMin = .7f;
+    Mottle->OutputMax = 1.15f;
+    auto* Leaves = AddNode<UMaterialExpressionMultiply>(*Material);
+    Leaves->A.Connect(0, ColorNode(*Material, FLinearColor(.07f, .2f, .05f)));
+    Leaves->B.Connect(0, Mottle);
+    UMaterialExpression* Height = MaskNode(*Material, AddNode<UMaterialExpressionWorldPosition>(*Material), false, false, true);
+    UMaterialExpression* Tree = ChooseNode(*Material, Height, 60.f, ColorNode(*Material, FLinearColor(.16f, .09f, .045f)), Leaves);
+    return FinishMaterial(*Material, Tree, .9f, .25f, TreeMaterialPath, Error);
 }
 
 // Campus paving beyond the walls: warm grey two-metre slabs with darker joints and faint weathering, darker than the
@@ -636,6 +683,8 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
     if (!StoneMaterial) { return false; }
     UMaterial* PavingMaterial = BuildApronMaterial(Error);
     if (!PavingMaterial) { return false; }
+    UMaterial* TreeMaterial = BuildTreeMaterial(Error);
+    if (!TreeMaterial) { return false; }
     FVector Min, Max;
     if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
     const double Depth = Capsule.GetCapsuleHalfHeight();
@@ -645,7 +694,8 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
     for (const auto& Blocker : Geometry->Blockers)
     {
         UStaticMesh* Mesh = BuildBlocker(Blocker, Definition.Checksum, Error);
-        if (!Place(*World, Blocker.Id, Mesh, StoneMaterial, FVector::ZeroVector, FVector::OneVector,
+        UMaterial* Surface = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder ? TreeMaterial : StoneMaterial;
+        if (!Place(*World, Blocker.Id, Mesh, Surface, FVector::ZeroVector, FVector::OneVector,
             false, Blocker.BlocksMovement, Blocker.BlocksSight, Error)) { return false; }
     }
     for (const auto& Source : Geometry->Anchors)
@@ -759,7 +809,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             Meshes.Add(Id, Mesh);
         }
     }
-    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 11,
+    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Geometry->Blockers.Num(),
         TEXT("Exact native anchor, navigation and static-geometry counts"));
     Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
         TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
@@ -811,13 +861,14 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
             TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
         const UMaterialInterface* Wall = Component->GetMaterial(0);
-        Check(Wall && Wall->GetPathName() == ObjectPath(WallMaterialPath), TEXT("Blocker uses the generated school wall: ") + Blocker.Id);
-        TArray<FVector> Expected;
-        if (!BlockerVertices(Blocker, Expected, Error)) { return false; }
+        const TCHAR* Expected = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder ? TreeMaterialPath : WallMaterialPath;
+        Check(Wall && Wall->GetPathName() == ObjectPath(Expected), TEXT("Blocker uses its generated wall or tree surface: ") + Blocker.Id);
+        TArray<FVector> Vertices;
+        if (!BlockerVertices(Blocker, Vertices, Error)) { return false; }
         if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Blocker.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Blocker.Id))
             && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
             TEXT("Blocker uses its exact convex mesh, not an AABB substitute: ") + Blocker.Id)) { continue; }
-        Check(ConvexShapeMatches(*Body, Expected),
+        Check(ConvexShapeMatches(*Body, Vertices),
             TEXT("Saved collision vertices and local transform equal the authored body-space geometry: ") + Blocker.Id);
     }
     auto* Registry = World.GetSubsystem<ULDMapRegistry>();
@@ -921,6 +972,20 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(World.SweepTestByChannel(Left + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
         Right + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
         TEXT("The same shop stall blocks native capsule movement"));
+    // Every tree trunk stops the actual capsule and, when it blocks sight, the eye-height sight trace through it.
+    for (const auto& Blocker : Geometry->Blockers)
+    {
+        if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder) { continue; }
+        FVector Centre;
+        if (!Blocker.CenterCm.ToVector(Centre, Error)) { return false; }
+        const double Radius = double(Blocker.RadiusCm.Numerator) / double(Blocker.RadiusCm.Denominator);
+        const FVector Across(Radius + Capsule.GetCapsuleRadius() + 10, 0, 0);
+        Check(World.LineTraceTestByChannel(Centre - Across + FVector(0, 0, Eye), Centre + Across + FVector(0, 0, Eye),
+            ECC_GameTraceChannel2) == Blocker.BlocksSight, TEXT("Tree sight classification matches the source: ") + Blocker.Id);
+        Check(World.SweepTestByChannel(Centre - Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
+            Centre + Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
+            TEXT("Tree trunk blocks native capsule movement: ") + Blocker.Id);
+    }
     Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
     Report->SetBoolField(TEXT("passed"), Good);
     Report->SetStringField(TEXT("world_sha256"), Definition.Checksum);

@@ -177,8 +177,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     {
         if(!Blocker.BlocksMovement&&!Blocker.BlocksSight){continue;}
         FLDMinimapStatic::FArea Area;Area.Style=!Blocker.BlocksSight?FLDMinimapStatic::EArea::LowWall:!Blocker.BlocksMovement?FLDMinimapStatic::EArea::SightScreen:FLDMinimapStatic::EArea::Wall;
-        for(const FLDDemoWorldPoint& Corner:Blocker.PolygonCm){FVector2D Point;if(!ToCm(Blocker.Id,Corner,Point)){return false;}Area.Cm.Add(Point);}
-        if(Area.Cm.Num()<3){Error=Blocker.Id+TEXT(": a blocker polygon needs at least three corners.");return false;}
+        // A tree is drawn as its circumscribing polygon, the same footprint every other consumer uses.
+        if(!LDDemoWorld::Footprint(Blocker,Area.Cm,Error)){Error=Blocker.Id+TEXT(": ")+Error;return false;}
         if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
     }
     const FLDDemoRational& Radius=Approved.Parameters.CaptureRadiusCm;

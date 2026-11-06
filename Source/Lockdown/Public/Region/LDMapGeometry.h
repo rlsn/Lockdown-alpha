@@ -25,6 +25,10 @@ struct FLDDemoWorldSurface
     UPROPERTY() FLDDemoWorldPoint MaxCm;
 };
 
+// A blocker's footprint: a strictly convex counterclockwise polygon (walls, stalls) or an upright cylinder (trees).
+UENUM()
+enum class ELDDemoWorldBlockerShape : uint8 { Polygon, Cylinder };
+
 USTRUCT()
 struct FLDDemoWorldBlocker
 {
@@ -32,11 +36,25 @@ struct FLDDemoWorldBlocker
 
     UPROPERTY() FString Id;
     UPROPERTY() FString SurfaceId;
+    UPROPERTY() ELDDemoWorldBlockerShape Shape = ELDDemoWorldBlockerShape::Polygon;
+    // Polygon only: 3..16 vertices on the supporting surface.
     UPROPERTY() TArray<FLDDemoWorldPoint> PolygonCm;
+    // Cylinder only: footprint centre on the supporting surface and its radius.
+    UPROPERTY() FLDDemoWorldPoint CenterCm;
+    UPROPERTY() FLDDemoRational RadiusCm;
     UPROPERTY() FLDDemoRational HeightCm;
     UPROPERTY() bool BlocksMovement = false;
     UPROPERTY() bool BlocksSight = false;
 };
+
+namespace LDDemoWorld
+{
+    // Sides of the regular polygon that stands in for a cylinder where a consumer needs vertices (meshes, overlap
+    // tests). It circumscribes the true circle, so a point outside the polygon is outside the cylinder.
+    constexpr int32 CylinderSides = 24;
+    // The footprint as XY vertices: the polygon itself, or the circumscribing CylinderSides-gon of a cylinder.
+    LOCKDOWN_API bool Footprint(const FLDDemoWorldBlocker& Blocker, TArray<FVector2D>& Out, FString& Error);
+}
 
 USTRUCT()
 struct FLDDemoWorldMemberHome
@@ -66,16 +84,6 @@ struct FLDDemoWorldAnchor
 };
 
 USTRUCT()
-struct FLDDemoWorldConnection
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FString Id;
-    UPROPERTY() TArray<FString> WallIds;
-    UPROPERTY() FString CampId;
-};
-
-USTRUCT()
 struct LOCKDOWN_API FLDDemoWorldGeometry
 {
     GENERATED_BODY()
@@ -92,7 +100,6 @@ struct LOCKDOWN_API FLDDemoWorldGeometry
     UPROPERTY() FLDDemoRational CampClearanceCm;
     UPROPERTY() TArray<FLDDemoWorldPoint> SpawnOffsetsCm;
     UPROPERTY() FLDDemoRational SpawnValidationRadiusCm;
-    UPROPERTY() TArray<FLDDemoWorldConnection> Connections;
     UPROPERTY() TArray<FString> ParameterRefs;
     UPROPERTY() TArray<FLDDemoWorldAnchor> Anchors;
 };

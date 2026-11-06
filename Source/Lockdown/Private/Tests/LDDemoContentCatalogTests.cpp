@@ -724,7 +724,8 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         TMap<FString, FString> Actual;
         if (!AssertFields(*this, FLDDemoWorldGeometry::StaticStruct(), Geometry.Get(), ExpectedFile, Actual)) { return false; }
-        TestEqual(TEXT("World keeps ten actual polygon blockers"), Geometry->Blockers.Num(), 10);
+        TestTrue(TEXT("World keeps its four boundary walls and every authored inner blocker"), Geometry->Blockers.Num() > 4
+            && Geometry->Blockers.ContainsByPredicate([](const FLDDemoWorldBlocker& B) { return B.Shape == ELDDemoWorldBlockerShape::Cylinder; }));
         TestEqual(TEXT("World keeps twenty-six authored anchors"), Geometry->Anchors.Num(), 26);
         TestEqual(TEXT("World keeps seven local placements, not seventy spawn IDs"), Geometry->SpawnOffsetsCm.Num(), 7);
         if (Case.Name == TEXT("base"))

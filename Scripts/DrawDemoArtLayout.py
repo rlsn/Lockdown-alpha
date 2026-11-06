@@ -21,6 +21,10 @@ CODES = {"tree_round": "T", "tree_tall": "T", "tree_pine": "P", "flower_bed": "F
          "street_lamp": "L"}
 
 
+# Anchor rings drawn on the layout: kind -> (radius cm, colour). Event points and patrol waypoints are not drawn.
+ANCHOR_RINGS = {"Spawn": (200, (60, 110, 220)), "Camp": (500, (200, 120, 40)), "Shop": (350, (150, 70, 190)),
+                "Capture": (600, (190, 150, 20))}
+
 def px(x, y):
     return ((x + EXTENT_CM) * SCALE, (y + EXTENT_CM) * SCALE)
 
@@ -39,12 +43,17 @@ def main():
     surface = world["geometry"]["surfaces"][0]
     draw.rectangle([px(surface["min_cm"]["x"], surface["min_cm"]["y"]), px(surface["max_cm"]["x"], surface["max_cm"]["y"])], fill=(226, 234, 224))
     for blocker in world["geometry"]["blockers"]:
-        points = [px(p["x"], p["y"]) for p in blocker["polygon_cm"]]
-        draw.polygon(points, fill=(80, 90, 100) if blocker["blocks_sight"] else (190, 150, 90))
+        fill = (80, 90, 100) if blocker["blocks_sight"] else (190, 150, 90)
+        if blocker["shape"] == "cylinder":
+            (cx, cy), r = px(blocker["center_cm"]["x"], blocker["center_cm"]["y"]), blocker["radius_cm"] * SCALE
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(60, 120, 50))
+        else:
+            draw.polygon([px(p["x"], p["y"]) for p in blocker["polygon_cm"]], fill=fill)
     for anchor in world["anchors"]:
+        if anchor["kind"] not in ANCHOR_RINGS:
+            continue
         x, y = anchor["position_cm"]["x"], anchor["position_cm"]["y"]
-        radius = {"Spawn": 200, "Camp": 500, "Shop": 350, "Capture": 600}[anchor["kind"]]
-        colour = {"Spawn": (60, 110, 220), "Camp": (200, 120, 40), "Shop": (150, 70, 190), "Capture": (190, 150, 20)}[anchor["kind"]]
+        radius, colour = ANCHOR_RINGS[anchor["kind"]]
         (cx, cy), r = px(x, y), radius * SCALE
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=colour, width=2)
         draw.text((cx + r + 2, cy - 6), anchor["id"].upper(), fill=colour, font=font)

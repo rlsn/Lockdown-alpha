@@ -679,7 +679,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.geometry.minimum, (-5000, -5000, 0))
         self.assertEqual(self.geometry.maximum, (5000, 5000, 0))
         self.assertEqual(self.world.world["map_id"], "demo_world")
-        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (2, 2))
+        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
 
     def test_exact_polygons_heights_and_collision_classification(self):
         polygons = {
@@ -698,22 +698,29 @@ class ApprovedDemoData(unittest.TestCase):
         for identity, xy in polygons.items():
             self.assertEqual(self.geometry.polygons[identity], tuple((*p, 0) for p in xy))
             row = self.geometry.rows[identity]
-            self.assertEqual(content._wire_fraction(row["height_cm"], identity), 80 if identity == "shop_stall" else 600)
+            # #97: inner walls are about a body tall; the boundary keeps its height.
+            height = 80 if identity == "shop_stall" else 200 if identity.startswith("midwall_") else 600
+            self.assertEqual(content._wire_fraction(row["height_cm"], identity), height)
             self.assertTrue(row["blocks_movement"])
             self.assertEqual(row["blocks_sight"], identity != "shop_stall")
+            self.assertEqual(row["shape"], "polygon")
             self.assertNotIn("min_cm", row)
+        # #97 testbed trees: upright cylinders that block movement and sight.
+        trees = {"tree_sw_1": (-3300, -3300), "tree_sw_2": (-2800, -3650), "tree_sw_3": (-3450, -3950),
+                 "tree_sw_4": (-2350, -3250)}
+        self.assertEqual(self.geometry.circles, {identity: ((*xy, 0), 50) for identity, xy in trees.items()})
+        for identity in trees:
+            row = self.geometry.rows[identity]
+            self.assertEqual((row["shape"], content._wire_fraction(row["height_cm"], identity), row["blocks_movement"],
+                              row["blocks_sight"]), ("cylinder", 200, True, True))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 500)
 
-    def test_exact_placement_connections_and_parameter_references(self):
+    def test_exact_placement_and_parameter_references(self):
         placement = self.world.world["placement"]
         self.assertEqual([world.point(row, "offset") for row in placement["spawn_offsets_cm"]],
                          [(0, 0, 0), (100, 0, 0), (50, 87, 0), (-50, 87, 0), (-100, 0, 0), (-50, -87, 0), (50, -87, 0)])
         self.assertEqual(content._wire_fraction(placement["spawn_validation_radius_cm"], "envelope"), 200)
-        self.assertEqual([(row["id"], tuple(row["wall_ids"]), row["camp_id"]) for row in self.world.world["connections"]], [
-            ("g018", ("midwall_342", "midwall_054"), "l1"), ("g090", ("midwall_054", "midwall_126"), "h1"),
-            ("g162", ("midwall_126", "midwall_198"), "l2"), ("g234", ("midwall_198", "midwall_270"), "h2"),
-            ("g306", ("midwall_270", "midwall_342"), "l3")])
         self.assertEqual(self.world.world["parameter_refs"], (
             "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
@@ -742,13 +749,13 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
             self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
-        self.assertAlmostEqual(self.world.report["route_upper_bound_cm"], 9524.661, delta=.00051)
         speed = amount(self.data["parameters"]["UNIT.MoveSpeedCmPerSec"])
         budget = amount(self.data["parameters"]["TIMING.DefendRouteBudgetSec"])
         self.assertEqual((speed, budget), (400, 26))
-        self.assertLess(self.world.report["route_upper_bound_cm"], speed * budget)
-        self.assertGreater(self.world.report["route_upper_bound_cm"], speed * 23)
-        self.assertAlmostEqual(self.world.report["min_inner_angular_gap_degrees"], 11.662, delta=.00051)
+        # The whole-ground check is a 500 cm grid of legal positions, every one within the budget.
+        self.assertEqual(self.world.report["sampled_route_points"], 380)
+        self.assertAlmostEqual(self.world.report["sampled_route_max_cm"], 6595.634, delta=.00051)
+        self.assertLess(self.world.report["sampled_route_max_cm"], speed * budget)
         candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
         self.assertEqual(len(candidates), 70)
         self.assertAlmostEqual(min(candidates), 4075.611, delta=.00051)
@@ -772,6 +779,11 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertLess(world.squared_distance(world.point(low["position_cm"], "l1"),
                                               world.point(low["members"][0]["position_cm"], "l1_0")), 80 ** 2)
         self.assertFalse(self.geometry.legal((778, 778, 0), Fraction(40)))
+        # A trunk blocks movement within body radius of its edge and blocks sight through it, not past its tangent.
+        self.assertFalse(self.geometry.legal((-3300, -3300 + 89, 0), Fraction(40)))
+        self.assertTrue(self.geometry.legal((-3300, -3300 + 90, 0), Fraction(40)))
+        self.assertFalse(self.geometry.sight_clear((-3600, -3300, 0), (-3000, -3300, 0)))
+        self.assertTrue(self.geometry.sight_clear((-3600, -3250, 0), (-3000, -3250, 0)))
 
     def test_byte_provenance_and_acyclic_producer_order(self):
         self.assertEqual(self.world.world["source_sha256"], content.sha256((content.ROOT / content.WORLD_SOURCE).read_bytes()))
@@ -782,7 +794,7 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(world.compile_world().outputs, self.world.outputs)
         self.assertEqual(set(self.world.world), {
             "schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision",
-            "source_sha256", "author_schema_sha256", "approval", "geometry", "placement", "connections", "parameter_refs", "anchors"})
+            "source_sha256", "author_schema_sha256", "approval", "geometry", "placement", "parameter_refs", "anchors"})
         self.assertNotIn(self.root_bundle.digest.hex(), self.world.outputs[content.WORLD_OUTPUT].decode("utf-8"))
         self.assertEqual(content.verify_runtime_files(content.ROOT, self.root_bundle.digest), self.root_bundle.digest)
         content.check_outputs(content.ROOT, self.root_bundle.outputs)
@@ -855,11 +867,12 @@ class ApprovedDemoRefusals(unittest.TestCase):
             (("geometry", "surfaces", 0), ("properties", "geometry", "properties", "surfaces", "items")),
             (("geometry", "surfaces", 0, "min_cm"), ("$defs", "vector")),
             (("geometry", "surfaces", 0, "max_cm"), ("$defs", "vector")),
-            (("geometry", "blockers", 9), ("properties", "geometry", "properties", "blockers", "items")),
+            (("geometry", "blockers", 9), ("$defs", "blocker", "oneOf", 0)),
             (("geometry", "blockers", 9, "polygon_cm", 3), ("$defs", "vector")),
+            (("geometry", "blockers", 10), ("$defs", "blocker", "oneOf", 1)),
+            (("geometry", "blockers", 10, "center_cm"), ("$defs", "vector")),
             (("placement",), ("properties", "placement")),
             (("placement", "spawn_offsets_cm", 6), ("$defs", "vector")),
-            (("connections", 4), ("properties", "connections", "items")),
             (("anchors", 16), ("$defs", "anchor", "oneOf", 0)),
             (("anchors", 16, "position_cm"), ("$defs", "vector")),
             (("anchors", 14), ("$defs", "anchor", "oneOf", 1)),
@@ -911,14 +924,17 @@ class ApprovedDemoRefusals(unittest.TestCase):
         for change in (
             lambda d: d.update(coordinate_unit="m"),
             lambda d: d["approval"].update(status="pending"),
-            lambda d: d["geometry"]["blockers"].pop(),
+            lambda d: d["geometry"]["blockers"].pop(5),
             lambda d: d["geometry"]["blockers"][0]["polygon_cm"].reverse(),
             lambda d: d["geometry"]["blockers"][0]["polygon_cm"][0].update(z=1),
             lambda d: d["geometry"]["blockers"][0].update(height_cm=0),
-            lambda d: d["geometry"]["blockers"][-1].update(blocks_sight=True),
+            lambda d: d["geometry"]["blockers"][9].update(blocks_sight=True),
+            lambda d: d["geometry"]["blockers"][10]["center_cm"].update(z=1),
+            lambda d: d["geometry"]["blockers"][10].update(radius_cm=0),
+            lambda d: d["geometry"]["blockers"][10].update(shape="polygon"),
+            lambda d: d["geometry"]["blockers"][10]["center_cm"].update(x=-3560, y=-2586),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=300),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=True),
-            lambda d: d["connections"][0]["wall_ids"].__setitem__(0, "unknown_wall"),
             lambda d: d["parameter_refs"].append("UNAPPROVED.NumericDefault"),
             lambda d: d["geometry"]["surfaces"][0]["min_cm"].update(x=content.INT64_MIN),
         ):
@@ -952,7 +968,7 @@ class ApprovedDemoRefusals(unittest.TestCase):
             self.assertEqual((self.root / relative).read_bytes(), expected)
 
     def test_world_contract_write_failure_rolls_back_world_bundle(self):
-        self.edit(content.WORLD_SOURCE, lambda d: d.update(layout_revision=2))
+        self.edit(content.WORLD_SOURCE, lambda d: d.update(layout_revision=3))
         compilation = world.compile_world(self.root)
         install = content_sync._install_output
 

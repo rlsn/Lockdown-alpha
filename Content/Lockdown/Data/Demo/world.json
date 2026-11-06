@@ -645,49 +645,7 @@
     "decision": "User approvals: 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, build expansion entries and rules (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05: #112 build and spray-guard endgame rework and values (D33; CONTENT_AND_BALANCE 15.2, 15.6, 15.10-15.11); #79 Boss windup and patrol. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "646297c92a23334c08abe22b485304324cfef22fbbb708761099d06f4ae3586c",
-  "connections": [
-    {
-      "camp_id": "l1",
-      "id": "g018",
-      "wall_ids": [
-        "midwall_342",
-        "midwall_054"
-      ]
-    },
-    {
-      "camp_id": "h1",
-      "id": "g090",
-      "wall_ids": [
-        "midwall_054",
-        "midwall_126"
-      ]
-    },
-    {
-      "camp_id": "l2",
-      "id": "g162",
-      "wall_ids": [
-        "midwall_126",
-        "midwall_198"
-      ]
-    },
-    {
-      "camp_id": "h2",
-      "id": "g234",
-      "wall_ids": [
-        "midwall_198",
-        "midwall_270"
-      ]
-    },
-    {
-      "camp_id": "l3",
-      "id": "g306",
-      "wall_ids": [
-        "midwall_270",
-        "midwall_342"
-      ]
-    }
-  ],
+  "author_schema_sha256": "f20a28d74ee65b785b7a5974808724da5e62d4e3323b523be2caeb35ec286bed",
   "geometry": {
     "blockers": [
       {
@@ -695,7 +653,7 @@
         "blocks_sight": true,
         "height_cm": {
           "denominator": 1,
-          "numerator": 600
+          "numerator": 200
         },
         "id": "midwall_054",
         "polygon_cm": [
@@ -756,6 +714,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -763,7 +722,7 @@
         "blocks_sight": true,
         "height_cm": {
           "denominator": 1,
-          "numerator": 600
+          "numerator": 200
         },
         "id": "midwall_126",
         "polygon_cm": [
@@ -824,6 +783,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -831,7 +791,7 @@
         "blocks_sight": true,
         "height_cm": {
           "denominator": 1,
-          "numerator": 600
+          "numerator": 200
         },
         "id": "midwall_198",
         "polygon_cm": [
@@ -892,6 +852,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -899,7 +860,7 @@
         "blocks_sight": true,
         "height_cm": {
           "denominator": 1,
-          "numerator": 600
+          "numerator": 200
         },
         "id": "midwall_270",
         "polygon_cm": [
@@ -960,6 +921,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -967,7 +929,7 @@
         "blocks_sight": true,
         "height_cm": {
           "denominator": 1,
-          "numerator": 600
+          "numerator": 200
         },
         "id": "midwall_342",
         "polygon_cm": [
@@ -1028,6 +990,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -1096,6 +1059,123 @@
             }
           }
         ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "center_cm": {
+          "x": {
+            "denominator": 1,
+            "numerator": -3300
+          },
+          "y": {
+            "denominator": 1,
+            "numerator": -3300
+          },
+          "z": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        },
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 200
+        },
+        "id": "tree_sw_1",
+        "radius_cm": {
+          "denominator": 1,
+          "numerator": 50
+        },
+        "shape": "cylinder",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "center_cm": {
+          "x": {
+            "denominator": 1,
+            "numerator": -2800
+          },
+          "y": {
+            "denominator": 1,
+            "numerator": -3650
+          },
+          "z": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        },
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 200
+        },
+        "id": "tree_sw_2",
+        "radius_cm": {
+          "denominator": 1,
+          "numerator": 50
+        },
+        "shape": "cylinder",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "center_cm": {
+          "x": {
+            "denominator": 1,
+            "numerator": -3450
+          },
+          "y": {
+            "denominator": 1,
+            "numerator": -3950
+          },
+          "z": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        },
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 200
+        },
+        "id": "tree_sw_3",
+        "radius_cm": {
+          "denominator": 1,
+          "numerator": 50
+        },
+        "shape": "cylinder",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": true,
+        "center_cm": {
+          "x": {
+            "denominator": 1,
+            "numerator": -2350
+          },
+          "y": {
+            "denominator": 1,
+            "numerator": -3250
+          },
+          "z": {
+            "denominator": 1,
+            "numerator": 0
+          }
+        },
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 200
+        },
+        "id": "tree_sw_4",
+        "radius_cm": {
+          "denominator": 1,
+          "numerator": 50
+        },
+        "shape": "cylinder",
         "surface_id": "demo_ground"
       },
       {
@@ -1164,6 +1244,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -1232,6 +1313,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -1300,6 +1382,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       },
       {
@@ -1368,6 +1451,7 @@
             }
           }
         ],
+        "shape": "polygon",
         "surface_id": "demo_ground"
       }
     ],
@@ -1413,8 +1497,8 @@
       }
     ]
   },
-  "geometry_revision": 1,
-  "layout_revision": 1,
+  "geometry_revision": 2,
+  "layout_revision": 2,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -1534,7 +1618,7 @@
       "numerator": 200
     }
   },
-  "projection_revision": 2,
-  "schema_version": 2,
-  "source_sha256": "80d2ee87aafa211e716adef0b3149f2fc8afe4bcd76547745d2bb2a6630ba794"
+  "projection_revision": 3,
+  "schema_version": 3,
+  "source_sha256": "8088485ddfb6887338c1c8d838789910488220a81fe421233485cc7d8280512b"
 }

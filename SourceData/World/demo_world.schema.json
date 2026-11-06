@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Single-layer Demo world author contract",
+  "title": "Demo world author contract",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision", "approval", "coordinate_unit", "geometry", "placement", "connections", "parameter_refs", "anchors"],
+  "required": ["schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision", "approval", "coordinate_unit", "geometry", "placement", "parameter_refs", "anchors"],
   "properties": {
-    "schema_version": {"type": "integer", "const": 2},
-    "projection_revision": {"type": "integer", "const": 2},
+    "schema_version": {"type": "integer", "const": 3},
+    "projection_revision": {"type": "integer", "const": 3},
     "map_id": {"$ref": "#/$defs/id"},
     "layout_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
     "geometry_revision": {"type": "integer", "minimum": 1, "maximum": 4294967295},
@@ -29,19 +29,7 @@
             "properties": {"id": {"$ref": "#/$defs/id"}, "min_cm": {"$ref": "#/$defs/vector"}, "max_cm": {"$ref": "#/$defs/vector"}}
           }
         },
-        "blockers": {
-          "type": "array", "minItems": 10, "maxItems": 10,
-          "items": {
-            "type": "object", "additionalProperties": false,
-            "required": ["id", "surface_id", "polygon_cm", "height_cm", "blocks_movement", "blocks_sight"],
-            "properties": {
-              "id": {"$ref": "#/$defs/id"}, "surface_id": {"$ref": "#/$defs/id"},
-              "polygon_cm": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/vector"}},
-              "height_cm": {"$ref": "#/$defs/positive_cm"},
-              "blocks_movement": {"type": "boolean"}, "blocks_sight": {"type": "boolean"}
-            }
-          }
-        },
+        "blockers": {"type": "array", "minItems": 4, "maxItems": 256, "items": {"$ref": "#/$defs/blocker"}},
         "sight_sample_height_cm": {"$ref": "#/$defs/positive_cm"},
         "camp_clearance_cm": {"$ref": "#/$defs/positive_cm"}
       }
@@ -52,16 +40,6 @@
       "properties": {
         "spawn_offsets_cm": {"type": "array", "minItems": 7, "maxItems": 7, "items": {"$ref": "#/$defs/vector"}},
         "spawn_validation_radius_cm": {"$ref": "#/$defs/positive_cm"}
-      }
-    },
-    "connections": {
-      "type": "array", "minItems": 5, "maxItems": 5,
-      "items": {
-        "type": "object", "additionalProperties": false, "required": ["id", "wall_ids", "camp_id"],
-        "properties": {
-          "id": {"$ref": "#/$defs/id"}, "camp_id": {"$ref": "#/$defs/id"},
-          "wall_ids": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/id"}}
-        }
       }
     },
     "parameter_refs": {
@@ -84,6 +62,30 @@
     "vector": {
       "type": "object", "additionalProperties": false, "required": ["x", "y", "z"],
       "properties": {"x": {"$ref": "#/$defs/coordinate"}, "y": {"$ref": "#/$defs/coordinate"}, "z": {"$ref": "#/$defs/coordinate"}}
+    },
+    "blocker": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "surface_id", "shape", "polygon_cm", "height_cm", "blocks_movement", "blocks_sight"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"}, "surface_id": {"$ref": "#/$defs/id"}, "shape": {"type": "string", "const": "polygon"},
+            "polygon_cm": {"type": "array", "minItems": 3, "maxItems": 16, "items": {"$ref": "#/$defs/vector"}},
+            "height_cm": {"$ref": "#/$defs/positive_cm"},
+            "blocks_movement": {"type": "boolean"}, "blocks_sight": {"type": "boolean"}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["id", "surface_id", "shape", "center_cm", "radius_cm", "height_cm", "blocks_movement", "blocks_sight"],
+          "properties": {
+            "id": {"$ref": "#/$defs/id"}, "surface_id": {"$ref": "#/$defs/id"}, "shape": {"type": "string", "const": "cylinder"},
+            "center_cm": {"$ref": "#/$defs/vector"}, "radius_cm": {"$ref": "#/$defs/positive_cm"},
+            "height_cm": {"$ref": "#/$defs/positive_cm"},
+            "blocks_movement": {"type": "boolean"}, "blocks_sight": {"type": "boolean"}
+          }
+        }
+      ]
     },
     "anchor": {
       "oneOf": [

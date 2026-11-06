@@ -908,6 +908,50 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// #97: a tree is an upright cylinder; its closed disc blocks sight like a polygon blocker's closed outline.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionTreeSightTest, "Lockdown.Rules.DemoVision.TreeSight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
+{
+    FLDDemoWorldGeometry Geometry = TestGeometry();
+    FLDDemoWorldBlocker Tree;
+    Tree.Id = TEXT("tree");
+    Tree.SurfaceId = Geometry.Surfaces[0].Id;
+    Tree.Shape = ELDDemoWorldBlockerShape::Cylinder;
+    Tree.CenterCm = Ground(-2000, -2000);
+    Tree.RadiusCm = Whole(50);
+    Tree.HeightCm = Whole(200);
+    Tree.BlocksMovement = true;
+    Tree.BlocksSight = true;
+    Geometry.Blockers.Add(Tree);
+    FLDSightGeometry Sight;
+    FString Error;
+    if (!TestTrue(TEXT("Geometry with a tree builds"), Sight.Build(Geometry, DemoRevision(), Whole(1400), Error))) { return false; }
+    TestTrue(TEXT("A sight line through the trunk is blocked"),
+        Sight.Trace(FVector(-2500, -2000, 2), FVector(-1500, -2000, 2)) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A sight line touching the trunk's edge is blocked"),
+        Sight.Trace(FVector(-2500, -1950, 2), FVector(-1500, -1950, 2)) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A sight line just past the trunk is visible"),
+        Sight.Trace(FVector(-2500, -1949, 2), FVector(-1500, -1949, 2)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A target behind the trunk is hidden, beside it visible"),
+        Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -2000, 2)) == ELDSightResult::Blocked
+        && Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -1800, 2)) == ELDSightResult::Visible);
+    TArray<uint8> Bits;
+    Sight.Coverage(FVector(-2600, -2000, 2), Bits);
+    const int32 Side = LDObservation::CoverageSide;
+    auto CellOf = [Side](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CellOf(-1700, -2000)));
+    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CellOf(-1700, -1600)));
+    FLDDemoWorldGeometry Low = Geometry;
+    Low.Blockers.Last().HeightCm = Whole(100);
+    TestFalse(TEXT("A sight-blocking tree below the sample height is rejected"), FLDSightGeometry().Build(Low, DemoRevision(), Whole(1400), Error));
+    FLDDemoWorldGeometry Flat = Geometry;
+    Flat.Blockers.Last().RadiusCm = Whole(0);
+    TestFalse(TEXT("A tree without a radius is rejected"), FLDSightGeometry().Build(Flat, DemoRevision(), Whole(1400), Error));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionActionCueTest, "Lockdown.Rules.DemoVision.ActionCues",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)

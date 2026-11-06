@@ -80,13 +80,10 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     TArray<FBox> Blockers;
     for (const FLDDemoWorldBlocker& Blocker : World.Blockers)
     {
+        TArray<FVector2D> Footprint;
+        if (!LDDemoWorld::Footprint(Blocker, Footprint, Error)) { return false; }
         FBox Box(ForceInit);
-        for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
-        {
-            FVector Value;
-            if (!Point.ToVector(Value, Error)) { return false; }
-            Box += Value;
-        }
+        for (const FVector2D& Point : Footprint) { Box += FVector(Point.X, Point.Y, 0); }
         Blockers.Add(Box);
     }
     TMap<FString, const FLDArtProp*> Props;

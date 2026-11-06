@@ -24,6 +24,38 @@ bool FLDDemoWorldPoint::ToVector(FVector& Out, FString& Error) const
 
 namespace LDDemoWorld
 {
+bool Footprint(const FLDDemoWorldBlocker& Blocker, TArray<FVector2D>& Out, FString& Error)
+{
+    Out.Reset();
+    if (Blocker.Shape == ELDDemoWorldBlockerShape::Polygon)
+    {
+        for (const FLDDemoWorldPoint& Source : Blocker.PolygonCm)
+        {
+            FVector Point;
+            if (!Source.ToVector(Point, Error)) { Out.Reset(); return false; }
+            Out.Add(FVector2D(Point.X, Point.Y));
+        }
+        if (Out.Num() < 3) { Error = TEXT("Blocker polygon has fewer than three vertices."); Out.Reset(); return false; }
+        return true;
+    }
+    FVector Centre;
+    if (!Blocker.CenterCm.ToVector(Centre, Error)) { return false; }
+    if (Blocker.RadiusCm.Denominator <= 0 || Blocker.RadiusCm.Numerator <= 0)
+    {
+        Error = TEXT("Blocker cylinder has a nonpositive radius.");
+        return false;
+    }
+    const double Radius = double(Blocker.RadiusCm.Numerator) / double(Blocker.RadiusCm.Denominator);
+    const double Vertex = Radius / FMath::Cos(UE_PI / CylinderSides);
+    for (int32 Index = 0; Index < CylinderSides; ++Index)
+    {
+        const double Angle = 2 * UE_PI * Index / CylinderSides;
+        Out.Add(FVector2D(Centre.X + Vertex * FMath::Cos(Angle), Centre.Y + Vertex * FMath::Sin(Angle)));
+    }
+    Error.Reset();
+    return true;
+}
+
 namespace
 {
 using namespace LDDemoContent;
@@ -54,10 +86,10 @@ bool Point(const FValue& Value, FPoint& Out, FCheck& Check, const FString& Path)
         && Fields.Done();
 }
 
-bool Points(const FValue& Value, TArray<FPoint>& Out, FCheck& Check, const FString& Path, int32 Count)
+bool Points(const FValue& Value, TArray<FPoint>& Out, FCheck& Check, const FString& Path, int32 Min, int32 Max)
 {
     const TArray<FValue>* Rows;
-    if (!Array(Value, Rows, Check, Path, Count, Count)) { return false; }
+    if (!Array(Value, Rows, Check, Path, Min, Max)) { return false; }
     for (const FValue& Row : *Rows)
     {
         FPoint Candidate;
@@ -82,9 +114,15 @@ bool CircleInSurface(const FXY& Position, const FExact& Radius, const FLDDemoWor
         && N.LE(Position.Y, N.Sub(N.Value(Surface.MaxCm.Y), Radius));
 }
 
-bool CircleTouchesBlocker(const FXY& Position, const FExact& RadiusSquared,
+bool CircleTouchesBlocker(const FXY& Position, const FExact& Radius,
     const FLDDemoWorldBlocker& Blocker, FNumbers& N)
 {
+    if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder)
+    {
+        const FExact Reach = N.Add(Radius, N.Value(Blocker.RadiusCm));
+        return N.LE(DistanceSquared(Position, XY(Blocker.CenterCm, N), N), N.Mul(Reach, Reach));
+    }
+    const FExact RadiusSquared = N.Mul(Radius, Radius);
     bool Inside = true;
     for (int32 I = 0; I < Blocker.PolygonCm.Num(); ++I)
     {
@@ -112,10 +150,9 @@ bool CircleTouchesBlocker(const FXY& Position, const FExact& RadiusSquared,
 bool ClearCircle(const FXY& Position, const FExact& Radius, const FLDDemoWorldGeometry& World, FNumbers& N)
 {
     if (!CircleInSurface(Position, Radius, World.Surfaces[0], N)) { return false; }
-    const FExact Squared = N.Mul(Radius, Radius);
     for (const auto& Blocker : World.Blockers)
     {
-        if (Blocker.BlocksMovement && CircleTouchesBlocker(Position, Squared, Blocker, N)) { return false; }
+        if (Blocker.BlocksMovement && CircleTouchesBlocker(Position, Radius, Blocker, N)) { return false; }
     }
     return true;
 }
@@ -141,73 +178,115 @@ bool Geometry(FFields& Root, FLDDemoWorldGeometry& Out, FNumbers& N)
     }
     Out.Surfaces.Add(MoveTemp(Ground));
     const TArray<FValue>* Blockers;
-    if (!Array(Fields.Take(TEXT("blockers")), Blockers, Check, Fields.Path, 10, 10)) { return false; }
-    const TSet<FString> RequiredBlockers = {
-        TEXT("midwall_054"), TEXT("midwall_126"), TEXT("midwall_198"), TEXT("midwall_270"), TEXT("midwall_342"),
-        TEXT("wall_n"), TEXT("wall_s"), TEXT("wall_e"), TEXT("wall_w"), TEXT("shop_stall")};
+    if (!Array(Fields.Take(TEXT("blockers")), Blockers, Check, Fields.Path, 4, 256)) { return false; }
     TSet<FString> Seen;
+    // Each ground edge is closed by exactly one boundary wall: an axis-aligned rectangle outside the surface.
+    TSet<int32> ClosedEdges;
+    const auto& GroundSurface = Out.Surfaces[0];
     for (const FValue& Value : *Blockers)
     {
         FFields Row(Check, Value, TEXT("world.blocker"));
         FLDDemoWorldBlocker Blocker;
+        FString Shape;
         if (!Row.Identifier(TEXT("id"), Blocker.Id) || !Row.Identifier(TEXT("surface_id"), Blocker.SurfaceId)
-            || !Check.Require(RequiredBlockers.Contains(Blocker.Id) && !Seen.Contains(Blocker.Id)
-                && Blocker.SurfaceId == Out.Surfaces[0].Id, Row.Path, TEXT("duplicate blocker or unknown blocker/surface"))
-            || !Points(Row.Take(TEXT("polygon_cm")), Blocker.PolygonCm, Check, Row.Path + TEXT(".polygon_cm"), 4)
-            || !Rational(Row.Take(TEXT("height_cm")), Blocker.HeightCm, Check, Row.Path + TEXT(".height_cm"), nullptr, true)
-            || !Row.Flag(TEXT("blocks_movement"), Blocker.BlocksMovement) || !Row.Flag(TEXT("blocks_sight"), Blocker.BlocksSight)
-            || !Check.Require(Blocker.BlocksMovement && Blocker.BlocksSight == (Blocker.Id != TEXT("shop_stall")),
-                Row.Path, TEXT("wall or shop blocker classification differs")) || !Row.Done())
+            || !Row.Text(TEXT("shape"), Shape)
+            || !Check.Require(!Seen.Contains(Blocker.Id) && Blocker.SurfaceId == GroundSurface.Id,
+                Row.Path, TEXT("duplicate blocker or unknown surface")))
         {
             return false;
         }
-        for (int32 I = 0; I < 4; ++I)
+        if (Shape.Equals(TEXT("polygon"), ESearchCase::CaseSensitive))
         {
-            const FPoint& A = Blocker.PolygonCm[I];
-            const FXY AB = Sub(XY(Blocker.PolygonCm[(I + 1) % 4], N), XY(A, N), N);
-            const FXY BC = Sub(XY(Blocker.PolygonCm[(I + 2) % 4], N), XY(Blocker.PolygonCm[(I + 1) % 4], N), N);
-            if (!Check.Require(N.EQ(N.Value(A.Z), N.Value(0)) && N.LT(N.Value(0), Cross(AB, BC, N)),
-                Blocker.Id, TEXT("polygon must be a strictly convex counterclockwise ground quad")))
+            Blocker.Shape = ELDDemoWorldBlockerShape::Polygon;
+            if (!Points(Row.Take(TEXT("polygon_cm")), Blocker.PolygonCm, Check, Row.Path + TEXT(".polygon_cm"), 3, 16)) { return false; }
+            const int32 Count = Blocker.PolygonCm.Num();
+            for (int32 I = 0; I < Count; ++I)
+            {
+                const FPoint& A = Blocker.PolygonCm[I];
+                const FXY AB = Sub(XY(Blocker.PolygonCm[(I + 1) % Count], N), XY(A, N), N);
+                bool Left = N.EQ(N.Value(A.Z), N.Value(0));
+                // Strictly convex turn at every vertex, and every vertex on or left of every edge: winds once.
+                for (int32 J = 0; J < Count && Left; ++J)
+                {
+                    const FExact Side = Cross(AB, Sub(XY(Blocker.PolygonCm[J], N), XY(A, N), N), N);
+                    Left = J == (I + 2) % Count ? N.LT(N.Value(0), Side) : N.LE(N.Value(0), Side);
+                }
+                if (!Check.Require(Left, Blocker.Id, TEXT("polygon must be a strictly convex counterclockwise ground polygon")))
+                {
+                    return false;
+                }
+            }
+        }
+        else if (Shape.Equals(TEXT("cylinder"), ESearchCase::CaseSensitive))
+        {
+            Blocker.Shape = ELDDemoWorldBlockerShape::Cylinder;
+            if (!Point(Row.Take(TEXT("center_cm")), Blocker.CenterCm, Check, Row.Path + TEXT(".center_cm"))
+                || !Rational(Row.Take(TEXT("radius_cm")), Blocker.RadiusCm, Check, Row.Path + TEXT(".radius_cm"), nullptr, true))
+            {
+                return false;
+            }
+            const FExact Radius = N.Value(Blocker.RadiusCm);
+            const FXY Centre = XY(Blocker.CenterCm, N);
+            if (!Check.Require(N.EQ(N.Value(Blocker.CenterCm.Z), N.Value(0)) && N.LT(N.Value(0), Radius)
+                    && CircleInSurface(Centre, Radius, GroundSurface, N),
+                Blocker.Id, TEXT("cylinder must stand wholly on its ground with a positive radius")))
             {
                 return false;
             }
         }
-        if (Blocker.Id.StartsWith(TEXT("wall_"), ESearchCase::CaseSensitive))
+        else { return Check.Require(false, Blocker.Id, TEXT("unknown blocker shape")); }
+        if (!Rational(Row.Take(TEXT("height_cm")), Blocker.HeightCm, Check, Row.Path + TEXT(".height_cm"), nullptr, true)
+            || !Row.Flag(TEXT("blocks_movement"), Blocker.BlocksMovement) || !Row.Flag(TEXT("blocks_sight"), Blocker.BlocksSight)
+            || !Check.Require(Blocker.BlocksMovement, Row.Path, TEXT("every blocker stops movement")) || !Row.Done())
         {
-            FLDDemoRational MinX = Blocker.PolygonCm[0].X, MaxX = MinX;
-            FLDDemoRational MinY = Blocker.PolygonCm[0].Y, MaxY = MinY;
-            for (const auto& Vertex : Blocker.PolygonCm)
-            {
-                if (N.LT(N.Value(Vertex.X), N.Value(MinX))) { MinX = Vertex.X; }
-                if (N.LT(N.Value(MaxX), N.Value(Vertex.X))) { MaxX = Vertex.X; }
-                if (N.LT(N.Value(Vertex.Y), N.Value(MinY))) { MinY = Vertex.Y; }
-                if (N.LT(N.Value(MaxY), N.Value(Vertex.Y))) { MaxY = Vertex.Y; }
-            }
-            const auto& GroundSurface = Out.Surfaces[0];
-            const bool CoversX = N.LE(N.Value(MinX), N.Value(GroundSurface.MinCm.X)) && N.LE(N.Value(GroundSurface.MaxCm.X), N.Value(MaxX));
-            const bool CoversY = N.LE(N.Value(MinY), N.Value(GroundSurface.MinCm.Y)) && N.LE(N.Value(GroundSurface.MaxCm.Y), N.Value(MaxY));
-            const bool EdgeMatches = Blocker.Id == TEXT("wall_n") ? CoversX && N.EQ(N.Value(MinY), N.Value(GroundSurface.MaxCm.Y))
-                : Blocker.Id == TEXT("wall_s") ? CoversX && N.EQ(N.Value(MaxY), N.Value(GroundSurface.MinCm.Y))
-                : Blocker.Id == TEXT("wall_e") ? CoversY && N.EQ(N.Value(MinX), N.Value(GroundSurface.MaxCm.X))
-                : CoversY && N.EQ(N.Value(MaxX), N.Value(GroundSurface.MinCm.X));
-            if (!Check.Require(EdgeMatches, Blocker.Id, TEXT("boundary wall does not close its declared ground edge"))) { return false; }
-            for (const auto& Vertex : Blocker.PolygonCm)
-            {
-                if (!Check.Require((N.EQ(N.Value(Vertex.X), N.Value(MinX)) || N.EQ(N.Value(Vertex.X), N.Value(MaxX)))
-                    && (N.EQ(N.Value(Vertex.Y), N.Value(MinY)) || N.EQ(N.Value(Vertex.Y), N.Value(MaxY))),
-                    Blocker.Id, TEXT("boundary wall must be an axis-aligned closed rectangle"))) { return false; }
-            }
+            return false;
         }
-        else
+        if (Blocker.Shape == ELDDemoWorldBlockerShape::Polygon)
         {
+            bool AllInside = true, AnyInside = false;
             for (const auto& Vertex : Blocker.PolygonCm)
             {
-                if (!Check.Require(InSurface(Vertex, Out.Surfaces[0], N), Blocker.Id, TEXT("inner blocker is outside its surface"))) { return false; }
+                const bool Inside = InSurface(Vertex, GroundSurface, N);
+                AllInside &= Inside;
+                AnyInside |= Inside && N.LT(N.Value(GroundSurface.MinCm.X), N.Value(Vertex.X)) && N.LT(N.Value(Vertex.X), N.Value(GroundSurface.MaxCm.X))
+                    && N.LT(N.Value(GroundSurface.MinCm.Y), N.Value(Vertex.Y)) && N.LT(N.Value(Vertex.Y), N.Value(GroundSurface.MaxCm.Y));
+            }
+            if (!AllInside)
+            {
+                FLDDemoRational MinX = Blocker.PolygonCm[0].X, MaxX = MinX;
+                FLDDemoRational MinY = Blocker.PolygonCm[0].Y, MaxY = MinY;
+                for (const auto& Vertex : Blocker.PolygonCm)
+                {
+                    if (N.LT(N.Value(Vertex.X), N.Value(MinX))) { MinX = Vertex.X; }
+                    if (N.LT(N.Value(MaxX), N.Value(Vertex.X))) { MaxX = Vertex.X; }
+                    if (N.LT(N.Value(Vertex.Y), N.Value(MinY))) { MinY = Vertex.Y; }
+                    if (N.LT(N.Value(MaxY), N.Value(Vertex.Y))) { MaxY = Vertex.Y; }
+                }
+                const bool CoversX = N.LE(N.Value(MinX), N.Value(GroundSurface.MinCm.X)) && N.LE(N.Value(GroundSurface.MaxCm.X), N.Value(MaxX));
+                const bool CoversY = N.LE(N.Value(MinY), N.Value(GroundSurface.MinCm.Y)) && N.LE(N.Value(GroundSurface.MaxCm.Y), N.Value(MaxY));
+                // 0 north, 1 south, 2 east, 3 west: which ground edge the rectangle closes from outside.
+                const int32 Edge = CoversX && N.EQ(N.Value(MinY), N.Value(GroundSurface.MaxCm.Y)) ? 0
+                    : CoversX && N.EQ(N.Value(MaxY), N.Value(GroundSurface.MinCm.Y)) ? 1
+                    : CoversY && N.EQ(N.Value(MinX), N.Value(GroundSurface.MaxCm.X)) ? 2
+                    : CoversY && N.EQ(N.Value(MaxX), N.Value(GroundSurface.MinCm.X)) ? 3 : INDEX_NONE;
+                bool Rectangle = Blocker.PolygonCm.Num() == 4;
+                for (const auto& Vertex : Blocker.PolygonCm)
+                {
+                    Rectangle &= (N.EQ(N.Value(Vertex.X), N.Value(MinX)) || N.EQ(N.Value(Vertex.X), N.Value(MaxX)))
+                        && (N.EQ(N.Value(Vertex.Y), N.Value(MinY)) || N.EQ(N.Value(Vertex.Y), N.Value(MaxY)));
+                }
+                if (!Check.Require(!AnyInside && Edge != INDEX_NONE && Rectangle && Blocker.BlocksSight && !ClosedEdges.Contains(Edge),
+                    Blocker.Id, TEXT("a blocker leaving its surface must be one sight-blocking axis-aligned boundary wall closing a ground edge")))
+                {
+                    return false;
+                }
+                ClosedEdges.Add(Edge);
             }
         }
         Seen.Add(Blocker.Id);
         Out.Blockers.Add(MoveTemp(Blocker));
     }
+    if (!Check.Require(ClosedEdges.Num() == 4, Fields.Path, TEXT("every ground edge needs its boundary wall"))) { return false; }
     if (!Rational(Fields.Take(TEXT("sight_sample_height_cm")), Out.SightSampleHeightCm, Check,
         Fields.Path + TEXT(".sight_sample_height_cm"), nullptr, true)
         || !Rational(Fields.Take(TEXT("camp_clearance_cm")), Out.CampClearanceCm, Check,
@@ -406,7 +485,7 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
 {
     FCheck& Check = Root.Check;
     FFields Fields(Check, Root.Take(TEXT("placement")), TEXT("world.placement"));
-    if (!Points(Fields.Take(TEXT("spawn_offsets_cm")), Out.SpawnOffsetsCm, Check, Fields.Path + TEXT(".spawn_offsets_cm"), 7)
+    if (!Points(Fields.Take(TEXT("spawn_offsets_cm")), Out.SpawnOffsetsCm, Check, Fields.Path + TEXT(".spawn_offsets_cm"), 7, 7)
         || !Rational(Fields.Take(TEXT("spawn_validation_radius_cm")), Out.SpawnValidationRadiusCm, Check,
             Fields.Path + TEXT(".spawn_validation_radius_cm"), nullptr, true) || !Fields.Done())
     {
@@ -445,66 +524,6 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
     return Check.Good;
 }
 
-bool Connections(FFields& Root, FLDDemoWorldGeometry& Out)
-{
-    FCheck& Check = Root.Check;
-    const TArray<FValue>* Rows;
-    if (!Array(Root.Take(TEXT("connections")), Rows, Check, TEXT("world.connections"), 5, 5)) { return false; }
-    TSet<FString> Ids, Camps;
-    const TSet<FString> RequiredIds = {TEXT("g018"), TEXT("g090"), TEXT("g162"), TEXT("g234"), TEXT("g306")};
-    TMap<FString, int32> WallUses;
-    for (const auto& Value : *Rows)
-    {
-        FFields Row(Check, Value, TEXT("world.connection"));
-        FLDDemoWorldConnection Connection;
-        const TArray<FValue>* Walls = nullptr;
-        if (!Row.Identifier(TEXT("id"), Connection.Id) || !Row.Identifier(TEXT("camp_id"), Connection.CampId)
-            || !Array(Row.Take(TEXT("wall_ids")), Walls, Check, Row.Path, 2, 2)
-            || !Check.Require(RequiredIds.Contains(Connection.Id) && !Ids.Contains(Connection.Id) && !Camps.Contains(Connection.CampId),
-                Row.Path, TEXT("duplicate connection or camp"))
-            || !Check.Require(Out.Anchors.ContainsByPredicate([&](const auto& A)
-                { return A.Id == Connection.CampId && A.Kind == ELDDemoWorldAnchorKind::Camp; }),
-                Row.Path, TEXT("connection has no camp")))
-        {
-            return false;
-        }
-        if (!Walls) { return Check.Require(false, Row.Path, TEXT("missing connection walls")); }
-        for (const auto& Wall : *Walls)
-        {
-            FString Id;
-            if (!String(Wall, Id, Check, Row.Path) || !LDDemoContent::Id(Id, Check, Row.Path)
-                || !Check.Require(Id.StartsWith(TEXT("midwall_"), ESearchCase::CaseSensitive)
-                    && !Connection.WallIds.Contains(Id) && Out.Blockers.ContainsByPredicate([&](const auto& B) { return B.Id == Id; }),
-                    Row.Path, TEXT("connection must reference two different inner walls")))
-            {
-                return false;
-            }
-            Connection.WallIds.Add(Id);
-            ++WallUses.FindOrAdd(Id);
-        }
-        if (!Row.Done()) { return false; }
-        Ids.Add(Connection.Id);
-        Camps.Add(Connection.CampId);
-        Out.Connections.Add(MoveTemp(Connection));
-    }
-    for (const auto& Wall : WallUses)
-    {
-        if (!Check.Require(Wall.Value == 2, Wall.Key, TEXT("inner wall must bound two entrances"))) { return false; }
-    }
-    TSet<FString> Reached = {TEXT("midwall_054")};
-    for (int32 I = 0; I < 5; ++I)
-    {
-        for (const auto& Connection : Out.Connections)
-        {
-            if (Reached.Contains(Connection.WallIds[0]) || Reached.Contains(Connection.WallIds[1]))
-            {
-                Reached.Add(Connection.WallIds[0]);
-                Reached.Add(Connection.WallIds[1]);
-            }
-        }
-    }
-    return Check.Require(WallUses.Num() == 5 && Reached.Num() == 5, Root.Path, TEXT("connections do not form one inner-wall ring"));
-}
 }
 
 bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions& Content,
@@ -514,12 +533,12 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
     FNumbers N(Check);
     FLDDemoWorldGeometry Candidate;
     int64 Revision;
-    if (!Root.Int(TEXT("schema_version"), Revision, 2, 2) || !Root.Int(TEXT("projection_revision"), Revision, 2, 2)
+    if (!Root.Int(TEXT("schema_version"), Revision, 3, 3) || !Root.Int(TEXT("projection_revision"), Revision, 3, 3)
         || !Root.Identifier(TEXT("map_id"), Candidate.MapId)
         || !Check.Require(Candidate.MapId == Content.World.MapId && Candidate.MapId.Equals(TEXT("demo_world"), ESearchCase::CaseSensitive),
             Root.Path, TEXT("content references another map"))
-        || !Root.SmallInt(TEXT("layout_revision"), Candidate.LayoutRevision, 1, 1)
-        || !Root.SmallInt(TEXT("geometry_revision"), Candidate.GeometryRevision, 1, 1)
+        || !Root.SmallInt(TEXT("layout_revision"), Candidate.LayoutRevision, 1, MAX_int32)
+        || !Root.SmallInt(TEXT("geometry_revision"), Candidate.GeometryRevision, 1, MAX_int32)
         || !Root.Digest(TEXT("source_sha256"), Candidate.SourceDigest)
         || !Root.Digest(TEXT("author_schema_sha256"), Candidate.AuthorSchemaDigest))
     {
@@ -549,7 +568,7 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
         Candidate.ParameterRefs.Add(MoveTemp(Ref));
     }
     if (!Geometry(Root, Candidate, N) || !Anchors(Root, Content, Candidate, N)
-        || !Placement(Root, Content, Candidate, N) || !Connections(Root, Candidate) || !Root.Done() || !Check.Good)
+        || !Placement(Root, Content, Candidate, N) || !Root.Done() || !Check.Good)
     {
         return false;
     }

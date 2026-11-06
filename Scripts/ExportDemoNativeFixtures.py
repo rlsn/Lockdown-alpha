@@ -54,8 +54,8 @@ def scalar(value):
 def expected_world_projection(compilation):
     world = json.loads(compilation.inputs[demo.WORLD_OUTPUT])
 
-    def point(value):
-        return {axis.upper(): rational(value[axis]) for axis in ("x", "y", "z")}
+    def point(value=None):
+        return {axis.upper(): rational(None if value is None else value[axis]) for axis in ("x", "y", "z")}
 
     return {
         "MapId": world["map_id"], "LayoutRevision": world["layout_revision"],
@@ -66,8 +66,9 @@ def expected_world_projection(compilation):
         "Surfaces": [{"Id": row["id"], "MinCm": point(row["min_cm"]), "MaxCm": point(row["max_cm"])}
                      for row in world["geometry"]["surfaces"]],
         "Blockers": [{
-            "Id": row["id"], "SurfaceId": row["surface_id"],
-            "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]],
+            "Id": row["id"], "SurfaceId": row["surface_id"], "Shape": ("polygon", "cylinder").index(row["shape"]),
+            "PolygonCm": [point(vertex) for vertex in row.get("polygon_cm", [])],
+            "CenterCm": point(row.get("center_cm")), "RadiusCm": rational(row.get("radius_cm")),
             "HeightCm": rational(row["height_cm"]), "BlocksMovement": row["blocks_movement"],
             "BlocksSight": row["blocks_sight"],
         } for row in world["geometry"]["blockers"]],
@@ -75,8 +76,6 @@ def expected_world_projection(compilation):
         "CampClearanceCm": rational(world["geometry"]["camp_clearance_cm"]),
         "SpawnOffsetsCm": [point(value) for value in world["placement"]["spawn_offsets_cm"]],
         "SpawnValidationRadiusCm": rational(world["placement"]["spawn_validation_radius_cm"]),
-        "Connections": [{"Id": row["id"], "WallIds": row["wall_ids"], "CampId": row["camp_id"]}
-                        for row in world["connections"]],
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
@@ -752,6 +751,9 @@ def _export_cases(output, index, base, rank_mutations, valid):
     def low_camp(world):
         return next(row for row in world["anchors"] if row["id"] == "l1")
 
+    def tree(world):
+        return next(row for row in world["geometry"]["blockers"] if row["shape"] == "cylinder")
+
     for name, mutate, error in (
         ("world_missing_anchor", lambda w: w["anchors"].pop(), "array length"),
         ("world_wrong_surface", lambda w: w["anchors"][0].update({"surface_id": "missing_surface"}), "unknown surface"),
@@ -759,7 +761,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         ("world_member_count", lambda w: low_camp(w)["members"].pop(), "member-home count"),
         ("world_out_of_bounds", lambda w: w["anchors"][0]["position_cm"]["x"].update({"numerator": 6000}), "outside"),
         ("world_bad_bounds", lambda w: w["geometry"]["surfaces"][0]["max_cm"]["x"].update({"numerator": -5000}), "nonempty"),
-        ("world_bad_flags", lambda w: w["geometry"]["blockers"][0].update({"blocks_movement": False, "blocks_sight": False}), "classification"),
+        ("world_bad_flags", lambda w: w["geometry"]["blockers"][0].update({"blocks_movement": False, "blocks_sight": False}), "stops movement"),
         ("world_unknown_field", lambda w: w["anchors"][0].update({"home_default": True}), "unknown field"),
         ("world_aliased_kind", lambda w: w["anchors"][0].update({"kind": "spawn"}), "unknown anchor kind"),
         ("world_old_projection", lambda w: w.update({"projection_revision": 1}), "integer outside"),
@@ -769,7 +771,11 @@ def _export_cases(output, index, base, rank_mutations, valid):
         ("world_missing_polygon", lambda w: w["geometry"]["blockers"][0].pop("polygon_cm"), "missing"),
         ("world_missing_offset", lambda w: w["placement"]["spawn_offsets_cm"].pop(), "array length"),
         ("world_duplicate_offset", lambda w: w["placement"]["spawn_offsets_cm"].__setitem__(1, deepcopy(w["placement"]["spawn_offsets_cm"][0])), "overlap"),
-        ("world_duplicate_connection", lambda w: w["connections"].__setitem__(1, deepcopy(w["connections"][0])), "duplicate connection"),
+        ("world_unknown_shape", lambda w: tree(w).update({"shape": "box"}), "unknown blocker shape"),
+        ("world_tree_polygon_field", lambda w: tree(w).update({"polygon_cm": []}), "unknown field"),
+        ("world_tree_off_ground", lambda w: tree(w)["center_cm"]["z"].update({"numerator": 1}), "cylinder must stand"),
+        ("world_tree_outside", lambda w: tree(w)["center_cm"]["x"].update({"numerator": -4980}), "cylinder must stand"),
+        ("world_inner_wall_outside", lambda w: [v["x"].update({"numerator": v["x"]["numerator"] + 10000}) for v in w["geometry"]["blockers"][0]["polygon_cm"]], "closing a ground edge"),
         ("world_duplicate_parameter", lambda w: w["parameter_refs"].__setitem__(1, w["parameter_refs"][0]), "parameter reference"),
         ("world_source_identity", lambda w: w.update({"source_sha256": "0" * 64}), "file bytes"),
         ("world_schema_identity", lambda w: w.update({"author_schema_sha256": "0" * 64}), "file bytes"),

@@ -77,8 +77,8 @@ struct FLDObservedTarget
     FLDObservedUnitView Presented; // authorized fields; Handle/Epoch/StateRevision are observer-local
 };
 
-// Static line of sight over the approved world geometry. The importer guarantees every
-// sight blocker is a strictly convex ground quad taller than the sight sample height.
+// Static line of sight over the approved world geometry. The importer guarantees every sight blocker is a
+// strictly convex ground polygon or an upright cylinder, taller than the sight sample height.
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
@@ -94,11 +94,17 @@ public:
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
 private:
     bool SegmentBlocked(const FVector2D& From, const FVector2D& To) const;
+    struct FCircle
+    {
+        FVector2D Centre = FVector2D::ZeroVector;
+        double Radius = 0;
+    };
     FLDWorldRevision World;
     FVector2D Min = FVector2D::ZeroVector;
     FVector2D Max = FVector2D::ZeroVector;
     double RadiusCm = 0;
     TArray<TArray<FVector2D>> Blockers;
+    TArray<FCircle> Circles;
 };
 
 namespace LDObservation
