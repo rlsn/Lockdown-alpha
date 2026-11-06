@@ -13,13 +13,16 @@ namespace LDPointerFeedbackDetail
 {
     // Dashes per ring; a dash is a flat tangential bar over a slightly larger near-black shade that keeps it readable
     // on the turf, the track and any body tint.
-    constexpr int32 DashCount[] = {8, 8, 12};
+    // The selection ring is short dense dashes (almost a dotted circle) so it never reads as the turning hover ring.
+    constexpr int32 DashCount[] = {8, 8, 12, 20};
     const FVector DashScale(.2f, .06f, .02f), ShadeScale(.28f, .14f, .01f);
-    // The hover ring is the attack marker's red: a target a right click would hit.
-    const FLinearColor MoveColour(.15f, 1.f, .25f), AttackColour(1.f, .06f, .04f), HoverColour = AttackColour;
+    const FVector SelectedDashScale(.1f, .06f, .02f), SelectedShadeScale(.16f, .13f, .01f);
+    // The hover ring is the attack marker's red: a target a right click would hit. The selection ring is a pale neutral,
+    // since any visible unit (own body included) can be inspected.
+    const FLinearColor MoveColour(.15f, 1.f, .25f), AttackColour(1.f, .06f, .04f), HoverColour = AttackColour, SelectedColour(.86f, .9f, 1.f);
     const FLinearColor ShadeColour(.012f, .01f, .016f);
     // Ring radii (cm): the hover ring stands outside every status disc at the feet; click rings shrink onto their point.
-    constexpr float HoverRadius = 76.f, MoveFromRadius = 50.f, MoveToRadius = 18.f, AttackFromRadius = 95.f, AttackToRadius = 55.f;
+    constexpr float HoverRadius = 76.f, SelectedRadius = 64.f, MoveFromRadius = 50.f, MoveToRadius = 18.f, AttackFromRadius = 95.f, AttackToRadius = 55.f;
     // Above the ground and the own-body marker; dashes and shades never touch each other.
     constexpr float DashLift = 2.4f, ShadeLift = 1.4f;
     // Shift queue: a waypoint is a small static ring; the path between waypoints is a dash every QueueDashStepCm.
@@ -93,7 +96,8 @@ void ALDPointerFeedback::Bind(ALDPlayerController& Player)
         return Instance;
     };
     UMaterialInstanceDynamic* Shade = Paint(ShadeColour);
-    const FLinearColor Colours[] = {MoveColour, AttackColour, HoverColour};
+    const FLinearColor Colours[] = {MoveColour, AttackColour, HoverColour, SelectedColour};
+    static_assert(UE_ARRAY_COUNT(Colours) == int32(ERing::Count) && UE_ARRAY_COUNT(DashCount) == int32(ERing::Count), "Every ring has a colour and a dash count.");
     for (int32 Ring = 0; Ring < int32(ERing::Count); ++Ring)
     {
         UMaterialInstanceDynamic* Colour = Paint(Colours[Ring]);
@@ -125,6 +129,12 @@ void ALDPointerFeedback::SetHover(const FGuid& Handle, uint32 ObservationEpoch)
 {
     HoverHandle = Handle;
     HoverEpoch = Handle.IsValid() ? ObservationEpoch : 0;
+}
+
+void ALDPointerFeedback::SetSelected(const FGuid& Handle, uint32 ObservationEpoch)
+{
+    SelectedHandle = Handle;
+    SelectedEpoch = Handle.IsValid() ? ObservationEpoch : 0;
 }
 
 void ALDPointerFeedback::SetQueue(const TArray<FVector>& Waypoints, const TArray<bool>& Attack, const FVector* CurrentGoal)
@@ -203,16 +213,19 @@ void ALDPointerFeedback::PlaceRing(ERing Ring, const FVector& Centre, float Radi
     using namespace LDPointerFeedbackDetail;
     FRing& Shown = Rings[int32(Ring)];
     const int32 Count = Shown.Dashes.Num();
+    const bool bSelectedRing = Ring == ERing::Selected;
+    const FVector& Bar = bSelectedRing ? SelectedDashScale : DashScale;
+    const FVector& Under = bSelectedRing ? SelectedShadeScale : ShadeScale;
     for (int32 Dash = 0; Dash < Count; ++Dash)
     {
         const float Angle = Turn + 360.f * float(Dash) / float(Count);
         const FVector Out = FRotator(0, Angle, 0).Vector() * Radius;
         const FRotator Along(0, Angle + 90.f, 0);
         Shown.Dashes[Dash]->SetWorldLocationAndRotation(Centre + Out + FVector(0, 0, DashLift), Along);
-        Shown.Dashes[Dash]->SetWorldScale3D(DashScale * Scale);
+        Shown.Dashes[Dash]->SetWorldScale3D(Bar * Scale);
         Shown.Dashes[Dash]->SetHiddenInGame(Scale <= 0.f);
         Shown.Shades[Dash]->SetWorldLocationAndRotation(Centre + Out + FVector(0, 0, ShadeLift), Along);
-        Shown.Shades[Dash]->SetWorldScale3D(ShadeScale * Scale);
+        Shown.Shades[Dash]->SetWorldScale3D(Under * Scale);
         Shown.Shades[Dash]->SetHiddenInGame(Scale <= 0.f);
     }
 }
@@ -263,4 +276,7 @@ void ALDPointerFeedback::Tick(float Delta)
     bHoverShown = TargetFeet(HoverHandle, HoverEpoch, Feet);
     if (bHoverShown) { PlaceRing(ERing::Hover, Feet, HoverRadius, 30.f * Time, 1.f); }
     else { HideRing(ERing::Hover); }
+    bSelectedShown = TargetFeet(SelectedHandle, SelectedEpoch, Feet);
+    if (bSelectedShown) { PlaceRing(ERing::Selected, Feet, SelectedRadius, 0.f, 1.f); }
+    else { HideRing(ERing::Selected); }
 }

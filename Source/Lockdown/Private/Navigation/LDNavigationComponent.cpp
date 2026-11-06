@@ -856,7 +856,14 @@ void ULDNavigationComponent::TickPointer()
         else if (ShopUnderPointer(Shop)) { Cursor=EMouseCursor::Hand; }
     }
     PC->CurrentMouseCursor=Cursor;
-    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->SetHover(Hovered,HoveredEpoch); }
+    // The inspected unit keeps its selection ring while the current authorized frame still lists it.
+    FLDObservedUnitView Inspected;
+    const bool bInspected=PC->ReadInspected(Inspected);
+    if (ALDPointerFeedback* Feedback=EnsurePointer())
+    {
+        Feedback->SetHover(Hovered,HoveredEpoch);
+        Feedback->SetSelected(bInspected?Inspected.Handle:FGuid(),bInspected?Inspected.ObservationEpoch:0);
+    }
 }
 
 void ULDNavigationComponent::ClearPointer()
@@ -865,7 +872,7 @@ void ULDNavigationComponent::ClearPointer()
     HoveredEpoch=0;
     bHeldMove=false;
     if (auto* PC=Controller()) { PC->CurrentMouseCursor=EMouseCursor::Default; }
-    if (ALDPointerFeedback* Feedback=Pointer.Get()) { Feedback->SetHover(FGuid(),0); }
+    if (ALDPointerFeedback* Feedback=Pointer.Get()) { Feedback->SetHover(FGuid(),0); Feedback->SetSelected(FGuid(),0); }
 }
 
 // The held move button: a new ground order toward the pointer at most 8 times a second and only after the pointer's

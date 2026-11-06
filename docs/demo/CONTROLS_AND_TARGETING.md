@@ -25,7 +25,7 @@
 | 订单（服务器） | `Source\Lockdown\Private\Navigation\LDNavigationOrders.cpp` | 收件/去重/拒旧、单一待受理槽、Shift 指令队列、激活节流、准入、追击与攻击移动、租约、终结回执。 |
 | 订单类型与规则 | `Source\Lockdown\Public\Navigation\LDOrderTypes.h`、`LDOrderRules.h`、`Source\Lockdown\Private\Navigation\LDOrderRules.cpp` | `FLDMoveIdentity`、请求/回执/失败码、`FLDOrderBook`、`LDOrderRules::NearestCandidate`、`ShouldRepeatHeldMove`。 |
 | 路径跟随 | `Source\Lockdown\Public\Navigation\LDPathSteering.h`、`Source\Lockdown\Private\Navigation\LDPathSteering.cpp` | `PlanStart`、`PlanRoute`（`EGoal::Ground/Body`）、`Steering`、`AtGoal`、`HaltLocomotion`。 |
-| 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记与悬停圈。 |
+| 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记、悬停圈与选中圈。 |
 | 输入映射与按键分派 | `Source\Lockdown\Public\Framework\LDPlayerController.h`、`Source\Lockdown\Private\Framework\LDPlayerInput.cpp` | 动态映射、按下/释放分派、Esc 返回、缩放、指针下单位拾取、检查对象。 |
 | 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/1/2/D 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
 | 本地设置 | `Source\Lockdown\Public\UI\LDControlSettings.h`、`Source\Lockdown\Private\UI\LDControlSettings.cpp`、`Source\Lockdown\Private\UI\LDControlsPanel.cpp` | 唯一动作注册表、重绑、镜头/文字/音量/小地图/快速施法偏好与保存。 |
@@ -76,6 +76,7 @@
   服务器拒绝仍以失败提示另行告知。
 - 自己的 `AttackUnit` 目标：红色收拢圈。
 - 悬停：右键此刻会攻击的可见单位脚下显示红色悬停圈（与攻击标记同色，带近黑描边）。
+- 选中：左键检视的可见单位脚下显示不转动的浅色密点线圈，位于悬停圈之内；HUD 不在其身上画方框。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
 - 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/D/A 准备态时为
   Crosshairs；在砍一刀小摊交互范围内为 Hand；其他为默认。

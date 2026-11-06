@@ -9,8 +9,8 @@ class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 
 // The owning player's pointer feedback (control feel): the ground marker of an own move order (green, or a red cross
-// where the local route check already fails), the attack marker on the own attack order's target and the hover ring
-// under the visible unit a right click would attack. Local presentation only: never replicated, no collision, no
+// where the local route check already fails), the attack marker on the own attack order's target, the hover ring
+// under the visible unit a right click would attack and the selection ring under the inspected unit. Local presentation only: never replicated, no collision, no
 // navigation, and a target is placed only from the owner's authorized observation (ALDWorldViewRelay).
 UCLASS(NotPlaceable, Transient)
 class LOCKDOWN_API ALDPointerFeedback : public AActor
@@ -24,6 +24,8 @@ public:
     void ShowAttack(const FGuid& Handle, uint32 ObservationEpoch);
     // An invalid handle clears the ring.
     void SetHover(const FGuid& Handle, uint32 ObservationEpoch);
+    // The inspected unit: a still, dense, pale dotted ring inside the turning red hover ring. An invalid handle clears it.
+    void SetSelected(const FGuid& Handle, uint32 ObservationEpoch);
     // Shift queue: a small ring at each waiting ground step (red for an attack-move), joined by a dashed line from the
     // own body through the current order's ground goal (when it has one) and the waypoints in turn. Empty hides them.
     void SetQueue(const TArray<FVector>& Waypoints, const TArray<bool>& Attack, const FVector* CurrentGoal);
@@ -35,9 +37,10 @@ public:
     bool ShowsMove() const { return bMoveShown; }
     bool ShowsAttack() const { return bAttackShown; }
     bool ShowsHover() const { return bHoverShown; }
+    bool ShowsSelected() const { return bSelectedShown; }
     int32 ShownWaypoints() const { return QueueWaypoints.Num(); }
 private:
-    enum class ERing : uint8 { Move, Attack, Hover, Count };
+    enum class ERing : uint8 { Move, Attack, Hover, Selected, Count };
     struct FRing
     {
         TArray<TObjectPtr<UStaticMeshComponent>> Dashes, Shades;
@@ -62,9 +65,9 @@ private:
     bool bQueueGoal = false;
     TWeakObjectPtr<ALDPlayerController> Viewer;
     FVector MoveAt = FVector::ZeroVector;
-    FGuid AttackHandle, HoverHandle;
-    uint32 AttackEpoch = 0, HoverEpoch = 0;
+    FGuid AttackHandle, HoverHandle, SelectedHandle;
+    uint32 AttackEpoch = 0, HoverEpoch = 0, SelectedEpoch = 0;
     double Clock = 0, MoveFrom = -1, AttackFrom = -1;
     bool bMoveReachable = true;
-    bool bMoveShown = false, bAttackShown = false, bHoverShown = false;
+    bool bMoveShown = false, bAttackShown = false, bHoverShown = false, bSelectedShown = false;
 };
