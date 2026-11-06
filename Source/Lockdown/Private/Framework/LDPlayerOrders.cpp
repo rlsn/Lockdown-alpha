@@ -9,6 +9,7 @@
 #include "UI/LDControlSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "Framework/Application/SlateApplication.h"
 
 namespace LDPlayerOrdersDetail
 {
@@ -58,7 +59,15 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     // and an admitted aggressive intent ends protection even when it is rejected.
     FLDCombatTarget Aim;
     Aim.Kind=bHeld && Mode==ELDDemoTargetMode::Self?ELDCombatTargetKind::Self:ELDCombatTargetKind::Missing;
-    SendCombatAction(Entry,Aim);
+    SendCombatAction(Entry,Aim,IsQueueModifierDown());
+}
+
+// Shift is no mapped action, so the player input's key state may never see it; Slate's modifier state is the fallback.
+bool ALDPlayerController::IsQueueModifierDown() const
+{
+    if (!IsLocalController()) { return false; }
+    if (IsInputKeyDown(EKeys::LeftShift) || IsInputKeyDown(EKeys::RightShift)) { return true; }
+    return FSlateApplication::IsInitialized() && FSlateApplication::Get().GetModifierKeys().IsShiftDown();
 }
 
 bool ALDPlayerController::ReadArmedCombatEntry(ELDCombatEntry& Out) const
@@ -89,10 +98,11 @@ bool ALDPlayerController::ConfirmArmedCombat()
         CancelArmedCombat();
         if (!IsLocalController() || !CanWorldCommand()) { return true; }
         FHitResult GroundHit;
+        const bool bQueue=IsQueueModifierDown();
         // A confirmation without ground is still a normalized aggressive intent; the server rejects it explicitly.
         if (Navigation->GroundUnderPointer(GroundHit))
-        { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint()); }
-        else { Navigation->AttackMove(FVector::ZeroVector,NAME_None); }
+        { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint(),bQueue); }
+        else { Navigation->AttackMove(FVector::ZeroVector,NAME_None,bQueue); }
         return true;
     }
     if (ArmedEntry==ELDCombatEntry::None) { return false; }
@@ -125,6 +135,9 @@ bool ALDPlayerController::ConfirmArmedCombat()
             {
                 Aim.Kind=ELDCombatTargetKind::Direction;
                 Aim.Direction=Direction;
+                // A queued direction keeps its ground point: the server aims from the body when the step's turn comes.
+                const FVector Point=GroundHit.ImpactPoint;
+                return ConfirmArmedEntry(Aim,&Point);
             }
         }
     }
@@ -141,13 +154,13 @@ bool ALDPlayerController::ConfirmArmedCombat()
     return ConfirmArmedEntry(Aim);
 }
 
-bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim)
+bool ALDPlayerController::ConfirmArmedEntry(const FLDCombatTarget& Aim, const FVector* AimCm)
 {
     const ELDCombatEntry Entry=ArmedEntry;
     if (Entry==ELDCombatEntry::None) { return false; }
     CancelArmedCombat();
     if (!IsLocalController() || !CanWorldCommand()) { return true; }
-    SendCombatAction(Entry,Aim);
+    SendCombatAction(Entry,Aim,IsQueueModifierDown(),AimCm);
     return true;
 }
 
@@ -187,9 +200,53 @@ void ALDPlayerController::PostIntentNotice(const FString& Text)
     IntentFeedback=Text;
 }
 
-void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Aim, bool bQueue, const FVector* AimCm)
 {
     if (!IsLocalController()) { return; }
+    // A unit-target cast is an order (2026-11-06 decision): the body walks into the skill's reach and casts there, and
+    // the server waits out the own windup itself, so it is never held as pre-input.
+    if (Aim.Kind==ELDCombatTargetKind::Unit)
+    {
+        QueuedCombat={};
+        FLDCombatActionRequest Request;
+        if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+            Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
+        Navigation->CastAtUnit(Request,bQueue);
+        return;
+    }
+    // A ground-point or projectile skill aimed at a ground point is an order too: the body walks until the point lies
+    // within the skill's reach, then casts at it (2026-11-06 decision). Dashes keep firing at once.
+    {
+        const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+        const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+        const ELDDemoTargetMode Mode=View && View->bHasActive?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+        const FVector Point=Aim.Kind==ELDCombatTargetKind::Point?FVector(Aim.Point):AimCm?*AimCm:FVector::ZeroVector;
+        const bool bPointCast=(Mode==ELDDemoTargetMode::GroundPoint && Aim.Kind==ELDCombatTargetKind::Point)
+            || (Mode==ELDDemoTargetMode::DirectionProjectile && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
+        if (bPointCast)
+        {
+            QueuedCombat={};
+            FLDCombatActionRequest Request;
+            if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+            UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT point-cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+                Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
+            Navigation->CastAtPoint(Request,Point,bQueue);
+            return;
+        }
+    }
+    if (bQueue)
+    {
+        // The shift queue waits for its own turn on the server, so a queued press is never held as pre-input; it
+        // replaces a held one like any newer press.
+        QueuedCombat={};
+        FLDCombatActionRequest Request;
+        if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT queued-step match=%u life=%u sequence=%llu entry=%u target=%u"),
+            Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind));
+        Navigation->QueueCombatAction(Request,Aim.Kind==ELDCombatTargetKind::Direction?AimCm:nullptr);
+        return;
+    }
     int64 NowMs=0;
     ReadDemoAuthorityTimeMs(NowMs);
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
@@ -235,15 +292,14 @@ void ALDPlayerController::FlushQueuedCombat()
     SendCombatNow(Held.Entry,Held.Aim);
 }
 
-void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+bool ALDPlayerController::NextCombatRequest(ELDCombatEntry Entry, const FLDCombatTarget& Aim, FLDCombatActionRequest& Request)
 {
-    if (!IsLocalController()) { return; }
     if (NextDirectSequence==MAX_uint64)
     {
         PostIntentNotice(TEXT("技能请求编号已用尽，无法再发送"));
-        return;
+        return false;
     }
-    FLDCombatActionRequest Request;
+    Request={};
     Request.Generation=OwnerState.Match;
     Request.Life=OwnerState.Life;
     Request.DirectSequence=++NextDirectSequence;
@@ -251,6 +307,14 @@ void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTar
     Request.Target=Aim;
     Request.Target.ServerBody={};
     Request.ExpectedSourceRevision=CombatView.SourceRevision;
+    return true;
+}
+
+void ALDPlayerController::SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+{
+    if (!IsLocalController()) { return; }
+    FLDCombatActionRequest Request;
+    if (!NextCombatRequest(Entry,Aim,Request)) { return; }
     UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_INPUT sent match=%u life=%u sequence=%llu entry=%u target=%u source=%llu"),
         Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),uint32(Aim.Kind),Request.ExpectedSourceRevision);
     ServerSubmitCombatAction(Request);
@@ -276,7 +340,11 @@ void ALDPlayerController::ServerSubmitCombatAction_Implementation(const FLDComba
         ClientCombatReceipt(Receipt);
         return;
     }
-    ClientCombatReceipt(Mode->Combat->SubmitAction(Caller,Incoming));
+    const FLDCombatActionReceipt Receipt=Mode->Combat->SubmitAction(Caller,Incoming);
+    // A non-Shift Q/W/1/2/D Combat took is a new command: the shift queue still waiting behind the current order is
+    // dropped (its lower sequences could never run after this one). The current order keeps running as before.
+    if (Receipt.Phase!=ELDCombatPhase::Rejected && Navigation) { Navigation->ClearQueue(ELDOrderFailure::Superseded); }
+    ClientCombatReceipt(Receipt);
 }
 
 void ALDPlayerController::ServerCancelCombatAction_Implementation(const FLDCombatCancelRequest& Request)

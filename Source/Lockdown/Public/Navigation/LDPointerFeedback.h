@@ -4,6 +4,7 @@
 #include "LDPointerFeedback.generated.h"
 
 class ALDPlayerController;
+class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 
@@ -23,6 +24,9 @@ public:
     void ShowAttack(const FGuid& Handle, uint32 ObservationEpoch);
     // An invalid handle clears the ring.
     void SetHover(const FGuid& Handle, uint32 ObservationEpoch);
+    // Shift queue: a small ring at each waiting ground step (red for an attack-move), joined by a dashed line from the
+    // own body through the current order's ground goal (when it has one) and the waypoints in turn. Empty hides them.
+    void SetQueue(const TArray<FVector>& Waypoints, const TArray<bool>& Attack, const FVector* CurrentGoal);
     // Seconds the click markers show.
     static constexpr float MoveSeconds = .45f;
     static constexpr float CrossSeconds = .6f;
@@ -31,6 +35,7 @@ public:
     bool ShowsMove() const { return bMoveShown; }
     bool ShowsAttack() const { return bAttackShown; }
     bool ShowsHover() const { return bHoverShown; }
+    int32 ShownWaypoints() const { return QueueWaypoints.Num(); }
 private:
     enum class ERing : uint8 { Move, Attack, Hover, Count };
     struct FRing
@@ -42,9 +47,19 @@ private:
     void PlaceRing(ERing Ring, const FVector& Centre, float Radius, float Turn, float Scale);
     void HideRing(ERing Ring);
     bool TargetFeet(const FGuid& Handle, uint32 Epoch, FVector& Out) const;
+    // Rebuilds the queue rings and path dashes from the body's current feet.
+    void PlaceQueue();
     FRing Rings[int32(ERing::Count)];
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Parts;
     UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Cross;
+    // Queue rings and path dashes: one instanced part per paint.
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> QueueMove;
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> QueueAttack;
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> QueueShade;
+    TArray<FVector> QueueWaypoints;
+    TArray<bool> QueueAttackFlags;
+    FVector QueueGoal = FVector::ZeroVector;
+    bool bQueueGoal = false;
     TWeakObjectPtr<ALDPlayerController> Viewer;
     FVector MoveAt = FVector::ZeroVector;
     FGuid AttackHandle, HoverHandle;

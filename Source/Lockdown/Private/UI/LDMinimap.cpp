@@ -324,7 +324,8 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
     const FVector XY=LDMinimap::ClampToGround(LDMinimap::ToWorld(View,P*View.FrameSize),Ground);
     if(!Move){PC->Navigation->PanTo(XY);return true;}
     FVector Surface;if(!LDGround::MapSurface(GetWorld(),XY,Surface)){PC->PostIntentNotice(TEXT("无法到达该位置"));return false;}
-    PC->Navigation->Navigate(Surface);return true;
+    // Shift queues the minimap move like a Shift right click in the world.
+    PC->Navigation->Navigate(Surface,PC->IsQueueModifierDown());return true;
 }
 FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {

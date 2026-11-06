@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Navigation/LDOrderTypes.h"
+#include "Combat/LDCombatTypes.h"
 #include "Vision/LDViewTypes.h"
 
 // Authority order book of one controller, bound to one match and life. Its request watermark and activation
@@ -52,6 +53,23 @@ namespace LDOrderRules
     // Candidate goals from Front back toward From every StepCm (Front first, From last): the first reachable one is the
     // nearest walkable point beside the stall.
     LOCKDOWN_API TArray<FVector> ShopStopCandidates(const FVector& FrontCm, const FVector& FromCm, double StepCm);
+
+    // Shift queue (2026-11-06 user decision): Shift + right click / A-click / Q W 1 2 D appends a step behind the current
+    // order instead of replacing it. At most MaxQueuedSteps steps wait; a further Shift command is refused (QueueFull).
+    constexpr int32 MaxQueuedSteps = 8;
+    // The queue's head starts only when nothing else holds the body: no pending request, no current order and no queued
+    // action still in Combat (queued, winding up or releasing).
+    LOCKDOWN_API bool QueueHeadDue(bool bPending, bool bActive, bool bActionRunning);
+    // How the end of the current step (or a refused step) treats the steps behind it: an arrival, a refusal or an early
+    // end of that one step (no path, blocked, target lost or dead, knocked back) moves on to the next step; a Stop,
+    // death, a lost life, match or lease, or a taunt/lure takeover drops the whole queue.
+    enum class EQueueAfter : uint8 { Next, Clear };
+    LOCKDOWN_API EQueueAfter QueueAfter(ELDOrderFailure Failure);
+    // A queued action step is settled once Combat finished or refused it (an expired receipt also counts).
+    LOCKDOWN_API bool QueuedActionSettled(ELDCombatPhase Phase);
+    // A queued direction skill keeps the ground point it was aimed at and is re-aimed from where the body stands when its
+    // turn comes: the planar unit direction from FootCm to AimCm. False when the point is under the body (or not finite).
+    LOCKDOWN_API bool QueuedAimDirection(const FVector& FootCm, const FVector& AimCm, FVector& OutDirection);
 
     // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
     // forced chase of an earlier taunter), Keep advances the forced chase, End returns control when the taunt is gone

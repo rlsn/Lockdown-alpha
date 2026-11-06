@@ -250,7 +250,8 @@ void ALDPlayerController::V05Pressed(FName Action)
         // A right click while something is armed only cancels it; the next right click is an ordinary order.
         if (RootUI && RootUI->PointerOverUI()) { return; }
         if (CancelArmedCombat()) { return; }
-        Navigation->ClickMove();
+        // Shift queues the click behind the current order (shift queue) instead of replacing it.
+        Navigation->ClickMove(IsQueueModifierDown());
     }
     else if (Action==TEXT("AttackMove")) { ArmAttackMove(); }
     else if (Action==TEXT("Skill1")) { ActivateCombatEntry(ELDCombatEntry::Q); }

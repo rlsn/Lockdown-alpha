@@ -1,6 +1,7 @@
 #include "Navigation/LDPointerFeedback.h"
 #include "Character/LDCharacter.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Framework/LDPlayerController.h"
@@ -21,6 +22,11 @@ namespace LDPointerFeedbackDetail
     constexpr float HoverRadius = 76.f, MoveFromRadius = 50.f, MoveToRadius = 18.f, AttackFromRadius = 95.f, AttackToRadius = 55.f;
     // Above the ground and the own-body marker; dashes and shades never touch each other.
     constexpr float DashLift = 2.4f, ShadeLift = 1.4f;
+    // Shift queue: a waypoint is a small static ring; the path between waypoints is a dash every QueueDashStepCm.
+    constexpr int32 QueueRingDashes = 6;
+    constexpr float QueueRingRadius = 24.f, QueueDashStepCm = 45.f;
+    const FVector QueueRingScale(.12f, .05f, .02f), QueueRingShadeScale(.17f, .1f, .01f);
+    const FVector QueuePathScale(.16f, .035f, .02f), QueuePathShadeScale(.2f, .075f, .01f);
 }
 
 ALDPointerFeedback::ALDPointerFeedback()
@@ -56,6 +62,22 @@ ALDPointerFeedback::ALDPointerFeedback()
         }
     }
     for (int32 Bar = 0; Bar < 4; ++Bar) { Cross.Add(Make(FString::Printf(TEXT("Cross%d"), Bar))); }
+    const auto MakeQueue = [this, Cube](const TCHAR* Name)
+    {
+        auto* Part = CreateDefaultSubobject<UInstancedStaticMeshComponent>(Name);
+        Part->SetupAttachment(RootComponent);
+        Part->SetStaticMesh(Cube);
+        Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+        Part->SetCanEverAffectNavigation(false);
+        Part->SetCastShadow(false);
+        Part->SetUsingAbsoluteLocation(true);
+        Part->SetUsingAbsoluteRotation(true);
+        Part->SetUsingAbsoluteScale(true);
+        return Part;
+    };
+    QueueMove = MakeQueue(TEXT("QueueMove"));
+    QueueAttack = MakeQueue(TEXT("QueueAttack"));
+    QueueShade = MakeQueue(TEXT("QueueShade"));
 }
 
 void ALDPointerFeedback::Bind(ALDPlayerController& Player)
@@ -80,6 +102,9 @@ void ALDPointerFeedback::Bind(ALDPlayerController& Player)
     }
     UMaterialInstanceDynamic* Refused = Paint(AttackColour);
     for (int32 Bar = 0; Bar < Cross.Num(); ++Bar) { Cross[Bar]->SetMaterial(0, Bar < 2 ? Refused : Shade); }
+    QueueMove->SetMaterial(0, Paint(MoveColour));
+    QueueAttack->SetMaterial(0, Refused);
+    QueueShade->SetMaterial(0, Shade);
 }
 
 void ALDPointerFeedback::ShowMove(const FVector& GroundCm, bool bReachable)
@@ -100,6 +125,67 @@ void ALDPointerFeedback::SetHover(const FGuid& Handle, uint32 ObservationEpoch)
 {
     HoverHandle = Handle;
     HoverEpoch = Handle.IsValid() ? ObservationEpoch : 0;
+}
+
+void ALDPointerFeedback::SetQueue(const TArray<FVector>& Waypoints, const TArray<bool>& Attack, const FVector* CurrentGoal)
+{
+    QueueWaypoints = Waypoints;
+    QueueAttackFlags = Attack;
+    QueueAttackFlags.SetNumZeroed(QueueWaypoints.Num());
+    bQueueGoal = CurrentGoal != nullptr;
+    QueueGoal = CurrentGoal ? *CurrentGoal : FVector::ZeroVector;
+    PlaceQueue();
+}
+
+void ALDPointerFeedback::PlaceQueue()
+{
+    using namespace LDPointerFeedbackDetail;
+    QueueMove->ClearInstances();
+    QueueAttack->ClearInstances();
+    QueueShade->ClearInstances();
+    if (QueueWaypoints.IsEmpty()) { return; }
+    TArray<FTransform> Move, Attack, Shade;
+    const auto Dash = [&Shade](TArray<FTransform>& Into, const FVector& At, float Yaw, const FVector& Scale, const FVector& UnderScale)
+    {
+        const FQuat Along = FRotator(0, Yaw, 0).Quaternion();
+        Into.Emplace(Along, At + FVector(0, 0, DashLift), Scale);
+        Shade.Emplace(Along, At + FVector(0, 0, ShadeLift), UnderScale);
+    };
+    // The line starts at the own feet (when the body is presented) and runs through the current goal and each waypoint;
+    // a segment takes the colour of the waypoint it leads to.
+    TArray<FVector> Path;
+    const APawn* Body = Viewer.IsValid() ? Viewer->GetPawn() : nullptr;
+    if (const auto* Character = Cast<ALDCharacter>(Body))
+    { Path.Add(Character->GetActorLocation() - FVector(0, 0, Character->GetCapsuleComponent()->GetScaledCapsuleHalfHeight())); }
+    if (bQueueGoal) { Path.Add(QueueGoal); }
+    const int32 Lead = Path.Num();
+    Path.Append(QueueWaypoints);
+    for (int32 Index = 1; Index < Path.Num(); ++Index)
+    {
+        const FVector From = Path[Index - 1], To = Path[Index];
+        const FVector Span(To.X - From.X, To.Y - From.Y, To.Z - From.Z);
+        const float Length = float(Span.Size2D());
+        if (Length < QueueDashStepCm) { continue; }
+        const float Yaw = float(FMath::RadiansToDegrees(FMath::Atan2(Span.Y, Span.X)));
+        const int32 Waypoint = Index - Lead;
+        TArray<FTransform>& Into = Waypoint >= 0 && QueueAttackFlags[Waypoint] ? Attack : Move;
+        // Dashes stop short of both ends, so neither the feet nor a waypoint ring is crossed.
+        for (float Along = QueueDashStepCm; Along <= Length - QueueDashStepCm * .5f; Along += QueueDashStepCm)
+        { Dash(Into, From + Span * (Along / Length), Yaw, QueuePathScale, QueuePathShadeScale); }
+    }
+    for (int32 Index = 0; Index < QueueWaypoints.Num(); ++Index)
+    {
+        TArray<FTransform>& Into = QueueAttackFlags[Index] ? Attack : Move;
+        for (int32 Part = 0; Part < QueueRingDashes; ++Part)
+        {
+            const float Angle = 360.f * float(Part) / float(QueueRingDashes);
+            Dash(Into, QueueWaypoints[Index] + FRotator(0, Angle, 0).Vector() * QueueRingRadius, Angle + 90.f,
+                QueueRingScale, QueueRingShadeScale);
+        }
+    }
+    QueueMove->AddInstances(Move, false, true, false);
+    QueueAttack->AddInstances(Attack, false, true, false);
+    QueueShade->AddInstances(Shade, false, true, false);
 }
 
 bool ALDPointerFeedback::TargetFeet(const FGuid& Handle, uint32 Epoch, FVector& Out) const
@@ -172,6 +258,8 @@ void ALDPointerFeedback::Tick(float Delta)
         PlaceRing(ERing::Attack, Feet, FMath::Lerp(AttackFromRadius, AttackToRadius, K), -160.f * AttackAge, 1.f - K * K * K);
     }
     else { HideRing(ERing::Attack); }
+    // The queue line follows the walking body.
+    if (!QueueWaypoints.IsEmpty()) { PlaceQueue(); }
     bHoverShown = TargetFeet(HoverHandle, HoverEpoch, Feet);
     if (bHoverShown) { PlaceRing(ERing::Hover, Feet, HoverRadius, 30.f * Time, 1.f); }
     else { HideRing(ERing::Hover); }
