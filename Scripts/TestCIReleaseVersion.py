@@ -83,6 +83,27 @@ class PlanTest(unittest.TestCase):
             self.assertEqual((root / 'Config' / 'DefaultGame.ini').read_bytes(),
                              INI.replace(b'0.10.0', b'0.10.1'))
 
+    def test_a_tag_on_an_unpushed_version_commit_releases_its_parent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'Config').mkdir()
+            (root / 'Config' / 'DefaultGame.ini').write_bytes(INI)
+            self.git(root, 'init', '-q', '-b', 'main')
+            self.git(root, 'add', '.')
+            self.git(root, 'commit', '-q', '-m', 'one')
+            self.git(root, 'tag', 'v0.10.0')
+            # The nightly commits the version on a detached HEAD and pushes only the tag; main keeps 0.10.0.
+            self.git(root, 'switch', '-q', '--detach')
+            release.apply('0.10.1', root)
+            self.git(root, 'commit', '-q', '-am', 'bump')
+            self.git(root, 'tag', 'v0.10.1')
+            self.git(root, 'switch', '-q', 'main')
+            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': True})
+            self.git(root, 'commit', '-q', '--allow-empty', '-m', 'two')
+            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': False})
+            self.git(root, 'tag', 'v0.10.2-rc')
+            self.assertEqual(release.plan(root)['released'], False)
+
 
 if __name__ == '__main__':
     unittest.main()

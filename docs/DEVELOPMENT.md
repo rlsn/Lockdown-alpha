@@ -314,15 +314,16 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 `.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行（只能选 `main`）。
 它只在维护者本机的自托管 runner（标签 `lockdown-ue58`）上执行，每次运行发布一个试玩版本，
 检出的是任务开始时 `main` 的最新提交（不是排队时的提交）：
-- `main` 上没有新提交（HEAD 已带 `vX.Y.Z` tag）时直接跳过；手动运行勾选 `force` 时仍发布下一个 patch。
+- `main` 上没有新提交（已有 `vX.Y.Z` tag 包含 HEAD）时直接跳过；手动运行勾选 `force` 时仍发布下一个 patch。
 - `Scripts/CIReleaseVersion.py` 选版本：`Config/DefaultGame.ini` 的 `ProjectVersion` 还没有 tag 且比最新 tag 新时
-  直接使用（上次 bump 后发布失败，或有人手动改到新的 minor/major）；否则取两者较新者的 patch+1。
-  需要改 ini 时，工作流以 `github-actions[bot]` 提交 `chore: bump version to X` 并快进推送到 `main`，
-  然后才打包，所以包内版本、清单与 `main` 一致。推送要求 `main` ruleset 的 bypass 列表包含 GitHub Actions 应用；
-  运行期间 `main` 前进会导致推送失败，重跑即可。
+  直接使用（有人经 PR 改到新的 minor/major）；否则取两者较新者的 patch+1。
+  需要改 ini 时，工作流在 `main` 最新提交之上本地提交 `chore: release version X`，打包这个提交。
+  它不推送到 `main`（`main` ruleset 要求 PR，个人仓库也无法把 GitHub Actions 加入 bypass），
+  只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
 - 增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
   把 Archive、manifest、`Package.log` 与 `README.txt` 启动说明打成 `Lockdown-vX-win64.zip`，
-  发布为 Release `vX`（发布时由 GitHub 创建 tag）。随后只保留最新两个 `vX.Y.Z` Release，更早的删除但保留 tag。
+  推送 tag `vX` 并发布为 Release `vX`；发布失败时撤回刚推送的 tag，重跑会再次发布。
+  随后只保留最新两个 `vX.Y.Z` Release，更早的删除但保留 tag：tag 保存已发布的提交，也是下一个版本号的依据。
 - 产品版本参与加入房间的校验，试玩时所有玩家需使用同一个 Release。
 该包不跑任何 `RunDemo*Check` 场景，不能代替里程碑验收。
 

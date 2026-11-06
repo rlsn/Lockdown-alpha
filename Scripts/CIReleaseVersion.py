@@ -1,11 +1,13 @@
 """Choose and apply the product version for the nightly release.
 
-plan:  print `version=X.Y.Z`, `bump=true|false` and `released=true|false` (HEAD already carries a vX.Y.Z tag).
+plan:  print `version=X.Y.Z`, `bump=true|false` and `released=true|false` (a vX.Y.Z tag already contains HEAD).
 apply: write ProjectVersion=X.Y.Z into Config/DefaultGame.ini, changing only that value.
 
-Version rule: when the ini version has no tag yet and is newer than every vX.Y.Z tag (an earlier bump whose release
-failed, or a hand-edited minor/major bump), release it as is. Otherwise release the patch after the newer of the ini
-version and the latest tag.
+Version rule: when the ini version has no tag yet and is newer than every vX.Y.Z tag (a hand-edited minor/major bump
+merged to main), release it as is. Otherwise release the patch after the newer of the ini version and the latest tag.
+
+The version commit is never pushed to main: the release tag points at it and its parent is the main commit it
+releases, so a tag that contains HEAD means that main commit is already released.
 """
 
 import argparse
@@ -90,7 +92,7 @@ def _git(root, *args):
 def plan(root=ROOT):
     ini = read_project_version((Path(root) / INI).read_bytes())
     version, bump = next_version(ini, _git(root, "tag", "--list", "v*"))
-    released = bool(tag_versions(_git(root, "tag", "--points-at", "HEAD")))
+    released = bool(tag_versions(_git(root, "tag", "--list", "v*", "--contains", "HEAD")))
     return {"version": version, "bump": bump, "released": released}
 
 
