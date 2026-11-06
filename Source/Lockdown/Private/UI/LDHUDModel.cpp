@@ -950,12 +950,17 @@ TArray<FLDShopItemView> LDHUD::CatalogItems(const FLDDemoContentDefinitions* Con
     }
     return Items;
 }
-int32 LDHUD::NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots)
+int32 LDHUD::NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots,const TArray<FName>& Upgradable,int64 UpgradePrice)
 {
-    if(FreeSlots<=0){return INDEX_NONE;}
     for(int32 Index=0;Index<Queue.Num();++Index)
     {
         const FName Wanted=Queue[Index];
+        if(Upgradable.Contains(Wanted))
+        {
+            if(UpgradePrice>0&&UpgradePrice<=Gold){return Index;}
+            continue;
+        }
+        if(FreeSlots<=0){continue;}
         const FLDShopItemView* Row=Listing.FindByPredicate([Wanted](const FLDShopItemView& Item){return Item.DefinitionId==Wanted;});
         if(Row&&Row->BuyPrice>0&&Row->BuyPrice<=Gold){return Index;}
     }

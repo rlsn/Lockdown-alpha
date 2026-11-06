@@ -280,8 +280,11 @@ namespace LDHUD
     // the shop; a session's quote replaces it whenever one is shown. Empty without content.
     LOCKDOWN_API TArray<FLDShopItemView> CatalogItems(const FLDDemoContentDefinitions* Content);
     // Index into Queue of the pre-order to buy next: queue order, the first one the listing prices, the gold covers and an
-    // empty equipment slot can hold. INDEX_NONE when none qualifies (no free slot, too little gold, or not listed).
-    LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots);
+    // empty equipment slot can hold. A definition in Upgradable (a held copy whose upgrade is offered) is bought as that
+    // upgrade instead: at UpgradePrice and without a free slot, never as a second copy. INDEX_NONE when none qualifies
+    // (no free slot, too little gold, or not listed).
+    LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots,
+        const TArray<FName>& Upgradable=TArray<FName>(),int64 UpgradePrice=0);
     // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive/active terms); empty parts are omitted.
     LOCKDOWN_API TArray<FString> UpgradeLines(const FLDDemoEquipmentDefinition& Item);
     struct FAttributeRowView

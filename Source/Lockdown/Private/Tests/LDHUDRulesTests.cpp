@@ -633,6 +633,13 @@ bool FLDHUDShopPreorderTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("An item the quote does not list is never bought"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Quote,1000,2),int32(INDEX_NONE));
     TestEqual(TEXT("The quote price, not the catalog price, must be covered"),LDHUD::NextPreorder({FName(TEXT("item_b"))},Quote,200,2),int32(INDEX_NONE));
     TestEqual(TEXT("An empty queue buys nothing"),LDHUD::NextPreorder(TArray<FName>(),Catalog,1000,2),int32(INDEX_NONE));
+    // A held copy whose upgrade is offered is bought as that upgrade: at the upgrade price, without a free slot.
+    const TArray<FName> Held={FName(TEXT("item_a"))};
+    TestEqual(TEXT("An owned upgradable pre-order upgrades at the upgrade price without a free slot"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Catalog,200,0,Held,150),0);
+    TestEqual(TEXT("The upgrade price must be covered"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Catalog,100,2,Held,150),int32(INDEX_NONE));
+    TestEqual(TEXT("An owned upgradable item is never bought as a second copy"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Catalog,1000,2,Held,5000),int32(INDEX_NONE));
+    TestEqual(TEXT("Without an upgrade price the upgrade is never bought"),LDHUD::NextPreorder({FName(TEXT("item_a"))},Catalog,1000,2,Held,0),int32(INDEX_NONE));
+    TestEqual(TEXT("A full inventory still lets a later pre-order upgrade"),LDHUD::NextPreorder(Queue,Catalog,1000,0,{FName(TEXT("item_b"))},150),1);
     TestEqual(TEXT("Two pre-orders at most"),LDHUD::MaxShopPreorders,2);
     return true;
 }
