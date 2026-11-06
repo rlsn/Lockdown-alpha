@@ -460,6 +460,51 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     return Receipt;
 }
 
+bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error)
+{
+    bFinal=true;
+    Out={};
+    Out.Generation=Request.Generation;
+    Out.Life=Request.Life;
+    Out.Origin=ELDCombatRequestOrigin::Direct;
+    Out.DirectSequence=Request.DirectSequence;
+    Out.Entry=Request.Entry;
+    Out.Phase=ELDCombatPhase::Rejected;
+    auto* Mode=Core();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None
+        || Caller.Match!=Mode->GetMatchContext() || Caller.Kind!=ELDVictimKind::Contender)
+    { Out.Reject=ELDCombatReject::MatchClosed; return true; }
+    auto* Record=FindRecord(Caller.EntityId);
+    if (!Record || Record->Kind!=Caller.Kind) { Out.Reject=ELDCombatReject::NotOwner; return true; }
+    const FLDCombatTarget& Aim=Request.Target;
+    const bool bUnit=Aim.Kind==ELDCombatTargetKind::Unit;
+    const bool bAim=!Aim.ServerBody.IsValid() && (bUnit ? Aim.Observed.IsValid() && Aim.ObservationEpoch!=0
+        : Aim.Kind==ELDCombatTargetKind::Point ? LDCA::ValidPoint(Aim.Point) && !Aim.Observed.IsValid() && !Aim.ObservationEpoch
+        : Aim.Kind==ELDCombatTargetKind::Direction && LDCA::ValidDirection(Aim.Direction));
+    const bool bShape=Request.DirectSequence!=0 && Request.Life!=0 && LDCA::IsContenderEntry(Request.Entry)
+        && Request.Entry!=ELDCombatEntry::Dash && bAim;
+    if (!bShape) { Out.Reject=ELDCombatReject::InvalidRequest; return true; }
+    if (Request.DirectSequence<=Record->DirectHighWater) { Out.Reject=ELDCombatReject::StaleRequest; return true; }
+    FLDCombatActionReceipt Judged;
+    if (!ProcessDirect(*Record,Request,Permit,Judged,Error)) { return false; }
+    if (Judged.Phase==ELDCombatPhase::Rejected && (Judged.Reject==ELDCombatReject::OutOfRange
+        || (bUnit && Judged.Reject==ELDCombatReject::Blocked) || Judged.Reject==ELDCombatReject::Busy))
+    {
+        // Not yet: the order closes in (or waits for the own windup) and tries the same request again.
+        Out=Judged;
+        bFinal=false;
+        return true;
+    }
+    Record=FindRecord(Caller.EntityId);
+    if (!Record) { Out=Judged; return true; }
+    Record->DirectHighWater=Request.DirectSequence;
+    StoreReceipt(*Record,Request,Judged);
+    Out=Record->Recent.Last().Receipt;
+    SendReceipt(*Record,Out);
+    return true;
+}
+
 void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep)
 {
     auto* Body=FindEntityBody(Entity);
@@ -751,9 +796,9 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
     if (!LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef))
     { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
+    // A started swing lands wherever the target has moved since (2026-11-06 decision, the Dota rule): the attack range
+    // gates only the start (StartNavAttack); at the release the target must still be resolvable and in clear sight.
     const FVector Foot=FootOf(Actor);
-    if (FVector::Dist2D(Foot,TargetFoot)>LDCA::ToDouble(Body.AttributeProjection.Final.AttackRangeCm))
-    { Outcome=ELDCombatReject::OutOfRange; FinishAction(Body,Outcome,false); return true; }
     bool bFault=false;
     if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
     {

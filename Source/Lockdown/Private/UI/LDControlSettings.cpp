@@ -222,6 +222,8 @@ bool ULDControlSettings::Rebind(FName Action,FKey NewKey,FString& Error)
     const auto* Definition=Definitions().FindByPredicate([&](const FLDControlBinding& B){return B.Action==Action;});
     if(!Definition){Error=TEXT("此动作不在当前按键注册表中。");return false;}
     if(Action==TEXT("Back")||NewKey==EKeys::Escape){Error=TEXT("Esc 保留给返回 / 取消。");return false;}
+    // Shift is the fixed shift-queue modifier (ALDPlayerController::IsQueueModifierDown), never an action key.
+    if(NewKey==EKeys::LeftShift||NewKey==EKeys::RightShift){Error=TEXT("Shift 保留给指令队列。");return false;}
     if(!NewKey.IsValid()||NewKey.IsGamepadKey()||NewKey.IsAxis2D()||NewKey.IsAxis3D()
         ||(Definition->Axis&&NewKey!=EKeys::MouseWheelAxis)||(!Definition->Axis&&NewKey.IsAxis1D()))
     {Error=Definition->Axis?TEXT("镜头缩放只能使用鼠标滚轮。"):TEXT("请选择键盘按键或鼠标按键。");return false;}
@@ -284,7 +286,7 @@ bool ULDControlSettings::ValidateLocalSettings(FString& Error) const
         const FKey K=Key(B.Action);
         if(!K.IsValid()||K.IsGamepadKey()||K.IsAxis2D()||K.IsAxis3D()||Seen.Contains(K)
             ||(!B.Axis&&K.IsAxis1D())||(B.Axis&&K!=EKeys::MouseWheelAxis)
-            ||K==EKeys::MouseScrollUp||K==EKeys::MouseScrollDown)
+            ||K==EKeys::MouseScrollUp||K==EKeys::MouseScrollDown||K==EKeys::LeftShift||K==EKeys::RightShift)
         { Error = TEXT("已保存的按键包含无效键、轴或冲突。请恢复默认按键。"); return false; }
         Seen.Add(K);
     }

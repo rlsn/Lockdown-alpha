@@ -433,6 +433,13 @@ public:
     FLDCombatActionReceipt StartNavAttack(const FLDCombatCaller& Caller, const FLDCombatRequestKey& Key,
         const FLDCombatBodyRef& Target, const FGuid& Observed, uint32 ObservationEpoch,
         const FLDGameplayWritePermit& Permit);
+    // Navigation's approach-and-cast orders (unit, ground-point and projectile Q/W/1/2, 2026-11-06 decisions): judges the
+    // owner's Direct request now, inside the Actions permit, exactly as a queued Direct request would be judged.
+    // OutOfRange and Busy (and Blocked sight to a unit) leave the request unrecorded (bFinal false) so the order keeps
+    // closing in or waiting; every other outcome records, reports and returns it like an ordinary Direct receipt
+    // (bFinal true). False only on an authority fault.
+    bool StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request, const FLDGameplayWritePermit& Permit,
+        FLDCombatActionReceipt& Out, bool& bFinal, FString& Error);
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
     // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());

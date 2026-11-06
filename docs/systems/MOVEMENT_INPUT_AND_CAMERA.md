@@ -79,6 +79,8 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
    在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
+   带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/1/2/D 不进待处理槽，而是排进最多 8 步的
+   Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.5](../demo/CONTROLS_AND_TARGETING.md#45-shift-指令队列)）。
 3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。
 4. `Stop` 提升 order 和取消 epoch，清本地预测跟随；服务器在获准 Actions 阶段停止，
    不让菜单回调直接修改权威速度。较旧 order/epoch 不能重启。
@@ -99,6 +101,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 按住移动键（默认右键）时，地面右键之后按指针地面点继续下普通 MoveGround 订单：
      每秒至多 8 次，且地面点相对上一单移动不少于 40 cm（`LDOrderRules::ShouldRepeatHeldMove`），
      本地路线检查不通过的点静默跳过；每单都是新 identity，经同一订单簿与 0.1 s 激活节流，最新待处理单替换旧单。
+     按住 Shift 的右键只发一条排队订单，不按住重复。
+   - Shift 队列里自己的地面步骤在落点显示小圈（攻击移动为红色），并有一条虚线从身体经当前目的地连到各点
+     （`ALDPointerFeedback::SetQueue`）；步骤开始或结束、Stop、新生命时移除。
    - 世界点击、悬停与武装确认共用 `PointerPosition`/`GroundUnderPointer`；DEV 场景可用 `DevSetPointer`
      代替鼠标（仅 `WITH_DEV_AUTOMATION_TESTS` 生效）。
    - 预输入（`LDCombatPreInput`）：自己的 Q/W/1/2 技能前摇期间再按的 Direct 键在拥有客户端暂存一个（新按的替换旧的），
