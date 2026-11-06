@@ -239,14 +239,14 @@ bool ULDShopPanel::AddPreorder(FName DefinitionId)
     {ShopPanelText(Feedback,FString::Printf(TEXT("预购最多 %d 件，先点掉一件再加"),LDHUD::MaxShopPreorders));RefreshShop();return false;}
     if(!Listing.ContainsByPredicate([DefinitionId](const FLDShopItemView& Row){return Row.DefinitionId==DefinitionId;}))
     {ShopPanelText(Feedback,TEXT("这件商品不在列表里，不能预购"));RefreshShop();return false;}
-    PreorderQueue.Add(DefinitionId);bAutoBlocked=false;
+    PreorderQueue.Add(DefinitionId);bAutoBlocked=false;Sound(ELDAudioCue::ShopMarked);
     ShopPanelText(Feedback,TEXT("已加入预购：")+LDHUD::ContentName(LatestContent,DefinitionId.ToString())+TEXT("，到")+LDTerms::Shop+TEXT("附近且")+LDTerms::Gold+TEXT("够时自动买入"));
     RefreshShop();return true;
 }
 bool ULDShopPanel::RemovePreorder(int32 Index)
 {
     if(!PreorderQueue.IsValidIndex(Index)){return false;}
-    const FName Removed=PreorderQueue[Index];PreorderQueue.RemoveAt(Index);
+    const FName Removed=PreorderQueue[Index];PreorderQueue.RemoveAt(Index);Sound(ELDAudioCue::ShopUnmarked);
     ShopPanelText(Feedback,TEXT("已取消预购：")+LDHUD::ContentName(LatestContent,Removed.ToString()));
     RefreshShop();return true;
 }
@@ -256,9 +256,9 @@ bool ULDShopPanel::TogglePresell(const FGuid& Instance)
         ?LatestEquipment.Slots.FindByPredicate([&Instance](const FLDEquipmentSlotView& Row){return Row.bOccupied&&Row.Instance==Instance;}):nullptr;
     const FString Name=Held?LDHUD::ContentName(LatestContent,Held->DefinitionId.ToString()):FString(TEXT("装备"));
     auto Tell=[this](const FString& Notice){ShopPanelText(Feedback,Notice);NotifyPlayer(Notice);};
-    if(PresellQueue.Remove(Instance)>0){Tell(TEXT("已取消预售：")+Name);RefreshShop();return true;}
+    if(PresellQueue.Remove(Instance)>0){Sound(ELDAudioCue::ShopUnmarked);Tell(TEXT("已取消预售：")+Name);RefreshShop();return true;}
     if(!Held){Tell(TEXT("这件装备已不在装备栏，不能卖出"));return false;}
-    PresellQueue.Add(Instance);bAutoBlocked=false;
+    PresellQueue.Add(Instance);bAutoBlocked=false;Sound(ELDAudioCue::ShopMarked);
     // In the shop's range with this life's quote it sells right away; the result arrives as the receipt's notice.
     if(!TryAutoTrade())
     {Tell(TEXT("已标记预售：")+Name+(bLatestNear?FString(TEXT("，即将卖出")):FString(TEXT("，到"))+LDTerms::Shop+TEXT("附近自动卖出")));}
@@ -696,6 +696,11 @@ void ULDShopPanel::RefreshPreorders()
         const uint8 Look=uint8(bActive)|uint8(bAffordable)<<1|0x80;
         if(PreorderLooks[ChipIdx]!=Look){PreorderLooks[ChipIdx]=Look;ShopPanelQueueIcon(PreorderShapes[ChipIdx],PreorderGlyphs[ChipIdx],bActive,bAffordable);}
     }
+}
+void ULDShopPanel::Sound(ELDAudioCue Cue) const
+{
+    if(PlayCue){PlayCue(Cue);return;}
+    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_CUE_UNAVAILABLE The HUD did not connect shop cues; unplayed: %s"),*LDAudio::CueId(Cue));
 }
 void ULDShopPanel::NotifyPlayer(const FString& Notice) const
 {

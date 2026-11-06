@@ -3,6 +3,7 @@
 #include "UI/LDWidgets.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Audio/LDAudioTypes.h"
 #include "LDShopPanel.generated.h"
 class UTextBlock;
 class UBorder;
@@ -46,6 +47,9 @@ public:
     TFunction<uint64()> PeekRequestId;
     // Short player notices the HUD shows as a toast (e.g. the panel closed because the session ended).
     TFunction<void(const FString&)> Notify;
+    // The HUD plays the panel's local cues: ShopMarked when a pre-order or pre-sell is added, ShopUnmarked when one is
+    // taken back. Trade results keep their own receipt cues.
+    TFunction<void(ELDAudioCue)> PlayCue;
     // Called on every HUD refresh. View is the current Opened session quote (nullptr when there is none);
     // EquipView is the own two-slot view (nullptr when not projected); BuildRevision is the owner's current build revision
     // (bBuildKnown=false when the progression view is not projected).
@@ -181,4 +185,5 @@ private:
     void ClearPending();
     void FinishRequest(const FString& Notice);
     void NotifyPlayer(const FString& Notice) const;
+    void Sound(ELDAudioCue Cue) const;
 };

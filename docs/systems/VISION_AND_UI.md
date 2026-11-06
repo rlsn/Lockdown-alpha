@@ -187,6 +187,7 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 | 升级或出现新的三选一 | 本人 `Progression` 的 Level 或 EarnedThrough 增加 | 选卡后显示排队中的下一组不算新机会 |
 | 本人死亡 / 复活 | `OwnerState` 同一 Life 由 Alive 变 Dead / 新 Life 为 Alive | 开局首次出生不响 |
 | 界面点击 | 设置页主音量滑条松手或键盘调节时试听 | 每次调节一次 |
+| 预购/预售标记 / 取消 | 本地 `ULDShopPanel`：加入预购或标记预售响 `ShopMarked`（复用复活音 `confirmation_002.ogg`，低 6 dB），取消预购或取消预售响 `ShopUnmarked`（复用界面点击音 `select_002.ogg`）；之后真实成交或被拒仍按上一行的回执音 | 每次操作一次（2026-11-06 用户决定） |
 
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
 经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。

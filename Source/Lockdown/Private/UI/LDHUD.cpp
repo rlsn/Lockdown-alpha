@@ -545,7 +545,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
-        if(ShopPanel){ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
+        if(ShopPanel)
+        {
+            ShopPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};
+            ShopPanel->PlayCue=[this](ELDAudioCue Cue){PlayAudioCues(TArray<ELDAudioCue>{Cue});};
+        }
         if(ChoicesPanel){ChoicesPanel->Notify=[this](const FString& Notice){ShowToast(Notice);};}
         // Growth's owning-connection entries; the panels only build commands from the views they showed.
         const TWeakObjectPtr<ALDPlayerController> WeakPC(PC);
