@@ -197,6 +197,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoControlFeel.ShopFront",
         "Lockdown.Rules.LocalSettingsScoreboardMigration",
         "Lockdown.Rules.LocalSettingsDiagnostics",
+        "Lockdown.Rules.LocalSettingsPreferenceGroups",
         "Lockdown.Rules.DemoControlFeel.FixedCamera",
         "Lockdown.Rules.DemoControlFeel.OwnerCorrectionSmoothing",
         "Lockdown.Rules.HUDFrameDiagnostics",

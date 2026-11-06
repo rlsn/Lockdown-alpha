@@ -1709,4 +1709,80 @@ bool FLDLocalDiagnosticsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Restore defaults disables both overlays"),!Reset->bShowNetworkDiagnostics && !Reset->bShowFPS);
     return true;
 }
+
+// The settings page restores one category at a time (UI_AND_SETTINGS 8): each preference group restores exactly its own
+// fields, never the player name, and the four groups together are the complete local defaults.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsPreferenceGroupsTest,"Lockdown.Rules.LocalSettingsPreferenceGroups",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Applied=ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    const auto* Defaults=GetDefault<ULDControlSettings>();
+    const FLDControlBinding* Stop=ULDControlSettings::Definitions().FindByPredicate([](const FLDControlBinding& B){return B.Action==TEXT("Stop");});
+    if(!TestNotNull(TEXT("The registry has a Stop action"),Stop)){return false;}
+    // Every preference away from its default, with a name no reset may clear.
+    auto Changed=[&]()
+    {
+        auto* Draft=Applied->CreateDraft();
+        FString Error;
+        TestTrue(TEXT("Rebind Stop away from its default"),Draft->Rebind(TEXT("Stop"),EKeys::K,Error));
+        Draft->PlayerName=TEXT("GroupPlayer");
+        Draft->MasterVolume=.35f;
+        Draft->bQuickCast=!Defaults->bQuickCast;
+        Draft->Zoom=1500;
+        Draft->bEdgePan=!Defaults->bEdgePan;
+        Draft->bStartFollowing=!Defaults->bStartFollowing;
+        Draft->CameraPanCmPerSec=2700;
+        Draft->TextScale=1.25f;
+        Draft->MinimapOrientation=ELDMinimapOrientation::North;
+        Draft->bShowNetworkDiagnostics=!Defaults->bShowNetworkDiagnostics;
+        Draft->bShowFPS=!Defaults->bShowFPS;
+        TestTrue(TEXT("The changed fixture is a valid preference set"),Draft->ValidatePreferences(Error));
+        return Draft;
+    };
+    auto AtDefaults=[&](const ULDControlSettings& S,ELDPreferenceGroup Group)
+    {
+        switch(Group)
+        {
+        case ELDPreferenceGroup::Audio: return S.MasterVolume==Defaults->MasterVolume;
+        case ELDPreferenceGroup::Controls: return S.Key(TEXT("Stop"))==Stop->Key&&S.bQuickCast==Defaults->bQuickCast;
+        case ELDPreferenceGroup::Camera: return S.Zoom==Defaults->Zoom&&S.bEdgePan==Defaults->bEdgePan
+            &&S.bStartFollowing==Defaults->bStartFollowing&&S.CameraPanCmPerSec==Defaults->CameraPanCmPerSec;
+        case ELDPreferenceGroup::Interface: return S.TextScale==Defaults->TextScale&&S.MinimapOrientation==Defaults->MinimapOrientation
+            &&S.bShowNetworkDiagnostics==Defaults->bShowNetworkDiagnostics&&S.bShowFPS==Defaults->bShowFPS;
+        }
+        return false;
+    };
+    const ELDPreferenceGroup Groups[]={ELDPreferenceGroup::Audio,ELDPreferenceGroup::Controls,ELDPreferenceGroup::Camera,ELDPreferenceGroup::Interface};
+    for(const ELDPreferenceGroup Group:Groups)
+    {
+        auto* Draft=Changed();
+        for(const ELDPreferenceGroup Other:Groups)
+        {TestFalse(TEXT("The fixture starts away from every group default"),AtDefaults(*Draft,Other));}
+        Draft->ResetPreferenceGroup(Group);
+        for(const ELDPreferenceGroup Other:Groups)
+        {
+            TestEqual(FString::Printf(TEXT("Resetting group %d restores group %d only"),int32(Group),int32(Other)),
+                AtDefaults(*Draft,Other),Other==Group);
+        }
+        TestEqual(TEXT("A group reset never clears the player name"),Draft->PlayerName,FString(TEXT("GroupPlayer")));
+        FString Error;
+        TestTrue(TEXT("A restored group applies through ordinary settings"),Applied->ApplyLocalSettings(*Draft,Error));
+        TestTrue(TEXT("The applied group persists with verified readback"),Applied->SaveLocalSettings().IsSaved());
+    }
+    auto* Groupwise=Changed();
+    for(const ELDPreferenceGroup Group:Groups){Groupwise->ResetPreferenceGroup(Group);}
+    auto* Complete=Changed();
+    Complete->ResetLocalDefaults();
+    TestTrue(TEXT("All four groups together are exactly the complete local defaults"),
+        Groupwise->Bindings.OrderIndependentCompareEqual(Complete->Bindings)
+        &&Groupwise->MasterVolume==Complete->MasterVolume&&Groupwise->bQuickCast==Complete->bQuickCast
+        &&Groupwise->Zoom==Complete->Zoom&&Groupwise->bEdgePan==Complete->bEdgePan&&Groupwise->bStartFollowing==Complete->bStartFollowing
+        &&Groupwise->CameraPanCmPerSec==Complete->CameraPanCmPerSec&&Groupwise->TextScale==Complete->TextScale
+        &&Groupwise->MinimapOrientation==Complete->MinimapOrientation&&Groupwise->bShowNetworkDiagnostics==Complete->bShowNetworkDiagnostics
+        &&Groupwise->bShowFPS==Complete->bShowFPS&&Groupwise->PlayerName==Complete->PlayerName);
+    for(const ELDPreferenceGroup Group:Groups){TestTrue(TEXT("The complete reset leaves every group at its default"),AtDefaults(*Complete,Group));}
+    return true;
+}
 #endif

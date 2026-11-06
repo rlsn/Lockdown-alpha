@@ -871,10 +871,25 @@ public:
             Check(PC.ControlsUI && PC.ControlsUI->IsOpen() && PC.IsWorldLifeValid() && PC.IsWorldInputSuppressed()
                 && !PC.CanWorldCommand(), TEXT("Settings"),
                 TEXT("Settings opens over the accepted walk: the life stays valid and only new world commands are suppressed"));
+            // The diagnostics live on the interface page; it is chosen through its production tab, and each toggle must then
+            // be on screen, not merely present in the tree.
+            auto* InterfaceTab=PC.ControlsUI->WidgetTree->FindWidget<UButton>(TEXT("TabInterface"));
+            if (!Check(InterfaceTab && InterfaceTab->GetIsEnabled(),TEXT("Settings"),TEXT("The production interface tab is available")))
+            { return Finish(); }
+            InterfaceTab->OnClicked.Broadcast();
+            const auto Shown=[&PC](const UWidget* Widget)
+            {
+                if (!Widget || !PC.ControlsUI->IsVisible()) { return false; }
+                for (const UWidget* Current=Widget; Current; Current=Current->GetParent())
+                {
+                    if (Current->GetVisibility()==ESlateVisibility::Collapsed || Current->GetVisibility()==ESlateVisibility::Hidden) { return false; }
+                }
+                return true;
+            };
             for (const FName Name : {FName(TEXT("ToggleNetworkDiagnostics")),FName(TEXT("ToggleFPS"))})
             {
                 auto* Button=PC.ControlsUI->WidgetTree->FindWidget<UButton>(Name);
-                if (!Check(Button && Button->GetIsEnabled(),TEXT("Settings"),TEXT("The production diagnostics toggle is available"),Name.ToString()))
+                if (!Check(Button && Button->GetIsEnabled() && Shown(Button),TEXT("Settings"),TEXT("The production diagnostics toggle is available on its page"),Name.ToString()))
                 { return Finish(); }
                 Button->OnClicked.Broadcast();
             }
