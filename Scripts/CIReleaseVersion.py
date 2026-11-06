@@ -1,15 +1,16 @@
 """Choose and apply the product version for the nightly release.
 
-plan:  print `version=X.Y.Z`, `bump=true|false`, `released=true|false` and `released_by=<tags>` (the vX.Y.Z tags that
-       already release HEAD, comma-separated).
-apply: write ProjectVersion=X.Y.Z into Config/DefaultGame.ini, changing only that value.
+plan:  print `version=X.Y.Z`, `released=true|false` and `released_by=<tags>` (the vX.Y.Z tags that already release
+       HEAD, comma-separated). Refuses a base commit whose ini already says bReleaseBuild=True.
+apply: write ProjectVersion=X.Y.Z and [Lockdown.Build] bReleaseBuild=True into Config/DefaultGame.ini, changing only
+       those two values. The title screen shows the version only with that flag; every other build shows its commit.
 
 Version rule: when the ini version has no tag yet and is newer than every vX.Y.Z tag (a hand-edited minor/major bump
 merged to main), release it as is. Otherwise release the patch after the newer of the ini version and the latest tag.
 
-The version commit is never pushed to main: the release tag points at it and its parent is the main commit it
-releases. So HEAD is released when a vX.Y.Z tag's commit is HEAD (the ini version released as is) or has HEAD as its
-first parent. The check reads only the tag commits themselves, so it works in the shallow CI workspace, where the tags
+Every release gets a version commit (it at least sets the flag), and it is never pushed to main: the release tag
+points at it and its parent is the main commit it releases. So HEAD is released when a vX.Y.Z tag's commit has HEAD
+as its first parent, or is HEAD itself (a tag made by hand on a main commit). The check reads only the tag commits themselves, so it works in the shallow CI workspace, where the tags
 are fetched at depth 1 and `git tag --contains` cannot see their history.
 """
 
@@ -22,6 +23,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 INI = Path("Config", "DefaultGame.ini")
 SECTION = b"/Script/EngineSettings.GeneralProjectSettings"
+BUILD_SECTION = b"Lockdown.Build"
 VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 TAG = re.compile(r"^v(\d+\.\d+\.\d+)$")
 
@@ -52,28 +54,34 @@ def next_version(ini, tags):
     return format_version((major, minor, patch + 1)), True
 
 
-def _version_line(raw):
-    """Return the (start, end) byte span of the single ProjectVersion value in GeneralProjectSettings."""
+def _value_span(raw, section, key):
+    """Return the (start, end) byte span of the single `key` value in [section]."""
     spans = []
     in_section = False
     offset = 0
+    pattern = re.compile(rb"(\s*" + re.escape(key) + rb"\s*=\s*)(\S*)")
     for line in raw.splitlines(keepends=True):
         text = line.strip()
         header = re.fullmatch(rb"\[(.+)\]", text)
         if header:
-            in_section = header.group(1) == SECTION
+            in_section = header.group(1) == section
         elif in_section:
-            match = re.match(rb"(\s*ProjectVersion\s*=\s*)(\S*)", line)
+            match = pattern.match(line)
             if match:
                 spans.append((offset + match.end(1), offset + match.end(2)))
         offset += len(line)
     if len(spans) != 1:
-        raise ValueError(f"expected exactly one ProjectVersion in [{SECTION.decode()}] of {INI}, found {len(spans)}")
+        raise ValueError(f"expected exactly one {key.decode()} in [{section.decode()}] of {INI}, found {len(spans)}")
     return spans[0]
 
 
+def _replace(raw, span, value):
+    start, end = span
+    return raw[:start] + value.encode("ascii") + raw[end:]
+
+
 def read_project_version(raw):
-    start, end = _version_line(raw)
+    start, end = _value_span(raw, SECTION, b"ProjectVersion")
     version = raw[start:end].decode("ascii")
     parse_version(version)
     return version
@@ -81,8 +89,20 @@ def read_project_version(raw):
 
 def set_project_version(raw, version):
     parse_version(version)
-    start, end = _version_line(raw)
-    return raw[:start] + version.encode("ascii") + raw[end:]
+    return _replace(raw, _value_span(raw, SECTION, b"ProjectVersion"), version)
+
+
+def read_release_build(raw):
+    start, end = _value_span(raw, BUILD_SECTION, b"bReleaseBuild")
+    value = raw[start:end].decode("ascii")
+    if value not in ("True", "False"):
+        raise ValueError(f"bReleaseBuild in [{BUILD_SECTION.decode()}] of {INI} must be True or False: {value!r}")
+    return value == "True"
+
+
+def set_release_build(raw):
+    read_release_build(raw)
+    return _replace(raw, _value_span(raw, BUILD_SECTION, b"bReleaseBuild"), "True")
 
 
 def _git(root, *args):
@@ -116,16 +136,18 @@ def released_by(root=ROOT):
 
 
 def plan(root=ROOT):
-    ini = read_project_version((Path(root) / INI).read_bytes())
-    version, bump = next_version(ini, _git(root, "tag", "--list", "v*"))
+    raw = (Path(root) / INI).read_bytes()
+    if read_release_build(raw):
+        raise ValueError(f"main's {INI} has bReleaseBuild=True; only the nightly's version commit may set it")
+    version, _ = next_version(read_project_version(raw), _git(root, "tag", "--list", "v*"))
     tags = released_by(root)
-    return {"version": version, "bump": bump, "released": bool(tags), "released_by": ",".join(tags)}
+    return {"version": version, "released": bool(tags), "released_by": ",".join(tags)}
 
 
 def apply(version, root=ROOT):
     path = Path(root) / INI
     raw = path.read_bytes()
-    path.write_bytes(set_project_version(raw, version))
+    path.write_bytes(set_release_build(set_project_version(raw, version)))
 
 
 def main():
@@ -141,7 +163,7 @@ def main():
                 print(f"{key}={str(value).lower() if type(value) is bool else value}")
         else:
             apply(args.version)
-            print(f"ProjectVersion={args.version}")
+            print(f"ProjectVersion={args.version} bReleaseBuild=True")
     except (ValueError, RuntimeError, OSError) as error:
         print(f"CIReleaseVersion: {error}", file=sys.stderr)
         return 1

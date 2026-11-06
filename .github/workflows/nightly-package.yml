@@ -3,10 +3,10 @@
 # The runner's job-started hook refuses every event except schedule and workflow_dispatch on this repository.
 #
 # Each run on main whose tip no vX.Y.Z tag releases yet (the tag's commit is the tip, or has it as parent):
-#   1. Scripts/CIReleaseVersion.py picks the version (patch after the latest tag, or an untagged newer ini version);
-#      when Config/DefaultGame.ini needs it, the version goes into a local commit on top of main's tip. That commit is
-#      never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its manifest and
-#      the tag agree while main's ini keeps the base version.
+#   1. Scripts/CIReleaseVersion.py picks the version (patch after the latest tag, or an untagged newer ini version)
+#      and writes it, with bReleaseBuild=True, into Config/DefaultGame.ini in a local commit on top of main's tip. That
+#      commit is never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its
+#      manifest and the tag agree while main's ini keeps the base version and shows "build <commit>" on the title.
 #   2. Build, rule tests and package that commit.
 #   3. Push tag vX.Y.Z, publish Release vX.Y.Z with the zipped package, then delete all but the two newest vX.Y.Z
 #      Releases. Their tags stay: they hold the released commits and the version sequence.
@@ -78,17 +78,17 @@ jobs:
           }
           "skip=$($skip.ToString().ToLower())" >> $env:GITHUB_OUTPUT
           "version=$($plan.version)" >> $env:GITHUB_OUTPUT
-          "bump=$($plan.bump)" >> $env:GITHUB_OUTPUT
 
       - name: Reset workspace
         if: steps.version.outputs.skip != 'true'
         run: ./Scripts/CIResetWorkspace.ps1
 
       - name: Commit version
-        if: steps.version.outputs.skip != 'true' && steps.version.outputs.bump == 'true'
+        if: steps.version.outputs.skip != 'true'
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          # Every release has this commit, even when the ini version is released as is: it sets bReleaseBuild=True.
           # Detach so the runner's local main stays equal to origin/main; only the release tag will carry this commit.
           git switch --detach --quiet
           if ($LASTEXITCODE -ne 0) { throw 'Detaching HEAD failed.' }
@@ -96,7 +96,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'CIReleaseVersion.py apply failed.' }
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit --quiet -m "chore: release version $env:VERSION" -- Config/DefaultGame.ini
           if ($LASTEXITCODE -ne 0) { throw 'Committing the version failed.' }
-          "Version commit $(git rev-parse --short HEAD) sets ProjectVersion=$env:VERSION on top of main $(git rev-parse --short HEAD~1); only tag v$env:VERSION will point at it." >> $env:GITHUB_STEP_SUMMARY
+          "Version commit $(git rev-parse --short HEAD) sets ProjectVersion=$env:VERSION and bReleaseBuild=True on top of main $(git rev-parse --short HEAD~1); only tag v$env:VERSION will point at it." >> $env:GITHUB_STEP_SUMMARY
 
       - name: Preflight
         if: steps.version.outputs.skip != 'true'

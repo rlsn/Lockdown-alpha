@@ -19,6 +19,13 @@ namespace LDDemoEntry
     LOCKDOWN_API bool VerifyWorldPackages(FString& Error);
     LOCKDOWN_API bool ValidateAddress(const FString& Address, FString& Error);
     LOCKDOWN_API bool ReadProductVersion(FString& Version, FString& Error);
+    // The title screen's version line. A release build ([Lockdown.Build] bReleaseBuild=True, set only by the nightly's
+    // version commit) shows "版本 <product version>". Any other build shows "build <short commit>" (with a note when the
+    // package was built from uncommitted changes), not the product version: on main that is only the version line the
+    // build started from, and showing it would pass the build off as that release. Joining still compares the product
+    // version.
+    LOCKDOWN_API FString FormatTitleVersion(const FString& Version, bool bReleaseBuild, const FString& Commit, bool bDirty);
+    LOCKDOWN_API FString TitleVersion(const FString& Version);
     LOCKDOWN_API bool VerifyFileHash(const FString& File, const FString& ExpectedSHA256, FString& Error);
 #if WITH_DEV_AUTOMATION_TESTS
     // DEV content hot reload (-LDDevContentReload, uncooked editor/Standalone builds only). LoadRuntimeContent then

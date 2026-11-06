@@ -133,7 +133,11 @@ python -B -m unittest discover -s .\Scripts -p "Test*Import.py"
 依赖链可能同时更新载荷和头文件；不能只提交其中一边。
 生成器失败要修正输入或真实依赖，不能跳过校验、填写默认值或使用历史档案让错误看起来通过。
 
-产品版本以 `Config\DefaultGame.ini` 的 `ProjectVersion` 为准。
+产品版本是 `Config\DefaultGame.ini` 的 `ProjectVersion`：加入房间按它校验，`PackageWin64.ps1` 也从这里读取。
+`main` 上它只是版本线（有人经 PR 改 minor/major 时才变），已发布的版本以 tag 为准：每日打包在本地版本提交里写入
+发布版本和 `[Lockdown.Build] bReleaseBuild=True`，只随 tag 推送。标题页只在该标志为 True 时显示“版本 X.Y.Z”，
+其他构建（编辑器、本地打包）显示 `build <短提交>`（打包自有未提交改动的工作区时注明），不显示版本号，以免被当成某个发布版。
+`main` 上的标志必须保持 False，每日打包的 `plan` 遇到 True 会拒绝。
 它不同于 `Lockdown.uproject` 的 `FileVersion`/`EngineAssociation`，也不同于协议、目录与枚举版本。
 `PackageWin64.ps1` 从同一设置读取产品版本。
 
@@ -368,7 +372,7 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
   两者共用工作区，取全历史会让每次运行都在 PR check 之后重新拉全部历史，这台 runner 的网络上这种长传输会被重置。
 - `Scripts/CIReleaseVersion.py` 选版本：`Config/DefaultGame.ini` 的 `ProjectVersion` 还没有 tag 且比最新 tag 新时
   直接使用（有人经 PR 改到新的 minor/major）；否则取两者较新者的 patch+1。
-  需要改 ini 时，工作流在 `main` 最新提交之上本地提交 `chore: release version X`，打包这个提交。
+  每次发布都在 `main` 最新提交之上本地提交 `chore: release version X`（写入版本与 `bReleaseBuild=True`），打包这个提交。
   它不推送到 `main`（`main` ruleset 要求 PR，个人仓库也无法把 GitHub Actions 加入 bypass），
   只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
 - 增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，

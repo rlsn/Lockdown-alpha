@@ -75,6 +75,19 @@ bool FLDDemoEntryTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("Engine texts and unknown codes are never shown as a known refusal"),
             LDDemoEntry::DescribeJoinRefusal(Text, NotARefusal));
     }
+    // Title version: only the release commit shows the product version; every other build shows its commit instead.
+    const FString Commit = TEXT("1eb0251e9b1f3c5d7a9b1c3d5e7f9a1b3c5d7e9f");
+    TestEqual(TEXT("A release build shows its product version"),
+        LDDemoEntry::FormatTitleVersion(TEXT("0.10.2"), true, Commit, false), FString(TEXT("版本 0.10.2")));
+    TestEqual(TEXT("A development build shows its short commit, not the version line it started from"),
+        LDDemoEntry::FormatTitleVersion(TEXT("0.10.0"), false, Commit, false), FString(TEXT("build 1eb0251")));
+    TestEqual(TEXT("A development package built from uncommitted changes says so"),
+        LDDemoEntry::FormatTitleVersion(TEXT("0.10.0"), false, Commit, true), FString(TEXT("build 1eb0251（含未提交改动）")));
+    for (const TCHAR* Unknown : {TEXT("unknown"), TEXT(""), TEXT("1eb0251"), TEXT("1EB0251E9B1F3C5D7A9B1C3D5E7F9A1B3C5D7E9F")})
+    {
+        TestEqual(TEXT("A development build without a readable commit never falls back to the product version"),
+            LDDemoEntry::FormatTitleVersion(TEXT("0.10.0"), false, Unknown, true), FString(TEXT("build unknown")));
+    }
     const FString Name = TEXT("UEDPIE_") + LexToString(FGuid::NewGuid().A & MAX_int32) + TEXT("_L_Frontend");
     auto* Package = CreatePackage(*(TEXT("/Game/Lockdown/Generated/Maps/") + Name));
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
