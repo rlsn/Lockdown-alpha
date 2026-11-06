@@ -102,8 +102,11 @@ public:
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
-    // A CastUnit order with its Direct request: the request must name the order's target, a unit-target entry and a
-    // sequence Combat has not seen. Readiness is judged at activation; Combat judges the cast once in reach.
+    // A CastUnit/CastPoint order with its Direct request: the request must name the order's aim, a Q/W/1/2 entry and a
+    // sequence Combat has not seen. A non-Shift cast whose entry is not ready (LDOrderRules::SkillRequestReady) is refused
+    // at receipt and leaves the current order, the pending request and the shift queue alone (2026-11-07 decision);
+    // readiness is judged again at activation, where an admitted cast replaces the order and drops the steps queued
+    // before it. Combat judges the cast once in reach.
     FLDOrderReceipt SubmitCast(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& Cast);
     // Stop semantics: Identity must advance both the order and the cancellation epoch.
     FLDOrderReceipt CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderCancelReason Reason);
@@ -112,11 +115,20 @@ public:
     // the request shape, its freshness against Combat's Direct window and the queue bound; Combat judges the action when
     // its turn comes (ALDCombatDirector::SubmitAction). AimCm re-aims a direction request from the body at that time.
     FLDCombatActionReceipt QueueAction(const FLDOrderCaller& Caller, const FLDCombatActionRequest& Request, const FVector* AimCm);
-    // Drops every queued step that has not started (a non-Shift command, S, death, a lost life or match, a takeover).
+    // Drops the queued steps that have not started (a non-Shift command, S, death, a lost life or match, a takeover): every
+    // step, or with BeforeStep only those queued before that step serial (a non-Shift skill drops what was sent before it).
     // Spatial steps answer Cancelled with Failure; action steps answer a Combat Cancelled refusal.
-    void ClearQueue(ELDOrderFailure Failure);
+    void ClearQueue(ELDOrderFailure Failure, uint64 BeforeStep=MAX_uint64);
     // Server: queued steps still waiting (not the current order nor a running queued action).
     int32 QueuedSteps() const { return Queue.Num(); }
+    // A non-Shift Direct Q/W/1/2/D request from the owner (2026-11-07 decision: a refused skill keeps the shift queue).
+    // While steps wait, an entry that is not ready (LDOrderRules::SkillRequestReady) is refused here before Combat sees
+    // it: true with Out holding the refusal; a Q/W/1/2 still ends protection in the next Actions phase. False lets
+    // Combat judge it.
+    bool RefuseUnreadyDirect(const FLDCombatActionRequest& Request, FLDCombatActionReceipt& Out);
+    // A non-Shift Direct request Combat took: once Combat admitted it (any verdict but a refusal) the steps queued
+    // before it are dropped; a refusal leaves the queue as it was.
+    void AwaitDirectVerdict(uint64 DirectSequence);
     // Death, leave or match close: ends pending and active orders without any new movement.
     void EndLifeOrders(ELDOrderCancelReason Reason=ELDOrderCancelReason::LifeEnded);
     // Combat's MatchReset: the controller outlives the match, its orders and order book do not. Ends the retired
@@ -165,6 +177,8 @@ private:
         TOptional<FLDAggressiveIntent> OwedAggression;
         // CastUnit: the Direct request cast once in reach.
         FLDCombatActionRequest Cast;
+        // A non-Shift cast: the steps queued before it (serials below this) are dropped once it is admitted; 0 drops none.
+        uint64 QueueCut=0;
     };
     struct FActiveOrder
     {
@@ -192,6 +206,9 @@ private:
         bool bHumanLease=false, bPinned=false, bEngaged=false, bCloseIn=false;
         bool bReplanned=false, bForceReplan=false, bProgressReplan=false;
         bool bProtectionRemoved=false, bSentGoal=false, bSentEngaged=false;
+        // Pursuit while the next basic beat is not ready yet: the target is in range but walking away, so the body
+        // keeps following instead of holding at the range edge (no stop-and-go when chasing at a similar speed).
+        bool bPress=false;
         // Taunt chase: server-made, never in the owner's book or receipts; Identity.Order stays 0.
         bool bForced=false;
         FLDCombatBodyRef ForcedTarget;
@@ -217,6 +234,15 @@ private:
         FLDMatchContext Match;
         FLDCombatBodyRef Body;
         int64 NotBeforeMs=0;
+        // Arrival order of the step (QueueStepSerial), so a later non-Shift skill drops only the steps sent before it.
+        uint64 Serial=0;
+    };
+    // A non-Shift Direct request Combat is judging (AwaitDirectVerdict): the steps queued before it (serials below
+    // QueueCut) go once Combat admitted it.
+    struct FAwaitedDirect
+    {
+        uint64 Sequence=0;
+        uint64 QueueCut=0;
     };
     // An aggressive step ends protection in the next Actions phase after it was sent (APP_SPEC 7.1), not when it runs,
     // even when it is dropped before then. The earliest such intent of the life is enough.
@@ -305,8 +331,9 @@ private:
     bool ChaseTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample, FString& Error);
     // Reports a cast the order could not start as an ordinary Combat refusal to the owner.
     void RefuseCast(const FLDCombatActionRequest& Cast, ELDCombatReject Reason);
-    // Readiness of a cast order at activation: refuses (CastRefused, with the Combat reason sent) a skill that could not be
-    // cast anyway or does not take Modes' aim; OutReachCm is the body's current reach minus CastMarginCm.
+    // Readiness of a cast order at receipt (non-Shift) and at activation: refuses (CastRefused, with the Combat reason sent)
+    // a skill that could not be cast anyway or does not take Modes' aim; OutReachCm is the body's current reach minus
+    // CastMarginCm.
     bool CastReady(ALDGameMode& Mode, const FLDCombatActionRequest& Cast, bool bUnit, double& OutReachCm, ELDOrderFailure& Failure);
     // Judges the cast now (ALDCombatDirector::StartNavCast). A final outcome ends the order (bRetry false); otherwise
     // Reject says why it must close in (OutOfRange/Blocked) or wait (Busy).
@@ -322,6 +349,8 @@ private:
     void SettleStep(ELDOrderFailure Failure);
     // Settles the protection owed by aggressive steps sent since the last Actions phase.
     void SettleQueuedAggression(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit);
+    // Reads Combat's verdict on the awaited non-Shift Direct requests: an admitted one drops the steps queued before it.
+    void SettleDirectVerdicts(ALDGameMode& Mode);
     // Starts queued steps while nothing else holds the body: a spatial step becomes the pending request, an action
     // step is handed to Combat and runs until its receipt settles.
     void AdvanceQueue(ALDGameMode& Mode);
@@ -368,6 +397,10 @@ private:
     TArray<FQueuedStep> Queue;
     // DirectSequence of the queued action Combat is judging or running (0 when none); the queue waits for it.
     uint64 RunningQueuedAction=0;
+    // Serial of the latest queued step (FQueuedStep::Serial); never reused within the component.
+    uint64 QueueStepSerial=0;
+    // Non-Shift Direct requests Combat took and has not judged yet; the queue waits for their verdicts.
+    TArray<FAwaitedDirect> AwaitedDirect;
     TOptional<FOwedAggression> QueueOwedAggression;
     TArray<FOrderRecord> Records;
     FLDOrderBook Book;

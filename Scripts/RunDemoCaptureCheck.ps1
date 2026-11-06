@@ -20,8 +20,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 # Each role reports exactly these stable check ids, once each and passed. A missing, extra or repeated id means
 # the probe and this runner drifted apart; T01/P01 only appear on failure paths and therefore always fail.
 $requiredChecks = @{
-    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','C18','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
-    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','C16','C17','C18','R02','R03','R04','R05','R06','R10')
+    Host = @('C01','C02','C03','C04','C05','C06','C07','C08','C09','C10','C11','C12','C13','C14','C15','C16','C17','C18','C19','R01','R02','R03','R04','R05','R06','R07','R08','R09','R10')
+    Client1 = @('C01','C03','C04','C05','C06','C07','C08','C09','C11','C12','C13','C14','C15','C16','C17','C18','C19','R02','R03','R04','R05','R06','R10')
 }
 $requiredChecks.Client2 = $requiredChecks.Client1
 # The names each role chooses in its ?LDName= option and the probe expects on the roster and the results (the
@@ -108,7 +108,7 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("DEV-only normal-start spray-and-guard scenario passed on real owned connections (contest pause/resume, graffiti, abandoned repaint pausing the guard, guard win), including a second match in generation {0} with fresh contender and camp state ({1}/{2}/{3} required checks). Not 3+3, AI or full gameplay. Evidence: {4}" -f
+    Write-Host ("DEV-only normal-start spray-and-guard scenario passed on real owned connections (contest pause/resume, graffiti, a challenger freezing the guard, the owner leaving under a challenger resetting it, guard win), including a second match in generation {0} with fresh contender and camp state ({1}/{2}/{3} required checks). Not 3+3, AI or full gameplay. Evidence: {4}" -f
         $reports[0].summary.second_generation,$requiredChecks.Host.Count,$requiredChecks.Client1.Count,$requiredChecks.Client2.Count,$output)
 }
 finally {

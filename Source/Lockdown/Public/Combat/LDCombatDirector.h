@@ -443,6 +443,11 @@ public:
     // Cancels the unreleased basic attack of this navigation order; the committed cadence is kept. A swing at Keep
     // (a valid body: the taunter that replaced the order) is left to land, since the taunt still allows it.
     void CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep=FLDCombatBodyRef());
+    // A newer AttackUnit order of the same life aimed at the same observed target takes over the unreleased basic
+    // of the order it replaces (re-clicking the chased target does not throw the committed swing away). The swing is
+    // re-keyed to the newer order so that order's own end (Stop, a new order) still cancels it. True when adopted.
+    bool AdoptNavAttack(const FGuid& Entity, const FLDMoveIdentity& From, const FLDMoveIdentity& To,
+        const FGuid& Observed, uint32 ObservationEpoch);
     // Voluntary movement blocked by Root or Stun (LDCombatControl matrix); a taunt forces movement instead.
     bool IsMoveBlocked(const ALDCharacter& Body) const;
     // The control matrix for one registered body at the current authority time: Root/Disarm/Stun (LDCombatControl)

@@ -56,6 +56,12 @@ bool LDOrderRules::QueuedAimDirection(const FVector& FootCm, const FVector& AimC
     return !OutDirection.IsZero();
 }
 
+ELDSpatialOrderKind LDOrderRules::AttackConfirmKind(bool bUnitUnderPointer)
+{ return bUnitUnderPointer ? ELDSpatialOrderKind::AttackUnit : ELDSpatialOrderKind::AttackMove; }
+
+bool LDOrderRules::SkillRequestReady(ELDCombatReject Unavailable)
+{ return Unavailable==ELDCombatReject::None || Unavailable==ELDCombatReject::Busy; }
+
 LDOrderRules::EForcedOrder LDOrderRules::ForcedOrderStep(bool bTaunted, bool bActiveForced, bool bSameTaunter)
 {
     if (!bTaunted) { return bActiveForced ? EForcedOrder::End : EForcedOrder::None; }
@@ -93,4 +99,19 @@ bool LDOrderRules::ShouldRepeatHeldMove(double NowSeconds, double LastSentSecond
     { return false; }
     return NowSeconds-LastSentSeconds>=HeldMoveRepeatSeconds
         && FVector::DistSquared2D(GroundCm,LastGroundCm)>=FMath::Square(HeldMoveShiftCm);
+}
+
+bool LDOrderRules::ActionHoldsChase(bool bActionInProgress, ELDCombatEntry Entry, int64 ReleaseAtMs, int64 NowMs)
+{ return bActionInProgress && !(Entry==ELDCombatEntry::Basic && ReleaseAtMs<=NowMs); }
+
+bool LDOrderRules::ChasePress(const FChasePressInput& Input)
+{
+    const FVector Shift(Input.TargetFootCm.X-Input.PreviousTargetFootCm.X,Input.TargetFootCm.Y-Input.PreviousTargetFootCm.Y,0);
+    if (!Input.bInRange || Input.bActing || !Input.bAttackAllowed || Input.bBeatReady || Input.bCloseIn
+        || Shift.ContainsNaN() || Input.AttackerFootCm.ContainsNaN() || Shift.SizeSquared()>FMath::Square(PressSampleLimitCm))
+    { return false; }
+    const double Retreat=FVector::DotProduct(Shift,(Input.TargetFootCm-Input.AttackerFootCm).GetSafeNormal2D());
+    if (Retreat>=PressShiftCm) { return true; }
+    if (Retreat<=-PressShiftCm) { return false; }
+    return Input.bWasPressing;
 }

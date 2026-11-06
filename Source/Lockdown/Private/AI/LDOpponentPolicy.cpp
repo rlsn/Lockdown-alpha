@@ -1638,8 +1638,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
+    // 2026-11-07: a challenger beside the owner freezes the guard and the owner walking out under him resets it to zero,
+    // so a recovering owner keeps fighting in the zone until the stop-loss line, where his death would clear the graffiti.
+    const bool bOwnerStays = bOwner && (!State.bRecovering || (bContesting && !bStopLoss));
     FLDOpponentBodyIntent Intent;
-    if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || (bOwner && !State.bRecovering)
+    if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || bOwnerStays
             || ((bUrgent || bContesting || bRivalGraffiti) && !bStopLoss && bMayContest))
         && CircleBody(C, bUrgent, Intent))
     {

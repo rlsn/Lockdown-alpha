@@ -515,6 +515,21 @@ void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdenti
     { FinishAction(*Body,ELDCombatReject::Cancelled,false); }
 }
 
+bool ALDCombatDirector::AdoptNavAttack(const FGuid& Entity, const FLDMoveIdentity& From, const FLDMoveIdentity& To,
+    const FGuid& Observed, uint32 ObservationEpoch)
+{
+    auto* Body=FindEntityBody(Entity);
+    if (!Body || Body->bPendingDeath || !Body->Action.IsSet() || !Observed.IsValid() || !ObservationEpoch) { return false; }
+    FLDCombatAction& Action=Body->Action.GetValue();
+    if (Action.Kind!=ELDCombatActionKind::Basic || Action.Key.Origin!=ELDCombatRequestOrigin::Nav || Action.Key.Move!=From
+        || To==From || To.Match!=Action.Key.Generation || To.Life!=Action.Key.Life || To.Life!=Body->Victim.Life
+        || Action.Target.Observed!=Observed || Action.Target.ObservationEpoch!=ObservationEpoch)
+    { return false; }
+    Action.Key.Move=To;
+    UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_SWING_ADOPTED token=%llu from_order=%u to_order=%u"),Action.Token,From.Order,To.Order);
+    return true;
+}
+
 bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCombatActionRequest& Request,
     const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Receipt, FString& Error)
 {
@@ -786,28 +801,29 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     const auto* Content=Catalog();
     auto* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record) { Error=TEXT("Basic release lost its core, catalog or entity record."); return false; }
-    // A disarm or stun that landed during the windup ends it without a swing.
-    if (IsActionBlocked(Body,ELDCombatControlAction::Basic))
-    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
-    // The windup already spent the cadence; a target lost by now is a committed swing that misses.
-    FLDCombatBodyRef TargetRef;
-    FVector TargetFoot;
-    ELDCombatReject Reject;
-    if (!ResolveUnitTarget(*Record,Actor,Action.Target,TargetRef,TargetFoot,Reject) || TargetRef!=Action.TargetBody)
-    { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
-    if (!LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef))
-    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
-    // A started swing lands wherever the target has moved since (2026-11-06 decision, the Dota rule): the attack range
-    // gates only the start (StartNavAttack); at the release the target must still be resolvable and in clear sight.
-    const FVector Foot=FootOf(Actor);
-    bool bFault=false;
-    if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
+    // A started swing always lands on its committed life (2026-11-07 user decision, LDCombatSourceRules::BasicReleaseGate):
+    // range, sight and observation gate only the start (StartNavAttack / camp admission). The release re-checks only the
+    // attacker's own control and that the exact target life still stands; the windup already spent the cadence.
+    const FLDCombatBodyRef TargetRef=Action.TargetBody;
+    ALDCharacter* TargetActor=nullptr;
+    const FLDBodyCombatState* TargetBody=TargetRef.IsValid() ? FindBody(TargetRef,&TargetActor) : nullptr;
+    FLDBasicReleaseInput Gate;
+    Gate.bAttackBlocked=IsActionBlocked(Body,ELDCombatControlAction::Basic);
+    Gate.bTauntAllows=LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef);
+    Gate.Committed=TargetRef;
+    if (TargetBody && TargetActor) { Gate.Current={TargetBody->Victim,TargetBody->Identity}; }
+    Gate.bCurrentPendingDeath=TargetBody && TargetBody->bPendingDeath;
+    Gate.bTargetPresent=TargetRef.Victim.Kind!=ELDVictimKind::Contender || Mode->IsMemberPresent(TargetRef.Victim.EntityId);
+    Gate.bSelf=TargetRef.Victim.EntityId==Record->Entity;
+    Outcome=LDCombatSourceRules::BasicReleaseGate(Gate);
+    if (Outcome!=ELDCombatReject::None)
     {
-        if (bFault) { Error=TEXT("Basic release sight failed on a registered body."); return false; }
-        Outcome=ELDCombatReject::Blocked;
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=refused reason=%u"),Action.Token,uint32(Outcome));
         FinishAction(Body,Outcome,false);
         return true;
     }
+    UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=hit distance_cm=%.0f"),Action.Token,
+        FVector::Dist2D(FootOf(Actor),FootOf(*TargetActor)));
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Hit;
     Hit.HitId=FGuid::NewGuid();
@@ -1532,6 +1548,7 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     Out.RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,Now);
     Out.bActionInProgress=Body->Action.IsSet();
     Out.ActionEntry=Body->Action.IsSet() ? Body->Action->Entry : ELDCombatEntry::None;
+    Out.ActionReleaseAtMs=Body->Action.IsSet() ? Body->Action->ReleaseAtMs : 0;
     const auto* Record=FindRecord(Ref.Victim.EntityId);
     Out.NextAttackAtMs=Ref.Victim.Kind==ELDVictimKind::Contender ? (Record ? Record->NextAttackAtMs : 0) : Body->MonsterNextAttackAtMs;
     Out.AttackRangeCm=LDCA::ToDouble(Body->AttributeProjection.Final.AttackRangeCm);

@@ -38,6 +38,23 @@ struct FLDActiveGateInput
     bool bAbilityInProgress=false;
 };
 
+// Release of a basic attack whose windup legally started (target in range, observed and in clear sight at the start).
+// 2026-11-07 user decision ("once the windup starts the hit is certain, even if the target ran far") -- the swing lands on
+// its committed target life wherever that body went: distance, visibility and line of sight at the release are
+// deliberately not inputs.
+struct FLDBasicReleaseInput
+{
+    // The attacker's own state: a Disarm/Stun/knockback that landed during the windup, or a taunt toward another body.
+    bool bAttackBlocked=false;
+    bool bTauntAllows=true;
+    // The life the windup committed to, and that entity's registered body now (invalid when it has none).
+    FLDCombatBodyRef Committed;
+    FLDCombatBodyRef Current;
+    bool bCurrentPendingDeath=false;  // that body already took its lethal hit
+    bool bTargetPresent=false;        // its contender is still a present member (camp members: true)
+    bool bSelf=false;
+};
+
 namespace LDCombatSourceRules
 {
     // Persistent source and cooldown identity of the innate dash on every contender record.
@@ -50,6 +67,9 @@ namespace LDCombatSourceRules
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
+    // ControlBlocked when the attacker's own control ends the swing; TargetUnavailable only when the committed target life
+    // is gone (dead or dying, left the match, respawned as a new life or body); None: the swing lands.
+    LOCKDOWN_API ELDCombatReject BasicReleaseGate(const FLDBasicReleaseInput& Input);
 
     // COMBAT 5.1 persistent cooldown binding for one complete post-change build. A learned definition keeps
     // its single track and end time. Each held active gear copy keeps the track bound to its instance, else

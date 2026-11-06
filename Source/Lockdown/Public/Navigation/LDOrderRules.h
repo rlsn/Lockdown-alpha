@@ -71,6 +71,16 @@ namespace LDOrderRules
     // turn comes: the planar unit direction from FootCm to AimCm. False when the point is under the body (or not finite).
     LOCKDOWN_API bool QueuedAimDirection(const FVector& FootCm, const FVector& AimCm, FVector& OutDirection);
 
+    // A then left click (2026-11-07 user decision): a click on an attackable visible unit (the same pointer pick as a right
+    // click) attacks that unit exactly like a right click (AttackUnit); a click anywhere else is an attack-move toward the
+    // ground point (AttackMove).
+    LOCKDOWN_API ELDSpatialOrderKind AttackConfirmKind(bool bUnitUnderPointer);
+    // A non-Shift Q/W/1/2/D request (2026-11-07 user decision): an entry whose current availability is a refusal
+    // (cooldown, mana, control, empty slot, no active, ...) is refused at once and leaves the current move or attack
+    // order, the pending request and the shift queue as they were. Only a ready entry goes on (the own ability windup,
+    // Busy, only delays it); an admitted request then replaces the order or drops the queue as before.
+    LOCKDOWN_API bool SkillRequestReady(ELDCombatReject Unavailable);
+
     // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
     // forced chase of an earlier taunter), Keep advances the forced chase, End returns control when the taunt is gone
     // (the replaced order is not resumed), None leaves ordinary orders alone. While taunted every own order is refused.
@@ -86,4 +96,30 @@ namespace LDOrderRules
         bool IsDue(double NowSeconds) const { return NowSeconds >= RetryAtSeconds; }
         void ResetMatch() { RetryAtSeconds = 0; }
     };
+
+    // Basic-attack pursuit without idle gaps (2026-11-07 user decision: a started windup always lands, so a chase at a
+    // similar speed runs approach -> windup in range -> certain hit -> keep chasing -> next windup).
+    // Only an action still winding up holds the attack order in place. A basic due at NowMs releases later in this same
+    // Actions phase (ReleaseDue runs after Navigation) and lands wherever the target is, so it no longer holds the body.
+    LOCKDOWN_API bool ActionHoldsChase(bool bActionInProgress, ELDCombatEntry Entry, int64 ReleaseAtMs, int64 NowMs);
+    // Press: in range while the next beat is not ready yet, a target that walked away since the order's previous sample
+    // (by at least PressShiftCm along the attacker-to-target line) is followed instead of waited for at the range edge;
+    // one that walked closer ends the press and a still sample keeps the current choice. Out of range, an action in
+    // progress, a blocked or ready attack, or closing in after a refused start never press, and neither does a sample
+    // jump beyond PressSampleLimitCm (another target or a displacement, not a walk).
+    constexpr double PressShiftCm = 1.;
+    constexpr double PressSampleLimitCm = 200.;
+    struct FChasePressInput
+    {
+        bool bWasPressing = false;
+        bool bInRange = false;
+        bool bActing = false;
+        bool bAttackAllowed = false;
+        bool bBeatReady = false;
+        bool bCloseIn = false;
+        FVector AttackerFootCm = FVector::ZeroVector;
+        FVector PreviousTargetFootCm = FVector::ZeroVector;
+        FVector TargetFootCm = FVector::ZeroVector;
+    };
+    LOCKDOWN_API bool ChasePress(const FChasePressInput& Input);
 }

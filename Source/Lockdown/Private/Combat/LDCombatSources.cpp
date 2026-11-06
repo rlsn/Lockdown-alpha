@@ -488,6 +488,16 @@ ELDCombatReject LDCombatSourceRules::ActiveGate(const FLDActiveGateInput& Input,
     return ELDCombatReject::None;
 }
 
+ELDCombatReject LDCombatSourceRules::BasicReleaseGate(const FLDBasicReleaseInput& Input)
+{
+    if (Input.bAttackBlocked) { return ELDCombatReject::ControlBlocked; }
+    if (Input.bSelf || !Input.Committed.IsValid() || Input.Current!=Input.Committed || Input.bCurrentPendingDeath
+        || !Input.bTargetPresent)
+    { return ELDCombatReject::TargetUnavailable; }
+    if (!Input.bTauntAllows) { return ELDCombatReject::ControlBlocked; }
+    return ELDCombatReject::None;
+}
+
 int64 LDCombatSourceRules::ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs)
 {
     if (AmountMs<=0 || ReadyAtMs<=NowMs) { return ReadyAtMs; }

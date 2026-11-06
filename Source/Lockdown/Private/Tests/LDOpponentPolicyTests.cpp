@@ -835,6 +835,27 @@ bool RunPriorities(FAutomationTestBase& Test)
         const auto Survive = LDOpponentPolicy::Decide(Owned, C, Guard);
         bGood &= Expect(Test, TEXT("A low owner escapes instead of dying, since his death clears the graffiti"), Survive,
             EMode::Disengage, EBody::MoveGround);
+        {
+            // 2026-11-07: walking out under a challenger resets the frozen guard, so a recovering owner above the stop-loss
+            // line keeps fighting in the contested zone; below it he still escapes.
+            FLDOpponentPolicyState Held;
+            auto Frozen = Owned;
+            Frozen.Public.Circle = ELDOpponentCircle::Contested;
+            Frozen.Public.GuardDueAtMs = 0;
+            Frozen.Self.FootCm = FVector(0, 3000, 0);
+            Frozen.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
+            const auto Escape = LDOpponentPolicy::Decide(Frozen, C, Held);
+            bGood &= Test.TestTrue(TEXT("Below the stop-loss line the owner leaves even a contested zone"), Escape.Mode == EMode::Disengage);
+            Frozen.Self.HpP2 = Frozen.Self.MaxHpP2 / 2;
+            const auto Stay = LDOpponentPolicy::Decide(Frozen, C, Held);
+            bGood &= Test.TestTrue(TEXT("A recovering owner above the stop-loss line stays in the contested zone"),
+                Stay.Mode == EMode::DefendOrHold && Stay.Reason == ELDOpponentReason::GuardGraffiti);
+            Frozen.Public.Circle = ELDOpponentCircle::Guarded;
+            Frozen.Public.GuardDueAtMs = Frozen.Public.NowMs + 15000;
+            Frozen.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 600)};
+            const auto Rest = LDOpponentPolicy::Decide(Frozen, C, Held);
+            bGood &= Test.TestTrue(TEXT("Without a challenger in the zone a recovering owner may leave it"), Rest.Mode == EMode::Disengage);
+        }
 
         FLDOpponentPolicyState Siege;
         auto Rival = Base;

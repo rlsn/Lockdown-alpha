@@ -4912,7 +4912,7 @@
     },
     "move_speed": {
       "denominator": 1,
-      "numerator": 300,
+      "numerator": 225,
       "unit": "cm/s"
     },
     "native_id": 3,
@@ -4988,7 +4988,7 @@
         },
         "move_speed": {
           "denominator": 1,
-          "numerator": 347,
+          "numerator": 260,
           "unit": "cm/s"
         },
         "mp_regen": {
@@ -5077,7 +5077,7 @@
         },
         "move_speed": {
           "denominator": 1,
-          "numerator": 320,
+          "numerator": 240,
           "unit": "cm/s"
         },
         "mp_regen": {
@@ -7209,7 +7209,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 movement/camera: player 400, camps 320/347, route budget 26s, move-speed floor 230, camera 2250 (1300-2400). First implementation/playtest baseline, not a balance-validation claim.",
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225, route 35s; flagpole 180s, guard 30s, airdrop 80s. A playtest baseline, not a balance check.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -7271,7 +7271,7 @@
       "unit": "ms"
     },
     "AIRDROP.IntervalSec": {
-      "ms": 75000,
+      "ms": 80000,
       "unit": "ms"
     },
     "AIRDROP.PickupRadiusCm": {
@@ -7292,7 +7292,7 @@
       "unit": "ms"
     },
     "CAPTURE.GuardSec": {
-      "ms": 20000,
+      "ms": 30000,
       "unit": "ms"
     },
     "CAPTURE.RadiusCm": {
@@ -7380,7 +7380,7 @@
       "unit": "ms"
     },
     "MATCH.DevelopmentSec": {
-      "ms": 120000,
+      "ms": 180000,
       "unit": "ms"
     },
     "REGEN.OutOfCombatDelaySec": {
@@ -7609,16 +7609,16 @@
     },
     "STAT.MoveSpeed.Max": {
       "denominator": 1,
-      "numerator": 900,
+      "numerator": 675,
       "unit": "cm/s"
     },
     "STAT.MoveSpeed.Min": {
       "denominator": 1,
-      "numerator": 230,
+      "numerator": 173,
       "unit": "cm/s"
     },
     "TIMING.DefendRouteBudgetSec": {
-      "ms": 26000,
+      "ms": 35000,
       "unit": "ms"
     },
     "UNIT.BasicAttackRangeCm": {
@@ -7637,7 +7637,7 @@
     },
     "UNIT.MoveSpeedCmPerSec": {
       "denominator": 1,
-      "numerator": 400,
+      "numerator": 300,
       "unit": "cm/s"
     },
     "VISION.RadiusCm": {

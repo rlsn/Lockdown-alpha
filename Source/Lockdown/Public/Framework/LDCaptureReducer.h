@@ -42,6 +42,8 @@ struct FLDCaptureDevTally
     // Why graffiti left the flagpole without a win other than a repaint: its owner died or left the match.
     uint32 ClearedByDeath = 0;
     uint32 ClearedByLeave = 0;
+    // Frozen guards reset to zero because their owner left the zone while a challenger was inside.
+    uint32 GuardResets = 0;
     // Spray instant of the graffiti currently shown, -1 while the flagpole is bare.
     int64 GraffitiSinceMs = -1;
     TMap<FGuid, FHolder> Holders;
@@ -63,8 +65,11 @@ struct FLDCaptureProposal
 // changes inside one boundary are never collapsed. A sole effective contender who is not the graffiti owner sprays;
 // a contest pauses his spray progress, he resumes it as the sole sprayer again and loses it when he stops being an
 // effective contender in the zone (exit, death, departure) or is interrupted (root, stun, taunt, knockback). Nobody
-// inherits it. A completed spray paints over any graffiti and starts its owner's guard from zero. The guard runs
-// unless a sole sprayer is accumulating, wherever the owner is; the owner's death or departure clears the graffiti.
+// inherits it. A completed spray paints over any graffiti and starts its owner's guard from zero. The guard freezes
+// while any effective contender other than the owner is in the zone (sole sprayer or contest, with or without the
+// owner) and continues from the frozen value once none is left; the owner may leave freely otherwise. An owner who
+// was in the zone at an instant where the guard was frozen and is out of it when that instant ends, with the guard
+// still frozen, resets it to zero (his graffiti stays). The owner's death or departure clears the graffiti.
 // A guard that reaches its full duration is the only completion that ends the match.
 class LOCKDOWN_API FLDCaptureReducer
 {
@@ -77,10 +82,10 @@ public:
     // Closes a step whose only work after Motion is this capture (see CompletionInsideMs): a guard due strictly
     // inside it completes at its due instant and the facts after that instant are discarded.
     bool CloseThroughCompletion(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
-    // The instant strictly before AtMs at which the facts enqueued so far complete a guard (a guard paused by a sole
-    // sprayer resumes when his spray stops inside the step); MAX_int64 when they do not. Facts that can still arrive
-    // in this step are stamped AtMs, so they can neither cause nor cancel an earlier completion. A spray that
-    // completes inside a step does not end the match; CloseBoundary reduces it at its own instant.
+    // The instant strictly before AtMs at which the facts enqueued so far complete a guard (a frozen guard resumes
+    // when the last challenger stops counting in the zone inside the step); MAX_int64 when they do not. Facts that
+    // can still arrive in this step are stamped AtMs, so they can neither cause nor cancel an earlier completion. A
+    // spray that completes inside a step does not end the match; CloseBoundary reduces it at its own instant.
     int64 CompletionInsideMs(int64 AtMs) const;
 
     bool IsOpen() const { return bOpen; }
@@ -94,15 +99,17 @@ public:
     // Contested with a holder only: spray progress frozen at the contest, in (0, spray].
     int64 GetPausedProgressMs() const { return State == ELDCircleState::Contested ? Paused : 0; }
     const FGuid& GetGraffitiOwner() const { return Owner; }
-    bool IsGuardRunning() const { return Owner.IsValid() && State != ELDCircleState::Solo; }
+    // Solo and Contested always hold an effective contender other than the owner, which freezes the guard.
+    static bool GuardRunsIn(ELDCircleState Circle) { return Circle == ELDCircleState::Empty || Circle == ELDCircleState::Guarded; }
+    bool IsGuardRunning() const { return Owner.IsValid() && GuardRunsIn(State); }
     int64 GetGuardDueAtMs() const { return IsGuardRunning() ? GuardDue : 0; }
-    // A sole sprayer paused the owner's guard at this progress, in [0, guard].
-    int64 GetGuardKeptMs() const { return Owner.IsValid() && State == ELDCircleState::Solo ? GuardKept : 0; }
+    // A challenger in the zone froze the owner's guard at this progress, in [0, guard].
+    int64 GetGuardKeptMs() const { return Owner.IsValid() && !GuardRunsIn(State) ? GuardKept : 0; }
     int64 GetOpenAtMs() const { return OpenAt; }
     int64 GetClosedThroughMs() const { return ClosedThrough; }
     // Next integer boundary the authority driver must stop at: the opening while closed, the spray while a sole
-    // sprayer accumulates and the guard win while the guard runs. Otherwise MAX_int64: a paused contest adds no stop,
-    // because a resume can only come from motion inside a step (CompletionInsideMs, CloseBoundary).
+    // sprayer accumulates and the guard win while the guard runs. Otherwise MAX_int64: a paused contest or a frozen
+    // guard adds no stop, because a resume can only come from motion inside a step (CompletionInsideMs, CloseBoundary).
     int64 NextDueMs() const;
     // Commit-order view used to validate motion evidence before its boundary closes.
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
@@ -125,7 +132,10 @@ private:
         bool bInside = false;
     };
     static bool Transition(TMap<FGuid, FMember>& Members, const FLDCaptureEvent& Event, bool bTimeOrdered, FString& Error);
-    bool Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, FString& Error);
+    // ResetOwner names the owner who was in the zone under a frozen guard when this instant began; it is passed with
+    // the last fact of the instant only, so an owner and a challenger leaving at the same instant reset nothing.
+    bool Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, const FGuid& ResetOwner, FString& Error);
+    bool IsOwnerInFrozenGuard() const;
     // Applies the sprays due before Limit (at it too when bInclusive). A running guard due strictly before Limit
     // completes there when bCompleteInside and is a driver contract failure otherwise.
     bool Advance(int64 Limit, bool bInclusive, bool bCompleteInside, bool& bCompleted, FString& Error);

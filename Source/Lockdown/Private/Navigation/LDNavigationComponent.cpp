@@ -394,8 +394,10 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     bShopArrived=false;
     bLocalStop=false;
     bLocalPending=true;
-    // A non-Shift order replaces the server's queue, so its waypoints go now; a Shift ground step adds one.
-    if (!Request.bQueue) { QueuedMarks.Reset(); }
+    // A non-Shift order replaces the server's queue, so its waypoints go now; a Shift ground step adds one. A cast only
+    // drops the queue once the server admits it (a refused skill keeps it, 2026-11-07 decision): its dropped steps'
+    // Cancelled receipts remove their waypoints.
+    if (!Request.bQueue) { if (!Cast) { QueuedMarks.Reset(); } }
     else if (Request.Kind==ELDSpatialOrderKind::MoveGround || Request.Kind==ELDSpatialOrderKind::AttackMove
         || Request.Kind==ELDSpatialOrderKind::CastPoint)
     { QueuedMarks.Add({Local,FVector(Request.GroundCm),Request.Kind!=ELDSpatialOrderKind::MoveGround}); }
