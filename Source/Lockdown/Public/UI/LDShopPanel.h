@@ -97,6 +97,8 @@ private:
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> DetailSlot;
     UPROPERTY() TObjectPtr<UBorder> Detail;
     int32 DetailItem=INDEX_NONE;
+    // The pre-order icon the description belongs to, or INDEX_NONE when it belongs to a grid icon.
+    int32 DetailChip=INDEX_NONE;
     bool bDetailStale=true;
     UPROPERTY() TObjectPtr<UTextBlock> DetailName;
     UPROPERTY() TObjectPtr<UTextBlock> DetailPrice;
@@ -104,7 +106,12 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DetailHint;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<UTextBlock> PreorderLine;
+    // One icon per queued pre-order (clicking it cancels it): lit with a gold rim while the gold covers its listed price,
+    // greyed out otherwise.
     UPROPERTY() TObjectPtr<ULDCommandButton> PreorderChips[2];
+    UPROPERTY() TObjectPtr<UBorder> PreorderShapes[2];
+    UPROPERTY() TObjectPtr<UTextBlock> PreorderGlyphs[2];
+    uint8 PreorderLooks[2]={0,0};
     UPROPERTY() TObjectPtr<UTextBlock> SellPrompt;
     UPROPERTY() TObjectPtr<ULDCommandButton> SellConfirmButton;
     FLDShopView Latest;
@@ -149,7 +156,7 @@ private:
     void RefreshShop();
     void SyncItemButtons();
     void UpdateDetail();
-    void FillDetail(int32 Index);
+    void FillDetail(int32 Index,bool bQueuedIcon);
     bool EquipmentKnown() const;
     const FLDShopSellView* SellableFor(uint8 SlotIdx) const;
     FString CommandBlock() const;

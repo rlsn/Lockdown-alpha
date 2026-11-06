@@ -26,7 +26,7 @@ namespace
 const FLinearColor ShopPanelHintColor(1.f,.66f,.36f);
 // Grid geometry (1080p reference units): six icons a row, the hover description beside the panel at a fixed width.
 constexpr int32 ShopGridColumns=6;
-constexpr float ShopIconSize=56.f,ShopIconGap=8.f,ShopDetailWidth=300.f;
+constexpr float ShopIconSize=56.f,ShopIconGap=8.f,ShopDetailWidth=300.f,ShopQueueIconSize=44.f;
 void ShopPanelTint(ULDCommandButton* Tinted,const FLinearColor& Tint)
 {
     FButtonStyle TintedStyle=Tinted->GetStyle();
@@ -42,6 +42,15 @@ void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordabl
     const FLinearColor Rim(1,1,1,bAffordable?.45f:.2f);
     Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,Rim,1.5f));Shape->SetBrushColor(Fill);
     Glyph->SetColorAndOpacity(FSlateColor(bAffordable?FLinearColor::White:FLinearColor(.6f,.6f,.62f)));
+}
+// A queued pre-order's icon: the grid's placeholder, lit with a gold rim while the gold covers its price, greyed out
+// otherwise (gold unknown or the item not listed included).
+void ShopPanelQueueIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordable)
+{
+    const FLinearColor Base=bActive?FLinearColor(.62f,.22f,.04f):FLinearColor(.08f,.28f,.52f);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,bAffordable?LDHUDStyle::TextAccent:FLinearColor(1,1,1,.15f),bAffordable?2.5f:1.5f));
+    Shape->SetBrushColor(bAffordable?Base:Base.Desaturate(1.f)*.35f);
+    Glyph->SetColorAndOpacity(FSlateColor(bAffordable?FLinearColor::White:FLinearColor(.5f,.5f,.52f)));
 }
 void ShopPanelText(UTextBlock* Block,const FString& Wanted)
 {
@@ -97,9 +106,20 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         auto* PreorderRow=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(PreorderRow)->SetPadding(FMargin(0,6,0,0));
         for(int32 ChipIdx=0;ChipIdx<2;++ChipIdx)
         {
-            PreorderChips[ChipIdx]=LDWidgets::Button(WidgetTree,TEXT(""),[this,ChipIdx](){RemovePreorder(ChipIdx);},false,ChipIdx?FName(TEXT("ShopPreorder1")):FName(TEXT("ShopPreorder0")));
-            PreorderChips[ChipIdx]->SetVisibility(ESlateVisibility::Collapsed);
-            PreorderRow->AddChildToHorizontalBox(PreorderChips[ChipIdx])->SetPadding(FMargin(0,0,8,0));
+            ULDCommandButton* Chip=LDWidgets::Button(WidgetTree,TEXT(""),[this,ChipIdx](){RemovePreorder(ChipIdx);},false,ChipIdx?FName(TEXT("ShopPreorder1")):FName(TEXT("ShopPreorder0")));
+            ShopPanelTint(Chip,FLinearColor::Transparent);
+            if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Chip->GetContentSlot()))
+            {FaceSlot->SetPadding(FMargin(0));FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Fill);}
+            auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+            auto* Shape=WidgetTree->ConstructWidget<UBorder>();Shape->SetVisibility(ESlateVisibility::HitTestInvisible);
+            auto* ShapeSlot=Face->AddChildToOverlay(Shape);ShapeSlot->SetHorizontalAlignment(HAlign_Fill);ShapeSlot->SetVerticalAlignment(VAlign_Fill);
+            UTextBlock* Glyph=MakeText(TEXT(""),18);Glyph->SetAutoWrapText(false);Glyph->SetJustification(ETextJustify::Center);Glyph->SetVisibility(ESlateVisibility::HitTestInvisible);
+            auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+            Chip->SetContent(Face);
+            auto* Cell=WidgetTree->ConstructWidget<USizeBox>();Cell->SetWidthOverride(ShopQueueIconSize);Cell->SetHeightOverride(ShopQueueIconSize);Cell->SetContent(Chip);
+            Cell->SetVisibility(ESlateVisibility::Collapsed);
+            PreorderRow->AddChildToHorizontalBox(Cell)->SetPadding(FMargin(0,0,8,0));
+            PreorderChips[ChipIdx]=Chip;PreorderShapes[ChipIdx]=Shape;PreorderGlyphs[ChipIdx]=Glyph;
         }
         auto* SellBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SellPrompt=MakeText(TEXT(""),16);SellBox->AddChildToVerticalBox(SellPrompt);
@@ -379,18 +399,26 @@ void ULDShopPanel::UpdateDetail()
     if(!Detail||!DetailSlot){return;}
     // The pointer wins over keyboard focus; nothing hovered or focused shows no description.
     auto Shown=[this](int32 Index){return Index<ShownItems.Num()&&Listing.IsValidIndex(Index)&&ItemButtons.IsValidIndex(Index);};
-    int32 Next=INDEX_NONE;
+    int32 Next=INDEX_NONE,NextChip=INDEX_NONE;
     if(bOpen&&!bSelling)
     {
         for(int32 Index=0;Index<ItemButtons.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&ItemButtons[Index]->IsHovered()){Next=Index;}}
+        // A hovered pre-order icon explains the listed item it stands for.
+        for(int32 Chip=0;Chip<2&&Next==INDEX_NONE;++Chip)
+        {
+            if(!PreorderQueue.IsValidIndex(Chip)||!PreorderChips[Chip]||!PreorderChips[Chip]->GetParent()->IsVisible()||!PreorderChips[Chip]->IsHovered()){continue;}
+            const FName Queued=PreorderQueue[Chip];
+            const int32 Listed=Listing.IndexOfByPredicate([Queued](const FLDShopItemView& Row){return Row.DefinitionId==Queued;});
+            if(Listing.IsValidIndex(Listed)){Next=Listed;NextChip=Chip;}
+        }
         for(int32 Index=0;Index<ItemButtons.Num()&&Next==INDEX_NONE;++Index){if(Shown(Index)&&ItemButtons[Index]->HasKeyboardFocus()){Next=Index;}}
     }
     UWidget* Popup=DetailSlot->Content;
-    if(Next!=DetailItem||bDetailStale)
+    if(Next!=DetailItem||NextChip!=DetailChip||bDetailStale)
     {
-        DetailItem=Next;bDetailStale=false;
+        DetailItem=Next;DetailChip=NextChip;bDetailStale=false;
         if(Popup){Popup->SetVisibility(Next==INDEX_NONE?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
-        if(Next!=INDEX_NONE){FillDetail(Next);}
+        if(Next!=INDEX_NONE){FillDetail(Next,NextChip!=INDEX_NONE);}
     }
     if(DetailItem!=INDEX_NONE&&DetailLayer&&Popup&&MainPanel)
     {
@@ -398,13 +426,14 @@ void ULDShopPanel::UpdateDetail()
         // the popup, so this never feeds back. The popup is only pulled up to stay on screen.
         const FGeometry& Layer=DetailLayer->GetCachedGeometry();
         const FVector2D PanelTop=Layer.AbsoluteToLocal(MainPanel->GetCachedGeometry().GetAbsolutePosition());
-        const FVector2D IconTop=Layer.AbsoluteToLocal(ItemButtons[DetailItem]->GetCachedGeometry().GetAbsolutePosition());
+        const UWidget* Anchor=DetailChip!=INDEX_NONE?static_cast<const UWidget*>(PreorderChips[DetailChip].Get()):static_cast<const UWidget*>(ItemButtons[DetailItem].Get());
+        const FVector2D IconTop=Layer.AbsoluteToLocal(Anchor->GetCachedGeometry().GetAbsolutePosition());
         const float Bottom=float(Layer.GetLocalSize().Y)-float(Popup->GetDesiredSize().Y)-8.f;
         const FVector2D Place(FMath::RoundToFloat(float(PanelTop.X)-8.f),FMath::RoundToFloat(FMath::Max(0.f,FMath::Min(float(IconTop.Y),Bottom))));
         if(!DetailSlot->GetPosition().Equals(Place,.5f)){DetailSlot->SetPosition(Place);}
     }
 }
-void ULDShopPanel::FillDetail(int32 Index)
+void ULDShopPanel::FillDetail(int32 Index,bool bQueuedIcon)
 {
     const bool bEquipKnown=EquipmentKnown();
     const FLDShopItemView& Item=Listing[Index];
@@ -423,8 +452,12 @@ void ULDShopPanel::FillDetail(int32 Index)
     TArray<FString> HintParts;
     if(bEquipKnown&&!ShownItem.bAffordable){HintParts.Add(LDTerms::NotEnoughGold());}
     if(bEquipKnown&&ShopPanelEquipSlot(LatestEquipment,0)->bOccupied&&ShopPanelEquipSlot(LatestEquipment,1)->bOccupied){HintParts.Add(TEXT("装备槽已满，请先卖出一件"));}
-    if(PreorderQueue.Contains(Item.DefinitionId)){HintParts.Add(TEXT("已在预购中"));}
-    HintParts.Add(bLatestNear&&HasSession()?TEXT("右键直接购买"):TEXT("右键加入预购，到了自动买"));
+    if(bQueuedIcon){HintParts.Add(TEXT("已在预购中，点击图标取消"));}
+    else
+    {
+        if(PreorderQueue.Contains(Item.DefinitionId)){HintParts.Add(TEXT("已在预购中"));}
+        HintParts.Add(bLatestNear&&HasSession()?TEXT("右键直接购买"):TEXT("右键加入预购，到了自动买"));
+    }
     ShopPanelText(DetailHint,FString::Join(HintParts,TEXT("；")));
 }
 bool ULDShopPanel::BuyItem(FName DefinitionId,bool bAuto)
@@ -648,19 +681,21 @@ void ULDShopPanel::RefreshPreorders()
     const int64 Gold=EquipmentKnown()?LatestEquipment.Gold:0;
     ShopPanelText(PreorderLine,PreorderQueue.IsEmpty()
         ?FString::Printf(TEXT("预购：空（最多 %d 件，到%s附近且%s够时自动买入）"),LDHUD::MaxShopPreorders,LDTerms::Shop,LDTerms::Gold)
-        :FString::Printf(TEXT("预购（点一件可取消）：到%s附近且%s够时自动买入"),LDTerms::Shop,LDTerms::Gold));
+        :FString::Printf(TEXT("预购（点图标取消；亮起的%s已够）：到%s附近自动买入"),LDTerms::Gold,LDTerms::Shop));
     for(int32 ChipIdx=0;ChipIdx<2;++ChipIdx)
     {
         ULDCommandButton* Chip=PreorderChips[ChipIdx];
         const bool bShown=PreorderQueue.IsValidIndex(ChipIdx);
-        Chip->SetVisibility(bShown?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+        // The fixed-size cell collapses with it, so a missing second pre-order leaves no gap.
+        Chip->GetParent()->SetVisibility(bShown?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
         if(!bShown){continue;}
         const FName Id=PreorderQueue[ChipIdx];
         const FLDShopItemView* Row=Listing.FindByPredicate([Id](const FLDShopItemView& Item){return Item.DefinitionId==Id;});
-        FString Caption=FString::Printf(TEXT("%d. %s"),ChipIdx+1,*LDHUD::ContentName(LatestContent,Id.ToString()));
-        if(Row){Caption+=FString::Printf(TEXT(" · %lld"),Row->BuyPrice);if(EquipmentKnown()&&Row->BuyPrice>Gold){Caption+=TEXT("（")+LDTerms::NotEnoughGold()+TEXT("）");}}
-        Caption+=TEXT(" ✕");
-        ShopPanelText(CastChecked<UTextBlock>(Chip->GetContent()),Caption);
+        ShopPanelText(PreorderGlyphs[ChipIdx],LDHUD::ContentName(LatestContent,Id.ToString()).Left(1));
+        const bool bAffordable=Row&&EquipmentKnown()&&Row->BuyPrice<=Gold;
+        const bool bActive=Row&&Row->bHasActive;
+        const uint8 Look=uint8(bActive)|uint8(bAffordable)<<1|0x80;
+        if(PreorderLooks[ChipIdx]!=Look){PreorderLooks[ChipIdx]=Look;ShopPanelQueueIcon(PreorderShapes[ChipIdx],PreorderGlyphs[ChipIdx],bActive,bAffordable);}
     }
 }
 void ULDShopPanel::NotifyPlayer(const FString& Notice) const
