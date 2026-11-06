@@ -860,7 +860,13 @@ void ULDNavigationComponent::TickPointer()
         if (PC->IsAttackMoveArmed()) { Cursor=LDCursor::AttackAim; }
         else if (PC->ReadArmedCombatEntry(Armed)) { Cursor=LDCursor::CastAim; }
     }
-    PC->CurrentMouseCursor=Cursor;
+    // Slate asks for the cursor only when the pointer moves; a changed aim (A or a skill just armed, or a confirm or
+    // cancel) asks again at once, so the glow shows the moment the key is pressed.
+    if (PC->CurrentMouseCursor!=Cursor)
+    {
+        PC->CurrentMouseCursor=Cursor;
+        if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().QueryCursor(); }
+    }
     // The inspected unit keeps its selection ring while the current authorized frame still lists it.
     FLDObservedUnitView Inspected;
     const bool bInspected=PC->ReadInspected(Inspected);
@@ -876,7 +882,11 @@ void ULDNavigationComponent::ClearPointer()
     Hovered.Invalidate();
     HoveredEpoch=0;
     bHeldMove=false;
-    if (auto* PC=Controller()) { PC->CurrentMouseCursor=EMouseCursor::Default; }
+    if (auto* PC=Controller(); PC && PC->CurrentMouseCursor!=EMouseCursor::Default)
+    {
+        PC->CurrentMouseCursor=EMouseCursor::Default;
+        if (FSlateApplication::IsInitialized()) { FSlateApplication::Get().QueryCursor(); }
+    }
     if (ALDPointerFeedback* Feedback=Pointer.Get()) { Feedback->SetHover(FGuid(),0); Feedback->SetSelected(FGuid(),0); }
 }
 
