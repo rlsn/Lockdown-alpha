@@ -123,7 +123,7 @@
 | 下一步提示 | `LDHUD::NextStep` 在旗杆状态下方给一行强调色文字，只在发育期/开放期、同代次投影上计算，优先级：有待选 → “开盲盒 ×N（点右下角的开盲盒按钮）”；开放期 → 本人独自喷漆时“稳住：你正在旗杆上喷漆”，旗杆上是本人涂鸦时“守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）”（`LDTerms::GuardOwn`），旗杆上是别人涂鸦时“下一步：去围攻 X，或者去旗杆改漆”（`LDTerms::Besiege`），否则“下一步：旗杆开放了，冲！去中心喷漆”；有空装备槽且米够买时 → “米够买「X」了，去砍一刀小摊”（X 为买得起的最贵装备）；1 级 → “去打附近的野怪搞米、涨流量（右键攻击）”；都不适用时不显示。右下角商店按钮左侧另有“开盲盒+N”按钮，次数增加后轻微脉动 |
 | 被选中的其他单位 | 当前帧中 Handle 与 Epoch 都匹配的单位，经 `LDHUD::ObservedCard/ObservedUnit` 只显示白名单 |
 | 可见单位头顶的名字、等级、血条与状态 | `ULDWorldLabels`（`LDUIRoot` 世界层，最底层、不命中测试、不取焦点）：只在本人存活、帧为同局同命的当前帧且 HUD 显示时，为 `ReadPresentedLocation` 返回的单位绘制；参赛者名来自公开名册（查不到就不显示名字），野怪名来自内容显示文本，状态行与检视卡片同源（复活保护剩余时间向上取整到 0.1 s），各状态按身体标记的颜色书写（定身品红、心理防线亮青、复活保护白金，其余用普通状态色），文字本身仍写出状态名。白名单子集为名字、等级（参赛者，画在座位色徽章里）、HP 比例条（参赛者红、营地橙，最大值未知不画）、是否有心理防线（条上方浅蓝线）与公开状态；不显示电量、装备、技能、冷却或金币。字号：参赛者名 16 粗体、野怪名 16、状态 14，随文字缩放 |
-| 本人头顶血蓝与技能就绪点 | 同一层：本人同局同命存活且有身体、`CombatView` 同代同命且精神状态上限已知时，在本人身体上方画精神状态条（心理防线接在其后，合计超出时按比例收进整条）与电量条；其下 Q/W/1/2 四个就绪点只读 `LDHUD::Action` 的 `ExecutionBlocks/CooldownRemainingMs`（冷却、受控、电量不足、可用各一色，空槽/无主动/未同步不画），状态文字在底部动作栏的悬停说明里。不画本人名字 |
+| 本人头顶血蓝 | 同一层：本人同局同命存活且有身体、`CombatView` 同代同命且精神状态上限已知时，在本人身体上方画精神状态条（心理防线接在其后，合计超出时按比例收进整条）与电量条，条的底边就落在锚点上；不画技能就绪点，技能状态只在底部动作栏。不画本人名字 |
 | 画面回馈（浮动数字、奖励、击败、升级） | `ULDWorldFeedback`（与头顶标签同层同显隐）由纯值 `LDWorldFeedback::FTracker` 比较相邻样本得出事件，第一次样本、换局、换命或视图失效只重设基线，不补发历史。本人：`CombatView` 同代同命相邻修订的精神状态差（回血按 25 点/秒 × 间隔 + 1 的容差不飘字，精神状态上限变化不算伤害或治疗）与心理防线差（增加、被打掉；自然到期不飘）；可见单位：相邻当前帧中同一 Handle/Epoch、同一最大值的精神状态差（营地无回血，容差 1 点），按帧的采样时刻等呈现时钟到达再显示，单位不再呈现即丢弃；施法名：可见施法者的新 `Cast` 提示带 `ActionAbility/ActionEquipment` 时，在其身旁飘一次技能或装备显示名（`LDHUD::AbilityName`/内容表），不含等级、冷却，首见样本只建基线、无来源不显示（D16，CB-P10/SC-07 白名单例外）；奖励：同一次成长发布里 `CumulativeXP` 增加才飘“+流量”，金币同时增加才飘“+米”，买卖只改金币不飘；击败：公开击杀通知中击杀者是本人且新鲜（6 s 规则）才出“淫了 某某！”；升级：等级上升出“涨粉了！LvN”横幅与本人脚下光环、光柱，新获得三选一时加副行“获得一次开盲盒机会”。不读其他身体 Actor 或他人投影 |
 | 小地图 | 注册地面边界、静态阻挡（区分阻走/阻视线）、砍一刀小摊、旗杆喷漆区、两档营地标记；当前覆盖与当前可见单位（参赛者用座位色圆点，位置取代理的呈现位置，不可呈现时退回帧内脚点）；不画探索层或出生点。朝向按本地设置 `MinimapOrientation`（跟随镜头/跟随角色朝向/固定正北），三种都是真实俯视的旋转加统一缩放，不镜像；`LDMinimap::MakeView/ToFrame/ToWorld` 是绘制、镜头框与拖图/右键移动共用的唯一换算，旋转模式只显示不超过地面内切圆的圆形视窗（框角用框体底色遮住，避免露出地面外的深色角），并在圆边内侧标出“北”（世界 −Y） |
 | 属性 P | `ULDAttributesPanel` 只格式化 `CombatView.Attributes` 的各来源与最终值、已学被动、装备被动和临时状态；行固定，刷新不重置滚动 |
@@ -219,8 +219,8 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 - `HUDBasicAttackTerm`、`HUDIdentityPalette`（`LDHUDRulesTests`）覆盖“大比兜”文案与头像/身体共用的六色；
   `HUDTermsGlossary` 核对术语表里重复的状态名与批准目录一致、系统术语不为空不重复且不与条目名相同。
   HUD 与头顶标签测试的条目名从 `LDDemoContentFixtures` 的 approved_base 读取（`LDTestApprovedDisplay`），世界观术语引用 `LDTerms`，不逐字重复。
-- `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars,ReadinessPips}`（`LDWorldLabelsTests`）
-  覆盖头顶名字、状态行、只显示白名单（电量、装备、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与心理防线收比，以及就绪点分类。
+- `Lockdown.Rules.WorldLabels.{ContenderName,CampMemberName,StatusLine,Whitelist,HealthBar,OwnBars}`（`LDWorldLabelsTests`）
+  覆盖头顶名字、状态行、只显示白名单（电量、装备、姿态与观察身份不进入标签）、血条比例与未知、本人血蓝条的门控与心理防线收比。
 - `Lockdown.Rules.DemoVision.PropFade` 覆盖可淡化道具的遮挡判断（镜头与身体之间、线旁、身体在前、身体站在旗杆里或紧贴旗杆、高于道具）与淡入淡出；`DemoVision.ActionCues` 另覆盖施法来源只在 Cast 时、最多一个；`WorldFeedback.Casts` 覆盖施法名只在新施法时出现一次、首见只建基线、无来源不显示；`HUDNextStep` 覆盖下一步提示的优先级与别局投影不提示；`LocalSettingsQuickCast` 覆盖快速施法默认关闭、保存回读、schema 9 迁移与非法值。
 - `Lockdown.Rules.DemoVision.Presentation` 覆盖呈现时钟：样本间线性插值、最新样本之后保持不外推、跳变样本不扫过、朝向走短弧，以及时钟偏移的下调、限速上调与重设。
 - `Lockdown.Rules.WorldFeedback.{Priming,OwnDamageAndHeal,Shield,VisibleUnits,RewardsAndLevel,Kill,Text}`（`LDWorldFeedbackTests`）
