@@ -19,7 +19,7 @@ try {
     if(-not(Test-Path -LiteralPath $reportPath)){throw "Missing native UI report: $output"}
     $report=Get-Content -LiteralPath $reportPath -Raw|ConvertFrom-Json
     if(-not $report.passed -or $report.rhi -in @('None','Null') -or @($report.checks|Where-Object{-not $_.passed}).Count){throw "Failed native frontend capture evidence: $reportPath"}
-    foreach($name in @('Frontend-100.png','Settings-100.png','Settings-125.png','DiscardDisplayDraft.png')){
+    foreach($name in @('Frontend-100.png','Settings-Display-100.png','Settings-Audio-100.png','Settings-Controls-100.png','Settings-Camera-100.png','Settings-Interface-100.png','Settings-Display-125.png','Settings-Audio-125.png','Settings-Controls-125.png','Settings-Camera-125.png','Settings-Interface-125.png','DiscardDisplayDraft.png','Settings-RebindConflict.png','Settings-ResetConfirm.png')){
         $image=Join-Path $output $name
         if(-not(Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -eq 0){throw "Missing rendered capture: $image"}
     }
