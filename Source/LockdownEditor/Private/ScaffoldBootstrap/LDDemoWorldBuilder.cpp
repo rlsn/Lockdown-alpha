@@ -4,6 +4,8 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Character/LDCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Region/LDMapDefinition.h"
 #include "Region/LDMapRegistry.h"
 #include "Region/LDRegionNavBounds.h"
@@ -33,6 +35,7 @@
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionAbs.h"
+#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionComponentMask.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
@@ -46,6 +49,7 @@
 #include "Materials/MaterialExpressionSmoothStep.h"
 #include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionTextureCoordinate.h"
+#include "Materials/MaterialExpressionVertexNormalWS.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialInterface.h"
 #include "MeshDescription.h"
@@ -140,18 +144,70 @@ bool BlockerVertices(const FLDDemoWorldBlocker& Blocker, TArray<FVector>& Out, F
     return true;
 }
 
-UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Checksum, FString& Error)
+// #97 terrain prism: the footprint ring at Base, then the authored top ring (flat for a plateau, one sloped plane for
+// a ramp). A ramp's low edge lies on its base, so those base points coincide with their top points.
+struct FTerrainPiece
 {
-    const FString PackagePath = MeshPath(Blocker.Id), Name = FPackageName::GetShortName(PackagePath);
+    FString Id;
+    TArray<FVector> Prism;
+};
+
+bool TerrainRing(const TArray<FLDDemoWorldPoint>& Polygon, double Base, TArray<FVector>& Out, FString& Error)
+{
+    TArray<FVector> Top;
+    for (const auto& Source : Polygon)
+    {
+        FVector Point;
+        if (!Source.ToVector(Point, Error)) { return false; }
+        Top.Add(Point);
+    }
+    for (const FVector& Point : Top) { Out.Add(FVector(Point.X, Point.Y, Base)); }
+    Out.Append(Top);
+    return true;
+}
+
+bool TerrainPieces(const FLDDemoWorldGeometry& Geometry, TArray<FTerrainPiece>& Out, FString& Error)
+{
+    if (Geometry.LevelStepCm.Denominator <= 0 || Geometry.LevelStepCm.Numerator <= 0) { return Fail(Error, TEXT("Invalid typed level step.")); }
+    const double Step = double(Geometry.LevelStepCm.Numerator) / double(Geometry.LevelStepCm.Denominator);
+    for (const auto& Plateau : Geometry.Plateaus)
+    {
+        FTerrainPiece& Piece = Out.Emplace_GetRef();
+        Piece.Id = Plateau.Id;
+        if (!TerrainRing(Plateau.PolygonCm, 0, Piece.Prism, Error)) { return false; }
+    }
+    for (const auto& Ramp : Geometry.Ramps)
+    {
+        FTerrainPiece& Piece = Out.Emplace_GetRef();
+        Piece.Id = Ramp.Id;
+        if (!TerrainRing(Ramp.PolygonCm, Ramp.LowerLevel * Step, Piece.Prism, Error)) { return false; }
+    }
+    return true;
+}
+
+// Convex collision of a prism without base points that coincide with their top points.
+TArray<FVector> ConvexPoints(const TArray<FVector>& Prism)
+{
+    const int32 Ring = Prism.Num() / 2;
+    TArray<FVector> Out;
+    for (int32 I = 0; I < Ring; ++I) { if (Prism[I] != Prism[I + Ring]) { Out.Add(Prism[I]); } }
+    for (int32 I = Ring; I < Prism.Num(); ++I) { Out.Add(Prism[I]); }
+    return Out;
+}
+
+// One generated prism mesh: Points is a base ring followed by its top ring, Convex the exact collision hull. Terrain
+// uses hard edges so each face keeps its own normal and the hill surface tells tops and ramps from cliff faces.
+UStaticMesh* BuildPrism(const FString& Id, const TArray<FVector>& Points, const TArray<FVector>& ConvexHull, bool bHardEdges,
+    const FString& Checksum, FString& Error)
+{
+    const FString PackagePath = MeshPath(Id), Name = FPackageName::GetShortName(PackagePath);
     UStaticMesh* Mesh = nullptr;
     if (FPackageName::DoesPackageExist(PackagePath))
     {
         Mesh = LoadObject<UStaticMesh>(nullptr, *(PackagePath + TEXT(".") + Name));
-        if (!Mesh) { Fail(Error, TEXT("Existing generated blocker cannot be loaded: ") + PackagePath); return nullptr; }
+        if (!Mesh) { Fail(Error, TEXT("Existing generated geometry cannot be loaded: ") + PackagePath); return nullptr; }
     }
     else { Mesh = NewObject<UStaticMesh>(CreatePackage(*PackagePath), *Name, RF_Public | RF_Standalone); }
-    TArray<FVector> Points;
-    if (!BlockerVertices(Blocker, Points, Error)) { return nullptr; }
     Mesh->GetOutermost()->FullyLoad();
     Mesh->SetNumSourceModels(1);
     FMeshDescription Description;
@@ -171,6 +227,7 @@ UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Che
     }
     const auto Triangle = [&](int32 A, int32 B, int32 C)
     {
+        if (FVector::CrossProduct(Points[B] - Points[A], Points[C] - Points[A]).SizeSquared() <= UE_KINDA_SMALL_NUMBER) { return; }
         TArray<FVertexInstanceID> Instances;
         for (int32 Index : {A, B, C})
         {
@@ -192,6 +249,11 @@ UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Che
         Triangle(I, Next, Next + Ring);
         Triangle(I, Next + Ring, I + Ring);
     }
+    if (bHardEdges)
+    {
+        auto Hardness = Attributes.GetEdgeHardnesses();
+        for (const FEdgeID Edge : Description.Edges().GetElementIDs()) { Hardness[Edge] = true; }
+    }
     auto& Settings = Mesh->GetSourceModel(0).BuildSettings;
     Settings.bRecomputeNormals = true;
     Settings.bRecomputeTangents = true;
@@ -204,7 +266,7 @@ UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Che
     Body->InvalidatePhysicsData();
     Body->AggGeom.EmptyElements();
     FKConvexElem Convex;
-    Convex.VertexData = Points;
+    Convex.VertexData = ConvexHull;
     Convex.UpdateElemBox();
     Body->AggGeom.ConvexElems.Add(MoveTemp(Convex));
     Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
@@ -213,6 +275,13 @@ UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Che
     Mesh->CreateNavCollision(true);
     Mesh->GetOutermost()->GetMetaData().SetValue(Mesh, GeometryStamp, *Checksum);
     return LDDemoWorldBuilder::SaveAsset(*Mesh, PackagePath, Error) ? Mesh : nullptr;
+}
+
+UStaticMesh* BuildBlocker(const FLDDemoWorldBlocker& Blocker, const FString& Checksum, FString& Error)
+{
+    TArray<FVector> Points;
+    if (!BlockerVertices(Blocker, Points, Error)) { return nullptr; }
+    return BuildPrism(Blocker.Id, Points, Points, false, Checksum, Error);
 }
 
 AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMaterialInterface* Material,
@@ -245,6 +314,8 @@ const TCHAR* FieldMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_Demo
 const TCHAR* WallMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoWall");
 const TCHAR* ApronMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoApron");
 const TCHAR* TreeMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoTree");
+const TCHAR* HillMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoHill");
+const TCHAR* FenceMaterialPath = TEXT("/Game/Lockdown/Generated/Materials/M_DemoFence");
 // Paving reaches this far past the field on every side, so props and buildings outside the walls stand on ground.
 constexpr double ApronMarginCm = 4000.;
 const TCHAR* ApronTag = TEXT("LDDemoApron");
@@ -423,6 +494,78 @@ UMaterial* BuildTreeMaterial(FString& Error)
     return FinishMaterial(*Material, Tree, .9f, .25f, TreeMaterialPath, Error);
 }
 
+// Fences: painted timber posts every metre and two rails, the gaps clipped away so the low fence reads as see-through,
+// which is what the rules make it: it stops bodies but not sight.
+UMaterial* BuildFenceMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(FenceMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    Material->BlendMode = BLEND_Masked;
+    Material->TwoSided = true;
+    UMaterialExpression* Position = AddNode<UMaterialExpressionWorldPosition>(*Material);
+    auto* Along = AddNode<UMaterialExpressionAdd>(*Material);
+    Along->A.Connect(0, MaskNode(*Material, Position, true, false, false));
+    Along->B.Connect(0, MaskNode(*Material, Position, false, true, false));
+    auto* Posts = AddNode<UMaterialExpressionMultiply>(*Material);
+    Posts->A.Connect(0, Along);
+    Posts->ConstB = 1.f / 100.f;
+    auto* PostPhase = AddNode<UMaterialExpressionFrac>(*Material);
+    PostPhase->Input.Connect(0, Posts);
+    auto* Rails = AddNode<UMaterialExpressionMultiply>(*Material);
+    Rails->A.Connect(0, MaskNode(*Material, Position, false, false, true));
+    Rails->ConstB = 1.f / 50.f;
+    auto* RailPhase = AddNode<UMaterialExpressionFrac>(*Material);
+    RailPhase->Input.Connect(0, Rails);
+    auto* Solid = AddNode<UMaterialExpressionAdd>(*Material);
+    Solid->A.Connect(0, ChooseNode(*Material, PostPhase, .1f, ScalarNode(*Material, 1.f), ScalarNode(*Material, 0.f)));
+    Solid->B.Connect(0, ChooseNode(*Material, RailPhase, .76f, ScalarNode(*Material, 0.f), ScalarNode(*Material, 1.f)));
+    Material->GetEditorOnlyData()->OpacityMask.Connect(0, Solid);
+    return FinishMaterial(*Material, ColorNode(*Material, FLinearColor(.36f, .22f, .11f)), .8f, .3f, FenceMaterialPath, Error);
+}
+
+// A blocker's generated surface: trunks are trees, sight blockers walls, the low non-sight polygon holding the shop
+// anchor its stall (wall paint), and every other non-sight polygon a fence.
+const TCHAR* BlockerMaterialPath(const FLDDemoWorldGeometry& Geometry, const FLDDemoWorldBlocker& Blocker)
+{
+    if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder) { return TreeMaterialPath; }
+    if (Blocker.BlocksSight) { return WallMaterialPath; }
+    TArray<FVector2D> Footprint;
+    FString Ignored;
+    if (!LDDemoWorld::Footprint(Blocker, Footprint, Ignored)) { return WallMaterialPath; }
+    for (const auto& Anchor : Geometry.Anchors)
+    {
+        FVector Shop;
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Shop && Anchor.PositionCm.ToVector(Shop, Ignored)
+            && LDDemoWorld::InsideConvex(Footprint, FVector2D(Shop.X, Shop.Y))) { return WallMaterialPath; }
+    }
+    return FenceMaterialPath;
+}
+
+// Raised ground: mottled grass on plateau tops and ramps, weathered rock on the cliff faces, told apart by the face
+// normal so a cliff reads as a wall from below.
+UMaterial* BuildHillMaterial(FString& Error)
+{
+    UMaterial* Material = NewGeneratedMaterial(HillMaterialPath, Error);
+    if (!Material) { return nullptr; }
+    auto* Mottle = AddNode<UMaterialExpressionNoise>(*Material);
+    Mottle->Position.Connect(0, AddNode<UMaterialExpressionWorldPosition>(*Material));
+    Mottle->Scale = .006f;
+    Mottle->NoiseFunction = NOISEFUNCTION_GradientALU;
+    Mottle->Quality = 1;
+    Mottle->Levels = 3;
+    Mottle->bTurbulence = false;
+    Mottle->OutputMin = .78f;
+    Mottle->OutputMax = 1.15f;
+    auto* Grass = AddNode<UMaterialExpressionMultiply>(*Material);
+    Grass->A.Connect(0, ColorNode(*Material, FLinearColor(.11f, .29f, .07f)));
+    Grass->B.Connect(0, Mottle);
+    auto* Rock = AddNode<UMaterialExpressionMultiply>(*Material);
+    Rock->A.Connect(0, ColorNode(*Material, FLinearColor(.26f, .22f, .17f)));
+    Rock->B.Connect(0, Mottle);
+    UMaterialExpression* Up = MaskNode(*Material, AddNode<UMaterialExpressionVertexNormalWS>(*Material), false, false, true);
+    return FinishMaterial(*Material, ChooseNode(*Material, Up, .5f, Rock, Grass), .92f, .3f, HillMaterialPath, Error);
+}
+
 // Campus paving beyond the walls: warm grey two-metre slabs with darker joints and faint weathering, darker than the
 // turf so the field stays the focus.
 UMaterial* BuildApronMaterial(FString& Error)
@@ -550,6 +693,9 @@ bool NavigationBounds(const FLDDemoWorldGeometry& Geometry, const FCollisionShap
         if (!BlockerVertices(Blocker, Points, Error)) { return false; }
         for (const FVector& Point : Points) { Bounds += Point; }
     }
+    TArray<FTerrainPiece> Terrain;
+    if (!TerrainPieces(Geometry, Terrain, Error)) { return false; }
+    for (const auto& Piece : Terrain) { for (const FVector& Point : Piece.Prism) { Bounds += Point; } }
     Out = Bounds.ExpandBy(FVector(Capsule.GetCapsuleRadius(), Capsule.GetCapsuleRadius(), Capsule.GetCapsuleHalfHeight()));
     return true;
 }
@@ -685,16 +831,31 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
     if (!PavingMaterial) { return false; }
     UMaterial* TreeMaterial = BuildTreeMaterial(Error);
     if (!TreeMaterial) { return false; }
+    UMaterial* HillMaterial = BuildHillMaterial(Error);
+    if (!HillMaterial) { return false; }
+    UMaterial* FenceMaterial = BuildFenceMaterial(Error);
+    if (!FenceMaterial) { return false; }
     FVector Min, Max;
     if (!Geometry->Surfaces[0].MinCm.ToVector(Min, Error) || !Geometry->Surfaces[0].MaxCm.ToVector(Max, Error)) { return false; }
     const double Depth = Capsule.GetCapsuleHalfHeight();
     if (!Place(*World, Geometry->Surfaces[0].Id, Cube, GroundMaterial, (Min + Max) * .5 - FVector(0, 0, Depth * .5),
         FVector(Max.X - Min.X, Max.Y - Min.Y, Depth) / 100., true, true, false, Error)) { return false; }
     if (!PlaceApron(*World, Cube, PavingMaterial, Min, Max, Depth, Error)) { return false; }
+    TArray<FTerrainPiece> Terrain;
+    if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
+    for (const auto& Piece : Terrain)
+    {
+        UStaticMesh* Mesh = BuildPrism(Piece.Id, Piece.Prism, ConvexPoints(Piece.Prism), true, Definition.Checksum, Error);
+        AStaticMeshActor* Actor = Place(*World, Piece.Id, Mesh, HillMaterial, FVector::ZeroVector, FVector::OneVector,
+            true, true, false, Error);
+        if (!Actor) { return false; }
+        Actor->Tags.Add(LDDemoWorld::TerrainTag);
+    }
     for (const auto& Blocker : Geometry->Blockers)
     {
         UStaticMesh* Mesh = BuildBlocker(Blocker, Definition.Checksum, Error);
-        UMaterial* Surface = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder ? TreeMaterial : StoneMaterial;
+        const TCHAR* Path = BlockerMaterialPath(*Geometry, Blocker);
+        UMaterial* Surface = Path == TreeMaterialPath ? TreeMaterial : Path == FenceMaterialPath ? FenceMaterial : StoneMaterial;
         if (!Place(*World, Blocker.Id, Mesh, Surface, FVector::ZeroVector, FVector::OneVector,
             false, Blocker.BlocksMovement, Blocker.BlocksSight, Error)) { return false; }
     }
@@ -809,7 +970,9 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             Meshes.Add(Id, Mesh);
         }
     }
-    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Geometry->Blockers.Num(),
+    TArray<FTerrainPiece> Terrain;
+    if (!TerrainPieces(*Geometry, Terrain, Error)) { return false; }
+    Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Terrain.Num() + Geometry->Blockers.Num(),
         TEXT("Exact native anchor, navigation and static-geometry counts"));
     Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
         TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
@@ -850,6 +1013,24 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         const UMaterialInterface* Paving = Component->GetMaterial(0);
         Check(Paving && Paving->GetPathName() == ObjectPath(ApronMaterialPath), TEXT("The apron is the generated campus paving"));
     }
+    for (const auto& Piece : Terrain)
+    {
+        const auto* Actor = Meshes.FindRef(Piece.Id);
+        if (!Check(Actor != nullptr, TEXT("Terrain piece exists: ") + Piece.Id)) { continue; }
+        const auto* Component = Actor->GetStaticMeshComponent();
+        const UStaticMesh* Mesh = Component->GetStaticMesh().Get();
+        const auto* Body = Mesh ? Mesh->GetBodySetup() : nullptr;
+        Check(Actor->GetActorTransform().Equals(FTransform::Identity, UE_KINDA_SMALL_NUMBER) && Actor->Tags.Contains(LDDemoWorld::TerrainTag)
+            && CollisionChannelsMatch(*Component, true, false),
+            TEXT("Terrain piece is a registered floor that leaves sight to the level rule: ") + Piece.Id);
+        const UMaterialInterface* Hill = Component->GetMaterial(0);
+        Check(Hill && Hill->GetPathName() == ObjectPath(HillMaterialPath), TEXT("Terrain piece uses the generated hill surface: ") + Piece.Id);
+        if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Piece.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Piece.Id))
+            && Body && Body->CollisionTraceFlag == CTF_UseSimpleAsComplex && Body->AggGeom.ConvexElems.Num() == 1,
+            TEXT("Terrain piece uses its exact convex mesh: ") + Piece.Id)) { continue; }
+        Check(ConvexShapeMatches(*Body, ConvexPoints(Piece.Prism)),
+            TEXT("Saved terrain collision vertices equal the authored prism: ") + Piece.Id);
+    }
     for (const auto& Blocker : Geometry->Blockers)
     {
         const auto* Actor = Meshes.FindRef(Blocker.Id);
@@ -861,8 +1042,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
             TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
         const UMaterialInterface* Wall = Component->GetMaterial(0);
-        const TCHAR* Expected = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder ? TreeMaterialPath : WallMaterialPath;
-        Check(Wall && Wall->GetPathName() == ObjectPath(Expected), TEXT("Blocker uses its generated wall or tree surface: ") + Blocker.Id);
+        const TCHAR* Expected = BlockerMaterialPath(*Geometry, Blocker);
+        Check(Wall && Wall->GetPathName() == ObjectPath(Expected), TEXT("Blocker uses its generated wall, fence or tree surface: ") + Blocker.Id);
         TArray<FVector> Vertices;
         if (!BlockerVertices(Blocker, Vertices, Error)) { return false; }
         if (!Check(Mesh && Mesh->GetPathName() == MeshPath(Blocker.Id) + TEXT(".") + FPackageName::GetShortName(MeshPath(Blocker.Id))
@@ -955,6 +1136,59 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && Failure == ELDWorldQueryFailure::NotGrounded, TEXT("Off-ground point is not projected onto a distant floor"));
         Check(!Registry->QueryGround(Revision, FVector(0, -1900, 0), Capsule, TEXT("demo_ground"), Result, Failure, Why)
             && Failure == ELDWorldQueryFailure::Blocked, TEXT("A source wall blocks the actual capsule"));
+        // #97: every ramp carries the capsule from the foot of its low edge, over its slope, onto the plateau above. The
+        // ends stand a metre clear of the ramp so Recast's simplified seam polygons at its edges do not move them.
+        const LDDemoWorld::FTerrain& Ground = Registry->GetTerrain();
+        const auto Foot = [&](const FVector2D& Point)
+        {
+            double Z = 0;
+            FVector Normal;
+            Ground.Ground(Point, Z, Normal);
+            return FVector(Point.X, Point.Y, Z);
+        };
+        for (const auto& Ramp : Geometry->Ramps)
+        {
+            FVector Corner[4];
+            for (int32 I = 0; I < 4; ++I) { if (!Ramp.PolygonCm[I].ToVector(Corner[I], Error)) { return false; } }
+            const FVector2D Low = FVector2D(Corner[0] + Corner[1]) * .5, High = FVector2D(Corner[2] + Corner[3]) * .5;
+            const FVector2D Up = (High - Low).GetSafeNormal() * (Capsule.GetCapsuleRadius() + 100);
+            FLDLegalGround Bottom, Middle, Top;
+            const bool Ends = GroundAt(Foot(Low - Up), Ramp.Id + TEXT(" foot"), Bottom)
+                & GroundAt(Foot((Low + High) * .5), Ramp.Id + TEXT(" slope"), Middle)
+                & GroundAt(Foot(High + Up), Ramp.Id + TEXT(" top"), Top);
+            FLDCompletePath Path;
+            Why.Reset();
+            const bool Climbs = Ends && Registry->QueryCompletePath(Revision, Bottom, Top, Capsule, Path, Failure, Why);
+            Check(Climbs, TEXT("Complete native route over ramp: ") + Ramp.Id + TEXT(" ") + Why);
+            ++PathChecks;
+        }
+    }
+    // Every plateau edge outside a ramp is a cliff: its face stops the capsule lifted past the step height.
+    const double Step = GetDefault<ALDCharacter>()->GetCharacterMovement()->MaxStepHeight;
+    LDDemoWorld::FTerrain Levels;
+    if (!Levels.Build(*Geometry, Error)) { return false; }
+    for (const auto& Plateau : Geometry->Plateaus)
+    {
+        const auto* Actor = Meshes.FindRef(Plateau.Id);
+        if (!Actor) { continue; }
+        for (int32 I = 0; I < Plateau.PolygonCm.Num(); ++I)
+        {
+            FVector A, B;
+            if (!Plateau.PolygonCm[I].ToVector(A, Error) || !Plateau.PolygonCm[(I + 1) % Plateau.PolygonCm.Num()].ToVector(B, Error)) { return false; }
+            const FVector2D Mid = FVector2D(A + B) * .5, Out = FVector2D(B.Y - A.Y, A.X - B.X).GetSafeNormal() * (Capsule.GetCapsuleRadius() + 20);
+            const FVector2D Outside = Mid + Out;
+            const int32 Below = Levels.Tier(Outside);
+            if (Below % 2 == 1 || Below >= 2 * Plateau.Level || Outside.X <= Min.X || Outside.X >= Max.X
+                || Outside.Y <= Min.Y || Outside.Y >= Max.Y) { continue; }
+            double Z = 0;
+            FVector Normal;
+            Levels.Ground(Outside, Z, Normal);
+            const double Lift = Z + Step + 1 + Capsule.GetCapsuleHalfHeight();
+            FHitResult Hit;
+            Check(Actor->GetStaticMeshComponent()->SweepComponent(Hit, FVector(Outside.X, Outside.Y, Lift),
+                FVector(Mid.X - Out.X, Mid.Y - Out.Y, Lift), FQuat::Identity, Capsule),
+                FString::Printf(TEXT("Cliff stops the capsule above step height: %s edge %d"), *Plateau.Id, I));
+        }
     }
     const double Eye = double(Geometry->SightSampleHeightCm.Numerator) / double(Geometry->SightSampleHeightCm.Denominator);
     Check(!World.LineTraceTestByChannel(FVector(0, 1500, Eye), FVector(0, 2600, Eye), ECC_GameTraceChannel2),
@@ -985,6 +1219,25 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         Check(World.SweepTestByChannel(Centre - Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()),
             Centre + Across + FVector(0, 0, Capsule.GetCapsuleHalfHeight()), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
             TEXT("Tree trunk blocks native capsule movement: ") + Blocker.Id);
+    }
+    // Every fence stops the capsule crossing its thin axis while the eye-height sight trace passes over it.
+    for (const auto& Blocker : Geometry->Blockers)
+    {
+        if (BlockerMaterialPath(*Geometry, Blocker) != FenceMaterialPath) { continue; }
+        TArray<FVector2D> Footprint;
+        if (!LDDemoWorld::Footprint(Blocker, Footprint, Error)) { return false; }
+        FBox2D Box(Footprint);
+        const FVector2D Size = Box.GetSize(), Centre2 = Box.GetCenter();
+        const FVector2D Across = (Size.X < Size.Y ? FVector2D(Size.X * .5, 0) : FVector2D(0, Size.Y * .5))
+            + (Size.X < Size.Y ? FVector2D(1, 0) : FVector2D(0, 1)) * (Capsule.GetCapsuleRadius() + 10);
+        const FVector Centre(Centre2.X, Centre2.Y, Blocker.PolygonCm[0].Z.Denominator > 0
+            ? double(Blocker.PolygonCm[0].Z.Numerator) / double(Blocker.PolygonCm[0].Z.Denominator) : 0);
+        const FVector Side(Across.X, Across.Y, 0);
+        Check(!World.LineTraceTestByChannel(Centre - Side + FVector(0, 0, Eye), Centre + Side + FVector(0, 0, Eye), ECC_GameTraceChannel2),
+            TEXT("A fence does not block sight: ") + Blocker.Id);
+        Check(World.SweepTestByChannel(Centre - Side + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + 1),
+            Centre + Side + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + 1), FQuat::Identity, ECC_Pawn, Capsule, Sweep),
+            TEXT("A fence blocks native capsule movement: ") + Blocker.Id);
     }
     Report->SetStringField(TEXT("scope"), TEXT("Approved static geometry, saved convex collision, navigation and ground bindings. Not gameplay, owned-network, camp/AI or balance acceptance."));
     Report->SetBoolField(TEXT("passed"), Good);

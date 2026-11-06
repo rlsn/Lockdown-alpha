@@ -693,27 +693,45 @@ class ApprovedDemoData(unittest.TestCase):
             "wall_e": ((5000, -5300), (5300, -5300), (5300, 5300), (5000, 5300)),
             "wall_w": ((-5300, -5300), (-5000, -5300), (-5000, 5300), (-5300, 5300)),
             "shop_stall": ((718, 718), (838, 718), (838, 838), (718, 838)),
+            "fence_sw_1": ((-3900, -4500), (-2700, -4500), (-2700, -4480), (-3900, -4480)),
         }
         self.assertEqual(set(self.geometry.polygons), set(polygons))
         for identity, xy in polygons.items():
             self.assertEqual(self.geometry.polygons[identity], tuple((*p, 0) for p in xy))
             row = self.geometry.rows[identity]
             # #97: inner walls are about a body tall; the boundary keeps its height.
-            height = 80 if identity == "shop_stall" else 200 if identity.startswith("midwall_") else 600
+            # A fence stops bodies but stays under the sight sample, so it blocks no vision.
+            height = {"shop_stall": 80, "fence_sw_1": 100}.get(identity, 200 if identity.startswith("midwall_") else 600)
             self.assertEqual(content._wire_fraction(row["height_cm"], identity), height)
             self.assertTrue(row["blocks_movement"])
-            self.assertEqual(row["blocks_sight"], identity != "shop_stall")
+            self.assertEqual(row["blocks_sight"], identity not in ("shop_stall", "fence_sw_1"))
             self.assertEqual(row["shape"], "polygon")
             self.assertNotIn("min_cm", row)
-        # #97 testbed trees: upright cylinders that block movement and sight.
-        trees = {"tree_sw_1": (-3300, -3300), "tree_sw_2": (-2800, -3650), "tree_sw_3": (-3450, -3950),
-                 "tree_sw_4": (-2350, -3250)}
-        self.assertEqual(self.geometry.circles, {identity: ((*xy, 0), 50) for identity, xy in trees.items()})
+        # #97 testbed trees: upright cylinders that block movement and sight; tree_ne_1 stands on level 1.
+        trees = {"tree_sw_1": (-3300, -3300, 0), "tree_sw_2": (-2800, -3650, 0), "tree_sw_3": (-3450, -3950, 0),
+                 "tree_sw_4": (-2350, -3250, 0), "tree_ne_1": (3200, 3700, 150)}
+        self.assertEqual(self.geometry.circles, {identity: (xyz, 50) for identity, xyz in trees.items()})
         for identity in trees:
             row = self.geometry.rows[identity]
             self.assertEqual((row["shape"], content._wire_fraction(row["height_cm"], identity), row["blocks_movement"],
                               row["blocks_sight"]), ("cylinder", 200, True, True))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
+
+    def test_elevation_testbed_levels_ramps_and_tiered_sight(self):
+        elevation = self.world.world["geometry"]["elevation"]
+        self.assertEqual(content._wire_fraction(elevation["level_step_cm"], "step"), 150)
+        self.assertEqual({row["id"]: (row["level"], tuple(world.point(p, row["id"]) for p in row["polygon_cm"]))
+                          for row in elevation["plateaus"]}, {
+            "hill_ne_1": (1, ((2900, 3300, 150), (4500, 3300, 150), (4500, 4500, 150), (2900, 4500, 150))),
+            "hill_ne_2": (2, ((3500, 3900, 300), (4300, 3900, 300), (4300, 4400, 300), (3500, 4400, 300)))})
+        self.assertEqual({row["id"]: row["lower_level"] for row in elevation["ramps"]}, {"ramp_ne_0": 0, "ramp_ne_1": 1})
+        terrain = self.geometry.terrain
+        ground, ramp, low, high = (3650, 2900, 0), (3650, 3150, 0), (3650, 3500, 0), (3900, 4100, 0)
+        self.assertEqual([terrain.tier(p) for p in (ground, ramp, low, high)], [0, 1, 2, 4])
+        clear = self.geometry.sight_clear
+        self.assertEqual((clear(ground, low), clear(low, ground)), (False, True))
+        self.assertEqual((clear(ground, ramp), clear(ramp, ground), clear(ramp, low), clear(low, ramp)), (False, True, False, True))
+        self.assertEqual((clear(low, high), clear(high, low)), (False, True))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 500)
 
     def test_exact_placement_and_parameter_references(self):
@@ -753,8 +771,8 @@ class ApprovedDemoData(unittest.TestCase):
         budget = amount(self.data["parameters"]["TIMING.DefendRouteBudgetSec"])
         self.assertEqual((speed, budget), (400, 26))
         # The whole-ground check is a 500 cm grid of legal positions, every one within the budget.
-        self.assertEqual(self.world.report["sampled_route_points"], 380)
-        self.assertAlmostEqual(self.world.report["sampled_route_max_cm"], 6595.634, delta=.00051)
+        self.assertEqual(self.world.report["sampled_route_points"], 377)
+        self.assertAlmostEqual(self.world.report["sampled_route_max_cm"], 6856.026, delta=.00051)
         self.assertLess(self.world.report["sampled_route_max_cm"], speed * budget)
         candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
         self.assertEqual(len(candidates), 70)

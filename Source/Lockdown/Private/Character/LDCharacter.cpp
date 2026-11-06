@@ -35,6 +35,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     Movement->BrakingDecelerationWalking = 8000;
     Movement->MaxStepHeight = 35;
     Movement->SetWalkableFloorAngle(40);
+    // #97: cliffs are not traversable in either direction; a body stops at a ledge instead of falling off it.
+    Movement->bCanWalkOffLedges = false;
     Movement->bOrientRotationToMovement = false;
     Movement->bRunPhysicsWithNoController = true;
     Movement->NavAgentProps.bCanJump = false;

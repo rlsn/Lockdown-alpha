@@ -5,6 +5,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "World/LDWorldQueryTypes.h"
 #include "Vision/LDViewTypes.h"
+#include "Region/LDMapGeometry.h"
 #include "LDVisionDirector.generated.h"
 class ALDPlayerController;
 class ALDWorldViewRelay;
@@ -78,7 +79,10 @@ struct FLDObservedTarget
 };
 
 // Static line of sight over the approved world geometry. The importer guarantees every sight blocker is a
-// strictly convex ground polygon or an upright cylinder, taller than the sight sample height.
+// strictly convex polygon or an upright cylinder standing on one flat level, taller than the sight sample height.
+// #97 tiers (LDDemoWorld::FTerrain): nothing on a higher tier than the observer is seen, terrain of a higher tier
+// between them hides, and an obstacle hides only from observers at or below its level (a ramp counts as its lower
+// level), so high ground sees low ground over its walls and trees.
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
@@ -98,13 +102,16 @@ private:
     {
         FVector2D Centre = FVector2D::ZeroVector;
         double Radius = 0;
+        int32 Level = 0;
     };
     FLDWorldRevision World;
     FVector2D Min = FVector2D::ZeroVector;
     FVector2D Max = FVector2D::ZeroVector;
     double RadiusCm = 0;
     TArray<TArray<FVector2D>> Blockers;
+    TArray<int32> BlockerLevels;
     TArray<FCircle> Circles;
+    LDDemoWorld::FTerrain Terrain;
 };
 
 namespace LDObservation

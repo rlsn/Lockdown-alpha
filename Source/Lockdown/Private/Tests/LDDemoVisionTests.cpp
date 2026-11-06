@@ -177,6 +177,7 @@ FLDDemoWorldGeometry TestGeometry()
     Surface.MaxCm = Ground(5000, 5000);
     Geometry.Surfaces.Add(Surface);
     Geometry.SightSampleHeightCm = Whole(120);
+    Geometry.LevelStepCm = Whole(150);
     FLDDemoWorldBlocker Wall;
     Wall.Id = TEXT("wall");
     Wall.SurfaceId = Surface.Id;
@@ -905,6 +906,83 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     Layers.Surfaces.Add(SecondLayer);
     TestFalse(TEXT("Observation is single-layer only"), FLDSightGeometry().Build(Layers, World, Whole(1400), Error));
     TestFalse(TEXT("A radius is required"), FLDSightGeometry().Build(TestGeometry(), World, Whole(0), Error));
+    return true;
+}
+
+// #97 tiers: a level-1 plateau east of the wall with a level-2 plateau on it, a ramp from the ground onto its west edge
+// and a tree standing on level 1.
+FLDDemoWorldGeometry TieredGeometry()
+{
+    const auto At = [](int64 X, int64 Y, int64 Z) { FLDDemoWorldPoint Point = Ground(X, Y); Point.Z = Whole(Z); return Point; };
+    FLDDemoWorldGeometry Geometry = TestGeometry();
+    FLDDemoWorldPlateau Low;
+    Low.Id = TEXT("hill_1");
+    Low.Level = 1;
+    Low.PolygonCm = {At(2000, -500, 150), At(3000, -500, 150), At(3000, 500, 150), At(2000, 500, 150)};
+    FLDDemoWorldPlateau High;
+    High.Id = TEXT("hill_2");
+    High.Level = 2;
+    High.PolygonCm = {At(2400, -200, 300), At(2800, -200, 300), At(2800, 200, 300), At(2400, 200, 300)};
+    Geometry.Plateaus = {Low, High};
+    FLDDemoWorldRamp Ramp;
+    Ramp.Id = TEXT("ramp_0");
+    Ramp.LowerLevel = 0;
+    Ramp.PolygonCm = {At(1700, 100, 0), At(1700, -100, 0), At(2000, -100, 150), At(2000, 100, 150)};
+    Geometry.Ramps = {Ramp};
+    FLDDemoWorldBlocker Tree;
+    Tree.Id = TEXT("tree_1");
+    Tree.SurfaceId = Geometry.Surfaces[0].Id;
+    Tree.Shape = ELDDemoWorldBlockerShape::Cylinder;
+    Tree.CenterCm = At(2200, 300, 150);
+    Tree.RadiusCm = Whole(50);
+    Tree.HeightCm = Whole(200);
+    Tree.BlocksMovement = true;
+    Tree.BlocksSight = true;
+    Geometry.Blockers.Add(Tree);
+    return Geometry;
+}
+
+// #97: high ground sees low ground, never the reverse; a ramp sees its lower level and itself; obstacles hide only
+// from observers at or below their level.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionTieredSightTest, "Lockdown.Rules.DemoVision.TieredSight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
+{
+    FLDSightGeometry Sight, Wide;
+    FString Error;
+    if (!TestTrue(TEXT("Tiered geometry builds"), Sight.Build(TieredGeometry(), DemoRevision(), Whole(1400), Error))
+        || !TestTrue(TEXT("Wide tiered geometry builds"), Wide.Build(TieredGeometry(), DemoRevision(), Whole(3000), Error))) { return false; }
+    const FVector GroundEye(1000, 0, 0), RampEye(1850, 0, 75), LowEye(2100, 0, 150), HighEye(2600, 0, 300);
+    TestTrue(TEXT("Low ground does not see high ground"), Sight.Trace(GroundEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("High ground sees low ground"), Sight.Trace(LowEye, GroundEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("A ramp sees the low ground"), Sight.Trace(RampEye, GroundEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Low ground does not see onto a ramp"), Sight.Trace(GroundEye, RampEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A ramp does not see the plateau it climbs to"), Sight.Trace(RampEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("The plateau sees down its ramp"), Sight.Trace(LowEye, RampEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Level 1 does not see level 2, level 2 sees level 1"),
+        Sight.Trace(LowEye, HighEye) == ELDSightResult::Blocked && Sight.Trace(HighEye, LowEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Level 2 sees the ground over level 1"), Sight.Trace(HighEye, FVector(1500, 0, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A plateau between two ground points hides them from each other"),
+        Wide.Trace(FVector(1500, 0, 0), FVector(3500, 0, 0)) == ELDSightResult::Blocked
+        && Wide.Trace(FVector(1500, 700, 0), FVector(3500, 700, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A ground wall hides the ground behind it from the ground, not from level 1"),
+        Wide.Trace(GroundEye, FVector(-300, 0, 0)) == ELDSightResult::Blocked
+        && Wide.Trace(LowEye, FVector(-300, 0, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A level-1 tree hides level 1 from level 1, not from level 2"),
+        Sight.Trace(FVector(2050, 300, 150), FVector(2350, 300, 150)) == ELDSightResult::Blocked
+        && Sight.Trace(FVector(2500, 150, 300), FVector(2100, 380, 150)) == ELDSightResult::Visible);
+    TArray<uint8> GroundBits, LowBits;
+    Sight.Coverage(GroundEye, GroundBits);
+    Sight.Coverage(LowEye, LowBits);
+    const int32 Side = LDObservation::CoverageSide;
+    auto CellOf = [Side](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    TestTrue(TEXT("Ground coverage lights the ground and leaves the plateau dark"),
+        LDObservation::CoverageBit(GroundBits, CellOf(1500, 300)) && !LDObservation::CoverageBit(GroundBits, CellOf(2200, -300)));
+    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CellOf(1300, 300)));
+    FLDDemoWorldGeometry Floating = TieredGeometry();
+    Floating.Blockers.Last().CenterCm.Z = Whole(75);
+    TestFalse(TEXT("A sight blocker off every flat level is rejected"), FLDSightGeometry().Build(Floating, DemoRevision(), Whole(1400), Error));
     return true;
 }
 

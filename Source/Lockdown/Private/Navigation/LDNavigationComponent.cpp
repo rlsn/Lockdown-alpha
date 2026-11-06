@@ -208,7 +208,8 @@ bool ULDNavigationComponent::QueryBodyGround(FLDLegalGround& Out, FCollisionShap
     }
     // The body's support comes from its native floor mapped to the registry, never from an order hint.
     if (!Registry->QueryGround(Registry->Revision(),Body->GetNavAgentLocation(),Capsule,Surface,Out,Failure,Error)) { return false; }
-    if (Out.Floor.Get()!=Movement->CurrentFloor.HitResult.GetComponent())
+    // Ground, ramp and plateau pieces meet at seams where the foot's trace and the capsule's floor can name neighbours.
+    if (!Registry->IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent()))
     {
         Failure=ELDWorldQueryFailure::WrongSurface;
         Error=TEXT("WrongSurface: the body's native floor is not the registered surface.");

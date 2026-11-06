@@ -2,8 +2,8 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 2,
-  "geometry_revision": 2,
+  "layout_revision": 3,
+  "geometry_revision": 3,
   "approval": {
     "status": "approved",
     "decision": "User approvals: 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, build expansion entries and rules (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05: #112 build and spray-guard endgame rework and values (D33; CONTENT_AND_BALANCE 15.2, 15.6, 15.10-15.11); #79 Boss windup and patrol. A playtest baseline, not a balance check."
@@ -13,6 +13,17 @@
     "surfaces": [
       {"id": "demo_ground", "min_cm": {"x": -5000, "y": -5000, "z": 0}, "max_cm": {"x": 5000, "y": 5000, "z": 0}}
     ],
+    "elevation": {
+      "level_step_cm": 150,
+      "plateaus": [
+        {"id": "hill_ne_1", "level": 1, "polygon_cm": [{"x": 2900, "y": 3300, "z": 150}, {"x": 4500, "y": 3300, "z": 150}, {"x": 4500, "y": 4500, "z": 150}, {"x": 2900, "y": 4500, "z": 150}]},
+        {"id": "hill_ne_2", "level": 2, "polygon_cm": [{"x": 3500, "y": 3900, "z": 300}, {"x": 4300, "y": 3900, "z": 300}, {"x": 4300, "y": 4400, "z": 300}, {"x": 3500, "y": 4400, "z": 300}]}
+      ],
+      "ramps": [
+        {"id": "ramp_ne_0", "lower_level": 0, "polygon_cm": [{"x": 3500, "y": 3000, "z": 0}, {"x": 3800, "y": 3000, "z": 0}, {"x": 3800, "y": 3300, "z": 150}, {"x": 3500, "y": 3300, "z": 150}]},
+        {"id": "ramp_ne_1", "lower_level": 1, "polygon_cm": [{"x": 3200, "y": 4300, "z": 150}, {"x": 3200, "y": 4000, "z": 150}, {"x": 3500, "y": 4000, "z": 300}, {"x": 3500, "y": 4300, "z": 300}]}
+      ]
+    },
     "blockers": [
       {
         "id": "midwall_054", "shape": "polygon", "surface_id": "demo_ground",
@@ -82,6 +93,16 @@
       {
         "id": "tree_sw_4", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -2350, "y": -3250, "z": 0}, "radius_cm": 50,
+        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
+      },
+      {
+        "id": "fence_sw_1", "shape": "polygon", "surface_id": "demo_ground",
+        "polygon_cm": [{"x": -3900, "y": -4500, "z": 0}, {"x": -2700, "y": -4500, "z": 0}, {"x": -2700, "y": -4480, "z": 0}, {"x": -3900, "y": -4480, "z": 0}],
+        "height_cm": 100, "blocks_movement": true, "blocks_sight": false
+      },
+      {
+        "id": "tree_ne_1", "shape": "cylinder", "surface_id": "demo_ground",
+        "center_cm": {"x": 3200, "y": 3700, "z": 150}, "radius_cm": 50,
         "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       }
     ],

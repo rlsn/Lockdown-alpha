@@ -167,6 +167,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoVision.Termination",
         "Lockdown.Rules.DemoVision.Sight",
         "Lockdown.Rules.DemoVision.TreeSight",
+        "Lockdown.Rules.DemoVision.TieredSight",
         "Lockdown.Rules.DemoVision.ActionCues",
         "Lockdown.Rules.DemoVision.Projectiles",
         "Lockdown.Rules.DemoVision.Presentation",

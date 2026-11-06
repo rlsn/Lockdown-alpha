@@ -20,13 +20,39 @@
     },
     "geometry": {
       "type": "object", "additionalProperties": false,
-      "required": ["surfaces", "blockers", "sight_sample_height_cm", "camp_clearance_cm"],
+      "required": ["surfaces", "elevation", "blockers", "sight_sample_height_cm", "camp_clearance_cm"],
       "properties": {
         "surfaces": {
           "type": "array", "minItems": 1, "maxItems": 1,
           "items": {
             "type": "object", "additionalProperties": false, "required": ["id", "min_cm", "max_cm"],
             "properties": {"id": {"$ref": "#/$defs/id"}, "min_cm": {"$ref": "#/$defs/vector"}, "max_cm": {"$ref": "#/$defs/vector"}}
+          }
+        },
+        "elevation": {
+          "type": "object", "additionalProperties": false, "required": ["level_step_cm", "plateaus", "ramps"],
+          "properties": {
+            "level_step_cm": {"$ref": "#/$defs/positive_cm"},
+            "plateaus": {
+              "type": "array", "minItems": 0, "maxItems": 64,
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["id", "level", "polygon_cm"],
+                "properties": {
+                  "id": {"$ref": "#/$defs/id"}, "level": {"type": "integer", "minimum": 1, "maximum": 2},
+                  "polygon_cm": {"type": "array", "minItems": 3, "maxItems": 16, "items": {"$ref": "#/$defs/vector"}}
+                }
+              }
+            },
+            "ramps": {
+              "type": "array", "minItems": 0, "maxItems": 64,
+              "items": {
+                "type": "object", "additionalProperties": false, "required": ["id", "lower_level", "polygon_cm"],
+                "properties": {
+                  "id": {"$ref": "#/$defs/id"}, "lower_level": {"type": "integer", "minimum": 0, "maximum": 1},
+                  "polygon_cm": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"$ref": "#/$defs/vector"}}
+                }
+              }
+            }
           }
         },
         "blockers": {"type": "array", "minItems": 4, "maxItems": 256, "items": {"$ref": "#/$defs/blocker"}},

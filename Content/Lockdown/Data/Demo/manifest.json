@@ -15,9 +15,9 @@
     "contract": {
       "projection_revision": 3,
       "schema_version": 3,
-      "sha256": "78d8a3a46a785dbed807bd6a2ae6e4d164905c1377e094903d187a6d9a2de402"
+      "sha256": "ca407c1f2eb5fab3b2d6b478234dafda9f4447097d1bfc669469cac3f831281e"
     },
     "file": "world.json",
-    "sha256": "1d67537f200935a4395dcd938b3c0026ad971b651b290e7f78a9d17fbd11b208"
+    "sha256": "418028f50aafb6c8c4a423f4ff1bb1c13047b6bcbc6a51ebe3b38483ba1e4e94"
   }
 }

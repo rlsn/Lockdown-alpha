@@ -65,6 +65,11 @@ def expected_world_projection(compilation):
         "ApprovalDecision": world["approval"]["decision"],
         "Surfaces": [{"Id": row["id"], "MinCm": point(row["min_cm"]), "MaxCm": point(row["max_cm"])}
                      for row in world["geometry"]["surfaces"]],
+        "LevelStepCm": rational(world["geometry"]["elevation"]["level_step_cm"]),
+        "Plateaus": [{"Id": row["id"], "Level": row["level"], "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]]}
+                     for row in world["geometry"]["elevation"]["plateaus"]],
+        "Ramps": [{"Id": row["id"], "LowerLevel": row["lower_level"], "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]]}
+                  for row in world["geometry"]["elevation"]["ramps"]],
         "Blockers": [{
             "Id": row["id"], "SurfaceId": row["surface_id"], "Shape": ("polygon", "cylinder").index(row["shape"]),
             "PolygonCm": [point(vertex) for vertex in row.get("polygon_cm", [])],
@@ -754,6 +759,15 @@ def _export_cases(output, index, base, rank_mutations, valid):
     def tree(world):
         return next(row for row in world["geometry"]["blockers"] if row["shape"] == "cylinder")
 
+    def ramp(world, index=0):
+        return world["geometry"]["elevation"]["ramps"][index]
+
+    def plateau(world, index=0):
+        return world["geometry"]["elevation"]["plateaus"][index]
+
+    def shift(vertex, axis, amount):
+        vertex[axis].update({"numerator": vertex[axis]["numerator"] + amount})
+
     for name, mutate, error in (
         ("world_missing_anchor", lambda w: w["anchors"].pop(), "array length"),
         ("world_wrong_surface", lambda w: w["anchors"][0].update({"surface_id": "missing_surface"}), "unknown surface"),
@@ -775,6 +789,15 @@ def _export_cases(output, index, base, rank_mutations, valid):
         ("world_tree_polygon_field", lambda w: tree(w).update({"polygon_cm": []}), "unknown field"),
         ("world_tree_off_ground", lambda w: tree(w)["center_cm"]["z"].update({"numerator": 1}), "cylinder must stand"),
         ("world_tree_outside", lambda w: tree(w)["center_cm"]["x"].update({"numerator": -4980}), "cylinder must stand"),
+        ("world_plateau_height", lambda w: shift(plateau(w)["polygon_cm"][0], "z", 1), "plateau vertex"),
+        ("world_plateau_level", lambda w: plateau(w).update({"level": 3}), "integer outside"),
+        ("world_ramp_height", lambda w: shift(ramp(w)["polygon_cm"][2], "z", -1), "ramp low edge"),
+        ("world_ramp_steep", lambda w: [shift(ramp(w)["polygon_cm"][i], "y", 200) for i in (0, 1)], "steeper"),
+        ("world_ramp_skewed", lambda w: shift(ramp(w)["polygon_cm"][3], "y", 50), "parallel"),
+        ("world_ramp_detached", lambda w: [shift(vertex, "x", -1000) for vertex in ramp(w)["polygon_cm"]], "one level up"),
+        ("world_upper_ramp_detached", lambda w: [shift(vertex, "y", -1000) for vertex in ramp(w, 1)["polygon_cm"]], "one level up"),
+        ("world_tree_on_cliff", lambda w: tree(w)["center_cm"].update({"x": {"numerator": 2900, "denominator": 1},
+                                                                      "y": {"numerator": 3700, "denominator": 1}}), "one flat level"),
         ("world_inner_wall_outside", lambda w: [v["x"].update({"numerator": v["x"]["numerator"] + 10000}) for v in w["geometry"]["blockers"][0]["polygon_cm"]], "closing a ground edge"),
         ("world_duplicate_parameter", lambda w: w["parameter_refs"].__setitem__(1, w["parameter_refs"][0]), "parameter reference"),
         ("world_source_identity", lambda w: w.update({"source_sha256": "0" * 64}), "file bytes"),

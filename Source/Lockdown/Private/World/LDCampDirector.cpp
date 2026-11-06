@@ -193,7 +193,7 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     FString GroundError;
     if (Registry->QueryGround(Registry->Revision(), Out.FootCm, Capsule, SurfaceId, Ground, Failure, GroundError))
     {
-        Out.bGrounded = Ground.Floor.Get() == Movement->CurrentFloor.HitResult.GetComponent();
+        Out.bGrounded = Registry->IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent());
         Out.SurfaceId = Out.bGrounded ? Ground.SurfaceId : NAME_None;
     }
     else if (IsCampWorldFault(Failure))

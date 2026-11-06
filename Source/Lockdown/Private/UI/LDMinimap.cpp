@@ -28,8 +28,9 @@
 // World shapes are resolved per world revision; their north-up layout per view scale, which turning never changes.
 struct FLDMinimapStatic
 {
-    // Wall blocks walking and sight, LowWall only walking, SightScreen only sight.
-    enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone };
+    // Wall blocks walking and sight, LowWall only walking, SightScreen only sight. #97: Level1/Level2 plateaus and the
+    // ramps between levels lie under every other area.
+    enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone, Level1, Level2, Ramp };
     enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
@@ -173,6 +174,16 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
+    auto Terrain=[&](const FString& Id,const TArray<FLDDemoWorldPoint>& Polygon,FLDMinimapStatic::EArea Style)
+    {
+        FLDMinimapStatic::FArea Area;Area.Style=Style;
+        for(const FLDDemoWorldPoint& Point:Polygon){FVector2D Cm;if(!ToCm(Id,Point,Cm)){return false;}Area.Cm.Add(Cm);}
+        if(Keep(Area)){Cache.Areas.Add(MoveTemp(Area));}
+        return true;
+    };
+    for(int32 Level=1;Level<=LDDemoWorld::MaxLevel;++Level){for(const FLDDemoWorldPlateau& Plateau:Geometry.Plateaus)
+    {if(Plateau.Level==Level&&!Terrain(Plateau.Id,Plateau.PolygonCm,Level==1?FLDMinimapStatic::EArea::Level1:FLDMinimapStatic::EArea::Level2)){return false;}}}
+    for(const FLDDemoWorldRamp& Ramp:Geometry.Ramps){if(!Terrain(Ramp.Id,Ramp.PolygonCm,FLDMinimapStatic::EArea::Ramp)){return false;}}
     for(const FLDDemoWorldBlocker& Blocker:Geometry.Blockers)
     {
         if(!Blocker.BlocksMovement&&!Blocker.BlocksSight){continue;}
@@ -247,6 +258,10 @@ void MinimapLayoutStatic(FLDMinimapStatic& Cache,const FVector2D& Origin,double 
         case FLDMinimapStatic::EArea::SightScreen:Fill=FLinearColor(.20f,.46f,.26f,.35f);Rim=FLinearColor(.52f,.90f,.56f);Thickness=1.5f;bDashed=true;break;
         case FLDMinimapStatic::EArea::CaptureZone:Fill=FLinearColor(1.f,.84f,.30f,.16f);Rim=FLinearColor(1.f,.84f,.34f,.95f);Thickness=1.5f;break;
         case FLDMinimapStatic::EArea::DormZone:Fill=FLinearColor(.25f,.62f,1.f,.18f);Rim=FLinearColor(.45f,.75f,1.f,.95f);Thickness=1.5f;break;
+        // High ground lightens by level over the vision footprint; a cliff rim is solid, a ramp's dashed.
+        case FLDMinimapStatic::EArea::Level1:Fill=FLinearColor(.62f,.74f,.52f,.16f);Rim=FLinearColor(.36f,.30f,.22f);Thickness=2.f;break;
+        case FLDMinimapStatic::EArea::Level2:Fill=FLinearColor(.70f,.82f,.58f,.24f);Rim=FLinearColor(.36f,.30f,.22f);Thickness=2.f;break;
+        case FLDMinimapStatic::EArea::Ramp:Fill=FLinearColor(.78f,.66f,.44f,.22f);Rim=FLinearColor(.78f,.66f,.44f,.8f);Thickness=1.f;bDashed=true;break;
         }
         TArray<FVector2f> Points;for(const FVector2D& Cm:Area.Cm){Points.Add(FVector2f(float((Cm.X-Origin.X)*Scale),float((Cm.Y-Origin.Y)*Scale)));}
         MinimapScanRuns(Points,[&Cache,&Fill](float X,float Y,float Width)

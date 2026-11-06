@@ -78,6 +78,7 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         }
     }
     TArray<FBox> Blockers;
+    TArray<FString> BlockerIds;
     for (const FLDDemoWorldBlocker& Blocker : World.Blockers)
     {
         TArray<FVector2D> Footprint;
@@ -85,7 +86,24 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         FBox Box(ForceInit);
         for (const FVector2D& Point : Footprint) { Box += FVector(Point.X, Point.Y, 0); }
         Blockers.Add(Box);
+        BlockerIds.Add(Blocker.Id);
     }
+    // #97: a wall-base decoration stands on the ground, never on a plateau or ramp.
+    const auto Raised = [&](const FString& Id, const TArray<FLDDemoWorldPoint>& Polygon)
+    {
+        FBox Box(ForceInit);
+        for (const FLDDemoWorldPoint& Point : Polygon)
+        {
+            FVector Cm;
+            if (!Point.ToVector(Cm, Error)) { return false; }
+            Box += FVector(Cm.X, Cm.Y, 0);
+        }
+        Blockers.Add(Box);
+        BlockerIds.Add(Id);
+        return true;
+    };
+    for (const FLDDemoWorldPlateau& Plateau : World.Plateaus) { if (!Raised(Plateau.Id, Plateau.PolygonCm)) { return false; } }
+    for (const FLDDemoWorldRamp& Ramp : World.Ramps) { if (!Raised(Ramp.Id, Ramp.PolygonCm)) { return false; } }
     TMap<FString, const FLDArtProp*> Props;
     for (const FLDArtProp& Prop : Catalog.Props) { Props.Add(Prop.Id, &Prop); }
     for (int32 Index = 0; Index < Catalog.Decorations.Num(); ++Index)
@@ -116,7 +134,7 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             }
             for (int32 Blocker = 0; Blocker < Blockers.Num(); ++Blocker)
             {
-                if (PlaceOverlap2D(Box, Blockers[Blocker])) { return PlaceFail(Error, Label + TEXT(" overlaps ") + World.Blockers[Blocker].Id); }
+                if (PlaceOverlap2D(Box, Blockers[Blocker])) { return PlaceFail(Error, Label + TEXT(" overlaps ") + BlockerIds[Blocker]); }
             }
             break;
         }

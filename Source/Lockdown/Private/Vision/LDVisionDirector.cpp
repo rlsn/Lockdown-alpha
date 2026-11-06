@@ -55,6 +55,31 @@ bool SightSegmentTouchesDisc(const FVector2D& A, const FVector2D& B, const FVect
     return FVector2D::DistSquared(A + Delta * T, Centre) <= Radius * Radius;
 }
 
+// The segment passes through the convex counterclockwise polygon's open interior.
+bool SightSegmentEnters(const FVector2D& A, const FVector2D& B, const TArray<FVector2D>& Polygon)
+{
+    double Lower = 0, Upper = 1;
+    for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+    {
+        const FVector2D Delta = Polygon[(Index + 1) % Polygon.Num()] - Polygon[Index];
+        const double Constant = FVector2D::CrossProduct(Delta, A - Polygon[Index]), Slope = FVector2D::CrossProduct(Delta, B - A);
+        if (Slope == 0)
+        {
+            if (Constant <= 0) { return false; }
+        }
+        else if (Slope > 0) { Lower = FMath::Max(Lower, -Constant / Slope); }
+        else { Upper = FMath::Min(Upper, -Constant / Slope); }
+    }
+    return Lower < Upper;
+}
+
+// The flat level a blocker stands on; the importer requires its base to lie at that level's height.
+bool SightBlockerLevel(double BaseZ, double Step, int32& Out)
+{
+    Out = Step > 0 ? FMath::RoundToInt32(BaseZ / Step) : -1;
+    return Out >= 0 && Out <= LDDemoWorld::MaxLevel && FMath::IsNearlyEqual(Out * Step, BaseZ, 1e-6);
+}
+
 bool SightInsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point)
 {
     for (int32 Index = 0; Index < Polygon.Num(); ++Index)
@@ -116,7 +141,10 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         Error = TEXT("Observation ground bounds are empty.");
         return false;
     }
+    LDDemoWorld::FTerrain PreparedTerrain;
+    if (!PreparedTerrain.Build(Geometry, Error)) { return false; }
     TArray<TArray<FVector2D>> Prepared;
+    TArray<int32> PreparedLevels;
     TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
@@ -142,6 +170,11 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
                 return false;
             }
             Circle.Centre = FVector2D(Centre.X, Centre.Y);
+            if (!SightBlockerLevel(Centre.Z, PreparedTerrain.StepCm, Circle.Level))
+            {
+                Error = FString::Printf(TEXT("Sight blocker %s does not stand on a flat level."), *Blocker.Id);
+                return false;
+            }
             PreparedCircles.Add(Circle);
             continue;
         }
@@ -151,12 +184,21 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
             return false;
         }
         TArray<FVector2D> Polygon;
+        double BaseZ = 0;
         for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
         {
             FVector Vertex;
             if (!Point.ToVector(Vertex, Error)) { return false; }
             Polygon.Add(FVector2D(Vertex.X, Vertex.Y));
+            BaseZ = Vertex.Z;
         }
+        int32 Level = 0;
+        if (!SightBlockerLevel(BaseZ, PreparedTerrain.StepCm, Level))
+        {
+            Error = FString::Printf(TEXT("Sight blocker %s does not stand on a flat level."), *Blocker.Id);
+            return false;
+        }
+        PreparedLevels.Add(Level);
         for (int32 Index = 0; Index < Polygon.Num(); ++Index)
         {
             if (SightOrientation(Polygon[Index], Polygon[(Index + 1) % Polygon.Num()], Polygon[(Index + 2) % Polygon.Num()]) <= 0)
@@ -172,7 +214,9 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Max = FVector2D(SurfaceMax.X, SurfaceMax.Y);
     RadiusCm = RadiusValue;
     Blockers = MoveTemp(Prepared);
+    BlockerLevels = MoveTemp(PreparedLevels);
     Circles = MoveTemp(PreparedCircles);
+    Terrain = MoveTemp(PreparedTerrain);
     Error.Reset();
     return true;
 }
@@ -185,8 +229,17 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
 
 bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To) const
 {
-    for (const TArray<FVector2D>& Polygon : Blockers)
+    const int32 Observer = Terrain.Tier(From);
+    if (Terrain.Tier(To) > Observer) { return true; }
+    for (const auto& Region : Terrain.Regions)
     {
+        if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
+    }
+    const int32 Level = Observer / 2;
+    for (int32 Blocker = 0; Blocker < Blockers.Num(); ++Blocker)
+    {
+        if (BlockerLevels[Blocker] < Level) { continue; }
+        const TArray<FVector2D>& Polygon = Blockers[Blocker];
         if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
         for (int32 Index = 0; Index < Polygon.Num(); ++Index)
         {
@@ -195,7 +248,7 @@ bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To
     }
     for (const FCircle& Circle : Circles)
     {
-        if (SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
+        if (Circle.Level >= Level && SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
     }
     return false;
 }

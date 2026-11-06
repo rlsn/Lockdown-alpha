@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "CollisionShape.h"
 #include "World/LDWorldQueryTypes.h"
+#include "Region/LDMapGeometry.h"
 #include "LDMapRegistry.generated.h"
 class ULDMapDefinition;
 class UPrimitiveComponent;
@@ -42,6 +43,10 @@ public:
     TSharedRef<FJsonObject> Report() const;
     const FLDWorldRevision& Revision() const { return WorldRevision; }
     const FLDDemoWorldGeometry* GetGeometry() const { return Geometry.Get(); }
+    // #97: plateaus, ramps and the ground they rise from; one registered surface made of several floor pieces.
+    const LDDemoWorld::FTerrain& GetTerrain() const { return Terrain; }
+    // Whether a native floor is one of the registered terrain pieces (ground, plateau or ramp).
+    bool IsTerrainFloor(const UPrimitiveComponent* Floor) const;
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
@@ -72,6 +77,8 @@ private:
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     FLDWorldRevision WorldRevision;
     TWeakObjectPtr<UPrimitiveComponent> GroundComponent;
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> TerrainFloors;
+    LDDemoWorld::FTerrain Terrain;
     TArray<FLDMapBinding> Bindings,ServiceBindings;
 };
 

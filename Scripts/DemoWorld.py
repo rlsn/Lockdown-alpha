@@ -32,6 +32,12 @@ ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWayp
 # movement/sight classification.
 BLOCKER_SHAPES = ("polygon", "cylinder")
 POLYGON_VERTICES = (3, 16)
+# #97 elevation: flat levels 0 (the ground) to MAX_LEVEL, level_step_cm apart. A plateau raises a convex footprint to its
+# level; a ramp joins a level to the next. Plateau edges no ramp meets are cliffs: they stop movement, and only the
+# higher side sees across them. A ramp is at most RAMP_SLOPE steep (rise / run), under the bodies' 40 degree floor.
+MAX_LEVEL = 2
+RAMP_SLOPE = Fraction(7, 10)
+ELEVATION_ROWS = 64
 ROOT_KEYS = {
     "schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision",
     "source_sha256", "author_schema_sha256", "approval", "geometry", "placement",
@@ -186,7 +192,19 @@ def validate_author_contract(author):
             "InvalidReference", path + ".parameter_refs", "unsupported central parameter references")
 
     geometry = author["geometry"]
-    _author_fields(geometry, ("surfaces", "blockers", "sight_sample_height_cm", "camp_clearance_cm"), path + ".geometry")
+    _author_fields(geometry, ("surfaces", "elevation", "blockers", "sight_sample_height_cm", "camp_clearance_cm"),
+                   path + ".geometry")
+    elevation = geometry["elevation"]
+    _author_fields(elevation, ("level_step_cm", "plateaus", "ramps"), path + ".geometry.elevation")
+    integer(elevation["level_step_cm"], path + ".geometry.elevation.level_step_cm", 1)
+    for kind, level_key, count in (("plateaus", "level", (3, 16)), ("ramps", "lower_level", (4, 4))):
+        for index, row in _author_rows(elevation[kind], f"{path}.geometry.elevation.{kind}", 0, ELEVATION_ROWS):
+            at = f"{path}.geometry.elevation.{kind}[{index}]"
+            _author_fields(row, ("id", level_key, "polygon_cm"), at)
+            identifier(row["id"], at + ".id")
+            integer(row[level_key], f"{at}.{level_key}", 0, MAX_LEVEL)
+            for vertex, value in _author_rows(row["polygon_cm"], at + ".polygon_cm", *count):
+                _author_vector(value, f"{at}.polygon_cm[{vertex}]")
     for field in ("sight_sample_height_cm", "camp_clearance_cm"):
         integer(geometry[field], f"{path}.geometry.{field}", 1)
     for index, surface in _author_rows(geometry["surfaces"], path + ".geometry.surfaces", 1):
@@ -247,6 +265,15 @@ def project_author(author, source_raw, schema_raw):
     world["geometry"] = {
         "surfaces": [{"id": row["id"], "min_cm": vector(row["min_cm"]), "max_cm": vector(row["max_cm"])}
                      for row in geometry["surfaces"]],
+        "elevation": {
+            "level_step_cm": pair(geometry["elevation"]["level_step_cm"]),
+            "plateaus": sorted(({"id": row["id"], "level": row["level"],
+                                 "polygon_cm": [vector(vertex) for vertex in row["polygon_cm"]]}
+                                for row in geometry["elevation"]["plateaus"]), key=lambda row: row["id"]),
+            "ramps": sorted(({"id": row["id"], "lower_level": row["lower_level"],
+                              "polygon_cm": [vector(vertex) for vertex in row["polygon_cm"]]}
+                             for row in geometry["elevation"]["ramps"]), key=lambda row: row["id"]),
+        },
         "blockers": [_project_blocker(row) for row in geometry["blockers"]],
         "sight_sample_height_cm": pair(geometry["sight_sample_height_cm"]),
         "camp_clearance_cm": pair(geometry["camp_clearance_cm"]),
@@ -295,7 +322,7 @@ def validate_payload(raw):
     require(type(world["parameter_refs"]) is list and tuple(world["parameter_refs"]) == PARAMETER_REFS,
             "InvalidReference", "world.parameter_refs", "expected exactly the ordinal-sorted central parameter references")
     geometry = world["geometry"]
-    keys(geometry, {"surfaces", "blockers", "sight_sample_height_cm", "camp_clearance_cm"}, "world.geometry")
+    keys(geometry, {"surfaces", "elevation", "blockers", "sight_sample_height_cm", "camp_clearance_cm"}, "world.geometry")
     require(type(geometry["surfaces"]) is list and len(geometry["surfaces"]) == 1,
             "InvalidGeometry", "world.surfaces", "exactly one flat ground surface is required")
     ids = {world["map_id"]}
@@ -309,8 +336,8 @@ def validate_payload(raw):
     keys(surface, {"id", "min_cm", "max_cm"}, "world.surface")
     claim(surface["id"], "world.surface")
     minimum, maximum = content._world_box(surface, surface["id"])
-    require(minimum[2] == maximum[2], "InvalidGeometry", surface["id"], "ground must be a single flat layer")
-    floor = minimum[2]
+    require(minimum[2] == maximum[2] == 0, "InvalidGeometry", surface["id"], "the ground is the flat base level at Z=0")
+    terrain = Terrain(geometry["elevation"], minimum, maximum, claim)
     sight_height = content._wire_fraction(geometry["sight_sample_height_cm"], "world sight height")
     clearance = content._wire_fraction(geometry["camp_clearance_cm"], "world camp clearance")
     require(sight_height > 0 and clearance > 0, "InvalidGeometry", "world.geometry", "positive geometry dimensions are required")
@@ -327,18 +354,25 @@ def validate_payload(raw):
                     and POLYGON_VERTICES[0] <= len(row["polygon_cm"]) <= POLYGON_VERTICES[1],
                     "InvalidGeometry", row["id"], "blocker requires a convex polygon of 3..16 vertices")
             polygon = tuple(point(vertex, row["id"]) for vertex in row["polygon_cm"])
-            require(all(vertex[2] == floor for vertex in polygon), "InvalidGeometry", row["id"], "blocker is on another layer")
             validate_polygon(polygon, row["id"])
+            level = terrain.ring_level(polygon)
+            require(level is not None and all(vertex[2] == terrain.height(level) for vertex in polygon),
+                    "InvalidGeometry", row["id"], "blocker must stand wholly on one flat level at its height")
         else:
             centre = point(row["center_cm"], row["id"])
-            require(centre[2] == floor, "InvalidGeometry", row["id"], "blocker is on another layer")
-            require(content._wire_fraction(row["radius_cm"], row["id"]) > 0,
-                    "InvalidGeometry", row["id"], "cylinder requires a positive radius")
+            size = content._wire_fraction(row["radius_cm"], row["id"])
+            require(size > 0, "InvalidGeometry", row["id"], "cylinder requires a positive radius")
+            level = terrain.disc_level(centre, size)
+            require(level is not None and centre[2] == terrain.height(level),
+                    "InvalidGeometry", row["id"], "blocker must stand wholly on one flat level at its height")
         height = content._wire_fraction(row["height_cm"], row["id"])
         require(height > 0 and type(row["blocks_movement"]) is bool and row["blocks_movement"]
                 and type(row["blocks_sight"]) is bool, "InvalidGeometry", row["id"], "invalid blocker flags or height")
         require(height > sight_height if row["blocks_sight"] else height < sight_height,
                 "InvalidGeometry", row["id"], "blocker height disagrees with the sight classification")
+        if row["shape"] == "polygon" and not any(all(minimum[i] < vertex[i] < maximum[i] for i in (0, 1)) for vertex in polygon):
+            require(height > terrain.height(terrain.highest) + sight_height, "InvalidGeometry", row["id"],
+                    "boundary wall must stand taller than the highest ground plus the sight sample")
     placement = world["placement"]
     keys(placement, {"spawn_offsets_cm", "spawn_validation_radius_cm"}, "world.placement")
     require(type(placement["spawn_offsets_cm"]) is list and len(placement["spawn_offsets_cm"]) == 7,
@@ -364,8 +398,10 @@ def validate_payload(raw):
         require(row["surface_id"] == surface["id"], "InvalidReference", row["id"], "unknown anchor surface")
         require(row["kind"] in ANCHOR_KINDS, "WorldAnchors", row["id"], "unknown anchor kind")
         position = point(row["position_cm"], row["id"])
-        require(all(a <= p <= b for a, p, b in zip(minimum, position, maximum)),
-                "InvalidGeometry", row["id"], "anchor outside the surface or off its layer")
+        level = terrain.disc_level(position, Fraction(0))
+        require(all(minimum[i] <= position[i] <= maximum[i] for i in (0, 1)) and level is not None
+                and position[2] == terrain.height(level),
+                "InvalidGeometry", row["id"], "anchor outside the surface or off its level's height")
         if row["kind"] == "Camp":
             require(type(row["members"]) is list and 1 <= len(row["members"]) <= 2,
                     "WorldAnchors", row["id"], "expected one or two member homes")
@@ -373,8 +409,10 @@ def validate_payload(raw):
                 keys(member, {"id", "position_cm"}, row["id"])
                 claim(member["id"], row["id"])
                 home = point(member["position_cm"], member["id"])
-                require(all(a <= p <= b for a, p, b in zip(minimum, home, maximum)),
-                        "InvalidGeometry", member["id"], "member home outside the surface")
+                level = terrain.disc_level(home, Fraction(0))
+                require(all(minimum[i] <= home[i] <= maximum[i] for i in (0, 1)) and level is not None
+                        and home[2] == terrain.height(level),
+                        "InvalidGeometry", member["id"], "member home outside the surface or off its level's height")
                 member_count += 1
         anchors[row["id"]] = row
     require(member_count == 8 and {kind: sum(row["kind"] == kind for row in anchors.values())
@@ -391,6 +429,180 @@ def validate_payload(raw):
     return world, anchors
 
 
+def disc_inside(polygon, centre, radius):
+    """The closed disc lies in the closed convex polygon."""
+    return all(cross(sub(b, a), sub(centre, a)) >= 0
+               and bounded(cross(sub(b, a), sub(centre, a)) ** 2) >= bounded(radius * radius * dot(sub(b, a), sub(b, a)))
+               for a, b in edges(polygon))
+
+
+def disc_overlaps(polygon, centre, radius):
+    """The open disc meets the open interior of the convex polygon."""
+    return inside(centre, polygon, strict=True) or any(
+        segment_distance_squared(centre, a, b) < bounded(radius * radius) for a, b in edges(polygon))
+
+
+def interiors_overlap(first, second):
+    """Convex polygons share interior points unless an edge of one has the other wholly on or outside its line."""
+    for ring, other in ((first, second), (second, first)):
+        for a, b in edges(ring):
+            if all(cross(sub(b, a), sub(p, a)) <= 0 for p in other):
+                return False
+    return True
+
+
+def segment_enters(start, end, polygon):
+    """The segment passes through the convex polygon's open interior."""
+    lower, upper = Fraction(0), Fraction(1)
+    for a, b in edges(polygon):
+        delta = sub(b, a)
+        constant, slope = cross(delta, sub(start, a)), cross(delta, sub(end, start))
+        if slope == 0:
+            if constant <= 0:
+                return False
+        elif slope > 0:
+            lower = max(lower, bounded(-constant / slope))
+        else:
+            upper = min(upper, bounded(-constant / slope))
+    return lower < upper
+
+
+class Terrain:
+    """Flat levels, plateaus and ramps of the world payload, with the same rules as the native importer."""
+
+    def __init__(self, elevation, minimum, maximum, claim=None):
+        keys(elevation, {"level_step_cm", "plateaus", "ramps"}, "world.elevation")
+        self.step = content._wire_fraction(elevation["level_step_cm"], "world level step")
+        require(self.step > 0, "InvalidGeometry", "world.elevation", "a positive level step is required")
+        self.plateaus, self.ramps = {}, {}
+        for kind, level_key in (("plateaus", "level"), ("ramps", "lower_level")):
+            rows = elevation[kind]
+            require(isinstance(rows, (list, tuple)) and len(rows) <= ELEVATION_ROWS, "InvalidGeometry", f"world.{kind}",
+                    f"at most {ELEVATION_ROWS} {kind} are supported")
+            require([row["id"] for row in rows] == sorted(row["id"] for row in rows),
+                    "NonCanonical", f"world.{kind}", "elevation rows must be ordinal-sorted by ID")
+            for row in rows:
+                keys(row, {"id", level_key, "polygon_cm"}, f"world.{kind}")
+                if claim:
+                    claim(row["id"], f"world.{kind}")
+                level = row[level_key]
+                low, high = (1, MAX_LEVEL) if kind == "plateaus" else (0, MAX_LEVEL - 1)
+                integer(level, f"{row['id']}.{level_key}", low, high)
+                polygon = tuple(point(vertex, row["id"]) for vertex in row["polygon_cm"])
+                require(all(minimum[i] <= vertex[i] <= maximum[i] for vertex in polygon for i in (0, 1)),
+                        "InvalidGeometry", row["id"], "elevation footprint leaves the surface")
+                validate_polygon(polygon, row["id"])
+                if kind == "plateaus":
+                    require(all(vertex[2] == self.height(level) for vertex in polygon),
+                            "InvalidGeometry", row["id"], "plateau vertex must lie at its level's height")
+                    self.plateaus[row["id"]] = (level, polygon)
+                else:
+                    self._ramp(row["id"], level, polygon)
+        self.highest = max((level for level, _ in self.plateaus.values()), default=0)
+
+    def height(self, level):
+        return bounded(self.step * level)
+
+    def _ramp(self, identity, lower, polygon):
+        require(len(polygon) == 4, "InvalidGeometry", identity, "a ramp is a four-vertex polygon")
+        a, b, c, d = polygon
+        require(a[2] == b[2] == self.height(lower) and c[2] == d[2] == self.height(lower + 1), "InvalidGeometry", identity,
+                "ramp low edge must stand at its lower level and high edge at the next")
+        low_edge, high_edge = sub(b[:2], a[:2]), sub(c[:2], d[:2])
+        require(cross(low_edge, high_edge) == 0 and dot(low_edge, high_edge) > 0, "InvalidGeometry", identity,
+                "ramp low and high edges must be parallel")
+        run = cross(low_edge, sub(d[:2], a[:2]))
+        require(bounded(self.step * self.step * dot(low_edge, low_edge)) <= bounded(RAMP_SLOPE * RAMP_SLOPE * run * run),
+                "InvalidGeometry", identity, "ramp is steeper than bodies can walk")
+        joined, supported = False, lower == 0
+        for level, plateau in self.plateaus.values():
+            require(not (level > lower and interiors_overlap(plateau, polygon)), "InvalidGeometry", identity,
+                    "ramp overlaps higher ground")
+            if level == lower and all(inside(vertex, plateau) for vertex in polygon):
+                supported = True
+            if level == lower + 1:
+                for start, finish in edges(plateau):
+                    edge = sub(finish[:2], start[:2])
+
+                    def along(q):
+                        t = dot(sub(q[:2], start[:2]), edge)
+                        return cross(edge, sub(q[:2], start[:2])) == 0 and 0 <= t <= dot(edge, edge)
+
+                    joined = joined or (along(c) and along(d) and cross(edge, sub(a[:2], start[:2])) < 0)
+        require(joined, "InvalidGeometry", identity, "ramp high edge must lie along an edge of a plateau one level up")
+        require(supported, "InvalidGeometry", identity, "ramp above the ground must stand wholly on a plateau of its lower level")
+        for _, other in self.ramps.values():
+            require(not interiors_overlap(other, polygon), "InvalidGeometry", identity, "ramps overlap")
+        self.ramps[identity] = (lower, polygon)
+
+    def disc_level(self, centre, radius):
+        """Flat level a disc stands on wholly, or None when it meets a cliff, higher ground or a ramp."""
+        level = max((height for height, plateau in self.plateaus.values() if disc_inside(plateau, centre, radius)), default=0)
+        if any(height > level and disc_overlaps(plateau, centre, radius) for height, plateau in self.plateaus.values()):
+            return None
+        if any(disc_overlaps(ramp, centre, radius) for _, ramp in self.ramps.values()):
+            return None
+        return level
+
+    def ring_level(self, ring):
+        level = max((height for height, plateau in self.plateaus.values()
+                     if all(inside(vertex, plateau) for vertex in ring)), default=0)
+        if any(height > level and interiors_overlap(plateau, ring) for height, plateau in self.plateaus.values()):
+            return None
+        if any(interiors_overlap(ramp, ring) for _, ramp in self.ramps.values()):
+            return None
+        return level
+
+    def tier(self, p):
+        """Half levels: 2L on level L, 2L + 1 on a ramp from L; where regions meet the higher tier wins."""
+        tiers = [2 * level for level, plateau in self.plateaus.values() if inside(p, plateau)]
+        tiers += [2 * lower + 1 for lower, ramp in self.ramps.values() if inside(p, ramp)]
+        return max(tiers, default=0)
+
+    def regions(self):
+        yield from ((2 * level, plateau) for level, plateau in self.plateaus.values())
+        yield from ((2 * lower + 1, ramp) for lower, ramp in self.ramps.values())
+
+    def barriers(self):
+        """Cliff segments: plateau edge pieces no ramp meets and no plateau as high covers, plus every ramp side."""
+        pieces = []
+        for identity, (level, plateau) in self.plateaus.items():
+            for a, b in edges(plateau):
+                edge = sub(b[:2], a[:2])
+                length = dot(edge, edge)
+                covered = []
+                for lower, (c, d) in ((lower, ramp[2:]) for lower, ramp in self.ramps.values()):
+                    if lower + 1 == level and cross(edge, sub(c[:2], a[:2])) == 0 == cross(edge, sub(d[:2], a[:2])):
+                        span = sorted((dot(sub(c[:2], a[:2]), edge) / length, dot(sub(d[:2], a[:2]), edge) / length))
+                        covered.append(tuple(span))
+                for other, (height, polygon) in self.plateaus.items():
+                    if other != identity and height >= level:
+                        lower, upper = Fraction(0), Fraction(1)
+                        for p, q in edges(polygon):
+                            delta = sub(q[:2], p[:2])
+                            constant, slope = cross(delta, sub(a[:2], p[:2])), cross(delta, edge)
+                            if slope == 0:
+                                if constant < 0:
+                                    lower, upper = Fraction(1), Fraction(0)
+                                    break
+                            elif slope > 0:
+                                lower = max(lower, -constant / slope)
+                            else:
+                                upper = min(upper, -constant / slope)
+                        if lower < upper:
+                            covered.append((lower, upper))
+                cursor = Fraction(0)
+                for lower, upper in sorted(covered):
+                    if lower > cursor:
+                        pieces.append((tuple(a[i] + edge[i] * cursor for i in (0, 1)), tuple(a[i] + edge[i] * lower for i in (0, 1))))
+                    cursor = max(cursor, upper)
+                if cursor < 1:
+                    pieces.append((tuple(a[i] + edge[i] * cursor for i in (0, 1)), tuple(b[:2])))
+        for _, ramp in self.ramps.values():
+            pieces += [(ramp[1][:2], ramp[2][:2]), (ramp[3][:2], ramp[0][:2])]
+        return pieces
+
+
 class Geometry:
     def __init__(self, world):
         surface = world["geometry"]["surfaces"][0]
@@ -404,9 +616,18 @@ class Geometry:
                                     content._wire_fraction(row["radius_cm"], row["id"]))
                         for row in blockers if row["shape"] == "cylinder"}
         self.rows = {row["id"]: row for row in blockers}
+        self.terrain = Terrain(world["geometry"]["elevation"], self.minimum, self.maximum)
+        # Level each blocker stands on; a blocker only blocks the sight of observers at or below its level.
+        self.levels = {identity: self.terrain.ring_level(polygon) for identity, polygon in self.polygons.items()}
+        self.levels.update({identity: self.terrain.disc_level(centre, size) for identity, (centre, size) in self.circles.items()})
+
+    def standing(self, p, radius):
+        """Ground height of a disc wholly on one flat level, or None."""
+        level = self.terrain.disc_level(p, radius)
+        return None if level is None else self.terrain.height(level)
 
     def legal(self, p, radius=Fraction(0)):
-        return (p[2] == self.minimum[2]
+        return (p[2] == self.standing(p, radius)
                 and all(self.minimum[i] + radius <= p[i] <= self.maximum[i] - radius for i in (0, 1))
                 and all(not inside(p, polygon, strict=True)
                         and polygon_distance_squared(p, polygon) >= bounded(radius * radius)
@@ -422,11 +643,17 @@ class Geometry:
                      for centre, size in self.circles.values()))
 
     def sight_clear(self, start, end):
-        require(start[2] == end[2] == self.minimum[2], "InvalidGeometry", "sight",
-                "the single-layer model requires grounded foot samples")
+        """#97 tiered sight: nothing on a higher tier is seen; higher terrain between hides; an obstacle hides only from
+        observers at or below its level (a ramp observer counts as its lower level)."""
+        observer, target = self.terrain.tier(start), self.terrain.tier(end)
+        if target > observer:
+            return False
+        if any(tier > observer and segment_enters(start, end, region) for tier, region in self.terrain.regions()):
+            return False
+        level = observer // 2
         # A trunk blocks a segment that enters its open disc; a tangent is not an interior crossing.
         for identity, (centre, size) in self.circles.items():
-            if not self.rows[identity]["blocks_sight"]:
+            if not self.rows[identity]["blocks_sight"] or self.levels[identity] < level:
                 continue
             reach = (squared_distance(start, centre) if start[:2] == end[:2]
                      else segment_distance_squared(centre, start, end))
@@ -434,7 +661,7 @@ class Geometry:
                 return False
         # Strict interior intersection; a tangent along a wall boundary is not an interior crossing.
         for identity, polygon in self.polygons.items():
-            if not self.rows[identity]["blocks_sight"]:
+            if not self.rows[identity]["blocks_sight"] or self.levels[identity] < level:
                 continue
             lower, upper = Fraction(0), Fraction(1)
             for a, b in edges(polygon):
@@ -459,6 +686,8 @@ class PathModel:
     # A cylinder enters the model as a regular polygon whose capsule-radius miter expansion circumscribes the
     # expanded disc, so the true swept disc lies inside it and modelled routes stay conservative.
     CIRCLE_SIDES = 16
+    # A cliff or ramp side enters the model as a rectangle this many centimetres either side of its line.
+    CLIFF_HALF_WIDTH = .5
 
     def __init__(self, geometry, radius):
         self.bounds = (float(geometry.minimum[0] + radius), float(geometry.minimum[1] + radius),
@@ -466,6 +695,14 @@ class PathModel:
         self.polygons, self.planes = [], []
         self.by_id = {}
         shapes = list(geometry.polygons.items())
+        for index, (a, b) in enumerate(geometry.terrain.barriers()):
+            dx, dy = float(b[0] - a[0]), float(b[1] - a[1])
+            length = math.hypot(dx, dy)
+            if length < self.EPS:
+                continue
+            nx, ny = -dy / length * self.CLIFF_HALF_WIDTH, dx / length * self.CLIFF_HALF_WIDTH
+            ax, ay, bx, by = float(a[0]), float(a[1]), float(b[0]), float(b[1])
+            shapes.append((f"cliff_{index}", ((ax - nx, ay - ny), (bx - nx, by - ny), (bx + nx, by + ny), (ax + nx, ay + ny))))
         for identity, (centre, size) in geometry.circles.items():
             # The footprint polygon circumscribes the trunk (apothem = radius); its capsule-radius expansion then
             # circumscribes the expanded disc.
@@ -651,7 +888,7 @@ def validate_bindings(world, data):
                             "InvalidGeometry", member["id"], "member homes overlap")
                 home_clearance[member["id"]] = geometry.clearance(home)
                 starts[member["id"]] = home
-    min_x, min_y, floor = geometry.minimum
+    min_x, min_y, _ = geometry.minimum
     max_x, max_y, _ = geometry.maximum
     sides = ((((min_x, min_y), (max_x, min_y)), 1, min_y, -1),
              (((max_x, min_y), (max_x, max_y)), 0, max_x, 1),
@@ -687,9 +924,11 @@ def validate_bindings(world, data):
     steps = int((max_x - min_x) // ROUTE_SAMPLE_CM)
     for i in range(steps):
         for j in range(int((max_y - min_y) // ROUTE_SAMPLE_CM)):
-            sample = (min_x + ROUTE_SAMPLE_CM * (i + Fraction(1, 2)), min_y + ROUTE_SAMPLE_CM * (j + Fraction(1, 2)), floor)
+            xy = (min_x + ROUTE_SAMPLE_CM * (i + Fraction(1, 2)), min_y + ROUTE_SAMPLE_CM * (j + Fraction(1, 2)))
+            ground = geometry.standing((*xy, 0), radius)
+            sample = (*xy, ground)
             # Near a corner the exact disc test can pass inside the model's conservative miter; such a sample is skipped.
-            if geometry.legal(sample, radius) and model.legal(tuple(map(float, sample[:2]))):
+            if ground is not None and geometry.legal(sample, radius) and model.legal(tuple(map(float, xy))):
                 sampled.append(model.distance(sample, capture, capture_radius))
     require(sampled and max(sampled) <= budget, "WorldPath", "defend budget",
             "a sampled legal position exceeds the central base-speed route budget")
