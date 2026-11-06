@@ -326,6 +326,26 @@ bool LDDemoEntry::ReadProductVersion(FString& Version, FString& Error)
     return true;
 }
 
+FString LDDemoEntry::FormatTitleVersion(const FString& Version, bool bReleaseBuild, const FString& Commit, bool bDirty)
+{
+    if (bReleaseBuild) { return TEXT("版本 ") + Version; }
+    const FRegexPattern CommitPattern(TEXT("^[0-9a-f]{40}$"));
+    FRegexMatcher Matcher(CommitPattern, Commit);
+    if (!Matcher.FindNext()) { return TEXT("build unknown"); }
+    return TEXT("build ") + Commit.Left(7) + (bDirty ? TEXT("（含未提交改动）") : TEXT(""));
+}
+
+FString LDDemoEntry::TitleVersion(const FString& Version)
+{
+    // A missing key reads as a development build: only the release commit sets it, and showing "build" is the safe error.
+    bool bReleaseBuild = false;
+    GConfig->GetBool(TEXT("Lockdown.Build"), TEXT("bReleaseBuild"), bReleaseBuild, GGameIni);
+    FString Commit;
+    bool bDirtyKnown = false, bDirty = false;
+    LDLog::SourceRevision(Commit, bDirtyKnown, bDirty);
+    return FormatTitleVersion(Version, bReleaseBuild, Commit, bDirtyKnown && bDirty);
+}
+
 FString LDDemoEntry::MakeJoinRefusal(const TCHAR* Code, const TCHAR* Detail)
 {
     return FString::Printf(TEXT("%s: %s"), Code, Detail);

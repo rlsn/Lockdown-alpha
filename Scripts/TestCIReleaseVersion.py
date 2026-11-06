@@ -9,6 +9,10 @@ INI = (b'[/Script/EngineSettings.GeneralProjectSettings]\n'
        b'ProjectID=6337CB244B330EA0E383B0B9C55A3705\n'
        b'ProjectVersion=0.10.0\n'
        b'\n'
+       b'; True only in the release commit.\n'
+       b'[Lockdown.Build]\n'
+       b'bReleaseBuild=False\n'
+       b'\n'
        b'[/Script/Engine.GameSession]\n'
        b'MaxPlayers=3\n')
 
@@ -61,6 +65,35 @@ class ProjectVersionTest(unittest.TestCase):
             release.set_project_version(INI, '0.10.2 ')
 
 
+class ReleaseBuildTest(unittest.TestCase):
+    def test_sets_only_the_flag(self):
+        self.assertFalse(release.read_release_build(INI))
+        changed = release.set_release_build(INI)
+        self.assertEqual(changed, INI.replace(b'bReleaseBuild=False', b'bReleaseBuild=True'))
+        self.assertTrue(release.read_release_build(changed))
+        crlf = INI.replace(b'\n', b'\r\n')
+        self.assertEqual(release.set_release_build(crlf), crlf.replace(b'bReleaseBuild=False', b'bReleaseBuild=True'))
+
+    def test_other_sections_are_ignored(self):
+        raw = b'[Other]\nbReleaseBuild=True\n' + INI + b'[Lockdown.Build2]\nbReleaseBuild=True\n'
+        self.assertFalse(release.read_release_build(raw))
+
+    def test_missing_duplicate_or_malformed_flag_is_refused(self):
+        for raw in (INI.replace(b'bReleaseBuild=False\n', b''),
+                    INI.replace(b'bReleaseBuild=False\n', b'bReleaseBuild=False\nbReleaseBuild=True\n'),
+                    INI.replace(b'bReleaseBuild=False', b'bReleaseBuild=true'),
+                    INI.replace(b'bReleaseBuild=False', b'bReleaseBuild=')):
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                release.read_release_build(raw)
+            with self.subTest(raw=raw), self.assertRaises(ValueError):
+                release.set_release_build(raw)
+
+    def test_the_checked_in_ini_is_a_development_build(self):
+        raw = (release.ROOT / release.INI).read_bytes()
+        self.assertFalse(release.read_release_build(raw))
+        release.read_project_version(raw)
+
+
 class PlanTest(unittest.TestCase):
     def git(self, root, *args):
         subprocess.run(['git', '-C', str(root), '-c', 'user.name=t', '-c', 'user.email=t@t', *args],
@@ -74,17 +107,39 @@ class PlanTest(unittest.TestCase):
             self.git(root, 'init', '-q')
             self.git(root, 'add', '.')
             self.git(root, 'commit', '-q', '-m', 'one')
-            self.assertEqual(release.plan(root),
-                             {'version': '0.10.0', 'bump': False, 'released': False, 'released_by': ''})
+            self.assertEqual(release.plan(root), {'version': '0.10.0', 'released': False, 'released_by': ''})
             self.git(root, 'tag', 'v0.10.0')
-            self.assertEqual(release.plan(root),
-                             {'version': '0.10.1', 'bump': True, 'released': True, 'released_by': 'v0.10.0'})
-            release.apply('0.10.1', root)
-            self.git(root, 'commit', '-q', '-am', 'bump')
-            self.assertEqual(release.plan(root),
-                             {'version': '0.10.1', 'bump': False, 'released': False, 'released_by': ''})
-            self.assertEqual((root / 'Config' / 'DefaultGame.ini').read_bytes(),
-                             INI.replace(b'0.10.0', b'0.10.1'))
+            self.assertEqual(release.plan(root), {'version': '0.10.1', 'released': True, 'released_by': 'v0.10.0'})
+            # A minor bump merged to main through a PR is released as is.
+            ini = root / 'Config' / 'DefaultGame.ini'
+            ini.write_bytes(release.set_project_version(INI, '0.11.0'))
+            self.git(root, 'commit', '-q', '-am', 'minor')
+            self.assertEqual(release.plan(root), {'version': '0.11.0', 'released': False, 'released_by': ''})
+
+    def test_apply_writes_the_version_and_the_release_flag(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'Config').mkdir()
+            ini = root / 'Config' / 'DefaultGame.ini'
+            ini.write_bytes(INI)
+            release.apply('0.10.2', root)
+            self.assertEqual(ini.read_bytes(), INI.replace(b'ProjectVersion=0.10.0', b'ProjectVersion=0.10.2')
+                             .replace(b'bReleaseBuild=False', b'bReleaseBuild=True'))
+            # The ini version released as is still gets a version commit: the flag changes.
+            ini.write_bytes(INI)
+            release.apply('0.10.0', root)
+            self.assertEqual(ini.read_bytes(), INI.replace(b'bReleaseBuild=False', b'bReleaseBuild=True'))
+
+    def test_a_release_flag_on_main_is_refused(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / 'Config').mkdir()
+            (root / 'Config' / 'DefaultGame.ini').write_bytes(release.set_release_build(INI))
+            self.git(root, 'init', '-q')
+            self.git(root, 'add', '.')
+            self.git(root, 'commit', '-q', '-m', 'merged a version commit')
+            with self.assertRaisesRegex(ValueError, 'bReleaseBuild=True'):
+                release.plan(root)
 
     def test_a_tag_on_an_unpushed_version_commit_releases_its_parent(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -101,11 +156,10 @@ class PlanTest(unittest.TestCase):
             self.git(root, 'commit', '-q', '-am', 'bump')
             self.git(root, 'tag', 'v0.10.1')
             self.git(root, 'switch', '-q', 'main')
-            self.assertEqual(release.plan(root), {'version': '0.10.2', 'bump': True, 'released': True,
+            self.assertEqual(release.plan(root), {'version': '0.10.2', 'released': True,
                                                   'released_by': 'v0.10.0,v0.10.1'})
             self.git(root, 'commit', '-q', '--allow-empty', '-m', 'two')
-            self.assertEqual(release.plan(root),
-                             {'version': '0.10.2', 'bump': True, 'released': False, 'released_by': ''})
+            self.assertEqual(release.plan(root), {'version': '0.10.2', 'released': False, 'released_by': ''})
             self.git(root, 'tag', 'v0.10.2-rc')
             self.assertEqual(release.plan(root)['released'], False)
 
@@ -140,14 +194,12 @@ class PlanTest(unittest.TestCase):
             released = Path(temp, 'released')
             self.shallow_clone(origin, released)
             self.assertTrue((released / '.git' / 'shallow').is_file())
-            self.assertEqual(release.plan(released), {'version': '0.10.3', 'bump': True, 'released': True,
-                                                      'released_by': 'v0.10.2'})
+            self.assertEqual(release.plan(released), {'version': '0.10.3', 'released': True, 'released_by': 'v0.10.2'})
 
             self.git(origin, 'commit', '-q', '--allow-empty', '-m', 'four')
             unreleased = Path(temp, 'unreleased')
             self.shallow_clone(origin, unreleased)
-            self.assertEqual(release.plan(unreleased),
-                             {'version': '0.10.3', 'bump': True, 'released': False, 'released_by': ''})
+            self.assertEqual(release.plan(unreleased), {'version': '0.10.3', 'released': False, 'released_by': ''})
 
 
 if __name__ == '__main__':

@@ -184,7 +184,7 @@ void ULDUIRoot::BuildFrontend(ALDPlayerController& PC,UCanvasPanel& Canvas)
     StartBackButton=MakeButton(TEXT("返回"),TEXT("StartBack"),[this](){ShowStartPage(false);});
     Add(Content,StartBackButton,6);
     FString Version,VersionError;
-    UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?TEXT("版本 ")+Version:TEXT("版本读取失败：")+VersionError,15,MutedColor);
+    UTextBlock* VersionLine=Label(LDDemoEntry::ReadProductVersion(Version,VersionError)?LDDemoEntry::TitleVersion(Version):TEXT("版本读取失败：")+VersionError,15,MutedColor);
     VersionLine->SetJustification(ETextJustify::Center);
     Add(Content,VersionLine,10);
     // The slang note stays under the front page (#111) so the title's slang is never read as anything else.
