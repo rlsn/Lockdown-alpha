@@ -1,4 +1,5 @@
 #include "Navigation/LDNavigationComponent.h"
+#include "UI/LDCursor.h"
 #include "UI/LDTerms.h"
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
@@ -838,8 +839,9 @@ bool ULDNavigationComponent::ProbeGround(const FVector& GroundCm, bool& bKnown) 
         LDPathSteering::EGoal::Ground,Capsule,Path,To,Failure,Error);
 }
 
-// Hover: the visible unit a right click would attack gets the ring and the attack cursor; the shop's reach gets the
-// interaction cursor; an armed entry or attack-move aims with the attack cursor. Read from the authorized frame only.
+// Hover: the visible unit a right click would attack gets the ring, read from the authorized frame only. The pointer is
+// the plain arrow except while an order waits for its left click: a confirmed attack-move glows red, a confirmed active
+// skill or equipment active blue (LDCursor); hovering a unit or the shop never changes it.
 void ULDNavigationComponent::TickPointer()
 {
     auto* PC=Controller();
@@ -849,11 +851,9 @@ void ULDNavigationComponent::TickPointer()
     ELDCombatEntry Armed=ELDCombatEntry::None;
     if (PC->CanWorldCommand() && (!PC->RootUI || !PC->RootUI->PointerOverUI()))
     {
-        FHitResult GroundHit;
-        FName Shop;
-        if (PC->ObservedUnderPointer(Hovered,HoveredEpoch)
-            || PC->IsAttackMoveArmed() || PC->ReadArmedCombatEntry(Armed)) { Cursor=EMouseCursor::Crosshairs; }
-        else if (ShopUnderPointer(Shop)) { Cursor=EMouseCursor::Hand; }
+        PC->ObservedUnderPointer(Hovered,HoveredEpoch);
+        if (PC->IsAttackMoveArmed()) { Cursor=LDCursor::AttackAim; }
+        else if (PC->ReadArmedCombatEntry(Armed)) { Cursor=LDCursor::CastAim; }
     }
     PC->CurrentMouseCursor=Cursor;
     // The inspected unit keeps its selection ring while the current authorized frame still lists it.

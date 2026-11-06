@@ -89,7 +89,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 自己的地面订单在发出当帧于落点显示收缩的绿色虚线环；本地路线检查（与预测同一 `PlanRoute`）已失败时
      改为红叉，服务器拒绝仍以提示条给出原因。自己的 AttackUnit 在目标呈现位置显示收拢的红色虚线环。
    - 悬停：指针下当前帧获准可见的单位（`ObservedUnderPointer`，与右键攻击同一选取）脚下显示与攻击标记同色的红色虚线环（近黑底衬），
-     光标为十字；砍一刀小摊范围内为手形；已武装技能或攻击移动时为十字。`ReadHovered` 供 HUD 的技能合法性显示使用。
+     光标不变。`ReadHovered` 供 HUD 的技能合法性显示使用。
+   - 光标：`ULDGameInstance::OnStart` 用 `LDCursor::Install` 把游戏视口的每种光标类型都换成软件箭头（白面深色描边，尖端在热点上），
+     系统光标不再出现；攻击移动待确认时 `TickPointer` 设 `LDCursor::AttackAim`（红光描边），技能/装备主动待确认时设 `LDCursor::CastAim`（蓝光描边），其余为普通箭头。
    - 选中：左键检视的单位（`ReadInspected`，当前帧仍列出时）脚下显示一圈不转动、短而密的浅色点线环（`SetSelected`，半径 64 cm，
      在 76 cm 的红色悬停环之内），HUD 不再在其身上画方框；失视野或换帧不再列出即消失。
    - 按住移动键（默认右键）时，地面右键之后按指针地面点继续下普通 MoveGround 订单：

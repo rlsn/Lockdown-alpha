@@ -78,8 +78,9 @@
 - 悬停：右键此刻会攻击的可见单位脚下显示红色悬停圈（与攻击标记同色，带近黑描边）。
 - 选中：左键检视的可见单位脚下显示不转动的浅色密点线圈，位于悬停圈之内；HUD 不在其身上画方框。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
-- 光标（`ULDNavigationComponent::TickPointer`）：指针在可攻击单位上，或处于 Q/W/1/2/D/A 准备态时为
-  Crosshairs；在砍一刀小摊交互范围内为 Hand；其他为默认。
+- 光标（`ULDNavigationComponent::TickPointer`，画法见 `LDCursor`）：所有光标类型都映射到游戏自己的软件箭头；
+  A 攻击移动待确认时为 `LDCursor::AttackAim`（红色描边光），主动技能/装备主动待确认时为 `LDCursor::CastAim`（蓝色描边光），
+  其他（含悬停单位、砍一刀小摊、指针在 UI 上）为普通箭头。
 - `ULDNavigationComponent::ReadHovered` 返回当前悬停单位；`PointerPosition` 与 `GroundUnderPointer`
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
   构建中替代鼠标，其他构建无效。

@@ -2158,7 +2158,8 @@ public:
         return true;
     }
 
-    // The Host's current frame shows the hover ring under Handle with the attack cursor, or the attack marker.
+    // The Host's current frame shows the hover ring under Handle with the plain arrow (hovering never changes the
+    // pointer), or the attack marker.
     bool ShowsPointer(const FGuid& Handle, bool bHover, FString& Facts) const
     {
         const ALDPlayerController* PC = Controller.Get();
@@ -2167,7 +2168,7 @@ public:
         uint32 Epoch = 0;
         const bool bShown = Feedback && (bHover
             ? PC->Navigation->ReadHovered(Hovered, Epoch) && Hovered == Handle && Feedback->ShowsHover()
-                && PC->CurrentMouseCursor == EMouseCursor::Crosshairs
+                && PC->CurrentMouseCursor == EMouseCursor::Default
             : Feedback->ShowsAttack());
         if (!bShown) { return false; }
         Facts = FString::Printf(TEXT("%s cursor=%d"), bHover ? TEXT("hover_ring") : TEXT("attack_marker"), int32(PC->CurrentMouseCursor.GetValue()));

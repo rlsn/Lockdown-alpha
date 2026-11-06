@@ -16,6 +16,8 @@ public:
     bool AllocateMatchGeneration(uint32& Generation, FString& Error);
     virtual AGameModeBase* CreateGameModeForURL(FURL URL, UWorld* World) override;
     virtual void StartGameInstance() override;
+    // Installs the game's own pointer (LDCursor) on this instance's viewport, in a packaged game and in PIE alike.
+    virtual void OnStart() override;
     void RecordEntryRejectionBeforeWorld(const FString& URL, const FString& Reason);
     const FString& RejectedEntryURL() const { return LastRejectedEntryURL; }
     // A refusal the Host sends after this client loaded the room (its final admission check): shows the coded reason
