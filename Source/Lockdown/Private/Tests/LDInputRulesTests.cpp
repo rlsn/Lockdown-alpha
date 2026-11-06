@@ -19,6 +19,7 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Conflict cannot silently replace another command"),Settings->Rebind(TEXT("Skill1"),EKeys::W,Error));
     TestFalse(TEXT("Global Escape cannot be taken by a world action"),Settings->Rebind(TEXT("Skill1"),EKeys::Escape,Error));
     TestFalse(TEXT("Back remains reserved"),Settings->Rebind(TEXT("Back"),EKeys::Z,Error));
+    TestFalse(TEXT("Shift stays the fixed shift-queue modifier"),Settings->Rebind(TEXT("Skill1"),EKeys::LeftShift,Error)||Settings->Rebind(TEXT("Stop"),EKeys::RightShift,Error));
     TestFalse(TEXT("Wheel pulse cannot overlap zoom axis"),Settings->Rebind(TEXT("Skill1"),EKeys::MouseScrollUp,Error));
     TestTrue(TEXT("A free keyboard binding is accepted"),Settings->Rebind(TEXT("Skill1"),EKeys::Z,Error));
     TestEqual(TEXT("Displayed key derives from live registry"),Settings->Label(TEXT("Skill1")),EKeys::Z.GetDisplayName().ToString());

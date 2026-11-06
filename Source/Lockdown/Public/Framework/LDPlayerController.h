@@ -126,8 +126,12 @@ public:
     // Left-click confirmation of the armed entry or attack-move; false when nothing was armed.
     bool ConfirmArmedCombat();
     // Confirms the armed Q/W/1/2 entry on an explicit aim (an observed unit handle or a planar direction) instead of
-    // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed.
-    bool ConfirmArmedEntry(const FLDCombatTarget& Aim);
+    // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed. AimCm is
+    // the ground point a direction aim points at: a Shift confirmation queues it and the server re-aims from there.
+    bool ConfirmArmedEntry(const FLDCombatTarget& Aim, const FVector* AimCm=nullptr);
+    // Shift held (either side): the world command being issued joins the server's shift queue instead of replacing
+    // the current order (ULDNavigationComponent, 2026-11-06 user decision). Fixed modifier, never a rebindable action.
+    bool IsQueueModifierDown() const;
     // S: stop orders and cancel interruptible Direct actions issued so far.
     void StopCombatAndOrders();
     // One player-facing notice (a failure or a removed protection) for the HUD's single toast line; every post shows,
@@ -198,7 +202,8 @@ private:
     // Ends every local gesture without touching an accepted order: the armed preview and the held recenter are
     // cleared and every key must be released before the next world command.
     void ReleaseLocalInput();
-    void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target);
+    // bQueue sends the request to the shift queue (no pre-input hold: the queue itself waits); AimCm as ConfirmArmedEntry.
+    void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target, bool bQueue=false, const FVector* AimCm=nullptr);
     // Pre-input (LDCombatPreInput): one Direct press held during the own ability windup, sent when it ends.
     struct FQueuedCombat
     {
@@ -214,6 +219,8 @@ private:
     FQueuedCombat QueuedCombat;
     void FlushQueuedCombat();
     void SendCombatNow(ELDCombatEntry Entry, const FLDCombatTarget& Target);
+    // The next Direct request of this life with the current source revision; false (and a notice) when exhausted.
+    bool NextCombatRequest(ELDCombatEntry Entry, const FLDCombatTarget& Target, FLDCombatActionRequest& Out);
     ELDCombatEntry ArmedEntry=ELDCombatEntry::None;
     bool bAttackMoveArmed=false;
     uint64 NextDirectSequence=0;

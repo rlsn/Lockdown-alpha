@@ -38,7 +38,7 @@ public:
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     FLDCombatBodyRef OriginalBody;
-    FLDMoveIdentity OldOrder;
+    FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
     TArray<TSharedPtr<FJsonValue>> Checks;
@@ -516,9 +516,9 @@ public:
         {
             if (FVector::Dist2D(StartPosition,Body->GetActorLocation())<300) { return true; }
             Check(true,TEXT("The owned body actually moves through native CMC"));
-            const FLDMoveIdentity Accepted=Nav->PredictedIdentity();
+            AcceptedOrder=Nav->PredictedIdentity();
             Nav->NavigateGround(Goal->Position,Goal->Surface);
-            Check(Nav->LocalIdentity()!=Accepted && Nav->PredictedIdentity()==Accepted,
+            Check(Nav->LocalIdentity()!=AcceptedOrder && Nav->PredictedIdentity()==AcceptedOrder,
                 TEXT("A pending replacement keeps the accepted order identity for prediction and replay"));
             if (!Passed) { return Finish(); }
             StageAt=FPlatformTime::Seconds();
@@ -527,6 +527,13 @@ public:
         else if (Stage==31)
         {
             if (FPlatformTime::Seconds()-StageAt<.5) { return true; }
+            // Stop, then a new order before the stop receipt: the pre-stop order stays client-active but has the old epoch.
+            Check(Nav->HasMoveOrder(),TEXT("The walk is still client-active when Stop is pressed"));
+            Nav->Stop();
+            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Check(Nav->PredictedIdentity()==Nav->LocalIdentity() && Nav->LocalIdentity().Epoch>AcceptedOrder.Epoch,
+                TEXT("An order sent after Stop never predicts or replays the cancelled order"));
+            if (!Passed) { return Finish(); }
             Nav->Stop();
             Stage=4;
         }
