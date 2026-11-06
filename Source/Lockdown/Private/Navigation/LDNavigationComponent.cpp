@@ -53,6 +53,7 @@ namespace LDNavigationDetail
         case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能找喊你的人")+LDTerms::BasicAttackVerb; return *Text; }
         case ELDOrderFailure::KnockedBack: return TEXT("被掀飞了，指令中断");
         case ELDOrderFailure::QueueFull: return TEXT("指令队列已满");
+        case ELDOrderFailure::CastRefused: return TEXT("技能无法施放");
         default: return TEXT("订单失败");
         }
     }
@@ -65,6 +66,7 @@ namespace LDNavigationDetail
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("攻击请求已发送");
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动已发送");
+        case ELDSpatialOrderKind::CastUnit: return TEXT("施法请求已发送");
         case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("正在前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动请求已发送");
         }
@@ -72,6 +74,7 @@ namespace LDNavigationDetail
 
     const TCHAR* RunningText(const FLDOrderReceipt& Receipt)
     {
+        if (Receipt.Kind==ELDSpatialOrderKind::CastUnit) { return Receipt.bEngaged ? TEXT("准备施法") : TEXT("接近目标施法"); }
         if (Receipt.bEngaged) { static const FString Text=FString(TEXT("正在"))+LDTerms::BasicAttackVerb; return *Text; }
         switch (Receipt.Kind)
         {
@@ -105,8 +108,9 @@ namespace LDNavigationDetail
     {
         const bool bEnded=Receipt.Status==ELDOrderStatus::Rejected || Receipt.Status==ELDOrderStatus::Cancelled
             || Receipt.Status==ELDOrderStatus::Completed;
+        // A refused cast is explained by its own Combat receipt beside the skill button, not a second toast.
         const bool bFailed=bEnded && Receipt.Failure!=ELDOrderFailure::None && Receipt.Failure!=ELDOrderFailure::Superseded
-            && Receipt.Failure!=ELDOrderFailure::Stopped;
+            && Receipt.Failure!=ELDOrderFailure::Stopped && Receipt.Failure!=ELDOrderFailure::CastRefused;
         FString Text=bFailed?FString(FailureText(Receipt.Failure)):FString();
         if (Receipt.bProtectionRemoved && (Receipt.Status==ELDOrderStatus::Activated || Receipt.Status==ELDOrderStatus::Rejected))
         { Text+=Text.IsEmpty()?LDTerms::ProtectionRemoved():TEXT("（")+LDTerms::ProtectionRemoved()+TEXT("）"); }
@@ -117,7 +121,7 @@ namespace LDNavigationDetail
     // attack-move's ground goal is already the server's strict on-mesh point, which the body snap leaves unchanged.
     LDPathSteering::EGoal PredictedGoal(ELDSpatialOrderKind Kind)
     {
-        return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove
+        return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove || Kind==ELDSpatialOrderKind::CastUnit
             ? LDPathSteering::EGoal::Body : LDPathSteering::EGoal::Ground;
     }
 }
@@ -323,6 +327,18 @@ void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 Observatio
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Observed,ObservationEpoch); }
 }
 
+void ULDNavigationComponent::CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue)
+{
+    bHeldMove=false;
+    FLDSpatialOrderRequest Request;
+    Request.Kind=ELDSpatialOrderKind::CastUnit;
+    Request.Observed=Cast.Target.Observed;
+    Request.ObservationEpoch=Cast.Target.ObservationEpoch;
+    Request.bQueue=bQueue;
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast)) { return; }
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Request.Observed,Request.ObservationEpoch); }
+}
+
 // A missing ground point is still sent: the server judges the intent and ends protection.
 void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHint, bool bQueue)
 {
@@ -345,7 +361,7 @@ void ULDNavigationComponent::ApproachShop(FName ShopId)
 }
 
 // The previous accepted order keeps running (and is still predicted) until the server activates this one.
-bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus)
+bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast)
 {
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand() || !NextLocalIdentity(false,Local)) { return false; }
@@ -364,7 +380,8 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     RefreshLocalActive();
     Status=Request.bQueue?LDNavigationDetail::QueuedText():PendingStatus;
     LocalSentAt=FPlatformTime::Seconds();
-    ServerSubmitOrder(Request);
+    if (Cast) { ServerSubmitCast(Request,*Cast); }
+    else { ServerSubmitOrder(Request); }
     return true;
 }
 

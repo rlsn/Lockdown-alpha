@@ -51,7 +51,7 @@
 | 左键，未准备动作 | 检查指针下的当前可见单位；点空地清除检查对象 | 不移动、不攻击、不发送订单。 |
 | A，然后左键 | A 进入攻击移动准备；左键把指针下地面作为 `AttackMove` 目的地发送 | A 按下本身不攻击；指针下无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
-| Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝。 |
+| Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认。对单位的确认发出 `CastUnit` 订单（§4.6），不经预输入 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝。对单位施放在距离外时先接近再施放。 |
 | 1/2 | 同 Q/W，来源为对应装备实例的主动 | 无主动的装备同样发送并被明确拒绝，不回退到角色技能。 |
 | D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
@@ -303,6 +303,21 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
   Shift 右键不会按住重复，Shift 技能不经预输入暂存。`FQueuedMark` 记下自己排队的地面步骤，
   `ALDPointerFeedback::SetQueue` 画小圈与从身体经当前目的地到各点的虚线；步骤开始或结束、Stop、新生命时移除。
 
+### 4.6 对单位施放：接近后施放
+
+App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `ELDSpatialOrderKind::CastUnit` 订单，替换当前订单
+（按 Shift 时排进 §4.5 的队列），经 `ServerSubmitCast` / `SubmitCast` 与它的 Direct 请求一同收件。
+
+- **收件**：Direct 请求必须是非 D 的条目、`Unit` 目标且与订单的观察句柄一致，序号未被 Combat 见过。
+- **激活**（`AdmitOrder`）：先用 `ALDCombatDirector::QueryAvailability` 判定就绪——冷却、电量、受控、空槽、非单位技能
+  立即 `CastRefused` 并以 Combat 拒绝回执报告原因；自身前摇（`Busy`）只让施放延后。施法距离取该视图的 `RangeCm`
+  减 `CastMarginCm`（10 cm）。随后与 AttackUnit 同样重查观察句柄并绑定。
+- **推进**（`AdvanceCast`）：距离外按追击重算路线（`ChaseTarget`，与普攻订单共用）；进入距离后调用
+  `ALDCombatDirector::StartNavCast`，它在当前 Actions 许可内按普通 Direct 请求判定。`OutOfRange/Blocked` 不记录请求，
+  订单继续贴近；`Busy` 原地等待；其余结果记录并回执，订单结束（施放成功 `Completed`，否则 `CastRefused`），身体停下，
+  Shift 队列等这次施放结束后再继续。目标失去视野或死亡与 AttackUnit 相同地结束订单。
+- 对手 AI 仍直接调用 Combat 的 `SubmitAction`，不使用 `CastUnit`。
+
 ## 5. SC-09 正式对接表
 
 ### 5.1 状态与写入者
@@ -329,6 +344,7 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
 | `ELDOrderCancelReason` | `Stop/FocusLost/LifeEnded/Left/MatchClosed`。 |
 | `SubmitOrder(Caller, Request) -> FLDOrderReceipt` | 真人 RPC 与 AI 共用的收件入口；只校验、去重、排队，返回 `Queued` 或前置 `Rejected`，不激活、不解除保护。 |
 | `CancelOrder(Caller, Identity, Reason) -> FLDOrderReceipt` | Stop 语义：Order 与 Epoch 都必须前进；排入待受理槽，在 Actions 阶段结束当前订单。 |
+| `SubmitCast(Caller, Request, Cast) -> FLDOrderReceipt` / `ServerSubmitCast` | 对单位施放订单收件（§4.6）；普通 `SubmitOrder` 拒绝 `CastUnit`。 |
 | `QueryOrder(Caller, Identity) -> FLDOrderReceipt` | 只读：返回窗口内的回执，已被逐出的旧身份为 `Expired`。 |
 | `QueueAction(Caller, Request, AimCm) -> FLDCombatActionReceipt` / `ClearQueue(Failure)` | Shift 技能收件（§4.5）；清空未开始的排队步骤。 |
 | `ProcessAuthorityOrders(Permit, Error)` | Actions 阶段推进 Shift 队列、激活待受理订单并推进当前订单（追击、搜敌、普攻申请）。 |

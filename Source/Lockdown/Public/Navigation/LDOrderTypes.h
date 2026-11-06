@@ -19,9 +19,11 @@ struct FLDMoveIdentity
     bool operator!=(const FLDMoveIdentity& R) const {return !(*this==R);}
 };
 
-// The one current spatial order of a body. Attack kinds are aggressive intents.
+// The one current spatial order of a body. Attack kinds and CastUnit are aggressive intents. CastUnit approaches a visible
+// unit until a unit-target Q/W/1/2 is in reach, then casts it (2026-11-06 decision); it carries that Direct request beside
+// the order (ULDNavigationComponent::SubmitCast).
 UENUM()
-enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop };
+enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop, CastUnit };
 
 // Exactly one target arm is meaningful for each kind; the others must stay at their defaults.
 USTRUCT()
@@ -51,6 +53,7 @@ struct FLDSpatialOrderRequest
         case ELDSpatialOrderKind::AttackMove:
             return !Observed.IsValid() && !ObservationEpoch && ShopId.IsNone();
         case ELDSpatialOrderKind::AttackUnit:
+        case ELDSpatialOrderKind::CastUnit:
             return GroundCm.IsZero() && SurfaceHint.IsNone() && ShopId.IsNone();
         case ELDSpatialOrderKind::ApproachShop:
             return GroundCm.IsZero() && SurfaceHint.IsNone() && !Observed.IsValid() && !ObservationEpoch && !ShopId.IsNone();
@@ -64,7 +67,8 @@ struct FLDSpatialOrderRequest
             && SurfaceHint==Other.SurfaceHint && Observed==Other.Observed
             && ObservationEpoch==Other.ObservationEpoch && ShopId==Other.ShopId && bQueue==Other.bQueue;
     }
-    bool IsAggressive() const { return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove; }
+    bool IsAggressive() const
+    { return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove || Kind==ELDSpatialOrderKind::CastUnit; }
 };
 
 UENUM()
@@ -81,7 +85,9 @@ enum class ELDOrderFailure : uint8
     // A knockback interrupted the order (#112 §5).
     KnockedBack,
     // The shift queue already holds LDOrderRules::MaxQueuedSteps steps.
-    QueueFull
+    QueueFull,
+    // A CastUnit's skill could not be cast (not ready, refused by Combat); its Combat receipt carries the reason.
+    CastRefused
 };
 
 // Owner-only order receipt. Goal is only ever a public ground point or a visible target's approach point.

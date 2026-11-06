@@ -460,6 +460,47 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     return Receipt;
 }
 
+bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error)
+{
+    bFinal=true;
+    Out={};
+    Out.Generation=Request.Generation;
+    Out.Life=Request.Life;
+    Out.Origin=ELDCombatRequestOrigin::Direct;
+    Out.DirectSequence=Request.DirectSequence;
+    Out.Entry=Request.Entry;
+    Out.Phase=ELDCombatPhase::Rejected;
+    auto* Mode=Core();
+    if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None
+        || Caller.Match!=Mode->GetMatchContext() || Caller.Kind!=ELDVictimKind::Contender)
+    { Out.Reject=ELDCombatReject::MatchClosed; return true; }
+    auto* Record=FindRecord(Caller.EntityId);
+    if (!Record || Record->Kind!=Caller.Kind) { Out.Reject=ELDCombatReject::NotOwner; return true; }
+    const bool bShape=Request.DirectSequence!=0 && Request.Life!=0 && LDCA::IsContenderEntry(Request.Entry)
+        && Request.Entry!=ELDCombatEntry::Dash && Request.Target.Kind==ELDCombatTargetKind::Unit
+        && Request.Target.Observed.IsValid() && Request.Target.ObservationEpoch!=0 && !Request.Target.ServerBody.IsValid();
+    if (!bShape) { Out.Reject=ELDCombatReject::InvalidRequest; return true; }
+    if (Request.DirectSequence<=Record->DirectHighWater) { Out.Reject=ELDCombatReject::StaleRequest; return true; }
+    FLDCombatActionReceipt Judged;
+    if (!ProcessDirect(*Record,Request,Permit,Judged,Error)) { return false; }
+    if (Judged.Phase==ELDCombatPhase::Rejected && (Judged.Reject==ELDCombatReject::OutOfRange
+        || Judged.Reject==ELDCombatReject::Blocked || Judged.Reject==ELDCombatReject::Busy))
+    {
+        // Not yet: the order closes in (or waits for the own windup) and tries the same request again.
+        Out=Judged;
+        bFinal=false;
+        return true;
+    }
+    Record=FindRecord(Caller.EntityId);
+    if (!Record) { Out=Judged; return true; }
+    Record->DirectHighWater=Request.DirectSequence;
+    StoreReceipt(*Record,Request,Judged);
+    Out=Record->Recent.Last().Receipt;
+    SendReceipt(*Record,Out);
+    return true;
+}
+
 void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdentity& Move, const FLDCombatBodyRef& Keep)
 {
     auto* Body=FindEntityBody(Entity);

@@ -202,6 +202,18 @@ void ALDPlayerController::PostIntentNotice(const FString& Text)
 void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Aim, bool bQueue, const FVector* AimCm)
 {
     if (!IsLocalController()) { return; }
+    // A unit-target cast is an order (2026-11-06 decision): the body walks into the skill's reach and casts there, and
+    // the server waits out the own windup itself, so it is never held as pre-input.
+    if (Aim.Kind==ELDCombatTargetKind::Unit)
+    {
+        QueuedCombat={};
+        FLDCombatActionRequest Request;
+        if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+        UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+            Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
+        Navigation->CastAtUnit(Request,bQueue);
+        return;
+    }
     if (bQueue)
     {
         // The shift queue waits for its own turn on the server, so a queued press is never held as pre-input; it
