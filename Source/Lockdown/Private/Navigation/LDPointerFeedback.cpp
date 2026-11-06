@@ -14,7 +14,8 @@ namespace LDPointerFeedbackDetail
     // Dashes per ring; a dash is a flat tangential bar over a slightly larger near-black shade that keeps it readable
     // on the turf, the track and any body tint.
     // The selection ring is short dense dashes (almost a dotted circle) so it never reads as the turning hover ring.
-    constexpr int32 DashCount[] = {8, 8, 12, 20};
+    // The attack-move ring is the move ring's twin in the attack red.
+    constexpr int32 DashCount[] = {8, 8, 12, 20, 8};
     const FVector DashScale(.2f, .06f, .02f), ShadeScale(.28f, .14f, .01f);
     const FVector SelectedDashScale(.1f, .06f, .02f), SelectedShadeScale(.16f, .13f, .01f);
     // The hover ring is the attack marker's red: a target a right click would hit. The selection ring is a pale neutral,
@@ -96,7 +97,7 @@ void ALDPointerFeedback::Bind(ALDPlayerController& Player)
         return Instance;
     };
     UMaterialInstanceDynamic* Shade = Paint(ShadeColour);
-    const FLinearColor Colours[] = {MoveColour, AttackColour, HoverColour, SelectedColour};
+    const FLinearColor Colours[] = {MoveColour, AttackColour, HoverColour, SelectedColour, AttackColour};
     static_assert(UE_ARRAY_COUNT(Colours) == int32(ERing::Count) && UE_ARRAY_COUNT(DashCount) == int32(ERing::Count), "Every ring has a colour and a dash count.");
     for (int32 Ring = 0; Ring < int32(ERing::Count); ++Ring)
     {
@@ -111,11 +112,12 @@ void ALDPointerFeedback::Bind(ALDPlayerController& Player)
     QueueShade->SetMaterial(0, Shade);
 }
 
-void ALDPointerFeedback::ShowMove(const FVector& GroundCm, bool bReachable)
+void ALDPointerFeedback::ShowMove(const FVector& GroundCm, bool bReachable, bool bAttack)
 {
     MoveAt = GroundCm;
     MoveFrom = Clock;
     bMoveReachable = bReachable;
+    bMoveAttack = bAttack;
 }
 
 void ALDPointerFeedback::ShowAttack(const FGuid& Handle, uint32 ObservationEpoch)
@@ -242,15 +244,18 @@ void ALDPointerFeedback::Tick(float Delta)
     Super::Tick(Delta);
     Clock += FMath::Max(Delta, 0.f);
     const float Time = float(FMath::Fmod(Clock, 3600.0));
-    // A move: a green ring shrinking onto the clicked point, or a red cross where the route is already known to fail.
+    // A move: a green ring shrinking onto the clicked point (red for an attack-move), or a red cross where the route is
+    // already known to fail.
     const float MoveAge = MoveFrom >= 0 ? float(Clock - MoveFrom) : -1.f;
     bMoveShown = MoveAge >= 0.f && bMoveReachable && MoveAge < MoveSeconds;
+    const ERing MoveRing = bMoveAttack ? ERing::AttackMove : ERing::Move;
+    HideRing(bMoveAttack ? ERing::Move : ERing::AttackMove);
     if (bMoveShown)
     {
         const float K = MoveAge / MoveSeconds;
-        PlaceRing(ERing::Move, MoveAt, FMath::Lerp(MoveFromRadius, MoveToRadius, K), 140.f * MoveAge, 1.f - K * K);
+        PlaceRing(MoveRing, MoveAt, FMath::Lerp(MoveFromRadius, MoveToRadius, K), 140.f * MoveAge, 1.f - K * K);
     }
-    else { HideRing(ERing::Move); }
+    else { HideRing(MoveRing); }
     const bool bCross = MoveAge >= 0.f && !bMoveReachable && MoveAge < CrossSeconds;
     for (int32 Bar = 0; Bar < Cross.Num(); ++Bar)
     {

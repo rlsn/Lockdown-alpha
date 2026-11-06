@@ -9,7 +9,7 @@ class UMaterialInstanceDynamic;
 class UStaticMeshComponent;
 
 // The owning player's pointer feedback (control feel): the ground marker of an own move order (green, or a red cross
-// where the local route check already fails), the attack marker on the own attack order's target, the hover ring
+// where the local route check already fails) and of an own attack-move (the same marker in red), the attack marker on the own attack order's target, the hover ring
 // under the visible unit a right click would attack and the selection ring under the inspected unit. Local presentation only: never replicated, no collision, no
 // navigation, and a target is placed only from the owner's authorized observation (ALDWorldViewRelay).
 UCLASS(NotPlaceable, Transient)
@@ -20,7 +20,8 @@ public:
     ALDPointerFeedback();
     virtual void Tick(float Delta) override;
     void Bind(ALDPlayerController& Player);
-    void ShowMove(const FVector& GroundCm, bool bReachable);
+    // bAttack draws the attack-move's red ring instead of the move's green one; an unreachable point is the same red cross.
+    void ShowMove(const FVector& GroundCm, bool bReachable, bool bAttack = false);
     void ShowAttack(const FGuid& Handle, uint32 ObservationEpoch);
     // An invalid handle clears the ring.
     void SetHover(const FGuid& Handle, uint32 ObservationEpoch);
@@ -40,7 +41,7 @@ public:
     bool ShowsSelected() const { return bSelectedShown; }
     int32 ShownWaypoints() const { return QueueWaypoints.Num(); }
 private:
-    enum class ERing : uint8 { Move, Attack, Hover, Selected, Count };
+    enum class ERing : uint8 { Move, Attack, Hover, Selected, AttackMove, Count };
     struct FRing
     {
         TArray<TObjectPtr<UStaticMeshComponent>> Dashes, Shades;
@@ -69,5 +70,6 @@ private:
     uint32 AttackEpoch = 0, HoverEpoch = 0, SelectedEpoch = 0;
     double Clock = 0, MoveFrom = -1, AttackFrom = -1;
     bool bMoveReachable = true;
+    bool bMoveAttack = false;
     bool bMoveShown = false, bAttackShown = false, bHoverShown = false, bSelectedShown = false;
 };

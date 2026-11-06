@@ -362,7 +362,12 @@ void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHin
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
     Request.bQueue=bQueue;
-    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind)) || SurfaceHint.IsNone()) { return; }
+    // The ground marker of a right-click move, in red, in the same frame; a point the local route check already refuses
+    // is the same red cross.
+    bool bKnown=false;
+    const bool bReachable=ProbeGround(Surface,bKnown) || !bKnown;
+    if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(Surface,bReachable,true); }
 }
 
 void ULDNavigationComponent::ApproachShop(FName ShopId)
