@@ -92,6 +92,12 @@ constexpr double CombatProbeChaseResolutionCm = 0.5;
 constexpr double CombatProbeSkillGapCm = 420.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
+// Client1's Shift-queue walk to the skill site: a detour waypoint at one of these fractions of the straight walk and this
+// far off it (either side; the first with legal ground and complete routes both ways wins), passed within the pass
+// radius before the queued site.
+constexpr double CombatProbeQueueAlong[] = {.5, .35, .65, .2, .8};
+constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0};
+constexpr double CombatProbeQueuePassCm = 90.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
 // The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
@@ -238,6 +244,13 @@ public:
     bool bBoltHeading = true, bCastCueSeen = false, bBoltLanded = false;
     double SkillGapCm = 0, ReachHitCm = 0;
     FLDMoveIdentity ReachOrder;
+    // Client1, on its walk to the skill site: a ground order to a detour waypoint, then a Shift-queued order to the
+    // site over the owning connection. The queued step must wait for the first one's arrival, then run to the site.
+    enum class EQueueStep : uint8 { Send, Walking, Done };
+    EQueueStep QueueStep = EQueueStep::Send;
+    FLDMoveIdentity QueueFirst, QueueSecond;
+    FVector QueueWaypoint = FVector::ZeroVector;
+    double QueueNearestCm = TNumericLimits<double>::Max();
 
     // Host: rendered evidence. One capture of the main view with its UI at a time; the engine's screenshot delegate
     // hands over the frame it read back, which is kept only while that very frame still shows the moment.
@@ -1208,8 +1221,110 @@ public:
 
     // ---- Client1: rooted by the Host's snare, it shields and cleanses itself with its own Q. ----
 
+    // Shift queue over the real owning connection (2026-11-06 decision): bHandled stays true until the queued walk ended.
+    bool TickQueuedWalk(double Now, ALDPlayerController& PC, bool& bHandled)
+    {
+        bHandled = true;
+        const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+        if (!Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive)
+        {
+            return Fail(TEXT("Queue"), TEXT("The owned body ended its life during the queued walk"));
+        }
+        const FVector Foot = Body->GetNavAgentLocation();
+        if (QueueStep == EQueueStep::Send)
+        {
+            if (PC.Navigation->HasMoveOrder()) { return true; }
+            const auto* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+            FCollisionShape Capsule;
+            FString QueueError;
+            FLDLegalGround From, Detour, To;
+            ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+            const FName Surface = PC.Navigation->GroundSurfaceHint();
+            const FVector Span(SkillSite.X - Foot.X, SkillSite.Y - Foot.Y, 0.0);
+            const FVector Across = FVector(Span.Y, -Span.X, 0.0).GetSafeNormal();
+            bool bLegal = false;
+            if (Registry && !Across.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, QueueError)
+                && Registry->QueryGround(Registry->Revision(), Foot, Capsule, Surface, From, Failure, QueueError)
+                && Registry->QueryGround(Registry->Revision(), SkillSite, Capsule, Surface, To, Failure, QueueError))
+            {
+                FString Tried;
+                for (int32 Index = 0; !bLegal && Index < UE_ARRAY_COUNT(LDDemoCombatScenario::CombatProbeQueueAlong); ++Index)
+                {
+                    for (const double Offset : LDDemoCombatScenario::CombatProbeQueueDetourCm)
+                    {
+                        QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
+                        QueueWaypoint.Z = Foot.Z;
+                        FLDCompletePath First, Second;
+                        FString Why;
+                        if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
+                            && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
+                            && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
+                        {
+                            QueueWaypoint = Detour.SurfaceCm;
+                            bLegal = true;
+                            break;
+                        }
+                        Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
+                    }
+                }
+                if (!bLegal) { QueueError = Tried; }
+            }
+            if (!Check(bLegal, TEXT("Queue"), TEXT("A legal detour waypoint off the straight walk to the skill site exists"),
+                FString::Printf(TEXT("from=%s site=%s %s"), *Foot.ToCompactString(), *SkillSite.ToCompactString(), *QueueError)))
+            {
+                return Finish();
+            }
+            PC.Navigation->Navigate(QueueWaypoint);
+            QueueFirst = PC.Navigation->LocalIdentity();
+            PC.Navigation->Navigate(SkillSite, true);
+            QueueSecond = PC.Navigation->LocalIdentity();
+            const ALDPointerFeedback* Feedback = PC.Navigation->PointerFeedback();
+            if (!Check(QueueSecond.Order == QueueFirst.Order + 1 && PC.Navigation->QueuedMarkCount() == 1
+                && Feedback && Feedback->ShownWaypoints() == 1, TEXT("Queue"),
+                TEXT("A Shift order is sent behind the current one and shows its waypoint")))
+            {
+                return Finish();
+            }
+            QueueStep = EQueueStep::Walking;
+            StageAt = Now;
+            return true;
+        }
+        QueueNearestCm = FMath::Min(QueueNearestCm, FVector::Dist2D(Foot, QueueWaypoint));
+        const FLDOrderReceipt& Latest = PC.Navigation->LatestReceipt();
+        const bool bEnded = Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled;
+        if (Latest.Identity == QueueFirst && bEnded)
+        {
+            return Fail(TEXT("Queue"), FString::Printf(TEXT("The first order ended early (failure %u): the queued one replaced it"),
+                uint32(Latest.Failure)));
+        }
+        if (Latest.Identity == QueueSecond && bEnded)
+        {
+            return Fail(TEXT("Queue"), FString::Printf(TEXT("The queued order ended without arriving (failure %u)"), uint32(Latest.Failure)));
+        }
+        if (Latest.Identity == QueueSecond && Latest.Status == ELDOrderStatus::Completed)
+        {
+            const ALDPointerFeedback* Feedback = PC.Navigation->PointerFeedback();
+            Check(QueueNearestCm <= LDDemoCombatScenario::CombatProbeQueuePassCm && PC.Navigation->QueuedMarkCount() == 0
+                && Feedback && Feedback->ShownWaypoints() == 0, TEXT("Queue"),
+                TEXT("The queued order waited for the first one's arrival at its waypoint, then completed at the skill site"),
+                FString::Printf(TEXT("nearest_waypoint_cm=%.1f"), QueueNearestCm));
+            if (!Passed) { return Finish(); }
+            QueueStep = EQueueStep::Done;
+            bHandled = false;
+            return true;
+        }
+        if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+        return Fail(TEXT("Queue"), TEXT("The queued walk did not finish: ") + PC.Navigation->Status);
+    }
+
     bool TickToSkillSite(double Now, ALDPlayerController& PC)
     {
+        if (QueueStep != EQueueStep::Done)
+        {
+            bool bHandled = true;
+            const bool bContinue = TickQueuedWalk(Now, PC, bHandled);
+            if (bHandled) { return bContinue; }
+        }
         bool bArrived = false;
         if (!Walk(Now, PC, SkillSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
         if (!bArrived) { return true; }

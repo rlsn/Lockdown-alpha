@@ -38,6 +38,9 @@ struct FLDSpatialOrderRequest
     UPROPERTY() uint32 ObservationEpoch=0;
     // ApproachShop: public POI id.
     UPROPERTY() FName ShopId;
+    // Shift (2026-11-06 user decision): wait behind the current order and the steps already queued instead of
+    // replacing them (ULDNavigationComponent shift queue, LDOrderRules::MaxQueuedSteps).
+    UPROPERTY() bool bQueue=false;
 
     bool HasValidShape() const
     {
@@ -59,7 +62,7 @@ struct FLDSpatialOrderRequest
     {
         return Identity==Other.Identity && Kind==Other.Kind && FVector(GroundCm)==FVector(Other.GroundCm)
             && SurfaceHint==Other.SurfaceHint && Observed==Other.Observed
-            && ObservationEpoch==Other.ObservationEpoch && ShopId==Other.ShopId;
+            && ObservationEpoch==Other.ObservationEpoch && ShopId==Other.ShopId && bQueue==Other.bQueue;
     }
     bool IsAggressive() const { return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove; }
 };
@@ -76,7 +79,9 @@ enum class ELDOrderFailure : uint8
     // A taunted body takes no order of its own; Navigation chases its taunter instead.
     Taunted,
     // A knockback interrupted the order (#112 §5).
-    KnockedBack
+    KnockedBack,
+    // The shift queue already holds LDOrderRules::MaxQueuedSteps steps.
+    QueueFull
 };
 
 // Owner-only order receipt. Goal is only ever a public ground point or a visible target's approach point.

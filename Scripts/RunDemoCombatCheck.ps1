@@ -29,7 +29,7 @@ $roles = @('Host','Client1')
 # Every role must report each check group it owns; a skipped stage cannot pass silently.
 $requiredChecks = @{
     Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection','Skills','Render','Feel','Pointer')
-    Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection','Skills','Feel')
+    Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection','Skills','Feel','Queue')
 }
 # Only the Host runs the DEV growth fixture: it presets offers and grants XP on its authority, with no RPC.
 $fixtureSwitch = '-LDDevGrowthFixture'

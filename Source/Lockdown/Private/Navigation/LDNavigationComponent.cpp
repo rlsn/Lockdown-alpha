@@ -52,9 +52,12 @@ namespace LDNavigationDetail
         case ELDOrderFailure::Expired: return TEXT("订单已过期");
         case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能找喊你的人")+LDTerms::BasicAttackVerb; return *Text; }
         case ELDOrderFailure::KnockedBack: return TEXT("被掀飞了，指令中断");
+        case ELDOrderFailure::QueueFull: return TEXT("指令队列已满");
         default: return TEXT("订单失败");
         }
     }
+
+    const TCHAR* QueuedText() { return TEXT("已加入指令队列"); }
 
     const TCHAR* PendingText(ELDSpatialOrderKind Kind)
     {
@@ -280,7 +283,7 @@ bool ULDNavigationComponent::NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out
     return true;
 }
 
-void ULDNavigationComponent::Navigate(const FVector& Surface)
+void ULDNavigationComponent::Navigate(const FVector& Surface, bool bQueue)
 {
     const FName Hint=GroundSurfaceHint();
     if (Hint.IsNone())
@@ -289,16 +292,17 @@ void ULDNavigationComponent::Navigate(const FVector& Surface)
         if (auto* PC=Controller()) { PC->PostIntentNotice(Status); }
         return;
     }
-    NavigateGround(Surface,Hint);
+    NavigateGround(Surface,Hint,nullptr,bQueue);
 }
 
-void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm)
+void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm, bool bQueue)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::MoveGround;
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
+    Request.bQueue=bQueue;
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind))) { return; }
     // The ground marker answers in the same frame: green, or a red cross where the local route already fails (the
     // server's own refusal still follows as the notice).
@@ -307,25 +311,27 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowMove(MarkerCm?*MarkerCm:Surface,bReachable); }
 }
 
-void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch)
+void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::AttackUnit;
     Request.Observed=Observed;
     Request.ObservationEpoch=ObservationEpoch;
+    Request.bQueue=bQueue;
     if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind))) { return; }
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Observed,ObservationEpoch); }
 }
 
 // A missing ground point is still sent: the server judges the intent and ends protection.
-void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHint)
+void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHint, bool bQueue)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
     Request.Kind=ELDSpatialOrderKind::AttackMove;
     Request.GroundCm=Surface;
     Request.SurfaceHint=SurfaceHint;
+    Request.bQueue=bQueue;
     SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind));
 }
 
@@ -350,11 +356,41 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     bShopArrived=false;
     bLocalStop=false;
     bLocalPending=true;
+    // A non-Shift order replaces the server's queue, so its waypoints go now; a Shift ground step adds one.
+    if (!Request.bQueue) { QueuedMarks.Reset(); }
+    else if (Request.Kind==ELDSpatialOrderKind::MoveGround || Request.Kind==ELDSpatialOrderKind::AttackMove)
+    { QueuedMarks.Add({Local,FVector(Request.GroundCm),Request.Kind==ELDSpatialOrderKind::AttackMove}); }
+    RefreshQueuedPath();
     RefreshLocalActive();
-    Status=PendingStatus;
+    Status=Request.bQueue?LDNavigationDetail::QueuedText():PendingStatus;
     LocalSentAt=FPlatformTime::Seconds();
     ServerSubmitOrder(Request);
     return true;
+}
+
+void ULDNavigationComponent::QueueCombatAction(const FLDCombatActionRequest& Request, const FVector* AimCm)
+{
+    auto* PC=Controller();
+    if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand()) { return; }
+    Status=LDNavigationDetail::QueuedText();
+    ServerQueueCombatAction(Request,AimCm!=nullptr,AimCm?FVector_NetQuantize10(*AimCm):FVector_NetQuantize10(FVector::ZeroVector));
+}
+
+// The waypoints of the own queued ground steps, drawn after the current goal; local presentation only.
+void ULDNavigationComponent::RefreshQueuedPath()
+{
+    ALDPointerFeedback* Feedback=QueuedMarks.IsEmpty()?Pointer.Get():EnsurePointer();
+    if (!Feedback) { return; }
+    TArray<FVector> Waypoints;
+    TArray<bool> Attack;
+    for (const FQueuedMark& Mark : QueuedMarks)
+    {
+        Waypoints.Add(Mark.GroundCm);
+        Attack.Add(Mark.bAttack);
+    }
+    const bool bGoal=ClientActive.Order!=0 && bActiveHasGoal && (ActiveKind==ELDSpatialOrderKind::MoveGround
+        || ActiveKind==ELDSpatialOrderKind::AttackMove);
+    Feedback->SetQueue(Waypoints,Attack,bGoal?&ActiveGoal:nullptr);
 }
 
 void ULDNavigationComponent::Stop()
@@ -370,6 +406,8 @@ void ULDNavigationComponent::Stop()
     bLocalStop=bLocalPending=true;
     bFollowing=false;
     Points.Reset();
+    QueuedMarks.Reset();
+    RefreshQueuedPath();
     RefreshLocalActive();
     Status=TEXT("停止请求已发送");
     if (!PC->HasAuthority()) { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
@@ -387,6 +425,8 @@ void ULDNavigationComponent::ResetLife()
     ShopBindingIdentity={};
     bShopArrived=false;
     Points.Reset();
+    QueuedMarks.Reset();
+    RefreshQueuedPath();
     bCameraInitialized=false;
     bFollowCamera=true;
     bRecenterHeld=false;
@@ -415,6 +455,10 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
     const bool bActive=ClientActive.Order!=0 && Identity==ClientActive;
     if (bLocal && AcknowledgedOrder!=Identity.Order)
     { AcknowledgedOrder=Identity.Order; AcknowledgementMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000); }
+    // A queued waypoint leaves once its step starts or ends.
+    if (Receipt.Status!=ELDOrderStatus::Queued
+        && QueuedMarks.RemoveAll([&Identity](const FQueuedMark& Mark) { return Mark.Identity==Identity; })>0)
+    { RefreshQueuedPath(); }
     switch (Receipt.Status)
     {
     case ELDOrderStatus::Queued:
@@ -432,6 +476,7 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
         if (bLocal && Receipt.Status==ELDOrderStatus::Activated && AcceptedOrder!=Identity.Order)
         { AcceptedOrder=Identity.Order; RouteAcceptanceMs.Add((FPlatformTime::Seconds()-LocalSentAt)*1000); }
         ApplyPrediction();
+        if (!QueuedMarks.IsEmpty()) { RefreshQueuedPath(); }
         break;
     default:
         if (bLocal) { bLocalPending=false; }
@@ -441,8 +486,10 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
             bActiveHasGoal=bActiveEngaged=false;
             bFollowing=false;
             Points.Reset();
-            // A superseding activation follows immediately; only a real end stops the predicted body.
-            if (!PC->HasAuthority() && Receipt.Failure!=ELDOrderFailure::Superseded)
+            // A superseding activation follows immediately, and so does the next queued walk after an arrival; only a
+            // real end stops the predicted body.
+            const bool bWalkOn=Receipt.Status==ELDOrderStatus::Completed && !QueuedMarks.IsEmpty();
+            if (!PC->HasAuthority() && Receipt.Failure!=ELDOrderFailure::Superseded && !bWalkOn)
             { LDPathSteering::HaltLocomotion(Cast<ALDCharacter>(PC->GetPawn())); }
         }
         break;
@@ -609,13 +656,13 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     }
 }
 
-void ULDNavigationComponent::ClickMove()
+void ULDNavigationComponent::ClickMove(bool bQueue)
 {
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || (PC->RootUI && PC->RootUI->PointerOverUI())) { return; }
     FGuid Observed;
     uint32 ObservationEpoch=0;
-    if (PC->ObservedUnderPointer(Observed,ObservationEpoch)) { AttackUnit(Observed,ObservationEpoch); return; }
+    if (PC->ObservedUnderPointer(Observed,ObservationEpoch)) { AttackUnit(Observed,ObservationEpoch,bQueue); return; }
     FHitResult GroundHit;
     if (!GroundUnderPointer(GroundHit)) { return; }
     // The stall model takes a right click like a wall: an ordinary ground order to the nearest walkable point beside it.
@@ -624,11 +671,12 @@ void ULDNavigationComponent::ClickMove()
     PointerGoal(GroundHit,Goal);
     const uint32 Before=Local.Order;
     const FName Hint=GroundSurfaceHint();
-    if (Hint.IsNone()) { Navigate(Goal); }
+    if (Hint.IsNone()) { Navigate(Goal,bQueue); }
     // The marker stays where the click landed, as for any obstacle; only the order's point moves beside the model.
-    else { NavigateGround(Goal,Hint,&GroundHit.ImpactPoint); }
-    // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing.
-    bHeldMove=Local.Order!=Before;
+    else { NavigateGround(Goal,Hint,&GroundHit.ImpactPoint,bQueue); }
+    // While the button stays down the walk follows the pointer (TickHeldMove); a refused click starts nothing, and a
+    // Shift click is a single queued step.
+    bHeldMove=!bQueue && Local.Order!=Before;
     HeldSentAt=GetWorld()->GetTimeSeconds();
     HeldPoint=GroundHit.ImpactPoint;
 }

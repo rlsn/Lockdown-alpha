@@ -8,6 +8,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatPreInput.h"
 #include "Vision/LDVisionDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Region/LDMapRegistry.h"
@@ -75,6 +76,29 @@ void ULDNavigationComponent::ServerSubmitOrder_Implementation(const FLDSpatialOr
     ELDOrderFailure Failure=ELDOrderFailure::None;
     if (!ResolveOwnerCaller(Caller,Failure)) { Reply(Request,ELDOrderStatus::Rejected,Failure,false); return; }
     SubmitOrder(Caller,Request);
+}
+
+void ULDNavigationComponent::ServerQueueCombatAction_Implementation(const FLDCombatActionRequest& Request, bool bAimPoint,
+    FVector_NetQuantize10 AimCm)
+{
+    FLDCombatActionRequest Incoming=Request;
+    Incoming.Target.ServerBody={};
+    FLDOrderCaller Caller;
+    ELDOrderFailure Failure=ELDOrderFailure::None;
+    const FVector Aim=AimCm;
+    FLDCombatActionReceipt Receipt;
+    if (ResolveOwnerCaller(Caller,Failure)) { Receipt=QueueAction(Caller,Incoming,bAimPoint?&Aim:nullptr); }
+    else
+    {
+        Receipt.Generation=Request.Generation;
+        Receipt.Life=Request.Life;
+        Receipt.DirectSequence=Request.DirectSequence;
+        Receipt.Entry=Request.Entry;
+        Receipt.Phase=ELDCombatPhase::Rejected;
+        Receipt.Reject=Failure==ELDOrderFailure::MatchEnded?ELDCombatReject::MatchClosed
+            : Failure==ELDOrderFailure::Dead?ELDCombatReject::Dead : ELDCombatReject::NotOwner;
+    }
+    if (auto* PC=Controller()) { PC->ClientCombatReceipt(Receipt); }
 }
 
 void ULDNavigationComponent::ServerStop_Implementation(FLDMoveIdentity Identity)
@@ -149,7 +173,127 @@ FLDOrderReceipt ULDNavigationComponent::SubmitOrder(const FLDOrderCaller& Caller
     }
     if (Request.Identity.Order<=Book.Received.Order || Request.Identity.Epoch<Book.Received.Epoch)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
-    return Enqueue(Caller,Request,false,ELDOrderCancelReason::Stop);
+    if (!Request.bQueue)
+    {
+        // A non-Shift order replaces the current order and every step still waiting behind it.
+        ClearQueue(ELDOrderFailure::Superseded);
+        return Enqueue(Caller,Request,false,ELDOrderCancelReason::Stop);
+    }
+    if (Queue.Num()>=LDOrderRules::MaxQueuedSteps)
+    { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::QueueFull,false); }
+    int64 NotBefore=0;
+    FString Error;
+    if (!AuthorityMode()->CaptureIncomingTime(NotBefore,Error))
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
+        return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::MatchEnded,false);
+    }
+    // The step waits behind the current order; it starts like any other request when its turn comes (AdvanceQueue).
+    Book.Received=Request.Identity;
+    FQueuedStep Step;
+    Step.Order=Request;
+    Step.Match=Caller.Match;
+    Step.Body=Caller.Body;
+    Step.NotBeforeMs=NotBefore;
+    // A sent aggressive step ends protection in the next Actions phase, whatever later happens to it.
+    if (Request.IsAggressive() && !QueueOwedAggression)
+    { QueueOwedAggression=FOwedAggression{LDNavOrdersDetail::IntentOf(Request),Caller.Match,Caller.Body}; }
+    Queue.Add(MoveTemp(Step));
+    AddRecord(Request,false);
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUED order=%u epoch=%u kind=%u depth=%d"),Request.Identity.Order,
+        Request.Identity.Epoch,uint32(Request.Kind),Queue.Num());
+    return Reply(Request,ELDOrderStatus::Queued,ELDOrderFailure::None,true);
+}
+
+FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller& Caller, const FLDCombatActionRequest& Request,
+    const FVector* AimCm)
+{
+    FLDCombatActionReceipt Receipt;
+    Receipt.Generation=Request.Generation;
+    Receipt.Life=Request.Life;
+    Receipt.Origin=ELDCombatRequestOrigin::Direct;
+    Receipt.DirectSequence=Request.DirectSequence;
+    Receipt.Entry=Request.Entry;
+    Receipt.Phase=ELDCombatPhase::Rejected;
+    const auto Refuse=[&Receipt](ELDCombatReject Reason) { Receipt.Reject=Reason; return Receipt; };
+    const FLDMoveIdentity Line{Request.Generation,Request.Life,0,0};
+    ELDOrderFailure Failure=ELDOrderFailure::None;
+    if (!ValidateCaller(Caller,Line,Failure))
+    {
+        return Refuse(Failure==ELDOrderFailure::StaleMatch?ELDCombatReject::StaleMatch
+            : Failure==ELDOrderFailure::StaleLife?ELDCombatReject::StaleLife
+            : Failure==ELDOrderFailure::MatchEnded?ELDCombatReject::MatchClosed
+            : Failure==ELDOrderFailure::Dead?ELDCombatReject::Dead : ELDCombatReject::NotOwner);
+    }
+    if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
+    { return Refuse(ELDCombatReject::InvalidRequest); }
+    auto* Mode=AuthorityMode();
+    auto* PC=Controller();
+    FLDCombatCaller CombatCaller;
+    FString Error;
+    if (!Mode->Combat || !Mode->Combat->ResolveControllerCaller(*PC,CombatCaller,Error)) { return Refuse(ELDCombatReject::NotOwner); }
+    // The sequence must still be unseen by Combat and newer than every queued or running step: a late duplicate or a
+    // replay is refused here instead of being judged twice when its turn comes.
+    const FLDCombatActionReceipt Known=Mode->Combat->QueryActionReceipt(CombatCaller,Request.DirectSequence);
+    const bool bQueuedNewer=Queue.ContainsByPredicate([&Request](const FQueuedStep& Step)
+        { return Step.bAction && Step.Action.DirectSequence>=Request.DirectSequence; });
+    if (Known.Reject!=ELDCombatReject::StaleRequest || bQueuedNewer || Request.DirectSequence<=RunningQueuedAction)
+    { return Refuse(ELDCombatReject::StaleRequest); }
+    if (Queue.Num()>=LDOrderRules::MaxQueuedSteps) { return Refuse(ELDCombatReject::CapacityUnavailable); }
+    EnsureBook(Line);
+    int64 NotBefore=0;
+    if (!Mode->CaptureIncomingTime(NotBefore,Error))
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_INTENT_TIME_REJECTED %s"),*Error);
+        return Refuse(ELDCombatReject::MatchClosed);
+    }
+    FQueuedStep Step;
+    Step.bAction=true;
+    Step.Action=Request;
+    Step.bAimPoint=AimCm!=nullptr && Request.Target.Kind==ELDCombatTargetKind::Direction;
+    Step.AimCm=AimCm?*AimCm:FVector::ZeroVector;
+    Step.Match=Caller.Match;
+    Step.Body=Caller.Body;
+    Step.NotBeforeMs=NotBefore;
+    // Every Q/W/1/2 attempt is an aggressive intent (the D dash is movement, APP_SPEC 7.1).
+    if (Request.Entry!=ELDCombatEntry::Dash && !QueueOwedAggression)
+    {
+        FLDAggressiveIntent Intent;
+        Intent.Kind=Request.Entry==ELDCombatEntry::Item1 || Request.Entry==ELDCombatEntry::Item2
+            ? ELDAggressiveIntentKind::ActivateEquipment : ELDAggressiveIntentKind::ActivateCharacter;
+        Intent.Request={ELDAggressionOrigin::Combat,Request.DirectSequence,0};
+        QueueOwedAggression=FOwedAggression{Intent,Caller.Match,Caller.Body};
+    }
+    Queue.Add(MoveTemp(Step));
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUED action sequence=%llu entry=%u depth=%d"),Request.DirectSequence,
+        uint32(Request.Entry),Queue.Num());
+    Receipt.Phase=ELDCombatPhase::Queued;
+    Receipt.Reject=ELDCombatReject::None;
+    return Receipt;
+}
+
+void ULDNavigationComponent::ClearQueue(ELDOrderFailure Failure)
+{
+    if (Queue.IsEmpty()) { return; }
+    const TArray<FQueuedStep> Dropped=MoveTemp(Queue);
+    Queue.Reset();
+    auto* PC=Controller();
+    for (const FQueuedStep& Step : Dropped)
+    {
+        if (!Step.bAction) { Reply(Step.Order,ELDOrderStatus::Cancelled,Failure,true); continue; }
+        FLDCombatActionReceipt Cancelled;
+        Cancelled.Generation=Step.Action.Generation;
+        Cancelled.Life=Step.Action.Life;
+        Cancelled.Origin=ELDCombatRequestOrigin::Direct;
+        Cancelled.DirectSequence=Step.Action.DirectSequence;
+        Cancelled.Entry=Step.Action.Entry;
+        Cancelled.Phase=ELDCombatPhase::Rejected;
+        Cancelled.Reject=Failure==ELDOrderFailure::Dead?ELDCombatReject::Dead
+            : Failure==ELDOrderFailure::MatchEnded?ELDCombatReject::MatchClosed
+            : Failure==ELDOrderFailure::Taunted?ELDCombatReject::ControlBlocked : ELDCombatReject::Cancelled;
+        if (PC && IsHumanOwner()) { PC->ClientCombatReceipt(Cancelled); }
+    }
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_CLEARED steps=%d failure=%u"),Dropped.Num(),uint32(Failure));
 }
 
 FLDOrderReceipt ULDNavigationComponent::CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity,
@@ -166,6 +310,8 @@ FLDOrderReceipt ULDNavigationComponent::CancelOrder(const FLDOrderCaller& Caller
     { return Existing->bStop ? Replay(*Existing) : Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::RequestConflict,false); }
     if (Identity.Order<=Book.Received.Order || Identity.Epoch<=Book.Received.Epoch)
     { return Reply(StopRequest,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
+    // S drops the shift queue at once; the current order ends when the Stop activates.
+    ClearQueue(LDNavOrdersDetail::FromCancel(Reason));
     return Enqueue(Caller,StopRequest,true,Reason);
 }
 
@@ -184,7 +330,7 @@ FLDOrderReceipt ULDNavigationComponent::QueryOrder(const FLDOrderCaller& Caller,
 void ULDNavigationComponent::EnsureBook(const FLDMoveIdentity& Identity)
 {
     if (Book.IsBoundTo(Identity.Match,Identity.Life)) { return; }
-    if (PendingOrder || ActiveOrder)
+    if (PendingOrder || ActiveOrder || !Queue.IsEmpty() || RunningQueuedAction)
     {
         UE_LOG(LogTemp,Warning,TEXT("LD_NAV_STALE_LIFE_ORDERS_ENDED match=%u life=%u"),Book.Match,Book.Life);
         EndLifeOrders(ELDOrderCancelReason::LifeEnded);
@@ -197,6 +343,7 @@ void ULDNavigationComponent::ResetBook()
 {
     Records.Reset();
     Book.Reset();
+    QueueOwedAggression.Reset();
 }
 
 void ULDNavigationComponent::ResetMatch()
@@ -216,7 +363,8 @@ void ULDNavigationComponent::EndStaleServerOrders()
     const auto* PC=Controller();
     if (!Mode || !PC) { return; }
     const bool bOldBook=!Book.IsBoundTo(PC->OwnerState.Match,PC->OwnerState.Life);
-    const FLDCombatBodyRef* Bound=ActiveOrder?&ActiveOrder->Body:PendingOrder?&PendingOrder->Body:nullptr;
+    const FLDCombatBodyRef* Bound=ActiveOrder?&ActiveOrder->Body:PendingOrder?&PendingOrder->Body
+        : !Queue.IsEmpty()?&Queue[0].Body:nullptr;
     const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     FLDCombatBodyRef Current;
     const bool bBodyGone=Bound && (!Body || !Mode->ReadBodyRef(*Body,Current) || Current!=*Bound);
@@ -230,15 +378,18 @@ auto ULDNavigationComponent::FindRecord(const FLDMoveIdentity& Identity) const -
 auto ULDNavigationComponent::FindRecord(const FLDMoveIdentity& Identity) -> FOrderRecord*
 { return Records.FindByPredicate([&Identity](const FOrderRecord& Record) { return Record.Request.Identity==Identity; }); }
 
-// Bounded window: the pending and active identities are never evicted; older identities answer Expired.
+// Bounded window: the pending, active and queued identities are never evicted; older identities answer Expired.
 void ULDNavigationComponent::AddRecord(const FLDSpatialOrderRequest& Request, bool bStop)
 {
+    static_assert(LDOrderRules::MaxQueuedSteps+2<MaxOrderRecords,"The record window must outlast every live identity.");
     if (Records.Num()>=MaxOrderRecords)
     {
         const int32 Oldest=Records.IndexOfByPredicate([this](const FOrderRecord& Record)
         {
             return (!PendingOrder || Record.Request.Identity!=PendingOrder->Request.Identity)
-                && (!ActiveOrder || Record.Request.Identity!=ActiveOrder->Request.Identity);
+                && (!ActiveOrder || Record.Request.Identity!=ActiveOrder->Request.Identity)
+                && !Queue.ContainsByPredicate([&Record](const FQueuedStep& Step)
+                    { return !Step.bAction && Step.Order.Identity==Record.Request.Identity; });
         });
         if (Oldest!=INDEX_NONE) { Records.RemoveAt(Oldest); }
     }
@@ -363,6 +514,9 @@ bool ULDNavigationComponent::AuthorizesMove(const FLDMoveIdentity& Identity) con
 void ULDNavigationComponent::EndLifeOrders(ELDOrderCancelReason Reason)
 {
     const ELDOrderFailure Failure=LDNavOrdersDetail::FromCancel(Reason);
+    ClearQueue(Failure);
+    // A running queued action belongs to Combat, which ends it with the life or match; the queue only stops waiting.
+    RunningQueuedAction=0;
     if (PendingOrder)
     {
         const FPendingOrder Dropped=MoveTemp(PendingOrder.GetValue());
@@ -386,9 +540,108 @@ void ULDNavigationComponent::EndActive(ELDOrderStatus Outcome, ELDOrderFailure F
     {
         if (const auto* Mode=AuthorityMode()) { ForcedRetry.Hold(Mode->GetAuthorityNowSeconds(),OrderQueryIntervalSeconds); }
     }
-    else { Publish(Receipt,true); }
+    else
+    {
+        Publish(Receipt,true);
+        SettleStep(Failure);
+    }
     UE_LOG(LogTemp,Display,TEXT("LD_NAV_END order=%u epoch=%u status=%u failure=%u"),Ended.Request.Identity.Order,
         Ended.Request.Identity.Epoch,uint32(Outcome),uint32(Failure));
+}
+
+void ULDNavigationComponent::SettleStep(ELDOrderFailure Failure)
+{
+    if (LDOrderRules::QueueAfter(Failure)==LDOrderRules::EQueueAfter::Clear) { ClearQueue(Failure); }
+}
+
+void ULDNavigationComponent::SettleQueuedAggression(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit)
+{
+    if (!QueueOwedAggression) { return; }
+    const FOwedAggression Owed=MoveTemp(QueueOwedAggression.GetValue());
+    QueueOwedAggression.Reset();
+    auto* PC=Controller();
+    if (!PC) { return; }
+    // Removed or NotProtected both settle the debt; a stale life or closed match has nothing left to protect.
+    const FLDProtectionReceipt Protection=Mode.EndProtectionForAggressiveIntent(*PC,Owed.Match,Owed.Body,Owed.Intent,Permit);
+    if (Protection.Outcome==ELDProtectionOutcome::Rejected)
+    { UE_LOG(LogTemp,Verbose,TEXT("LD_NAV_QUEUED_PROTECTION_REJECTED reason=%u"),uint32(Protection.Reason)); }
+}
+
+bool ULDNavigationComponent::QueueContinuesWalking() const
+{
+    return !Queue.IsEmpty() && !Queue[0].bAction && (Queue[0].Order.Kind==ELDSpatialOrderKind::MoveGround
+        || Queue[0].Order.Kind==ELDSpatialOrderKind::AttackMove);
+}
+
+void ULDNavigationComponent::AdvanceQueue(ALDGameMode& Mode)
+{
+    auto* PC=Controller();
+    if (RunningQueuedAction)
+    {
+        FLDCombatCaller CombatCaller;
+        FString Error;
+        if (!PC || !Mode.Combat || !Mode.Combat->ResolveControllerCaller(*PC,CombatCaller,Error))
+        {
+            RunningQueuedAction=0;
+            ClearQueue(ELDOrderFailure::NotOwner);
+            return;
+        }
+        // Combat alone decides when the queued action is over: finished, refused, cancelled or expired.
+        if (!LDOrderRules::QueuedActionSettled(Mode.Combat->QueryActionReceipt(CombatCaller,RunningQueuedAction).Phase)) { return; }
+        RunningQueuedAction=0;
+    }
+    // Bounded: each pass starts at most the whole queue, and a spatial step waits for its own activation and end.
+    for (int32 Guard=LDOrderRules::MaxQueuedSteps; Guard>0 && !Queue.IsEmpty()
+        && LDOrderRules::QueueHeadDue(PendingOrder.IsSet(),ActiveOrder.IsSet(),RunningQueuedAction!=0); --Guard)
+    {
+        FQueuedStep Head=MoveTemp(Queue[0]);
+        Queue.RemoveAt(0);
+        if (Head.bAction)
+        {
+            StartQueuedAction(Mode,MoveTemp(Head));
+            continue;
+        }
+        // The head becomes the one pending request and is admitted below exactly like a fresh order.
+        FPendingOrder Next;
+        Next.Request=Head.Order;
+        Next.Match=Head.Match;
+        Next.Body=Head.Body;
+        Next.NotBeforeMs=Head.NotBeforeMs;
+        PendingOrder=MoveTemp(Next);
+        UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_NEXT order=%u left=%d"),Head.Order.Identity.Order,Queue.Num());
+    }
+}
+
+void ULDNavigationComponent::StartQueuedAction(ALDGameMode& Mode, FQueuedStep Step)
+{
+    auto* PC=Controller();
+    FLDCombatCaller CombatCaller;
+    FString Error;
+    FLDCombatActionReceipt Receipt;
+    if (!PC || !Mode.Combat || !Mode.Combat->ResolveControllerCaller(*PC,CombatCaller,Error))
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_QUEUED_ACTION_CALLER %s"),*Error);
+        Receipt.Generation=Step.Action.Generation;
+        Receipt.Life=Step.Action.Life;
+        Receipt.DirectSequence=Step.Action.DirectSequence;
+        Receipt.Entry=Step.Action.Entry;
+        Receipt.Phase=ELDCombatPhase::Rejected;
+        Receipt.Reject=ELDCombatReject::NotOwner;
+        if (PC && IsHumanOwner()) { PC->ClientCombatReceipt(Receipt); }
+        return;
+    }
+    FLDCombatActionRequest Request=Step.Action;
+    // A direction step aims from where the body stands now toward its queued ground point; a point under the body
+    // keeps the direction it was sent with.
+    FVector Direction;
+    const auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+    if (Step.bAimPoint && Body && LDOrderRules::QueuedAimDirection(ALDCombatDirector::FootOf(*Body),Step.AimCm,Direction))
+    { Request.Target.Direction=Direction; }
+    Receipt=Mode.Combat->SubmitAction(CombatCaller,Request);
+    if (IsHumanOwner()) { PC->ClientCombatReceipt(Receipt); }
+    if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_QUEUE_ACTION sequence=%llu entry=%u phase=%u reject=%u left=%d"),Request.DirectSequence,
+        uint32(Request.Entry),uint32(Receipt.Phase),uint32(Receipt.Reject),Queue.Num());
 }
 
 void ULDNavigationComponent::ReleaseOrderLinks(const FActiveOrder& Order, bool bReleasePin)
@@ -412,6 +665,7 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
     auto* Mode=AuthorityMode();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::Actions)!=ELDCommitReject::None)
     { Error=TEXT("Order activation requires the current Actions permit."); return false; }
+    SettleQueuedAggression(*Mode,Permit);
     {
         auto* Owner=Controller();
         auto* OwnBody=Owner?Cast<ALDCharacter>(Owner->GetPawn()):nullptr;
@@ -446,6 +700,8 @@ bool ULDNavigationComponent::ProcessAuthorityOrders(const FLDGameplayWritePermit
             break;
         }
     }
+    // The shift queue's head starts once the body is free of the pending request, the current order and a queued action.
+    AdvanceQueue(*Mode);
     if (PendingOrder && Mode->GetAuthorityNowMs()>=PendingOrder->NotBeforeMs
         && (PendingOrder->bStop || Book.ActivationDue(Mode->GetAuthorityNowSeconds()))
         && !ActivatePending(*Mode,Permit,Error)) { return false; }
@@ -479,6 +735,8 @@ bool ULDNavigationComponent::AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body
 {
     const double Now=Mode.GetAuthorityNowSeconds();
     // Every own order (Stop included) is refused while taunted; the identity watermark already advanced at receipt.
+    // The forced chase replaces the queue too: nothing queued resumes after the taunt.
+    ClearQueue(ELDOrderFailure::Taunted);
     if (PendingOrder && Mode.GetAuthorityNowMs()>=PendingOrder->NotBeforeMs)
     {
         const FPendingOrder Refused=MoveTemp(PendingOrder.GetValue());
@@ -541,6 +799,7 @@ bool ULDNavigationComponent::AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, 
     const FLDGameplayWritePermit& Permit, FString& Error)
 {
     // Every own order (Stop included) is refused while lured, exactly as while taunted.
+    ClearQueue(ELDOrderFailure::Taunted);
     if (PendingOrder && Mode.GetAuthorityNowMs()>=PendingOrder->NotBeforeMs)
     {
         const FPendingOrder Refused=MoveTemp(PendingOrder.GetValue());
@@ -579,6 +838,7 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
     if (!ValidateCaller(Caller,Next.Request.Identity,Failure))
     {
         Reply(Next.Request,ELDOrderStatus::Rejected,Failure,true);
+        SettleStep(Failure);
         return true;
     }
     if (Next.OwedAggression.IsSet())
@@ -611,7 +871,9 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
         const FLDProtectionReceipt Protection=Mode.EndProtectionForAggressiveIntent(*PC,Next.Match,Next.Body,Intent,Permit);
         if (Protection.Outcome==ELDProtectionOutcome::Rejected)
         {
-            Reply(Next.Request,ELDOrderStatus::Rejected,LDNavOrdersDetail::FromCommit(Protection.Reason),true);
+            const ELDOrderFailure Refused=LDNavOrdersDetail::FromCommit(Protection.Reason);
+            Reply(Next.Request,ELDOrderStatus::Rejected,Refused,true);
+            SettleStep(Refused);
             return true;
         }
         Admitted.bProtectionRemoved=Protection.bProtectionRemoved;
@@ -620,8 +882,10 @@ bool ULDNavigationComponent::ActivatePending(ALDGameMode& Mode, const FLDGamepla
     if (!AdmitOrder(Mode,*CastChecked<ALDCharacter>(PC->GetPawn()),Permit,Admitted,Failure,Error))
     {
         if (!Error.IsEmpty()) { return false; }
-        // The previous accepted order keeps running; the rejection still reports the protection change.
+        // The previous accepted order keeps running; the rejection still reports the protection change. A refused
+        // queued step lets the next one follow.
         Reply(Next.Request,ELDOrderStatus::Rejected,Failure,true,Admitted.bProtectionRemoved,Admitted.LifeRevision);
+        SettleStep(Failure);
         return true;
     }
     if (ActiveOrder)
@@ -815,7 +1079,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
     if (bFound) { return EngageTarget(Mode,Body,Sample,Permit,Error); }
     // Arriving with no current target completes the order; an attack-move is not a permanent attack toggle.
     if (LDPathSteering::AtGoal(Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
-    { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
+    { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking()); }
     return true;
 }
 
@@ -1014,9 +1278,10 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::StaleLife,true); }
     else if (ActiveOrder && !LeaseFresh(*Mode,*ActiveOrder))
     { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Expired,true); }
+    // An arrival with a queued walk behind it keeps its momentum; the next step activates in the next Actions phase.
     if (ActiveOrder && ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround
         && LDPathSteering::AtGoal(*Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
-    { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
+    { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking()); }
     // Rooted or stunned bodies get no voluntary input; committed root motion (dashes, jumps) still integrates natively.
     const bool bRooted=Mode->Combat && Mode->Combat->IsMoveBlocked(*Body);
     const FVector Input=ActiveOrder && !bRooted?AuthoritySteering(*Body):FVector::ZeroVector;
@@ -1025,7 +1290,7 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     if (!ActiveOrder) { return true; }
     if (ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && LDPathSteering::AtGoal(*Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
     {
-        EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true);
+        EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking());
         return true;
     }
     TrackProgress(*Body,Step.EndServerSeconds,!Input.IsNearlyZero());
