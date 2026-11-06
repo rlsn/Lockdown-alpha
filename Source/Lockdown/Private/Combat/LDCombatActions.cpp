@@ -796,9 +796,9 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
     if (!LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef))
     { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
+    // A started swing lands wherever the target has moved since (2026-11-06 decision, the Dota rule): the attack range
+    // gates only the start (StartNavAttack); at the release the target must still be resolvable and in clear sight.
     const FVector Foot=FootOf(Actor);
-    if (FVector::Dist2D(Foot,TargetFoot)>LDCA::ToDouble(Body.AttributeProjection.Final.AttackRangeCm))
-    { Outcome=ELDCombatReject::OutOfRange; FinishAction(Body,Outcome,false); return true; }
     bool bFault=false;
     if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
     {
