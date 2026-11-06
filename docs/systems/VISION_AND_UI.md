@@ -237,7 +237,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   报价未列或报价更贵时不按目录价买，没有空槽或队列为空时不买。
 - `HUDScoreboard`（`LDHUDRulesTests`）覆盖按住 Tab 的排行榜：击杀多在前、相同时死亡少在前、再相同保持名单顺序，本人/AI/已离开的名字标注，
   别的代次或没有对局时为空。`DemoCapture` 规则测试另拒绝无效 ID、重复参赛者或超过 6 行的 `KillFeed.Scores`。
-- `HUDEventFeed`（`LDHUDRulesTests`）覆盖左上事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
+- `HUDEventFeed`（`LDHUDRulesTests`）覆盖左下（小地图上方）事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
   6 条上限与 5 s 离开、外卖被抢行在本人领取序号到达后改写、老板击败者署名，以及新一局从空列表开始。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCueBasicAttack`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
   首样本基线与去重、别局/别命/迟到回执不响、目录完整性，以及实际 `DA_DemoAudio` 资产可解析；

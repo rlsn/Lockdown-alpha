@@ -36,7 +36,6 @@
 #include "Components/OverlaySlot.h"
 #include "Components/ProgressBar.h"
 #include "Components/SizeBox.h"
-#include "Components/SizeBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
@@ -243,23 +242,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* TargetWidth=WidgetTree->ConstructWidget<USizeBox>();TargetWidth->SetWidthOverride(330);TargetWidth->SetContent(TargetBox);
         TargetCard=Panel(TargetWidth,true);TargetCard->SetVisibility(ESlateVisibility::Collapsed);
 
-        // Top-left: the room's event feed (LDHUD::FEventFeed), newest line at the bottom, with the target card under it. The
-        // feed keeps a fixed reserve as tall as its full row count, so the card does not move as lines come and go; a larger
-        // text preference grows the reserve with the rows. Neither the feed nor the reserve takes pointer input.
-        auto* FeedBox=WidgetTree->ConstructWidget<UVerticalBox>();
-        for(int32 Row=0;Row<LDHUD::FEventFeed::MaxLines;++Row)
-        {
-            UTextBlock* FeedLine=OneLine(TEXT(""),15,440);FeedLine->SetVisibility(ESlateVisibility::Collapsed);HudFace(FeedLine,false,1);
-            EventFeedRows.Add(FeedLine);FeedBox->AddChildToVerticalBox(FeedLine)->SetPadding(FMargin(0,1));
-        }
-        EventFeedPanel=Panel(FeedBox,false);EventFeedPanel->SetBrushColor(FLinearColor(.02f,.03f,.05f,.55f));EventFeedPanel->SetVisibility(ESlateVisibility::Collapsed);
-        auto* FeedReserve=WidgetTree->ConstructWidget<USizeBox>();FeedReserve->SetMinDesiredHeight(16.f+LDHUD::FEventFeed::MaxLines*22.f);
-        FeedReserve->SetContent(EventFeedPanel);FeedReserve->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        if(auto* ReserveSlot=Cast<USizeBoxSlot>(EventFeedPanel->Slot)){ReserveSlot->SetHorizontalAlignment(HAlign_Left);ReserveSlot->SetVerticalAlignment(VAlign_Top);}
-        auto* TopLeft=WidgetTree->ConstructWidget<UVerticalBox>();TopLeft->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        TopLeft->AddChildToVerticalBox(FeedReserve);
-        TopLeft->AddChildToVerticalBox(TargetCard)->SetPadding(FMargin(0,8,0,0));
-        Place(TopLeft,FAnchors(0,0),FVector2D(0,0),FVector2D(16,16));
+        // Top-left: the target card alone; the event feed sits above the minimap.
+        Place(TargetCard,FAnchors(0,0),FVector2D(0,0),FVector2D(16,16));
 
         // Top-centre: the public capture state, then the own death banner. None takes pointer input.
         auto* CircleBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -339,7 +323,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         CameraText=Text(TEXT(""),14);CameraText->SetColorAndOpacity(LDHUDStyle::TextSecondary);MapBox->AddChildToVerticalBox(CameraText)->SetPadding(FMargin(0,0,0,4));
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
         MapBox->AddChildToVerticalBox(MapFrame);
-        MapColumn=Panel(MapBox,true);Place(MapColumn,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
+        MapColumn=Panel(MapBox,true);
+        // Bottom-left, right above the minimap column: the room's event feed (LDHUD::FEventFeed). The newest line is at the
+        // bottom, next to the map, and older lines are pushed up; the stack grows upward from the column, so the map never
+        // moves. The feed takes no pointer input.
+        auto* FeedBox=WidgetTree->ConstructWidget<UVerticalBox>();
+        for(int32 Row=0;Row<LDHUD::FEventFeed::MaxLines;++Row)
+        {
+            UTextBlock* FeedLine=OneLine(TEXT(""),15,440);FeedLine->SetVisibility(ESlateVisibility::Collapsed);HudFace(FeedLine,false,1);
+            EventFeedRows.Add(FeedLine);FeedBox->AddChildToVerticalBox(FeedLine)->SetPadding(FMargin(0,1));
+        }
+        EventFeedPanel=Panel(FeedBox,false);EventFeedPanel->SetBrushColor(FLinearColor(.02f,.03f,.05f,.55f));EventFeedPanel->SetVisibility(ESlateVisibility::Collapsed);
+        auto* BottomLeft=WidgetTree->ConstructWidget<UVerticalBox>();BottomLeft->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+        BottomLeft->AddChildToVerticalBox(EventFeedPanel)->SetHorizontalAlignment(HAlign_Left);
+        BottomLeft->AddChildToVerticalBox(MapColumn)->SetPadding(FMargin(0,8,0,0));
+        Place(BottomLeft,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
         // Bottom band: own identity | resources over the 2+2+1 action entries. The band stack is shifted so the centre block
