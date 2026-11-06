@@ -121,4 +121,53 @@ bool FLDControlFeelSourceBufferTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelShiftQueueTest, "Lockdown.Rules.DemoControlFeel.ShiftQueue",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelShiftQueueTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOrderRules;
+    TestEqual(TEXT("At most eight steps wait in the shift queue (2026-11-06 decision)"), MaxQueuedSteps, 8);
+    TestTrue(TEXT("The head starts once nothing holds the body"), QueueHeadDue(false, false, false));
+    TestFalse(TEXT("A pending request goes first"), QueueHeadDue(true, false, false));
+    TestFalse(TEXT("The current order runs to its end first"), QueueHeadDue(false, true, false));
+    TestFalse(TEXT("A queued action still in Combat holds the queue"), QueueHeadDue(false, false, true));
+
+    for (const ELDOrderFailure Next : {ELDOrderFailure::None, ELDOrderFailure::TargetDied, ELDOrderFailure::TargetUnavailable,
+        ELDOrderFailure::NoCompletePath, ELDOrderFailure::InvalidGround, ELDOrderFailure::PathBlocked,
+        ELDOrderFailure::KnockedBack, ELDOrderFailure::ShopUnavailable, ELDOrderFailure::Superseded})
+    {
+        TestTrue(FString::Printf(TEXT("Failure %u of one step moves on to the next step"), uint32(Next)),
+            QueueAfter(Next) == EQueueAfter::Next);
+    }
+    for (const ELDOrderFailure Clear : {ELDOrderFailure::Stopped, ELDOrderFailure::Dead, ELDOrderFailure::MatchEnded,
+        ELDOrderFailure::StaleMatch, ELDOrderFailure::StaleLife, ELDOrderFailure::NotOwner, ELDOrderFailure::Expired,
+        ELDOrderFailure::Taunted})
+    {
+        TestTrue(FString::Printf(TEXT("Failure %u drops the whole queue"), uint32(Clear)), QueueAfter(Clear) == EQueueAfter::Clear);
+    }
+
+    TestFalse(TEXT("A queued action Combat holds is not settled"), QueuedActionSettled(ELDCombatPhase::Queued));
+    TestFalse(TEXT("A winding-up queued action is not settled"), QueuedActionSettled(ELDCombatPhase::Accepted));
+    TestTrue(TEXT("A released, finished or refused queued action settles"), QueuedActionSettled(ELDCombatPhase::Released)
+        && QueuedActionSettled(ELDCombatPhase::Finished) && QueuedActionSettled(ELDCombatPhase::Rejected));
+
+    FVector Direction;
+    TestTrue(TEXT("A queued direction re-aims from the body's new feet"),
+        QueuedAimDirection(FVector(100, 100, 0), FVector(100, 400, 90), Direction) && Direction.Equals(FVector(0, 1, 0), 1.e-6));
+    TestFalse(TEXT("A point under the body keeps the sent direction"),
+        QueuedAimDirection(FVector(100, 100, 0), FVector(100.5, 100, 300), Direction));
+    const double NaN = std::numeric_limits<double>::quiet_NaN();
+    TestFalse(TEXT("A non-finite point aims nothing"), QueuedAimDirection(FVector(NaN, 0, 0), FVector(1, 2, 3), Direction)
+        || QueuedAimDirection(FVector::ZeroVector, FVector(0, NaN, 0), Direction));
+
+    FLDSpatialOrderRequest Plain;
+    Plain.Identity = {1, 1, 3, 1};
+    FLDSpatialOrderRequest Queued = Plain;
+    Queued.bQueue = true;
+    TestTrue(TEXT("A queued order keeps a valid shape"), Queued.HasValidShape());
+    TestFalse(TEXT("The same identity with and without Shift is a conflict, not a replay"), Plain.SameTerms(Queued));
+    return true;
+}
+
 #endif

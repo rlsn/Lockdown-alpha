@@ -22,6 +22,40 @@ int32 LDOrderRules::NearestCandidate(const TArray<FLDObservedUnitView>& Units, c
     return Best;
 }
 
+bool LDOrderRules::QueueHeadDue(bool bPending, bool bActive, bool bActionRunning)
+{ return !bPending && !bActive && !bActionRunning; }
+
+LDOrderRules::EQueueAfter LDOrderRules::QueueAfter(ELDOrderFailure Failure)
+{
+    switch (Failure)
+    {
+    case ELDOrderFailure::Stopped:
+    case ELDOrderFailure::Dead:
+    case ELDOrderFailure::MatchEnded:
+    case ELDOrderFailure::StaleMatch:
+    case ELDOrderFailure::StaleLife:
+    case ELDOrderFailure::NotOwner:
+    case ELDOrderFailure::Expired:
+    case ELDOrderFailure::Taunted:
+        return EQueueAfter::Clear;
+    default:
+        return EQueueAfter::Next;
+    }
+}
+
+bool LDOrderRules::QueuedActionSettled(ELDCombatPhase Phase)
+{ return Phase==ELDCombatPhase::Released || Phase==ELDCombatPhase::Finished || Phase==ELDCombatPhase::Rejected; }
+
+bool LDOrderRules::QueuedAimDirection(const FVector& FootCm, const FVector& AimCm, FVector& OutDirection)
+{
+    OutDirection=FVector::ZeroVector;
+    if (FootCm.ContainsNaN() || AimCm.ContainsNaN()) { return false; }
+    const FVector Planar(AimCm.X-FootCm.X,AimCm.Y-FootCm.Y,0);
+    if (Planar.SizeSquared()<1.) { return false; }
+    OutDirection=Planar.GetSafeNormal();
+    return !OutDirection.IsZero();
+}
+
 LDOrderRules::EForcedOrder LDOrderRules::ForcedOrderStep(bool bTaunted, bool bActiveForced, bool bSameTaunter)
 {
     if (!bTaunted) { return bActiveForced ? EForcedOrder::End : EForcedOrder::None; }

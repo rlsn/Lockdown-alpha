@@ -86,6 +86,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalSettingsCameraZoom",
         "Lockdown.Rules.LocalSettingsZoomMigration",
         "Lockdown.Rules.DemoControlFeel.SourceBuffer",
+        "Lockdown.Rules.DemoControlFeel.ShiftQueue",
         "Lockdown.Rules.DemoControl.TauntForcedTarget",
         "Lockdown.Rules.DemoMechanics.HealCut",
         "Lockdown.Rules.DemoMechanics.ShieldEvents",

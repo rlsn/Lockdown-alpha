@@ -27,19 +27,32 @@ public:
     ULDNavigationComponent();
     virtual void TickComponent(float Delta,ELevelTick TickType,FActorComponentTickFunction* ThisTickFunction) override;
     bool Enabled() const;
-    // ---- Owning client intents; each takes a fresh local identity.
-    void Navigate(const FVector& Surface);
+    // ---- Owning client intents; each takes a fresh local identity. bQueue (Shift) appends the order to the server's
+    // shift queue instead of replacing the current order and the queue (LDOrderRules::MaxQueuedSteps).
+    void Navigate(const FVector& Surface, bool bQueue=false);
     // MarkerCm is where the move marker appears when it is not the order's own point (a right click on the stall model
     // walks beside it but marks where the click landed); its colour still answers the order's own point.
-    void NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm=nullptr);
-    void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch);
-    void AttackMove(const FVector& Surface, FName SurfaceHint);
+    void NavigateGround(const FVector& Surface, FName SurfaceHint, const FVector* MarkerCm=nullptr, bool bQueue=false);
+    void AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue=false);
+    void AttackMove(const FVector& Surface, FName SurfaceHint, bool bQueue=false);
     void ApproachShop(FName ShopId);
     void Stop();
     void ResetLife();
     // Right click: visible unit under the pointer, else the public shop, else ground. One class per click. A ground
-    // click keeps walking toward the pointer while its button is held (LDOrderRules::ShouldRepeatHeldMove).
-    void ClickMove();
+    // click keeps walking toward the pointer while its button is held (LDOrderRules::ShouldRepeatHeldMove); a Shift
+    // click is one queued step and never repeats.
+    void ClickMove(bool bQueue=false);
+    // Owning client: a Shift Q/W/1/2/D request goes to the server's shift queue rather than straight to Combat. A
+    // direction aim also carries the ground point it was aimed at, so the server re-aims it when its turn comes.
+    void QueueCombatAction(const FLDCombatActionRequest& Request, const FVector* AimCm);
+    // Owning client: a unit-target Q/W/1/2 becomes a CastUnit order that replaces the current one (or queues with Shift):
+    // the body approaches the target until the skill is in reach, casts, then stands (2026-11-06 decision).
+    void CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue=false);
+    // Owning client: a ground-point or projectile Q/W/1/2 aimed at PointCm becomes a CastPoint order: the body walks toward
+    // the point until it lies within the skill's reach, then casts at it from there (2026-11-06 decision).
+    void CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue=false);
+    // Owning client: own queued spatial steps still waiting (their markers and the path line), newest last.
+    int32 QueuedMarkCount() const { return QueuedMarks.Num(); }
     // The pointer in viewport pixels for world clicks and hover: the mouse, or a DEV scenario's pointer while one is set.
     bool PointerPosition(FVector2D& Out) const;
     // The ground under the pointer on the world-click channel.
@@ -83,9 +96,21 @@ public:
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
+    // A CastUnit order with its Direct request: the request must name the order's target, a unit-target entry and a
+    // sequence Combat has not seen. Readiness is judged at activation; Combat judges the cast once in reach.
+    FLDOrderReceipt SubmitCast(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& Cast);
     // Stop semantics: Identity must advance both the order and the cancellation epoch.
     FLDOrderReceipt CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderCancelReason Reason);
     FLDOrderReceipt QueryOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity) const;
+    // Shift queue: appends one Q/W/1/2/D request behind the current order and the queued steps. Only checks the caller,
+    // the request shape, its freshness against Combat's Direct window and the queue bound; Combat judges the action when
+    // its turn comes (ALDCombatDirector::SubmitAction). AimCm re-aims a direction request from the body at that time.
+    FLDCombatActionReceipt QueueAction(const FLDOrderCaller& Caller, const FLDCombatActionRequest& Request, const FVector* AimCm);
+    // Drops every queued step that has not started (a non-Shift command, S, death, a lost life or match, a takeover).
+    // Spatial steps answer Cancelled with Failure; action steps answer a Combat Cancelled refusal.
+    void ClearQueue(ELDOrderFailure Failure);
+    // Server: queued steps still waiting (not the current order nor a running queued action).
+    int32 QueuedSteps() const { return Queue.Num(); }
     // Death, leave or match close: ends pending and active orders without any new movement.
     void EndLifeOrders(ELDOrderCancelReason Reason=ELDOrderCancelReason::LifeEnded);
     // Combat's MatchReset: the controller outlives the match, its orders and order book do not. Ends the retired
@@ -104,6 +129,8 @@ public:
     FVector Destination=FVector::ZeroVector;
     // Explicitly callable for deterministic adversarial RPC probes; all validation is authority-side.
     UFUNCTION(Server,Reliable) void ServerSubmitOrder(const FLDSpatialOrderRequest& Request);
+    UFUNCTION(Server,Reliable) void ServerQueueCombatAction(const FLDCombatActionRequest& Request, bool bAimPoint, FVector_NetQuantize10 AimCm);
+    UFUNCTION(Server,Reliable) void ServerSubmitCast(const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest& Cast);
     UFUNCTION(Server,Reliable) void ServerStop(FLDMoveIdentity Identity);
     UFUNCTION(Server,Unreliable) void ServerHeartbeat(FLDMoveIdentity Identity,uint32 Sequence);
     UFUNCTION(Client,Reliable) void ClientOrderReceipt(const FLDOrderReceipt& Receipt);
@@ -115,6 +142,8 @@ private:
     // Spacing of the goals tried from beside the stall back toward the body when the stall model is right-clicked.
     static constexpr double ShopStopStepCm=25.;
     static constexpr int32 MaxOrderRecords=16;
+    // A CastUnit casts this far inside the skill's reach, so the target's next step does not take it out of range.
+    static constexpr double CastMarginCm=10.;
     struct FPendingOrder
     {
         FLDSpatialOrderRequest Request;
@@ -125,12 +154,15 @@ private:
         ELDOrderCancelReason Reason=ELDOrderCancelReason::Stop;
         // Earliest aggressive intent of this life that a newer pending request superseded.
         TOptional<FLDAggressiveIntent> OwedAggression;
+        // CastUnit: the Direct request cast once in reach.
+        FLDCombatActionRequest Cast;
     };
     struct FActiveOrder
     {
         FLDSpatialOrderRequest Request;
         FLDMatchContext Match;
         FLDCombatBodyRef Body;
+        FLDCombatActionRequest Cast;
         TArray<FVector> Points;
         int32 PointIndex=0;
         FVector Goal=FVector::ZeroVector;          // end of the current path
@@ -164,6 +196,27 @@ private:
         bool bStop=false;
         FLDOrderReceipt Receipt;
     };
+    // One shift-queued step: a spatial order (bAction false) or a Direct Q/W/1/2/D request handed to Combat in turn.
+    struct FQueuedStep
+    {
+        bool bAction=false;
+        FLDSpatialOrderRequest Order;
+        FLDCombatActionRequest Action;
+        // A direction action re-aimed toward this ground point from the body when its turn comes.
+        bool bAimPoint=false;
+        FVector AimCm=FVector::ZeroVector;
+        FLDMatchContext Match;
+        FLDCombatBodyRef Body;
+        int64 NotBeforeMs=0;
+    };
+    // An aggressive step ends protection in the next Actions phase after it was sent (APP_SPEC 7.1), not when it runs,
+    // even when it is dropped before then. The earliest such intent of the life is enough.
+    struct FOwedAggression
+    {
+        FLDAggressiveIntent Intent;
+        FLDMatchContext Match;
+        FLDCombatBodyRef Body;
+    };
     ALDPlayerController* Controller() const;
     ALDGameMode* AuthorityMode() const;
     bool IsLocalOwner() const;
@@ -195,7 +248,7 @@ private:
     // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).
-    bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
+    bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast=nullptr);
     void ApplyPrediction();
     void RefreshLocalActive();
     void TickCamera(float Delta);
@@ -211,7 +264,8 @@ private:
     FOrderRecord* FindRecord(const FLDMoveIdentity& Identity);
     void AddRecord(const FLDSpatialOrderRequest& Request, bool bStop);
     FLDOrderReceipt Enqueue(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request, bool bStop,
-        ELDOrderCancelReason Reason);
+        ELDOrderCancelReason Reason, const FLDCombatActionRequest* Cast=nullptr);
+    FLDOrderReceipt SubmitSpatial(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request, const FLDCombatActionRequest* Cast);
     FLDOrderReceipt Reply(const FLDSpatialOrderRequest& Request, ELDOrderStatus Outcome, ELDOrderFailure Failure,
         bool bStore, bool bProtectionRemoved=false, uint64 LifeRevision=0);
     FLDOrderReceipt Replay(const FOrderRecord& Record);
@@ -233,11 +287,47 @@ private:
         FLDAuthorityTargetSample& Out, bool& bFound, FString& Error);
     bool EngageTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample,
         const FLDGameplayWritePermit& Permit, FString& Error);
+    // CastUnit within reach casts through ALDCombatDirector::StartNavCast and ends; otherwise it closes in like a chase.
+    bool AdvanceCast(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample,
+        const FLDGameplayWritePermit& Permit, FString& Error);
+    // Pursuit replanning shared by attack and cast orders while out of reach.
+    bool ChaseTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample, FString& Error);
+    // Reports a cast the order could not start as an ordinary Combat refusal to the owner.
+    void RefuseCast(const FLDCombatActionRequest& Cast, ELDCombatReject Reason);
+    // Readiness of a cast order at activation: refuses (CastRefused, with the Combat reason sent) a skill that could not be
+    // cast anyway or does not take Modes' aim; OutReachCm is the body's current reach minus CastMarginCm.
+    bool CastReady(ALDGameMode& Mode, const FLDCombatActionRequest& Cast, bool bUnit, double& OutReachCm, ELDOrderFailure& Failure);
+    // Judges the cast now (ALDCombatDirector::StartNavCast). A final outcome ends the order (bRetry false); otherwise
+    // Reject says why it must close in (OutOfRange/Blocked) or wait (Busy).
+    bool TryNavCast(ALDGameMode& Mode, const FLDCombatActionRequest& Request, const FLDGameplayWritePermit& Permit,
+        bool& bRetry, ELDCombatReject& Reject, FString& Error);
+    // CastPoint: walks toward the aimed point and casts once it lies within reach.
+    bool AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     FVector AuthoritySteering(const ALDCharacter& Body);
     void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
     void EndActive(ELDOrderStatus Outcome, ELDOrderFailure Failure, bool bHalt);
+    // ---- Shift queue (LDNavigationOrders.cpp).
+    // The end or refusal of one step: the next step follows, or the queue is dropped (LDOrderRules::QueueAfter).
+    void SettleStep(ELDOrderFailure Failure);
+    // Settles the protection owed by aggressive steps sent since the last Actions phase.
+    void SettleQueuedAggression(ALDGameMode& Mode, const FLDGameplayWritePermit& Permit);
+    // Starts queued steps while nothing else holds the body: a spatial step becomes the pending request, an action
+    // step is handed to Combat and runs until its receipt settles.
+    void AdvanceQueue(ALDGameMode& Mode);
+    void StartQueuedAction(ALDGameMode& Mode, FQueuedStep Step);
+    // The next queued step is a ground walk: an arrival keeps its momentum instead of halting.
+    bool QueueContinuesWalking() const;
     void ReleaseOrderLinks(const FActiveOrder& Order, bool bReleasePin);
     // ---- Owning-client state.
+    // A queued own ground step still waiting on the server, shown as a waypoint until it starts or ends.
+    struct FQueuedMark
+    {
+        FLDMoveIdentity Identity;
+        FVector GroundCm=FVector::ZeroVector;
+        bool bAttack=false;
+    };
+    TArray<FQueuedMark> QueuedMarks;
+    void RefreshQueuedPath();
     FLDMoveIdentity Local, ClientActive;
     FName ShopBindingId;
     FLDMoveIdentity ShopBindingIdentity;
@@ -264,6 +354,10 @@ private:
     // ---- Authority order book (server only).
     TOptional<FPendingOrder> PendingOrder;
     TOptional<FActiveOrder> ActiveOrder;
+    TArray<FQueuedStep> Queue;
+    // DirectSequence of the queued action Combat is judging or running (0 when none); the queue waits for it.
+    uint64 RunningQueuedAction=0;
+    TOptional<FOwedAggression> QueueOwedAggression;
     TArray<FOrderRecord> Records;
     FLDOrderBook Book;
     uint64 NextReceiptSerial=0;
