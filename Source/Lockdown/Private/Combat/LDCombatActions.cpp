@@ -477,15 +477,19 @@ bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCom
     { Out.Reject=ELDCombatReject::MatchClosed; return true; }
     auto* Record=FindRecord(Caller.EntityId);
     if (!Record || Record->Kind!=Caller.Kind) { Out.Reject=ELDCombatReject::NotOwner; return true; }
+    const FLDCombatTarget& Aim=Request.Target;
+    const bool bUnit=Aim.Kind==ELDCombatTargetKind::Unit;
+    const bool bAim=!Aim.ServerBody.IsValid() && (bUnit ? Aim.Observed.IsValid() && Aim.ObservationEpoch!=0
+        : Aim.Kind==ELDCombatTargetKind::Point ? LDCA::ValidPoint(Aim.Point) && !Aim.Observed.IsValid() && !Aim.ObservationEpoch
+        : Aim.Kind==ELDCombatTargetKind::Direction && LDCA::ValidDirection(Aim.Direction));
     const bool bShape=Request.DirectSequence!=0 && Request.Life!=0 && LDCA::IsContenderEntry(Request.Entry)
-        && Request.Entry!=ELDCombatEntry::Dash && Request.Target.Kind==ELDCombatTargetKind::Unit
-        && Request.Target.Observed.IsValid() && Request.Target.ObservationEpoch!=0 && !Request.Target.ServerBody.IsValid();
+        && Request.Entry!=ELDCombatEntry::Dash && bAim;
     if (!bShape) { Out.Reject=ELDCombatReject::InvalidRequest; return true; }
     if (Request.DirectSequence<=Record->DirectHighWater) { Out.Reject=ELDCombatReject::StaleRequest; return true; }
     FLDCombatActionReceipt Judged;
     if (!ProcessDirect(*Record,Request,Permit,Judged,Error)) { return false; }
     if (Judged.Phase==ELDCombatPhase::Rejected && (Judged.Reject==ELDCombatReject::OutOfRange
-        || Judged.Reject==ELDCombatReject::Blocked || Judged.Reject==ELDCombatReject::Busy))
+        || (bUnit && Judged.Reject==ELDCombatReject::Blocked) || Judged.Reject==ELDCombatReject::Busy))
     {
         // Not yet: the order closes in (or waits for the own windup) and tries the same request again.
         Out=Judged;

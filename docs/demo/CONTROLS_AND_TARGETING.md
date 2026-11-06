@@ -303,7 +303,7 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
   Shift 右键不会按住重复，Shift 技能不经预输入暂存。`FQueuedMark` 记下自己排队的地面步骤，
   `ALDPointerFeedback::SetQueue` 画小圈与从身体经当前目的地到各点的虚线；步骤开始或结束、Stop、新生命时移除。
 
-### 4.6 对单位施放：接近后施放
+### 4.6 对单位或地面点施放：接近后施放
 
 App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `ELDSpatialOrderKind::CastUnit` 订单，替换当前订单
 （按 Shift 时排进 §4.5 的队列），经 `ServerSubmitCast` / `SubmitCast` 与它的 Direct 请求一同收件。
@@ -316,7 +316,12 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `EL
   `ALDCombatDirector::StartNavCast`，它在当前 Actions 许可内按普通 Direct 请求判定。`OutOfRange/Blocked` 不记录请求，
   订单继续贴近；`Busy` 原地等待；其余结果记录并回执，订单结束（施放成功 `Completed`，否则 `CastRefused`），身体停下，
   Shift 队列等这次施放结束后再继续。目标失去视野或死亡与 AttackUnit 相同地结束订单。
-- 对手 AI 仍直接调用 Combat 的 `SubmitAction`，不使用 `CastUnit`。
+- **对地面点或方向投射**（`CastPoint`，2026-11-06 用户决定）：`GroundPoint` 与 `DirectionProjectile` 技能确认在地面点时
+  发出 `CastPoint` 订单（`GroundCm` 为指向的点），就绪判定与 `CastUnit` 相同（`CastReady`，模式须与瞄准相符）。
+  点在 `RangeCm - CastMarginCm` 外时按身体目标规划到该点并行走；进入距离即停下（`AdvanceCastPoint`），
+  以 `Point` 原样或从当前脚点朝该点重新求 `Direction` 调用 `StartNavCast`。对点施放只有 `Busy` 原地等待，
+  其余结果都结束订单；走到路线终点仍不在距离内以 `NoCompletePath` 结束。`DirectionDash` 技能与 D 没有施法距离，不走这条路。
+- 对手 AI 仍直接调用 Combat 的 `SubmitAction`，不使用 `CastUnit/CastPoint`。
 
 ## 5. SC-09 正式对接表
 

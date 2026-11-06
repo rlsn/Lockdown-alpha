@@ -66,7 +66,8 @@ namespace LDNavigationDetail
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("攻击请求已发送");
         case ELDSpatialOrderKind::AttackMove: return TEXT("攻击移动已发送");
-        case ELDSpatialOrderKind::CastUnit: return TEXT("施法请求已发送");
+        case ELDSpatialOrderKind::CastUnit:
+        case ELDSpatialOrderKind::CastPoint: return TEXT("施法请求已发送");
         case ELDSpatialOrderKind::ApproachShop: { static const FString Text=FString(TEXT("正在前往"))+LDTerms::Shop; return *Text; }
         default: return TEXT("移动请求已发送");
         }
@@ -75,6 +76,7 @@ namespace LDNavigationDetail
     const TCHAR* RunningText(const FLDOrderReceipt& Receipt)
     {
         if (Receipt.Kind==ELDSpatialOrderKind::CastUnit) { return Receipt.bEngaged ? TEXT("准备施法") : TEXT("接近目标施法"); }
+        if (Receipt.Kind==ELDSpatialOrderKind::CastPoint) { return Receipt.bEngaged ? TEXT("准备施法") : TEXT("接近施法位置"); }
         if (Receipt.bEngaged) { static const FString Text=FString(TEXT("正在"))+LDTerms::BasicAttackVerb; return *Text; }
         switch (Receipt.Kind)
         {
@@ -122,7 +124,7 @@ namespace LDNavigationDetail
     LDPathSteering::EGoal PredictedGoal(ELDSpatialOrderKind Kind)
     {
         return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove || Kind==ELDSpatialOrderKind::CastUnit
-            ? LDPathSteering::EGoal::Body : LDPathSteering::EGoal::Ground;
+            || Kind==ELDSpatialOrderKind::CastPoint ? LDPathSteering::EGoal::Body : LDPathSteering::EGoal::Ground;
     }
 }
 
@@ -339,6 +341,17 @@ void ULDNavigationComponent::CastAtUnit(const FLDCombatActionRequest& Cast, bool
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Request.Observed,Request.ObservationEpoch); }
 }
 
+void ULDNavigationComponent::CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue)
+{
+    bHeldMove=false;
+    FLDSpatialOrderRequest Request;
+    Request.Kind=ELDSpatialOrderKind::CastPoint;
+    Request.GroundCm=PointCm;
+    Request.SurfaceHint=GroundSurfaceHint();
+    Request.bQueue=bQueue;
+    SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast);
+}
+
 // A missing ground point is still sent: the server judges the intent and ends protection.
 void ULDNavigationComponent::AttackMove(const FVector& Surface, FName SurfaceHint, bool bQueue)
 {
@@ -374,8 +387,9 @@ bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCH
     bLocalPending=true;
     // A non-Shift order replaces the server's queue, so its waypoints go now; a Shift ground step adds one.
     if (!Request.bQueue) { QueuedMarks.Reset(); }
-    else if (Request.Kind==ELDSpatialOrderKind::MoveGround || Request.Kind==ELDSpatialOrderKind::AttackMove)
-    { QueuedMarks.Add({Local,FVector(Request.GroundCm),Request.Kind==ELDSpatialOrderKind::AttackMove}); }
+    else if (Request.Kind==ELDSpatialOrderKind::MoveGround || Request.Kind==ELDSpatialOrderKind::AttackMove
+        || Request.Kind==ELDSpatialOrderKind::CastPoint)
+    { QueuedMarks.Add({Local,FVector(Request.GroundCm),Request.Kind!=ELDSpatialOrderKind::MoveGround}); }
     RefreshQueuedPath();
     RefreshLocalActive();
     Status=Request.bQueue?LDNavigationDetail::QueuedText():PendingStatus;
@@ -406,7 +420,7 @@ void ULDNavigationComponent::RefreshQueuedPath()
         Attack.Add(Mark.bAttack);
     }
     const bool bGoal=ClientActive.Order!=0 && bActiveHasGoal && (ActiveKind==ELDSpatialOrderKind::MoveGround
-        || ActiveKind==ELDSpatialOrderKind::AttackMove);
+        || ActiveKind==ELDSpatialOrderKind::AttackMove || ActiveKind==ELDSpatialOrderKind::CastPoint);
     Feedback->SetQueue(Waypoints,Attack,bGoal?&ActiveGoal:nullptr);
 }
 

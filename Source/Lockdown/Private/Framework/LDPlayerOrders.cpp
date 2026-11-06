@@ -214,6 +214,26 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         Navigation->CastAtUnit(Request,bQueue);
         return;
     }
+    // A ground-point or projectile skill aimed at a ground point is an order too: the body walks until the point lies
+    // within the skill's reach, then casts at it (2026-11-06 decision). Dashes keep firing at once.
+    {
+        const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
+        const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
+        const ELDDemoTargetMode Mode=View && View->bHasActive?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+        const FVector Point=Aim.Kind==ELDCombatTargetKind::Point?FVector(Aim.Point):AimCm?*AimCm:FVector::ZeroVector;
+        const bool bPointCast=(Mode==ELDDemoTargetMode::GroundPoint && Aim.Kind==ELDCombatTargetKind::Point)
+            || (Mode==ELDDemoTargetMode::DirectionProjectile && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
+        if (bPointCast)
+        {
+            QueuedCombat={};
+            FLDCombatActionRequest Request;
+            if (!NextCombatRequest(Entry,Aim,Request)) { return; }
+            UE_LOG(LogTemp,Display,TEXT("LD_COMBAT_INPUT point-cast-order match=%u life=%u sequence=%llu entry=%u queue=%d"),
+                Request.Generation,Request.Life,Request.DirectSequence,uint32(Entry),bQueue?1:0);
+            Navigation->CastAtPoint(Request,Point,bQueue);
+            return;
+        }
+    }
     if (bQueue)
     {
         // The shift queue waits for its own turn on the server, so a queued press is never held as pre-input; it

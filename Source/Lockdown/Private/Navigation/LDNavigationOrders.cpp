@@ -66,7 +66,8 @@ namespace LDNavOrdersDetail
     {
         FLDAggressiveIntent Intent;
         Intent.Kind=Request.Kind==ELDSpatialOrderKind::AttackUnit ? ELDAggressiveIntentKind::AttackUnit
-            : Request.Kind==ELDSpatialOrderKind::CastUnit ? ELDAggressiveIntentKind::ActivateCharacter
+            : Request.Kind==ELDSpatialOrderKind::CastUnit || Request.Kind==ELDSpatialOrderKind::CastPoint
+                ? ELDAggressiveIntentKind::ActivateCharacter
             : ELDAggressiveIntentKind::AttackMove;
         Intent.Request.Origin=ELDAggressionOrigin::Navigation;
         Intent.Request.Sequence=Request.Identity.Order;
@@ -178,17 +179,22 @@ bool ULDNavigationComponent::ValidateCaller(const FLDOrderCaller& Caller, const 
 FLDOrderReceipt ULDNavigationComponent::SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request)
 {
     // A cast order needs its Direct request (SubmitCast).
-    if (Request.Kind==ELDSpatialOrderKind::CastUnit) { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::InvalidRequest,false); }
+    if (Request.Kind==ELDSpatialOrderKind::CastUnit || Request.Kind==ELDSpatialOrderKind::CastPoint)
+    { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::InvalidRequest,false); }
     return SubmitSpatial(Caller,Request,nullptr);
 }
 
 FLDOrderReceipt ULDNavigationComponent::SubmitCast(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request,
     const FLDCombatActionRequest& Cast)
 {
-    const bool bShape=Request.Kind==ELDSpatialOrderKind::CastUnit && Cast.Generation==Request.Identity.Match
-        && Cast.Life==Request.Identity.Life && Cast.DirectSequence!=0 && LDCombatPreInput::IsDirectEntry(Cast.Entry)
-        && Cast.Entry!=ELDCombatEntry::Dash && Cast.Target.Kind==ELDCombatTargetKind::Unit
-        && Cast.Target.Observed==Request.Observed && Cast.Target.ObservationEpoch==Request.ObservationEpoch;
+    // A unit cast names the order's target; a point cast aims at the order's ground point (a point, or a direction).
+    const bool bAim=Request.Kind==ELDSpatialOrderKind::CastUnit
+        ? Cast.Target.Kind==ELDCombatTargetKind::Unit && Cast.Target.Observed==Request.Observed
+            && Cast.Target.ObservationEpoch==Request.ObservationEpoch
+        : Request.Kind==ELDSpatialOrderKind::CastPoint && !Request.SurfaceHint.IsNone()
+            && (Cast.Target.Kind==ELDCombatTargetKind::Point || Cast.Target.Kind==ELDCombatTargetKind::Direction);
+    const bool bShape=bAim && Cast.Generation==Request.Identity.Match && Cast.Life==Request.Identity.Life
+        && Cast.DirectSequence!=0 && LDCombatPreInput::IsDirectEntry(Cast.Entry) && Cast.Entry!=ELDCombatEntry::Dash;
     if (!bShape) { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::InvalidRequest,false); }
     auto* Mode=AuthorityMode();
     auto* PC=Controller();
@@ -198,7 +204,10 @@ FLDOrderReceipt ULDNavigationComponent::SubmitCast(const FLDOrderCaller& Caller,
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::NotOwner,false); }
     // The sequence must still be unseen by Combat and newer than every queued or running one.
     const bool bQueuedNewer=Queue.ContainsByPredicate([&Cast](const FQueuedStep& Step)
-        { return (Step.bAction || Step.Order.Kind==ELDSpatialOrderKind::CastUnit) && Step.Action.DirectSequence>=Cast.DirectSequence; });
+        {
+            return (Step.bAction || Step.Order.Kind==ELDSpatialOrderKind::CastUnit || Step.Order.Kind==ELDSpatialOrderKind::CastPoint)
+                && Step.Action.DirectSequence>=Cast.DirectSequence;
+        });
     if (Mode->Combat->QueryActionReceipt(CombatCaller,Cast.DirectSequence).Reject!=ELDCombatReject::StaleRequest || bQueuedNewer
         || Cast.DirectSequence<=RunningQueuedAction)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
@@ -618,7 +627,7 @@ void ULDNavigationComponent::SettleQueuedAggression(ALDGameMode& Mode, const FLD
 bool ULDNavigationComponent::QueueContinuesWalking() const
 {
     return !Queue.IsEmpty() && !Queue[0].bAction && (Queue[0].Order.Kind==ELDSpatialOrderKind::MoveGround
-        || Queue[0].Order.Kind==ELDSpatialOrderKind::AttackMove);
+        || Queue[0].Order.Kind==ELDSpatialOrderKind::AttackMove || Queue[0].Order.Kind==ELDSpatialOrderKind::CastPoint);
 }
 
 void ULDNavigationComponent::AdvanceQueue(ALDGameMode& Mode)
@@ -997,31 +1006,34 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         Order.ShopCentre=Shop->Position;
         Order.Acceptance=float(LDPathSteering::WaypointToleranceCm);
     }
+    else if (Request.Kind==ELDSpatialOrderKind::CastPoint)
+    {
+        double ReachCm=0;
+        if (!CastReady(Mode,Order.Cast,false,ReachCm,Failure)) { return false; }
+        Order.Surface=Request.SurfaceHint;
+        Order.Destination=Request.GroundCm;
+        Order.RangeCm=ReachCm;
+        Order.Acceptance=float(ReachCm);
+        // Already in reach: cast where the body stands (AdvanceCastPoint, this same pass). Otherwise walk toward the point;
+        // a point off the walkable ground is planned to its nearest navmesh point.
+        if (FVector::DistSquared2D(ALDCombatDirector::FootOf(Body),Request.GroundCm)>FMath::Square(ReachCm))
+        {
+            FVector Projected;
+            if (!Plan(Request.GroundCm,Request.SurfaceHint,LDPathSteering::EGoal::Body,Order.Points,Projected,WorldFailure,Detail))
+            {
+                Failure=LDNavOrdersDetail::FromWorld(WorldFailure);
+                UE_LOG(LogTemp,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
+                return false;
+            }
+            Order.Goal=Projected;
+        }
+        else { Order.Goal=Request.GroundCm; }
+    }
     else if (Request.Kind==ELDSpatialOrderKind::AttackUnit || Request.Kind==ELDSpatialOrderKind::CastUnit)
     {
         auto* PC=Controller();
         double CastReachCm=0;
-        if (Request.Kind==ELDSpatialOrderKind::CastUnit)
-        {
-            // Readiness first (2026-11-06 decision): a skill that could not be cast anyway never starts a walk. The own
-            // windup (Busy) only delays the cast.
-            FLDCombatCaller CombatCaller;
-            FString CallerError;
-            if (!Mode.Combat || !Mode.Combat->ResolveControllerCaller(*PC,CombatCaller,CallerError))
-            { Failure=ELDOrderFailure::NotOwner; return false; }
-            const FLDCombatEntryView Entry=Mode.Combat->QueryAvailability(CombatCaller,Order.Cast.Entry);
-            ELDCombatReject Refused=Entry.Unavailable==ELDCombatReject::Busy ? ELDCombatReject::None : Entry.Unavailable;
-            if (Refused==ELDCombatReject::None && (!Entry.bHasActive || Entry.RangeCm<=0
-                || ELDDemoTargetMode(Entry.TargetMode)!=ELDDemoTargetMode::Unit))
-            { Refused=ELDCombatReject::SourceUnavailable; }
-            if (Refused!=ELDCombatReject::None)
-            {
-                RefuseCast(Order.Cast,Refused);
-                Failure=ELDOrderFailure::CastRefused;
-                return false;
-            }
-            CastReachCm=FMath::Max(double(Entry.RangeCm)-CastMarginCm,1.);
-        }
+        if (Request.Kind==ELDSpatialOrderKind::CastUnit && !CastReady(Mode,Order.Cast,true,CastReachCm,Failure)) { return false; }
         FLDAuthorityTargetSample Sample;
         FString Diagnostic;
         const ELDObservedResolve Resolved=Mode.Vision
@@ -1083,6 +1095,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
     auto* PC=Controller();
     const ELDSpatialOrderKind Kind=ActiveOrder->Request.Kind;
     if (Kind==ELDSpatialOrderKind::MoveGround) { return true; }
+    if (Kind==ELDSpatialOrderKind::CastPoint) { return AdvanceCastPoint(Mode,Body,Permit,Error); }
     if (Kind==ELDSpatialOrderKind::ApproachShop)
     {
         const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -1263,37 +1276,114 @@ bool ULDNavigationComponent::AdvanceCast(ALDGameMode& Mode, ALDCharacter& Body, 
     if (!bInRange) { Order.bCloseIn=false; }
     if (bInRange)
     {
-        FLDCombatCaller Caller;
-        FString CallerError;
-        if (!Mode.Combat->ResolveControllerCaller(*Controller(),Caller,CallerError) || Caller.EntityId!=Order.Body.Victim.EntityId)
-        {
-            UE_LOG(LogTemp,Error,TEXT("LD_NAV_CAST_CALLER_UNRESOLVED %s"),*CallerError);
-            EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NotOwner,true);
-            return true;
-        }
         FLDCombatActionRequest Request=Order.Cast;
         Request.Target.Observed=Order.Target;
         Request.Target.ObservationEpoch=Order.TargetEpoch;
-        FLDCombatActionReceipt Receipt;
-        bool bFinal=false;
-        if (!Mode.Combat->StartNavCast(Caller,Request,Permit,Receipt,bFinal,Error)) { return false; }
-        if (bFinal)
-        {
-            // Cast (or refused for good): the order ends and the body stands; a queue waits for the cast to settle.
-            if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
-            const bool bCast=Receipt.Phase!=ELDCombatPhase::Rejected;
-            UE_LOG(LogTemp,Display,TEXT("LD_NAV_CAST order=%u sequence=%llu phase=%u reject=%u"),Order.Request.Identity.Order,
-                Request.DirectSequence,uint32(Receipt.Phase),uint32(Receipt.Reject));
-            EndActive(bCast?ELDOrderStatus::Completed:ELDOrderStatus::Cancelled,bCast?ELDOrderFailure::None:ELDOrderFailure::CastRefused,true);
-            return true;
-        }
+        bool bRetry=false;
+        ELDCombatReject Reject=ELDCombatReject::None;
+        if (!TryNavCast(Mode,Request,Permit,bRetry,Reject,Error)) { return false; }
+        if (!bRetry) { return true; }
         // The own windup holds the cast in place; out of reach or sight closes in further.
-        if (Receipt.Reject==ELDCombatReject::Busy) { Order.bEngaged=true; return true; }
+        if (Reject==ELDCombatReject::Busy) { Order.bEngaged=true; return true; }
         Order.bCloseIn=Order.bForceReplan=true;
     }
     Order.bEngaged=bInRange && !Order.bCloseIn;
     if (Order.bEngaged) { return true; }
     return ChaseTarget(Mode,Body,Sample,Error);
+}
+
+bool ULDNavigationComponent::TryNavCast(ALDGameMode& Mode, const FLDCombatActionRequest& Request,
+    const FLDGameplayWritePermit& Permit, bool& bRetry, ELDCombatReject& Reject, FString& Error)
+{
+    bRetry=false;
+    Reject=ELDCombatReject::None;
+    FLDCombatCaller Caller;
+    FString CallerError;
+    if (!Mode.Combat || !Mode.Combat->ResolveControllerCaller(*Controller(),Caller,CallerError)
+        || Caller.EntityId!=ActiveOrder->Body.Victim.EntityId)
+    {
+        UE_LOG(LogTemp,Error,TEXT("LD_NAV_CAST_CALLER_UNRESOLVED %s"),*CallerError);
+        EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NotOwner,true);
+        return true;
+    }
+    FLDCombatActionReceipt Receipt;
+    bool bFinal=false;
+    if (!Mode.Combat->StartNavCast(Caller,Request,Permit,Receipt,bFinal,Error)) { return false; }
+    Reject=Receipt.Reject;
+    if (!bFinal)
+    {
+        bRetry=true;
+        return true;
+    }
+    // Cast (or refused for good): the order ends and the body stands; a queue waits for the cast to settle.
+    if (!LDOrderRules::QueuedActionSettled(Receipt.Phase)) { RunningQueuedAction=Request.DirectSequence; }
+    const bool bCast=Receipt.Phase!=ELDCombatPhase::Rejected;
+    UE_LOG(LogTemp,Display,TEXT("LD_NAV_CAST order=%u sequence=%llu phase=%u reject=%u"),ActiveOrder->Request.Identity.Order,
+        Request.DirectSequence,uint32(Receipt.Phase),uint32(Receipt.Reject));
+    EndActive(bCast?ELDOrderStatus::Completed:ELDOrderStatus::Cancelled,bCast?ELDOrderFailure::None:ELDOrderFailure::CastRefused,true);
+    return true;
+}
+
+bool ULDNavigationComponent::AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit,
+    FString& Error)
+{
+    auto& Order=ActiveOrder.GetValue();
+    const FVector Foot=ALDCombatDirector::FootOf(Body);
+    if (FVector::DistSquared2D(Foot,Order.Destination)>FMath::Square(Order.RangeCm))
+    {
+        // Still walking; an arrival at the planned end that is still short of reach (an off-mesh point) cannot get closer.
+        if (!Order.Points.IsEmpty() && !LDPathSteering::AtGoal(Body,Order.Goal,LDPathSteering::WaypointToleranceCm)) { return true; }
+        EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::NoCompletePath,true);
+        return true;
+    }
+    // In reach: aim from where the body stands now at the aimed point.
+    FLDCombatActionRequest Request=Order.Cast;
+    FVector Direction;
+    if (Request.Target.Kind==ELDCombatTargetKind::Point) { Request.Target.Point=Order.Destination; }
+    else if (LDOrderRules::QueuedAimDirection(Foot,Order.Destination,Direction)) { Request.Target.Direction=Direction; }
+    Order.bEngaged=true;
+    bool bRetry=false;
+    ELDCombatReject Reject=ELDCombatReject::None;
+    if (!TryNavCast(Mode,Request,Permit,bRetry,Reject,Error)) { return false; }
+    // Only the own windup (Busy) keeps a point cast waiting where it stands.
+    if (bRetry && Reject!=ELDCombatReject::Busy)
+    {
+        UE_LOG(LogTemp,Warning,TEXT("LD_NAV_CAST_POINT_RETRY order=%u reject=%u"),Order.Request.Identity.Order,uint32(Reject));
+        EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::CastRefused,true);
+    }
+    return true;
+}
+
+bool ULDNavigationComponent::CastReady(ALDGameMode& Mode, const FLDCombatActionRequest& Cast, bool bUnit, double& OutReachCm,
+    ELDOrderFailure& Failure)
+{
+    OutReachCm=0;
+    // Readiness first (2026-11-06 decision): a skill that could not be cast anyway never starts a walk. The own windup
+    // (Busy) only delays the cast.
+    FLDCombatCaller CombatCaller;
+    FString CallerError;
+    auto* PC=Controller();
+    if (!PC || !Mode.Combat || !Mode.Combat->ResolveControllerCaller(*PC,CombatCaller,CallerError))
+    {
+        Failure=ELDOrderFailure::NotOwner;
+        return false;
+    }
+    const FLDCombatEntryView Entry=Mode.Combat->QueryAvailability(CombatCaller,Cast.Entry);
+    const ELDDemoTargetMode TargetMode=ELDDemoTargetMode(Entry.TargetMode);
+    const bool bModeFits=bUnit ? TargetMode==ELDDemoTargetMode::Unit
+        : (TargetMode==ELDDemoTargetMode::GroundPoint && Cast.Target.Kind==ELDCombatTargetKind::Point)
+            || (TargetMode==ELDDemoTargetMode::DirectionProjectile && Cast.Target.Kind==ELDCombatTargetKind::Direction);
+    ELDCombatReject Refused=Entry.Unavailable==ELDCombatReject::Busy ? ELDCombatReject::None : Entry.Unavailable;
+    if (Refused==ELDCombatReject::None && (!Entry.bHasActive || Entry.RangeCm<=0 || !bModeFits))
+    { Refused=ELDCombatReject::SourceUnavailable; }
+    if (Refused!=ELDCombatReject::None)
+    {
+        RefuseCast(Cast,Refused);
+        Failure=ELDOrderFailure::CastRefused;
+        return false;
+    }
+    OutReachCm=FMath::Max(double(Entry.RangeCm)-CastMarginCm,1.);
+    return true;
 }
 
 void ULDNavigationComponent::RefuseCast(const FLDCombatActionRequest& Cast, ELDCombatReject Reason)
@@ -1352,6 +1442,9 @@ FVector ULDNavigationComponent::AuthoritySteering(const ALDCharacter& Body)
         if (!Order.bCloseIn && FVector::DistSquared2D(Foot,Order.TargetFoot)<=FMath::Square(Order.RangeCm)) { return FVector::ZeroVector; }
     }
     else if (Order.Request.Kind==ELDSpatialOrderKind::AttackMove && LDPathSteering::AtGoal(Body,Order.Goal,Order.Acceptance))
+    { return FVector::ZeroVector; }
+    else if (Order.Request.Kind==ELDSpatialOrderKind::CastPoint
+        && FVector::DistSquared2D(Foot,Order.Destination)<=FMath::Square(Order.RangeCm))
     { return FVector::ZeroVector; }
     else if (Order.Request.Kind==ELDSpatialOrderKind::ApproachShop && Order.PointIndex>=Order.Points.Num()-1
         && FVector::DistSquared2D(Foot,Order.Points.Last())<=FMath::Square(LDPathSteering::WaypointToleranceCm))

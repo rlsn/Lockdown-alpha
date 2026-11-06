@@ -19,11 +19,12 @@ struct FLDMoveIdentity
     bool operator!=(const FLDMoveIdentity& R) const {return !(*this==R);}
 };
 
-// The one current spatial order of a body. Attack kinds and CastUnit are aggressive intents. CastUnit approaches a visible
-// unit until a unit-target Q/W/1/2 is in reach, then casts it (2026-11-06 decision); it carries that Direct request beside
-// the order (ULDNavigationComponent::SubmitCast).
+// The one current spatial order of a body. Attack kinds and the cast kinds are aggressive intents. CastUnit approaches a
+// visible unit until a unit-target Q/W/1/2 is in reach, CastPoint walks toward GroundCm until a ground-point or projectile
+// Q/W/1/2 reaches it; both then cast (2026-11-06 decisions) and carry that Direct request beside the order
+// (ULDNavigationComponent::SubmitCast).
 UENUM()
-enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop, CastUnit };
+enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop, CastUnit, CastPoint };
 
 // Exactly one target arm is meaningful for each kind; the others must stay at their defaults.
 USTRUCT()
@@ -51,6 +52,7 @@ struct FLDSpatialOrderRequest
         {
         case ELDSpatialOrderKind::MoveGround:
         case ELDSpatialOrderKind::AttackMove:
+        case ELDSpatialOrderKind::CastPoint:
             return !Observed.IsValid() && !ObservationEpoch && ShopId.IsNone();
         case ELDSpatialOrderKind::AttackUnit:
         case ELDSpatialOrderKind::CastUnit:
@@ -68,7 +70,10 @@ struct FLDSpatialOrderRequest
             && ObservationEpoch==Other.ObservationEpoch && ShopId==Other.ShopId && bQueue==Other.bQueue;
     }
     bool IsAggressive() const
-    { return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove || Kind==ELDSpatialOrderKind::CastUnit; }
+    {
+        return Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::AttackMove
+            || Kind==ELDSpatialOrderKind::CastUnit || Kind==ELDSpatialOrderKind::CastPoint;
+    }
 };
 
 UENUM()

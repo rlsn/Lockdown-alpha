@@ -48,6 +48,9 @@ public:
     // Owning client: a unit-target Q/W/1/2 becomes a CastUnit order that replaces the current one (or queues with Shift):
     // the body approaches the target until the skill is in reach, casts, then stands (2026-11-06 decision).
     void CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue=false);
+    // Owning client: a ground-point or projectile Q/W/1/2 aimed at PointCm becomes a CastPoint order: the body walks toward
+    // the point until it lies within the skill's reach, then casts at it from there (2026-11-06 decision).
+    void CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue=false);
     // Owning client: own queued spatial steps still waiting (their markers and the path line), newest last.
     int32 QueuedMarkCount() const { return QueuedMarks.Num(); }
     // The pointer in viewport pixels for world clicks and hover: the mouse, or a DEV scenario's pointer while one is set.
@@ -291,6 +294,15 @@ private:
     bool ChaseTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDAuthorityTargetSample& Sample, FString& Error);
     // Reports a cast the order could not start as an ordinary Combat refusal to the owner.
     void RefuseCast(const FLDCombatActionRequest& Cast, ELDCombatReject Reason);
+    // Readiness of a cast order at activation: refuses (CastRefused, with the Combat reason sent) a skill that could not be
+    // cast anyway or does not take Modes' aim; OutReachCm is the body's current reach minus CastMarginCm.
+    bool CastReady(ALDGameMode& Mode, const FLDCombatActionRequest& Cast, bool bUnit, double& OutReachCm, ELDOrderFailure& Failure);
+    // Judges the cast now (ALDCombatDirector::StartNavCast). A final outcome ends the order (bRetry false); otherwise
+    // Reject says why it must close in (OutOfRange/Blocked) or wait (Busy).
+    bool TryNavCast(ALDGameMode& Mode, const FLDCombatActionRequest& Request, const FLDGameplayWritePermit& Permit,
+        bool& bRetry, ELDCombatReject& Reject, FString& Error);
+    // CastPoint: walks toward the aimed point and casts once it lies within reach.
+    bool AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     FVector AuthoritySteering(const ALDCharacter& Body);
     void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
     void EndActive(ELDOrderStatus Outcome, ELDOrderFailure Failure, bool bHalt);
