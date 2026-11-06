@@ -70,7 +70,9 @@ public:
     uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
-    FLDMoveIdentity PredictedIdentity() const {return !bLocalStop && ClientActive.Order!=0 ? ClientActive : Local;}
+    // The accepted order keeps being predicted under a pending replacement, but never across a Stop's newer epoch.
+    FLDMoveIdentity PredictedIdentity() const
+    {return !bLocalStop && ClientActive.Order!=0 && ClientActive.Epoch==Local.Epoch ? ClientActive : Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
     // Owning client: the shop of the current ApproachShop order, en route or arrived and awaiting the

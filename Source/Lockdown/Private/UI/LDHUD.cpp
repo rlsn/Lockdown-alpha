@@ -595,6 +595,8 @@ void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
         }
         else { DiagnosticsBody.Reset(); DiagnosticsCorrections=0; }
     }
+    // Hidden network rows keep no correction baseline, so showing them again starts a fresh rate window.
+    else { DiagnosticsBody.Reset(); DiagnosticsCorrections=0; }
     DiagnosticsSampleAt=Now;
     HudSetText(DiagnosticsText,Text);
 }
@@ -1187,13 +1189,13 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             }
         }
         if(RangeCm>0){RangeRing(Feet,RangeCm,Preview,1.5f);}
-        FVector Origin,Direction;
-        if(bDirection&&PC->DeprojectMousePositionToWorld(Origin,Direction)&&FMath::Abs(Direction.Z)>KINDA_SMALL_NUMBER)
+        FHitResult GroundHit;
+        if(bDirection&&PC->Navigation&&PC->Navigation->GroundUnderPointer(GroundHit))
         {
-            // The cursor ray meets the feet plane; only its planar direction is previewed, at the entry's range when known.
-            const double Along=(Feet.Z-Origin.Z)/Direction.Z;
-            FVector Planar=Origin+Direction*Along-Feet;Planar.Z=0;
-            if(Along>0&&!Planar.IsNearlyZero())
+            // Aimed as ConfirmArmedCombat submits it (capsule feet to the pointer's ground hit), drawn from the shown feet;
+            // only the planar direction is previewed, at the entry's range when known.
+            FVector Planar=GroundHit.ImpactPoint-AuthorityFeet;Planar.Z=0;
+            if(!Planar.IsNearlyZero())
             {
                 const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
                 FVector2D From,To;
