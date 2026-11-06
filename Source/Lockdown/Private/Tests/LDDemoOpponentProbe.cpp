@@ -1,4 +1,5 @@
 #include "Tests/LDDemoOpponentProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "AI/LDOpponentController.h"
@@ -128,6 +129,8 @@ public:
     ELDOpponentProbeStage Stage = ELDOpponentProbeStage::Join;
     bool Passed = true, Written = false, StartSent = false, ReturnSent = false;
     bool RosterKept = true, ReadsKept = true;
+    // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
+    bool bPlaytestMarked = false;
     uint32 FirstGeneration = 0;
     int64 RespawnMs = 0, DevelopmentMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
@@ -227,7 +230,7 @@ public:
         Report->SetObjectField(TEXT("summary"), Summary);
         Report->SetArrayField(TEXT("checks"), Checks);
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_OPPONENT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_OPPONENT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false, 2); return false; }
         return true;
     }
@@ -750,6 +753,13 @@ bool FLDDemoOpponentProbe::Tick()
     }
     case ELDOpponentProbeStage::Match:
     {
+        int64 MarkNowMs = 0;
+        if (!bPlaytestMarked && View.Phase == ELDMatchPhase::Development && PC->ReadDemoAuthorityTimeMs(MarkNowMs)
+            && MarkNowMs - View.StartedAtMs >= 60000)
+        {
+            PC->PlaytestMark();
+            bPlaytestMarked = true;
+        }
         if (bHost && (View.Phase == ELDMatchPhase::Development || View.Phase == ELDMatchPhase::CaptureOpen))
         { Sample(*World, *Mode); CaptureHost(*PC); ReviewShots(*PC, *Public, false); }
         if (!bHost)
@@ -839,7 +849,7 @@ void LDDemoTests::StartOpponentProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_OPPONENT_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_OPPONENT_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

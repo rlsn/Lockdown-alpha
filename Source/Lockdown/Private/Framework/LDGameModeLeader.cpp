@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDevelopmentDirector.h"
 
@@ -49,7 +50,7 @@ bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FStr
     if (LeaderNotice.Refresh(NowMs, Candidates)) { bPublicMatchDirty = true; }
     if (LeaderNotice.Leader != Before || LeaderNotice.Leader.IsValid())
     {
-        UE_LOG(LogTemp, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s streak=%u bounty=%lld at_ms=%lld"),
+        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s streak=%u bounty=%lld at_ms=%lld"),
             LeaderNotice.RefreshIndex, *LeaderNotice.Leader.ToString(), LeaderNotice.Streak,
             LeaderNotice.BountyFor(LeaderNotice.Leader), NowMs);
     }

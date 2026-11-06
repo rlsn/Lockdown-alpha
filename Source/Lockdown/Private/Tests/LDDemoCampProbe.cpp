@@ -1,4 +1,5 @@
 #include "Tests/LDDemoCampProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
@@ -694,7 +695,7 @@ public:
             Report->SetNumberField(TEXT("life"), Owner->OwnerState.Life);
         }
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_CAMP_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_CAMP_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false, 2); return false; }
         return true;
     }
@@ -769,7 +770,7 @@ void LDDemoTests::StartCampProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_CAMP_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_CAMP_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

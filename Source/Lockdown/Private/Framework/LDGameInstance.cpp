@@ -1,4 +1,5 @@
 #include "Framework/LDGameInstance.h"
+#include "Core/LDLog.h"
 #include "UI/LDCursor.h"
 #include "Audio/LDAudioSubsystem.h"
 #include "Framework/LDMatchLifecycleTypes.h"
@@ -93,7 +94,7 @@ void ULDGameInstance::StartGameInstance()
     auto* Engine = GetEngine();
     if (!Engine || !Engine->IsA<ULDGameEngine>() || !WorldContext)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED Missing configured Demo game engine or world context."));
+        UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_ENTRY_REJECTED Missing configured Demo game engine or world context."));
         FPlatformMisc::RequestExitWithStatus(false, 1);
         return;
     }
@@ -107,7 +108,7 @@ void ULDGameInstance::StartGameInstance()
         const auto Recovery = Engine->Browse(*WorldContext, FURL(nullptr, LDDemoEntry::FrontendMap, TRAVEL_Absolute), RecoveryError);
         if (Recovery != EBrowseReturnVal::Success)
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_FRONTEND_RECOVERY_FAILED %s"), *RecoveryError);
+            UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_FRONTEND_RECOVERY_FAILED %s"), *RecoveryError);
             FPlatformMisc::RequestExitWithStatus(false, 1);
             return;
         }
@@ -125,7 +126,7 @@ AGameModeBase* ULDGameInstance::CreateGameModeForURL(FURL URL, UWorld* World)
     if (EntryAttemptSerial == MAX_uint64)
     {
         ConnectionMessage = TEXT("房间进入序号已用尽，请重启游戏。");
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *ConnectionMessage);
+        UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *ConnectionMessage);
         return nullptr;
     }
     const uint64 Attempt = ++EntryAttemptSerial;
@@ -149,7 +150,7 @@ AGameModeBase* ULDGameInstance::CreateGameModeForURL(FURL URL, UWorld* World)
 #endif
         LastRejectedEntryURL = URL.ToString();
         ConnectionMessage = Error;
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *Error);
+        UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_ENTRY_REJECTED %s"), *Error);
         if (World && World->GetGameInstance() == this)
         {
             const TWeakObjectPtr<UWorld> RejectedWorld = World;
@@ -178,7 +179,7 @@ bool ULDGameInstance::AllocateMatchGeneration(uint32& Generation, FString& Error
     if (!LDMatchLifecycle::AllocateGeneration(AuthorityGeneration, Generation))
     {
         Error = TEXT("对局代次已用尽，请重启游戏后再创建房间。");
-        UE_LOG(LogTemp, Error, TEXT("LD_MATCH_GENERATION_EXHAUSTED"));
+        UE_LOG(LogLDMatch, Error, TEXT("LD_MATCH_GENERATION_EXHAUSTED"));
         return false;
     }
     return true;
@@ -294,10 +295,12 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
             LocalControlSettings->MinimapOrientation = Loaded.RecoverablePreferences->MinimapOrientation;
             LocalControlSettings->bQuickCast = Loaded.RecoverablePreferences->bQuickCast;
+            LocalControlSettings->bShowNetworkDiagnostics = Loaded.RecoverablePreferences->bShowNetworkDiagnostics;
+            LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
         }
         LocalControlSettings->RequireRecovery();
         LocalSettingsMessage += TEXT(" 当前按键只在本次运行有效，请到设置中确认恢复。");
-        UE_LOG(LogTemp, Warning, TEXT("%s"), *LocalSettingsMessage);
+        UE_LOG(LogLDMatch, Warning, TEXT("%s"), *LocalSettingsMessage);
     }
     ApplyAudioPreferences();
     return LocalControlSettings;
@@ -370,7 +373,7 @@ FLDLocalSettingsSaveResult ULDGameInstance::FlushLocalSettings(bool VerifyCurren
     { return { ELDLocalSettingsSaveStatus::NoChanges, TEXT("没有待保存的本地偏好修改。") }; }
     const auto Result = LocalControlSettings->SaveLocalSettings();
     LocalSettingsMessage = Result.Message;
-    if (!Result.IsSaved()) { UE_LOG(LogTemp, Warning, TEXT("%s"), *Result.Message); }
+    if (!Result.IsSaved()) { UE_LOG(LogLDMatch, Warning, TEXT("%s"), *Result.Message); }
     return Result;
 }
 
@@ -406,7 +409,7 @@ void ULDGameInstance::UseBorderlessWindow()
     // use them. Editor PIE windows belong to the editor.
     if (GIsEditor || !FApp::CanEverRender() || IsRunningCommandlet() || !Cast<UGameEngine>(GEngine)) { return; }
     auto* Settings = GEngine->GetGameUserSettings();
-    if (!Settings) { UE_LOG(LogTemp, Error, TEXT("No engine display settings; the window keeps its launch mode.")); return; }
+    if (!Settings) { UE_LOG(LogLDMatch, Error, TEXT("No engine display settings; the window keeps its launch mode.")); return; }
     LDLocalSettings::HoldBorderlessDesktop(*Settings);
     // ApplyResolutionSettings can also adjust resolution quality; the window choice must not change quality.
     const auto Quality = Settings->ScalabilityQuality;
@@ -437,7 +440,7 @@ FLDDisplaySettingsResult ULDGameInstance::SetDisplayResult(ELDDisplaySettingsSta
 {
     DisplayResult = { Status, Message };
     if (Status == ELDDisplaySettingsStatus::ApplyFailed || Status == ELDDisplaySettingsStatus::PersistenceFailed)
-    { UE_LOG(LogTemp, Warning, TEXT("%s"), *Message); }
+    { UE_LOG(LogLDMatch, Warning, TEXT("%s"), *Message); }
     return DisplayResult;
 }
 

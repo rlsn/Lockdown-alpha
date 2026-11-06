@@ -1,4 +1,5 @@
 #include "Character/LDCharacter.h"
+#include "Core/LDLog.h"
 #include "Character/LDCameraSettings.h"
 #include "Character/LDBodyPuppet.h"
 #include "Character/LDCharacterMovementComponent.h"
@@ -44,6 +45,7 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     GetMesh()->SetHiddenInGame(true);
     CameraArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraArm"));
     CameraArm->SetupAttachment(GetRootComponent());
+    CameraArm->SetUsingAbsoluteLocation(true);
     CameraArm->SetUsingAbsoluteRotation(true);
     CameraArm->SetRelativeRotation(FRotator(LDCamera::Pitch,LDCamera::Yaw,0));
     CameraArm->TargetArmLength = LDCamera::DefaultArmLength;
@@ -91,14 +93,14 @@ void ALDCharacter::BeginPlay()
     FString Error;
     if (UWorld::RemovePIEPrefix(GetWorld()->GetOutermost()->GetName()) != LDDemoEntry::WorldMap)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED Body creation is outside the registered Demo world."));
+        UE_LOG(LogLDNav,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED Body creation is outside the registered Demo world."));
         Destroy();
         return;
     }
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!LDDemoEntry::LoadRuntimeContent(Content,Error) || !ConfigureDemoMovement(*Content,Error))
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"),*Error);
+        UE_LOG(LogLDNav,Error,TEXT("LD_DEMO_BODY_CONFIGURATION_REJECTED %s"),*Error);
         Destroy();
         return;
     }
@@ -182,6 +184,23 @@ uint8 ALDCharacter::PresentationCue(ELDObservedActionCue Cue, const TArray<FLDOb
 }
 
 void ALDCharacter::SetFacing(float Yaw) { if (FMath::IsFinite(Yaw)) { SetActorRotation(FRotator(0, FRotator::NormalizeAxis(Yaw), 0)); } }
+void ALDCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+    Camera->GetCameraView(DeltaTime,OutResult);
+    // The fixed, collision-free arm's tick may precede movement. Evaluate its pose at camera time, not last tick.
+    const FTransform Pose=DefaultArmCameraPose(CameraArm->GetComponentLocation(),CameraArm->TargetArmLength);
+    OutResult.Location=Pose.TransformPosition(Camera->GetRelativeLocation());
+    OutResult.Rotation=Pose.Rotator();
+}
+FVector ALDCharacter::PresentedLocation() const
+{
+    return GetActorLocation()+CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->OwnerPresentationOffset();
+}
+void ALDCharacter::UpdateOwnerPresentation(float DeltaSeconds)
+{
+    CastChecked<ULDCharacterMovementComponent>(GetCharacterMovement())->AdvanceOwnerPresentation(DeltaSeconds);
+    Body->SetWorldLocation(PresentedLocation());
+}
 void ALDCharacter::Zoom(float Axis) { CameraArm->TargetArmLength = ZoomedArmLength(CameraArm->TargetArmLength, Axis); }
 float ALDCharacter::ZoomedArmLength(float ArmLength, float Axis) { return FMath::Clamp(ArmLength - Axis * LDCamera::ZoomStep, LDCamera::MinArmLength, LDCamera::MaxArmLength); }
 FTransform ALDCharacter::DefaultArmCameraPose(const FVector& Origin, float ArmLength)

@@ -1,4 +1,5 @@
 #include "Tests/LDDemoSessionFaultProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
@@ -195,7 +196,7 @@ public:
         Report->SetArrayField(TEXT("checks"), Checks);
         Written = Save(Report, Role + TEXT(".json"));
         Stage = ELDSessionFaultStage::Done;
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_SESSION_FAULT_PROBE mode=%u role=%s passed=%d detail=%s"), uint8(Mode), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_SESSION_FAULT_PROBE mode=%u role=%s passed=%d detail=%s"), uint8(Mode), *Role, Passed && Written, *Error);
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false, 2); return false; }
         return true;
     }
@@ -386,7 +387,7 @@ bool FLDDemoSessionFaultProbe::TickMatch(ALDPlayerController& PC, UWorld& World,
                 if (!Check(bLive, TEXT("The Host holds a live match with its owning client before it quits"))
                     || !Mark(HostQuitRequested)) { return Finish(); }
                 if (!Finish()) { return false; }
-                UE_LOG(LogTemp, Display, TEXT("LD_DEMO_SESSION_FAULT_HOST_QUIT generation=%u"), View.Generation);
+                UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_SESSION_FAULT_HOST_QUIT generation=%u"), View.Generation);
                 FPlatformMisc::RequestExitWithStatus(false, 0);
                 return false;
             }
@@ -633,7 +634,7 @@ void Start(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_SESSION_FAULT_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_SESSION_FAULT_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

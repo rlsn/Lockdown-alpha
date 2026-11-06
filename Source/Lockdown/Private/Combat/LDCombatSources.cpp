@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Core/LDLog.h"
 #include "Combat/LDControlRules.h"
 #include "Combat/LDCombatSourceRules.h"
 #include "Combat/LDTacticalRules.h"
@@ -924,7 +925,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     ALDGameMode* Mode=Core();
     if (!Mode)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_BUILD_APPLY_NO_CORE contender=%s"),*Prepared.Contender.ToString());
+        UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_BUILD_APPLY_NO_CORE contender=%s"),*Prepared.Contender.ToString());
         return;
     }
     const FLDDemoContentSnapshot* Content=Catalog();
@@ -1278,7 +1279,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Passives.AdditiveRatio,RowView.PercentBonus)
             || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Equipment.AdditiveRatio,RowView.PercentBonus))
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
+            UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
                 *Caller.EntityId.ToString(),uint32(Row.Attribute));
             Out=FLDCombatOwnerView();
             return false;
@@ -1362,7 +1363,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     ALDGameMode* Mode=Core();
     if (!Mode)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_COMBAT_CAMP_RESET_NO_CORE member=%s"),*Prepared.Input.Body.Victim.EntityId.ToString());
+        UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_CAMP_RESET_NO_CORE member=%s"),*Prepared.Input.Body.Victim.EntityId.ToString());
         return;
     }
     FLDBodyCombatState* Body=FindBody(Prepared.Input.Body);

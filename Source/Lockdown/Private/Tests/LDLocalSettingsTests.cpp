@@ -64,6 +64,9 @@ namespace
 constexpr uint32 NearZoomFixtureSchema = 12;
     // Schema 13 writes every current preference; only its key list predates the hold-Tab scoreboard.
     constexpr uint32 ScoreboardlessFixtureSchema = 13;
+    constexpr uint32 DiagnosticslessFixtureSchema = 14;
+    // Schema 15 writes every current preference; only its key list predates the playtest mark key.
+    constexpr uint32 MarklessFixtureSchema = 15;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -82,6 +85,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
             && Schema != OrientationlessFixtureSchema && Schema != QuickCastlessFixtureSchema)
         { uint8 Quick = Values.bQuickCast ? 1 : 0; Payload << Quick; }
+        if (Schema > DiagnosticslessFixtureSchema)
+        { uint8 Network=Values.bShowNetworkDiagnostics?1:0, FPS=Values.bShowFPS?1:0; Payload << Network << FPS; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -958,7 +963,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -1503,6 +1508,54 @@ bool FLDLocalSettingsScoreboardMigrationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsMarkMigrationTest, "Lockdown.Rules.LocalSettingsMarkMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsMarkMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit mark fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    TestTrue(TEXT("The playtest mark defaults to F9"), Values->Key(TEXT("Mark")) == EKeys::F9);
+    Values->PlayerName = TEXT("王小明");
+    Values->bShowFPS = true;
+    Values->Bindings.Remove(TEXT("Mark"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, MarklessFixtureSchema, 0));
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 15 file keeps every preference and binding and takes F9 for the mark"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("Mark")) == EKeys::F9 && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && Migrated.Settings->bShowFPS && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(TEXT("“标记”键使用默认值")));
+    TestTrue(TEXT("The migrated values are dirty until the next verified save"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && Migrated.Settings->SaveLocalSettings().IsSaved());
+    const auto Saved = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The saved file loads as the current schema with the mark key"),
+        Saved.Status == ELDLocalSettingsLoadStatus::Loaded && Saved.Settings && Saved.Settings->Key(TEXT("Mark")) == EKeys::F9);
+
+    Write(FixtureBytes(*Values, DiagnosticslessFixtureSchema, 0));
+    const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 14 file also takes the mark key next to its diagnostics defaults"),
+        Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings && Older.Settings->Key(TEXT("Mark")) == EKeys::F9
+        && !Older.Settings->bShowFPS && Older.Message.Contains(TEXT("网络诊断")) && Older.Message.Contains(TEXT("“标记”键使用默认值")));
+
+    // The player already put F9 on another action: the mark is never given a colliding key.
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F9);
+    Write(FixtureBytes(*Values, MarklessFixtureSchema, 0));
+    const auto Taken = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A layout holding F9 elsewhere is refused with recovery, naming the missing mark"),
+        Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
+        && Taken.Message.Contains(TEXT("Mark")));
+
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values));
+    const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The current schema never repairs a missing mark binding"),
+        Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
@@ -1510,7 +1563,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 14);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 16);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1622,8 +1675,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 14"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 14);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 16"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 16);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom
@@ -1661,6 +1714,125 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
     const auto Retired = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Schema 4 recovery also enforces its original zoom range"),
         Retired.Status == ELDLocalSettingsLoadStatus::UnsupportedSchema && !Retired.RecoverablePreferences);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDiagnosticsTest,"Lockdown.Rules.LocalSettingsDiagnostics",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalDiagnosticsTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Applied=ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("Diagnostics are opt-in"),!Applied->bShowNetworkDiagnostics && !Applied->bShowFPS);
+    FString Error;
+    for (const bool Network : {true,false})
+    {
+        for (const bool FPS : {true,false})
+        {
+            auto* Draft=Applied->CreateDraft();
+            Draft->bShowNetworkDiagnostics=Network;
+            Draft->bShowFPS=FPS;
+            TestTrue(TEXT("Independent toggles apply through ordinary settings"),Applied->ApplyLocalSettings(*Draft,Error));
+            TestTrue(TEXT("Diagnostics persist with verified readback"),Applied->SaveLocalSettings().IsSaved());
+            const auto Loaded=ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            TestTrue(TEXT("Both toggles survive restart independently"),Loaded.Status==ELDLocalSettingsLoadStatus::Loaded
+                && Loaded.Settings && Loaded.Settings->bShowNetworkDiagnostics==Network && Loaded.Settings->bShowFPS==FPS);
+        }
+    }
+    auto* Old=Applied->CreateDraft();
+    Old->Zoom=2250;
+    Old->PlayerName=TEXT("NetworkPlayer");
+    Old->bQuickCast=true;
+    TestTrue(TEXT("Write a schema 14 fixture"),FFileHelper::SaveArrayToFile(
+        FixtureBytes(*Old,DiagnosticslessFixtureSchema),*Fixture.Storage.Filename()));
+    TArray<uint8> Before,After;
+    FFileHelper::LoadFileToArray(Before,*Fixture.Storage.Filename());
+    const auto Migrated=ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Migration preserves preferences and defaults only the new toggles"),
+        Migrated.Status==ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings
+        && Migrated.Settings->Zoom==2250 && Migrated.Settings->PlayerName==Old->PlayerName && Migrated.Settings->bQuickCast
+        && !Migrated.Settings->bShowNetworkDiagnostics && !Migrated.Settings->bShowFPS && Migrated.Settings->IsDirty());
+    TestTrue(TEXT("Migration leaves the original bytes intact"),FFileHelper::LoadFileToArray(After,*Fixture.Storage.Filename()) && Before==After);
+    auto* Reset=Applied->CreateDraft();
+    Reset->bShowNetworkDiagnostics=Reset->bShowFPS=true;
+    Reset->ResetLocalDefaults();
+    TestTrue(TEXT("Restore defaults disables both overlays"),!Reset->bShowNetworkDiagnostics && !Reset->bShowFPS);
+    return true;
+}
+
+// The settings page restores one category at a time (UI_AND_SETTINGS 8): each preference group restores exactly its own
+// fields, never the player name, and the four groups together are the complete local defaults.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsPreferenceGroupsTest,"Lockdown.Rules.LocalSettingsPreferenceGroups",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Applied=ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    const auto* Defaults=GetDefault<ULDControlSettings>();
+    const FLDControlBinding* Stop=ULDControlSettings::Definitions().FindByPredicate([](const FLDControlBinding& B){return B.Action==TEXT("Stop");});
+    if(!TestNotNull(TEXT("The registry has a Stop action"),Stop)){return false;}
+    // Every preference away from its default, with a name no reset may clear.
+    auto Changed=[&]()
+    {
+        auto* Draft=Applied->CreateDraft();
+        FString Error;
+        TestTrue(TEXT("Rebind Stop away from its default"),Draft->Rebind(TEXT("Stop"),EKeys::K,Error));
+        Draft->PlayerName=TEXT("GroupPlayer");
+        Draft->MasterVolume=.35f;
+        Draft->bQuickCast=!Defaults->bQuickCast;
+        Draft->Zoom=1500;
+        Draft->bEdgePan=!Defaults->bEdgePan;
+        Draft->bStartFollowing=!Defaults->bStartFollowing;
+        Draft->CameraPanCmPerSec=2700;
+        Draft->TextScale=1.25f;
+        Draft->MinimapOrientation=ELDMinimapOrientation::North;
+        Draft->bShowNetworkDiagnostics=!Defaults->bShowNetworkDiagnostics;
+        Draft->bShowFPS=!Defaults->bShowFPS;
+        TestTrue(TEXT("The changed fixture is a valid preference set"),Draft->ValidatePreferences(Error));
+        return Draft;
+    };
+    auto AtDefaults=[&](const ULDControlSettings& S,ELDPreferenceGroup Group)
+    {
+        switch(Group)
+        {
+        case ELDPreferenceGroup::Audio: return S.MasterVolume==Defaults->MasterVolume;
+        case ELDPreferenceGroup::Controls: return S.Key(TEXT("Stop"))==Stop->Key&&S.bQuickCast==Defaults->bQuickCast;
+        case ELDPreferenceGroup::Camera: return S.Zoom==Defaults->Zoom&&S.bEdgePan==Defaults->bEdgePan
+            &&S.bStartFollowing==Defaults->bStartFollowing&&S.CameraPanCmPerSec==Defaults->CameraPanCmPerSec;
+        case ELDPreferenceGroup::Interface: return S.TextScale==Defaults->TextScale&&S.MinimapOrientation==Defaults->MinimapOrientation
+            &&S.bShowNetworkDiagnostics==Defaults->bShowNetworkDiagnostics&&S.bShowFPS==Defaults->bShowFPS;
+        }
+        return false;
+    };
+    const ELDPreferenceGroup Groups[]={ELDPreferenceGroup::Audio,ELDPreferenceGroup::Controls,ELDPreferenceGroup::Camera,ELDPreferenceGroup::Interface};
+    for(const ELDPreferenceGroup Group:Groups)
+    {
+        auto* Draft=Changed();
+        for(const ELDPreferenceGroup Other:Groups)
+        {TestFalse(TEXT("The fixture starts away from every group default"),AtDefaults(*Draft,Other));}
+        Draft->ResetPreferenceGroup(Group);
+        for(const ELDPreferenceGroup Other:Groups)
+        {
+            TestEqual(FString::Printf(TEXT("Resetting group %d restores group %d only"),int32(Group),int32(Other)),
+                AtDefaults(*Draft,Other),Other==Group);
+        }
+        TestEqual(TEXT("A group reset never clears the player name"),Draft->PlayerName,FString(TEXT("GroupPlayer")));
+        FString Error;
+        TestTrue(TEXT("A restored group applies through ordinary settings"),Applied->ApplyLocalSettings(*Draft,Error));
+        TestTrue(TEXT("The applied group persists with verified readback"),Applied->SaveLocalSettings().IsSaved());
+    }
+    auto* Groupwise=Changed();
+    for(const ELDPreferenceGroup Group:Groups){Groupwise->ResetPreferenceGroup(Group);}
+    auto* Complete=Changed();
+    Complete->ResetLocalDefaults();
+    TestTrue(TEXT("All four groups together are exactly the complete local defaults"),
+        Groupwise->Bindings.OrderIndependentCompareEqual(Complete->Bindings)
+        &&Groupwise->MasterVolume==Complete->MasterVolume&&Groupwise->bQuickCast==Complete->bQuickCast
+        &&Groupwise->Zoom==Complete->Zoom&&Groupwise->bEdgePan==Complete->bEdgePan&&Groupwise->bStartFollowing==Complete->bStartFollowing
+        &&Groupwise->CameraPanCmPerSec==Complete->CameraPanCmPerSec&&Groupwise->TextScale==Complete->TextScale
+        &&Groupwise->MinimapOrientation==Complete->MinimapOrientation&&Groupwise->bShowNetworkDiagnostics==Complete->bShowNetworkDiagnostics
+        &&Groupwise->bShowFPS==Complete->bShowFPS&&Groupwise->PlayerName==Complete->PlayerName);
+    for(const ELDPreferenceGroup Group:Groups){TestTrue(TEXT("The complete reset leaves every group at its default"),AtDefaults(*Complete,Group));}
     return true;
 }
 #endif

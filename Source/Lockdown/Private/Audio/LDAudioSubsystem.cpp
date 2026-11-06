@@ -1,4 +1,5 @@
 #include "Audio/LDAudioSubsystem.h"
+#include "Core/LDLog.h"
 #include "Audio/LDAudioCatalog.h"
 #include "AudioDevice.h"
 #include "AudioDeviceManager.h"
@@ -33,11 +34,11 @@ void ULDAudioSubsystem::Initialize(FSubsystemCollectionBase& Collection)
         }
     }
     else { Error = FString::Printf(TEXT("Audio catalog %s is missing."), ULDAudioCatalog::AssetPath); }
-    if (Catalog) { UE_LOG(LogTemp, Display, TEXT("LD_AUDIO_CATALOG_READY %d cues resolved."), LDAudio::CueCount); }
+    if (Catalog) { UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_CATALOG_READY %d cues resolved."), LDAudio::CueCount); }
     else
     {
         CatalogError = Error;
-        UE_LOG(LogTemp, Error, TEXT("LD_AUDIO_CATALOG_INVALID %s Run Scripts\\ImportDemoAudio.ps1 or restore the LFS assets."), *Error);
+        UE_LOG(LogLDContent, Error, TEXT("LD_AUDIO_CATALOG_INVALID %s Run Scripts\\ImportDemoAudio.ps1 or restore the LFS assets."), *Error);
     }
     WorldHandle = FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this, &ULDAudioSubsystem::HandleWorldReady);
 }
@@ -77,7 +78,7 @@ bool ULDAudioSubsystem::PushVolume(UWorld* World)
         // One override on the user mix: the master class and its children follow the applied local volume.
         Device->SetSoundMixClassOverride(Catalog->UserMix, Catalog->MasterClass, MasterVolume, 1.f, 0.f, true);
         AppliedVolume = MasterVolume;
-        UE_LOG(LogTemp, Display, TEXT("LD_AUDIO_MIX_APPLIED device=%u volume=%.2f"), DeviceId, MasterVolume);
+        UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_MIX_APPLIED device=%u volume=%.2f"), DeviceId, MasterVolume);
     }
     if (bNewDevice)
     {
@@ -92,7 +93,7 @@ void ULDAudioSubsystem::ApplyMasterVolume(float Linear)
 {
     if (!FMath::IsFinite(Linear))
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_AUDIO_VOLUME_REJECTED Non-finite master volume; keeping %.2f."), MasterVolume);
+        UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_VOLUME_REJECTED Non-finite master volume; keeping %.2f."), MasterVolume);
         return;
     }
     MasterVolume = FMath::Clamp(Linear, 0.f, 1.f);
@@ -107,7 +108,7 @@ bool ULDAudioSubsystem::Play(ELDAudioCue Cue)
         if (!bReportedUnavailable)
         {
             bReportedUnavailable = true;
-            UE_LOG(LogTemp, Warning, TEXT("LD_AUDIO_CUE_UNAVAILABLE %s cannot play: %s"), *LDAudio::CueId(Cue), *CatalogError);
+            UE_LOG(LogLDContent, Warning, TEXT("LD_AUDIO_CUE_UNAVAILABLE %s cannot play: %s"), *LDAudio::CueId(Cue), *CatalogError);
         }
         return false;
     }
@@ -119,7 +120,7 @@ bool ULDAudioSubsystem::Play(ELDAudioCue Cue)
         if (!bReportedNoDevice)
         {
             bReportedNoDevice = true;
-            UE_LOG(LogTemp, Display, TEXT("LD_AUDIO_DEVICE_UNAVAILABLE No audio output in this process; %s and later cues are not audible."), *LDAudio::CueId(Cue));
+            UE_LOG(LogLDContent, Display, TEXT("LD_AUDIO_DEVICE_UNAVAILABLE No audio output in this process; %s and later cues are not audible."), *LDAudio::CueId(Cue));
         }
         return false;
     }

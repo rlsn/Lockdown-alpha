@@ -1,4 +1,5 @@
 #include "Economy/LDEconomyDirector.h"
+#include "Core/LDLog.h"
 
 #include "Combat/LDAssistRules.h"
 #include "Combat/LDCombatDirector.h"
@@ -23,6 +24,24 @@ THIRD_PARTY_INCLUDES_END
 namespace
 {
 constexpr int32 EconomyRewardWindow = 64;
+
+const TCHAR* EconomyCauseName(LDEconomy::ECause Cause)
+{
+    switch (Cause)
+    {
+    case LDEconomy::ECause::DeathReward: return TEXT("death");
+    case LDEconomy::ECause::MapEventReward: return TEXT("map_event");
+#if WITH_DEV_AUTOMATION_TESTS
+    case LDEconomy::ECause::DevFixture: return TEXT("dev_fixture");
+    case LDEconomy::ECause::DevReset: return TEXT("dev_reset");
+#endif
+    case LDEconomy::ECause::Buy: return TEXT("buy");
+    case LDEconomy::ECause::Sell: return TEXT("sell");
+    case LDEconomy::ECause::Upgrade: return TEXT("upgrade");
+    case LDEconomy::ECause::AccountRetire: return TEXT("account_retire");
+    default: return TEXT("none");
+    }
+}
 
 void EconomyWriteVictim(FMemoryWriter& Writer, const FLDVictimKey& Victim)
 {
@@ -261,7 +280,7 @@ bool ALDEconomyDirector::BeginMatch(ALDGameMode& InMode, const FLDMatchContext& 
     DevGrants.Reset();
     if (LDDevGrowthFixture::IsSwitchPresent())
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE -LDDevGrowthFixture: generation=%u accepts DevQueueOffer and DevGrantReward on this authority"),
+        UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE -LDDevGrowthFixture: generation=%u accepts DevQueueOffer and DevGrantReward on this authority"),
             Match.Generation);
     }
 #endif
@@ -421,8 +440,10 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
         EconomyAssistKeyBytes(Death.Key, Assister, Share.KeyBytes);
     }
     ELDGrowthReason Reason = ELDGrowthReason::None;
+    const FString Detail = FString::Printf(TEXT("victim=%s victim_life=%u victim_kind=%s"), *LDLog::Id(Death.Key.Victim.EntityId),
+        Death.Key.Victim.Life, bContenderVictim ? TEXT("contender") : TEXT("camp"));
     const ELDRewardOutcome Outcome = CommitRewardShares(Shares, LDEconomy::ECause::DeathReward, Receipt.Fingerprint,
-        Permit, Receipt, Reason);
+        Permit, Receipt, Reason, Detail);
     if (Outcome != ELDRewardOutcome::Granted)
     {
         return Finish(Outcome, Reason);
@@ -463,31 +484,32 @@ ELDRewardOutcome ALDEconomyDirector::CommitEventReward(const FGuid& Recipient, F
     LDProgression::FRewardAmounts Amounts;
     Amounts.XP = XP;
     Amounts.Gold = Gold;
-    return CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::MapEventReward, KeyBytes, EventTerms, Permit, Receipt, Reason);
+    return CommitRewardParts(Recipient, Amounts, LDEconomy::ECause::MapEventReward, KeyBytes, EventTerms, Permit, Receipt, Reason,
+        FString::Printf(TEXT("event=%s serial=%llu"), *Event.ToString(), Serial));
 }
 
 ELDRewardOutcome ALDEconomyDirector::CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
     LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
-    const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason)
+    const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason, const FString& LogDetail)
 {
     TArray<FRewardShare> Shares;
     FRewardShare& Share = Shares.AddDefaulted_GetRef();
     Share.Recipient = Recipient;
     Share.Amounts = Amounts;
     Share.KeyBytes = KeyBytes;
-    return CommitRewardShares(Shares, Cause, TransactionTerms, Permit, Receipt, Reason);
+    return CommitRewardShares(Shares, Cause, TransactionTerms, Permit, Receipt, Reason, LogDetail);
 }
 
 ELDRewardOutcome ALDEconomyDirector::CommitRewardShares(const TArray<FRewardShare>& Shares, LDEconomy::ECause Cause,
     const uint8 (&TransactionTerms)[32], const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt,
-    ELDGrowthReason& Reason)
+    ELDGrowthReason& Reason, const FString& LogDetail)
 {
     Reason = ELDGrowthReason::None;
     ALDGameMode* M = Mode();
     FString MaintenanceError;
     if (!CompactLedger(MaintenanceError))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_GROWTH_LEDGER_CORRUPT %s"), *MaintenanceError);
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_LEDGER_CORRUPT %s"), *MaintenanceError);
         Reason = ELDGrowthReason::AuthorityFault;
         return ELDRewardOutcome::PermanentlyRejected;
     }
@@ -579,7 +601,7 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardShares(const TArray<FRewardShar
                 if (!Projection.IsSuccess())
                 {
                     const ELDRewardOutcome Outcome = EconomyCombatOutcome(Projection.Error, Reason);
-                    UE_LOG(LogTemp, Warning, TEXT("LD_GROWTH_REWARD_PROJECTION %s %s"), LDGrowthWire::ReasonName(Reason), *Projection.Message);
+                    UE_LOG(LogLDGrowth, Warning, TEXT("LD_GROWTH_REWARD_PROJECTION %s %s"), LDGrowthWire::ReasonName(Reason), *Projection.Message);
                     return Outcome;
                 }
                 CombatPlan.Emplace(MoveTemp(Projection.Value.GetValue()));
@@ -651,6 +673,28 @@ ELDRewardOutcome ALDEconomyDirector::CommitRewardShares(const TArray<FRewardShar
             M->Combat->ApplyBuildChange(MoveTemp(CombatPlans[Index].GetValue()), Permit);
         }
         MarkDirty(Shares[Index].Recipient);
+    }
+    // Host playtest record of every installed part (docs/DEVELOPMENT.md): who got what, why, and the levels it reached.
+    for (int32 Index = 0; Index < Shares.Num(); ++Index)
+    {
+        const FRewardShare& Share = Shares[Index];
+        const uint8 Before = Index == 0 ? Receipt.LevelBefore : Receipt.Assists[Index - 1].LevelBefore;
+        const uint8 After = Index == 0 ? Receipt.LevelAfter : Receipt.Assists[Index - 1].LevelAfter;
+        const uint8 First = Index == 0 ? Receipt.OpportunityFirst : Receipt.Assists[Index - 1].OpportunityFirst;
+        const uint8 Last = Index == 0 ? Receipt.OpportunityLast : Receipt.Assists[Index - 1].OpportunityLast;
+        const LDEconomy::FAccount* Account = Ledger.Account(Share.Recipient);
+        const FLDProgressionState* Progression = M->Development->FindProgression(Share.Recipient);
+        UE_LOG(LogLDGrowth, Log, TEXT("LD_REWARD t=%lld contender=%s cause=%s role=%s gold=%lld xp=%lld gold_after=%lld xp_after=%lld level=%u->%u %s"),
+            Permit.GetBoundary().AtMs, *LDLog::Id(Share.Recipient), EconomyCauseName(Cause),
+            Index == 0 ? (Shares.Num() > 1 || Cause == LDEconomy::ECause::DeathReward ? TEXT("killer") : TEXT("recipient")) : TEXT("assist"),
+            Share.Amounts.Gold, Share.Amounts.XP, Account ? Account->Gold : -1, Progression ? Progression->CumulativeXP : -1,
+            uint32(Before), uint32(After), *LogDetail);
+        if (After > Before)
+        {
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_LEVEL_UP t=%lld contender=%s level=%u->%u choices_earned=%d"),
+                Permit.GetBoundary().AtMs, *LDLog::Id(Share.Recipient), uint32(Before), uint32(After),
+                Last >= First ? int32(Last) - int32(First) + 1 : 0);
+        }
     }
     return ELDRewardOutcome::Granted;
 }
@@ -965,7 +1009,7 @@ uint64 ALDEconomyDirector::DevGrantReward(const FGuid& ContenderId, int64 XP, in
     Grant.Contender = ContenderId;
     Grant.XP = XP;
     Grant.Gold = Gold;
-    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued grant ticket=%llu contender=%s xp=%lld gold=%lld"), Grant.Ticket,
+    UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued grant ticket=%llu contender=%s xp=%lld gold=%lld"), Grant.Ticket,
         *ContenderId.ToString(), XP, Gold);
     return Grant.Ticket;
 }
@@ -1034,7 +1078,7 @@ bool ALDEconomyDirector::CommitDevGrants(const FLDGameplayWritePermit& Permit, F
             Grant.Status = ELDDevGrantStatus::Rejected;
             Grant.Detail = FString::Printf(TEXT("outcome %u: %s"), uint32(Outcome), LDGrowthWire::ReasonName(Reason));
         }
-        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE grant ticket=%llu contender=%s %s"), Grant.Ticket,
+        UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE grant ticket=%llu contender=%s %s"), Grant.Ticket,
             *Grant.Contender.ToString(), *Grant.Detail);
         if (!CompactLedger(Error))
         {
@@ -1112,7 +1156,7 @@ FLDDevTestResult ALDEconomyDirector::AdmitDevTest(const FGuid& ContenderId, cons
     }
     else if (bOpensSequence)
     {
-        UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued test command contender=%s request=%llu op=%s amount=%lld"),
+        UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE queued test command contender=%s request=%llu op=%s amount=%lld"),
             *ContenderId.ToString(), Command.RequestId, LDDevTest::OpName(Command.Op), Command.Amount);
     }
     return Result;
@@ -1201,7 +1245,7 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
             if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
             {
                 // Nothing was installed; the command stays pending for the next Transactions phase.
-                UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
+                UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
                     *ContenderId.ToString(), Command.RequestId, LDGrowthWire::ReasonName(Reason));
                 return true;
             }
@@ -1260,7 +1304,7 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
             if (bRetry)
             {
                 // Nothing was installed; the command stays pending for the next Transactions phase.
-                UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
+                UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu retries: %s"),
                     *ContenderId.ToString(), Command.RequestId, *Detail);
                 return true;
             }
@@ -1315,7 +1359,7 @@ bool ALDEconomyDirector::CommitPendingDevTest(const FGuid& ContenderId, const FL
     Record->Stream.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
     MarkDirty(ContenderId);
-    UE_LOG(LogTemp, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu op=%s amount=%lld %s: %s"),
+    UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE test command contender=%s request=%llu op=%s amount=%lld %s: %s"),
         *ContenderId.ToString(), Command.RequestId, LDDevTest::OpName(Command.Op), Command.Amount,
         Reason == ELDGrowthReason::None ? TEXT("applied") : TEXT("rejected"), *Receipt.Detail);
     return true;

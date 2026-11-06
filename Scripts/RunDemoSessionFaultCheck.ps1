@@ -13,7 +13,7 @@ $entryHeader = Get-Content -LiteralPath (Join-Path $projectRoot 'Source\Lockdown
 if ($entryHeader -notmatch 'inline\s+constexpr\s+uint32\s+WireProtocol\s*=\s*(\d+)\s*;') { throw 'Cannot read WireProtocol from LDDemoEntry.h' }
 $wire = [int]$Matches[1]
 $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
-$errorPattern = 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED'
+$errorPattern = 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT|LD_OBSERVATION_PROTOCOL_REJECTED'
 # Only the roles whose connection is meant to fail may log the engine's own failure report for it.
 $expectedFailure = 'LogNet: Error: UEngine::BroadcastNetworkFailure: FailureType = (ConnectionLost|ConnectionTimeout|PendingConnectionFailure|FailureReceived),|LogNet: Error: TravelFailure: '
 # Every role must report each check it owns; a skipped stage cannot pass silently.

@@ -110,12 +110,21 @@ struct FLDControlBinding
 // Which ground direction the minimap draws straight up (LDMinimap): the camera's ground forward, the own living body's
 // facing (the camera's while there is no body) or world -Y. Saved as this value; any other stored value is rejected.
 UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 };
+// The local-preference groups the settings page restores one page at a time (UI_AND_SETTINGS 8); together they are exactly
+// ResetLocalDefaults. Display values belong to UGameUserSettings and are restored through the display apply instead.
+enum class ELDPreferenceGroup : uint8
+{
+    Audio,      // MasterVolume
+    Controls,   // Bindings, bQuickCast
+    Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
+    Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS
+};
 UCLASS()
 class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 14;
+    static constexpr int32 CurrentSchema = 16;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -138,6 +147,8 @@ public:
     // Quick cast (off by default, CONTROLS 3): Combat casts a unit skill at the pointed visible unit and a direction skill
     // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
     UPROPERTY(SaveGame) bool bQuickCast=false;
+    UPROPERTY(SaveGame) bool bShowNetworkDiagnostics=false;
+    UPROPERTY(SaveGame) bool bShowFPS=false;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
@@ -171,10 +182,12 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
-    // Restores keys, camera (including the pan speed), text, master volume and minimap orientation only; the player name is
-    // never cleared by a defaults reset. Display values belong to UGameUserSettings; the settings panel restores them through
-    // the display trial.
+    // Restores every preference group (keys, quick cast, camera including the pan speed, text, minimap orientation,
+    // diagnostics and master volume); the player name is never cleared by a defaults reset. Display values belong to
+    // UGameUserSettings; the settings panel restores them through the display apply.
     void ResetLocalDefaults();
+    // Restores one group only; every other preference and the player name keep their values.
+    void ResetPreferenceGroup(ELDPreferenceGroup Group);
 private:
     void CopyPreferences(const ULDControlSettings& Other);
     FLDLocalSettingsStorage Storage;

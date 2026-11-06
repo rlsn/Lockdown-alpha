@@ -1,4 +1,5 @@
 #include "Tests/LDDemoGrowthProbe.h"
+#include "Core/LDLog.h"
 #include "UI/LDTerms.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
@@ -3552,7 +3553,7 @@ public:
             Report->SetNumberField(TEXT("match2_gold"), double(Match2Gold));
         }
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_GROWTH_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_GROWTH_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
             FPlatformMisc::RequestExitWithStatus(false, 2);
@@ -3578,7 +3579,7 @@ void LDDemoTests::StartGrowthProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_GROWTH_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_GROWTH_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

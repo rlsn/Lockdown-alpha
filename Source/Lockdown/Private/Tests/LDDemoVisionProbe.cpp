@@ -1,4 +1,5 @@
 #include "Tests/LDDemoVisionProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
@@ -1612,7 +1613,7 @@ public:
             Report->SetNumberField(TEXT("life"), Owner->OwnerState.Life);
         }
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_VISION_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_VISION_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false, 2); return false; }
         return true;
     }
@@ -1654,7 +1655,7 @@ public:
             Result->SetStringField(TEXT("scope"), TEXT("After both owning clients disconnect, the Listen Host's own current view and proxies no longer present them."));
             if (!Save(Result, TEXT("Disconnects.json")) || !bClean)
             {
-                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_VISION_DISCONNECT_FAILED %s"), *Why);
+                UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_VISION_DISCONNECT_FAILED %s"), *Why);
                 FPlatformMisc::RequestExitWithStatus(false, 2);
                 return false;
             }
@@ -1724,7 +1725,7 @@ void LDDemoTests::StartVisionProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_VISION_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_VISION_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

@@ -1,4 +1,5 @@
 #include "Tests/LDDemoEntryProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Framework/LDDemoEntry.h"
@@ -33,11 +34,11 @@ class FLDDemoCoreProbe : public TSharedFromThis<FLDDemoCoreProbe>
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     FString Output, Role, Error, CatalogDigest;
-    double Deadline=0, StageAt=0;
+    double Deadline=0, StageAt=0, ArrivalReceivedAt=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     FLDCombatBodyRef OriginalBody;
-    FLDMoveIdentity OldOrder;
+    FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
     TArray<TSharedPtr<FJsonValue>> Checks;
@@ -368,7 +369,7 @@ public:
             }
         }
         Written=Save(Report,Role+TEXT(".json"));
-        UE_LOG(LogTemp,Display,TEXT("LD_DEMO_CORE_PROBE role=%s passed=%d detail=%s"),*Role,Passed&&Written,*Error);
+        UE_LOG(LogLDTest,Display,TEXT("LD_DEMO_CORE_PROBE role=%s passed=%d detail=%s"),*Role,Passed&&Written,*Error);
         if (!Passed || !Written) { FPlatformMisc::RequestExitWithStatus(false,2); return false; }
         return true;
     }
@@ -415,7 +416,7 @@ public:
                     Result->SetStringField(TEXT("scope"),TEXT("Real client disconnect retires body/resource ownership even when native Pawn teardown precedes Logout; the Host remains active."));
                     if (!Save(Result,TEXT("Disconnects.json")) || !Clean)
                     {
-                        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_CORE_DISCONNECT_FAILED"));
+                        UE_LOG(LogLDTest,Error,TEXT("LD_DEMO_CORE_DISCONNECT_FAILED"));
                         FPlatformMisc::RequestExitWithStatus(false,2);
                         return false;
                     }
@@ -480,6 +481,8 @@ public:
                 TEXT("Approved P2 resources are projected from the sole Combat body record"));
             Check(PC->OwnerState.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"));
             Check(PC->CanWorldCommand(),TEXT("Owning connection can submit an ordinary ground intent"));
+            Check(Nav->PredictedIdentity().Match==PC->OwnerState.Match && Nav->PredictedIdentity().Life==PC->OwnerState.Life,
+                TEXT("Idle saved moves retain the current match and life for native acknowledgements"));
             OriginalBody=PC->OwnerState.BodyRef;
             if (!Passed) { return Finish(); }
             Nav->NavigateGround(Goal->Position,NAME_None);
@@ -513,6 +516,24 @@ public:
         {
             if (FVector::Dist2D(StartPosition,Body->GetActorLocation())<300) { return true; }
             Check(true,TEXT("The owned body actually moves through native CMC"));
+            AcceptedOrder=Nav->PredictedIdentity();
+            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Check(Nav->LocalIdentity()!=AcceptedOrder && Nav->PredictedIdentity()==AcceptedOrder,
+                TEXT("A pending replacement keeps the accepted order identity for prediction and replay"));
+            if (!Passed) { return Finish(); }
+            StageAt=FPlatformTime::Seconds();
+            Stage=31;
+        }
+        else if (Stage==31)
+        {
+            if (FPlatformTime::Seconds()-StageAt<.5) { return true; }
+            // Stop, then a new order before the stop receipt: the pre-stop order stays client-active but has the old epoch.
+            Check(Nav->HasMoveOrder(),TEXT("The walk is still client-active when Stop is pressed"));
+            Nav->Stop();
+            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Check(Nav->PredictedIdentity()==Nav->LocalIdentity() && Nav->LocalIdentity().Epoch>AcceptedOrder.Epoch,
+                TEXT("An order sent after Stop never predicts or replays the cancelled order"));
+            if (!Passed) { return Finish(); }
             Nav->Stop();
             Stage=4;
         }
@@ -602,6 +623,10 @@ public:
             // bounds the client-side distance on top of the radius.
             const FLDOrderReceipt& Arrived=Nav->LatestReceipt();
             const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
+            // The reliable completion receipt can precede the final unreliable CMC correction under packet lag/loss.
+            if (ArrivalReceivedAt==0) { ArrivalReceivedAt=FPlatformTime::Seconds(); }
+            if (FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)>Arrived.AcceptanceCm+ClientErrorCm
+                && FPlatformTime::Seconds()-ArrivalReceivedAt<3) { return true; }
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
                 && FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
@@ -658,7 +683,7 @@ void LDDemoTests::StartCoreProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(),TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_CORE_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest,Error,TEXT("LD_DEMO_CORE_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false,2);
         return;
     }

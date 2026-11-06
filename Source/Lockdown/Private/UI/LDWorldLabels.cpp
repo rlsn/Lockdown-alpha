@@ -1,4 +1,5 @@
 #include "UI/LDWorldLabels.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDControlSettings.h"
@@ -107,7 +108,7 @@ void ULDWorldLabels::NativeTick(const FGeometry& Geometry,float Delta)
     if(bDisplayContentTried){return;}
     // Missing content stays visible: names then read as the HUD reports them (未知野怪 #n, stable status ids).
     bDisplayContentTried=true;FString Error;
-    if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_WORLD_LABELS_CONTENT_UNAVAILABLE %s"),*Error);}
+    if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogLDUI,Error,TEXT("LD_WORLD_LABELS_CONTENT_UNAVAILABLE %s"),*Error);}
 }
 
 int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
@@ -127,7 +128,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     // The own bars read only this controller's own projections of the current match and life, anchored on its own pawn,
     // so they show even while no other unit is in sight.
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
-    const APawn* OwnBody=SelfBars.bVisible?PC->GetPawn().Get():nullptr;
+    const ALDCharacter* OwnBody=SelfBars.bVisible?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     int32 ViewW=0,ViewH=0;PC->GetViewportSize(ViewW,ViewH);
     if((!Frame&&!IsValid(OwnBody))||ViewW<=0||ViewH<=0){return Base;}
     // Viewport pixels to local units: the layer fills the viewport, so this also removes the DPI scale.
@@ -153,7 +154,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     };
     TArray<FSlateRect> Placed;
     FVector2D OwnScreen;
-    if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->GetActorLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
+    if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))
     {
         const float OwnX=float(OwnScreen.X)*ToLocalX,OwnBottom=float(OwnScreen.Y)*ToLocalY;
         if(!Culled(OwnX,OwnBottom))

@@ -8,7 +8,10 @@ struct FLDProgressionView;
 struct FLDEquipmentView;
 struct FLDKillFeedView;
 struct FLDWorldView;
+struct FLDDemoContentDefinitions;
 class FLDDemoContentSnapshot;
+class ALDPlayerController;
+class ALDGameState;
 
 // Feedback where the player is looking (APP_SPEC 8): numbers over the own body and over visible units, the own rewards
 // beside the own body, and level-up and own-kill confirmations above it. Local presentation of approved facts only; it
@@ -50,6 +53,11 @@ namespace LDWorldFeedback
         // Display name of a visible cast's source (an ability or an equipment native id, the other 0); empty when unknown.
         TFunction<FString(uint8,uint8)> CastName;
     };
+    // The sample of PC's own projections, the room-public views of Public and PC's current authorized frame of this match
+    // and life (none while dead or for another generation), as both the feedback layer and the playtest log observe it.
+    // Content resolves cast display names (stable ids without it). Pointers stay valid until the next relay update.
+    LOCKDOWN_API void MakeSample(const ALDPlayerController& PC, const ALDGameState& Public,
+        const FLDDemoContentDefinitions* Content, FSample& Out);
     // Turns consecutive samples into events. The first sample of a match only primes (and so does the first body view
     // of a life, the first frame of an observation generation and the first valid growth view after a missing one);
     // older or foreign generations never produce events. Gold and XP float only for a reward, which an XP gain

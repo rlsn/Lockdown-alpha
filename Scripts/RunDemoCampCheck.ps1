@@ -108,7 +108,7 @@ try {
     Set-Content -LiteralPath (Join-Path $evidence 'Finish') -Value 'Complete'
     if (-not $processes[0].WaitForExit(30000) -or $processes[0].ExitCode -ne 0) { throw "Host did not exit cleanly: $output" }
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
-        Select-String -Pattern 'Fatal error|Assertion failed|LogTemp: Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
+        Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Camp scenario logged an error: $($errors[0].Line). Evidence: $output" }
     $shots = ($images | ForEach-Object { Join-Path $output $_ }) -join '; '
     Write-Host "DEV-only normal-start camp scenario passed on real owned connections. Not 3+3, AI, capture or balance acceptance. Screenshots for presentation review (not pixel-compared): $shots. Evidence: $output"

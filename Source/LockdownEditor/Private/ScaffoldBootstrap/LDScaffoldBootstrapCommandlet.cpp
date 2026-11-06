@@ -1,4 +1,5 @@
 #include "LDScaffoldBootstrapCommandlet.h"
+#include "LDEditorLog.h"
 #include "LDDemoWorldBuilder.h"
 #include "Art/LDDemoArtImport.h"
 #include "Art/LDDemoUIImageImport.h"
@@ -36,7 +37,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     {
         if (FParse::Param(*Params, Option))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Retired bootstrap option: %s"), Option);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Retired bootstrap option: %s"), Option);
             return 1;
         }
     }
@@ -48,7 +49,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     FString Error, DigestHex, Output;
     if (int32(ValidateOnly) + int32(Regenerate) + int32(RefreshDefinitions) + int32(RegenerateFrontend) > 1)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Validate, Regenerate, RefreshDefinitions and RegenerateFrontend are exclusive."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Validate, Regenerate, RefreshDefinitions and RegenerateFrontend are exclusive."));
         return 1;
     }
     if (!FParse::Value(*Params, TEXT("Output="), Output))
@@ -57,7 +58,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     }
     if (!LDDemoEntry::VerifyPayloadFiles(Error, &DigestHex))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED %s"), *Error);
         return 2;
     }
     FLDDemoContentDigest ExpectedRoot;
@@ -67,7 +68,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (RefreshDefinitions && (!HadContent || !FPackageName::DoesPackageExist(LDDemoEntry::WorldDefinition)
         || !FPackageName::DoesPackageExist(LDDemoEntry::WorldMap)))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED RefreshDefinitions requires existing saved Demo assets."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED RefreshDefinitions requires existing saved Demo assets."));
         return 4;
     }
     auto* Content = HadContent ? LoadObject<ULDDemoContentCatalog>(nullptr, ULDDemoContentCatalog::AssetPath()) : nullptr;
@@ -78,7 +79,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!FLDDemoContentDigest::ParseHex(DigestHex, ExpectedRoot, Error) || !Content
         || !ULDDemoContentCatalog::PrepareImportFromFiles(*Content, FPaths::ProjectDir(), ExpectedRoot, Prepared, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Missing/invalid native content target or approved input: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Missing/invalid native content target or approved input: %s"), *Error);
         return 4;
     }
     if (!ValidateOnly && (!HadContent || Regenerate || RefreshDefinitions))
@@ -86,19 +87,19 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         if (!Content->CommitImport(Prepared, ExpectedRoot, Error)
             || !LDDemoWorldBuilder::SaveAsset(*Content, ContentPackage, Error))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Content import/save failed: %s"), *Error);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Content import/save failed: %s"), *Error);
             return 4;
         }
     }
     else if (!Content->ValidatePrepared(*Prepared, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved content differs; regenerate explicitly: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved content differs; regenerate explicitly: %s"), *Error);
         return 4;
     }
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!Content->Read(ExpectedRoot, Catalog, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved content cannot be read: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Saved content cannot be read: %s"), *Error);
         return 4;
     }
     const bool HadWorldDefinition = FPackageName::DoesPackageExist(LDDemoEntry::WorldDefinition);
@@ -110,7 +111,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     }
     if (!WorldDefinition)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native Demo world definition is absent or unreadable."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native Demo world definition is absent or unreadable."));
         return 5;
     }
     if (!ValidateOnly && (!HadWorldDefinition || Regenerate || RefreshDefinitions))
@@ -120,14 +121,14 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
             || !WorldDefinition->Import(WorldBytes, *Catalog, Error)
             || !LDDemoWorldBuilder::SaveAsset(*WorldDefinition, LDDemoEntry::WorldDefinition, Error))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World definition import/save failed: %s"), *Error);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World definition import/save failed: %s"), *Error);
             return 5;
         }
     }
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     if (!WorldDefinition->Read(*Catalog, Geometry, Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World projection differs; regenerate explicitly: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World projection differs; regenerate explicitly: %s"), *Error);
         return 5;
     }
     for (const auto& Expected : {
@@ -140,7 +141,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         if (!GConfig->GetString(TEXT("/Script/EngineSettings.GameMapsSettings"), Expected.Key, Actual, GEngineIni)
             || Actual != Expected.Value)
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Effective %s is not the Demo entry contract."), Expected.Key);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Effective %s is not the Demo entry contract."), Expected.Key);
             return 4;
         }
     }
@@ -148,7 +149,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
     if (!Widget || !Widget->GeneratedClass || !Widget->GeneratedClass->IsChildOf(ULDUIRoot::StaticClass())
         || !Widget->GeneratedClass->GetDefaultObject() || Widget->Status == BS_Error)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI root, generated class or CDO is invalid."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI root, generated class or CDO is invalid."));
         return 4;
     }
     for (const TCHAR* PackagePath : {LDDemoEntry::FrontendMap, LDDemoEntry::WorldMap})
@@ -159,7 +160,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         {
             if (!LDDemoWorldBuilder::Generate(*WorldDefinition, *Catalog, World, Error))
             {
-                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World generation failed: %s"), *Error);
+                UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED World generation failed: %s"), *Error);
                 return 6;
             }
         }
@@ -171,7 +172,7 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         {
             if (!LDDemoWorldBuilder::GenerateFrontend(World, Error))
             {
-                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Frontend map generation failed: %s"), *Error);
+                UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Frontend map generation failed: %s"), *Error);
                 return 6;
             }
         }
@@ -184,42 +185,42 @@ int32 ULDScaffoldBootstrapCommandlet::Main(const FString& Params)
         if (!World || !World->PersistentLevel || !Settings
             || (Settings->DefaultGameMode && Settings->DefaultGameMode != ALDGameMode::StaticClass()))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Missing world or retired GameMode: %s"), PackagePath);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Missing world or retired GameMode: %s"), PackagePath);
             return 5;
         }
         if (!IsDemoWorld)
         {
             if (!LDDemoWorldBuilder::ValidateFrontend(*World, Error))
             {
-                UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED %s"), *Error);
+                UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED %s"), *Error);
                 return 6;
             }
             continue;
         }
         if (!LDDemoWorldBuilder::Validate(*World, *WorldDefinition, *Catalog, Output, Error))
         {
-            UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native world geometry/navigation validation failed: %s"), *Error);
+            UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Native world geometry/navigation validation failed: %s"), *Error);
             return 6;
         }
     }
     // Audio: the cue catalog must resolve and match its CC0 sources before anything is packaged.
     if (!LDDemoAudioImport::Validate(Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo audio: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo audio: %s"), *Error);
         return 7;
     }
     // Art: bodies, clips and decorations must resolve and match their CC0 sources and placement zones.
     if (!LDDemoArtImport::Validate(Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo art: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED Demo art: %s"), *Error);
         return 8;
     }
     // UI: the title and lobby backgrounds must match their owner-supplied sources.
     if (!LDDemoUIImageImport::Validate(Error))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI backgrounds: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_BOOTSTRAP_REJECTED UI backgrounds: %s"), *Error);
         return 8;
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));
+    UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_BOOTSTRAP_SUCCESS Demo input bytes, native geometry/collision/navigation and root bindings validated; gameplay acceptance is separate."));
     return 0;
 }

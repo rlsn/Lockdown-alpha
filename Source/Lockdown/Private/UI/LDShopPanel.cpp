@@ -1,4 +1,5 @@
 #include "UI/LDShopPanel.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -63,7 +64,7 @@ FString ShopPanelReason(ELDGrowthReason RefusalReason)
 {
     const FString Shown=LDHUD::GrowthReasonText(RefusalReason);
     if(!Shown.IsEmpty()){return Shown;}
-    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_REASON_MISSING A shop refusal arrived without a reason code."));
+    UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_REASON_MISSING A shop refusal arrived without a reason code."));
     return TEXT("原因未知");
 }
 const FLDEquipmentSlotView* ShopPanelEquipSlot(const FLDEquipmentView& EquipView,uint8 SlotIdx)
@@ -498,7 +499,7 @@ bool ULDShopPanel::BuyItem(FName DefinitionId,bool bAuto)
     if(!FillCommand(ELDShopCommandKind::Buy,Command)){if(bAuto){BlockAutoTrade();}return false;}
     if(!FLDDefinitionWire::Encode(ItemView->DefinitionId,Command.DefinitionId))
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_ITEM_ID_INVALID Shop session %s lists item '%s', which is not a legal definition id."),*Latest.SessionId.ToString(),*ItemView->DefinitionId.ToString());
+        UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_ITEM_ID_INVALID Shop session %s lists item '%s', which is not a legal definition id."),*Latest.SessionId.ToString(),*ItemView->DefinitionId.ToString());
         ShopPanelText(Feedback,TEXT("内容标识非法，本次没有提交"));
         if(bAuto){BlockAutoTrade();}
         return false;
@@ -542,17 +543,17 @@ bool ULDShopPanel::FillCommand(ELDShopCommandKind CommandKind,FLDShopCommand& Co
     Command.ExpectedAccountRevision=LatestEquipment.AccountRevision;Command.ExpectedInventoryRevision=LatestEquipment.InventoryRevision;
     Command.ExpectedBuildRevision=LatestBuildRevision;
     if(FLDDefinitionWire::Encode(Latest.WorldMapId,Command.WorldMapId)){return true;}
-    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_WORLD_MAP_ID_INVALID Shop session %s quotes world map '%s', which is not a legal definition id."),*Latest.SessionId.ToString(),*Latest.WorldMapId.ToString());
+    UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_WORLD_MAP_ID_INVALID Shop session %s quotes world map '%s', which is not a legal definition id."),*Latest.SessionId.ToString(),*Latest.WorldMapId.ToString());
     ShopPanelText(Feedback,TEXT("内容标识非法，本次没有提交"));return false;
 }
 bool ULDShopPanel::Send(const FLDShopCommand& Command,FString ItemName)
 {
     if(!SubmitShopCommand)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_SUBMIT_UNAVAILABLE The growth shop entry is not connected to this panel."));
+        UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_SUBMIT_UNAVAILABLE The growth shop entry is not connected to this panel."));
         ShopPanelText(Feedback,FString(LDTerms::Shop)+TEXT("入口不可用，本次没有提交"));return false;
     }
-    if(!PeekRequestId){UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_PEEK_UNAVAILABLE The growth request-id peek is not connected; a Listen Host answer inside the submit call cannot be matched."));}
+    if(!PeekRequestId){UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_PEEK_UNAVAILABLE The growth request-id peek is not connected; a Listen Host answer inside the submit call cannot be matched."));}
     // A Listen Host answers inside the submit call: the request and its terms are recorded under the announced id first,
     // and an answer that already arrived keeps its own feedback and pending state.
     const uint64 PeekedRequest=PeekRequestId?PeekRequestId():0;
@@ -567,7 +568,7 @@ bool ULDShopPanel::Send(const FLDShopCommand& Command,FString ItemName)
         ShopPanelText(Feedback,TEXT("没有提交：")+ShopPanelReason(RefusalReason));RefreshShop();return false;
     }
     if(PeekedRequest&&AllocatedRequest!=PeekedRequest)
-    {UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_REQUEST_ID_MISMATCH The peek announced request %llu but the entry allocated %llu."),PeekedRequest,AllocatedRequest);}
+    {UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_REQUEST_ID_MISMATCH The peek announced request %llu but the entry allocated %llu."),PeekedRequest,AllocatedRequest);}
     if(AnswerCount==AnswersBefore){PendingRequest=AllocatedRequest;ShopPanelText(Feedback,TEXT("已提交，等待服务器确认…"));}
     RefreshShop();return true;
 }
@@ -592,7 +593,7 @@ void ULDShopPanel::HandleSubmit(const FLDSubmitResult& Result)
         AnswerReceipt(FinalQuery);return;
     }
     default:
-        UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_SUBMIT_STATUS_INVALID Request %llu returned admission status %d."),Result.RequestId,int32(Result.Status));
+        UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_SUBMIT_STATUS_INVALID Request %llu returned admission status %d."),Result.RequestId,int32(Result.Status));
         ShopPanelText(Feedback,TEXT("提交结果无效，请以当前状态为准"));return;
     }
 }
@@ -622,7 +623,7 @@ void ULDShopPanel::AnswerReceipt(const FLDShopReceiptQueryResult& Result)
             if(bPendingAuto){BlockAutoTrade();}
             FinishRequest(TEXT("没有成交：")+ShopPanelReason(LDGrowthWire::Reason(Result.Receipt.Header.Reason)));return;
         }
-        UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_RECEIPT_OUTCOME_INVALID Request %llu has a final receipt with outcome %d."),PendingRequest,int32(Result.Receipt.Header.Outcome));
+        UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_RECEIPT_OUTCOME_INVALID Request %llu has a final receipt with outcome %d."),PendingRequest,int32(Result.Receipt.Header.Outcome));
         FinishRequest(TEXT("回执结果无效，请以当前状态为准"));return;
     case ELDReceiptLookup::ReceiptExpired: FinishRequest(TEXT("回执已过期，请以当前状态为准"));return;
     // The controller still holds these in flight, so the panel keeps the request pending with it.
@@ -630,7 +631,7 @@ void ULDShopPanel::AnswerReceipt(const FLDShopReceiptQueryResult& Result)
     case ELDReceiptLookup::NotFound: ShopPanelText(Feedback,TEXT("服务器没有找到这次交易，请以当前状态为准"));return;
     case ELDReceiptLookup::InvalidContext: ShopPanelText(Feedback,TEXT("回执查询无效，请以当前状态为准"));return;
     default:
-        UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_RECEIPT_LOOKUP_INVALID Request %llu returned receipt lookup %d."),PendingRequest,int32(Result.Lookup));
+        UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_RECEIPT_LOOKUP_INVALID Request %llu returned receipt lookup %d."),PendingRequest,int32(Result.Lookup));
         ShopPanelText(Feedback,TEXT("回执查询无效，请以当前状态为准"));return;
     }
 }
@@ -642,7 +643,7 @@ FString ULDShopPanel::AppliedNotice(const FLDShopReceipt& Receipt) const
     const int64 GoldMoved=FMath::Abs(Receipt.ActualGoldDelta);
     // A trade settles at the quoted price; the receipt still decides what is shown.
     if(GoldMoved!=PendingPrice)
-    {UE_LOG(LogTemp,Warning,TEXT("LD_SHOP_PANEL_GOLD_DELTA_DIFFERS Request %llu moved %lld gold for a quoted price of %lld."),PendingRequest,GoldMoved,PendingPrice);}
+    {UE_LOG(LogLDUI,Warning,TEXT("LD_SHOP_PANEL_GOLD_DELTA_DIFFERS Request %llu moved %lld gold for a quoted price of %lld."),PendingRequest,GoldMoved,PendingPrice);}
     if(DoneKind==ELDShopCommandKind::Buy)
     {
         FString Summary=FString::Printf(TEXT("已买入 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);
@@ -651,7 +652,7 @@ FString ULDShopPanel::AppliedNotice(const FLDShopReceipt& Receipt) const
     }
     if(DoneKind==ELDShopCommandKind::Sell){return FString::Printf(TEXT("已卖出 %s，获得 %lld %s"),*ItemName,Receipt.ActualGoldDelta,LDTerms::Gold);}
     if(DoneKind==ELDShopCommandKind::Upgrade){return FString::Printf(TEXT("已进阶 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);}
-    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_RECEIPT_KIND_INVALID Request %llu was applied with shop kind %d."),PendingRequest,int32(Receipt.Kind));
+    UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_RECEIPT_KIND_INVALID Request %llu was applied with shop kind %d."),PendingRequest,int32(Receipt.Kind));
     return TEXT("交易已成交，请以当前状态为准");
 }
 void ULDShopPanel::ClearPending()
@@ -705,5 +706,5 @@ void ULDShopPanel::Sound(ELDAudioCue Cue) const
 void ULDShopPanel::NotifyPlayer(const FString& Notice) const
 {
     if(Notify){Notify(Notice);return;}
-    UE_LOG(LogTemp,Error,TEXT("LD_SHOP_PANEL_NOTIFY_UNAVAILABLE The HUD did not connect shop notices; undelivered: %s"),*Notice);
+    UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_NOTIFY_UNAVAILABLE The HUD did not connect shop notices; undelivered: %s"),*Notice);
 }

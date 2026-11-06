@@ -22,5 +22,8 @@ void ALDCombatDirector::Tick(float Delta)
     {
         if (Error.IsEmpty()) { Error=TEXT("The authority driver failed without a diagnostic."); }
         Mode->ReportAuthorityFault(Mode->GetMatchContext(),Error);
+        return;
     }
+    // Read-only playtest sample after the advance; it skips itself unless an authority second just began.
+    Mode->LogPlaytestHeartbeat();
 }

@@ -7,6 +7,7 @@
 #include "Navigation/LDOrderRules.h"
 #include "Navigation/LDPathSteering.h"
 #include "World/LDWorldQueryTypes.h"
+#include "Core/LDLog.h"
 #include "LDNavigationComponent.generated.h"
 
 class ALDPlayerController;
@@ -74,6 +75,8 @@ public:
     void Recenter(bool Held);
     void ToggleFollow();
     void PanTo(const FVector& Point);
+    // Called after movement/replay, immediately before the local camera is evaluated.
+    void UpdateLocalCamera(float Delta);
     bool bFollowCamera=true,bEdgePan=true;
     bool IsFollowing() const {return bFollowing;}
     bool HasMoveOrder() const {return bLocalActive;}
@@ -81,6 +84,9 @@ public:
     uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
+    // The accepted order keeps being predicted under a pending replacement, but never across a Stop's newer epoch.
+    FLDMoveIdentity PredictedIdentity() const
+    {return !bLocalStop && ClientActive.Order!=0 && ClientActive.Epoch==Local.Epoch ? ClientActive : Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
     // Owning client: the shop of the current ApproachShop order, en route or arrived and awaiting the
@@ -118,6 +124,9 @@ public:
     // content cache. The receipt serial stays: it is the owning connection's monotonic order, not match state.
     void ResetMatch();
     bool AuthorizesMove(const FLDMoveIdentity& Identity) const;
+    // Server playtest heartbeat: the current authority order as "<kind>#<order>[:engaged][:forced][:lure]" with its fixed
+    // destination or pinned target foot, "none" without one; a queued replacement adds "+pending".
+    FString DescribeAuthorityOrder(FVector& OutPoint, bool& bOutHasPoint) const;
     bool AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Body,
         const FLDGameplayWritePermit& Permit, FString& Error);
     bool ProcessAuthorityOrders(const FLDGameplayWritePermit& Permit, FString& Error);
@@ -249,9 +258,11 @@ private:
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).
     bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast=nullptr);
+    // Owning client playtest log of a sent order (LD_SELF_ORDER), rate-limited; own intent and public identities only.
+    void LogOwnOrder(const FLDSpatialOrderRequest& Request);
+    LDLog::FRateLimit OrderLogLimit{.25};
     void ApplyPrediction();
     void RefreshLocalActive();
-    void TickCamera(float Delta);
     void Face(const FVector& Direction);
     // ---- Authority order book (LDNavigationOrders.cpp).
     bool ResolveOwnerCaller(FLDOrderCaller& Out, ELDOrderFailure& Failure) const;

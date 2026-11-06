@@ -1,4 +1,5 @@
 #include "LDDemoArtImportCommandlet.h"
+#include "LDEditorLog.h"
 #include "LDDemoArtImport.h"
 #include "LDDemoUIImageImport.h"
 #include "Misc/Parse.h"
@@ -19,21 +20,21 @@ int32 ULDDemoArtImportCommandlet::Main(const FString& Params)
     FString Error;
     if (bValidate && bBackgrounds)
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ART_REJECTED -Validate and -Backgrounds are exclusive."));
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED -Validate and -Backgrounds are exclusive."));
         return 1;
     }
     const bool bImported = bValidate || (bBackgrounds ? LDDemoUIImageImport::Import(Error) : LDDemoArtImport::Import(Error));
     if (!bImported || (bValidate && !(LDDemoArtImport::Validate(Error) && LDDemoUIImageImport::Validate(Error))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ART_REJECTED %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED %s"), *Error);
         return 1;
     }
     if (!bValidate && !(LDDemoArtImport::Validate(Error) && LDDemoUIImageImport::Validate(Error)))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_ART_REJECTED Saved art assets do not validate: %s"), *Error);
+        UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_ART_REJECTED Saved art assets do not validate: %s"), *Error);
         return 1;
     }
-    UE_LOG(LogTemp, Display, TEXT("LD_DEMO_ART_SUCCESS %s: CC0 sources, imported bodies, clips, props, catalog and UI backgrounds validated."),
+    UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_SUCCESS %s: CC0 sources, imported bodies, clips, props, catalog and UI backgrounds validated."),
         bValidate ? TEXT("Validate") : bBackgrounds ? TEXT("ImportBackgrounds") : TEXT("Import"));
     return 0;
 }

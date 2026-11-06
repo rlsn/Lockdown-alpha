@@ -1,4 +1,5 @@
 #include "Character/LDHumanoidVisualComponent.h"
+#include "Core/LDLog.h"
 #include "Animation/AnimSequence.h"
 #include "Art/LDArtCatalog.h"
 #include "Art/LDArtSubsystem.h"
@@ -234,7 +235,7 @@ void ULDHumanoidVisualComponent::ApplyLook(const FLDArtCharacter* Look, const FL
     if (!Art)
     {
         // The art subsystem has logged why its catalog is unavailable; this body draws nothing rather than a stand-in.
-        UE_LOG(LogTemp, Error, TEXT("LD_BODY_ART_UNAVAILABLE %s has no body in the Demo art catalog; nothing is drawn."), *What);
+        UE_LOG(LogLDContent, Error, TEXT("LD_BODY_ART_UNAVAILABLE %s has no body in the Demo art catalog; nothing is drawn."), *What);
         Mesh->SetSkeletalMeshAsset(nullptr);
         Mesh->SetHiddenInGame(true);
         for (UStaticMeshComponent* Part : Parts) { Part->SetHiddenInGame(true); }

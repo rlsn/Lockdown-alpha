@@ -1,4 +1,5 @@
 #include "Tests/LDDemoCombatProbe.h"
+#include "Core/LDLog.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Character/LDCharacter.h"
@@ -14,6 +15,7 @@
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDPathSteering.h"
@@ -24,7 +26,10 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/TextBlock.h"
 #include "Camera/CameraActor.h"
 #include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
@@ -210,6 +215,7 @@ public:
     FVector SettingsFrom = FVector::ZeroVector;
     uint32 SettingsHeartbeats = 0, SettingsCombatReceipts = 0;
     double SettingsAt = 0;
+    FGuid DiagnosticsFixture=FGuid::NewGuid();
     // Client1: the attack-move, its stop and the spent protection.
     FLDMoveIdentity AttackMoveOrder, StopOrder;
     int64 HostHpAtOrder = 0, ProtectedUntilSeenMs = 0;
@@ -873,11 +879,39 @@ public:
             SettingsFrom = Body.GetNavAgentLocation();
             SettingsHeartbeats = Nav.HeartbeatsSent();
             SettingsCombatReceipts = PC.CombatReceipts.Serial();
+            PC.Controls=CastChecked<ULDGameInstance>(PC.GetGameInstance())->UseIsolatedLocalSettings(DiagnosticsFixture);
             // The entry the HUD and menu 设置 buttons use.
             PC.RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);
             Check(PC.ControlsUI && PC.ControlsUI->IsOpen() && PC.IsWorldLifeValid() && PC.IsWorldInputSuppressed()
                 && !PC.CanWorldCommand(), TEXT("Settings"),
                 TEXT("Settings opens over the accepted walk: the life stays valid and only new world commands are suppressed"));
+            // The diagnostics live on the interface page; it is chosen through its production tab, and each toggle must then
+            // be on screen, not merely present in the tree.
+            auto* InterfaceTab=PC.ControlsUI->WidgetTree->FindWidget<UButton>(TEXT("TabInterface"));
+            if (!Check(InterfaceTab && InterfaceTab->GetIsEnabled(),TEXT("Settings"),TEXT("The production interface tab is available")))
+            { return Finish(); }
+            InterfaceTab->OnClicked.Broadcast();
+            const auto Shown=[&PC](const UWidget* Widget)
+            {
+                if (!Widget || !PC.ControlsUI->IsVisible()) { return false; }
+                for (const UWidget* Current=Widget; Current; Current=Current->GetParent())
+                {
+                    if (Current->GetVisibility()==ESlateVisibility::Collapsed || Current->GetVisibility()==ESlateVisibility::Hidden) { return false; }
+                }
+                return true;
+            };
+            for (const FName Name : {FName(TEXT("ToggleNetworkDiagnostics")),FName(TEXT("ToggleFPS"))})
+            {
+                auto* Button=PC.ControlsUI->WidgetTree->FindWidget<UButton>(Name);
+                if (!Check(Button && Button->GetIsEnabled() && Shown(Button),TEXT("Settings"),TEXT("The production diagnostics toggle is available on its page"),Name.ToString()))
+                { return Finish(); }
+                Button->OnClicked.Broadcast();
+            }
+            const auto Loaded=ULDControlSettings::LoadLocalSettings(FLDLocalSettingsStorage::Automation(DiagnosticsFixture));
+            Check(PC.Controls->bShowNetworkDiagnostics && PC.Controls->bShowFPS
+                && Loaded.Settings && Loaded.Status==ELDLocalSettingsLoadStatus::Loaded
+                && Loaded.Settings->bShowNetworkDiagnostics && Loaded.Settings->bShowFPS,
+                TEXT("Settings"),TEXT("Both real diagnostic buttons apply and persist independently of the display draft"));
             // A ground order and S from under Settings stay local: neither replaces nor stops the walk.
             Nav.Navigate(SettingsFrom);
             PC.StopCombatAndOrders();
@@ -896,6 +930,15 @@ public:
                     int32(bOpen), int32(Latest.Status), int32(Latest.Failure), *Nav.Status));
             }
             if (Now - SettingsAt < LDDemoCombatScenario::CombatProbeSettingsSeconds) { return true; }
+            if (!FParse::Param(FCommandLine::Get(),TEXT("nullrhi")))
+            {
+                const auto* Diagnostics=PC.HUDUI && PC.HUDUI->WidgetTree
+                    ? PC.HUDUI->WidgetTree->FindWidget<UTextBlock>(TEXT("NetworkDiagnosticsText")) : nullptr;
+                const FString Metrics=Diagnostics ? Diagnostics->GetText().ToString() : FString();
+                Check(Diagnostics && Metrics.Contains(TEXT("FPS ")) && Metrics.Contains(TEXT("RTT "))
+                    && Metrics.Contains(TEXT("ms")) && Metrics.Contains(TEXT("%")),
+                    TEXT("Settings"),TEXT("A real owning connection renders FPS, RTT, jitter and packet loss while walking"),Metrics);
+            }
             const double Speed = LDDemoCombatScenario::CombatProbeRational(Catalog->Get().Parameters.MoveSpeedCmPerSec.Base);
             const uint32 Beats = Nav.HeartbeatsSent() - SettingsHeartbeats;
             const double Moved = FVector::Dist2D(Body.GetNavAgentLocation(), SettingsFrom);
@@ -2286,7 +2329,7 @@ public:
         FString Text;
         FJsonSerializer::Serialize(Out, TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text));
         Check(bTaken, TEXT("Feel"), TEXT("The first right-click walk, the S and the next walk are timed on this connection's own body"), Text);
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_FEEL role=%s %s"), *Role, *Text);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_FEEL role=%s %s"), *Role, *Text);
         return Out;
     }
 
@@ -2356,7 +2399,7 @@ public:
         Row->SetNumberField(TEXT("height"), Height);
         Row->SetStringField(TEXT("shows"), Facts);
         Screenshots.Add(MakeShared<FJsonValueObject>(Row));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_SCREENSHOT %s %s"), *Path, *Shot->Facts);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_SCREENSHOT %s %s"), *Path, *Shot->Facts);
     }
 
     bool ShotPending() const
@@ -2505,7 +2548,7 @@ public:
             Report->SetNumberField(TEXT("root_until_ms"), double(RootUntilMs));
         }
         Written = Save(Report, Role + TEXT(".json"));
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
+        UE_LOG(LogLDTest, Display, TEXT("LD_DEMO_COMBAT_PROBE role=%s passed=%d detail=%s"), *Role, Passed && Written, *Error);
         if (!Passed || !Written)
         {
             FPlatformMisc::RequestExitWithStatus(false, 2);
@@ -2531,7 +2574,7 @@ void LDDemoTests::StartCombatProbe(ALDPlayerController& Controller)
         || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Probe->Output),
             FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
     {
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_COMBAT_PROBE Invalid isolated test arguments."));
+        UE_LOG(LogLDTest, Error, TEXT("LD_DEMO_COMBAT_PROBE Invalid isolated test arguments."));
         FPlatformMisc::RequestExitWithStatus(false, 2);
         return;
     }

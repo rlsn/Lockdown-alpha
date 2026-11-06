@@ -550,6 +550,7 @@ private:
     friend class FLDDemoCoreTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDDemoMechanicsEffectLifetimesTest;
+    friend class FLDPlaytestLogHitVampTest;
     friend class FLDRewardSettlementTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;

@@ -14,6 +14,7 @@
 #include "World/LDDormMarker.h"
 #include "World/LDAirdropMarker.h"
 #include "Vision/LDViewTypes.h"
+#include "Core/LDLog.h"
 #include "LDGameMode.generated.h"
 
 UCLASS()
@@ -182,6 +183,12 @@ public:
     FLDPublicMatchView ReadPublicMatch() const;
     FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
+    // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
+    // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
+    void LogPlaytestHeartbeat();
+    // A human's mark key reached the Host (ALDPlayerController::ServerPlaytestMark): LD_PLAYER_MARK when Match is the running
+    // match (LDPlaytest::InRunningMatch), otherwise LD_PLAYER_MARK_REJECTED; at most one line per second per contender.
+    void LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
@@ -227,6 +234,7 @@ private:
     friend class FLDCaptureInsideStepTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDDemoMechanicsEffectLifetimesTest;
+    friend class FLDPlaytestLogHitVampTest;
     friend class FLDCombatCommitControlTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
@@ -401,4 +409,9 @@ private:
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);
     FLDContenderRecord* FindContender(const FGuid& ContenderId);
+    // Playtest log: header and roster at the start, every contender's final state at the result.
+    void LogPlaytestRoster() const;
+    void LogPlaytestSummary(const FLDResultView& View) const;
+    LDLog::FPeriodicGate HeartbeatGate{1000};
+    TMap<FGuid, double> LastMarkAt;
 };

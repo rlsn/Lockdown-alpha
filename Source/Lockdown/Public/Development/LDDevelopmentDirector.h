@@ -150,7 +150,7 @@ private:
     FLDChoiceReceipt RejectPending(FRecord& Record, const FLDChoiceCommand& Command, ELDGrowthReason Reason,
         const FLDGameplayWritePermit* Permit);
     void DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool);
-    void InstallHead(FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked);
+    void InstallHead(const FGuid& ContenderId, FRecord& Record, uint8 Ordinal, bool bRerolled, const TArray<LDProgression::FLegalOption>& Picked);
     // 112 §6: replaces the head offer with one free reroll (same opportunity, previous cards avoided where possible).
     // None when installed; otherwise nothing changed.
     ELDGrowthReason RerollHead(const FGuid& ContenderId, FRecord& Record);

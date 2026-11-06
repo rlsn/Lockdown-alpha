@@ -1,4 +1,5 @@
 #include "UI/LDHUD.h"
+#include "Core/LDLog.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
@@ -15,6 +16,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -45,6 +47,8 @@
 #include "Styling/CoreStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/World.h"
+#include "Engine/NetConnection.h"
+#include "Engine/NetDriver.h"
 
 namespace
 {
@@ -201,6 +205,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         };
         auto Place=[&](UWidget* Widget,FAnchors Anchors,FVector2D Alignment,FVector2D Position)
         {auto* S=Canvas->AddChildToCanvas(Widget);S->SetAnchors(Anchors);S->SetAlignment(Alignment);S->SetPosition(Position);S->SetAutoSize(true);};
+        DiagnosticsText=LDWidgets::Text(WidgetTree,TEXT(""),14,TEXT("NetworkDiagnosticsText"));
+        DiagnosticsText->SetAutoWrapText(false);
+        DiagnosticsText->SetJustification(ETextJustify::Right);
+        DiagnosticsPanel=Panel(DiagnosticsText,false);
+        Place(DiagnosticsPanel,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
+        DiagnosticsPanel->SetVisibility(ESlateVisibility::Collapsed);
         auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height,TObjectPtr<UTextBlock>* OutRegen=nullptr)
         {
             auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetHeightOverride(Height);
@@ -541,7 +551,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             {ELDUIMainPanel::Shop,ShopPanel.Get()},{ELDUIMainPanel::DevTest,DevTestPanel.Get()}};
         for(const TPair<ELDUIMainPanel,ULDPanel*>& Entry:Docked)
         {
-            if(!Entry.Value){UE_LOG(LogTemp,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
+            if(!Entry.Value){UE_LOG(LogLDUI,Error,TEXT("LD_HUD_PANEL_CREATION_FAILED %d"),int32(Entry.Key));continue;}
             auto* PanelSlot=Canvas->AddChildToCanvas(Entry.Value);PanelSlot->SetAnchors(FAnchors(0,0,1,1));PanelSlot->SetOffsets(FMargin(0));PanelSlot->SetZOrder(10);
             if(PC->RootUI){PC->RootUI->RegisterMainPanel(Entry.Key,Entry.Value);}
         }
@@ -660,10 +670,66 @@ const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
     if(!bDisplayContentTried)
     {
         bDisplayContentTried=true;FString Error;
-        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogTemp,Error,TEXT("LD_HUD_CONTENT_UNAVAILABLE %s"),*Error);}
+        if(!LDDemoEntry::LoadRuntimeContent(DisplayContent,Error)||!DisplayContent){DisplayContent.Reset();UE_LOG(LogLDUI,Error,TEXT("LD_HUD_CONTENT_UNAVAILABLE %s"),*Error);}
     }
     return DisplayContent?&DisplayContent->Get():nullptr;
 }
+void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
+{
+    Super::NativeTick(Geometry,DeltaSeconds);
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if (!PC || !DiagnosticsPanel) { return; }
+    const bool Network=PC->Controls && PC->Controls->bShowNetworkDiagnostics;
+    const bool FPS=PC->Controls && PC->Controls->bShowFPS;
+    HudSetShown(DiagnosticsPanel,Network||FPS,ESlateVisibility::HitTestInvisible);
+    if (!Network && !FPS)
+    {
+        DiagnosticsTickAt=-1; FrameDiagnostics={}; DiagnosticsSampleAt=0;
+        DiagnosticsBody.Reset(); DiagnosticsCorrections=0;
+        return;
+    }
+    const double Now=FPlatformTime::Seconds();
+    const double Previous=DiagnosticsTickAt;
+    DiagnosticsTickAt=Now;
+    if (Previous<0 || !FrameDiagnostics.AddFrame(Now-Previous)) { return; }
+    FString Text;
+    if (FPS)
+    {
+        Text=FString::Printf(TEXT("FPS %.0f · 帧耗时 %.1f ms · 峰值 %.1f ms"),FrameDiagnostics.FPS,FrameDiagnostics.FrameMs,FrameDiagnostics.PeakMs);
+    }
+    if (Network)
+    {
+        if (!Text.IsEmpty()) { Text+=TEXT("\n"); }
+        const auto* Driver=GetWorld()->GetNetDriver();
+        const auto* Connection=Driver?Driver->ServerConnection.Get():nullptr;
+        if (GetWorld()->GetNetMode()==NM_ListenServer) { Text+=TEXT("本机房主 · 无远端往返延迟"); }
+        else if (!Connection) { Text+=TEXT("网络：未连接"); }
+        else if (Connection->GetLastRecvAckTime()<=0) { Text+=TEXT("网络：等待延迟样本"); }
+        else
+        {
+            const double Ping=Connection->AvgLag>0 ? Connection->AvgLag : Connection->RawPingInSeconds;
+            Text+=FString::Printf(TEXT("延迟 RTT %.0f ms · 抖动 %.1f ms\n丢包 收 %.1f%% / 发 %.1f%% · 未收包 %.1f s"),
+                Ping*1000,Connection->GetAverageJitterInMS(),
+                100*Connection->GetInLossPercentage().GetLossPercentage(),100*Connection->GetOutLossPercentage().GetLossPercentage(),
+                FMath::Max(0.,Driver->GetElapsedTime()-Connection->LastReceiveTime));
+        }
+        auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+        const auto* Movement=Body?Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()):nullptr;
+        if (Movement && !PC->HasAuthority())
+        {
+            const bool SameBody=DiagnosticsBody.Get()==Body && DiagnosticsSampleAt>0;
+            const double Rate=SameBody ? double(Movement->CorrectionCount-DiagnosticsCorrections)/(Now-DiagnosticsSampleAt) : 0.;
+            Text+=FString::Printf(TEXT("\n移动校正 %.1f 次/s · 最近 %.1f cm"),Rate,Movement->LastCorrectionCm);
+            DiagnosticsBody=Body; DiagnosticsCorrections=Movement->CorrectionCount;
+        }
+        else { DiagnosticsBody.Reset(); DiagnosticsCorrections=0; }
+    }
+    // Hidden network rows keep no correction baseline, so showing them again starts a fresh rate window.
+    else { DiagnosticsBody.Reset(); DiagnosticsCorrections=0; }
+    DiagnosticsSampleAt=Now;
+    HudSetText(DiagnosticsText,Text);
+}
+
 void ULDHUD::RefreshReadModel()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
@@ -822,7 +888,7 @@ void ULDHUD::RefreshReadModel()
         else if(UiTime-AutoChoicesSince>5.)
         {
             AutoChoicesMatch=O.Match;
-            UE_LOG(LogTemp,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
+            UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_OPENING_CHOICE_NOT_SHOWN The opening three-choice panel could not open within 5 s."));
         }
     }
     if(ChoicesPanel)
@@ -857,7 +923,7 @@ void ULDHUD::RefreshReadModel()
             PreorderOpenLife=O.Life;PreorderOpenAt=UiNow;
             ELDGrowthReason Reason=ELDGrowthReason::None;
             if(!PC->RequestShopSession(NearShop,O.Life,Reason))
-            {UE_LOG(LogTemp,Warning,TEXT("LD_HUD_PREORDER_SESSION_NOT_SENT %s"),*LDHUD::GrowthReasonText(Reason));}
+            {UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_PREORDER_SESSION_NOT_SENT %s"),*LDHUD::GrowthReasonText(Reason));}
         }
         // Lit while the own body stands in the shop's range, where buying, selling and pre-orders happen.
         const int8 ShopLit=bNearShop?1:0;
@@ -911,7 +977,7 @@ void ULDHUD::RefreshReadModel()
     if(PC->CombatReceipts.Serial()!=SeenCombatReceipt)
     {
         TArray<FLDCombatActionReceipt> Arrived;
-        if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        if(const uint32 Lost=PC->CombatReceipts.ReadSince(SeenCombatReceipt,Arrived)){UE_LOG(LogLDUI,Warning,TEXT("LD_HUD_COMBAT_RECEIPTS_MISSED %u"),Lost);}
         // Every receipt since the last frame presents once; the single toast line joins their distinct notices in order.
         const FString Notice=LDHUD::CombatReceiptsNotice(Arrived,O.Match,O.Life,ToldProtectionLifeRevision);
         if(!Notice.IsEmpty()){ShowToast(Notice);}
@@ -1104,7 +1170,7 @@ void ULDHUD::ObserveAudio(ALDPlayerController& PC,const ALDGameState& Public)
     if(PC.CombatReceipts.Serial()!=AudioCombatReceipt)
     {
         TArray<FLDCombatActionReceipt> Arrived;
-        if(const uint32 Lost=PC.CombatReceipts.ReadSince(AudioCombatReceipt,Arrived)){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_COMBAT_RECEIPTS_MISSED %u"),Lost);}
+        if(const uint32 Lost=PC.CombatReceipts.ReadSince(AudioCombatReceipt,Arrived)){UE_LOG(LogLDUI,Warning,TEXT("LD_AUDIO_COMBAT_RECEIPTS_MISSED %u"),Lost);}
         for(const FLDCombatActionReceipt& Receipt:Arrived){AudioCues.ObserveCombatReceipt(Receipt,O.Match,O.Life,Cues);}
     }
     PlayAudioCues(Cues);
@@ -1113,7 +1179,7 @@ void ULDHUD::PlayAudioCues(const TArray<ELDAudioCue>& Cues)
 {
     if(Cues.IsEmpty()){return;}
     UGameInstance* Instance=GetGameInstance();ULDAudioSubsystem* Audio=Instance?Instance->GetSubsystem<ULDAudioSubsystem>():nullptr;
-    if(!Audio){UE_LOG(LogTemp,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
+    if(!Audio){UE_LOG(LogLDUI,Warning,TEXT("LD_AUDIO_SUBSYSTEM_UNAVAILABLE %d cue(s) not played."),Cues.Num());return;}
     for(const ELDAudioCue Cue:Cues){Audio->Play(Cue);}
 }
 void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
@@ -1133,14 +1199,14 @@ void ULDHUD::HandleShopOpen(const FLDShopOpenResult& Result)
     case ELDShopOpenStatus::Opened:
         if(!Result.bHasView||!Result.View.SessionId.IsValid())
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
+            UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SHOP_OPENED_WITHOUT_VIEW Shop %s opened without a session quote."),*Result.ShopId.ToString());
             ShowToast(FString(LDTerms::Shop)+TEXT("结果缺少报价，没有打开"));return;
         }
         OpenedShop=Result;OpenedShopPublish=PC->OwnerState.Growth.PublishRevision;bOpenedShop=true;
         // Arrival only opens the session; the page is opened by a left click on the model or the shop button.
         return;
     default:
-        UE_LOG(LogTemp,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
+        UE_LOG(LogLDUI,Error,TEXT("LD_HUD_SHOP_OPEN_STATUS_INVALID Shop %s returned open status %d."),*Result.ShopId.ToString(),int32(Result.OpenStatus));
         return;
     }
 }
@@ -1257,7 +1323,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     if(bOwnCombat&&!bArmedEntry&&!PC->IsAttackMoveArmed()&&PC->CombatView.AttackRangeCm>0)
     {
         // A faint standing ring of the own basic attack reach (the projected attack range, so range growth shows at once).
-        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         RangeRing(Feet,PC->CombatView.AttackRangeCm,FLinearColor(1.f,1.f,1.f,.22f),1.2f);
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
@@ -1273,7 +1339,8 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
-        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector AuthorityFeet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         FLinearColor Preview(1,.85f,.45f,.9f);
         if(bUnitTarget&&RangeCm>0)
         {
@@ -1284,18 +1351,18 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             const ALDWorldViewRelay* Relay=PC->LocalView();
             if(PC->ObservedUnderPointer(Handle,Epoch)&&Relay&&Relay->ReadUnit(Handle,Epoch,Hovered))
             {
-                const bool bInRange=FVector::Dist2D(Feet,FVector(Hovered.FeetCm))<=RangeCm;
+                const bool bInRange=FVector::Dist2D(AuthorityFeet,FVector(Hovered.FeetCm))<=RangeCm;
                 Preview=bInRange?FLinearColor(.35f,1.f,.45f,.95f):FLinearColor(1.f,.35f,.3f,.95f);
             }
         }
         if(RangeCm>0){RangeRing(Feet,RangeCm,Preview,1.5f);}
-        FVector Origin,Direction;
-        if(bDirection&&PC->DeprojectMousePositionToWorld(Origin,Direction)&&FMath::Abs(Direction.Z)>KINDA_SMALL_NUMBER)
+        FHitResult GroundHit;
+        if(bDirection&&PC->Navigation&&PC->Navigation->GroundUnderPointer(GroundHit))
         {
-            // The cursor ray meets the feet plane; only its planar direction is previewed, at the entry's range when known.
-            const double Along=(Feet.Z-Origin.Z)/Direction.Z;
-            FVector Planar=Origin+Direction*Along-Feet;Planar.Z=0;
-            if(Along>0&&!Planar.IsNearlyZero())
+            // Aimed as ConfirmArmedCombat submits it (capsule feet to the pointer's ground hit), drawn from the shown feet;
+            // only the planar direction is previewed, at the entry's range when known.
+            FVector Planar=GroundHit.ImpactPoint-AuthorityFeet;Planar.Z=0;
+            if(!Planar.IsNearlyZero())
             {
                 const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
                 FVector2D From,To;

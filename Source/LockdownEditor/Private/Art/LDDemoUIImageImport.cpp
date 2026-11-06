@@ -1,4 +1,5 @@
 #include "LDDemoUIImageImport.h"
+#include "LDEditorLog.h"
 #include "UI/LDUIBackgrounds.h"
 #include "Framework/LDDemoEntry.h"
 #include "Dom/JsonObject.h"
@@ -145,7 +146,7 @@ bool LDDemoUIImageImport::Import(FString& Error)
         FSavePackageArgs Args;
         Args.TopLevelFlags = RF_Public | RF_Standalone;
         if (!UPackage::SavePackage(Package, Texture, *File, Args)) { return UIFail(Error, TEXT("UI texture could not be saved: ") + File); }
-        UE_LOG(LogTemp, Display, TEXT("LD_DEMO_UI_IMAGE_IMPORTED %s <- SourceData/UI/%s"), *Spec.Package, *Spec.Path);
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_UI_IMAGE_IMPORTED %s <- SourceData/UI/%s"), *Spec.Package, *Spec.Path);
     }
     Error.Reset();
     return true;

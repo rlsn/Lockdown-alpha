@@ -1,4 +1,5 @@
 #include "Combat/LDControlRules.h"
+#include "Core/LDLog.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Combat/LDCombatTypes.h"
 #include "AI/LDOpponentRequests.h"
@@ -692,6 +693,114 @@ bool FLDDemoMechanicsEffectLifetimesTest::RunTest(const FString& Parameters)
         Victim.Roots.Num() == 1 && Victim.Roots[0].EffectId == OtherRoot
         && Victim.Vulnerabilities.Num() == 1 && Victim.Vulnerabilities[0].EffectId == OtherRoot);
     TestTrue(TEXT("Its flights are cancelled too"), Driver->Projectiles.IsEmpty() && Driver->VolleyShots.IsEmpty());
+    return true;
+}
+// #134 review: the Host's LD_HIT line records the vamp the source actually regained, after its heal cut and the max-HP clamp.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPlaytestLogHitVampTest, "Lockdown.Rules.PlaytestLog.HitVamp",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
+    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
+    if (!TestNotNull(TEXT("Fixture world"), World)) { return false; }
+    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
+    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* SourceActor = World->SpawnActor<ALDCharacter>();
+    auto* VictimActor = World->SpawnActor<ALDCharacter>();
+    if (!Mode || !Driver || !SourceActor || !VictimActor) { AddError(TEXT("Fixture actors")); return false; }
+    Mode->Combat = Driver;
+    Mode->DemoContent = Catalog;
+    Mode->AuthorityNowMs = 1000;
+    World->CopyGameState(Mode, nullptr);
+    const FLDCombatBodyRef SourceRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+    const FLDCombatBodyRef VictimRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
+    for (const auto& Pair : {TPair<ALDCharacter*, FLDCombatBodyRef>(SourceActor, SourceRef), TPair<ALDCharacter*, FLDCombatBodyRef>(VictimActor, VictimRef)})
+    {
+        FLDBodyCombatState State;
+        State.Identity = Pair.Value.BodyIdentity;
+        State.Victim = Pair.Value.Victim;
+        State.Resources.MaxHpP2 = State.Resources.HpP2 = 100000;
+        Driver->Bodies.Add(Pair.Key, MoveTemp(State));
+    }
+    FLDBodyCombatState& Source = Driver->Bodies.FindChecked(SourceActor);
+    const FLDBodyCombatState& Victim = Driver->Bodies.FindChecked(VictimActor);
+
+    // The LD_HIT lines of this test, read back from the log.
+    struct FHitLines final : FOutputDevice
+    {
+        FCriticalSection Lock;
+        TArray<FString> Lines;
+        virtual void Serialize(const TCHAR* Text, ELogVerbosity::Type, const FName& Category) override
+        {
+            if (Category == LogLDCombat.GetCategoryName() && FCString::Strstr(Text, TEXT("LD_HIT ")))
+            {
+                FScopeLock Guard(&Lock);
+                Lines.Add(Text);
+            }
+        }
+        virtual bool CanBeUsedOnAnyThread() const override { return true; }
+        virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
+    } Capture;
+    const ELogVerbosity::Type Verbosity = LogLDCombat.GetVerbosity();
+    LogLDCombat.SetVerbosity(ELogVerbosity::Log);
+    GLog->AddOutputDevice(&Capture);
+    ON_SCOPE_EXIT { GLog->RemoveOutputDevice(&Capture); LogLDCombat.SetVerbosity(Verbosity); };
+    const auto Field = [](const FString& Line, const TCHAR* Key)
+    {
+        const FString Token = FString::Printf(TEXT(" %s="), Key);
+        const int32 At = Line.Find(Token, ESearchCase::CaseSensitive);
+        if (At == INDEX_NONE) { return FString(); }
+        const FString Rest = Line.Mid(At + Token.Len());
+        int32 End = INDEX_NONE;
+        return Rest.FindChar(TEXT(' '), End) ? Rest.Left(End) : Rest;
+    };
+    // A 300-point hit with full omnivamp (passive_cornered terms) while the source is below 90%.
+    const auto Strike = [&](int64& OutHPLost, int64& OutHealed, FString& OutVamp)
+    {
+        FLDCombatHit Hit;
+        Hit.HitId = Hit.EffectId = FGuid::NewGuid();
+        Hit.Target = VictimRef;
+        Hit.SourceBody = SourceRef;
+        Hit.SourceEntity = Hit.CreditOwner = SourceRef.Victim.EntityId;
+        Hit.HitClass = ELDCombatHitClass::Ability;
+        Hit.BaseP2 = 30000;
+        Hit.OmnivampBp = 10000;
+        Hit.OmnivampThresholdBp = 9000;
+        const int64 VictimBefore = Victim.Resources.HpP2, SourceBefore = Source.Resources.HpP2;
+        const int32 Before = Capture.Lines.Num();
+        FString Error;
+        if (!TestTrue(FString::Printf(TEXT("The hit applies: %s"), *Error), Driver->ApplyHit(Hit, Error))) { return false; }
+        GLog->Flush();
+        FScopeLock Guard(&Capture.Lock);
+        if (!TestEqual(TEXT("One LD_HIT line per hit"), Capture.Lines.Num(), Before + 1)) { return false; }
+        OutHPLost = VictimBefore - Victim.Resources.HpP2;
+        OutHealed = Source.Resources.HpP2 - SourceBefore;
+        OutVamp = Field(Capture.Lines.Last(), TEXT("vamp"));
+        return true;
+    };
+
+    // Half heal cut on the source: the line records the halved heal, not the calculated omnivamp.
+    Source.Resources.HpP2 = 50000;
+    Source.HealCuts.Add({FGuid::NewGuid(), FGuid::NewGuid(), 5000, 60000});
+    int64 HPLost = 0, Healed = 0;
+    FString Vamp;
+    if (!Strike(HPLost, Healed, Vamp)) { return false; }
+    TestTrue(TEXT("The hit took HP for the source's omnivamp"), HPLost > 0);
+    TestEqual(TEXT("The heal cut halves what the source regains"), Healed, LDCombatMechanics::ReduceByBp(HPLost, 5000));
+    TestEqual(TEXT("vamp is the source's actual HP gain under a heal cut"), Vamp, LDLog::P2(Healed));
+
+    // No cut, but the source is near full HP: the line records the clamped gain.
+    Source.HealCuts.Reset();
+    Source.Resources.HpP2 = 80000;
+    if (!Strike(HPLost, Healed, Vamp)) { return false; }
+    TestTrue(TEXT("This omnivamp would overfill the source"), HPLost > Source.Resources.MaxHpP2 - 80000);
+    TestTrue(TEXT("The source stops at its max HP"), Source.Resources.HpP2 == Source.Resources.MaxHpP2 && Healed == 20000);
+    TestEqual(TEXT("vamp is the source's actual HP gain at the max-HP clamp"), Vamp, LDLog::P2(Healed));
     return true;
 }
 #endif

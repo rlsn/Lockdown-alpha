@@ -1,4 +1,5 @@
 #include "Framework/LDGameMode.h"
+#include "Core/LDLog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
@@ -433,13 +434,13 @@ bool ALDGameMode::ReportAuthorityFault(const FLDMatchContext& Match, const FStri
 {
     if (!HasAuthority() || !IsDemoRoom() || !Match.IsValid() || Match!=MatchContext || Diagnostic.IsEmpty())
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED Invalid authority, match or diagnostic."));
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED Invalid authority, match or diagnostic."));
         return false;
     }
     if (MatchPhase==ELDMatchPhase::Faulted) { return true; }
     if (MatchPhase==ELDMatchPhase::Results || MatchPhase==ELDMatchPhase::Closing)
     {
-        UE_LOG(LogTemp,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED The result or room is already closed."));
+        UE_LOG(LogLDMatch,Warning,TEXT("LD_AUTHORITY_FAULT_REPORT_REJECTED The result or room is already closed."));
         return false;
     }
     FaultAuthority(Diagnostic);
@@ -453,7 +454,7 @@ void ALDGameMode::FaultAuthority(const FString& Error)
         // A locked result is never replaced by a later fault: the room stays in Results.
         bAuthorityStepOpen = false;
         bSettlementStep = false;
-        UE_LOG(LogTemp, Error, TEXT("LD_DEMO_AUTHORITY_FAULT_AFTER_RESULT %s"), *Error);
+        UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_AUTHORITY_FAULT_AFTER_RESULT %s"), *Error);
         return;
     }
     EntryFailure = Error;
@@ -472,7 +473,7 @@ void ALDGameMode::FaultAuthority(const FString& Error)
             Body->GetCharacterMovement()->StopMovementImmediately();
         }
     }
-    UE_LOG(LogTemp, Error, TEXT("LD_DEMO_AUTHORITY_FAULT %s"), *Error);
+    UE_LOG(LogLDMatch, Error, TEXT("LD_DEMO_AUTHORITY_FAULT %s"), *Error);
     PublishLobby();
     PublishPublicMatch();
 }

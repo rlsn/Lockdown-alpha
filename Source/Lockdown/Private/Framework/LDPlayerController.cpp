@@ -1,7 +1,9 @@
 #include "Framework/LDPlayerController.h"
+#include "Core/LDLog.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDDemoEntry.h"
+#include "Framework/LDPlaytestTrace.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCameraSettings.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -76,7 +78,7 @@ void ALDPlayerController::InitializeLocalUI()
     RootUI=CreateWidget<ULDUIRoot>(this,RootClass);
     if (!RootUI)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_DEMO_UI_INITIALIZATION_FAILED Native UI root could not be created."));
+        UE_LOG(LogLDUI,Error,TEXT("LD_DEMO_UI_INITIALIZATION_FAILED Native UI root could not be created."));
         return;
     }
     RootUI->AddToViewport();
@@ -142,7 +144,7 @@ void ALDPlayerController::ClientIntentResult_Implementation(uint32 Request,const
     }
     if (IntentFeedbackSerial==MAX_uint32)
     {
-        UE_LOG(LogTemp,Error,TEXT("LD_INTENT_FEEDBACK_EXHAUSTED"));
+        UE_LOG(LogLDUI,Error,TEXT("LD_INTENT_FEEDBACK_EXHAUSTED"));
         return;
     }
     ++IntentFeedbackSerial;
@@ -187,12 +189,23 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
     SetInputMode(Mode);
 }
 
+void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
+{
+    if (GetLocalPlayer())
+    {
+        if (auto* Active=Cast<ALDCharacter>(GetPawn())) { Active->UpdateOwnerPresentation(DeltaSeconds); }
+        Navigation->UpdateLocalCamera(DeltaSeconds);
+    }
+    Super::UpdateCameraManager(DeltaSeconds);
+}
+
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);
     InitializeLocalUI();
     UpdateV05Inputs(Delta);
     if (!GetLocalPlayer() || IsFrontend()) { return; }
+    Trace().Tick(*this);
     if (auto* Active=Cast<ALDCharacter>(GetPawn()))
     {
         LastBodyPosition=Active->GetActorLocation();
@@ -208,7 +221,7 @@ void ALDPlayerController::PlayerTick(float Delta)
         WaitingCamera=GetWorld()->SpawnActor<ACameraActor>();
         if (!WaitingCamera)
         {
-            UE_LOG(LogTemp,Error,TEXT("LD_DEMO_CAMERA_CREATION_FAILED"));
+            UE_LOG(LogLDUI,Error,TEXT("LD_DEMO_CAMERA_CREATION_FAILED"));
             return;
         }
         const float ArmLength=Controls?Controls->Zoom:LDCamera::DefaultArmLength;

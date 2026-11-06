@@ -37,6 +37,14 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 不另做第二次权威积分；`ServerShouldUseAuthoritativePosition` 禁止以客户端位置覆盖服务器结果。
 这不是第二个位置积分器或 AI Controller 接管。
 
+拥有者的校正仍立即修改 CMC 胶囊并重放合法 saved moves。`FLDOwnerCorrectionSmoothing`
+只保留重放前后显示位置的差，按原生 `NetworkSimulatedSmoothLocationTime` 衰减；
+偏移受原生平滑距离限制，超过 snap 距离直接跳到位。本人模型、脚下标记、头顶标签、
+射程圈与跟随镜头使用同一显示位置；碰撞、距离验证、订单与权威记录仍使用真实胶囊。
+saved move 的身份取正在预测的已接受订单；新单尚未激活时不提前换成新单，
+停止及没有活动订单时仍保留当前 Local 的 Match/Life/Order/Epoch，不能退回全零身份；
+Stop 之后、停止回执到达之前发出的新单不再沿用 Stop 前的订单（取消 epoch 不同），与 `ApplyPrediction` 的判断一致。
+
 `LDCharacterMotion.cpp` 在同一 CMC 的原生 walking/falling、sweep、StepUp、接地和模式入口
 记录 `FLDNativeMotionBatch`。移动片段保留实际首末脚点和原生 hit-time 分数；
 floor 高度调整不被分摊成自愿移动时间。StepUp 的失败事务撤销整个试探前缀；
@@ -136,7 +144,7 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 不能把 partial path 当作成功到达，也不能无限重算或穿过已生效的阻挡。
 
 服务器沿路线进展和重算在 `AdvanceAuthorityMotion/ProcessAuthorityOrders`，
-`TickComponent` 只承担拥有者预测、心跳和镜头。当前真实 CMC `CurrentFloor` 必须对应注册地面；
+`TickComponent` 只承担拥有者预测、心跳和指针输入，镜头在本地相机求值前更新。当前真实 CMC `CurrentFloor` 必须对应注册地面；
 无有效支持面不借瞄准 SurfaceHint 向下补接地。服务器保留独立的命令身份和合法性校验；
 原生 correction 不是可以跳过命令验证的理由。环境碰撞更新与路径重算的关系见
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
@@ -194,11 +202,14 @@ P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
 `Character\LDCameraSettings.h` 单点定义默认臂长 2250 cm、范围 1300–2400 cm、步长 80 cm、
 pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待相机、设置与美术镜头检查共用。
 新安装和恢复默认使用 2250；设置页“采用推荐镜头”只改 Zoom，其他本地偏好和姓名保持不变。
-`PanCamera`、`Recenter`、`ToggleFollow`、`PanTo` 与 `TickCamera` 共享镜头状态。
+`PanCamera`、`Recenter`、`ToggleFollow`、`PanTo` 与 `UpdateLocalCamera` 共享镜头状态。
+镜臂的位置与旋转都使用世界绝对坐标，人物转身不旋转已平移的镜头中心。
+`ALDPlayerController::UpdateCameraManager` 在本帧运动/校正重放后先更新本人显示偏移，
+再更新镜头中心；`ALDCharacter::CalcCamera` 当次计算固定镜臂几何，不读取较早 tick 缓存的 socket。
 边缘平移需尊重应用焦点、UI 遮挡和操作模式：失焦、指针在 UI 上、小地图拖动或战斗准备态期间不边缘平移；
 滚轮在面板上滚动面板，不同时缩放世界。
 
-死亡等待期间（`IsAwaitingRespawn`，输入门为 `CanCameraCommand`），`TickCamera` 用同一镜头状态驱动
+死亡等待期间（`IsAwaitingRespawn`，输入门为 `CanCameraCommand`），`UpdateLocalCamera` 用同一镜头状态驱动
 控制器的等待镜头，按身体默认镜臂（`ALDCharacter::DefaultArmCameraPose`）摆放：键盘/边缘平移与小地图拖动
 移动静态地图镜头，缩放直接改写已应用的镜头距离偏好，新身体沿用该值；回中与跟随键提示“无存活角色”。
 等待镜头从这一生最后的镜头中心起步，只夹在静态地图边界内，不跟随任何单位、不产生游戏移动，
@@ -218,6 +229,7 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
 `Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
+`Mark`（F9 试玩标记，见[开发指南](../DEVELOPMENT.md#试玩问题排查)）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
 没有 profile/registry 参数、第二份默认表或旧 Sprint/快捷位/多技能槽/Help/Inventory 动作，
@@ -231,18 +243,23 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast` 和绑定是完整正向清单。
-当前文件 schema 是 12，与产品/网络版本无关；旧通用 SaveGame 格式及 4–12 以外的 schema 返回不支持，不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS` 和绑定是完整正向清单。
+当前文件 schema 是 16，与产品/网络版本无关；schema 5–15 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
+schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关闭；加载本身不改写旧文件。
+schema 15 字段与当前相同，只是按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
+补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；schema 16 缺它不补。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
 `CameraPanCmPerSec` 是键盘/边缘平移的镜头速度（cm/s），默认 1800，合法域 900..3600（只作用镜头，
-不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页以 300 cm/s 步进经
-`SetAppliedCameraPanSpeed` 应用，导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
+不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页“镜头”分类以 300 cm/s 步进，
+经草稿与 `ULDGameInstance::ApplyLocalSettings` 应用并保存（`SetAppliedCameraPanSpeed` 供直接改写已应用对象的调用方），
+导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
 `MinimapOrientation` 是小地图朝向（0 跟随镜头、1 跟随角色朝向、2 固定正北），默认跟随镜头（用户决定）；
-越界值使文件按 `Corrupt` 处理。设置页“小地图朝向”的三个按钮经 `SetAppliedMinimapOrientation` 应用，恢复默认还原为跟随镜头。
-设置页的“恢复默认”先列出全部范围（显示/画质、音量、按键、镜头/文字；名称与本局进度不变）再确认：
-本地偏好先还原并保存，显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
+越界值使文件按 `Corrupt` 处理。设置页“界面”分类的三选一同样经草稿应用，恢复默认还原为跟随镜头。
+设置页按分类“恢复本页默认”（UI_AND_SETTINGS §8）：确认卡先列出本页将恢复的默认值（其他页、名称与本局进度不变），确认后
+音频/操作/镜头/界面经 `ResetPreferenceGroup` 只还原对应偏好组并立即应用、保存，四组合起来正好是 `ResetLocalDefaults`；
+画面页的显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
 VSync 与画质随该次显示应用生效并保存；与当前显示相同时不应用。
 默认画质的渲染比例 `ResolutionQuality` 为 0（沿用项目的 `r.ScreenPercentage`），引擎对 0 不做任何事；
 `ULDGameInstance` 每次应用画质后经 `LDLocalSettings::ApplyRenderScale` 撤销 Scalability 优先级的旧比例，渲染比例立即回到项目默认，无需重启。
@@ -264,7 +281,7 @@ schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10
 schema 11、12 已有全部绑定和偏好，显式迁移到 13 时不补 Dash。schema 5–11 必须先按旧 1100–1700 cm、
 schema 12 按旧 1100–1900 cm 范围校验 Zoom；在当前 1300–2400 cm 内原样保留（包括旧默认 1400、1850），
 低于 1300 cm 的调整为 1300 cm 并在提示中说明；超出各自旧范围的值仍按损坏拒绝，不因新范围扩大而变合法。
-迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成 schema 14。
+迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成当前 schema。
 schema 13 字段与范围都与当前相同，只是按键表早于排行榜：schema 5–13 迁移时若缺 `Scoreboard` 且默认键 Tab 未被其他动作占用，
 补上默认 Tab 并在提示中说明（schema 13 不再附镜头距离说明）；Tab 已被占用时按 `Corrupt` 走恢复；schema 14 缺它不补。
 schema 5–13 中的损坏、非法偏好或注册表外动作
@@ -291,8 +308,9 @@ schema 4 是已退役的多注册表格式：读取时只校验完整性并列�
 仍作用于这次请求，只给自动化场景和同机多开使用，存档中保持无边框。`DefaultInput.ini` 关闭 Alt+Enter/F11 切换全屏。
 设置页没有窗口模式、分辨率或保留/回滚试用。
 
-`LDControlsPanel` 的显示草稿只有 VSync 与整体画质，草稿不写配置；“应用显示草稿”经
-`ApplyDisplaySettings` 立即应用并保存。`SaveSettings` 的 void 返回不代表成功，
+`LDControlsPanel` 的显示草稿只有 VSync 与整体画质（设置页“画面”分类），草稿不写配置；草稿与已核验的生效值不同时才算未应用
+（应用失败后设置字段里的请求值不算生效值，直到再次应用或重试保存成功，见 UI_AND_SETTINGS §8），
+画面页底部的应用栏列出未应用项，“应用”经 `ApplyDisplaySettings` 立即应用并保存，“撤销更改”丢弃草稿。`SaveSettings` 的 void 返回不代表成功，
 核验从实际配置文件读入新的 `FConfigFile`，不从 GConfig 缓存读取；
 UE 5.8 的 `GGameUserSettingsIni` 等常量是缓存标识，不保证是物理路径。
 `ResolveConfigDestination` 从当前 `FConfigBranch::IniPath` 取得真实目标，缺失即失败；
@@ -301,16 +319,18 @@ Editor 的独立质量配置必须在原生保存阶段显式 flush 后核对；
 `Scalability::SaveState` 仅暂存该文件，不能依赖 `SaveSettings` 对另一个目标的 flush。
 已有 `NoSave` 禁令不被解除，失败保留 dirty 与重试入口。
 VSync/画质应用失败与持久化未核验分开反馈。被拒绝的同一份草稿不能再次应用，直到玩家修改草稿；
-提示同时说明可以返回并放弃草稿，不让玩家反复重试同一个失败。
+提示同时说明可以撤销更改，不让玩家反复重试同一个失败。
 
 Esc、强制关页、Widget 销毁、网络失败、旅行和退出前保存已确认的本地值，显示 dirty 时重试显示保存。
 `ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿：
-有未应用草稿时第一次返回显示“应用显示并返回 / 放弃显示草稿并返回 / 继续编辑”，
-确认行显示时再按“返回”或 Esc 即放弃草稿并返回（#99），不会在提示的显示与隐藏之间循环。
-“应用显示并返回”失败时留在确认行并写明失败原因，默认焦点移到“放弃显示草稿并返回”。
+有未应用草稿时第一次返回切到画面页，确认卡显示“应用并返回 / 放弃更改并返回 / 继续编辑”，
+确认卡显示时再按“返回”或 Esc 即放弃草稿并返回（#99），不会在提示的显示与隐藏之间循环。
+“应用并返回”失败时留在确认卡并写明失败原因，默认焦点移到“放弃更改并返回”。
 `Close`/`ClosePanel` 只在面板真正关闭时返回 true；供 Root 路由 Back 的 `HasChildConfirmation`/`CloseChildConfirmation`
-先结束按键捕获；未应用草稿确认行与“放弃显示草稿并返回”相同，其他确认按“保持不变”关闭，不应用也不丢弃任何值。
-设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
+先结束按键捕获；未应用草稿确认卡与“放弃更改并返回”相同，其他确认按“保持不变”关闭，不应用也不丢弃任何值。
+按键捕获在该绑定行内进行，被拒的键在行内说明且捕获继续，Esc 只结束捕获；切换分类页签（含捕获中直接点页签）也按“保持不变”结束捕获与确认。
+设置页的交互控件（含页签 `Tab*`、每个动作的按键框 `Bind<Action>`）只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案；
+隐藏分类页折叠，不在键盘焦点顺序里，自动化先点该页签再操作页内控件。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
 主音量是设置的唯一音频消费链：GameInstance 每次加载或应用本地偏好后把 `MasterVolume` 交给 `ULDAudioSubsystem`；
 设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，

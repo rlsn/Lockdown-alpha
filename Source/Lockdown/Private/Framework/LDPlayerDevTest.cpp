@@ -1,4 +1,5 @@
 #include "Framework/LDPlayerController.h"
+#include "Core/LDLog.h"
 
 #include "Economy/LDEconomyDirector.h"
 #include "Engine/World.h"
@@ -65,7 +66,7 @@ void ALDPlayerController::ClientDevTestResult_Implementation(const FLDDevTestRes
         Result.Status == ELDAdmissionStatus::Final);
     const ELDDevTestOp Op = Result.bHasReceipt ? Result.Receipt.Op : ELDDevTestOp::None;
     const FString& Detail = Result.bHasReceipt ? Result.Receipt.Detail : Result.Detail;
-    UE_LOG(LogTemp, Display, TEXT("LD_DEV_TEST_RESULT match=%u request=%llu status=%u op=%s reason=%s detail=%s"),
+    UE_LOG(LogLDGrowth, Display, TEXT("LD_DEV_TEST_RESULT match=%u request=%llu status=%u op=%s reason=%s detail=%s"),
         Result.Generation, Result.RequestId, uint32(Result.Status), LDDevTest::OpName(Op),
         LDGrowthWire::ReasonName(LDGrowthWire::Reason(Result.Reason)), *Detail);
     if (IsLocalController())

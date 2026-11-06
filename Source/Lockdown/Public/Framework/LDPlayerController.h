@@ -6,10 +6,12 @@
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
+#include "Templates/PimplPtr.h"
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
 class ULDUIRoot;
+class FLDPlaytestTrace;
 
 UCLASS()
 class LOCKDOWN_API ALDPlayerController : public APlayerController
@@ -20,6 +22,7 @@ public:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
+    virtual void UpdateCameraManager(float DeltaSeconds) override;
     virtual void FlushPressedKeys() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     void SetMenuOpen(bool bOpen);
@@ -150,6 +153,12 @@ public:
     UFUNCTION() void OnRep_CombatView();
     // Every receipt of the current match in arrival order; presenters keep their own cursor (LDCombatReceiptLog.h).
     FLDCombatReceiptLog CombatReceipts;
+    // ---- Playtest log (Framework/LDPlayerTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
+    // The mark key (also the PlaytestMark console command): LD_PLAYER_MARK with the own state in this process's log, the
+    // same mark in the Host log and a short HUD confirmation. Only inside a running match of this owner
+    // (LDPlaytest::InRunningMatch); the server checks the match the mark was sent for again before the Host log records it.
+    UFUNCTION(Exec) void PlaytestMark();
+    UFUNCTION(Server,Reliable) void ServerPlaytestMark(uint32 Match,uint32 Sequence,int64 ClientAuthorityMs);
 private:
     void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0,FGuid ExpectedResult=FGuid());
     uint32 DemoRequestGeneration=0;
@@ -216,4 +225,7 @@ private:
     bool bAttackMoveArmed=false;
     uint64 NextDirectSequence=0;
     FLDCombatOwnerView LatestCombatView;
+    // Local controller only: this process's playtest log (LDPlaytestTrace.h); created on first use.
+    TPimplPtr<FLDPlaytestTrace> PlaytestTrace;
+    FLDPlaytestTrace& Trace();
 };
