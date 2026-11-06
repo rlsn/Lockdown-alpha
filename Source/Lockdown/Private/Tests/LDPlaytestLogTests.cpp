@@ -2,6 +2,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Development/LDDemoContentIds.h"
 #include "Framework/LDCaptureTypes.h"
+#include "Framework/LDPlaytestTrace.h"
 #include "Misc/AutomationTest.h"
 #include "UI/LDHUDModel.h"
 
@@ -74,6 +75,24 @@ bool FLDPlaytestLogPeriodicGateTest::RunTest(const FString& Parameters)
     LDLog::FPeriodicGate Summary(10000);
     for (int64 Ms=0; Ms<=60000; Ms+=16) { Samples+=Summary.Due(Ms) ? 1 : 0; }
     TestEqual(TEXT("Ten-second summaries over one minute of 60 Hz frames"),Samples,7);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPlaytestLogMarkMatchTest,"Lockdown.Rules.PlaytestLog.MarkMatch",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDPlaytestLogMarkMatchTest::RunTest(const FString& Parameters)
+{
+    using LDPlaytest::InRunningMatch;
+    TestTrue(TEXT("A mark of the current match during development is recorded"),InRunningMatch(7,7,ELDMatchPhase::Development));
+    TestTrue(TEXT("Also while the flagpole is open"),InRunningMatch(7,7,ELDMatchPhase::CaptureOpen));
+    for (const ELDMatchPhase Phase : {ELDMatchPhase::Lobby,ELDMatchPhase::Starting,ELDMatchPhase::Results,ELDMatchPhase::Resetting,
+        ELDMatchPhase::Closing,ELDMatchPhase::Faulted})
+    {
+        TestFalse(FString::Printf(TEXT("No mark outside the running match: %s"),*LDLog::EnumName(Phase)),InRunningMatch(7,7,Phase));
+    }
+    TestFalse(TEXT("A delayed mark of the previous match never lands in the next one"),InRunningMatch(6,7,ELDMatchPhase::Development));
+    TestFalse(TEXT("Nor one sent for a match the Host has not started"),InRunningMatch(8,7,ELDMatchPhase::Development));
+    TestFalse(TEXT("No match is no mark"),InRunningMatch(0,0,ELDMatchPhase::Development));
     return true;
 }
 

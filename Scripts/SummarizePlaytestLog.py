@@ -32,7 +32,7 @@ HOST_ONLY_TAGS = frozenset(
         "LD_HIT", "LD_HEARTBEAT", "LD_REWARD", "LD_LEVEL_UP", "LD_OFFER", "LD_CHOICE", "LD_SHOP_TRADE",
         "LD_SHOP_REJECTED", "LD_DEATH_RECEIPT", "LD_CAMP_DEATH", "LD_MATCH_STARTING", "LD_MATCH_HEADER", "LD_MATCH_ROSTER",
         "LD_MATCH_SUMMARY", "LD_MATCH_SUMMARY_ROW", "LD_MATCH_STARTED", "LD_MATCH_RESULT", "LD_AI_DECISION",
-        "LD_AI_SUMMARY", "LD_MEMBER_LEFT",
+        "LD_AI_SUMMARY", "LD_MEMBER_LEFT", "LD_PLAYER_MARK_REJECTED",
     }
 )
 # Once-per-second or ten-second samples: summarized, never listed one by one in a timeline.

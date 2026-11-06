@@ -14,6 +14,11 @@
 #include "Engine/NetDriver.h"
 #include "Engine/World.h"
 
+bool LDPlaytest::InRunningMatch(uint32 Match, uint32 CurrentMatch, ELDMatchPhase Phase)
+{
+    return Match != 0 && Match == CurrentMatch && (Phase == ELDMatchPhase::Development || Phase == ELDMatchPhase::CaptureOpen);
+}
+
 namespace LDPlaytestTraceDetail
 {
     const TCHAR* Role(const UWorld& World)
@@ -28,8 +33,7 @@ namespace LDPlaytestTraceDetail
 
     bool Running(const ALDGameState& Public, uint32 Match)
     {
-        return Match != 0 && Public.PublicMatch.Generation == Match
-            && (Public.PublicMatch.Phase == ELDMatchPhase::Development || Public.PublicMatch.Phase == ELDMatchPhase::CaptureOpen);
+        return LDPlaytest::InRunningMatch(Match, Public.PublicMatch.Generation, Public.PublicMatch.Phase);
     }
 
     // RTT, jitter, packet loss and receive silence of one connection, or why they are unavailable.
@@ -447,7 +451,7 @@ void ALDPlayerController::PlaytestMark()
 {
     if (!IsLocalController()) { return; }
     const ALDGameState* Public = GetWorld()->GetGameState<ALDGameState>();
-    if (!Public || OwnerState.Match == 0 || Public->PublicMatch.Generation != OwnerState.Match)
+    if (!Public || !LDPlaytestTraceDetail::Running(*Public, OwnerState.Match))
     {
         PostIntentNotice(TEXT("不在对局中，没有标记"));
         return;
@@ -456,11 +460,11 @@ void ALDPlayerController::PlaytestMark()
     ReadDemoAuthorityTimeMs(NowMs);
     // A remote client writes the mark with its own view here; the Host's log gets it through the server either way.
     const uint32 Sequence = Trace().Mark(*this, GetNetMode() == NM_Client);
-    ServerPlaytestMark(Sequence, NowMs);
+    ServerPlaytestMark(OwnerState.Match, Sequence, NowMs);
     PostIntentNotice(FString::Printf(TEXT("已标记 #%u（已写入试玩日志）"), Sequence));
 }
 
-void ALDPlayerController::ServerPlaytestMark_Implementation(uint32 Sequence, int64 ClientAuthorityMs)
+void ALDPlayerController::ServerPlaytestMark_Implementation(uint32 Match, uint32 Sequence, int64 ClientAuthorityMs)
 {
-    if (auto* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>()) { Mode->LogPlaytestMark(*this, Sequence, ClientAuthorityMs); }
+    if (auto* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>()) { Mode->LogPlaytestMark(*this, Match, Sequence, ClientAuthorityMs); }
 }

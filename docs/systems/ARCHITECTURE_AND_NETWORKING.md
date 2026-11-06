@@ -222,12 +222,12 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
 | `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、精神状态/电量/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
-| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害、护盾吸收与碎盾、扣血前后、增幅与抗性、暴击/背刺/保护/持续/反伤、控制、吸血、是否致死 |
+| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害、护盾吸收与碎盾、扣血前后、增幅与抗性、暴击/背刺/保护/持续/反伤、控制、吸血（来源实际回复的生命，已计治疗削减和生命上限）、是否致死 |
 | `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |
 | `LD_SHOP_TRADE` / `LD_SHOP_REJECTED` | `LDVendorDirector.cpp` | 买、卖、进阶成功的物品、槽位、金币变化与结余；拒绝原因 |
-| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条 |
+| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
 | `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、金币、K/D/A、技能及等级、属性卡、装备 |
 | `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
 

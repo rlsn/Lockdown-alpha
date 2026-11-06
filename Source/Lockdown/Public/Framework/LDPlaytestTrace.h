@@ -2,12 +2,21 @@
 
 #include "CoreMinimal.h"
 #include "Core/LDLog.h"
+#include "Framework/LDMatchLifecycleTypes.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDWorldFeedback.h"
 
 class ALDPlayerController;
 class FLDDemoContentSnapshot;
 class UNetConnection;
+
+namespace LDPlaytest
+{
+    // Whether a line or mark for Match belongs to the running match: it is the current match generation and that match is in
+    // Development or CaptureOpen. The lobby, start, results, a reset and every earlier match are outside it. Both the client's
+    // own-view lines and mark key and the Host's record of a mark use it.
+    LOCKDOWN_API bool InRunningMatch(uint32 Match, uint32 CurrentMatch, ELDMatchPhase Phase);
+}
 
 // Playtest log of one game process, owned by its local controller (docs/DEVELOPMENT.md, playtest troubleshooting).
 // Every process: ten-second frame time and connection summaries (the Host also one line per client connection) and

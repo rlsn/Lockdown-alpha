@@ -423,6 +423,15 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         { return false; }
     }
     MarkViewChanged(Hit.Target.Victim.EntityId);
+    const int64 HPAfterP2=Body->Resources.HpP2;
+    // A one-time heal: it passes the source's heal cut (#112 §5); the record below logs what the source actually regained.
+    int64 VampHealedP2=0;
+    if (Source && HealP2>0)
+    {
+        const int64 SourceHPBefore=Source->Resources.HpP2;
+        HealBody(*Source,HealP2,NowMs);
+        VampHealedP2=Source->Resources.HpP2-SourceHPBefore;
+    }
     // Host playtest record of this committed hit (docs/DEVELOPMENT.md): every term the player could ask about afterwards.
     if (UE_LOG_ACTIVE(LogLDCombat,Log))
     {
@@ -436,15 +445,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             Body->MonsterId.IsNone() ? TEXT("-") : *Body->MonsterId.ToString(),*LDLog::Source(Hit.Source),HitClassName(Hit.HitClass),
             bPhysical ? TEXT("physical") : TEXT("magical"),*LDLog::P2(Damage.DamageP2),*LDLog::P2(Damage.PreMitigationP2),
             *LDLog::P2(Damage.ShieldAbsorbedP2),*LDLog::P2(ShatteredP2),*LDLog::P2(Damage.HPLostP2),*LDLog::P2(HPBefore),
-            *LDLog::P2(Body->Resources.HpP2),*LDLog::P2(Body->Resources.MaxHpP2),*LDLog::P2(ShieldBeforeP2),
+            *LDLog::P2(HPAfterP2),*LDLog::P2(Body->Resources.MaxHpP2),*LDLog::P2(ShieldBeforeP2),
             *LDLog::P2(Body->Resources.ShieldP2),Evaluation.AmplifyBp,*LDLog::P2(Evaluation.TargetResistanceP2.Get(0)),
             Evaluation.MitigateBp,bCritical,bBehind,bProtected,Hit.bPeriodic,Hit.bReflect,Hit.bAddedDamage,*ControlNames(ControlMask),
-            *LDLog::P2(HealP2),Body->Resources.HpP2==0);
+            *LDLog::P2(VampHealedP2),HPAfterP2==0);
     }
     if (Source)
     {
-        // A one-time heal: it passes the source's heal cut (#112 §5).
-        if (HealP2>0) { HealBody(*Source,HealP2,NowMs); }
         // Mana grants, at most once per release: passive_public_shame Lv3 for a control this hit committed, item_runic_focus for an ability hit.
         for (const FLDPassiveEffectRef& Grant : ManaGrants)
         {

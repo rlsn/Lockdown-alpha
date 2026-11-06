@@ -151,9 +151,10 @@ public:
     FLDCombatReceiptLog CombatReceipts;
     // ---- Playtest log (Framework/LDPlayerTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
     // The mark key (also the PlaytestMark console command): LD_PLAYER_MARK with the own state in this process's log, the
-    // same mark in the Host log and a short HUD confirmation. Only inside a running match of this owner.
+    // same mark in the Host log and a short HUD confirmation. Only inside a running match of this owner
+    // (LDPlaytest::InRunningMatch); the server checks the match the mark was sent for again before the Host log records it.
     UFUNCTION(Exec) void PlaytestMark();
-    UFUNCTION(Server,Reliable) void ServerPlaytestMark(uint32 Sequence,int64 ClientAuthorityMs);
+    UFUNCTION(Server,Reliable) void ServerPlaytestMark(uint32 Match,uint32 Sequence,int64 ClientAuthorityMs);
 private:
     void SendDemoSessionCommand(ELDSessionCommand Command,bool Ready=false,uint8 AICount=0,FGuid ExpectedResult=FGuid());
     uint32 DemoRequestGeneration=0;

@@ -10,6 +10,7 @@
 #include "Economy/LDEconomyDirector.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDPlayerController.h"
+#include "Framework/LDPlaytestTrace.h"
 #include "Inventory/LDInventoryDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Engine/NetConnection.h"
@@ -142,7 +143,7 @@ void ALDGameMode::LogPlaytestHeartbeat()
     }
 }
 
-void ALDGameMode::LogPlaytestMark(ALDPlayerController& Controller, uint32 Sequence, int64 ClientAuthorityMs)
+void ALDGameMode::LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs)
 {
     const FLDContenderRecord* Record = Contenders.Find(&Controller);
     if (!Record) { return; }
@@ -151,6 +152,13 @@ void ALDGameMode::LogPlaytestMark(ALDPlayerController& Controller, uint32 Sequen
     double& Last = LastMarkAt.FindOrAdd(Record->Session, -1.);
     if (Last >= 0 && Now - Last < 1.) { return; }
     Last = Now;
+    // A mark sent for an earlier match, or arriving outside the running match, never lands in the current match's record.
+    if (!LDPlaytest::InRunningMatch(Match, MatchContext.Generation, MatchPhase))
+    {
+        UE_LOG(LogLDMatch, Log, TEXT("LD_PLAYER_MARK_REJECTED contender=%s seq=%u match=%u current=%u phase=%s"),
+            *LDLog::Id(Record->Session), Sequence, Match, MatchContext.Generation, *LDLog::EnumName(MatchPhase));
+        return;
+    }
     const FLDLifeRecord* Life = Lives.Find(Record->Session);
     const ALDCharacter* Body = Life ? Life->Actor.Get() : nullptr;
     UE_LOG(LogLDMatch, Display, TEXT("LD_PLAYER_MARK source=host_view contender=%s name=%s seq=%u t=%lld client_t=%lld phase=%s pos=%s"),

@@ -186,8 +186,9 @@ public:
     // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
     // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
     void LogPlaytestHeartbeat();
-    // A human's mark key reached the Host (ALDPlayerController::ServerPlaytestMark): LD_PLAYER_MARK, one per second per contender.
-    void LogPlaytestMark(ALDPlayerController& Controller, uint32 Sequence, int64 ClientAuthorityMs);
+    // A human's mark key reached the Host (ALDPlayerController::ServerPlaytestMark): LD_PLAYER_MARK when Match is the running
+    // match (LDPlaytest::InRunningMatch), otherwise LD_PLAYER_MARK_REJECTED; at most one line per second per contender.
+    void LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
     // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
@@ -233,6 +234,7 @@ private:
     friend class FLDCaptureInsideStepTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDDemoMechanicsEffectLifetimesTest;
+    friend class FLDPlaytestLogHitVampTest;
     friend class FLDCombatCommitControlTest;
     friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
