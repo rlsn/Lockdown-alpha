@@ -42,7 +42,8 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 偏移受原生平滑距离限制，超过 snap 距离直接跳到位。本人模型、脚下标记、头顶标签、
 射程圈与跟随镜头使用同一显示位置；碰撞、距离验证、订单与权威记录仍使用真实胶囊。
 saved move 的身份取正在预测的已接受订单；新单尚未激活时不提前换成新单，
-停止及没有活动订单时仍保留当前 Local 的 Match/Life/Order/Epoch，不能退回全零身份。
+停止及没有活动订单时仍保留当前 Local 的 Match/Life/Order/Epoch，不能退回全零身份；
+Stop 之后、停止回执到达之前发出的新单不再沿用 Stop 前的订单（取消 epoch 不同），与 `ApplyPrediction` 的判断一致。
 
 `LDCharacterMotion.cpp` 在同一 CMC 的原生 walking/falling、sweep、StepUp、接地和模式入口
 记录 `FLDNativeMotionBatch`。移动片段保留实际首末脚点和原生 hit-time 分数；
