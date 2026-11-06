@@ -40,6 +40,9 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UTextBlock> Rank;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
+    // Equipment slots: the held instance this slot shows (invalid otherwise) and the yellow "S" disc of a pre-sold item.
+    FGuid ItemInstance;
+    UPROPERTY() TObjectPtr<USizeBox> PresellMark;
     // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
@@ -72,6 +75,8 @@ public:
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    // Opens the item menu on a right click on an own equipment slot and closes it on any press outside it.
+    virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
@@ -152,6 +157,17 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailName;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
+    // The right-click menu of an own equipment slot, above it: one command that marks the held item for selling or
+    // unmarks it (ULDShopPanel::TogglePresell). It belongs to one held instance and closes when that item leaves the slot.
+    UPROPERTY() TObjectPtr<UBorder> ItemMenu;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ItemMenuSlot;
+    UPROPERTY() TObjectPtr<ULDCommandButton> ItemMenuButton;
+    int32 ItemMenuIndex=INDEX_NONE;
+    FGuid ItemMenuInstance;
+    void OpenItemMenu(int32 SlotIndex);
+    void PlaceItemMenu();
+    void CloseItemMenu();
+    void ChooseItemMenu();
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // Blind-box button in the bottom-right corner, left of the shop entry: disabled without a pending choice; it pulses for
     // a few seconds after the count rises, then stays steady.

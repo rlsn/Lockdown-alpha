@@ -419,6 +419,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RankLayer=Face->AddChildToOverlay(Entry.RankChip);RankLayer->SetHorizontalAlignment(HAlign_Left);RankLayer->SetVerticalAlignment(VAlign_Bottom);RankLayer->SetPadding(FMargin(3,0,0,3));
             Entry.CostChip=Chip(ChipText,HudManaText,FLinearColor(.18f,.28f,.62f),FLinearColor(.015f,.03f,.09f,.92f));Entry.Cost=ChipText;
             auto* CostLayer=Face->AddChildToOverlay(Entry.CostChip);CostLayer->SetHorizontalAlignment(HAlign_Right);CostLayer->SetVerticalAlignment(VAlign_Bottom);CostLayer->SetPadding(FMargin(0,0,3,3));
+            // A pre-sold item (marked from the item menu): a yellow disc with an "S" in the top-right corner.
+            UTextBlock* MarkText=OneLine(TEXT("S"),13,0);HudFace(MarkText,true,0);MarkText->SetJustification(ETextJustify::Center);MarkText->SetColorAndOpacity(FLinearColor(.1f,.07f,0.f));
+            auto* MarkDisc=WidgetTree->ConstructWidget<UBorder>();MarkDisc->SetBrush(HudRound(11.f,FLinearColor(.35f,.24f,0.f),1.f));MarkDisc->SetBrushColor(FLinearColor(1.f,.8f,.1f));
+            MarkDisc->SetPadding(FMargin(0));MarkDisc->SetHorizontalAlignment(HAlign_Center);MarkDisc->SetVerticalAlignment(VAlign_Center);MarkDisc->SetContent(MarkText);
+            Entry.PresellMark=WidgetTree->ConstructWidget<USizeBox>();Entry.PresellMark->SetWidthOverride(22);Entry.PresellMark->SetHeightOverride(22);Entry.PresellMark->SetContent(MarkDisc);
+            Entry.PresellMark->SetVisibility(ESlateVisibility::Collapsed);
+            auto* MarkLayer=Face->AddChildToOverlay(Entry.PresellMark);MarkLayer->SetHorizontalAlignment(HAlign_Right);MarkLayer->SetVerticalAlignment(VAlign_Top);MarkLayer->SetPadding(FMargin(0,3,3,0));
             Entry.Frame=WidgetTree->ConstructWidget<UBorder>();Entry.Frame->SetPadding(FMargin(3));
             Entry.Frame->SetHorizontalAlignment(HAlign_Fill);Entry.Frame->SetVerticalAlignment(VAlign_Fill);Entry.Frame->SetContent(Face);
             // The ready flash covers the whole slot; neither layer takes input, the button under them does.
@@ -466,12 +473,20 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
             ActionDetailSlot=Canvas->AddChildToCanvas(DetailWidth);ActionDetailSlot->SetAutoSize(true);ActionDetailSlot->SetAlignment(FVector2D(.5f,1));ActionDetailSlot->SetZOrder(20);
         }
+        {
+            // A right click on an own equipment slot opens this menu above it; its one command marks the item for selling
+            // (sold at once at the shop, else on reaching it) or takes the mark back. Any press elsewhere closes it.
+            ItemMenuButton=LDWidgets::Button(WidgetTree,TEXT("卖出"),[this](){ChooseItemMenu();},true,TEXT("HUDItemMenuSell"));
+            ItemMenu=LDWidgets::Panel(WidgetTree,ItemMenuButton,FMargin(6));ItemMenu->SetBrushColor(FLinearColor(.02f,.035f,.055f,.96f));
+            ItemMenu->SetVisibility(ESlateVisibility::Collapsed);HitPanels.Add(ItemMenu);
+            ItemMenuSlot=Canvas->AddChildToCanvas(ItemMenu);ItemMenuSlot->SetAutoSize(true);ItemMenuSlot->SetAlignment(FVector2D(.5f,1));ItemMenuSlot->SetZOrder(21);
+        }
 
         // Bottom-right corner, left to right: the blind-box button and the shop entry. Each toggles its own panel, which
         // docks right above them; neither has a hotkey. The blind-box button is the Choices panel's only entry besides the
         // opening's automatic open: greyed out and disabled while no choice is pending, and it pulses when the count rises.
-        // The shop entry shows the own gold and pre-order count; buying, selling and upgrading still need the shop itself,
-        // and pre-orders buy themselves there (ULDShopPanel).
+        // The shop entry shows the own gold and pre-order count; buying and upgrading still need the shop itself, and
+        // pre-orders and pre-sells (marked from the equipment slots' right-click menu) trade themselves there (ULDShopPanel).
         auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
@@ -557,6 +572,53 @@ void ULDHUD::HandleDevTestResult(const FLDDevTestResult& Result)
 }
 FReply ULDHUD::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseButtonDown(G,E);}
+FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
+{
+    const FVector2D At=E.GetScreenSpacePosition();
+    // Any press outside the open item menu closes it and still goes where it was aimed.
+    if(ItemMenuIndex!=INDEX_NONE&&!(ItemMenu&&ItemMenu->GetCachedGeometry().IsUnderLocation(At))){CloseItemMenu();}
+    // A right click on an own equipment slot opens its menu; seen before the slot button (which answers only the left
+    // button), so the world never gets this right click.
+    if(E.GetEffectingButton()==EKeys::RightMouseButton&&Band&&Band->IsVisible())
+    {
+        for(int32 Index=0;Index<ActionSlots.Num();++Index)
+        {
+            const FLDHUDActionSlot& Entry=ActionSlots[Index];
+            if(Entry.ItemInstance.IsValid()&&Entry.Box&&Entry.Box->GetCachedGeometry().IsUnderLocation(At)){OpenItemMenu(Index);return FReply::Handled();}
+        }
+    }
+    return Super::NativeOnPreviewMouseButtonDown(G,E);
+}
+void ULDHUD::OpenItemMenu(int32 SlotIndex)
+{
+    if(!ItemMenu||!ActionSlots.IsValidIndex(SlotIndex)||!ActionSlots[SlotIndex].ItemInstance.IsValid()){return;}
+    ItemMenuIndex=SlotIndex;ItemMenuInstance=ActionSlots[SlotIndex].ItemInstance;
+    ItemMenu->SetVisibility(ESlateVisibility::Visible);PlaceItemMenu();
+}
+void ULDHUD::PlaceItemMenu()
+{
+    if(ItemMenuIndex==INDEX_NONE||!ItemMenuSlot||!ItemMenuButton){return;}
+    HudSetText(CastChecked<UTextBlock>(ItemMenuButton->GetContent()),ShopPanel&&ShopPanel->IsPresell(ItemMenuInstance)?TEXT("取消预售"):TEXT("卖出"));
+    // Centred 8 units above the slot, read from last frame's layout, pushed sideways only to stay on screen.
+    const FGeometry& Area=GetCachedGeometry();const FGeometry& Over=ActionSlots[ItemMenuIndex].Box->GetCachedGeometry();
+    const FVector2D Top=Area.AbsoluteToLocal(Over.GetAbsolutePosition());
+    const FVector2D Size=Area.AbsoluteToLocal(Over.GetAbsolutePosition()+Over.GetAbsoluteSize())-Top;
+    const float Half=float(ItemMenu->GetDesiredSize().X)*.5f+8.f;const float Wide=float(Area.GetLocalSize().X);
+    const float X=Wide>2*Half?FMath::Clamp(float(Top.X+Size.X*.5),Half,Wide-Half):float(Top.X+Size.X*.5);
+    const FVector2D Place(FMath::RoundToFloat(X),FMath::RoundToFloat(float(Top.Y)-8.f));
+    if(!ItemMenuSlot->GetPosition().Equals(Place,.5f)){ItemMenuSlot->SetPosition(Place);}
+}
+void ULDHUD::CloseItemMenu()
+{
+    ItemMenuIndex=INDEX_NONE;ItemMenuInstance.Invalidate();
+    if(ItemMenu){ItemMenu->SetVisibility(ESlateVisibility::Collapsed);}
+}
+void ULDHUD::ChooseItemMenu()
+{
+    const FGuid Chosen=ItemMenuInstance;CloseItemMenu();
+    if(!ShopPanel){UE_LOG(LogTemp,Error,TEXT("LD_HUD_ITEM_MENU_NO_SHOP The item menu has no shop panel to mark the sale with."));return;}
+    if(Chosen.IsValid()){ShopPanel->TogglePresell(Chosen);}
+}
 FReply ULDHUD::NativeOnMouseWheel(const FGeometry& G,const FPointerEvent& E)
 {return IsUIAt(E.GetScreenSpacePosition())?FReply::Handled():Super::NativeOnMouseWheel(G,E);}
 const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
@@ -602,6 +664,7 @@ void ULDHUD::RefreshReadModel()
     {
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
+        CloseItemMenu();
         return;
     }
 
@@ -834,11 +897,13 @@ void ULDHUD::RefreshReadModel()
         const ELDCombatEntry Wanted=HudActionEntries[Index];
         const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr;
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
+        FGuid HeldItem;
         if(Source)
         {
             Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;
             const FLDEquipmentSlotView* Held=Equipment&&Source->ItemInstance.IsValid()?Equipment->Slots.FindByPredicate([Source](const FLDEquipmentSlotView& Row){return Row.bOccupied&&Row.Instance==Source->ItemInstance;}):nullptr;
             Input.bUpgraded=Held&&Held->bUpgraded;
+            if(Held&&(Wanted==ELDCombatEntry::Item1||Wanted==ELDCombatEntry::Item2)){HeldItem=Held->Instance;}
         }
         LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);Context.bOwnContext=bOwnMatch&&O.Life!=0;
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
@@ -870,6 +935,8 @@ void ULDHUD::RefreshReadModel()
         HudSetText(Entry.Key,View.Key);HudSetText(Entry.Glyph,View.Glyph);
         HudSetText(Entry.Rank,View.Rank);HudSetShown(Entry.RankChip,!View.Rank.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
+        Entry.ItemInstance=HeldItem;
+        HudSetShown(Entry.PresellMark,HeldItem.IsValid()&&ShopPanel&&ShopPanel->IsPresell(HeldItem),ESlateVisibility::HitTestInvisible);
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
         // An empty slot or a source without an active fades as a whole; the ready flash pops the slot and fades out.
@@ -889,7 +956,13 @@ void ULDHUD::RefreshReadModel()
         const float Pop=bFlash?1.f+.08f*FMath::Sin(UE_PI*FlashPhase):1.f;
         if(Entry.AppliedPop!=Pop){Entry.AppliedPop=Pop;Entry.Box->SetRenderScale(FVector2D(Pop,Pop));}
         Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
-        if(DetailIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
+        // The open item menu replaces the description.
+        if(DetailIndex==INDEX_NONE&&ItemMenuIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
+    }
+    // The item menu belongs to one held instance: it closes when that item leaves its slot.
+    if(ItemMenuIndex!=INDEX_NONE)
+    {
+        if(!ActionSlots.IsValidIndex(ItemMenuIndex)||ActionSlots[ItemMenuIndex].ItemInstance!=ItemMenuInstance){CloseItemMenu();}else{PlaceItemMenu();}
     }
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {

@@ -255,7 +255,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 离本人脚点最近的一点，`ShopStopCandidates` 从那里每 25 cm 退向本人，取第一个本地路线检查可达（或无法判断）的点，
 作为普通 `MoveGround` 发送；已经贴着模型时目的地就是本人所在处。移动标记仍画在点击落点（`NavigateGround` 的 `MarkerCm`），
 颜色按实际目的地是否可达。全程正常速度，到达不开店；左键模型才打开商店页面，
-本人在小摊交互半径内且页面开着或有可买预购时，HUD 才请求本命会话（UI_AND_SETTINGS 的 Shop 行）。
+本人在小摊交互半径内且页面开着、有预售或有可买预购时，HUD 才请求本命会话（UI_AND_SETTINGS 的 Shop 行）。
 
 `ApproachShop` 订单留给服务器 AI 与开店场景测试：服务器用 `ULDMapRegistry::FindPublicApproach`
 求交互半径上的接近点与完整路径，以 `QueryShopReach` 判断真实到达；到达交互半径后订单 `Completed`；
