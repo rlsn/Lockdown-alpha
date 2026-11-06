@@ -15,6 +15,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCharacterMovementComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -44,6 +45,8 @@
 #include "Styling/CoreStyle.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Engine/World.h"
+#include "Engine/NetConnection.h"
+#include "Engine/NetDriver.h"
 
 namespace
 {
@@ -160,6 +163,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         };
         auto Place=[&](UWidget* Widget,FAnchors Anchors,FVector2D Alignment,FVector2D Position)
         {auto* S=Canvas->AddChildToCanvas(Widget);S->SetAnchors(Anchors);S->SetAlignment(Alignment);S->SetPosition(Position);S->SetAutoSize(true);};
+        DiagnosticsText=LDWidgets::Text(WidgetTree,TEXT(""),14,TEXT("NetworkDiagnosticsText"));
+        DiagnosticsText->SetAutoWrapText(false);
+        DiagnosticsText->SetJustification(ETextJustify::Right);
+        DiagnosticsPanel=Panel(DiagnosticsText,false);
+        Place(DiagnosticsPanel,FAnchors(1,0),FVector2D(1,0),FVector2D(-16,16));
+        DiagnosticsPanel->SetVisibility(ESlateVisibility::Collapsed);
         auto Bar=[&](FLinearColor Fill,UProgressBar*& OutBar,UTextBlock*& OutText,float Width,float Height,TObjectPtr<UTextBlock>* OutRegen=nullptr)
         {
             auto* Box=WidgetTree->ConstructWidget<USizeBox>();Box->SetWidthOverride(Width);Box->SetHeightOverride(Height);
@@ -536,6 +545,60 @@ const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
     }
     return DisplayContent?&DisplayContent->Get():nullptr;
 }
+void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
+{
+    Super::NativeTick(Geometry,DeltaSeconds);
+    const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if (!PC || !DiagnosticsPanel) { return; }
+    const bool Network=PC->Controls && PC->Controls->bShowNetworkDiagnostics;
+    const bool FPS=PC->Controls && PC->Controls->bShowFPS;
+    HudSetShown(DiagnosticsPanel,Network||FPS,ESlateVisibility::HitTestInvisible);
+    if (!Network && !FPS)
+    {
+        DiagnosticsTickAt=-1; FrameDiagnostics={}; DiagnosticsSampleAt=0;
+        DiagnosticsBody.Reset(); DiagnosticsCorrections=0;
+        return;
+    }
+    const double Now=FPlatformTime::Seconds();
+    const double Previous=DiagnosticsTickAt;
+    DiagnosticsTickAt=Now;
+    if (Previous<0 || !FrameDiagnostics.AddFrame(Now-Previous)) { return; }
+    FString Text;
+    if (FPS)
+    {
+        Text=FString::Printf(TEXT("FPS %.0f · 帧耗时 %.1f ms · 峰值 %.1f ms"),FrameDiagnostics.FPS,FrameDiagnostics.FrameMs,FrameDiagnostics.PeakMs);
+    }
+    if (Network)
+    {
+        if (!Text.IsEmpty()) { Text+=TEXT("\n"); }
+        const auto* Driver=GetWorld()->GetNetDriver();
+        const auto* Connection=Driver?Driver->ServerConnection.Get():nullptr;
+        if (GetWorld()->GetNetMode()==NM_ListenServer) { Text+=TEXT("本机房主 · 无远端往返延迟"); }
+        else if (!Connection) { Text+=TEXT("网络：未连接"); }
+        else if (Connection->GetLastRecvAckTime()<=0) { Text+=TEXT("网络：等待延迟样本"); }
+        else
+        {
+            const double Ping=Connection->AvgLag>0 ? Connection->AvgLag : Connection->RawPingInSeconds;
+            Text+=FString::Printf(TEXT("延迟 RTT %.0f ms · 抖动 %.1f ms\n丢包 收 %.1f%% / 发 %.1f%% · 未收包 %.1f s"),
+                Ping*1000,Connection->GetAverageJitterInMS(),
+                100*Connection->GetInLossPercentage().GetLossPercentage(),100*Connection->GetOutLossPercentage().GetLossPercentage(),
+                FMath::Max(0.,Driver->GetElapsedTime()-Connection->LastReceiveTime));
+        }
+        auto* Body=Cast<ALDCharacter>(PC->GetPawn());
+        const auto* Movement=Body?Cast<ULDCharacterMovementComponent>(Body->GetCharacterMovement()):nullptr;
+        if (Movement && !PC->HasAuthority())
+        {
+            const bool SameBody=DiagnosticsBody.Get()==Body && DiagnosticsSampleAt>0;
+            const double Rate=SameBody ? double(Movement->CorrectionCount-DiagnosticsCorrections)/(Now-DiagnosticsSampleAt) : 0.;
+            Text+=FString::Printf(TEXT("\n移动校正 %.1f 次/s · 最近 %.1f cm"),Rate,Movement->LastCorrectionCm);
+            DiagnosticsBody=Body; DiagnosticsCorrections=Movement->CorrectionCount;
+        }
+        else { DiagnosticsBody.Reset(); DiagnosticsCorrections=0; }
+    }
+    DiagnosticsSampleAt=Now;
+    HudSetText(DiagnosticsText,Text);
+}
+
 void ULDHUD::RefreshReadModel()
 {
     auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());const auto* GS=GetWorld()->GetGameState<ALDGameState>();if(!GS||!Band){return;}
@@ -1089,7 +1152,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     if(bOwnCombat&&!bArmedEntry&&!PC->IsAttackMoveArmed()&&PC->CombatView.AttackRangeCm>0)
     {
         // A faint standing ring of the own basic attack reach (the projected attack range, so range growth shows at once).
-        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         RangeRing(Feet,PC->CombatView.AttackRangeCm,FLinearColor(1.f,1.f,1.f,.22f),1.2f);
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
@@ -1105,7 +1168,8 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
-        const FVector Feet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector AuthorityFeet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+        const FVector Feet=Self->PresentedLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
         FLinearColor Preview(1,.85f,.45f,.9f);
         if(bUnitTarget&&RangeCm>0)
         {
@@ -1115,7 +1179,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             const ALDWorldViewRelay* Relay=PC->LocalView();
             if(PC->ObservedUnderPointer(Handle,Epoch)&&Relay&&Relay->ReadUnit(Handle,Epoch,Hovered))
             {
-                const bool bInRange=FVector::Dist2D(Feet,FVector(Hovered.FeetCm))<=RangeCm;
+                const bool bInRange=FVector::Dist2D(AuthorityFeet,FVector(Hovered.FeetCm))<=RangeCm;
                 Preview=bInRange?FLinearColor(.35f,1.f,.45f,.95f):FLinearColor(1.f,.35f,.3f,.95f);
                 FVector Presented;FVector2D Mark;
                 if(Relay->ReadPresentedLocation(Handle,Epoch,Presented)&&Project(Presented,Mark))

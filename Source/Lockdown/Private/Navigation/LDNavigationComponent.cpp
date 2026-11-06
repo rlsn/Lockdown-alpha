@@ -557,7 +557,6 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     {
         ClearPointer();
         if ((bLocalActive || bFollowing) && !bLocalStop) { Stop(); }
-        TickCamera(Delta);
         return;
     }
     // Losing OS focus is the one input loss that stops: a single Stop, no heartbeat until focus returns and a fresh
@@ -577,7 +576,6 @@ void ULDNavigationComponent::TickComponent(float Delta, ELevelTick TickType, FAc
     }
     TickPointer();
     TickHeldMove();
-    TickCamera(Delta);
     if (!bFollowing || !Body || PC->HasAuthority()) { return; }
     if (LDPathSteering::AtGoal(*Body,Destination,AcceptanceRadius)) { bFollowing=false; LDPathSteering::HaltLocomotion(Body); return; }
     const FVector Input=LDPathSteering::Steering(Points,PointIndex,*Body);
@@ -839,8 +837,9 @@ void ULDNavigationComponent::PanCamera(const FVector2D& Axis, float Delta)
 }
 void ULDNavigationComponent::Recenter(bool Held) { bRecenterHeld=Held; }
 void ULDNavigationComponent::ToggleFollow() { bFollowCamera=!bFollowCamera; }
-void ULDNavigationComponent::TickCamera(float Delta)
+void ULDNavigationComponent::UpdateLocalCamera(float Delta)
 {
+    if (!Enabled() || !IsLocalOwner()) { return; }
     auto* PC=Controller();
     auto* Body=Cast<ALDCharacter>(PC->GetPawn());
     // Dead in the running match, the owner's waiting camera keeps this same camera state over the static map:
@@ -865,7 +864,7 @@ void ULDNavigationComponent::TickCamera(float Delta)
         }
         PanCamera(Axis.GetClampedToMaxSize(1),Delta);
     }
-    if (Body && (bFollowCamera || bRecenterHeld)) { CameraCentre=Body->GetActorLocation(); }
+    if (Body && (bFollowCamera || bRecenterHeld)) { CameraCentre=Body->PresentedLocation(); }
     const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
     const auto* Geometry=Registry?Registry->GetGeometry():nullptr;
     FVector Min,Max;

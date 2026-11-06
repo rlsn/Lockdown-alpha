@@ -68,11 +68,18 @@ public:
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
+    virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
+    UPROPERTY() TObjectPtr<UBorder> DiagnosticsPanel;
+    UPROPERTY() TObjectPtr<UTextBlock> DiagnosticsText;
+    LDHUD::FFrameDiagnostics FrameDiagnostics;
+    double DiagnosticsTickAt=-1, DiagnosticsSampleAt=0;
+    uint32 DiagnosticsCorrections=0;
+    TWeakObjectPtr<class ALDCharacter> DiagnosticsBody;
     UPROPERTY() TObjectPtr<UBorder> TargetCard;
     UPROPERTY() TObjectPtr<UBorder> TargetPortrait;
     UPROPERTY() TObjectPtr<UTextBlock> TargetGlyph;

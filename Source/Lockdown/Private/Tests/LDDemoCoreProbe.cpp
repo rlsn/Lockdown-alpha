@@ -33,7 +33,7 @@ class FLDDemoCoreProbe : public TSharedFromThis<FLDDemoCoreProbe>
 public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     FString Output, Role, Error, CatalogDigest;
-    double Deadline=0, StageAt=0;
+    double Deadline=0, StageAt=0, ArrivalReceivedAt=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     FLDCombatBodyRef OriginalBody;
@@ -480,6 +480,8 @@ public:
                 TEXT("Approved P2 resources are projected from the sole Combat body record"));
             Check(PC->OwnerState.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"));
             Check(PC->CanWorldCommand(),TEXT("Owning connection can submit an ordinary ground intent"));
+            Check(Nav->PredictedIdentity().Match==PC->OwnerState.Match && Nav->PredictedIdentity().Life==PC->OwnerState.Life,
+                TEXT("Idle saved moves retain the current match and life for native acknowledgements"));
             OriginalBody=PC->OwnerState.BodyRef;
             if (!Passed) { return Finish(); }
             Nav->NavigateGround(Goal->Position,NAME_None);
@@ -513,6 +515,17 @@ public:
         {
             if (FVector::Dist2D(StartPosition,Body->GetActorLocation())<300) { return true; }
             Check(true,TEXT("The owned body actually moves through native CMC"));
+            const FLDMoveIdentity Accepted=Nav->PredictedIdentity();
+            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            Check(Nav->LocalIdentity()!=Accepted && Nav->PredictedIdentity()==Accepted,
+                TEXT("A pending replacement keeps the accepted order identity for prediction and replay"));
+            if (!Passed) { return Finish(); }
+            StageAt=FPlatformTime::Seconds();
+            Stage=31;
+        }
+        else if (Stage==31)
+        {
+            if (FPlatformTime::Seconds()-StageAt<.5) { return true; }
             Nav->Stop();
             Stage=4;
         }
@@ -602,6 +615,10 @@ public:
             // bounds the client-side distance on top of the radius.
             const FLDOrderReceipt& Arrived=Nav->LatestReceipt();
             const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
+            // The reliable completion receipt can precede the final unreliable CMC correction under packet lag/loss.
+            if (ArrivalReceivedAt==0) { ArrivalReceivedAt=FPlatformTime::Seconds(); }
+            if (FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)>Arrived.AcceptanceCm+ClientErrorCm
+                && FPlatformTime::Seconds()-ArrivalReceivedAt<3) { return true; }
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
                 && FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));

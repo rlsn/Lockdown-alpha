@@ -17,6 +17,14 @@ struct FLDNetworkMoveDataContainer : FCharacterNetworkMoveDataContainer
     FLDNetworkMoveDataContainer(){NewMoveData=&Moves[0];PendingMoveData=&Moves[1];OldMoveData=&Moves[2];}
 };
 
+// Owner corrections are still applied to the capsule immediately. Only the local model/camera ease back afterwards.
+struct LOCKDOWN_API FLDOwnerCorrectionSmoothing
+{
+    FVector Offset=FVector::ZeroVector;
+    void Reconcile(const FVector& OldPresented, const FVector& NewPosition, double MaxSmoothCm, double SnapCm);
+    void Advance(float DeltaSeconds, float SmoothSeconds);
+};
+
 UCLASS()
 class LOCKDOWN_API ULDCharacterMovementComponent : public UCharacterMovementComponent
 {
@@ -55,6 +63,9 @@ public:
     virtual void FindFloor(const FVector& CapsuleLocation, FFindFloorResult& OutFloorResult,
         bool UseCachedLocation, const FHitResult* DownwardSweepResult=nullptr) const override;
     virtual void OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection) override;
+    virtual bool ClientUpdatePositionAfterServerUpdate() override;
+    void AdvanceOwnerPresentation(float DeltaSeconds);
+    FVector OwnerPresentationOffset() const { return OwnerSmoothing.Offset; }
     uint32 CorrectionCount=0;
     double MaxCorrectionCm=0;
     double LastCorrectionCm=0;
@@ -84,4 +95,6 @@ private:
     const FLDGameplayWritePermit* NativeWritePermit=nullptr;
     FLDCombatBodyRef NativeBody;
     FLDNetworkMoveDataContainer NetworkMoves;
+    FLDOwnerCorrectionSmoothing OwnerSmoothing;
+    TOptional<FVector> BeforeCorrection;
 };

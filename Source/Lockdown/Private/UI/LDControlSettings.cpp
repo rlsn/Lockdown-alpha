@@ -36,6 +36,7 @@ namespace
     constexpr uint32 NearZoomSchema = 12;
     // Schema 13 has the current layout and zoom range; only its key list predates the hold-Tab scoreboard.
     constexpr uint32 ScoreboardlessSchema = 13;
+    constexpr uint32 DiagnosticslessSchema = 14;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -304,6 +305,8 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     CameraPanCmPerSec = Other.CameraPanCmPerSec;
     MinimapOrientation = Other.MinimapOrientation;
     bQuickCast = Other.bQuickCast;
+    bShowNetworkDiagnostics = Other.bShowNetworkDiagnostics;
+    bShowFPS = Other.bShowFPS;
 }
 
 ULDControlSettings* ULDControlSettings::CreateSessionSettings(const FLDLocalSettingsStorage& InStorage)
@@ -447,6 +450,8 @@ void ULDControlSettings::ResetLocalDefaults()
     CameraPanCmPerSec = CurrentDefaults->CameraPanCmPerSec;
     MinimapOrientation = CurrentDefaults->MinimapOrientation;
     bQuickCast = CurrentDefaults->bQuickCast;
+    bShowNetworkDiagnostics = CurrentDefaults->bShowNetworkDiagnostics;
+    bShowFPS = CurrentDefaults->bShowFPS;
     ResetBindings();
 }
 
@@ -486,7 +491,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     const bool Migrating = Magic == LocalSettingsMagic
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
-            || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema);
+            || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
+            || SavedSchema == DiagnosticslessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -495,6 +501,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
     uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
+    uint8 Network = 0, FPS = 0;
     int32 Count = 0;
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
@@ -507,14 +514,17 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema >= OrientationlessSchema) { Reader << Settings->CameraPanCmPerSec; }
     if (SavedSchema >= QuickCastlessSchema) { Reader << Orientation; }
     if (SavedSchema >= DashlessSchema) { Reader << Quick; }
+    if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
     Reader << Count;
-    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Count < 0 || Count > MaxBindingCount)
+    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
     if (SavedName.Len() != FCString::Strlen(*SavedName))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
     Settings->bEdgePan = Edge != 0;
     Settings->bStartFollowing = Follow != 0;
     Settings->bQuickCast = Quick != 0;
+    Settings->bShowNetworkDiagnostics = Network != 0;
+    Settings->bShowFPS = FPS != 0;
     Settings->PlayerName = SavedName;
     // Kept as stored: an unsupported value is rejected by the preference validation below, like an out-of-range zoom.
     Settings->MinimapOrientation = static_cast<ELDMinimapOrientation>(Orientation);
@@ -533,7 +543,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     FString Error;
     const float LegacyZoomMax = SavedSchema == NearZoomSchema ? NearZoomMax : LegacyMaxZoom;
     // Schema 13 already has the current camera range.
-    const bool LegacyZoomValid = SavedSchema == ScoreboardlessSchema ? LDCamera::IsValidArmLength(Settings->Zoom)
+    const bool LegacyZoomValid = SavedSchema >= ScoreboardlessSchema ? LDCamera::IsValidArmLength(Settings->Zoom)
         : FMath::IsFinite(Settings->Zoom) && Settings->Zoom >= LegacyMinZoom && Settings->Zoom <= LegacyZoomMax;
     // An old zoom valid in its own range is kept when the current range holds it; a value below the current minimum
     // is raised to it and reported, never rejected for a range the old build did not have.
@@ -581,7 +591,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–13 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–14 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -599,6 +609,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == QuickCastlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
+        if (SavedSchema == DiagnosticslessSchema)
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") }; }
         if (SavedSchema == ScoreboardlessSchema)
         { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
         const FString ZoomNote = ZoomRaised
@@ -621,13 +633,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
     // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
-    // minimap orientation, quick cast, binding count, bindings.
+    // minimap orientation, quick cast, network diagnostics, FPS, binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
+    uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

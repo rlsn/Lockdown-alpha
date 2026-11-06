@@ -21,9 +21,47 @@ namespace LDCharacterMovementDetail
 
 void ULDCharacterMovementComponent::OnClientCorrectionReceived(FNetworkPredictionData_Client_Character& ClientData,float TimeStamp,FVector NewLocation,FVector NewVelocity,FMovementBaseInterfaceData* NewBase,FName NewBaseBoneName,bool bHasBase,bool bBaseRelativePosition,uint8 ServerMovementMode,FVector ServerGravityDirection)
 {
-    ++CorrectionCount;if(!bBaseRelativePosition&&UpdatedComponent){LastCorrectionCm=FVector::Distance(UpdatedComponent->GetComponentLocation(),NewLocation);MaxCorrectionCm=FMath::Max(MaxCorrectionCm,LastCorrectionCm);}
+    ++CorrectionCount;
+    if (UpdatedComponent)
+    {
+        if (!BeforeCorrection) { BeforeCorrection=UpdatedComponent->GetComponentLocation()+OwnerSmoothing.Offset; }
+        // NewLocation is already rebased by CMC before this callback, including base-relative corrections.
+        const FVector Predicted=ClientData.LastAckedMove.IsValid()
+            ? ClientData.LastAckedMove->SavedLocation : UpdatedComponent->GetComponentLocation();
+        LastCorrectionCm=FVector::Distance(Predicted,NewLocation);
+        MaxCorrectionCm=FMath::Max(MaxCorrectionCm,LastCorrectionCm);
+    }
     Super::OnClientCorrectionReceived(ClientData,TimeStamp,NewLocation,NewVelocity,NewBase,NewBaseBoneName,bHasBase,bBaseRelativePosition,ServerMovementMode,ServerGravityDirection);
 }
+
+void FLDOwnerCorrectionSmoothing::Reconcile(const FVector& OldPresented, const FVector& NewPosition, double MaxSmoothCm, double SnapCm)
+{
+    const FVector Difference=OldPresented-NewPosition;
+    Offset=Difference.SizeSquared()>FMath::Square(SnapCm) ? FVector::ZeroVector : Difference.GetClampedToMaxSize(MaxSmoothCm);
+}
+
+void FLDOwnerCorrectionSmoothing::Advance(float DeltaSeconds, float SmoothSeconds)
+{
+    if (SmoothSeconds<=0) { Offset=FVector::ZeroVector; return; }
+    Offset*=FMath::Exp(-FMath::Max(0.f,DeltaSeconds)/SmoothSeconds);
+    if (Offset.IsNearlyZero(.01)) { Offset=FVector::ZeroVector; }
+}
+
+bool ULDCharacterMovementComponent::ClientUpdatePositionAfterServerUpdate()
+{
+    const bool Replayed=Super::ClientUpdatePositionAfterServerUpdate();
+    if (BeforeCorrection && UpdatedComponent)
+    {
+        const auto* Data=GetPredictionData_Client_Character();
+        OwnerSmoothing.Reconcile(*BeforeCorrection,UpdatedComponent->GetComponentLocation(),
+            Data->MaxSmoothNetUpdateDist,Data->NoSmoothNetUpdateDist);
+        BeforeCorrection.Reset();
+    }
+    return Replayed;
+}
+
+void ULDCharacterMovementComponent::AdvanceOwnerPresentation(float DeltaSeconds)
+{ OwnerSmoothing.Advance(DeltaSeconds,NetworkSimulatedSmoothLocationTime); }
 
 namespace LDCharacterMovementDetail
 {
@@ -41,7 +79,7 @@ namespace LDCharacterMovementDetail
         virtual void SetMoveFor(ACharacter* Character, float Delta, const FVector& Accel, FNetworkPredictionData_Client_Character& Data) override
         {
             Super::SetMoveFor(Character, Delta, Accel, Data);
-            if(const auto* PC=Cast<ALDPlayerController>(Character->GetController())){Navigation=PC->Navigation->LocalIdentity();}
+            if(const auto* PC=Cast<ALDPlayerController>(Character->GetController())){Navigation=PC->Navigation->PredictedIdentity();}
         }
     };
     class FLDClientPrediction : public FNetworkPredictionData_Client_Character
@@ -74,7 +112,7 @@ void ULDCharacterMovementComponent::MoveAutonomous(float TimeStamp,float Delta,u
     if(PC&&PC->Navigation->Enabled())
     {
         const auto* Data=static_cast<const FLDNetworkMoveData*>(GetCurrentNetworkMoveData());
-        const bool Legal=Data&&(CharacterOwner->HasAuthority()?PC->Navigation->AuthorizesMove(Data->Navigation):Data->Navigation==PC->Navigation->LocalIdentity());
+        const bool Legal=Data&&(CharacterOwner->HasAuthority()?PC->Navigation->AuthorizesMove(Data->Navigation):Data->Navigation==PC->Navigation->PredictedIdentity());
         if(!Legal)
         {
             Applied=FVector::ZeroVector;

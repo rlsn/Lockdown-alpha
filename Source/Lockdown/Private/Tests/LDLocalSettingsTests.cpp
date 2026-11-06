@@ -64,6 +64,7 @@ namespace
 constexpr uint32 NearZoomFixtureSchema = 12;
     // Schema 13 writes every current preference; only its key list predates the hold-Tab scoreboard.
     constexpr uint32 ScoreboardlessFixtureSchema = 13;
+    constexpr uint32 DiagnosticslessFixtureSchema = 14;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -82,6 +83,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         if (Schema != NamelessFixtureSchema && Schema != VolumelessFixtureSchema && Schema != PanlessFixtureSchema
             && Schema != OrientationlessFixtureSchema && Schema != QuickCastlessFixtureSchema)
         { uint8 Quick = Values.bQuickCast ? 1 : 0; Payload << Quick; }
+        if (Schema > DiagnosticslessFixtureSchema)
+        { uint8 Network=Values.bShowNetworkDiagnostics?1:0, FPS=Values.bShowFPS?1:0; Payload << Network << FPS; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -1510,7 +1513,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 14);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 15);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1622,8 +1625,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 14"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 14);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 15"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 15);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom
@@ -1661,6 +1664,49 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
     const auto Retired = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("Schema 4 recovery also enforces its original zoom range"),
         Retired.Status == ELDLocalSettingsLoadStatus::UnsupportedSchema && !Retired.RecoverablePreferences);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalDiagnosticsTest,"Lockdown.Rules.LocalSettingsDiagnostics",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalDiagnosticsTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto* Applied=ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("Diagnostics are opt-in"),!Applied->bShowNetworkDiagnostics && !Applied->bShowFPS);
+    FString Error;
+    for (const bool Network : {true,false})
+    {
+        for (const bool FPS : {true,false})
+        {
+            auto* Draft=Applied->CreateDraft();
+            Draft->bShowNetworkDiagnostics=Network;
+            Draft->bShowFPS=FPS;
+            TestTrue(TEXT("Independent toggles apply through ordinary settings"),Applied->ApplyLocalSettings(*Draft,Error));
+            TestTrue(TEXT("Diagnostics persist with verified readback"),Applied->SaveLocalSettings().IsSaved());
+            const auto Loaded=ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+            TestTrue(TEXT("Both toggles survive restart independently"),Loaded.Status==ELDLocalSettingsLoadStatus::Loaded
+                && Loaded.Settings && Loaded.Settings->bShowNetworkDiagnostics==Network && Loaded.Settings->bShowFPS==FPS);
+        }
+    }
+    auto* Old=Applied->CreateDraft();
+    Old->Zoom=2250;
+    Old->PlayerName=TEXT("NetworkPlayer");
+    Old->bQuickCast=true;
+    TestTrue(TEXT("Write a schema 14 fixture"),FFileHelper::SaveArrayToFile(
+        FixtureBytes(*Old,DiagnosticslessFixtureSchema),*Fixture.Storage.Filename()));
+    TArray<uint8> Before,After;
+    FFileHelper::LoadFileToArray(Before,*Fixture.Storage.Filename());
+    const auto Migrated=ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Migration preserves preferences and defaults only the new toggles"),
+        Migrated.Status==ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings
+        && Migrated.Settings->Zoom==2250 && Migrated.Settings->PlayerName==Old->PlayerName && Migrated.Settings->bQuickCast
+        && !Migrated.Settings->bShowNetworkDiagnostics && !Migrated.Settings->bShowFPS && Migrated.Settings->IsDirty());
+    TestTrue(TEXT("Migration leaves the original bytes intact"),FFileHelper::LoadFileToArray(After,*Fixture.Storage.Filename()) && Before==After);
+    auto* Reset=Applied->CreateDraft();
+    Reset->bShowNetworkDiagnostics=Reset->bShowFPS=true;
+    Reset->ResetLocalDefaults();
+    TestTrue(TEXT("Restore defaults disables both overlays"),!Reset->bShowNetworkDiagnostics && !Reset->bShowFPS);
     return true;
 }
 #endif

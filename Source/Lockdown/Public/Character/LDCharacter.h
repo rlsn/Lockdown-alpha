@@ -18,9 +18,12 @@ public:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type Reason) override;
     virtual void Tick(float Delta) override;
+    virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
     bool ConfigureDemoMovement(const FLDDemoContentSnapshot& Content, FString& Error);
     void SetFacing(float Yaw);
     void Zoom(float Axis);
+    FVector PresentedLocation() const;
+    void UpdateOwnerPresentation(float DeltaSeconds);
     // The one zoom rule for the body's camera arm and for the dead owner's static-map camera.
     static float ZoomedArmLength(float ArmLength, float Axis);
     // World pose of a camera on this class's default arm (fixed angle and world offset) centred on Origin.

@@ -17,6 +17,14 @@ struct FLDDemoRankDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
+    struct LOCKDOWN_API FFrameDiagnostics
+    {
+        double FPS=0, FrameMs=0, PeakMs=0;
+        bool AddFrame(double Seconds);
+    private:
+        double Elapsed=0, Peak=0;
+        uint32 Frames=0;
+    };
     // Display text of an approved content definition from the DemoContent string table. False when the
     // definition, its display entry, the table or the key is missing: Out then holds the stable content id,
     // so the content error stays visible instead of a guessed name.

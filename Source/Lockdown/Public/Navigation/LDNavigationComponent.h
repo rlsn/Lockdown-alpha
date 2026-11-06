@@ -61,6 +61,8 @@ public:
     void Recenter(bool Held);
     void ToggleFollow();
     void PanTo(const FVector& Point);
+    // Called after movement/replay, immediately before the local camera is evaluated.
+    void UpdateLocalCamera(float Delta);
     bool bFollowCamera=true,bEdgePan=true;
     bool IsFollowing() const {return bFollowing;}
     bool HasMoveOrder() const {return bLocalActive;}
@@ -68,6 +70,7 @@ public:
     uint32 HeartbeatsSent() const {return HeartbeatSequence;}
     bool IsAuthorityActive() const {return ActiveOrder.IsSet();}
     FLDMoveIdentity LocalIdentity() const {return Local;}
+    FLDMoveIdentity PredictedIdentity() const {return !bLocalStop && ClientActive.Order!=0 ? ClientActive : Local;}
     // Latest owner receipt applied by the owning client (Serial 0 before the first one).
     const FLDOrderReceipt& LatestReceipt() const {return LastReceipt;}
     // Owning client: the shop of the current ApproachShop order, en route or arrived and awaiting the
@@ -198,7 +201,6 @@ private:
     bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus);
     void ApplyPrediction();
     void RefreshLocalActive();
-    void TickCamera(float Delta);
     void Face(const FVector& Direction);
     // ---- Authority order book (LDNavigationOrders.cpp).
     bool ResolveOwnerCaller(FLDOrderCaller& Out, ELDOrderFailure& Failure) const;

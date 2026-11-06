@@ -1,5 +1,6 @@
 [CmdletBinding()]
-param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120)
+param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(30,300)][int]$TimeoutSeconds=120,
+    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -24,6 +25,7 @@ function Start-CoreRole {
     New-Item -ItemType Directory -Path $user | Out-Null
     $portArgument = if ($Role -eq 'Host') { "-port=$port" } else { '' }
     $arguments = '-unattended -nop4 -nosound -nullrhi -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoCoreProbe -LDDemoCoreRole={2} -LDDemoCoreTimeout={3} -LDDemoCoreOutput="{4}" -abslog="{5}"' -f $portArgument,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($NetEmulation) { $arguments += " $NetEmulation" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 

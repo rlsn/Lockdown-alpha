@@ -160,6 +160,17 @@ namespace
                     && !FindButton(PC->ControlsUI, TEXT("KeepDisplayMode")), TEXT("Settings offer no window mode, resolution or display trial"));
                 Check(GEngine->GetGameUserSettings()->GetFullscreenMode() == EWindowMode::WindowedFullscreen && !Viewport->Viewport->IsFullscreen(),
                     TEXT("The game holds borderless; this fixture's -windowed launch only overrides its own window"));
+                Check(!PC->Controls->bShowNetworkDiagnostics && !PC->Controls->bShowFPS,TEXT("Diagnostics start disabled in a fresh user profile"));
+                if (!Click(PC->ControlsUI,TEXT("ToggleNetworkDiagnostics")) || !Click(PC->ControlsUI,TEXT("ToggleFPS")))
+                { return Finish(); }
+                Check(PC->Controls->bShowNetworkDiagnostics && PC->Controls->bShowFPS,TEXT("Both diagnostics toggles apply immediately"));
+                if (!Click(PC->ControlsUI,TEXT("ToggleFPS"))) { return Finish(); }
+                Check(PC->Controls->bShowNetworkDiagnostics && !PC->Controls->bShowFPS,TEXT("FPS can be hidden without disabling network diagnostics"));
+                if (!Click(PC->ControlsUI,TEXT("ToggleNetworkDiagnostics"))) { return Finish(); }
+                Check(!PC->Controls->bShowNetworkDiagnostics && !PC->Controls->bShowFPS,TEXT("Both diagnostics toggles can be turned off"));
+                if (!Click(PC->ControlsUI,TEXT("ToggleFPS"))) { return Finish(); }
+                Check(!PC->Controls->bShowNetworkDiagnostics && PC->Controls->bShowFPS,TEXT("FPS works without network diagnostics"));
+                if (!Click(PC->ControlsUI,TEXT("ToggleNetworkDiagnostics"))) { return Finish(); }
                 Capture(TEXT("Settings-100"));
             }
             else if (Stage == 3) { Reveal(FindButton(PC->ControlsUI, TEXT("ApplyTextScale"))); }
@@ -170,6 +181,8 @@ namespace
                 if (!Check(PC->Controls->TextScale == 1.25f && PC->Controls->GetPhase() == ELDLocalSettingsPhase::PersistenceVerified
                     && Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->TextScale == 1.25f,
                     TEXT("Actual local-preference Apply is persisted and verified from the isolated file"))) { return Finish(); }
+                Check(Loaded.Settings->bShowNetworkDiagnostics && Loaded.Settings->bShowFPS,
+                    TEXT("Both diagnostics choices survive another preference apply and disk readback"));
                 Capture(TEXT("Settings-125"));
             }
             else if (Stage == 6) { Reveal(FindButton(PC->ControlsUI, TEXT("VSyncDraft"))); }

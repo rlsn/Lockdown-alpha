@@ -4,9 +4,9 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
 #include "Styling/CoreStyle.h"
-UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size)
+UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FName Name)
 {
-    auto* W=Tree->ConstructWidget<UTextBlock>();W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
+    auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
     W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
 ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)

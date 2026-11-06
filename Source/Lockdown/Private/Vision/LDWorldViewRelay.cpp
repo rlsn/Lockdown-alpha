@@ -433,7 +433,9 @@ void ALDOwnBodyMarker::Track(APawn* Body, uint8 Slot)
     if (Tracked.Get() != Body)
     {
         const UCapsuleComponent* Capsule = Body->FindComponentByClass<UCapsuleComponent>();
-        AttachToActor(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+        const auto* Character=Cast<ALDCharacter>(Body);
+        AttachToComponent(Character ? Character->Body.Get() : Body->GetRootComponent(),
+            FAttachmentTransformRules::SnapToTargetNotIncludingScale);
         SetActorRelativeLocation(FVector(0, 0, -(Capsule ? Capsule->GetScaledCapsuleHalfHeight() : 90.0)));
         Tracked = Body;
     }
