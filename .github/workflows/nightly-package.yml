@@ -2,7 +2,7 @@
 # on and off by hand (Scripts/CIRunner.ps1). A run queued while the runner is off waits up to 24 hours.
 # The runner's job-started hook refuses every event except schedule and workflow_dispatch on this repository.
 #
-# Each run on main whose tip no vX.Y.Z tag contains yet:
+# Each run on main whose tip no vX.Y.Z tag releases yet (the tag's commit is the tip, or has it as parent):
 #   1. Scripts/CIReleaseVersion.py picks the version (patch after the latest tag, or an untagged newer ini version);
 #      when Config/DefaultGame.ini needs it, the version goes into a local commit on top of main's tip. That commit is
 #      never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its manifest and
@@ -52,9 +52,9 @@ jobs:
           # main's tip when the job starts, not the commit that queued it: a re-run, or a schedule that waited for the
           # runner, releases current main.
           ref: refs/heads/main
-          # Full history and tags: "released" asks whether a tag contains HEAD, and the last tag's commit sits on
-          # top of an older main commit.
-          fetch-depth: 0
+          # Depth 1, like the PR check's native job, which shares this workspace: fetch-depth 0 would unshallow the
+          # whole history on every run after a PR check, and that long transfer is what gets reset on this runner's
+          # link. CIReleaseVersion.py needs only the tag commits, not history.
           lfs: true
           # Keep ignored build output (Binaries, Intermediate) so the build is incremental.
           clean: false
@@ -64,15 +64,17 @@ jobs:
         env:
           FORCE: ${{ inputs.force || false }}
         run: |
-          # The workspace persists between runs: drop local tags that are gone from origin.
-          git fetch --force --prune --prune-tags --tags --quiet origin
+          # Only the tags, each at depth 1: in this shallow workspace a plain --tags fetch pulls every tag's history,
+          # and origin's default refspec adds every branch. --prune drops local tags that are gone from origin (the
+          # workspace persists between runs).
+          git fetch --force --prune --depth=1 --quiet origin '+refs/tags/*:refs/tags/*'
           if ($LASTEXITCODE -ne 0) { throw 'Fetching tags failed.' }
           $plan = @{}
           foreach ($line in (python -B ./Scripts/CIReleaseVersion.py plan)) { $key, $value = $line -split '=', 2; $plan[$key] = $value }
           if ($LASTEXITCODE -ne 0 -or -not $plan.version) { throw 'CIReleaseVersion.py plan failed.' }
           $skip = $plan.released -eq 'true' -and $env:FORCE -ne 'true'
           if ($skip) {
-            "main is still $(git rev-parse HEAD), already released in $((git tag --list 'v*' --contains HEAD) -join ', '). Nothing to do." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+            "main is still $(git rev-parse HEAD), already released in $($plan.released_by -replace ',', ', '). Nothing to do." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
           }
           "skip=$($skip.ToString().ToLower())" >> $env:GITHUB_OUTPUT
           "version=$($plan.version)" >> $env:GITHUB_OUTPUT
