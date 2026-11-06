@@ -1,20 +1,37 @@
-# Daily Win64 Development playtest package (#78). Runs only on the maintainer's self-hosted runner, which is
-# switched on and off by hand (Scripts/CIRunner.ps1). A run queued while the runner is off waits up to 24 hours.
+# Win64 Development playtest release (#78, #130). Runs only on the maintainer's self-hosted runner, which is switched
+# on and off by hand (Scripts/CIRunner.ps1). A run queued while the runner is off waits up to 24 hours.
 # The runner's job-started hook refuses every event except schedule and workflow_dispatch on this repository.
+#
+# Each run on main whose tip no vX.Y.Z tag contains yet:
+#   1. Scripts/CIReleaseVersion.py picks the version (patch after the latest tag, or an untagged newer ini version);
+#      when Config/DefaultGame.ini needs it, the version goes into a local commit on top of main's tip. That commit is
+#      never pushed to main (the main ruleset requires a PR); only its tag is pushed, so the package, its manifest and
+#      the tag agree while main's ini keeps the base version.
+#   2. Build, rule tests and package that commit.
+#   3. Push tag vX.Y.Z, publish Release vX.Y.Z with the zipped package, then delete all but the two newest vX.Y.Z
+#      Releases. Their tags stay: they hold the released commits and the version sequence.
+# With nothing new on main the run stops after checkout; a manual run with `force` releases the next patch anyway.
 name: Nightly playtest package
 
 on:
   schedule:
     - cron: '0 19 * * *' # 03:00 Asia/Shanghai
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Release the next patch even when main has no new commit since the last release'
+        type: boolean
+        default: false
 
 permissions:
-  contents: read
-  actions: read
+  contents: write
 
 concurrency:
   group: nightly-package
   cancel-in-progress: false
+
+env:
+  KEEP_RELEASES: 2
 
 jobs:
   package:
@@ -25,64 +42,97 @@ jobs:
       run:
         shell: pwsh
     steps:
-      - name: Skip a scheduled run when main is unchanged
-        id: gate
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $skip = 'false'
-          if ($env:GITHUB_EVENT_NAME -eq 'schedule') {
-            $uri = "$env:GITHUB_API_URL/repos/$env:GITHUB_REPOSITORY/actions/workflows/nightly-package.yml/runs?branch=main&status=success&per_page=1"
-            $last = (Invoke-RestMethod -Uri $uri -Headers @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = 'application/vnd.github+json' }).workflow_runs
-            if ($last -and $last[0].head_sha -eq $env:GITHUB_SHA) {
-              $skip = 'true'
-              "main is still $env:GITHUB_SHA, already packaged by $($last[0].html_url). Nothing to do." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
-            }
-          }
-          "skip=$skip" >> $env:GITHUB_OUTPUT
+      - name: Require main
+        if: github.ref != 'refs/heads/main'
+        run: throw "Playtest releases are cut from main only; this run is on $env:GITHUB_REF."
 
       - name: Check out
-        if: steps.gate.outputs.skip != 'true'
         uses: actions/checkout@v7
         with:
+          # main's tip when the job starts, not the commit that queued it: a re-run, or a schedule that waited for the
+          # runner, releases current main.
+          ref: refs/heads/main
+          # Full history and tags: "released" asks whether a tag contains HEAD, and the last tag's commit sits on
+          # top of an older main commit.
+          fetch-depth: 0
           lfs: true
-          # Keep ignored build output (Binaries, Intermediate) so the nightly build is incremental.
+          # Keep ignored build output (Binaries, Intermediate) so the build is incremental.
           clean: false
 
+      - name: Choose version
+        id: version
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          # The workspace persists between runs: drop local tags that are gone from origin.
+          git fetch --force --prune --prune-tags --tags --quiet origin
+          if ($LASTEXITCODE -ne 0) { throw 'Fetching tags failed.' }
+          $plan = @{}
+          foreach ($line in (python -B ./Scripts/CIReleaseVersion.py plan)) { $key, $value = $line -split '=', 2; $plan[$key] = $value }
+          if ($LASTEXITCODE -ne 0 -or -not $plan.version) { throw 'CIReleaseVersion.py plan failed.' }
+          $skip = $plan.released -eq 'true' -and $env:FORCE -ne 'true'
+          if ($skip) {
+            "main is still $(git rev-parse HEAD), already released in $((git tag --list 'v*' --contains HEAD) -join ', '). Nothing to do." | Tee-Object -FilePath $env:GITHUB_STEP_SUMMARY -Append
+          }
+          "skip=$($skip.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          "version=$($plan.version)" >> $env:GITHUB_OUTPUT
+          "bump=$($plan.bump)" >> $env:GITHUB_OUTPUT
+
       - name: Reset workspace
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
         run: ./Scripts/CIResetWorkspace.ps1
 
+      - name: Commit version
+        if: steps.version.outputs.skip != 'true' && steps.version.outputs.bump == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Detach so the runner's local main stays equal to origin/main; only the release tag will carry this commit.
+          git switch --detach --quiet
+          if ($LASTEXITCODE -ne 0) { throw 'Detaching HEAD failed.' }
+          python -B ./Scripts/CIReleaseVersion.py apply --version $env:VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'CIReleaseVersion.py apply failed.' }
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit --quiet -m "chore: release version $env:VERSION" -- Config/DefaultGame.ini
+          if ($LASTEXITCODE -ne 0) { throw 'Committing the version failed.' }
+          "Version commit $(git rev-parse --short HEAD) sets ProjectVersion=$env:VERSION on top of main $(git rev-parse --short HEAD~1); only tag v$env:VERSION will point at it." >> $env:GITHUB_STEP_SUMMARY
+
       - name: Preflight
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
         run: ./Scripts/Preflight.ps1
 
       - name: Build editor
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
         run: ./Scripts/BuildEditor.ps1
 
       - name: Rule tests
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
         run: ./Scripts/RunTests.ps1
 
       - name: Package Win64
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
         run: ./Scripts/PackageWin64.ps1
 
-      - name: Add launch notes
+      - name: Add launch notes and zip
         id: notes
-        if: steps.gate.outputs.skip != 'true'
+        if: steps.version.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           $output = @(Get-ChildItem Artifacts -Directory -Filter '*-PackageWin64' | Sort-Object Name)[-1]
           if (-not $output) { throw 'PackageWin64 produced no output directory.' }
           $manifest = Get-Content (Join-Path $output.FullName 'PackageManifest.json') -Raw | ConvertFrom-Json
-          if ($manifest.sourceRevision -ne $env:GITHUB_SHA) { throw "Package manifest revision $($manifest.sourceRevision) is not $env:GITHUB_SHA." }
-          $short = $env:GITHUB_SHA.Substring(0, 7)
+          $head = git rev-parse HEAD
+          if ($manifest.sourceRevision -ne $head) { throw "Package manifest revision $($manifest.sourceRevision) is not $head." }
+          if ($manifest.sourceDirty) { throw 'The package was built from a dirty workspace.' }
+          if ($manifest.productVersion -ne $env:VERSION) { throw "Package version $($manifest.productVersion) is not $env:VERSION." }
+          $short = $head.Substring(0, 7)
           $date = (Get-Date).ToUniversalTime().ToString('yyyyMMdd')
           $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+          $notes = Join-Path $output.FullName 'README.txt'
           @(
-            "Lockdown 试玩包 $($manifest.productVersion) · $short · $date (UTC)"
+            "Lockdown 试玩包 $env:VERSION · $short · $date (UTC)"
             "Win64 Development 构建，由每日打包工作流生成：$runUrl"
+            '所有玩家需使用同一版本的包，版本不同无法加入房间。'
             ''
             '启动'
             '1. 解压整个压缩包，不要只拷出 exe。'
@@ -99,18 +149,68 @@ jobs:
             '说明'
             '- 本包在规则测试（RunTests.ps1）通过后打包；未在此包上运行任何 RunDemo*Check 场景。'
             '- 打包成功不代表 Demo 验收通过，验收状态见 docs/demo/READINESS.md。'
-          ) | Set-Content -LiteralPath (Join-Path $output.FullName 'README.txt') -Encoding utf8
-          "path=$($output.FullName)" >> $env:GITHUB_OUTPUT
-          "name=Lockdown-playtest-$date-$short" >> $env:GITHUB_OUTPUT
-          "Packaged $($manifest.productVersion) at ``$short``. Download **Lockdown-playtest-$date-$short** from this run's artifacts (kept 7 days)." >> $env:GITHUB_STEP_SUMMARY
+          ) | Set-Content -LiteralPath $notes -Encoding utf8
+          $zip = Join-Path (Resolve-Path Artifacts) "Lockdown-v$env:VERSION-win64.zip"
+          $entries = @(Get-ChildItem -LiteralPath $output.FullName -Name)
+          & "$env:SystemRoot\System32\tar.exe" -a -c -f $zip -C $output.FullName @entries
+          if ($LASTEXITCODE -ne 0) { throw "Zipping the package failed: $zip" }
+          "notes=$notes" >> $env:GITHUB_OUTPUT
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "sha=$head" >> $env:GITHUB_OUTPUT
 
-      - name: Upload playtest package
-        if: steps.gate.outputs.skip != 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: ${{ steps.notes.outputs.name }}
-          path: ${{ steps.notes.outputs.path }}
-          retention-days: 7
-          # Paks are already compressed.
-          compression-level: 1
-          if-no-files-found: error
+      - name: Publish release
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ steps.version.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.notes }}
+          ZIP: ${{ steps.notes.outputs.zip }}
+          SHA: ${{ steps.notes.outputs.sha }}
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) { throw 'GitHub CLI (gh) is not on the runner PATH.' }
+          $tag = "v$env:VERSION"
+          # A failed upload can leave a draft; clear it first.
+          $existing = gh release view $tag --json isDraft 2>$null | ConvertFrom-Json
+          if ($existing) {
+            if (-not $existing.isDraft) { throw "Release $tag is already published." }
+            gh release delete $tag --yes
+            if ($LASTEXITCODE -ne 0) { throw "Deleting the leftover draft $tag failed." }
+          }
+          # The version commit reaches origin only through this tag. Tags are outside the main ruleset.
+          git tag $tag $env:SHA
+          if ($LASTEXITCODE -ne 0) { throw "Creating tag $tag failed." }
+          git push --quiet origin "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) {
+            git tag -d $tag
+            throw "Pushing tag $tag failed (does origin already have it?)."
+          }
+          gh release create $tag $env:ZIP --verify-tag --title "Lockdown $env:VERSION" --notes-file $env:NOTES --latest
+          if ($LASTEXITCODE -ne 0) {
+            # A tag without its Release would mark this main commit as released and skip the next run; take it back.
+            gh release delete $tag --yes 2>$null
+            git push --quiet origin --delete "refs/tags/$tag"
+            $removed = $LASTEXITCODE -eq 0
+            git tag -d $tag
+            if (-not $removed) { throw "Publishing release $tag failed, and deleting tag $tag from origin failed too; delete it by hand before re-running." }
+            throw "Publishing release $tag failed; tag $tag was removed again, so a re-run publishes it."
+          }
+          $url = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/releases/tag/$tag"
+          "Released **$tag** at ``$($env:SHA.Substring(0, 7))``: $url" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Keep the newest releases
+        if: steps.version.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $releases = @(gh release list --limit 100 --exclude-drafts --json tagName | ConvertFrom-Json |
+            Where-Object { $_.tagName -match '^v\d+\.\d+\.\d+$' } |
+            Sort-Object { [version]$_.tagName.Substring(1) } -Descending)
+          if ($LASTEXITCODE -ne 0) { throw 'Listing releases failed.' }
+          foreach ($old in ($releases | Select-Object -Skip ([int]$env:KEEP_RELEASES))) {
+            # Without --cleanup-tag the tag stays.
+            gh release delete $old.tagName --yes
+            if ($LASTEXITCODE -ne 0) { throw "Deleting old release $($old.tagName) failed." }
+            "Deleted old release $($old.tagName) (tag kept)." >> $env:GITHUB_STEP_SUMMARY
+          }

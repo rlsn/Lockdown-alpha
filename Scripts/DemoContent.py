@@ -88,7 +88,12 @@ class ContentError(ValueError):
     def __init__(self, code, path, detail):
         self.code = code
         self.path = str(path)
+        self.detail = detail
         super().__init__(f"{code}: {path}: {detail}")
+
+    def __reduce__(self):
+        # Keeps the error intact when it crosses a process boundary (parallel fixture export).
+        return type(self), (self.code, self.path, self.detail)
 
 
 def require(condition, code, path, detail):

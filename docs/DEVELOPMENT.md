@@ -304,15 +304,27 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
   （及其在 `Scripts` 内的全部 import）时需要原生门槛；只改其他 `Scripts/*.py` 或工作流时不需要。
 - `python`（GitHub 托管 Windows，每个 PR 都跑）：`Scripts/RunPythonTests.py` 以最多 4 个进程并行执行
   `Scripts` 下的 Python 测试（与 `unittest discover` 同一组测试和通过规则，带类级夹具的测试类整体留在一个进程里）。
+  工作进程不是守护进程，测试可以再开进程：`ExportDemoNativeFixtures.py` 默认按 CPU 数并行编译夹具用例
+  （`--jobs` 可调，输出字节与串行一致），`RunTests.ps1` 也走同一导出。
   不需要 Unreal 与 LFS 内容；本地也可直接运行 `python -B .\Scripts\RunPythonTests.py`。
 - `native`（维护者本机的自托管 runner，仅在需要原生门槛且分支在本仓库内时）：增量 `BuildEditor.ps1` 与
   `RunTests.ps1`，失败时上传 Artifacts 证据。runner 关闭时它在 GitHub 上排队；fork PR 不在这台 runner 上运行。
 它覆盖每个 PR 的最低门槛，不代替改到场景时应跑的 `RunDemo*Check`。
 
-`.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行。
-它只在维护者本机的自托管 runner（标签 `lockdown-ue58`）上执行：
-增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，然后上传 Archive、manifest、
-`Package.log` 与 `README.txt` 启动说明，Artifact 保留 7 天。定时运行时，若 `main` 与上次成功打包相同则跳过。
+`.github/workflows/nightly-package.yml` 每天 03:00（北京时间）排队一次，也可在 Actions 页手动运行（只能选 `main`）。
+它只在维护者本机的自托管 runner（标签 `lockdown-ue58`）上执行，每次运行发布一个试玩版本，
+检出的是任务开始时 `main` 的最新提交（不是排队时的提交）：
+- `main` 上没有新提交（已有 `vX.Y.Z` tag 包含 HEAD）时直接跳过；手动运行勾选 `force` 时仍发布下一个 patch。
+- `Scripts/CIReleaseVersion.py` 选版本：`Config/DefaultGame.ini` 的 `ProjectVersion` 还没有 tag 且比最新 tag 新时
+  直接使用（有人经 PR 改到新的 minor/major）；否则取两者较新者的 patch+1。
+  需要改 ini 时，工作流在 `main` 最新提交之上本地提交 `chore: release version X`，打包这个提交。
+  它不推送到 `main`（`main` ruleset 要求 PR，个人仓库也无法把 GitHub Actions 加入 bypass），
+  只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
+- 增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
+  把 Archive、manifest、`Package.log` 与 `README.txt` 启动说明打成 `Lockdown-vX-win64.zip`，
+  推送 tag `vX` 并发布为 Release `vX`；发布失败时撤回刚推送的 tag，重跑会再次发布。
+  随后只保留最新两个 `vX.Y.Z` Release，更早的删除但保留 tag：tag 保存已发布的提交，也是下一个版本号的依据。
+- 产品版本参与加入房间的校验，试玩时所有玩家需使用同一个 Release。
 该包不跑任何 `RunDemo*Check` 场景，不能代替里程碑验收。
 
 runner 不装成服务，只在手动打开期间接任务；关闭期间排队的运行在 GitHub 上最多等待 24 小时。

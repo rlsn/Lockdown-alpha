@@ -7,7 +7,7 @@ not run fails the whole run.
 """
 
 import argparse
-import multiprocessing
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import os
 import sys
 import time
@@ -82,8 +82,10 @@ def main() -> int:
     ran = skipped = 0
     problems = []
     slow = []
-    with multiprocessing.Pool(args.jobs, initializer=init_worker) as pool:
-        for outcome in pool.imap_unordered(run_unit, units):
+    # ProcessPoolExecutor workers are not daemonic, so a test may start its own worker processes (fixture export).
+    with ProcessPoolExecutor(args.jobs, initializer=init_worker) as pool:
+        for future in as_completed([pool.submit(run_unit, unit) for unit in units]):
+            outcome = future.result()
             ran += outcome['ran']
             skipped += outcome['skipped']
             problems += outcome['problems']

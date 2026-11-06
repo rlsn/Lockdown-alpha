@@ -1,12 +1,22 @@
 """Test-only export consistency; these checks do not substitute for UE automation."""
+from concurrent.futures import ProcessPoolExecutor
 import json
 from pathlib import Path
+import pickle
 import re
 import tempfile
 import unittest
 
 import DemoContent as demo
 import ExportDemoNativeFixtures as native
+
+
+def _compile_valid_case(root):
+    """Recompile one exported case with the compiler; its written outputs must be exactly the compiler's."""
+    root = Path(root)
+    compilation = demo.compile_content(root)
+    demo.check_outputs(root, compilation.outputs)
+    return compilation.digest.hex(), demo.verify_runtime_files(root, compilation.digest) == compilation.digest
 
 
 class DemoNativeFixturesTest(unittest.TestCase):
@@ -20,13 +30,13 @@ class DemoNativeFixturesTest(unittest.TestCase):
         cls.index = native.export(cls.root)
 
     def test_valid_outputs_use_the_existing_compiler_contract(self):
-        for case in self.index["valid"]:
+        cases = self.index["valid"]
+        with ProcessPoolExecutor(min(len(cases), native.default_jobs())) as pool:
+            results = list(pool.map(_compile_valid_case, [str(self.root / case["name"]) for case in cases]))
+        for case, (digest, runtime_matches) in zip(cases, results):
             with self.subTest(case=case["name"]):
-                root = self.root / case["name"]
-                compilation = demo.compile_content(root)
-                demo.check_outputs(root, compilation.outputs)
-                self.assertEqual(compilation.digest.hex(), case["catalog_sha256"])
-                self.assertEqual(demo.verify_runtime_files(root, compilation.digest), compilation.digest)
+                self.assertEqual(digest, case["catalog_sha256"])
+                self.assertTrue(runtime_matches)
 
     def test_approved_base_is_distinct_and_byte_identical_to_approved_inputs(self):
         root = self.root / "approved_base"
@@ -181,6 +191,31 @@ class DemoNativeFixturesTest(unittest.TestCase):
             native.export(demo.ROOT / "SourceData" / "Demo" / "never-a-fixture-directory")
         self.assertEqual((self.root / "base" / demo.CONTENT_OUTPUT).read_bytes(), baseline)
         self.assertFalse((demo.ROOT / "SourceData" / "Demo" / "never-a-fixture-directory").exists())
+
+
+class DemoNativeFixtureParallelismTest(unittest.TestCase):
+    def test_parallel_export_writes_the_same_bytes_as_inline_export(self):
+        artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
+        artifacts.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="export-jobs-test-", dir=artifacts) as temp:
+            trees = {}
+            for jobs in (1, 3):
+                root = Path(temp) / f"jobs-{jobs}"
+                native.export(root, rank_mutations=False, jobs=jobs)
+                trees[jobs] = {path.relative_to(root).as_posix(): path.read_bytes() for path in root.rglob("*") if path.is_file()}
+            self.assertGreater(len(trees[1]), 100)
+            self.assertEqual(trees[1], trees[3])
+
+    def test_export_refuses_a_non_positive_job_count(self):
+        with self.assertRaises(demo.ContentError):
+            native.export(demo.ROOT / "Artifacts" / "never-exported-jobs-0", jobs=0)
+        self.assertFalse((demo.ROOT / "Artifacts" / "never-exported-jobs-0").exists())
+
+    def test_content_errors_cross_process_boundaries_intact(self):
+        error = pickle.loads(pickle.dumps(demo.ContentError("Code", Path("a", "b"), "detail")))
+        self.assertIs(type(error), demo.ContentError)
+        self.assertEqual((error.code, error.path, error.detail, str(error)),
+                         ("Code", str(Path("a", "b")), "detail", f"Code: {Path('a', 'b')}: detail"))
 
 
 if __name__ == "__main__":
