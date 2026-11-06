@@ -7,6 +7,20 @@
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 
+bool LDHUD::FFrameDiagnostics::AddFrame(double Seconds)
+{
+    if (!FMath::IsFinite(Seconds) || Seconds<=0) { return false; }
+    Elapsed+=Seconds;
+    Peak=FMath::Max(Peak,Seconds);
+    ++Frames;
+    if (Elapsed<.5) { return false; }
+    FPS=Frames/Elapsed;
+    FrameMs=1000*Elapsed/Frames;
+    PeakMs=1000*Peak;
+    Elapsed=Peak=0;
+    Frames=0;
+    return true;
+}
 namespace
 {
 // A missing display text is a content error; report each id once instead of every frame.

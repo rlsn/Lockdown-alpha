@@ -187,6 +187,16 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
     SetInputMode(Mode);
 }
 
+void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
+{
+    if (GetLocalPlayer())
+    {
+        if (auto* Active=Cast<ALDCharacter>(GetPawn())) { Active->UpdateOwnerPresentation(DeltaSeconds); }
+        Navigation->UpdateLocalCamera(DeltaSeconds);
+    }
+    Super::UpdateCameraManager(DeltaSeconds);
+}
+
 void ALDPlayerController::PlayerTick(float Delta)
 {
     Super::PlayerTick(Delta);

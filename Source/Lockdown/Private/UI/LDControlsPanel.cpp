@@ -81,7 +81,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("设置"),24));
         Main->AddChildToVerticalBox(LDWidgets::Text(WidgetTree,TEXT("对局不会暂停。按键、镜头、文字、小地图与音量改动确认后立即应用；垂直同步与画质改动需要“应用显示草稿”。游戏始终以无边框全屏运行。")))->SetPadding(FMargin(0,8));
         Feedback=LDWidgets::Text(WidgetTree,TEXT("选择一项按键后按下新键即可应用。Esc 取消。"));Main->AddChildToVerticalBox(Feedback);
-        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（垂直同步、整体画质）、音量、按键、镜头/文字（含镜头平移速度与小地图朝向）。名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
+        ResetRows=ChildRows(TEXT("恢复默认值？将恢复：显示/画质（垂直同步、整体画质）、网络诊断与 FPS 开关、音量、按键、镜头/文字（含镜头平移速度与小地图朝向）。名称与本局进度不变。"));Main->AddChildToVerticalBox(ResetRows);
         Choice(ResetRows,TEXT("确认恢复默认"),TEXT("ConfirmLocalReset"),[this](){ConfirmResetDefaults();});
         Choice(ResetRows,TEXT("保持当前设置"),TEXT("KeepLocalPreferences"),[this](){ShowChild(EChildConfirmation::None);});
         RecoveryRows=ChildRows(TEXT("用当前已应用的名称、按键、镜头、文字、小地图与音量偏好替换无法读取或不兼容的设置文件？确认前旧文件保持不变。"));Main->AddChildToVerticalBox(RecoveryRows);
@@ -106,6 +106,11 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         {DisplayDraft.Quality.SetFromSingleQualityLevel((DisplayDraft.Quality.GetSingleQualityLevel()+1)%5);EditDisplayDraft();});
         DisplayRow(TEXT("ApplyDisplayDraft"),[this](){ApplyDisplay();});
         DisplayRow(TEXT("RetryDisplaySave"),[this](){if(auto* Owner=SettingsInstance.Get()){DisplayFeedback->SetText(FText::FromString(Owner->RetryDisplaySave().Message));PopulateDisplay();}});
+        auto* Diagnostics=WidgetTree->ConstructWidget<UWrapBox>();Diagnostics->SetInnerSlotPadding(FVector2D(8));Content->AddChildToVerticalBox(Diagnostics);
+        Diagnostics->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT(""),[this]()
+        {ChangePreference([](auto& S){S.bShowNetworkDiagnostics=!S.bShowNetworkDiagnostics;});},false,TEXT("ToggleNetworkDiagnostics")));
+        Diagnostics->AddChildToWrapBox(LDWidgets::Button(WidgetTree,TEXT(""),[this]()
+        {ChangePreference([](auto& S){S.bShowFPS=!S.bShowFPS;});},false,TEXT("ToggleFPS")));
         Section(Content,TEXT("音量"));
         VolumeLabel=LDWidgets::Text(WidgetTree,TEXT("主音量 100%"));Content->AddChildToVerticalBox(VolumeLabel);
         VolumeSlider=WidgetTree->ConstructWidget<USlider>(USlider::StaticClass(),TEXT("MasterVolume"));
@@ -169,6 +174,8 @@ void ULDControlsPanel::PopulatePreferences()
 {
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;const int32 Volume=FMath::RoundToInt(100*Applied.MasterVolume);
     const float Pan=Applied.GetCameraPanCmPerSec();
+    ControlsSetButton(WidgetTree,TEXT("ToggleNetworkDiagnostics"),FString(TEXT("网络诊断："))+ControlsOnOff(Applied.bShowNetworkDiagnostics),true);
+    ControlsSetButton(WidgetTree,TEXT("ToggleFPS"),FString(TEXT("FPS 显示："))+ControlsOnOff(Applied.bShowFPS),true);
     const ELDMinimapOrientation Orientation=Applied.GetMinimapOrientation();const FString OrientationName=ULDControlSettings::MinimapOrientationLabel(Orientation);
     Preferences->SetText(FText::FromString(FString::Printf(TEXT("已应用：快速施法 %s · 边缘平移 %s · 开局镜头跟随 %s · 镜头平移速度 %.0f cm/s · 小地图朝向 %s · 文字 %.0f%% · 镜头距离 %.0f 厘米 · 主音量 %d%%%s"),ControlsOnOff(Applied.bQuickCast),ControlsOnOff(Applied.bEdgePan),ControlsOnOff(Applied.bStartFollowing),Pan,*OrientationName,100*Applied.TextScale,Applied.Zoom,Volume,Applied.IsDirty()?TEXT(" · 尚未保存"):TEXT(""))));
     VolumeLabel->SetText(FText::FromString(FString::Printf(TEXT("主音量 %d%%"),Volume)));

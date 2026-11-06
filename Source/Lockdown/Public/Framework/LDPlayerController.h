@@ -20,6 +20,7 @@ public:
     virtual void BeginPlay() override;
     virtual void SetupInputComponent() override;
     virtual void PlayerTick(float Delta) override;
+    virtual void UpdateCameraManager(float DeltaSeconds) override;
     virtual void FlushPressedKeys() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
     void SetMenuOpen(bool bOpen);

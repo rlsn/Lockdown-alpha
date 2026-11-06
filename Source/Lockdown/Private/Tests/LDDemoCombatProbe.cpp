@@ -14,6 +14,7 @@
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
+#include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Navigation/LDPathSteering.h"
@@ -24,7 +25,10 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
+#include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/TextBlock.h"
 #include "Camera/CameraActor.h"
 #include "Components/CapsuleComponent.h"
 #include "Containers/Ticker.h"
@@ -210,6 +214,7 @@ public:
     FVector SettingsFrom = FVector::ZeroVector;
     uint32 SettingsHeartbeats = 0, SettingsCombatReceipts = 0;
     double SettingsAt = 0;
+    FGuid DiagnosticsFixture=FGuid::NewGuid();
     // Client1: the attack-move, its stop and the spent protection.
     FLDMoveIdentity AttackMoveOrder, StopOrder;
     int64 HostHpAtOrder = 0, ProtectedUntilSeenMs = 0;
@@ -873,11 +878,24 @@ public:
             SettingsFrom = Body.GetNavAgentLocation();
             SettingsHeartbeats = Nav.HeartbeatsSent();
             SettingsCombatReceipts = PC.CombatReceipts.Serial();
+            PC.Controls=CastChecked<ULDGameInstance>(PC.GetGameInstance())->UseIsolatedLocalSettings(DiagnosticsFixture);
             // The entry the HUD and menu 设置 buttons use.
             PC.RootUI->ToggleMainPanel(ELDUIMainPanel::Settings);
             Check(PC.ControlsUI && PC.ControlsUI->IsOpen() && PC.IsWorldLifeValid() && PC.IsWorldInputSuppressed()
                 && !PC.CanWorldCommand(), TEXT("Settings"),
                 TEXT("Settings opens over the accepted walk: the life stays valid and only new world commands are suppressed"));
+            for (const FName Name : {FName(TEXT("ToggleNetworkDiagnostics")),FName(TEXT("ToggleFPS"))})
+            {
+                auto* Button=PC.ControlsUI->WidgetTree->FindWidget<UButton>(Name);
+                if (!Check(Button && Button->GetIsEnabled(),TEXT("Settings"),TEXT("The production diagnostics toggle is available"),Name.ToString()))
+                { return Finish(); }
+                Button->OnClicked.Broadcast();
+            }
+            const auto Loaded=ULDControlSettings::LoadLocalSettings(FLDLocalSettingsStorage::Automation(DiagnosticsFixture));
+            Check(PC.Controls->bShowNetworkDiagnostics && PC.Controls->bShowFPS
+                && Loaded.Settings && Loaded.Status==ELDLocalSettingsLoadStatus::Loaded
+                && Loaded.Settings->bShowNetworkDiagnostics && Loaded.Settings->bShowFPS,
+                TEXT("Settings"),TEXT("Both real diagnostic buttons apply and persist independently of the display draft"));
             // A ground order and S from under Settings stay local: neither replaces nor stops the walk.
             Nav.Navigate(SettingsFrom);
             PC.StopCombatAndOrders();
@@ -896,6 +914,15 @@ public:
                     int32(bOpen), int32(Latest.Status), int32(Latest.Failure), *Nav.Status));
             }
             if (Now - SettingsAt < LDDemoCombatScenario::CombatProbeSettingsSeconds) { return true; }
+            if (!FParse::Param(FCommandLine::Get(),TEXT("nullrhi")))
+            {
+                const auto* Diagnostics=PC.HUDUI && PC.HUDUI->WidgetTree
+                    ? PC.HUDUI->WidgetTree->FindWidget<UTextBlock>(TEXT("NetworkDiagnosticsText")) : nullptr;
+                const FString Metrics=Diagnostics ? Diagnostics->GetText().ToString() : FString();
+                Check(Diagnostics && Metrics.Contains(TEXT("FPS ")) && Metrics.Contains(TEXT("RTT "))
+                    && Metrics.Contains(TEXT("ms")) && Metrics.Contains(TEXT("%")),
+                    TEXT("Settings"),TEXT("A real owning connection renders FPS, RTT, jitter and packet loss while walking"),Metrics);
+            }
             const double Speed = LDDemoCombatScenario::CombatProbeRational(Catalog->Get().Parameters.MoveSpeedCmPerSec.Base);
             const uint32 Beats = Nav.HeartbeatsSent() - SettingsHeartbeats;
             const double Moved = FVector::Dist2D(Body.GetNavAgentLocation(), SettingsFrom);

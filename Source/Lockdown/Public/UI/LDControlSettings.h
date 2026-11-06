@@ -115,7 +115,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 14;
+    static constexpr int32 CurrentSchema = 15;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -138,6 +138,8 @@ public:
     // Quick cast (off by default, CONTROLS 3): Combat casts a unit skill at the pointed visible unit and a direction skill
     // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
     UPROPERTY(SaveGame) bool bQuickCast=false;
+    UPROPERTY(SaveGame) bool bShowNetworkDiagnostics=false;
+    UPROPERTY(SaveGame) bool bShowFPS=false;
     // The single Demo action registry; every binding, label and saved file uses it.
     static const TArray<FLDControlBinding>& Definitions();
     static FLDLocalSettingsLoadResult LoadLocalSettings(const FLDLocalSettingsStorage& Storage);
