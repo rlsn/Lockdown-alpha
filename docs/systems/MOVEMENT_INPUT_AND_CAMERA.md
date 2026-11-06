@@ -245,12 +245,14 @@ schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关�
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。
 `CameraPanCmPerSec` 是键盘/边缘平移的镜头速度（cm/s），默认 1800，合法域 900..3600（只作用镜头，
-不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页以 300 cm/s 步进经
-`SetAppliedCameraPanSpeed` 应用，导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
+不影响视野、世界距离或角色速度）；越界或非有限值使文件按 `Corrupt` 处理。设置页“镜头”分类以 300 cm/s 步进，
+经草稿与 `ULDGameInstance::ApplyLocalSettings` 应用并保存（`SetAppliedCameraPanSpeed` 供直接改写已应用对象的调用方），
+导航经 `GetCameraPanCmPerSec()` 读取已应用值，恢复默认还原为 1800。
 `MinimapOrientation` 是小地图朝向（0 跟随镜头、1 跟随角色朝向、2 固定正北），默认跟随镜头（用户决定）；
-越界值使文件按 `Corrupt` 处理。设置页“小地图朝向”的三个按钮经 `SetAppliedMinimapOrientation` 应用，恢复默认还原为跟随镜头。
-设置页的“恢复默认”先列出全部范围（显示/画质、音量、按键、镜头/文字；名称与本局进度不变）再确认：
-本地偏好先还原并保存，显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
+越界值使文件按 `Corrupt` 处理。设置页“界面”分类的三选一同样经草稿应用，恢复默认还原为跟随镜头。
+设置页按分类“恢复本页默认”（UI_AND_SETTINGS §8）：确认卡先列出本页将恢复的默认值（其他页、名称与本局进度不变），确认后
+音频/操作/镜头/界面经 `ResetPreferenceGroup` 只还原对应偏好组并立即应用、保存，四组合起来正好是 `ResetLocalDefaults`；
+画面页的显示/画质取产品默认（临时 `UGameUserSettings::SetToDefaults`，不是 `ResetToCurrentSettings`），
 VSync 与画质随该次显示应用生效并保存；与当前显示相同时不应用。
 默认画质的渲染比例 `ResolutionQuality` 为 0（沿用项目的 `r.ScreenPercentage`），引擎对 0 不做任何事；
 `ULDGameInstance` 每次应用画质后经 `LDLocalSettings::ApplyRenderScale` 撤销 Scalability 优先级的旧比例，渲染比例立即回到项目默认，无需重启。
@@ -299,8 +301,9 @@ schema 4 是已退役的多注册表格式：读取时只校验完整性并列�
 仍作用于这次请求，只给自动化场景和同机多开使用，存档中保持无边框。`DefaultInput.ini` 关闭 Alt+Enter/F11 切换全屏。
 设置页没有窗口模式、分辨率或保留/回滚试用。
 
-`LDControlsPanel` 的显示草稿只有 VSync 与整体画质，草稿不写配置；“应用显示草稿”经
-`ApplyDisplaySettings` 立即应用并保存。`SaveSettings` 的 void 返回不代表成功，
+`LDControlsPanel` 的显示草稿只有 VSync 与整体画质（设置页“画面”分类），草稿不写配置；草稿与已核验的生效值不同时才算未应用
+（应用失败后设置字段里的请求值不算生效值，直到再次应用或重试保存成功，见 UI_AND_SETTINGS §8），
+画面页底部的应用栏列出未应用项，“应用”经 `ApplyDisplaySettings` 立即应用并保存，“撤销更改”丢弃草稿。`SaveSettings` 的 void 返回不代表成功，
 核验从实际配置文件读入新的 `FConfigFile`，不从 GConfig 缓存读取；
 UE 5.8 的 `GGameUserSettingsIni` 等常量是缓存标识，不保证是物理路径。
 `ResolveConfigDestination` 从当前 `FConfigBranch::IniPath` 取得真实目标，缺失即失败；
@@ -309,16 +312,18 @@ Editor 的独立质量配置必须在原生保存阶段显式 flush 后核对；
 `Scalability::SaveState` 仅暂存该文件，不能依赖 `SaveSettings` 对另一个目标的 flush。
 已有 `NoSave` 禁令不被解除，失败保留 dirty 与重试入口。
 VSync/画质应用失败与持久化未核验分开反馈。被拒绝的同一份草稿不能再次应用，直到玩家修改草稿；
-提示同时说明可以返回并放弃草稿，不让玩家反复重试同一个失败。
+提示同时说明可以撤销更改，不让玩家反复重试同一个失败。
 
 Esc、强制关页、Widget 销毁、网络失败、旅行和退出前保存已确认的本地值，显示 dirty 时重试显示保存。
 `ForceClose` 用于终局或面板切换，普通 `Close` 处理当前捕获及未应用显示草稿：
-有未应用草稿时第一次返回显示“应用显示并返回 / 放弃显示草稿并返回 / 继续编辑”，
-确认行显示时再按“返回”或 Esc 即放弃草稿并返回（#99），不会在提示的显示与隐藏之间循环。
-“应用显示并返回”失败时留在确认行并写明失败原因，默认焦点移到“放弃显示草稿并返回”。
+有未应用草稿时第一次返回切到画面页，确认卡显示“应用并返回 / 放弃更改并返回 / 继续编辑”，
+确认卡显示时再按“返回”或 Esc 即放弃草稿并返回（#99），不会在提示的显示与隐藏之间循环。
+“应用并返回”失败时留在确认卡并写明失败原因，默认焦点移到“放弃更改并返回”。
 `Close`/`ClosePanel` 只在面板真正关闭时返回 true；供 Root 路由 Back 的 `HasChildConfirmation`/`CloseChildConfirmation`
-先结束按键捕获；未应用草稿确认行与“放弃显示草稿并返回”相同，其他确认按“保持不变”关闭，不应用也不丢弃任何值。
-设置页的交互控件只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案。
+先结束按键捕获；未应用草稿确认卡与“放弃更改并返回”相同，其他确认按“保持不变”关闭，不应用也不丢弃任何值。
+按键捕获在该绑定行内进行，被拒的键在行内说明且捕获继续，Esc 只结束捕获；切换分类页签（含捕获中直接点页签）也按“保持不变”结束捕获与确认。
+设置页的交互控件（含页签 `Tab*`、每个动作的按键框 `Bind<Action>`）只构造一次并带稳定控件名，自动化按名称查找，不依赖中文文案；
+隐藏分类页折叠，不在键盘焦点顺序里，自动化先点该页签再操作页内控件。
 最后一次实际 zoom/follow 在 GameInstance 中标记 dirty，旅行/退出不等待延迟 tick 才 flush。
 主音量是设置的唯一音频消费链：GameInstance 每次加载或应用本地偏好后把 `MasterVolume` 交给 `ULDAudioSubsystem`；
 设置只维护唯一注册表与本地偏好，动作分派和 HUD 标签由各自消费者负责，
