@@ -274,9 +274,6 @@ constexpr int64 GrowthProbeHostDevGold = 7;
 constexpr double GrowthProbeDevSettleSeconds = 15.0;
 // Probe-only DEV attribute term: +12 AD points (P2), an arbitrary visible value, not a product number.
 constexpr int64 GrowthProbeDevADP2 = 1200;
-// Approved melee approach of low camp L1 (WORLD_CAMPS_AND_VISION §2.5, shared with the camp scenario), its two
-// scavengers within the target search radius of that point.
-const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
 constexpr double GrowthProbeCampSearchCm = 600.0;
 constexpr int32 GrowthProbeLowCampMembers = 2;
 
@@ -566,8 +563,10 @@ public:
     FHostReward HostKillReward, HostCampReward;
     uint8 HostKillVictimLevel = 0;
     bool bHostKillRewardSeen = false, bHostAtCamp = false, bHostCampDone = false;
-    int32 HostCampKills = 0, HostCampOrders = 0, HostCampNavigate = 0;
+    int32 HostCampKills = 0, HostCampOrders = 0;
     FLDMoveIdentity HostCampOrder;
+    FString HostCampAnchor;
+    FVector HostCampApproach = FVector::ZeroVector;
     TSharedPtr<FJsonObject> HostKillerRow;
 
     // D10: the buyer's presets staged in the Lobby, and each match's opening opportunity as the owner first saw it.
@@ -1346,6 +1345,10 @@ public:
         if (!Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
             FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError)))
         { return false; }
+        const bool bCampReady = PrepareLowCamp(Registry, BodyRadius, SiteError);
+        if (!Check(bCampReady, TEXT("N03"),
+            TEXT("The Host's low-camp reward sample has authored homes and a legal native approach"),
+            HostCampAnchor + TEXT(": ") + SiteError)) { return false; }
         for (const auto& Anchor : Registry.GetGeometry()->Anchors)
         {
             if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn) { continue; }
@@ -1467,6 +1470,56 @@ public:
             Start = Best;
         }
         WalkError = TEXT("The fixture's bounded camp/Boss detour search did not finish.");
+        return false;
+    }
+
+    bool PrepareLowCamp(const ULDMapRegistry& Registry, double BodyRadius, FString& Error)
+    {
+        const auto* Geometry = Registry.GetGeometry();
+        FCollisionShape Capsule;
+        if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error))
+        { Error = TEXT("The low-camp fixture has no registered geometry or capsule: ") + Error; return false; }
+        for (const auto& Placement : Catalog->Get().Camps)
+        {
+            if (Placement.MonsterId != TEXT("monster_scavenger")) { continue; }
+            const auto* Anchor = Geometry->Anchors.FindByPredicate([&](const auto& Row) { return Row.Id == Placement.AnchorId; });
+            const FLDDemoMonsterDefinition* Monster = nullptr;
+            if (!Anchor || Anchor->Kind != ELDDemoWorldAnchorKind::Camp
+                || Anchor->Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers
+                || !Catalog->FindMonster(Placement.MonsterId, Monster, Error))
+            { Error = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + Error; return false; }
+            FVector Centre;
+            if (!Anchor->PositionCm.ToVector(Centre, Error)) { return false; }
+            double HomeReach = 0;
+            for (const auto& Member : Anchor->Members)
+            {
+                FVector Home;
+                if (!Member.PositionCm.ToVector(Home, Error)) { return false; }
+                HomeReach = FMath::Max(HomeReach, FVector::Dist2D(Centre, Home));
+            }
+            const double ApproachRadius = HomeReach + LDDemoGrowthScenario::GrowthProbeRational(Monster->CollisionRadiusCm)
+                + BodyRadius + LDDemoGrowthScenario::GrowthProbeArrivalCm + LDPathSteering::WaypointToleranceCm;
+            const FVector TowardHost = (HostSite - Centre).GetSafeNormal2D();
+            const FVector Across(TowardHost.Y, -TowardHost.X, 0);
+            for (int32 Angle = 0; Angle < 16; ++Angle)
+            {
+                const double Radians = Angle * UE_TWO_PI / 16;
+                FVector Approach = Centre + (TowardHost * FMath::Cos(Radians) + Across * FMath::Sin(Radians)) * ApproachRadius;
+                FVector Normal;
+                Registry.GetTerrain().Ground(FVector2D(Approach), Approach.Z, Normal);
+                if (!FMath::IsNearlyEqual(Approach.Z, Centre.Z) || !Normal.Equals(FVector::UpVector, 1e-4)) { continue; }
+                FLDLegalGround Ground, OnMesh;
+                ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+                if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, Error)
+                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, Error)
+                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, Error)) { continue; }
+                HostCampAnchor = Anchor->Id;
+                HostCampApproach = OnMesh.SurfaceCm;
+                Error.Reset();
+                return true;
+            }
+        }
+        Error = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + Error;
         return false;
     }
 
@@ -1739,7 +1792,7 @@ public:
             : LDDemoGrowthScenario::EGrowthProbeWait::Failed;
     }
 
-    // Host as killer: its kill of the buyer, then its last hits on both scavengers of low camp L1, each pay exactly the
+    // Host as killer: its kill of the buyer, then its last hits on both scavengers of the authored low camp, each pay exactly the
     // approved reward into the Host's own owner view and HUD.
     bool TickHostAsKiller(double Now, ALDPlayerController& PC)
     {
@@ -1777,14 +1830,13 @@ public:
             HostKillerRow->SetNumberField(TEXT("contender_gold"), double(Bounty.Gold));
             HostKillerRow->SetNumberField(TEXT("leader_bounty_gold"), double(LeaderBounty));
             bHostKillRewardSeen = true;
-            HostCampNavigate = 0;
             NextCommandAt = 0;
             return true;
         }
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         if (!bHostAtCamp)
         {
-            if (FVector::Dist2D(Body->GetNavAgentLocation(), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm)
+            if (FVector::Dist2D(Body->GetNavAgentLocation(), HostCampApproach)
                 <= LDDemoGrowthScenario::GrowthProbeArrivalCm)
             {
                 const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
@@ -1797,12 +1849,7 @@ public:
             }
             if (!PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
-                if (HostCampNavigate >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-                {
-                    return Fail(TEXT("N03"), TEXT("The Host could not reach low camp L1: ") + PC.IntentFeedback);
-                }
-                PC.Navigation->Navigate(LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
-                ++HostCampNavigate;
+                if (!NavigateDuelSite(PC, HostCampApproach)) { return false; }
                 NextCommandAt = Now + 1.0;
             }
             return true;
@@ -1831,7 +1878,7 @@ public:
             {
                 for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
-                    const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
+                    const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), HostCampApproach);
                     if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
                         && Distance <= Best)
                     {
@@ -1843,7 +1890,8 @@ public:
             if (!Target)
             {
                 if (Now - HostCampReward.Since <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
-                return Fail(TEXT("N03"), FString::Printf(TEXT("No scavenger of low camp L1 was visible to the Host (%d killed)"), HostCampKills));
+                return Fail(TEXT("N03"), FString::Printf(TEXT("No scavenger of authored low camp %s was visible to the Host (%d killed)"),
+                    *HostCampAnchor, HostCampKills));
             }
             if (HostCampKills * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill + HostCampOrders
                 >= LDDemoGrowthScenario::GrowthProbeLowCampMembers * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
@@ -1879,6 +1927,7 @@ public:
         if (HostKillerRow.IsValid())
         {
             HostKillerRow->SetNumberField(TEXT("camp_kills"), HostCampKills);
+            HostKillerRow->SetStringField(TEXT("camp_anchor"), HostCampAnchor);
             HostKillerRow->SetNumberField(TEXT("camp_xp"), double(Members * Monster.XP));
             HostKillerRow->SetNumberField(TEXT("camp_gold"), double(Members * Monster.Gold));
         }
@@ -3979,7 +4028,7 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of an authored low camp and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
             : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: exactly one pending opening choice at each match start (never re-granted by a respawn), real kill rewards, choices on the Host's preset offers, two-slot shop trades through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
