@@ -1032,6 +1032,10 @@ def validate_numbers(data):
                 and quantity(monster["attack_range"]) >= quantity(monster["collision_radius"]) + p("UNIT.CollisionRadiusCm")
                 and quantity(monster["leash_radius"]) > quantity(monster["attack_range"]),
                 "InvalidGeometry", path, "invalid collision/attack/leash geometry")
+        # A camp member perceives out to its leash, and TraceSight, built at VISION.RadiusCm, supplies its candidates; a
+        # wider perception faults the camp decision at runtime (#97), so the data is refused here instead.
+        require(quantity(monster["leash_radius"]) <= p("VISION.RadiusCm"), "InvalidGeometry", path,
+                "camp perception (leash radius) exceeds VISION.RadiusCm, the sight range that supplies its candidates")
         interval = ceil_fraction(1000 / quantity(monster["attack_speed"]), path)
         require(monster["attack_windup"]["ms"] < interval, "InvalidTiming", path, "windup exceeds attack interval")
         for field in ("hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"):

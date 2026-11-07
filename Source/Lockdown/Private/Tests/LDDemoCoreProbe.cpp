@@ -40,6 +40,7 @@ public:
     FLDCombatBodyRef OriginalBody;
     FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
+    FVector ArrivalGoal=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -612,7 +613,13 @@ public:
         }
         if (Stage==8 && FPaths::FileExists(FPaths::Combine(Output,TEXT("Continue.json"))))
         {
-            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            // Bodies block each other (#97), so the three owned bodies cannot all stand on the capture point: each role
+            // finishes on its own point of a ring around it, four capsule radii out, on the same open capture ground.
+            const int32 Slot=Role==TEXT("Host")?0:Role==TEXT("Client1")?1:2;
+            const double Angle=Slot*UE_TWO_PI/3;
+            ArrivalGoal=Goal->Position+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)
+                *4*Body->GetCapsuleComponent()->GetScaledCapsuleRadius();
+            Nav->NavigateGround(ArrivalGoal,Goal->Surface);
             Stage=9;
         }
         else if (Stage==9 && !Nav->HasMoveOrder() && Nav->LatestReceipt().Status==ELDOrderStatus::Completed
@@ -625,10 +632,10 @@ public:
             const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
             // The reliable completion receipt can precede the final unreliable CMC correction under packet lag/loss.
             if (ArrivalReceivedAt==0) { ArrivalReceivedAt=FPlatformTime::Seconds(); }
-            if (FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)>Arrived.AcceptanceCm+ClientErrorCm
+            if (FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)>Arrived.AcceptanceCm+ClientErrorCm
                 && FPlatformTime::Seconds()-ArrivalReceivedAt<3) { return true; }
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
-                && FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=Arrived.AcceptanceCm+ClientErrorCm
+                && FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
             Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==1,
                 TEXT("Navigation and corrections do not allocate a new body or life"));

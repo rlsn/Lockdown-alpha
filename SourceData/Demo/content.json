@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (balance 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; camp loot -50%; vision 1050. A playtest, not a balance check."
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (balance 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050. A playtest, not a balance check."
     }
   },
   "parameters": {
@@ -549,7 +549,7 @@
         "id": "monster_guardian", "tier": "High", "count_per_camp": 1,
         "hp": {"unit": "hp", "value": 420}, "armor": {"unit": "points", "value": 20}, "magic_resist": {"unit": "points", "value": 20}, "attack": {"unit": "points", "value": 48},
         "attack_speed": {"unit": "attacks/s", "value": 0.65}, "attack_windup": {"unit": "s", "value": 0.500}, "attack_range": {"unit": "cm", "value": 175},
-        "move_speed": {"unit": "cm/s", "value": 260}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1100},
+        "move_speed": {"unit": "cm/s", "value": 260}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1050},
         "lose_target_grace": {"unit": "s", "value": 4}, "respawn": {"unit": "s", "value": 65}, "reward_xp": 80, "reward_gold": 60,
         "hp_regen": {"unit": "hp/s", "value": 0}, "max_mp": {"unit": "mp", "value": 0}, "mp_regen": {"unit": "mp/s", "value": 0}, "ap": {"unit": "points", "value": 0}, "crit_chance": {"unit": "ratio", "value": 0}
       }

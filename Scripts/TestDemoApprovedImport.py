@@ -49,7 +49,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250 (1300-2400)", approval["decision"])
         self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
-                      "flagpole 180s, guard 30s, airdrop 80s; camp loot -50%; vision 1050.", approval["decision"])
+                      "flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 13, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -352,6 +352,19 @@ class ApprovedDemoData(unittest.TestCase):
         base = amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))
         self.assertEqual((base + 200 + 120, base + 200 + 240), (540, 660))
 
+    def test_camp_perception_fits_inside_vision(self):
+        # #97: a camp member's perception (its leash) beyond VISION.RadiusCm would fault the camp decision at T=0.
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        schema.validate(author)
+        projected = schema.project(author)
+        guardian = next(row for row in projected["camps"]["monsters"] if row["id"] == "monster_guardian")
+        guardian["leash_radius"].update(numerator=1100, denominator=1)
+        content.validate_definitions(projected, ids)
+        with self.assertRaisesRegex(content.ContentError, "InvalidGeometry"):
+            content.validate_numbers(projected)
+
     def test_build_expansion_a_refusals(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
         schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
@@ -642,7 +655,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
             ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 15, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1100, 4000, 65000, 80, 60, 1539),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 60, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
