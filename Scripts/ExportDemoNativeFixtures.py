@@ -28,7 +28,7 @@ FORMULAS = (
     "LinearIncrement", "MinVisionTwiceAttackRange",
 )
 POLICIES = (
-    "None", "AddFlatThenAdditivePercent", "Allowed", "OncePerFamily", "IndependentSources",
+    "None", "AddFlatThenAdditivePercent", "Allowed", "OncePerFamily",
     "ContinueServerTime", "PreserveRatio", "ContinueForRemainingContender", "CancelUnsettledNoRefund",
     "BreakOnAggressiveIntent", "OncePerAttackId", "PrimaryBasicAttackHPLost", "Disabled",
     "CarrySubP2Remainder", "ReplaceIfNotWeaker", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
@@ -128,14 +128,14 @@ def effect(value):
         "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
         "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0, "MagicResistRatioBp": 0, "VampRatioBp": 0,
-        "MultiplierBp": 0, "Count": 0, "bImpaired": False, "bAmbushReady": False, "SkillCooldownRatioBp": 0,
+        "MultiplierBp": 0, "Count": 0, "bImpaired": False, "SkillCooldownRatioBp": 0,
         "SkillDistanceBonusBp": 0, "AbilityIds": [], "PerCountP2": 0, "CapP2": 0, "CapBp": 0, "MaxHPPerSecBp": 0,
         "ShredP2": 0, "ThresholdP2": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0, "CooldownCutMs": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
-        ("move_speed_penalty", "RatioBp"), ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
+        ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
         ("in_combat_ratio", "RatioBp"), ("shred_ratio", "RatioBp"), ("cripple_ratio", "RatioBp"),
         ("windup_reduction", "RatioBp"), ("surge_duration", "DurationMs"), ("shred_duration", "DurationMs"),
@@ -148,7 +148,7 @@ def effect(value):
         ("shred", "ShredP2"), ("trigger_damage", "ThresholdP2"), ("scale", "RatioBp"),
         ("shield_ratio", "RatioBp"), ("bonus_ratio", "RatioBp"), ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
         ("heal_cut", "SecondaryRatioBp"), ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
-        ("linger", "SecondaryDurationMs"), ("taunt_duration", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
+        ("linger", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
         ("internal_cooldown", "IntervalMs"), ("cooldown_cut", "CooldownCutMs"),
     ):
         if source in value:
@@ -161,7 +161,7 @@ def effect(value):
     for source in ("count", "max_stacks", "max_hits"):
         if source in value:
             result["Count"] = value[source]
-    for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"), ("reveal_radius", "RadiusCm"),
+    for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"),
                          ("half_width", "RadiusCm"), ("cast_range", "DistanceCm")):
         if source in value:
             result[dest] = rational(value[source])
@@ -186,7 +186,6 @@ def effect(value):
     if "rear_exempt" in value:
         result["bRearExempt"] = value["rear_exempt"]
     result["bImpaired"] = value.get("impaired", False)
-    result["bAmbushReady"] = value.get("ambush_ready", False)
     return result
 
 
@@ -200,13 +199,9 @@ def rank(value=None):
     }
 
 
-def active(value=None):
-    value = {} if value is None else value
+def dash_definition(value):
     return {
-        "Target": target(value.get("target")),
-        "WindupMs": scalar(value["windup"]) if "windup" in value else 0,
-        "CooldownFamily": value.get("cooldown_family", ""), "Rank": rank(value.get("rank")),
-        "HasUpgradedRank": "upgraded_rank" in value, "UpgradedRank": rank(value.get("upgraded_rank")),
+        "Target": target(value["target"]), "WindupMs": 0, "CooldownFamily": "", "Rank": rank(value["rank"]),
     }
 
 
@@ -321,7 +316,7 @@ def expected_projection(compilation):
     character = data["character"]
     dash = character["dash"]
     dash_opcode = json.loads(compilation.inputs[demo.IDS_SOURCE])["effect_ops"]["dash"]
-    innate_dash = active({"target": {"mode": "DirectionDash"}, "rank": {
+    innate_dash = dash_definition({"target": {"mode": "DirectionDash"}, "rank": {
         "rank": 1, "mana_cost": dash["mana_cost"], "cooldown": dash["cooldown"],
         "effects": [{"opcode": dash_opcode, "distance": dash["distance"], "duration": dash["duration"]}]}})
     result = {
@@ -339,7 +334,6 @@ def expected_projection(compilation):
         "Equipment": [{
             "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
             "Tags": tags(row["tags"]), "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
-            "HasActive": row["active"] is not None, "Active": active(row["active"]),
             "HasPassive": row["passive"] is not None, "Passive": passive(row["passive"]),
         } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
@@ -610,7 +604,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
 
     if rank_mutations:
         author = fixtures.content_fixture()
-        paths = [path for path, _ in _quantities(author) if "ranks" in path or ("equipment" in path and "rank" in path)]
+        paths = [path for path, _ in _quantities(author) if "ranks" in path]
         for index_number, path in enumerate(paths):
             changed = deepcopy(author)
             quantity = _at(changed, path)
@@ -675,7 +669,8 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
-    bad_content("missing_active", lambda d: d["equipment"][0].update({"active": None}), "presence")
+    bad_content("missing_passive", lambda d: next(row for row in d["equipment"] if row["passive"] is not None).update({"passive": None}), "presence")
+    bad_content("equipment_active_field", lambda d: d["equipment"][0].update({"active": None}), "unknown field")
     bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_battle_rhythm")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}

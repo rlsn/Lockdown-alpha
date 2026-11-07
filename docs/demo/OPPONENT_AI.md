@@ -17,8 +17,8 @@ AI 参数数值只由 `CONTENT_AND_BALANCE.md` 维护并经内容管线进入运
 | 名单 | Host 选择零至三个 AI；与最多三名真人（含 Host）共存，各自 FFA，不补满、不组队、不接管断线真人。 |
 | 起步与成长 | 同一基础角色，初始近战单体物理普攻；出生即有一次开局三选一（D10），之后正常打野/对抗获得最后一击的经验和金币，再三选一、购物、喷漆、守护涂鸦和围攻别人的涂鸦主人。装备/属性可以增加攻击距离或群攻。 |
 | 营地反击与回位 | 未受攻击营地不主动攻击路过者；确认的合法命中触发同组存活成员反击，即使被击成员当次死亡，也不共享隐藏位置。预览/挥空/被拒命令/单纯碰撞不触发。Returning 仍可受伤、控制、被杀，不回头追击；存活成员到家满血蓝、清临时状态/仇恨、技能就绪，不复活已死成员、不因回位发奖。 |
-| 技能与装备 | Q/W 两个角色主动槽；装备 1/2 不占 Q/W；角色被动无额外槽位上限；开局一次加升级九次、整局最多十次选择（D10），每技能最高三级。满 Q/W 学新主动必须明确确认替换并遗忘旧技能及等级。 |
-| 同款装备与冷却 | 两件同款合法，基础属性相加，同名被动只生效一次；两份主动有独立冷却、可以连续使用。换槽、售出重买、遗忘重学和死亡不能洗冷却；失去来源期间原期限继续流逝。 |
+| 技能与装备 | Q/W 两个角色主动槽；装备没有主动；角色被动无额外槽位上限；开局一次加升级九次、整局最多十次选择（D10），每技能最高三级。满 Q/W 学新主动必须明确确认替换并遗忘旧技能及等级。 |
+| 同款装备与冷却 | 两件同款合法，基础属性相加，同名被动只生效一次。换槽、遗忘重学和死亡不能洗冷却；失去来源期间原期限继续流逝。 |
 | 死亡 | 保留成长、财产、候选和冷却；死亡等待可以确认三选一，只更新持久构筑，不治疗尸体或提前复活。最大血蓝变化按统一公式保持原百分比；AI 不另算公式。 |
 | 保护 | 经过身份、当前 Match/Life、请求新鲜度、形状及写闸检查的进攻意图先解除保护；随后目标、距离、路径、法力或冷却检查失败也不恢复保护。只读查询、普通移动、商店、Stop 和本地预览不是进攻。 |
 | 视野 | 失视野取消单位锁定并停止该追击订单，不续走 LastSeen，不保留地图 LastSeen 单位标记。只读取当前可见对手的名称、等级、血量、蓝量、状态和展示装备；不读取技能、冷却、内部实例/构筑、属性或金币。 |
@@ -38,7 +38,7 @@ AI 只新增 `Source\Lockdown\{Public,Private}\AI` 下的文件，不拥有任�
 | --- | --- | --- |
 | 绑定与读取 | `ALDGameMode::RegisterAIContender`、`ReadAISelf`、`ReadPublicMatch` | 名额在 Starting 冻结；`ReadAISelf` 含 `FLDOwnerState.Growth` 发布。 |
 | 空间订单 | `ULDNavigationComponent::SubmitOrder`/`CancelOrder`/`QueryOrder` | 与真人 `ServerSubmitOrder` 共用订单簿；激活由 Actions 阶段的 `ProcessAuthorityOrders` 统一处理。 |
-| 直接动作（Q/W/装备 1/2） | `ALDCombatDirector::SubmitAction`/`CancelAction`/`QueryActionReceipt`/`QueryAvailability`、`BuildOwnerView` | Caller 由核心绑定解析；AI 只读本人 `FLDCombatOwnerView`。 |
+| 直接动作（Q/W/D） | `ALDCombatDirector::SubmitAction`/`CancelAction`/`QueryActionReceipt`/`QueryAvailability`、`BuildOwnerView` | Caller 由核心绑定解析；AI 只读本人 `FLDCombatOwnerView`。 |
 | 三选一 | `ALDDevelopmentDirector::QueueChoice`/`QueryChoiceReceipt` | 含 D10 开局 Offer；Transactions 阶段提交。 |
 | 商店 | `ALDVendorDirector::QueueShopOpen`/`ReadShop`/`QueueShopCommand`/`QueryShopReceipt` | `ApproachShop` 订单到店后入开店队列；Transactions 阶段由 `OpenPendingShop` 打开。 |
 | 观察 | `ALDVisionDirector::EnumerateVisibleUnits` | 与真人同一受限帧；AI 只用当前可见单位。 |
@@ -134,7 +134,7 @@ NotGrounded 是明确否定结果，原域仍完成已处理边界，不是缺�
 | 域与正式接口 | AI 发送的最少条款 | 提交与回执规则 |
 | --- | --- | --- |
 | `ULDNavigationComponent::SubmitOrder(FLDOrderCaller, FLDSpatialOrderRequest)`；`CancelOrder`；`QueryOrder` | 绑定本人的 MatchContext/BodyRef；`FLDMoveIdentity{Match,Life,Order,Epoch}`；按 kind 为单一 Ground/ObservedUnit/公共 Shop 目标。Ground 带脚点 cm、必要 MapRevision 和必填 SurfaceHint；POI 从注册记录给支持面，目标可显式 Missing，不补默认值。 | Submit 只收件。Actions 阶段的 `ProcessAuthorityOrders` 才可激活；Queued 不取消旧单，完整准入后才替换现役订单。OrderRevision/ReceiptSerial 单调，Query 只读且不延寿。 |
-| `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction` | `FLDCombatActionRequest{Generation,Life,DirectSequence,Entry(Q/W/Item1/Item2),Target(Missing/Self/Unit/Direction),ExpectedSourceRevision}`；DirectSequence 由 adapter 单调分配，Q/W/1/2 共用一个序列；Unit 目标是观察句柄。`FLDCombatRequestKey` 的 Direct 键由此生成，Nav 键只由服务器 Navigation 的攻击订单内部生成。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键；Gear 不检查商店条件。 |
+| `ALDCombatDirector::SubmitAction`、`QueryActionReceipt`、`QueryAvailability`、`CancelAction` | `FLDCombatActionRequest{Generation,Life,DirectSequence,Entry(Q/W/Dash),Target(Missing/Self/Unit/Direction),ExpectedSourceRevision}`；DirectSequence 由 adapter 单调分配，Q/W/D 共用一个序列；Unit 目标是观察句柄。`FLDCombatRequestKey` 的 Direct 键由此生成，Nav 键只由服务器 Navigation 的攻击订单内部生成。 | 两种 RequestKey 不撞号；准入成功后由 Combat 统一分配 authority CombatToken:uint64，ActionId/AttackId 是该 Token 在 Match/Caller 下的身份，不另发序列。Queued 无已接受 Token；查询/取消用原 RequestKey。导航独占 AttackCycle，Combat 独占 NextAttackAt，AI 不另开普攻循环或伪造 Nav 键。 |
 | `ALDDevelopmentDirector::ReadProgression`、`QueueChoice`、`QueryChoiceReceipt` | Generation、当前 Life、ExpectedLifePhase、独立 RequestId、队头 OfferId/Revision、OptionId、ExpectedBuildRevision；满槽明确 ReplacementSlot、ExpectedOldSkillId/Rank。 | 原候选不重抽；原子遗忘/装槽/消费一次机会后才生成下一组。死亡阶段合法确认可成功；死前 Alive 请求不能冒充当前 Dead 确认。 |
 | `ALDInventoryDirector::ReadEquipment` | 绑定本人的读取上下文。 | 返回 Gold/AccountRevision、两个 Instance/Definition/ItemRevision、InventoryRevision/SourceBindingRevision、IssuedCooldownId/ReadyAtMs；纯投影，不授予修改权。 |
 | 开店意图进入现有核心队列；`ALDVendorDirector::QueueShopCommand`、`QueryShopReceipt` | 开店 `FLDShopOpenCommand{Generation,Life,ShopId,ExpectedWorldRevision}` 不携 Permit。Buy/Sell 另带 RequestId、ShopSession/QuoteRevision/CatalogDigest、ExpectedWorldRevision 和预期 Account/Inventory/Build/SourceBindingRevision；Buy 商品/展示价，Sell 精确实例/ItemRevision/展示卖价。 | Transactions 才调用内部 `OpenPendingShop(ContenderId, Permit)`；每次开店/Buy/Sell 都由核心借当次 Permit，经 `QueryShopEligibility(Permit, BuyerBody, ShopId, ExpectedWorldRevision)` 重查当前身体、合法区域/距离与版本，不额外加 LOS。AI 不直接调用内部 OpenPendingShop 或受许可几何；Sell 真成功后重读再单独 Buy。 |
@@ -399,7 +399,7 @@ AI 只能凭可见单位的授权 ContenderId 与公开 Occupier/Owner 相等来
 接近距离使用本人当前 `STAT.AttackRangeCm`，不是初始 UNIT.BasicAttackRangeCm。
 群攻由 Combat 结算，不让 AI 给每个隐藏副目标补发一次攻击订单。
 
-对真正绑定的 Q/W、1/2 枚举自身 QueryAvailability，固定考虑：
+对真正绑定的 Q/W 与 D 枚举自身 QueryAvailability，固定考虑：
 有意义的合法自保/恢复 → 必要合法机动 → 可见威胁控制 → 合法伤害 → 保持普攻/移动。
 优先级只决定策略先选哪个动作，不给效果追加类型或数值；SourceRef 和真实目录决定动作。
 同一时刻只送当前动作系统可接收的一项；前摇、控制、资源、来源和占用均不得绕过。
@@ -423,24 +423,20 @@ D 键通用冲刺（D19）是每名参赛者的固定来源，AI 经同一 owner
 
 验收见 `Lockdown.Rules.DemoOpponentPolicy.InnateDash`；满员局中的实际冲刺由 `RunDemoOpponentCheck.ps1` 记录为报告项（§8.2）。
 
-首版七个装备定义逐项绑定；当前只有一种非空 Active，不以一个“会用装备”的泛化断言代替：
+装备没有主动；首版七个装备定义逐项绑定，AI 只消费其统一派生属性与被动，不为装备发动作请求：
 
 | 公开装备定义 | 内容域给定的 typed 能力 | AI 使用与目标规则 |
 | --- | --- | --- |
-| `item_arcane_battery` | Active：Self/RestoreMana+Shield；ManaRestoreRatio、ShieldBase/ShieldAPRatio/ShieldDurationSec 及动作/来源字段 | 本人 MP 有真实缺口，或当前脱险/喷漆/守区需要防护时使用；收益和叠加由统一效果规则决定。Dead 不施放，不推断该物品还能回血或清控制。 |
-| `item_iron_plate`、`item_edge_blade`、`item_runic_focus`、`item_siphon_emblem` | Active 为空；具体 Stats/Passive 由内容域定义 | 正常购买/装备后消费统一派生与被动，无主动按钮或伪施法。 |
-| `item_phase_anchor` | Active 为空；`passive_stride` 的 `dash_boost` 强化 D 冲刺 | 由 Combat 投影进 D 冲刺的 `RangeCm` 与冷却；AI 不为它发主动请求。 |
-| `item_echo_maul` | Active 为空；`passive_cleave` 响应 PrimaryBasicContact | 通过正常普攻触发，AI 不向副目标追加攻击订单；不把群攻变成隐藏单位锁定。 |
+| `item_iron_plate`、`item_edge_blade`、`item_runic_focus`、`item_siphon_emblem`、`item_arcane_battery` | 具体 Stats/Passive 由内容域定义 | 正常购买/装备后消费统一派生与被动，无主动按钮或伪施法。 |
+| `item_phase_anchor` | `passive_stride` 的 `dash_boost` 强化 D 冲刺 | 由 Combat 投影进 D 冲刺的 `RangeCm` 与冷却；AI 不为它发主动请求。 |
+| `item_echo_maul` | `passive_cleave` 响应 PrimaryBasicContact | 通过正常普攻触发，AI 不向副目标追加攻击订单；不把群攻变成隐藏单位锁定。 |
 
-角色和装备均按真实 TargetMode 进入同一执行通路；Unit 使用授权句柄，
+角色主动按真实 TargetMode 进入同一执行通路；Unit 使用授权句柄，
 Direction 使用当时获准方向，Self 检查本人状态。
 尚未提交、依赖已撤销观察的瞄准计划作废，已经释放的独立效果不会持续修正隐藏目标。
 首版没有 Ground 主动，不为“覆盖四个模式”新增技能；通用领域 Ground 合同保留，
 但本模块不把未出现的内容宣称为已完成的目录覆盖。
 
-同款两件的主动逐实例查询和提交，可以在正常动作占用允许时连续使用。
-不能由策略把同名 CooldownFamily 合并成共享锁，也不因另一个实例释放而假定本实例不可用。
-店外、喷漆区内、没有报价、金币不足、装备槽已满均不妨碍已有 1/2 的合法战斗释放。
 来源失效后等待正式新绑定/ReadyAt，不自己清冷却或把换槽当新来源。
 
 ### 6.4 持久选择与构筑
@@ -588,7 +584,7 @@ AI 持有被暂停的喷漆进度时留在区内迎战，只在止损线离开�
 | AI-A07 订单/回执竞争 | 新意图 Queued 后拒绝/接受，Stop 后延后 ACK/Outcome；同 ID 同/异条款，过窗，Query 已取消单；Choice/Shop 查询覆盖所有 LookupStatus 与旧局同号 | Queued 不替旧单；handoff 原子；旧包不续走/续打/延寿；冲突/过窗明确，零重复提交。查询 Pending 只有 PendingInfo，Final 只有匹配业务 Receipt，缺失/过窗/错上下文无伪终态或默认生命载荷。 |
 | AI-A08 持久 Offer 竞争 | 两次重复/不同选择请求、Build 冲突、连升、满 Q/W 替换、全部技能三级、死前 Alive 请求延到 Dead、Dead 选择与复活竞争 | 同一机会只消费一次，原卡保留不重抽；十次（含开局一次）/十级/三级边界；明确遗忘/再学一级。当前 Dead 选择不治疗/提前复活；旧 LifePhase 确认拒绝而候选不变。 |
 | AI-A09 买卖资格/失败 | 无 ShopView 但公开目录预算足够的首次/旧报价失效购物；开店 Pending/重复/取消/Opened/Rejected；LOS 被挡；旧路径、非法区域、无钱/满槽/旧报价/旧世界修订/越界/死亡/终局/分配失败；Sell 后 Buy 被拒及重放 | 无 ShopView 仍会据非约束预算主动到店；Pending 不提交 Buy/Sell。每人一个待办，只有核心 Transactions 借当次 Permit 进内部 OpenPendingShop/资格查询；只有 Opened 带 View并触发重新预算，后续交易再验当前条件且无额外 LOS。失败不部分改钱物，已 Sell 不倒回，无免费实例或预算刷新。 |
-| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；arcane_battery 与 D 冲刺（含《润学指南》加成）；两同款主动连续用；换槽/遗忘重学/卖买/死亡；五无主动物品 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。双主动独立、属性两份/同名被动一次，保留原 CD；店外/喷漆区内/无钱/满槽仍按战斗条件可用，空 Active 不伪造能力，echo_maul 无副攻击订单。 |
+| AI-A10 来源与全目录 | 穷举三角色主动，guard_pulse 在有 Root/无 Root及其他施法限制下释放；D 冲刺（含《润学指南》加成）；换槽/遗忘重学/卖买/死亡；只有属性/被动的装备 | 真来源走同一 Combat；guard_pulse 只有成功释放才给屏障/移除全部 Root，不清其他控制、CD或死亡，不把 Root 误判成禁 Skill。属性两份/同名被动一次，保留原 CD；装备不伪造主动能力，echo_maul 无副攻击订单。 |
 | AI-A11 进攻解除保护 | 喷漆区内保护 AI 发当前有效新意图，分别 Missing 目标/错误支持面/未接地/无路/距离远/蓝少/CD未到；对照 Query、旧包、异生命、终局 | 前组为语义执行失败，即使 Rejected 也 ProtectionRemoved/LifeRevision 更新，失败不扣动作 MP/CD；资格事件在 Capture 前生效，保护时段不追算喷漆，未接地仍无资格；后组不解除。 |
 | AI-A12 死亡/离局效果 | 正常死亡时有已释放独立效果，效果击杀合法目标；另在效果存续时正式离局 | 正常死亡继续原期限并正常发给仍在局死者奖励，可产生 Dead Offer；离局立刻移除身体/效果且离开不发奖；均不能打中同 ID 新生命。 |
 | AI-A13 发育/回防/恢复 | 当前 HP 达高营入口但预测剩余不足 Reserve；合适低营；同刻反击/零伤害/超预算/隐藏成员变化；公开喷漆或守护紧急，低血/零移速/保护/无回复，区内敌人离区 | Reserve 只控制模型入场，实际止损沿 Retreat；成本估计不写 HP/CD/RNG、不读隐藏状态、不补最低伤害或抹同刻反击，不将估计当实战保证。回防无除零/全知/等回满死锁，不为一只怪拖延；必要离区接受喷漆清零。 |

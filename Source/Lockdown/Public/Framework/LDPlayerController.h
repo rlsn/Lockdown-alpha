@@ -108,7 +108,7 @@ public:
     FString IntentFeedback;
     uint32 FeedbackSerial() const { return IntentFeedbackSerial; }
     // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp and LDPlayerInput.cpp) ----
-    // CanWorldCommand (orders, Q/W/1/2, A, S, world and minimap clicks) is IsWorldLifeValid && !IsWorldInputSuppressed.
+    // CanWorldCommand (orders, Q/W/D, A, S, world and minimap clicks) is IsWorldLifeValid && !IsWorldInputSuppressed.
     // Life half: the current PublicMatch generation is running (Development/CaptureOpen) and this owner's accepted life
     // is Alive with its body. Only losing it ends accepted orders.
     bool IsWorldLifeValid() const;
@@ -126,7 +126,7 @@ public:
     // Left-click confirmation of the armed entry or attack-move; false when nothing was armed. An armed attack-move on an
     // attackable visible unit under the pointer attacks that unit like a right click; elsewhere it attack-moves.
     bool ConfirmArmedCombat();
-    // Confirms the armed Q/W/1/2 entry on an explicit aim (an observed unit handle or a planar direction) instead of
+    // Confirms the armed Q/W entry on an explicit aim (an observed unit handle or a planar direction) instead of
     // the cursor's; ConfirmArmedCombat resolves the cursor aim and ends here. False when no entry was armed. AimCm is
     // the ground point a direction aim points at: a Shift confirmation queues it and the server re-aims from there.
     bool ConfirmArmedEntry(const FLDCombatTarget& Aim, const FVector* AimCm=nullptr);

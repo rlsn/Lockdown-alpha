@@ -179,7 +179,6 @@ FString LDLog::StatusName(uint8 StatusId)
     case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
     case ELDDemoStatusId::Taunt: return TEXT("taunt");
-    case ELDDemoStatusId::Stealth: return TEXT("stealth");
     case ELDDemoStatusId::Disarm: return TEXT("disarm");
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");

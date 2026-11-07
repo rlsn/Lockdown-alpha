@@ -146,7 +146,7 @@ void ALDInventoryDirector::EquippedItems(const LDEconomy::FAuditState& State, co
             continue;
         }
         FLDEquippedItemValue Value;
-        Value.Entry = Pair.Value.Slot == 0 ? ELDCombatEntry::Item1 : ELDCombatEntry::Item2;
+        Value.Slot = Pair.Value.Slot;
         Value.Instance = Pair.Key;
         Value.DefinitionId = Pair.Value.Definition;
         Value.ItemRevision = Pair.Value.Revision;

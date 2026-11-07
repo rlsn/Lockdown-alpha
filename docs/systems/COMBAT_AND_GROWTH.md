@@ -11,7 +11,7 @@
 | `Combat\LDCombatDriver.cpp` | 唯一权威 driver：按真实到期点切步，按契约顺序执行各阶段，步后发布视野与本人 `CombatView` |
 | `Combat\LDCombatActions/Effects/Sources/Life.cpp` | 准入/释放/回执；命中、投射物、状态到期、回复与致死锁存；构筑安装、来源绑定与可用性读模型；身体准备/安装/退役 |
 | `Combat\LDTacticalRules` | `EvaluateDamage` / `EvaluateBasicTiming` / `CooldownDurationMs`，以及 Root/屏障/净化/定点回复纯规则；不提交资源或产生效果 |
-| `Combat\LDControlRules`、`Combat\LDCombatControl.cpp` | 嘲讽与隐身（`taunt`/`stealth` 效果）的纯规则与在 Combat 身体记录上的应用；见下文“嘲讽与隐身” |
+| `Combat\LDControlRules`、`Combat\LDCombatControl.cpp` | 嘲讽（`taunt` 效果）的纯规则与在 Combat 身体记录上的应用；见下文“嘲讽” |
 | `Combat\LDAttributeProjection` | 已批准构筑输入的属性与贡献投影、一次最大值变化的精确资源比例 |
 | `Framework\LDGameModeLifecycle` | 唯一生命/身体绑定、借用许可、当前时间、原生运动前缀与只读发布 |
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
@@ -34,9 +34,9 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
 已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
 
-普攻、Q/W、装备 1/2 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
+普攻、Q/W 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
 本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
-未准入不付费，已解除的保护不恢复。技能与装备主动释放时重验来源与目标（普攻释放见下文 `BasicReleaseGate`），成功才扣蓝并按 `FORMULA.CooldownMs`
+未准入不付费，已解除的保护不恢复。技能释放时重验来源与目标（普攻释放见下文 `BasicReleaseGate`），成功才扣蓝并按 `FORMULA.CooldownMs`
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
 冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
 D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
@@ -48,16 +48,13 @@ D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEn
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
 不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
-嘲讽与隐身：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
-且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制，隐身的受控者立即现身（`LDControl::TauntVictim`）。被嘲讽期间
-Q/W/装备 1/2 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
+嘲讽：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
+且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制（`LDControl::TauntVictim`）。被嘲讽期间
+Q/W 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
 已在前摇、被嘲讽所禁止的动作当场放弃。每个 Actions 阶段开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局、
-或被嘲讽者已观察不到嘲讽者（视线、距离或隐身）的嘲讽；离局另由 `CancelEntityEffects` 清除。
+或被嘲讽者已观察不到嘲讽者（视线或距离）的嘲讽；离局另由 `CancelEntityEffects` 清除。
 订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
-`stealth` 效果给施放者一段隐身：敌方（参赛者、对手 AI、野怪）只能在 `reveal_radius` 内观察到它，规则走
-Vision 的同一观察链；隐身期间润速按 `FORMULA.MoveSpeed` 多一项负的加成比例（`move_speed_penalty`）。
-普攻开始、任何 Q/W/装备主动被准入、或受到正伤害（含被心理防线全部吸收）/控制时立即现身；重复释放重新计时。
-嘲讽与隐身只出现在本人 `CombatView` 的状态里（`Taunt`/`Stealth` 及到期），不进入他人可见的公开状态。
+嘲讽只出现在本人 `CombatView` 的状态里（`Taunt` 及到期），不进入他人可见的公开状态。
 同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
 普攻释放（`ReleaseBasic`）不重查距离、观察或视线，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
 被缴械/眩晕/击退或被嘲讽转向他人时放弃（`ControlBlocked`），目标那条生命已死亡或濒死、离局、换命或换身体时放弃
@@ -82,7 +79,7 @@ driver 立即以同刻结算边界（`BeginSettlementStep`：新 BatchSerial、�
 先结清奖励再锁定原完成时刻的胜者；只有故障关闭写闸时奖励才记录为未支付（`LD_REWARD_UNPAID_AT_FAULT`）。
 Transactions 每步调用一次 `ProcessTransactions`。
 生命变化（Joined/Respawned/ProtectionEnded/Died）在各自阶段向喷漆与守护归约器提交资格事实并通知提供者。
-控制在提交时通知喷漆区：唯一控制入口 `CommitControl` 每实际提交一次定身、眩晕、嘲讽（含假发片诱饵）或击退，
+控制在提交时通知喷漆区：唯一控制入口 `CommitControl` 每实际提交一次定身、眩晕、嘲讽或击退，
 都在同一 Actions/Effects 许可内调用 `InterruptSpray(Target)`，再经 `ALDGameMode::PublishCaptureInterrupt` 清零该参赛者的喷漆进度
 （事实时刻为该边界 AtMs；营地身体或没有活动归约器的世界不受影响）；缴械、减速和伤害从不调用它。
 被击退出喷漆区由随后的原生运动作为普通离区事实进入归约器。端到端规则见 `Lockdown.Rules.DemoCapture.CombatHitInterrupt`。
@@ -111,9 +108,9 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 公开 Root/Shield 提示同样在读取时由当前 Combat 状态派生，不另存一份可漂移的公开状态。
 动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
-提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法来源的原生 id，
-分别写入公开事实的 `ActionAbility`（Q/W）或 `ActionEquipment`（装备主动），两者至多一个非 0，其他提示均为 0；
-D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不飘名称）；
+提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法技能的原生 id，
+写入公开事实的 `ActionAbility`（Q/W），其他提示为 0；
+D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作，不飘名称）；
 来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
 身体是美术目录（`ULDArtSubsystem`，`DA_DemoArt`）给出的骨骼角色：参赛者按座位色给目录 TintSlots 的 `Tint` 着色，营地两档各用自己的模型；
@@ -153,8 +150,8 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 
 纯规则在 `Combat\LDCombatControlRules`（`LDCombatControl`），Combat 的准入、释放、命中与读模型都只经它判断：
 
-- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺、跳跃）；缴械禁普攻；眩晕禁移动、位移、普攻、
-  技能与装备主动。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
+- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺、跳跃）；缴械禁普攻；眩晕禁移动、位移、普攻与
+  技能。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
   同一效果不续期，换命即消失，营地回位与离局清除。命中时眩晕放弃任何未出手的动作、缴械放弃未出手的普攻（回执 `ControlBlocked`，
   不付费也不退节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
   `bAttackAllowed`/`bMovementAllowed` 同步关闭，导航攻击指令因此原地等待而不重复提交；出手时再判一次。
@@ -195,8 +192,8 @@ D 冲刺是人人都有的移动，两者都为 0（只显示施法动作，不�
 - **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
   `ReduceLearnedCooldown`，都经纯函数 `LDCombatSourceRules::ReduceReadyAt`（不早于当前时刻；`MAX_int64` 表示立即就绪；
   已就绪轨道不变）。
-- **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺、跳跃、假发片后跳）；
-  `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（整活频率之前）与距离加成，后跳距离同样按加成延长；
+- **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺、跳跃）；
+  `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（整活频率之前）与距离加成；
   `CastRangeCm` 统一给出技能施法距离（天外飞瓶的普攻距离加成、网线够长 3 级的 +80cm）。
 - **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动与装备被动（同名家族一次）的唯一读取口；
   装备效果后续经 `LDDemoEquipment::Effective*` 取当前生效定义。
@@ -211,9 +208,9 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
 
 - **击退**：`ApplyKnockback(Target, Body, Hit, Now, bApplied, Error)` 先经 `CommitControl(Knockback)` 提交窗口，再用与冲刺相同的
   `ULDCharacterMovementComponent::StartDemoDash` 沿地面推开（遇阻停在最远合法点）；方向由 `KnockbackDirection` 从施放点（命中的
-  `KnockbackAnchorCm` 或来源脚点）指向目标脚点。窗口内 `IsActionBlocked` 拒绝移动、位移、普攻、技能与装备主动；Navigation 看到
+  `KnockbackAnchorCm` 或来源脚点）指向目标脚点。窗口内 `IsActionBlocked` 拒绝移动、位移、普攻与技能；Navigation 看到
   `ReadKnockbackSerial` 变化即放弃当前订单（`ELDOrderFailure::KnockedBack`，AI 视为 Dropped）。公开状态 `knockback`。
-- **护盾入口**：所有心理防线（技能、装备主动、触发护盾 `GrantShield`、区域、反震）只经 `GrantShieldTo`：先按身体最强减疗减盾缩减，
+- **护盾入口**：所有心理防线（技能、触发护盾 `GrantShield`、区域、反震）只经 `GrantShieldTo`：先按身体最强减疗减盾缩减，
   再 `ReplaceIfNotWeaker`；`LDCombatMechanics::GrantShield` 区分 Gained 与 Refreshed（替换仍有剩余量的记录才算刷新）。刷新与被伤害打空
   （`ShieldBroken`）触发 `PulseShieldEvent`（精神胜利法）；打空另触发防窥膜反击 `OnShieldBroken`。`bFromShieldTrigger` 的命中
   （脉冲、反击）所带控制不再触发社交牛逼症。`ShieldGrantedP2` 记录当前记录的获得量。
@@ -225,15 +222,13 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
   `ApplyOnHitEffects`、伤害技能命中经 `OnHitLanded`。
 - **区域**：`FLDCombatZone` 按 `NextPulseAtMs` 的定次脉冲（自身护盾、区域伤害并以系数快照命中特效 `SnapshotOnHit`），减速每
   `IntervalMs` 判定一次并保留 linger，结束时可定身区域内敌人；`InsideZone` 含边界。
-- **连射、诱饵、后跳、冷却刷新**：`ReleaseMechanics` 在释放时登记后续弹（`FLDCombatVolleyShot`，复用首发弹体载荷）、诱饵
-  （`FLDCombatDecoy`；能看见诱饵处的参赛者经 `CommitControl(Taunt)` 被嘲讽并标记 `bDecoy`，`TauntBlocks` 禁普攻/技能/装备，
-  `ReadDecoyLure` 供 Navigation 强制走向诱饵）、后跳（同一原生位移，计作位移）与红牛（两个都就绪时以 `NoActiveEffect` 拒绝）。
+- **连射**：`ReleaseMechanics` 在释放时登记后续弹（`FLDCombatVolleyShot`，复用首发弹体载荷）。
 - **碰瓷**：`FLDCombatGuard` 在求值中设 `MitigateBp`（抗性之后、护盾之前），`PreMitigationP2` 累计到 `GuardTriggers` 越过阈值时
   反震一次（区域命中 + `GrantShieldTo`）。
 - **负面状态计数**：`NegativeKindsOf` 给出定身、减速、缴械、眩晕、嘲讽、破防（含持续伤害）六种；实锤冲塔按命中前计数放大。
 - **负属性与夹取**：`FLDDemoAttributeDefinition::Penalties` 在 `LDAttributeProjection` 中作为同类扣减项参与相加；所有属性最终统一夹到
   目录上下限（不再拒绝构筑；只有带 DEV 测试项的属性超过上限时拒绝，DEV 项不靠夹取），内容验证 `BuildEnvelope` 只检查极值下伤害/护盾不溢出。
-- 离局 `CancelEntityEffects` 一并移除其区域、连射、诱饵、击退、持续伤害与减疗；营地回位清空全部。
+- 离局 `CancelEntityEffects` 一并移除其区域、连射、击退、持续伤害与减疗；营地回位清空全部。
 
 持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
@@ -252,10 +247,9 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
 同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
 DEV 测试会话的测试属性层（`FLDBuildProjectionInput::DevBonuses`）也只由 Combat 持有：成长域输入不带它，
 Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 `Dev` 来源行；见[库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
-已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性、被动效果与主动等级只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects/EffectiveActiveRank`
+已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性与被动效果只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects`
 取得，属性投影、来源与效果处理器不另写进阶分支；同款双持时同名被动取有进阶的一件。
-来源冷却轨道与债优先回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，进阶不刷新冷却，售出重购按回绑规则继承；
-商店报价用只读 `PreviewGearBinding` 说明继承冷却，以购买回执为准。
+来源冷却轨道与回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，重学回绑原结束时间，进阶不刷新冷却。
 
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
@@ -267,11 +261,11 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 低血线/潜水党窗口与破防/吸血标记的纯规则，`DemoCombatPrimitives.*` 覆盖硬控递减、`CommitControl`、剩余冷却缩减、破防叠加、
 手速减速与解除减速、回复翻倍窗口，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
 `DemoCombatEvaluation.ControlAmplify/Mitigation` 覆盖增伤结算与碰瓷减伤位置，`DemoMechanics.*` 覆盖减疗减盾、护盾事件、
-击退方向与诱饵禁动、破防叠层、负面状态计数与周期脉冲/区域/碰瓷触发；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+击退方向、破防叠层、负面状态计数与周期脉冲/区域/碰瓷触发；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、奖励分配、多账户链式账本、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
-强制目标与恢复，以及隐身的观察授权与撤销、近距离发现、现身与润速；成长与商店的纯规则是
+强制目标与恢复；成长与商店的纯规则是
 `DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
@@ -295,7 +289,7 @@ Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回�
 `MaxSimulationTimeStep`，最多等一个步骤时限）才下单，并同时报告下单到起动之间的帧数与最长一帧，
 Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停住的时间与滑行距离及随后再次右键的起动时间，
 Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
-装备主动与营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
+营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
 这些规则测试不代替新成长、商店或真实拥有连接的运行验证。
 
 数据编辑先运行对应 Sync `--check` 与输入测试。测试用的授予、传送或改时钟要明确是夹具，

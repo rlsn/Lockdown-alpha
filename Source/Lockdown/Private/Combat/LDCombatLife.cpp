@@ -82,9 +82,8 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
         {
             const FLDDemoEquipmentDefinition* Definition=nullptr;
             if (!Content->FindEquipment(Item.DefinitionId.ToString(),Definition,Error)) { return false; }
-            const int32 Slot=Item.Entry==ELDCombatEntry::Item1 ? 0 : Item.Entry==ELDCombatEntry::Item2 ? 1 : INDEX_NONE;
-            if (Slot==INDEX_NONE) { Error=TEXT("Persistent equipment has no item slot."); return false; }
-            Facts.Equipment.Slots[Slot]=Definition->NativeId;
+            if (Item.Slot>=UE_ARRAY_COUNT(Facts.Equipment.Slots)) { Error=TEXT("Persistent equipment has no item slot."); return false; }
+            Facts.Equipment.Slots[Item.Slot]=Definition->NativeId;
         }
         if (!PublicActivesOf(Record->Build,*Content,Facts.Actives))
         { Error=TEXT("Persistent Q/W actives have no approved public active definition."); return false; }
@@ -228,7 +227,6 @@ bool ALDCombatDirector::InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&
             Dash.IssuedCooldownId=FGuid::NewGuid();
             Dash.Kind=ELDCombatSourceKind::Innate;
             Dash.DefinitionId=LDCombatSourceRules::InnateDashId();
-            Dash.bBound=true;
         }
         Records.Add(Record.Entity,MoveTemp(Record));
     }
@@ -271,7 +269,6 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
     Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
     VolleyShots.RemoveAll([&Entity](const FLDCombatVolleyShot& Shot) { return Shot.Body.Victim.EntityId==Entity; });
-    Decoys.RemoveAll([&Entity](const FLDCombatDecoy& Decoy) { return Decoy.Holder.Victim.EntityId==Entity; });
     DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {

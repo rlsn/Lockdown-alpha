@@ -78,7 +78,7 @@ def content_fixture():
     }
     policies = {
         "StatStacking": "AddFlatThenAdditivePercent", "DuplicateEquipment": "Allowed",
-        "DuplicateEquipmentPassive": "OncePerFamily", "DuplicateEquipmentActive": "IndependentSources",
+        "DuplicateEquipmentPassive": "OncePerFamily",
         "MissingSourceCooldown": "ContinueServerTime", "DeadChoiceCommit": "Allowed", "ResourceMaxChange": "PreserveRatio",
         "ReleasedEffectSourceLoss": "ContinueForRemainingContender", "SourceLeave": "CancelUnsettledNoRefund",
         "InvalidAggressionProtection": "BreakOnAggressiveIntent", "CritSampling": "OncePerAttackId",
@@ -181,34 +181,22 @@ def content_fixture():
          "penalties": {"AttackRangeCmFlat": q("cm", 10)}},
     ]
     equipment = [
-        {"id": "item_iron_plate", "buy_price": 51, "tags": ["Tank"], "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)}, "active": None,
+        {"id": "item_iron_plate", "buy_price": 51, "tags": ["Tank"], "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)},
          "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": q("ratio", 0.1)}]}},
-        {"id": "item_edge_blade", "buy_price": 52, "tags": ["BasicAttack"], "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+        {"id": "item_edge_blade", "buy_price": 52, "tags": ["BasicAttack"], "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)},
          "passive": {"family": "passive_third_strike", "effects": [{"op": "nth_basic_bonus", "count": 3, "base": q("points", 5), "damage_type": "Physical"}]}},
-        {"id": "item_runic_focus", "buy_price": 53, "tags": ["Breach"], "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)}, "active": None,
+        {"id": "item_runic_focus", "buy_price": 53, "tags": ["Breach"], "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)},
          "passive": {"family": "passive_mana_refund", "effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": q("mp", 2)}]}},
-        {"id": "item_siphon_emblem", "buy_price": 54, "tags": ["BasicAttack", "Tank"], "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)}, "active": None,
+        {"id": "item_siphon_emblem", "buy_price": 54, "tags": ["BasicAttack", "Tank"], "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)},
          "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}],
                      "upgraded": {"effects": [{"op": "lifesteal", "ratio": q("ratio", 0.15)}]}}},
-        {"id": "item_phase_anchor", "buy_price": 55, "tags": ["Mobility"], "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)}, "active": None,
+        {"id": "item_phase_anchor", "buy_price": 55, "tags": ["Mobility"], "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)},
          "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": q("ratio", 0.5), "distance_bonus": q("ratio", 0.25)}]}},
-        {"id": "item_arcane_battery", "buy_price": 56, "tags": ["Shield", "Breach"], "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None,
-         "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_arcane_battery",
-                    "rank": {"rank": 1, "mana_cost": q("mp", 0), "cooldown": q("s", 12),
-                             "effects": [{"op": "restore_mana", "ratio": q("ratio", 0.2)},
-                                         {"op": "shield", "base": q("hp", 45), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)}]},
-                    "upgraded_rank": {"rank": 2, "mana_cost": q("mp", 0), "cooldown": q("s", 10),
-                                      "effects": [{"op": "restore_mana", "ratio": q("ratio", 0.3)},
-                                                  {"op": "shield", "base": q("hp", 60), "ap_ratio": q("ratio", 0.25), "duration": q("s", 1.25)}]}}},
-        {"id": "item_echo_maul", "buy_price": 57, "tags": ["BasicAttack", "Mobility"], "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)}, "active": None,
+        {"id": "item_arcane_battery", "buy_price": 56, "tags": ["Shield", "Breach"], "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None},
+        {"id": "item_echo_maul", "buy_price": 57, "tags": ["BasicAttack", "Mobility"], "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)},
          "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
-        {"id": "item_paper_box", "buy_price": 58, "tags": ["Mobility"], "stats": {"APFlat": q("points", 2), "MoveSpeedBonusRatio": q("ratio", 0.03)}, "passive": None,
-         "active": {"target": {"mode": "Self"}, "windup": q("s", 0), "cooldown_family": "cd_paper_box",
-                    "rank": {"rank": 1, "mana_cost": q("mp", 6), "cooldown": q("s", 11),
-                             "effects": [{"op": "stealth", "duration": q("s", 0.75), "reveal_radius": q("cm", 60),
-                                          "move_speed_penalty": q("ratio", 0.05)}]}}},
     ]
-    equipment.append({"id": "item_megaphone", "buy_price": 59, "tags": ["Breach", "Control"], "stats": {"APFlat": q("points", 3), "CooldownHasteFlat": q("points", 2)}, "active": None,
+    equipment.append({"id": "item_megaphone", "buy_price": 59, "tags": ["Breach", "Control"], "stats": {"APFlat": q("points", 3), "CooldownHasteFlat": q("points", 2)},
                       "passive": {"family": "passive_megaphone", "effects": [{"op": "affliction_amp", "dot_ratio": q("ratio", 0.25), "slow_scale": q("ratio", 1.1)}]}})
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (

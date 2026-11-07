@@ -10,13 +10,13 @@
 #include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
 
-// Taunt and stealth (CONTENT_AND_BALANCE 15.4/15.5) on Combat's body records; the rules live in LDControlRules.
+// Taunt (CONTENT_AND_BALANCE 15.5) on Combat's body records; the rules live in LDControlRules.
 namespace LDCombatControlDetail
 {
     double Cm(const FLDDemoRational& Value)
     { return Value.Denominator>0 ? double(Value.Numerator)/double(Value.Denominator) : 0.; }
 
-    // Observation of Target from SourceFoot under the same sight and stealth rule as the observation owner.
+    // Observation of Target from SourceFoot under the same sight rule as the observation owner.
     bool Observes(const ALDGameMode& Mode, const UWorld& World, const FVector& SourceFoot, const ALDCharacter& Target,
         bool& bFault)
     {
@@ -34,41 +34,15 @@ bool ALDCombatDirector::ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBod
     OutTaunter={};
     const auto* Mode=Core();
     const auto* Body=FindBody(Victim);
-    // A decoy lure is no chase of its caster: Navigation walks the victim to the decoy instead (ReadDecoyLure).
-    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())
-        || Body->Taunt->bDecoy) { return false; }
+    if (!Mode || !Body || Body->bPendingDeath || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())) { return false; }
     OutTaunter=Body->Taunt->SourceBody;
     return true;
 }
 
-double ALDCombatDirector::ConcealBeyondCm(const ALDCharacter& Actor) const
+bool ALDCombatDirector::EffectiveMoveSpeed(const FLDBodyCombatState& Body, double& OutCmPerSec) const
 {
-    const auto* Mode=Core();
-    const auto* Body=StateFor(&Actor);
-    return Mode && Body && !Body->bPendingDeath ? LDControl::ConcealBeyondCm(Body->Stealth,Mode->GetAuthorityNowMs()) : 0.;
-}
-
-void ALDCombatDirector::RevealStealth(FLDBodyCombatState& Body)
-{
-    if (!LDControl::Reveal(Body.Stealth)) { return; }
-    ++Body.StateRevision;
-    MarkViewChanged(Body.Victim.EntityId);
-}
-
-bool ALDCombatDirector::EffectiveMoveSpeed(const FLDBodyCombatState& Body, int64 NowMs, double& OutCmPerSec) const
-{
-    OutCmPerSec=0;
-    const int64 Penalty=LDControl::IsStealthed(Body.Stealth,NowMs) ? Body.Stealth->MoveSpeedPenaltyBp : 0;
-    if (Penalty==0)
-    {
-        OutCmPerSec=LDCombatControlDetail::Cm(Body.AttributeProjection.Final.MoveSpeedCmPerSec);
-        return FMath::IsFinite(OutCmPerSec) && OutCmPerSec>0;
-    }
-    const auto* Content=Catalog();
-    const int32 Row=int32(ELDProjectedAttribute::MoveSpeed);
-    return Content && Body.AttributeProjection.Contributions.IsValidIndex(Row)
-        && LDControl::MoveSpeedCmPerSec(Body.AttributeProjection.Contributions[Row],Penalty,
-            Content->Get().Parameters.MoveSpeedCmPerSec,OutCmPerSec);
+    OutCmPerSec=LDCombatControlDetail::Cm(Body.AttributeProjection.Final.MoveSpeedCmPerSec);
+    return FMath::IsFinite(OutCmPerSec) && OutCmPerSec>0;
 }
 
 bool ALDCombatDirector::RefreshTaunts(FString& Error)
@@ -81,19 +55,6 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
         FLDBodyCombatState& Body=Pair.Value;
         const ALDCharacter* Victim=Pair.Key.Get();
         if (!Body.Taunt.IsSet()) { continue; }
-        if (Body.Taunt->bDecoy)
-        {
-            // A lure holds while its decoy stands, its caster is still in the match and its victim lives.
-            const FGuid LureId=Body.Taunt->EffectId;
-            const bool bHolds=Victim && !Body.bPendingDeath && Mode->IsMemberPresent(Body.Taunt->SourceEntity)
-                && Decoys.ContainsByPredicate([&LureId,Now](const FLDCombatDecoy& Decoy) { return Decoy.EffectId==LureId && Decoy.ExpiresAtMs>Now; })
-                && Body.Taunt->ExpiresAtMs>Now;
-            if (bHolds) { continue; }
-            Body.Taunt.Reset();
-            ++Body.StateRevision;
-            MarkViewChanged(Body.Victim.EntityId);
-            continue;
-        }
         ALDCharacter* Taunter=nullptr;
         const FLDBodyCombatState* Source=FindBody(Body.Taunt->SourceBody,&Taunter);
         const bool bAlive=Victim && !Body.bPendingDeath && Source && Taunter && !Source->bPendingDeath
@@ -195,8 +156,7 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         Taunt.SourceEntity=App.SourceEntity;
         Taunt.SourceBody=App.SourceBody;
         Taunt.ExpiresAtMs=ExpiresAtMs;
-        bool bRevealed=false;
-        bApplied=LDControl::TauntVictim(Victim.Taunt,Victim.Stealth,Taunt,NowMs,bRevealed);
+        bApplied=LDControl::ApplyTaunt(Victim.Taunt,Taunt,NowMs);
         // Unreleased work the taunt now forbids ends without cost; a basic swing at the taunter continues.
         if (bApplied && Victim.Action.IsSet() && !LDControl::TauntAllows(Victim.Taunt,NowMs,
             Victim.Action->Kind==ELDCombatActionKind::Basic,Victim.Action->TargetBody))

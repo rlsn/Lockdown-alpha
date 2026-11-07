@@ -127,7 +127,7 @@ void FLDAudioCueTracker::ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioC
         }
         else if (Combat->Revision > HitRevision)
         {
-            // A newer release in the own cue facts; only a basic one sounds (Q/W/1/2/D sound from their receipts).
+            // A newer release in the own cue facts; only a basic one sounds (Q/W/D sound from their receipts).
             // One body releases at most one action per authority ms, so a later release time is a new release.
             const FLDCombatCueFacts& Facts = Combat->Cues;
             if (Facts.ReleasedAtMs > AttackReleasedAtMs)
@@ -188,8 +188,7 @@ void FLDAudioCueTracker::ObserveCombatReceipt(const FLDCombatActionReceipt& Rece
         CastLife = Receipt.Life;
         CastKeys.Reset();
     }
-    const bool bActive = Receipt.Entry == ELDCombatEntry::Q || Receipt.Entry == ELDCombatEntry::W
-        || Receipt.Entry == ELDCombatEntry::Item1 || Receipt.Entry == ELDCombatEntry::Item2 || Receipt.Entry == ELDCombatEntry::Dash;
+    const bool bActive = Receipt.Entry == ELDCombatEntry::Q || Receipt.Entry == ELDCombatEntry::W || Receipt.Entry == ELDCombatEntry::Dash;
     const bool bReleased = Receipt.Reject == ELDCombatReject::None
         && (Receipt.Phase == ELDCombatPhase::Released || Receipt.Phase == ELDCombatPhase::Finished);
     if (!bActive || !bReleased) { return; }

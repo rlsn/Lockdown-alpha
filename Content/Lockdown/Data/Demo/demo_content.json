@@ -5212,7 +5212,7 @@
     },
     {
       "description_key": "active_come_here.description",
-      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被激得「瞅你咋地」，只能追着你抽大比兜，不能放技能、用装备或润；同时短时间内提高自己的嘴硬和心大。满级时瞅你咋地结束，按期间挨打的次数对周围造成精神攻击。",
+      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被激得「瞅你咋地」，只能追着你抽大比兜，不能放技能或润；同时短时间内提高自己的嘴硬和心大。满级时瞅你咋地结束，按期间挨打的次数对周围造成精神攻击。",
       "icon_id": "icon_active_come_here",
       "id": "active_come_here",
       "name_key": "active_come_here.name",
@@ -5257,7 +5257,7 @@
     },
     {
       "description_key": "active_monkey_peach.description",
-      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理超度并让其捂裆，期间抽不了大比兜，仍可移动、放技能和用装备；出手后马上能抽下一下大比兜。伤害随力大砖飞提高。满级时对方正被控住或破防了，这一掏必定暴击。",
+      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理超度并让其捂裆，期间抽不了大比兜，仍可移动和放技能；出手后马上能抽下一下大比兜。伤害随力大砖飞提高。满级时对方正被控住或破防了，这一掏必定暴击。",
       "icon_id": "icon_active_monkey_peach",
       "id": "active_monkey_peach",
       "name_key": "active_monkey_peach.name",
@@ -5483,7 +5483,7 @@
     },
     {
       "description_key": "disarm.description",
-      "description_text": "两只手忙着捂裆：抽不了大比兜，但仍可以移动、润、放技能和用装备。",
+      "description_text": "两只手忙着捂裆：抽不了大比兜，但仍可以移动、润和放技能。",
       "icon_id": "icon_disarm",
       "id": "disarm",
       "name_key": "disarm.name",
@@ -5528,7 +5528,7 @@
     },
     {
       "description_key": "item_arcane_battery.description",
-      "description_text": "提高电量上限和心大。主动「插上电」：立刻回复一部分电量，并给自己加上心理防线。",
+      "description_text": "提高电量上限和心大。",
       "icon_id": "icon_item_arcane_battery",
       "id": "item_arcane_battery",
       "name_key": "item_arcane_battery.name",
@@ -5536,17 +5536,8 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "item_decoy_wig.description",
-      "description_text": "提高力大砖飞和阴阳怪气；主动：解除自己的提裤子和腿软，向后一跳，原地留下假发片诱饵，让周围的人追着诱饵瞅。",
-      "icon_id": "icon_item_decoy_wig",
-      "id": "item_decoy_wig",
-      "name_key": "item_decoy_wig.name",
-      "name_text": "假发片",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "item_dossier.description",
-      "description_text": "提高阴阳怪气和精神状态上限；主动：对一个人抖黑料，造成精神攻击并让他一段时间内受到的治疗和心理防线减少。",
+      "description_text": "提高阴阳怪气和精神状态上限。",
       "icon_id": "icon_item_dossier",
       "id": "item_dossier",
       "name_key": "item_dossier.name",
@@ -5569,15 +5560,6 @@
       "id": "item_edge_blade",
       "name_key": "item_edge_blade.name",
       "name_text": "折叠椅（摔跤同款）",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_energy_drink.description",
-      "description_text": "提高整活频率和手速；主动：两个技能里冷却快好的那个立即就绪。",
-      "icon_id": "icon_item_energy_drink",
-      "id": "item_energy_drink",
-      "name_key": "item_energy_drink.name",
-      "name_text": "红牛",
       "namespace": "DemoContent"
     },
     {
@@ -5608,17 +5590,8 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "item_paper_box.description",
-      "description_text": "提高阴阳怪气和润速。主动「泯然众人」：混进人群查无此人一小会儿，润速略降，潜水党立刻就绪；离得很近的敌人仍能认出你，抽大比兜、放技能、用装备或挨打都会现身。",
-      "icon_id": "icon_item_paper_box",
-      "id": "item_paper_box",
-      "name_key": "item_paper_box.name",
-      "name_text": "路人甲 T 恤",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "item_phase_anchor.description",
-      "description_text": "提高润速。被动「说润就润」：带着时润的冷却缩短、润得更远；带冲刺或跳跃的技能和装备主动也冲得更远、冷却更短。两本同款只算一次。",
+      "description_text": "提高润速。被动「说润就润」：带着时润的冷却缩短、润得更远；带冲刺或跳跃的技能也冲得更远、冷却更短。两本同款只算一次。",
       "icon_id": "icon_item_phase_anchor",
       "id": "item_phase_anchor",
       "name_key": "item_phase_anchor.name",
@@ -5672,7 +5645,7 @@
     },
     {
       "description_key": "knockback.description",
-      "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、润、抽大比兜、放技能和用装备。",
+      "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、润、抽大比兜和放技能。",
       "icon_id": "icon_knockback",
       "id": "knockback",
       "name_key": "knockback.name",
@@ -5825,7 +5798,7 @@
     },
     {
       "description_key": "root.description",
-      "description_text": "裤子被扒了，忙着提：不能移动和润，但仍可以抽大比兜、放技能和用装备。",
+      "description_text": "裤子被扒了，忙着提：不能移动和润，但仍可以抽大比兜和放技能。",
       "icon_id": "icon_root",
       "id": "root",
       "name_key": "root.name",
@@ -5860,17 +5833,8 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "stealth.description",
-      "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被认出来。抽大比兜、放技能、用装备或挨打都会现身。",
-      "icon_id": "icon_stealth",
-      "id": "stealth",
-      "name_key": "stealth.name",
-      "name_text": "查无此人",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "stun.description",
-      "description_text": "脑子转不动了：不能移动、润、抽大比兜、放技能和用装备；正在准备的动作会被打断。",
+      "description_text": "脑子转不动了：不能移动、润、抽大比兜和放技能；正在准备的动作会被打断。",
       "icon_id": "icon_stun",
       "id": "stun",
       "name_key": "stun.name",
@@ -5879,7 +5843,7 @@
     },
     {
       "description_key": "taunt.description",
-      "description_text": "被激到了：只能追着冲你喊「你瞅啥」的人抽大比兜，不能放技能、用装备、润或自己下令；对方寄了、离开或不在视野里时立刻解除。",
+      "description_text": "被激到了：只能追着冲你喊「你瞅啥」的人抽大比兜，不能放技能、润或自己下令；对方寄了、离开或不在视野里时立刻解除。",
       "icon_id": "icon_taunt",
       "id": "taunt",
       "name_key": "taunt.name",
@@ -5898,90 +5862,6 @@
   ],
   "equipment": [
     {
-      "active": {
-        "cooldown_family": "cd_arcane_battery",
-        "rank": {
-          "cooldown": {
-            "ms": 40000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "restore_mana",
-              "opcode": 9,
-              "ratio": {
-                "bp": 2500,
-                "unit": "ratio"
-              }
-            },
-            {
-              "ap_ratio": {
-                "bp": 4000,
-                "unit": "ratio"
-              },
-              "base": {
-                "p2": 12000,
-                "unit": "hp"
-              },
-              "duration": {
-                "ms": 2500,
-                "unit": "ms"
-              },
-              "op": "shield",
-              "opcode": 2
-            }
-          ],
-          "mana_cost": {
-            "p2": 0,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "Self"
-        },
-        "upgraded_rank": {
-          "cooldown": {
-            "ms": 40000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "restore_mana",
-              "opcode": 9,
-              "ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
-            },
-            {
-              "ap_ratio": {
-                "bp": 5600,
-                "unit": "ratio"
-              },
-              "base": {
-                "p2": 16800,
-                "unit": "hp"
-              },
-              "duration": {
-                "ms": 2500,
-                "unit": "ms"
-              },
-              "op": "shield",
-              "opcode": 2
-            }
-          ],
-          "mana_cost": {
-            "p2": 0,
-            "unit": "mp"
-          },
-          "rank": 2
-        },
-        "windup": {
-          "ms": 0,
-          "unit": "ms"
-        }
-      },
       "buy_price": 400,
       "id": "item_arcane_battery",
       "native_id": 104,
@@ -6013,256 +5893,6 @@
       }
     },
     {
-      "active": {
-        "cooldown_family": "cd_decoy_wig",
-        "rank": {
-          "cooldown": {
-            "ms": 40000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "dispel_root",
-              "opcode": 3
-            },
-            {
-              "op": "dispel_slow",
-              "opcode": 37
-            },
-            {
-              "distance": {
-                "denominator": 1,
-                "numerator": 200,
-                "unit": "cm"
-              },
-              "duration": {
-                "ms": 250,
-                "unit": "ms"
-              },
-              "op": "leap_back",
-              "opcode": 59
-            },
-            {
-              "duration": {
-                "ms": 1500,
-                "unit": "ms"
-              },
-              "op": "decoy",
-              "opcode": 58,
-              "radius": {
-                "denominator": 1,
-                "numerator": 300,
-                "unit": "cm"
-              },
-              "taunt_duration": {
-                "ms": 1000,
-                "unit": "ms"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "Self"
-        },
-        "upgraded_rank": {
-          "cooldown": {
-            "ms": 32000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "dispel_root",
-              "opcode": 3
-            },
-            {
-              "op": "dispel_slow",
-              "opcode": 37
-            },
-            {
-              "distance": {
-                "denominator": 1,
-                "numerator": 200,
-                "unit": "cm"
-              },
-              "duration": {
-                "ms": 250,
-                "unit": "ms"
-              },
-              "op": "leap_back",
-              "opcode": 59
-            },
-            {
-              "duration": {
-                "ms": 1500,
-                "unit": "ms"
-              },
-              "op": "decoy",
-              "opcode": 58,
-              "radius": {
-                "denominator": 1,
-                "numerator": 300,
-                "unit": "cm"
-              },
-              "taunt_duration": {
-                "ms": 1250,
-                "unit": "ms"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 2
-        },
-        "windup": {
-          "ms": 0,
-          "unit": "ms"
-        }
-      },
-      "buy_price": 400,
-      "id": "item_decoy_wig",
-      "native_id": 113,
-      "passive": null,
-      "sell_gold": 260,
-      "stats": {
-        "ADFlat": {
-          "p2": 1500,
-          "unit": "points"
-        },
-        "APFlat": {
-          "p2": 1500,
-          "unit": "points"
-        }
-      },
-      "tags": [
-        "Mobility",
-        "Control"
-      ],
-      "upgraded_stats": {
-        "ADFlat": {
-          "p2": 2025,
-          "unit": "points"
-        },
-        "APFlat": {
-          "p2": 2025,
-          "unit": "points"
-        }
-      }
-    },
-    {
-      "active": {
-        "cooldown_family": "cd_dossier",
-        "rank": {
-          "cooldown": {
-            "ms": 30000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "ad_ratio": {
-                "bp": 0,
-                "unit": "ratio"
-              },
-              "ap_ratio": {
-                "bp": 5000,
-                "unit": "ratio"
-              },
-              "base": {
-                "p2": 10000,
-                "unit": "points"
-              },
-              "damage_type": "Magical",
-              "max_hp_ratio": {
-                "bp": 0,
-                "unit": "ratio"
-              },
-              "op": "damage",
-              "opcode": 1
-            },
-            {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "heal_cut",
-              "opcode": 41,
-              "ratio": {
-                "bp": 4000,
-                "unit": "ratio"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "Unit",
-          "range": {
-            "denominator": 1,
-            "numerator": 550,
-            "unit": "cm"
-          }
-        },
-        "upgraded_rank": {
-          "cooldown": {
-            "ms": 30000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "ad_ratio": {
-                "bp": 0,
-                "unit": "ratio"
-              },
-              "ap_ratio": {
-                "bp": 7000,
-                "unit": "ratio"
-              },
-              "base": {
-                "p2": 14000,
-                "unit": "points"
-              },
-              "damage_type": "Magical",
-              "max_hp_ratio": {
-                "bp": 0,
-                "unit": "ratio"
-              },
-              "op": "damage",
-              "opcode": 1
-            },
-            {
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "op": "heal_cut",
-              "opcode": 41,
-              "ratio": {
-                "bp": 5000,
-                "unit": "ratio"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 2
-        },
-        "windup": {
-          "ms": 200,
-          "unit": "ms"
-        }
-      },
       "buy_price": 400,
       "id": "item_dossier",
       "native_id": 110,
@@ -6294,7 +5924,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 400,
       "id": "item_echo_maul",
       "native_id": 105,
@@ -6362,7 +5991,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 320,
       "id": "item_edge_blade",
       "native_id": 100,
@@ -6421,82 +6049,6 @@
       }
     },
     {
-      "active": {
-        "cooldown_family": "cd_energy_drink",
-        "rank": {
-          "cooldown": {
-            "ms": 45000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "cooldown_refresh",
-              "opcode": 60
-            }
-          ],
-          "mana_cost": {
-            "p2": 0,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "Self"
-        },
-        "upgraded_rank": {
-          "cooldown": {
-            "ms": 36000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "op": "cooldown_refresh",
-              "opcode": 60
-            }
-          ],
-          "mana_cost": {
-            "p2": 0,
-            "unit": "mp"
-          },
-          "rank": 2
-        },
-        "windup": {
-          "ms": 0,
-          "unit": "ms"
-        }
-      },
-      "buy_price": 380,
-      "id": "item_energy_drink",
-      "native_id": 114,
-      "passive": null,
-      "sell_gold": 247,
-      "stats": {
-        "AttackSpeedBonusRatio": {
-          "bp": 1000,
-          "unit": "ratio"
-        },
-        "CooldownHasteFlat": {
-          "p2": 1500,
-          "unit": "points"
-        }
-      },
-      "tags": [
-        "Breach",
-        "BasicAttack"
-      ],
-      "upgraded_stats": {
-        "AttackSpeedBonusRatio": {
-          "bp": 1350,
-          "unit": "ratio"
-        },
-        "CooldownHasteFlat": {
-          "p2": 2025,
-          "unit": "points"
-        }
-      }
-    },
-    {
-      "active": null,
       "buy_price": 310,
       "id": "item_iron_plate",
       "native_id": 99,
@@ -6551,7 +6103,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 360,
       "id": "item_megaphone",
       "native_id": 109,
@@ -6615,7 +6166,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 380,
       "id": "item_nail_uniform",
       "native_id": 108,
@@ -6718,109 +6268,6 @@
       }
     },
     {
-      "active": {
-        "cooldown_family": "cd_paper_box",
-        "rank": {
-          "cooldown": {
-            "ms": 45000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "ambush_ready": true,
-              "duration": {
-                "ms": 3000,
-                "unit": "ms"
-              },
-              "move_speed_penalty": {
-                "bp": 1000,
-                "unit": "ratio"
-              },
-              "op": "stealth",
-              "opcode": 19,
-              "reveal_radius": {
-                "denominator": 1,
-                "numerator": 250,
-                "unit": "cm"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 1
-        },
-        "target": {
-          "mode": "Self"
-        },
-        "upgraded_rank": {
-          "cooldown": {
-            "ms": 45000,
-            "unit": "ms"
-          },
-          "effects": [
-            {
-              "ambush_ready": true,
-              "duration": {
-                "ms": 4000,
-                "unit": "ms"
-              },
-              "move_speed_penalty": {
-                "bp": 1000,
-                "unit": "ratio"
-              },
-              "op": "stealth",
-              "opcode": 19,
-              "reveal_radius": {
-                "denominator": 1,
-                "numerator": 250,
-                "unit": "cm"
-              }
-            }
-          ],
-          "mana_cost": {
-            "p2": 4000,
-            "unit": "mp"
-          },
-          "rank": 2
-        },
-        "windup": {
-          "ms": 0,
-          "unit": "ms"
-        }
-      },
-      "buy_price": 400,
-      "id": "item_paper_box",
-      "native_id": 107,
-      "passive": null,
-      "sell_gold": 260,
-      "stats": {
-        "APFlat": {
-          "p2": 2000,
-          "unit": "points"
-        },
-        "MoveSpeedBonusRatio": {
-          "bp": 800,
-          "unit": "ratio"
-        }
-      },
-      "tags": [
-        "Mobility"
-      ],
-      "upgraded_stats": {
-        "APFlat": {
-          "p2": 2700,
-          "unit": "points"
-        },
-        "MoveSpeedBonusRatio": {
-          "bp": 1080,
-          "unit": "ratio"
-        }
-      }
-    },
-    {
-      "active": null,
       "buy_price": 400,
       "id": "item_phase_anchor",
       "native_id": 103,
@@ -6891,7 +6338,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 380,
       "id": "item_privacy_screen",
       "native_id": 111,
@@ -6971,7 +6417,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 320,
       "id": "item_runic_focus",
       "native_id": 101,
@@ -7028,7 +6473,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 360,
       "id": "item_siphon_emblem",
       "native_id": 102,
@@ -7084,7 +6528,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 380,
       "id": "item_skateboard",
       "native_id": 112,
@@ -7148,7 +6591,6 @@
       }
     },
     {
-      "active": null,
       "buy_price": 320,
       "id": "item_slingshot",
       "native_id": 106,
@@ -7659,7 +7101,6 @@
     "CritSampling": "OncePerAttackId",
     "DeadChoiceCommit": "Allowed",
     "DuplicateEquipment": "Allowed",
-    "DuplicateEquipmentActive": "IndependentSources",
     "DuplicateEquipmentPassive": "OncePerFamily",
     "InvalidAggressionProtection": "BreakOnAggressiveIntent",
     "LifestealBasis": "PrimaryBasicAttackHPLost",

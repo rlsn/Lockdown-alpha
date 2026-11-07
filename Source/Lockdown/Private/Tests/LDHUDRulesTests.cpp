@@ -185,7 +185,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionViewTest,"Lockdown.Rules.HUDActionV
 bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
 {
     LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=2;Bolt.bHasActive=true;Bolt.ManaCostP2=5000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=2;Bolt.ManaCostP2=5000;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("A ready learned active can be sent and shows its rank"),View.bCanSubmitIntent&&View.ExecutionBlocks==0&&View.State==TEXT("就绪")&&View.Name==TEXT("技能甲 2级")&&View.Kind==TEXT("角色主动"));
     Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;View=LDHUD::Action(Bolt,Context);
@@ -198,14 +198,12 @@ bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
     Context.ManaP2=10000;
     LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);
     TestTrue(TEXT("An empty learned slot is an explicit EmptySource attempt, still sent"),View.Name==TEXT("空槽")&&(View.ExecutionBlocks&LDHUD::ActionEmpty)&&View.bCanSubmitIntent);
-    Empty.Slot=LDHUD::EActionSlot::Item1;View=LDHUD::Action(Empty,Context);
-    TestTrue(TEXT("An empty equipment slot says so"),View.Name==TEXT("无装备")&&View.Kind==TEXT("装备主动"));
-    LDHUD::FActionInput Plate;Plate.Slot=LDHUD::EActionSlot::Item2;Plate.bProjected=true;Plate.bHasSource=true;Plate.Name=TEXT("装备甲");
-    View=LDHUD::Action(Plate,Context);
-    TestTrue(TEXT("Attribute-only equipment is marked without an active, never a pretend skill"),View.State==TEXT("无主动效果")&&(View.ExecutionBlocks&LDHUD::ActionNoActive)&&View.Name==TEXT("装备甲"));
-    LDHUD::FActionInput First;First.Slot=LDHUD::EActionSlot::Item1;First.bProjected=true;First.bHasSource=true;First.Name=TEXT("装备乙");First.bHasActive=true;First.ReadyAtMs=40000;First.CooldownMs=40000;
-    LDHUD::FActionInput Second=First;Second.Slot=LDHUD::EActionSlot::Item2;Second.ReadyAtMs=0;
-    TestTrue(TEXT("Two copies of one item keep independent readiness"),LDHUD::Action(First,Context).State.StartsWith(TEXT("冷却"))&&LDHUD::Action(Second,Context).State==TEXT("就绪"));
+    Empty.Slot=LDHUD::EActionSlot::Equipment1;View=LDHUD::Action(Empty,Context);
+    TestTrue(TEXT("An empty equipment slot says so and sends nothing"),View.Name==TEXT("无装备")&&View.Kind==TEXT("装备")&&!View.bCanSubmitIntent);
+    LDHUD::FActionInput Plate;Plate.Slot=LDHUD::EActionSlot::Equipment2;Plate.bProjected=true;Plate.bHasSource=true;Plate.Name=TEXT("装备甲");
+    Plate.ReadyAtMs=40000;Plate.CooldownMs=40000;Plate.ManaCostP2=20000;View=LDHUD::Action(Plate,Context);
+    TestTrue(TEXT("Held equipment is shown as worn, never as a skill to send"),View.State==TEXT("已装备")&&View.ExecutionBlocks==LDHUD::ActionPassive
+        &&View.Name==TEXT("装备甲")&&!View.bCanSubmitIntent&&View.CooldownRemainingMs==0&&View.Cost.IsEmpty());
     Bolt.bControlled=true;View=LDHUD::Action(Bolt,Context);
     TestTrue(TEXT("A control limit is explained"),(View.ExecutionBlocks&LDHUD::ActionControlled)&&View.State==TEXT("受控制无法使用"));
     Bolt.bControlled=false;Bolt.ServerBlock=TEXT("目标不可用");View=LDHUD::Action(Bolt,Context);
@@ -416,9 +414,9 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
         LDHUD::PassiveLine(&Progression,&Combat,&Content),TEXT("被动：")+HudName(TEXT("passive_battle_rhythm"))+TEXT(" 2级、")+HudName(TEXT("item_iron_plate")));
     Progression.Skills={Active};Combat.EquipmentPassives.Reset();
     TestEqualSensitive(TEXT("Known projections without passives say so"),LDHUD::PassiveLine(&Progression,&Combat,&Content),FString(TEXT("被动：无")));
-    FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::Item1;
+    FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;
     Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::Cooldown;Receipt.bProtectionRemoved=true;
-    TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),TEXT("装备 1 未执行：冷却中 · ")+LDTerms::ProtectionRemoved());
+    TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),TEXT("角色技能 2 未执行：冷却中 · ")+LDTerms::ProtectionRemoved());
     Receipt.bProtectionRemoved=false;Receipt.Reject=ELDCombatReject::Cancelled;
     TestTrue(TEXT("A cancel tells nothing"),LDHUD::CombatReceiptNotice(Receipt).IsEmpty());
     Receipt.Origin=ELDCombatRequestOrigin::Nav;Receipt.Reject=ELDCombatReject::OutOfRange;
@@ -481,7 +479,7 @@ bool FLDHUDCooldownTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("The last tenth below ten seconds"),LDHUD::CooldownText(9900),FString(TEXT("9.9")));
     TestEqualSensitive(TEXT("Any live remainder reads at least a tenth, never 0.0"),LDHUD::CooldownText(1),FString(TEXT("0.1")));
     LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.bHasActive=true;Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.ReadyAtMs=8000;Bolt.CooldownMs=8000;
     TestEqualSensitive(TEXT("The slot view carries the remainder drawn over the mask"),LDHUD::Action(Bolt,Context).Countdown,FString(TEXT("3.2")));
     Context.NowMs=8000;
     TestTrue(TEXT("The remainder disappears once the authority clock reaches the track end"),LDHUD::Action(Bolt,Context).Countdown.IsEmpty());
@@ -493,7 +491,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDActionStatesTest,"Lockdown.Rules.HUDActio
 bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
 {
     LDHUD::FActionContext Context;Context.KeyLabel=TEXT("Q");Context.bOwnContext=true;Context.bPlaying=true;Context.bAlive=true;Context.bClock=true;Context.NowMs=4800;Context.bManaKnown=true;Context.ManaP2=10000;
-    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=1;Bolt.bHasActive=true;Bolt.ManaCostP2=3050;
+    LDHUD::FActionInput Bolt;Bolt.Slot=LDHUD::EActionSlot::Q;Bolt.bProjected=true;Bolt.bHasSource=true;Bolt.Name=TEXT("技能甲");Bolt.Rank=1;Bolt.ManaCostP2=3050;
     LDHUD::FActionView View=LDHUD::Action(Bolt,Context);
     LDHUD::EActionLook Shown=LDHUD::ActionLook(View,false);
     TestEqualSensitive(TEXT("The cost chip shows only the mana cost, rounded down like the shown mana"),View.Cost,FString(TEXT("30")));
@@ -514,9 +512,9 @@ bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
     Bolt.bControlled=false;Bolt.ReadyAtMs=0;Context.ManaP2=10000;
     LDHUD::FActionInput Empty;Empty.Slot=LDHUD::EActionSlot::W;Empty.bProjected=true;View=LDHUD::Action(Empty,Context);Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("An empty slot looks empty even when armed and has no cost, rank or icon glyph"),Shown==LDHUD::EActionLook::Empty&&View.Cost.IsEmpty()&&View.Rank.IsEmpty()&&View.Glyph.IsEmpty()&&View.Name==TEXT("空槽"));
-    LDHUD::FActionInput Plate;Plate.Slot=LDHUD::EActionSlot::Item1;Plate.bProjected=true;Plate.bHasSource=true;Plate.Name=TEXT("装备甲");Plate.ManaCostP2=2000;
+    LDHUD::FActionInput Plate;Plate.Slot=LDHUD::EActionSlot::Equipment1;Plate.bProjected=true;Plate.bHasSource=true;Plate.Name=TEXT("装备甲");Plate.ManaCostP2=2000;
     View=LDHUD::Action(Plate,Context);Shown=LDHUD::ActionLook(View,false);
-    TestTrue(TEXT("A source without an active looks empty, its tooltip says why and it shows no cost or rank"),Shown==LDHUD::EActionLook::Empty&&View.State==TEXT("无主动效果")&&View.Cost.IsEmpty()&&View.Rank.IsEmpty());
+    TestTrue(TEXT("A held item looks like a passive slot, its tooltip says it is worn and it shows no cost or rank"),Shown==LDHUD::EActionLook::Empty&&View.State==TEXT("已装备")&&View.Cost.IsEmpty()&&View.Rank.IsEmpty());
     Context.bAlive=false;View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,true);
     TestTrue(TEXT("A dead owner's slot is blocked, never armed"),Shown==LDHUD::EActionLook::Blocked&&View.State==LDTerms::Dead);
     Context.bAlive=true;Bolt.ServerBlock=TEXT("目标不可用");View=LDHUD::Action(Bolt,Context);Shown=LDHUD::ActionLook(View,false);
@@ -529,7 +527,7 @@ bool FLDHUDActionStatesTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("The pressed slot shows the reason of the player's failed request"),LDHUD::CombatReceiptSlotNotice(Receipt),FString(TEXT("超出射程")));
     Receipt.Entry=ELDCombatEntry::Basic;
     TestTrue(TEXT("The basic attack has no slot to tell"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
-    Receipt.Entry=ELDCombatEntry::Item2;Receipt.Reject=ELDCombatReject::Cancelled;
+    Receipt.Entry=ELDCombatEntry::Q;Receipt.Reject=ELDCombatReject::Cancelled;
     TestTrue(TEXT("A cancel tells the slot nothing"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
     Receipt.Reject=ELDCombatReject::Cooldown;Receipt.Origin=ELDCombatRequestOrigin::Nav;
     TestTrue(TEXT("A navigation-issued request tells the slot nothing"),LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty());
@@ -620,11 +618,11 @@ bool FLDHUDShopPreorderTest::RunTest(const FString& Parameters)
 {
     // The catalog lists every approved item at its approved prices, for browsing and pre-ordering away from the shop.
     FLDDemoContentDefinitions Content;
-    {FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_a");Item.BuyPrice=300;Item.SellGold=150;Item.HasActive=true;Content.Equipment.Add(Item);}
+    {FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_a");Item.BuyPrice=300;Item.SellGold=150;Content.Equipment.Add(Item);}
     {FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_b");Item.BuyPrice=120;Item.SellGold=60;Content.Equipment.Add(Item);}
     const TArray<FLDShopItemView> Catalog=LDHUD::CatalogItems(&Content);
     TestTrue(TEXT("The catalog lists each approved item with its prices"),Catalog.Num()==2&&Catalog[0].DefinitionId==FName(TEXT("item_a"))&&Catalog[0].BuyPrice==300
-        &&Catalog[0].SellGold==150&&Catalog[0].bHasActive&&Catalog[1].BuyPrice==120&&!Catalog[1].bHasActive);
+        &&Catalog[0].SellGold==150&&Catalog[1].BuyPrice==120&&Catalog[1].SellGold==60);
     TestTrue(TEXT("Without content there is no catalog"),LDHUD::CatalogItems(nullptr).IsEmpty());
     const TArray<FName> Queue={FName(TEXT("item_a")),FName(TEXT("item_b"))};
     TestEqual(TEXT("Queue order first: the first pre-order the gold covers"),LDHUD::NextPreorder(Queue,Catalog,400,2),0);
@@ -873,7 +871,7 @@ bool FLDHUDTermsGlossaryTest::RunTest(const FString& Parameters)
     TMap<FString,FString> Names;
     if(!LDTestApprovedDisplay::Names(*this,Names)){return false;}
     const TPair<const TCHAR*,const TCHAR*> Shared[]={{TEXT("shield"),LDTerms::Shield},{TEXT("root"),LDTerms::Root},{TEXT("slow"),LDTerms::Slow},
-        {TEXT("taunt"),LDTerms::Taunt},{TEXT("stealth"),LDTerms::Stealth},{TEXT("disarm"),LDTerms::Disarm},{TEXT("stun"),LDTerms::Stun},
+        {TEXT("taunt"),LDTerms::Taunt},{TEXT("disarm"),LDTerms::Disarm},{TEXT("stun"),LDTerms::Stun},
         {TEXT("respawn_protection"),LDTerms::RespawnProtection}};
     for(const TPair<const TCHAR*,const TCHAR*>& Pair:Shared)
     {

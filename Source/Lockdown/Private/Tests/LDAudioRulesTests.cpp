@@ -172,14 +172,14 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The released own active sounds"),AudioIs(Out,{ELDAudioCue::SelfCast}));
     Out.Reset();Tracker.ObserveCombatReceipt(Cast,4,1,Out);TestTrue(TEXT("A repeated receipt stays silent"),Out.IsEmpty());
     FLDCombatActionReceipt Basic=Cast;Basic.DirectSequence=11;Basic.Entry=ELDCombatEntry::Basic;Tracker.ObserveCombatReceipt(Basic,4,1,Out);
-    FLDCombatActionReceipt Refused=Cast;Refused.DirectSequence=12;Refused.Entry=ELDCombatEntry::Item1;Refused.Phase=ELDCombatPhase::Rejected;Refused.Reject=ELDCombatReject::Cooldown;
+    FLDCombatActionReceipt Refused=Cast;Refused.DirectSequence=12;Refused.Entry=ELDCombatEntry::W;Refused.Phase=ELDCombatPhase::Rejected;Refused.Reject=ELDCombatReject::Cooldown;
     Tracker.ObserveCombatReceipt(Refused,4,1,Out);
     FLDCombatActionReceipt Stopped=Cast;Stopped.DirectSequence=13;Stopped.Reject=ELDCombatReject::Cancelled;Tracker.ObserveCombatReceipt(Stopped,4,1,Out);
     FLDCombatActionReceipt OldLife=Cast;OldLife.DirectSequence=14;OldLife.Generation=3;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     OldLife.Generation=4;OldLife.Life=2;Tracker.ObserveCombatReceipt(OldLife,4,1,Out);
     TestTrue(TEXT("Basic attacks, refusals, cancels and receipts of another match or life stay silent"),Out.IsEmpty());
-    FLDCombatActionReceipt Item=Cast;Item.DirectSequence=15;Item.Entry=ELDCombatEntry::Item2;Tracker.ObserveCombatReceipt(Item,4,1,Out);
-    TestTrue(TEXT("An equipment active sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
+    FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
+    TestTrue(TEXT("The innate dash sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
 
     Out.Reset();
     FLDSubmitResult Buy;Buy.Generation=4;Buy.Family=ELDGrowthFamily::Shop;Buy.RequestId=1;Buy.Status=ELDAdmissionStatus::Final;

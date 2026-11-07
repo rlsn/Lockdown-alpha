@@ -139,7 +139,7 @@ try {
         "Client1's active_arc_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), an attr_reach basic " +
         "hit at $($hostReport.reach_hit_cm) cm.$impairment " +
         "DEV growth fixture: Host only ($fixtureSwitch). Rendered Host captures for presentation review (not pixel-compared): " +
-        "$captures. Not gear actives, camps, AI, capture or full-match acceptance. Evidence: $output")
+        "$captures. Not camps, AI, capture or full-match acceptance. Evidence: $output")
 }
 finally {
     foreach ($process in $processes) {

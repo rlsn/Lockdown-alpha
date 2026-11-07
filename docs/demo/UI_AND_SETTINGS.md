@@ -26,8 +26,8 @@
 | 边界 | UI 必须表达的唯一行为 |
 | --- | --- |
 | 单一流程 | Start / Settings / Exit → Host 或 IP Join → Lobby / Ready / Host Start → 对局 → 唯一结果 → 同房间 Lobby / 新局或离开。最多三真人含 Host、零至三独立 AI，不自动补位。 |
-| 战斗入口 | 开局近战单体普攻；装备/属性可以改变普攻范围与群攻。Q/W 仅角色主动，1/2 仅两件装备主动，不合并为六槽，不增加背包。 |
-| 同款与冷却 | 两件同款合法，基础属性相加，同名被动只生效一次；两份主动各自独立冷却。出售/遗忘期间继续计时，重新持有继承原结束时刻，UI 换图标/槽位不刷新冷却。 |
+| 战斗入口 | 开局近战单体普攻；装备/属性可以改变普攻范围与群攻。Q/W 仅角色主动；装备只提供属性与被动，没有主动入口；不增加背包。 |
+| 同款与冷却 | 两件同款合法，基础属性相加，同名被动只生效一次。遗忘期间技能冷却继续计时，重新持有继承原结束时刻，UI 换图标/槽位不刷新冷却。 |
 | 死亡选择 | 死亡等待可确认原三选一及替换；校验当前 Life 和 `ExpectedLifePhase`。只更新持久构筑，不复活、不治疗尸体，阶段竞争拒绝也不丢 Offer。 |
 | 保护与进攻 | 当前身份、请求新鲜性、消息形状及终局闸检查后，**发出进攻意图即解除保护**，之后目标、距离、蓝量或冷却失败也不恢复保护。纯本地 Armed、取消、移动、商店、Stop 不解除。 |
 | 资源上限 | 上限变化保持 HP/MP 原百分比，由 Combat 按 `FORMULA.ResourceMaxChange` 做一次最终投影；UI 不再次换算或额外回血，死亡不因此复活。 |
@@ -44,12 +44,12 @@
 | 组件 | 职责 |
 | --- | --- |
 | `ULDUIRoot`（`UI/LDUIRoot.*`） | 前端（主菜单/Start/连接/失败）、Lobby、局内菜单与确认、唯一主面板登记（`RegisterMainPanel/ShowMainPanel/ToggleMainPanel/CloseTopPanel`）、世界层（头顶标签与画面回馈）和文字缩放 |
-| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态与下一步提示、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列、右下商店入口（同时开关砍一刀小摊面板）、底部带（本人身份与属性入口、资源、Q/W、1/2 与 D、待选提示）、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠属性/三选一/砍一刀小摊面板并处理开局三选一自动打开 |
+| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态与下一步提示、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列、右下商店入口（同时开关砍一刀小摊面板）、底部带（本人身份与属性入口、资源、Q/W 与 D、待选提示）、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠属性/三选一/砍一刀小摊面板并处理开局三选一自动打开 |
 | `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`NextStep`、`ChoiceCard`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
 | `ULDAttributesPanel`、`ULDChoicesPanel`、`ULDShopPanel` | 属性 P、成长三选一（含满 Q/W 替换子确认）、两装备砍一刀小摊（买、再买同款即进阶；卖出由 HUD 装备格右键菜单标预售，无确认）；命令经 `SubmitChoice/SubmitShopCommand` 带所见版本提交 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
 | `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
-| `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 15）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
+| `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 17）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
 | `ALDWorldViewRelay`（`Vision/`） | 唯一观察帧读取（`ReadObservedFrame/ReadUnit/ReadPresentedLocation`）、呈现时钟与代理、迷雾、可淡化道具 |
 | `LDWidgets`（`UI/LDWidgets.*`） | native 文本/按钮/面板构造、`ULDPanel` 焦点与命中区域、子确认接口 |
 
@@ -105,8 +105,8 @@ Choices 例外地停靠在右下角、商店按钮正上方的窄列（半透明
 | Connecting | 当前端点、连接状态、取消；输入框仍可回看 | 同 attempt 禁双击新建；取消使该 attempt 失效。迟到成功清理对应旧连接，迟到失败不能把新世界退出。 |
 | 失败 | 名称/端口/地址格式、不可达/超时、RoomFull、MatchAlreadyStarted、产品/协议/内容不兼容、旅行/加载失败分别解释 | 保留本人编辑内容，允许修改后显式重试；不自动重连、不回落旧 profile、不显示空成功 Lobby。 |
 | Lobby | 全屏房间背景图 `T_LobbyBackground`（同样铺满裁切，只在 Lobby 阶段显示，盖住身后的 Demo 世界）；所有已连接真人与实际 AI 的名称、真人/AI、Host、准备；Host 调整 AI 数、全部真人 Ready 后 Start；本人 Ready、离开 | 所有人包括 Host 使用 Ready；AI 无真人准备按钮。结构改变按 RosterRevision 清 Ready；Ready 本身只改 PublicRevision。Start 等权威结果，不能本地切地图。 |
-| 自身 HUD | 底部带左块：头像（含等级角标）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、被动、临时状态；中块（位于屏幕中央、本人正下方）：HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）、Q/W、1/2、D 冲刺（单独一组，显示冷却与定身受控）；底部带没有右块，停止只用 S 键；金币在屏幕右下角的商店按钮上；左下角小地图上方显示视野异常与镜头状态；HUD 没有单独的设置按钮，设置从 Back 菜单进入；待选次数见待选提示；本人头顶另有名字、等级角标与精神状态/心理防线/电量条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX，仍显示待选次数。选中别人不改变自身热键所有者。平常的“存活”、“被动：无”与正常视野计数不占行，异常（保护、同步中、过期、寄了）才显示。 |
-| 动作栏冷却与限制 | 冷却中整格遮罩按剩余比例自上而下收起，中央显示剩余秒数（10 s 以上取整秒，以下保留一位并向上取整，未到不显示 0）；冷却结束且确实可用时闪一下；格面只有热键字母、技能图标（真图标到位前为按类别着色的圆角方块加名称首字）、等级数字（Q/W）与电量消耗数字，不写名称与状态文字：就绪、准备态、冷却、电量不足（图标转蓝）、受控、不可用、空槽/无主动由外圈与图标颜色区分，悬停格子时在其正上方弹出与商店、开盲盒卡同一画法的说明层（固定宽 300u，不挡点击）：名称（Q/W 带等级、已进阶装备注明）、“类别 [热键] · 状态”、描述、目标方式与当前等级/当前装备（已进阶则为进阶后）的效果行及电量与冷却；本人回执失败时被按下的格子外圈变红约 2 s，原因（如“目标不可用”）只在提示条上 | 限制只改变颜色，显式激活仍发送由服务器裁决。准备态与攻击移动不再显示“准备中：左键确认目标…”说明行，由格子外圈与世界里的射程/目标预览表示（2026-11-06 用户决定）。 |
+| 自身 HUD | 底部带左块：头像（含等级角标）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、被动、临时状态；中块（位于屏幕中央、本人正下方）：HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）、Q/W、D 冲刺（单独一组，显示冷却与定身受控）；底部带没有右块，停止只用 S 键；金币在屏幕右下角的商店按钮上；左下角小地图上方显示视野异常与镜头状态；HUD 没有单独的设置按钮，设置从 Back 菜单进入；待选次数见待选提示；本人头顶另有名字、等级角标与精神状态/心理防线/电量条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX，仍显示待选次数。选中别人不改变自身热键所有者。平常的“存活”、“被动：无”与正常视野计数不占行，异常（保护、同步中、过期、寄了）才显示。 |
+| 动作栏冷却与限制 | 冷却中整格遮罩按剩余比例自上而下收起，中央显示剩余秒数（10 s 以上取整秒，以下保留一位并向上取整，未到不显示 0）；冷却结束且确实可用时闪一下；格面只有热键字母、技能图标（真图标到位前为按类别着色的圆角方块加名称首字）、等级数字（Q/W）与电量消耗数字，不写名称与状态文字：就绪、准备态、冷却、电量不足（图标转蓝）、受控、不可用、空槽由外圈与图标颜色区分，悬停格子时在其正上方弹出与商店、开盲盒卡同一画法的说明层（固定宽 300u，不挡点击）：名称（Q/W 带等级）、“类别 [热键] · 状态”、描述、目标方式与当前等级的效果行及电量与冷却；本人回执失败时被按下的格子外圈变红约 2 s，原因（如“目标不可用”）只在提示条上 | 限制只改变颜色，显式激活仍发送由服务器裁决。准备态与攻击移动不再显示“准备中：左键确认目标…”说明行，由格子外圈与世界里的射程/目标预览表示（2026-11-06 用户决定）。 |
 | 下一步提示 | 旗杆状态下方一行强调色文字，只给最有用的一步：有待选先开盲盒 → 旗杆开放时“下一步：旗杆开放了，冲！去中心喷漆”（本人独自喷漆时改为“稳住：你正在旗杆上喷漆”；旗杆上是本人涂鸦时为“守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）”；旗杆上是别人涂鸦时为“下一步：去围攻 X，或者去旗杆改漆”）→ 有空装备槽且米够时提示“米够买「X」了，去砍一刀小摊”（X 为买得起的最贵装备）→ 1 级时提示“去打附近的野怪搞米、涨流量（右键攻击）”；都不适用时不显示 | 只在发育期/开放期、同代次投影上计算；不新增按键。 |
 | 待选提示 | 右下角商店按钮左侧常驻“开盲盒+N”按钮，与商店按钮同一形状、同一尺寸（两者取较大者）和同一配色：有待选次数时为金色可点，点击开关三选一（开盲盒）；N 为 0 时置灰且不可点；次数增加后轻微脉动约 6 s | 协调决定的方案 A：不新增按键，P 仍是属性页；只占提示自身矩形的点击。 |
 | 射程与目标预览 | 平时本人脚下一圈淡白普攻射程（随射程成长变化）；武装单位技能或攻击移动时射程圈变强调色，指针下有可见单位时射程圈按脚点距离在射程内变绿、否则变红（单位身上不画框）；方向技能画朝光标、长度为射程的指示线 | 只是预览，命中由服务器裁决；目标只取当前授权帧中与点击相同的选取。 |
@@ -117,7 +117,7 @@ Choices 例外地停靠在右下角、商店按钮正上方的窄列（半透明
 | 事件播报 | 屏幕左下、紧贴小地图列上方的列表，最新一条在最下（贴着小地图）、旧的向上推，每条显示 5 s（最后 0.5 s 淡出），同时最多 6 条，再多时最旧的一条提前离开；目标卡固定在播报预留区下方。播报内容：击杀（去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者，“X 把 Y 淫了（助攻：A、B）”，可理解死因）、旗杆开放、天降外卖落地与被抢（本人抢到时“你抢到了天降外卖！”，其他人只知道被抢走）、画饼老板出现与被击败（击败者）、新的上热搜对象、旗杆上新喷上的涂鸦、同一主人被冻结的守护归零（“守擂者离圈，守护清零”）；本人相关的行写“你”并高亮 | 只读公开对局视图、公开击杀通知、公开名单与本人的外卖领取序号；开局或中途进入的第一帧只记录现状，不补播已发生的事；已过 6 s 的击杀通知不补播。普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。旗杆下方的外卖/老板常驻行只保留倒计时、落地与巡逻，被抢与被击败只进播报。 |
 | 排行榜 Tab | 按住“排行榜”键（默认 Tab，可改绑）时屏幕中央显示本局每名参赛者的名字与击杀/死亡/助攻，击杀多的在前、相同时死亡少的在前，再相同按名单顺序；本人行写“（你）”并高亮，AI 写“（AI）”，已不在房间名单里的写“（已离开）”；松开即收起，不接收点击 | 只读 `KillFeed.Scores`（服务器按名单顺序发布、仅随死亡变化）与房间名单；别的对局代次的数据不显示，没有数据时显示“统计同步中…”而不是零表。文字编辑或子确认占用输入时不显示。 |
 | 属性 P | 本人所有 Spec 属性；基础、等级成长、永久选择、装备/被动/临时贡献及最终值；相关单位/公式说明 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
-| Shop | HUD 右下角商店按钮（只写“<米> 米 · 预购 N”，没有悬停提示；本人站在小摊交互范围内时亮起为开盲盒按钮的金色，范围外为普通按钮底色，任何时候都可点，不置灰）随处打开，左键小摊模型也打开（不移动）；右键小摊模型只是普通移动到模型旁最近的可走点，不开店、不弹出页面。面板停靠右下角、商店按钮上方。商品是 6 列图标网格（占位图标：圆角方块写名称首字，有主动效果为橙色、只有被动为蓝色，米不够时变暗），悬停或聚焦图标时在面板左侧与图标平齐处弹出完整说明（名称、价格（已拥有可进阶的同款写进阶价）、说明行、进阶后效果、提示；不接收点击）；左键图标不选中也不做任何事，右键图标在小摊范围内且有本命会话时直接购买（已拥有可进阶的同款则进阶这件，本局进阶已用、这件已进阶或不能进阶时买第二件），否则加入预购；没有“购买”或“加入预购”按钮。没有本命会话时列出已批准目录，只能浏览与预购，买/卖/进阶写明“到砍一刀小摊才能交易”；预购最多 2 件，队列只显示商品图标（与网格同一占位画法，按队列顺序累计扣价，米能买到的那几件亮起并带金色描边（米只够一件时只亮排在前面、买得起的那件），其余或米未知时置灰；悬停弹出该商品说明），点图标取消，本人站在小摊交互范围内（`OwnBodyAtShop`）且页面打开、有预售或有可买预购时 HUD 请求本命会话，面板先逐件卖出预售，再按 `LDHUD::NextPreorder`（队列顺序中第一件报价米够且有空槽的；已拥有可进阶的同款按进阶价、不需空槽）一次自动买入或进阶一件，成交后移除一件同款，被拒后等米/装备/报价修订变化或约 2 s 再试，结果以提示条告知；开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价（拥有可进阶的同款时为进阶价）、本人金币、回绑冷却说明；页面没有装备行、卖出或进阶按钮，也没有卖出确认。出售：右键 HUD 装备格 1/2 在格子上方弹出菜单，“卖出”标为预售（格子右上角黄色圆点“S”），再右键为“取消预售”，点菜单外任意处收起；在小摊范围内且有本命会话时立即卖出、无需确认，否则到小摊范围自动卖出（先于预购），结果以提示条告知；装备离开装备栏后标记作废，新一局清空 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤与死亡不关店（死亡只禁止交易，仍可预购），新一局关店并清空预购；越界失效交易。自动买入只是本地触发时机，资格、价格与范围仍全部由服务器在提交时检查。 |
+| Shop | HUD 右下角商店按钮（只写“<米> 米 · 预购 N”，没有悬停提示；本人站在小摊交互范围内时亮起为开盲盒按钮的金色，范围外为普通按钮底色，任何时候都可点，不置灰）随处打开，左键小摊模型也打开（不移动）；右键小摊模型只是普通移动到模型旁最近的可走点，不开店、不弹出页面。面板停靠右下角、商店按钮上方。商品是 6 列图标网格（占位图标：蓝色圆角方块写名称首字，米不够时变暗），悬停或聚焦图标时在面板左侧与图标平齐处弹出完整说明（名称、价格（已拥有可进阶的同款写进阶价）、说明行、进阶后效果、提示；不接收点击）；左键图标不选中也不做任何事，右键图标在小摊范围内且有本命会话时直接购买（已拥有可进阶的同款则进阶这件，本局进阶已用、这件已进阶或不能进阶时买第二件），否则加入预购；没有“购买”或“加入预购”按钮。没有本命会话时列出已批准目录，只能浏览与预购，买/卖/进阶写明“到砍一刀小摊才能交易”；预购最多 2 件，队列只显示商品图标（与网格同一占位画法，按队列顺序累计扣价，米能买到的那几件亮起并带金色描边（米只够一件时只亮排在前面、买得起的那件），其余或米未知时置灰；悬停弹出该商品说明），点图标取消，本人站在小摊交互范围内（`OwnBodyAtShop`）且页面打开、有预售或有可买预购时 HUD 请求本命会话，面板先逐件卖出预售，再按 `LDHUD::NextPreorder`（队列顺序中第一件报价米够且有空槽的；已拥有可进阶的同款按进阶价、不需空槽）一次自动买入或进阶一件，成交后移除一件同款，被拒后等米/装备/报价修订变化或约 2 s 再试，结果以提示条告知；开店 Pending/Opened/Rejected；Opened 后显示商品/图标、已批准说明、买卖价（拥有可进阶的同款时为进阶价）、本人金币；页面没有装备行、卖出或进阶按钮，也没有卖出确认。出售：右键 HUD 装备格 1/2 在格子上方弹出菜单，“卖出”标为预售（格子右上角黄色圆点“S”），再右键为“取消预售”，点菜单外任意处收起；在小摊范围内且有本命会话时立即卖出、无需确认，否则到小摊范围自动卖出（先于预购），结果以提示条告知；装备离开装备栏后标记作废，新一局清空 | UI 只提交原交互意图并消费权威结果，不直接查询距离/Permit。资格由 Transactions 内的 QueryShopEligibility 检查，不额外加 LOS/个人视野；Pending 无报价、不减钱/造物。受伤与死亡不关店（死亡只禁止交易，仍可预购），新一局关店并清空预购；越界失效交易。自动买入只是本地触发时机，资格、价格与范围仍全部由服务器在提交时检查。 |
 | Choices | 同一持久 Offer 的三张不同合法卡、待选次数；卡片等高紧凑，只显示占位图标、名称和“类别 · 等级”一行，悬停或聚焦时在卡列左侧弹出完整描述、效果/目标等级与详情行；“免费重抽 · 剩 N 次”按钮（无令牌或本组已重抽时不可用）；满槽新主动卡写明需替换及替换后的等级；点卡片即提交该卡（没有单独的确认按钮），满槽新主动卡点击后进入替换子确认；开局 Offer 为真人自动打开一次（玩家已开自己的面板或输入被占用时不打开），6 s 内未查看或点选卡片则自动收起为待选提示；本人受击时未在操作的面板自动收起；可暂时关闭 | 不自动选择、计时逼选、自动重抽或消费机会；只有玩家点卡才提交，悬停/聚焦只看详情；在途请求期间再点卡不提交第二次。重抽只在玩家点按钮后提交，结果以权威回执与新 Offer 为准。stale 刷新同卡的保护版本后由玩家再次点卡；死亡可用当前阶段提交。 |
 | 主动替换子确认 | 新技能、Q/W 两旧技能及等级与替换后新技能的等级（max(1, 旧等级−1)），槽按钮只写 Q / W，两旧技能及等级写在会换行的提示里；点要遗忘的槽即确认并提交（没有单独的“确认替换并遗忘”按钮），也可“返回三卡” | 不默认替换第一个槽；取消返回原三卡，无消耗。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级、构筑和米都还在，别慌”与待选入口；复活保护（免死金牌）图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗/购物。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
@@ -249,12 +249,12 @@ Result
 
 | 优先级 | 处理者 | 明确边界 |
 | --- | --- | --- |
-| 1 | 文本、重绑、局部编辑 | S/Q/W/1/2 只输入文字或捕获绑定，不发世界命令；Esc 结束当前编辑/捕获。 |
+| 1 | 文本、重绑、局部编辑 | S/Q/W/D 只输入文字或捕获绑定，不发世界命令；Esc 结束当前编辑/捕获。 |
 | 2 | 子确认、模态、拖拽捕获 | 进入子确认先取消冲突 Armed，期间不创建背后的 Armed；全视口阻挡新世界命令，焦点封闭。拖拽到释放都归原控件。确认只能提交一次，不同时触发 Enter 和 Enhanced Input。 |
 | 3 | 命中普通面板 | 只消费实际命中的鼠标/滚轮或已取得的键盘焦点，不因鼠标 hover 商店就封掉 S。面板外仍可操作世界；装饰层不能挡住无关区域。 |
 | 4 | Armed | 左键确认对应目标形式；第一下右键只取消，第二下才能下达新的世界订单。Esc 取消预览，不退款、不改变已释放效果。 |
 | 5 | 小地图 | 静态相机/合法地面输入；不把公开喷漆者、涂鸦主人或地图点变成隐藏单位锁定。死亡只接受相机操作。 |
-| 6 | 世界 | 右键地面/可攻击目标/商店由操作域分派，A+左键、S、Q/W、1/2 不在 Widget 另写战斗规则。 |
+| 6 | 世界 | 右键地面/可攻击目标/商店由操作域分派，A+左键、S、Q/W、D 不在 Widget 另写战斗规则。 |
 
 Esc 也先交唯一当前输入层：编辑/重绑/拖拽捕获 → 顶层子确认/模态 →
 未被更高层消费的 Armed → 普通主面板 → 无顶层时打开 Settings。
@@ -268,9 +268,9 @@ OS 失焦才沿 `InvalidateLocalInput(reason)` 一次 Stop 并停旧心跳；恢
 无关 HP/MP 或 owner 发布不应每次清瞄准。
 
 动作与标签只来自 `ULDControlSettings::Bindings/Key/Label`：
-`Select, Navigate, AttackMove, Skill1/2, Item1/2, Stop, Attributes,
+`Select, Navigate, AttackMove, Skill1/2, Dash, Stop, Attributes,
 PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
-默认 Q/W、1/2、P 等遵循 Spec；Space 短按回中、按住临时跟随不写偏好，Home 切持久跟随，
+默认 Q/W、D、P 等遵循 Spec；Space 短按回中、按住临时跟随不写偏好，Home 切持久跟随，
 依操作域定义。Armed 时不边缘平移；滚轮在可滚动面板上只滚面板，不缩镜头。
 死亡镜头复用同一相机入口，仅静态/公共显示，不因 `CanWorldCommand` 需要活 Pawn 而误禁相机，
 也不能借 WaitingCamera 指向隐藏对手。
@@ -278,7 +278,7 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 **执行限制不等于禁止发送意图。** `FActionView` 要分开 `CanSubmitIntent` 和 `ExecutionBlocks`：
 低蓝、冷却、目标预测失败可灰态并解释，但明确的进攻确认仍沿操作域发送规范化请求。
 空槽/过期绑定的显式激活使用 `ActivationSlot` 和 Missing/EmptySource 表示，不伪造 `SourceRef`；
-它是可识别的执行失败，不自动归为畸形包来保住保护。纯属性装备仍标“无主动效果”，不假装有技能。
+它是可识别的执行失败，不自动归为畸形包来保住保护。
 无法取得本人合法上下文、已终局或输入被更高层捕获时，不猜一个请求补发。
 
 ## 5. SC-09 A：viewmodel、正式写入者与字段白名单
@@ -320,8 +320,8 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | 参赛者死亡公共事件 / Combat 致死事实经生命周期域裁剪 | Generation、事件 ID/序号、公开 killer/victim、已批准死因类别 | 可以明确无参赛者击杀者；仅死亡对象为参赛者时进全场通知。无隐藏位置、私有伤害/来源、实时地图 ping；事件去重不由 UI 生成奖励或最终统计。 |
 | 本人生命 / Life → `FLDOwnerState` | `ContenderId, BodyRef/Life, LifeState, LifeRevision, RespawnAtMs, ProtectedUntilMs` | 比较 match/life/生命阶段，不靠 Pawn 地址；死亡持续时间和保护只显示，不触发复活或解除。 |
 | 本人 Combat 资源/属性 | `Resources{HP,MaxHP,MP,MaxMP,Shield}` 为 int64 P2；`FLDAttributeBreakdown{AttributeId,Unit,Base,LevelGrowth,PermanentChoice,EquipmentFlat,PassiveContribution,TemporaryContribution,PercentContribution,Final,FormulaId,ClampApplied}` | 本人精确数值和来源分解；P2 为百分之一点，不把编码值直接当点数。UI 不执行第二次百分比/上限投影。 |
-| 本人 `FLDCombatBindingView` / Combat 与来源绑定投影 | Q/W 与 1/2 两组；`InputSlot, SourceRef, Rank, HasActive, IssuedCooldownId, ReadyAtMs, AvailabilityFlags, SourceBindingRevision`；`NextAttackAtMs, CurrentActionId/Phase/ActionRevision` | 装备 rank 不伪装角色学习等级；每同款实例各读自己的冷却轨，不取 family max。移除来源清图标/Armed，不清服务器冷却债。 |
-| 本人状态 / Combat | `StatusFamily, ExpiresAtMs, ControlBlocks, IsPassive, OwnSourceCount/OwnSourceRefs, AppliedEffectReason` | `ControlBlocks` 明确 Move/Basic/Cast/Gear/Displacement，按内容实际限制显示，不从状态名称猜规则。敌方施加状态不附隐藏 caster 私有构筑/坐标。 |
+| 本人 `FLDCombatBindingView` / Combat 与来源绑定投影 | Q/W 与 D；`InputSlot, SourceRef, Rank, IssuedCooldownId, ReadyAtMs, AvailabilityFlags, SourceBindingRevision`；`NextAttackAtMs, CurrentActionId/Phase/ActionRevision` | 每个来源读自己的冷却轨。移除来源清图标/Armed，不清服务器冷却债。 |
+| 本人状态 / Combat | `StatusFamily, ExpiresAtMs, ControlBlocks, IsPassive, OwnSourceCount/OwnSourceRefs, AppliedEffectReason` | `ControlBlocks` 明确 Move/Basic/Cast/Displacement，按内容实际限制显示，不从状态名称猜规则。敌方施加状态不附隐藏 caster 私有构筑/坐标。 |
 | `FLDProgressionView` / Development → owner | 当前 Life/选择阶段保护、`Level, CumulativeXP, BuildRevision, PendingChoiceCount`；单一 `OfferId/OfferRevision` 及恰三项 `OptionId/Definition/确切内容/Rank` | 关窗/死亡/购物引起 BuildRevision 变化不改三卡身份正文；只更新确认保护。等级十显示 MAX，不制造十一级阈值。 |
 | `FLDEquipmentView` / Inventory + 唯一账本 → owner | `Gold, AccountRevision`、恰两槽 `Instance, Definition, ItemRevision`、`InventoryRevision, SourceBindingRevision`、本人来源/CD 引用 | 实例可不同而 Definition 相同；不是两份金币真相。本人装备视图不能直接复用成敌方视图。 |
 | `FLDShopOpenResult` / 原权威交互队列 → Vendor Transactions → 本人结果 | `Generation:uint32, Life:uint32, ShopId, OpenStatus:uint8(Pending/Opened/Rejected), Reason`，可选 `FLDShopView` | Pending 仅来自排队受理；Opened 仅来自阶段成功，才携 View/Session/Quote；Pending/Rejected 无 View。按原交互绑定及 owner 发布修订拒旧，迟到结果不强制重弹面板。 |
@@ -396,7 +396,7 @@ Host 原生非本人身体及附件**从创建起默认不向本机曝光**，�
 | `ALDDevelopmentDirector::QueueChoice(ContenderId,FLDChoiceCommand)` | Generation、当前 Life+ExpectedLifePhase、递增 RequestId、OfferId/Revision、OptionId、ExpectedBuildRevision；满 Q/W 加 ReplacementSlot/ExpectedOldSkillId/Rank/明确确认 | 一次原子兑现、遗忘/装槽与机会消费；只有终态和新投影确认后展示完成。旧阶段/修订刷新同卡后新确认，不能改旧请求条款或自动换卡。 |
 | 开店原交互意图 → 内部 `ALDVendorDirector::OpenShop(ContenderId,const FLDShopOpenCommand&,const FLDGameplayWritePermit&)` | UI 只提交 `FLDShopOpenCommand{Generation,Life,ShopId,ExpectedWorldRevision}`，沿现有权威队列等待；不提交/缓存 Permit，不另建开店请求流或 Pending 队列 | 每参赛者至多一个未办理开店意图，同意图重复受理合并。仅 Transactions 分派解析当前身体、借当次 Permit 调 OpenShop；返回 §5.2 的 Pending/Opened/Rejected，取消/晚结果沿原交互身份处理。 |
 | `ALDVendorDirector::QueueShopCommand(...,FLDShopCommand)` | Buy/Sell 使用 Generation/Life/RequestId、Session/QuoteRevision/CatalogDigest、预期 account/inventory/build/source-binding/world 版本；Buy 商品+显示价，Sell 精确 Instance/ItemRevision+显示卖价 | Transactions 重查正式世界资格、存活/进行中/余额/容量/所有权，不增加 LOS/个人视野条件；失败不部分改钱物。卖成功后再单独买；后买失败不撤回真实出售。 |
-| Combat `SubmitAction(Caller,FLDCombatActionRequest)` | `RequestKey{Generation,Contender,Life,DirectSequence:uint64}`，Contender 必须匹配服务器从 caller 解析的本人；规范化 ActivationSlot/SourceRef、相关 source/build/inventory/item/catalog 版本及目标模式；单位只用当前 handle+epoch，地面/方向/自身分别校验 | 1/2 不含 Shop 参数，满槽、店外/喷漆区内仍可激活。Queued 不等于 Accepted/Released；release 前复验成功才原子提交 MP/CD/effect。 |
+| Combat `SubmitAction(Caller,FLDCombatActionRequest)` | `RequestKey{Generation,Contender,Life,DirectSequence:uint64}`，Contender 必须匹配服务器从 caller 解析的本人；规范化 ActivationSlot/SourceRef、相关 source/build/inventory/item/catalog 版本及目标模式；单位只用当前 handle+epoch，地面/方向/自身分别校验 | Queued 不等于 Accepted/Released；release 前复验成功才原子提交 MP/CD/effect。 |
 | Stop / `CancelAction` / `CancelArmed` | 已发送订单按 `FLDMoveIdentity{Match,Life,Order,Epoch}` 取消；本地 Armed 仅清预览 | 不回滚已释放效果、不退款、不清来源 CD；迟到 ACK 不复活旧订单，普通 panel 关闭不隐式 Stop。 |
 | `QueryChoiceReceipt / QueryShopReceipt / QueryActionReceipt` | Choice/Shop 使用 `QueryChoiceReceipt/QueryShopReceipt(ContenderId,const FLDReceiptQuery&)`，分别返回 `FLDChoiceReceiptQueryResult/FLDShopReceiptQueryResult`；query 显式 `Generation:uint32, Family, RequestId:uint64`，先拒旧局再查。Combat 使用原 RequestKey | Choice/Shop的 Pending/Final/NotFound/ReceiptExpired/InvalidContext 按成长域原名区分，Combat查询用其自己的结果类型；不创建操作或占用序号，timeout/查无记录不准换新ID重买/重选，拒旧仍由业务域维护。 |
 
@@ -445,11 +445,11 @@ IssuedCooldownId/ItemInstance 为 FGuid；观察 wire 修订仍沿世界的独�
 
 | 状态/错误 | 呈现与恢复 | 禁止的假成功 |
 | --- | --- | --- |
-| Pending / Busy / Queued | 同手势立即显示在途，只限制本域重复提交；可离开面板，仍保留原请求查询能力 | 不用所有服务 Pending 聚合锁死装备主动；不先扣金、消机会、开真实 CD 或播命中。 |
+| Pending / Busy / Queued | 同手势立即显示在途，只限制本域重复提交；可离开面板，仍保留原请求查询能力 | 不用所有服务 Pending 聚合锁死技能；不先扣金、消机会、开真实 CD 或播命中。 |
 | StaleRoster / Build / Inventory / Item / Binding / Quote / World / Catalog | 指出“内容已更新，请重新确认”，取当前合法投影；保留原 Offer，不按新条款暗中执行旧点击 | 不能把 invalid/未知内容解释为空技能、免费商品或有效 0 值。 |
 | OldMatch / OldLife / 阶段不匹配 | 取消相应旧 UI 资格并显示当前状态；死亡选卡取当前 Life+ExpectedLifePhase 再确认 | 不能因为候选跨死亡保留就接受旧 Alive 请求；不能清掉服务器仍保留的机会。 |
 | TargetUnavailable / InvalidGround / Direction / OutOfRange / Blocked | 来源按钮附近显示精简原因；TargetUnavailable 不细分隐藏对象是否存在/死亡 | 不沿隐藏位置追踪、不靠服务器错误反查目标；不把路径失败当到达。 |
-| NoSource / NoActiveEffect / CD / InsufficientMana / ControlBlocked | 明确空槽、无主动、冷却、低蓝、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
+| NoSource / CD / InsufficientMana / ControlBlocked | 明确空槽、冷却、低蓝、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
 | `Rejected + ProtectionRemoved` | 同时显示“施法失败：电量不足”等执行结果和“免死金牌没了”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交 MP/CD，但真实保护变化不回滚。 |
 | InsufficientGold / EquipmentFull / OutsideRange / Dead | 说明不足、先卖后买、返回范围或死亡不可交易；原子失败无钱物变化 | 不自动出售/替换、不免费造物、受伤不套旧书店关店规则。 |
 | NumericUnderflow / NumericDomain（成长/交易） | 明确数值域非法、本次业务零提交；保留原候选/钱物并按域结果恢复可操作状态 | 不把下溢/非法结果钳成 0 后显示 Applied，不部分消费机会/金额/装备。 |
@@ -543,10 +543,10 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、Gold/XP/O
 | `SHOP.StartingGold, SHOP.SellRatio, FORMULA.SellGold`、`ITEM.<id>.BuyPrice` | 金币整数、出售比例由内容定义；成交价由当前报价给出 | Shop 展示，不在 Widget 按比例再算一份卖价。 |
 | `STAT.MaxHP/MaxMP/AD/AP/Armor/MagicResist/AttackSpeed/HPRegen/MPRegen/CritChance/CooldownHaste/AttackRangeCm/MoveSpeedCmPerSec` | 点、点/s、次/s、cm、cm/s、概率/倍率等沿 Unit/FormulaId；资源 P2 格式化不影响结算 | 本人属性/资源、合法瞄准范围。禁止以基础 `UNIT.BasicAttackRangeCm` 替代当前派生射程。 |
 | `FORMULA.ResourceMaxChange` 及属性 FormulaId | 运算/取整由 Combat，UI 只展示新 Final/资源 | 不重复缩放 HP/MP、不额外回血。 |
-| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/Rank[r].ManaCost/CooldownSec` | 来源/等级/目标模式与成本依目录；实时 CD 读 IssuedCooldownId/ReadyAtMs | Q/W、预览、说明；CooldownFamily 不是两同款共享截止许可。 |
+| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/Rank[r].ManaCost/CooldownSec` | 来源/等级/目标模式与成本依目录；实时 CD 读 IssuedCooldownId/ReadyAtMs | Q/W、预览、说明。 |
 | `ITEM.<id>.Stats/Passive/Active`、`CHOICE.<id>` | 目录的确切效果/本次 rank/属性选项 | 两装备、三卡、被动说明；不另填伤害、群攻半径或触发规则。 |
 | `SHOP.InteractRadiusCm, VISION.RadiusCm` | 脚点 XY 厘米，World.QueryShopEligibility/观测为最终授权 | Shop 可用性、本人范围表示；镜头移动不改变这些范围。 |
-| `DISPLAY.<contentId>.NameKey/DescriptionKey/IconId`、`DISPLAY.character_demo.PortraitIconId` | namespace `DemoContent`，`<id>.name/.description`、`icon_<id>`；头像 `portrait_character_demo`，不假称贴图已生成 | 商品/技能/状态/卡/头像；合法同款各槽同图不同 CD。 |
+| `DISPLAY.<contentId>.NameKey/DescriptionKey/IconId`、`DISPLAY.character_demo.PortraitIconId` | namespace `DemoContent`，`<id>.name/.description`、`icon_<id>`；头像 `portrait_character_demo`，不假称贴图已生成 | 商品/技能/状态/卡/头像；合法同款各槽同图。 |
 | 操作域本地设置键 | §8 的倍率/厘米/cm/s/viewport 比例 | 相机/文字/标签；不在内容目录另设一套玩法值。 |
 
 观察 `SampledAtServerSec` 只在边界集中转换；接收 TTL 使用本地接收时钟。
@@ -580,8 +580,8 @@ UI 闭包的删除（架构 D01–D32）已在集成分支完成；退役范围�
 | Lobby | 全真人包括 Host 准备，Host Start；AI 数不补位 | Ready 更新不清他人 Ready；成员/AI 结构变化清准备；非 Host 伪造开始服务器拒绝，不只按钮不可见。 |
 | 手势与捕获 | 文本/重绑/面板/模态/拖拽/Armed/小地图逐层响应；已开 Shop/Choices，在面板外 Armed 后进入子确认再按 Esc | 在 UI 按下世界释放及反向、关闭时仍按键、Enter+OnClicked 同帧，只一个消费者/提交；进入子确认撤 Armed，Esc 只关子层不再关主层/发 RPC/Stop/消费 Offer；hover 普通面板不吞 S，滚轮不同时 scroll+zoom。 |
 | 面板与失焦 | 已接受导航中打开属性/Shop/Choices/Settings，世界继续 | 开普通面板不 Stop/停心跳，不暂停/免疫；失焦一次 Stop，回焦不重播；映射重建无累积 action/旧键命令。 |
-| 四来源/保护 | Q/W 与两件同款主动独立；A/普攻/确认/自施放发送意图 | MP/CD/目标/距离失败、EmptySource/过期绑定仍按规范意图解除保护，Rejected 携 ProtectionRemoved+LifeRevision；不付未提交 MP/CD、不替换旧合法订单。Armed/Move/Shop/Stop不解；旧代次/畸形/重放不解新生命。 |
-| 冷却债 | 用其中一件同款后另一件仍按独立 readiness；卖/遗忘再持有、换槽、升级、死亡 | UI 重建不改 deadline、不取 family max；原截止前不得洗成 ready，到零不自动执行。1/2 店外/喷漆区内/两槽满且无 ShopSession 仍走 Combat。 |
+| 来源/保护 | Q/W 与 D；A/普攻/确认/自施放发送意图 | MP/CD/目标/距离失败、EmptySource/过期绑定仍按规范意图解除保护，Rejected 携 ProtectionRemoved+LifeRevision；不付未提交 MP/CD、不替换旧合法订单。Armed/Move/Shop/Stop不解；旧代次/畸形/重放不解新生命。 |
+| 冷却债 | 遗忘再学、换槽、升级、死亡 | UI 重建不改 deadline；原截止前不得洗成 ready，到零不自动执行。 |
 | 被动/属性 | 同款属性相加，同名被动一次且可解释来源；完整属性分解/单位 | 超过单屏行数仍生效可读；来源效果不能按 UI 行重复计算；MaxHP/MP 变更只由一次 Combat 投影保比例，死者不回血/复活。 |
 | Offer/替换 | 连升逐组、三不同合法卡、最多十机会（含开局一次）/十级/技能三级；死时可选 | 关窗/重复/购物/死亡不重抽；旧 LifePhase/BuildRevision 拒绝不丢卡。满 Q/W 无默认遗忘，旧技能/等级改变撤销确认；取消无消耗。 |
 | Shop/原子性 | 普攻正常收益买两件同款，先卖再买；合法区域/距离内，即使 LOS/个人视野不满足也不额外阻止交易 | 第三件、金币不足、越界/死亡/终局、各 revision/catalog 冲突、实例创建失败均无部分钱物提交；Sell 已成功而后 Buy 失败不回滚 Sell；伤害本身不关店。 |

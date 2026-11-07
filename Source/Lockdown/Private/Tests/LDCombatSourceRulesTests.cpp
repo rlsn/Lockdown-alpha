@@ -97,22 +97,10 @@ namespace LDCombatSourceRulesTestDetail
     const FName Bolt(TEXT("active_arc_bolt"));
     constexpr int64 NowMs = 60000;
 
-    FLDCombatTrack GearTrack(const FGuid& Id, const FGuid& Bound, bool bBound, int64 ReadyAtMs)
-    {
-        FLDCombatTrack Track;
-        Track.IssuedCooldownId = Id;
-        Track.Kind = ELDCombatSourceKind::Gear;
-        Track.DefinitionId = Battery;
-        Track.BoundInstance = Bound;
-        Track.bBound = bBound;
-        Track.ReadyAtMs = ReadyAtMs;
-        return Track;
-    }
-
-    FLDEquippedItemValue Item(ELDCombatEntry Entry, const FGuid& Instance, FName Definition)
+    FLDEquippedItemValue Item(uint8 Slot, const FGuid& Instance, FName Definition)
     {
         FLDEquippedItemValue Value;
-        Value.Entry = Entry;
+        Value.Slot = Slot;
         Value.Instance = Instance;
         Value.DefinitionId = Definition;
         return Value;
@@ -144,48 +132,10 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     using namespace LDCombatSourceRulesTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!ReadApprovedContent(*this, Content)) { return false; }
-    const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid(), C = FGuid::NewGuid();
     TArray<FLDCombatBindingPlan> Out;
     ELDCombatPrepareError Code = ELDCombatPrepareError::None;
 
     FLDCombatEntityRecord Empty;
-    FLDBuildProjectionInput First;
-    First.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
-    TestTrue(TEXT("A first active copy issues a ready new track"),
-        Plan(Empty, First, *Content, Out, Code) && Out.Num() == 1 && Out[0].bNewTrack && Out[0].ReadyAtMs == 0
-        && Out[0].Entry == ELDCombatEntry::Item1 && Out[0].Source.ItemInstance == A && Out[0].IssuedCooldownId.IsValid());
-
-    const FGuid Sold = FGuid::NewGuid();
-    FLDCombatEntityRecord Debt;
-    Debt.Tracks.Add(GearTrack(Sold, A, false, NowMs + 10000));
-    FLDBuildProjectionInput Rebuy;
-    Rebuy.Equipment.Add(Item(ELDCombatEntry::Item2, B, Battery));
-    TestTrue(TEXT("A rebought copy inherits the sold copy's unexpired debt"),
-        Plan(Debt, Rebuy, *Content, Out, Code) && Out.Num() == 1 && !Out[0].bNewTrack
-        && Out[0].IssuedCooldownId == Sold && Out[0].ReadyAtMs == NowMs + 10000);
-
-    const FGuid Held = FGuid::NewGuid(), Ready = FGuid::NewGuid();
-    FLDCombatEntityRecord Pair;
-    Pair.Tracks.Add(GearTrack(Held, A, true, NowMs + 5000));
-    Pair.Tracks.Add(GearTrack(Ready, C, false, NowMs - 1));
-    FLDBuildProjectionInput Both;
-    Both.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
-    Both.Equipment.Add(Item(ELDCombatEntry::Item2, B, Battery));
-    const bool bBoth = Plan(Pair, Both, *Content, Out, Code) && Out.Num() == 2;
-    TestTrue(TEXT("A held copy keeps its own track and a second copy takes the free ready one"),
-        bBoth && Out[0].Source.ItemInstance == A && Out[0].IssuedCooldownId == Held && Out[0].ReadyAtMs == NowMs + 5000
-        && Out[1].Source.ItemInstance == B && Out[1].IssuedCooldownId == Ready && !Out[1].bNewTrack);
-
-    const FGuid Early = FGuid::NewGuid(), Late = FGuid::NewGuid();
-    FLDCombatEntityRecord TwoDebts;
-    TwoDebts.Tracks.Add(GearTrack(Early, A, false, NowMs + 3000));
-    TwoDebts.Tracks.Add(GearTrack(Late, B, false, NowMs + 8000));
-    FLDBuildProjectionInput One;
-    One.Equipment.Add(Item(ELDCombatEntry::Item1, C, Battery));
-    TestTrue(TEXT("Debt first: the latest unexpired unbound track is taken"),
-        Plan(TwoDebts, One, *Content, Out, Code) && Out.Num() == 1 && Out[0].IssuedCooldownId == Late
-        && Out[0].ReadyAtMs == NowMs + 8000);
-
     FLDCombatTrack Learned;
     Learned.IssuedCooldownId = FGuid::NewGuid();
     Learned.Kind = ELDCombatSourceKind::Learned;
@@ -203,16 +153,21 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
         Plan(Relearn, Active, *Content, Out, Code) && Out.Num() == 1 && Out[0].Entry == ELDCombatEntry::W
         && Out[0].IssuedCooldownId == Learned.IssuedCooldownId && Out[0].ReadyAtMs == NowMs + 4000);
 
-    FLDBuildProjectionInput Passive;
-    Passive.Equipment.Add(Item(ELDCombatEntry::Item1, A, Maul));
-    TestTrue(TEXT("Gear without an active binds no cooldown track"),
-        Plan(Empty, Passive, *Content, Out, Code) && Out.IsEmpty());
+    TestTrue(TEXT("A first learn issues a ready new track"),
+        Plan(Empty, Active, *Content, Out, Code) && Out.Num() == 1 && Out[0].bNewTrack && Out[0].ReadyAtMs == 0
+        && Out[0].Entry == ELDCombatEntry::W && Out[0].Source.Kind == ELDCombatSourceKind::Learned && Out[0].IssuedCooldownId.IsValid());
 
-    FLDBuildProjectionInput Duplicate;
-    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item1, A, Battery));
-    Duplicate.Equipment.Add(Item(ELDCombatEntry::Item2, A, Battery));
-    TestTrue(TEXT("One instance in two slots is refused"),
-        !Plan(Empty, Duplicate, *Content, Out, Code) && Code == ELDCombatPrepareError::InvalidInput);
+    FLDBuildProjectionInput Worn;
+    Worn.Equipment.Add(Item(0, FGuid::NewGuid(), Battery));
+    Worn.Equipment.Add(Item(1, FGuid::NewGuid(), Maul));
+    TestTrue(TEXT("Equipment binds no cooldown track"),
+        Plan(Empty, Worn, *Content, Out, Code) && Out.IsEmpty());
+
+    FLDBuildProjectionInput Duplicate = Active;
+    Skill.Entry = ELDCombatEntry::Q;
+    Duplicate.Actives.Add(Skill);
+    TestTrue(TEXT("One definition learned in two entries is refused"),
+        !Plan(Relearn, Duplicate, *Content, Out, Code) && Code == ELDCombatPrepareError::InvalidInput);
     return true;
 }
 
@@ -227,7 +182,7 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     using namespace LDCombatSourceRulesTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!ReadApprovedContent(*this, Content)) { return false; }
-    const FLDDemoEquipmentActive& Dash = Content->Get().Character.Dash;
+    const FLDDemoDashDefinition& Dash = Content->Get().Character.Dash;
     if (!TestTrue(TEXT("The approved character projects one executable dash"),
         Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Rank.Effects.Num() == 1
         && Dash.Rank.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Rank.CooldownMs > Dash.Rank.Effects[0].DurationMs))
@@ -239,7 +194,7 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     { return false; }
     const FLDDemoEffectDefinition* Boost = SpikesItem->HasPassive ? SpikesItem->Passive.Effects.FindByPredicate(
         [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::DashBoost; }) : nullptr;
-    TestTrue(TEXT("The spikes have no active and one dash boost passive (1/2 show no active)"), !SpikesItem->HasActive && Boost);
+    TestTrue(TEXT("The spikes hold one dash boost passive"), Boost != nullptr);
     if (!Boost) { return false; }
     const auto Families = [&](const TArray<FString>& Items, TArray<FLDEquipmentPassiveFamily>& Out)
     {
@@ -269,23 +224,23 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Another equipment passive leaves the dash unchanged"),
         Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, Unrelated, Error)
         && !Unrelated.bBoosted && Unrelated.CooldownMs == Base.CooldownMs);
-    // #112 §5: the same boost lengthens and quickens every gear or character active that displaces its caster, the
-    // decoy wig's backward leap included (approved 200 -> 250 cm, base cooldown x0.80; upgraded +35% / x0.72).
-    const FLDDemoEquipmentDefinition* Wig = nullptr;
-    const FLDDemoEquipmentDefinition* BatteryItem = nullptr;
-    if (TestTrue(TEXT("The decoy wig and the battery are approved"), Content->FindEquipment(TEXT("item_decoy_wig"), Wig, Error) && Wig
-        && Wig->HasActive && Content->FindEquipment(Battery.ToString(), BatteryItem, Error) && BatteryItem && BatteryItem->HasActive))
+    // #112 §5: the same boost lengthens and quickens every character active that displaces its caster
+    // (active_lunge Lv1: approved 400 -> 500 cm, base cooldown x0.80; upgraded +35% / x0.72).
+    const FLDDemoAbilityDefinition* LungeSkill = nullptr;
+    const FLDDemoAbilityDefinition* BoltSkill = nullptr;
+    if (TestTrue(TEXT("The lunge and the bolt are approved"), Content->FindAbility(TEXT("active_lunge"), LungeSkill, Error) && LungeSkill
+        && !LungeSkill->Ranks.IsEmpty() && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill && !BoltSkill->Ranks.IsEmpty()))
     {
-        const FLDDemoEffectDefinition* Leap = Wig->Active.Rank.Effects.FindByPredicate(
-            [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::LeapBack; });
-        TestTrue(TEXT("The backward leap displaces its caster; a battery does not"), Leap
-            && LDCombatSourceRules::DisplacesCaster(Wig->Active.Rank) && !LDCombatSourceRules::DisplacesCaster(BatteryItem->Active.Rank));
+        const FLDDemoEffectDefinition* Lunge = LungeSkill->Ranks[0].Effects.FindByPredicate(
+            [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Dash; });
+        TestTrue(TEXT("The lunge displaces its caster; a bolt does not"), Lunge
+            && LDCombatSourceRules::DisplacesCaster(LungeSkill->Ranks[0]) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Ranks[0]));
         int64 CooldownRatioBp = 0, DistanceBonusBp = 0;
-        TestTrue(TEXT("Worn spikes: the leap goes 25% farther and its base cooldown is x0.80"),
-            Leap && LDCombatSourceRules::SkillDisplacementBoost(*Content, One, CooldownRatioBp, DistanceBonusBp, Error)
+        TestTrue(TEXT("Worn spikes: the lunge goes 25% farther and its base cooldown is x0.80"),
+            Lunge && LDCombatSourceRules::SkillDisplacementBoost(*Content, One, CooldownRatioBp, DistanceBonusBp, Error)
             && CooldownRatioBp == 8000 && DistanceBonusBp == 2500
-            && FMath::IsNearlyEqual(double(Leap->DistanceCm.Numerator) / double(Leap->DistanceCm.Denominator)
-                * double(10000 + DistanceBonusBp) / 10000., 250.));
+            && FMath::IsNearlyEqual(double(Lunge->DistanceCm.Numerator) / double(Lunge->DistanceCm.Denominator)
+                * double(10000 + DistanceBonusBp) / 10000., 500.));
         TArray<FLDEquipmentPassiveFamily> Upgraded = One;
         if (Upgraded.Num() == 1) { Upgraded[0].bUpgraded = true; }
         TestTrue(TEXT("Upgraded spikes: +35% and x0.72"), Upgraded.Num() == 1
@@ -337,14 +292,13 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     Gate.bDash = true;
     TestTrue(TEXT("A displacement block refuses the dash"), LDCombatSourceRules::ActiveGate(Gate, Policies) == ELDCombatReject::ControlBlocked);
     Gate.bDisplacementBlocked = false;
-    // The matrix entries the gate reads: a taunt blocks Cast/Gear/Displacement, never Move (forced chase) or Basic
+    // The matrix entries the gate reads: a taunt blocks Cast/Displacement, never Move (forced chase) or Basic
     // (checked against the taunter); a disarm alone leaves the dash usable.
     TOptional<FLDCombatTaunt> Taunt;
     Taunt.Emplace();
     Taunt->ExpiresAtMs = NowMs + 1000;
     TestTrue(TEXT("A taunt blocks the D dash (Cast and Displacement)"),
         LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Cast) && LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Displacement));
-    TestTrue(TEXT("A taunt blocks items"), LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Gear));
     TestFalse(TEXT("A taunt leaves movement and basic attacks to the forced chase"),
         LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Move) || LDControl::TauntBlocks(Taunt, NowMs, ELDCombatControlAction::Basic));
     TestFalse(TEXT("An ended taunt blocks nothing"), LDControl::TauntBlocks(Taunt, NowMs + 1000, ELDCombatControlAction::Cast));
@@ -356,18 +310,17 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A stun blocks the dash"),
         LDCombatControl::Blocks(NoControl, NoControl, Disarms, NowMs, Policies, ELDCombatControlAction::Displacement));
 
-    // Cooldown debt: buying or selling spikes is a build change, which plans only learned and gear tracks; the innate
+    // Buying or selling spikes is a build change, which plans only learned tracks; the innate
     // track keeps the absolute end fixed at its release.
     FLDCombatEntityRecord Record;
     FLDCombatTrack Innate;
     Innate.IssuedCooldownId = FGuid::NewGuid();
     Innate.Kind = ELDCombatSourceKind::Innate;
     Innate.DefinitionId = LDCombatSourceRules::InnateDashId();
-    Innate.bBound = true;
     Innate.ReadyAtMs = NowMs + Base.CooldownMs;
     Record.Tracks.Add(Innate);
     FLDBuildProjectionInput Wear;
-    Wear.Equipment.Add(Item(ELDCombatEntry::Item1, FGuid::NewGuid(), Spikes));
+    Wear.Equipment.Add(Item(0, FGuid::NewGuid(), Spikes));
     TArray<FLDCombatBindingPlan> Out;
     ELDCombatPrepareError Code = ELDCombatPrepareError::None;
     TestTrue(TEXT("Wearing spikes plans no binding and never touches the innate track"),

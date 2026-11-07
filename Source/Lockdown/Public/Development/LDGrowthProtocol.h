@@ -267,7 +267,7 @@ struct LOCKDOWN_API FLDEquipmentSlotView
     UPROPERTY() bool bUpgraded = false;
 };
 
-// Own gold and the two real equipment positions. 1/2 readiness is Combat's binding view.
+// Own gold and the two real equipment positions.
 USTRUCT()
 struct LOCKDOWN_API FLDEquipmentView
 {
@@ -292,10 +292,6 @@ struct LOCKDOWN_API FLDShopItemView
     UPROPERTY() FName DefinitionId;
     UPROPERTY() int64 BuyPrice = 0;
     UPROPERTY() int64 SellGold = 0;
-    UPROPERTY() bool bHasActive = false;
-    // Combat preview of the cooldown a purchase would inherit; the purchase receipt is authoritative.
-    UPROPERTY() bool bInheritsCooldown = false;
-    UPROPERTY() int64 InheritedReadyAtMs = 0;
 };
 
 USTRUCT()
@@ -405,10 +401,6 @@ struct LOCKDOWN_API FLDShopReceipt
     UPROPERTY() int64 ActualGoldDelta = 0;
     UPROPERTY() bool bHasLedgerSerial = false;
     UPROPERTY() uint64 LedgerSerial = 0;
-    // Buy of an item with an active: the persistent cooldown track Combat bound and its inherited end.
-    UPROPERTY() bool bHasSource = false;
-    UPROPERTY() FGuid IssuedCooldownId;
-    UPROPERTY() int64 ReadyAtMs = 0;
 };
 
 USTRUCT()

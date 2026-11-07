@@ -31,7 +31,8 @@ void ALDPlayerController::ActivateCombatEntry(ELDCombatEntry Entry)
     if (!IsLocalController() || !LDCombatPreInput::IsDirectEntry(Entry) || !CanWorldCommand()) { return; }
     const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
     const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
-    const bool bHeld=View && !View->DefinitionId.IsNone() && View->bHasActive;
+    // An entry whose source does not resolve reports Self (0) and is sent as is for the server's explicit refusal.
+    const bool bHeld=View && !View->DefinitionId.IsNone();
     const ELDDemoTargetMode Mode=bHeld?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
     if (bHeld && LDPlayerOrdersDetail::IsArmedMode(Mode))
     {
@@ -231,7 +232,7 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
     {
         const bool bCurrentView=CombatView.Generation==OwnerState.Match && CombatView.Life==OwnerState.Life;
         const FLDCombatEntryView* View=bCurrentView?LDPlayerOrdersDetail::FindEntry(CombatView,Entry):nullptr;
-        const ELDDemoTargetMode Mode=View && View->bHasActive?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
+        const ELDDemoTargetMode Mode=View?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
         const FVector Point=Aim.Kind==ELDCombatTargetKind::Point?FVector(Aim.Point):AimCm?*AimCm:FVector::ZeroVector;
         const bool bPointCast=(Mode==ELDDemoTargetMode::GroundPoint && Aim.Kind==ELDCombatTargetKind::Point)
             || (Mode==ELDDemoTargetMode::DirectionProjectile && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
@@ -351,7 +352,7 @@ void ALDPlayerController::ServerSubmitCombatAction_Implementation(const FLDComba
         ClientCombatReceipt(Receipt);
         return;
     }
-    // A non-Shift Q/W/1/2/D never touches the current order. A refused one leaves the shift queue alone too (2026-11-07
+    // A non-Shift Q/W/D never touches the current order. A refused one leaves the shift queue alone too (2026-11-07
     // decision): while steps wait, an entry that is not ready is refused before Combat sees it, and an admitted one drops
     // the steps sent before it (their lower sequences could never run after it) once Combat accepted it.
     FLDCombatActionReceipt Receipt;

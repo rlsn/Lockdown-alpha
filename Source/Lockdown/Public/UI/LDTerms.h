@@ -74,7 +74,6 @@ inline constexpr TCHAR Shield[]=TEXT("心理防线");
 inline constexpr TCHAR Root[]=TEXT("提裤子");
 inline constexpr TCHAR Slow[]=TEXT("腿软");
 inline constexpr TCHAR Taunt[]=TEXT("瞅你咋地");
-inline constexpr TCHAR Stealth[]=TEXT("查无此人");
 inline constexpr TCHAR Disarm[]=TEXT("捂裆");
 inline constexpr TCHAR Stun[]=TEXT("CPU 干烧了");
 inline constexpr TCHAR RespawnProtection[]=TEXT("免死金牌");

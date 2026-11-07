@@ -27,8 +27,7 @@ namespace LDCA
 
     bool IsContenderEntry(ELDCombatEntry Entry)
     {
-        return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2
-            || Entry==ELDCombatEntry::Dash;
+        return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Dash;
     }
 
     bool SameTerms(const FLDCombatActionRequest& A, const FLDCombatActionRequest& B)
@@ -63,9 +62,6 @@ namespace LDCA
 
     void FaceAlong(ALDCharacter& Actor, const FVector& Direction)
     { if (!Direction.ContainsNaN() && !Direction.IsNearlyZero()) { Actor.SetFacing(Direction.Rotation().Yaw); } }
-
-    ELDCombatControlAction EntryControl(ELDCombatEntry Entry)
-    { return Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2 ? ELDCombatControlAction::Gear : ELDCombatControlAction::Cast; }
 }
 
 FLDCombatEntityRecord* ALDCombatDirector::FindRecord(const FGuid& Entity) { return Records.Find(Entity); }
@@ -456,8 +452,6 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
     LDCA::FaceToward(*Actor,TargetFoot);
     // The committed cadence survives cancellation, orders, death and respawn; time keeps running.
     Record->NextAttackAtMs=NextAttack;
-    // An accepted swing reveals a stealthed attacker before it lands.
-    RevealStealth(*Body);
     MarkViewChanged(Caller.EntityId);
     Receipt.CombatToken=Action.Token;
     Receipt.Phase=ELDCombatPhase::Accepted;
@@ -595,19 +589,18 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     // The innate D dash is movement, not an aggressive intent (APP_SPEC 7.1: a protected body may move).
     if (Record.Kind==ELDVictimKind::Contender && Request.Entry!=ELDCombatEntry::Dash)
     {
-        // Every admitted Q/W/1/2 attempt is an aggressive intent: protection ends before the action is checked.
+        // Every admitted Q/W attempt is an aggressive intent: protection ends before the action is checked.
         auto* PC=Mode->FindContenderController(Record.Entity);
         if (!PC) { return Refuse(ELDCombatReject::NotOwner); }
         FLDAggressiveIntent Intent;
-        Intent.Kind=Request.Entry==ELDCombatEntry::Item1 || Request.Entry==ELDCombatEntry::Item2
-            ? ELDAggressiveIntentKind::ActivateEquipment : ELDAggressiveIntentKind::ActivateCharacter;
+        Intent.Kind=ELDAggressiveIntentKind::ActivateCharacter;
         Intent.Request={ELDAggressionOrigin::Combat,Request.DirectSequence,0};
         const auto Protection=Mode->EndProtectionForAggressiveIntent(*PC,Mode->GetMatchContext(),SelfRef,Intent,Permit);
         if (Protection.Outcome==ELDProtectionOutcome::Rejected)
         { return Refuse(Protection.Reason==ELDCommitReject::StaleLife ? ELDCombatReject::StaleLife : ELDCombatReject::MatchClosed); }
         Receipt.bProtectionRemoved=Protection.bProtectionRemoved;
         Receipt.LifeRevision=Protection.LifeRevision;
-        // A taunted body may only basic-attack its taunter: no ability or item until the taunt ends.
+        // A taunted body may only basic-attack its taunter: no ability until the taunt ends.
         if (LDControl::IsTaunted(Body->Taunt,Now)) { return Refuse(ELDCombatReject::ControlBlocked); }
     }
     if (Record.Kind==ELDVictimKind::CampMember)
@@ -656,14 +649,12 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     FLDCombatSourceRef Source;
     uint8 Rank=0;
     const FLDDemoAbilityDefinition* Ability=nullptr;
-    const FLDDemoEquipmentDefinition* Equipment=nullptr;
-    if (!ResolveEntry(Record,Request.Entry,Source,Rank,Ability,Equipment)) { return Refuse(ELDCombatReject::SourceUnavailable); }
+    if (!ResolveEntry(Record,Request.Entry,Source,Rank,Ability)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     if (Request.ExpectedSourceRevision!=Record.SourceRevision) { return Refuse(ELDCombatReject::StaleSource); }
-    if (Equipment && !Equipment->HasActive) { return Refuse(ELDCombatReject::NoActiveEffect); }
     const FLDDemoRankDefinition* RankDef=nullptr;
     const FLDDemoTargetDefinition* TargetDef=nullptr;
     int64 WindupMs=0;
-    if (!ActiveOf(Source,Rank,Ability,Equipment,TargetDef,RankDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
+    if (!ActiveOf(Source,Rank,Ability,TargetDef,RankDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     const auto* Track=TrackFor(Record,Request.Entry);
     if (!Track) { Error=TEXT("A held active source has no persistent cooldown track."); return false; }
     FLDActiveGateInput Gate;
@@ -673,7 +664,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Gate.ManaCostP2=RankDef->ManaCostP2;
     Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash || TargetDef->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bControlBlocked=IsActionBlocked(*Body,LDCA::EntryControl(Request.Entry));
+    Gate.bControlBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Cast);
     Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     Gate.bCheckBusy=true;
     Gate.bAbilityInProgress=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
@@ -744,8 +735,6 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     // A new ability interrupts an unreleased basic windup; its committed cadence is not refunded.
     if (Body->Action.IsSet()) { AbandonAction(*Body,ELDCombatReject::Cancelled); }
     Body->Action=Action;
-    // Any accepted ability or item activation reveals a stealthed body (a new stealth is applied at its own release).
-    RevealStealth(*Body);
     if (TargetDef->Mode==ELDDemoTargetMode::Unit || TargetDef->Mode==ELDDemoTargetMode::GroundPoint) { LDCA::FaceToward(*Actor,Action.TargetPoint); }
     else { LDCA::FaceAlong(*Actor,Action.Direction); }
     ++Body->StateRevision;
@@ -1006,21 +995,20 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     auto* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record) { Error=TEXT("Ability release lost its core, catalog or entity record."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
-    // Re-check the exact source: a sold, forgotten or replaced source cannot release (and pays nothing).
+    // Re-check the exact source: a forgotten or replaced source cannot release (and pays nothing).
     FLDCombatSourceRef Source;
     uint8 Rank=0;
     const FLDDemoAbilityDefinition* Ability=nullptr;
-    const FLDDemoEquipmentDefinition* Equipment=nullptr;
-    if (!ResolveEntry(*Record,Action.Entry,Source,Rank,Ability,Equipment) || Source!=Action.Source || Rank!=Action.Rank)
+    if (!ResolveEntry(*Record,Action.Entry,Source,Rank,Ability) || Source!=Action.Source || Rank!=Action.Rank)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
     const FLDDemoRankDefinition* RankDef=nullptr;
     const FLDDemoTargetDefinition* TargetPtr=nullptr;
     int64 WindupMs=0;
     auto* Track=TrackFor(*Record,Action.Entry);
-    if (!ActiveOf(Source,Rank,Ability,Equipment,TargetPtr,RankDef,WindupMs) || !Track)
+    if (!ActiveOf(Source,Rank,Ability,TargetPtr,RankDef,WindupMs) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
     const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
-    // The caster's foot before any displacement of this release (areas, zones, decoys and pushes centre here).
+    // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
     const FVector ReleaseFoot=FootOf(Actor);
     // The innate dash takes its distance and cooldown from the equipment passives held at this release (D20).
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
@@ -1035,17 +1023,10 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*RankDef);
     Gate.Roots=&Body.Roots;
-    Gate.bControlBlocked=IsActionBlocked(Body,LDCA::EntryControl(Action.Entry));
+    Gate.bControlBlocked=IsActionBlocked(Body,ELDCombatControlAction::Cast);
     Gate.bDisplacementBlocked=IsActionBlocked(Body,ELDCombatControlAction::Displacement);
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
-    // item_energy_drink needs a Q or W cooling down; otherwise it is refused before paying.
-    if (LDCA::FindEffect(*RankDef,ELDDemoEffectOp::CooldownRefresh))
-    {
-        const FLDCombatTrack* Q=TrackFor(*Record,ELDCombatEntry::Q);
-        const FLDCombatTrack* W=TrackFor(*Record,ELDCombatEntry::W);
-        if ((!Q || Q->ReadyAtMs<=Now) && (!W || W->ReadyAtMs<=Now)) { Reject=ELDCombatReject::NoActiveEffect; return true; }
-    }
     FLDCombatBodyRef UnitTarget;
     if (TargetDef.Mode==ELDDemoTargetMode::Unit)
     {
@@ -1093,8 +1074,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // A damage guard holds its slow/stun and shield for its recoil (active_porcelain_flop); nothing hits at release.
     const bool bGuard=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::DamageGuard)!=nullptr;
     const bool bHostile=!bGuard && (DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect || BurstEffect
-        || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dot) || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::HealCut)
-        || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Knockback));
+        || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dot) || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Knockback));
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash
         || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
     if (bHostile && bAreaMode && !AreaEffect)
@@ -1109,7 +1089,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     { return false; }
     const auto& AmbushTerm=Body.AttributeProjection.Ambush;
     const bool bAmbush=DamageEffect && AmbushReadyNow(Body,Now);
-    // item_phase_anchor: a character or gear active with a dash, jump or backward leap takes the skill boost held at this release (base
+    // item_phase_anchor: a character active with a dash or jump takes the skill boost held at this release (base
     // cooldown x ratio before haste, distance x (1 + bonus)); the innate dash has its own terms.
     int64 SkillCooldownRatioBp=10000, SkillDistanceBonusBp=0;
     if (!bInnate && LDCombatSourceRules::DisplacesCaster(*RankDef) && !LDCombatSourceRules::SkillDisplacementBoost(*Content,
@@ -1166,7 +1146,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         {
             if (Effect.GetOp()==ELDDemoEffectOp::Damage) { bDealsDamage=true; }
             if (Effect.GetOp()==ELDDemoEffectOp::Shield || Effect.GetOp()==ELDDemoEffectOp::DispelRoot
-                || Effect.GetOp()==ELDDemoEffectOp::DispelSlow || Effect.GetOp()==ELDDemoEffectOp::RestoreMana)
+                || Effect.GetOp()==ELDDemoEffectOp::DispelSlow)
             { Landing.Effects.Add(Effect); }
             if (Effect.GetOp()==ELDDemoEffectOp::TriggeredShield) { Landing.LandingShield=Effect; }
             continue;
@@ -1190,9 +1170,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Shield:
             // A guard's shield is its recoil's payload.
             if (bGuard) { break; }
-            if (!ApplySelfEffect(Body,Effect,EffectId,Now,Error,bCleansed)) { return false; }
-            break;
-        case ELDDemoEffectOp::RestoreMana:
             if (!ApplySelfEffect(Body,Effect,EffectId,Now,Error,bCleansed)) { return false; }
             break;
         case ELDDemoEffectOp::DispelRoot:
@@ -1331,19 +1308,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Taunt:
             if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error)) { return false; }
             break;
-        case ELDDemoEffectOp::Stealth:
-        {
-            FLDCombatStealth Stealth;
-            Stealth.EffectId=EffectId;
-            Stealth.RevealRadiusCm=LDCA::ToDouble(Effect.RadiusCm);
-            Stealth.MoveSpeedPenaltyBp=Effect.RatioBp;
-            if (!LDMatchLifecycle::AddDurationMs(Now,Effect.DurationMs,Stealth.ExpiresAtMs,Error)) { return false; }
-            if (!LDControl::ApplyStealth(Body.Stealth,Stealth,Now))
-            { Error=TEXT("A stealth release has no valid duration, reveal radius or speed penalty."); return false; }
-            // item_paper_box: entering stealth readies the ambush passive at once.
-            if (Effect.bAmbushReady && Body.AttributeProjection.Ambush.IsSet()) { CreditAmbush(Body,Body.AttributeProjection.Ambush->DelayMs); }
-            break;
-        }
         case ELDDemoEffectOp::Root:
         case ELDDemoEffectOp::Slow:
         case ELDDemoEffectOp::Disarm:
@@ -1352,7 +1316,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::SelfArea:
         // #112: hit extras ride on the hits below (FillMechanicsTemplate); release content follows them (ReleaseMechanics).
         case ELDDemoEffectOp::Knockback:
-        case ELDDemoEffectOp::HealCut:
         case ELDDemoEffectOp::Dot:
         case ELDDemoEffectOp::MobilityPunish:
         case ELDDemoEffectOp::Volley:
@@ -1369,9 +1332,6 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::ZoneRoot:
         case ELDDemoEffectOp::ZoneDamage:
         case ELDDemoEffectOp::DamageGuard:
-        case ELDDemoEffectOp::Decoy:
-        case ELDDemoEffectOp::LeapBack:
-        case ELDDemoEffectOp::CooldownRefresh:
             break;
         default:
             Error=FString::Printf(TEXT("Active effect opcode %u has no Combat handler."),Effect.Opcode);
@@ -1500,7 +1460,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         const double Reach=LDCA::ToDouble(TargetDef.RangeCm);
         ZonePoint=Offset.Size2D()>Reach ? ReleaseFoot+Offset.GetSafeNormal2D()*Reach : FVector(ZonePoint.X,ZonePoint.Y,ReleaseFoot.Z);
     }
-    if (!ReleaseMechanics(Actor,Body,Source,*RankDef,nullptr,ReleaseFoot,ZonePoint,EffectId,Action.Token,SkillDistanceBonusBp,Error)) { return false; }
+    if (!ReleaseMechanics(Actor,Body,Source,*RankDef,nullptr,ReleaseFoot,ZonePoint,EffectId,Action.Token,Error)) { return false; }
     // passive_keyboard_warrior Lv3: a released skill quickens the caster for a while.
     if (Source.Kind==ELDCombatSourceKind::Learned)
     {
@@ -1555,13 +1515,6 @@ bool ALDCombatDirector::ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoE
             ++Body.StateRevision;
         }
         return true;
-    case ELDDemoEffectOp::RestoreMana:
-    {
-        const int64 Amount=Body.Resources.MaxMpP2/10000*Effect.RatioBp+Body.Resources.MaxMpP2%10000*Effect.RatioBp/10000;
-        Body.Resources.MpP2=FMath::Min(Body.Resources.MaxMpP2,Body.Resources.MpP2+Amount);
-        ++Body.Resources.Revision;
-        return true;
-    }
     default:
         Error=FString::Printf(TEXT("Self effect opcode %u has no Combat handler."),Effect.Opcode);
         return false;
@@ -1622,7 +1575,7 @@ bool ALDCombatDirector::ReadMoveSpeed(const ALDCharacter& Actor, float& OutCmPer
     if (!Body || Body->bPendingDeath) { return false; }
     const auto* Mode=Core();
     double Speed=0;
-    if (!Mode || !EffectiveMoveSpeed(*Body,Mode->GetAuthorityNowMs(),Speed) || !FMath::IsFinite(Speed) || Speed<=0 || Speed>MAX_flt)
+    if (!Mode || !EffectiveMoveSpeed(*Body,Speed) || !FMath::IsFinite(Speed) || Speed<=0 || Speed>MAX_flt)
     { return false; }
     OutCmPerSec=float(Speed);
     return true;

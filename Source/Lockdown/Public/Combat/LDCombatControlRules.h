@@ -6,7 +6,7 @@ struct FLDDemoPolicies;
 struct FLDDemoEffectDefinition;
 
 // Voluntary actions the control matrix judges; the same rule serves human, opponent AI and camp callers.
-enum class ELDCombatControlAction : uint8 { Move, Displacement, Basic, Cast, Gear };
+enum class ELDCombatControlAction : uint8 { Move, Displacement, Basic, Cast };
 
 // Every control or slow a body can receive; all of them are committed through ALDCombatDirector::CommitControl.
 // Hard controls (Root, Stun, Disarm, Taunt) diminish; Knockback and Slow never do.

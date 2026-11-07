@@ -85,13 +85,13 @@ void HudBarStyle(UProgressBar* Bar,const FLinearColor& Fill)
     Style.SetBackgroundImage(FSlateRoundedBoxBrush(LDHUDStyle::BarTrack,4.f,LDHUDStyle::PanelRim,1.f)).SetFillImage(FSlateRoundedBoxBrush(FLinearColor::White,4.f)).SetMarqueeImage(FSlateNoResource());
     Bar->SetWidgetStyle(Style);Bar->SetFillColorAndOpacity(Fill);
 }
-const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("Item1"),TEXT("Item2"),TEXT("Dash")};
-const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2,ELDCombatEntry::Dash};
-const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionItem1"),TEXT("HUDActionItem2"),TEXT("HUDActionDash")};
+// The band's slots in LDHUD::EActionSlot order. The two equipment slots show the held items: no key, no combat entry.
+const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),NAME_None,NAME_None,TEXT("Dash")};
+const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::None,ELDCombatEntry::None,ELDCombatEntry::Dash};
+const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDEquipment1"),TEXT("HUDEquipment2"),TEXT("HUDActionDash")};
 constexpr int32 HudActionCount=UE_ARRAY_COUNT(HudActionEntries);
-// Status control bits that forbid each entry kind: character actives cast, equipment actives use gear, the dash displaces.
-const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Gear),
-    uint8(ELDCombatControlBlock::Gear),uint8(ELDCombatControlBlock::Displacement)};
+// Status control bits that forbid each entry kind: character actives cast, the dash displaces.
+const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),0,0,uint8(ELDCombatControlBlock::Displacement)};
 static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
     && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
@@ -461,14 +461,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
             const ELDCombatEntry Activated=HudActionEntries[Index];
-            Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[PC,Activated](){PC->ActivateCombatEntry(Activated);},true,HudActionNames[Index]);
+            Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[PC,Activated](){if(Activated!=ELDCombatEntry::None){PC->ActivateCombatEntry(Activated);}},true,HudActionNames[Index]);
             // The face draws every state itself, so the button keeps no chrome of its own.
             auto ButtonStyle=Entry.Button->GetStyle();ButtonStyle.Normal=FSlateNoResource();ButtonStyle.Hovered=FSlateNoResource();ButtonStyle.Pressed=FSlateNoResource();ButtonStyle.Disabled=FSlateNoResource();
             ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
             Entry.Button->SetContent(Stack);
             if(UButtonSlot* StackSlot=Cast<UButtonSlot>(Stack->Slot)){StackSlot->SetPadding(FMargin(0));StackSlot->SetHorizontalAlignment(HAlign_Fill);StackSlot->SetVerticalAlignment(VAlign_Fill);}
             Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
-            // Character actives (Q/W), equipment actives (1/2) and the innate dash (D) are separate groups, never one merged bar.
+            // Character actives (Q/W), the two equipment slots and the innate dash (D) are separate groups, never one merged bar.
             Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2||Index==4?HudGroupGap:HudSlotGap,0,0,0));
         }
         Centre->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,8,0,0));
@@ -915,7 +915,7 @@ void ULDHUD::RefreshReadModel()
         // re-checks reach on every trade, so this only decides when to try.
         FName NearShop;
         const bool bNearShop=Playing&&bAlive&&PC->Navigation&&PC->Navigation->OwnBodyAtShop(NearShop);
-        ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,bClock,NowMs,Content,bNearShop);
+        ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,Content,bNearShop);
         // A pre-order that could be bought needs this life's session: requested once, then again only every few seconds
         // while it still has none (a refused or lost open result).
         if(bNearShop&&ShopPanel->WantsSession()&&(PreorderOpenLife!=O.Life||UiNow-PreorderOpenAt>=3.))
@@ -999,17 +999,24 @@ void ULDHUD::RefreshReadModel()
     {
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
         const ELDCombatEntry Wanted=HudActionEntries[Index];
-        const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr;
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
         FGuid HeldItem;
-        if(Source)
+        if(LDHUD::IsEquipmentSlot(SlotKind))
+        {
+            const uint8 SlotIndex=SlotKind==LDHUD::EActionSlot::Equipment1?0:1;
+            const FLDEquipmentSlotView* Held=Equipment?Equipment->Slots.FindByPredicate([SlotIndex](const FLDEquipmentSlotView& Row){return Row.SlotIndex==SlotIndex;}):nullptr;
+            if(Held)
+            {
+                Input=LDHUD::EquipmentInput(*Held,SlotKind,Content);
+                if(Held->bOccupied){HeldItem=Held->Instance;}
+            }
+        }
+        else if(const FLDCombatEntryView* Source=OwnCombat?OwnCombat->Entries.FindByPredicate([Wanted](const FLDCombatEntryView& Candidate){return Candidate.Entry==Wanted;}):nullptr)
         {
             Input=LDHUD::ActionInput(*Source,SlotKind,Content);Input.bControlled=(ControlBits&HudActionControl[Index])!=0;
-            const FLDEquipmentSlotView* Held=Equipment&&Source->ItemInstance.IsValid()?Equipment->Slots.FindByPredicate([Source](const FLDEquipmentSlotView& Row){return Row.bOccupied&&Row.Instance==Source->ItemInstance;}):nullptr;
-            Input.bUpgraded=Held&&Held->bUpgraded;
-            if(Held&&(Wanted==ELDCombatEntry::Item1||Wanted==ELDCombatEntry::Item2)){HeldItem=Held->Instance;}
         }
-        LDHUD::FActionContext Context;Context.KeyLabel=PC->BindingLabel(HudActionBindings[Index]);Context.bOwnContext=bOwnMatch&&O.Life!=0;
+        LDHUD::FActionContext Context;Context.KeyLabel=HudActionBindings[Index].IsNone()?FString():PC->BindingLabel(HudActionBindings[Index]);
+        Context.bOwnContext=bOwnMatch&&O.Life!=0;
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
         Context.bInputCaptured=bInputSuppressed;
         Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
@@ -1021,7 +1028,7 @@ void ULDHUD::RefreshReadModel()
         if(Entry.bCooling&&!bCooling&&Entry.CoolingMatch==O.Match&&Entry.CoolingLife==O.Life&&Look==LDHUD::EActionLook::Ready){Entry.FlashAt=UiNow;}
         Entry.bCooling=bCooling;Entry.CoolingMatch=O.Match;Entry.CoolingLife=O.Life;
         const FHudLookStyle Style=HudLookStyle(Look);
-        const EHudIconKind IconKind=(View.ExecutionBlocks&LDHUD::ActionEmpty)?EHudIconKind::Empty:(View.ExecutionBlocks&LDHUD::ActionNoActive)?EHudIconKind::Passive
+        const EHudIconKind IconKind=(View.ExecutionBlocks&LDHUD::ActionEmpty)?EHudIconKind::Empty:(View.ExecutionBlocks&LDHUD::ActionPassive)?EHudIconKind::Passive
             :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
         const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<HudNoticeSeconds;
@@ -1043,7 +1050,7 @@ void ULDHUD::RefreshReadModel()
         HudSetShown(Entry.PresellMark,HeldItem.IsValid()&&ShopPanel&&ShopPanel->IsPresell(HeldItem),ESlateVisibility::HitTestInvisible);
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Countdown,View.Countdown);HudSetShown(Entry.Countdown,bCooling,ESlateVisibility::HitTestInvisible);
-        // An empty slot or a source without an active fades as a whole; the ready flash pops the slot and fades out.
+        // An empty slot or an equipment slot fades as a whole; the ready flash pops the slot and fades out.
         const float Opacity=Look==LDHUD::EActionLook::Empty?.45f:1.f;
         if(Entry.AppliedOpacity!=Opacity){Entry.AppliedOpacity=Opacity;Entry.Box->SetRenderOpacity(Opacity);}
         const double FlashAge=Entry.FlashAt>=0?UiNow-Entry.FlashAt:LDHUDStyle::ReadyFlashSeconds;

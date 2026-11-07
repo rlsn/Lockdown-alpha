@@ -75,7 +75,7 @@ namespace LDOrderRules
     // click) attacks that unit exactly like a right click (AttackUnit); a click anywhere else is an attack-move toward the
     // ground point (AttackMove).
     LOCKDOWN_API ELDSpatialOrderKind AttackConfirmKind(bool bUnitUnderPointer);
-    // A non-Shift Q/W/1/2/D request (2026-11-07 user decision): an entry whose current availability is a refusal
+    // A non-Shift Q/W/D request (2026-11-07 user decision): an entry whose current availability is a refusal
     // (cooldown, mana, control, empty slot, no active, ...) is refused at once and leaves the current move or attack
     // order, the pending request and the shift queue as they were. Only a ready entry goes on (the own ability windup,
     // Busy, only delays it); an admitted request then replaces the order or drops the queue as before.

@@ -23,7 +23,7 @@ namespace LDCombatControl
     uint8 StunBlockBits()
     {
         return uint8(uint8(ELDCombatControlBlock::Move) | uint8(ELDCombatControlBlock::Basic) | uint8(ELDCombatControlBlock::Cast)
-            | uint8(ELDCombatControlBlock::Gear) | uint8(ELDCombatControlBlock::Displacement));
+            | uint8(ELDCombatControlBlock::Displacement));
     }
 
     bool Apply(TArray<FLDCombatRoot>& Instances, const FLDCombatRoot& Instance, int64 AtMs)

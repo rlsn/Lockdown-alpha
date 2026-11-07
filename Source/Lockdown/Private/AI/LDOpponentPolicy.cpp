@@ -78,7 +78,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::PathSlow:
     case ELDDemoEffectOp::ResistShred:
     case ELDDemoEffectOp::Knockback:
-    case ELDDemoEffectOp::HealCut:
     case ELDDemoEffectOp::Dot:
     case ELDDemoEffectOp::MobilityPunish:
     case ELDDemoEffectOp::Volley:
@@ -129,8 +128,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
-    case ELDDemoEffectOp::Decoy:
-    case ELDDemoEffectOp::RestoreMana:
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
@@ -141,7 +138,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
     case ELDDemoEffectOp::Momentum:
-    case ELDDemoEffectOp::LeapBack:
     case ELDDemoEffectOp::HitHaste:
         Usage.bMobility = true;
         break;
@@ -154,7 +150,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
         break;
     // Cooldown, crit, mana and release riders, and the taunt family, add no structural usage of their own.
-    case ELDDemoEffectOp::CooldownRefresh:
     case ELDDemoEffectOp::RefreshDebuffs:
     case ELDDemoEffectOp::OnHit:
     case ELDDemoEffectOp::DebuffHeal:
@@ -184,7 +179,6 @@ struct FSourceShape
     bool bShield = false;
     bool bDispelRoot = false;
     bool bDash = false;
-    int64 RestoreManaBp = 0;
 };
 
 void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& Out)
@@ -202,7 +196,6 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             break;
         case ELDDemoEffectOp::Shield: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
-        case ELDDemoEffectOp::RestoreMana: Out.RestoreManaBp = FMath::Max(Out.RestoreManaBp, Effect.RatioBp); break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
             Out.RangeCm = FMath::Max(Out.RangeCm, ToDouble(Effect.DistanceCm));
@@ -224,21 +217,12 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
         Out.RangeCm = double(Source.RangeCm);
         return Source.RangeCm > 0;
     }
-    if (Source.Slot == ELDOpponentSourceSlot::Q || Source.Slot == ELDOpponentSourceSlot::W)
-    {
-        const FLDDemoAbilityDefinition* Ability = nullptr;
-        if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability
-            || Ability->Kind != ELDDemoAbilityKind::Active) { return false; }
-        Out.Mode = Ability->Target.Mode;
-        Out.RangeCm = ToDouble(Ability->Target.RangeCm);
-        for (const auto& Rank : Ability->Ranks) { ReadEffects(Rank.Effects, Out); }
-        return true;
-    }
-    const FLDDemoEquipmentDefinition* Item = nullptr;
-    if (!Catalog.FindEquipment(Source.DefinitionId, Item, Error) || !Item || !Item->HasActive) { return false; }
-    Out.Mode = Item->Active.Target.Mode;
-    Out.RangeCm = ToDouble(Item->Active.Target.RangeCm);
-    ReadEffects(Item->Active.Rank.Effects, Out);
+    const FLDDemoAbilityDefinition* Ability = nullptr;
+    if (!Catalog.FindAbility(Source.DefinitionId, Ability, Error) || !Ability
+        || Ability->Kind != ELDDemoAbilityKind::Active) { return false; }
+    Out.Mode = Ability->Target.Mode;
+    Out.RangeCm = ToDouble(Ability->Target.RangeCm);
+    for (const auto& Rank : Ability->Ranks) { ReadEffects(Rank.Effects, Out); }
     return true;
 }
 
@@ -543,9 +527,7 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
-    static constexpr ELDOpponentSourceSlot Slots[] = {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W,
-        ELDOpponentSourceSlot::Gear0, ELDOpponentSourceSlot::Gear1, ELDOpponentSourceSlot::Dash};
-    const bool bManaGapKnown = C.Self.MaxMpP2 > 0 && C.Self.MpP2 >= 0 && C.Self.MpP2 <= C.Self.MaxMpP2;
+    static constexpr ELDOpponentSourceSlot Slots[] = {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::Dash};
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : Slots)
@@ -566,9 +548,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             {
             case 0:
                 bUse = Shape.Mode == ELDDemoTargetMode::Self
-                    && ((Shape.bShield && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot)
-                        || (Shape.RestoreManaBp > 0 && bManaGapKnown
-                            && RatioAtLeast(C.Self.MaxMpP2 - C.Self.MpP2, C.Self.MaxMpP2, Shape.RestoreManaBp)));
+                    && ((Shape.bShield && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
                 break;
             case 1:
                 if (Shape.Mode == ELDDemoTargetMode::DirectionDash && Shape.bDash && Need.DashDirection.IsSet())
@@ -1077,8 +1057,8 @@ bool DecideChoice(const FContext& C, FLDOpponentBuildIntent& Out)
 
 int32 FLDEquipmentPairRank::Compare(const FLDEquipmentPairRank& Other) const
 {
-    const int32 Left[] = {Filled, BasicGrowth, Survival, ActiveSources, DistinctPassives};
-    const int32 Right[] = {Other.Filled, Other.BasicGrowth, Other.Survival, Other.ActiveSources, Other.DistinctPassives};
+    const int32 Left[] = {Filled, BasicGrowth, Survival, DistinctPassives};
+    const int32 Right[] = {Other.Filled, Other.BasicGrowth, Other.Survival, Other.DistinctPassives};
     for (int32 Index = 0; Index < int32(UE_ARRAY_COUNT(Left)); ++Index)
     {
         if (Left[Index] != Right[Index]) { return Left[Index] < Right[Index] ? -1 : 1; }
@@ -1269,11 +1249,6 @@ FLDOpponentUsage EquipmentUsage(const FLDDemoEquipmentDefinition& Item)
     using namespace Detail;
     FLDOpponentUsage Usage;
     for (const auto& Stat : Item.Stats) { ClassifyStat(Stat, Usage); }
-    if (Item.HasActive)
-    {
-        const bool bSelfTarget = Item.Active.Target.Mode == ELDDemoTargetMode::Self;
-        for (const auto& Effect : Item.Active.Rank.Effects) { ClassifyEffect(Effect, bSelfTarget, Usage); }
-    }
     if (Item.HasPassive)
     {
         for (const auto& Effect : Item.Passive.Effects) { ClassifyEffect(Effect, true, Usage); }
@@ -1420,7 +1395,6 @@ bool RankEquipmentPair(const FString& First, const FString& Second, const FLDDem
         ++Out.Filled;
         Pair.bBasicGrowth |= Usage.bBasicGrowth;
         Pair.bSurvival |= Usage.bSurvival;
-        Out.ActiveSources += Item->HasActive ? 1 : 0;
         if (Item->HasPassive) { Families.AddUnique(Item->Passive.Family); }
     }
     Out.BasicGrowth = Pair.bBasicGrowth ? 1 : 0;

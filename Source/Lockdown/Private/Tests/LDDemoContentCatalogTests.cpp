@@ -284,15 +284,6 @@ bool RankQuantityPaths(const FLDDemoContentBundle& Bundle, TSet<FString>& Out, F
     {
         QuantityPaths(Abilities[I]->AsObject()->GetField<EJson::Array>(TEXT("ranks")), FString::Printf(TEXT("content.abilities[%d].ranks"), I), Out);
     }
-    const auto& Equipment = Root->AsObject()->GetArrayField(TEXT("equipment"));
-    for (int32 I = 0; I < Equipment.Num(); ++I)
-    {
-        const FValue Active = Equipment[I]->AsObject()->TryGetField(TEXT("active"));
-        if (Active->Type == EJson::Object)
-        {
-            QuantityPaths(Active->AsObject()->GetField<EJson::Object>(TEXT("rank")), FString::Printf(TEXT("content.equipment[%d].active.rank"), I), Out);
-        }
-    }
     return true;
 }
 
@@ -894,8 +885,9 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
     TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
     // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
-    // Statuses 1..14 and the four #112 C2 statuses (knockback, heal cut, damage guard, vulnerable; a breach shows as exposed).
-    const int32 Statuses = int32(ELDDemoStatusId::Empowered) + 4;
+    // Statuses 1..14 without the retired 11 and the four #112 C2 statuses (knockback, heal cut, damage guard, vulnerable; a
+    // breach shows as exposed).
+    const int32 Statuses = int32(ELDDemoStatusId::Empowered) - 1 + 4;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);
