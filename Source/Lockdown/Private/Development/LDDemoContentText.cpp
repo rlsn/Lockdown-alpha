@@ -55,9 +55,15 @@ bool LDDemoContentText::Build(const FLDDemoContentDefinitions& Definitions, FStr
     Table->SetNamespace(FTextKey(DemoContentTextTable));
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
-        const TPair<const FString*, const FString*> Entries[] = {{&Row.NameKey, &Row.NameText}, {&Row.DescriptionKey, &Row.DescriptionText}};
+        const TPair<const FString*, const FString*> Entries[] = {{&Row.NameKey, &Row.NameText}, {&Row.DescriptionKey, &Row.DescriptionText},
+            {&Row.AdvancedKey, &Row.AdvancedText}};
         for (const TPair<const FString*, const FString*>& Entry : Entries)
         {
+            // Only skills carry an advanced line.
+            if (Entry.Key == &Row.AdvancedKey && Row.AdvancedKey.IsEmpty() && Row.AdvancedText.IsEmpty())
+            {
+                continue;
+            }
             FString Existing;
             if (!Row.Namespace.Equals(DemoContentTextTable, ESearchCase::CaseSensitive) || Entry.Key->IsEmpty()
                 || Entry.Value->IsEmpty() || Table->GetSourceString(FTextKey(*Entry.Key), Existing))

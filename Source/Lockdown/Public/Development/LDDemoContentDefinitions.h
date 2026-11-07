@@ -77,21 +77,17 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
-// 112 §6 draft weights, all basis points of a ratio (10000 = 1.0).
+// #147 slotted level-up offer (upgrade, new skill, free slot), basis points of a ratio (10000 = 1.0). Every other new skill
+// and attribute card weighs 1; nothing is weighted by the build.
 USTRUCT()
 struct FLDDemoChoiceWeights
 {
     GENERATED_BODY()
 
-    UPROPERTY() int64 UpgradeWeightBp = 0;
-    UPROPERTY() int64 NewActiveOpenSlotWeightBp = 0;
+    // Weight of an unlearned active while Q and W are both occupied.
     UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
-    UPROPERTY() int64 NewPassiveWeightBp = 0;
-    // Each tag a candidate shares with the rest of the build multiplies its weight by AffinityStep, capped at AffinityCap.
-    UPROPERTY() int64 AffinityStepBp = 0;
-    UPROPERTY() int64 AffinityCapBp = 0;
-    // Chance that the third card of a level-up offer comes from the attribute pool.
-    UPROPERTY() int64 ThirdSlotAttributeBp = 0;
+    // Chance that the free (third) slot holds an attribute card instead of another new skill.
+    UPROPERTY() int64 FreeSlotAttributeBp = 0;
 };
 
 USTRUCT()
@@ -111,9 +107,11 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AttackSpeedPerLevelBp = 0;
     UPROPERTY() int64 CritChanceBaseBp = 0;
     UPROPERTY() int64 CritMultiplierBp = 0;
-    // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (active_monkey_peach Lv3, passive_precision Lv3).
+    // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (passive_lucky_star Lv2).
     UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
+    // #147 SKILL.GrowthPerLevel: a learned skill's fixed amounts grow by this share of the base per owner level above 1.
+    UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -162,8 +160,6 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
     UPROPERTY() int64 LeaderBountyGoldPerRefresh = 0;
     UPROPERTY() int64 LeaderBountyGoldMax = 0;
-    // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
-    UPROPERTY() FLDDemoRational RearArcDeg;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
     // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
     // BurnAPRatio x the applier's AP per second per stack (snapshotted per stack), every BurnTickMs, up to BurnMaxStacks
@@ -270,21 +266,18 @@ struct FLDDemoPolicies
 UENUM()
 enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
 
-// When a triggered effect fires (cooldown_refund, triggered_shield, mana_on_hit). Damaged: the holder took positive damage.
+// When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
+// (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
 UENUM()
-enum class ELDDemoEffectTrigger : uint8
-{
-    None, Release, EmpowerHit, BasicHit, BasicCrit, Cleanse, LandingHit, LowHP, AbilityHit, Control, Damaged
-};
+enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
 
-// Which cooldown tracks a cooldown_refund shortens: the basic cadence, the releasing source's own track,
-// the other learned active (Q/W) or both learned actives.
+// Which cooldown tracks a cooldown_refund shortens: both learned actives (Q/W).
 UENUM()
-enum class ELDDemoCooldownEntries : uint8 { None, Basic, Self, OtherActives, Actives };
+enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
-// ability_crit: a guaranteed ability critical against an impaired target, or a share of the crit chance for listed abilities.
+// ability_crit: a share of the owner's crit chance for the listed abilities.
 UENUM()
-enum class ELDDemoCritMode : uint8 { None, Impaired, Chance };
+enum class ELDDemoCritMode : uint8 { None, Chance };
 
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
@@ -295,10 +288,6 @@ enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
 enum class ELDDemoCampTier : uint8 { Low, High, Boss };
-
-// 112 §1: the only mechanic tags of skills and equipment; draft affinity counts shared tags, the UI never shows them as schools.
-UENUM()
-enum class ELDDemoMechanicTag : uint8 { BasicAttack, Mobility, Control, Shield, Tank, Breach };
 
 UENUM()
 enum class ELDDemoBonusStat : uint8
@@ -349,7 +338,7 @@ struct FLDDemoEffectDefinition
 
     // Opcode is checked against ELDDemoEffectOp; reservations are not battle handlers.
     // Field use per op: Slow RatioBp+DurationMs; TimedStatBonus Stats+DurationMs; SelfArea RadiusCm;
-    // LowHpStatBonus RatioBp (HP threshold)+Stats; AmbushDamage DelayMs+damage terms; ControlDamageAmp RatioBp+DurationMs.
+    // LowHpStatBonus RatioBp (HP threshold)+Stats; ControlDamageAmp RatioBp.
     UPROPERTY() uint8 Opcode = 0;
     UPROPERTY() int64 BaseP2 = 0;
     UPROPERTY() int64 ADRatioBp = 0;
@@ -367,50 +356,32 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 CooldownRatioBp = 0;
     UPROPERTY() int64 DistanceBonusBp = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
-    // Thorns: armor scaling of the reflection, per-attacker repeat window, critical-hit multiplier,
-    // whether ability hits trigger it (basic hits always do) and whether hits from behind are exempt.
+    // Thorns: armor scaling of the reflection, per-attacker repeat window and critical-hit multiplier; it answers
+    // primary basic hits from any side.
     UPROPERTY() int64 ArmorRatioBp = 0;
     UPROPERTY() int64 IntervalMs = 0;
     UPROPERTY() int64 CriticalMultiplierBp = 0;
-    UPROPERTY() bool bAbilityTrigger = false;
-    UPROPERTY() bool bRearExempt = false;
     // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield, mana_on_hit).
     UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
     UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
     UPROPERTY() ELDDemoCritMode CritMode = ELDDemoCritMode::None;
-    // cooldown_refund: the remaining-cooldown reduction; ambush_damage: the readiness credit of one dash or jump.
+    // cooldown_refund: the remaining-cooldown reduction.
     UPROPERTY() int64 AmountMs = 0;
-    // resist_shred: magic resist share removed (ArmorRatioBp is the armor share).
-    UPROPERTY() int64 MagicResistRatioBp = 0;
-    // slow: the source's vamp against the slowed body while it lasts; low_hp_stat_bonus: omnivamp while active.
-    UPROPERTY() int64 VampRatioBp = 0;
-    // shield: multiplier when the same release cleansed a root or slow; out_of_combat_regen: regen surge multiplier.
+    // lifesteal: multiplier against a low-HP target.
     UPROPERTY() int64 MultiplierBp = 0;
-    // nth_basic_bonus: every Count-th landed basic; basic_stacks: maximum stacks.
+    // nth_basic_bonus: every Count-th landed basic; zone: its pulse count; empower_basic: its charges.
     UPROPERTY() int32 Count = 0;
     // #147 breach/burn: Count is the stacks one hit of an active applies, or a passive applies per Q/W hit;
     // BasicCount the stacks a passive applies per primary basic hit.
     UPROPERTY() int32 BasicCount = 0;
-    // backstab: impaired targets (rooted, slowed, taunted, knocked back) count as struck from behind.
-    UPROPERTY() bool bImpaired = false;
-    // dash_boost: cooldown ratio and distance bonus of every learned dash or jump active at release.
+    // dash_boost: cooldown ratio and distance bonus of every learned dash active at release.
     UPROPERTY() int64 SkillCooldownRatioBp = 0;
     UPROPERTY() int64 SkillDistanceBonusBp = 0;
     // ability_crit (Chance): the abilities that may crit with the share of the owner's crit chance.
     UPROPERTY() TArray<FString> AbilityIds;
-    // taunt_retaliate: damage per counted attack; momentum: cap of the gathered damage; long_reach: amplification cap.
-    UPROPERTY() int64 PerCountP2 = 0;
-    UPROPERTY() int64 CapP2 = 0;
-    UPROPERTY() int64 CapBp = 0;
-    // out_of_combat_regen: HP share of the current max HP regenerated per second (basis points).
-    UPROPERTY() int64 MaxHPPerSecBp = 0;
-    // #112 handlers (LDCombatMechanics; Count and CapP2 above are shared): armor and MR shred per step, a trigger
-    // threshold, a second ratio and duration (an attached slow, heal cut or linger) and a cooldown cut.
-    UPROPERTY() int64 ShredP2 = 0;
-    UPROPERTY() int64 ThresholdP2 = 0;
+    // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow or linger).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
-    UPROPERTY() int64 CooldownCutMs = 0;
     // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
     // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;
@@ -442,7 +413,6 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() ELDDemoAbilityKind Kind = ELDDemoAbilityKind::Active;
-    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
     // False keeps the skill out of every three-card offer (opening and level-up); it stays learnable otherwise.
     UPROPERTY() bool Draftable = false;
     UPROPERTY() FLDDemoTargetDefinition Target;
@@ -486,7 +456,6 @@ struct FLDDemoEquipmentDefinition
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() int64 BuyPrice = 0;
     UPROPERTY() int64 SellGold = 0;
-    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
     // Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2, R4, whole cm).
     UPROPERTY() TArray<FLDDemoStatBonus> UpgradedStats;
@@ -623,6 +592,10 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString NameText;
     UPROPERTY() FString DescriptionKey;
     UPROPERTY() FString DescriptionText;
+    // #147 skills only: the advanced rank's one-line change ("高级：" is added by the card), empty elsewhere. Skill
+    // descriptions and advanced lines are card templates (LDDemoCardText).
+    UPROPERTY() FString AdvancedKey;
+    UPROPERTY() FString AdvancedText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };

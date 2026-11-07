@@ -104,7 +104,7 @@ bool ReadAttributeFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCon
         && P.AttackSpeed.Base.Numerator == 9 && P.AttackSpeed.Base.Denominator == 10 && P.AttackSpeedPerLevelBp == 200
         && P.MoveSpeedCmPerSec.Base.Numerator == 300 && P.MoveSpeedCmPerSec.Base.Denominator == 1
         && P.AttackRangeCm.Base.Numerator == 220 && P.AttackRangeCm.Base.Denominator == 1
-        && Progression.MaxLevel == 10 && Progression.MaxChoices == 10 && Progression.MaxSkillRank == 3
+        && Progression.MaxLevel == 10 && Progression.MaxChoices == 10 && Progression.MaxSkillRank == 2
         && Progression.EquipmentSlots == 2);
 }
 
@@ -380,7 +380,6 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         && SameRational(L.HPRegenPerSec, R.HPRegenPerSec) && SameRational(L.MPRegenPerSec, R.MPRegenPerSec)
         && L.CritChanceBp == R.CritChanceBp && L.CooldownHasteP2 == R.CooldownHasteP2
         && A.Contributions.Num() == B.Contributions.Num()
-        && A.OutOfCombatHPRegen.IsSet() == B.OutOfCombatHPRegen.IsSet()
         && A.EquipmentPassives.Num() == B.EquipmentPassives.Num();
     for (int32 Index = 0; bSame && Index < A.Contributions.Num(); ++Index)
     {
@@ -395,14 +394,6 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         bSame = A.EquipmentPassives[Index].Family.Equals(B.EquipmentPassives[Index].Family, ESearchCase::CaseSensitive)
             && A.EquipmentPassives[Index].EquipmentId.Equals(B.EquipmentPassives[Index].EquipmentId, ESearchCase::CaseSensitive)
             && A.EquipmentPassives[Index].EquippedIndices.Num() == B.EquipmentPassives[Index].EquippedIndices.Num();
-    }
-    if (bSame && A.OutOfCombatHPRegen.IsSet())
-    {
-        const FLDOutOfCombatRegenTerm& X = A.OutOfCombatHPRegen.GetValue();
-        const FLDOutOfCombatRegenTerm& Y = B.OutOfCombatHPRegen.GetValue();
-        bSame = X.AbilityId.Equals(Y.AbilityId, ESearchCase::CaseSensitive) && X.Rank == Y.Rank
-            && X.DelayMs == Y.DelayMs && X.MaxHPBpPerSec == Y.MaxHPBpPerSec && X.SurgeMs == Y.SurgeMs
-            && X.SurgeMultiplierBp == Y.SurgeMultiplierBp && X.InCombatRatioBp == Y.InCombatRatioBp;
     }
     return bSame;
 }
@@ -447,9 +438,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
         return false;
     }
     const TArray<FLDAttributeContributions>& Rows = Projection.Contributions;
-    bool bGood = Test.TestFalse(TEXT("No conditional regeneration without a learned passive"),
-        Projection.OutOfCombatHPRegen.IsSet());
-    bGood &= Test.TestEqual(TEXT("No equipment passive family without equipment"), Projection.EquipmentPassives.Num(), 0);
+    bool bGood = Test.TestEqual(TEXT("No equipment passive family without equipment"), Projection.EquipmentPassives.Num(), 0);
     bGood &= ExpectRational(Test, TEXT("Level 1 AD base"), Rows[int32(EAttribute::AD)].Base, MakeRational(70));
     bGood &= ExpectTerms(Test, TEXT("Level 1 has no AD growth"), Rows[int32(EAttribute::AD)].LevelGrowth,
         MakeRational(0), MakeRational(0));
@@ -681,25 +670,23 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     };
     const FLDDemoRational Zero = MakeRational(0);
     const TArray<FCardCase> Cards = {
-        {TEXT("attr_might"), [](FExpectedAttributes& E) { E.ADP2 = 16180; E.CritChanceBp = 4500; },
-            EAttribute::AD, MakeRational(63), Zero, Zero, Zero, {}},
-        {TEXT("attr_focus"), [](FExpectedAttributes& E) { E.APP2 = 13500; E.CooldownHasteP2 = 6000; },
-            EAttribute::AP, MakeRational(135), Zero, Zero, Zero, {EAttribute::CooldownHaste}},
-        {TEXT("attr_vitality"), [](FExpectedAttributes& E) { E.MaxHPP2 = 168200; E.MaxMPP2 = 80000; E.HPRegenPerSec = MakeRational(12); },
-            EAttribute::MaxHP, MakeRational(540), Zero, Zero, Zero, {EAttribute::MaxMP, EAttribute::HPRegen}},
-        {TEXT("attr_resolve"), [](FExpectedAttributes& E) { E.MaxHPP2 = 150200; E.ArmorP2 = 11700; E.MagicResistP2 = 11700; },
-            EAttribute::MagicResist, MakeRational(81), Zero, Zero, Zero, {}},
-        {TEXT("attr_reach"), [](FExpectedAttributes& E) { E.AttackRangeCm = MakeRational(535); E.AttackSpeed = MakeRational(387, 250); },
-            EAttribute::AttackRange, MakeRational(315), Zero, Zero, Zero, {}},
-        {TEXT("attr_wild_glass_cannon"), [](FExpectedAttributes& E)
-            { E.ADP2 = 19780; E.APP2 = 19800; E.AttackSpeed = MakeRational(171, 100); E.MaxHPP2 = 64700; },
-            EAttribute::MaxHP, Zero, Zero, MakeRational(495), Zero, {}},
-        {TEXT("attr_wild_juggernaut"), [](FExpectedAttributes& E)
-            { E.MaxHPP2 = 213200; E.ArmorP2 = 16200; E.MagicResistP2 = 16200; E.MoveSpeedCmPerSec = MakeRational(192); },
-            EAttribute::MoveSpeed, Zero, Zero, Zero, MakeRational(9, 25), {}},
-        {TEXT("attr_wild_brawler"), [](FExpectedAttributes& E)
-            { E.AttackSpeed = MakeRational(549, 250); E.MoveSpeedCmPerSec = MakeRational(516); E.AttackRangeCm = MakeRational(80); },
-            EAttribute::AttackRange, Zero, Zero, MakeRational(270), Zero, {EAttribute::AttackRange}},
+        {TEXT("attr_protein"), [](FExpectedAttributes& E) { E.ADP2 = 15280; E.MaxHPP2 = 168200; },
+            EAttribute::AD, MakeRational(54), Zero, Zero, Zero, {}},
+        {TEXT("attr_fast_hands"), [](FExpectedAttributes& E) { E.AttackSpeed = MakeRational(234, 125); E.ADP2 = 13480; },
+            EAttribute::AttackSpeed, Zero, MakeRational(9, 10), Zero, Zero, {}},
+        {TEXT("attr_all_nighter"), [](FExpectedAttributes& E) { E.APP2 = 21600; E.CooldownHasteP2 = 6000; },
+            EAttribute::AP, MakeRational(216), Zero, Zero, Zero, {EAttribute::CooldownHaste}},
+        {TEXT("attr_canteen"), [](FExpectedAttributes& E) { E.MaxHPP2 = 195200; E.ArmorP2 = 9000; E.MagicResistP2 = 9000; },
+            EAttribute::MagicResist, MakeRational(54), Zero, Zero, Zero, {}},
+        {TEXT("attr_big_talk"), [](FExpectedAttributes& E) { E.APP2 = 16200; E.MaxHPP2 = 168200; },
+            EAttribute::MaxHP, MakeRational(540), Zero, Zero, Zero, {}},
+        {TEXT("attr_morning_rush"), [](FExpectedAttributes& E) { E.MoveSpeedCmPerSec = MakeRational(435); E.MaxHPP2 = 177200; },
+            EAttribute::MoveSpeed, Zero, MakeRational(9, 20), Zero, Zero, {}},
+        {TEXT("attr_hand_out"), [](FExpectedAttributes& E) { E.AttackRangeCm = MakeRational(760); E.AttackSpeed = MakeRational(171, 100); },
+            EAttribute::AttackRange, MakeRational(540), Zero, Zero, Zero, {}},
+        {TEXT("attr_wild_frenzy"), [](FExpectedAttributes& E)
+            { E.ADP2 = 22480; E.AttackSpeed = MakeRational(1017, 500); E.MaxHPP2 = 42200; },
+            EAttribute::MaxHP, Zero, Zero, MakeRational(720), Zero, {}},
     };
     for (const FCardCase& Case : Cards)
     {
@@ -721,109 +708,88 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
         }
     }
     FExpectedAttributes Mixed = ApprovedLevel(6);
-    Mixed.ADP2 = 10000;
-    Mixed.CritChanceBp = 1000;
-    Mixed.MaxHPP2 = 95000;
-    Mixed.ArmorP2 = 3700;
-    Mixed.MagicResistP2 = 3700;
-    Mixed.AttackRangeCm = MakeRational(290);
-    Mixed.AttackSpeed = MakeRational(549, 500);
-    if (!ProjectBuild(Test, TEXT("Level 6 mixed cards"), MakeBuild(6, {}, {FLDAttributeCardValue(TEXT("attr_might"), 2),
-        FLDAttributeCardValue(TEXT("attr_resolve"), 1), FLDAttributeCardValue(TEXT("attr_reach"), 2)}), *Catalog, Projection))
+    Mixed.ADP2 = 9800;
+    Mixed.MaxHPP2 = 112000;
+    Mixed.ArmorP2 = 3400;
+    Mixed.MagicResistP2 = 3400;
+    Mixed.AttackRangeCm = MakeRational(340);
+    Mixed.AttackSpeed = MakeRational(567, 500);
+    if (!ProjectBuild(Test, TEXT("Level 6 mixed cards"), MakeBuild(6, {}, {FLDAttributeCardValue(TEXT("attr_protein"), 2),
+        FLDAttributeCardValue(TEXT("attr_canteen"), 1), FLDAttributeCardValue(TEXT("attr_hand_out"), 2)}), *Catalog, Projection))
     {
         return false;
     }
     bGood &= ExpectAttributes(Test, TEXT("Level 6 mixed cards use all five choices"), Projection.Final, Mixed);
-    // Rank values replace lower ranks: 0.08/0.14/0.20 attack speed and crit, 3/5/7 HP per second.
-    const int64 RankRatioNumerators[] = {2, 7, 1};
-    const int64 RankRatioDenominators[] = {25, 50, 5};
-    // #112: passive_battle_rhythm grants 0.12/0.20/0.28 attack speed.
-    const int64 RhythmRatioNumerators[] = {3, 1, 7};
-    const int64 RhythmRatioDenominators[] = {25, 5, 25};
-    const int64 RhythmSpeedNumerators[] = {531, 567, 603};
-    const int64 RhythmSpeedDenominators[] = {500, 500, 500};
-    // #112: passive_second_wind regenerates 0.8/1.2/1.6% of max HP per second out of combat.
-    const int64 SecondWindRates[] = {80, 120, 160};
-    for (uint8 Rank = 1; Rank <= 3; ++Rank)
+    // #147: rank values replace lower ranks and never grow with level: passive_lucky_star grants 0.15/0.20 crit,
+    // passive_iced_americano 20/30 cooldown haste beside a flat 2 MP per second.
+    const int64 CritNumerators[] = {3, 1};
+    const int64 CritDenominators[] = {20, 5};
+    const int64 HasteFlat[] = {20, 30};
+    for (uint8 Rank = 1; Rank <= 2; ++Rank)
     {
         const int32 Slot = int32(Rank) - 1;
-        const FLDDemoRational RankRatio = MakeRational(RankRatioNumerators[Slot], RankRatioDenominators[Slot]);
-        const FString RhythmLabel = FString::Printf(TEXT("Battle rhythm rank %d at level 4"), int32(Rank));
-        FExpectedAttributes Rhythm = ApprovedLevel(4);
-        Rhythm.AttackSpeed = MakeRational(RhythmSpeedNumerators[Slot], RhythmSpeedDenominators[Slot]);
-        if (!ProjectBuild(Test, RhythmLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), Rank)}),
+        const FString HasteLabel = FString::Printf(TEXT("Iced americano rank %d at level 4"), int32(Rank));
+        FExpectedAttributes Haste = ApprovedLevel(4);
+        Haste.CooldownHasteP2 = HasteFlat[Slot] * 100;
+        Haste.MPRegenPerSec = MakeRational(86, 25);
+        if (!ProjectBuild(Test, HasteLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_iced_americano"), Rank)}),
             *Catalog, Projection))
         {
             return false;
         }
-        bGood &= ExpectAttributes(Test, RhythmLabel, Projection.Final, Rhythm);
-        bGood &= ExpectTerms(Test, RhythmLabel + TEXT(" passive terms"),
-            Projection.Contributions[int32(EAttribute::AttackSpeed)].Passives, MakeRational(0),
-            MakeRational(RhythmRatioNumerators[Slot], RhythmRatioDenominators[Slot]));
+        bGood &= ExpectAttributes(Test, HasteLabel, Projection.Final, Haste);
+        bGood &= ExpectTerms(Test, HasteLabel + TEXT(" passive haste terms"),
+            Projection.Contributions[int32(EAttribute::CooldownHaste)].Passives, MakeRational(HasteFlat[Slot]), MakeRational(0));
+        bGood &= ExpectTerms(Test, HasteLabel + TEXT(" passive MP regeneration terms"),
+            Projection.Contributions[int32(EAttribute::MPRegen)].Passives, MakeRational(2), MakeRational(0));
 
-        const FString PrecisionLabel = FString::Printf(TEXT("Precision rank %d at level 4"), int32(Rank));
-        FExpectedAttributes Precision = ApprovedLevel(4);
-        Precision.CritChanceBp = int64(800 + 600 * Slot);
-        if (!ProjectBuild(Test, PrecisionLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_precision"), Rank)}),
+        const FString CritLabel = FString::Printf(TEXT("Lucky star rank %d at level 4"), int32(Rank));
+        FExpectedAttributes Crit = ApprovedLevel(4);
+        Crit.CritChanceBp = int64(1500 + 500 * Slot);
+        if (!ProjectBuild(Test, CritLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_lucky_star"), Rank)}),
             *Catalog, Projection))
         {
             return false;
         }
-        bGood &= ExpectAttributes(Test, PrecisionLabel, Projection.Final, Precision);
-        bGood &= ExpectTerms(Test, PrecisionLabel + TEXT(" adds probability points"),
-            Projection.Contributions[int32(EAttribute::CritChance)].Passives, RankRatio, MakeRational(0));
-
-        const FString WindLabel = FString::Printf(TEXT("Second wind rank %d at level 4"), int32(Rank));
-        if (!ProjectBuild(Test, WindLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_second_wind"), Rank)}),
-            *Catalog, Projection))
-        {
-            return false;
-        }
-        bGood &= ExpectAttributes(Test, WindLabel + TEXT(" keeps the always-on attributes"), Projection.Final, ApprovedLevel(4));
-        if (!Test.TestTrue(WindLabel + TEXT(" reports its conditional regeneration"), Projection.OutOfCombatHPRegen.IsSet()))
-        {
-            return false;
-        }
-        const FLDOutOfCombatRegenTerm& Wind = Projection.OutOfCombatHPRegen.GetValue();
-        bGood &= Test.TestEqual(WindLabel + TEXT(" source"), Wind.AbilityId, FString(TEXT("passive_second_wind")));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" rank"), int32(Wind.Rank), int32(Rank));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" delay"), Wind.DelayMs, int64(6000));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" max-HP share per second"), Wind.MaxHPBpPerSec, SecondWindRates[Slot]);
-        bGood &= Test.TestTrue(WindLabel + TEXT(" surge after ability hits"), Wind.SurgeMs == 3000 && Wind.SurgeMultiplierBp == 20000);
-        bGood &= Test.TestEqual(WindLabel + TEXT(" in-combat share only at rank 3"), Wind.InCombatRatioBp, int64(Rank == 3 ? 5000 : 0));
-        bGood &= ExpectTerms(Test, WindLabel + TEXT(" is not folded into always-on regeneration"),
-            Projection.Contributions[int32(EAttribute::HPRegen)].Passives, MakeRational(0), MakeRational(0));
+        bGood &= ExpectAttributes(Test, CritLabel, Projection.Final, Crit);
+        bGood &= ExpectTerms(Test, CritLabel + TEXT(" adds probability points"),
+            Projection.Contributions[int32(EAttribute::CritChance)].Passives,
+            MakeRational(CritNumerators[Slot], CritDenominators[Slot]), MakeRational(0));
     }
 
     FExpectedAttributes AllPassives = ApprovedLevel(10);
-    AllPassives.AttackSpeed = MakeRational(657, 500);
+    AllPassives.CooldownHasteP2 = 3000;
+    AllPassives.MPRegenPerSec = MakeRational(98, 25);
     AllPassives.CritChanceBp = 2000;
     FLDAttributeProjection Reversed;
-    if (!ProjectBuild(Test, TEXT("Three rank-three passives"), MakeBuild(10, {
-            FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 3), FLDLearnedPassiveValue(TEXT("passive_precision"), 3),
-            FLDLearnedPassiveValue(TEXT("passive_second_wind"), 3)}), *Catalog, Projection)
+    if (!ProjectBuild(Test, TEXT("Five rank-two passives"), MakeBuild(10, {
+            FLDLearnedPassiveValue(TEXT("passive_iced_americano"), 2), FLDLearnedPassiveValue(TEXT("passive_lucky_star"), 2),
+            FLDLearnedPassiveValue(TEXT("passive_freeloader"), 2), FLDLearnedPassiveValue(TEXT("passive_pressed"), 2),
+            FLDLearnedPassiveValue(TEXT("passive_kick_down"), 2)}), *Catalog, Projection)
         || !ProjectBuild(Test, TEXT("The same passives reversed"), MakeBuild(10, {
-            FLDLearnedPassiveValue(TEXT("passive_second_wind"), 3), FLDLearnedPassiveValue(TEXT("passive_precision"), 3),
-            FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 3)}), *Catalog, Reversed))
+            FLDLearnedPassiveValue(TEXT("passive_kick_down"), 2), FLDLearnedPassiveValue(TEXT("passive_pressed"), 2),
+            FLDLearnedPassiveValue(TEXT("passive_freeloader"), 2), FLDLearnedPassiveValue(TEXT("passive_lucky_star"), 2),
+            FLDLearnedPassiveValue(TEXT("passive_iced_americano"), 2)}), *Catalog, Reversed))
     {
         return false;
     }
-    bGood &= ExpectAttributes(Test, TEXT("Three rank-three passives use nine of the ten choices"), Projection.Final, AllPassives);
+    bGood &= ExpectAttributes(Test, TEXT("Five rank-two passives use all ten choices"), Projection.Final, AllPassives);
     bGood &= Test.TestTrue(TEXT("Passive order changes neither attributes nor explanations"), SameAttributes(Projection, Reversed));
 
     FExpectedAttributes Combined = ApprovedLevel(10);
-    Combined.ADP2 = 18780;
+    Combined.ADP2 = 18080;
+    Combined.MaxHPP2 = 156200;
     Combined.AttackSpeed = MakeRational(621, 500);
-    Combined.CritChanceBp = 4900;
-    if (!ProjectBuild(Test, TEXT("Precision, seven might cards and two edge blades"),
-        MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_precision"), 2)}, {FLDAttributeCardValue(TEXT("attr_might"), 7)},
+    Combined.CritChanceBp = 2000;
+    if (!ProjectBuild(Test, TEXT("Lucky star, seven protein cards and two edge blades"),
+        MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_lucky_star"), 2)}, {FLDAttributeCardValue(TEXT("attr_protein"), 7)},
             {TEXT("item_edge_blade"), TEXT("item_edge_blade")}), *Catalog, Projection))
     {
         return false;
     }
     bGood &= ExpectAttributes(Test, TEXT("Choices, a passive and duplicate equipment each count once"), Projection.Final, Combined);
     const FLDAttributeContributions& ADRow = Projection.Contributions[int32(EAttribute::AD)];
-    bGood &= ExpectTerms(Test, TEXT("Combined AD permanent choices"), ADRow.PermanentChoices, MakeRational(49), MakeRational(0));
+    bGood &= ExpectTerms(Test, TEXT("Combined AD permanent choices"), ADRow.PermanentChoices, MakeRational(42), MakeRational(0));
     bGood &= ExpectTerms(Test, TEXT("Combined AD equipment"), ADRow.Equipment, MakeRational(40), MakeRational(0));
     const FLDAttributeContributions& SpeedRow = Projection.Contributions[int32(EAttribute::AttackSpeed)];
     bGood &= ExpectTerms(Test, TEXT("Combined attack-speed growth"), SpeedRow.LevelGrowth, MakeRational(0), MakeRational(9, 50));
@@ -844,76 +810,69 @@ bool RunEnvelope(FAutomationTestBase& Test)
         return ProjectBuild(Test, Label, Build, *Catalog, Projection);
     };
     // CONTENT_AND_BALANCE section 3.2: all ten choices (the opening one and nine level-ups) toward one coordinate plus its best two items.
-    if (!Envelope(TEXT("HP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_vitality"), 10)},
+    if (!Envelope(TEXT("HP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_canteen"), 10)},
         {TEXT("item_iron_plate"), TEXT("item_iron_plate")})))
     {
         return false;
     }
-    bool bGood = Test.TestEqual(TEXT("HP envelope is 2102"), Projection.Final.MaxHPP2, int64(210200));
+    bool bGood = Test.TestEqual(TEXT("HP envelope is 2402"), Projection.Final.MaxHPP2, int64(240200));
     if (!Envelope(TEXT("MP envelope"), MakeBuild(10, {}, {}, {TEXT("item_arcane_battery"), TEXT("item_arcane_battery")})))
     {
         return false;
     }
     bGood &= Test.TestEqual(TEXT("MP envelope is 718"), Projection.Final.MaxMPP2, int64(71800));
-    if (!Envelope(TEXT("AD envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_might"), 10)},
+    if (!Envelope(TEXT("AD envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_wild_frenzy"), 10)},
         {TEXT("item_edge_blade"), TEXT("item_edge_blade")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AD envelope is 208.8"), Projection.Final.ADP2, int64(20880));
-    if (!Envelope(TEXT("AP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_focus"), 10)},
+    bGood &= Test.TestEqual(TEXT("AD envelope clamps 278.8 to its cap 250"), Projection.Final.ADP2, int64(25000));
+    bGood &= Test.TestTrue(TEXT("The clamped AD row says so"), Projection.Contributions[int32(EAttribute::AD)].bClamped);
+    bGood &= Test.TestEqual(TEXT("The AD envelope pays its explicit max-HP deduction: 1142 - 800"),
+        Projection.Final.MaxHPP2, int64(34200));
+    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 2.322"), Projection.Final.AttackSpeed, MakeRational(1161, 500));
+    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 431, 97);
+    if (!Envelope(TEXT("AP envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_all_nighter"), 10)},
         {TEXT("item_runic_focus"), TEXT("item_runic_focus")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("AP envelope is 210"), Projection.Final.APP2, int64(21000));
-    bGood &= Test.TestEqual(TEXT("Haste envelope clamps 110 to its cap 60"), Projection.Final.CooldownHasteP2, int64(6000));
+    bGood &= Test.TestEqual(TEXT("AP envelope clamps 300 to its cap 250"), Projection.Final.APP2, int64(25000));
+    bGood &= Test.TestTrue(TEXT("The clamped AP row says so"), Projection.Contributions[int32(EAttribute::AP)].bClamped);
+    bGood &= Test.TestEqual(TEXT("Haste envelope clamps 130 to its cap 60"), Projection.Final.CooldownHasteP2, int64(6000));
     bGood &= Test.TestTrue(TEXT("The clamped haste row says so"), Projection.Contributions[int32(EAttribute::CooldownHaste)].bClamped);
-    if (!Envelope(TEXT("Armor envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
+    if (!Envelope(TEXT("Armor envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_canteen"), 10)},
         {TEXT("item_iron_plate"), TEXT("item_iron_plate")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Armor envelope is 156"), Projection.Final.ArmorP2, int64(15600));
-    if (!Envelope(TEXT("Magic resist envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_resolve"), 10)},
+    bGood &= Test.TestEqual(TEXT("Armor envelope is 126"), Projection.Final.ArmorP2, int64(12600));
+    if (!Envelope(TEXT("Magic resist envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_canteen"), 10)},
         {TEXT("item_siphon_emblem"), TEXT("item_siphon_emblem")})))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 150"), Projection.Final.MagicResistP2, int64(15000));
+    bGood &= Test.TestEqual(TEXT("Magic resist envelope is 120"), Projection.Final.MagicResistP2, int64(12000));
     bGood &= ExpectFamilies(Test, TEXT("Magic resist envelope"), Projection,
         {{TEXT("passive_siphon"), TEXT("item_siphon_emblem"), {0, 1}}});
-    if (!Envelope(TEXT("Attack-speed envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 3)}, {},
-        {TEXT("item_edge_blade"), TEXT("item_edge_blade")})))
+    if (!Envelope(TEXT("Move-speed envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_morning_rush"), 10)},
+        {TEXT("item_phase_anchor"), TEXT("item_phase_anchor")})))
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Attack-speed envelope is 1.494"), Projection.Final.AttackSpeed, MakeRational(747, 500));
-    bGood &= ExpectBasicTiming(Test, TEXT("Attack-speed envelope"), *Catalog, Projection.Final.AttackSpeed, 670, 151);
-    if (!Envelope(TEXT("Move-speed envelope"), MakeBuild(10, {}, {}, {TEXT("item_phase_anchor"), TEXT("item_phase_anchor")})))
-    {
-        return false;
-    }
-    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 372"), Projection.Final.MoveSpeedCmPerSec, MakeRational(372));
-    if (!Envelope(TEXT("Range envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_reach"), 10)},
+    bGood &= ExpectRational(Test, TEXT("Move-speed envelope is 522"), Projection.Final.MoveSpeedCmPerSec, MakeRational(522));
+    if (!Envelope(TEXT("Range envelope"), MakeBuild(10, {}, {FLDAttributeCardValue(TEXT("attr_hand_out"), 10)},
         {TEXT("item_echo_maul"), TEXT("item_echo_maul")})))
     {
         return false;
     }
-    bGood &= ExpectRational(Test, TEXT("Range envelope is 650"), Projection.Final.AttackRangeCm, MakeRational(650));
+    bGood &= ExpectRational(Test, TEXT("Range envelope is 900"), Projection.Final.AttackRangeCm, MakeRational(900));
     bGood &= ExpectFamilies(Test, TEXT("Range envelope"), Projection, {{TEXT("passive_cleave"), TEXT("item_echo_maul"), {0, 1}}});
-    if (!Envelope(TEXT("Crit envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_precision"), 3)})))
+    if (!Envelope(TEXT("Crit envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_lucky_star"), 2)})))
     {
         return false;
     }
     bGood &= Test.TestEqual(TEXT("Crit envelope is 0.20"), Projection.Final.CritChanceBp, int64(2000));
-    if (!Envelope(TEXT("Regeneration envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_second_wind"), 3)}))
-        || !Test.TestTrue(TEXT("Regeneration envelope has a conditional term"), Projection.OutOfCombatHPRegen.IsSet()))
-    {
-        return false;
-    }
-    // The out-of-combat share scales with the live max HP, so it is not part of the always-on regeneration bound.
-    bGood &= Test.TestEqual(TEXT("Regeneration envelope keeps its max-HP share"), Projection.OutOfCombatHPRegen->MaxHPBpPerSec, int64(160));
 
     TArray<FString> ItemIds;
     for (const FLDDemoEquipmentDefinition& Item : Catalog->Get().Equipment)
@@ -994,45 +953,45 @@ bool RunRefusals(FAutomationTestBase& Test)
             && Folded.Contributions.Num() == Canonical.Contributions.Num());
     bGood &= Refused(TEXT("An empty ID is not an empty slot"), MakeBuild(1, {}, {}, {FString()}),
         EError::UnknownDefinition, TEXT("EquippedItems[0]"));
-    bGood &= Refused(TEXT("An attribute card is not equipment"), MakeBuild(1, {}, {}, {TEXT("attr_might")}),
+    bGood &= Refused(TEXT("An attribute card is not equipment"), MakeBuild(1, {}, {}, {TEXT("attr_protein")}),
         EError::UnknownDefinition, TEXT("EquippedItems[0]"));
     bGood &= Refused(TEXT("Unknown passive"), MakeBuild(10, {Passive(TEXT("passive_missing"), 1)}),
         EError::UnknownDefinition, TEXT("LearnedPassives[0]"));
-    bGood &= Refused(TEXT("A learned active carries no passive attributes"), MakeBuild(10, {Passive(TEXT("active_arc_bolt"), 1)}),
+    bGood &= Refused(TEXT("A learned active carries no passive attributes"), MakeBuild(10, {Passive(TEXT("active_snark_bolt"), 1)}),
         EError::UnknownDefinition, TEXT("LearnedPassives[0]"));
     bGood &= Refused(TEXT("An equipment passive family is not a learned passive"),
         MakeBuild(10, {Passive(TEXT("passive_cleave"), 1)}), EError::UnknownDefinition, TEXT("LearnedPassives[0]"));
-    bGood &= Refused(TEXT("Duplicate learned passive"), MakeBuild(10, {Passive(TEXT("passive_precision"), 1),
-        Passive(TEXT("passive_precision"), 1)}), EError::DuplicateSource, TEXT("LearnedPassives[1]"));
-    bGood &= Refused(TEXT("Rank zero"), MakeBuild(10, {Passive(TEXT("passive_precision"), 0)}),
+    bGood &= Refused(TEXT("Duplicate learned passive"), MakeBuild(10, {Passive(TEXT("passive_lucky_star"), 1),
+        Passive(TEXT("passive_lucky_star"), 1)}), EError::DuplicateSource, TEXT("LearnedPassives[1]"));
+    bGood &= Refused(TEXT("Rank zero"), MakeBuild(10, {Passive(TEXT("passive_lucky_star"), 0)}),
         EError::InputDomain, TEXT("LearnedPassives[0]"));
-    bGood &= Refused(TEXT("Rank four"), MakeBuild(10, {Passive(TEXT("passive_precision"), 4)}),
+    bGood &= Refused(TEXT("Rank three is above the two approved ranks"), MakeBuild(10, {Passive(TEXT("passive_lucky_star"), 3)}),
         EError::InputDomain, TEXT("LearnedPassives[0]"));
     bGood &= Refused(TEXT("Unknown attribute card"), MakeBuild(10, {}, {Cards(TEXT("attr_missing"), 1)}),
         EError::UnknownDefinition, TEXT("AttributeCards[0]"));
     bGood &= Refused(TEXT("Equipment is not an attribute card"), MakeBuild(10, {}, {Cards(TEXT("item_edge_blade"), 1)}),
         EError::UnknownDefinition, TEXT("AttributeCards[0]"));
-    bGood &= Refused(TEXT("Duplicate attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 1),
-        Cards(TEXT("attr_might"), 1)}), EError::DuplicateSource, TEXT("AttributeCards[1]"));
-    bGood &= Refused(TEXT("Zero-count attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 0)}),
+    bGood &= Refused(TEXT("Duplicate attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 1),
+        Cards(TEXT("attr_protein"), 1)}), EError::DuplicateSource, TEXT("AttributeCards[1]"));
+    bGood &= Refused(TEXT("Zero-count attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 0)}),
         EError::InputDomain, TEXT("AttributeCards[0]"));
-    bGood &= Refused(TEXT("Level 1 holds only its opening choice: two cards exceed it"), MakeBuild(1, {}, {Cards(TEXT("attr_might"), 2)}),
+    bGood &= Refused(TEXT("Level 1 holds only its opening choice: two cards exceed it"), MakeBuild(1, {}, {Cards(TEXT("attr_protein"), 2)}),
         EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("Eleven cards exceed ten choices"), MakeBuild(10, {}, {Cards(TEXT("attr_might"), 11)}),
+    bGood &= Refused(TEXT("Eleven cards exceed ten choices"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 11)}),
         EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("A rank-three passive plus eight cards exceed ten choices"),
-        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 8)}), EError::InputDomain, TEXT("ChoiceBudget"));
-    bGood &= Refused(TEXT("A rank-three passive at level 2 exceeds two choices"),
-        MakeBuild(2, {Passive(TEXT("passive_battle_rhythm"), 3)}), EError::InputDomain, TEXT("ChoiceBudget"));
+    bGood &= Refused(TEXT("A rank-two passive plus nine cards exceed ten choices"),
+        MakeBuild(10, {Passive(TEXT("passive_lucky_star"), 2)}, {Cards(TEXT("attr_protein"), 9)}), EError::InputDomain, TEXT("ChoiceBudget"));
+    bGood &= Refused(TEXT("A rank-two passive at level 1 exceeds one choice"),
+        MakeBuild(1, {Passive(TEXT("passive_iced_americano"), 2)}), EError::InputDomain, TEXT("ChoiceBudget"));
     bGood &= Refused(TEXT("Twenty-one AD cards are refused before any attribute bound"),
-        MakeBuild(10, {}, {Cards(TEXT("attr_might"), 21)}), EError::InputDomain, TEXT("ChoiceBudget"));
+        MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 21)}), EError::InputDomain, TEXT("ChoiceBudget"));
     FLDAttributeProjection Projection;
     bGood &= ProjectBuild(Test, TEXT("A level-1 build with its opening card"),
-        MakeBuild(1, {}, {Cards(TEXT("attr_might"), 1)}), *Catalog, Projection);
+        MakeBuild(1, {}, {Cards(TEXT("attr_protein"), 1)}), *Catalog, Projection);
     bGood &= ProjectBuild(Test, TEXT("A build exactly at the visible choice bound"),
-        MakeBuild(10, {Passive(TEXT("passive_precision"), 3)}, {Cards(TEXT("attr_might"), 7)}), *Catalog, Projection);
-    bGood &= ProjectBuild(Test, TEXT("A rank-three passive at level 3"),
-        MakeBuild(3, {Passive(TEXT("passive_battle_rhythm"), 3)}), *Catalog, Projection);
+        MakeBuild(10, {Passive(TEXT("passive_lucky_star"), 2)}, {Cards(TEXT("attr_protein"), 8)}), *Catalog, Projection);
+    bGood &= ProjectBuild(Test, TEXT("A rank-two passive at level 2"),
+        MakeBuild(2, {Passive(TEXT("passive_iced_americano"), 2)}), *Catalog, Projection);
     return bGood;
 }
 
@@ -1307,7 +1266,7 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         return false;
     }
     FString Error;
-    // #112: a rank may carry further effects (Lv3 additions); each passive has exactly one effect of its family.
+    // #112: a rank may carry further effects (advanced additions); each passive has exactly one effect of its family.
     const auto RankEffect = [&Catalog, &Error](const TCHAR* Id, int32 Rank, ELDDemoEffectOp Op) -> const FLDDemoEffectDefinition*
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
@@ -1323,50 +1282,54 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         }
         return Found;
     };
-    const FLDDemoEffectDefinition* Cornered = RankEffect(TEXT("passive_cornered"), 3, ELDDemoEffectOp::LowHpStatBonus);
-    const FLDDemoEffectDefinition* Lurking = RankEffect(TEXT("passive_lurking"), 2, ELDDemoEffectOp::AmbushDamage);
-    const FLDDemoEffectDefinition* Shame = RankEffect(TEXT("passive_public_shame"), 1, ELDDemoEffectOp::ControlDamageAmp);
-    const FLDDemoEffectDefinition* Eye = RankEffect(TEXT("passive_eagle_eye"), 3, ELDDemoEffectOp::StatBonus);
-    if (!Test.TestTrue(TEXT("Approved expansion passives have one effect of their family per rank: ") + Error,
-        Cornered && Lurking && Shame && Eye))
+    const FLDDemoEffectDefinition* Pressed = RankEffect(TEXT("passive_pressed"), 2, ELDDemoEffectOp::LowHpStatBonus);
+    const FLDDemoEffectDefinition* KickDown = RankEffect(TEXT("passive_kick_down"), 1, ELDDemoEffectOp::ControlDamageAmp);
+    if (!Test.TestTrue(TEXT("Approved conditional passives have one effect of their family per rank: ") + Error,
+        Pressed && KickDown))
+    {
+        return false;
+    }
+    const FLDDemoStatBonus* PressedSpeed = Pressed->Stats.FindByPredicate([](const FLDDemoStatBonus& Stat)
+        { return Stat.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio; });
+    const FLDDemoStatBonus* PressedMove = Pressed->Stats.FindByPredicate([](const FLDDemoStatBonus& Stat)
+        { return Stat.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio; });
+    if (!Test.TestTrue(TEXT("passive_pressed grants attack and move speed below its threshold"),
+        PressedSpeed && PressedMove && Pressed->Stats.Num() == 2))
     {
         return false;
     }
     FLDAttributeProjection Plain, Projection;
     if (!ProjectBuild(Test, TEXT("Level 6"), MakeBuild(6), *Catalog, Plain)
-        || !ProjectBuild(Test, TEXT("Level 6 expansion passives"), MakeBuild(6, {FLDLearnedPassiveValue(TEXT("passive_cornered"), 3),
-            FLDLearnedPassiveValue(TEXT("passive_lurking"), 2), FLDLearnedPassiveValue(TEXT("passive_public_shame"), 1)}),
+        || !ProjectBuild(Test, TEXT("Level 6 conditional passives"), MakeBuild(6, {FLDLearnedPassiveValue(TEXT("passive_pressed"), 2),
+            FLDLearnedPassiveValue(TEXT("passive_kick_down"), 1)}),
             *Catalog, Projection))
     {
         return false;
     }
-    bool bGood = Test.TestEqual(TEXT("A conditional passive never changes the build AD"), Projection.Final.ADP2, Plain.Final.ADP2);
-    bGood &= Test.TestTrue(TEXT("The low-HP term carries its threshold and rank stats"), Projection.LowHPBonus.IsSet()
-        && Projection.LowHPBonus->ThresholdBp == Cornered->RatioBp && Projection.LowHPBonus->Rank == 3
-        && Projection.LowHPBonus->Stats.Num() == 1 && Projection.LowHPBonus->Stats[0].Stat == ELDDemoBonusStat::ADBonusRatio
-        && Projection.LowHPBonus->Stats[0].Amount == Cornered->Stats[0].Amount);
-    bGood &= Test.TestTrue(TEXT("The ambush term carries its delay and damage terms"), Projection.Ambush.IsSet()
-        && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2
-        && Projection.Ambush->ADRatioBp == Lurking->ADRatioBp && Projection.Ambush->APRatioBp == Lurking->APRatioBp
-        && Projection.Ambush->DamageType == Lurking->DamageType);
+    bool bGood = Test.TestTrue(TEXT("A conditional passive never changes the build attack or move speed"),
+        SameRational(Projection.Final.AttackSpeed, Plain.Final.AttackSpeed.Numerator, Plain.Final.AttackSpeed.Denominator)
+        && SameRational(Projection.Final.MoveSpeedCmPerSec, Plain.Final.MoveSpeedCmPerSec.Numerator, Plain.Final.MoveSpeedCmPerSec.Denominator));
+    bGood &= Test.TestTrue(TEXT("The low-HP term carries its threshold, rank stats and advanced lifesteal"), Projection.LowHPBonus.IsSet()
+        && Projection.LowHPBonus->ThresholdBp == Pressed->RatioBp && Projection.LowHPBonus->Rank == 2
+        && Projection.LowHPBonus->Stats.Num() == 2 && Projection.LowHPBonus->BasicLifestealBp == Pressed->SecondaryRatioBp
+        && Projection.LowHPBonus->BasicLifestealBp > 0);
     bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio"), Projection.ControlAmp.IsSet()
-        && Projection.ControlAmp->RatioBp == Shame->RatioBp);
+        && Projection.ControlAmp->RatioBp == KickDown->RatioBp);
     bGood &= Test.TestTrue(TEXT("A plain build carries no conditional terms"),
-        !Plain.LowHPBonus.IsSet() && !Plain.Ambush.IsSet() && !Plain.ControlAmp.IsSet());
-    FLDAttributeProjection Enraged;
+        !Plain.LowHPBonus.IsSet() && !Plain.ControlAmp.IsSet());
+    FLDAttributeProjection Pushed;
     const FLDTemporaryAttributeTerms Low = LDTactical::TemporaryTerms({}, {}, Projection.LowHPBonus, 1, 100, 0);
-    if (!Apply(Test, TEXT("Below the threshold"), Projection, Low, *Catalog, Enraged)) { return false; }
-    bGood &= Test.TestEqual(TEXT("Below the threshold AD rises by the rank ratio (floored)"), Enraged.Final.ADP2,
-        Plain.Final.ADP2 * (10000 + Cornered->Stats[0].Amount) / 10000);
-    FLDAttributeProjection Eyed;
-    if (!ProjectBuild(Test, TEXT("Eagle eye rank 3"), MakeBuild(3, {FLDLearnedPassiveValue(TEXT("passive_eagle_eye"), 3)}), *Catalog, Eyed))
-    {
-        return false;
-    }
-    const FLDDemoRational& Range = Catalog->Get().Parameters.AttackRangeCm.Base;
-    bGood &= Test.TestTrue(TEXT("Eagle eye adds its rank range to the basic attack range"),
-        SameRational(Eyed.Final.AttackRangeCm, Range.Numerator * Eye->Stats[0].Cm.Denominator + Eye->Stats[0].Cm.Numerator * Range.Denominator,
-            Range.Denominator * Eye->Stats[0].Cm.Denominator));
+    if (!Apply(Test, TEXT("Below the threshold"), Projection, Low, *Catalog, Pushed)) { return false; }
+    const FLDDemoContentParameters& P = Catalog->Get().Parameters;
+    const int64 LevelSpeedBp = 5 * P.AttackSpeedPerLevelBp;
+    bGood &= Test.TestTrue(TEXT("Below the threshold attack speed adds the rank ratio to the level ratio"),
+        SameRational(Pushed.Final.AttackSpeed, P.AttackSpeed.Base.Numerator * (10000 + LevelSpeedBp + PressedSpeed->Amount),
+            P.AttackSpeed.Base.Denominator * 10000));
+    bGood &= Test.TestTrue(TEXT("Below the threshold move speed rises by the rank ratio"),
+        SameRational(Pushed.Final.MoveSpeedCmPerSec, P.MoveSpeedCmPerSec.Base.Numerator * (10000 + PressedMove->Amount),
+            P.MoveSpeedCmPerSec.Base.Denominator * 10000));
+    const FLDTemporaryAttributeTerms High = LDTactical::TemporaryTerms({}, {}, Projection.LowHPBonus, 100, 100, 0);
+    bGood &= Test.TestTrue(TEXT("At full HP the low-HP term adds nothing"), High.Bonuses.IsEmpty());
     return bGood;
 }
 }

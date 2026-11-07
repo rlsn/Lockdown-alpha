@@ -256,6 +256,8 @@ private:
     FGuid ShownResultId;
     uint64 ShownResultSerial=0;
     float AppliedScale=0;
+    // The last known owner level and stats for the blind-box card numbers (#147).
+    LDHUD::FCardStats ChoiceStats;
     float MapAspect=0;
     // Approved public definitions used only for display labels; loaded once per widget.
     TSharedPtr<const FLDDemoContentSnapshot> DisplayContent;

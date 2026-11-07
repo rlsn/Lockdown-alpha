@@ -77,13 +77,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Root:
     case ELDDemoEffectOp::Slow:
     case ELDDemoEffectOp::PathSlow:
-    case ELDDemoEffectOp::ResistShred:
     case ELDDemoEffectOp::Knockback:
-    case ELDDemoEffectOp::Dot:
-    case ELDDemoEffectOp::MobilityPunish:
-    case ELDDemoEffectOp::Volley:
-    case ELDDemoEffectOp::ShieldShatter:
-    case ELDDemoEffectOp::Vulnerable:
     case ELDDemoEffectOp::ZoneSlow:
     case ELDDemoEffectOp::ZoneRoot:
     case ELDDemoEffectOp::ZoneDamage:
@@ -98,17 +92,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
-    case ELDDemoEffectOp::LongReach:
-    case ELDDemoEffectOp::DebuffAmp:
     case ELDDemoEffectOp::AfflictionAmp:
         Usage.bEngage = true;
         break;
-    case ELDDemoEffectOp::AmbushDamage:
-        Usage.bBasicGrowth = true;
-        break;
     case ELDDemoEffectOp::Disarm:
     case ELDDemoEffectOp::Stun:
-    case ELDDemoEffectOp::Backstab:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Thorns:
@@ -118,22 +106,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         break;
     case ELDDemoEffectOp::TriggeredShield:
     case ELDDemoEffectOp::TauntShield:
-    case ELDDemoEffectOp::DamageGuard:
-    case ELDDemoEffectOp::ZoneShield:
-    case ELDDemoEffectOp::MobilityShield:
-    case ELDDemoEffectOp::ShieldPulse:
         Usage.bSelfProtect = true;
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::EmpowerBasic:
-    case ELDDemoEffectOp::BasicStacks:
     case ELDDemoEffectOp::NthBasicBonus:
-    case ELDDemoEffectOp::BasicRider:
-    case ELDDemoEffectOp::BreachStacks:
         Usage.bBasicGrowth = true;
-        break;
-    case ELDDemoEffectOp::Jump:
-        Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
@@ -142,13 +120,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
-    case ELDDemoEffectOp::OutOfCombatRegen:
     case ELDDemoEffectOp::Lifesteal:
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
-    case ELDDemoEffectOp::Momentum:
     case ELDDemoEffectOp::HitHaste:
         Usage.bMobility = true;
         break;
@@ -160,17 +136,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::LowHpStatBonus:
         for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
         break;
-    // Cooldown, crit, mana and release riders, and the taunt family, add no structural usage of their own.
-    case ELDDemoEffectOp::RefreshDebuffs:
-    case ELDDemoEffectOp::OnHit:
-    case ELDDemoEffectOp::DebuffHeal:
+    // Cooldown, crit, mana and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
-    case ELDDemoEffectOp::ShieldBurst:
     case ELDDemoEffectOp::CastFrenzy:
     case ELDDemoEffectOp::CooldownRefund:
     case ELDDemoEffectOp::AbilityCrit:
     case ELDDemoEffectOp::ManaOnHit:
-    case ELDDemoEffectOp::TauntRetaliate:
     default:
         break;
     }
@@ -191,6 +162,10 @@ struct FSourceShape
     bool bShield = false;
     bool bDispelRoot = false;
     bool bDash = false;
+    // #147: a self cast that hits bodies around the caster (SelfArea), a ground zone, and an empowered next basic.
+    double AreaRadiusCm = 0;
+    double ZoneRadiusCm = 0;
+    bool bEmpowerBasic = false;
 };
 
 void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& Out)
@@ -199,7 +174,13 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
     {
         switch (Effect.GetOp())
         {
-        case ELDDemoEffectOp::Damage: Out.bDamage = true; break;
+        case ELDDemoEffectOp::Damage:
+        case ELDDemoEffectOp::ZoneDamage:
+        case ELDDemoEffectOp::Burn:
+        case ELDDemoEffectOp::ZoneBurn: Out.bDamage = true; break;
+        case ELDDemoEffectOp::SelfArea: Out.AreaRadiusCm = FMath::Max(Out.AreaRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
         case ELDDemoEffectOp::Silence: Out.bStun = true; break;
@@ -218,7 +199,9 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
     }
 }
 
-bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot& Catalog, FSourceShape& Out)
+// Rank: the learned rank of the slot's skill (#147: an advanced rank may add effects, e.g. active_not_mad's root cleanse);
+// 0 reads every rank.
+bool ResolveSource(const FLDOpponentSource& Source, uint8 Rank, const FLDDemoContentSnapshot& Catalog, FSourceShape& Out)
 {
     Out = {};
     FString Error;
@@ -235,7 +218,10 @@ bool ResolveSource(const FLDOpponentSource& Source, const FLDDemoContentSnapshot
         || Ability->Kind != ELDDemoAbilityKind::Active) { return false; }
     Out.Mode = Ability->Target.Mode;
     Out.RangeCm = ToDouble(Ability->Target.RangeCm);
-    for (const auto& Rank : Ability->Ranks) { ReadEffects(Rank.Effects, Out); }
+    for (const auto& Row : Ability->Ranks)
+    {
+        if (Rank == 0 || Row.Rank == Rank) { ReadEffects(Row.Effects, Out); }
+    }
     return true;
 }
 
@@ -248,6 +234,8 @@ struct FActivationNeed
     bool bInterrupt = false;
     const FLDOpponentUnit* Target = nullptr;
     TOptional<FVector> DashDirection;
+    // The target may be chased with any ready dash whose own reach lands inside attack range (ChaseDirection).
+    bool bChase = false;
 };
 
 struct FContext
@@ -409,6 +397,15 @@ struct FContext
         return Best;
     }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
+    // The learned rank of the active bound to a Q/W source slot; 0 when unknown (the innate dash has no skill).
+    uint8 RankOf(ELDOpponentSourceSlot Slot) const
+    {
+        const ELDOpponentSkillSlot Skill = Slot == ELDOpponentSourceSlot::Q ? ELDOpponentSkillSlot::Q
+            : Slot == ELDOpponentSourceSlot::W ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::Passive;
+        if (Skill == ELDOpponentSkillSlot::Passive) { return 0; }
+        const auto* Found = Self.Skills.FindByPredicate([Skill](const FLDOpponentSkill& S) { return S.Slot == Skill; });
+        return Found ? Found->Rank : 0;
+    }
     bool NeedProtection() const { return !Threats.IsEmpty() && !RatioAtLeast(Self.HpP2, Self.MaxHpP2, AI.ResumeFarmHPBp); }
 
     uint64 Print(ELDOpponentFailure Category) const { return LDOpponentPolicy::Fingerprint(Category, Self); }
@@ -549,6 +546,17 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
     return Body;
 }
 
+// Chase (D19): a ready dash of reach Reach closes on a target that keeps more than half that reach beyond attack range
+// but is no further than one reach beyond it, so the landing is inside attack range.
+TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Target, double Reach)
+{
+    if (!(Reach > 0)) { return {}; }
+    const double Gap = C.Distance(Target.FootCm);
+    if (Gap <= C.AttackRangeCm + .5 * Reach || Gap > C.AttackRangeCm + Reach) { return {}; }
+    const FVector Toward = (Target.FootCm - C.Self.FootCm).GetSafeNormal2D();
+    return Toward.IsNearlyZero() ? TOptional<FVector>() : TOptional<FVector>(Toward);
+}
+
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
@@ -559,7 +567,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
         {
             const auto* Source = C.Self.Sources.FindByPredicate([Slot](const FLDOpponentSource& S) { return S.Slot == Slot; });
             FSourceShape Shape;
-            if (!Source || !Source->bReady || !ResolveSource(*Source, C.Catalog, Shape)) { continue; }
+            if (!Source || !Source->bReady || !ResolveSource(*Source, C.RankOf(Slot), C.Catalog, Shape)) { continue; }
             FLDOpponentRetryKey Key;
             Key.Category = ELDOpponentFailure::Activation;
             Key.Slot = uint8(Slot);
@@ -576,10 +584,12 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                     && ((Shape.bShield && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
                 break;
             case 1:
-                if (Shape.Mode == ELDDemoTargetMode::DirectionDash && Shape.bDash && Need.DashDirection.IsSet())
+                if (Shape.Mode == ELDDemoTargetMode::DirectionDash && Shape.bDash)
                 {
-                    bUse = true;
-                    Body.Direction = Need.DashDirection.GetValue();
+                    const TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
+                        : Need.bChase && Need.Target ? ChaseDirection(C, *Need.Target, Shape.RangeCm) : TOptional<FVector>();
+                    bUse = Direction.IsSet();
+                    if (bUse) { Body.Direction = Direction.GetValue(); }
                 }
                 break;
             case 2:
@@ -608,6 +618,25 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Body.Direction = Direction;
                         Key.Target = Need.Target->Handle;
                     }
+                    else if (Shape.Mode == ELDDemoTargetMode::GroundPoint && Shape.ZoneRadiusCm > 0)
+                    {
+                        // #147 active_quick_meeting: the zone is centred on the target's public foot.
+                        bUse = true;
+                        Body.Point = Need.Target->FootCm;
+                        Key.Target = Need.Target->Handle;
+                    }
+                }
+                if (Tier == 3 && Need.bAllowDamage && Need.Target && Shape.Mode == ELDDemoTargetMode::Self)
+                {
+                    // #147: a self area (active_seethe) needs the target inside its radius; an empowered basic without
+                    // its own movement (active_triple_combo) needs the target inside attack range.
+                    const double Gap = C.Distance(Need.Target->FootCm);
+                    if ((Shape.bDamage && Shape.AreaRadiusCm > 0 && Gap <= Shape.AreaRadiusCm)
+                        || (Shape.bEmpowerBasic && !Shape.bDash && Gap <= C.AttackRangeCm))
+                    {
+                        bUse = true;
+                        Key.Target = Need.Target->Handle;
+                    }
                 }
                 break;
             default:
@@ -629,7 +658,8 @@ bool ProtectionReady(const FContext& C)
     for (const auto& Source : C.Self.Sources)
     {
         FSourceShape Shape;
-        if (!Source.bReady || !ResolveSource(Source, C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self || !Shape.bShield)
+        if (!Source.bReady || !ResolveSource(Source, C.RankOf(Source.Slot), C.Catalog, Shape) || Shape.Mode != ELDDemoTargetMode::Self
+            || !Shape.bShield)
         {
             continue;
         }
@@ -639,19 +669,6 @@ bool ProtectionReady(const FContext& C)
         if (C.CanAttempt(Key)) { return true; }
     }
     return false;
-}
-
-// Chase (D19): a ready dash closes on a visible rival contender that keeps more than half a dash beyond attack range
-// but is no further than one dash beyond it, so the landing is inside reach. Camp members are never chased this way.
-TOptional<FVector> ChaseDash(const FContext& C, const FLDOpponentUnit& Target, const FActivationNeed& Need)
-{
-    if (Target.Kind != ELDOpponentUnitKind::Contender || Need.bProtect || !Need.bAllowDamage || C.Rooted()) { return {}; }
-    const auto* Dash = C.Self.Sources.FindByPredicate([](const FLDOpponentSource& S) { return S.Slot == ELDOpponentSourceSlot::Dash; });
-    if (!Dash || !Dash->bReady || Dash->RangeCm <= 0) { return {}; }
-    const double Gap = C.Distance(Target.FootCm), Reach = double(Dash->RangeCm);
-    if (Gap <= C.AttackRangeCm + .5 * Reach || Gap > C.AttackRangeCm + Reach) { return {}; }
-    const FVector Toward = (Target.FootCm - C.Self.FootCm).GetSafeNormal2D();
-    return Toward.IsNearlyZero() ? TOptional<FVector>() : TOptional<FVector>(Toward);
 }
 
 // The public sole sprayer, matched by the authorized ContenderId of a visible unit.
@@ -670,7 +687,8 @@ FLDOpponentBodyIntent EngageBody(const FContext& C, const FLDOpponentUnit& Targe
     Need.bAllowDamage = bAllowDamage;
     Need.bInterrupt = IsSoleSprayer(C, Target);
     Need.Target = &Target;
-    Need.DashDirection = ChaseDash(C, Target, Need);
+    // Only a visible rival contender is chased with a dash (innate or a learned dash active); camp members never are.
+    Need.bChase = Target.Kind == ELDOpponentUnitKind::Contender && !Need.bProtect && bAllowDamage && !C.Rooted();
     if (auto Activation = PickActivation(C, Need)) { return Activation.GetValue(); }
     return AttackBody(C, Target);
 }
@@ -1378,8 +1396,8 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 FCandidate Replace = Candidate;
                 Replace.Tier = bGain && !bLoses ? 1 : 6;
                 Replace.Loses = bLoses ? 1 : 0;
-                // 112 §6: the new active keeps max(1, old rank - 1); only the lost ranks count as forgotten.
-                Replace.Forgotten = Active[Slot]->Rank - LDProgression::ReplacementRank(Active[Slot]->Rank);
+                // #147 D13: the new active starts at rank 1; only the lost ranks count as forgotten.
+                Replace.Forgotten = Active[Slot]->Rank - 1;
                 Replace.Slot = Slot;
                 Replace.Pick.bReplace = true;
                 Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;

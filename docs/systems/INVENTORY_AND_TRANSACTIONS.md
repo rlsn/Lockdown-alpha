@@ -91,8 +91,8 @@ Combat 投影与 HP/MP 同比换算），在同一调用栈重验许可后进入
 ## 检查入口
 
 `RunTests.ps1` 中的 `Lockdown.Rules.DemoGrowthWire`、`DemoGrowthLedger`、`DemoGrowthRequests`、
-`DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthOpeningPool`、`DemoGrowthDraft`、`DemoGrowthReroll`、`DemoGrowthUpgrade`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
-等级/候选/替换纯规则（替换降级、卡位与权重、标签亲和、`draftable` 排除）、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）、
+`DemoGrowthProgression`、`DemoGrowthOpening`、`DemoGrowthOpeningPool`、`DemoGrowthDraft`、`DemoGrowthReroll`、`DemoGrowthSkillGrowth`、`DemoGrowthUpgrade`、`DemoGrowthPrivacySchema` 与 `DemoGrowthRetireAwaitsReward` 覆盖线编码、账本守恒/压缩/退休（含欠奖时推迟退休）、请求窗口、
+等级/候选/替换纯规则（替换的新主动从初级开始、升级位/新技能位/自由位与满槽新主动权重、`draftable` 排除）、技能等级成长 G(L)、开局机会（每名参赛者恰好一次且随首组 Offer 生成，只有升级再加机会，新局重建）、
 免费重抽的令牌/去重/每组一次、装备进阶事务（整局一次、出售失去、属性/被动生效值）与本人视图隐私白名单。
 账本另有独立复算：DEV 构建的 `LDEconomy::ExportEvidence`（场景经 `ALDEconomyDirector::ExportLedgerEvidence`）
 导出 schema 5 证据（审计前缀、其后日志尾、当前状态与 `devFixture` 区块：DevFixture 铸币 `grants` 与 DevReset 条目 `resets`），`python -B Scripts\CheckEconomyEvidence.py <证据>`

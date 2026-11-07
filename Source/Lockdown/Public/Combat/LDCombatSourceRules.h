@@ -80,9 +80,10 @@ namespace LDCombatSourceRules
     LOCKDOWN_API const FName& InnateDashId();
     // D19/D20: approved CHARACTER dash terms; each held passive family with a DashBoost effect applies once,
     // multiplying the cooldown by CooldownRatioBp (ceil to whole ms) and the distance by (1 + DistanceBonusBp).
-    // The duration is unchanged, so a boosted dash covers its longer distance in the same time.
+    // The duration is unchanged, so a boosted dash covers its longer distance in the same time. A learned trigger
+    // passive whose rank holds DashBoost (passive_special_forces advanced) applies the same way.
     LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
-        FLDInnateDashTerms& Out, FString& Error);
+        const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error);
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
@@ -97,15 +98,15 @@ namespace LDCombatSourceRules
         int64 NowMs, const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out,
         ELDCombatPrepareError& Code, FString& Error);
 
-    // The remaining-cooldown cut shared by every refund (active_combo_flurry/active_lunge Lv3, passive_precision, C2 passive_mental_gymnastics):
+    // The remaining-cooldown cut shared by every refund (cooldown_refund, e.g. passive_iced_americano advanced):
     // a cooling track ends AmountMs earlier but never before NowMs; MAX_int64 makes it ready now. A ready track
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
-    // Whether a rank displaces its caster (dash or jump): such a release is a dash for the root matrix and
-    // takes the item_phase_anchor skill boost.
+    // Whether a rank displaces its caster (a dash): such a release is a dash for the root matrix and takes the
+    // item_phase_anchor skill boost.
     LOCKDOWN_API bool DisplacesCaster(const FLDDemoRankDefinition& Rank);
-    // item_phase_anchor: the boost of every character active with a dash or jump, fixed at its release. Each held
+    // item_phase_anchor: the boost of every character active with a dash, fixed at its release. Each held
     // family with DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
     LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
         int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error);

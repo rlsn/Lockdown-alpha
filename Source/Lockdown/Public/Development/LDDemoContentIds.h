@@ -5,21 +5,15 @@
 // Reservations describe the wire format, not an approved or enabled content set.
 // Retired identities must never be reused: skill 0..61 and item 0..98, 107, 113..114.
 enum class ELDDemoCharacterId : uint8 { CharacterDemo=1 };
+// #147 v7: abilities 92-103 actives, 104-113 passives (0-91 retired); attributes 15-22 (0-14 retired).
 enum class ELDDemoAbilityId : uint8
 {
-    ActiveArcBolt=62, ActiveGuardPulse=63, ActiveBindingSnare=64,
-    PassiveBattleRhythm=65, PassiveSecondWind=66, PassivePrecision=67,
-    ActiveSlipperThrow=68, ActiveFartDash=69, ActiveComboFlurry=70, ActiveSlickMoves=71,
-    PassiveCornered=72, PassiveLurking=73, PassivePublicShame=74, PassiveEagleEye=75,
-    ActiveMonkeyPeach=76, ActiveThousandYear=77, ActiveLunge=78, PassiveIronCrotch=79,
-    ActiveBodySlam=80, ActiveComeHere=81,
-    ActivePorcelainFlop=82, ActiveExposePost=83, ActiveBarrageRant=84, ActiveCancelBlast=85, ActivePieChart=86, ActiveTableFlip=87, PassiveDoxMaster=88, PassiveThickSkin=89, PassiveMentalGymnastics=90, PassiveKeyboardWarrior=91
+    ActivePantsDown=92, ActiveCrotchGrab=93, ActiveSnarkBolt=94, ActiveSeethe=95, ActiveBailOut=96, ActiveElbow=97, ActiveNotMad=98, ActiveStareDown=99, ActiveQuickMeeting=100, ActiveAccountBanned=101, ActiveUnplug=102, ActiveTripleCombo=103,
+    PassivePressed=104, PassiveTilted=105, PassiveStoke=106, PassiveKickDown=107, PassiveThickFace=108, PassiveFreeloader=109, PassiveSpecialForces=110, PassiveMoralVictory=111, PassiveIcedAmericano=112, PassiveLuckyStar=113
 };
 enum class ELDDemoAttributeId : uint8
 {
-    AttrMight=1, AttrFocus=2, AttrVitality=3, AttrResolve=4, AttrReach=5,
-    AttrMightHp=6, AttrMightHaste=7, AttrFocusAs=8, AttrFocusDefense=9, AttrReachMs=10, AttrRoamHybrid=11,
-    AttrWildGlassCannon=12, AttrWildJuggernaut=13, AttrWildBrawler=14
+    AttrProtein=15, AttrFastHands=16, AttrAllNighter=17, AttrCanteen=18, AttrBigTalk=19, AttrMorningRush=20, AttrHandOut=21, AttrWildFrenzy=22
 };
 enum class ELDDemoEquipmentId : uint8
 {
@@ -29,20 +23,23 @@ enum class ELDDemoEquipmentId : uint8
     ItemMegaphone=109, ItemDossier=110, ItemPrivacyScreen=111, ItemSkateboard=112
 };
 enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3 };
-// Public statuses travel in a 32-bit observation mask, so status ids stay below 32 (#112 C2 uses 20..24, #147 v7 25..26).
+// Public statuses travel in a 32-bit observation mask, so status ids stay below 32 (#112 C2 uses 20, #147 v7 25..26).
+// Retired status identities must never be reused: 7..8, 11, 15..19, 21..24 (native_ids.json retired_ranges).
 enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4,
-    Slow=5, StatBoost=6, Enraged=7, AmbushReady=8, Exposed=9, Taunt=10,
+    Slow=5, StatBoost=6, Exposed=9, Taunt=10,
     Disarm=12, Stun=13, Empowered=14,
-    Knockback=20, HealCut=22, DamageGuard=23, Vulnerable=24, Silence=25, Burn=26 };
-// #147 build v7 adds the keyword primitives Silence..ZoneBurn (docs/systems/COMBAT_AND_GROWTH.md).
+    Knockback=20, Silence=25, Burn=26 };
+// #147 build v7 adds the keyword primitives Silence..ZoneBurn (docs/systems/COMBAT_AND_GROWTH.md). Retired operation
+// identities must never be reused: 6, 9, 16, 19, 23, 25, 28..30, 32..33, 39, 41..49, 51, 55..64 (native_ids.json).
 enum class ELDDemoEffectOp : uint8
 {
     Damage=1, Shield=2, DispelRoot=3, Root=4, StatBonus=5,
-    OutOfCombatRegen=6, Lifesteal=7, Dash=8, Cleave=10, DashBoost=11,
-    Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, AmbushDamage=16, ControlDamageAmp=17,
-    Taunt=18, Disarm=20, Stun=21, EmpowerBasic=22, Jump=23, Thorns=24, Backstab=25,
-    CooldownRefund=26, AbilityCrit=27, ResistShred=28, Momentum=29, TauntRetaliate=30, TriggeredShield=31,
-    BasicStacks=32, LongReach=33, CritDamageReduction=34, NthBasicBonus=35, ManaOnHit=36, DispelSlow=37,
-    PathSlow=38, Knockback=40, Dot=42, MobilityPunish=43, Volley=44, RefreshDebuffs=45, OnHit=46, DebuffAmp=47, ShieldShatter=48, DebuffHeal=49, Zone=50, ZoneShield=51, ZoneSlow=52, ZoneRoot=53, ZoneDamage=54, DamageGuard=55, ShieldBurst=56, Vulnerable=57, BreachStacks=61, MobilityShield=62, ShieldPulse=63, BasicRider=64, CastFrenzy=65, AfflictionAmp=66, ShieldBreakRetort=67, HitHaste=68,
+    Lifesteal=7, Dash=8, Cleave=10, DashBoost=11,
+    Slow=12, TimedStatBonus=13, SelfArea=14, LowHpStatBonus=15, ControlDamageAmp=17,
+    Taunt=18, Disarm=20, Stun=21, EmpowerBasic=22, Thorns=24,
+    CooldownRefund=26, AbilityCrit=27, TriggeredShield=31,
+    CritDamageReduction=34, NthBasicBonus=35, ManaOnHit=36, DispelSlow=37,
+    PathSlow=38, Knockback=40, Zone=50, ZoneSlow=52, ZoneRoot=53, ZoneDamage=54,
+    CastFrenzy=65, AfflictionAmp=66, ShieldBreakRetort=67, HitHaste=68,
     Silence=69, Breach=70, Burn=71, Execute=72, Pierce=73, Echo=74, TauntShield=75, DispelDisarm=76, ZoneBurn=77
 };

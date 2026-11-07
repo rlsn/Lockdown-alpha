@@ -40,18 +40,6 @@ namespace LDCombatControl
         return Removed > 0;
     }
 
-    bool IsBehind(const FVector& TargetFoot, double TargetYawDeg, const FVector& SourceFoot, const FLDDemoRational& RearArcDeg)
-    {
-        if (RearArcDeg.Denominator <= 0 || RearArcDeg.Numerator <= 0 || !FMath::IsFinite(TargetYawDeg)) { return false; }
-        const FVector2D ToSource(SourceFoot.X - TargetFoot.X, SourceFoot.Y - TargetFoot.Y);
-        if (ToSource.SizeSquared() < 1.) { return false; }
-        const double Radians = FMath::DegreesToRadians(TargetYawDeg);
-        const FVector2D Back(-FMath::Cos(Radians), -FMath::Sin(Radians));
-        const double HalfArc = FMath::DegreesToRadians(double(RearArcDeg.Numerator) / double(RearArcDeg.Denominator) * .5);
-        // Inclusive at the sector edge; the dot product of unit vectors avoids an acos.
-        return FVector2D::DotProduct(Back, ToSource.GetSafeNormal()) >= FMath::Cos(HalfArc) - UE_KINDA_SMALL_NUMBER;
-    }
-
     TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs)
     {
         TOptional<FLDCombatEmpower> Taken;
@@ -73,10 +61,8 @@ namespace LDCombatControl
         const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs)
     {
         if (Thorns.GetOp() != ELDDemoEffectOp::Thorns || Contact.bReflected || Contact.DamageP2 <= 0 || !Attacker.IsValid()) { return false; }
-        const bool bClass = Contact.HitClass == ELDCombatHitClass::BasicPrimary
-            || (Thorns.bAbilityTrigger && Contact.HitClass == ELDCombatHitClass::Ability);
         const double Reach = Thorns.RadiusCm.Denominator > 0 ? double(Thorns.RadiusCm.Numerator) / double(Thorns.RadiusCm.Denominator) : 0.;
-        if (!bClass || !FMath::IsFinite(Contact.DistanceCm) || Contact.DistanceCm > Reach || (Thorns.bRearExempt && Contact.bFromBehind))
+        if (Contact.HitClass != ELDCombatHitClass::BasicPrimary || !FMath::IsFinite(Contact.DistanceCm) || Contact.DistanceCm > Reach)
         {
             return false;
         }
@@ -122,20 +108,6 @@ namespace LDCombatControl
         Marks.RemoveAll([AtMs, IntervalMs, &SourceKey, &Attacker](const FLDThornsMark& Mark)
         { return (Mark.SourceKey == SourceKey && Mark.Attacker == Attacker) || AtMs - Mark.AtMs >= IntervalMs; });
         Marks.Add({SourceKey, Attacker, AtMs});
-    }
-
-    bool PlanJump(const FVector& Foot, const FVector& Point, double RangeCm, FVector& OutDirection, double& OutDistanceCm)
-    {
-        OutDirection = FVector::ZeroVector;
-        OutDistanceCm = 0;
-        if (Foot.ContainsNaN() || Point.ContainsNaN() || !FMath::IsFinite(RangeCm) || RangeCm <= 0) { return false; }
-        const FVector Planar(Point.X - Foot.X, Point.Y - Foot.Y, 0);
-        const double Length = Planar.Size();
-        if (!FMath::IsFinite(Length)) { return false; }
-        if (Length < 1.) { return true; }
-        OutDirection = Planar / Length;
-        OutDistanceCm = FMath::Min(Length, RangeCm);
-        return true;
     }
 
     bool IsHardControl(ELDControlKind Kind)

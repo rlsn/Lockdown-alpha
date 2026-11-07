@@ -208,21 +208,21 @@ TArray<TSharedPtr<FJsonValue>> GrowthProbeItems(const FLDEquipmentView& View)
 }
 
 // The buyer's first six opportunities in order, staged by the Host in the Lobby through the DEV growth fixture
-// (-LDDevGrowthFixture); the first is the match's opening offer. The buyer takes Cards[0] every time: guard_pulse into Q
-// (the A10 choice), guard_pulse to rank 2, arc_bolt into W, binding_snare over Q's cooling rank-2 guard_pulse, guard_pulse
-// again over W, then attr_vitality while dead. Later opportunities draw ordinary offers and stay unchosen.
+// (-LDDevGrowthFixture); the first is the match's opening offer. The buyer takes Cards[0] every time: not_mad into Q
+// (the A10 choice), not_mad to rank 2 (advanced), snark_bolt into W, pants_down over Q's cooling rank-2 not_mad, not_mad
+// again over W, then attr_canteen while dead. Later opportunities draw ordinary offers and stay unchosen.
 struct FGrowthProbeOffer
 {
     const TCHAR* Cards[3];
 };
 
 const FGrowthProbeOffer GrowthProbePlan[] = {
-    {{TEXT("active_guard_pulse"), TEXT("attr_might"), TEXT("attr_focus")}},
-    {{TEXT("active_guard_pulse"), TEXT("attr_reach"), TEXT("attr_resolve")}},
-    {{TEXT("active_arc_bolt"), TEXT("attr_might"), TEXT("attr_focus")}},
-    {{TEXT("active_binding_snare"), TEXT("attr_reach"), TEXT("attr_resolve")}},
-    {{TEXT("active_guard_pulse"), TEXT("attr_might"), TEXT("attr_focus")}},
-    {{TEXT("attr_vitality"), TEXT("attr_might"), TEXT("attr_focus")}},
+    {{TEXT("active_not_mad"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
+    {{TEXT("active_not_mad"), TEXT("attr_hand_out"), TEXT("attr_big_talk")}},
+    {{TEXT("active_snark_bolt"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
+    {{TEXT("active_pants_down"), TEXT("attr_hand_out"), TEXT("attr_big_talk")}},
+    {{TEXT("active_not_mad"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
+    {{TEXT("attr_canteen"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
 };
 
 constexpr int32 GrowthProbePlannedOffers = UE_ARRAY_COUNT(GrowthProbePlan);
@@ -884,7 +884,7 @@ public:
             return false;
         }
         FString Refusal;
-        const TArray<FName> Twice = {FName(TEXT("active_guard_pulse")), FName(TEXT("active_guard_pulse")), FName(TEXT("attr_might"))};
+        const TArray<FName> Twice = {FName(TEXT("active_not_mad")), FName(TEXT("active_not_mad")), FName(TEXT("attr_protein"))};
         Check(!LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, Twice, Refusal) && !Refusal.IsEmpty(), TEXT("Fixture"),
             TEXT("The fixture refuses a preset that repeats a card, with a reason"), Refusal);
         for (int32 Index = 0; Index < LDDemoGrowthScenario::GrowthProbePlannedOffers; ++Index)
@@ -3159,7 +3159,7 @@ public:
             ? LDDemoGrowthScenario::GrowthProbeEntry(Own, Wanted) : nullptr;
     }
 
-    // Offers 2 and 3: guard_pulse in Q rises to rank 2, then arc_bolt takes the free W slot.
+    // Offers 2 and 3: not_mad in Q rises to rank 2, then snark_bolt takes the free W slot.
     bool TickAdvance(double Now, ALDPlayerController& PC)
     {
         if (!Planned.bSent)

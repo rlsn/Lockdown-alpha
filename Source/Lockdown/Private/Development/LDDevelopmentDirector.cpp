@@ -800,7 +800,6 @@ void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record,
     Input.Build = &Record.Build;
     Input.Ordinal = Ordinal;
     Input.Seed = LDProgression::OfferSeed(MatchSecret, ContenderId, Ordinal);
-    EquippedDefinitions(ContenderId, Input.Equipment);
     TArray<LDProgression::FLegalOption> Picked;
 #if WITH_DEV_AUTOMATION_TESTS
     TArray<TArray<FName>>* Presets = DevOfferQueue.Find(ContenderId);
@@ -874,22 +873,6 @@ uint8 ALDDevelopmentDirector::RerollTokens(const FRecord& Record) const
     return Earned > Record.Progression.RerollsUsed ? uint8(Earned - Record.Progression.RerollsUsed) : 0;
 }
 
-void ALDDevelopmentDirector::EquippedDefinitions(const FGuid& ContenderId, TArray<FName>& Out) const
-{
-    Out.Reset();
-    const ALDGameMode* GameMode = Mode();
-    if (!GameMode || !GameMode->Economy || !GameMode->Economy->GetLedger().IsInitialized())
-    {
-        return;
-    }
-    TArray<FLDEquippedItemValue> Equipped;
-    ALDInventoryDirector::EquippedItems(GameMode->Economy->GetLedger().State(), ContenderId, Equipped);
-    for (const FLDEquippedItemValue& Item : Equipped)
-    {
-        Out.Add(Item.DefinitionId);
-    }
-}
-
 ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRecord& Record)
 {
     FLDProgressionState& Progression = Record.Progression;
@@ -922,7 +905,6 @@ ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRe
     Input.Build = &Record.Build;
     Input.Ordinal = Current.Ordinal;
     Input.Seed = LDProgression::RerollSeed(MatchSecret, ContenderId, Current.Ordinal);
-    EquippedDefinitions(ContenderId, Input.Equipment);
     for (const FLDChoiceOption& Option : Current.Options)
     {
         Input.Avoid.Add({Option.Kind, Option.DefinitionId, Option.FromRank, Option.ToRank});

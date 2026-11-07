@@ -4,6 +4,8 @@
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
+#include "Development/LDDemoCardText.h"
+#include "Development/LDSkillGrowth.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
@@ -44,17 +46,12 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
     case ELDDemoStatusId::Slow: return TEXT("slow");
     case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");
-    case ELDDemoStatusId::Enraged: return TEXT("enraged");
-    case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
     case ELDDemoStatusId::Taunt: return TEXT("taunt");
     case ELDDemoStatusId::Disarm: return TEXT("disarm");
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");
     case ELDDemoStatusId::Knockback: return TEXT("knockback");
-    case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
-    case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
-    case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
     case ELDDemoStatusId::Silence: return TEXT("silence");
     case ELDDemoStatusId::Burn: return TEXT("burn");
     default: return nullptr;
@@ -87,6 +84,10 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     if(Key.IsEmpty()||!Table.IsValid()||!Table->GetSourceString(FTextKey(Key),Text)||Text.IsEmpty()){HudReportMissingText(ContentId);return false;}
     Out=Text;
     return true;
+}
+FString LDHUD::SkillRankName(int32 Rank)
+{
+    return Rank==1?FString(TEXT("初级")):Rank==2?FString(TEXT("高级")):FString::Printf(TEXT("%d 级"),Rank);
 }
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
@@ -605,7 +606,7 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     const bool bDash=Input.Slot==EActionSlot::Dash;
     TArray<FString> Lines;
     const FString Id=Input.DefinitionId.ToString();
-    if(Input.bHasSource&&!bDash&&!Input.DefinitionId.IsNone())
+    if(Input.bHasSource&&!bDash&&!bLearned&&!Input.DefinitionId.IsNone())
     {
         FString Description;if(ContentText(Content,Id,true,Description)&&!Description.IsEmpty()){Lines.Add(Description);Lines.Add(FString());}
     }
@@ -613,11 +614,25 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s；释放后的冷却不因换装改变"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
     else if(bLearned&&Input.bHasSource)
     {
-        if(const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr)
+        const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
+        const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+        if(Ability&&Display)
         {
-            Lines.Add(TargetLine(Ability->Target));
+            // #147: the same card text as the blind box, with this level's numbers and the rank held now.
             if(const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Input](const FLDDemoRankDefinition& R){return R.Rank==Input.Rank;}))
-            {Lines.Append(RankLines(*Rank,true));}
+            {
+                const int64 Growth=Content->Parameters.SkillGrowthPerLevelBp;
+                Detail.Name+=TEXT("（")+SkillRankName(Input.Rank)+TEXT("）");
+                Lines.Add(CardText(Display->DescriptionText,*Rank,nullptr,Context.Card,Growth).Plain);
+                if(!Display->AdvancedText.IsEmpty())
+                {
+                    const FCardText Advanced=CardText(Display->AdvancedText,Ability->Ranks.Last(),nullptr,Context.Card,Growth);
+                    Lines.Add((Input.Rank>=Ability->Ranks.Last().Rank?TEXT("高级（已生效）："):TEXT("高级："))+Advanced.Plain);
+                }
+                Lines.Add(FString());
+                Lines.Add(TargetLine(Ability->Target));
+                Lines.Add(CostLine(*Rank));
+            }
             else{Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),Input.Rank));}
         }
         else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
@@ -684,8 +699,7 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         if(Chip.bEmpty){Chip.Name=TEXT("空槽");continue;}
         Chip.Name=AbilityName(Content,Id);
         Chip.bMaxRank=int32(Unit.Actives.Ranks[Index])>=MaxRank;
-        Chip.Rank=FString::Printf(TEXT("Lv%d"),int32(Unit.Actives.Ranks[Index]));
-        if(Chip.bMaxRank){Chip.Rank+=TEXT(" ★满级");}
+        Chip.Rank=SkillRankName(Unit.Actives.Ranks[Index]);
     }
     return Card;
 }
@@ -792,28 +806,19 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
         return Text.IsEmpty()?FString(TEXT("无属性加成")):Text;
     }
-    case ELDDemoEffectOp::OutOfCombatRegen:
-    {
-        FString Text=TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后每秒回复 ")+HudPercent(Effect.MaxHPPerSecBp)+TEXT(" ")+LDTerms::MaxHealth();
-        if(Effect.MultiplierBp>0){Text+=TEXT("；受到技能伤害后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内")+LDTerms::HealthRegen()+TEXT("与")+LDTerms::Mana+TEXT("回复变为 ")+HudPercent(Effect.MultiplierBp);}
-        if(Effect.RatioBp>0){Text+=TEXT("；战斗中保留 ")+HudPercent(Effect.RatioBp);}
-        return Text;
-    }
     case ELDDemoEffectOp::Lifesteal: return FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
     case ELDDemoEffectOp::DashBoost:
     {
         FString Text=FString(LDTerms::Dash)+TEXT("的冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，")+LDTerms::Dash+TEXT("的距离 +")+HudPercent(Effect.DistanceBonusBp);
         if(Effect.SkillDistanceBonusBp>0||Effect.SkillCooldownRatioBp>0)
-        {Text+=TEXT("；带冲刺或跳跃的技能距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
+        {Text+=TEXT("；带冲刺的技能距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
         return Text;
     }
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成主击 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::PhysicalDamage+TEXT("副击");
     case ELDDemoEffectOp::Slow:
     {
-        FString Text=FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-        if(Effect.VampRatioBp>0){Text+=TEXT("；期间对其造成的")+FString(LDTerms::BasicAttack)+TEXT("与技能伤害吸血 ")+HudPercent(Effect.VampRatioBp);}
-        return Text;
+        return FString(LDTerms::Slow)+TEXT("：")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
     }
     case ELDDemoEffectOp::TimedStatBonus:
     {
@@ -824,80 +829,37 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::LowHpStatBonus:
     {
         FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
-        if(Effect.VampRatioBp>0){Text+=TEXT("，全能吸血 ")+HudPercent(Effect.VampRatioBp);}
         return FString(LDTerms::Health)+TEXT("低于 ")+HudPercent(Effect.RatioBp)+TEXT(" 时：")+Text;
-    }
-    case ELDDemoEffectOp::AmbushDamage:
-    {
-        FString Text=TEXT("脱战 ")+HudSeconds(Effect.DelayMs)+TEXT(" 后，下一次")+LDTerms::BasicAttack+TEXT("或伤害技能额外造成")+HudDamageTerm(Effect)+TEXT(" ")+HudScaling(Effect);
-        if(Effect.AmountMs>0){Text+=TEXT("；每次冲刺或跳跃使准备时间 -")+HudSeconds(Effect.AmountMs);}
-        if(Effect.RatioBp>0){Text+=TEXT("；首击使目标")+FString(LDTerms::Armor)+TEXT("与")+LDTerms::MagicResist+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);}
-        return Text;
     }
     case ELDDemoEffectOp::ControlDamageAmp: return TEXT("对处于任何控制或")+FString(LDTerms::Slow)+TEXT("下的敌人，伤害 +")+HudPercent(Effect.RatioBp);
     case ELDDemoEffectOp::Taunt: return FString(LDTerms::Taunt)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("：自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
     case ELDDemoEffectOp::Disarm: return FString(LDTerms::Disarm)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Stun: return FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
-    case ELDDemoEffectOp::Backstab:
-        return TEXT("背后出手：伤害 +")+HudPercent(Effect.RatioBp)+TEXT("，")+LDTerms::Stun+TEXT(" ")+HudSeconds(Effect.DurationMs)
-            +(Effect.bImpaired?FString(TEXT("；目标处于")+FString(LDTerms::Root)+TEXT("、")+LDTerms::Slow+TEXT("或")+LDTerms::Taunt+TEXT("时也按背后结算")):FString());
     case ELDDemoEffectOp::EmpowerBasic:
         return HudSeconds(Effect.DurationMs)+TEXT(" 内下一次")+LDTerms::BasicAttack+TEXT("的主击额外造成 ")+HudScaling(Effect);
-    case ELDDemoEffectOp::Jump: return TEXT("跳向指定地点（")+HudSeconds(Effect.DurationMs)+TEXT(" 后落地）");
     case ELDDemoEffectOp::Thorns:
     {
-        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内敌人的")+LDTerms::BasicAttack+(Effect.bAbilityTrigger?TEXT("或技能打中时"):TEXT("打中时"))
+        FString Text=TEXT("被 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内敌人的")+LDTerms::BasicAttack+TEXT("打中时")
             +TEXT("，对方受")+HudDamageTerm(Effect)+TEXT(" ")+HudPoints(Effect.BaseP2);
         if(Effect.ArmorRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;}
         if(Effect.MaxHPRatioBp>0){Text+=TEXT(" + ")+HudPercent(Effect.MaxHPRatioBp)+LDTerms::MaxHealth();}
         if(Effect.CriticalMultiplierBp>10000){Text+=TEXT("，被")+FString(LDTerms::Crit)+TEXT("时变为 ")+HudPercent(Effect.CriticalMultiplierBp);}
         Text+=TEXT("；同一人 ")+HudSeconds(Effect.IntervalMs)+TEXT(" 内最多一次");
-        if(Effect.bRearExempt){Text+=TEXT("，背后来袭不触发");}
-        if(Effect.RatioBp>0){Text+=TEXT("；反伤使对方")+FString(LDTerms::AttackSpeed)+TEXT("与")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);}
+        if(Effect.SecondaryRatioBp>0){Text+=TEXT("；反伤使对方")+FString(LDTerms::MoveSpeed)+TEXT(" -")+HudPercent(Effect.SecondaryRatioBp)+TEXT("，持续 ")+HudSeconds(Effect.SecondaryDurationMs);}
         return Text;
     }
     case ELDDemoEffectOp::CooldownRefund:
-    {
-        static const TCHAR* Triggers[]={TEXT(""),TEXT("施放后"),TEXT("强化普攻命中后"),TEXT("持续期间每次普攻命中，"),TEXT("普攻暴击时"),TEXT("解除了控制或减速时"),TEXT(""),TEXT(""),TEXT(""),TEXT("")};
-        static const TCHAR* Entries[]={TEXT(""),TEXT("普攻节拍"),TEXT("本技能"),TEXT("其他主动技能"),TEXT("Q/W")};
-        const FString Amount=Effect.AmountMs>0?TEXT("剩余冷却 -")+HudSeconds(Effect.AmountMs):(Effect.RatioBp>=10000?FString(TEXT("立即就绪")):TEXT("返还 ")+HudPercent(Effect.RatioBp)+TEXT(" 冷却"));
-        return FString(Triggers[uint8(Effect.Trigger)%10])+Entries[uint8(Effect.Entries)%5]+Amount;
-    }
+        return FString(TEXT("每次"))+LDTerms::BasicAttack+TEXT("命中，Q/W 剩余冷却 -")+HudSeconds(Effect.AmountMs);
     case ELDDemoEffectOp::AbilityCrit:
-        return Effect.CritMode==ELDDemoCritMode::Impaired
-            ? FString(TEXT("目标处于任何控制或破防时，本次必定技能")+FString(LDTerms::Crit))
-            : TEXT("指定技能以 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::CritChance()+TEXT("进行技能")+LDTerms::Crit;
-    case ELDDemoEffectOp::ResistShred:
-        return TEXT("命中后目标")+FString(Effect.ArmorRatioBp>0?LDTerms::Armor:LDTerms::MagicResist)+TEXT(" -")+HudPercent(FMath::Max(Effect.ArmorRatioBp,Effect.MagicResistRatioBp))+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-    case ELDDemoEffectOp::Momentum:
-        return TEXT("之后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内每移动 100cm 积攒 ")+HudPoints(Effect.BaseP2)+TEXT(" 点（最多 ")+HudPoints(Effect.CapP2)+TEXT("），并入下一次")+LDTerms::BasicAttack+TEXT("的主击");
-    case ELDDemoEffectOp::TauntRetaliate:
-        return FString(LDTerms::Taunt)+TEXT("结束时，周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内受")+HudDamageTerm(Effect)+TEXT(" ")+HudPoints(Effect.BaseP2)+TEXT(" + 每次挨打 ")+HudPoints(Effect.PerCountP2)
-            +TEXT("（最多 ")+FString::FromInt(Effect.Count)+TEXT(" 次）+ ")+HudPercent(Effect.ArmorRatioBp)+LDTerms::Armor;
+        return TEXT("指定技能以 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::CritChance()+TEXT("进行技能")+LDTerms::Crit;
     case ELDDemoEffectOp::TriggeredShield:
-        return (Effect.Trigger==ELDDemoEffectTrigger::LowHP
-                ? FString(LDTerms::Health)+TEXT("跌破 ")+HudPercent(Effect.RatioBp)+TEXT(" 时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
-                : FString(TEXT("落地每命中 1 个敌人获得")))
+        return TEXT("受到伤害时（内置冷却 ")+HudSeconds(Effect.IntervalMs)+TEXT("）获得")
             +LDTerms::Shield+TEXT(" ")+HudScaling(Effect)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-    case ELDDemoEffectOp::BasicStacks:
-    {
-        FString Text;for(const FLDDemoStatBonus& Stat:Effect.Stats){Text+=(Text.IsEmpty()?TEXT(""):TEXT("，"))+StatLine(Stat);}
-        Text=TEXT("每次")+FString(LDTerms::BasicAttack)+TEXT("获得 ")+HudSeconds(Effect.DurationMs)+TEXT(" ")+Text+TEXT("，最多 ")+FString::FromInt(Effect.Count)+TEXT(" 层");
-        if(Effect.RatioBp>0){Text+=TEXT("；满层时")+FString(LDTerms::BasicAttack)+TEXT("前摇缩短 ")+HudPercent(Effect.RatioBp);}
-        return Text;
-    }
-    case ELDDemoEffectOp::LongReach:
-    {
-        FString Text=TEXT("与目标每远 100cm，伤害 +")+HudPercent(Effect.RatioBp)+TEXT("（最多 ")+HudPercent(Effect.CapBp)+TEXT("）");
-        if(Effect.DistanceCm.Numerator>0){Text+=TEXT("；方向投射与指向技能射程 +")+HudRational(Effect.DistanceCm)+TEXT("cm");}
-        return Text;
-    }
     case ELDDemoEffectOp::CritDamageReduction: return TEXT("受到的")+FString(LDTerms::Crit)+TEXT("伤害 -")+HudPercent(Effect.RatioBp);
     case ELDDemoEffectOp::NthBasicBonus:
         return TEXT("每第 ")+FString::FromInt(Effect.Count)+TEXT(" 次")+LDTerms::BasicAttack+TEXT("额外造成 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+HudDamageTerm(Effect);
     case ELDDemoEffectOp::ManaOnHit:
-        return (Effect.Trigger==ELDDemoEffectTrigger::Control?FString(TEXT("亲自施加控制或")+FString(LDTerms::Slow)+TEXT("时")):FString(TEXT("技能命中时")))
-            +TEXT("回复 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+LDTerms::Mana+TEXT("（每次施放一次）");
+        return FString(TEXT("技能命中时"))+TEXT("回复 ")+HudPoints(Effect.BaseP2)+TEXT(" ")+LDTerms::Mana+TEXT("（每次施放一次）");
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
     case ELDDemoEffectOp::PathSlow:
         return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
@@ -916,29 +878,155 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     default: return TEXT("未知目标方式");
     }
 }
-TArray<FString> LDHUD::RankLines(const FLDDemoRankDefinition& Rank,bool bActive)
+FString LDHUD::CostLine(const FLDDemoRankDefinition& Rank)
+{
+    return FString(LDTerms::Mana)+TEXT(" ")+HudPoints(Rank.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Rank.CooldownMs);
+}
+LDHUD::FCardStats LDHUD::CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes)
+{
+    FCardStats Stats;
+    Stats.Level=Level>0?Level:1;
+    const auto P2=[&Attributes](ELDProjectedAttribute Attribute)
+    {
+        const FLDCombatAttributeRowView* Row=Attributes.FindByPredicate([Attribute](const FLDCombatAttributeRowView& R){return R.Attribute==uint8(Attribute);});
+        return Row&&Row->Final.Denominator>0&&Row->Final.Numerator>=0&&Row->Final.Numerator<=MAX_int64/100?Row->Final.Numerator*100/Row->Final.Denominator:int64(0);
+    };
+    Stats.ADP2=P2(ELDProjectedAttribute::AD);Stats.APP2=P2(ELDProjectedAttribute::AP);
+    Stats.MaxHPP2=P2(ELDProjectedAttribute::MaxHP);Stats.ArmorP2=P2(ELDProjectedAttribute::Armor);
+    return Stats;
+}
+namespace
+{
+// One placeholder's value as the card shows it; false when the rank has no such effect or stat.
+bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& Rank,const LDHUD::FCardStats& Stats,FString& Out)
+{
+    using LDDemoCardText::EField;
+    const FLDDemoEffectDefinition* Effect=LDDemoCardText::FindEffect(Rank,Token);
+    if(!Effect){return false;}
+    const auto Term=[](int64 RatioBp,int64 StatP2){return RatioBp>0&&StatP2>0?StatP2/10000*RatioBp+StatP2%10000*RatioBp/10000:int64(0);};
+    switch(Token.Field)
+    {
+    case EField::Amount: case EField::Burst:
+    {
+        int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
+            +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+        if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
+        Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
+    }
+    case EField::BasicCount: Out=FString::FromInt(Effect->BasicCount);return true;
+    case EField::CooldownCut: Out=HudDecimal(double(10000-Effect->CooldownRatioBp)/100.);return true;
+    case EField::Refund: Out=HudDecimal(double(Effect->AmountMs)/1000.);return true;
+    case EField::Duration: Out=HudDecimal(double(Effect->DurationMs)/1000.);return true;
+    case EField::Ratio: Out=HudDecimal(double(Effect->RatioBp)/100.);return true;
+    case EField::Count: Out=FString::FromInt(Effect->Count);return true;
+    case EField::Radius: Out=HudRational(Effect->RadiusCm);return true;
+    case EField::Distance: Out=HudRational(Effect->DistanceCm);return true;
+    case EField::Interval: Out=HudDecimal(double(Effect->IntervalMs)/1000.);return true;
+    case EField::Delay: Out=HudDecimal(double(Effect->DelayMs)/1000.);return true;
+    case EField::SecondaryRatio: Out=HudDecimal(double(Effect->SecondaryRatioBp)/100.);return true;
+    case EField::SecondaryDuration: Out=HudDecimal(double(Effect->SecondaryDurationMs)/1000.);return true;
+    case EField::Stat:
+    {
+        const FLDDemoStatBonus* Stat=Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S){return S.Stat==Token.Stat;});
+        if(!Stat){return false;}
+        switch(Stat->Stat)
+        {
+        // The importer stores these exact fractions in Cm (unit cm, hp/s, mp/s); Amount stays 0.
+        case ELDDemoBonusStat::AttackRangeCmFlat: case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat:
+            Out=HudRational(Stat->Cm);return true;
+        case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
+        case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio: Out=HudDecimal(double(Stat->Amount)/100.);return true;
+        default: Out=FString::Printf(TEXT("%lld"),(Stat->Amount+50)/100);return true;
+        }
+    }
+    default: return false;
+    }
+}
+FString CardEscape(const FString& Text)
+{
+    return Text.Replace(TEXT("&"),TEXT("&amp;")).Replace(TEXT("<"),TEXT("&lt;")).Replace(TEXT(">"),TEXT("&gt;"));
+}
+}
+LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoRankDefinition& Rank,const FLDDemoRankDefinition* From,
+    const FCardStats& Stats,int64 GrowthPerLevelBp)
+{
+    FCardText Text;
+    TArray<LDDemoCardText::FToken> Tokens;
+    FString Error;
+    FLDDemoRankDefinition Grown,GrownFrom;
+    if(!LDDemoCardText::Parse(Template,Tokens,Error)||!LDSkillGrowth::GrowRank(Rank,GrowthPerLevelBp,Stats.Level,Grown)
+        ||(From&&!LDSkillGrowth::GrowRank(*From,GrowthPerLevelBp,Stats.Level,GrownFrom)))
+    {
+        Text.bComplete=false;Text.Plain=Text.Rich=TEXT("（卡面数据缺失）");return Text;
+    }
+    for(const LDDemoCardText::FToken& Token:Tokens)
+    {
+        if(!Token.bValue){Text.Plain+=Token.Literal;continue;}
+        FString To,Was;
+        if(!CardValue(Token,Grown,Stats,To)){Text.bComplete=false;To=TEXT("?");}
+        Text.Values.Add(To);
+        Text.Plain+=From&&CardValue(Token,GrownFrom,Stats,Was)&&Was!=To?Was+TEXT(" → ")+To:To;
+    }
+    // Keywords in the plain text become bold; the longest glossary match wins at each position.
+    for(int32 Index=0;Index<Text.Plain.Len();)
+    {
+        const LDTerms::FCardKeyword* Hit=nullptr;
+        for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
+        {
+            const int32 Len=FCString::Strlen(Keyword.Name);
+            if(Text.Plain.Mid(Index,Len).Equals(Keyword.Name,ESearchCase::CaseSensitive)&&(!Hit||Len>FCString::Strlen(Hit->Name))){Hit=&Keyword;}
+        }
+        if(!Hit){Text.Rich+=CardEscape(Text.Plain.Mid(Index,1));++Index;continue;}
+        Text.Rich+=FString(TEXT("<b>"))+Hit->Name+TEXT("</>");
+        Text.Keywords.AddUnique(Hit->Name);
+        Index+=FCString::Strlen(Hit->Name);
+    }
+    TArray<FString> Ordered;
+    for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords){if(Text.Keywords.Contains(Keyword.Name)){Ordered.Add(Keyword.Name);}}
+    Text.Keywords=MoveTemp(Ordered);
+    return Text;
+}
+TArray<FString> LDHUD::LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
+    uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp)
 {
     TArray<FString> Lines;
-    for(const FLDDemoEffectDefinition& Effect:Rank.Effects){Lines.Add(EffectLine(Effect));}
-    if(bActive){Lines.Add(FString(LDTerms::Mana)+TEXT(" ")+HudPoints(Rank.ManaCostP2)+TEXT(" · 冷却 ")+HudSeconds(Rank.CooldownMs));}
+    const FLDDemoRankDefinition* Row=Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R){return R.Rank==int32(Rank);});
+    if(!Row){return Lines;}
+    Lines.Add(CardText(Sentence,*Row,nullptr,Stats,GrowthPerLevelBp).Plain);
+    if(!Advanced.IsEmpty()&&Row==&Ability.Ranks.Last()){Lines.Add(TEXT("高级：")+CardText(Advanced,*Row,nullptr,Stats,GrowthPerLevelBp).Plain);}
     return Lines;
 }
-LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content)
+int32 LDHUD::CardLength(const FString& Plain)
+{
+    int32 Count=0;
+    for(const TCHAR Char:Plain){Count+=Char!=TEXT(' ')&&Char!=TEXT('\u3000')?1:0;}
+    return Count;
+}
+TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
+{
+    TArray<FString> Lines;
+    for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
+    {
+        if(Keywords.Contains(Keyword.Name)){Lines.Add(FString(TEXT("<b>"))+Keyword.Name+TEXT("</>：")+CardEscape(Keyword.Explain));}
+    }
+    return Lines;
+}
+LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+    const FCardStats& Stats)
 {
     FChoiceCardView Card;
     const FString Id=Option.DefinitionId.ToString();
     Card.Name=ContentName(Content,Id);
-    FString Description;if(ContentText(Content,Id,true,Description)){Card.Description=Description;}
-    if(const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr)
-    {Card.IconId=Display->IconId;}
+    const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+    if(Display){Card.IconId=Display->IconId;}
     Card.Glyph=Card.Name.IsEmpty()?FString(TEXT("?")):Card.Name.Left(1);
     switch(Option.Kind)
     {
-    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动技能");Card.Icon=EChoiceIcon::Active;break;
-    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动技能升级");Card.Icon=EChoiceIcon::Active;break;
-    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动技能");Card.Icon=EChoiceIcon::Passive;break;
-    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动技能升级");Card.Icon=EChoiceIcon::Passive;break;
-    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性提升");Card.Icon=EChoiceIcon::Attribute;break;
+    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动");Card.Icon=EChoiceIcon::Active;break;
+    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动升级");Card.Icon=EChoiceIcon::Active;break;
+    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动");Card.Icon=EChoiceIcon::Passive;break;
+    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动升级");Card.Icon=EChoiceIcon::Passive;break;
+    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性卡");Card.Icon=EChoiceIcon::Attribute;break;
     default: Card.Kind=TEXT("未知选项");break;
     }
     if(Option.Kind==ELDChoiceOptionKind::Attribute)
@@ -947,25 +1035,42 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         Card.RankText=FString::Printf(TEXT("已选 %d 次"),Owned?int32(Owned->Count):0);
         Card.Summary=Card.RankText;Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
         if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
-        {for(const FLDDemoStatBonus& Stat:Definition->Stats){Card.Lines.Add(StatLine(Stat));}for(const FLDDemoStatBonus& Penalty:Definition->Penalties){Card.Lines.Add(PenaltyLine(Penalty));}}
+        {
+            TArray<FString> Parts;
+            for(const FLDDemoStatBonus& Stat:Definition->Stats){Parts.Add(StatLine(Stat));}
+            for(const FLDDemoStatBonus& Penalty:Definition->Penalties){Parts.Add(PenaltyLine(Penalty));}
+            Card.SentencePlain=FString::Join(Parts,TEXT(" · "));Card.Sentence=CardEscape(Card.SentencePlain);
+        }
+        else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该属性卡");}
         return Card;
     }
-    Card.RankText=Option.FromRank>0?FString::Printf(TEXT("%d → %d 级"),Option.FromRank,Option.ToRank):FString::Printf(TEXT("%d 级"),Option.ToRank);
-    if(const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr)
+    Card.RankText=Option.FromRank>0?SkillRankName(Option.FromRank)+TEXT(" → ")+SkillRankName(Option.ToRank):SkillRankName(Option.ToRank);
+    const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
+    const auto RankRow=[Ability](int32 Rank){return Ability?Ability->Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R){return R.Rank==Rank;}):nullptr;};
+    const FLDDemoRankDefinition* To=RankRow(Option.ToRank);
+    const FLDDemoRankDefinition* Top=Ability&&!Ability->Ranks.IsEmpty()?&Ability->Ranks.Last():nullptr;
+    if(Ability&&Display&&To&&Top)
     {
-        const bool bActive=Ability->Kind==ELDDemoAbilityKind::Active;
-        if(bActive){Card.Lines.Add(TargetLine(Ability->Target));}
-        if(const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Option](const FLDDemoRankDefinition& R){return R.Rank==Option.ToRank;}))
-        {Card.Lines.Append(RankLines(*Rank,bActive));}
-        else{Card.Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),Option.ToRank));}
+        const int64 Growth=Content->Parameters.SkillGrowthPerLevelBp;
+        const FCardText Sentence=CardText(Display->DescriptionText,*To,Option.FromRank>0?RankRow(Option.FromRank):nullptr,Stats,Growth);
+        Card.Sentence=Sentence.Rich;Card.SentencePlain=Sentence.Plain;
+        TArray<FString> Keywords=Sentence.Keywords;
+        if(!Display->AdvancedText.IsEmpty())
+        {
+            const FCardText Advanced=CardText(Display->AdvancedText,*Top,nullptr,Stats,Growth);
+            Card.Advanced=TEXT("<b>高级</>：")+Advanced.Rich;Card.AdvancedPlain=TEXT("高级：")+Advanced.Plain;
+            for(const FString& Keyword:Advanced.Keywords){Keywords.AddUnique(Keyword);}
+        }
+        Card.Keywords=KeywordLines(Keywords);
+        if(Ability->Kind==ELDDemoAbilityKind::Active){Card.Lines.Add(TargetLine(Ability->Target));Card.Lines.Add(CostLine(*To));}
     }
-    else if(Content){Card.Lines.Add(TEXT("内容目录中找不到该技能"));}
+    else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该技能");}
     if(Option.Kind==ELDChoiceOptionKind::LearnActive)
     {
         int32 Filled=0;for(const FLDLearnedSkillView& Skill:Progression.Skills){if(Skill.bActive){++Filled;}}
         Card.bNeedsReplacement=Filled>=2;
     }
-    Card.Summary=Option.FromRank>0?FString::Printf(TEXT("%d→%d"),Option.FromRank,Option.ToRank):FString(TEXT("新"));
+    Card.Summary=Option.FromRank>0?SkillRankName(Option.FromRank).Left(1)+TEXT("→")+SkillRankName(Option.ToRank).Left(1):FString(TEXT("新"));
     Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
     return Card;
 }

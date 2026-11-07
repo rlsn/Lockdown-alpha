@@ -67,10 +67,8 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
                 && N.Mul64(Total, Effect.CriticalMultiplierBp, Critical, Path);
         }
         const ELDDemoEffectOp Op = Effect.GetOp();
-        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::AmbushDamage
-            || Op == ELDDemoEffectOp::Dot || Op == ELDDemoEffectOp::MobilityPunish || Op == ELDDemoEffectOp::ZoneDamage
-            || Op == ELDDemoEffectOp::ShieldPulse || Op == ELDDemoEffectOp::BreachStacks;
-        if (!bDamage && Op != ELDDemoEffectOp::Shield && Op != ELDDemoEffectOp::BasicRider && Op != ELDDemoEffectOp::ZoneShield)
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
+        if (!bDamage && Op != ELDDemoEffectOp::Shield)
         {
             return true;
         }
@@ -85,15 +83,45 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
                 && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
+    // #147: a skill's fixed amounts grow with its owner's level (LDSkillGrowth), so its envelope is checked at the top
+    // level's factor G(MaxLevel); the shared burn base grows the same way for the applier's level.
+    int64 Steps = 0, Factor = 0;
+    if (!N.Mul64(FMath::Max(D.Progression.MaxLevel - 1, 0), P.SkillGrowthPerLevelBp, Steps, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Add64(10000, Steps, Factor, TEXT("SKILL.GrowthPerLevel")))
+    {
+        return false;
+    }
+    const auto Grow = [&N, Factor](int64 AmountP2, int64& Out, const FString& Path)
+    {
+        int64 Product = 0;
+        if (!N.Mul64(AmountP2, Factor, Product, Path)) { return false; }
+        Out = Product / 10000;
+        return true;
+    };
     for (const auto& Ability : D.Abilities)
     {
         for (const auto& Rank : Ability.Ranks)
         {
             for (const auto& Effect : Rank.Effects)
             {
-                if (!CheckEffect(Effect, Ability.Id)) { return false; }
+                FLDDemoEffectDefinition Grown = Effect;
+                if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
+                if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
+                {
+                    for (FLDDemoStatBonus& Stat : Grown.Stats)
+                    {
+                        if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
+                    }
+                }
+                if (!CheckEffect(Grown, Ability.Id)) { return false; }
             }
         }
+    }
+    int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
+    if (!Grow(P.BurnPerSecP2, BurnBase, TEXT("COMBAT.BurnPerSec")) || !N.Mul64(P.AP.MaxP2, P.BurnAPRatioBp, BurnAP, TEXT("COMBAT.BurnAPRatioPerSec"))
+        || !N.Add64(BurnBase, BurnAP / 10000, BurnTotal, TEXT("COMBAT.BurnPerSec")))
+    {
+        return false;
     }
     for (const auto& Item : D.Equipment)
     {
@@ -219,10 +247,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         return false;
     }
     const auto& Choice = P.Choice;
-    if (!Check.Require(Choice.UpgradeWeightBp > 0 && Choice.NewActiveOpenSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp > 0
-        && Choice.NewPassiveWeightBp > 0 && Choice.AffinityStepBp >= 10000 && Choice.AffinityCapBp >= 10000
-        && Choice.ThirdSlotAttributeBp >= 0 && Choice.ThirdSlotAttributeBp <= 10000, TEXT("CHOICE"),
-        TEXT("draft weights must be positive and tag affinity never lowers a weight")))
+    if (!Check.Require(Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
+        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000, TEXT("CHOICE"),
+        TEXT("the full-slot active weight must lie in (0, 1] and the free-slot attribute chance in [0, 1]")))
     {
         return false;
     }

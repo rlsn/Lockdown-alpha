@@ -11,8 +11,8 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-// #112 §5 shared combat primitives: hard-control diminishing returns, remaining-cooldown cuts, resistance shreds,
-// attack-speed slows, regeneration surges and the single control path.
+// #112 §5 shared combat primitives: hard-control diminishing returns, remaining-cooldown cuts, slow cleanses and the
+// single control path.
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatHardControlDiminishTest, "Lockdown.Rules.DemoCombatPrimitives.HardControlDiminish",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -60,113 +60,22 @@ bool FLDCombatReduceReadyAtTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatBreachTest, "Lockdown.Rules.DemoCombatPrimitives.Breach",
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatSlowCleanseTest, "Lockdown.Rules.DemoCombatPrimitives.SlowCleanse",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-bool FLDCombatBreachTest::RunTest(const FString& Parameters)
-{
-    using namespace LDTactical;
-    const FGuid Caster = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    TArray<FLDCombatBreach> Breaches;
-    TestFalse(TEXT("No record is no breach"), HasBreach(Breaches, 0));
-    TestEqual(TEXT("No record keeps the resistance"), BreachedResistanceP2(Breaches, 5000, true, 0), int64(5000));
-    FLDCombatBreach Bottle;
-    Bottle.Key = FName(TEXT("active_arc_bolt"));
-    Bottle.SourceEntity = Caster;
-    Bottle.ArmorRatioBp = 2000;
-    Bottle.ExpiresAtMs = 3000;
-    ApplyBreach(Breaches, Bottle, 0);
-    TestTrue(TEXT("A breach is active until its deadline"), HasBreach(Breaches, 2999) && !HasBreach(Breaches, 3000));
-    TestEqual(TEXT("A 20% armor shred"), BreachedResistanceP2(Breaches, 5000, true, 1000), int64(4000));
-    TestEqual(TEXT("An armor shred leaves magic resist"), BreachedResistanceP2(Breaches, 5000, false, 1000), int64(5000));
-    FLDCombatBreach Stack;
-    Stack.Key = FName(TEXT("passive_dox_master"));
-    Stack.SourceEntity = Other;
-    Stack.ArmorFlatP2 = 400;
-    Stack.MagicResistFlatP2 = 400;
-    Stack.MaxStacks = 3;
-    Stack.ExpiresAtMs = 3000;
-    ApplyBreach(Breaches, Stack, 0);
-    ApplyBreach(Breaches, Stack, 100);
-    ApplyBreach(Breaches, Stack, 200);
-    ApplyBreach(Breaches, Stack, 300);
-    TestEqual(TEXT("Stacks of the same key and source cap at MaxStacks"), Breaches.Num(), 2);
-    TestEqual(TEXT("Flats count per stack first, then the ratio applies"),
-        BreachedResistanceP2(Breaches, 5000, true, 1000), int64((5000 - 1200) * 8000 / 10000));
-    FLDCombatBreach Lurk = Bottle;
-    Lurk.Key = FName(TEXT("passive_lurking"));
-    Lurk.ArmorRatioBp = 9000;
-    Lurk.MagicResistRatioBp = 1500;
-    ApplyBreach(Breaches, Lurk, 0);
-    TestEqual(TEXT("Ratios add across keys and cap at the whole resistance"), BreachedResistanceP2(Breaches, 5000, true, 1000), int64(0));
-    TestEqual(TEXT("Flats never push a resistance below zero"), BreachedResistanceP2(Breaches, 100, false, 1000), int64(0));
-    TestEqual(TEXT("The visible deadline is the latest active one"), BreachUntilMs(Breaches, 1000), int64(3000));
-    TArray<FLDCombatSlow> NoSlows;
-    TArray<FLDCombatTimedBonus> NoBonuses;
-    TArray<FLDCombatVampMark> NoMarks;
-    TestTrue(TEXT("Lapsed breaches are removed"), ExpireTemporaryStatuses(NoSlows, NoBonuses, Breaches, NoMarks, 3000) && Breaches.IsEmpty());
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatAttackSlowTest, "Lockdown.Rules.DemoCombatPrimitives.AttackSlowAndCleanse",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDCombatAttackSlowTest::RunTest(const FString& Parameters)
+bool FLDCombatSlowCleanseTest::RunTest(const FString& Parameters)
 {
     using namespace LDTactical;
     TArray<FLDCombatSlow> Slows;
-    FLDCombatSlow Cripple{FGuid::NewGuid(), FGuid::NewGuid(), 1000, 1500, 1000};
-    FLDCombatSlow Bottle{FGuid::NewGuid(), FGuid::NewGuid(), 3500, 2500, 0};
-    TestTrue(TEXT("The cripple applies"), ApplySlow(Slows, Cripple, 0));
+    FLDCombatSlow Short{FGuid::NewGuid(), FGuid::NewGuid(), 1000, 1500};
+    FLDCombatSlow Bottle{FGuid::NewGuid(), FGuid::NewGuid(), 3500, 2500};
+    TestTrue(TEXT("A slow applies"), ApplySlow(Slows, Short, 0));
     TestTrue(TEXT("Another slow applies"), ApplySlow(Slows, Bottle, 0));
     const FLDTemporaryAttributeTerms Terms = TemporaryTerms({}, Slows, {}, 100, 100, 1000);
-    TestTrue(TEXT("The strongest move and attack cuts project independently"), Terms.MoveSlowBp == 3500 && Terms.AttackSlowBp == 1000);
-    TestEqual(TEXT("An attack cut ends with its instance"), StrongestAttackSlowBp(Slows, 1500), int64(0));
+    TestEqual(TEXT("The strongest move cut projects"), Terms.MoveSlowBp, int64(3500));
     TestEqual(TEXT("A cleanse counts only active slows"), DispelSlows(Slows, 2000), 1);
     TestTrue(TEXT("and removes every instance"), Slows.IsEmpty());
     TestEqual(TEXT("Nothing to cleanse counts zero"), DispelSlows(Slows, 2000), 0);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRegenSurgeTest, "Lockdown.Rules.DemoCombatPrimitives.RegenSurge",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDCombatRegenSurgeTest::RunTest(const FString& Parameters)
-{
-    FLDAttributeProjection Attributes;
-    Attributes.Final.HPRegenPerSec = {2, 1};
-    Attributes.Final.MPRegenPerSec = {1, 1};
-    FLDOutOfCombatRegenTerm Wind;
-    Wind.DelayMs = 6000;
-    Wind.MaxHPBpPerSec = 160;
-    Wind.SurgeMs = 3000;
-    Wind.SurgeMultiplierBp = 20000;
-    Wind.InCombatRatioBp = 5000;
-    Attributes.OutOfCombatHPRegen = Wind;
-    const auto Settle = [&Attributes](int64 Last, int64 From, int64 Now, int64 SurgeUntil, LDTactical::FRegenPools& Pools)
-    {
-        Pools.MaxHpP2 = 100000;
-        Pools.MaxMpP2 = 50000;
-        FString Error;
-        return LDTactical::SettleRegen(Attributes, nullptr, Last, From, Now, Pools, Error, SurgeUntil);
-    };
-    // In combat for one second: always-on 2 HP/1 MP plus half of 1.6% of 1000 HP (8 HP).
-    LDTactical::FRegenPools Plain;
-    TestTrue(TEXT("Combat settlement succeeds"), Settle(0, 0, 1000, 0, Plain));
-    TestEqual(TEXT("In combat the passive keeps its in-combat share"), Plain.HpP2, int64(200 + 800));
-    TestEqual(TEXT("Mana keeps its always-on rate"), Plain.MpP2, int64(100));
-    LDTactical::FRegenPools Surged;
-    TestTrue(TEXT("Surged settlement succeeds"), Settle(0, 0, 1000, 3000, Surged));
-    TestEqual(TEXT("A surge doubles the always-on HP rate"), Surged.HpP2, int64(400 + 800));
-    TestEqual(TEXT("A surge doubles the always-on MP rate"), Surged.MpP2, int64(200));
-    LDTactical::FRegenPools Partial;
-    TestTrue(TEXT("A surge ending inside the interval settles"), Settle(0, 0, 1000, 500, Partial));
-    TestEqual(TEXT("Only the surge part of the interval is doubled"), Partial.HpP2, int64(300 + 800));
-    LDTactical::FRegenPools Calm;
-    TestTrue(TEXT("Out-of-combat settlement succeeds"), Settle(0, 6000, 7000, 0, Calm));
-    TestEqual(TEXT("Out of combat the full share applies"), Calm.HpP2, int64(200 + 1600));
-    const auto Rates = LDTactical::RegenRates(Attributes, nullptr, 100000, 50000, 0, 1000, 3000);
-    TestTrue(TEXT("Displayed rates follow the surge and in-combat share"), FMath::IsNearlyEqual(Rates.HP, 12.) && FMath::IsNearlyEqual(Rates.MP, 2.));
     return true;
 }
 

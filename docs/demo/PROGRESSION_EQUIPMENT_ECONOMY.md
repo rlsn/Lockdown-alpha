@@ -27,8 +27,8 @@ Development 持有。死亡奖励、选择和买卖各自在同一权威批次�
 | --- | --- |
 | 所有人初始近战、单体普攻；群攻和攻击距离可经装备或属性成长获得 | 初始构筑不授主动；获准的攻击距离、普攻群攻修正进入同一 Combat 投影，不是只有面板数值。 |
 | 1 至 10 级，开局一次、每升级一次三选一，最多十次 | 开局机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
-| 三张不同且合法的卡；技能最高三级 | 未学技能仅提供一级学习，已学未满级仅提供下一阶，满级排除；属性卡不可冒充三个相同选项。 |
-| Q/W 两角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；再学一级。被动无独立槽上限。 |
+| 三张不同且合法的卡；技能两档（初级、高级） | 未学技能仅提供初级学习，已学初级仅提供高级，高级排除；属性卡不可冒充三个相同选项。 |
+| Q/W 两角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；新主动从初级开始。被动无独立槽上限。 |
 | 两装备、无背包、允许同款双持，满槽先卖后买 | 容量由权威物品位置限制，不由 UI 格子限制；售出和随后买入是两个独立事务。 |
 | 同款基础属性相加，同名被动只生效一次 | 属性逐实例汇总；被动按稳定内容键去重，不按本地化名字或实例数触发。 |
 | 装备没有主动技能 | 装备只提供固定属性与被动，不发行冷却记录。 |
@@ -347,7 +347,7 @@ ResolvedLifeThrough 时仅重放/拒旧；Create 只使用账本签出的
 | 营地成员死亡/整组清空/刷新 | 每成员同一 Life 只一次；清空/刷新仅世界生命周期，不再发一份清营奖。 |
 
 **助攻资格与记录。** 唯一的伤害/状态施加路径（`ALDCombatDirector::ApplyHit` 的已提交正伤害——含被护盾吸收的部分——或定身、缴械、眩晕、减速；
-`ApplyTauntEffect` 的嘲讽；后续加入的击退、持续伤害、破防、减疗减盾等在其施加成功处）对参赛者受害者调用
+`ApplyTauntEffect` 的嘲讽；击退、沉默、破防与灼烧等在其施加成功处）对参赛者受害者调用
 `ALDCombatDirector::RecordAssistContribution`，按效果的实际所有者（CreditOwner）在受害者这条生命的身体上记下最近贡献时刻
 （`FLDBodyCombatState::AssistContributions`，纯规则 `LDAssist::RecordContribution`），换命随身体一起消失。
 `LockDeath` 在击杀者合格时用 `LDAssist::SelectAssisters` 选出死亡前 `REWARD.AssistWindowSec` 内（含边界）有贡献、仍在本局、
@@ -397,8 +397,8 @@ Gold、XP、阈值运算及审计累计的任何越界必须在整奖准备阶�
 空槽学习采用 Q 后 W 的确定空槽顺序，UI 明示目标槽。满槽的新主动仍是一张合法卡，
 “替换 Q”与“替换 W”是后续参数，不是两张不同候选。
 最终确认必须绑定 Slot、旧技能稳定 ID、旧 rank、ExpectedBuildRevision 和 OfferRevision。
-只选中新卡但尚未确定替换不消费；确认成功后旧技能/等级真实删除，新技能 rank = max(1, 旧 rank − 1)（`LDProgression::ReplacementRank`），
-不返还米或选择次数。旧技能冷却记录不等于备用技能库：被遗忘的技能再次获得仍从一级开始，仅继承未结束截止。
+只选中新卡但尚未确定替换不消费；确认成功后旧技能/等级真实删除，新技能从 rank 1（初级）开始（D13），
+不返还米或选择次数。旧技能冷却记录不等于备用技能库：被遗忘的技能再次获得仍从初级开始，仅继承未结束截止。
 
 Offer 将**不可变内容**与**可更新保护版本**分开。
 交易或又一次升级推进 BuildRevision 时，重验相同三张卡，更新 GuardBuildRevision/OfferRevision；
@@ -412,31 +412,27 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 两个请求竞争同一 Offer 时，仅一个可提交；另一个返回原 Offer 已处理，
 绝不把其 OptionId 套到下一组。
 
-### 6.3 抽卡规则、机制标签与重抽
+### 6.3 抽卡规则与重抽
 
-每个技能与装备在 `content.json` 登记 1–3 个不重复的机制标签（`tags`：`BasicAttack` 普攻、`Mobility` 位移、`Control` 控制、
-`Shield` 护盾、`Tank` 挨打、`Breach` 破防），原生为 `ELDDemoMechanicTag`；属性卡不带标签。标签只参与抽卡权重，
-界面、卡片和装备说明不显示流派或标签名。技能另有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
+抽卡不按标签、流派或已有构筑加权，唯一的权重见下。技能有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
 仍留在 `LegalPool`（DEV 学习与夹具预置可用）。
 
 | 机会 | 组成（`LDProgression::DrawOffer`） |
 | --- | --- |
 | 1 号（开局） | `progression.opening_offer`：`active_count`（2）个未学的可进卡池主动 + `passive_count`（1）个未学的可进卡池被动，组内等概率，卡位洗牌。 |
-| 2–10 号 | 前两张从技能池按权重抽；第三张以 `CHOICE.ThirdSlotAttributeChance`（0.65）从属性卡池等概率抽，否则仍从技能池抽，所以每组最多 1 张属性卡且只在第三张。技能池耗尽时第三张回落到属性卡，反之亦然。 |
+| 2–10 号 | 三个固定卡位，从左到右：**升级位**从可进卡池的已学初级技能中等概率抽 1 个升为高级，没有时改抽一张新技能；**新技能位**从未学技能中按 `NewSkillWeight` 抽 1 个；**自由位**以 `CHOICE.FreeSlotAttributeChance`（0.4）从属性卡等概率抽，否则再抽一张新技能。没有技能可抽的卡位用属性卡补位。 |
 
-技能池权重（`LDProgression::SkillWeight`，整数 = 两个基点相乘）：已学技能的升级 `CHOICE.UpgradeWeight`（2.2）；未学主动在 Q/W 有空槽时
-`CHOICE.NewActiveOpenSlotWeight`（1.5），满槽时 `CHOICE.NewActiveFullSlotWeight`（0.30），且满槽时一组抽到一张新主动后，剩余新主动退出本组；
-未学被动 `CHOICE.NewPassiveWeight`（1.0）。再乘标签亲和 min(`CHOICE.AffinityStep`^k, `CHOICE.AffinityCap`)（1.30、1.70，逐次乘、基点向下取整），
-k = 候选的标签中出现在“其他已学技能 + 已穿装备”标签并集里的个数；**已学技能的升级不把自己算进 k**（用户已批准的口径 A）。
-装备读自账本当前实例，同款两件各算一次但并集去重。所有抽取逐张不放回，同一技能不会同时以学习与升级出现。
+新技能权重（`LDProgression::NewSkillWeight`，基点）：一律 10000；Q/W 都满时未学主动为 `CHOICE.NewActiveFullSlotWeight`（0.5），
+且一组抽到一张新主动后，剩余新主动退出本组（每组最多 1 张新主动）。权重只看槽位状态，不看构筑其他内容。
+自由位的概率判定总会消耗一次随机数，所以它的来源不改变其后的随机流。所有抽取逐张不放回，同一技能不会同时以学习与升级出现。
 
 重抽：`progression.reroll_levels`（4、7）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
 `bReroll` 命令走选择请求流（同一请求窗口、回执与去重、Match/Life/生命阶段/OfferRevision/BuildRevision 保护），在 Transactions 阶段提交：
 没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
 上一组的三张卡在每个卡位都优先排除（池中没有别的卡时才允许重复），回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不花米、不消费机会、不改构筑修订。
 
-内容验证与 `DrawFeasible` 共同保证：开局组的可进卡池主动/被动数量足够；升级组在 Q/W 满槽限制下至少能凑出两张技能卡，再加属性卡或第三张技能卡。
-不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位。覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
+内容验证与 `DrawFeasible` 共同保证：开局组的可进卡池主动/被动数量足够（不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位）；
+升级组按最坏情况（自由位抽到属性卡、无技能可抽的卡位改用属性卡、Q/W 满槽时最多 1 张新主动）计算，属性卡数量足以补齐三张。覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
 
 ## 7. 两装备、商店与来源冷却
 
@@ -498,7 +494,7 @@ InvalidApproachRegion 要映射成明确反馈；失败不返回成功默认采�
 客户端不能挑 ID、传 ReadyAt、借目标槽位决定回绑。最终准备重验来源绑定修订与当前 readiness；
 失败不留下新 ID、绑定或机会消耗。
 
-换槽、遗忘、死亡均不缩短截止。重学技能从一级开始但继承原期限；到期后自然可用不算洗 CD。
+换槽、遗忘、死亡均不缩短截止。重学技能从初级开始但继承原期限；到期后自然可用不算洗 CD。
 升阶、换装/冷却属性变化不重写已开始的期限，下次合法释放才按当时批准参数计算。
 
 ### 7.3 被动与攻击形态投影
@@ -507,7 +503,7 @@ InvalidApproachRegion 要映射成明确反馈；失败不返回成功默认采�
 另保留贡献来源集合。两份减一份不重新注册触发、不重置内部冷却、不重复发一次性收益；
 最后一份移除才移除持续贡献。若被动有未结束触发期限，按同一 Combat 来源合同保留必要债务。
 
-`item_echo_maul` 的属性/普攻群攻贡献与 `CHOICE.attr_reach.AttackRangeCmFlat`
+`item_echo_maul` 的属性/普攻群攻贡献与 `CHOICE.attr_hand_out.AttackRangeCmFlat`
 经同一最终投影到普攻几何和命中；同款锤属性相加、`passive_cleave` 一次。
 横扫副命中不吸血/不递归是当前首轮内容语义，不扩大成全部技能的默认触发政策。
 已成功释放的独立效果使用 Combat 释放快照并继续原定期限，普通死亡、出售装备或遗忘技能
@@ -697,8 +693,8 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 结构上限来自 Spec；实际金额、秒数、距离、概率、增量与公式常量不在本报告填默认值。
 `SourceData\Demo\content.json` 中对应位置：`progression`（`max_level`、`max_choices`、`xp_start`、`xp_thresholds` 等）、
 参数 `XP.BaseToNext/IncreasePerLevel`、`REWARD.PlayerXP.Base/PerLevel`、`REWARD.PlayerGold.Base/PerLevel`、
-`CHOICE.*` 抽卡权重、`progression.opening_offer/reroll_levels`、`SHOP.StartingGold/SellRatio/InteractRadiusCm/UpgradeCost/UpgradeStatBonusRatio`，
-`abilities[].tags/draftable`、`attributes`、`equipment[].buy_price/tags`，
+`CHOICE.*` 抽卡参数、`progression.opening_offer/reroll_levels/max_skill_rank`、`SHOP.StartingGold/SellRatio/InteractRadiusCm/UpgradeCost/UpgradeStatBonusRatio`，
+`abilities[].draftable`、`attributes`、`equipment[].buy_price`，
 营地怪物 `reward_xp/reward_gold`。
 
 | 正式键 | 类型、单位和转换责任 | 本域消费者 / 必须验证 |
@@ -706,13 +702,13 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | 累计 XP 的有界整数；严格递增阈值，等级合法；运行 int64，算术检查后再存储。 | PrepareExperience；逐级跨阈值、十级 MAX、无十一阈值。 |
 | `REWARD.PlayerXP / PlayerGold` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP / RewardGold` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
-| `CHOICE.UpgradeWeight / NewActiveOpenSlotWeight / NewActiveFullSlotWeight / NewPassiveWeight / AffinityStep / AffinityCap / ThirdSlotAttributeChance`、`progression.opening_offer / reroll_levels`、`CHOICE.<id>` | 权重与亲和为 R4 基点（权重 > 0，亲和 ≥ 1）；第三卡属性概率为基点概率；重抽等级严格递增且可达；属性增量按内容量纲；复合项全量预检。 | §6.3 抽卡与重抽、十次界限（含开局一次）、无放回、`DemoGrowthDraft/Reroll/OpeningPool`。 |
+| `CHOICE.NewActiveFullSlotWeight / FreeSlotAttributeChance`、`progression.opening_offer / reroll_levels / max_skill_rank`、`CHOICE.<id>` | 满槽新主动权重为基点（0 < 权重 ≤ 1）；自由位属性概率为基点概率；重抽等级严格递增且可达；属性增量按内容量纲；复合项全量预检。 | §6.3 抽卡与重抽、十次界限（含开局一次）、无放回、`DemoGrowthDraft/Reroll/OpeningPool`。 |
 | `SHOP.UpgradeCost / UpgradeStatBonusRatio`、`equipment[].passive.upgraded`、生成的 `upgraded_stats` | 整金币；R4 比例；进阶块与原块同一组 handler 同序；固定属性由生成器按 P2/R4/整厘米向下取整算出，原生导入复核。 | Upgrade 事务、`LDDemoEquipment::Effective*`、构筑包络（两件装备至多一件进阶）、`DemoGrowthUpgrade`。 |
-| `ABILITY.<id>.Rank[r]` | 三级正式效果、目标、法力/时间/距离、伤害与触发规则。 | Build/Combat；rank 演进、重新学习、未选 handler 删除依据。 |
+| `ABILITY.<id>.Rank[r]`、`SKILL.GrowthPerLevel` | 初级/高级两档的正式效果、目标、法力/时间/距离、伤害与触发规则；固定数值按拥有者当前等级乘 G(L)（`FLDDemoContentSnapshot::FindRank`）。 | Build/Combat；rank 演进、重新学习、等级成长、未选 handler 删除依据。 |
 | `ITEM.<id>.BuyPrice / Stats / Passive` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、商店显示与实际能力。 |
 | `SHOP.StartingGold / SellRatio`、`FORMULA.SellGold` | 比例按内容固定精度/精确有理值解释，乘法检查溢出，**仅最终卖价向下取整到整金币**；不拿 UI 浮点值结算。 | 初始化/卖出；非负、卖价不超买价、循环无正金币收益。 |
 | `SHOP.InteractRadiusCm` | Unreal 厘米；脚点到锚点 XY 距离，世界单点查询；客户端不传可接受半径。 | Open/Buy/Sell 当前资格；边界内外、错误地面/分层。 |
-| `CHOICE.attr_reach.AttackRangeCmFlat` / `ITEM.item_echo_maul` | 普攻距离厘米增量与获准普攻群攻内容；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程、横扫去重/来源奖励。 |
+| `CHOICE.attr_hand_out.AttackRangeCmFlat` / `ITEM.item_echo_maul` | 普攻距离厘米增量与获准普攻群攻内容；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程、横扫去重/来源奖励。 |
 | `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 失源/重学/死亡。 |
 | `POLICY.DeadChoiceCommit`、`POLICY.ResourceMaxChange`、`FORMULA.ResourceMaxChange` | 死时确认和保持资源百分比已确认；精度/取整/边界由内容公式单点维护，不是运行时多模式开关。 | 选择准入、活体一次最终同比换算、循环无取整获益、死亡不治疗。 |
 
@@ -820,8 +816,8 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | A08 重试/故障 | 必需奖励暂失败时只在下一边界重试一次；仍失败经 `FaultAuthority` 明确故障关闭且无正常胜者；必需奖励未决时 Capture 完成与 Host 结束都不越过它：同刻完成先经结算边界重试再锁定，Host 结束返回 `RequestInFlight`（`Lockdown.Rules.DemoCore.RewardSettlementBeforeClose`）。 |
 | A09 Permit | 错 Match/Batch/Phase/GateRevision、跨 callback/下一批旧许可在第一次 mutation 前拒绝；子 Apply 不会半途正常失败。 |
 | A10 持久三卡 | 连升/关闭重开/死亡/重复查询不改 OfferId/OptionId/内容/RNG；只有本次选择应用后才生成下一组；不打开窗口也已固定队首。 |
-| A11 合法池 | 对当前3/3/5池真实可达生成状态及36装备多重集合验证；满 Q/W、满rank、所有替换分支、属性复选、复合增量全可兑现且三卡互异。 |
-| A12 替换遗忘 | Q为三级旧技能、W占用；只点新卡/取消不消费，明确替换后旧rank遗忘，再学一级但旧截止保留；旧确认不能替另一技能。 |
+| A11 合法池 | 对当前目录的技能与属性卡池真实可达生成状态及全部两件装备组合验证；满 Q/W、满rank、所有替换分支、属性复选、复合增量全可兑现且三卡互异。 |
+| A12 替换遗忘 | Q为高级旧技能、W占用；只点新卡/取消不消费，明确替换后旧rank遗忘、新主动为初级，再学从初级开始但旧截止保留；旧确认不能替另一技能。 |
 | A13 选择竞争 | 两请求同Offer、选择与买卖/升级竞争；最多一次消费；stale返回同卡及新保护，不用旧整Build覆盖新CD。 |
 | A14 生死选择 | 死前Alive确认不能借同Life在Dead应用，死时新确认允许且不需要活Pawn、不治疗尸体，复活旧确认拒绝，机会不丢。 |
 | A15 两装备/真实例 | 两次显式购买同款产生两个实例，第三件拒绝；满槽先Sell后Buy，后Buy失败不回滚真实出售；无隐藏背包。 |
@@ -830,7 +826,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | A18 双属性/单被动 | 同款两实例属性相加、同名被动一次；卖一份不断另一份、不重置触发，卖最后一份移除贡献；装备被动不消耗成长选择。 |
 | A21 CD生命周期 | 换槽/升级/遗忘重学/死亡保持截止；已释放独立效果仍续原期限且不再查原持有，维持型按条件取消，正式离局取消独立效果。 |
 | A22 当前血蓝 | 买/卖/升阶/原子替换后保持原资源百分比，仅按最终投影一次；覆盖往返、精度、零上限/最小正值及真实伤害夹在两次交易之间，不能量化套利或治疗尸体；正常复活满新上限。 |
-| A23 射程与群攻 | attr_reach与echo_maul在服务端真实改变普攻范围/获准副命中；不扩大未指定技能距离；双自拍杆不重复触发横扫，副命中奖励仍恰一次。 |
+| A23 射程与群攻 | attr_hand_out与echo_maul在服务端真实改变普攻范围/获准副命中；不扩大未指定技能距离；双自拍杆不重复触发横扫，副命中奖励仍恰一次。 |
 | A24 回包/过窗 | 同ID同条款重放、异条款拒绝、64窗外拒旧+同步；先快照后回执/先回执后快照均不回滚当前状态；双击Pending不创建第二业务。 |
 | A24b 压缩/退休/查询 | 先折叠64条再提交65/66；退休有独立serial和 `FRetireAccount` 条目，多轮压缩后余额/Retired/修订/RetireStamp可复算，旧请求/实例/死亡拒旧、pin不释放。旧局同号query=InvalidContext；各LookupStatus的包装结果不伪造终态Receipt。 |
 | A25 终局/新局/隐私 | 关闸后无新奖励/选择/买卖/来源，只读旧回执；新局清局内域/旧ID。可见对手装备定义失视野撤销；结果只含批准名称/K/D/FinalLevel/赢家/原因/用时，无私有Instance/修订/技能/XP/金币/Offer/CD。 |

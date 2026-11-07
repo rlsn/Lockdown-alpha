@@ -137,36 +137,33 @@ namespace LDProgression
     // learned skills below MaxSkillRank offer the next rank, and every attribute card is always legal.
     LOCKDOWN_API ELDGrowthReason LegalPool(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
         TArray<FLegalOption>& Out);
-    // 112 §6 draw input. Pool is LegalPool of Build; the draw itself keeps only draftable skills.
+    // Draw input. Pool is LegalPool of Build; the draw itself keeps only draftable skills.
     struct FDrawInput
     {
         // The approved definitions (a snapshot's Get(); tests may pass an edited copy).
         const FLDDemoContentDefinitions* Content = nullptr;
         const FLDGrowthBuild* Build = nullptr;
-        // Definitions of the equipped items (one per held instance); their tags join the build for tag affinity.
-        TArray<FName> Equipment;
         uint8 Ordinal = 0;
         uint64 Seed = 0;
         // Reroll: the cards of the replaced offer, avoided wherever the remaining pool still allows another card.
         TArray<FLegalOption> Avoid;
     };
 
-    // Tags of Option's definition shared with the rest of the build: every learned skill except Option's own definition
-    // and every equipped item. Attribute cards carry no tags.
-    LOCKDOWN_API int32 SharedTagCount(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const TArray<FName>& Equipment, const FLegalOption& Option);
-    // Skill-pool weight in units of 1e-8: kind weight (upgrade, new active by Q/W fullness, new passive) times
-    // min(AffinityStep^k, AffinityCap) with k = SharedTagCount. DataInvalid for attribute cards and unknown definitions.
-    LOCKDOWN_API ELDGrowthReason SkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-        const TArray<FName>& Equipment, const FLegalOption& Option, int64& OutWeight);
+    // Weight of a new skill in a level-up offer in basis points: 10000, except an unlearned active while Q and W are
+    // both occupied (CHOICE.NewActiveFullSlotWeight). Nothing depends on what else the build holds. DataInvalid for
+    // upgrades, attribute cards and unknown definitions.
+    LOCKDOWN_API ELDGrowthReason NewSkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+        const FLegalOption& Option, int64& OutWeight);
     // Whether the draw of opportunity Ordinal can always fill three distinct cards from Pool, whatever the seed.
     LOCKDOWN_API bool DrawFeasible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const TArray<FLegalOption>& Pool, uint8 Ordinal);
     // Opportunity 1 (opening): OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable passives,
-    // uniform within each group, in shuffled positions. Later opportunities: the first two cards from the weighted skill
-    // pool, the third from the attribute pool with ThirdSlotAttributeChance (equal weights) and from the skill pool
-    // otherwise; at most one attribute card; with Q/W full at most one new active. Every pick is without replacement.
-    // Deterministic in Seed.
+    // uniform within each group, in shuffled positions. Later opportunities fill three fixed slots (#147):
+    // 1. upgrade: one learned draftable skill below the top rank, uniform; a new skill when there is none;
+    // 2. new skill: one unlearned draftable skill weighted by NewSkillWeight;
+    // 3. free: an attribute card (uniform) with CHOICE.FreeSlotAttributeChance, otherwise another new skill.
+    // With Q/W full at most one new active per offer. A slot with no skill left takes an attribute card. Every pick is
+    // without replacement and deterministic in Seed.
     LOCKDOWN_API ELDGrowthReason DrawOffer(const FDrawInput& Input, const TArray<FLegalOption>& Pool, TArray<FLegalOption>& Out);
     // Private per-opportunity random material; a retry of the same ordinal reuses it.
     LOCKDOWN_API uint64 OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
@@ -174,12 +171,10 @@ namespace LDProgression
     LOCKDOWN_API uint64 RerollSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal);
     // Free rerolls earned by reaching Level (one per reached RerollLevels entry).
     LOCKDOWN_API uint8 RerollTokensEarned(const FLDDemoProgressionDefinition& Progression, uint8 Level);
-    // 112 §6: a new active replacing a learned one starts at max(1, old rank - 1).
-    inline uint8 ReplacementRank(uint8 OldRank) { return OldRank > 1 ? uint8(OldRank - 1) : uint8(1); }
     LOCKDOWN_API bool OptionStillLegal(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
         const FLDChoiceOption& Option);
     // Applies one option. A new active with both Q/W occupied needs a confirmed replacement naming the exact
-    // slot, old skill and old rank; the old skill is forgotten and the new one starts at ReplacementRank(old rank).
+    // slot, old skill and old rank; the old skill is forgotten without refund and the new one starts at rank 1 (#147 D13).
     // Every other option rejects a replacement. Revision is not changed here.
     LOCKDOWN_API ELDGrowthReason ApplyOption(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Current,
         const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail);

@@ -4,7 +4,7 @@
 #include "Blueprint/UserWidget.h"
 #include "LDWidgets.generated.h"
 class UWidgetTree;
-class UTextBlock;class UBorder;
+class UTextBlock;class UBorder;class URichTextBlock;
 UCLASS()
 class LOCKDOWN_API ULDCommandButton : public UButton
 {
@@ -60,4 +60,9 @@ namespace LDWidgets
     LOCKDOWN_API UTextBlock* Text(UWidgetTree* Tree,const FString& Value,int32 Size=16,FName Name=NAME_None);
     // Name gives automation a stable handle that survives copy changes; NAME_None keeps a generated name.
     LOCKDOWN_API ULDCommandButton* Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World=false,FName Name=NAME_None);
+    // Wrapping rich text in the Text look whose <b>…</> runs are bold and accented (#147 card keywords).
+    LOCKDOWN_API URichTextBlock* RichText(UWidgetTree* Tree,int32 Size=16,FName Name=NAME_None);
+    // Rebuilds Rich's two styles at Size (the text-size preference).
+    LOCKDOWN_API void SetRichTextSize(URichTextBlock* Rich,int32 Size);
+    LOCKDOWN_API int32 RichTextSize(const URichTextBlock* Rich);
 }
