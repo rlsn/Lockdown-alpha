@@ -815,9 +815,10 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     const auto* Content=Catalog();
     auto* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record) { Error=TEXT("Basic release lost its core, catalog or entity record."); return false; }
-    // A started swing always lands on its committed life (2026-11-07 user decision, LDCombatSourceRules::BasicReleaseGate):
-    // range, sight and observation gate only the start (StartNavAttack / camp admission). The release re-checks only the
-    // attacker's own control and that the exact target life still stands; the windup already spent the cadence.
+    // A started swing lands on its committed life however far it went (2026-11-07 user decision,
+    // LDCombatSourceRules::BasicReleaseGate): range gates only the start (StartNavAttack / camp admission). The release
+    // re-checks the attacker's own control, that the exact target life still stands, and (a later 2026-11-07 decision)
+    // that it is still observed and in clear sight; the windup already spent the cadence.
     const FLDCombatBodyRef TargetRef=Action.TargetBody;
     ALDCharacter* TargetActor=nullptr;
     const FLDBodyCombatState* TargetBody=TargetRef.IsValid() ? FindBody(TargetRef,&TargetActor) : nullptr;
@@ -829,6 +830,17 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     Gate.bCurrentPendingDeath=TargetBody && TargetBody->bPendingDeath;
     Gate.bTargetPresent=TargetRef.Victim.Kind!=ELDVictimKind::Contender || Mode->IsMemberPresent(TargetRef.Victim.EntityId);
     Gate.bSelf=TargetRef.Victim.EntityId==Record->Entity;
+    // Observation is resolved afresh for this release (contenders through Vision; camp attackers by server body).
+    FLDCombatBodyRef Seen;
+    FVector SeenFoot;
+    ELDCombatReject SeenReject;
+    Gate.bObserved=ResolveUnitTarget(*Record,Actor,Action.Target,Seen,SeenFoot,SeenReject) && Seen==TargetRef;
+    if (Gate.bObserved)
+    {
+        bool bFault=false;
+        Gate.bClearSight=LDCA::ClearSight(*Mode,*GetWorld(),FootOf(Actor),SeenFoot,bFault);
+        if (bFault) { Error=TEXT("Basic release sight failed on a registered body."); return false; }
+    }
     Outcome=LDCombatSourceRules::BasicReleaseGate(Gate);
     if (Outcome!=ELDCombatReject::None)
     {
@@ -838,12 +850,21 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     }
     UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=hit distance_cm=%.0f"),Action.Token,
         FVector::Dist2D(FootOf(Actor),FootOf(*TargetActor)));
+    return LandBasic(Actor,Body,Action,Error);
+}
+
+bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error)
+{
+    auto* Mode=Core();
+    const auto* Content=Catalog();
+    if (!Mode || !Content || !Action.TargetBody.IsValid())
+    { Error=TEXT("A landing basic lost its core, catalog or committed target."); return false; }
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Hit;
     Hit.HitId=FGuid::NewGuid();
     Hit.EffectId=FGuid::NewGuid();
     Hit.Token=Action.Token;
-    Hit.Target=TargetRef;
+    Hit.Target=Action.TargetBody;
     Hit.SourceBody={Body.Victim,Body.Identity};
     Hit.SourceEntity=Body.Victim.EntityId;
     Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();

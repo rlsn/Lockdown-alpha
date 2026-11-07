@@ -40,8 +40,9 @@ struct FLDActiveGateInput
 
 // Release of a basic attack whose windup legally started (target in range, observed and in clear sight at the start).
 // 2026-11-07 user decision ("once the windup starts the hit is certain, even if the target ran far") -- the swing lands on
-// its committed target life wherever that body went: distance, visibility and line of sight at the release are
-// deliberately not inputs.
+// its committed target life however far that body went: distance is deliberately not an input. A later 2026-11-07 user
+// decision ("let's add back the visibility and line of sight check") restores the 2026-11-06 release terms: the target
+// must still be observed (contender attackers) and in clear sight (every attacker) at the release.
 struct FLDBasicReleaseInput
 {
     // The attacker's own state: a Disarm/Stun/knockback that landed during the windup, or a taunt toward another body.
@@ -53,6 +54,10 @@ struct FLDBasicReleaseInput
     bool bCurrentPendingDeath=false;  // that body already took its lethal hit
     bool bTargetPresent=false;        // its contender is still a present member (camp members: true)
     bool bSelf=false;
+    // At the release: a contender attacker still observes that same life (camp perception is the camp module's duty, so a
+    // camp attacker passes true), and the footpoints have clear sight.
+    bool bObserved=false;
+    bool bClearSight=false;
 };
 
 // How the Direct receipt window answers one owner sequence.
@@ -82,8 +87,9 @@ namespace LDCombatSourceRules
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
-    // ControlBlocked when the attacker's own control ends the swing; TargetUnavailable only when the committed target life
-    // is gone (dead or dying, left the match, respawned as a new life or body); None: the swing lands.
+    // ControlBlocked when the attacker's own control ends the swing; TargetUnavailable when the committed target life is
+    // gone (dead or dying, left the match, respawned as a new life or body) or no longer observed; Blocked when sight to it
+    // is obstructed; None: the swing lands at any distance.
     LOCKDOWN_API ELDCombatReject BasicReleaseGate(const FLDBasicReleaseInput& Input);
 
     // COMBAT 5.1 persistent cooldown binding for one complete post-change build. A learned definition keeps
