@@ -1,15 +1,18 @@
 #include "Tests/LDNativeMotionProbe.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
 #include "Engine/ScopedMovementUpdate.h"
 #include "Engine/World.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/WorldSettings.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "PhysicsEngine/BodySetup.h"
 #include "Serialization/JsonSerializer.h"
 
 ALDNativeMotionProbeCharacter::ALDNativeMotionProbeCharacter(const FObjectInitializer& Initializer)
@@ -239,6 +242,36 @@ namespace
             if (Result) { Result->GetCharacterMovement()->SetComponentTickEnabled(false); }
             return Result;
         }
+        UStaticMeshComponent* ConvexFloor(bool Ramp=false)
+        {
+            auto* Actor=World->SpawnActor<AActor>();
+            if (!Actor) { return nullptr; }
+            auto* Mesh=NewObject<UStaticMesh>();
+            Mesh->CreateBodySetup();
+            auto* Setup=Mesh->GetBodySetup();
+            FKConvexElem Hull;
+            for (double X : {Ramp?0.:-500.,Ramp?220.:500.})
+            {
+                for (double Y : {-500.,500.})
+                {
+                    for (double Z : {-20.,Ramp?X*50./220.:0.}) { Hull.VertexData.Add(FVector(X,Y,Z)); }
+                }
+            }
+            Hull.UpdateElemBox();
+            Setup->AggGeom.ConvexElems.Add(MoveTemp(Hull));
+            Setup->CollisionTraceFlag=CTF_UseSimpleAsComplex;
+            Setup->CreatePhysicsMeshes();
+            auto* Shape=NewObject<UStaticMeshComponent>(Actor);
+            Actor->SetRootComponent(Shape);
+            Actor->AddInstanceComponent(Shape);
+            Shape->SetStaticMesh(Mesh);
+            Shape->SetMobility(EComponentMobility::Static);
+            Shape->SetCollisionProfileName(TEXT("BlockAll"));
+            Shape->CanCharacterStepUpOn=ECB_No;
+            Shape->SetCanEverAffectNavigation(false);
+            Shape->RegisterComponentWithWorld(World);
+            return Shape;
+        }
     };
 
     bool SaveTrace(FAutomationTestBase& Test, const TCHAR* Case, const ULDNativeMotionProbeMovement& Move, bool Passed)
@@ -346,6 +379,38 @@ bool FLDNativeSlideProbe::RunTest(const FString& Parameters)
         Passed&=TestTrue(TEXT("Production batch retains multiple committed movement pieces"),Movements>=2);
     }
     return SaveTrace(*this,TEXT("slide"),*Move,Passed) && Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeFloorGapProbe, "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeFloorGapProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)
+        || !TestNotNull(TEXT("Registered-height convex floor"),Fixture.ConvexFloor())) { return false; }
+    auto* Body=Fixture.Body({0,0,100});
+    if (!TestNotNull(TEXT("Falling native body"),Body)) { return false; }
+    auto* Move=CastChecked<ULDNativeMotionProbeMovement>(Body->GetCharacterMovement());
+    Move->SetMovementMode(MOVE_Falling);
+    for (int32 Step=0; Step<40; ++Step) { Move->PerformMovement(.05f); }
+    AddInfo(FString::Printf(TEXT("Settled foot=%.6f native distance=%.6f impactZ=%.6f"),
+        Move->GetActorFeetLocation().Z,Move->CurrentFloor.FloorDist,Move->CurrentFloor.HitResult.ImpactPoint.Z));
+    bool Passed=TestTrue(TEXT("Landing retains native walkable support"),Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor())
+        && TestTrue(TEXT("A settled body fits the strict registered ground gap"),
+            Move->GetActorFeetLocation().Z>=0 && Move->GetActorFeetLocation().Z<=UCharacterMovementComponent::MAX_FLOOR_DIST);
+    auto* Ramp=Fixture.ConvexFloor(true);
+    if (!TestNotNull(TEXT("Adjacent registered-height ramp"),Ramp)) { return false; }
+    Body->SetActorLocation(FVector(-1,0,190));
+    Move->SetMovementMode(MOVE_Falling);
+    for (int32 Step=0; Step<40; ++Step) { Move->PerformMovement(.05f); }
+    AddInfo(FString::Printf(TEXT("Ramp seam foot=%.6f native distance=%.6f impactZ=%.6f"),
+        Move->GetActorFeetLocation().Z,Move->CurrentFloor.FloorDist,Move->CurrentFloor.HitResult.ImpactPoint.Z));
+    Passed&=TestTrue(TEXT("The capsule rests on the ramp while its foot centre remains above flat ground"),
+        Move->IsMovingOnGround() && Move->CurrentFloor.IsWalkableFloor()
+        && Move->CurrentFloor.HitResult.GetComponent()==Ramp && Move->GetActorFeetLocation().X<0
+        && Move->GetActorFeetLocation().Z>UCharacterMovementComponent::MAX_FLOOR_DIST
+        && Move->CurrentFloor.FloorDist<=UCharacterMovementComponent::MAX_FLOOR_DIST);
+    return Passed;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeStepUpProbe, "Lockdown.Rules.DemoMotionProbe.StepUpRollback",

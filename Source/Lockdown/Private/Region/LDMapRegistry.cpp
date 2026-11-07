@@ -28,7 +28,7 @@ bool Reject(ELDWorldQueryFailure Code, const TCHAR* Detail, ELDWorldQueryFailure
 }
 
 // Legal standing ground at Foot (the capsule bottom) on the registered terrain: the authored terrain height and slope at
-// that XY, a physical floor piece agreeing with them right under the foot, and a capsule clear of static geometry.
+// the physical capsule's local support agreeing with the terrain, and a capsule clear of static geometry.
 // Walls and trees are tested with the whole capsule; other terrain pieces with the capsule lifted by the body's step
 // height, so the foot of a ramp or a plateau's rim beside the floor piece is not taken for an obstacle while a cliff
 // face still is.
@@ -59,18 +59,26 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     double Expected = 0;
     FVector Normal = FVector::UpVector;
     Terrain.Ground(FVector2D(Foot.X, Foot.Y), Expected, Normal);
-    // On a slope the capsule's lowest point rests above the plane by Radius * (1 / cos - 1).
-    const double Lift = Radius * (1.0 / Normal.Z - 1.0);
+    // A capsule at a ramp seam can rest on the slope beside its foot, even while the centre's terrain is flat.
+    // Start above the steepest permitted slope's capsule lift; the bottom of the sweep stays one native gap below Foot.
+    const double Gradient = double(LDDemoWorld::RampRise) / LDDemoWorld::RampRun;
+    const double Lift = Radius * (FMath::Sqrt(1.0 + Gradient * Gradient) - 1.0);
     const double Gap = UCharacterMovementComponent::MAX_FLOOR_DIST + UE_KINDA_SMALL_NUMBER;
+    const double MinSupportNormalDot = 1.0 / FMath::Sqrt(1.0 + Gradient * Gradient);
     FHitResult Hit;
-    const bool NearFloor = Foot.Z >= Expected - Gap && Foot.Z <= Expected + Lift + Gap;
-    const bool HitFloor = NearFloor && World.LineTraceSingleByChannel(Hit,
-        Foot + FVector(0, 0, Gap), Foot - FVector(0, 0, Lift + 2 * Gap), ECC_GameTraceChannel1);
-    if (!NearFloor || !HitFloor || FVector::DotProduct(Hit.ImpactNormal, Normal) < 1.0 - 1e-4
-        || FMath::Abs(Hit.ImpactPoint.Z - Expected) > Gap)
+    const bool NearFloor = Foot.Z >= Expected - Gap;
+    const bool HitFloor = NearFloor && World.SweepSingleByChannel(Hit,
+        Foot + FVector(0, 0, Height + Lift + Gap), Foot + FVector(0, 0, Height - Gap),
+        FQuat::Identity, ECC_GameTraceChannel1, Capsule);
+    double SupportHeight = 0;
+    FVector SupportNormal = FVector::UpVector;
+    if (HitFloor) { Terrain.Ground(FVector2D(Hit.ImpactPoint.X, Hit.ImpactPoint.Y), SupportHeight, SupportNormal); }
+    if (!NearFloor || !HitFloor || Hit.bStartPenetrating || FVector::DotProduct(Hit.ImpactNormal, SupportNormal) < MinSupportNormalDot - 1e-4
+        || FMath::Abs(Hit.ImpactPoint.Z - SupportHeight) > Gap)
     {
-        const FString Detail = FString::Printf(TEXT("NotGrounded: no matching local support; foot=%s terrain=%.3f hit=%d normalZ=%.6f impactZ=%.6f hitActor=%s. No downward fallback."),
-            *Foot.ToString(), Expected, HitFloor, Hit.ImpactNormal.Z, Hit.ImpactPoint.Z, *GetNameSafe(Hit.GetActor()));
+        const FString Detail = FString::Printf(TEXT("NotGrounded: no matching local support; foot=%s terrain=%.3f hit=%d penetrating=%d normalZ=%.6f supportNormalZ=%.6f normalDot=%.6f minDot=%.6f impactZ=%.6f supportZ=%.6f hitActor=%s. No downward fallback."),
+            *Foot.ToString(), Expected, HitFloor, Hit.bStartPenetrating, Hit.ImpactNormal.Z, SupportNormal.Z,
+            FVector::DotProduct(Hit.ImpactNormal, SupportNormal), MinSupportNormalDot, Hit.ImpactPoint.Z, SupportHeight, *GetNameSafe(Hit.GetActor()));
         return Reject(ELDWorldQueryFailure::NotGrounded, *Detail, Failure, Error);
     }
     UPrimitiveComponent* Support = Hit.GetComponent();
@@ -96,7 +104,7 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     FLDLegalGround Candidate;
     Candidate.World = Revision;
     Candidate.FootCm = Foot;
-    Candidate.SurfaceCm = Hit.ImpactPoint;
+    Candidate.SurfaceCm = FVector(Foot.X, Foot.Y, Expected);
     Candidate.SurfaceId = SurfaceHint;
     Candidate.Floor = Support;
     Out = MoveTemp(Candidate);

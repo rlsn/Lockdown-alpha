@@ -1329,6 +1329,19 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             for (int32 I = 0; I < 4; ++I) { if (!Ramp.PolygonCm[I].ToVector(Corner[I], Error)) { return false; } }
             const FVector2D Low = FVector2D(Corner[0] + Corner[1]) * .5, High = FVector2D(Corner[2] + Corner[3]) * .5;
             const FVector2D Up = (High - Low).GetSafeNormal() * (Capsule.GetCapsuleRadius() + 100);
+            const FVector2D Seam = Low - (High - Low).GetSafeNormal();
+            const double Gradient = (Corner[2].Z - Corner[0].Z) / FVector2D::Distance(Low, High);
+            FVector SeamFoot = Foot(Seam);
+            SeamFoot.Z += Capsule.GetCapsuleRadius() * (FMath::Sqrt(1 + Gradient * Gradient) - 1) - Gradient
+                + (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
+            FLDLegalGround SeamGround;
+            GroundAt(SeamFoot, Ramp.Id + TEXT(" capsule support across low seam"), SeamGround);
+            const FVector2D HighSeam = High - (High - Low).GetSafeNormal();
+            FVector HighSeamFoot = Foot(HighSeam);
+            HighSeamFoot.Z += Gradient
+                + (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
+            FLDLegalGround HighSeamGround;
+            GroundAt(HighSeamFoot, Ramp.Id + TEXT(" capsule support across high seam"), HighSeamGround);
             FLDLegalGround Bottom, Middle, Top;
             const bool Ends = GroundAt(Foot(Low - Up), Ramp.Id + TEXT(" foot"), Bottom)
                 & GroundAt(Foot((Low + High) * .5), Ramp.Id + TEXT(" slope"), Middle)

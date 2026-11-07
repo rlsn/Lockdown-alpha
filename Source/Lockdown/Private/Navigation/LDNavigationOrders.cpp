@@ -14,6 +14,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Region/LDMapRegistry.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 
 // Authority order book: one current order per contender body, Navigation is its only writer.
@@ -1622,6 +1623,22 @@ void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now,
     if (Now-Order.LastProgress<OrderNoProgressSeconds) { return; }
     if (Order.bReplanned)
     {
+        const auto* Capsule=Body.GetCapsuleComponent();
+        FHitResult Obstacle;
+        FCollisionQueryParams Query(SCENE_QUERY_STAT(DemoBlockedOrder),false,&Body);
+        const FVector Direction=Order.Points.IsValidIndex(Order.PointIndex)?
+            (Order.Points[Order.PointIndex]-Foot).GetSafeNormal2D():FVector::ZeroVector;
+        Body.GetWorld()->SweepSingleByChannel(Obstacle,Body.GetActorLocation(),
+            Body.GetActorLocation()+Direction*Capsule->GetScaledCapsuleRadius()*2,FQuat::Identity,
+            Capsule->GetCollisionObjectType(),Capsule->GetCollisionShape(),Query);
+        UE_LOG(LogLDNav,Display,TEXT("LD_NAV_BLOCKED order=%u foot=%s goal=%s next=%s point=%d/%d floor=%s floor_actor=%s obstacle=%s obstacle_component=%s impact=%s normal=%s"),
+            Order.Request.Identity.Order,*Foot.ToString(),*Order.Goal.ToString(),
+            Order.Points.IsValidIndex(Order.PointIndex)?*Order.Points[Order.PointIndex].ToString():TEXT("missing"),
+            Order.PointIndex,Order.Points.Num(),
+            *GetNameSafe(Body.GetCharacterMovement()->CurrentFloor.HitResult.GetComponent()),
+            *GetNameSafe(Body.GetCharacterMovement()->CurrentFloor.HitResult.GetActor()),
+            *GetNameSafe(Obstacle.GetActor()),*GetNameSafe(Obstacle.GetComponent()),
+            *Obstacle.ImpactPoint.ToString(),*Obstacle.ImpactNormal.ToString());
         EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::PathBlocked,true);
         return;
     }

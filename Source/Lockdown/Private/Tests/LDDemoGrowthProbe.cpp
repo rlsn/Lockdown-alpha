@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatTypes.h"
 #include "Components/TextBlock.h"
+#include "Components/ProgressBar.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
@@ -22,6 +23,8 @@
 #include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
+#include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDHUD.h"
@@ -36,6 +39,7 @@
 #include "Containers/Ticker.h"
 #include "UnrealClient.h"
 #include "Misc/App.h"
+#include "Misc/AutomationTest.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
@@ -77,6 +81,38 @@ double GrowthProbeRational(const FLDDemoRational& Value)
 {
     return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : -1.0;
 }
+
+struct FGrowthProbeKeepout
+{
+    FVector Centre;
+    double Radius = 0;
+};
+
+int32 GrowthProbeRouteKeepout(const TArray<FVector>& Path, const TArray<FGrowthProbeKeepout>& Keepouts)
+{
+    for (int32 I = 1; I < Path.Num(); ++I)
+    {
+        const FVector A(Path[I - 1].X, Path[I - 1].Y, 0), B(Path[I].X, Path[I].Y, 0);
+        const FVector Direction = (B - A).GetSafeNormal();
+        double FirstEntry = DBL_MAX;
+        int32 FirstZone = INDEX_NONE;
+        for (int32 Zone = 0; Zone < Keepouts.Num(); ++Zone)
+        {
+            const auto& Keepout = Keepouts[Zone];
+            const FVector Delta = FVector(Keepout.Centre.X, Keepout.Centre.Y, 0) - A;
+            if (FMath::PointDistToSegment(A + Delta, A, B) >= Keepout.Radius) { continue; }
+            const double Along = FVector::DotProduct(Delta, Direction);
+            const double AcrossSquared = FMath::Max(0., Delta.SizeSquared() - Along * Along);
+            const double Entry = FMath::Max(0., Along - FMath::Sqrt(FMath::Max(0., FMath::Square(Keepout.Radius) - AcrossSquared)));
+            if (Entry < FirstEntry) { FirstEntry = Entry; FirstZone = Zone; }
+        }
+        if (FirstZone != INDEX_NONE) { return FirstZone; }
+    }
+    return INDEX_NONE;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthProbeDetourGeometryTest, "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 FString GrowthProbeGuid(const FGuid& Id)
 {
@@ -238,19 +274,38 @@ constexpr int64 GrowthProbeHostDevGold = 7;
 constexpr double GrowthProbeDevSettleSeconds = 15.0;
 // Probe-only DEV attribute term: +12 AD points (P2), an arbitrary visible value, not a product number.
 constexpr int64 GrowthProbeDevADP2 = 1200;
-// Approved melee approach of low camp L1 (WORLD_CAMPS_AND_VISION §2.5, shared with the camp scenario), its two
-// scavengers within the target search radius of that point.
-const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
 constexpr double GrowthProbeCampSearchCm = 600.0;
 constexpr int32 GrowthProbeLowCampMembers = 2;
 
-// A private text of the Host's rendered HUD, read through reflection: the HUD itself is not changed for the probe.
-FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
+// Private rendered HUD widgets, read through reflection without changing the HUD for the probe.
+const UWidget* GrowthProbeHudWidget(const ALDPlayerController& PC, const TCHAR* Field)
 {
     const ULDHUD* Hud = PC.HUDUI;
     const FObjectProperty* Property = Hud ? FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field) : nullptr;
-    const UTextBlock* Text = Property ? Cast<UTextBlock>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
+    return Property ? Cast<UWidget>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
+}
+
+FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
+{
+    const UTextBlock* Text = Cast<UTextBlock>(GrowthProbeHudWidget(PC, Field));
     return Text ? Text->GetText().ToString() : FString();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthProbeHudRewardBindingTest, "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDGrowthProbeHudRewardBindingTest::RunTest(const FString& Parameters)
+{
+    for (const TCHAR* Field : {TEXT("ShopButtonText"), TEXT("LevelBadgeText")})
+    {
+        const auto* Property = FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field);
+        TestTrue(FString(Field) + TEXT(" is an actual HUD text widget"),
+            Property && Property->PropertyClass->IsChildOf(UTextBlock::StaticClass()));
+    }
+    const auto* Level = FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), TEXT("LevelBar"));
+    TestTrue(TEXT("The XP display is the actual HUD progress widget"),
+        Level && Level->PropertyClass->IsChildOf(UProgressBar::StaticClass()));
+    return true;
 }
 
 // The own reward lines the Host's rendered world feedback presented this match, read through reflection like the HUD
@@ -392,6 +447,13 @@ public:
     // Public anchors and approved radii: the duel happens beside the shop, outside its reach and the capture circle.
     FName ShopId;
     FVector ShopCentre = FVector::ZeroVector, KillSite = FVector::ZeroVector, HostSite = FVector::ZeroVector;
+    FVector WalkSite = FVector::ZeroVector;
+    TArray<LDDemoGrowthScenario::FGrowthProbeKeepout> WalkKeepouts;
+    TArray<FVector> WalkWaypoints;
+    uint32 WalkLife = 0;
+    uint32 WalkMatch = 0;
+    int32 WalkWaypoint = 0;
+    double WalkArrivalCm = 0;
     double ShopReach = 0, RespawnSeconds = 0;
     FGuid HostId, ClientId;
 
@@ -501,8 +563,10 @@ public:
     FHostReward HostKillReward, HostCampReward;
     uint8 HostKillVictimLevel = 0;
     bool bHostKillRewardSeen = false, bHostAtCamp = false, bHostCampDone = false;
-    int32 HostCampKills = 0, HostCampOrders = 0, HostCampNavigate = 0;
+    int32 HostCampKills = 0, HostCampOrders = 0;
     FLDMoveIdentity HostCampOrder;
+    FString HostCampAnchor;
+    FVector HostCampApproach = FVector::ZeroVector;
     TSharedPtr<FJsonObject> HostKillerRow;
 
     // D10: the buyer's presets staged in the Lobby, and each match's opening opportunity as the owner first saw it.
@@ -554,6 +618,7 @@ public:
     {
         Stage = Next;
         StageAt = FPlatformTime::Seconds();
+        if (Next != EStage::ToSite && Next != EStage::WalkOut) { WalkWaypoints.Reset(); }
     }
 
     bool Check(bool bValue, const TCHAR* Id, const FString& Name, const FString& Detail = FString())
@@ -996,8 +1061,7 @@ public:
             return true;
         }
         if (!PlanKills()) { return Finish(); }
-        PC.Navigation->Navigate(KillSite);
-        NavigateAttempts = 1;
+        if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
         SetStage(EStage::ToSite);
         return true;
     }
@@ -1241,28 +1305,248 @@ public:
         FCollisionShape Capsule;
         FString SiteError;
         const bool bCapsule = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
+        if (!PrepareWalkKeepouts(Registry, BodyRadius, SiteError))
+        { return Check(false, TEXT("Start"), TEXT("The fixture's authored camp and Boss walking exclusions exist"), SiteError); }
         bool bLegal = false;
-        for (const FVector& Direction : {Across, -Across, Outward, -Outward})
+        for (const double DistanceFactor : {2., 2.5, 3.})
         {
-            if (!bCapsule) { break; }
-            KillSite = ShopAnchor->Position + Direction * (2.0 * ShopReach);
-            HostSite = KillSite - Outward * AttackReach;
-            bool bPairLegal = true;
+            for (int32 Angle = 0; bCapsule && Angle < 16; ++Angle)
+            {
+                const double Radians = Angle * UE_TWO_PI / 16;
+                const FVector Direction = Outward * FMath::Cos(Radians) + Across * FMath::Sin(Radians);
+                KillSite = ShopAnchor->Position + Direction * (DistanceFactor * ShopReach);
+                HostSite = KillSite - Outward * AttackReach;
+                FVector KillNormal, HostNormal;
+                Registry.GetTerrain().Ground(FVector2D(KillSite), KillSite.Z, KillNormal);
+                Registry.GetTerrain().Ground(FVector2D(HostSite), HostSite.Z, HostNormal);
+                if (!FMath::IsNearlyEqual(KillSite.Z, HostSite.Z)
+                    || !KillNormal.Equals(FVector::UpVector, 1e-4) || !HostNormal.Equals(FVector::UpVector, 1e-4)) { continue; }
+                bool bPairLegal = true;
+                for (FVector* Site : {&KillSite, &HostSite})
+                {
+                    FLDLegalGround LegalSite, OnMesh;
+                    ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
+                    bool bWithin = true;
+                    if (!bPairLegal || !Registry.QueryGround(Registry.Revision(), *Site, Capsule, ShopAnchor->Surface,
+                        LegalSite, SiteFailure, SiteError)
+                        || !LDPathSteering::PlanStart(Registry, LegalSite, Capsule, OnMesh, SiteFailure, SiteError))
+                    { bPairLegal = false; break; }
+                    *Site = OnMesh.SurfaceCm;
+                    bPairLegal = Registry.QueryShopReach(Registry.Revision(), ShopId, *Site, bWithin, SiteFailure, SiteError) && !bWithin
+                        && FVector::Dist2D(*Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius
+                        && !WalkKeepouts.ContainsByPredicate([Site](const auto& Zone)
+                            { return FVector::Dist2D(*Site, Zone.Centre) < Zone.Radius; });
+                }
+                bPairLegal &= FMath::IsNearlyEqual(KillSite.Z, HostSite.Z);
+                if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
+            }
+            if (bLegal || !bCapsule) { break; }
+        }
+        if (!Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
+            FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError)))
+        { return false; }
+        const bool bCampReady = PrepareLowCamp(Registry, BodyRadius, SiteError);
+        if (!Check(bCampReady, TEXT("N03"),
+            TEXT("The Host's low-camp reward sample has authored homes and a legal native approach"),
+            HostCampAnchor + TEXT(": ") + SiteError)) { return false; }
+        for (const auto& Anchor : Registry.GetGeometry()->Anchors)
+        {
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn) { continue; }
+            FVector Spawn;
+            if (!Anchor.PositionCm.ToVector(Spawn, SiteError))
+            { return Check(false, TEXT("N03"), TEXT("The authored spawn position is valid"), Anchor.Id + TEXT(": ") + SiteError); }
             for (const FVector& Site : {KillSite, HostSite})
             {
-                FLDLegalGround LegalSite;
-                ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
-                bool bWithin = true;
-                bPairLegal = bPairLegal
-                    && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                    && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
-                    && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+                if (!PlanDuelWalk(Registry, Spawn, Site, SiteError))
+                { return Check(false, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
+                    Anchor.Id + TEXT(": ") + SiteError); }
             }
-            if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
         }
-        bSitesReady = bLegal;
-        return Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
-            FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError));
+        WalkWaypoints.Reset();
+        bSitesReady = true;
+        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"));
+    }
+
+    bool PrepareWalkKeepouts(const ULDMapRegistry& Registry, double BodyRadius, FString& WalkError)
+    {
+        const auto* Geometry = Registry.GetGeometry();
+        if (!Geometry) { WalkError = TEXT("The registered world geometry is missing."); return false; }
+        WalkKeepouts.Reset();
+        WalkArrivalCm = BodyRadius + LDPathSteering::WaypointToleranceCm;
+        const auto& Defs = Catalog->Get();
+        // Fixture routes use authored homes, not hidden runtime unit positions. Ordinary camps only block bodies;
+        // the Boss is hostile without being attacked, so its public patrol points also need an aggro margin.
+        for (const auto& Anchor : Geometry->Anchors)
+        {
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Camp && Anchor.Kind != ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+            FVector Centre;
+            if (!Anchor.PositionCm.ToVector(Centre, WalkError)) { return false; }
+            double Radius = BodyRadius + WalkArrivalCm;
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
+            { Radius += LDDemoGrowthScenario::GrowthProbeRational(Defs.Boss.AggroRadiusCm); }
+            else
+            {
+                const auto* Placement = Defs.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId == Anchor.Id; });
+                const FLDDemoMonsterDefinition* Monster = nullptr;
+                if (!Placement || !Catalog->FindMonster(Placement->MonsterId, Monster, WalkError))
+                { WalkError = TEXT("The authored camp has no approved monster: ") + Anchor.Id; return false; }
+                const double MonsterRadius = LDDemoGrowthScenario::GrowthProbeRational(Monster->CollisionRadiusCm);
+                if (MonsterRadius <= 0 || Anchor.Members.IsEmpty())
+                { WalkError = TEXT("The authored camp has invalid body homes or radius: ") + Anchor.Id; return false; }
+                Radius += MonsterRadius;
+                for (const auto& Member : Anchor.Members)
+                {
+                    FVector Home;
+                    if (!Member.PositionCm.ToVector(Home, WalkError)) { return false; }
+                    WalkKeepouts.Add({Home, Radius});
+                }
+                continue;
+            }
+            if (!FMath::IsFinite(Radius) || Radius <= 0)
+            { WalkError = TEXT("The fixture walking exclusion has an invalid radius."); return false; }
+            WalkKeepouts.Add({Centre, Radius});
+        }
+        return true;
+    }
+
+    bool PlanDuelWalk(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Site, FString& WalkError)
+    {
+        FCollisionShape Capsule;
+        FLDLegalGround From, Start, Goal;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        const auto* Geometry = Registry.GetGeometry();
+        if (!Geometry || Geometry->Surfaces.IsEmpty())
+        { WalkError = TEXT("The fixture's registered ground surface is missing."); return false; }
+        const FName Surface(*Geometry->Surfaces[0].Id);
+        if (!ULDMapRegistry::ContentCapsule(*Catalog, Capsule, WalkError)
+            || !Registry.QueryGround(Registry.Revision(), Foot, Capsule, Surface, From, Failure, WalkError)
+            || !LDPathSteering::PlanStart(Registry, From, Capsule, Start, Failure, WalkError)
+            || !Registry.QueryGround(Registry.Revision(), Site, Capsule, Surface, Goal, Failure, WalkError)) { return false; }
+        WalkWaypoints.Reset();
+        for (int32 Attempt = 0; Attempt <= WalkKeepouts.Num() * 2; ++Attempt)
+        {
+            FLDCompletePath Direct;
+            if (!Registry.QueryCompletePath(Registry.Revision(), Start, Goal, Capsule, Direct, Failure, WalkError)) { return false; }
+            const int32 Blocked = LDDemoGrowthScenario::GrowthProbeRouteKeepout(Direct.Points, WalkKeepouts);
+            if (Blocked == INDEX_NONE) { WalkWaypoints.Add(Site); return true; }
+            FLDLegalGround Best;
+            double BestCost = DBL_MAX;
+            bool bBestTailClear = false;
+            TArray<int32> PendingZones = {Blocked};
+            for (int32 Pending = 0; Pending < PendingZones.Num(); ++Pending)
+            {
+                const auto& Zone = WalkKeepouts[PendingZones[Pending]];
+                for (const double Scale : {1.5, 2., 3.})
+                {
+                    for (int32 Angle = 0; Angle < 16; ++Angle)
+                    {
+                        const double Radians = Angle * UE_TWO_PI / 16;
+                        FVector Point(Zone.Centre.X + Zone.Radius * Scale * FMath::Cos(Radians),
+                            Zone.Centre.Y + Zone.Radius * Scale * FMath::Sin(Radians), 0);
+                        FVector Normal;
+                        Registry.GetTerrain().Ground(FVector2D(Point), Point.Z, Normal);
+                        if (FVector::Dist2D(Point, Start.SurfaceCm) <= WalkArrivalCm
+                            || WalkWaypoints.ContainsByPredicate([&Point](const FVector& Previous)
+                                { return FVector::Dist2D(Previous, Point) <= LDPathSteering::WaypointToleranceCm; })) { continue; }
+                        FLDLegalGround Detour;
+                        FLDCompletePath First, Second;
+                        FString Why;
+                        if (!Registry.QueryGround(Registry.Revision(), Point, Capsule, Surface, Detour, Failure, Why)
+                            || !Registry.QueryCompletePath(Registry.Revision(), Start, Detour, Capsule, First, Failure, Why)) { continue; }
+                        const int32 Earlier = LDDemoGrowthScenario::GrowthProbeRouteKeepout(First.Points, WalkKeepouts);
+                        if (Earlier != INDEX_NONE) { PendingZones.AddUnique(Earlier); continue; }
+                        if (!Registry.QueryCompletePath(Registry.Revision(), Detour, Goal, Capsule, Second, Failure, Why)) { continue; }
+                        const double Cost = First.LengthCm + Second.LengthCm;
+                        const bool bTailClear = LDDemoGrowthScenario::GrowthProbeRouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE;
+                        if ((bTailClear && !bBestTailClear) || (bTailClear == bBestTailClear && Cost < BestCost))
+                        { BestCost = Cost; Best = Detour; bBestTailClear = bTailClear; }
+                    }
+                }
+            }
+            if (BestCost == DBL_MAX)
+            { WalkError = TEXT("No legal native fixture detour around camp/Boss exclusion at ")
+                + WalkKeepouts[Blocked].Centre.ToString(); return false; }
+            WalkWaypoints.Add(Best.SurfaceCm);
+            Start = Best;
+        }
+        WalkError = TEXT("The fixture's bounded camp/Boss detour search did not finish.");
+        return false;
+    }
+
+    bool PrepareLowCamp(const ULDMapRegistry& Registry, double BodyRadius, FString& CampError)
+    {
+        const auto* Geometry = Registry.GetGeometry();
+        FCollisionShape Capsule;
+        if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, CampError))
+        { CampError = TEXT("The low-camp fixture has no registered geometry or capsule: ") + CampError; return false; }
+        for (const auto& Placement : Catalog->Get().Camps)
+        {
+            if (Placement.MonsterId != TEXT("monster_scavenger")) { continue; }
+            const auto* Anchor = Geometry->Anchors.FindByPredicate([&](const auto& Row) { return Row.Id == Placement.AnchorId; });
+            const FLDDemoMonsterDefinition* Monster = nullptr;
+            if (!Anchor || Anchor->Kind != ELDDemoWorldAnchorKind::Camp
+                || Anchor->Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers
+                || !Catalog->FindMonster(Placement.MonsterId, Monster, CampError))
+            { CampError = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + CampError; return false; }
+            FVector Centre;
+            if (!Anchor->PositionCm.ToVector(Centre, CampError)) { return false; }
+            double HomeReach = 0;
+            for (const auto& Member : Anchor->Members)
+            {
+                FVector Home;
+                if (!Member.PositionCm.ToVector(Home, CampError)) { return false; }
+                HomeReach = FMath::Max(HomeReach, FVector::Dist2D(Centre, Home));
+            }
+            const double ApproachRadius = HomeReach + LDDemoGrowthScenario::GrowthProbeRational(Monster->CollisionRadiusCm)
+                + BodyRadius + LDDemoGrowthScenario::GrowthProbeArrivalCm + LDPathSteering::WaypointToleranceCm;
+            const FVector TowardHost = (HostSite - Centre).GetSafeNormal2D();
+            const FVector Across(TowardHost.Y, -TowardHost.X, 0);
+            for (int32 Angle = 0; Angle < 16; ++Angle)
+            {
+                const double Radians = Angle * UE_TWO_PI / 16;
+                FVector Approach = Centre + (TowardHost * FMath::Cos(Radians) + Across * FMath::Sin(Radians)) * ApproachRadius;
+                FVector Normal;
+                Registry.GetTerrain().Ground(FVector2D(Approach), Approach.Z, Normal);
+                if (!FMath::IsNearlyEqual(Approach.Z, Centre.Z) || !Normal.Equals(FVector::UpVector, 1e-4)) { continue; }
+                FLDLegalGround Ground, OnMesh;
+                ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+                if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, CampError)
+                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError)
+                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError)) { continue; }
+                HostCampAnchor = Anchor->Id;
+                HostCampApproach = OnMesh.SurfaceCm;
+                CampError.Reset();
+                return true;
+            }
+        }
+        CampError = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + CampError;
+        return false;
+    }
+
+    bool NavigateDuelSite(ALDPlayerController& PC, const FVector& Site, const TCHAR* Id = TEXT("N03"))
+    {
+        const auto* Body = Cast<ALDCharacter>(PC.GetPawn());
+        const auto* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        FString WalkError;
+        if (!Body || !Registry) { return Fail(TEXT("N03"), TEXT("The fixture walking body or registered world is missing")); }
+        if (WalkMatch != PC.OwnerState.Match || WalkLife != PC.OwnerState.Life || !WalkSite.Equals(Site) || WalkWaypoints.IsEmpty())
+        {
+            if (!PlanDuelWalk(*Registry, Body->GetNavAgentLocation(), Site, WalkError)) { return Fail(Id, WalkError); }
+            WalkLife = PC.OwnerState.Life;
+            WalkMatch = PC.OwnerState.Match;
+            WalkSite = Site;
+            WalkWaypoint = NavigateAttempts = 0;
+            UE_LOG(LogLDNav, Display, TEXT("LD_GROWTH_WALK_FIXTURE life=%u site=%s waypoints=%d"),
+                WalkLife, *Site.ToString(), WalkWaypoints.Num());
+        }
+        while (WalkWaypoint < WalkWaypoints.Num() - 1
+            && FVector::Dist2D(Body->GetNavAgentLocation(), WalkWaypoints[WalkWaypoint]) <= WalkArrivalCm)
+        { ++WalkWaypoint; NavigateAttempts = 0; }
+        if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
+        { return Fail(Id, TEXT("The fixture could not reach its native walking waypoint: ") + PC.IntentFeedback); }
+        PC.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+        ++NavigateAttempts;
+        return true;
     }
 
     bool PlanKills()
@@ -1367,12 +1651,7 @@ public:
             }
             if (!bAtSite && !PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
-                if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-                {
-                    return Fail(TEXT("N03"), TEXT("The victim could not return to its duel site: ") + PC.IntentFeedback);
-                }
-                PC.Navigation->Navigate(HostSite);
-                ++NavigateAttempts;
+                if (!NavigateDuelSite(PC, HostSite)) { return Finish(); }
                 NextCommandAt = Now + 1.0;
             }
         }
@@ -1477,17 +1756,20 @@ public:
     {
         const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
         const FLDEquipmentView* OwnEquipment = PC.ReadOwnEquipment();
-        const FString GoldText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("GoldText"));
-        const FString LevelText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("LevelText"));
+        const FString GoldText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("ShopButtonText"));
+        const FString LevelText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("LevelBadgeText"));
+        const auto* LevelBar = Cast<UProgressBar>(LDDemoGrowthScenario::GrowthProbeHudWidget(PC, TEXT("LevelBar")));
+        const FString LevelTooltip = LevelBar ? LevelBar->GetToolTipText().ToString() : FString();
         LDHUD::FLevelView Level;
         if (OwnProgression)
         {
             Level = LDHUD::Level(OwnProgression->Level, OwnProgression->MaxLevel, OwnProgression->CumulativeXP,
                 OwnProgression->LevelThresholdXP, OwnProgression->bHasNextThreshold, OwnProgression->NextThresholdXP);
         }
-        Detail = FString::Printf(TEXT("own view xp %lld->%lld (want %lld) gold %lld->%lld (want %lld) publish %llu->%llu; HUD \"%s\" / \"%s\""),
+        Detail = FString::Printf(TEXT("own view xp %lld->%lld (want %lld) gold %lld->%lld (want %lld) publish %llu->%llu; HUD \"%s\" / \"%s\" / \"%s\" fraction=%.6f"),
             Mark.XPBefore, OwnProgression ? OwnProgression->CumulativeXP : -1, ExpectXP, Mark.GoldBefore,
-            OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision, *GoldText, *LevelText);
+            OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision,
+            *GoldText, *LevelText, *LevelTooltip, LevelBar ? LevelBar->GetPercent() : -1.f);
         const bool bView = OwnProgression && OwnEquipment && OwnProgression->CumulativeXP == ExpectXP && OwnEquipment->Gold == ExpectGold
             && PC.OwnerState.Growth.PublishRevision > Mark.PublishBefore;
         // The rendered world feedback floats the same reward beside the own body: "+N <LDTerms::Gold>" with "+N <LDTerms::Experience>".
@@ -1496,8 +1778,12 @@ public:
         const bool bFloated = Lines && LDDemoGrowthScenario::GrowthProbeRewardTail(*Lines, ExpectGold - Mark.GoldBefore,
             ExpectXP - Mark.XPBefore, Floated);
         Detail += FString::Printf(TEXT("; floated \"%s\""), Lines ? *Floated : TEXT("<no world feedback layer>"));
-        const bool bHud = bView && bFloated && GoldText == LDHUD::Gold(ExpectGold) && LevelText.Contains(Level.Level)
-            && LevelText.Contains(Level.Experience);
+        const FString ExpectedGold = FString::Printf(TEXT("%lld %s"), ExpectGold, LDTerms::Gold);
+        const bool bGold = GoldText == ExpectedGold || GoldText.StartsWith(ExpectedGold + TEXT(" · "));
+        const bool bHud = bView && bFloated && bGold && LevelBar && OwnProgression
+            && LevelText == FString::FromInt(OwnProgression->Level)
+            && LevelTooltip == Level.Level + TEXT(" · ") + Level.Experience
+            && FMath::IsNearlyEqual(LevelBar->GetPercent(), Level.Fraction, 1e-4f);
         if (bHud)
         {
             return LDDemoGrowthScenario::EGrowthProbeWait::Ready;
@@ -1506,7 +1792,7 @@ public:
             : LDDemoGrowthScenario::EGrowthProbeWait::Failed;
     }
 
-    // Host as killer: its kill of the buyer, then its last hits on both scavengers of low camp L1, each pay exactly the
+    // Host as killer: its kill of the buyer, then its last hits on both scavengers of the authored low camp, each pay exactly the
     // approved reward into the Host's own owner view and HUD.
     bool TickHostAsKiller(double Now, ALDPlayerController& PC)
     {
@@ -1544,14 +1830,13 @@ public:
             HostKillerRow->SetNumberField(TEXT("contender_gold"), double(Bounty.Gold));
             HostKillerRow->SetNumberField(TEXT("leader_bounty_gold"), double(LeaderBounty));
             bHostKillRewardSeen = true;
-            HostCampNavigate = 0;
             NextCommandAt = 0;
             return true;
         }
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         if (!bHostAtCamp)
         {
-            if (FVector::Dist2D(Body->GetNavAgentLocation(), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm)
+            if (FVector::Dist2D(Body->GetNavAgentLocation(), HostCampApproach)
                 <= LDDemoGrowthScenario::GrowthProbeArrivalCm)
             {
                 const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
@@ -1564,12 +1849,7 @@ public:
             }
             if (!PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
-                if (HostCampNavigate >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-                {
-                    return Fail(TEXT("N03"), TEXT("The Host could not reach low camp L1: ") + PC.IntentFeedback);
-                }
-                PC.Navigation->Navigate(LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
-                ++HostCampNavigate;
+                if (!NavigateDuelSite(PC, HostCampApproach)) { return false; }
                 NextCommandAt = Now + 1.0;
             }
             return true;
@@ -1598,7 +1878,7 @@ public:
             {
                 for (const FLDObservedUnitView& Unit : Frame->Units)
                 {
-                    const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), LDDemoGrowthScenario::GrowthProbeLowCampApproachCm);
+                    const double Distance = FVector::DistSquared2D(FVector(Unit.FeetCm), HostCampApproach);
                     if (Unit.Kind == ELDObservedUnitKind::CampMember && Unit.CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger)
                         && Distance <= Best)
                     {
@@ -1610,7 +1890,8 @@ public:
             if (!Target)
             {
                 if (Now - HostCampReward.Since <= LDDemoGrowthScenario::GrowthProbeKillSeconds) { return true; }
-                return Fail(TEXT("N03"), FString::Printf(TEXT("No scavenger of low camp L1 was visible to the Host (%d killed)"), HostCampKills));
+                return Fail(TEXT("N03"), FString::Printf(TEXT("No scavenger of authored low camp %s was visible to the Host (%d killed)"),
+                    *HostCampAnchor, HostCampKills));
             }
             if (HostCampKills * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill + HostCampOrders
                 >= LDDemoGrowthScenario::GrowthProbeLowCampMembers * LDDemoGrowthScenario::GrowthProbeAttackOrdersPerKill)
@@ -1646,6 +1927,7 @@ public:
         if (HostKillerRow.IsValid())
         {
             HostKillerRow->SetNumberField(TEXT("camp_kills"), HostCampKills);
+            HostKillerRow->SetStringField(TEXT("camp_anchor"), HostCampAnchor);
             HostKillerRow->SetNumberField(TEXT("camp_xp"), double(Members * Monster.XP));
             HostKillerRow->SetNumberField(TEXT("camp_gold"), double(Members * Monster.Gold));
         }
@@ -2408,12 +2690,7 @@ public:
             return true;
         }
         if (Now - StageAt < 1.0) { return true; }
-        if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-        {
-            return Fail(Id, TEXT("The owned body could not reach its public duel site: ") + PC.IntentFeedback);
-        }
-        PC.Navigation->Navigate(Site);
-        ++NavigateAttempts;
+        if (!NavigateDuelSite(PC, Site, Id)) { return Finish(); }
         StageAt = Now;
         return true;
     }
@@ -3169,8 +3446,7 @@ public:
         RecordShop(PC, TEXT("Applied"), LDDemoGrowthScenario::GrowthProbeReason(Seen->Header.Reason), Seen);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
-        PC.Navigation->Navigate(KillSite);
-        NavigateAttempts = 1;
+        if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
         SetStage(EStage::WalkOut);
         return true;
     }
@@ -3752,7 +4028,7 @@ public:
         Report->SetStringField(TEXT("start_path"),
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
+            ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of an authored low camp and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
             : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: exactly one pending opening choice at each match start (never re-granted by a respawn), real kill rewards, choices on the Host's preset offers, two-slot shop trades through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
@@ -3819,6 +4095,30 @@ public:
         return true;
     }
 };
+
+namespace LDDemoGrowthScenario
+{
+bool FLDGrowthProbeDetourGeometryTest::RunTest(const FString& Parameters)
+{
+    const TArray<FGrowthProbeKeepout> Keepouts = {{FVector(500, 0, 0), 80}, {FVector(200, 0, 0), 80}};
+    TestEqual(TEXT("The first encountered camp wins, not the first catalog row"),
+        GrowthProbeRouteKeepout({FVector(0, 0, 100), FVector(600, 0, 100)}, Keepouts), 1);
+    TestEqual(TEXT("A native route segment bypassing the camp bodies is accepted"),
+        GrowthProbeRouteKeepout({FVector(0, 100, 0), FVector(600, 100, 0)}, Keepouts), INDEX_NONE);
+    TestEqual(TEXT("Route segment order wins over proximity on a later segment"),
+        GrowthProbeRouteKeepout({FVector(600, 0, 0), FVector(400, 0, 0), FVector(0, 0, 0)}, Keepouts), 0);
+    FLDDemoGrowthProbe Probe;
+    Probe.WalkWaypoints.Add(FVector(200, 100, 0));
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::ToSite);
+    TestEqual(TEXT("Entering a walk retains its newly planned route"), Probe.WalkWaypoints.Num(), 1);
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::ShopOpen);
+    TestTrue(TEXT("A later walk from the shop cannot reuse the previous spawn's route"), Probe.WalkWaypoints.IsEmpty());
+    Probe.WalkWaypoints.Add(FVector(200, 100, 0));
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::WalkOut);
+    TestEqual(TEXT("The return walk retains its newly planned route"), Probe.WalkWaypoints.Num(), 1);
+    return true;
+}
+}
 
 void LDDemoTests::StartGrowthProbe(ALDPlayerController& Controller)
 {
