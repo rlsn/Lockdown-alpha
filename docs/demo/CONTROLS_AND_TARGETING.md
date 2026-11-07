@@ -171,7 +171,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
   小地图拖动和 Q/W/1/2/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
-- 默认臂长 2250 cm，固定 pitch −60°、yaw −45°、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
+- 默认臂长 2250 cm，固定 pitch −60°、yaw −90°（正北朝上，#97）、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
   身体、死亡等待相机、本地设置与美术镜头检查共用，不改变授权视野。
 - 滚轮每格改变 80 cm 臂长并夹在 1300–2400 cm（`ALDCharacter::ZoomedArmLength`），
   结果保存为本地设置 `Zoom`；这是固定的原生常量，没有可调的缩放步长或范围设置。

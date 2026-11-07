@@ -841,10 +841,39 @@ public:
             && FVector::Dist2D(StrictGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
             TEXT("ChaseGoal"), TEXT("A legal foot just outside the eroded navmesh edge, clicked as ground, projects to a reachable navmesh stand within one capsule radius"),
             Where + TEXT(" planned=") + StrictGoal.SurfaceCm.ToCompactString() + TEXT(" ") + StrictError);
-        return Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
+        const bool bChaseOk = Check(bChase && !Chase.Points.IsEmpty() && FVector::Dist2D(ChaseGoal.SurfaceCm, Margin) <= Capsule.GetCapsuleRadius(),
             TEXT("ChaseGoal"),
             TEXT("The same foot as a chased body's goal routes completely to its nearest navmesh point within one capsule radius"),
             Where + TEXT(" planned=") + ChaseGoal.SurfaceCm.ToCompactString() + TEXT(" ") + ChaseError);
+        // #97: a click on a trunk lands beside that trunk. The navmesh around a forest has thousands of polygons, and a
+        // projection that ranks only some of them sends the body to an unrelated spot across the map.
+        const FLDDemoWorldBlocker* Tree = nullptr;
+        double TreeDistance = DBL_MAX;
+        FVector TreeCentre = FVector::ZeroVector;
+        for (const FLDDemoWorldBlocker& Blocker : Registry->GetGeometry()->Blockers)
+        {
+            FVector Centre;
+            FString Ignored;
+            if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder || !Blocker.CenterCm.ToVector(Centre, Ignored)) { continue; }
+            const double Distance = FVector::Dist2D(Centre, HostSite);
+            if (Distance < TreeDistance) { Tree = &Blocker; TreeDistance = Distance; TreeCentre = Centre; }
+        }
+        if (!Tree)
+        {
+            return Check(false, TEXT("ChaseGoal"), TEXT("The world has a tree trunk to click for the trunk-click check"), HostSite.ToCompactString());
+        }
+        const double TrunkRadius = double(Tree->RadiusCm.Numerator) / double(Tree->RadiusCm.Denominator);
+        FLDCompletePath Around;
+        FLDLegalGround AroundGoal;
+        ELDWorldQueryFailure AroundFailure = ELDWorldQueryFailure::None;
+        FString AroundError;
+        const bool bAround = LDPathSteering::PlanRoute(*Registry, HostGround, TreeCentre, Surface, LDPathSteering::EGoal::Ground,
+            Capsule, Around, AroundGoal, AroundFailure, AroundError);
+        const double Beside = TrunkRadius + 4 * Capsule.GetCapsuleRadius();
+        return Check(bAround && !Around.Points.IsEmpty() && FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre) <= Beside, TEXT("ChaseGoal"),
+            TEXT("A ground click on the trunk nearest the Host projects to a reachable stand beside that trunk"),
+            FString::Printf(TEXT("tree=%s centre=%s planned=%s distance=%.0f limit=%.0f %s"), *Tree->Id, *TreeCentre.ToCompactString(),
+                *AroundGoal.SurfaceCm.ToCompactString(), FVector::Dist2D(AroundGoal.SurfaceCm, TreeCentre), Beside, *AroundError)) && bChaseOk;
     }
 
     // Client1 opens Settings through its production entry over the accepted first walk and holds it past the order

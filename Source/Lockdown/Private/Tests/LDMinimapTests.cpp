@@ -199,34 +199,23 @@ bool FLDMinimapFitsFrameTest::RunTest(const FString& Parameters)
         LDMinimap::MakeView(ELDMinimapOrientation::Facing,FBox2D(FVector2D(0.,0.),FVector2D(500.,0.)),MinimapFixtureFrame,-45.,true,0.).IsValid());
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapContentRadiusTest,"Lockdown.Rules.Minimap.ContentRadius",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDMinimapContentRadiusTest::RunTest(const FString& Parameters)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapWholeGroundTest,"Lockdown.Rules.Minimap.WholeGround",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDMinimapWholeGroundTest::RunTest(const FString& Parameters)
 {
-    // A square ground with its content in a ring: the turning views fit that circle, not the turned square's corners.
-    const FBox2D Ground(FVector2D(-5000.,-5000.),FVector2D(5000.,5000.));const FVector2D Frame(240.,240.);const double Radius=5000.;
-    const double Room=Frame.X-2.*LDMinimap::EdgeMargin;
-    for(const double Yaw:MinimapFixtureYaws)
+    // #97: a square ground turned 45 degrees is drawn whole as a diamond; the frame corners beside it are not ground.
+    const FBox2D Ground(FVector2D(-5000.,-5000.),FVector2D(5000.,5000.));const FVector2D Frame(240.,240.);
+    const LDMinimap::FView View=LDMinimap::MakeView(ELDMinimapOrientation::Camera,Ground,Frame,-45.,true,0.);
+    if(!TestTrue(TEXT("The turned camera view is valid"),View.IsValid())){return false;}
+    for(const FVector2D Corner:{Ground.Min,Ground.Max,FVector2D(Ground.Min.X,Ground.Max.Y),FVector2D(Ground.Max.X,Ground.Min.Y)})
     {
-        for(const bool bFacing:{false,true})
-        {
-            const LDMinimap::FView View=LDMinimap::MakeView(bFacing?ELDMinimapOrientation::Facing:ELDMinimapOrientation::Camera,Ground,Frame,Yaw,true,Yaw+20.,Radius);
-            if(!TestTrue(TEXT("A content-radius view is valid"),View.IsValid())){return false;}
-            TestTrue(TEXT("The content circle meets the margin, whatever the angle"),FMath::IsNearlyEqual(View.Scale,Room/(2.*Radius),MinimapTolerance));
-            for(double Angle=0.;Angle<360.;Angle+=15.)
-            {
-                const FVector2D Local=LDMinimap::ToFrame(View,MinimapFixtureDirection(Angle)*Radius);
-                TestTrue(TEXT("Every point of the content circle is drawn inside the frame margin"),Local.X>=LDMinimap::EdgeMargin-MinimapTolerance
-                    &&Local.Y>=LDMinimap::EdgeMargin-MinimapTolerance&&Local.X<=Frame.X-LDMinimap::EdgeMargin+MinimapTolerance&&Local.Y<=Frame.Y-LDMinimap::EdgeMargin+MinimapTolerance);
-            }
-        }
+        const FVector2D Local=LDMinimap::ToFrame(View,FVector(Corner,0.));
+        TestTrue(TEXT("Every ground corner is drawn inside the frame margin"),Local.X>=LDMinimap::EdgeMargin-MinimapTolerance
+            &&Local.Y>=LDMinimap::EdgeMargin-MinimapTolerance&&Local.X<=Frame.X-LDMinimap::EdgeMargin+MinimapTolerance&&Local.Y<=Frame.Y-LDMinimap::EdgeMargin+MinimapTolerance);
     }
-    const LDMinimap::FView Turned=LDMinimap::MakeView(ELDMinimapOrientation::Camera,Ground,Frame,-45.,false,0.);
-    TestTrue(TEXT("The content circle draws larger than the turned square's bounds"),
-        LDMinimap::MakeView(ELDMinimapOrientation::Camera,Ground,Frame,-45.,false,0.,Radius).Scale>Turned.Scale*1.3);
-    TestTrue(TEXT("North keeps fitting the box and ignores the content radius"),
-        FMath::IsNearlyEqual(LDMinimap::MakeView(ELDMinimapOrientation::North,Ground,Frame,-45.,false,0.,Radius).Scale,Room/10000.,MinimapTolerance));
-    TestTrue(TEXT("A non-positive radius keeps the box fit"),
-        FMath::IsNearlyEqual(LDMinimap::MakeView(ELDMinimapOrientation::Camera,Ground,Frame,-45.,false,0.,0.).Scale,Turned.Scale,MinimapTolerance));
+    TestTrue(TEXT("The frame centre shows ground"),LDMinimap::OnGround(View,Frame*.5,Ground));
+    for(const FVector2D Corner:{FVector2D(2.,2.),FVector2D(Frame.X-2.,2.),FVector2D(2.,Frame.Y-2.),FVector2D(Frame.X-2.,Frame.Y-2.)})
+    {TestFalse(TEXT("A frame corner beside the diamond is not ground, so a press there reaches the world"),LDMinimap::OnGround(View,Corner,Ground));}
+    TestFalse(TEXT("An invalid view shows no ground"),LDMinimap::OnGround(LDMinimap::FView(),Frame*.5,Ground));
     return true;
 }
 #endif

@@ -1,5 +1,6 @@
 #include "Navigation/LDPointerFeedback.h"
 #include "Character/LDCharacter.h"
+#include "Character/LDCameraSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -263,7 +264,7 @@ void ALDPointerFeedback::Tick(float Delta)
         if (!bCross) { continue; }
         const float Fade = 1.f - FMath::Square(MoveAge / CrossSeconds);
         const bool bShade = Bar >= 2;
-        Cross[Bar]->SetWorldLocationAndRotation(MoveAt + FVector(0, 0, bShade ? ShadeLift : DashLift), FRotator(0, -45.f + 90.f * (Bar % 2), 0));
+        Cross[Bar]->SetWorldLocationAndRotation(MoveAt + FVector(0, 0, bShade ? ShadeLift : DashLift), FRotator(0, LDCamera::Yaw + 90.f * (Bar % 2), 0));
         Cross[Bar]->SetWorldScale3D((bShade ? FVector(.6f, .15f, .01f) : FVector(.55f, .09f, .02f)) * Fade);
     }
     // An attack: a red ring closing on the target, wherever its proxy is presented.

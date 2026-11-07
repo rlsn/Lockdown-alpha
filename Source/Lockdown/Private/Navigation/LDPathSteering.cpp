@@ -96,6 +96,26 @@ namespace LDPathSteering
             Capsule,BodyGround.SurfaceId,Out,Failure,Error);
     }
 
+    // The navmesh point nearest an XY. Detour ranks only the first 128 polygons a query box gathers, in tile order, so a
+    // map-wide box over a forest-cut navmesh answers with an arbitrary far point. The box grows from the body's width
+    // instead; once one finds the navmesh, a last box as wide as that distance keeps any nearer point just past its edge.
+    bool NearestNavPoint(UNavigationSystemV1& Nav, const ANavigationData& Data, const FVector& At, double Limit, double HalfHeight,
+        FNavLocation& Out)
+    {
+        for (double Half=FMath::Min(Limit,100.);; Half=FMath::Min(Limit,Half*2))
+        {
+            if (Nav.ProjectPointToNavigation(At,Out,FVector(Half,Half,HalfHeight),&Data))
+            {
+                const double Found=FVector::Dist2D(At,Out.Location);
+                FNavLocation Nearer;
+                if (Found>Half && Nav.ProjectPointToNavigation(At,Nearer,FVector(Found,Found,HalfHeight),&Data)
+                    && FVector::Dist2D(At,Nearer.Location)<Found) { Out=Nearer; }
+                return true;
+            }
+            if (Half>=Limit) { return false; }
+        }
+    }
+
     bool ProjectableGoalFailure(ELDWorldQueryFailure Failure)
     {
         // Only a clicked point that is not itself a legal, reachable stand: never a stale/missing world or a bad request.
@@ -125,7 +145,7 @@ namespace LDPathSteering
         const FVector Flat=TerrainFoot(Registry,Clicked.X,Clicked.Y);
         const double Reach=FMath::Max(Max.X-Min.X,Max.Y-Min.Y);
         FNavLocation OnMesh;
-        if (!Nav->ProjectPointToNavigation(Flat,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data))
+        if (!NearestNavPoint(*Nav,*Data,Flat,Reach,Capsule.GetCapsuleHalfHeight(),OnMesh))
         {
             Failure=ELDWorldQueryFailure::Unreachable;
             Error=TEXT("Unreachable: no navmesh point near the clicked destination.");

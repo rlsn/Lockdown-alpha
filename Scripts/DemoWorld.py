@@ -440,6 +440,22 @@ def disc_overlaps(polygon, centre, radius):
         segment_distance_squared(centre, a, b) < bounded(radius * radius) for a, b in edges(polygon))
 
 
+# #97 forests hold over a thousand trunks and every exact step here is a Fraction. Like the native importer, a screen skips
+# an exact contact test only when plain floats put the shapes' bounds apart by more than SCREEN_CM, far beyond float error
+# at map scale; anything nearer still runs exactly, so no verdict changes.
+SCREEN_CM = 1.0
+
+
+def plan_box(polygon):
+    xs, ys = [float(vertex[0]) for vertex in polygon], [float(vertex[1]) for vertex in polygon]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def apart(box, centre, reach):
+    x, y, margin = float(centre[0]), float(centre[1]), float(reach) + SCREEN_CM
+    return x + margin < box[0] or box[2] < x - margin or y + margin < box[1] or box[3] < y - margin
+
+
 def interiors_overlap(first, second):
     """Convex polygons share interior points unless an edge of one has the other wholly on or outside its line."""
     for ring, other in ((first, second), (second, first)):
@@ -472,7 +488,7 @@ class Terrain:
         keys(elevation, {"level_step_cm", "plateaus", "ramps"}, "world.elevation")
         self.step = content._wire_fraction(elevation["level_step_cm"], "world level step")
         require(self.step > 0, "InvalidGeometry", "world.elevation", "a positive level step is required")
-        self.plateaus, self.ramps = {}, {}
+        self.plateaus, self.ramps, self.boxes = {}, {}, {}
         for kind, level_key in (("plateaus", "level"), ("ramps", "lower_level")):
             rows = elevation[kind]
             require(isinstance(rows, (list, tuple)) and len(rows) <= ELEVATION_ROWS, "InvalidGeometry", f"world.{kind}",
@@ -490,6 +506,7 @@ class Terrain:
                 require(all(minimum[i] <= vertex[i] <= maximum[i] for vertex in polygon for i in (0, 1)),
                         "InvalidGeometry", row["id"], "elevation footprint leaves the surface")
                 validate_polygon(polygon, row["id"])
+                self.boxes[row["id"]] = plan_box(polygon)
                 if kind == "plateaus":
                     require(all(vertex[2] == self.height(level) for vertex in polygon),
                             "InvalidGeometry", row["id"], "plateau vertex must lie at its level's height")
@@ -535,10 +552,13 @@ class Terrain:
 
     def disc_level(self, centre, radius):
         """Flat level a disc stands on wholly, or None when it meets a cliff, higher ground or a ramp."""
-        level = max((height for height, plateau in self.plateaus.values() if disc_inside(plateau, centre, radius)), default=0)
-        if any(height > level and disc_overlaps(plateau, centre, radius) for height, plateau in self.plateaus.values()):
+        near = [(height, plateau) for identity, (height, plateau) in self.plateaus.items()
+                if not apart(self.boxes[identity], centre, radius)]
+        level = max((height for height, plateau in near if disc_inside(plateau, centre, radius)), default=0)
+        if any(height > level and disc_overlaps(plateau, centre, radius) for height, plateau in near):
             return None
-        if any(disc_overlaps(ramp, centre, radius) for _, ramp in self.ramps.values()):
+        if any(not apart(self.boxes[identity], centre, radius) and disc_overlaps(ramp, centre, radius)
+               for identity, (_, ramp) in self.ramps.items()):
             return None
         return level
 
@@ -575,6 +595,7 @@ class Geometry:
                                     content._wire_fraction(row["radius_cm"], row["id"]))
                         for row in blockers if row["shape"] == "cylinder"}
         self.rows = {row["id"]: row for row in blockers}
+        self.boxes = {identity: plan_box(polygon) for identity, polygon in self.polygons.items()}
         self.terrain = Terrain(world["geometry"]["elevation"], self.minimum, self.maximum)
         # Level each blocker stands on; a blocker only blocks the sight of observers at or below its level.
         self.levels = {identity: self.terrain.ring_level(polygon) for identity, polygon in self.polygons.items()}
@@ -586,12 +607,16 @@ class Geometry:
         return None if level is None else self.terrain.height(level)
 
     def legal(self, p, radius=Fraction(0)):
+        reach = float(radius)
         return (p[2] == self.standing(p, radius)
                 and all(self.minimum[i] + radius <= p[i] <= self.maximum[i] - radius for i in (0, 1))
-                and all(not inside(p, polygon, strict=True)
-                        and polygon_distance_squared(p, polygon) >= bounded(radius * radius)
-                        for polygon in self.polygons.values())
-                and all(squared_distance(p, centre) >= bounded((size + radius) ** 2)
+                and all(apart(self.boxes[identity], p, radius)
+                        or (not inside(p, polygon, strict=True)
+                            and polygon_distance_squared(p, polygon) >= bounded(radius * radius))
+                        for identity, polygon in self.polygons.items())
+                and all(math.hypot(float(p[0]) - float(centre[0]), float(p[1]) - float(centre[1]))
+                        > reach + float(size) + SCREEN_CM
+                        or squared_distance(p, centre) >= bounded((size + radius) ** 2)
                         for centre, size in self.circles.values()))
 
     def clearance(self, p):

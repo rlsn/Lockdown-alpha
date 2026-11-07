@@ -13,11 +13,8 @@
 #include "Core/LDGroundQueries.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Camera/PlayerCameraManager.h"
-#include "Fonts/FontMeasure.h"
-#include "Framework/Application/SlateApplication.h"
 #include "Layout/Clipping.h"
 #include "Rendering/DrawElements.h"
-#include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -43,13 +40,10 @@ struct FLDMinimapStatic
     bool bContentTried=false,bGroundLogged=false,bResolved=false,bValid=false;
     FLDWorldRevision World;
     // Areas are clipped to the registered ground. Bounds is the box the view fits: every registered blocker, site, capture
-    // zone and spawn point as registered, kept to the ground (outer walls may lie wholly beyond it). FitRadius is the
-    // turning views' circle about its centre: the farthest site, spawn, capture-zone or inner blocker point plus a margin,
-    // never more than the box's half diagonal; 0 when there is none.
+    // zone and spawn point as registered, kept to the ground (outer walls may lie wholly beyond it).
     TArray<FArea> Areas;
     TArray<FSite> Sites;
     FBox2D Bounds=FBox2D(ForceInit);
-    double FitRadius=0.;
     // North-up plane (+X right, +Y down) at Scale frame units per cm from Origin; a view only rotates it.
     FVector2D Origin=FVector2D::ZeroVector;
     double Scale=-1.;
@@ -59,7 +53,7 @@ struct FLDMinimapStatic
     TArray<FRun> MemberShadow,MemberBody;
 };
 
-LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg,double FitRadius)
+LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg)
 {
     FView View;
     const FVector2D Span=Fit.GetSize();
@@ -76,13 +70,17 @@ LDMinimap::FView LDMinimap::MakeView(ELDMinimapOrientation Mode,const FBox2D& Fi
     View.Centre=Fit.GetCenter();View.FrameSize=FrameSize;
     const double Margin=FMath::Min(EdgeMargin,.25*FMath::Min(FrameSize.X,FrameSize.Y));const FVector2D Room=FrameSize-FVector2D(2.*Margin);
     // Facing fits the circumscribed circle; the others fit the rotated box's bounds, whose extent along a frame axis is
-    // the box span projected onto that axis's ground direction. A content radius replaces both for the turning views.
-    const bool bTurning=View.Mode!=ELDMinimapOrientation::North;
-    View.Scale=bTurning&&FMath::IsFinite(FitRadius)&&FitRadius>0.?FMath::Min(Room.X,Room.Y)/(2.*FitRadius)
-        :View.Mode==ELDMinimapOrientation::Facing?FMath::Min(Room.X,Room.Y)/Span.Size()
+    // the box span projected onto that axis's ground direction.
+    View.Scale=View.Mode==ELDMinimapOrientation::Facing?FMath::Min(Room.X,Room.Y)/Span.Size()
         :FMath::Min(Room.X/(Span.X*FMath::Abs(View.Right.X)+Span.Y*FMath::Abs(View.Right.Y)),Room.Y/(Span.X*FMath::Abs(View.Forward.X)+Span.Y*FMath::Abs(View.Forward.Y)));
     if(!FMath::IsFinite(View.Scale)||View.Scale<=0.){return FView();}
     return View;
+}
+bool LDMinimap::OnGround(const FView& View,const FVector2D& Local,const FBox2D& Ground)
+{
+    if(!View.IsValid()||!Ground.bIsValid){return false;}
+    const FVector World=ToWorld(View,Local);
+    return World.X>=Ground.Min.X&&World.X<=Ground.Max.X&&World.Y>=Ground.Min.Y&&World.Y<=Ground.Max.Y;
 }
 FVector2D LDMinimap::ToFrame(const FView& View,const FVector& World)
 {
@@ -103,8 +101,6 @@ FVector LDMinimap::ClampToGround(const FVector& World,const FBox2D& Ground)
 
 namespace
 {
-// Room around the farthest fitted point in the turning views, so a body walking just past a spawn stays on the map.
-constexpr double MinimapFitMarginCm=600.;
 // The minimap shares the registered ground bounds that observation coverage indexes.
 bool MinimapGroundBounds(const UWorld* World,FBox2D& Out)
 {
@@ -157,20 +153,16 @@ double MinimapArea(const TArray<FVector2D>& Polygon)
 // for the approved one. Spawn anchors are never drawn; they only keep the playable area inside the fit.
 bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Geometry,const FLDDemoContentDefinitions& Approved,const FBox2D& Ground,FString& Error)
 {
-    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);Cache.FitRadius=0.;
+    Cache.Areas.Reset();Cache.Sites.Reset();Cache.Bounds=FBox2D(ForceInit);
     if(!Approved.World.MapId.Equals(Geometry.MapId,ESearchCase::CaseSensitive))
     {Error=FString::Printf(TEXT("Approved content names map %s but the registered world is %s."),*Approved.World.MapId,*Geometry.MapId);return false;}
     auto ToCm=[&Error](const FString& Id,const FLDDemoWorldPoint& Point,FVector2D& Result)
     {FVector Cm;if(!Point.ToVector(Cm,Error)){Error=Id+TEXT(": ")+Error;return false;}Result=FVector2D(Cm.X,Cm.Y);return true;};
     FBox2D Content(ForceInit);
-    // Points the turning views keep inside their circle: sites, spawns, the capture zone and blocker corners strictly
-    // inside the ground (the outer fence lies on or beyond its edge and only bounds the empty field corners).
-    TArray<FVector2D> FitPoints;
-    auto Inside=[&Ground](const FVector2D& Point){return Point.X>Ground.Min.X&&Point.X<Ground.Max.X&&Point.Y>Ground.Min.Y&&Point.Y<Ground.Max.Y;};
     // An area is fitted as registered but keeps only its part on the ground; one left without area is not drawn.
-    auto Keep=[&Content,&Ground,&FitPoints,&Inside](FLDMinimapStatic::FArea& Area)
+    auto Keep=[&Content,&Ground](FLDMinimapStatic::FArea& Area)
     {
-        for(const FVector2D& Point:Area.Cm){Content+=Point;if(Inside(Point)){FitPoints.Add(Point);}}
+        for(const FVector2D& Point:Area.Cm){Content+=Point;}
         Area.Cm=MinimapClipBox(MoveTemp(Area.Cm),Ground);
         return MinimapArea(Area.Cm)>1.;
     };
@@ -201,7 +193,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     for(const FLDDemoWorldAnchor& Anchor:Geometry.Anchors)
     {
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
-        Content+=Site.Cm;FitPoints.Add(Site.Cm);
+        Content+=Site.Cm;
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn){continue;}
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Shop){Site.Kind=FLDMinimapStatic::ESite::Shop;}
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
@@ -239,9 +231,6 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
     {Cache.Bounds=FBox2D(FVector2D(FMath::Max(Content.Min.X,Ground.Min.X),FMath::Max(Content.Min.Y,Ground.Min.Y)),FVector2D(FMath::Min(Content.Max.X,Ground.Max.X),FMath::Min(Content.Max.Y,Ground.Max.Y)));}
     const FVector2D Span=Cache.Bounds.GetSize();
     if(!Cache.Bounds.bIsValid||!(Span.X>0.)||!(Span.Y>0.)){Cache.Bounds=Ground;}
-    const FVector2D Centre=Cache.Bounds.GetCenter();double Farthest=-1.;
-    for(const FVector2D& Point:FitPoints){Farthest=FMath::Max(Farthest,FVector2D::Distance(Point,Centre));}
-    if(Farthest>=0.){Cache.FitRadius=FMath::Min(Farthest+MinimapFitMarginCm,.5*Cache.Bounds.GetSize().Size());}
     return true;
 }
 void MinimapLayoutStatic(FLDMinimapStatic& Cache,const FVector2D& Origin,double Scale)
@@ -317,12 +306,11 @@ LDMinimap::FView MinimapLiveView(const ALDPlayerController& PC,const FLDMinimapS
     // Without a camera manager the camera yaw is unknown; the Camera view then keeps the north yaw instead of a guess.
     const double CameraYaw=PC.PlayerCameraManager?double(PC.PlayerCameraManager->GetCameraRotation().Yaw):LDMinimap::NorthYawDeg;
     const APawn* Body=PC.OwnerState.LifePhase==ELDLifePhase::Alive?PC.GetPawn():nullptr;
-    return LDMinimap::MakeView(Mode,MinimapStaticCurrent(Cache,World)?Cache.Bounds:Ground,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.,
-        MinimapStaticCurrent(Cache,World)?Cache.FitRadius:0.);
+    return LDMinimap::MakeView(Mode,MinimapStaticCurrent(Cache,World)?Cache.Bounds:Ground,Size,CameraYaw,Body!=nullptr,Body?double(Body->GetActorRotation().Yaw):0.);
 }
 }
 TSharedRef<SWidget> ULDMinimap::RebuildWidget()
-{if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor(.02f,.03f,.05f));WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}
+{if(!WidgetTree->RootWidget){auto* Background=WidgetTree->ConstructWidget<UBorder>();Background->SetBrushColor(FLinearColor::Transparent);WidgetTree->RootWidget=Background;}return Super::RebuildWidget();}
 
 FVector2D ULDMinimap::Fraction(const FGeometry& G,const FPointerEvent& E) const
 {return G.AbsoluteToLocal(E.GetScreenSpacePosition())/G.GetLocalSize();}
@@ -345,6 +333,12 @@ bool ULDMinimap::Gesture(FVector2D P,bool Move)
 FReply ULDMinimap::NativeOnMouseButtonDown(const FGeometry& G,const FPointerEvent& E)
 {
     FrameSize=G.GetLocalSize();
+    {
+        const auto* Owner=CastChecked<ALDPlayerController>(GetOwningPlayer());FBox2D Ground(ForceInit);
+        if(!Owner->IsFrontend()&&MinimapGroundBounds(GetWorld(),Ground)
+            &&!LDMinimap::OnGround(MinimapLiveView(*Owner,MinimapCache(StaticMap),GetWorld(),Ground,FrameSize),Fraction(G,E)*FrameSize,Ground))
+        {return FReply::Unhandled();}
+    }
     if(E.GetEffectingButton()==EKeys::LeftMouseButton)
     {
         // The press keeps the pointer until release even when the pan is refused, so the release never reaches the world.
@@ -488,38 +482,11 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
             {const FVector Hit=Origin+Direction*(-Origin.Z/Direction.Z);Footprint.Add(Spot(FVector(FMath::Clamp(Hit.X,Ground.Min.X,Ground.Max.X),FMath::Clamp(Hit.Y,Ground.Min.Y,Ground.Max.Y),0.)));}
         }
         if(Footprint.Num()==4){const FVector2f First=Footprint[0];Footprint.Add(First);Lines(11,Footprint,FLinearColor(1.f,1.f,1.f,.8f),1.5f);}
-        FSlateRenderer* Renderer=FSlateApplication::IsInitialized()?FSlateApplication::Get().GetRenderer():nullptr;
-        if(View.Mode!=ELDMinimapOrientation::North)
-        {
-            // A turned square ground would leave beyond-ground corners in the frame: the turning views show a round window
-            // no larger than the circle the ground fills around the view centre, and cover the rest in the frame's colour.
-            const FVector2D Middle=Size*.5;
-            const double Inscribed=FMath::Min(FMath::Min(View.Centre.X-Ground.Min.X,Ground.Max.X-View.Centre.X),FMath::Min(View.Centre.Y-Ground.Min.Y,Ground.Max.Y-View.Centre.Y))*View.Scale;
-            const float Radius=float(FMath::Max(4.,FMath::Min(FMath::Min(Size.X,Size.Y)*.5-1.,Inscribed)));
-            const FLinearColor Outside(.02f,.03f,.05f);
-            for(int32 Row=0;Row<FMath::CeilToInt(Size.Y);++Row)
-            {
-                const float Dy=float(Row)+.5f-float(Middle.Y);
-                if(FMath::Abs(Dy)>=Radius){Box(12,FVector2f(0.f,float(Row)),FVector2f(float(Size.X),1.f),Outside);continue;}
-                const float Dx=FMath::Sqrt(Radius*Radius-Dy*Dy);
-                Box(12,FVector2f(0.f,float(Row)),FVector2f(FMath::Max(0.f,float(Middle.X)-Dx),1.f),Outside);
-                Box(12,FVector2f(float(Middle.X)+Dx,float(Row)),FVector2f(FMath::Max(0.f,float(Size.X-Middle.X)-Dx),1.f),Outside);
-            }
-            TArray<FVector2f> Rim;
-            for(int32 Step=0;Step<=64;++Step){const float Angle=2.f*PI*Step/64.f;Rim.Add(FVector2f(float(Middle.X)+FMath::Cos(Angle)*Radius,float(Middle.Y)+FMath::Sin(Angle)*Radius));}
-            Lines(13,Rim,FLinearColor(.42f,.55f,.62f,.8f),1.5f);
-            if(Renderer)
-            {
-                // North (world -Y, up in 固定正北) is marked just inside the window's rim, outlined over any layer.
-                FFontOutlineSettings Outline;Outline.OutlineSize=2;Outline.OutlineColor=FLinearColor(0.f,0.f,0.f,.85f);
-                const float TextScale=PC->Controls?PC->Controls->TextScale:1.f;
-                const FSlateFontInfo Font=FCoreStyle::GetDefaultFontStyle(TEXT("Bold"),float(FMath::Max(1,FMath::RoundToInt(12*TextScale))),Outline);
-                const FString North=TEXT("北");const FVector2f Extent=Renderer->GetFontMeasureService()->Measure(North,Font);
-                const FVector2D Toward(-View.Right.Y,View.Forward.Y);
-                const FVector2D Mark=Middle+Toward.GetSafeNormal()*FMath::Max(0.,double(Radius)-.5*FMath::Max(Extent.X,Extent.Y)-3.);
-                FSlateDrawElement::MakeText(E,Base+14,G.ToPaintGeometry(Extent,FSlateLayoutTransform(FVector2f(float(Mark.X-Extent.X*.5),float(Mark.Y-Extent.Y*.5)))),North,Font,ESlateDrawEffect::None,FLinearColor(1.f,.86f,.42f));
-            }
-        }
+        // #97: the map is the ground itself, turned with the view (a diamond in 跟随镜头) and drawn whole; its rim is the
+        // minimap's edge and the frame beyond it stays see-through.
+        TArray<FVector2f> Rim={Spot(FVector(Ground.Min.X,Ground.Min.Y,0.)),Spot(FVector(Ground.Max.X,Ground.Min.Y,0.)),
+            Spot(FVector(Ground.Max.X,Ground.Max.Y,0.)),Spot(FVector(Ground.Min.X,Ground.Max.Y,0.))};
+        const FVector2f Closing=Rim[0];Rim.Add(Closing);Lines(13,Rim,FLinearColor(.42f,.55f,.62f,.9f),1.5f);
     }
     E.PopClip();return Base+14;
 }

@@ -26,6 +26,8 @@
 加减速度 8000、视野半径 1400cm、移速夹限与既有规则保持不变。
 旧保存镜头距离原值保留，采用推荐镜头需显式操作；镜头参数由操作域共享常量维护，不写入世界 SourceData。
 这些值覆盖上文较早批准的移速和路线预算，仍是试玩输入，未经平衡测试。
+**2026-11-07 用户决定镜头改为正北朝上（#97）：** 固定 yaw 由 −45° 改为 −90°（世界 −Y 在屏幕上方），pitch、FOV 与臂长不变，
+方形场地与跟随镜头的小地图因此对齐屏幕、铺满小地图（用户选择原话：“Camera north-up (−90°)”）。
 **2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
 世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
 ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。
