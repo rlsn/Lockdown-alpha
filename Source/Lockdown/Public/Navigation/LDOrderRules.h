@@ -103,10 +103,10 @@ namespace LDOrderRules
         void ResetMatch() { RetryAtSeconds = 0; }
     };
 
-    // Basic-attack pursuit without idle gaps (2026-11-07 user decision: a started windup always lands, so a chase at a
-    // similar speed runs approach -> windup in range -> certain hit -> keep chasing -> next windup).
+    // Basic-attack pursuit without idle gaps (2026-11-07 user decision: a started windup lands at any distance while the
+    // target stays seen, so a chase at a similar speed runs approach -> windup in range -> hit -> keep chasing -> next windup).
     // Only an action still winding up holds the attack order in place. A basic due at NowMs releases later in this same
-    // Actions phase (ReleaseDue runs after Navigation) and lands wherever the target is, so it no longer holds the body.
+    // Actions phase (ReleaseDue runs after Navigation) and lands wherever the seen target is, so it no longer holds the body.
     LOCKDOWN_API bool ActionHoldsChase(bool bActionInProgress, ELDCombatEntry Entry, int64 ReleaseAtMs, int64 NowMs);
     // Press: in range while the next beat is not ready yet, a target that walked away since the order's previous sample
     // (by at least PressShiftCm along the attacker-to-target line) is followed instead of waited for at the range edge;

@@ -56,9 +56,11 @@ Q/W 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTa
 订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
 嘲讽只出现在本人 `CombatView` 的状态里（`Taunt` 及到期），不进入他人可见的公开状态。
 同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
-普攻释放（`ReleaseBasic`）不重查距离、观察或视线，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
+普攻释放（`ReleaseBasic`）不重查距离，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
 被缴械/眩晕/击退或被嘲讽转向他人时放弃（`ControlBlocked`），目标那条生命已死亡或濒死、离局、换命或换身体时放弃
-（`TargetUnavailable`），否则必定命中起手时提交的目标生命（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”）。
+（`TargetUnavailable`），参赛者攻击者重新观察不到该生命时放弃（`TargetUnavailable`），视线被挡时放弃（`Blocked`），
+否则命中起手时提交的目标生命（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”；可见与视线检查按
+2026-11-07 后续用户决定 "let's add back the visibility and line of sight check" 恢复）。
 导航对同一观察目标重新下达的 AttackUnit 经 `ALDCombatDirector::AdoptNavAttack` 把未出手的普攻改挂到新订单，
 不因替换订单作废已提交的节拍；其他替换、S 与订单结束仍经 `CancelNavAttack` 放弃它。
 `FLDCombatBodyRead::ActionReleaseAtMs` 给出前摇中动作的释放时刻，供导航判断本 Actions 阶段即将出手的普攻已不再占住身体。
