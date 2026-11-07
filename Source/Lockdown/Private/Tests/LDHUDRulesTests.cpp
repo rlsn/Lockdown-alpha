@@ -550,6 +550,22 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Learned passives keep their rank; an equipment passive appears once under its equipment"),
         Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT("（")+LDHUD::SkillRankName(2)+TEXT("） | ")+HudName(TEXT("item_iron_plate")));
     TestTrue(TEXT("Passives carry no remaining time"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Passive&&Icons.Items[0].ExpiresAtMs==0);
+    // D21 recoveries are temporary squares ahead of the passives while they heal, with no remaining-time ring.
+    Combat.bOutOfCombatRegenActive=true;Combat.bDormRegenActive=true;
+    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
+    TestEqualSensitive(TEXT("Active out-of-combat and dorm recoveries show before the passives"),Tips(Icons),
+        FString(LDTerms::OutOfCombatRegen)+TEXT(" | ")+LDTerms::DormRegenActive()+TEXT(" | ")+HudName(TEXT("passive_iced_americano"))+TEXT("（")
+        +LDHUD::SkillRankName(2)+TEXT("） | ")+HudName(TEXT("item_iron_plate")));
+    TestTrue(TEXT("Recoveries are untimed temporary squares"),Icons.Items.Num()==4&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Temporary
+        &&Icons.Items[0].ExpiresAtMs==0&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==0);
+    Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;Content.Parameters.OutOfCombatMaxMPRegenBp=150;
+    Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;Content.Parameters.DormMaxMPRegenBp=1000;
+    const LDHUD::FActionDetailView Slow=LDHUD::SelfIconDetail(Icons.Items[0],LDHUD::FCardStats(),&Content);
+    TestTrue(TEXT("The out-of-combat popup states the REGEN delay and share"),Slow.Name==LDTerms::OutOfCombatRegen&&Slow.Summary==TEXT("临时状态")
+        &&Slow.Body==TEXT("脱战 5s 后，每秒恢复 1.5% 生命上限和法力上限\n出手、释放伤害技能或受到伤害立即停止"));
+    const LDHUD::FActionDetailView Dorm=LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),&Content);
+    TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限和法力上限")));
+    Combat.bOutOfCombatRegenActive=false;Combat.bDormRegenActive=false;
     Progression.Skills={Active};Combat.EquipmentPassives.Reset();
     Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
     TestTrue(TEXT("Known projections without statuses or passives show an empty grid"),Icons.Items.IsEmpty()&&!Icons.bSyncing&&Icons.Overflow==0);

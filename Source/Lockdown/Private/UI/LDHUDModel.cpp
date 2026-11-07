@@ -1306,6 +1306,15 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             if(Status.ExpiresAtMs>0&&bClock){Icon.Tip+=TEXT(" ")+TenthsUp(Status.ExpiresAtMs-NowMs);}
             (Icon.Kind==ESelfIconKind::Control?Control:Temporary).Add(MoveTemp(Icon));
         }
+        // D21 recoveries are conditional states: shown while they heal, without a remaining-time ring.
+        auto AddRecovery=[&Temporary](ESelfIconSource Source,const FString& Name,const TCHAR* Key)
+        {
+            FSelfIconView Icon;Icon.Kind=ESelfIconKind::Temporary;Icon.Source=Source;
+            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Key=FName(Key);
+            Temporary.Add(MoveTemp(Icon));
+        };
+        if(Combat->bOutOfCombatRegenActive){AddRecovery(ESelfIconSource::OutOfCombatRegen,LDTerms::OutOfCombatRegen,TEXT("Recovery.OutOfCombat"));}
+        if(Combat->bDormRegenActive){AddRecovery(ESelfIconSource::DormRegen,LDTerms::DormRegenActive(),TEXT("Recovery.Dorm"));}
     }
     if(Progression)
     {
@@ -1355,6 +1364,23 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
     case ESelfIconSource::Status:
         Detail.Summary=Icon.Kind==ESelfIconKind::Control?TEXT("控制状态"):TEXT("临时状态");
         break;
+    case ESelfIconSource::OutOfCombatRegen:
+    case ESelfIconSource::DormRegen:
+    {
+        Detail.Summary=TEXT("临时状态");
+        if(!Content){break;}
+        const FLDDemoContentParameters& P=Content->Parameters;
+        const bool bDorm=Icon.Source==ESelfIconSource::DormRegen;
+        const int64 HPBp=bDorm?P.DormMaxHPRegenBp:P.OutOfCombatMaxHPRegenBp;
+        const int64 MPBp=bDorm?P.DormMaxMPRegenBp:P.OutOfCombatMaxMPRegenBp;
+        const FString Rate=HPBp==MPBp?TEXT("每秒恢复 ")+HudPercent(HPBp)+TEXT(" 生命上限和法力上限")
+            :TEXT("每秒恢复 ")+HudPercent(HPBp)+TEXT(" 生命上限、")+HudPercent(MPBp)+TEXT(" 法力上限");
+        Lines.Add(bDorm?FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 ")+HudSeconds(P.DormRegenDelayMs)+TEXT(" 后，")+Rate+TEXT("；与脱战回复叠加")
+            :TEXT("脱战 ")+HudSeconds(P.OutOfCombatRegenDelayMs)+TEXT(" 后，")+Rate);
+        Lines.Add(bDorm?FString(TEXT("出手、释放伤害技能、受到伤害或离开"))+LDTerms::Dorm+TEXT("立即停止")
+            :FString(TEXT("出手、释放伤害技能或受到伤害立即停止")));
+        break;
+    }
     case ESelfIconSource::Learned:
     {
         Detail.Summary=TEXT("角色被动");
