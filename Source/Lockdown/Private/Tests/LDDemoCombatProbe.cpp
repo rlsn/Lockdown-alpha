@@ -103,6 +103,8 @@ constexpr double CombatProbeSkillArrivalCm = 60.0;
 constexpr double CombatProbeQueueAlong[] = {.5, .35, .65, .2, .8};
 constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0};
 constexpr double CombatProbeQueuePassCm = 90.0;
+// The queued walk starts at Client1's random respawn point, up to the map's width from the skill site, with a detour.
+constexpr double CombatProbeQueueWalkSeconds = 40.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
 // The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
@@ -1356,7 +1358,7 @@ public:
             bHandled = false;
             return true;
         }
-        if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+        if (Now - StageAt <= LDDemoCombatScenario::CombatProbeQueueWalkSeconds) { return true; }
         return Fail(TEXT("Queue"), TEXT("The queued walk did not finish: ") + PC.Navigation->Status);
     }
 
