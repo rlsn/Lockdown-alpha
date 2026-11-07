@@ -936,12 +936,16 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& 
     const auto Term=[](int64 RatioBp,int64 StatP2){return RatioBp>0&&StatP2>0?StatP2/10000*RatioBp+StatP2%10000*RatioBp/10000:int64(0);};
     switch(Token.Field)
     {
-    case EField::Amount:
+    case EField::Amount: case EField::Burst:
     {
-        const int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
+        int64 P2=Effect->BaseP2+Term(Effect->ADRatioBp,Stats.ADP2)+Term(Effect->APRatioBp,Stats.APP2)+Term(Effect->MaxHPRatioBp,Stats.MaxHPP2)
             +Term(Effect->ArmorRatioBp,Stats.ArmorP2);
+        if(Token.Field==EField::Burst){P2=Term(Effect->SecondaryRatioBp,P2);}
         Out=FString::Printf(TEXT("%lld"),(P2+50)/100);return true;
     }
+    case EField::BasicCount: Out=FString::FromInt(Effect->BasicCount);return true;
+    case EField::CooldownCut: Out=HudDecimal(double(10000-Effect->CooldownRatioBp)/100.);return true;
+    case EField::Refund: Out=HudDecimal(double(Effect->AmountMs)/1000.);return true;
     case EField::Duration: Out=HudDecimal(double(Effect->DurationMs)/1000.);return true;
     case EField::Ratio: Out=HudDecimal(double(Effect->RatioBp)/100.);return true;
     case EField::Count: Out=FString::FromInt(Effect->Count);return true;

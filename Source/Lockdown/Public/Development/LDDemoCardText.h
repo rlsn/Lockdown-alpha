@@ -14,6 +14,9 @@ namespace LDDemoCardText
         // BaseP2 plus the coefficients times the owner's AD, AP, max HP and armor, grown for the owner's level.
         Amount,
         Duration, Ratio, Count, Radius, Distance, Interval, Delay, SecondaryRatio, SecondaryDuration,
+        // BasicCount (stacks per primary basic hit); the cut of a dash boost's cooldown in percent; a cooldown refund's
+        // seconds (AmountMs); Amount x SecondaryRatioBp (a shield's burst).
+        BasicCount, CooldownCut, Refund, Burst,
         // One stat of the effect's Stats.
         Stat
     };

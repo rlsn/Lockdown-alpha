@@ -1358,7 +1358,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (TauntShieldEffect && Taunted>0)
             {
                 const int64 MaxHP=Body.Resources.MaxHpP2;
-                const int64 Each=LDCombatKeywords::GrowthScaledP2(TauntShieldEffect->BaseP2,GrowthLevelOf(Body))
+                // The released rank row is already grown for the caster's level (#147, ActiveOf).
+                const int64 Each=TauntShieldEffect->BaseP2
                     +MaxHP/10000*TauntShieldEffect->MaxHPRatioBp+MaxHP%10000*TauntShieldEffect->MaxHPRatioBp/10000;
                 if (Each>MAX_int64/Taunted) { Error=TEXT("Taunt shield overflowed."); return false; }
                 if (!GrantShieldTo(Body,Each*Taunted,TauntShieldEffect->DurationMs,EffectId,Body.Victim.EntityId,false,Now,Error)) { return false; }

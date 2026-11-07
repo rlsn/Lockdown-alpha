@@ -210,7 +210,7 @@
       "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer", "reroll_levels"],
       "properties": {
         "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 10},
-        "max_skill_rank": {"type": "integer", "const": 3}, "active_slots": {"type": "integer", "const": 2},
+        "max_skill_rank": {"type": "integer", "const": 2}, "active_slots": {"type": "integer", "const": 2},
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
         "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}},
         "opening_offer": {
@@ -416,7 +416,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "mode"],
-          "properties": {"op": {"const": "ability_crit"}, "mode": {"enum": ["Impaired", "Chance"]}, "ratio": {"$ref": "#/$defs/probability"}, "abilities": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/id"}}}
+          "properties": {"op": {"const": "ability_crit"}, "mode": {"enum": ["Impaired", "Chance"]}, "ratio": {"$ref": "#/$defs/probability"}, "abilities": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"$ref": "#/$defs/id"}}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "armor_ratio", "magic_resist_ratio", "duration"],
@@ -605,7 +605,7 @@
     "active_rank": {
       "type": "object", "additionalProperties": false, "required": ["rank", "mana_cost", "cooldown", "effects"],
       "properties": {
-        "rank": {"type": "integer", "minimum": 1, "maximum": 3}, "mana_cost": {"$ref": "#/$defs/mp"}, "cooldown": {"$ref": "#/$defs/positive_sec"},
+        "rank": {"type": "integer", "minimum": 1, "maximum": 2}, "mana_cost": {"$ref": "#/$defs/mp"}, "cooldown": {"$ref": "#/$defs/positive_sec"},
         "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}}
       }
     },
@@ -616,7 +616,7 @@
           "properties": {
             "id": {"$ref": "#/$defs/id"}, "kind": {"const": "active"}, "draftable": {"type": "boolean"},
             "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"},
-            "ranks": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/active_rank"}}
+            "ranks": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/active_rank"}}
           }
         },
         {
@@ -625,10 +625,10 @@
             "id": {"$ref": "#/$defs/id"}, "kind": {"const": "passive"}, "draftable": {"type": "boolean"},
             "target": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "Self"}}},
             "ranks": {
-              "type": "array", "minItems": 3, "maxItems": 3,
+              "type": "array", "minItems": 2, "maxItems": 2,
               "items": {
                 "type": "object", "additionalProperties": false, "required": ["rank", "effects"],
-                "properties": {"rank": {"type": "integer", "minimum": 1, "maximum": 3}, "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}}}
+                "properties": {"rank": {"type": "integer", "minimum": 1, "maximum": 2}, "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}}}
               }
             }
           }

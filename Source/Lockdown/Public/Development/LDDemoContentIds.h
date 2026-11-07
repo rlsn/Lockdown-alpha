@@ -5,21 +5,15 @@
 // Reservations describe the wire format, not an approved or enabled content set.
 // Retired identities must never be reused: skill 0..61 and item 0..98, 107, 113..114.
 enum class ELDDemoCharacterId : uint8 { CharacterDemo=1 };
+// #147 v7: abilities 92-103 actives, 104-113 passives (0-91 retired); attributes 15-22 (0-14 retired).
 enum class ELDDemoAbilityId : uint8
 {
-    ActiveArcBolt=62, ActiveGuardPulse=63, ActiveBindingSnare=64,
-    PassiveBattleRhythm=65, PassiveSecondWind=66, PassivePrecision=67,
-    ActiveSlipperThrow=68, ActiveFartDash=69, ActiveComboFlurry=70, ActiveSlickMoves=71,
-    PassiveCornered=72, PassiveLurking=73, PassivePublicShame=74, PassiveEagleEye=75,
-    ActiveMonkeyPeach=76, ActiveThousandYear=77, ActiveLunge=78, PassiveIronCrotch=79,
-    ActiveBodySlam=80, ActiveComeHere=81,
-    ActivePorcelainFlop=82, ActiveExposePost=83, ActiveBarrageRant=84, ActiveCancelBlast=85, ActivePieChart=86, ActiveTableFlip=87, PassiveDoxMaster=88, PassiveThickSkin=89, PassiveMentalGymnastics=90, PassiveKeyboardWarrior=91
+    ActivePantsDown=92, ActiveCrotchGrab=93, ActiveSnarkBolt=94, ActiveSeethe=95, ActiveBailOut=96, ActiveElbow=97, ActiveNotMad=98, ActiveStareDown=99, ActiveQuickMeeting=100, ActiveAccountBanned=101, ActiveUnplug=102, ActiveTripleCombo=103,
+    PassivePressed=104, PassiveTilted=105, PassiveStoke=106, PassiveKickDown=107, PassiveThickFace=108, PassiveFreeloader=109, PassiveSpecialForces=110, PassiveMoralVictory=111, PassiveIcedAmericano=112, PassiveLuckyStar=113
 };
 enum class ELDDemoAttributeId : uint8
 {
-    AttrMight=1, AttrFocus=2, AttrVitality=3, AttrResolve=4, AttrReach=5,
-    AttrMightHp=6, AttrMightHaste=7, AttrFocusAs=8, AttrFocusDefense=9, AttrReachMs=10, AttrRoamHybrid=11,
-    AttrWildGlassCannon=12, AttrWildJuggernaut=13, AttrWildBrawler=14
+    AttrProtein=15, AttrFastHands=16, AttrAllNighter=17, AttrCanteen=18, AttrBigTalk=19, AttrMorningRush=20, AttrHandOut=21, AttrWildFrenzy=22
 };
 enum class ELDDemoEquipmentId : uint8
 {

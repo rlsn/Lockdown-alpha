@@ -1,5 +1,6 @@
 #include "Combat/LDCombatKeywords.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Development/LDSkillGrowth.h"
 
 FLDKeywordTerms FLDKeywordTerms::From(const FLDDemoContentParameters& Parameters)
 {
@@ -13,16 +14,12 @@ FLDKeywordTerms FLDKeywordTerms::From(const FLDDemoContentParameters& Parameters
     Terms.BurnMs = Parameters.BurnMs;
     Terms.BurnMaxStacks = int32(FMath::Clamp<int64>(Parameters.BurnMaxStacks, 0, MAX_int32));
     Terms.LifestealCapBp = Parameters.LifestealCapBp;
+    Terms.SkillGrowthPerLevelBp = Parameters.SkillGrowthPerLevelBp;
     return Terms;
 }
 
 namespace LDCombatKeywords
 {
-    int64 GrowthScaledP2(int64 BaseP2, int32 /*Level*/)
-    {
-        return BaseP2;
-    }
-
     int32 BreachStacks(const FLDCombatSharedBreach& Breach, int64 AtMs)
     {
         return Breach.ExpiresAtMs > AtMs ? FMath::Max(Breach.Stacks, 0) : 0;
@@ -51,7 +48,9 @@ namespace LDCombatKeywords
 
     int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms)
     {
-        const int64 Base = GrowthScaledP2(FMath::Max<int64>(Terms.BurnPerSecP2, 0), Level);
+        int64 Base = 0;
+        const int64 Factor = LDSkillGrowth::FactorBp(Terms.SkillGrowthPerLevelBp, uint8(FMath::Clamp(Level, 1, int32(MAX_uint8))));
+        if (!LDSkillGrowth::GrowP2(FMath::Max<int64>(Terms.BurnPerSecP2, 0), Factor, Base)) { Base = 0; }
         const int64 AP = FMath::Max<int64>(SourceAPP2, 0), Ratio = FMath::Max<int64>(Terms.BurnAPRatioBp, 0);
         return Base + AP / 10000 * Ratio + AP % 10000 * Ratio / 10000;
     }

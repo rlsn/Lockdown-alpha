@@ -20,6 +20,8 @@ struct LOCKDOWN_API FLDKeywordTerms
     int64 BurnMs = 0;
     int32 BurnMaxStacks = 0;
     int64 LifestealCapBp = 0;
+    // SKILL.GrowthPerLevel: the burn's fixed part grows with its applier's level like every skill amount (#147).
+    int64 SkillGrowthPerLevelBp = 0;
 
     static FLDKeywordTerms From(const FLDDemoContentParameters& Parameters);
 };
@@ -73,10 +75,6 @@ struct FLDBurnTickShare
 
 namespace LDCombatKeywords
 {
-    // The level growth G(L) of a fixed skill value (v7 §6.1). The growth contract is the catalog layer's (#147
-    // "两档技能与 G(L)"); until it lands every level keeps its authored value, as every current skill does.
-    LOCKDOWN_API int64 GrowthScaledP2(int64 BaseP2, int32 Level);
-
     LOCKDOWN_API int32 BreachStacks(const FLDCombatSharedBreach& Breach, int64 AtMs);
     // Adds Stacks up to the cap and restarts the whole group (a full group only restarts); a lapsed group starts over.
     // False for a non-positive count or unusable terms (nothing changes then).
@@ -86,7 +84,8 @@ namespace LDCombatKeywords
     // Clears a lapsed group (half-open at ExpiresAtMs); true when it ended.
     LOCKDOWN_API bool ExpireBreach(FLDCombatSharedBreach& Breach, int64 AtMs);
 
-    // Per-second damage of one layer: G(L) x BurnPerSec + BurnAPRatio x AP, floored to P2 (G(L) through GrowthScaledP2).
+    // Per-second damage of one layer: G(L) x BurnPerSec + BurnAPRatio x AP, floored to P2 (G(L) of LDSkillGrowth with
+    // SKILL.GrowthPerLevel; skill amounts already arrive grown through FLDDemoContentSnapshot::FindRank).
     LOCKDOWN_API int64 BurnLayerPerSecondP2(int32 Level, int64 SourceAPP2, const FLDKeywordTerms& Terms);
     LOCKDOWN_API bool BurnActive(const FLDCombatBurn& Burn, int64 AtMs);
     // Adds Count copies of Layer: below the cap they join, at the cap each replaces the oldest; the shared timer

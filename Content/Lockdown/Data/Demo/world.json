@@ -642,7 +642,7 @@
     }
   ],
   "approval": {
-    "decision": "User approvals: 2026-11-02: D01 first content and balance, D02 single-layer Demo world, D03 attack-move rules. 2026-11-04: #82 core values (D17-D24), the D dash firing toward the pointer on press, build expansion entries and rules (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05: #112 build and spray-guard endgame rework and values (D33; CONTENT_AND_BALANCE 15.2, 15.6, 15.10-15.11); #79 Boss windup and patrol. A playtest baseline, not a balance check.",
+    "decision": "User approvals: 2026-11-02 D01-D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash; #79 dorm, camp return, airdrop, Boss, leader. 2026-11-05 #112 spray-guard D33; #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25% (player 300, floor 173, cap 675, camps 240/260, Boss 225, route 35s), flagpole 180s, guard 30s, airdrop 80s; #147 build v7 (two skill ranks growing with level, slotted three-choice, 12+10+8 catalog). A playtest baseline, not a balance check.",
     "status": "approved"
   },
   "author_schema_sha256": "646297c92a23334c08abe22b485304324cfef22fbbb708761099d06f4ae3586c",
@@ -1536,5 +1536,5 @@
   },
   "projection_revision": 2,
   "schema_version": 2,
-  "source_sha256": "80d2ee87aafa211e716adef0b3149f2fc8afe4bcd76547745d2bb2a6630ba794"
+  "source_sha256": "a6bfa4013f4a83f6fad370e7032835af8cf4f07488a6a92a0038a266ed4fbc2c"
 }

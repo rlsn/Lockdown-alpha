@@ -984,11 +984,9 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     {
         if (!LDCombatControl::ThornsTriggers(*Source.Effect,Contact,Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs)) { continue; }
         int64 BaseP2=0;
-        // Armor and max-HP coefficients of the holder now (passive_iron_crotch, item_nail_uniform); the fixed part grows
-        // with the holder's level (#147 G(L), at this trigger).
-        FLDDemoEffectDefinition Grown=*Source.Effect;
-        Grown.BaseP2=LDCombatKeywords::GrowthScaledP2(Grown.BaseP2,GrowthLevelOf(Body));
-        if (!LDCombatControl::ThornsBaseP2(Grown,Projection.Final.ArmorP2,Body.Resources.MaxHpP2,bCritical,BaseP2,Error)) { return false; }
+        // Armor and max-HP coefficients of the holder now; a learned passive's fixed part already arrives grown for the
+        // holder's level (#147, CollectPassiveEffects), equipment never grows.
+        if (!LDCombatControl::ThornsBaseP2(*Source.Effect,Projection.Final.ArmorP2,Body.Resources.MaxHpP2,bCritical,BaseP2,Error)) { return false; }
         LDCombatControl::MarkThorns(Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs,Source.Effect->IntervalMs);
         // The same hit, damage, ownership, death and reward path as any other hit; it is flagged so it never crits,
         // heals, cleaves or triggers the attacker's own thorns.

@@ -27,7 +27,7 @@ namespace LDObservation
     constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
     // Highest public rank of a Q/W active (APP_SPEC: every character skill tops out at 3); a full rank is the Lv3 mark.
-    constexpr uint8 MaxActiveRank = 3;
+    constexpr uint8 MaxActiveRank = 2;  // #147: 初级 and 高级
 }
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };

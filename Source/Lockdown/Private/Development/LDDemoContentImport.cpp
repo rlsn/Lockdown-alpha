@@ -16,50 +16,36 @@ struct FNativeId
 const FNativeId NativeIds[] =
 {
     DEMO_ID("character", "character_demo", ELDDemoCharacterId, CharacterDemo),
-    DEMO_ID("abilities", "active_arc_bolt", ELDDemoAbilityId, ActiveArcBolt),
-    DEMO_ID("abilities", "active_guard_pulse", ELDDemoAbilityId, ActiveGuardPulse),
-    DEMO_ID("abilities", "active_binding_snare", ELDDemoAbilityId, ActiveBindingSnare),
-    DEMO_ID("abilities", "passive_battle_rhythm", ELDDemoAbilityId, PassiveBattleRhythm),
-    DEMO_ID("abilities", "passive_second_wind", ELDDemoAbilityId, PassiveSecondWind),
-    DEMO_ID("abilities", "passive_precision", ELDDemoAbilityId, PassivePrecision),
-    DEMO_ID("abilities", "active_slipper_throw", ELDDemoAbilityId, ActiveSlipperThrow),
-    DEMO_ID("abilities", "active_fart_dash", ELDDemoAbilityId, ActiveFartDash),
-    DEMO_ID("abilities", "active_combo_flurry", ELDDemoAbilityId, ActiveComboFlurry),
-    DEMO_ID("abilities", "active_slick_moves", ELDDemoAbilityId, ActiveSlickMoves),
-    DEMO_ID("abilities", "passive_cornered", ELDDemoAbilityId, PassiveCornered),
-    DEMO_ID("abilities", "passive_lurking", ELDDemoAbilityId, PassiveLurking),
-    DEMO_ID("abilities", "passive_public_shame", ELDDemoAbilityId, PassivePublicShame),
-    DEMO_ID("abilities", "passive_eagle_eye", ELDDemoAbilityId, PassiveEagleEye),
-    DEMO_ID("abilities", "active_monkey_peach", ELDDemoAbilityId, ActiveMonkeyPeach),
-    DEMO_ID("abilities", "active_thousand_year", ELDDemoAbilityId, ActiveThousandYear),
-    DEMO_ID("abilities", "active_lunge", ELDDemoAbilityId, ActiveLunge),
-    DEMO_ID("abilities", "passive_iron_crotch", ELDDemoAbilityId, PassiveIronCrotch),
-    DEMO_ID("abilities", "active_body_slam", ELDDemoAbilityId, ActiveBodySlam),
-    DEMO_ID("abilities", "active_come_here", ELDDemoAbilityId, ActiveComeHere),
-    DEMO_ID("abilities", "active_porcelain_flop", ELDDemoAbilityId, ActivePorcelainFlop),
-    DEMO_ID("abilities", "active_expose_post", ELDDemoAbilityId, ActiveExposePost),
-    DEMO_ID("abilities", "active_barrage_rant", ELDDemoAbilityId, ActiveBarrageRant),
-    DEMO_ID("abilities", "active_cancel_blast", ELDDemoAbilityId, ActiveCancelBlast),
-    DEMO_ID("abilities", "active_pie_chart", ELDDemoAbilityId, ActivePieChart),
-    DEMO_ID("abilities", "active_table_flip", ELDDemoAbilityId, ActiveTableFlip),
-    DEMO_ID("abilities", "passive_dox_master", ELDDemoAbilityId, PassiveDoxMaster),
-    DEMO_ID("abilities", "passive_thick_skin", ELDDemoAbilityId, PassiveThickSkin),
-    DEMO_ID("abilities", "passive_mental_gymnastics", ELDDemoAbilityId, PassiveMentalGymnastics),
-    DEMO_ID("abilities", "passive_keyboard_warrior", ELDDemoAbilityId, PassiveKeyboardWarrior),
-    DEMO_ID("attributes", "attr_might", ELDDemoAttributeId, AttrMight),
-    DEMO_ID("attributes", "attr_focus", ELDDemoAttributeId, AttrFocus),
-    DEMO_ID("attributes", "attr_vitality", ELDDemoAttributeId, AttrVitality),
-    DEMO_ID("attributes", "attr_resolve", ELDDemoAttributeId, AttrResolve),
-    DEMO_ID("attributes", "attr_reach", ELDDemoAttributeId, AttrReach),
-    DEMO_ID("attributes", "attr_might_hp", ELDDemoAttributeId, AttrMightHp),
-    DEMO_ID("attributes", "attr_might_haste", ELDDemoAttributeId, AttrMightHaste),
-    DEMO_ID("attributes", "attr_focus_as", ELDDemoAttributeId, AttrFocusAs),
-    DEMO_ID("attributes", "attr_focus_defense", ELDDemoAttributeId, AttrFocusDefense),
-    DEMO_ID("attributes", "attr_reach_ms", ELDDemoAttributeId, AttrReachMs),
-    DEMO_ID("attributes", "attr_roam_hybrid", ELDDemoAttributeId, AttrRoamHybrid),
-    DEMO_ID("attributes", "attr_wild_glass_cannon", ELDDemoAttributeId, AttrWildGlassCannon),
-    DEMO_ID("attributes", "attr_wild_juggernaut", ELDDemoAttributeId, AttrWildJuggernaut),
-    DEMO_ID("attributes", "attr_wild_brawler", ELDDemoAttributeId, AttrWildBrawler),
+    DEMO_ID("abilities", "active_pants_down", ELDDemoAbilityId, ActivePantsDown),
+    DEMO_ID("abilities", "active_crotch_grab", ELDDemoAbilityId, ActiveCrotchGrab),
+    DEMO_ID("abilities", "active_snark_bolt", ELDDemoAbilityId, ActiveSnarkBolt),
+    DEMO_ID("abilities", "active_seethe", ELDDemoAbilityId, ActiveSeethe),
+    DEMO_ID("abilities", "active_bail_out", ELDDemoAbilityId, ActiveBailOut),
+    DEMO_ID("abilities", "active_elbow", ELDDemoAbilityId, ActiveElbow),
+    DEMO_ID("abilities", "active_not_mad", ELDDemoAbilityId, ActiveNotMad),
+    DEMO_ID("abilities", "active_stare_down", ELDDemoAbilityId, ActiveStareDown),
+    DEMO_ID("abilities", "active_quick_meeting", ELDDemoAbilityId, ActiveQuickMeeting),
+    DEMO_ID("abilities", "active_account_banned", ELDDemoAbilityId, ActiveAccountBanned),
+    DEMO_ID("abilities", "active_unplug", ELDDemoAbilityId, ActiveUnplug),
+    DEMO_ID("abilities", "active_triple_combo", ELDDemoAbilityId, ActiveTripleCombo),
+    DEMO_ID("abilities", "passive_pressed", ELDDemoAbilityId, PassivePressed),
+    DEMO_ID("abilities", "passive_tilted", ELDDemoAbilityId, PassiveTilted),
+    DEMO_ID("abilities", "passive_stoke", ELDDemoAbilityId, PassiveStoke),
+    DEMO_ID("abilities", "passive_kick_down", ELDDemoAbilityId, PassiveKickDown),
+    DEMO_ID("abilities", "passive_thick_face", ELDDemoAbilityId, PassiveThickFace),
+    DEMO_ID("abilities", "passive_freeloader", ELDDemoAbilityId, PassiveFreeloader),
+    DEMO_ID("abilities", "passive_special_forces", ELDDemoAbilityId, PassiveSpecialForces),
+    DEMO_ID("abilities", "passive_moral_victory", ELDDemoAbilityId, PassiveMoralVictory),
+    DEMO_ID("abilities", "passive_iced_americano", ELDDemoAbilityId, PassiveIcedAmericano),
+    DEMO_ID("abilities", "passive_lucky_star", ELDDemoAbilityId, PassiveLuckyStar),
+    DEMO_ID("attributes", "attr_protein", ELDDemoAttributeId, AttrProtein),
+    DEMO_ID("attributes", "attr_fast_hands", ELDDemoAttributeId, AttrFastHands),
+    DEMO_ID("attributes", "attr_all_nighter", ELDDemoAttributeId, AttrAllNighter),
+    DEMO_ID("attributes", "attr_canteen", ELDDemoAttributeId, AttrCanteen),
+    DEMO_ID("attributes", "attr_big_talk", ELDDemoAttributeId, AttrBigTalk),
+    DEMO_ID("attributes", "attr_morning_rush", ELDDemoAttributeId, AttrMorningRush),
+    DEMO_ID("attributes", "attr_hand_out", ELDDemoAttributeId, AttrHandOut),
+    DEMO_ID("attributes", "attr_wild_frenzy", ELDDemoAttributeId, AttrWildFrenzy),
     DEMO_ID("equipment", "item_iron_plate", ELDDemoEquipmentId, ItemIronPlate),
     DEMO_ID("equipment", "item_edge_blade", ELDDemoEquipmentId, ItemEdgeBlade),
     DEMO_ID("equipment", "item_runic_focus", ELDDemoEquipmentId, ItemRunicFocus),
@@ -206,11 +192,12 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     }
     // Inclusive retired identity ranges per section; they must stay exactly these and are never reused.
     struct FRetiredRange { int64 First; int64 Last; };
-    static const FRetiredRange RetiredAbilities[] = {{0, 61}};
+    static const FRetiredRange RetiredAbilities[] = {{0, 91}};
+    static const FRetiredRange RetiredAttributes[] = {{0, 14}};
     static const FRetiredRange RetiredEquipment[] = {{0, 98}, {107, 107}, {113, 114}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
-        {TEXT("equipment"), RetiredEquipment}})
+        {TEXT("attributes"), RetiredAttributes}, {TEXT("equipment"), RetiredEquipment}})
     {
         const TArray<FValue>* Ranges;
         const int32 Count = Pair.Value.Num();
@@ -1136,7 +1123,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         const TArray<FValue>* Ids = nullptr;
         if (!Check.Require(Mode.Equals(TEXT("Chance"), ESearchCase::CaseSensitive), Path, TEXT("unknown crit mode"))
             || !F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
-            || !Array(F.Take(TEXT("abilities")), Ids, Check, Path + TEXT(".abilities"), 1, 8))
+            || !Array(F.Take(TEXT("abilities")), Ids, Check, Path + TEXT(".abilities"), 1, 12))
         {
             return false;
         }
@@ -1442,108 +1429,83 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         return false;
     }
     ELDDemoTargetMode Mode = ELDDemoTargetMode::Self;
-    // Rank3Ops: the Lv3 qualitative change, required on rank 3 only; Rank3Drops: handlers rank 3 replaces.
-    FOpMask ExpectedOps, Rank3Ops, Rank3Drops;
+    // AdvancedOps: the advanced (top) rank's handlers, its one gameplay change included (#147).
+    FOpMask ExpectedOps, AdvancedOps;
     uint32 ExpectedStats = 0, TimedStats = 0;
     bool Active = false;
     using EOp = ELDDemoEffectOp;
     switch (Out.GetNativeId())
     {
-    case ELDDemoAbilityId::ActiveArcBolt:
-        Active = true; Mode = ELDDemoTargetMode::DirectionProjectile; ExpectedOps = OpBit(EOp::Damage);
-        Rank3Ops = OpBit(EOp::ResistShred); break;
-    case ELDDemoAbilityId::ActiveGuardPulse:
-        Active = true; ExpectedOps = OpBit(EOp::Shield) | OpBit(EOp::DispelRoot) | OpBit(EOp::DispelSlow);
-        Rank3Ops = OpBit(EOp::CooldownRefund); break;
-    case ELDDemoAbilityId::ActiveBindingSnare:
-        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Root);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::Vulnerable); break;
-    case ELDDemoAbilityId::PassiveBattleRhythm:
-        ExpectedOps = OpBit(EOp::StatBonus) | OpBit(EOp::BasicStacks); ExpectedStats = Bit(ELDDemoBonusStat::AttackSpeedBonusRatio); break;
-    case ELDDemoAbilityId::PassiveSecondWind:
-        ExpectedOps = OpBit(EOp::OutOfCombatRegen); break;
-    case ELDDemoAbilityId::PassivePrecision:
-        ExpectedOps = OpBit(EOp::StatBonus) | OpBit(EOp::CooldownRefund); ExpectedStats = Bit(ELDDemoBonusStat::CritChanceBonusRatio);
-        Rank3Ops = OpBit(EOp::AbilityCrit); break;
-    case ELDDemoAbilityId::ActiveSlipperThrow:
-        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Slow); break;
-    case ELDDemoAbilityId::ActiveFartDash:
-        Active = true; Mode = ELDDemoTargetMode::DirectionDash;
-        ExpectedOps = OpBit(ELDDemoEffectOp::Dash) | OpBit(ELDDemoEffectOp::SelfArea) | OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Slow);
-        // Lv3: a poison zone at the start point whose pulses trigger on-hit effects at a coefficient.
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::Zone) | OpBit(ELDDemoEffectOp::ZoneDamage) | OpBit(ELDDemoEffectOp::OnHit);
-        break;
-    case ELDDemoAbilityId::ActiveComboFlurry:
-        Active = true; ExpectedOps = OpBit(EOp::TimedStatBonus); TimedStats = Bit(ELDDemoBonusStat::AttackSpeedBonusRatio);
-        Rank3Ops = OpBit(EOp::CooldownRefund); break;
-    case ELDDemoAbilityId::ActiveSlickMoves:
-        Active = true; ExpectedOps = OpBit(EOp::TimedStatBonus);
-        TimedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio) | Bit(ELDDemoBonusStat::AttackRangeCmFlat);
-        Rank3Ops = OpBit(EOp::DispelSlow) | OpBit(EOp::Momentum); break;
-    case ELDDemoAbilityId::PassiveCornered:
-        ExpectedOps = OpBit(EOp::LowHpStatBonus); ExpectedStats = Bit(ELDDemoBonusStat::ADBonusRatio);
-        Rank3Ops = OpBit(EOp::TriggeredShield); break;
-    case ELDDemoAbilityId::PassiveLurking:
-        ExpectedOps = OpBit(EOp::AmbushDamage); break;
-    case ELDDemoAbilityId::PassivePublicShame:
-        ExpectedOps = OpBit(EOp::ControlDamageAmp); Rank3Ops = OpBit(EOp::ManaOnHit); break;
-    case ELDDemoAbilityId::PassiveEagleEye:
-        ExpectedOps = OpBit(EOp::StatBonus) | OpBit(EOp::LongReach); ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat); break;
-    case ELDDemoAbilityId::ActiveMonkeyPeach:
-        Active = true; Mode = ELDDemoTargetMode::Unit;
-        ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Disarm) | OpBit(EOp::CooldownRefund); Rank3Ops = OpBit(EOp::AbilityCrit); break;
-    case ELDDemoAbilityId::ActiveThousandYear:
-        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Backstab); break;
-    case ELDDemoAbilityId::ActiveLunge:
+    case ELDDemoAbilityId::ActivePantsDown:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Root);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Root); break;
+    case ELDDemoAbilityId::ActiveCrotchGrab:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Stun);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Stun) | OpBit(EOp::Execute); break;
+    case ELDDemoAbilityId::ActiveSnarkBolt:
+        Active = true; Mode = ELDDemoTargetMode::DirectionProjectile; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Slow);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Slow) | OpBit(EOp::Pierce); break;
+    case ELDDemoAbilityId::ActiveSeethe:
+        Active = true; ExpectedOps = OpBit(EOp::SelfArea) | OpBit(EOp::Damage) | OpBit(EOp::Burn);
+        AdvancedOps = OpBit(EOp::SelfArea) | OpBit(EOp::Damage) | OpBit(EOp::Burn) | OpBit(EOp::Echo); break;
+    case ELDDemoAbilityId::ActiveBailOut:
         Active = true; Mode = ELDDemoTargetMode::DirectionDash; ExpectedOps = OpBit(EOp::Dash) | OpBit(EOp::EmpowerBasic);
-        Rank3Ops = OpBit(EOp::CooldownRefund) | OpBit(EOp::PathSlow); break;
-    case ELDDemoAbilityId::PassiveIronCrotch:
-        ExpectedOps = OpBit(EOp::Thorns); break;
-    case ELDDemoAbilityId::ActiveBodySlam:
-        // The landing delivers the self-area hits around the landing foot.
-        Active = true; Mode = ELDDemoTargetMode::GroundPoint;
-        ExpectedOps = OpBit(EOp::Jump) | OpBit(EOp::SelfArea) | OpBit(EOp::Damage) | OpBit(EOp::Slow);
-        Rank3Ops = OpBit(EOp::TriggeredShield);
-        break;
-    case ELDDemoAbilityId::ActiveComeHere:
+        AdvancedOps = OpBit(EOp::Dash) | OpBit(EOp::EmpowerBasic) | OpBit(EOp::PathSlow); break;
+    case ELDDemoAbilityId::ActiveElbow:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Knockback);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Knockback); break;
+    case ELDDemoAbilityId::ActiveNotMad:
+        Active = true; ExpectedOps = OpBit(EOp::Shield) | OpBit(EOp::DispelSlow);
+        AdvancedOps = OpBit(EOp::Shield) | OpBit(EOp::DispelSlow) | OpBit(EOp::DispelRoot) | OpBit(EOp::DispelDisarm); break;
+    case ELDDemoAbilityId::ActiveStareDown:
         Active = true; ExpectedOps = OpBit(EOp::Taunt) | OpBit(EOp::TimedStatBonus);
-        TimedStats = Bit(ELDDemoBonusStat::ArmorFlat) | Bit(ELDDemoBonusStat::MagicResistFlat);
-        Rank3Ops = OpBit(EOp::TauntRetaliate); break;
-    case ELDDemoAbilityId::ActivePorcelainFlop:
-        // The self area names the recoil's targets; slow (stun at Lv3) and the shield are the recoil's payload.
-        Active = true;
-        ExpectedOps = OpBit(ELDDemoEffectOp::DamageGuard) | OpBit(ELDDemoEffectOp::SelfArea) | OpBit(ELDDemoEffectOp::Slow) | OpBit(ELDDemoEffectOp::Shield);
-        Rank3Ops = OpBit(ELDDemoEffectOp::Stun); Rank3Drops = OpBit(ELDDemoEffectOp::Slow);
-        break;
-    case ELDDemoAbilityId::ActiveExposePost:
-        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Dot);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::MobilityPunish); break;
-    case ELDDemoAbilityId::ActiveBarrageRant:
-        Active = true; Mode = ELDDemoTargetMode::DirectionProjectile;
-        ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::Volley) | OpBit(ELDDemoEffectOp::RefreshDebuffs);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::OnHit); break;
-    case ELDDemoAbilityId::ActiveCancelBlast:
-        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::DebuffAmp);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::ShieldShatter) | OpBit(ELDDemoEffectOp::DebuffHeal); break;
-    case ELDDemoAbilityId::ActivePieChart:
-        Active = true; Mode = ELDDemoTargetMode::GroundPoint;
-        ExpectedOps = OpBit(ELDDemoEffectOp::Zone) | OpBit(ELDDemoEffectOp::ZoneShield) | OpBit(ELDDemoEffectOp::ZoneSlow);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::ZoneRoot); break;
-    case ELDDemoAbilityId::ActiveTableFlip:
-        Active = true; ExpectedOps = OpBit(ELDDemoEffectOp::Shield) | OpBit(ELDDemoEffectOp::SelfArea) | OpBit(ELDDemoEffectOp::ShieldBurst);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::Knockback); break;
-    case ELDDemoAbilityId::PassiveDoxMaster:
-        ExpectedOps = OpBit(ELDDemoEffectOp::BreachStacks); break;
-    case ELDDemoAbilityId::PassiveThickSkin:
-        ExpectedOps = OpBit(ELDDemoEffectOp::MobilityShield); break;
-    case ELDDemoAbilityId::PassiveMentalGymnastics:
-        ExpectedOps = OpBit(ELDDemoEffectOp::ShieldPulse); break;
-    case ELDDemoAbilityId::PassiveKeyboardWarrior:
-        ExpectedOps = OpBit(ELDDemoEffectOp::BasicRider);
-        Rank3Ops = ExpectedOps | OpBit(ELDDemoEffectOp::CastFrenzy); break;
+        AdvancedOps = OpBit(EOp::Taunt) | OpBit(EOp::TimedStatBonus) | OpBit(EOp::TauntShield); TimedStats = Bit(ELDDemoBonusStat::ArmorFlat) | Bit(ELDDemoBonusStat::MagicResistFlat); break;
+    case ELDDemoAbilityId::ActiveQuickMeeting:
+        Active = true; Mode = ELDDemoTargetMode::GroundPoint; ExpectedOps = OpBit(EOp::Zone) | OpBit(EOp::ZoneDamage) | OpBit(EOp::ZoneSlow) | OpBit(EOp::ZoneBurn);
+        AdvancedOps = OpBit(EOp::Zone) | OpBit(EOp::ZoneDamage) | OpBit(EOp::ZoneSlow) | OpBit(EOp::ZoneBurn) | OpBit(EOp::ZoneRoot); break;
+    case ELDDemoAbilityId::ActiveAccountBanned:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Silence);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Silence) | OpBit(EOp::Breach); break;
+    case ELDDemoAbilityId::ActiveUnplug:
+        Active = true; Mode = ELDDemoTargetMode::Unit; ExpectedOps = OpBit(EOp::Damage) | OpBit(EOp::Disarm);
+        AdvancedOps = OpBit(EOp::Damage) | OpBit(EOp::Disarm) | OpBit(EOp::Slow); break;
+    case ELDDemoAbilityId::ActiveTripleCombo:
+        Active = true; ExpectedOps = OpBit(EOp::EmpowerBasic);
+        AdvancedOps = OpBit(EOp::EmpowerBasic); break;
+    case ELDDemoAbilityId::PassivePressed:
+        ExpectedOps = OpBit(EOp::LowHpStatBonus);
+        AdvancedOps = OpBit(EOp::LowHpStatBonus); ExpectedStats = Bit(ELDDemoBonusStat::AttackSpeedBonusRatio) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio); break;
+    case ELDDemoAbilityId::PassiveTilted:
+        ExpectedOps = OpBit(EOp::Breach);
+        AdvancedOps = OpBit(EOp::Breach); break;
+    case ELDDemoAbilityId::PassiveStoke:
+        ExpectedOps = OpBit(EOp::Burn);
+        AdvancedOps = OpBit(EOp::Burn); break;
+    case ELDDemoAbilityId::PassiveKickDown:
+        ExpectedOps = OpBit(EOp::ControlDamageAmp);
+        AdvancedOps = OpBit(EOp::ControlDamageAmp); break;
+    case ELDDemoAbilityId::PassiveThickFace:
+        ExpectedOps = OpBit(EOp::Thorns);
+        AdvancedOps = OpBit(EOp::Thorns); break;
+    case ELDDemoAbilityId::PassiveFreeloader:
+        ExpectedOps = OpBit(EOp::Lifesteal);
+        AdvancedOps = OpBit(EOp::Lifesteal); break;
+    case ELDDemoAbilityId::PassiveSpecialForces:
+        ExpectedOps = OpBit(EOp::CastFrenzy);
+        AdvancedOps = OpBit(EOp::CastFrenzy) | OpBit(EOp::DashBoost); break;
+    case ELDDemoAbilityId::PassiveMoralVictory:
+        ExpectedOps = OpBit(EOp::TriggeredShield);
+        AdvancedOps = OpBit(EOp::TriggeredShield); break;
+    case ELDDemoAbilityId::PassiveIcedAmericano:
+        ExpectedOps = OpBit(EOp::StatBonus);
+        AdvancedOps = OpBit(EOp::StatBonus) | OpBit(EOp::CooldownRefund); ExpectedStats = Bit(ELDDemoBonusStat::CooldownHasteFlat) | Bit(ELDDemoBonusStat::MPRegenFlat); break;
+    case ELDDemoAbilityId::PassiveLuckyStar:
+        ExpectedOps = OpBit(EOp::StatBonus);
+        AdvancedOps = OpBit(EOp::StatBonus) | OpBit(EOp::AbilityCrit); ExpectedStats = Bit(ELDDemoBonusStat::CritChanceBonusRatio); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented ability projection"));
     }
+
     Out.Kind = Active ? ELDDemoAbilityKind::Active : ELDDemoAbilityKind::Passive;
     if (!Check.Require(Kind.Equals(Active ? TEXT("active") : TEXT("passive"), ESearchCase::CaseSensitive), Path, TEXT("wrong ability kind"))
         || !F.Flag(TEXT("draftable"), Out.Draftable)
@@ -1559,14 +1521,14 @@ bool Ability(const FValue& Value, FLDDemoAbilityDefinition& Out, FCheck& Check, 
         return false;
     }
     const TArray<FValue>* Rows;
-    if (!Array(F.Take(TEXT("ranks")), Rows, Check, Path, 3, 3))
+    if (!Array(F.Take(TEXT("ranks")), Rows, Check, Path, 2, 2))
     {
         return false;
     }
     for (int32 I = 0; I < Rows->Num(); ++I)
     {
         FLDDemoRankDefinition Definition;
-        const FOpMask RankOps = I == 2 ? ((ExpectedOps & ~Rank3Drops) | Rank3Ops) : ExpectedOps;
+        const FOpMask RankOps = I == Rows->Num() - 1 ? AdvancedOps : ExpectedOps;
         if (!Rank((*Rows)[I], Definition, I + 1, Active, RankOps, Check, FString::Printf(TEXT("%s.ranks[%d]"), *Path, I)))
         {
             return false;
@@ -1611,23 +1573,14 @@ bool Attribute(const FValue& Value, FLDDemoAttributeDefinition& Out, FCheck& Che
     uint32 Expected = 0, ExpectedPenalties = 0;
     switch (static_cast<ELDDemoAttributeId>(Out.NativeId))
     {
-    case ELDDemoAttributeId::AttrMight: Expected = Bit(S::ADFlat) | Bit(S::CritChanceBonusRatio); break;
-    case ELDDemoAttributeId::AttrMightHp: Expected = Bit(S::ADFlat) | Bit(S::MaxHPFlat); break;
-    case ELDDemoAttributeId::AttrMightHaste: Expected = Bit(S::ADFlat) | Bit(S::CooldownHasteFlat); break;
-    case ELDDemoAttributeId::AttrFocus: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat); break;
-    case ELDDemoAttributeId::AttrFocusAs: Expected = Bit(S::APFlat) | Bit(S::AttackSpeedBonusRatio); break;
-    case ELDDemoAttributeId::AttrFocusDefense: Expected = Bit(S::APFlat) | Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); break;
-    case ELDDemoAttributeId::AttrReach: Expected = Bit(S::AttackRangeCmFlat) | Bit(S::AttackSpeedBonusRatio); break;
-    case ELDDemoAttributeId::AttrReachMs: Expected = Bit(S::AttackRangeCmFlat) | Bit(S::MoveSpeedBonusRatio); break;
-    case ELDDemoAttributeId::AttrRoamHybrid: Expected = Bit(S::MoveSpeedBonusRatio) | Bit(S::ADFlat) | Bit(S::APFlat); break;
-    case ELDDemoAttributeId::AttrResolve: Expected = Bit(S::MaxHPFlat) | Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); break;
-    case ELDDemoAttributeId::AttrVitality: Expected = Bit(S::MaxHPFlat) | Bit(S::MaxMPFlat) | Bit(S::HPRegenFlat); break;
-    case ELDDemoAttributeId::AttrWildGlassCannon:
-        Expected = Bit(S::ADFlat) | Bit(S::APFlat) | Bit(S::AttackSpeedBonusRatio); ExpectedPenalties = Bit(S::MaxHPFlat); break;
-    case ELDDemoAttributeId::AttrWildJuggernaut:
-        Expected = Bit(S::MaxHPFlat) | Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); ExpectedPenalties = Bit(S::MoveSpeedBonusRatio); break;
-    case ELDDemoAttributeId::AttrWildBrawler:
-        Expected = Bit(S::AttackSpeedBonusRatio) | Bit(S::MoveSpeedBonusRatio); ExpectedPenalties = Bit(S::AttackRangeCmFlat); break;
+    case ELDDemoAttributeId::AttrProtein: Expected = Bit(S::ADFlat) | Bit(S::MaxHPFlat); break;
+    case ELDDemoAttributeId::AttrFastHands: Expected = Bit(S::AttackSpeedBonusRatio) | Bit(S::ADFlat); break;
+    case ELDDemoAttributeId::AttrAllNighter: Expected = Bit(S::APFlat) | Bit(S::CooldownHasteFlat); break;
+    case ELDDemoAttributeId::AttrCanteen: Expected = Bit(S::MaxHPFlat) | Bit(S::ArmorFlat) | Bit(S::MagicResistFlat); break;
+    case ELDDemoAttributeId::AttrBigTalk: Expected = Bit(S::APFlat) | Bit(S::MaxHPFlat); break;
+    case ELDDemoAttributeId::AttrMorningRush: Expected = Bit(S::MoveSpeedBonusRatio) | Bit(S::MaxHPFlat); break;
+    case ELDDemoAttributeId::AttrHandOut: Expected = Bit(S::AttackRangeCmFlat) | Bit(S::AttackSpeedBonusRatio); break;
+    case ELDDemoAttributeId::AttrWildFrenzy: Expected = Bit(S::ADFlat) | Bit(S::AttackSpeedBonusRatio); ExpectedPenalties = Bit(S::MaxHPFlat); break;
     default: return Check.Require(false, Path, TEXT("unimplemented attribute projection"));
     }
     return Check.Require(StatMask(Out.Stats) == Expected, Path, TEXT("wrong attribute stats"))
@@ -2265,7 +2218,8 @@ bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString
         {TEXT("amount"), EField::Amount}, {TEXT("duration"), EField::Duration}, {TEXT("ratio"), EField::Ratio},
         {TEXT("count"), EField::Count}, {TEXT("radius"), EField::Radius}, {TEXT("distance"), EField::Distance},
         {TEXT("interval"), EField::Interval}, {TEXT("delay"), EField::Delay}, {TEXT("secondary_ratio"), EField::SecondaryRatio},
-        {TEXT("secondary_duration"), EField::SecondaryDuration}};
+        {TEXT("secondary_duration"), EField::SecondaryDuration}, {TEXT("basic_count"), EField::BasicCount},
+        {TEXT("cooldown_cut"), EField::CooldownCut}, {TEXT("refund"), EField::Refund}, {TEXT("burst"), EField::Burst}};
     int32 Index = 0;
     while (Index < Template.Len())
     {

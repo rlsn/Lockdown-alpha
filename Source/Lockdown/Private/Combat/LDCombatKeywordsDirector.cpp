@@ -181,7 +181,8 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     { return Row.Effect->Trigger==ELDDemoEffectTrigger::Damaged; });
     if (!Ref) { return true; }
     const FLDDemoEffectDefinition& Effect=*Ref->Effect;
-    const int64 Amount=LDCombatKeywords::GrowthScaledP2(Effect.BaseP2,GrowthLevelOf(Body))
+    // The learned rank row is already grown for the holder's level at this trigger (#147, CollectPassiveEffects).
+    const int64 Amount=Effect.BaseP2
         +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
     const FGuid ShieldId=FGuid::NewGuid();
     if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,false,NowMs,Error)) { return false; }
