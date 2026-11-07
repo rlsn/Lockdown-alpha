@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatTypes.h"
 #include "Components/TextBlock.h"
+#include "Components/ProgressBar.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
@@ -279,13 +280,35 @@ const FVector GrowthProbeLowCampApproachCm(2616, 849, 0);
 constexpr double GrowthProbeCampSearchCm = 600.0;
 constexpr int32 GrowthProbeLowCampMembers = 2;
 
-// A private text of the Host's rendered HUD, read through reflection: the HUD itself is not changed for the probe.
-FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
+// Private rendered HUD widgets, read through reflection without changing the HUD for the probe.
+const UWidget* GrowthProbeHudWidget(const ALDPlayerController& PC, const TCHAR* Field)
 {
     const ULDHUD* Hud = PC.HUDUI;
     const FObjectProperty* Property = Hud ? FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field) : nullptr;
-    const UTextBlock* Text = Property ? Cast<UTextBlock>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
+    return Property ? Cast<UWidget>(Property->GetObjectPropertyValue_InContainer(Hud)) : nullptr;
+}
+
+FString GrowthProbeHudText(const ALDPlayerController& PC, const TCHAR* Field)
+{
+    const UTextBlock* Text = Cast<UTextBlock>(GrowthProbeHudWidget(PC, Field));
     return Text ? Text->GetText().ToString() : FString();
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthProbeHudRewardBindingTest, "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDGrowthProbeHudRewardBindingTest::RunTest(const FString& Parameters)
+{
+    for (const TCHAR* Field : {TEXT("ShopButtonText"), TEXT("LevelBadgeText")})
+    {
+        const auto* Property = FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), Field);
+        TestTrue(FString(Field) + TEXT(" is an actual HUD text widget"),
+            Property && Property->PropertyClass->IsChildOf(UTextBlock::StaticClass()));
+    }
+    const auto* Level = FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), TEXT("LevelBar"));
+    TestTrue(TEXT("The XP display is the actual HUD progress widget"),
+        Level && Level->PropertyClass->IsChildOf(UProgressBar::StaticClass()));
+    return true;
 }
 
 // The own reward lines the Host's rendered world feedback presented this match, read through reflection like the HUD
@@ -1680,17 +1703,20 @@ public:
     {
         const FLDProgressionView* OwnProgression = PC.ReadOwnProgression();
         const FLDEquipmentView* OwnEquipment = PC.ReadOwnEquipment();
-        const FString GoldText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("GoldText"));
-        const FString LevelText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("LevelText"));
+        const FString GoldText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("ShopButtonText"));
+        const FString LevelText = LDDemoGrowthScenario::GrowthProbeHudText(PC, TEXT("LevelBadgeText"));
+        const auto* LevelBar = Cast<UProgressBar>(LDDemoGrowthScenario::GrowthProbeHudWidget(PC, TEXT("LevelBar")));
+        const FString LevelTooltip = LevelBar ? LevelBar->GetToolTipText().ToString() : FString();
         LDHUD::FLevelView Level;
         if (OwnProgression)
         {
             Level = LDHUD::Level(OwnProgression->Level, OwnProgression->MaxLevel, OwnProgression->CumulativeXP,
                 OwnProgression->LevelThresholdXP, OwnProgression->bHasNextThreshold, OwnProgression->NextThresholdXP);
         }
-        Detail = FString::Printf(TEXT("own view xp %lld->%lld (want %lld) gold %lld->%lld (want %lld) publish %llu->%llu; HUD \"%s\" / \"%s\""),
+        Detail = FString::Printf(TEXT("own view xp %lld->%lld (want %lld) gold %lld->%lld (want %lld) publish %llu->%llu; HUD \"%s\" / \"%s\" / \"%s\" fraction=%.6f"),
             Mark.XPBefore, OwnProgression ? OwnProgression->CumulativeXP : -1, ExpectXP, Mark.GoldBefore,
-            OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision, *GoldText, *LevelText);
+            OwnEquipment ? OwnEquipment->Gold : -1, ExpectGold, Mark.PublishBefore, PC.OwnerState.Growth.PublishRevision,
+            *GoldText, *LevelText, *LevelTooltip, LevelBar ? LevelBar->GetPercent() : -1.f);
         const bool bView = OwnProgression && OwnEquipment && OwnProgression->CumulativeXP == ExpectXP && OwnEquipment->Gold == ExpectGold
             && PC.OwnerState.Growth.PublishRevision > Mark.PublishBefore;
         // The rendered world feedback floats the same reward beside the own body: "+N <LDTerms::Gold>" with "+N <LDTerms::Experience>".
@@ -1699,8 +1725,12 @@ public:
         const bool bFloated = Lines && LDDemoGrowthScenario::GrowthProbeRewardTail(*Lines, ExpectGold - Mark.GoldBefore,
             ExpectXP - Mark.XPBefore, Floated);
         Detail += FString::Printf(TEXT("; floated \"%s\""), Lines ? *Floated : TEXT("<no world feedback layer>"));
-        const bool bHud = bView && bFloated && GoldText == LDHUD::Gold(ExpectGold) && LevelText.Contains(Level.Level)
-            && LevelText.Contains(Level.Experience);
+        const FString ExpectedGold = FString::Printf(TEXT("%lld %s"), ExpectGold, LDTerms::Gold);
+        const bool bGold = GoldText == ExpectedGold || GoldText.StartsWith(ExpectedGold + TEXT(" · "));
+        const bool bHud = bView && bFloated && bGold && LevelBar && OwnProgression
+            && LevelText == FString::FromInt(OwnProgression->Level)
+            && LevelTooltip == Level.Level + TEXT(" · ") + Level.Experience
+            && FMath::IsNearlyEqual(LevelBar->GetPercent(), Level.Fraction, 1e-4f);
         if (bHud)
         {
             return LDDemoGrowthScenario::EGrowthProbeWait::Ready;
