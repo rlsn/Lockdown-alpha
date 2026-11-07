@@ -1331,19 +1331,25 @@ public:
                 {
                     for (const double Offset : LDDemoCombatScenario::CombatProbeQueueDetourCm)
                     {
-                        QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
-                        QueueWaypoint.Z = Foot.Z;
-                        FLDCompletePath First, Second;
-                        FString Why;
-                        if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
-                            && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
-                            && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
+                        // #97 terrain: the start and the skill site may stand at different heights, so a candidate is
+                        // tried at either surface height (the ground query never searches downward).
+                        for (const double Height : {Foot.Z, To.SurfaceCm.Z})
                         {
-                            QueueWaypoint = Detour.SurfaceCm;
-                            bLegal = true;
-                            break;
+                            QueueWaypoint = Foot + Span * LDDemoCombatScenario::CombatProbeQueueAlong[Index] + Across * Offset;
+                            QueueWaypoint.Z = Height;
+                            FLDCompletePath First, Second;
+                            FString Why;
+                            if (Registry->QueryGround(Registry->Revision(), QueueWaypoint, Capsule, Surface, Detour, Failure, Why)
+                                && Registry->QueryCompletePath(Registry->Revision(), From, Detour, Capsule, First, Failure, Why)
+                                && Registry->QueryCompletePath(Registry->Revision(), Detour, To, Capsule, Second, Failure, Why))
+                            {
+                                QueueWaypoint = Detour.SurfaceCm;
+                                bLegal = true;
+                                break;
+                            }
+                            Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
                         }
-                        Tried += FString::Printf(TEXT("[%s %s] "), *QueueWaypoint.ToCompactString(), *Why);
+                        if (bLegal) { break; }
                     }
                 }
                 if (!bLegal) { QueueError = Tried; }
@@ -1713,8 +1719,9 @@ public:
                 }
             }
         }
-        Check(SpawnAnchors == 10 && !RespawnAnchor.IsEmpty(), TEXT("Respawn"),
-            TEXT("The new body stands on an approved offset of one of the ten spawn anchors"),
+        // The approved world's spawn anchors (#97 grew them from ten to twelve); the count is reported, not fixed here.
+        Check(SpawnAnchors > 0 && !RespawnAnchor.IsEmpty(), TEXT("Respawn"),
+            TEXT("The new body stands on an approved offset of one of the world's spawn anchors"),
             FString::Printf(TEXT("spawn_anchors=%d anchor=%s at=%s"), SpawnAnchors, *RespawnAnchor, *Body->GetActorLocation().ToCompactString()));
         ProtectedUntilMs = Victim.ProtectedUntilMs;
         const int64 Window = Catalog->Get().Parameters.ProtectionMs;
