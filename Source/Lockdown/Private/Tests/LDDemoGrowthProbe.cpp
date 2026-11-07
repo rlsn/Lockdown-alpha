@@ -1473,12 +1473,12 @@ public:
         return false;
     }
 
-    bool PrepareLowCamp(const ULDMapRegistry& Registry, double BodyRadius, FString& Error)
+    bool PrepareLowCamp(const ULDMapRegistry& Registry, double BodyRadius, FString& CampError)
     {
         const auto* Geometry = Registry.GetGeometry();
         FCollisionShape Capsule;
-        if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error))
-        { Error = TEXT("The low-camp fixture has no registered geometry or capsule: ") + Error; return false; }
+        if (!Geometry || !ULDMapRegistry::ContentCapsule(*Catalog, Capsule, CampError))
+        { CampError = TEXT("The low-camp fixture has no registered geometry or capsule: ") + CampError; return false; }
         for (const auto& Placement : Catalog->Get().Camps)
         {
             if (Placement.MonsterId != TEXT("monster_scavenger")) { continue; }
@@ -1486,15 +1486,15 @@ public:
             const FLDDemoMonsterDefinition* Monster = nullptr;
             if (!Anchor || Anchor->Kind != ELDDemoWorldAnchorKind::Camp
                 || Anchor->Members.Num() != LDDemoGrowthScenario::GrowthProbeLowCampMembers
-                || !Catalog->FindMonster(Placement.MonsterId, Monster, Error))
-            { Error = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + Error; return false; }
+                || !Catalog->FindMonster(Placement.MonsterId, Monster, CampError))
+            { CampError = TEXT("The low-camp sample has invalid authored members: ") + Placement.AnchorId + TEXT(": ") + CampError; return false; }
             FVector Centre;
-            if (!Anchor->PositionCm.ToVector(Centre, Error)) { return false; }
+            if (!Anchor->PositionCm.ToVector(Centre, CampError)) { return false; }
             double HomeReach = 0;
             for (const auto& Member : Anchor->Members)
             {
                 FVector Home;
-                if (!Member.PositionCm.ToVector(Home, Error)) { return false; }
+                if (!Member.PositionCm.ToVector(Home, CampError)) { return false; }
                 HomeReach = FMath::Max(HomeReach, FVector::Dist2D(Centre, Home));
             }
             const double ApproachRadius = HomeReach + LDDemoGrowthScenario::GrowthProbeRational(Monster->CollisionRadiusCm)
@@ -1510,16 +1510,16 @@ public:
                 if (!FMath::IsNearlyEqual(Approach.Z, Centre.Z) || !Normal.Equals(FVector::UpVector, 1e-4)) { continue; }
                 FLDLegalGround Ground, OnMesh;
                 ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
-                if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, Error)
-                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, Error)
-                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, Error)) { continue; }
+                if (!Registry.QueryGround(Registry.Revision(), Approach, Capsule, FName(*Anchor->SurfaceId), Ground, Failure, CampError)
+                    || !LDPathSteering::PlanStart(Registry, Ground, Capsule, OnMesh, Failure, CampError)
+                    || !PlanDuelWalk(Registry, HostSite, OnMesh.SurfaceCm, CampError)) { continue; }
                 HostCampAnchor = Anchor->Id;
                 HostCampApproach = OnMesh.SurfaceCm;
-                Error.Reset();
+                CampError.Reset();
                 return true;
             }
         }
-        Error = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + Error;
+        CampError = TEXT("No authored two-scavenger camp has a legal fixture approach: ") + CampError;
         return false;
     }
 
