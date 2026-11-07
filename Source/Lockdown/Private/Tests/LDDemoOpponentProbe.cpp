@@ -548,8 +548,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Acted &= Track.RespawnsActed == Track.RespawnsChecked;
         DeathsSeen += Track.Deaths;
         QuietWhileDead &= Track.bQuietWhileDead;
-        // A refusal is one on receipt or at navigation's admission (#160: a body standing where every walk is refused).
-        Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused + T.OrdersRejected <= T.Orders / 10 + 3;
+        // Refusals on receipt. Admission refusals are reported (orders_rejected), not bounded here: a body that navigation
+        // finds standing on no registered support has every walk refused, a world fault the AI cannot loop on (#160, #163).
+        Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
         OpeningPicks &= Track.OpeningPickMs >= 0 && Track.OpeningPickMs <= OpeningPickWithinMs;
         // An early rival fight at level one can leave a body waiting on regeneration for most of development; that is
         // the approved pacing, not a stall. Without XP, at least half of development must have been dead or recovering.
