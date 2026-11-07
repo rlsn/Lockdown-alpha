@@ -169,12 +169,12 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 全部保留；保护者既不喷也不争，开放前不计时，Solo 起点取向上取整桶。区内只有一名有效参赛者且他不是涂鸦主人时他喷漆，
 争夺冻结喷漆者的进度（其他人不累积），他再次独自在区内时 `SoloSinceMs` 回拨暂停值续计；他离区、死亡、离局或被打断即清零，
 别人不继承。喷漆到期严格早于某条事实时先喷上；与到期同刻的死亡、离局、控制、离区先处理。
-喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护只在 Empty/Guarded 运行，Solo/Contested（区内有主人以外的
-有效参赛者）时冻结于 `GuardKept`，非主人全部离开后从冻结值续计；冻结期间主人从区内走出、且该原始秒的事实全部归约后
-守护仍冻结，`GuardKept` 清零而涂鸦保留（2026-11-07 用户决定，同刻离开不清零）；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
+喷上涂鸦不结束对局：它覆盖原涂鸦、主人换人、守护从 0 计；守护只在 Guarded（主人独自在区内）运行，Empty（主人在区外、区内无人）
+时暂停、Solo/Contested（区内有主人以外的有效参赛者）时冻结于 `GuardKept`，回到 Guarded 时从保留值续计（2026-11-07 用户决定，原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”）；
+冻结期间主人从区内走出、且该原始秒的事实全部归约后区内仍有非主人，`GuardKept` 清零而涂鸦保留（2026-11-07 用户决定，同刻离开不清零、只暂停）；主人死亡或离局清除涂鸦。只有守护满时长给出结束对局的
 `FLDCaptureProposal{Epoch, Winner, GuardSinceMs, DueAtMs}`。`NextDueMs` 给驱动的停靠边界：未开放时为开放时刻、
-独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停与守护冻结不给驱动额外停靠边界：步内能让被冻结的守护恢复的
-只有 Motion 的离区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
+独自喷漆时为喷上时刻、守护运行时为守护获胜时刻。争夺暂停与守护暂停、冻结不给驱动额外停靠边界：步内能让保留的守护恢复的
+只有 Motion 的进出区事实（离局在步前入队，死亡、控制、保护到期、复活都落在步的边界时刻）。驱动在 Motion 之后调用
 `CaptureCompletesInsideStep`，由 `FLDCaptureReducer::CompletionInsideMs` 在归约器副本上预演已入队事实；
 若恢复后的守护获胜时刻早于本步边界，本步跳过 Session～Transactions，只做欠奖重试，`CloseThroughCompletion`
 在该时刻锁定结果（其后的进出丢弃），边界时刻的行动、效果与交易都不发生；步内喷上的涂鸦由 `CloseBoundary` 在其真实时刻归约。
@@ -222,7 +222,7 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | 标签 | 写入位置 | 字段要点 |
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
-| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、精神状态/电量/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
+| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
 | `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害、护盾吸收与碎盾、扣血前后、增幅与抗性、暴击/背刺/保护/持续/反伤、控制、吸血（来源实际回复的生命，已计治疗削减和生命上限）、是否致死 |
 | `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
@@ -257,12 +257,13 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 以及相关 `Source\Lockdown\Private\Tests` 中的生命周期、网络与序列化检查。
 准备对局、调试授予或无玩家的监听服务不能代替真实客户端完成一局的证据。
 Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvaluation`、
-`Lockdown.Rules.DemoCapture`（喷漆与守护 `.SprayAndGuard`、硬控打断 `.SprayInterrupt`、主人死亡/离局清除涂鸦 `.GraffitiCleared`、
+`Lockdown.Rules.DemoCapture`（喷漆与守护 `.SprayAndGuard`、主人须在区内守护 `.GuardNeedsOwner`、硬控打断 `.SprayInterrupt`、主人死亡/离局清除涂鸦 `.GraffitiCleared`、
 争夺暂停/续计/清零、保护与契约故障、喷漆区几何、公共读模型、提供者门禁、Host 结束/回 Lobby 与换代隔离）和
 `RunDemoCoreCheck.ps1`；后者以 DEV 自动化入口在真实三拥有连接上调用同一核心提交路径，
 固定选取已编译锚点只作身体/运动机制夹具，不代替普通开局、随机出生、完整战斗或 3+3 验收。
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
-喷上涂鸦、主人离区后守护照常、他人独自改漆使守护冻结且改漆失败后守护续计、冻结期间主人走出使守护清零而涂鸦保留、以 `GuardSucceeded` 守护成功的
+喷上涂鸦、主人离区使守护暂停、他人独自改漆使守护保持冻结且改漆失败后守护仍暂停、主人独自回区后续计、冻结期间主人走出使守护清零而涂鸦保留、
+主人独自在区内站满守护时长以 `GuardSucceeded` 守护成功的
 唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
 空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、旗杆与涂鸦复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。

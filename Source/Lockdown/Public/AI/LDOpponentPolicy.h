@@ -117,8 +117,8 @@ struct FLDOpponentPublicMatch
     int64 DueAtMs = 0;
     // The contender whose graffiti the flagpole shows; invalid while it is bare.
     FGuid Owner;
-    // Real instant the owner's running guard wins; zero without an owner or while anyone else in the zone (a sole
-    // sprayer or a contest) freezes it.
+    // Real instant the owner's running guard wins; zero without an owner, while the owner is away from an empty zone
+    // (paused) or while anyone else in the zone (a sole sprayer or a contest) freezes it: only Guarded runs it.
     int64 GuardDueAtMs = 0;
     // D26: the public point of the current airdrop while it is announced or on the ground; None otherwise.
     FName AirdropPOI;

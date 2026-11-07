@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 
-// 雾港世界观术语表（#111）：运行时界面里的世界观术语与带梗短句只在这里定义一次，界面与测试都引用它；
-// 换梗只改这一处。技能、装备、野怪与状态的条目名仍由 SourceData\Demo\content.json 的 display 行提供；
+// 运行时显示术语表（#111、#148）：界面里的系统术语与世界观短句只在这里定义一次，界面与测试都引用它。
+// 名字保留雾港梗；属性、资源、伤害类型、状态、普攻与冲刺用通用游戏术语（#148）。技能、装备、野怪与状态的条目名仍由 SourceData\Demo\content.json 的 display 行提供；
 // 下面“状态名”一节是系统文案需要直接引用的少数状态名，必须与目录显示名一致（Lockdown.Rules.HUDTermsGlossary 核对）。
 // 通用系统文案（网络、设置、同步中等）不放在这里。
 namespace LDTerms
@@ -14,18 +14,18 @@ inline constexpr TCHAR Tagline[]=TEXT("脆皮大学生无差别大乱斗 · 旗�
 inline constexpr TCHAR SlangNote[]=TEXT("雾港黑话：淫 = 把人揍趴下，跟色情没关系");
 
 // 资源与属性
-inline constexpr TCHAR Health[]=TEXT("精神状态");
-inline constexpr TCHAR Mana[]=TEXT("电量");
-inline constexpr TCHAR AttackDamage[]=TEXT("力大砖飞");
-inline constexpr TCHAR AbilityPower[]=TEXT("阴阳怪气");
-inline constexpr TCHAR Armor[]=TEXT("嘴硬");
-inline constexpr TCHAR MagicResist[]=TEXT("心大");
-inline constexpr TCHAR AttackSpeed[]=TEXT("手速");
-inline constexpr TCHAR MoveSpeed[]=TEXT("润速");
+inline constexpr TCHAR Health[]=TEXT("生命");
+inline constexpr TCHAR Mana[]=TEXT("法力");
+inline constexpr TCHAR AttackDamage[]=TEXT("攻击力");
+inline constexpr TCHAR AbilityPower[]=TEXT("法术强度");
+inline constexpr TCHAR Armor[]=TEXT("护甲");
+inline constexpr TCHAR MagicResist[]=TEXT("魔抗");
+inline constexpr TCHAR AttackSpeed[]=TEXT("攻速");
+inline constexpr TCHAR MoveSpeed[]=TEXT("移速");
 inline constexpr TCHAR Crit[]=TEXT("暴击");
-inline constexpr TCHAR Haste[]=TEXT("整活频率");
-inline constexpr TCHAR PhysicalDamage[]=TEXT("物理超度");
-inline constexpr TCHAR MagicalDamage[]=TEXT("精神攻击");
+inline constexpr TCHAR Haste[]=TEXT("技能急速");
+inline constexpr TCHAR PhysicalDamage[]=TEXT("物理伤害");
+inline constexpr TCHAR MagicalDamage[]=TEXT("魔法伤害");
 inline constexpr TCHAR Gold[]=TEXT("米");
 inline constexpr TCHAR Experience[]=TEXT("流量");
 inline FString MaxHealth(){return FString(Health)+TEXT("上限");}
@@ -37,9 +37,8 @@ inline FString NotEnoughMana(){return FString(Mana)+TEXT("不足");}
 inline FString NotEnoughGold(){return FString(Gold)+TEXT("不够");}
 
 // 动作与地点
-inline constexpr TCHAR BasicAttack[]=TEXT("大比兜");
-inline constexpr TCHAR BasicAttackVerb[]=TEXT("抽大比兜");
-inline constexpr TCHAR Dash[]=TEXT("润");
+inline constexpr TCHAR BasicAttack[]=TEXT("普攻");
+inline constexpr TCHAR Dash[]=TEXT("冲刺");
 inline constexpr TCHAR Shop[]=TEXT("砍一刀小摊");
 inline constexpr TCHAR CapturePoint[]=TEXT("旗杆");
 inline constexpr TCHAR CampLow[]=TEXT("小野怪");
@@ -70,13 +69,13 @@ inline FString LeaderNamed(const FString& Name,int64 Amount){return FString(Lead
 inline FString LeaderSelf(int64 Amount){return FString(TEXT("你"))+Leader+TEXT("了！位置已在小地图公开 · ")+LeaderBounty(Amount);}
 
 // 状态名：与目录 display 行同名
-inline constexpr TCHAR Shield[]=TEXT("心理防线");
-inline constexpr TCHAR Root[]=TEXT("提裤子");
-inline constexpr TCHAR Slow[]=TEXT("腿软");
-inline constexpr TCHAR Taunt[]=TEXT("瞅你咋地");
-inline constexpr TCHAR Disarm[]=TEXT("捂裆");
-inline constexpr TCHAR Stun[]=TEXT("CPU 干烧了");
-inline constexpr TCHAR RespawnProtection[]=TEXT("免死金牌");
+inline constexpr TCHAR Shield[]=TEXT("护盾");
+inline constexpr TCHAR Root[]=TEXT("定身");
+inline constexpr TCHAR Slow[]=TEXT("减速");
+inline constexpr TCHAR Taunt[]=TEXT("嘲讽");
+inline constexpr TCHAR Disarm[]=TEXT("缴械");
+inline constexpr TCHAR Stun[]=TEXT("眩晕");
+inline constexpr TCHAR RespawnProtection[]=TEXT("复活保护");
 inline FString ProtectionRemoved(){return FString(RespawnProtection)+TEXT("没了");}
 
 // 生死与成长
@@ -85,7 +84,7 @@ inline constexpr TCHAR DeathTitle[]=TEXT("你寄了");
 inline constexpr TCHAR RespawnWait[]=TEXT("回出租屋 emo");
 inline FString DeathNote(){return FString(TEXT("等级、构筑和"))+Gold+TEXT("都还在，别慌");}
 inline constexpr TCHAR ProtectionRule[]=TEXT("一出手就没了，失手也没了");
-inline constexpr TCHAR OutOfCombatRegen[]=TEXT("精神状态回暖中");
+inline constexpr TCHAR OutOfCombatRegen[]=TEXT("脱战回复中");
 inline constexpr TCHAR Choice[]=TEXT("开盲盒");
 inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%d"),Level);}
 inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
@@ -105,8 +104,9 @@ inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上�
 inline FString GraffitiSprayed(const FString& Owner){return Owner+TEXT(" 在旗杆上喷上了涂鸦");}
 inline constexpr TCHAR GuardLeft[]=TEXT("再守");
 inline constexpr TCHAR GuardPaused[]=TEXT("有人进圈，守护冻结");
+inline constexpr TCHAR GuardAway[]=TEXT("守擂者不在圈内，守护暂停");
 inline constexpr TCHAR GuardReset[]=TEXT("守擂者离圈，守护清零");
-inline constexpr TCHAR GuardOwn[]=TEXT("守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）");
+inline constexpr TCHAR GuardOwn[]=TEXT("守住：站在旗杆圈里守护，离圈会暂停（寄了涂鸦就没了）");
 inline FString Besiege(const FString& Owner){return FString(TEXT("下一步：去围攻 "))+Owner+TEXT("，或者去旗杆改漆");}
 
 // 击杀与结算

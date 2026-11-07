@@ -215,7 +215,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 **本地预测：** 非权威的拥有客户端收到 `Activated/Progress` 后按回执目标自行规划同一路线并转向；
 Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 路线失败时客户端自行发送 Stop 并提示。
 
-**提示：** 订单进度文本只写入 `ULDNavigationComponent::Status`。只有真实失败与“免死金牌没了”
+**提示：** 订单进度文本只写入 `ULDNavigationComponent::Status`。只有真实失败与“复活保护没了”
 经 `ALDPlayerController::PostIntentNotice` 进入 HUD 的单行提示；被自己的新订单替换（`Superseded`）
 或自己按 S（`Stopped`）不提示。
 
@@ -308,7 +308,7 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
   直到其回执 `Released/Finished/Rejected`（`QueuedActionSettled`）才继续。方向技能带着排队时的地面点，
   出手时从身体当前脚点重新求方向（`QueuedAimDirection`）。
 - **结束一步**：当前订单结束或排队步骤被拒绝时按 `LDOrderRules::QueueAfter` 处理——到达、路线不通/受阻、
-  目标不可见/死亡、被掀飞等跳到下一步；Stop、死亡、过期租约、旧生命/旧局、不是拥有者、嘲讽清空队列。
+  目标不可见/死亡、击退等跳到下一步；Stop、死亡、过期租约、旧生命/旧局、不是拥有者、嘲讽清空队列。
   后面还有地面步骤时，到达不调用 `HaltLocomotion`，客户端预测也不停身体。
 - **清空**：不带 Shift 的订单（`SubmitOrder`）、S（`CancelOrder`）、`EndLifeOrders`/`ResetMatch`、嘲讽都调用 `ClearQueue`：
   空间步骤回 `Cancelled` 及原因，技能步骤回 Combat 的拒绝回执（`Cancelled/Dead/MatchClosed/ControlBlocked`）。
@@ -328,7 +328,7 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W 是一条 `ELDSpa
 - **收件**：Direct 请求必须是非 D 的条目、`Unit` 目标且与订单的观察句柄一致，序号未被 Combat 见过。
   不带 Shift 的施放在收件时先做一次就绪判定（`CastReady`），无法施放即回 `Rejected/CastRefused` 并发出 Combat 拒绝回执，
   不占待受理槽、不动当前订单和队列；这次尝试仍在下一次 Actions 阶段解除保护（`QueueOwedAggression`，§4.7）。
-- **激活**（`AdmitOrder`）：先用 `ALDCombatDirector::QueryAvailability` 判定就绪——冷却、电量、受控、空槽、非单位技能
+- **激活**（`AdmitOrder`）：先用 `ALDCombatDirector::QueryAvailability` 判定就绪——冷却、法力、受控、空槽、非单位技能
   立即 `CastRefused` 并以 Combat 拒绝回执报告原因；自身前摇（`Busy`）只让施放延后。施法距离取该视图的 `RangeCm`
   减 `CastMarginCm`（10 cm）。随后与 AttackUnit 同样重查观察句柄并绑定。
 - **推进**（`AdvanceCast`）：距离外按追击重算路线（`ChaseTarget`，与普攻订单共用）；进入距离后调用
@@ -344,7 +344,7 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W 是一条 `ELDSpa
 
 ### 4.7 被拒绝的技能不打断当前订单
 
-App Spec §3.1（2026-11-07 用户决定）：Q/W/D 的请求被拒绝（冷却未好、电量不足、受控制、空槽等任何准入失败）时，
+App Spec §3.1（2026-11-07 用户决定）：Q/W/D 的请求被拒绝（冷却未好、法力不足、受控制、空槽等任何准入失败）时，
 不取消、不替换、不暂停当前的移动或攻击订单，也不清空 Shift 队列；角色继续移动或攻击，拒绝原因仍经 Combat 回执提示。
 只有被受理的施放才按 §4.5/§4.6 取代当前订单或清掉之前排的步骤。判定共用 `LDOrderRules::SkillRequestReady`：
 `ALDCombatDirector::QueryAvailability` 的当前可用性为 `None` 或自身前摇 `Busy` 才算就绪（服务器按权威时间现算，

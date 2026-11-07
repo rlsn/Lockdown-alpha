@@ -65,12 +65,14 @@ struct FLDCaptureProposal
 // changes inside one boundary are never collapsed. A sole effective contender who is not the graffiti owner sprays;
 // a contest pauses his spray progress, he resumes it as the sole sprayer again and loses it when he stops being an
 // effective contender in the zone (exit, death, departure) or is interrupted (root, stun, taunt, knockback). Nobody
-// inherits it. A completed spray paints over any graffiti and starts its owner's guard from zero. The guard freezes
-// while any effective contender other than the owner is in the zone (sole sprayer or contest, with or without the
-// owner) and continues from the frozen value once none is left; the owner may leave freely otherwise. An owner who
-// was in the zone at an instant where the guard was frozen and is out of it when that instant ends, with the guard
-// still frozen, resets it to zero (his graffiti stays). The owner's death or departure clears the graffiti.
-// A guard that reaches its full duration is the only completion that ends the match.
+// inherits it. A completed spray paints over any graffiti and starts its owner's guard from zero. The guard runs
+// only while the owner is the only effective contender in the zone (Guarded, 2026-11-07 user decision). It pauses
+// at its value while the zone is empty (the owner is away), freezes while any effective contender other than the
+// owner is in the zone (sole sprayer or contest, with or without the owner) and continues from the kept value once
+// the owner is alone in the zone again. An owner who was in the zone at an instant where the guard was frozen and
+// is out of it when that instant ends, with a challenger still in the zone, resets it to zero (his graffiti stays).
+// The owner's death or departure clears the graffiti. A guard that reaches its full duration is the only
+// completion that ends the match.
 class LOCKDOWN_API FLDCaptureReducer
 {
 public:
@@ -82,8 +84,8 @@ public:
     // Closes a step whose only work after Motion is this capture (see CompletionInsideMs): a guard due strictly
     // inside it completes at its due instant and the facts after that instant are discarded.
     bool CloseThroughCompletion(int64 AtMs, TOptional<FLDCaptureProposal>& Proposal, FString& Error);
-    // The instant strictly before AtMs at which the facts enqueued so far complete a guard (a frozen guard resumes
-    // when the last challenger stops counting in the zone inside the step); MAX_int64 when they do not. Facts that
+    // The instant strictly before AtMs at which the facts enqueued so far complete a guard (a paused or frozen guard
+    // resumes when the owner is left alone in the zone inside the step); MAX_int64 when they do not. Facts that
     // can still arrive in this step are stamped AtMs, so they can neither cause nor cancel an earlier completion. A
     // spray that completes inside a step does not end the match; CloseBoundary reduces it at its own instant.
     int64 CompletionInsideMs(int64 AtMs) const;
@@ -99,17 +101,17 @@ public:
     // Contested with a holder only: spray progress frozen at the contest, in (0, spray].
     int64 GetPausedProgressMs() const { return State == ELDCircleState::Contested ? Paused : 0; }
     const FGuid& GetGraffitiOwner() const { return Owner; }
-    // Solo and Contested always hold an effective contender other than the owner, which freezes the guard.
-    static bool GuardRunsIn(ELDCircleState Circle) { return Circle == ELDCircleState::Empty || Circle == ELDCircleState::Guarded; }
+    // The guard needs its owner alone in the zone: Empty pauses it, Solo and Contested freeze it.
+    static bool GuardRunsIn(ELDCircleState Circle) { return Circle == ELDCircleState::Guarded; }
     bool IsGuardRunning() const { return Owner.IsValid() && GuardRunsIn(State); }
     int64 GetGuardDueAtMs() const { return IsGuardRunning() ? GuardDue : 0; }
-    // A challenger in the zone froze the owner's guard at this progress, in [0, guard].
+    // The owner's absence paused, or a challenger in the zone froze, his guard at this progress, in [0, guard].
     int64 GetGuardKeptMs() const { return Owner.IsValid() && !GuardRunsIn(State) ? GuardKept : 0; }
     int64 GetOpenAtMs() const { return OpenAt; }
     int64 GetClosedThroughMs() const { return ClosedThrough; }
     // Next integer boundary the authority driver must stop at: the opening while closed, the spray while a sole
-    // sprayer accumulates and the guard win while the guard runs. Otherwise MAX_int64: a paused contest or a frozen
-    // guard adds no stop, because a resume can only come from motion inside a step (CompletionInsideMs, CloseBoundary).
+    // sprayer accumulates and the guard win while the guard runs. Otherwise MAX_int64: a paused contest or a paused or
+    // frozen guard adds no stop, because a resume can only come from motion inside a step (CompletionInsideMs, CloseBoundary).
     int64 NextDueMs() const;
     // Commit-order view used to validate motion evidence before its boundary closes.
     bool IsCommittedAliveBody(const FLDCombatBodyRef& Body) const;
@@ -133,7 +135,8 @@ private:
     };
     static bool Transition(TMap<FGuid, FMember>& Members, const FLDCaptureEvent& Event, bool bTimeOrdered, FString& Error);
     // ResetOwner names the owner who was in the zone under a frozen guard when this instant began; it is passed with
-    // the last fact of the instant only, so an owner and a challenger leaving at the same instant reset nothing.
+    // the last fact of the instant only, so an owner and a challenger leaving at the same instant reset nothing (the
+    // empty zone only pauses the guard).
     bool Evaluate(const FLDCaptureEventTime& At, const FGuid& Interrupted, const FGuid& ResetOwner, FString& Error);
     bool IsOwnerInFrozenGuard() const;
     // Applies the sprays due before Limit (at it too when bInclusive). A running guard due strictly before Limit

@@ -20,6 +20,12 @@ def amount(value):
     return content.quantity(value)
 
 
+# #148: memes that rule text no longer uses; entry names that contain them (他急了, 无影大比兜) are kept.
+RETIRED_RULE_TERMS = ("精神状态", "电量", "力大砖飞", "阴阳怪气", "嘴硬", "心大", "手速", "润速", "整活频率", "物理超度",
+                      "精神攻击", "心理防线", "大比兜", "提裤子", "捂裆", "CPU 干烧", "瞅你咋地", "腿软", "上头", "蹲到了",
+                      "破防了", "免死金牌", "回暖", "回电")
+
+
 class ApprovedDemoData(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -168,13 +174,13 @@ class ApprovedDemoData(unittest.TestCase):
             "id": "respawn_protection", "namespace": "DemoContent",
             "name_key": "respawn_protection.name", "description_key": "respawn_protection.description",
             "icon_id": "icon_respawn_protection"})
-        self.assertEqual(entries[0]["name_text"], "免死金牌")
+        self.assertEqual(entries[0]["name_text"], "复活保护")
         self.assertEqual(self.catalog.parameter("LIFE.ProtectionSec"), {"unit": "ms", "ms": 3000})
         for row in (*self.data["abilities"], *self.data["equipment"]):
             self.assertNotIn("respawn_protection", {effect["op"] for effect in content.all_effects(row)})
 
     def test_display_names_are_the_approved_fog_harbor_names(self):
-        # #111 雾港 v2 display names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); exposed (the resistance shred) reads 破防了 because display names are unique.
+        # #111 雾港 v2 entry names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); #148 status names use generic game terms.
         self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"]}, {
             "character_demo": "脆皮大学生",
             "active_arc_bolt": "天外飞瓶", "active_guard_pulse": "我没事我很好", "active_binding_snare": "扒裤子",
@@ -193,17 +199,17 @@ class ApprovedDemoData(unittest.TestCase):
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
             "item_echo_maul": "自拍杆",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
-            "root": "提裤子", "shield": "心理防线", "camp_returning": "回工位", "respawn_protection": "免死金牌",
-            "slow": "腿软", "stat_boost": "上头", "enraged": "急了", "ambush_ready": "蹲到了", "exposed": "破防了",
-            "taunt": "瞅你咋地", "disarm": "捂裆", "stun": "CPU 干烧了", "empowered": "蓄力大比兜",
+            "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
+            "slow": "减速", "stat_boost": "增益", "enraged": "狂暴", "ambush_ready": "伏击就绪", "exposed": "破防",
+            "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "active_porcelain_flop": "碰瓷倒地", "active_expose_post": "挂人小作文",
             "active_barrage_rant": "键盘连喷", "active_cancel_blast": "实锤冲塔",
             "active_pie_chart": "拉群画饼", "active_table_flip": "掀桌不干了", "passive_dox_master": "开盒大师",
             "passive_thick_skin": "社交牛逼症", "passive_mental_gymnastics": "精神胜利法",
             "passive_keyboard_warrior": "阴阳大师", "item_megaphone": "大喇叭", "item_dossier": "黑料小本本",
             "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
-            "knockback": "被掀飞", "heal_cut": "被开盒",
-            "damage_guard": "碰瓷中", "vulnerable": "裤子没了",
+            "knockback": "击退", "heal_cut": "重伤",
+            "damage_guard": "减伤", "vulnerable": "易伤",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -211,6 +217,8 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertTrue(row["description_text"])
                 self.assertIsNone(content.DISPLAY_DESCRIPTION_DIGIT.search(row["description_text"]))
                 self.assertIsNone(content.DISPLAY_TEXT_FORBIDDEN.search(row["description_text"]))
+                # #148: rule text names attributes, resources, damage, statuses, the basic attack and the dash generically.
+                self.assertEqual([term for term in RETIRED_RULE_TERMS if term in row["description_text"]], [])
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")

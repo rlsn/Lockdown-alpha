@@ -171,7 +171,7 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，
 不重发开局机会；一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
-买两件同款、满槽 `EquipmentFull`、同号重放，出售其中一件，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
+买两件最便宜的同款（`item_iron_plate`）、满槽 `EquipmentFull`、同号重放，出售其中一件，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
 在 W 学第二个主动并使用 Q；Q/W 已满时只点新主动不确认替换被 `ReplacementRequired` 拒绝且不消费，
 确认替换 Q 后旧技能及等级从构筑消失、新技能 1 级绑定自己的就绪轨道，被遗忘的技能只以 1 级学习卡返回，
 重学到 W 后绑定原 `IssuedCooldownId` 与原截止时间。随后 Host 经夹具给自己发同等级 XP 与金币（账本 `DevFixture`），
@@ -186,6 +186,5 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 只有本局新抽的一次开局机会（不是第一局的任何 Offer），Combat 无来源与冷却债；第一局的选择与 Buy 原样重放被 `OldMatch` 拒绝、旧局回执查询为 `InvalidContext`
 且不改任何状态；第二局账本在新 LedgerMatch 下重新初始化并经复算。
 开局走正常 Lobby Start（全部开局提供者已注册），不覆盖营地反击/回位/刷新、AI、喷漆守护或终局。
-已持有两件同款时，报价不再为该物品预览冷却绑定（第三件必然 `EquipmentFull`）。
 真实拥有连接下的奖励、选择、买卖、死亡/终局与新局隔离由 N05 与集成场景验证；
 纯规则通过不代表联机场景已经通过。
