@@ -53,8 +53,9 @@ public:
     // Called on every HUD refresh. View is the current Opened session quote (nullptr when there is none);
     // EquipView is the own two-slot view (nullptr when not projected); BuildRevision is the owner's current build revision
     // (bBuildKnown=false when the progression view is not projected).
-    // bNearShop: the own body stands in the shop's range by the local check (ULDNavigationComponent::OwnBodyAtShop).
-    void Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop);
+    // NearShop: the shop whose range the own body stands in by the local check (ULDNavigationComponent::OwnBodyAtShop),
+    // NAME_None away from every shop.
+    void Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,FName NearShop);
     // The right click on an icon: buys it (or upgrades the owned copy) right away in the shop's range with this life's
     // quote, else pre-orders it; false (with feedback) when nothing was sent or queued.
     bool QuickBuy(int32 Index);
@@ -119,6 +120,7 @@ private:
     FLDEquipmentView LatestEquipment;
     bool bLatestView=false;
     bool bLatestNear=false;
+    FName LatestNearShop;
     // What the list shows: the session quote of this life, else the approved catalog (browse and pre-order only).
     TArray<FLDShopItemView> Listing;
     TArray<FName> PreorderQueue;
@@ -175,6 +177,7 @@ private:
     bool TryAutoTrade();
     void BlockAutoTrade();
     int32 FreeSlots() const;
+    // This life's quote; at a shop only that shop's own quote counts, since the server checks reach to the session's shop.
     bool HasSession() const;
     void RefreshPreorders();
     bool Send(const FLDShopCommand& Command,FString ItemName);

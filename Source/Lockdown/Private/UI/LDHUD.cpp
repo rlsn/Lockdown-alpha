@@ -1061,13 +1061,13 @@ void ULDHUD::RefreshReadModel()
             // Until the next growth publication arrives, the Opened result's own quote stands in for the lagging projection.
             const bool bAhead=OpenedShop.Generation==O.Match&&OpenedShop.Life==O.Life&&PC->OwnerState.Growth.PublishRevision==OpenedShopPublish;
             if(!bAhead){bOpenedShop=false;}
-            else if(!ShopView||ShopView->SessionId!=OpenedShop.View.SessionId){ShopView=&OpenedShop.View;}
+            else if(!ShopView||ShopView->SessionId!=OpenedShop.View.SessionId||ShopView->ShopId!=OpenedShop.View.ShopId){ShopView=&OpenedShop.View;}
         }
         // Pre-orders buy themselves while the own body stands in the shop's range (the right-click check); the server
         // re-checks reach on every trade, so this only decides when to try.
         FName NearShop;
         const bool bNearShop=Playing&&bAlive&&PC->Navigation&&PC->Navigation->OwnBodyAtShop(NearShop);
-        ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,Content,bNearShop);
+        ShopPanel->Present(ShopView,Equipment,Progression!=nullptr,Progression?Progression->BuildRevision:0,O.Match,O.Life,O.LifePhase,Content,bNearShop?NearShop:NAME_None);
         // A pre-order that could be bought needs this life's session: requested once, then again only every few seconds
         // while it still has none (a refused or lost open result).
         if(bNearShop&&ShopPanel->WantsSession()&&(PreorderOpenLife!=O.Life||UiNow-PreorderOpenAt>=3.))
