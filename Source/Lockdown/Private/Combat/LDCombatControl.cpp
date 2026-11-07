@@ -178,7 +178,6 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         Slow.EffectId=App.EffectId;
         Slow.SourceEntity=App.SourceEntity;
         Slow.RatioBp=App.RatioBp;
-        Slow.AttackRatioBp=App.AttackRatioBp;
         Slow.ExpiresAtMs=ExpiresAtMs;
         bApplied=LDTactical::ApplySlow(Victim.Slows,Slow,NowMs);
         break;

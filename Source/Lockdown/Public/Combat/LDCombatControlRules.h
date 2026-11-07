@@ -25,9 +25,8 @@ struct FLDControlApplication
     FGuid CreditOwner;
     // Undiminished duration; CommitControl applies the hard-control chain.
     int64 DurationMs = 0;
-    // Slow: move-speed ratio and attack-speed ratio.
+    // Slow: move-speed ratio.
     int64 RatioBp = 0;
-    int64 AttackRatioBp = 0;
 };
 
 // Hard-control diminishing returns of one body (#112 cross-session contract 6): a hard control landing while a previous one is active
@@ -49,8 +48,6 @@ struct FLDCombatEmpower
     int64 APRatioBp = 0;
     ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
     int64 ExpiresAtMs = 0;
-    // active_lunge Lv3: remaining-cooldown cut of the arming learned source when the empowered basic lands.
-    int64 RefundMs = 0;
     // #147: the landed basics this release empowers, and the cleave they carry (ratio and radius).
     int32 Charges = 1;
     int64 CleaveRatioBp = 0;
@@ -73,7 +70,6 @@ struct FLDThornsContact
     ELDCombatHitClass HitClass = ELDCombatHitClass::None;
     bool bReflected = false;
     bool bCritical = false;
-    bool bFromBehind = false;
     int64 DamageP2 = 0;
     double DistanceCm = 0;
 };
@@ -97,19 +93,12 @@ namespace LDCombatControl
     LOCKDOWN_API bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs,
         TArray<FLDCombatRoot>* Silences = nullptr);
 
-    // Whether SourceFoot lies in the rear sector of a body standing at TargetFoot with authority facing TargetYawDeg:
-    // the angle between the target's back direction and the planar direction to the source is at most RearArc/2.
-    // Coincident feet are never "behind".
-    LOCKDOWN_API bool IsBehind(const FVector& TargetFoot, double TargetYawDeg, const FVector& SourceFoot,
-        const FLDDemoRational& RearArcDeg);
-
     // Takes one charge of the armed empowerment when it is still active at AtMs (the record ends with its last
     // charge); an expired one is dropped and nothing is taken. The returned copy's Charges is what remains.
     LOCKDOWN_API TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs);
 
     // Whether this contact may trigger the thorns effect: positive damage, not itself a reflection, a primary basic
-    // hit (or an ability hit when the effect allows it), within reach, not from behind when rear hits are exempt,
-    // and at least IntervalMs after this source's last reflection to the same attacker.
+    // hit within reach, and at least IntervalMs after this source's last reflection to the same attacker.
     LOCKDOWN_API bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
         const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs);
     // Reflection base in P2: (Base + Armor x ArmorRatio + MaxHP x MaxHPRatio), multiplied by CriticalMultiplier when the
@@ -119,10 +108,6 @@ namespace LDCombatControl
     // Records a reflection and forgets marks whose window has passed.
     LOCKDOWN_API void MarkThorns(TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker,
         int64 AtMs, int64 IntervalMs);
-
-    // Planar jump plan from Foot toward Point, clamped to RangeCm. Zero distance is a jump in place.
-    LOCKDOWN_API bool PlanJump(const FVector& Foot, const FVector& Point, double RangeCm,
-        FVector& OutDirection, double& OutDistanceCm);
 
     LOCKDOWN_API bool IsHardControl(ELDControlKind Kind);
     // Duration of a hard control landing at NowMs after the chain's diminishing returns; advances the chain.

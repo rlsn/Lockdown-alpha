@@ -94,7 +94,7 @@ namespace LDCombatSourceRulesTestDetail
     const FName Battery(TEXT("item_arcane_battery"));
     const FName Spikes(TEXT("item_phase_anchor"));
     const FName Maul(TEXT("item_echo_maul"));
-    const FName Bolt(TEXT("active_arc_bolt"));
+    const FName Bolt(TEXT("active_snark_bolt"));
     constexpr int64 NowMs = 60000;
 
     FLDEquippedItemValue Item(uint8 Slot, const FGuid& Instance, FName Definition)
@@ -206,41 +206,52 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     TArray<FLDEquipmentPassiveFamily> None, One, Two, Other;
     FLDInnateDashTerms Base, Single, Double, Unrelated;
     TestTrue(TEXT("Bare terms are the approved character dash"),
-        Families({}, None) && LDCombatSourceRules::InnateDashTerms(*Content, None, Base, Error) && !Base.bBoosted
+        Families({}, None) && LDCombatSourceRules::InnateDashTerms(*Content, None, {}, Base, Error) && !Base.bBoosted
         && Base.CooldownMs == Dash.Rank.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Rank.ManaCostP2
         && Base.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Base.DistanceCm.Denominator);
     const int64 Scaled = Dash.Rank.CooldownMs * Boost->CooldownRatioBp;
     const int64 BoostedCooldown = Scaled / 10000 + (Scaled % 10000 != 0 ? 1 : 0);
     TestTrue(TEXT("Worn spikes scale the cooldown and the distance, never the duration"),
-        Families({Spikes.ToString()}, One) && LDCombatSourceRules::InnateDashTerms(*Content, One, Single, Error) && Single.bBoosted
+        Families({Spikes.ToString()}, One) && LDCombatSourceRules::InnateDashTerms(*Content, One, {}, Single, Error) && Single.bBoosted
         && Single.CooldownMs == BoostedCooldown && Single.DurationMs == Move.DurationMs
         && Single.DistanceCm.Numerator * Move.DistanceCm.Denominator * 10000
             == Move.DistanceCm.Numerator * (10000 + Boost->DistanceBonusBp) * Single.DistanceCm.Denominator);
     TestTrue(TEXT("Two pairs of spikes apply the same-named passive once"),
         Families({Spikes.ToString(), Spikes.ToString()}, Two) && Two.Num() == 1
-        && LDCombatSourceRules::InnateDashTerms(*Content, Two, Double, Error)
+        && LDCombatSourceRules::InnateDashTerms(*Content, Two, {}, Double, Error)
         && Double.CooldownMs == Single.CooldownMs && Double.DistanceCm.Numerator == Single.DistanceCm.Numerator
         && Double.DistanceCm.Denominator == Single.DistanceCm.Denominator);
     TestTrue(TEXT("Another equipment passive leaves the dash unchanged"),
-        Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, Unrelated, Error)
+        Families({Maul.ToString()}, Other) && LDCombatSourceRules::InnateDashTerms(*Content, Other, {}, Unrelated, Error)
         && !Unrelated.bBoosted && Unrelated.CooldownMs == Base.CooldownMs);
+    // #147: passive_special_forces advanced ("dash (D) cooldown -30%") boosts the dash like an equipment family; its basic rank does not.
+    FLDInnateDashTerms Learned, LearnedBasic;
+    const int64 LearnedScaled = Dash.Rank.CooldownMs * 7000;
+    TestTrue(TEXT("Advanced special forces: dash cooldown x0.70, distance unchanged"),
+        LDCombatSourceRules::InnateDashTerms(*Content, None, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 2, 5}}, Learned, Error)
+        && Learned.bBoosted && Learned.CooldownMs == LearnedScaled / 10000 + (LearnedScaled % 10000 != 0 ? 1 : 0)
+        && Learned.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Learned.DistanceCm.Denominator);
+    AddInfo(Error);
+    TestTrue(TEXT("Basic special forces leaves the dash unchanged"),
+        LDCombatSourceRules::InnateDashTerms(*Content, None, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 1, 5}}, LearnedBasic, Error)
+        && !LearnedBasic.bBoosted && LearnedBasic.CooldownMs == Base.CooldownMs);
     // #112 §5: the same boost lengthens and quickens every character active that displaces its caster
-    // (active_lunge Lv1: approved 400 -> 500 cm, base cooldown x0.80; upgraded +35% / x0.72).
+    // (active_bail_out basic: approved 350 -> 437.5 cm, base cooldown x0.80; upgraded +35% / x0.72).
     const FLDDemoAbilityDefinition* LungeSkill = nullptr;
     const FLDDemoAbilityDefinition* BoltSkill = nullptr;
-    if (TestTrue(TEXT("The lunge and the bolt are approved"), Content->FindAbility(TEXT("active_lunge"), LungeSkill, Error) && LungeSkill
+    if (TestTrue(TEXT("Bail out and the bolt are approved"), Content->FindAbility(TEXT("active_bail_out"), LungeSkill, Error) && LungeSkill
         && !LungeSkill->Ranks.IsEmpty() && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill && !BoltSkill->Ranks.IsEmpty()))
     {
         const FLDDemoEffectDefinition* Lunge = LungeSkill->Ranks[0].Effects.FindByPredicate(
             [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Dash; });
-        TestTrue(TEXT("The lunge displaces its caster; a bolt does not"), Lunge
+        TestTrue(TEXT("Bail out displaces its caster; a bolt does not"), Lunge
             && LDCombatSourceRules::DisplacesCaster(LungeSkill->Ranks[0]) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Ranks[0]));
         int64 CooldownRatioBp = 0, DistanceBonusBp = 0;
-        TestTrue(TEXT("Worn spikes: the lunge goes 25% farther and its base cooldown is x0.80"),
+        TestTrue(TEXT("Worn spikes: bail out goes 25% farther and its base cooldown is x0.80"),
             Lunge && LDCombatSourceRules::SkillDisplacementBoost(*Content, One, CooldownRatioBp, DistanceBonusBp, Error)
             && CooldownRatioBp == 8000 && DistanceBonusBp == 2500
             && FMath::IsNearlyEqual(double(Lunge->DistanceCm.Numerator) / double(Lunge->DistanceCm.Denominator)
-                * double(10000 + DistanceBonusBp) / 10000., 500.));
+                * double(10000 + DistanceBonusBp) / 10000., 437.5));
         TArray<FLDEquipmentPassiveFamily> Upgraded = One;
         if (Upgraded.Num() == 1) { Upgraded[0].bUpgraded = true; }
         TestTrue(TEXT("Upgraded spikes: +35% and x0.72"), Upgraded.Num() == 1

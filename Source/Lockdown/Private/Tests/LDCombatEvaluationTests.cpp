@@ -201,36 +201,37 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
     if (!CheckDamage(*this, TEXT("200 armor has no legacy sixty-percent mitigation cap"), Input, *Catalog, {2333, 0, 2333, 0, 59667, 0})) { return false; }
 
     FString Error;
-    const FLDDemoAbilityDefinition* Arc = nullptr;
-    if (!Catalog->FindAbility(TEXT("active_arc_bolt"), Arc, Error))
+    const FLDDemoAbilityDefinition* Snark = nullptr;
+    if (!Catalog->FindAbility(TEXT("active_snark_bolt"), Snark, Error))
     {
         AddError(Error);
         return false;
     }
-    if (!TestEqual(TEXT("Approved arc bolt has three ranks"), Arc->Ranks.Num(), 3)) { return false; }
-    const int64 ExpectedDamage[] = {14322, 17033, 19745};
-    for (int32 I = 0; I < Arc->Ranks.Num(); ++I)
+    if (!TestEqual(TEXT("Approved snark bolt has two ranks"), Snark->Ranks.Num(), 2)) { return false; }
+    // Authored (level-1) ranks: 90 / 135 + 1.0 AP, Magical, against 18 magic resistance.
+    const int64 ExpectedDamage[] = {9322, 13135};
+    for (int32 I = 0; I < Snark->Ranks.Num(); ++I)
     {
-        const auto* Effect = Arc->Ranks[I].Effects.FindByPredicate(
+        const auto* Effect = Snark->Ranks[I].Effects.FindByPredicate(
             [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
         if (!TestNotNull(TEXT("Rank has an actual compiled damage effect"), Effect)) { return false; }
         Input = PrimaryInput(*Catalog);
         Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType);
         Input.HitClass = ELDCombatHitClass::Ability;
         Input.SourceAPP2 = int64(2000);
-        // The chalk throw is Physical since #81, so it meets armor (same base points as magic resistance).
+        // A Physical hit meets armor, a Magical one magic resistance (the same base points).
         Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
             ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
-        if (!CheckDamage(*this, FString::Printf(TEXT("Compiled arc rank %d with 70 AD and 20 AP"), I + 1), Input, *Catalog,
+        if (!CheckDamage(*this, FString::Printf(TEXT("Compiled snark bolt rank %d with 70 AD and 20 AP"), I + 1), Input, *Catalog,
             {ExpectedDamage[I], 0, ExpectedDamage[I], 0, 62000 - ExpectedDamage[I], 0})) { return false; }
         if (I == 0)
         {
             Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
-            if (!CheckDamage(*this, TEXT("156 damage against 18 resistance points, not a ratio"), Input, *Catalog,
-                {13220, 0, 13220, 0, 48780, 0})) { return false; }
+            if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
+                {7627, 0, 7627, 0, 54373, 0})) { return false; }
             Input.TargetResistanceP2 = int64(20000);
             if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
-                {5200, 0, 5200, 0, 56800, 0})) { return false; }
+                {3000, 0, 3000, 0, 59000, 0})) { return false; }
         }
     }
     const FLDDemoEquipmentDefinition* Maul = nullptr;
@@ -570,27 +571,29 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.AmplifyBp = -1;
     CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
 
-    // active_body_slam (2026-11-04): base + 0.4 AD + 6% of the caster's max HP, the max-HP term beside AD/AP before one floor.
+    // active_seethe (#147): base + 0.7 AP + 3% of the caster's max HP, the max-HP term beside AD/AP before one floor.
     FString Error;
-    const FLDDemoAbilityDefinition* Slam = nullptr;
-    if (!Catalog->FindAbility(TEXT("active_body_slam"), Slam, Error)) { AddError(Error); return false; }
+    const FLDDemoAbilityDefinition* Seethe = nullptr;
+    if (!Catalog->FindAbility(TEXT("active_seethe"), Seethe, Error)) { AddError(Error); return false; }
     const int64 MaxHP = Content.Parameters.MaxHP.BaseP2;
-    for (int32 I = 0; I < Slam->Ranks.Num(); ++I)
+    const int64 AP = 2000;
+    for (int32 I = 0; I < Seethe->Ranks.Num(); ++I)
     {
-        const auto* Effect = Slam->Ranks[I].Effects.FindByPredicate(
+        const auto* Effect = Seethe->Ranks[I].Effects.FindByPredicate(
             [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
-        if (!TestNotNull(TEXT("The body slam rank has a damage effect"), Effect)) { return false; }
-        TestEqual(TEXT("The body slam scales with 6% of the caster's max HP"), Effect->MaxHPRatioBp, int64(600));
+        if (!TestNotNull(TEXT("The seethe rank has a damage effect"), Effect)) { return false; }
+        TestEqual(TEXT("The seethe scales with 3% of the caster's max HP"), Effect->MaxHPRatioBp, int64(300));
         Input = PrimaryInput(*Catalog);
         Input.HitClass = ELDCombatHitClass::Ability;
+        Input.SourceAPP2 = AP;
         Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType, Effect->MaxHPRatioBp);
         CheckFailure(*this, TEXT("A max-HP coefficient without the caster's max HP is refused"),
             LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Numeric);
         Input.SourceMaxHPP2 = MaxHP;
-        const int64 Raw = Effect->BaseP2 * 10000 + AD * Effect->ADRatioBp + MaxHP * Effect->MaxHPRatioBp;
-        const int64 Slammed = Raw * Scale / ((Scale + Resist) * 10000);
-        if (!CheckDamage(*this, FString::Printf(TEXT("Body slam rank %d adds 6%% of the caster's max HP"), I + 1), Input, *Catalog,
-            {Slammed, 0, Slammed, 0, HP - Slammed, 0}))
+        const int64 Raw = Effect->BaseP2 * 10000 + AD * Effect->ADRatioBp + AP * Effect->APRatioBp + MaxHP * Effect->MaxHPRatioBp;
+        const int64 Seethed = Raw * Scale / ((Scale + Resist) * 10000);
+        if (!CheckDamage(*this, FString::Printf(TEXT("Seethe rank %d adds 3%% of the caster's max HP"), I + 1), Input, *Catalog,
+            {Seethed, 0, Seethed, 0, HP - Seethed, 0}))
         {
             return false;
         }
@@ -600,31 +603,6 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.SourceMaxHPP2 = MaxHP;
     CheckFailure(*this, TEXT("A basic hit cannot scale with max HP"), LDTactical::EvaluateDamage(Input, *Catalog),
         ELDCombatEvaluationError::Definition);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageMitigationTest, "Lockdown.Rules.DemoCombatEvaluation.Mitigation",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-// #112 §5 damage guard (active_porcelain_flop): the reduction acts after resistance and before the shield, and the
-// guard counts the amount before it.
-bool FLDDemoDamageMitigationTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
-    auto Input = PrimaryInput(*Catalog);
-    Input.MitigateBp = 4000;
-    if (!CheckDamage(*this, TEXT("40% off 59.32 after armor"), Input, *Catalog, {3559, 0, 3559, 0, 58441, 0})) { return false; }
-    const auto Plain = LDTactical::EvaluateDamage(Input, *Catalog);
-    TestEqual(TEXT("The guard counts the post-resistance amount before the reduction"), Plain.Value->PreMitigationP2, int64(5932));
-    Input.TargetShieldP2 = int64(2000);
-    if (!CheckDamage(*this, TEXT("The reduced amount meets the shield next"), Input, *Catalog, {3559, 2000, 1559, 0, 60441, 0})) { return false; }
-    Input.bTargetProtected = true;
-    const auto Protected = LDTactical::EvaluateDamage(Input, *Catalog);
-    TestTrue(TEXT("Protection zeroes both amounts"), Protected.IsSuccess() && Protected.Value->DamageP2 == 0 && Protected.Value->PreMitigationP2 == 0);
-    Input.bTargetProtected = false;
-    Input.MitigateBp = 10001;
-    CheckFailure(*this, TEXT("A reduction past 100% is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
     return true;
 }
 

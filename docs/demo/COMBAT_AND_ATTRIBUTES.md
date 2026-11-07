@@ -252,7 +252,7 @@ Combat 的 `ProjectBuild` 对主动、被动等级与属性卡合计做同一上
 | Armor/MR | `STAT.Armor/MagicResist.Base/PerLevel`；`FORMULA.Resistance` | 抗性点；每次 Hit 取目标当前值，不能混用旧比率和新抗性点。 |
 | AS/攻击间隔/前摇 | `STAT.BaseAttackSpeed/AttackSpeedPerLevelRatio`；`FORMULA.AttackSpeed/AttackIntervalMs/AttackWindupMs` | AS 为次/秒；时长输出毫秒；在合法 AttackStart 快照，不默认缩短所有能力前摇。 |
 | MS | `UNIT.MoveSpeedCmPerSec` 与合法属性贡献；`FORMULA.MoveSpeed → STAT.MoveSpeedCmPerSec` | 厘米/秒；最终值接现有 CharacterMovement，导航不再计算一份速度。 |
-| 攻击距离 | `UNIT.BasicAttackRangeCm`、`CHOICE.attr_reach.AttackRangeCmFlat`、装备同名贡献；`FORMULA.AttackRange → STAT.AttackRangeCm` | 厘米；脚点 XY 中心距，不增减胶囊。FindApproach、AttackStart、预览同源；只限制普攻开始，出手（Release）时不再检查距离（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”），目标那条生命仍在（未死、未离局、未换命）、仍可观察且视线无遮挡即命中（2026-11-07 后续用户决定 "let's add back the visibility and line of sight check"，恢复 2026-11-06 的可见/视线要求）；不等于能力 Range 或群攻 Radius。 |
+| 攻击距离 | `UNIT.BasicAttackRangeCm`、`CHOICE.attr_hand_out.AttackRangeCmFlat`、装备同名贡献；`FORMULA.AttackRange → STAT.AttackRangeCm` | 厘米；脚点 XY 中心距，不增减胶囊。FindApproach、AttackStart、预览同源；只限制普攻开始，出手（Release）时不再检查距离（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”），目标那条生命仍在（未死、未离局、未换命）、仍可观察且视线无遮挡即命中（2026-11-07 后续用户决定 "let's add back the visibility and line of sight check"，恢复 2026-11-06 的可见/视线要求）；不等于能力 Range 或群攻 Radius。 |
 | 最大 HP/MP | `STAT.MaxHP/MaxMP.Base/PerLevel`；`FORMULA.StatProjection` | P2 点；构筑属性，不是当前资源；一次最终变更调用 `FORMULA.ResourceMaxChange`。 |
 | 当前 HP/MP | `FORMULA.Damage/Regen/ResourceMaxChange` 及已批准效果/成本 | Combat 唯一 P2 真值；伤害、回复、花费、比例变更、正常复活分别有明确提交原因。 |
 | HP/MP 回复 | `STAT.HPRegen/MPRegen.Base/PerLevel`；`FORMULA.Regen` | 点/秒；按有效速率区间累计，不能每帧舍掉小恢复或使用新速率回算过去。 |
@@ -306,15 +306,14 @@ Pool 仅选择 HP 正值归零的拒绝政策，不判定或修改 Alive/Dead；
 余数仍是原资源点的未入账小量，不随 Max 倍乘，满资源时丢弃超额及余数。
 Prepare 本身不偷偷 Tick；死亡/新生命清瞬时余数。
 脱战回复读身体真实战斗事件，不借卖装/换被动代表或复用旧 `QuietForPreparation` 重置计时。
-`ABILITY.passive_second_wind` 只在成功 AttackStart、具有伤害效果的成功 Release、
-承受正减伤/量化后伤害时更新 LastCombatAt；盾全吸收也算受击，不只看实际 HP 损失。
+LastCombatAt 只在成功 AttackStart、具有伤害效果的成功 Release、
+承受正减伤/量化后伤害时更新；盾全吸收也算受击，不只看实际 HP 损失。
 失败尝试即使已失保也不刷新；纯移动/位移、自保盾/回蓝、购物和选卡不刷新。
-达到该定义的脱战期限后才启额外回复，基础回复仍按资源规则；
 时钟事件先结清旧速率到实际发生时刻，再切换有效速率，不另取帧 dt 默认值。
 正常复活时以该次复活的实际时刻初始化新身体的脱战时间起点，不沿用上一生命的就绪窗口；
 这不修改已保留的技能 cooldown 或普攻端点。
-D21 人人脱战慢回复用同一 LastCombatAt：参赛者身体满 `REGEN.OutOfCombatDelaySec` 后另加按当前 Max 比例的 HP/MP 恢复，
-与上述被动额外回复各按自己的延迟起算、相互叠加；野怪身体不享有。实现为纯规则 `LDTactical::SettleRegen`
+D21 人人脱战慢回复用这个 LastCombatAt：参赛者身体满 `REGEN.OutOfCombatDelaySec` 后另加按当前 Max 比例的 HP/MP 恢复，
+与宿舍快回复各按自己的延迟起算，并与基础回复相互叠加；野怪身体不享有。当前目录没有技能或装备提供额外的脱战回复。实现为纯规则 `LDTactical::SettleRegen`
 （`ALDCombatDirector::Regenerate` 逐身体调用），起点也作为 `NextDueMs` 的精确边界。
 
 ## 5. 来源、冷却与反套利
@@ -452,8 +451,9 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 
 按已批准首版内容，Root 以 effect/cast+完整目标生命保存独立实例和原期限，任一未到期实例即生效，
 显示最大剩余时间；同实例重发不续期，一个较早到期不能清掉另一来源。
-「我没事我很好」的净化删除当时全部 Root 与减速，不清其它状态/CD，不带后续免疫；之后按权威次序新施加仍可再次 Root。
-全部控制与减速只经 `CommitControl` 施加；定身、眩晕、缴械、嘲讽共用硬控递减（#112，内容报告 §15.10）。
+「我没急」（`active_not_mad`）初级解除当时全部减速，高级另删除全部 Root 与缴械；不清其它状态/CD，不带后续免疫；
+之后按权威次序新施加仍可再次 Root。
+全部控制与减速只经 `CommitControl` 施加；定身、眩晕、沉默、缴械、嘲讽共用硬控递减（内容报告 §4.5）。
 
 `EFFECT.ShieldPolicy=ReplaceIfNotWeaker` 比较旧盾的**当前剩余量**：
 新量不少于剩余量时，用新量、新 source context、新截止完整替换，相等也刷新；
@@ -461,9 +461,9 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 组合 Root 净化仍正常执行，合法 Release 仍支付 MP/CD。
 后续 Max/装备/AP 变化不重算已快照盾，不能继承旧 helper 的严格大于判定或旧盾上限。
 这些逐定义语义及数值以内容报告的已批准首版内容（D01）为准，不在这里维护另一组参数。
-未选 Stun/Silence/Mute/Disarm/免死/反射等已删除，不保留禁用生产者或空 handler。
-本段针对当前首轮池；2026-11-02 已批准后续接入反伤等构筑扩展，按[内容报告 §15](CONTENT_AND_BALANCE.md#15-后续批次构筑扩展已批准方向未进入运行输入)
-逐批建立处理器与验证，不因此保留整套旧效果或在文档换皮时提前启用。
+当前目录（#147 v7）使用的控制、叠层与触发效果见[内容报告 §4.5](CONTENT_AND_BALANCE.md#45-关键词状态与共用战斗规则)，
+其原生接口见[战斗、效果与成长](../systems/COMBAT_AND_GROWTH.md)；目录不用的状态与效果（如免死、背后判定、灼烧以外的持续伤害、减疗、易伤）
+已连同处理器删除，不保留禁用生产者或空 handler。
 
 公开拒绝为 `ELDCombatReject`：InvalidRequest/NotOwner、StaleMatch/StaleLife/StaleRequest、
 RequestConflict/ReceiptExpired、Cancelled、StaleSource、SourceUnavailable、
@@ -495,7 +495,8 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 观察与视线由世界/视野域提供（`ResolveObservedUnit`、`TraceSight`）。
 单位新锁定、每次追击、AttackStart 与需要单位许可的 Release 均重新解析观察，
 样本只在当前提交阶段有效。失视野取消该锁定并停该追击，不改走最后坐标、不自动重现续单。
-战斗目标只有 Missing/Self/Unit/Direction 四类，不接受客户端地面点作为战斗目标。
+战斗目标有 Missing/Self/Unit/Direction/Point 五类；Point 只用于目标模式为 GroundPoint 的地面区域技能（临时开个短会），
+服务器在释放时把落点夹到射程内，不把它当作单位或方向目标的替代。
 
 普攻群攻和方向效果在权威内部读取**同一** Combat `Bodies` 求接触，并逐目标做世界 LOS（`LDCombatEffects.cpp`）。
 合法方向效果或普攻群攻可以接触隐藏身体，但结果不授予新的观察句柄，不交 UI/AI/Nav。
@@ -517,13 +518,13 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 一次允许暴击的 Basic 只在成功 Release 采样一次，绑定 AttackId，取消前摇不能提前预览随机结果。
 被动去重键含完整 Match、AttackId、VictimKey 和 PassiveFamily，代表更换/重复实例不重复触发。
 吸血只按该次命中的实际 HP 损失（`HPLostP2`）计算，盾、过量均不计；普攻吸血是命中特效，按命中的特效系数触发
-（普攻主击 1.0，技能按定义），副击、反伤与附加伤害不触发；技能吸血与全能吸血按 #112 内容条目相加（内容报告 §15.10）；
+（普攻主击 1.0，技能按定义），副击、反伤与附加伤害不触发；所有吸血比例相加，总上限 `COMBAT.LifestealCap`（内容报告 §4.5）；
 治疗指向原释放身体生命，不能治疗该所有者的新复活身体或 PendingDeath。
 具体触发规则与数值见内容报告；实现只走同一条 Damage/Heal 通路（`ApplyHit`）。
 
 ### 7.3 可获得射程与普攻群攻
 
-已批准首版内容（D01）中为 `CHOICE.attr_reach` 及 `ITEM.item_echo_maul` 的
+已批准内容中为 `CHOICE.attr_hand_out` 及 `ITEM.item_echo_maul` 的
 `Stats.AD/AttackRangeCmFlat`、`Passive.Family=passive_cleave`、
 `Trigger=PrimaryBasicContact/CleaveRatio/RadiusCm`，只引用这些键，不在本文复制倍率或半径。
 扩大最终 Range 不隐式设置旧 Gear.Ranged 或创建追踪弹体。
@@ -710,7 +711,7 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 `AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板只经 `Actives` 显示 Q/W 与等级，不显示被动列表或 CD。
 
 **弹体。** `ReadObservedProjectiles` 把仍在飞行的弹体按当前位置与平面朝向交给观察所有者采样；
-唯一获准外观为粉笔（天外飞瓶 `active_arc_bolt` 的现有美术，`ELDObservedProjectileLook::Chalk`），其他来源没有外观则整体失败。
+唯一获准外观为粉笔（`ELDObservedProjectileLook::Chalk`，用于唯一的弹道技能阴阳怪气 `active_snark_bolt`），其他来源没有外观则整体失败。
 
 **身体表现。** `ULDHumanoidVisualComponent` 用 Demo 美术目录（`ULDArtSubsystem`，`DA_DemoArt`）的骨骼身体和
 单节点动画片段，只绘制被告知的外观、提示字节（动作与状态位）与出现/倒下事件，不持有玩法状态；
@@ -814,7 +815,7 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 | `DemoCombatSources.CommittedBasicRelease` | 已起手普攻不查射程：目标走出射程仍命中；目标失视野、被墙挡、死亡、离局、换命或攻击者受控则放弃（2026-11-07） |
 | `DemoCombatStatus.Roots/Shield/Regen/Cooldown` | Root 实例与净化、盾替换政策、回复积分、冷却期限 |
 | `DemoOrders.AttackMoveCandidate/BookIsolation/ChasePress` | 攻击移动候选、订单簿隔离、普攻追击不发呆（到点出手即转追、射程内目标走开即贴近） |
-| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、天外飞瓶弹体、观察白名单 |
+| `DemoCombatCues.Selection`；`DemoVision.ActionCues/Projectiles/Presentation/Privacy` | 动作提示优先级与窗口、施法名称、阴阳怪气弹体、观察白名单 |
 | `DemoControlFeel.PreInput`；`LocalSettingsQuickCast` | 预输入判定；快速施法本地设置 |
 | `DemoCore.BodyIdentity/CheckedTime/ClockProjection/ScopedAuthority` | 身体身份、受检时间、时钟投影、写许可作用域 |
 | `DemoCamp.Retaliation/ReturnReset/Lifecycle/Roster/ObservedFacts`；`CampDecision` | 营地反击、到家重置与生命周期账目 |
@@ -825,8 +826,9 @@ A01/A07 同时检查纯值入口：实际执行和 AI 估计提交相同值/公�
 - `Scripts\RunDemoCombatCheck.ps1` + `LDDemoCombatProbe.cpp`（Host + Client1，可选 `-NetEmulation` 与打包运行）：
   攻击移动接近、S 停止、打开设置期间已接受的行走订单继续而不接受新世界命令、右键击杀与击杀播报归属、死亡镜头、
   复活延迟、在出生锚点之一的批准偏移处复活、复活保护窗口及观察到的 `respawn_protection`、
-  空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具的普通选择学习技能后，`active_binding_snare` 定身、
-  `active_guard_pulse` 加盾并净化定身、`active_arc_bolt` 的弹体被观察、`attr_reach` 扩大普攻距离；
+  空 Q 槽激活尝试被拒但仍解除保护；经 DEV 成长夹具的普通选择学习技能后，`active_pants_down` 定身、
+  升到高级的 `active_not_mad` 加盾并净化定身、`active_snark_bolt` 的弹体被观察、`attr_hand_out` 扩大普攻距离
+  （#147 换目录后改用这些条目，需在新目录上重新运行确认）；
   Host 渲染截图供表现审阅（不做像素比较），并报告操作手感测量值。
 - `Scripts\RunDemoGrowthCheck.ps1`：满槽替换与重学沿用原冷却结束时间；新局无冷却债务。
 - `Scripts\RunDemoCampCheck.ps1`：野怪不先手、全营反击、每生命一次最后一击奖励、清营刷新、脱离回位与无奖励到家重置。
@@ -865,4 +867,4 @@ Bootstrap Validate 和相关场景；网络、成长、交易、胜负变更必�
 双持、失源计时、比例资源、死亡选择、意图失保、观察粒度、独立效果存续/离局均为已确认规则，
 不是待选玩法。首版内容（公式、精度、角色/技能/装备/营地参数及逐定义语义）已批准为试玩输入（D01），
 唯一维护于 [CONTENT_AND_BALANCE.md](CONTENT_AND_BALANCE.md)，未经平衡测试；
-其 §15 的构筑扩展是已批准方向，尚未进入运行输入。当前验证覆盖与缺口见 §13。
+#147 v7 构筑目录（其 §4）2026-11-07 批准并进入运行输入，同样未经平衡测试。当前验证覆盖与缺口见 §13。

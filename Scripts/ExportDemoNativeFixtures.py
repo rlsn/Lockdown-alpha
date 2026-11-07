@@ -39,7 +39,6 @@ BONUS_STATS = (
     "HPRegenFlat", "APBonusRatio", "MPRegenFlat",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
-MECHANIC_TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
 BUNDLE_PATHS = (
     demo.MANIFEST_OUTPUT, demo.CONTENT_OUTPUT, demo.WORLD_OUTPUT, demo.CONTENT_CONTRACT,
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
@@ -119,42 +118,32 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "Release", "EmpowerHit", "BasicHit", "BasicCrit", "Cleanse", "LandingHit", "LowHP", "AbilityHit", "Control",
-            "Damaged")
-COOLDOWN_ENTRIES = ("None", "Basic", "Self", "OtherActives", "Actives")
-CRIT_MODES = ("None", "Impaired", "Chance")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged")
+COOLDOWN_ENTRIES = ("None", "Actives")
+CRIT_MODES = ("None", "Chance")
 
 
 def effect(value):
-    op = value.get("op")
     result = {
         "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
-        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
-        "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0, "MagicResistRatioBp": 0, "VampRatioBp": 0,
-        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "bImpaired": False, "SkillCooldownRatioBp": 0,
-        "SkillDistanceBonusBp": 0, "AbilityIds": [], "PerCountP2": 0, "CapP2": 0, "CapBp": 0, "MaxHPPerSecBp": 0,
-        "ShredP2": 0, "ThresholdP2": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0, "CooldownCutMs": 0,
+        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
+        "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0,
+        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SkillCooldownRatioBp": 0,
+        "SkillDistanceBonusBp": 0, "AbilityIds": [], "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
-        ("in_combat_ratio", "RatioBp"), ("shred_ratio", "RatioBp"), ("cripple_ratio", "RatioBp"),
-        ("windup_reduction", "RatioBp"), ("surge_duration", "DurationMs"), ("shred_duration", "DurationMs"),
-        ("cripple_duration", "DurationMs"), ("dash_credit", "AmountMs"), ("cooldown", "AmountMs"), ("window", "DelayMs"),
-        ("surge_multiplier", "MultiplierBp"), ("cleanse_multiplier", "MultiplierBp"), ("per_hit", "PerCountP2"),
-        ("magic_resist_ratio", "MagicResistRatioBp"), ("mana", "BaseP2"), ("vamp", "VampRatioBp"),
-        ("omnivamp", "VampRatioBp"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
+        ("cooldown", "AmountMs"), ("mana", "BaseP2"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
         ("skill_distance_bonus", "SkillDistanceBonusBp"),
         # #112 handlers.
-        ("shred", "ShredP2"), ("trigger_damage", "ThresholdP2"), ("scale", "RatioBp"),
-        ("shield_ratio", "RatioBp"), ("bonus_ratio", "RatioBp"), ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
-        ("heal_cut", "SecondaryRatioBp"), ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
-        ("linger", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
-        ("internal_cooldown", "IntervalMs"), ("cooldown_cut", "CooldownCutMs"),
+        ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
+        ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
+        ("linger", "SecondaryDurationMs"), ("internal_cooldown", "IntervalMs"),
         # #147 build v7 terms.
         ("hp_below", "SecondaryRatioBp"), ("slowed_stun", "SecondaryDurationMs"), ("wall_stun", "SecondaryDurationMs"),
         ("cleave_ratio", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
@@ -162,42 +151,29 @@ def effect(value):
     ):
         if source in value:
             result[dest] = scalar(value[source])
-    if op == "out_of_combat_regen":
-        result["MaxHPRatioBp"] = 0
-        result["MaxHPPerSecBp"] = scalar(value["max_hp_ratio"])
-    if "cap" in value:
-        result["CapBp" if op == "long_reach" else "CapP2"] = scalar(value["cap"])
-    for source in ("count", "max_stacks", "max_hits", "stacks", "charges"):
+    for source in ("count", "stacks", "charges"):
         if source in value:
             result["Count"] = value[source]
     if "basic_stacks" in value:
         result["BasicCount"] = value["basic_stacks"]
     for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"),
-                         ("half_width", "RadiusCm"), ("cast_range", "DistanceCm"), ("wall_distance", "RadiusCm"),
+                         ("half_width", "RadiusCm"), ("wall_distance", "RadiusCm"),
                          ("cleave_radius", "RadiusCm"), ("burst_radius", "RadiusCm")):
         if source in value:
             result[dest] = rational(value[source])
-    for source in ("count", "max_stacks"):
-        if source in value:
-            result["Count"] = value[source]
     if "damage_type" in value:
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
         result["Stats"] = stats(value["stats"])
-    if "trigger" in value:
-        if op == "thorns":
-            result["bAbilityTrigger"] = ("Basic", "BasicOrAbility").index(value["trigger"]) == 1
-        else:
-            result["Trigger"] = TRIGGERS.index(value["trigger"])
+    # A reflection answers primary basics only; its trigger names no native selector.
+    if "trigger" in value and value.get("op") != "thorns":
+        result["Trigger"] = TRIGGERS.index(value["trigger"])
     if "entries" in value:
         result["Entries"] = COOLDOWN_ENTRIES.index(value["entries"])
     if "mode" in value:
         result["CritMode"] = CRIT_MODES.index(value["mode"])
     if "abilities" in value:
         result["AbilityIds"] = list(value["abilities"])
-    if "rear_exempt" in value:
-        result["bRearExempt"] = value["rear_exempt"]
-    result["bImpaired"] = value.get("impaired", False)
     return result
 
 
@@ -217,8 +193,6 @@ def dash_definition(value):
     }
 
 
-def tags(values):
-    return [MECHANIC_TAGS.index(value) for value in values]
 
 
 def passive(value):
@@ -248,7 +222,7 @@ def parameter_projection(parameters):
     for source, dest in (
         ("STAT.AttackSpeedPerLevelRatio", "AttackSpeedPerLevelBp"), ("STAT.CritChance.Base", "CritChanceBaseBp"),
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.AbilityCritMultiplier", "AbilityCritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
-        ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
+        ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
         ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
@@ -270,7 +244,7 @@ def parameter_projection(parameters):
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
-        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
+        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
     ):
@@ -299,10 +273,8 @@ def parameter_projection(parameters):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
     result["Choice"] = {dest: scalar(parameters["CHOICE." + source]) for source, dest in (
-        ("UpgradeWeight", "UpgradeWeightBp"), ("NewActiveOpenSlotWeight", "NewActiveOpenSlotWeightBp"),
-        ("NewActiveFullSlotWeight", "NewActiveFullSlotWeightBp"), ("NewPassiveWeight", "NewPassiveWeightBp"),
-        ("AffinityStep", "AffinityStepBp"), ("AffinityCap", "AffinityCapBp"),
-        ("ThirdSlotAttributeChance", "ThirdSlotAttributeBp"),
+        ("NewActiveFullSlotWeight", "NewActiveFullSlotWeightBp"),
+        ("FreeSlotAttributeChance", "FreeSlotAttributeBp"),
     )}
     return result
 
@@ -342,14 +314,14 @@ def expected_projection(compilation):
                       "BasicIntervalMs": character["basic_attack"]["interval_ms"], "Dash": innate_dash},
         "Abilities": [{
             "Id": row["id"], "NativeId": row["native_id"], "Kind": ("active", "passive").index(row["kind"]),
-            "Tags": tags(row["tags"]), "Draftable": row["draftable"], "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
+            "Draftable": row["draftable"], "Target": target(row["target"]), "WindupMs": scalar(row["windup"]) if "windup" in row else 0,
             "CooldownFamily": row.get("cooldown_family", ""), "Ranks": [rank(item) for item in row["ranks"]],
         } for row in data["abilities"]],
         "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"]),
                         "Penalties": stats(row.get("penalties", {}))} for row in data["attributes"]],
         "Equipment": [{
             "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
-            "Tags": tags(row["tags"]), "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
+            "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
             "HasPassive": row["passive"] is not None, "Passive": passive(row["passive"]),
         } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
@@ -366,6 +338,7 @@ def expected_projection(compilation):
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
             "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
+            "AdvancedKey": row.get("advanced_key", ""), "AdvancedText": row.get("advanced_text", ""),
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }
@@ -598,6 +571,31 @@ def _export(output, *, rank_mutations, jobs):
     return index
 
 
+# D2 (#147): the advanced rank keeps every coefficient and holds each growing base at 1.5x the basic rank's.
+COUPLED_RANK_FIELDS = ("base", "ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio")
+
+
+def _rank_mutation(author, path):
+    """Change one rank quantity; a field D2 couples across ranks moves in both ranks so the case stays valid."""
+    changed = deepcopy(author)
+    quantity = _at(changed, path)
+    delta = Decimal("0.001") if quantity["unit"] == "s" else Decimal("0.01")
+    field = path[-1]
+    if len(path) == 7 and path[4] == "effects" and field in COUPLED_RANK_FIELDS:
+        ranks = _at(changed, path[:3])
+        op = _at(changed, path[:6])["op"]
+        basic = next((row for row in ranks[0]["effects"] if row["op"] == op), None)
+        advanced = next((row for row in ranks[-1]["effects"] if row["op"] == op), None)
+        if (ranks[0] is not ranks[-1] and basic is not None and advanced is not None and field in basic
+                and not (field == "base" and op == "mana_on_hit")):
+            step, scale = (delta * 2, Decimal(3) / 2) if field == "base" else (delta, Decimal(1))
+            basic[field]["value"] = float(Decimal(str(basic[field]["value"])) + step)
+            advanced[field]["value"] = float(Decimal(str(advanced[field]["value"])) + step * scale)
+            return changed
+    quantity["value"] = float(Decimal(str(quantity["value"])) + delta)
+    return changed
+
+
 def _export_cases(output, index, base, rank_mutations, valid):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
@@ -622,10 +620,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         author = fixtures.content_fixture()
         paths = [path for path, _ in _quantities(author) if "ranks" in path]
         for index_number, path in enumerate(paths):
-            changed = deepcopy(author)
-            quantity = _at(changed, path)
-            delta = Decimal("0.001") if quantity["unit"] == "s" else Decimal("0.01")
-            quantity["value"] = float(Decimal(str(quantity["value"])) + delta)
+            changed = _rank_mutation(author, path)
             source_path = "content" + "".join(f"[{key}]" if type(key) is int else "." + key for key in path) + ".value"
             native_quantity = base.catalog.field_projection[source_path][0].rsplit(".", 1)[0]
             valid(f"rank_field_{index_number:03d}", changed, mutated_quantity=native_quantity)
@@ -655,7 +650,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("string_integer", lambda d: d["parameters"].update({"SHOP.StartingGold": "10"}), "integer token")
     bad_content("retired_id", lambda d: d["abilities"][0].update({"native_id": 1}), "renumbered native ID")
     bad_content("unknown_id", lambda d: d["abilities"][0].update({"id": "active_missing"}), "unknown")
-    bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_arc_bolt"}), "canonical lowercase")
+    bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_not_mad"}), "canonical lowercase")
     bad_content("long_id", lambda d: d["abilities"][0].update({"id": "a" * 64}), "string length")
     bad_content("duplicate_ability", lambda d: d["abilities"].__setitem__(1, deepcopy(d["abilities"][0])), "duplicate")
     bad_content("missing_rank", lambda d: d["abilities"][0]["ranks"].pop(), "array length")
@@ -664,8 +659,13 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("unknown_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"op": "grant_gold"}), "opcode")
     bad_content("duplicate_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(d["abilities"][0]["ranks"][0]["effects"][0])), "duplicate effect")
     bad_content("unknown_effect_field", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"unexpected": 1}), "unknown field")
-    bad_content("bad_damage_type", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"damage_type": "True"}), "unknown damage type")
-    bad_content("wrong_target", lambda d: d["abilities"][0].update({"target": {"mode": "Self"}}), "wrong definition target")
+    # The bolt's first effect is damage and it does not target Self (the payload sorts abilities by id).
+    bolt = lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")
+    bad_content("bad_damage_type", lambda d: bolt(d)["ranks"][0]["effects"][0].update({"damage_type": "True"}), "unknown damage type")
+    bad_content("wrong_target", lambda d: bolt(d).update({"target": {"mode": "Self"}}), "wrong definition target")
+    # #147: fits ungrown, overflows once grown for the top level.
+    bad_content("grown_base_overflow", lambda d: bolt(d)["ranks"][1]["effects"][0]["base"].update({"p2": 6 * 10 ** 14}),
+                "multiplication overflow")
     bad_content("wrong_family", lambda d: d["abilities"][0].update({"cooldown_family": "cd_wrong"}), "cooldown family")
     bad_content("zero_cooldown", lambda d: d["abilities"][0]["ranks"][0]["cooldown"].update({"ms": 0}), "integer outside")
     bad_content("negative_cost", lambda d: d["abilities"][0]["ranks"][0]["mana_cost"].update({"p2": -1}), "integer outside")
@@ -677,8 +677,6 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
     bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"active_count": 3}), "opening offer")
     bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
-    bad_content("unknown_mechanic_tag", lambda d: d["abilities"][0].update({"tags": ["Burst"]}), "mechanic tag")
-    bad_content("duplicate_mechanic_tag", lambda d: d["equipment"][0].update({"tags": ["Tank", "Tank"]}), "mechanic tag")
     bad_content("missing_draftable", lambda d: d["abilities"][0].pop("draftable"), "missing")
     bad_content("bad_upgraded_stats", lambda d: next(iter(d["equipment"][0]["upgraded_stats"].values())).update(
         {"p2": 1} if "p2" in next(iter(d["equipment"][0]["upgraded_stats"].values())) else {"bp": 1}), "upgraded stats")
@@ -687,7 +685,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_passive", lambda d: next(row for row in d["equipment"] if row["passive"] is not None).update({"passive": None}), "presence")
     bad_content("equipment_active_field", lambda d: d["equipment"][0].update({"active": None}), "unknown field")
-    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_battle_rhythm")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_lucky_star")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}
     bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
@@ -727,7 +725,8 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("aliased_root_key", lambda d: d.update({"Parameters": d.pop("parameters")}), "missing")
     bad_content("aliased_parameter", lambda d: d["parameters"].update({"STAT.ad.Base": d["parameters"].pop("STAT.AD.Base")}), "missing")
     bad_content("aliased_target", lambda d: d["abilities"][0]["target"].update({"mode": "directionprojectile"}), "unsupported target")
-    bad_content("aliased_damage_type", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"damage_type": "magical"}), "unknown damage type")
+    bad_content("aliased_damage_type", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["ranks"][0]["effects"][0]
+        .update({"damage_type": "magical"}), "unknown damage type")
     bad_content("aliased_policy", lambda d: d["policies"].update({"DuplicateEquipment": "allowed"}), "unsupported constant")
     bad_content("aliased_approval", lambda d: d["identity"]["approval"].update({"status": "APPROVED"}), "approval metadata")
     bad_content("aliased_display_namespace", lambda d: d["display"][0].update({"namespace": "democontent"}), "display reference")
@@ -835,7 +834,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         invalid(name, bundle, digest, error)
 
     ids = deepcopy(ids_data)
-    ids["abilities"]["active_arc_bolt"] = 63
+    ids["abilities"]["active_snark_bolt"] = 95
     bundle, digest = _tamper(base, ids=ids)
     invalid("renumbered_id_map", bundle, digest, "integer outside")
     for name, change, error in (

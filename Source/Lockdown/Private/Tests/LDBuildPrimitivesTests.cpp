@@ -32,15 +32,12 @@ struct FLDBuildPrimitivesAccess
     static bool LandBasic(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         FString& Error)
     { return Driver.LandBasic(Actor, Body, Action, Error); }
-    static bool ApplySelfEffect(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, int64 NowMs,
-        FString& Error)
-    { return Driver.ApplySelfEffect(Body, Effect, FGuid::NewGuid(), NowMs, Error); }
+    static bool ApplyCleanses(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, int64 NowMs)
+    { return Driver.ApplyCleanses(Body, Rank, NowMs); }
     static bool BurstBrokenShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FGuid& Broken, int64 NowMs, FString& Error)
     { return Driver.BurstBrokenShield(Body, Broken, NowMs, Error); }
     static void ExpireStatuses(ALDCombatDirector& Driver, int64 NowMs) { Driver.ExpireStatuses(NowMs); }
     static void CancelEntityEffects(ALDCombatDirector& Driver, const FGuid& Entity) { Driver.CancelEntityEffects(Entity); }
-    static FLDNegativeKinds NegativeKindsOf(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs)
-    { return Driver.NegativeKindsOf(Body, NowMs); }
     static void KeywordStatuses(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out)
     { Driver.AppendKeywordStatuses(Body, NowMs, Out); }
     static void Bind(ALDGameMode& Mode, ALDCombatDirector& Driver, const TSharedPtr<const FLDDemoContentSnapshot>& Catalog)
@@ -54,9 +51,7 @@ struct FLDBuildPrimitivesAccess
 namespace LDBuildPrimitivesTests
 {
 using FAccess = FLDBuildPrimitivesAccess;
-const TCHAR* const TestPassive = TEXT("passive_test_v7_keywords");
-
-// One isolated world with a real Combat director over the approved fixture (optionally with the test-only passive).
+// One isolated world with a real Combat director over the approved fixture.
 struct FFixture
 {
     UWorld* World = nullptr;
@@ -74,10 +69,9 @@ struct FFixture
         }
     }
 
-    bool Init(FAutomationTestBase& Test, bool bTestPassive = false)
+    bool Init(FAutomationTestBase& Test)
     {
         if (!LDControlRulesTests::ReadApprovedFixture(Test, Catalog)) { return false; }
-        if (bTestPassive) { AddTestPassive(); }
         const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
             .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
         World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
@@ -90,48 +84,6 @@ struct FFixture
         World->CopyGameState(Mode, nullptr);
         Now(1000);
         return true;
-    }
-
-    // The test-only passive: every v7 trigger term at once (in-memory only).
-    void AddTestPassive()
-    {
-        FLDDemoContentDefinitions& Definitions = const_cast<FLDDemoContentDefinitions&>(Catalog->Get());
-        FLDDemoAbilityDefinition& Ability = Definitions.Abilities.AddDefaulted_GetRef();
-        Ability.Id = TestPassive;
-        Ability.Kind = ELDDemoAbilityKind::Passive;
-        FLDDemoRankDefinition& Rank = Ability.Ranks.AddDefaulted_GetRef();
-        Rank.Rank = 1;
-        FLDDemoEffectDefinition Breach;
-        Breach.Opcode = uint8(ELDDemoEffectOp::Breach);
-        Breach.Count = 2;
-        Breach.BasicCount = 1;
-        Rank.Effects.Add(Breach);
-        FLDDemoEffectDefinition Burn = Breach;
-        Burn.Opcode = uint8(ELDDemoEffectOp::Burn);
-        Burn.Count = 3;
-        Rank.Effects.Add(Burn);
-        FLDDemoEffectDefinition Shield;
-        Shield.Opcode = uint8(ELDDemoEffectOp::TriggeredShield);
-        Shield.Trigger = ELDDemoEffectTrigger::Damaged;
-        Shield.BaseP2 = 4000;
-        Shield.MaxHPRatioBp = 400;
-        Shield.DurationMs = 3000;
-        Shield.IntervalMs = 10000;
-        Shield.SecondaryRatioBp = 5000;
-        Shield.RadiusCm = {300, 1};
-        Rank.Effects.Add(Shield);
-        FLDDemoEffectDefinition Refund;
-        Refund.Opcode = uint8(ELDDemoEffectOp::CooldownRefund);
-        Refund.Trigger = ELDDemoEffectTrigger::BasicHit;
-        Refund.Entries = ELDDemoCooldownEntries::Actives;
-        Refund.AmountMs = 250;
-        Rank.Effects.Add(Refund);
-        FLDDemoEffectDefinition Lifesteal;
-        Lifesteal.Opcode = uint8(ELDDemoEffectOp::Lifesteal);
-        Lifesteal.RatioBp = 1200;
-        Lifesteal.SecondaryRatioBp = 5000;
-        Lifesteal.MultiplierBp = 20000;
-        Rank.Effects.Add(Lifesteal);
     }
 
     void Now(int64 Ms) { FAccess::SetNow(*Mode, Ms); }
@@ -160,11 +112,13 @@ struct FFixture
     FLDBodyCombatState& Body(const FLDCombatBodyRef& Ref) { return FAccess::Bodies(*Driver).FindChecked(Actors.FindChecked(Ref.Victim.EntityId)); }
     ALDCharacter& Actor(const FLDCombatBodyRef& Ref) { return *Actors.FindChecked(Ref.Victim.EntityId); }
 
-    void LearnTestPassive(const FLDCombatBodyRef& Ref)
+    // An approved learned passive as the level-1 projection lists it: a rank-exact combat trigger.
+    void LearnPassive(const FLDCombatBodyRef& Ref, const TCHAR* Id, uint8 Rank)
     {
         FLDLearnedTriggerTerm& Term = Body(Ref).AttributeProjection.LearnedTriggers.AddDefaulted_GetRef();
-        Term.AbilityId = TestPassive;
-        Term.Rank = 1;
+        Term.AbilityId = Id;
+        Term.Rank = Rank;
+        Term.Level = 1;
     }
 
     // A magical ability hit of BaseP2 from one body to another.
@@ -255,10 +209,8 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A lapsed group takes nothing (half-open)"), BreachFlatP2(Breach, 7000, T), int64(0));
     TestTrue(TEXT("and ends"), ExpireBreach(Breach, 7000) && Breach.Stacks == 0);
     TestTrue(TEXT("A new stack after a lapse starts over"), ApplyBreach(Breach, 1, 8000, T) && Breach.Stacks == 1);
-    TArray<FLDCombatBreach> Legacy;
-    TestEqual(TEXT("The shared flat joins a legacy shred's flats and never drives a resistance below zero"),
-        LDTactical::BreachedResistanceP2(Legacy, 1000, true, 0, 1500), int64(0));
-    TestEqual(TEXT("and only takes its stacks"), LDTactical::BreachedResistanceP2(Legacy, 2000, false, 0, 600), int64(1400));
+    TestEqual(TEXT("A stack takes its flat off the resistance"), BreachedResistanceP2(2000, Breach, 8000, T), int64(1700));
+    TestEqual(TEXT("and never drives a resistance below zero"), BreachedResistanceP2(200, Breach, 8000, T), int64(0));
 
     // D11 burn: shared layers and timer; each layer keeps its applier and snapshot; the oldest gives way at the cap.
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
@@ -384,7 +336,7 @@ bool FLDBuildSilenceTest::RunTest(const FString& Parameters)
     Windup.Kind = ELDCombatActionKind::Ability;
     Windup.Key.Origin = ELDCombatRequestOrigin::Nav;
     Windup.Source.Kind = ELDCombatSourceKind::Learned;
-    Windup.Source.DefinitionId = TEXT("active_arc_bolt");
+    Windup.Source.DefinitionId = TEXT("active_snark_bolt");
     Windup.ReleaseAtMs = 2000;
     Body.Action = Windup;
     bool bApplied = false;
@@ -424,10 +376,10 @@ bool FLDBuildSilenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("ends with its leaving source"), Body.Silences.IsEmpty());
     // The disarm cleanse.
     Body.Disarms.Add({FGuid::NewGuid(), Caster.Victim.EntityId, 5000});
-    FLDDemoEffectDefinition Cleanse;
-    Cleanse.Opcode = uint8(ELDDemoEffectOp::DispelDisarm);
-    FString Error;
-    TestTrue(TEXT("A disarm cleanse removes every disarm"), FAccess::ApplySelfEffect(*F.Driver, Body, Cleanse, 1500, Error) && Body.Disarms.IsEmpty());
+    FLDDemoRankDefinition Cleanse;
+    Cleanse.Effects.AddDefaulted_GetRef().Opcode = uint8(ELDDemoEffectOp::DispelDisarm);
+    TestFalse(TEXT("A disarm cleanse changes no temporary term"), FAccess::ApplyCleanses(*F.Driver, Body, Cleanse, 1500));
+    TestTrue(TEXT("and removes every disarm"), Body.Disarms.IsEmpty());
     return true;
 }
 
@@ -470,13 +422,21 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     const FLDObservedStatus* Burning = FFixture::FindStatus(Statuses, ELDDemoStatusId::Burn);
     TestTrue(TEXT("Observers see breach x5 and burn x3"), Exposed && Exposed->Stacks == 5 && Burning && Burning->Stacks == 3
         && Burning->ExpiresAtServerMs == 4000);
+    // #147 decision 9: A's item_megaphone adds its dot ratio to A's own burn damage through the damage bonus pool.
+    FLDEquipmentPassiveFamily Megaphone;
+    Megaphone.Family = TEXT("passive_megaphone");
+    Megaphone.EquipmentId = TEXT("item_megaphone");
+    Megaphone.EquippedIndices = {0};
+    F.Body(A).AttributeProjection.EquipmentPassives.Add(Megaphone);
     F.Now(1500);
     TestTrue(FString::Printf(TEXT("The first tick: %s"), *Error), FAccess::AdvanceBurns(*F.Driver, 1500, Error));
     const TArray<FLDCombatHit>& Ticks = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("One magic tick per applier, never a crit or on-hit"), Ticks.Num() == 2 && Ticks[0].SourceEntity == A.Victim.EntityId
         && Ticks[0].BaseP2 == 300 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 300 && Ticks[0].bBurnTick
         && Ticks[0].bPeriodic && Ticks[0].OnHitScaleBp == 0 && Ticks[0].DamageType == ELDDemoDamageType::Magical);
-    TestTrue(TEXT("The ticks land"), F.Flush(Error) && Body.Resources.HpP2 == 89400 && Body.Burn.NextTickAtMs == 2000);
+    TestTrue(TEXT("Only the megaphone holder's burn takes its +25%"), Ticks[0].ExtraAmplifyBp == 12500 && Ticks[1].ExtraAmplifyBp == 10000);
+    TestTrue(TEXT("The ticks land, A's amplified in the pool"), F.Flush(Error) && Body.Resources.HpP2 == 89325 && Body.Burn.NextTickAtMs == 2000);
+    F.Body(A).AttributeProjection.EquipmentPassives.Reset();
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
     TestTrue(TEXT("A leaving applier's layers end; the shared breach stays"), Body.Burn.Layers.Num() == 1 && Body.SharedBreach.Stacks == 5);
     Hit.BurnStacks = 6;
@@ -509,7 +469,7 @@ bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
     {
         Body.Resources.HpP2 = StartHPP2;
         Body.Slows.Reset();
-        if (bSlowed) { Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 9000, 0, 8000}); }
+        if (bSlowed) { Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 9000}); }
         if (!F.Apply(Hit, Error)) { AddError(Error); return int64(-1); }
         return StartHPP2 - Body.Resources.HpP2;
     };
@@ -534,10 +494,10 @@ bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
     Basic.bCritical = true;
     Basic.ControlAmpBp = 1200;
     TestEqual(TEXT("A basic crit doubles before the pool"), Lost(Basic, 100000, true), int64(22400));
-    FLDCombatHit Rear = FFixture::Hit(Source, Target, 10000);
-    Rear.ExtraAmplifyBp = 12500;
-    Rear.ControlAmpBp = 1200;
-    TestEqual(TEXT("An affliction amplification joins the same pool"), Lost(Rear, 100000, true), int64(13700));
+    FLDCombatHit Amplified = FFixture::Hit(Source, Target, 10000);
+    Amplified.ExtraAmplifyBp = 12500;
+    Amplified.ControlAmpBp = 1200;
+    TestEqual(TEXT("An affliction amplification joins the same pool"), Lost(Amplified, 100000, true), int64(13700));
     return true;
 }
 
@@ -568,8 +528,9 @@ bool FLDBuildLifestealCapTest::RunTest(const FString& Parameters)
         && Healer.Resources.HpP2 == 56500);
     FLDCombatHit Tick = FFixture::Hit(Source, Target, 1000);
     Tick.bBurnTick = Tick.bPeriodic = true;
-    Tick.OmnivampBp = 5000;
-    Tick.OmnivampThresholdBp = 9000;
+    Tick.OnHitScaleBp = 10000;
+    Tick.bLifesteal = true;
+    Tick.LifestealRatioBp = 3000;
     TestTrue(TEXT("A burn tick never heals its applier"), F.Apply(Tick, Error) && Healer.Resources.HpP2 == 56500);
     return true;
 }
@@ -584,7 +545,7 @@ bool FLDBuildControlSwapWallTest::RunTest(const FString& Parameters)
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Source = F.AddBody(), Slowed = F.AddBody(), Plain = F.AddBody();
     FString Error;
-    F.Body(Slowed).Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000, 0, 4000});
+    F.Body(Slowed).Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000});
     FLDCombatHit Hit = FFixture::Hit(Source, Slowed, 0);
     Hit.RootDurationMs = 1000;
     Hit.SlowedStunMs = 800;
@@ -625,45 +586,49 @@ bool FLDBuildPassiveTriggersTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     FFixture F;
-    if (!F.Init(*this, true)) { return false; }
+    if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Holder = F.AddBody(), Target = F.AddBody();
-    F.LearnTestPassive(Holder);
+    // Advanced passive_tilted: breach 2 per Q/W hit and 2 per basic; advanced passive_stoke: burn 4 per Q/W hit, 1 per basic.
+    F.LearnPassive(Holder, TEXT("passive_tilted"), 2);
+    F.LearnPassive(Holder, TEXT("passive_stoke"), 2);
     F.Body(Holder).AttributeProjection.Final.APP2 = 5000;
     FLDBodyCombatState& Body = F.Body(Target);
     FString Error;
     FLDCombatHit Basic = FFixture::Hit(Holder, Target, 100);
     Basic.HitClass = ELDCombatHitClass::BasicPrimary;
     Basic.DamageType = ELDDemoDamageType::Physical;
-    TestTrue(TEXT("A primary basic adds its basic stacks of breach and burn"), F.Apply(Basic, Error)
-        && Body.SharedBreach.Stacks == 1 && Body.Burn.Layers.Num() == 1);
+    if (!TestTrue(TEXT("A primary basic adds its basic stacks of breach and burn: ") + Error, F.Apply(Basic, Error)
+        && Body.SharedBreach.Stacks == 2 && Body.Burn.Layers.Num() == 1)) { return false; }
     TestTrue(TEXT("The burn layer snapshots its applier's level and AP: 3 + 3% AP per second"), Body.Burn.Layers[0].Level == 1
         && Body.Burn.Layers[0].SourceAPP2 == 5000 && Body.Burn.Layers[0].SourceEntity == Holder.Victim.EntityId
         && LDCombatKeywords::BurnLayerPerSecondP2(Body.Burn.Layers[0].Level, Body.Burn.Layers[0].SourceAPP2,
             FLDKeywordTerms::From(F.Catalog->Get().Parameters)) == 450);
     FLDCombatHit Skill = FFixture::Hit(Holder, Target, 100);
     Skill.Source.Kind = ELDCombatSourceKind::Learned;
-    Skill.Source.DefinitionId = TEXT("active_arc_bolt");
+    Skill.Source.DefinitionId = TEXT("active_snark_bolt");
     Skill.Token = 7;
-    TestTrue(TEXT("A Q/W hit adds the skill stacks"), F.Apply(Skill, Error) && Body.SharedBreach.Stacks == 3 && Body.Burn.Layers.Num() == 4);
+    TestTrue(TEXT("A Q/W hit adds the skill stacks (burn up to its five-layer cap)"), F.Apply(Skill, Error)
+        && Body.SharedBreach.Stacks == 4 && Body.Burn.Layers.Num() == 5);
     FLDCombatHit Pulse = Skill;
     Pulse.bPeriodic = true;
-    TestTrue(TEXT("A periodic tick adds nothing"), F.Apply(Pulse, Error) && Body.SharedBreach.Stacks == 3 && Body.Burn.Layers.Num() == 4);
+    TestTrue(TEXT("A periodic tick adds nothing"), F.Apply(Pulse, Error) && Body.SharedBreach.Stacks == 4 && Body.Burn.Layers.Num() == 5);
     FLDCombatHit Reflect = Skill;
     Reflect.bReflect = true;
-    TestTrue(TEXT("Nor does a reflection"), F.Apply(Reflect, Error) && Body.SharedBreach.Stacks == 3);
+    TestTrue(TEXT("Nor does a reflection"), F.Apply(Reflect, Error) && Body.SharedBreach.Stacks == 4);
 
     // The damage-triggered shield: granted on damage, then rest; never resting after a refused (weaker) shield.
     const FLDCombatBodyRef Guarded = F.AddBody(), Shielded = F.AddBody();
-    F.LearnTestPassive(Guarded);
-    F.LearnTestPassive(Shielded);
+    // Advanced passive_moral_victory at level 1: 60 + 4% max HP for 3 s, 10 s rest, a 50% burst on break.
+    F.LearnPassive(Guarded, TEXT("passive_moral_victory"), 2);
+    F.LearnPassive(Shielded, TEXT("passive_moral_victory"), 2);
     FLDBodyCombatState& Guard = F.Body(Guarded);
-    TestTrue(TEXT("Damage taken grants 40 + 4% max HP for 3 s"), F.Apply(FFixture::Hit(Target, Guarded, 1000), Error)
-        && Guard.Shield.IsSet() && Guard.Resources.ShieldP2 == 8000 && Guard.Shield->ExpiresAtMs == 4000);
+    TestTrue(TEXT("Damage taken grants 60 + 4% max HP for 3 s"), F.Apply(FFixture::Hit(Target, Guarded, 1000), Error)
+        && Guard.Shield.IsSet() && Guard.Resources.ShieldP2 == 10000 && Guard.Shield->ExpiresAtMs == 4000);
     TestTrue(TEXT("and starts the 10 s rest"), Guard.DamagedShieldReadyAtMs == 11000);
     TestTrue(TEXT("The burst remembers that shield"), Guard.ShieldBurst.IsSet() && Guard.ShieldBurst->ShieldEffectId == Guard.Shield->EffectId
-        && Guard.ShieldBurst->GrantedP2 == 8000 && Guard.ShieldBurst->RatioBp == 5000);
+        && Guard.ShieldBurst->GrantedP2 == 10000 && Guard.ShieldBurst->RatioBp == 5000);
     TestTrue(TEXT("While resting no new shield comes"), F.Apply(FFixture::Hit(Target, Guarded, 1000), Error)
-        && Guard.Resources.ShieldP2 == 7000 && Guard.DamagedShieldReadyAtMs == 11000);
+        && Guard.Resources.ShieldP2 == 9000 && Guard.DamagedShieldReadyAtMs == 11000);
     FLDBodyCombatState& Strong = F.Body(Shielded);
     const FGuid Held = FGuid::NewGuid();
     Strong.Shield = FLDCombatShield{Held, Shielded.Victim.EntityId, 9000};
@@ -684,17 +649,20 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
 {
     using namespace LDBuildPrimitivesTests;
     FFixture F;
-    if (!F.Init(*this, true)) { return false; }
+    if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Attacker = F.AddBody(), Camp = F.AddBody(ELDVictimKind::CampMember);
     FLDBodyCombatState& Body = F.Body(Attacker);
     FLDAttributeBuildValues Empty(1, {}, {}, {});
     const FLDAttributeProjectionResult Base = LDAttributeProjection::Project(Empty, *F.Catalog);
     if (!TestTrue(TEXT("A level-1 projection"), Base.IsSuccess())) { return false; }
     Body.BuildProjection = Body.AttributeProjection = Base.Value.GetValue();
-    F.LearnTestPassive(Attacker);
+    // Advanced passive_iced_americano refunds 0.25 s of every active per landed basic; advanced passive_freeloader
+    // steals 18% and doubles it against a body below half HP.
+    F.LearnPassive(Attacker, TEXT("passive_iced_americano"), 2);
+    F.LearnPassive(Attacker, TEXT("passive_freeloader"), 2);
     FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Attacker.Victim.EntityId);
-    Record.Build.Actives = {{TEXT("active_arc_bolt"), 1, ELDCombatEntry::Q}, {TEXT("active_monkey_peach"), 1, ELDCombatEntry::W}};
-    for (const TCHAR* Id : {TEXT("active_arc_bolt"), TEXT("active_monkey_peach")})
+    Record.Build.Actives = {{TEXT("active_snark_bolt"), 1, ELDCombatEntry::Q}, {TEXT("active_pants_down"), 1, ELDCombatEntry::W}};
+    for (const TCHAR* Id : {TEXT("active_snark_bolt"), TEXT("active_pants_down")})
     {
         FLDCombatTrack& Track = Record.Tracks.AddDefaulted_GetRef();
         Track.IssuedCooldownId = FGuid::NewGuid();
@@ -705,7 +673,7 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     const FGuid Release = FGuid::NewGuid();
     FLDCombatEmpower Armed;
     Armed.EffectId = Release;
-    Armed.SourceDefinitionId = TEXT("active_combo_flurry");
+    Armed.SourceDefinitionId = TEXT("active_triple_combo");
     Armed.BaseP2 = 2000;
     Armed.ExpiresAtMs = 6000;
     Armed.Charges = 3;
@@ -749,39 +717,10 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
             TestTrue(TEXT("After three charges the basic is plain"), Primary->BaseP2 == 0 && !Primary->bCleave && !Body.Empower.IsSet());
         }
         TestTrue(TEXT("Every landed basic carries the passive's lifesteal and its low-HP share"), Primary->bLifesteal
-            && Primary->LifestealRatioBp == 1200 && Primary->LifestealLowHPBp == 1200 && Primary->LifestealLowHPBelowBp == 5000);
+            && Primary->LifestealRatioBp == 1800 && Primary->LifestealLowHPBp == 1800 && Primary->LifestealLowHPBelowBp == 5000);
     }
     TestTrue(TEXT("Each landed basic cut both actives' remaining cooldown by 0.25 s"),
         Record.Tracks[0].ReadyAtMs == 6000 - 4 * 250 && Record.Tracks[1].ReadyAtMs == 6000 - 4 * 250);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildNegativeKindsTest, "Lockdown.Rules.DemoBuildPrimitives.NegativeKinds",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDBuildNegativeKindsTest::RunTest(const FString& Parameters)
-{
-    using namespace LDBuildPrimitivesTests;
-    FFixture F;
-    if (!F.Init(*this)) { return false; }
-    const FLDCombatBodyRef Source = F.AddBody(), Target = F.AddBody();
-    FLDBodyCombatState& Body = F.Body(Target);
-    const auto Kinds = [&F, &Body](int64 NowMs) { return FAccess::NegativeKindsOf(*F.Driver, Body, NowMs); };
-    TestEqual(TEXT("A clean body has no negative kind"), LDCombatMechanics::CountNegativeKinds(Kinds(1000)), 0);
-    // The breach/damage-over-time kind (#112 Q4) also counts the #147 shared breach and burn records.
-    Body.SharedBreach.Stacks = 2;
-    Body.SharedBreach.ExpiresAtMs = 5000;
-    TestTrue(TEXT("A shared breach alone is the breach kind"), Kinds(1000).bBreach && LDCombatMechanics::CountNegativeKinds(Kinds(1000)) == 1);
-    TestFalse(TEXT("until it lapses"), Kinds(5000).bBreach);
-    Body.SharedBreach = FLDCombatSharedBreach();
-    TestTrue(TEXT("A burn"), LDCombatKeywords::ApplyBurn(Body.Burn, Layer(Source.Victim.EntityId, 0), 1, 1000, Terms()));
-    TestTrue(TEXT("alone is the breach kind"), Kinds(1500).bBreach && LDCombatMechanics::CountNegativeKinds(Kinds(1500)) == 1);
-    TestFalse(TEXT("until it ends"), Kinds(4001).bBreach);
-    Body.SharedBreach.Stacks = 1;
-    Body.SharedBreach.ExpiresAtMs = 5000;
-    Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000});
-    TestEqual(TEXT("Breach and burn together are still one kind, beside the slow"),
-        LDCombatMechanics::CountNegativeKinds(Kinds(1500)), 2);
     return true;
 }
 
@@ -797,7 +736,7 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     FLDBodyCombatState& Body = F.Body(Target);
     const FGuid From = Source.Victim.EntityId;
     const auto Control = [&From](int64 Until) { return FLDCombatRoot{FGuid::NewGuid(), From, Until}; };
-    // Every public combat cue at once, the legacy shred under the shared breach.
+    // Every public combat cue at once.
     Body.Roots.Add(Control(5000));
     Body.Shield = FLDCombatShield{FGuid::NewGuid(), From, 5000};
     Body.Resources.ShieldP2 = 1000;
@@ -805,21 +744,16 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     FLDCombatTimedBonus Boost;
     Boost.ExpiresAtMs = 5000;
     Body.TimedBonuses.Add(Boost);
-    FLDCombatBreach Shred;
-    Shred.SourceEntity = From;
-    Shred.ExpiresAtMs = 5000;
-    Body.Breaches.Add(Shred);
     Body.SharedBreach.Stacks = 3;
     Body.SharedBreach.ExpiresAtMs = 5000;
     Body.Disarms.Add(Control(5000));
     Body.Stuns.Add(Control(5000));
     Body.Knockbacks.Add(Control(5000));
-    Body.HealCuts.Add({FGuid::NewGuid(), From, 4000, 5000});
     Body.Silences.Add(Control(5000));
     TestTrue(TEXT("Five burn layers"), LDCombatKeywords::ApplyBurn(Body.Burn, Layer(From, 0), 5, 1000, Terms()));
     TArray<FLDObservedStatus> Statuses;
     F.Driver->AppendObservedStatuses(F.Actor(Target), 1000, Statuses);
-    TestEqual(TEXT("Each public combat cue shows once"), Statuses.Num(), 11);
+    TestEqual(TEXT("Each public combat cue shows once"), Statuses.Num(), 10);
     const FLDObservedStatus* Exposed = FFixture::FindStatus(Statuses, ELDDemoStatusId::Exposed);
     const FLDObservedStatus* Burn = FFixture::FindStatus(Statuses, ELDDemoStatusId::Burn);
     TestTrue(TEXT("with the breach and burn stacks"), Exposed && Exposed->Stacks == 3 && Burn && Burn->Stacks == 5

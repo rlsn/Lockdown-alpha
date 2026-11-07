@@ -68,12 +68,16 @@ FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionVi
     {
         if(Skill.bActive){continue;}
         const FString Id=Skill.DefinitionId.ToString();
-        Lines.Add(FString::Printf(TEXT("%s %d 级"),*LDHUD::ContentName(Definitions,Id),int32(Skill.Rank)));
+        Lines.Add(LDHUD::ContentName(Definitions,Id)+TEXT("（")+LDHUD::SkillRankName(Skill.Rank)+TEXT("）"));
         const FLDDemoAbilityDefinition* Ability=Definitions?Definitions->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
         if(!Ability){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该技能"));}continue;}
         const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Skill](const FLDDemoRankDefinition& R){return R.Rank==int32(Skill.Rank);});
-        if(!Rank){Lines.Add(FString::Printf(TEXT("  缺少 %d 级定义"),int32(Skill.Rank)));continue;}
-        for(const FString& Line:LDHUD::RankLines(*Rank,false)){Lines.Add(TEXT("  ")+Line);}
+        const FLDDemoDisplayDefinition* Display=Definitions->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
+        if(!Rank||!Display){Lines.Add(FString::Printf(TEXT("  缺少 %d 级定义"),int32(Skill.Rank)));continue;}
+        // #147: the passive's card sentence with this level's numbers and, once advanced, the change that rank adds.
+        const LDHUD::FCardStats Stats=LDHUD::CardStatsOf(Progression->Level,Combat?Combat->Attributes:TArray<FLDCombatAttributeRowView>());
+        for(const FString& Line:LDHUD::LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Skill.Rank,Stats,
+            Definitions->Parameters.SkillGrowthPerLevelBp)){Lines.Add(TEXT("  ")+Line);}
     }
     return AttrPanelLines(Lines);
 }

@@ -121,7 +121,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRecoveryTest, "Lockdown.Rules.DemoComb
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 // D21: after REGEN.OutOfCombatDelaySec without a combat event every contender recovers a per-second share of its
-// current maximum HP and MP; combat stops it at once, it stacks with the passive bonus, and dead or camp bodies do not get it.
+// current maximum HP and MP; combat stops it at once, and dead or camp bodies do not get it.
 bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatRecoveryTestDetail;
@@ -141,22 +141,10 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     const int64 Delay = Recovery.DelayMs;
     const int64 MaxHp = P.MaxHP.BaseP2;
     const int64 MaxMp = P.MaxMP.BaseP2 > 0 ? P.MaxMP.BaseP2 : 10000;
-    // The passive bonus of the catalog (whatever passive holds out_of_combat_regen), at its highest rank.
-    const FLDDemoEffectDefinition* Bonus = nullptr;
-    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
-    {
-        if (Ability.Kind != ELDDemoAbilityKind::Passive || Ability.Ranks.IsEmpty()) { continue; }
-        for (const FLDDemoEffectDefinition& Effect : Ability.Ranks.Last().Effects)
-        {
-            if (!Bonus && Effect.GetOp() == ELDDemoEffectOp::OutOfCombatRegen) { Bonus = &Effect; }
-        }
-    }
-    if (!TestNotNull(TEXT("The catalog holds a passive out-of-combat bonus to stack with"), Bonus)) { return false; }
     const int64 HpMicro = MaxHp * Recovery.MaxHPBpPerSec / 10;
     const int64 MpMicro = MaxMp * Recovery.MaxMPBpPerSec / 10;
-    const int64 BonusMicro = MaxHp * Bonus->MaxHPPerSecBp / 10;
-    if (!TestTrue(TEXT("Recovery and bonus rates are exact per millisecond"),
-        HpMicro * 10 == MaxHp * Recovery.MaxHPBpPerSec && MpMicro * 10 == MaxMp * Recovery.MaxMPBpPerSec && BonusMicro >= 0))
+    if (!TestTrue(TEXT("Recovery rates are exact per millisecond"),
+        HpMicro * 10 == MaxHp * Recovery.MaxHPBpPerSec && MpMicro * 10 == MaxMp * Recovery.MaxMPBpPerSec))
     {
         return false;
     }
@@ -169,28 +157,20 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
     ALDCombatDirector* Driver = World->SpawnActor<ALDCombatDirector>();
     ALDCharacter* Plain = World->SpawnActor<ALDCharacter>();
-    ALDCharacter* Stacked = World->SpawnActor<ALDCharacter>();
     ALDCharacter* Dead = World->SpawnActor<ALDCharacter>();
     ALDCharacter* Camp = World->SpawnActor<ALDCharacter>();
     ALDCharacter* Respawned = World->SpawnActor<ALDCharacter>();
-    if (!Driver || !Plain || !Stacked || !Dead || !Camp || !Respawned)
+    if (!Driver || !Plain || !Dead || !Camp || !Respawned)
     {
         AddError(TEXT("Recovery fixture actors failed to spawn"));
         return false;
     }
     Driver->Bodies.Add(Plain, Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0));
-    FLDBodyCombatState StackedState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
-    FLDOutOfCombatRegenTerm Term;
-    Term.DelayMs = Bonus->DelayMs;
-    Term.MaxHPBpPerSec = Bonus->MaxHPPerSecBp;
-    StackedState.AttributeProjection.OutOfCombatHPRegen = Term;
-    Driver->Bodies.Add(Stacked, MoveTemp(StackedState));
     FLDBodyCombatState DeadState = Body(ELDVictimKind::Contender, MaxHp, MaxMp, 0);
     DeadState.bPendingDeath = true;
     Driver->Bodies.Add(Dead, MoveTemp(DeadState));
     Driver->Bodies.Add(Camp, Body(ELDVictimKind::CampMember, MaxHp, MaxMp, 0));
     FLDBodyCombatState& A = Driver->Bodies.FindChecked(Plain);
-    FLDBodyCombatState& B = Driver->Bodies.FindChecked(Stacked);
     FLDBodyCombatState& D = Driver->Bodies.FindChecked(Dead);
     FLDBodyCombatState& C = Driver->Bodies.FindChecked(Camp);
     const int64 Hp0 = A.Resources.HpP2, Mp0 = A.Resources.MpP2;
@@ -203,28 +183,20 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
         && A.HpRegenMicroP2 == 0 && A.MpRegenMicroP2 == 0);
 
     // 2. It starts exactly at LastCombat + Delay and restores the share of both maxima.
-    // Past both delays, so the passive bonus also runs for a while.
-    const int64 T1 = FMath::Max(Delay, Bonus->DelayMs) + 1000;
+    const int64 T1 = Delay + 1000;
     const int64 Run = T1 - Delay;
-    bGood &= TestTrue(TEXT("Regeneration past both delays"), Driver->RegenerateBodies(Recovery, T1, Error));
+    bGood &= TestTrue(TEXT("Regeneration past the delay"), Driver->RegenerateBodies(Recovery, T1, Error));
     bGood &= TestTrue(TEXT("Recovery restores the HP share of the maximum from the delay on"),
         A.Resources.HpP2 == Hp0 + HpMicro * Run / MicroPerP2 && A.HpRegenMicroP2 == HpMicro * Run % MicroPerP2);
     bGood &= TestTrue(TEXT("Recovery restores the MP share of the maximum from the delay on"),
         A.Resources.MpP2 == Mp0 + MpMicro * Run / MicroPerP2 && A.MpRegenMicroP2 == MpMicro * Run % MicroPerP2);
 
-    // 3. It stacks with the passive bonus, each term from its own delay.
-    const int64 BonusFrom = FMath::Clamp(Bonus->DelayMs, int64(0), T1);
-    const int64 StackedMicro = HpMicro * (T1 - Delay) + BonusMicro * (T1 - BonusFrom);
-    bGood &= TestTrue(TEXT("Recovery and the passive bonus add up exactly"),
-        B.Resources.HpP2 == Hp0 + StackedMicro / MicroPerP2 && B.HpRegenMicroP2 == StackedMicro % MicroPerP2);
-    bGood &= TestTrue(TEXT("The passive bonus adds to recovery"), BonusMicro > 0 && B.Resources.HpP2 > A.Resources.HpP2);
-
-    // 4. Dead and camp bodies never receive it.
+    // 3. Dead and camp bodies never receive it.
     bGood &= TestTrue(TEXT("A dead body does not recover"),
         D.Resources.HpP2 == Hp0 && D.Resources.MpP2 == Mp0 && D.RegenThroughMs == 0);
     bGood &= TestTrue(TEXT("A camp member has no contender recovery"), C.Resources.HpP2 == Hp0 && C.Resources.MpP2 == Mp0);
 
-    // 5. A combat event stops it immediately; it resumes only a full delay later.
+    // 4. A combat event stops it immediately; it resumes only a full delay later.
     A.LastCombatAtMs = T1;
     const int64 HpCombat = A.Resources.HpP2, MpCombat = A.Resources.MpP2;
     const int64 HpRemainder = A.HpRegenMicroP2, MpRemainder = A.MpRegenMicroP2;
@@ -244,7 +216,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("The respawned life recovers from its own delay"),
         R.Resources.HpP2 == Hp0 + HpMicro * 2000 / MicroPerP2);
 
-    // 6. The share follows the current maximum.
+    // 5. The share follows the current maximum.
     const int64 HpBefore = AA.Resources.HpP2, RemainderBefore = AA.HpRegenMicroP2;
     AA.Resources.MaxHpP2 = MaxHp + 10000;
     const int64 RaisedMicro = AA.Resources.MaxHpP2 * Recovery.MaxHPBpPerSec / 10;
@@ -252,7 +224,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
     bGood &= TestTrue(TEXT("Recovery uses the current maximum"),
         AA.Resources.HpP2 == HpBefore + (RemainderBefore + RaisedMicro * 1000) / MicroPerP2);
 
-    // 7. A full pool stays full; an inexact share is refused explicitly.
+    // 6. A full pool stays full; an inexact share is refused explicitly.
     AA.Resources.HpP2 = AA.Resources.MaxHpP2;
     AA.Resources.MpP2 = AA.Resources.MaxMpP2;
     bGood &= TestTrue(TEXT("Regeneration of a full pool"), Driver->RegenerateBodies(Recovery, T2 + 3000, Error));
@@ -300,7 +272,7 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
         FLDAttributeProjection Flat;
         Flat.Final.HPRegenPerSec = {0, 1};
         Flat.Final.MPRegenPerSec = {0, 1};
-        const auto Shown = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs, 0, &Dorm);
+        const auto Shown = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs, &Dorm);
         const auto Away = LDTactical::RegenRates(Flat, &Slow, 100000, 50000, 0, Slow.DelayMs);
         bGood &= TestTrue(TEXT("The displayed rate inside a dorm adds the dorm share to the slow one"),
             FMath::IsNearlyEqual(Shown.HP - Away.HP, 100000. * Dorm.MaxHPBpPerSec / 1000000.)
@@ -428,13 +400,11 @@ bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
 {
     FLDAttributeProjection Attributes;
     Attributes.Final.HPRegenPerSec={8,5};Attributes.Final.MPRegenPerSec={6,5};
-    FLDOutOfCombatRegenTerm Passive;Passive.DelayMs=6000;Passive.MaxHPBpPerSec=30;
-    Attributes.OutOfCombatHPRegen=Passive;
     const LDTactical::FOutOfCombatRecovery Recovery{5000,150,150};
     const auto Before=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,5999);
     TestTrue(TEXT("Before the boundary only always-on rates are displayed"),FMath::IsNearlyEqual(Before.HP,1.6)&&FMath::IsNearlyEqual(Before.MP,1.2));
     const auto Boundary=LDTactical::RegenRates(Attributes,&Recovery,62000,30000,1000,6000);
-    TestTrue(TEXT("Recovery appears exactly at its own delay, before the passive"),FMath::IsNearlyEqual(Boundary.HP,10.9)&&FMath::IsNearlyEqual(Boundary.MP,5.7));
+    TestTrue(TEXT("Recovery appears exactly at its own delay"),FMath::IsNearlyEqual(Boundary.HP,10.9)&&FMath::IsNearlyEqual(Boundary.MP,5.7));
     // Compare the displayed instantaneous rates to the existing integrator's actual one-second gain, including remainders.
     for(const int64 At:{int64(5999),int64(6000),int64(7000)})
     {
@@ -450,7 +420,7 @@ bool FLDCombatRegenRatesTest::RunTest(const FString& Parameters)
             FMath::IsNearlyEqual(Rates.MP,(double(Pools.MpP2)+double(Pools.MpMicroP2)/1000000.)/100.));
     }
     const auto ChangedMax=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,1000,7000);
-    TestTrue(TEXT("Maxima and active passive contribute to the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,23.92)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
+    TestTrue(TEXT("The current maxima set the effective rate"),FMath::IsNearlyEqual(ChangedMax.HP,20.2)&&FMath::IsNearlyEqual(ChangedMax.MP,10.2));
     const auto Combat=LDTactical::RegenRates(Attributes,&Recovery,124000,60000,7000,7000);
     TestTrue(TEXT("A combat event removes conditional terms immediately"),FMath::IsNearlyEqual(Combat.HP,1.6)&&FMath::IsNearlyEqual(Combat.MP,1.2));
     return true;

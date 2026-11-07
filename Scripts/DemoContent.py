@@ -44,40 +44,29 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "cleave", "dash_boost",
+                       "lifesteal", "dash", "cleave", "dash_boost",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
-                       "ambush_damage", "control_damage_amp", "taunt",
-                       "disarm", "stun", "empower_basic", "jump", "thorns", "backstab",
-                       "cooldown_refund", "ability_crit", "resist_shred", "momentum", "taunt_retaliate",
-                       "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
+                       "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
+                       "cooldown_refund", "ability_crit", "triggered_shield", "crit_damage_reduction", "nth_basic_bonus",
                        "mana_on_hit", "dispel_slow", "path_slow",
-                       # #112 §5 mechanics and the new content's handlers.
-                       "knockback", "dot", "mobility_punish", "volley", "refresh_debuffs", "on_hit",
-                       "debuff_amp", "shield_shatter", "debuff_heal", "zone", "zone_shield", "zone_slow", "zone_root",
-                       "zone_damage", "damage_guard", "shield_burst", "vulnerable",
-                       "breach_stacks", "mobility_shield", "shield_pulse", "basic_rider",
+                       # #112 §5 mechanics still used by the catalog.
+                       "knockback", "zone", "zone_slow", "zone_root", "zone_damage",
                        "cast_frenzy", "affliction_amp", "shield_break_retort", "hit_haste",
                        # #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
                        "silence", "breach", "burn", "execute", "pierce", "echo", "taunt_shield", "dispel_disarm",
                        "zone_burn"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
-# Effects a self area delivers to the bodies it names (a release area, a jump landing or a damage guard's recoil).
-AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "shield_burst", "silence", "breach", "burn"))
-# 112 §1: the only mechanic tags; the native ELDDemoMechanicTag mirrors this set.
-MECHANIC_TAGS = frozenset(("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach"))
+# Effects a self area delivers to the bodies it names.
+AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
+# Every bonus stat name; a card placeholder may read one stat of its effect.
+STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+                         "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
+                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio", "MPRegenFlat"))
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
-# Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off: self effects,
-# and hit effects delivered to every legal body in the self_area around the landing foot.
-JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "dispel_slow", "self_area", "triggered_shield",
-                              *HOSTILE_OPS))
-# Passive effects Combat reads as triggers; they add no attribute term.
-TRIGGER_OPS = frozenset(("lifesteal", "cleave", "dash_boost", "thorns", "cooldown_refund", "ability_crit",
-                         "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
-                         "mana_on_hit"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -223,7 +212,7 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
     "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "deg")),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s")),
 }
 
 
@@ -427,7 +416,12 @@ def rows_by_id(rows, path, key="id"):
 def validate_native_ids(root, value):
     keys(value, {"schema_version", "retired_ranges", *NATIVE_ENUMS}, IDS_SOURCE)
     integer(value["schema_version"], IDS_SOURCE, SCHEMA_VERSION, SCHEMA_VERSION)
-    require(exact_equal(value["retired_ranges"], {"abilities": [[0, 61]], "equipment": [[0, 98], [107, 107], [113, 114]]}),
+    require(exact_equal(value["retired_ranges"], {"abilities": [[0, 91]], "attributes": [[0, 14]],
+                                                  "equipment": [[0, 98], [107, 107], [113, 114]],
+                                                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24]],
+                                                  "effect_ops": [[6, 6], [9, 9], [16, 16], [19, 19], [23, 23], [25, 25],
+                                                                 [28, 30], [32, 33], [39, 39], [41, 49], [51, 51],
+                                                                 [55, 64]]}),
             "RetiredId", IDS_SOURCE, "occupied legacy ranges must remain reserved")
     for section, enum_name in NATIVE_ENUMS.items():
         mapping = value[section]
@@ -486,12 +480,6 @@ def _same_handlers(base, upgraded):
     return [effect["op"] for effect in base] == [effect["op"] for effect in upgraded]
 
 
-def _validate_tags(tags, path):
-    # 112 §1: one to three distinct mechanic tags; the schema fixes the six names, the draft weights read them.
-    require(1 <= len(tags) <= 3 and len(set(tags)) == len(tags) and set(tags) <= MECHANIC_TAGS,
-            "MechanicTags", path, "expected one to three distinct mechanic tags")
-
-
 def _positive_stats(stats, path):
     require(stats and all(quantity(value) > 0 for value in stats.values()),
             "IneffectiveChoice", path, "every declared stat bonus must be positive")
@@ -507,13 +495,8 @@ def _validate_thorns(effect, path):
 
 # Positive-magnitude fields of the #112 handlers: at least one of each group must be positive.
 _NEW_OP_MAGNITUDES = {
-    "dot": ("base", "ad_ratio", "ap_ratio"), "mobility_punish": ("base", "ad_ratio", "ap_ratio"),
-    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "zone_shield": ("base", "ap_ratio"),
-    "taunt_shield": ("base", "max_hp_ratio"), "execute": ("ratio",),
-    "shield_burst": ("base", "shield_ratio"), "debuff_amp": ("ratio",), "shield_shatter": ("ratio",),
-    "debuff_heal": ("max_hp_ratio",), "vulnerable": ("ratio",), "on_hit": ("scale",),
-    "knockback": ("distance",), "zone": ("radius",),
-    "damage_guard": ("ratio",), "zone_slow": ("ratio",),
+    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "taunt_shield": ("base", "max_hp_ratio"), "execute": ("ratio",),
+    "knockback": ("distance",), "zone": ("radius",), "zone_slow": ("ratio",),
 }
 
 
@@ -529,19 +512,12 @@ def _validate_new_effect(effect, path):
     for pair in _PAIRED_FIELDS.get(effect["op"], ()):
         require(all(key in effect for key in pair) or not any(key in effect for key in pair), "ObjectShape", path,
                 f"{effect['op']} needs {' and '.join(pair)} together")
-    if effect["op"] == "thorns":
-        require("cripple_ratio" not in effect or "slow" not in effect, "ObjectShape", path, "a reflection cripples or slows")
-    if effect["op"] == "triggered_shield":
-        require((effect["trigger"] == "Damaged") <= ("interval" in effect), "ObjectShape", path,
-                "a damage-triggered shield rests for its interval")
-        require("burst_ratio" not in effect or effect["trigger"] == "Damaged", "ObjectShape", path,
-                "only a damage-triggered shield bursts")
     fields = _NEW_OP_MAGNITUDES.get(effect["op"])
     if fields is not None:
         require(any(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", path,
                 f"{effect['op']} has neither magnitude nor scaling")
-    if effect["op"] in ("damage_guard", "zone_slow"):
-        require(quantity(effect["ratio"]) < 1, "NumericDomain", path, "a reduction or slow must keep something")
+    if effect["op"] == "zone_slow":
+        require(quantity(effect["ratio"]) < 1, "NumericDomain", path, "a slow must keep something")
     if effect["op"] == "zone":
         require(effect["delay"]["ms"] + effect["interval"]["ms"] * (effect["count"] - 1) <= effect["duration"]["ms"],
                 "InvalidTiming", path, "zone pulses must fall inside its duration")
@@ -553,40 +529,35 @@ def _validate_new_effect(effect, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt",
-                           "cooldown_refund", "momentum", "taunt_retaliate", "damage_guard", "stun",
-                           "shield_burst", "knockback", *HOSTILE_OPS,
+        "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
+                           "knockback", *HOSTILE_OPS,
                            "silence", "breach", "burn", "execute", "echo", "taunt_shield", "dispel_disarm", "empower_basic")),
-        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "backstab", "cooldown_refund", "ability_crit", "dot",
-                           "mobility_punish", "debuff_amp", "shield_shatter", "debuff_heal", "vulnerable",
+        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun",
                            "silence", "breach", "burn", "execute", "knockback")),
-        "DirectionProjectile": frozenset(("damage", "slow", "resist_shred", "volley", "refresh_debuffs", "on_hit",
-                                          "silence", "breach", "burn", "execute", "pierce")),
-        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "cooldown_refund", "path_slow", "zone", "zone_damage",
-                                    "on_hit", *HOSTILE_OPS, "breach", "burn")),
-        "GroundPoint": frozenset(("jump", "zone", "zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"))
-        | JUMP_LANDING_OPS,
+        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "execute", "pierce")),
+        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "path_slow", "zone", "zone_damage",
+                                    *HOSTILE_OPS, "breach", "burn")),
+        "GroundPoint": frozenset(("zone", "zone_slow", "zone_root", "zone_damage", "zone_burn")),
     }[mode]
     signature = None
     for rank in ranks:
         ops = _effect_set(rank["effects"], path)
         require(ops <= allowed, "TargetEffectMismatch", path, "effect cannot consume this target form")
-        # Ranks 1 and 2 share their handlers; rank 3 may change them (#112 §2 "Lv3 质变"), checked by its contract.
-        require(signature is None or rank["rank"] == 3 or signature == ops, "RankShape", path,
+        # Lower ranks share their handlers; the advanced (top) rank may change them (#147 "高级 = 数值 + 一条玩法变化"),
+        # checked by its contract.
+        require(signature is None or rank["rank"] == len(ranks) or signature == ops, "RankShape", path,
                 "ranks must use the same handlers")
         signature = signature if signature is not None else ops
-        if mode in ("Self", "DirectionDash", "GroundPoint"):
+        if mode in ("Self", "DirectionDash"):
             require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
-                    "hit effects of a self, dash or jump action need exactly one self_area to name their targets")
+                    "hit effects of a self or dash action need exactly one self_area to name their targets")
         if mode == "DirectionProjectile":
             require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-        require("backstab" not in ops or "damage" in ops, "MissingHandler", path, "a rear strike amplifies a damage effect")
-        require(mode != "GroundPoint" or "jump" in ops or "zone" in ops, "MissingHandler", path,
-                "a ground point is consumed by a jump or a zone")
+        require(mode != "GroundPoint" or "zone" in ops, "MissingHandler", path, "a ground point is consumed by a zone")
         require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
-        require(not (ops & {"zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
+        require(not (ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
                 "MissingHandler", path, "zone payloads need their zone")
-        require("zone" not in ops or bool(ops & {"zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"}),
+        require("zone" not in ops or bool(ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}),
                 "IneffectiveEffect", path, "a zone needs a payload")
         # #147: an execute bonus and a second blast amplify or repeat a damage effect; a pierce rides on a projectile;
         # a per-taunt shield counts its own taunt's victims.
@@ -594,8 +565,6 @@ def _validate_action(target, ranks, path):
         require("echo" not in ops or {"damage", "self_area"} <= ops, "MissingHandler", path,
                 "a second blast repeats a self-area damage effect")
         require("taunt_shield" not in ops or "taunt" in ops, "MissingHandler", path, "a taunt shield needs its taunt")
-        require("shield_burst" not in ops or "shield" in ops, "MissingHandler", path, "a shield burst detonates its own shield")
-        require("mobility_punish" not in ops or "dot" in ops, "MissingHandler", path, "a mobility punishment rides on a dot")
         for effect in rank["effects"]:
             _validate_new_effect(effect, path)
             if effect["op"] == "empower_basic":
@@ -626,16 +595,6 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] in ("slow", "path_slow"):
                 require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
-            if effect["op"] == "cooldown_refund":
-                require(("cooldown" in effect) != ("ratio" in effect), "ObjectShape", path, "one refund magnitude")
-                require((effect["trigger"] == "BasicHit") == ("duration" in effect), "ObjectShape", path,
-                        "a basic-hit refund lasts a window; no other trigger has one")
-            if effect["op"] == "ability_crit":
-                require((effect["mode"] == "Chance") == ("abilities" in effect and "ratio" in effect), "ObjectShape", path,
-                        "a chance crit names its abilities and share")
-            if effect["op"] == "resist_shred":
-                require(quantity(effect["armor_ratio"]) > 0 or quantity(effect["magic_resist_ratio"]) > 0,
-                        "IneffectiveEffect", path, "a shred removes some resistance")
             if effect["op"] == "self_area":
                 require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
             if effect["op"] == "timed_stat_bonus":
@@ -662,60 +621,48 @@ def validate_definitions(data, ids):
         all_ids.update(index)
         for row in rows:
             row["native_id"] = ids[section][row["id"]]
-    for row in (*data["abilities"], *data["equipment"]):
-        _validate_tags(row["tags"], row["id"])
 
-    # (target mode, handlers of every rank, handlers rank 3 adds as its qualitative change)
+    # #147 v7 catalog. Actives: (target mode, basic-rank handlers, advanced-rank handlers).
     active_contracts = {
-        "active_arc_bolt": ("DirectionProjectile", {"damage"}, {"resist_shred"}),
-        "active_guard_pulse": ("Self", {"shield", "dispel_root", "dispel_slow"}, {"cooldown_refund"}),
-        "active_binding_snare": ("Unit", {"damage", "root"}, {"vulnerable"}),
-        "active_slipper_throw": ("Unit", {"damage", "slow"}, set()),
-        "active_fart_dash": ("DirectionDash", {"dash", "self_area", "damage", "slow"}, {"zone", "zone_damage", "on_hit"}),
-        "active_combo_flurry": ("Self", {"timed_stat_bonus"}, {"cooldown_refund"}),
-        "active_slick_moves": ("Self", {"timed_stat_bonus"}, {"dispel_slow", "momentum"}),
-        "active_monkey_peach": ("Unit", {"damage", "disarm", "cooldown_refund"}, {"ability_crit"}),
-        "active_thousand_year": ("Unit", {"damage", "backstab"}, set()),
-        "active_lunge": ("DirectionDash", {"dash", "empower_basic"}, {"cooldown_refund", "path_slow"}),
-        "active_body_slam": ("GroundPoint", {"jump", "self_area", "damage", "slow"}, {"triggered_shield"}),
-        "active_come_here": ("Self", {"taunt", "timed_stat_bonus"}, {"taunt_retaliate"}),
-        # An optional fourth member names handlers rank 3 drops (碰瓷倒地 Lv3: the recoil stuns instead of slowing).
-        "active_porcelain_flop": ("Self", {"damage_guard", "self_area", "slow", "shield"}, {"stun"}, {"slow"}),
-        "active_expose_post": ("Unit", {"dot"}, {"mobility_punish"}),
-        "active_barrage_rant": ("DirectionProjectile", {"damage", "volley", "refresh_debuffs"}, {"on_hit"}),
-        "active_cancel_blast": ("Unit", {"damage", "debuff_amp"}, {"shield_shatter", "debuff_heal"}),
-        "active_pie_chart": ("GroundPoint", {"zone", "zone_shield", "zone_slow"}, {"zone_root"}),
-        "active_table_flip": ("Self", {"shield", "self_area", "shield_burst"}, {"knockback"}),
+        "active_pants_down": ("Unit", {"damage", "root"}, {"damage", "root"}),
+        "active_crotch_grab": ("Unit", {"damage", "stun"}, {"damage", "stun", "execute"}),
+        "active_snark_bolt": ("DirectionProjectile", {"damage", "slow"}, {"damage", "slow", "pierce"}),
+        "active_seethe": ("Self", {"self_area", "damage", "burn"}, {"self_area", "damage", "burn", "echo"}),
+        "active_bail_out": ("DirectionDash", {"dash", "empower_basic"}, {"dash", "empower_basic", "path_slow"}),
+        "active_elbow": ("Unit", {"damage", "knockback"}, {"damage", "knockback"}),
+        "active_not_mad": ("Self", {"shield", "dispel_slow"}, {"shield", "dispel_slow", "dispel_root", "dispel_disarm"}),
+        "active_stare_down": ("Self", {"taunt", "timed_stat_bonus"}, {"taunt", "timed_stat_bonus", "taunt_shield"}),
+        "active_quick_meeting": ("GroundPoint", {"zone", "zone_damage", "zone_slow", "zone_burn"},
+                                 {"zone", "zone_damage", "zone_slow", "zone_burn", "zone_root"}),
+        "active_account_banned": ("Unit", {"damage", "silence"}, {"damage", "silence", "breach"}),
+        "active_unplug": ("Unit", {"damage", "disarm"}, {"damage", "disarm", "slow"}),
+        "active_triple_combo": ("Self", {"empower_basic"}, {"empower_basic"}),
     }
-    timed_stats = {"active_combo_flurry": {"AttackSpeedBonusRatio"},
-                   "active_slick_moves": {"MoveSpeedBonusRatio", "AttackRangeCmFlat"},
-                   "active_come_here": {"ArmorFlat", "MagicResistFlat"}}
-    # (handlers of every rank, stats of the stat-bearing handler or None, handlers rank 3 adds)
+    timed_stats = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
+    # Passives: (basic-rank handlers, advanced-rank handlers, stats of a stat-bearing handler or None).
     passive_contracts = {
-        "passive_battle_rhythm": ({"stat_bonus", "basic_stacks"}, {"AttackSpeedBonusRatio"}, set()),
-        "passive_second_wind": ({"out_of_combat_regen"}, None, set()),
-        "passive_precision": ({"stat_bonus", "cooldown_refund"}, {"CritChanceBonusRatio"}, {"ability_crit"}),
-        "passive_cornered": ({"low_hp_stat_bonus"}, {"ADBonusRatio"}, {"triggered_shield"}),
-        "passive_lurking": ({"ambush_damage"}, None, set()),
-        "passive_public_shame": ({"control_damage_amp"}, None, {"mana_on_hit"}),
-        "passive_eagle_eye": ({"stat_bonus", "long_reach"}, {"AttackRangeCmFlat"}, set()),
-        "passive_iron_crotch": ({"thorns"}, None, set()),
-        "passive_dox_master": ({"breach_stacks"}, None, set()),
-        "passive_thick_skin": ({"mobility_shield"}, None, set()),
-        "passive_mental_gymnastics": ({"shield_pulse"}, None, set()),
-        "passive_keyboard_warrior": ({"basic_rider"}, None, {"cast_frenzy"}),
+        "passive_pressed": ({"low_hp_stat_bonus"}, {"low_hp_stat_bonus"}, {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"}),
+        "passive_tilted": ({"breach"}, {"breach"}, None),
+        "passive_stoke": ({"burn"}, {"burn"}, None),
+        "passive_kick_down": ({"control_damage_amp"}, {"control_damage_amp"}, None),
+        "passive_thick_face": ({"thorns"}, {"thorns"}, None),
+        "passive_freeloader": ({"lifesteal"}, {"lifesteal"}, None),
+        "passive_special_forces": ({"cast_frenzy"}, {"cast_frenzy", "dash_boost"}, None),
+        "passive_moral_victory": ({"triggered_shield"}, {"triggered_shield"}, None),
+        "passive_iced_americano": ({"stat_bonus"}, {"stat_bonus", "cooldown_refund"}, {"CooldownHasteFlat", "MPRegenFlat"}),
+        "passive_lucky_star": ({"stat_bonus"}, {"stat_bonus", "ability_crit"}, {"CritChanceBonusRatio"}),
     }
+    top_rank = data["progression"]["max_skill_rank"]
     for ability in data["abilities"]:
         identity = ability["id"]
-        require([rank["rank"] for rank in ability["ranks"]] == [1, 2, 3],
-                "RankShape", identity, "three complete ranks in order 1,2,3 are required")
+        require([rank["rank"] for rank in ability["ranks"]] == list(range(1, top_rank + 1)),
+                "RankShape", identity, "every rank from 1 to max_skill_rank, in order, is required")
         if ability["kind"] == "active":
             require(identity in active_contracts, "MissingHandler", identity, "no active definition projection")
-            mode, effects, rank3, *rank3_drops = active_contracts[identity]
-            rank3_effects = (effects - (rank3_drops[0] if rank3_drops else set())) | rank3
+            mode, effects, advanced = active_contracts[identity]
             require(ability["target"]["mode"] == mode, "TargetEffectMismatch", identity, "wrong definition target")
             _validate_action(ability["target"], ability["ranks"], identity)
-            require(all(_effect_set(rank["effects"], identity) == (rank3_effects if rank["rank"] == 3 else effects)
+            require(all(_effect_set(rank["effects"], identity) == (advanced if rank["rank"] == top_rank else effects)
                         for rank in ability["ranks"]),
                     "MissingHandler", identity, "definition has missing or extra effects")
             if identity in timed_stats:
@@ -726,17 +673,13 @@ def validate_definitions(data, ids):
             require(ability["cooldown_family"] == family, "InvalidReference", identity, "wrong cooldown family")
         else:
             require(identity in passive_contracts, "MissingHandler", identity, "no passive definition projection")
-            operations, stat_fields, rank3 = passive_contracts[identity]
+            operations, advanced, stat_fields = passive_contracts[identity]
             for rank in ability["ranks"]:
-                require(_effect_set(rank["effects"], identity) == (operations | rank3 if rank["rank"] == 3 else operations),
+                require(_effect_set(rank["effects"], identity) == (advanced if rank["rank"] == top_rank else operations),
                         "MissingHandler", identity, "invalid passive handlers")
                 for effect in rank["effects"]:
                     operation = effect["op"]
                     _validate_new_effect(effect, identity)
-                    if operation == "cast_frenzy":
-                        require(set(effect["stats"]) == {"AttackSpeedBonusRatio", "AttackRangeCmFlat"}, "UnknownField", identity,
-                                "wrong rank-3 timed stats")
-                        _positive_stats(effect["stats"], identity)
                     if operation in ("stat_bonus", "low_hp_stat_bonus") and stat_fields is not None:
                         require(set(effect["stats"]) == stat_fields, "UnknownField", identity, "wrong passive stat")
                         _positive_stats(effect["stats"], identity)
@@ -745,42 +688,36 @@ def validate_definitions(data, ids):
                                 "the HP threshold must lie strictly inside the pool")
                     elif operation == "thorns":
                         _validate_thorns(effect, identity)
-                    elif operation == "out_of_combat_regen":
-                        require(effect["max_hp_ratio"]["bp"] > 0 and effect["max_hp_ratio"]["bp"] % 10 == 0, "NumericDomain",
-                                identity, "regen share must be a positive whole 0.001 of the maximum per second")
-                    elif operation == "ambush_damage":
-                        require(any(quantity(effect[field]) > 0 for field in ("base", "ad_ratio", "ap_ratio")),
-                                "IneffectiveEffect", identity, "effect has neither magnitude nor scaling")
                     elif operation == "control_damage_amp":
                         require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
-                    elif operation == "triggered_shield":
-                        require(effect["trigger"] == "LowHP" and 0 < quantity(effect["threshold"]) < 1, "NumericDomain",
-                                identity, "a low-HP shield needs a threshold inside the pool")
-                    elif operation == "cooldown_refund":
-                        require(effect["trigger"] == "BasicCrit", "InvalidReference", identity,
-                                "a passive cooldown refund triggers on critical basics")
                     elif operation == "ability_crit":
-                        require(effect["mode"] == "Chance" and set(effect["abilities"]) <= set(active_contracts),
+                        require(set(effect["abilities"]) <= set(active_contracts),
                                 "InvalidReference", identity, "a passive ability crit names approved actives")
+                    elif operation in ("breach", "burn"):
+                        require("stacks" in effect or "basic_stacks" in effect, "ObjectShape", identity,
+                                "a passive keyword applies stacks on Q/W or basic hits")
+        # D2: the advanced rank keeps every coefficient and multiplies each growing base by 1.5 (#147).
+        basic, advanced_rank = ability["ranks"][0]["effects"], ability["ranks"][-1]["effects"]
+        for effect in basic:
+            twin = next((row for row in advanced_rank if row["op"] == effect["op"]), None)
+            if twin is None:
+                continue
+            for field in ("ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio"):
+                if field in effect:
+                    require(exact_equal(effect[field], twin.get(field)), "AdvancedRank", identity,
+                            f"{effect['op']}.{field} changes between ranks")
+            if "base" in effect and effect["op"] != "mana_on_hit":
+                require(quantity(twin["base"]) == quantity(effect["base"]) * Fraction(3, 2), "AdvancedRank", identity,
+                        f"{effect['op']}.base must be 1.5x in the advanced rank")
     attribute_stats = {
-        "attr_might": {"ADFlat", "CritChanceBonusRatio"}, "attr_might_hp": {"ADFlat", "MaxHPFlat"},
-        "attr_might_haste": {"ADFlat", "CooldownHasteFlat"}, "attr_focus": {"APFlat", "CooldownHasteFlat"},
-        "attr_focus_as": {"APFlat", "AttackSpeedBonusRatio"},
-        "attr_focus_defense": {"APFlat", "ArmorFlat", "MagicResistFlat"},
-        "attr_reach": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
-        "attr_reach_ms": {"AttackRangeCmFlat", "MoveSpeedBonusRatio"},
-        "attr_roam_hybrid": {"MoveSpeedBonusRatio", "ADFlat", "APFlat"},
-        "attr_resolve": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
-        "attr_vitality": {"MaxHPFlat", "MaxMPFlat", "HPRegenFlat"},
-        "attr_wild_glass_cannon": {"ADFlat", "APFlat", "AttackSpeedBonusRatio"},
-        "attr_wild_juggernaut": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
-        "attr_wild_brawler": {"AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
+        "attr_protein": {"ADFlat", "MaxHPFlat"}, "attr_fast_hands": {"AttackSpeedBonusRatio", "ADFlat"},
+        "attr_all_nighter": {"APFlat", "CooldownHasteFlat"}, "attr_canteen": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
+        "attr_big_talk": {"APFlat", "MaxHPFlat"}, "attr_morning_rush": {"MoveSpeedBonusRatio", "MaxHPFlat"},
+        "attr_hand_out": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
+        "attr_wild_frenzy": {"ADFlat", "AttackSpeedBonusRatio"},
     }
     # Wild cards name their deductions explicitly (positive magnitudes the projection subtracts).
-    attribute_penalties = {
-        "attr_wild_glass_cannon": {"MaxHPFlat"}, "attr_wild_juggernaut": {"MoveSpeedBonusRatio"},
-        "attr_wild_brawler": {"AttackRangeCmFlat"},
-    }
+    attribute_penalties = {"attr_wild_frenzy": {"MaxHPFlat"}}
     for attribute in data["attributes"]:
         require(attribute["id"] in attribute_stats
                 and set(attribute["stats"]) == attribute_stats[attribute["id"]],
@@ -892,9 +829,36 @@ def validate_definitions(data, ids):
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
         for field in ("name_text", "description_text"):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
+        ability = next((ability for ability in data["abilities"] if ability["id"] == identity), None)
+        require(("advanced_key" in row) == ("advanced_text" in row) and (ability is not None or "advanced_text" not in row),
+                "DisplayReference", identity, "only a skill has an advanced line, with its key")
+        if "advanced_text" in row:
+            require(row["advanced_key"] == identity + ".advanced", "DisplayReference", identity, "non-canonical advanced line reference")
+            display_text(row["advanced_text"], f"{identity}.advanced_text", False)
+        if ability is not None:
+            card_template(row["description_text"], ability["ranks"], f"{identity}.description_text")
+            card_template(row.get("advanced_text", ""), ability["ranks"][-1:], f"{identity}.advanced_text")
         require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
         names.add(row["name_text"])
     return collections
+
+
+CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
+                         "secondary_ratio", "secondary_duration", "basic_count", "cooldown_cut", "refund", "burst"))
+CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
+
+
+def card_template(text, ranks, path):
+    """#147: [op.field] placeholders of a skill's card text read an effect present in every rank it is shown for."""
+    require("[" not in CARD_PLACEHOLDER.sub("", text) and "]" not in CARD_PLACEHOLDER.sub("", text),
+            "CardTemplate", path, "a bracket outside a [op.field] placeholder")
+    for op, field in CARD_PLACEHOLDER.findall(text):
+        require(op in EFFECT_OPS and (field in CARD_FIELDS or field in STAT_FIELDS), "CardTemplate", path,
+                f"unknown placeholder [{op}.{field}]")
+        for rank in ranks:
+            effect = next((effect for effect in rank["effects"] if effect["op"] == op), None)
+            require(effect is not None and (field in CARD_FIELDS or field in effect.get("stats", {})), "CardTemplate", path,
+                    f"[{op}.{field}] names no effect of rank {rank['rank']}")
 
 
 def display_text(text, path, allow_digits):
@@ -958,8 +922,6 @@ def validate_numbers(data):
     for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
                 "AIRDROP.PickupRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
-    require(0 < p("COMBAT.RearArcDeg") < 360, "InvalidGeometry", "COMBAT.RearArcDeg",
-            "the rear arc must be a proper, non-empty sector")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
@@ -1014,11 +976,8 @@ def validate_numbers(data):
         require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
         checked_add(params["SHOP.StartingGold"], price, item["id"])
         item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
-    for key in ("CHOICE.UpgradeWeight", "CHOICE.NewActiveOpenSlotWeight", "CHOICE.NewActiveFullSlotWeight",
-                "CHOICE.NewPassiveWeight"):
-        require(params[key]["bp"] > 0, "NumericDomain", key, "a draft weight must be positive")
-    require(params["CHOICE.AffinityStep"]["bp"] >= 10000 and params["CHOICE.AffinityCap"]["bp"] >= 10000,
-            "NumericDomain", "CHOICE.Affinity", "tag affinity never lowers a weight")
+    require(params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0, "NumericDomain", "CHOICE.NewActiveFullSlotWeight",
+            "a draft weight must be positive")
     checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
@@ -1076,18 +1035,34 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     max_armor = params["STAT.Armor.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
+    # #147: a skill's fixed amounts grow with its owner's level, G(L) = 1 + SKILL.GrowthPerLevel x (L - 1), so a skill's
+    # envelope is checked with its bases grown for the top level (equipment never grows); the burn base grows likewise.
+    factor = checked_add(10000, checked_mul(max(data["progression"]["max_level"] - 1, 0),
+                                            params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"), "SKILL.GrowthPerLevel")
+    grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
+    checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
+                checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
+    abilities = {id(row) for row in data["abilities"]}
     for row in (*data["abilities"], *data["equipment"]):
+        skill = id(row) in abilities
         for effect in all_effects(row):
-            if effect["op"] in ("damage", "shield", "ambush_damage", "empower_basic", "dot", "mobility_punish", "zone_damage",
-                                "shield_pulse", "breach_stacks", "basic_rider", "zone_shield"):
-                numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
+            base = effect["base"]["p2"] if "base" in effect else 0
+            if skill and effect["op"] != "mana_on_hit":
+                base = grow(base, row["id"])
+            if skill and effect["op"] == "timed_stat_bonus":
+                for stat in effect.get("stats", {}).values():
+                    for storage in ("p2", "bp"):
+                        if storage in stat:
+                            grow(stat[storage], row["id"])
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
+                numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
-                if effect["op"] not in ("shield", "basic_rider", "zone_shield"):
+                if effect["op"] != "shield":
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
             elif effect["op"] == "thorns":
-                numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
+                numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])
                 if "max_hp_ratio" in effect:
                     numerator = checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])

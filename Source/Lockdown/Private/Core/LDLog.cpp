@@ -175,17 +175,12 @@ FString LDLog::StatusName(uint8 StatusId)
     case ELDDemoStatusId::RespawnProtection: return TEXT("respawn_protection");
     case ELDDemoStatusId::Slow: return TEXT("slow");
     case ELDDemoStatusId::StatBoost: return TEXT("stat_boost");
-    case ELDDemoStatusId::Enraged: return TEXT("enraged");
-    case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
     case ELDDemoStatusId::Taunt: return TEXT("taunt");
     case ELDDemoStatusId::Disarm: return TEXT("disarm");
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");
     case ELDDemoStatusId::Knockback: return TEXT("knockback");
-    case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
-    case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
-    case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
     case ELDDemoStatusId::Silence: return TEXT("silence");
     case ELDDemoStatusId::Burn: return TEXT("burn");
     default: return FString::FromInt(StatusId);

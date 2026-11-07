@@ -3,11 +3,39 @@
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/TextBlock.h"
+#include "Components/RichTextBlock.h"
+#include "Engine/DataTable.h"
 #include "Styling/CoreStyle.h"
 UTextBlock* LDWidgets::Text(UWidgetTree* Tree,const FString& Value,int32 Size,FName Name)
 {
     auto* W=Tree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(),Name);W->SetText(FText::FromString(Value));W->SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
     W->SetColorAndOpacity(LDHUDStyle::TextPrimary);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
+}
+void LDWidgets::SetRichTextSize(URichTextBlock* Rich,int32 Size)
+{
+    if(!Rich){return;}
+    UDataTable* Styles=NewObject<UDataTable>(Rich);
+    Styles->RowStruct=FRichTextStyleRow::StaticStruct();
+    FRichTextStyleRow Plain;
+    Plain.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Regular",Size));
+    Plain.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextPrimary));
+    FRichTextStyleRow Bold=Plain;
+    Bold.TextStyle.SetFont(FCoreStyle::GetDefaultFontStyle("Bold",Size));
+    Bold.TextStyle.SetColorAndOpacity(FSlateColor(LDHUDStyle::TextAccent));
+    Styles->AddRow(TEXT("Default"),Plain);
+    Styles->AddRow(TEXT("b"),Bold);
+    Rich->SetTextStyleSet(Styles);
+}
+int32 LDWidgets::RichTextSize(const URichTextBlock* Rich)
+{
+    const UDataTable* Styles=Rich?Rich->GetTextStyleSet():nullptr;
+    const FRichTextStyleRow* Plain=Styles?Styles->FindRow<FRichTextStyleRow>(TEXT("Default"),TEXT("RichTextSize"),false):nullptr;
+    return Plain?Plain->TextStyle.Font.Size:0;
+}
+URichTextBlock* LDWidgets::RichText(UWidgetTree* Tree,int32 Size,FName Name)
+{
+    auto* W=Tree->ConstructWidget<URichTextBlock>(URichTextBlock::StaticClass(),Name);
+    SetRichTextSize(W,Size);W->SetAutoWrapText(true);W->SetVisibility(ESlateVisibility::HitTestInvisible);return W;
 }
 ULDCommandButton* LDWidgets::Button(UWidgetTree* Tree,const FString& Value,TFunction<void()> Callback,bool World,FName Name)
 {
@@ -39,7 +67,11 @@ void ULDPanel::ApplyTextScale(float Scale)
     // Only a built tree is rescaled; recording the scale earlier would leave later-built text at the base size.
     if(Scale<=0.f||FMath::IsNearlyEqual(Scale,AppliedTextScale)||!WidgetTree||!WidgetTree->RootWidget){return;}
     TArray<UWidget*> All;WidgetTree->GetAllWidgets(All);
-    for(UWidget* W:All){if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);Label->SetFont(Font);}}
+    for(UWidget* W:All)
+    {
+        if(auto* Label=Cast<UTextBlock>(W)){auto Font=Label->GetFont();Font.Size=FMath::RoundToInt(Font.Size*Scale/AppliedTextScale);Label->SetFont(Font);}
+        else if(auto* Rich=Cast<URichTextBlock>(W)){LDWidgets::SetRichTextSize(Rich,FMath::RoundToInt(LDWidgets::RichTextSize(Rich)*Scale/AppliedTextScale));}
+    }
     AppliedTextScale=Scale;
 }
 void ULDPanel::ScaleNewText(UTextBlock* Label) const
