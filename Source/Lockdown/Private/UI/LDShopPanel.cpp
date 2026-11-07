@@ -179,7 +179,7 @@ bool ULDShopPanel::ClosePanel()
     // still reaches the player as a notice without reopening the panel.
     bOpen=false;SetVisibility(ESlateVisibility::Collapsed);UpdateDetail();return true;
 }
-void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop)
+void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,FName NearShop)
 {
     // A new match closes the shop and starts without pre-orders. A session ending, a new life or death only switch the
     // list back to the catalog and block trading; taking damage never closes the panel.
@@ -192,13 +192,18 @@ void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* Equip
     }
     bLatestView=View!=nullptr;Latest=View?*View:FLDShopView();LatestEquipment=EquipView?*EquipView:FLDEquipmentView();
     bLatestBuildKnown=bBuildKnown;LatestBuildRevision=BuildRevision;LatestMatch=Match;LatestLife=Life;LatestPhase=Phase;
-    LatestContent=ContentDefs;bPresented=true;bLatestNear=bNearShop;
+    LatestContent=ContentDefs;bPresented=true;LatestNearShop=NearShop;bLatestNear=!NearShop.IsNone();
     Listing=HasSession()?Latest.Items:LDHUD::CatalogItems(ContentDefs);
     PrunePresells();
     TryAutoTrade();
     if(bOpen){RefreshShop();}
 }
-bool ULDShopPanel::HasSession() const{return bLatestView&&Latest.Life==LatestLife;}
+bool ULDShopPanel::HasSession() const
+{
+    // A quote opened at another shop is not this shop's: trades are judged against the session's own shop, so standing
+    // at a second shop asks for a new open there instead of trading on the first one's.
+    return bLatestView&&Latest.Life==LatestLife&&(LatestNearShop.IsNone()||Latest.ShopId==LatestNearShop);
+}
 int32 ULDShopPanel::FreeSlots() const
 {
     if(!EquipmentKnown()){return 0;}
