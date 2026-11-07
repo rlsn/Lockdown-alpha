@@ -195,7 +195,8 @@ void ALDCombatDirector::EndMatchActions()
     for (auto& Pair : Bodies) { AbandonAction(Pair.Value,ELDCombatReject::MatchClosed); }
 }
 
-FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request)
+FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    bool bQueuedStep)
 {
     FLDCombatActionReceipt Receipt;
     Receipt.Generation=Request.Generation;
@@ -233,14 +234,17 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
         Shape=false;
     }
     if (!Shape) { return Refuse(ELDCombatReject::InvalidRequest); }
-    if (Request.DirectSequence<=Record->DirectHighWater)
+    const auto* Known=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    switch (LDCombatSourceRules::DirectSequenceVerdict(Known!=nullptr,Known && LDCA::SameTerms(Known->Request,Request),
+        Request.DirectSequence,Record->DirectHighWater,bQueuedStep))
     {
-        if (const auto* Known=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
-            { return Entry.Request.DirectSequence==Request.DirectSequence; }))
-        { return LDCA::SameTerms(Known->Request,Request) ? Known->Receipt : Refuse(ELDCombatReject::RequestConflict); }
-        return Refuse(ELDCombatReject::ReceiptExpired);
+    case ELDDirectSequenceVerdict::Replay: return Known->Receipt;
+    case ELDDirectSequenceVerdict::Conflict: return Refuse(ELDCombatReject::RequestConflict);
+    case ELDDirectSequenceVerdict::Expired: return Refuse(ELDCombatReject::ReceiptExpired);
+    default: break;
     }
-    Record->DirectHighWater=Request.DirectSequence;
+    Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     if (Request.DirectSequence<=Record->CancelledThrough)
     {
         Refuse(ELDCombatReject::Cancelled);
@@ -462,7 +466,7 @@ FLDCombatActionReceipt ALDCombatDirector::StartNavAttack(const FLDCombatCaller& 
 }
 
 bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
-    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error)
+    const FLDGameplayWritePermit& Permit, FLDCombatActionReceipt& Out, bool& bFinal, FString& Error, bool bQueuedStep)
 {
     bFinal=true;
     Out={};
@@ -486,7 +490,12 @@ bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCom
     const bool bShape=Request.DirectSequence!=0 && Request.Life!=0 && LDCA::IsContenderEntry(Request.Entry)
         && Request.Entry!=ELDCombatEntry::Dash && bAim;
     if (!bShape) { Out.Reject=ELDCombatReject::InvalidRequest; return true; }
-    if (Request.DirectSequence<=Record->DirectHighWater) { Out.Reject=ELDCombatReject::StaleRequest; return true; }
+    const bool bRecorded=Record->Recent.ContainsByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    // A cast order judges its request once: any recorded or expired sequence is stale here.
+    if (LDCombatSourceRules::DirectSequenceVerdict(bRecorded,false,Request.DirectSequence,Record->DirectHighWater,bQueuedStep)
+        !=ELDDirectSequenceVerdict::Fresh)
+    { Out.Reject=ELDCombatReject::StaleRequest; return true; }
     FLDCombatActionReceipt Judged;
     if (!ProcessDirect(*Record,Request,Permit,Judged,Error)) { return false; }
     if (Judged.Phase==ELDCombatPhase::Rejected && (Judged.Reject==ELDCombatReject::OutOfRange
@@ -499,10 +508,40 @@ bool ALDCombatDirector::StartNavCast(const FLDCombatCaller& Caller, const FLDCom
     }
     Record=FindRecord(Caller.EntityId);
     if (!Record) { Out=Judged; return true; }
-    Record->DirectHighWater=Request.DirectSequence;
+    Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
     StoreReceipt(*Record,Request,Judged);
     Out=Record->Recent.Last().Receipt;
     SendReceipt(*Record,Out);
+    return true;
+}
+
+bool ALDCombatDirector::RecordDirectRefusal(const FLDCombatCaller& Caller, const FLDCombatActionRequest& Request,
+    ELDCombatReject Reject, FLDCombatActionReceipt& Out)
+{
+    Out={};
+    Out.Generation=Request.Generation;
+    Out.Life=Request.Life;
+    Out.Origin=ELDCombatRequestOrigin::Direct;
+    Out.DirectSequence=Request.DirectSequence;
+    Out.Entry=Request.Entry;
+    Out.Phase=ELDCombatPhase::Rejected;
+    Out.Reject=Reject;
+    const auto* Mode=Core();
+    auto* Record=FindRecord(Caller.EntityId);
+    if (!Mode || Caller.Match!=Mode->GetMatchContext() || !Record || Record->Kind!=Caller.Kind || !Request.DirectSequence
+        || Reject==ELDCombatReject::None)
+    { return false; }
+    // Only a sequence the window has never seen: a recorded or expired one keeps Combat's own answer.
+    const bool bRecorded=Record->Recent.ContainsByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    if (LDCombatSourceRules::DirectSequenceVerdict(bRecorded,false,Request.DirectSequence,Record->DirectHighWater,false)
+        !=ELDDirectSequenceVerdict::Fresh)
+    { return false; }
+    StoreReceipt(*Record,Request,Out);
+    const auto* Stored=Record->Recent.FindByPredicate([&Request](const FLDCombatDirectEntry& Entry)
+        { return Entry.Request.DirectSequence==Request.DirectSequence; });
+    if (!Stored) { return false; }
+    Out=Stored->Receipt;
     return true;
 }
 
@@ -513,6 +552,21 @@ void ALDCombatDirector::CancelNavAttack(const FGuid& Entity, const FLDMoveIdenti
         && Body->Action->Key.Origin==ELDCombatRequestOrigin::Nav && Body->Action->Key.Move==Move
         && !(Keep.IsValid() && Body->Action->TargetBody==Keep))
     { FinishAction(*Body,ELDCombatReject::Cancelled,false); }
+}
+
+bool ALDCombatDirector::AdoptNavAttack(const FGuid& Entity, const FLDMoveIdentity& From, const FLDMoveIdentity& To,
+    const FGuid& Observed, uint32 ObservationEpoch)
+{
+    auto* Body=FindEntityBody(Entity);
+    if (!Body || Body->bPendingDeath || !Body->Action.IsSet() || !Observed.IsValid() || !ObservationEpoch) { return false; }
+    FLDCombatAction& Action=Body->Action.GetValue();
+    if (Action.Kind!=ELDCombatActionKind::Basic || Action.Key.Origin!=ELDCombatRequestOrigin::Nav || Action.Key.Move!=From
+        || To==From || To.Match!=Action.Key.Generation || To.Life!=Action.Key.Life || To.Life!=Body->Victim.Life
+        || Action.Target.Observed!=Observed || Action.Target.ObservationEpoch!=ObservationEpoch)
+    { return false; }
+    Action.Key.Move=To;
+    UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_SWING_ADOPTED token=%llu from_order=%u to_order=%u"),Action.Token,From.Order,To.Order);
+    return true;
 }
 
 bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCombatActionRequest& Request,
@@ -786,28 +840,29 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     const auto* Content=Catalog();
     auto* Record=FindRecord(Body.Victim.EntityId);
     if (!Mode || !Content || !Record) { Error=TEXT("Basic release lost its core, catalog or entity record."); return false; }
-    // A disarm or stun that landed during the windup ends it without a swing.
-    if (IsActionBlocked(Body,ELDCombatControlAction::Basic))
-    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
-    // The windup already spent the cadence; a target lost by now is a committed swing that misses.
-    FLDCombatBodyRef TargetRef;
-    FVector TargetFoot;
-    ELDCombatReject Reject;
-    if (!ResolveUnitTarget(*Record,Actor,Action.Target,TargetRef,TargetFoot,Reject) || TargetRef!=Action.TargetBody)
-    { Outcome=ELDCombatReject::TargetUnavailable; FinishAction(Body,Outcome,false); return true; }
-    if (!LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef))
-    { Outcome=ELDCombatReject::ControlBlocked; FinishAction(Body,Outcome,false); return true; }
-    // A started swing lands wherever the target has moved since (2026-11-06 decision, the Dota rule): the attack range
-    // gates only the start (StartNavAttack); at the release the target must still be resolvable and in clear sight.
-    const FVector Foot=FootOf(Actor);
-    bool bFault=false;
-    if (!LDCA::ClearSight(*Mode,*GetWorld(),Foot,TargetFoot,bFault))
+    // A started swing always lands on its committed life (2026-11-07 user decision, LDCombatSourceRules::BasicReleaseGate):
+    // range, sight and observation gate only the start (StartNavAttack / camp admission). The release re-checks only the
+    // attacker's own control and that the exact target life still stands; the windup already spent the cadence.
+    const FLDCombatBodyRef TargetRef=Action.TargetBody;
+    ALDCharacter* TargetActor=nullptr;
+    const FLDBodyCombatState* TargetBody=TargetRef.IsValid() ? FindBody(TargetRef,&TargetActor) : nullptr;
+    FLDBasicReleaseInput Gate;
+    Gate.bAttackBlocked=IsActionBlocked(Body,ELDCombatControlAction::Basic);
+    Gate.bTauntAllows=LDControl::TauntAllows(Body.Taunt,Mode->GetAuthorityNowMs(),true,TargetRef);
+    Gate.Committed=TargetRef;
+    if (TargetBody && TargetActor) { Gate.Current={TargetBody->Victim,TargetBody->Identity}; }
+    Gate.bCurrentPendingDeath=TargetBody && TargetBody->bPendingDeath;
+    Gate.bTargetPresent=TargetRef.Victim.Kind!=ELDVictimKind::Contender || Mode->IsMemberPresent(TargetRef.Victim.EntityId);
+    Gate.bSelf=TargetRef.Victim.EntityId==Record->Entity;
+    Outcome=LDCombatSourceRules::BasicReleaseGate(Gate);
+    if (Outcome!=ELDCombatReject::None)
     {
-        if (bFault) { Error=TEXT("Basic release sight failed on a registered body."); return false; }
-        Outcome=ELDCombatReject::Blocked;
+        UE_LOG(LogLDCombat,Log,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=refused reason=%u"),Action.Token,uint32(Outcome));
         FinishAction(Body,Outcome,false);
         return true;
     }
+    UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=hit distance_cm=%.0f"),Action.Token,
+        FVector::Dist2D(FootOf(Actor),FootOf(*TargetActor)));
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Hit;
     Hit.HitId=FGuid::NewGuid();
@@ -1532,6 +1587,7 @@ bool ALDCombatDirector::ReadCombatBody(const FLDCombatBodyRef& Ref, FLDCombatBod
     Out.RootedUntilMs=LDTactical::ActiveRootUntilMs(Body->Roots,Now);
     Out.bActionInProgress=Body->Action.IsSet();
     Out.ActionEntry=Body->Action.IsSet() ? Body->Action->Entry : ELDCombatEntry::None;
+    Out.ActionReleaseAtMs=Body->Action.IsSet() ? Body->Action->ReleaseAtMs : 0;
     const auto* Record=FindRecord(Ref.Victim.EntityId);
     Out.NextAttackAtMs=Ref.Victim.Kind==ELDVictimKind::Contender ? (Record ? Record->NextAttackAtMs : 0) : Body->MonsterNextAttackAtMs;
     Out.AttackRangeCm=LDCA::ToDouble(Body->AttributeProjection.Final.AttackRangeCm);

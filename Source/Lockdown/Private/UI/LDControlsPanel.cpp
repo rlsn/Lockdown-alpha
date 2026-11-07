@@ -56,8 +56,15 @@ namespace
     constexpr int32 QualityLevels=5;
     const TCHAR* const QualityNames[QualityLevels]={TEXT("低"),TEXT("中"),TEXT("高"),TEXT("极高"),TEXT("电影级")};
     constexpr ELDMinimapOrientation Orientations[]={ELDMinimapOrientation::Camera,ELDMinimapOrientation::Facing,ELDMinimapOrientation::North};
-    const TCHAR* const VSyncHint=TEXT("与显示器刷新同步，减少画面撕裂。");
-    const TCHAR* const QualityHint=TEXT("整体画质预设；越高越精细，对显卡要求也越高。");
+    const TCHAR* const VSyncHint=TEXT("与显示器刷新同步，消除画面撕裂；帧率最高等于刷新率。一帧来不及画完就要等下一次刷新，显卡吃紧时帧率会明显下降并增加操作延迟，可降低画质缓解。");
+    // What each preset changes: the engine scalability groups (Engine\Config\BaseScalability.ini) and the fixed preset
+    // render scales of PerfIndexValues_ResolutionQuality (50/71/87/100/100).
+    const TCHAR* const QualityHints[QualityLevels]={
+        TEXT("按 50% 分辨率渲染再放大；关闭实时全局光照与反射、环境光遮蔽和体积雾，阴影、材质、特效与视距都最简。最省显卡，画面明显变糊变平。"),
+        TEXT("按 71% 分辨率渲染；简化的实时全局光照，屏幕空间反射，无体积雾，阴影与视距降低。"),
+        TEXT("按 87% 分辨率渲染；实时全局光照与反射、体积雾和较精细的阴影。"),
+        TEXT("按 100% 原生分辨率渲染；完整的实时全局光照与反射、更精细的阴影与特效。对显卡要求最高的常规档。"),
+        TEXT("在极高基础上再提高阴影、光照、视距与纹理预算，面向截图与录像，不建议对局使用。")};
     // The unapplied-draft prompt names what Back does next, so it never just toggles the prompt away and back.
     const TCHAR* const CloseDraftText=TEXT("画面更改（垂直同步、画质）尚未应用；其他页已生效的更改会保留。再按“返回”或 Esc 将放弃画面更改并返回。");
 
@@ -72,6 +79,21 @@ namespace
     const TCHAR* OnOff(bool Value){return Value?TEXT("开"):TEXT("关");}
     FString QualityName(const Scalability::FQualityLevels& Quality)
     {const int32 Level=Quality.GetSingleQualityLevel();return Level>=0&&Level<QualityLevels?QualityNames[Level]:TEXT("自定义");}
+    FString QualityHint(const Scalability::FQualityLevels& Quality)
+    {
+        const int32 Level=Quality.GetSingleQualityLevel();
+        if(Level>=0&&Level<QualityLevels){return QualityHints[Level];}
+        // The engine default (a fresh profile or restored defaults) is one preset's groups at render scale 0, which the
+        // engine resolves from the display resolution; it matches no preset, so it reads as custom.
+        const int32 Min=Quality.GetMinQualityLevel();
+        if(Min>=0&&Min<QualityLevels)
+        {
+            Scalability::FQualityLevels Uniform=Quality;Uniform.SetFromSingleQualityLevel(Min);Uniform.ResolutionQuality=0.f;
+            if(Uniform==Quality)
+            {return FString::Printf(TEXT("默认：%s档效果，渲染分辨率由引擎按显示器分辨率自动选择（分辨率越高比例越低）；改选预设会改用该档的固定渲染比例。"),QualityNames[Min]);}
+        }
+        return TEXT("各项画质不属于同一预设；用箭头改选一个预设。");
+    }
     FName OrientationButton(ELDMinimapOrientation Value)
     {return Value==ELDMinimapOrientation::Facing?FName(TEXT("MinimapFacing")):Value==ELDMinimapOrientation::North?FName(TEXT("MinimapNorth")):FName(TEXT("MinimapCamera"));}
 
@@ -270,7 +292,7 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             // Every draft edit is a new request, so an apply the instance refused may be tried again.
             VSyncNote=AddRow(Tree,DisplayRows,TEXT("垂直同步"),VSyncHint,
                 Switch(Tree,TEXT("VSyncDraft"),[this](){DisplayDraft.bVSync=!DisplayDraft.bVSync;EditDisplayDraft();}));
-            QualityNote=AddRow(Tree,DisplayRows,TEXT("画质"),QualityHint,Stepper(Tree,TEXT("QualityDraftLower"),TEXT("QualityDraftHigher"),
+            QualityNote=AddRow(Tree,DisplayRows,TEXT("画质"),QualityHint(DisplayDraft.Quality),Stepper(Tree,TEXT("QualityDraftLower"),TEXT("QualityDraftHigher"),
                 TEXT("QualityDraftValue"),[this](){StepQuality(-1);},[this](){StepQuality(1);}));
             DisplayBar=Tree->ConstructWidget<UBorder>();DisplayBar->SetPadding(FMargin(18,10,10,10));
             auto* Bar=Tree->ConstructWidget<UHorizontalBox>();DisplayBar->SetContent(Bar);
@@ -708,7 +730,8 @@ void ULDControlsPanel::PopulateDisplay()
     const bool bQualityChanged=!(AppliedDisplay.Quality==DisplayDraft.Quality);
     SetNote(VSyncNote,bVSyncChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),OnOff(AppliedDisplay.bVSync)):FString(VSyncHint),
         bVSyncChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
-    SetNote(QualityNote,bQualityChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）"),*QualityName(AppliedDisplay.Quality)):FString(QualityHint),
+    SetNote(QualityNote,bQualityChanged?FString::Printf(TEXT("已更改，尚未应用（当前生效：%s）\n%s"),*QualityName(AppliedDisplay.Quality),*QualityHint(DisplayDraft.Quality))
+        :QualityHint(DisplayDraft.Quality),
         bQualityChanged?LDHUDStyle::TextAccent:LDHUDStyle::TextSecondary);
     auto* Apply=Find(WidgetTree,TEXT("ApplyDisplayDraft"));Apply->SetIsEnabled(CanApply);MarkChosen(Apply,CanApply,RestStyle);
     Find(WidgetTree,TEXT("RevertDisplayDraft"))->SetIsEnabled(bDisplayDraftDirty);

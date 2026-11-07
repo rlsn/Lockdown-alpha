@@ -28,7 +28,7 @@ bool MinimapSameMapping(const LDMinimap::FView& A,const LDMinimap::FView& B)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapCameraUpTest,"Lockdown.Rules.Minimap.CameraUp",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDMinimapCameraUpTest::RunTest(const FString& Parameters)
 {
-    // The Demo camera arm (pitch -60, yaw -45): UE's own forward and right axes of it, flattened, are drawn up and right.
+    // A camera arm (pitch -60, yaw -45; any fixed yaw works the same): UE's own forward and right axes of it, flattened, are drawn up and right.
     const FRotator Arm(-60.,-45.,0.);
     const FVector Ahead=Arm.Vector().GetSafeNormal2D(),Right=Arm.Quaternion().GetRightVector().GetSafeNormal2D();
     const LDMinimap::FView View=LDMinimap::MakeView(ELDMinimapOrientation::Camera,MinimapFixtureFit,MinimapFixtureFrame,Arm.Yaw,true,30.);

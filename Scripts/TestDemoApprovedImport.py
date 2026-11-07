@@ -22,6 +22,12 @@ def amount(value):
     return content.quantity(value)
 
 
+# #148: memes that rule text no longer uses; entry names that contain them (他急了, 无影大比兜) are kept.
+RETIRED_RULE_TERMS = ("精神状态", "电量", "力大砖飞", "阴阳怪气", "嘴硬", "心大", "手速", "润速", "整活频率", "物理超度",
+                      "精神攻击", "心理防线", "大比兜", "提裤子", "捂裆", "CPU 干烧", "瞅你咋地", "腿软", "上头", "蹲到了",
+                      "破防了", "免死金牌", "回暖", "回电")
+
+
 class ApprovedDemoData(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -41,8 +47,9 @@ class ApprovedDemoData(unittest.TestCase):
         for text in ("2026-11-02", "D01", "D02", "D03", "2026-11-04", "#82", "15.7-15.9", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
-        self.assertIn("player 400, camps 320/347, move-speed floor 230, camera 2250 (1300-2400)", approval["decision"])
-        self.assertIn("2026-11-06 #97 route budget removed.", approval["decision"])
+        self.assertIn("camera 2250 (1300-2400)", approval["decision"])
+        self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
+                      "flagpole 180s, guard 30s, airdrop 80s.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 16, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -77,20 +84,20 @@ class ApprovedDemoData(unittest.TestCase):
             ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.50"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"), ("STAT.AbilityCritMultiplier", "ratio", "1.5"),
             ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
-            ("UNIT.MoveSpeedCmPerSec", "cm/s", "400"), ("STAT.MoveSpeed.Min", "cm/s", "230"), ("STAT.MoveSpeed.Max", "cm/s", "900"),
+            ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "20"),
-            ("MATCH.DevelopmentSec", "ms", "120"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
+            ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("CAMP.ReturnDeadEndSec", "ms", "6"),
-            ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "75"),
+            ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "80"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
@@ -168,13 +175,13 @@ class ApprovedDemoData(unittest.TestCase):
             "id": "respawn_protection", "namespace": "DemoContent",
             "name_key": "respawn_protection.name", "description_key": "respawn_protection.description",
             "icon_id": "icon_respawn_protection"})
-        self.assertEqual(entries[0]["name_text"], "免死金牌")
+        self.assertEqual(entries[0]["name_text"], "复活保护")
         self.assertEqual(self.catalog.parameter("LIFE.ProtectionSec"), {"unit": "ms", "ms": 3000})
         for row in (*self.data["abilities"], *self.data["equipment"]):
             self.assertNotIn("respawn_protection", {effect["op"] for effect in content.all_effects(row)})
 
     def test_display_names_are_the_approved_fog_harbor_names(self):
-        # #111 雾港 v2 display names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); exposed (the resistance shred) reads 破防了 because display names are unique.
+        # #111 雾港 v2 entry names (CONTENT_AND_BALANCE 3.2/4/5/6.2/12.5); #148 status names use generic game terms.
         self.assertEqual({row["id"]: row["name_text"] for row in self.data["display"]}, {
             "character_demo": "脆皮大学生",
             "active_arc_bolt": "天外飞瓶", "active_guard_pulse": "我没事我很好", "active_binding_snare": "扒裤子",
@@ -193,17 +200,17 @@ class ApprovedDemoData(unittest.TestCase):
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
             "item_echo_maul": "自拍杆", "item_paper_box": "路人甲 T 恤",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
-            "root": "提裤子", "shield": "心理防线", "camp_returning": "回工位", "respawn_protection": "免死金牌",
-            "slow": "腿软", "stat_boost": "上头", "enraged": "急了", "ambush_ready": "蹲到了", "exposed": "破防了",
-            "taunt": "瞅你咋地", "stealth": "查无此人", "disarm": "捂裆", "stun": "CPU 干烧了", "empowered": "蓄力大比兜",
+            "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
+            "slow": "减速", "stat_boost": "增益", "enraged": "狂暴", "ambush_ready": "伏击就绪", "exposed": "破防",
+            "taunt": "嘲讽", "stealth": "查无此人", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "active_porcelain_flop": "碰瓷倒地", "active_expose_post": "挂人小作文",
             "active_barrage_rant": "键盘连喷", "active_cancel_blast": "实锤冲塔",
             "active_pie_chart": "拉群画饼", "active_table_flip": "掀桌不干了", "passive_dox_master": "开盒大师",
             "passive_thick_skin": "社交牛逼症", "passive_mental_gymnastics": "精神胜利法",
             "passive_keyboard_warrior": "阴阳大师", "item_megaphone": "大喇叭", "item_dossier": "黑料小本本",
             "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋", "item_decoy_wig": "假发片",
-            "item_energy_drink": "红牛", "knockback": "被掀飞", "heal_cut": "被开盒",
-            "damage_guard": "碰瓷中", "vulnerable": "裤子没了",
+            "item_energy_drink": "红牛", "knockback": "击退", "heal_cut": "重伤",
+            "damage_guard": "减伤", "vulnerable": "易伤",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -211,6 +218,8 @@ class ApprovedDemoData(unittest.TestCase):
                 self.assertTrue(row["description_text"])
                 self.assertIsNone(content.DISPLAY_DESCRIPTION_DIGIT.search(row["description_text"]))
                 self.assertIsNone(content.DISPLAY_TEXT_FORBIDDEN.search(row["description_text"]))
+                # #148: rule text names attributes, resources, damage, statuses, the basic attack and the dash generically.
+                self.assertEqual([term for term in RETIRED_RULE_TERMS if term in row["description_text"]], [])
 
     def test_respawn_protection_requires_exact_display_keys_without_runtime_state(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
@@ -635,8 +644,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 320, 900, 3000, 25000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 347, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 40, 30, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1100, 4000, 65000, 160, 120, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
@@ -653,7 +662,7 @@ class ApprovedDemoData(unittest.TestCase):
         boss = self.data["boss"]
         self.assertEqual(boss["id"], "monster_dean")
         for key, expected in (("hp", 1500), ("armor", 30), ("magic_resist", 30), ("attack", 70), ("attack_range", 250),
-                              ("move_speed", 300), ("collision_radius", 40), ("aggro_radius", 400)):
+                              ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
                           boss["appear_at"]["ms"], boss["reward_xp"], boss["reward_gold"]), (1500, 500, 5000, 60000, 300, 250))

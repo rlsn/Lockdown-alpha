@@ -6,6 +6,7 @@
 #include "Combat/LDCombatPreInput.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDOrderRules.h"
 #include "UI/LDControlSettings.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
@@ -99,6 +100,16 @@ bool ALDPlayerController::ConfirmArmedCombat()
         if (!IsLocalController() || !CanWorldCommand()) { return true; }
         FHitResult GroundHit;
         const bool bQueue=IsQueueModifierDown();
+        // A click on an attackable visible unit attacks it exactly like a right click (2026-11-07 decision); anywhere else
+        // is an attack-move. The pick is the right click's (and the hover ring's) pointer pick.
+        FGuid Handle;
+        uint32 Epoch=0;
+        const bool bUnit=ObservedUnderPointer(Handle,Epoch);
+        if (LDOrderRules::AttackConfirmKind(bUnit)==ELDSpatialOrderKind::AttackUnit)
+        {
+            Navigation->AttackUnit(Handle,Epoch,bQueue);
+            return true;
+        }
         // A confirmation without ground is still a normalized aggressive intent; the server rejects it explicitly.
         if (Navigation->GroundUnderPointer(GroundHit))
         { Navigation->AttackMove(GroundHit.ImpactPoint,Navigation->GroundSurfaceHint(),bQueue); }
@@ -340,10 +351,17 @@ void ALDPlayerController::ServerSubmitCombatAction_Implementation(const FLDComba
         ClientCombatReceipt(Receipt);
         return;
     }
-    const FLDCombatActionReceipt Receipt=Mode->Combat->SubmitAction(Caller,Incoming);
-    // A non-Shift Q/W/1/2/D Combat took is a new command: the shift queue still waiting behind the current order is
-    // dropped (its lower sequences could never run after this one). The current order keeps running as before.
-    if (Receipt.Phase!=ELDCombatPhase::Rejected && Navigation) { Navigation->ClearQueue(ELDOrderFailure::Superseded); }
+    // A non-Shift Q/W/1/2/D never touches the current order. A refused one leaves the shift queue alone too (2026-11-07
+    // decision): while steps wait, an entry that is not ready is refused before Combat sees it, and an admitted one drops
+    // the steps sent before it (their lower sequences could never run after it) once Combat accepted it.
+    FLDCombatActionReceipt Receipt;
+    if (Navigation && Navigation->RefuseUnreadyDirect(Incoming,Receipt))
+    {
+        ClientCombatReceipt(Receipt);
+        return;
+    }
+    Receipt=Mode->Combat->SubmitAction(Caller,Incoming);
+    if (Receipt.Phase!=ELDCombatPhase::Rejected && Navigation) { Navigation->AwaitDirectVerdict(Incoming.DirectSequence); }
     ClientCombatReceipt(Receipt);
 }
 
