@@ -27,7 +27,7 @@
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 
-// Taunt and stealth rules (CONTENT_AND_BALANCE 15.4/15.5, issue #83).
+// Taunt rules (CONTENT_AND_BALANCE 15.5, issue #83).
 namespace LDControlRulesTests
 {
 bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
@@ -121,68 +121,6 @@ FLDTauntCandidate Candidate(const FLDCombatBodyRef& Body, const FVector& Foot)
     Out.bSeesCaster = true;
     return Out;
 }
-
-bool PaperBox(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Content, const FLDDemoEquipmentDefinition*& Box,
-    const FLDDemoEffectDefinition*& Stealth)
-{
-    FString Error;
-    Box = nullptr;
-    Stealth = nullptr;
-    if (!Content.FindEquipment(TEXT("item_paper_box"), Box, Error) || !Box || !Box->HasActive)
-    {
-        Test.AddError(TEXT("The approved catalog has no paper box active: ") + Error);
-        return false;
-    }
-    Stealth = Box->Active.Rank.Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect)
-    { return Effect.GetOp() == ELDDemoEffectOp::Stealth; });
-    if (!Stealth)
-    {
-        Test.AddError(TEXT("The paper box active has no stealth effect."));
-        return false;
-    }
-    return true;
-}
-
-double Cm(const FLDDemoRational& Value) { return double(Value.Numerator) / double(Value.Denominator); }
-
-FLDCombatStealth StealthFrom(const FLDDemoEffectDefinition& Effect, int64 AtMs)
-{
-    FLDCombatStealth Out;
-    Out.EffectId = FGuid::NewGuid();
-    Out.ExpiresAtMs = AtMs + Effect.DurationMs;
-    Out.RevealRadiusCm = Cm(Effect.RadiusCm);
-    Out.MoveSpeedPenaltyBp = Effect.RatioBp;
-    return Out;
-}
-
-FLDObservedTarget ObservedContender(const FLDCombatBodyRef& Body, const FVector& Foot, double ConcealBeyondCm)
-{
-    FLDObservedTarget Out;
-    Out.Body = Body;
-    Out.FootCm = Foot;
-    Out.ConcealBeyondCm = ConcealBeyondCm;
-    FLDObservedUnitView& Unit = Out.Presented;
-    Unit.AuthorizedFieldMask = LDObservation::ContenderFields;
-    Unit.Kind = ELDObservedUnitKind::Contender;
-    Unit.Presentation = 1;
-    Unit.FeetCm = Foot;
-    Unit.ContenderId = Body.Victim.EntityId;
-    Unit.Level = 2;
-    Unit.Health.CurrentP2 = 40000;
-    Unit.Health.MaxP2 = 60000;
-    Unit.Mana.CurrentP2 = 10000;
-    Unit.Mana.MaxP2 = 30000;
-    Unit.Equipment.Slots[0] = uint8(ELDDemoEquipmentId::ItemPaperBox);
-    return Out;
-}
-
-// What one observer at ObserverFoot may see of Target under the approved rule: open ground (geometry Visible)
-// within the vision radius, then the target's stealth.
-ELDSightResult OpenGround(const FVector& ObserverFoot, const FLDObservedTarget& Target, double VisionCm)
-{
-    const ELDSightResult Geometric = FVector::Dist2D(ObserverFoot, Target.FootCm) <= VisionCm ? ELDSightResult::Visible : ELDSightResult::OutOfRange;
-    return LDObservation::ConcealedSight(Geometric, ObserverFoot, Target.FootCm, Target.ConcealBeyondCm);
-}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlTauntForcedTargetTest, "Lockdown.Rules.DemoControl.TauntForcedTarget",
@@ -224,7 +162,7 @@ bool FLDControlTauntForcedTargetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A basic attack at the taunter is allowed"), LDControl::TauntAllows(Taunt, Now, true, Caster));
     TestFalse(TEXT("A basic attack at anyone else is refused"), LDControl::TauntAllows(Taunt, Now, true, Other));
     TestFalse(TEXT("A later life of the taunter is not the taunter"), LDControl::TauntAllows(Taunt, Now, true, Contender(1, 2)));
-    TestFalse(TEXT("No ability or item, not even aimed at the taunter"), LDControl::TauntAllows(Taunt, Now, false, Caster)
+    TestFalse(TEXT("No ability, not even aimed at the taunter"), LDControl::TauntAllows(Taunt, Now, false, Caster)
         || LDControl::TauntAllows(Taunt, Now, false, FLDCombatBodyRef()));
     const FLDCombatTaunt First = Taunt.GetValue();
     TestFalse(TEXT("Re-applying the same taunt effect is not a new taunt"), LDControl::ApplyTaunt(Taunt, First, Now + 10));
@@ -268,14 +206,13 @@ bool FLDControlTauntRestoreTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A taunt holds while its taunter lives and is observed"), LDControl::TauntHolds(Taunt, Now + TauntMs - 1, true, true));
     TestFalse(TEXT("It ends exactly at its expiry (half-open)"), LDControl::TauntHolds(Taunt, Now + TauntMs, true, true));
     TestFalse(TEXT("The taunter's death or leave ends it"), LDControl::TauntHolds(Taunt, Now, false, true));
-    TestFalse(TEXT("Losing observation of the taunter (sight, range or stealth) ends it"), LDControl::TauntHolds(Taunt, Now, true, false));
+    TestFalse(TEXT("Losing observation of the taunter (sight or range) ends it"), LDControl::TauntHolds(Taunt, Now, true, false));
 
     TOptional<FLDCombatTaunt> Held = Taunt;
-    TOptional<FLDCombatStealth> NoStealth;
-    FLDStatusExpiry Expired = LDControl::ExpireControlStatuses(Held, NoStealth, Now + TauntMs - 1);
+    FLDStatusExpiry Expired = LDControl::ExpireControlStatuses(Held, Now + TauntMs - 1);
     TestTrue(TEXT("Before expiry nothing is removed"), Held.IsSet() && !Expired.bTauntChanged);
-    Expired = LDControl::ExpireControlStatuses(Held, NoStealth, Now + TauntMs);
-    TestTrue(TEXT("At expiry the taunt record is removed"), !Held.IsSet() && Expired.bTauntChanged && !Expired.bStealthChanged);
+    Expired = LDControl::ExpireControlStatuses(Held, Now + TauntMs);
+    TestTrue(TEXT("At expiry the taunt record is removed"), !Held.IsSet() && Expired.bTauntChanged);
     TestTrue(TEXT("Restored: every action and target is allowed again"),
         LDControl::TauntAllows(Held, Now + TauntMs, true, Other) && LDControl::TauntAllows(Held, Now + TauntMs, false, FLDCombatBodyRef()));
     TestFalse(TEXT("An expired record that was not yet swept no longer taunts"),
@@ -294,166 +231,6 @@ bool FLDControlTauntRestoreTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlStealthObservationTest, "Lockdown.Rules.DemoControl.StealthObservation",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDControlStealthObservationTest::RunTest(const FString& Parameters)
-{
-    using namespace LDControlRulesTests;
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Content)) { return false; }
-    const FLDDemoEquipmentDefinition* Box = nullptr;
-    const FLDDemoEffectDefinition* Effect = nullptr;
-    if (!PaperBox(*this, *Content, Box, Effect)) { return false; }
-    const double Reveal = Cm(Effect->RadiusCm);
-    const double Vision = Cm(Content->Get().Parameters.VisionRadiusCm);
-    TestTrue(TEXT("The reveal distance is inside the vision radius"), Reveal > 0 && Reveal < Vision);
-    constexpr int64 Now = 30000;
-    TOptional<FLDCombatStealth> Stealth;
-    TestTrue(TEXT("The approved box stealth applies"), LDControl::ApplyStealth(Stealth, StealthFrom(*Effect, Now), Now));
-
-    // Pure rule: stealth never grants sight and never turns a fault into a missing target.
-    const FVector Observer(0, 0, 2);
-    const double Hidden = LDControl::ConcealBeyondCm(Stealth, Now);
-    TestEqual(TEXT("A stealthed body is concealed beyond its reveal distance"), Hidden, Reveal);
-    TestTrue(TEXT("Within the reveal distance (inclusive) it is seen"),
-        LDObservation::ConcealedSight(ELDSightResult::Visible, Observer, FVector(Reveal, 0, 2), Hidden) == ELDSightResult::Visible);
-    TestTrue(TEXT("Beyond it the body is ordinary out-of-range, i.e. TargetUnavailable"),
-        LDObservation::ConcealedSight(ELDSightResult::Visible, Observer, FVector(Reveal + 0.5, 0, 2), Hidden) == ELDSightResult::OutOfRange
-        && LDObservation::ResolveFromSight(ELDSightResult::OutOfRange) == ELDObservedResolve::TargetUnavailable);
-    TestTrue(TEXT("Stealth never sees through a blocker, even up close"),
-        LDObservation::ConcealedSight(ELDSightResult::Blocked, Observer, FVector(10, 0, 2), Hidden) == ELDSightResult::Blocked);
-    TestTrue(TEXT("Faults pass through unchanged"),
-        LDObservation::ConcealedSight(ELDSightResult::InvalidPoint, Observer, FVector(10, 0, 2), Hidden) == ELDSightResult::InvalidPoint);
-    TestTrue(TEXT("Without stealth the vision radius alone decides"),
-        LDObservation::ConcealedSight(ELDSightResult::Visible, Observer, FVector(Vision, 0, 2), 0) == ELDSightResult::Visible);
-
-    // Authorization and revocation through the observer ledger with the same rule the director samples with.
-    FLDObserverLedger Ledger;
-    FString Error;
-    bool bReset = false;
-    TArray<FGuid> Removed;
-    TArray<FLDObservedUnitView> Units;
-    TestTrue(TEXT("Observer alive"), Ledger.Begin(7, Error) && Ledger.Bind(ELDLifePhase::Alive, 1, bReset, Error));
-    const FLDCombatBodyRef Body = Contender(42);
-    const auto SampleAt = [&](const FVector& Foot, double Conceal)
-    {
-        const FLDObservedTarget Target = ObservedContender(Body, Foot, Conceal);
-        TArray<const FLDObservedTarget*> Visible;
-        if (OpenGround(Observer, Target, Vision) == ELDSightResult::Visible) { Visible.Add(&Target); }
-        return Ledger.Sample(Visible, Removed, Units, Error);
-    };
-    const FVector Far(Reveal + 300, 0, 2);
-    TestTrue(TEXT("Before stealth the body is observed"), SampleAt(Far, 0) && Units.Num() == 1);
-    const FGuid Handle = Units[0].Handle;
-    const uint32 Epoch = Units[0].ObservationEpoch;
-    FGuid Found;
-    uint32 FoundEpoch = 0;
-    TestTrue(TEXT("Its handle is bound (and reverse lookup finds it)"), Ledger.FindHandle(Body, Found, FoundEpoch)
-        && Found == Handle && FoundEpoch == Epoch);
-    TestTrue(TEXT("Entering stealth beyond the reveal distance conceals the handle at the next sample"),
-        SampleAt(Far, Hidden) && Units.IsEmpty() && Removed.Num() == 1 && Removed[0] == Handle);
-    FLDCombatBodyRef Bound;
-    TestFalse(TEXT("The concealed handle no longer authorizes anything (no lock, no LastSeen)"),
-        Ledger.FindBinding(Handle, Epoch, Bound) || Ledger.FindHandle(Body, Found, FoundEpoch));
-    FLDMoveIdentity Order;
-    Order.Match = 7;
-    Order.Life = 1;
-    Order.Order = 3;
-    TestFalse(TEXT("An order cannot pin the hidden handle"), Ledger.BindOrder(Order, Handle, Epoch, Error));
-    TestTrue(TEXT("Approaching within the reveal distance re-discovers it under a fresh interval"),
-        SampleAt(FVector(Reveal, 0, 2), Hidden) && Units.Num() == 1 && Units[0].Handle != Handle && Units[0].ObservationEpoch > Epoch);
-    const FGuid Near = Units[0].Handle;
-    TestTrue(TEXT("Stepping back out conceals it again"), SampleAt(Far, Hidden) && Removed.Contains(Near) && Units.IsEmpty());
-    TestTrue(TEXT("When stealth ends it is observed again, never under an old handle"),
-        SampleAt(Far, LDControl::ConcealBeyondCm(Stealth, Now + Effect->DurationMs)) && Units.Num() == 1
-        && Units[0].Handle != Handle && Units[0].Handle != Near);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlStealthRevealTest, "Lockdown.Rules.DemoControl.StealthReveal",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDControlStealthRevealTest::RunTest(const FString& Parameters)
-{
-    using namespace LDControlRulesTests;
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Content)) { return false; }
-    const FLDDemoEquipmentDefinition* Box = nullptr;
-    const FLDDemoEffectDefinition* Effect = nullptr;
-    if (!PaperBox(*this, *Content, Box, Effect)) { return false; }
-    TestTrue(TEXT("The box active is a self-cast with a cooldown and a positive stealth"),
-        Box->Active.Target.Mode == ELDDemoTargetMode::Self && Box->Active.Rank.CooldownMs > 0 && Effect->DurationMs > 0
-        && Effect->RatioBp > 0 && Effect->RatioBp < 10000);
-    constexpr int64 Now = 40000;
-    TOptional<FLDCombatStealth> Stealth;
-    FLDCombatStealth Bad = StealthFrom(*Effect, Now);
-    Bad.RevealRadiusCm = 0;
-    TestFalse(TEXT("A stealth without a reveal distance is refused"), LDControl::ApplyStealth(Stealth, Bad, Now));
-    Bad = StealthFrom(*Effect, Now);
-    Bad.MoveSpeedPenaltyBp = 10000;
-    TestFalse(TEXT("A stealth may not remove all movement"), LDControl::ApplyStealth(Stealth, Bad, Now));
-    TestTrue(TEXT("The approved stealth applies"), LDControl::ApplyStealth(Stealth, StealthFrom(*Effect, Now), Now)
-        && LDControl::IsStealthed(Stealth, Now));
-
-    // Revealing: attack, ability/item and being hurt all end it through the same Reveal; expiry is half-open.
-    TOptional<FLDCombatStealth> Revealed = Stealth;
-    TestTrue(TEXT("A reveal trigger ends stealth at once"), LDControl::Reveal(Revealed) && !LDControl::IsStealthed(Revealed, Now)
-        && LDControl::ConcealBeyondCm(Revealed, Now) == 0);
-    TestFalse(TEXT("A second trigger has nothing to reveal"), LDControl::Reveal(Revealed));
-    // A taunt is a control: landing it on a stealthed body reveals it like any other control (15.4).
-    TOptional<FLDCombatTaunt> Taunted;
-    TOptional<FLDCombatStealth> HiddenVictim = Stealth;
-    bool bTauntRevealed = false;
-    TestTrue(TEXT("A taunt that lands reveals its stealthed victim"),
-        LDControl::TauntVictim(Taunted, HiddenVictim, TauntBy(Contender(1), Now), Now, bTauntRevealed)
-        && bTauntRevealed && !LDControl::IsStealthed(HiddenVictim, Now) && LDControl::IsTaunted(Taunted, Now));
-    TOptional<FLDCombatStealth> StillHidden = Stealth;
-    TestFalse(TEXT("A taunt that does not land reveals nothing"),
-        LDControl::TauntVictim(Taunted, StillHidden, Taunted.GetValue(), Now, bTauntRevealed) || bTauntRevealed
-        || !LDControl::IsStealthed(StillHidden, Now));
-    TOptional<FLDCombatTaunt> NoTaunt;
-    TOptional<FLDCombatStealth> Expiring = Stealth;
-    TestTrue(TEXT("Stealth lasts until just before its end"), LDControl::IsStealthed(Expiring, Now + Effect->DurationMs - 1));
-    const FLDStatusExpiry Expired = LDControl::ExpireControlStatuses(NoTaunt, Expiring, Now + Effect->DurationMs);
-    TestTrue(TEXT("And ends exactly at it"), !Expiring.IsSet() && Expired.bStealthChanged);
-    TOptional<FLDCombatStealth> Again = Stealth;
-    TestTrue(TEXT("Re-entering a box restarts the duration"), LDControl::ApplyStealth(Again, StealthFrom(*Effect, Now + 500), Now + 500)
-        && Again->ExpiresAtMs == Now + 500 + Effect->DurationMs);
-
-    // Movement: the penalty is one more additive ratio term of FORMULA.MoveSpeed, on the box's own speed bonus.
-    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(
-        FLDAttributeBuildValues(1, {}, {}, {TEXT("item_paper_box")}), *Content);
-    if (!TestTrue(TEXT("A level-one body holding the box projects"), Projected.IsSuccess())) { return false; }
-    const FLDAttributeContributions& Row = Projected.Value->Contributions[int32(ELDProjectedAttribute::MoveSpeed)];
-    const FLDDemoStatBonus* Bonus = Box->Stats.FindByPredicate([](const FLDDemoStatBonus& Stat)
-    { return Stat.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio; });
-    if (!TestNotNull(TEXT("The box grants a move speed bonus"), Bonus)) { return false; }
-    const auto& Bounds = Content->Get().Parameters.MoveSpeedCmPerSec;
-    const double Base = Cm(Bounds.Base);
-    double Plain = 0, Hidden = 0;
-    TestTrue(TEXT("Without stealth the speed is the projection"), LDControl::MoveSpeedCmPerSec(Row, 0, Bounds, Plain)
-        && FMath::IsNearlyEqual(Plain, Base * (1. + Bonus->Amount / 10000.), 1e-6));
-    TestTrue(TEXT("Stealthed, the penalty subtracts from the same additive ratio"), LDControl::MoveSpeedCmPerSec(Row, Effect->RatioBp, Bounds, Hidden)
-        && FMath::IsNearlyEqual(Hidden, Base * (1. + (Bonus->Amount - Effect->RatioBp) / 10000.), 1e-6) && Hidden < Plain);
-    double Refused = 0;
-    TestFalse(TEXT("A full penalty is refused"), LDControl::MoveSpeedCmPerSec(Row, 10000, Bounds, Refused));
-    // Temporary terms stay: a timed boost (active_slick_moves +30%) or the strongest slow (-30%) still applies while hidden.
-    const double BoxRatio = Bonus->Amount / 10000., Penalty = Effect->RatioBp / 10000.;
-    FLDAttributeContributions Boosted = Row;
-    Boosted.Temporary.AdditiveRatio.Numerator = 3000;
-    Boosted.Temporary.AdditiveRatio.Denominator = 10000;
-    double BoostedHidden = 0;
-    TestTrue(TEXT("A timed move-speed boost survives stealth"), LDControl::MoveSpeedCmPerSec(Boosted, Effect->RatioBp, Bounds, BoostedHidden)
-        && FMath::IsNearlyEqual(BoostedHidden, FMath::Clamp(Base * (1. + BoxRatio + .30 - Penalty), Cm(Bounds.Min), Cm(Bounds.Max)), 1e-6)
-        && BoostedHidden > Hidden);
-    FLDAttributeContributions Slowed = Row;
-    Slowed.Temporary.AdditiveRatio.Numerator = -3000;
-    Slowed.Temporary.AdditiveRatio.Denominator = 10000;
-    double SlowedHidden = 0;
-    TestTrue(TEXT("A slow still applies while hidden"), LDControl::MoveSpeedCmPerSec(Slowed, Effect->RatioBp, Bounds, SlowedHidden)
-        && FMath::IsNearlyEqual(SlowedHidden, FMath::Clamp(Base * (1. + BoxRatio - .30 - Penalty), Cm(Bounds.Min), Cm(Bounds.Max)), 1e-6)
-        && SlowedHidden < Hidden);
-    return true;
-}
 // #112 §9 + §8: a real combat hit through ApplyHit -> CommitControl reaches the spray zone. Damage, slow and disarm leave the
 // sprayer's progress alone; a stun clears it at its instant, and the control alone (no damage) is its owner's assist contribution.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureCombatInterruptTest, "Lockdown.Rules.DemoCapture.CombatHitInterrupt",
@@ -668,7 +445,7 @@ bool FLDDemoMechanicsEffectLifetimesTest::RunTest(const FString& Parameters)
     Volley.IntervalMs = 150;
     FLDBodyCombatState& Shooter = Driver->Bodies.FindChecked(ShooterActor);
     if (!TestTrue(FString::Printf(TEXT("The volley is scheduled: %s"), *Error), Driver->ReleaseMechanics(*ShooterActor, Shooter, Source, Rank,
-        nullptr, FVector::ZeroVector, FVector::ZeroVector, EffectId, 1, 0, Error))) { return false; }
+        nullptr, FVector::ZeroVector, FVector::ZeroVector, EffectId, 1, Error))) { return false; }
     Mode->AuthorityNowMs = 150;
     if (!TestTrue(FString::Printf(TEXT("The second shot leaves: %s"), *Error), Driver->AdvanceMechanics(150, Error))) { return false; }
     TArray<FLDObservedProjectileFact> Flights;

@@ -50,7 +50,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225, route 35s; "
                       "flagpole 180s, guard 30s, airdrop 80s.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (30, 14, 16, 2))
+                          len(self.data["camps"]["monsters"])), (30, 14, 13, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
             "active_arc_bolt", "active_barrage_rant", "active_binding_snare", "active_body_slam", "active_cancel_blast",
             "active_combo_flurry", "active_come_here", "active_expose_post", "active_fart_dash", "active_guard_pulse",
@@ -143,7 +143,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["policies"]["CampAggroTrigger"], "ConfirmedCombatHit")
         self.assertEqual(self.data["policies"]["MissingSourceCooldown"], "ContinueServerTime")
         self.assertEqual(self.data["policies"]["DuplicateEquipmentPassive"], "OncePerFamily")
-        self.assertEqual(self.data["policies"]["DuplicateEquipmentActive"], "IndependentSources")
+        self.assertNotIn("DuplicateEquipmentActive", self.data["policies"])
         self.assertEqual(min(amount(self.catalog.parameter("VISION.RadiusCm")),
                              2 * amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))), 440)
 
@@ -151,21 +151,21 @@ class ApprovedDemoData(unittest.TestCase):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
                                            "slow": 5, "stat_boost": 6, "enraged": 7, "ambush_ready": 8, "exposed": 9,
-                                           "taunt": 10, "stealth": 11, "disarm": 12, "stun": 13, "empowered": 14,
+                                           "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
                                            "knockback": 20, "heal_cut": 22, "damage_guard": 23,
                                            "vulnerable": 24})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
-            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "restore_mana": 9, "cleave": 10, "dash_boost": 11,
+            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "cleave": 10, "dash_boost": 11,
             "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15, "ambush_damage": 16,
-            "control_damage_amp": 17, "taunt": 18, "stealth": 19, "disarm": 20, "stun": 21, "empower_basic": 22,
+            "control_damage_amp": 17, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22,
             "jump": 23, "thorns": 24, "backstab": 25, "cooldown_refund": 26, "ability_crit": 27, "resist_shred": 28,
             "momentum": 29, "taunt_retaliate": 30, "triggered_shield": 31, "basic_stacks": 32, "long_reach": 33,
             "crit_damage_reduction": 34, "nth_basic_bonus": 35, "mana_on_hit": 36, "dispel_slow": 37, "path_slow": 38,
-            "knockback": 40, "heal_cut": 41, "dot": 42, "mobility_punish": 43, "volley": 44, "refresh_debuffs": 45,
+            "knockback": 40, "dot": 42, "mobility_punish": 43, "volley": 44, "refresh_debuffs": 45,
             "on_hit": 46, "debuff_amp": 47, "shield_shatter": 48, "debuff_heal": 49, "zone": 50, "zone_shield": 51,
             "zone_slow": 52, "zone_root": 53, "zone_damage": 54, "damage_guard": 55, "shield_burst": 56,
-            "vulnerable": 57, "decoy": 58, "leap_back": 59, "cooldown_refresh": 60, "breach_stacks": 61,
+            "vulnerable": 57, "breach_stacks": 61,
             "mobility_shield": 62, "shield_pulse": 63, "basic_rider": 64, "cast_frenzy": 65, "affliction_amp": 66,
             "shield_break_retort": 67, "hit_haste": 68})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
@@ -197,18 +197,18 @@ class ApprovedDemoData(unittest.TestCase):
             "attr_wild_glass_cannon": "彻底疯狂", "attr_wild_juggernaut": "半吨重坦", "attr_wild_brawler": "社交悍匪",
             "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
-            "item_echo_maul": "自拍杆", "item_paper_box": "路人甲 T 恤",
+            "item_echo_maul": "自拍杆",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
             "slow": "减速", "stat_boost": "增益", "enraged": "狂暴", "ambush_ready": "伏击就绪", "exposed": "破防",
-            "taunt": "嘲讽", "stealth": "查无此人", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
+            "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "active_porcelain_flop": "碰瓷倒地", "active_expose_post": "挂人小作文",
             "active_barrage_rant": "键盘连喷", "active_cancel_blast": "实锤冲塔",
             "active_pie_chart": "拉群画饼", "active_table_flip": "掀桌不干了", "passive_dox_master": "开盒大师",
             "passive_thick_skin": "社交牛逼症", "passive_mental_gymnastics": "精神胜利法",
             "passive_keyboard_warrior": "阴阳大师", "item_megaphone": "大喇叭", "item_dossier": "黑料小本本",
-            "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋", "item_decoy_wig": "假发片",
-            "item_energy_drink": "红牛", "knockback": "击退", "heal_cut": "重伤",
+            "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
+            "knockback": "击退", "heal_cut": "重伤",
             "damage_guard": "减伤", "vulnerable": "易伤",
         })
         for row in self.data["display"]:
@@ -338,7 +338,7 @@ class ApprovedDemoData(unittest.TestCase):
         eye = [row["effects"][0]["stats"]["AttackRangeCmFlat"] for row in self.catalog.definition("passive_eagle_eye")["ranks"]]
         self.assertEqual([amount(value) for value in eye], [80, 140, 200])
         sling = self.catalog.definition("item_slingshot")
-        self.assertEqual((sling["buy_price"], sling["sell_gold"], sling["active"], sling["passive"]), (320, 208, None, None))
+        self.assertEqual((sling["buy_price"], sling["sell_gold"], sling["passive"]), (320, 208, None))
         self.assertEqual({key: amount(value) for key, value in sling["stats"].items()},
                          {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(".12")})
         # 15.3: max eagle eye plus one slingshot reaches 540 cm; two reach 660 cm.
@@ -419,8 +419,8 @@ class ApprovedDemoData(unittest.TestCase):
             "item_arcane_battery": (400, 260, {"MaxMPFlat": 120, "MagicResistFlat": 10}),
             "item_echo_maul": (400, 260, {"ADFlat": 14, "AttackRangeCmFlat": 40}),
             "item_slingshot": (320, 208, {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(".12")}),
-            "item_paper_box": (400, 260, {"APFlat": 20, "MoveSpeedBonusRatio": Fraction(".08")}),
             "item_nail_uniform": (380, 247, {"MaxHPFlat": 150, "ArmorFlat": 18}),
+            "item_dossier": (400, 260, {"APFlat": 25, "MaxHPFlat": 120}),
         }
         for identity, (price, sell, stats) in expected.items():
             item = self.catalog.definition(identity)
@@ -431,25 +431,17 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]),
                          (0, 18000, 300, 200))
         spikes = self.catalog.definition("item_phase_anchor")
-        self.assertIsNone(spikes["active"])
         self.assertEqual(spikes["passive"]["family"], "passive_stride")
         boost = spikes["passive"]["effects"][0]
         self.assertEqual((boost["op"], boost["cooldown_ratio"]["bp"], boost["distance_bonus"]["bp"]), ("dash_boost", 5000, 5000))
-        battery = self.catalog.definition("item_arcane_battery")["active"]["rank"]
-        self.assertEqual((battery["mana_cost"]["p2"], battery["cooldown"]["ms"]), (0, 40000))
-        self.assertEqual(battery["effects"][0]["ratio"]["bp"], 2500)
-        self.assertEqual((battery["effects"][1]["base"]["p2"], battery["effects"][1]["ap_ratio"]["bp"],
-                          battery["effects"][1]["duration"]["ms"]), (12000, 4000, 2500))
+        # #147: no equipment has an active; the power bank and dossier keep only their fixed stats until a passive is approved.
+        self.assertTrue(all(set(item) == {"id", "buy_price", "tags", "stats", "passive", "native_id", "sell_gold", "upgraded_stats"}
+                            for item in self.data["equipment"]))
+        for identity in ("item_arcane_battery", "item_dossier"):
+            self.assertIsNone(self.catalog.definition(identity)["passive"])
         self.assertEqual(self.catalog.definition("item_siphon_emblem")["passive"]["effects"][0]["ratio"]["bp"], 1500)
         cleave = self.catalog.definition("item_echo_maul")["passive"]["effects"][0]
         self.assertEqual((cleave["ratio"]["bp"], amount(cleave["radius"])), (3500, 180))
-        # Approved on 2026-11-04: box mana cost 40; the other box terms follow CONTENT_AND_BALANCE 15.4.
-        box = self.catalog.definition("item_paper_box")["active"]
-        self.assertEqual((box["target"]["mode"], box["windup"]["ms"], box["cooldown_family"]), ("Self", 0, "cd_paper_box"))
-        self.assertEqual((box["rank"]["mana_cost"]["p2"], box["rank"]["cooldown"]["ms"]), (4000, 45000))
-        stealth = box["rank"]["effects"][0]
-        self.assertEqual((stealth["op"], stealth["duration"]["ms"], amount(stealth["reveal_radius"]),
-                          stealth["move_speed_penalty"]["bp"]), ("stealth", 3000, 250, 1000))
 
     def test_build_expansion_b_pending_proposal_values(self):
         # CONTENT_AND_BALANCE 15.8 values, approved on 2026-11-04 as playtest input.
@@ -578,7 +570,6 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.catalog.definition("item_nail_uniform")["passive"]["effects"][0]["max_hp_ratio"]["bp"], 100)
         stride = self.catalog.definition("item_phase_anchor")["passive"]["effects"][0]
         self.assertEqual((stride["skill_cooldown_ratio"]["bp"], stride["skill_distance_bonus"]["bp"]), (8000, 2500))
-        self.assertTrue(self.catalog.definition("item_paper_box")["active"]["rank"]["effects"][0]["ambush_ready"])
         # The four starting items fit the 320 opening gold.
         self.assertTrue(all(self.catalog.definition(identity)["buy_price"] <= 320
                             for identity in ("item_iron_plate", "item_edge_blade", "item_slingshot", "item_runic_focus")))

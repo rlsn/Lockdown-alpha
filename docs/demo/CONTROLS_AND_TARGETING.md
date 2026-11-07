@@ -14,7 +14,7 @@
 → CharacterMovement**。真人通过拥有连接的 RPC 提交意图；对手 AI（`ALDOpponentController`）
 在服务器上直接调用同一组 `SubmitOrder/CancelOrder/QueryOrder` 与 Combat 入口，不伪造 LocalPlayer 或 RPC。
 
-本模块负责右键移动/追击/前往砍一刀小摊、A 攻击移动、Q/W、1/2 与 D 冲刺的准备与确认、S 停止、Esc 返回、
+本模块负责右键移动/追击/前往砍一刀小摊、A 攻击移动、Q/W 与 D 冲刺的准备与确认、S 停止、Esc 返回、
 镜头和可保存绑定。战斗域负责动作、资源、节拍、命中与效果；世界域负责地面/路径查询与观察权限；
 生命周期域负责身体、真实时间步、保护与喷漆/守护。指令队列（Shift，§4.5）是唯一的连续指令形式；
 没有连招、多单位框选、编队、团队命令或自由旋转镜头。
@@ -27,7 +27,7 @@
 | 路径跟随 | `Source\Lockdown\Public\Navigation\LDPathSteering.h`、`Source\Lockdown\Private\Navigation\LDPathSteering.cpp` | `PlanStart`、`PlanRoute`（`EGoal::Ground/Body`）、`Steering`、`AtGoal`、`HaltLocomotion`。 |
 | 指针反馈 | `Source\Lockdown\Public\Navigation\LDPointerFeedback.h`、`Source\Lockdown\Private\Navigation\LDPointerFeedback.cpp` | 仅本地的地面标记、攻击标记、悬停圈与选中圈。 |
 | 输入映射与按键分派 | `Source\Lockdown\Public\Framework\LDPlayerController.h`、`Source\Lockdown\Private\Framework\LDPlayerInput.cpp` | 动态映射、按下/释放分派、Esc 返回、缩放、指针下单位拾取、检查对象。 |
-| 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/1/2/D 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
+| 战斗意图 | `Source\Lockdown\Private\Framework\LDPlayerOrders.cpp`、`Source\Lockdown\Public\Combat\LDCombatPreInput.h` | Q/W/D 准备与确认、快速施法、预输入、S 的动作取消、HUD 提示入口。 |
 | 本地设置 | `Source\Lockdown\Public\UI\LDControlSettings.h`、`Source\Lockdown\Private\UI\LDControlSettings.cpp`、`Source\Lockdown\Private\UI\LDControlsPanel.cpp` | 唯一动作注册表、重绑、镜头/文字/音量/小地图/快速施法偏好与保存。 |
 | 身体与运动 | `Source\Lockdown\Private\Character\LDCharacter.cpp`、`Source\Lockdown\Public\Character\LDCharacterMovementComponent.h` | SpringArm 镜头、缩放夹限、加减速、瞬时转向；权威运动与原生运动捕获。 |
 
@@ -52,20 +52,19 @@
 | A，然后左键 | A 进入攻击移动准备；左键时先用与右键攻击相同的指针拾取（`ObservedUnderPointer`，约 12 px 容差）：指在可攻击的可见单位上时等同右键攻击该单位，发送 `AttackUnit` 并显示攻击标记；否则把指针下地面作为 `AttackMove` 目的地发送（`LDOrderRules::AttackConfirmKind`，2026-11-07 用户决定） | A 按下本身不攻击；两种确认都按 Shift 排队、都解除保护；指针下无单位也无地面时仍发送缺省目的地，由服务器明确拒绝（§4.4）。 |
 | S | 清准备态与预输入，立即停止本地预测运动，发送递增 Epoch 的 Stop，并按已发出的最大 DirectSequence 取消 Combat 动作 | 停移动/追击/待交互并取消可中断动作；已释放效果、已造成伤害不回滚。 |
 | Q/W | 读取 Combat owner view 中对应主动的目标模式：Self 直接发送；Unit/方向技能进入准备，左键确认。对单位的确认发出 `CastUnit` 订单（§4.6），不经预输入 | 服务器按来源、修订、目标与资源重查；空槽也发送，由服务器明确拒绝，被拒绝的请求不打断当前移动或攻击订单、不清队列（§4.7）。对单位施放在距离外时先接近再施放。 |
-| 1/2 | 同 Q/W，来源为对应装备实例的主动 | 无主动的装备同样发送并被明确拒绝，不回退到角色技能。 |
 | D | 通用冲刺（`ELDCombatEntry::Dash`，人人都有的 `Innate` 来源）：按下即朝指针方向发出（`LDCombatPreInput::FiresOnPress`），不进入准备、不需要左键确认，与快速施法无关；指针下没有地面时照常发送缺目标请求由服务器明确拒绝 | 服务器按同一 Combat 入口重查冷却、定身与起步阻挡；遇阻挡停在最远合法位置；不是进攻意图，不解除复活保护。 |
 | P | 开关自身属性页 | 只读自身投影；死亡时也可打开。 |
 | 按住 Tab | 显示局内排行榜，松开收起 | 只读公开 `KillFeed.Scores`；不是世界命令。 |
 | F9 | 试玩标记：本机日志写 `LD_PLAYER_MARK`（远端客户端带本人状态），并经 `ServerPlaytestMark` 让房主日志也记下；HUD 提示“已标记 #N” | 不是世界命令；存活或死亡等待中都可用，只在本局进行中生效；房主日志每名参赛者每秒最多一条。 |
 | 方向键/屏幕边缘 | 沿固定俯视平面平移镜头 | 不移动角色、不改变视野或订单。 |
 | Space | 按住期间镜头跟住自己，松开恢复原跟随/自由状态 | 不改持久跟随偏好、不停止订单。 |
-| 按住 Shift 下达上述右键、A 左键、Q/W/1/2/D（含小地图右键） | 订单带 `bQueue`、技能经 `ServerQueueCombatAction` 进入队列，不做预输入暂存、不按住重复；地面步骤显示小圈与虚线路径 | 服务器把它排在当前订单与已排步骤之后，最多 `LDOrderRules::MaxQueuedSteps`（8）步，满时 `QueueFull`/`CapacityUnavailable` 拒绝（§4.5）。 |
+| 按住 Shift 下达上述右键、A 左键、Q/W/D（含小地图右键） | 订单带 `bQueue`、技能经 `ServerQueueCombatAction` 进入队列，不做预输入暂存、不按住重复；地面步骤显示小圈与虚线路径 | 服务器把它排在当前订单与已排步骤之后，最多 `LDOrderRules::MaxQueuedSteps`（8）步，满时 `QueueFull`/`CapacityUnavailable` 拒绝（§4.5）。 |
 | Home | 切换镜头跟随并保存该偏好 | 本地偏好，不是服务器状态。 |
 | 滚轮 | 世界区域内缩放镜头 | 指针在 UI 上时不缩放世界。 |
 | 小地图左键/拖动、右键 | 左键/拖动把镜头平移到该点；右键对该点发 `MoveGround` | 与世界右键地面使用同一订单入口。 |
 | Esc | 子确认/模态 → 准备态 → 普通主面板 → 菜单，每次只处理一层 | 不 Stop 已接受订单、不发世界命令。 |
 
-**鼠标取消规则：** 已有准备态（Q/W/1/2/D 或 A）时，右键只取消准备并消费这次点击，不移动、
+**鼠标取消规则：** 已有准备态（Q/W/D 或 A）时，右键只取消准备并消费这次点击，不移动、
 不攻击、不前往砍一刀小摊；再次右键才走普通分派（`ALDPlayerController::V05Pressed`）。
 右键分派顺序为：指针下的当前可见单位 → 砍一刀小摊模型 → 地面（`ULDNavigationComponent::ClickMove`）；
 小摊模型的判定是指针射线与美术目录里小摊装饰网格包围盒相交（`ShopUnderPointer`），模型周围的地面是普通地面，模型本身按 §4.3 换成旁边最近的可走点；
@@ -81,7 +80,7 @@
 - 选中：左键检视的可见单位脚下显示不转动的浅色密点线圈，位于悬停圈之内；HUD 不在其身上画方框。
   目标位置只取自拥有者已授权的观察帧（`ALDWorldViewRelay`）。
 - 光标（`ULDNavigationComponent::TickPointer`，画法见 `LDCursor`）：所有光标类型都映射到游戏自己的软件箭头；
-  A 攻击移动待确认时为 `LDCursor::AttackAim`（红色描边光），主动技能/装备主动待确认时为 `LDCursor::CastAim`（蓝色描边光），
+  A 攻击移动待确认时为 `LDCursor::AttackAim`（红色描边光），主动技能待确认时为 `LDCursor::CastAim`（蓝色描边光），
   其他（含悬停单位、砍一刀小摊、指针在 UI 上）为普通箭头。
 - `ULDNavigationComponent::ReadHovered` 返回当前悬停单位；`PointerPosition` 与 `GroundUnderPointer`
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
@@ -104,17 +103,17 @@
 Unit 技能在指针下已有可见单位时、方向技能在指针下有地面时，按键当下即经 `ConfirmArmedCombat` 发送；
 否则仍保持准备，等待普通左键确认。
 
-**预输入**（`LDCombatPreInput`）：自己的 Q/W/1/2 正在前摇时再按一次 Q/W/1/2/D，
+**预输入**（`LDCombatPreInput`）：自己的 Q/W 正在前摇时再按一次 Q/W/D，
 控制器只保留最新一次按键，前摇结束后作为普通 Direct 请求发送，而不是先到服务器被判忙。
 S、新生命或新局、输入被抑制或保留超过 1 s 时丢弃；超时会提示“前一个技能未结束，预输入已取消”。
-预输入同时绑定技能/装备的 `SourceRevision`；来源变化时取消，不把旧目标用于新技能，并提示“技能或装备已变化，预输入已取消”。
+预输入同时绑定技能的 `SourceRevision`；来源变化时取消，不把旧目标用于新技能，并提示“技能或装备已变化，预输入已取消”。
 普攻不需要预输入：攻击订单本来就在服务器等待身体空闲。
 
-每个 Direct 请求携带 Generation/Life、单调递增的 `DirectSequence`、入口（Q/W/Item1/Item2）、
+每个 Direct 请求携带 Generation/Life、单调递增的 `DirectSequence`、入口（Q/W/Dash）、
 目标和发送时 owner view 的 `ExpectedSourceRevision`。owner view 的生命或 `SourceRevision` 变化时，
 本地准备态被撤销（`ALDPlayerController::OnRep_CombatView`），需要重新准备；
 普通 HP/MP 修订变化不撤销准备。按钮可用性与冷却只读 Combat 的 owner view，客户端不维护槽位冷却；
-双持与来源丢失期间的冷却规则由 Combat 来源域实现，见[战斗手册](../systems/COMBAT_AND_GROWTH.md)。
+来源丢失期间的冷却规则由 Combat 来源域实现，见[战斗手册](../systems/COMBAT_AND_GROWTH.md)。
 能力确认越距时直接由服务器拒绝，**不自动走近施法**；只有右键普攻、攻击移动和砍一刀小摊订单负责接近。
 
 ## 3. 输入所有权、镜头与设置
@@ -150,12 +149,12 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 滚轮轴绑定到 `V05Zoom`。重建前先移除旧绑定句柄与旧 context，并要求所有键松开后才接受新世界命令；
 重建不会停止已接受订单。仓库中没有静态 IA/IMC 输入资产。
 
-动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Item1`、`Item2`、`Dash`、`Stop`、`Attributes`、`Scoreboard`（按住 Tab）、`Mark`（F9 试玩标记）、
+动作集合：`Select`、`Navigate`、`AttackMove`、`Skill1`、`Skill2`、`Dash`、`Stop`、`Attributes`、`Scoreboard`（按住 Tab）、`Mark`（F9 试玩标记）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom`、`Back`。
 `Back` 的 Esc 是保留键；重绑校验冲突，不静默交换两个动作。
 
-本地设置 schema 当前为 16（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
-旧 schema 5–15 显式迁移并标记为未保存（schema 13 只缺 `Scoreboard`，缺时在 Tab 未被占用时补默认 Tab；schema 15 只缺 `Mark`，缺时在 F9 未被占用时补默认 F9，更早的 schema 同样补）；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
+本地设置 schema 当前为 17（`ULDControlSettings::CurrentSchema`），与产品版本、网络版本分开。
+旧 schema 5–16 显式迁移并标记为未保存（schema 13 只缺 `Scoreboard`，缺时在 Tab 未被占用时补默认 Tab；schema 15 只缺 `Mark`，缺时在 F9 未被占用时补默认 F9，更早的 schema 同样补；schema 16 及更早的按键表删除已退役的 `Item1`/`Item2`）；先按各自旧范围校验 Zoom（schema 5–11 为 1100–1700 cm，schema 12 为 1100–1900 cm），
 在当前 1300–2400 cm 范围内则原样保留（包括旧默认 1400、1850），低于 1300 cm 的调整为 1300 cm 并在提示中说明；
 不猜测用户意图或自动替换距离。schema 4 的多注册表布局被明确拒绝，其可恢复偏好也遵守旧范围。
 新安装默认 2250 cm；设置页“采用推荐镜头”只修改 Zoom，不重置姓名、绑定、音量、跟随或其他偏好。
@@ -169,7 +168,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 
 - 方向键与边缘平移的速度为本地设置 `CameraPanCmPerSec`；手动平移转为自由镜头。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
-  小地图拖动和 Q/W/1/2/D/A 准备态时关闭。
+  小地图拖动和 Q/W/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
 - 默认臂长 2250 cm，固定 pitch −60°、yaw −45°、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
   身体、死亡等待相机、本地设置与美术镜头检查共用，不改变授权视野。
@@ -287,11 +286,11 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
   `ALDGameMode::EndProtectionForAggressiveIntent`，之后才做目标/路径准入。准入失败的 `Rejected`
   回执仍携带 `bProtectionRemoved` 与 `LifeRevision`。待受理时已被更新请求替换的攻击类请求，
   在下一次激活时补做一次解除。
-- Q/W/1/2：Combat 在处理 Direct 请求时以同一入口解除（`LDCombatActions.cpp`），空来源或缺省目标也算尝试。
+- Q/W：Combat 在处理 Direct 请求时以同一入口解除（`LDCombatActions.cpp`），空来源或缺省目标也算尝试。
   D 冲刺是移动，不解除保护（App Spec §7.1“保护期间可以移动”）。
 - 攻击移动确认在指针下没有地面时仍发送缺省目的地，由服务器拒绝，保护照样解除。
   重复请求只重放回执，不再次解除。
-- Shift 队列里的攻击订单与 Q/W/1/2 在收件后的下一次 Actions 阶段即解除保护（`SettleQueuedAggression`，
+- Shift 队列里的攻击订单与 Q/W 在收件后的下一次 Actions 阶段即解除保护（`SettleQueuedAggression`，
   每生命只记最早一条），不等轮到它执行；之后被清空也不保留保护。
 
 ### 4.5 Shift 指令队列
@@ -309,9 +308,9 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
   直到其回执 `Released/Finished/Rejected`（`QueuedActionSettled`）才继续。方向技能带着排队时的地面点，
   出手时从身体当前脚点重新求方向（`QueuedAimDirection`）。
 - **结束一步**：当前订单结束或排队步骤被拒绝时按 `LDOrderRules::QueueAfter` 处理——到达、路线不通/受阻、
-  目标不可见/死亡、击退等跳到下一步；Stop、死亡、过期租约、旧生命/旧局、不是拥有者、嘲讽/诱饵清空队列。
+  目标不可见/死亡、击退等跳到下一步；Stop、死亡、过期租约、旧生命/旧局、不是拥有者、嘲讽清空队列。
   后面还有地面步骤时，到达不调用 `HaltLocomotion`，客户端预测也不停身体。
-- **清空**：不带 Shift 的订单（`SubmitOrder`）、S（`CancelOrder`）、`EndLifeOrders`/`ResetMatch`、嘲讽与诱饵都调用 `ClearQueue`：
+- **清空**：不带 Shift 的订单（`SubmitOrder`）、S（`CancelOrder`）、`EndLifeOrders`/`ResetMatch`、嘲讽都调用 `ClearQueue`：
   空间步骤回 `Cancelled` 及原因，技能步骤回 Combat 的拒绝回执（`Cancelled/Dead/MatchClosed/ControlBlocked`）。
   不带 Shift 的技能只在**被受理后**清掉它之前排的步骤（`ClearQueue(Failure, BeforeStep)`，按步骤到达序号 `FQueuedStep::Serial` 截断，
   之后才排的步骤保留），且不改当前订单：Direct 技能在 Combat 判定后（`AwaitDirectVerdict`/`SettleDirectVerdicts`，
@@ -323,7 +322,7 @@ App Spec §3.1 的指令队列（2026-11-06 用户决定）由 `ULDNavigationCom
 
 ### 4.6 对单位或地面点施放：接近后施放
 
-App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `ELDSpatialOrderKind::CastUnit` 订单，替换当前订单
+App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W 是一条 `ELDSpatialOrderKind::CastUnit` 订单，替换当前订单
 （按 Shift 时排进 §4.5 的队列），经 `ServerSubmitCast` / `SubmitCast` 与它的 Direct 请求一同收件。
 
 - **收件**：Direct 请求必须是非 D 的条目、`Unit` 目标且与订单的观察句柄一致，序号未被 Combat 见过。
@@ -345,7 +344,7 @@ App Spec §3.1（2026-11-06 用户决定）：对单位的 Q/W/1/2 是一条 `EL
 
 ### 4.7 被拒绝的技能不打断当前订单
 
-App Spec §3.1（2026-11-07 用户决定）：Q/W/1/2/D 的请求被拒绝（冷却未好、法力不足、受控制、空槽、无主动等任何准入失败）时，
+App Spec §3.1（2026-11-07 用户决定）：Q/W/D 的请求被拒绝（冷却未好、法力不足、受控制、空槽等任何准入失败）时，
 不取消、不替换、不暂停当前的移动或攻击订单，也不清空 Shift 队列；角色继续移动或攻击，拒绝原因仍经 Combat 回执提示。
 只有被受理的施放才按 §4.5/§4.6 取代当前订单或清掉之前排的步骤。判定共用 `LDOrderRules::SkillRequestReady`：
 `ALDCombatDirector::QueryAvailability` 的当前可用性为 `None` 或自身前摇 `Busy` 才算就绪（服务器按权威时间现算，
@@ -355,7 +354,7 @@ App Spec §3.1（2026-11-07 用户决定）：Q/W/1/2/D 的请求被拒绝（冷
 - Direct 技能（Self、冲刺类、D、缺目标）：本来就不改当前订单。队列里有步骤时，`ULDNavigationComponent::RefuseUnreadyDirect`
   先判定，未就绪的请求不交给 Combat，而是记入 Combat 的 Direct 回执窗口但不推进其序号高水位：重放同一请求得到原拒绝，
   条款不同为 `RequestConflict`，队列里序号更小的技能步骤仍可执行；直接回拒绝回执，
-  Q/W/1/2 仍在下一次 Actions 阶段解除保护；交给 Combat 的请求等判定后才清队列（§4.5）。
+  Q/W 仍在下一次 Actions 阶段解除保护；交给 Combat 的请求等判定后才清队列（§4.5）。
   交给 Combat 后被拒（如自身前摇中按 D 判为 `Busy`）时高水位已越过排队步骤，但排队步骤在入队时已确认 Combat 未见过，
   轮到时以排队步骤身份提交（`SubmitAction`/`StartNavCast` 的 `bQueuedStep`），不因更新的序号过期，仍只执行一次；
   与排队步骤同序号的 Direct 请求以 `RequestConflict` 拒绝。判定共用 `LDCombatSourceRules::DirectSequenceVerdict`。
@@ -401,7 +400,7 @@ App Spec §3.1（2026-11-07 用户决定）：Q/W/1/2/D 的请求被拒绝（冷
 
 普攻没有单独的动作交接或结果回调：Navigation 每个 Actions 阶段读取 Combat 的身体状态，
 在就绪且在射程内时以新的 `AttackCycle` 申请下一次普攻；Combat 自己分配动作身份。
-Q/W/1/2/D 的 Direct 请求不替换当前空间订单；不带 Shift 的会清空 Shift 队列（§4.5）。
+Q/W/D 的 Direct 请求不替换当前空间订单；不带 Shift 的会清空 Shift 队列（§4.5）。
 
 ### 5.3 命令、版本、结果与去重
 
@@ -513,7 +512,7 @@ Actions 内先处理 Direct 动作，再推进各参赛者订单。喷漆区判�
 | `VISION.RadiusCm` | 视野服务与 A 搜敌半径公式。 |
 | `SHOP.InteractRadiusCm` | 接近点、本人是否在小摊范围（预购自动买入）、`QueryShopReach` 判定。 |
 | `UNIT.CollisionRadiusCm` | 经内容胶囊决定小摊正前方停点外推的身体半径。 |
-| 各 `ABILITY.*` / `ITEM.*.Active` 的 `TargetMode` 等字段 | 决定 Q/W/1/2 的目标模式与几何；无主动的装备明确不可用。D 冲刺读 `character.dash` 与装备被动 `dash_boost`。 |
+| 各 `ABILITY.*` 的 `TargetMode` 等字段 | 决定 Q/W 的目标模式与几何。D 冲刺读 `character.dash` 与装备被动 `dash_boost`。 |
 
 **本地设置**（`ULDControlSettings`，只影响本机呈现，不影响世界距离、视野或角色速度）：
 
@@ -552,7 +551,7 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 ### 9.2 输入、战斗意图与设置
 
 `Source\Lockdown\Private\Framework\LDPlayerInput.cpp`（映射、按键、Esc、缩放、单位拾取、检查）、
-`LDPlayerOrders.cpp`（Q/W/1/2/D、A、S、快速施法、预输入、提示）；
+`LDPlayerOrders.cpp`（Q/W/D、A、S、快速施法、预输入、提示）；
 `Source\Lockdown\Public\Combat\LDCombatPreInput.h`；
 `Source\Lockdown\Private\UI\LDControlSettings.cpp`、`LDControlsPanel.cpp`、`LDMinimap.cpp`。
 

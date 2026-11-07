@@ -26,8 +26,6 @@ ELDCombatEntry EntryOf(ELDOpponentSourceSlot Source)
     {
     case ELDOpponentSourceSlot::Q: return ELDCombatEntry::Q;
     case ELDOpponentSourceSlot::W: return ELDCombatEntry::W;
-    case ELDOpponentSourceSlot::Gear0: return ELDCombatEntry::Item1;
-    case ELDOpponentSourceSlot::Gear1: return ELDCombatEntry::Item2;
     case ELDOpponentSourceSlot::Dash: return ELDCombatEntry::Dash;
     default: return ELDCombatEntry::None;
     }

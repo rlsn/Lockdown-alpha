@@ -97,15 +97,7 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     }
     for (const auto& Item : D.Equipment)
     {
-        for (const auto& Effect : Item.Active.Rank.Effects)
-        {
-            if (!CheckEffect(Effect, Item.Id)) { return false; }
-        }
         for (const auto& Effect : Item.Passive.Effects)
-        {
-            if (!CheckEffect(Effect, Item.Id)) { return false; }
-        }
-        for (const auto& Effect : Item.Active.UpgradedRank.Effects)
         {
             if (!CheckEffect(Effect, Item.Id)) { return false; }
         }

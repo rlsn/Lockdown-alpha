@@ -354,25 +354,24 @@ bool RunEquipmentPlan(FAutomationTestBase& Test)
     bGood &= Plan(Test, C, TEXT("330 gold: basic growth before survival"), TEXT(""), TEXT(""), 330, INDEX_NONE, TEXT("item_edge_blade"));
     bGood &= Plan(Test, C, TEXT("360 gold: one item covering basic growth and survival"), TEXT(""), TEXT(""), 360,
         INDEX_NONE, TEXT("item_siphon_emblem"));
-    bGood &= Plan(Test, C, TEXT("Second slot: an active source, ties in public catalog order"), TEXT("item_siphon_emblem"), TEXT(""),
-        400, INDEX_NONE, TEXT("item_arcane_battery"));
-    bGood &= Plan(Test, C, TEXT("Full pair: sell the survival piece for a strictly better active pair"), TEXT("item_edge_blade"),
-        TEXT("item_iron_plate"), 199, 1, TEXT("item_arcane_battery"));
-    // #112: the basic-growth item_decoy_wig (400) is the next active source within the edge blade's sale value.
+    bGood &= Plan(Test, C, TEXT("Second slot: a distinct passive, ties in public catalog order"), TEXT("item_siphon_emblem"), TEXT(""),
+        400, INDEX_NONE, TEXT("item_echo_maul"));
+    bGood &= Plan(Test, C, TEXT("Full pair: sell the first piece whose real sale value covers a strictly better pair"),
+        TEXT("item_edge_blade"), TEXT("item_echo_maul"), 102, 0, TEXT("item_iron_plate"));
     bGood &= Plan(Test, C, TEXT("One gold short of that: the next strict improvement within real sale value"),
-        TEXT("item_edge_blade"), TEXT("item_iron_plate"), 198, 0, TEXT("item_decoy_wig"));
-    bGood &= Plan(Test, C, TEXT("A pair with one active trades its passive piece for a second active source"), TEXT("item_echo_maul"),
-        TEXT("item_arcane_battery"), 100000, 0, TEXT("item_decoy_wig"));
-    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_decoy_wig"),
-        TEXT("item_arcane_battery"), 100000, INDEX_NONE, TEXT(""));
+        TEXT("item_edge_blade"), TEXT("item_echo_maul"), 101, 1, TEXT("item_iron_plate"));
+    bGood &= Plan(Test, C, TEXT("A pair with a passiveless piece trades it for a second distinct passive"), TEXT("item_echo_maul"),
+        TEXT("item_arcane_battery"), 100000, 1, TEXT("item_iron_plate"));
+    bGood &= Plan(Test, C, TEXT("A top pair never wash-trades for a mere id change"), TEXT("item_edge_blade"),
+        TEXT("item_iron_plate"), 100000, INDEX_NONE, TEXT(""));
     FLDEquipmentPairRank Rank;
     FString Error;
     bGood &= Test.TestTrue(TEXT("Two identical passives count once"),
         LDOpponentPolicy::RankEquipmentPair(TEXT("item_siphon_emblem"), TEXT("item_siphon_emblem"), C, Rank, Error)
-        && Rank.Filled == 2 && Rank.BasicGrowth == 1 && Rank.Survival == 1 && Rank.ActiveSources == 0 && Rank.DistinctPassives == 1);
-    bGood &= Test.TestTrue(TEXT("Two identical actives are two independent sources"),
+        && Rank.Filled == 2 && Rank.BasicGrowth == 1 && Rank.Survival == 1 && Rank.DistinctPassives == 1);
+    bGood &= Test.TestTrue(TEXT("A stats-only item adds no passive family"),
         LDOpponentPolicy::RankEquipmentPair(TEXT("item_arcane_battery"), TEXT("item_arcane_battery"), C, Rank, Error)
-        && Rank.ActiveSources == 2 && Rank.BasicGrowth == 0 && Rank.Survival == 1);
+        && Rank.Filled == 2 && Rank.BasicGrowth == 0 && Rank.Survival == 1 && Rank.DistinctPassives == 0);
     // #112 C1: the reworked item passives classify on their own, without the items' attribute stats.
     const auto PassiveOnly = [&C](const TCHAR* Id)
     {
@@ -1303,36 +1302,32 @@ bool RunProjections(FAutomationTestBase& Test)
     Root.StatusId = uint8(ELDDemoStatusId::Root);
     Root.ExpiresAtMs = 10700;
     Combat.Statuses = {Root};
-    const auto Entry = [](ELDCombatEntry Slot, ELDCombatSourceKind Kind, const TCHAR* Id, bool bActive, int64 ReadyAt, ELDCombatReject Why)
+    const auto Entry = [](ELDCombatEntry Slot, ELDCombatSourceKind Kind, const TCHAR* Id, int64 ReadyAt, ELDCombatReject Why)
     {
         FLDCombatEntryView Out;
         Out.Entry = Slot;
         Out.SourceKind = Kind;
         Out.DefinitionId = Id;
-        Out.bHasActive = bActive;
         Out.ReadyAtMs = ReadyAt;
         Out.Unavailable = Why;
         return Out;
     };
-    Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), true, 9000, ELDCombatReject::None),
-        Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), true, 15000, ELDCombatReject::Cooldown),
-        Entry(ELDCombatEntry::Item1, ELDCombatSourceKind::Gear, TEXT("item_iron_plate"), false, 0, ELDCombatReject::NoActiveEffect),
-        Entry(ELDCombatEntry::Item2, ELDCombatSourceKind::Gear, TEXT("item_arcane_battery"), true, 0, ELDCombatReject::None),
-        Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), true, 0, ELDCombatReject::ControlBlocked)};
+    Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), 9000, ELDCombatReject::None),
+        Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), 15000, ELDCombatReject::Cooldown),
+        Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), 0, ELDCombatReject::ControlBlocked)};
     Combat.Entries.Last().RangeCm = 450;
     bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness, the innate dash reach and Root: ") + Error,
         LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.HpP2 == 30000 && Self.MaxMpP2 == 28000
-        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 4
+        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 3
         && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
         && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
-        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Gear1 && Self.Sources[2].bReady
-        && Self.Sources[3].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[3].bReady && Self.Sources[3].RangeCm == 450);
+        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[2].bReady && Self.Sources[2].RangeCm == 450);
     {
         auto Cased = Combat;
         Cased.Entries[0].DefinitionId = TEXT("Active_Arc_Bolt");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
-            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 4
+            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
             && CasedSelf.Sources[0].DefinitionId == TEXT("active_arc_bolt"));
     }
     Combat.Statuses.Reset();
@@ -1518,10 +1513,10 @@ bool RunRequests(FAutomationTestBase& Test)
     FLDCombatActionRequest Action;
     FLDOpponentBodyIntent Cast;
     Cast.Kind = EBody::Activate;
-    Cast.Source = ELDOpponentSourceSlot::Gear1;
+    Cast.Source = ELDOpponentSourceSlot::W;
     Cast.TargetMode = ELDDemoTargetMode::Self;
-    bGood &= Test.TestTrue(TEXT("A self activation of the second gear slot: ") + Error,
-        LDOpponentRequests::BuildAction(Cast, 7, 1, 5, 11, Action, Error) && Action.Entry == ELDCombatEntry::Item2
+    bGood &= Test.TestTrue(TEXT("A self activation of the W slot: ") + Error,
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 5, 11, Action, Error) && Action.Entry == ELDCombatEntry::W
         && Action.Target.Kind == ELDCombatTargetKind::Self && Action.Generation == 7 && Action.Life == 1
         && Action.DirectSequence == 5 && Action.ExpectedSourceRevision == 11);
     Cast.Source = ELDOpponentSourceSlot::Q;

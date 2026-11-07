@@ -67,6 +67,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 DiagnosticslessFixtureSchema = 14;
     // Schema 15 writes every current preference; only its key list predates the playtest mark key.
     constexpr uint32 MarklessFixtureSchema = 15;
+    // Schema 16 writes the current layout; its key list still holds the retired equipment-active keys Item1/Item2.
+    constexpr uint32 ItemKeysFixtureSchema = 16;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -149,7 +151,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     }
 
     const TCHAR* const RetiredActions[] = { TEXT("Attack"), TEXT("Development"), TEXT("Help"), TEXT("Inventory"), TEXT("Sprint"),
-        TEXT("Skill3"), TEXT("Skill4"), TEXT("Skill5"), TEXT("Skill6"), TEXT("Item3"), TEXT("Item4"), TEXT("Context"), TEXT("Trade") };
+        TEXT("Skill3"), TEXT("Skill4"), TEXT("Skill5"), TEXT("Skill6"), TEXT("Item1"), TEXT("Item2"), TEXT("Item3"), TEXT("Item4"),
+        TEXT("Context"), TEXT("Trade") };
 
     // Checks the stored map itself: Key() never resolves unregistered names, so it cannot prove a retired entry is absent.
     bool HasExactDemoDefaults(const ULDControlSettings& Settings)
@@ -963,7 +966,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Item1"), TEXT("Item2"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -979,9 +982,8 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
-    TestTrue(TEXT("Spec defaults: Q/W abilities, 1/2 equipment, D dash, A attack-move, P attributes, S stop, Esc back"),
+    TestTrue(TEXT("Spec defaults: Q/W abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
-        && Settings->Key(TEXT("Item1")) == EKeys::One && Settings->Key(TEXT("Item2")) == EKeys::Two
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape
@@ -1556,6 +1558,51 @@ bool FLDLocalSettingsMarkMigrationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsItemKeysMigrationTest, "Lockdown.Rules.LocalSettingsItemKeysMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsItemKeysMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit item-key fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    TestFalse(TEXT("The registry has no equipment-active key"), Values->Bindings.Contains(TEXT("Item1")) || Values->Bindings.Contains(TEXT("Item2")));
+    Values->PlayerName = TEXT("王小明");
+    Values->bShowFPS = true;
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Values->Bindings.Add(TEXT("Item1"), EKeys::One);
+    Values->Bindings.Add(TEXT("Item2"), EKeys::Two);
+    const auto Before = FixtureBytes(*Values, ItemKeysFixtureSchema, 0);
+    Write(Before);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 16 file keeps every preference and current binding and drops exactly the 1/2 equipment keys"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && !Migrated.Settings->Bindings.Contains(TEXT("Item1")) && !Migrated.Settings->Bindings.Contains(TEXT("Item2"))
+        && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6 && Migrated.Settings->bShowFPS
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Message.Contains(TEXT("装备主动 1/2")));
+    TArray<uint8> After;
+    TestTrue(TEXT("Loading the schema 16 file does not rewrite it"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+    TestTrue(TEXT("The migrated values are dirty until the next verified save"),
+        Migrated.Settings && Migrated.Settings->IsDirty() && Migrated.Settings->SaveLocalSettings().IsSaved());
+    uint32 SavedSchema = 0;
+    TestTrue(TEXT("The verified replacement declares the current schema"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == uint32(ULDControlSettings::CurrentSchema));
+    const auto Saved = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The saved file loads without the retired keys"),
+        Saved.Status == ELDLocalSettingsLoadStatus::Loaded && Saved.Settings && !Saved.Settings->Bindings.Contains(TEXT("Item1"))
+        && Saved.Settings->Key(TEXT("Skill1")) == EKeys::F6);
+
+    // The current schema never accepts the retired keys: they are unknown actions there.
+    Write(FixtureBytes(*Values));
+    const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The current schema refuses the retired equipment keys with recovery"),
+        Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences
+        && Current.Message.Contains(TEXT("Item1")));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
@@ -1563,7 +1610,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 16);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 17);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1675,8 +1722,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 16"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 16);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 17"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 17);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom

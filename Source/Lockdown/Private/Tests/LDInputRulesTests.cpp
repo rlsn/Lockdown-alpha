@@ -13,9 +13,9 @@ bool FLDInputMappingsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("First run is Missing, never Loaded"),Initial.Status==ELDLocalSettingsLoadStatus::Missing);
     Settings->ResetBindings();FString Error;
     TestTrue(TEXT("Default registry is complete and conflict free"),Settings->Valid());
-    TestTrue(TEXT("Demo registry uses Q/W abilities, 1/2 equipment actives and the D dash"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Item1"))==EKeys::One&&Settings->Key(TEXT("Item2"))==EKeys::Two&&Settings->Key(TEXT("Dash"))==EKeys::D);
+    TestTrue(TEXT("Demo registry uses Q/W abilities and the D dash"),Settings->Key(TEXT("Skill1"))==EKeys::Q&&Settings->Key(TEXT("Skill2"))==EKeys::W&&Settings->Key(TEXT("Dash"))==EKeys::D);
     TestTrue(TEXT("The dash can be rebound to a free key"),Settings->Rebind(TEXT("Dash"),EKeys::F,Error)&&Settings->Key(TEXT("Dash"))==EKeys::F&&Settings->Rebind(TEXT("Dash"),EKeys::D,Error));
-    TestTrue(TEXT("Retired keys are absent; renamed and camera bindings remain"),!Settings->Bindings.Contains(TEXT("Context"))&&!Settings->Bindings.Contains(TEXT("Skill3"))&&!Settings->Bindings.Contains(TEXT("Item3"))&&!Settings->Bindings.Contains(TEXT("Sprint"))&&!Settings->Bindings.Contains(TEXT("Help"))&&Settings->Key(TEXT("AttackMove"))==EKeys::A&&Settings->Key(TEXT("Attributes"))==EKeys::P&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar);
+    TestTrue(TEXT("Retired keys are absent; renamed and camera bindings remain"),!Settings->Bindings.Contains(TEXT("Context"))&&!Settings->Bindings.Contains(TEXT("Skill3"))&&!Settings->Bindings.Contains(TEXT("Item1"))&&!Settings->Bindings.Contains(TEXT("Item2"))&&!Settings->Bindings.Contains(TEXT("Item3"))&&!Settings->Bindings.Contains(TEXT("Sprint"))&&!Settings->Bindings.Contains(TEXT("Help"))&&Settings->Key(TEXT("AttackMove"))==EKeys::A&&Settings->Key(TEXT("Attributes"))==EKeys::P&&Settings->Key(TEXT("Recenter"))==EKeys::SpaceBar);
     TestFalse(TEXT("Conflict cannot silently replace another command"),Settings->Rebind(TEXT("Skill1"),EKeys::W,Error));
     TestFalse(TEXT("Global Escape cannot be taken by a world action"),Settings->Rebind(TEXT("Skill1"),EKeys::Escape,Error));
     TestFalse(TEXT("Back remains reserved"),Settings->Rebind(TEXT("Back"),EKeys::Z,Error));

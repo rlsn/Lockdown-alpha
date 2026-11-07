@@ -48,7 +48,7 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     Arrived.Reset();
 
     Log.Push(BurstReceipt(11,ELDCombatEntry::W,ELDCombatPhase::Finished,ELDCombatReject::None));
-    Log.Push(BurstReceipt(12,ELDCombatEntry::Item1,ELDCombatPhase::Released,ELDCombatReject::None));
+    Log.Push(BurstReceipt(12,ELDCombatEntry::Q,ELDCombatPhase::Released,ELDCombatReject::None));
     Log.ReadSince(Seen,Arrived);
     for(const FLDCombatActionReceipt& Receipt:Arrived){Tracker.ObserveCombatReceipt(Receipt,4,1,Out);}
     TestTrue(TEXT("Two releases in one frame are one mixed cue"),Out==TArray<ELDAudioCue>({ELDAudioCue::SelfCast}));
@@ -66,7 +66,7 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
 
     // The toast line: every arrived receipt tells its notice once, in order; the lost protection once per life revision.
     TArray<FLDCombatActionReceipt> Frame;
-    FLDCombatActionReceipt Broke=BurstReceipt(20,ELDCombatEntry::Item1,ELDCombatPhase::Rejected,ELDCombatReject::Cooldown);
+    FLDCombatActionReceipt Broke=BurstReceipt(20,ELDCombatEntry::Q,ELDCombatPhase::Rejected,ELDCombatReject::Cooldown);
     Broke.bProtectionRemoved=true;Broke.LifeRevision=5;
     FLDCombatActionReceipt Again=Broke;Again.DirectSequence=22;
     FLDCombatActionReceipt Range=BurstReceipt(21,ELDCombatEntry::W,ELDCombatPhase::Rejected,ELDCombatReject::OutOfRange);
@@ -74,12 +74,12 @@ bool FLDCombatReceiptBurstTest::RunTest(const FString& Parameters)
     Frame={Broke,Again,Foreign,Range};
     uint64 Told=0;
     TestEqualSensitive(TEXT("Each distinct notice of the frame is told once in arrival order"),LDHUD::CombatReceiptsNotice(Frame,4,1,Told),
-        TEXT("装备 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown)+TEXT(" · ")+LDTerms::ProtectionRemoved()+TEXT(" · 角色技能 2 未执行：")
+        TEXT("角色技能 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown)+TEXT(" · ")+LDTerms::ProtectionRemoved()+TEXT(" · 角色技能 2 未执行：")
         +LDHUD::CombatRejectText(ELDCombatReject::OutOfRange));
     TestEqual(TEXT("The told protection is remembered"),Told,uint64(5));
     Frame={Broke};
     TestEqualSensitive(TEXT("The same lost protection is not told twice"),LDHUD::CombatReceiptsNotice(Frame,4,1,Told),
-        TEXT("装备 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown));
+        TEXT("角色技能 1 未执行：")+LDHUD::CombatRejectText(ELDCombatReject::Cooldown));
     Frame={Foreign};
     TestTrue(TEXT("Another match's receipt tells nothing"),LDHUD::CombatReceiptsNotice(Frame,4,1,Told).IsEmpty());
 

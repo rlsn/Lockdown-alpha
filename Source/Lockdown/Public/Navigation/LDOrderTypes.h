@@ -20,8 +20,8 @@ struct FLDMoveIdentity
 };
 
 // The one current spatial order of a body. Attack kinds and the cast kinds are aggressive intents. CastUnit approaches a
-// visible unit until a unit-target Q/W/1/2 is in reach, CastPoint walks toward GroundCm until a ground-point or projectile
-// Q/W/1/2 reaches it; both then cast (2026-11-06 decisions) and carry that Direct request beside the order
+// visible unit until a unit-target Q/W is in reach, CastPoint walks toward GroundCm until a ground-point or projectile
+// Q/W reaches it; both then cast (2026-11-06 decisions) and carry that Direct request beside the order
 // (ULDNavigationComponent::SubmitCast).
 UENUM()
 enum class ELDSpatialOrderKind : uint8 { MoveGround, AttackUnit, AttackMove, ApproachShop, CastUnit, CastPoint };

@@ -2110,7 +2110,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("Items"), TEXT("Sellable"), TEXT("UpgradePrice"),
          TEXT("bUpgradeUsed")});
     bGood &= GrowthTestExactFields(Test, FLDShopItemView::StaticStruct(),
-        {TEXT("DefinitionId"), TEXT("BuyPrice"), TEXT("SellGold"), TEXT("bHasActive"), TEXT("bInheritsCooldown"), TEXT("InheritedReadyAtMs")});
+        {TEXT("DefinitionId"), TEXT("BuyPrice"), TEXT("SellGold")});
     bGood &= GrowthTestExactFields(Test, FLDShopSellView::StaticStruct(),
         {TEXT("SlotIndex"), TEXT("Instance"), TEXT("ItemRevision"), TEXT("DefinitionId"), TEXT("SellPrice"), TEXT("bUpgraded"),
          TEXT("bCanUpgrade")});
@@ -2366,16 +2366,14 @@ bool GrowthTestRunUpgrade(FAutomationTestBase& Test)
             bGood &= Test.TestTrue(FString::Printf(TEXT("%s stat %d is +35%% floored at its precision"), *Item.Id, Index),
                 Up.Stat == Base.Stat && (bRange ? Up.Cm.Numerator == Expected && Up.Cm.Denominator == 1 : Up.Amount == Expected));
         }
-        bGood &= Test.TestTrue(Item.Id + TEXT(" is upgradable exactly when every effect block has its upgraded form"),
-            LDDemoEquipment::Upgradable(Item) == ((!Item.HasPassive || Item.Passive.HasUpgraded) && (!Item.HasActive || Item.Active.HasUpgradedRank)));
+        bGood &= Test.TestTrue(Item.Id + TEXT(" is upgradable exactly when its passive, if any, has its upgraded form"),
+            LDDemoEquipment::Upgradable(Item) == (!Item.HasPassive || Item.Passive.HasUpgraded));
         bGood &= Test.TestTrue(Item.Id + TEXT(" serves its base or upgraded terms, never a fallback"),
             &LDDemoEquipment::EffectiveStats(Item, false) == &Item.Stats && &LDDemoEquipment::EffectiveStats(Item, true) == &Item.UpgradedStats
             && (Item.HasPassive ? LDDemoEquipment::EffectivePassiveEffects(Item, false) == &Item.Passive.Effects
                 && (LDDemoEquipment::EffectivePassiveEffects(Item, true) != nullptr) == Item.Passive.HasUpgraded
-                : LDDemoEquipment::EffectivePassiveEffects(Item, true) == nullptr)
-            && (Item.HasActive ? (LDDemoEquipment::EffectiveActiveRank(Item, true) != nullptr) == Item.Active.HasUpgradedRank
-                : LDDemoEquipment::EffectiveActiveRank(Item, false) == nullptr));
-        if (!PureStats && !Item.HasPassive && !Item.HasActive) { PureStats = &Item; }
+                : LDDemoEquipment::EffectivePassiveEffects(Item, true) == nullptr));
+        if (!PureStats && !Item.HasPassive) { PureStats = &Item; }
     }
 
     // Projection: an upgraded instance projects its upgraded stats; an item without approved upgraded terms refuses.
@@ -2744,18 +2742,16 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TArray<FLDCombatTrack> Tracks;
     FLDCombatTrack& Cooling = Tracks.AddDefaulted_GetRef();
     Cooling.IssuedCooldownId = FGuid(0xD7, 0, 0, 1);
-    Cooling.Kind = ELDCombatSourceKind::Gear;
-    Cooling.bBound = true;
-    Cooling.BoundInstance = FGuid(0xD7, 0, 0, 9);
+    Cooling.Kind = ELDCombatSourceKind::Learned;
     Cooling.ReadyAtMs = 9000;
     Cooling.LastDurationMs = 8000;
     FLDCombatTrack& Ready = Tracks.AddDefaulted_GetRef();
     Ready.IssuedCooldownId = FGuid(0xD7, 0, 0, 2);
     Ready.ReadyAtMs = 500;
     TestEqual(TEXT("Only the cooling track is reset"), ALDCombatDirector::DevResetTracks(Tracks, 1000), 1);
-    TestTrue(TEXT("The reset track is ready now and keeps identity, binding and last duration"),
-        Tracks[0].ReadyAtMs == 1000 && Tracks[0].IssuedCooldownId == FGuid(0xD7, 0, 0, 1) && Tracks[0].bBound
-        && Tracks[0].BoundInstance == FGuid(0xD7, 0, 0, 9) && Tracks[0].LastDurationMs == 8000);
+    TestTrue(TEXT("The reset track is ready now and keeps identity, kind and last duration"),
+        Tracks[0].ReadyAtMs == 1000 && Tracks[0].IssuedCooldownId == FGuid(0xD7, 0, 0, 1)
+        && Tracks[0].Kind == ELDCombatSourceKind::Learned && Tracks[0].LastDurationMs == 8000);
     TestEqual(TEXT("A track already ready keeps its earlier end"), Tracks[1].ReadyAtMs, int64(500));
     TArray<FLDDemoStatBonus> Layer;
     TestTrue(TEXT("A first DEV term is a change"), ALDCombatDirector::DevApplyAttribute(Layer, false, ELDDemoBonusStat::MoveSpeedBonusRatio, 500));
@@ -2873,7 +2869,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         StartingGold, Error))) { AddError(Error); return false; }
     if (!TestTrue(TEXT("Growth opens for the roster"), Development->BeginMatch(Mode->MatchContext, Economy->Roster, Catalog, Error)))
     { AddError(Error); return false; }
-    // The tester's persistent combat record: one learned track still cooling down, one gear debt already ready.
+    // The tester's persistent combat record: one learned track still cooling down, another one already ready.
     FLDCombatEntityRecord& CombatRecord = Driver->Records.Add(Tester);
     CombatRecord.Kind = ELDVictimKind::Contender;
     CombatRecord.Entity = Tester;
@@ -2883,10 +2879,10 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Learned.IssuedCooldownId = FGuid(0xD7, 0, 1, 1);
     Learned.Kind = ELDCombatSourceKind::Learned;
     Learned.ReadyAtMs = 60000;
-    FLDCombatTrack& Debt = CombatRecord.Tracks.AddDefaulted_GetRef();
-    Debt.IssuedCooldownId = FGuid(0xD7, 0, 1, 2);
-    Debt.Kind = ELDCombatSourceKind::Gear;
-    Debt.ReadyAtMs = 0;
+    FLDCombatTrack& Spent = CombatRecord.Tracks.AddDefaulted_GetRef();
+    Spent.IssuedCooldownId = FGuid(0xD7, 0, 1, 2);
+    Spent.Kind = ELDCombatSourceKind::Learned;
+    Spent.ReadyAtMs = 0;
     World->Tick(LEVELTICK_TimeOnly, .025f);
 
     // One 25 ms tick of native time; every boundary below advances 1 ms inside it.
@@ -3191,14 +3187,14 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         && Fighter.Installed.BuildRevision == ResetBuild->Revision
         && Fighter.Installed.InventoryRevision == Economy->Ledger.InventoryRevision(Tester)
         && Fighter.Projection.Final.ADP2 == PlainValue.Final.ADP2);
-    TestTrue(TEXT("Every learned and gear cooldown track is dropped"), !Fighter.Tracks.ContainsByPredicate(
+    TestTrue(TEXT("Every learned cooldown track is dropped"), !Fighter.Tracks.ContainsByPredicate(
         [](const FLDCombatTrack& Track) { return Track.Kind != ELDCombatSourceKind::Innate; }));
     TArray<FLDCombatTrack> Mixed;
     Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Learned;
     FLDCombatTrack& Innate = Mixed.AddDefaulted_GetRef();
     Innate.Kind = ELDCombatSourceKind::Innate;
     Innate.ReadyAtMs = 9000;
-    Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Gear;
+    Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Learned;
     TestTrue(TEXT("The pure track drop keeps only the innate dash, ready now"), ALDCombatDirector::DevDropTracks(Mixed, 1000) == 2
         && Mixed.Num() == 1 && Mixed[0].Kind == ELDCombatSourceKind::Innate && Mixed[0].ReadyAtMs == 1000);
     const FLDDevTestReceipt* Relearned = Commit(TEXT("Request 16: the fresh opening opportunity takes a card again"),

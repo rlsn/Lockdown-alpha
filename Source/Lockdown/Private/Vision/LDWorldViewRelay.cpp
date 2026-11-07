@@ -64,7 +64,7 @@ bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error
             return false;
         }
     }
-    if ((Unit.ActionAbility != 0 && !Abilities.Contains(Unit.ActionAbility)) || (Unit.ActionEquipment != 0 && !Equipment.Contains(Unit.ActionEquipment)))
+    if (Unit.ActionAbility != 0 && !Abilities.Contains(Unit.ActionAbility))
     {
         Error = TEXT("Observed cast source is not an approved public definition.");
         return false;
@@ -599,12 +599,6 @@ void ALDWorldViewRelay::ClientFullView_Implementation(const FLDWorldView& View)
         ClockOffset = LDObservedPresentation::TrackOffset(bClock, ClockOffset, Arrival - ClockUpdatedAt, Arrival, View.SampledAtServerSec);
         bClock = true;
         ClockUpdatedAt = Arrival;
-#if WITH_DEV_AUTOMATION_TESTS
-        if (DevOnAcceptedFrame)
-        {
-            if (const FLDWorldView* Accepted = Receiver.Read().Frame) { DevOnAcceptedFrame(*Accepted); }
-        }
-#endif
     }
     Present(Cleared);
 }

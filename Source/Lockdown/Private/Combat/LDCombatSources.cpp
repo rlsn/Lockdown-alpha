@@ -6,20 +6,16 @@
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Economy/LDEconomyLedger.h"
 #include "Framework/LDGameMode.h"
 
 namespace LDCombatSourcesDetail
 {
     constexpr ELDCombatEntry LearnedEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W};
-    constexpr ELDCombatEntry GearEntries[]={ELDCombatEntry::Item1,ELDCombatEntry::Item2};
-    constexpr ELDCombatEntry OwnerEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Item1,ELDCombatEntry::Item2,
-        ELDCombatEntry::Dash};
+    constexpr ELDCombatEntry OwnerEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Dash};
 
     int32 LearnedSlot(ELDCombatEntry Entry)
     { return Entry==ELDCombatEntry::Q ? 0 : Entry==ELDCombatEntry::W ? 1 : INDEX_NONE; }
-
-    int32 GearSlot(ELDCombatEntry Entry)
-    { return Entry==ELDCombatEntry::Item1 ? 0 : Entry==ELDCombatEntry::Item2 ? 1 : INDEX_NONE; }
 
     const FLDLearnedActiveValue* FindLearned(const FLDBuildProjectionInput& Build, ELDCombatEntry Entry)
     {
@@ -27,11 +23,8 @@ namespace LDCombatSourcesDetail
             : Build.Actives.FindByPredicate([Entry](const FLDLearnedActiveValue& Candidate) { return Candidate.Entry==Entry; });
     }
 
-    const FLDEquippedItemValue* FindEquipped(const FLDBuildProjectionInput& Build, ELDCombatEntry Entry)
-    {
-        return GearSlot(Entry)==INDEX_NONE ? nullptr
-            : Build.Equipment.FindByPredicate([Entry](const FLDEquippedItemValue& Candidate) { return Candidate.Entry==Entry; });
-    }
+    const FLDEquippedItemValue* FindEquipped(const FLDBuildProjectionInput& Build, uint8 Slot)
+    { return Build.Equipment.FindByPredicate([Slot](const FLDEquippedItemValue& Candidate) { return Candidate.Slot==Slot; }); }
 
     const FLDDemoRankDefinition* FindRankRow(const FLDDemoAbilityDefinition& Ability, uint8 Rank)
     { return Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& Candidate) { return Candidate.Rank==int32(Rank); }); }
@@ -121,12 +114,12 @@ namespace LDCombatSourcesDetail
         }
     }
 
-    // Equipment is projected in slot order (Item1, Item2); entries outside those slots are refused.
+    // Equipment is projected in slot order; items outside the approved slots are refused.
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
         TArray<FString> Equipped;
         TArray<bool> Upgraded;
-        for (const ELDCombatEntry Slot : GearEntries)
+        for (uint8 Slot=0; Slot<LDEconomy::EquipmentSlots; ++Slot)
         {
             if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot))
             {
@@ -139,7 +132,7 @@ namespace LDCombatSourcesDetail
             FLDAttributeProjectionResult Refused;
             Refused.Error.Code=ELDAttributeProjectionError::InputDomain;
             Refused.Error.Field=TEXT("Equipment");
-            Refused.Error.Message=TEXT("Equipment must occupy distinct Item1/Item2 entries");
+            Refused.Error.Message=TEXT("Equipment must occupy distinct equipment slots");
             return Refused;
         }
         FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
@@ -171,14 +164,14 @@ namespace LDCombatSourcesDetail
     bool PublicEquipment(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content, FLDObservedEquipmentView& Out)
     {
         Out=FLDObservedEquipmentView();
-        for (const ELDCombatEntry Slot : GearEntries)
+        for (uint8 Slot=0; Slot<LDEconomy::EquipmentSlots; ++Slot)
         {
             const FLDEquippedItemValue* Item=FindEquipped(Build,Slot);
             if (!Item) { continue; }
             const FLDDemoEquipmentDefinition* Definition=nullptr;
             FString LookupError;
             if (!Content.FindEquipment(Item->DefinitionId.ToString(),Definition,LookupError) || !Definition) { return false; }
-            Out.Slots[GearSlot(Slot)]=Definition->NativeId;
+            Out.Slots[Slot]=Definition->NativeId;
         }
         return true;
     }
@@ -229,16 +222,16 @@ namespace LDCombatSourcesDetail
         for (int32 Index=0; Index<Input.Equipment.Num(); ++Index)
         {
             const FLDEquippedItemValue& Item=Input.Equipment[Index];
-            const int32 Slot=GearSlot(Item.Entry);
             const FLDDemoEquipmentDefinition* Definition=nullptr;
             const bool bKnown=!Item.DefinitionId.IsNone() && Content.FindEquipment(Item.DefinitionId.ToString(),Definition,LookupError)
                 && Definition;
             bool bDuplicate=false;
             for (int32 Earlier=0; Earlier<Index; ++Earlier)
             {
-                if (Input.Equipment[Earlier].Entry==Item.Entry || Input.Equipment[Earlier].Instance==Item.Instance) { bDuplicate=true; }
+                if (Input.Equipment[Earlier].Slot==Item.Slot || Input.Equipment[Earlier].Instance==Item.Instance) { bDuplicate=true; }
             }
-            if (Slot==INDEX_NONE || Slot>=Progression.EquipmentSlots || !Item.Instance.IsValid() || !bKnown || bDuplicate)
+            if (int32(Item.Slot)>=Progression.EquipmentSlots || int32(Item.Slot)>=LDEconomy::EquipmentSlots || !Item.Instance.IsValid()
+                || !bKnown || bDuplicate)
             {
                 Error=FString::Printf(TEXT("InvalidInput: equipment %d (%s) has an unknown, duplicate or out-of-slot entry or instance."),
                     Index,*Item.DefinitionId.ToString());
@@ -257,33 +250,9 @@ namespace LDCombatSourcesDetail
         }
         return true;
     }
-
-    // Debt first: the latest unexpired unbound track (stable id on ties), else a ready one by stable id.
-    const FLDCombatTrack* ChooseGearTrack(const FLDCombatEntityRecord& Record, FName DefinitionId, int64 NowMs,
-        const TArray<FGuid>& Claimed, const TArray<FGuid>& HeldInstances)
-    {
-        const FLDCombatTrack* Debt=nullptr;
-        const FLDCombatTrack* Ready=nullptr;
-        for (const FLDCombatTrack& Track : Record.Tracks)
-        {
-            // A track still bound to a copy that stays held is never taken over by another copy.
-            if (Track.Kind!=ELDCombatSourceKind::Gear || Track.DefinitionId!=DefinitionId || Claimed.Contains(Track.IssuedCooldownId)
-                || (Track.bBound && HeldInstances.Contains(Track.BoundInstance)))
-            { continue; }
-            if (Track.ReadyAtMs>NowMs)
-            {
-                if (!Debt || Track.ReadyAtMs>Debt->ReadyAtMs
-                    || (Track.ReadyAtMs==Debt->ReadyAtMs && Track.IssuedCooldownId<Debt->IssuedCooldownId))
-                { Debt=&Track; }
-            }
-            else if (!Ready || Track.IssuedCooldownId<Ready->IssuedCooldownId) { Ready=&Track; }
-        }
-        return Debt ? Debt : Ready;
-    }
 }
 
-// COMBAT 5.1: learned definitions keep one track; each held active gear copy binds one of at most
-// EquipmentSlots tracks per definition, debt before ready before a newly issued one.
+// COMBAT 5.1: each learned definition keeps one track and its end time.
 bool LDCombatSourceRules::PlanTrackBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
     const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out, ELDCombatPrepareError& Code, FString& Error)
 {
@@ -298,7 +267,7 @@ bool LDCombatSourceRules::PlanTrackBindings(const FLDCombatEntityRecord& Record,
         Row.Entry=Slot;
         Row.Source.Kind=ELDCombatSourceKind::Learned;
         Row.Source.DefinitionId=Learned->AbilityId;
-        // A relearned definition returns to its original track and end time, bound or not.
+        // A relearned definition returns to its original track and end time.
         if (const FLDCombatTrack* Existing=Record.Tracks.FindByPredicate([Learned](const FLDCombatTrack& Candidate)
             { return Candidate.Kind==ELDCombatSourceKind::Learned && Candidate.DefinitionId==Learned->AbilityId; }))
         {
@@ -319,92 +288,6 @@ bool LDCombatSourceRules::PlanTrackBindings(const FLDCombatEntityRecord& Record,
         Claimed.Add(Row.IssuedCooldownId);
         Out.Add(Row);
     }
-    TArray<FGuid> Held;
-    for (const FLDEquippedItemValue& Equipped : Input.Equipment)
-    {
-        if (!Equipped.Instance.IsValid() || Held.Contains(Equipped.Instance))
-        {
-            Code=ELDCombatPrepareError::InvalidInput;
-            Error=TEXT("InvalidInput: equipment instances must be valid and distinct.");
-            return false;
-        }
-        Held.Add(Equipped.Instance);
-    }
-    struct FGearRow
-    {
-        FLDCombatBindingPlan Plan;
-        bool bResolved=false;
-    };
-    TArray<FGearRow> GearRows;
-    // First every copy that stays held keeps its own bound track.
-    for (const ELDCombatEntry Slot : LDCombatSourcesDetail::GearEntries)
-    {
-        const FLDEquippedItemValue* Item=LDCombatSourcesDetail::FindEquipped(Input,Slot);
-        if (!Item) { continue; }
-        const FLDDemoEquipmentDefinition* Definition=nullptr;
-        FString LookupError;
-        if (Item->DefinitionId.IsNone() || !Content.FindEquipment(Item->DefinitionId.ToString(),Definition,LookupError) || !Definition)
-        {
-            Code=ELDCombatPrepareError::InvalidInput;
-            Error=FString::Printf(TEXT("InvalidInput: equipment %s is not in the approved catalog."),*Item->DefinitionId.ToString());
-            return false;
-        }
-        if (!Definition->HasActive) { continue; }
-        FGearRow& GearRow=GearRows.AddDefaulted_GetRef();
-        GearRow.Plan.Entry=Slot;
-        GearRow.Plan.Source.Kind=ELDCombatSourceKind::Gear;
-        GearRow.Plan.Source.DefinitionId=Item->DefinitionId;
-        GearRow.Plan.Source.ItemInstance=Item->Instance;
-        const FLDCombatTrack* Bound=Record.Tracks.FindByPredicate([Item](const FLDCombatTrack& Candidate)
-        { return Candidate.Kind==ELDCombatSourceKind::Gear && Candidate.bBound && Candidate.BoundInstance==Item->Instance; });
-        if (!Bound) { continue; }
-        if (Bound->DefinitionId!=Item->DefinitionId || Claimed.Contains(Bound->IssuedCooldownId))
-        {
-            Code=ELDCombatPrepareError::InvalidInput;
-            Error=TEXT("InvalidInput: an equipment instance is bound to a cooldown track of another definition.");
-            return false;
-        }
-        GearRow.Plan.IssuedCooldownId=Bound->IssuedCooldownId;
-        GearRow.Plan.ReadyAtMs=Bound->ReadyAtMs;
-        GearRow.bResolved=true;
-        Claimed.Add(Bound->IssuedCooldownId);
-    }
-    const int32 TrackLimit=Content.Get().Progression.EquipmentSlots;
-    for (FGearRow& GearRow : GearRows)
-    {
-        if (GearRow.bResolved) { continue; }
-        const FName DefinitionId=GearRow.Plan.Source.DefinitionId;
-        if (const FLDCombatTrack* Chosen=LDCombatSourcesDetail::ChooseGearTrack(Record,DefinitionId,NowMs,Claimed,Held))
-        {
-            GearRow.Plan.IssuedCooldownId=Chosen->IssuedCooldownId;
-            GearRow.Plan.ReadyAtMs=Chosen->ReadyAtMs;
-        }
-        else
-        {
-            int32 Issued=0;
-            for (const FLDCombatTrack& Track : Record.Tracks)
-            {
-                if (Track.Kind==ELDCombatSourceKind::Gear && Track.DefinitionId==DefinitionId) { ++Issued; }
-            }
-            for (const FGearRow& Other : GearRows)
-            {
-                if (Other.Plan.bNewTrack && Other.Plan.Source.DefinitionId==DefinitionId) { ++Issued; }
-            }
-            if (Issued>=TrackLimit)
-            {
-                Code=ELDCombatPrepareError::CapacityExceeded;
-                Error=FString::Printf(TEXT("CapacityExceeded: %s already has %d persistent cooldown tracks."),
-                    *DefinitionId.ToString(),Issued);
-                return false;
-            }
-            GearRow.Plan.IssuedCooldownId=FGuid::NewGuid();
-            GearRow.Plan.ReadyAtMs=0;
-            GearRow.Plan.bNewTrack=true;
-        }
-        GearRow.bResolved=true;
-        Claimed.Add(GearRow.Plan.IssuedCooldownId);
-    }
-    for (const FGearRow& GearRow : GearRows) { Out.Add(GearRow.Plan); }
     return true;
 }
 
@@ -418,7 +301,7 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     FLDInnateDashTerms& Out, FString& Error)
 {
     Out=FLDInnateDashTerms();
-    const FLDDemoEquipmentActive& Dash=Content.Get().Character.Dash;
+    const FLDDemoDashDefinition& Dash=Content.Get().Character.Dash;
     const FLDDemoEffectDefinition* Move=Dash.Rank.Effects.Num()==1 && Dash.Rank.Effects[0].GetOp()==ELDDemoEffectOp::Dash
         ? &Dash.Rank.Effects[0] : nullptr;
     if (Dash.Target.Mode!=ELDDemoTargetMode::DirectionDash || !Move || Move->DistanceCm.Numerator<=0 || Move->DistanceCm.Denominator<=0
@@ -516,7 +399,7 @@ bool LDCombatSourceRules::DisplacesCaster(const FLDDemoRankDefinition& Rank)
     return Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
     {
         const ELDDemoEffectOp Op=Effect.GetOp();
-        return Op==ELDDemoEffectOp::Dash || Op==ELDDemoEffectOp::Jump || Op==ELDDemoEffectOp::LeapBack;
+        return Op==ELDDemoEffectOp::Dash || Op==ELDDemoEffectOp::Jump;
     });
 }
 
@@ -587,14 +470,6 @@ const FLDCombatTrack* ALDCombatDirector::TrackFor(const FLDCombatEntityRecord& R
         return Record.Tracks.FindByPredicate([Learned](const FLDCombatTrack& Track)
         { return Track.Kind==ELDCombatSourceKind::Learned && Track.DefinitionId==Learned->AbilityId; });
     }
-    if (const FLDEquippedItemValue* Item=LDCombatSourcesDetail::FindEquipped(Record.Build,Entry))
-    {
-        return Record.Tracks.FindByPredicate([Item](const FLDCombatTrack& Track)
-        {
-            return Track.Kind==ELDCombatSourceKind::Gear && Track.bBound && Track.BoundInstance==Item->Instance
-                && Track.DefinitionId==Item->DefinitionId;
-        });
-    }
     return nullptr;
 }
 
@@ -605,12 +480,11 @@ FLDCombatTrack* ALDCombatDirector::TrackFor(FLDCombatEntityRecord& Record, ELDCo
 }
 
 bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
-    uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility, const FLDDemoEquipmentDefinition*& OutEquipment) const
+    uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility) const
 {
     OutSource=FLDCombatSourceRef();
     OutRank=0;
     OutAbility=nullptr;
-    OutEquipment=nullptr;
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Content) { return false; }
     FString LookupError;
@@ -635,29 +509,11 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
         OutAbility=Ability;
         return true;
     }
-    if (const FLDEquippedItemValue* Item=LDCombatSourcesDetail::FindEquipped(Record.Build,Entry))
-    {
-        const FLDDemoEquipmentDefinition* Equipment=nullptr;
-        if (!Item->Instance.IsValid() || Item->DefinitionId.IsNone()
-            || !Content->FindEquipment(Item->DefinitionId.ToString(),Equipment,LookupError) || !Equipment)
-        { return false; }
-        OutSource.Kind=ELDCombatSourceKind::Gear;
-        OutSource.DefinitionId=Item->DefinitionId;
-        OutSource.ItemInstance=Item->Instance;
-        // Equipment actives have one fixed rank, the upgraded rank once the instance is upgraded (112 §7); gear without an
-        // active resolves and is refused by the caller.
-        const FLDDemoRankDefinition* Effective=LDDemoEquipment::EffectiveActiveRank(*Equipment,Item->bUpgraded);
-        if (Equipment->HasActive && !Effective) { return false; }
-        OutRank=Effective ? static_cast<uint8>(Effective->Rank) : 0;
-        OutEquipment=Equipment;
-        return true;
-    }
     return false;
 }
 
 bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, const FLDDemoAbilityDefinition* Ability,
-    const FLDDemoEquipmentDefinition* Equipment, const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank,
-    int64& OutWindupMs) const
+    const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const
 {
     OutTarget=nullptr;
     OutRank=nullptr;
@@ -669,17 +525,9 @@ bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, c
         OutRank=LDCombatSourcesDetail::FindRankRow(*Ability,Rank);
         OutWindupMs=Ability->WindupMs;
     }
-    else if (Equipment && Equipment->HasActive)
-    {
-        OutTarget=&Equipment->Active.Target;
-        // The rank number names the effective row: the base rank, or the upgraded rank of an upgraded instance.
-        OutRank=LDDemoEquipment::EffectiveActiveRank(*Equipment,
-            Equipment->Active.HasUpgradedRank && Rank==Equipment->Active.UpgradedRank.Rank);
-        OutWindupMs=Equipment->Active.WindupMs;
-    }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
     {
-        const FLDDemoEquipmentActive& Dash=Content->Get().Character.Dash;
+        const FLDDemoDashDefinition& Dash=Content->Get().Character.Dash;
         OutTarget=&Dash.Target;
         OutRank=&Dash.Rank;
         OutWindupMs=Dash.WindupMs;
@@ -723,8 +571,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FLDCombatSourceRef Source;
     uint8 Rank=0;
     const FLDDemoAbilityDefinition* Ability=nullptr;
-    const FLDDemoEquipmentDefinition* Equipment=nullptr;
-    if (!ResolveEntry(Record,Entry,Source,Rank,Ability,Equipment))
+    if (!ResolveEntry(Record,Entry,Source,Rank,Ability))
     {
         // An occupied slot whose definition cannot resolve still names what the owner holds.
         if (const FLDLearnedActiveValue* Learned=LDCombatSourcesDetail::FindLearned(Record.Build,Entry))
@@ -733,56 +580,50 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
             View.DefinitionId=Learned->AbilityId;
             View.Rank=Learned->Rank;
         }
-        else if (const FLDEquippedItemValue* Item=LDCombatSourcesDetail::FindEquipped(Record.Build,Entry))
-        {
-            View.SourceKind=ELDCombatSourceKind::Gear;
-            View.DefinitionId=Item->DefinitionId;
-            View.ItemInstance=Item->Instance;
-        }
         View.Unavailable=ELDCombatReject::SourceUnavailable;
         return View;
     }
     View.SourceKind=Source.Kind;
     View.DefinitionId=Source.DefinitionId;
-    View.ItemInstance=Source.ItemInstance;
     const FLDDemoTargetDefinition* Target=nullptr;
     const FLDDemoRankDefinition* RankRow=nullptr;
     int64 WindupMs=0;
     if (Ability) { View.Rank=Rank; }
-    View.bHasActive=ActiveOf(Source,Rank,Ability,Equipment,Target,RankRow,WindupMs);
-    if (View.bHasActive)
+    if (!ActiveOf(Source,Rank,Ability,Target,RankRow,WindupMs))
     {
-        View.TargetMode=static_cast<uint8>(Target->Mode);
-        View.ManaCostP2=RankRow->ManaCostP2;
-        // A dash has no authored target range; its reach is the Dash effect distance of the active rank.
-        const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
-            ? RankRow->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
-            : nullptr;
-        View.RangeCm=LDCombatSourcesDetail::DisplayCm(Dash ? Dash->DistanceCm : Target->RangeCm);
-        // The owner sees the reach this body has right now (passive_eagle_eye Lv3, active_arc_bolt's share of attack range, item_phase_anchor).
-        if (Body && Source.Kind!=ELDCombatSourceKind::Innate)
+        View.Unavailable=ELDCombatReject::SourceUnavailable;
+        return View;
+    }
+    View.TargetMode=static_cast<uint8>(Target->Mode);
+    View.ManaCostP2=RankRow->ManaCostP2;
+    // A dash has no authored target range; its reach is the Dash effect distance of the active rank.
+    const FLDDemoEffectDefinition* Dash=Target->Mode==ELDDemoTargetMode::DirectionDash
+        ? RankRow->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
+        : nullptr;
+    View.RangeCm=LDCombatSourcesDetail::DisplayCm(Dash ? Dash->DistanceCm : Target->RangeCm);
+    // The owner sees the reach this body has right now (passive_eagle_eye Lv3, active_arc_bolt's share of attack range, item_phase_anchor).
+    if (Body && Source.Kind!=ELDCombatSourceKind::Innate)
+    {
+        FString RangeError;
+        double RangeCm=0;
+        int64 CooldownRatioBp=10000, DistanceBonusBp=0;
+        if (!Dash && CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
+        else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.EquipmentPassives,
+            CooldownRatioBp,DistanceBonusBp,RangeError))
+        { View.RangeCm=int32(FMath::RoundToDouble(LDCombatSourcesDetail::RationalValue(Dash->DistanceCm)*double(10000+DistanceBonusBp)/10000.)); }
+    }
+    FLDInnateDashTerms Innate;
+    FString TermsError;
+    if (Source.Kind==ELDCombatSourceKind::Innate)
+    {
+        // The owner sees the reach this body's held equipment gives the dash right now.
+        if (!InnateDashFor(Record,Body,Innate,TermsError))
         {
-            FString RangeError;
-            double RangeCm=0;
-            int64 CooldownRatioBp=10000, DistanceBonusBp=0;
-            if (!Dash && CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
-            else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.EquipmentPassives,
-                CooldownRatioBp,DistanceBonusBp,RangeError))
-            { View.RangeCm=int32(FMath::RoundToDouble(LDCombatSourcesDetail::RationalValue(Dash->DistanceCm)*double(10000+DistanceBonusBp)/10000.)); }
+            View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
+            return View;
         }
-        FLDInnateDashTerms Innate;
-        FString TermsError;
-        if (Source.Kind==ELDCombatSourceKind::Innate)
-        {
-            // The owner sees the reach this body's held equipment gives the dash right now.
-            if (!InnateDashFor(Record,Body,Innate,TermsError))
-            {
-                View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
-                return View;
-            }
-            View.RangeCm=LDCombatSourcesDetail::DisplayCm(Innate.DistanceCm);
-            View.ManaCostP2=Innate.ManaCostP2;
-        }
+        View.RangeCm=LDCombatSourcesDetail::DisplayCm(Innate.DistanceCm);
+        View.ManaCostP2=Innate.ManaCostP2;
     }
     if (const FLDCombatTrack* Track=TrackFor(Record,Entry))
     {
@@ -791,7 +632,6 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
         View.CooldownMs=Track->LastDurationMs;
     }
     const FLDDemoContentSnapshot* Content=Catalog();
-    if (!View.bHasActive) { View.Unavailable=ELDCombatReject::NoActiveEffect; return View; }
     if (!Body || Body->bPendingDeath || !Content) { View.Unavailable=ELDCombatReject::Dead; return View; }
     FLDActiveGateInput Gate;
     Gate.NowMs=NowMs;
@@ -800,8 +640,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     Gate.ManaCostP2=View.ManaCostP2;
     Gate.bDash=Target->Mode==ELDDemoTargetMode::DirectionDash || Target->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bControlBlocked=IsActionBlocked(*Body,Entry==ELDCombatEntry::Item1 || Entry==ELDCombatEntry::Item2
-        ? ELDCombatControlAction::Gear : ELDCombatControlAction::Cast);
+    Gate.bControlBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Cast);
     Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     View.Unavailable=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (View.Unavailable==ELDCombatReject::None && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
@@ -968,9 +807,8 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         const FLDCombatBindingPlan& Row=Prepared.BindingPlan[Index];
         const FLDCombatTrack* Existing=Record->Tracks.FindByPredicate([&Row](const FLDCombatTrack& Candidate)
         { return Candidate.IssuedCooldownId==Row.IssuedCooldownId; });
-        const bool bGear=Row.Source.Kind==ELDCombatSourceKind::Gear;
-        bValid=(bGear || Row.Source.Kind==ELDCombatSourceKind::Learned) && Row.IssuedCooldownId.IsValid()
-            && bGear==Row.Source.ItemInstance.IsValid() && !PlannedIds.Contains(Row.IssuedCooldownId)
+        bValid=Row.Source.Kind==ELDCombatSourceKind::Learned && Row.IssuedCooldownId.IsValid()
+            && !PlannedIds.Contains(Row.IssuedCooldownId)
             && (Row.bNewTrack ? Existing==nullptr
                 : Existing && Existing->Kind==Row.Source.Kind && Existing->DefinitionId==Row.Source.DefinitionId);
         PlannedIds.Add(Row.IssuedCooldownId);
@@ -1010,16 +848,7 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
             Track->Kind=Row.Source.Kind;
             Track->DefinitionId=Row.Source.DefinitionId;
         }
-        // Rebinding keeps the absolute ReadyAt: a source change never washes or extends cooldown debt.
-        Track->bBound=true;
-        Track->BoundInstance=Row.Source.Kind==ELDCombatSourceKind::Gear ? Row.Source.ItemInstance : FGuid();
-    }
-    for (FLDCombatTrack& Track : Record->Tracks)
-    {
-        // The innate dash track is never a held source of the build; it stays bound across every build change.
-        if (PlannedIds.Contains(Track.IssuedCooldownId) || Track.Kind==ELDCombatSourceKind::Innate) { continue; }
-        Track.bBound=false;
-        Track.BoundInstance.Invalidate();
+        // A relearned definition keeps the absolute ReadyAt: a source change never washes or extends cooldown debt.
     }
     ++Record->SourceRevision;
     if (Body)
@@ -1050,66 +879,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     MarkViewChanged(Prepared.Contender);
 }
 
-FLDGearBindingPreview ALDCombatDirector::PreviewGearBinding(const FLDCombatCaller& Caller, FName EquipmentId) const
-{
-    FLDGearBindingPreview Preview;
-    const ALDGameMode* Mode=Core();
-    const FLDDemoContentSnapshot* Content=Catalog();
-    if (!Mode || !Content)
-    {
-        Preview.Error=TEXT("AuthorityDataUnavailable: the Combat owner has no current core or content.");
-        return Preview;
-    }
-    if (!Caller.Match.IsValid() || Caller.Match!=Mode->GetMatchContext())
-    {
-        Preview.Error=TEXT("StaleMatch: the caller is not bound to the current match.");
-        return Preview;
-    }
-    const FLDCombatEntityRecord* Record=Caller.Kind==ELDVictimKind::Contender ? FindRecord(Caller.EntityId) : nullptr;
-    if (!Record || Record->Kind!=ELDVictimKind::Contender)
-    {
-        Preview.Error=TEXT("UnknownContender: no persistent Combat record.");
-        return Preview;
-    }
-    const FLDDemoEquipmentDefinition* Definition=nullptr;
-    FString LookupError;
-    if (EquipmentId.IsNone() || !Content->FindEquipment(EquipmentId.ToString(),Definition,LookupError) || !Definition)
-    {
-        Preview.Error=FString::Printf(TEXT("SourceUnavailable: %s is not in the approved catalog. %s"),*EquipmentId.ToString(),*LookupError);
-        return Preview;
-    }
-    Preview.bHasActive=Definition->HasActive;
-    if (!Definition->HasActive)
-    {
-        Preview.bValid=true;
-        return Preview;
-    }
-    // Same debt-first choice as Prepare, for one additional copy next to the current holdings.
-    TArray<FGuid> Held;
-    for (const FLDEquippedItemValue& Item : Record->Build.Equipment) { Held.Add(Item.Instance); }
-    const TArray<FGuid> NoneClaimed;
-    const int64 NowMs=Mode->GetAuthorityNowMs();
-    if (const FLDCombatTrack* Chosen=LDCombatSourcesDetail::ChooseGearTrack(*Record,EquipmentId,NowMs,NoneClaimed,Held))
-    {
-        Preview.bInherits=Chosen->ReadyAtMs>NowMs;
-        Preview.ReadyAtMs=Chosen->ReadyAtMs;
-        Preview.bValid=true;
-        return Preview;
-    }
-    int32 Issued=0;
-    for (const FLDCombatTrack& Track : Record->Tracks)
-    {
-        if (Track.Kind==ELDCombatSourceKind::Gear && Track.DefinitionId==EquipmentId) { ++Issued; }
-    }
-    if (Issued>=Content->Get().Progression.EquipmentSlots)
-    {
-        Preview.Error=FString::Printf(TEXT("CapacityExceeded: %s already has %d persistent cooldown tracks."),*EquipmentId.ToString(),Issued);
-        return Preview;
-    }
-    Preview.bValid=true;
-    return Preview;
-}
-
 FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& Caller, ELDCombatEntry Entry) const
 {
     FLDCombatEntryView Refused;
@@ -1118,8 +887,7 @@ FLDCombatEntryView ALDCombatDirector::QueryAvailability(const FLDCombatCaller& C
     if (!Mode || !Catalog()) { Refused.Unavailable=ELDCombatReject::AuthorityDataUnavailable; return Refused; }
     if (!Caller.Match.IsValid() || Caller.Match!=Mode->GetMatchContext()) { Refused.Unavailable=ELDCombatReject::StaleMatch; return Refused; }
     if (!Mode->IsGameplayWriteOpen(Caller.Match)) { Refused.Unavailable=ELDCombatReject::MatchClosed; return Refused; }
-    if (LDCombatSourcesDetail::LearnedSlot(Entry)==INDEX_NONE && LDCombatSourcesDetail::GearSlot(Entry)==INDEX_NONE
-        && Entry!=ELDCombatEntry::Dash)
+    if (LDCombatSourcesDetail::LearnedSlot(Entry)==INDEX_NONE && Entry!=ELDCombatEntry::Dash)
     { Refused.Unavailable=ELDCombatReject::InvalidRequest; return Refused; }
     const FLDCombatEntityRecord* Record=Caller.Kind==ELDVictimKind::Contender ? FindRecord(Caller.EntityId) : nullptr;
     if (!Record || Record->Kind!=ELDVictimKind::Contender) { Refused.Unavailable=ELDCombatReject::NotOwner; return Refused; }
@@ -1216,19 +984,13 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 View.StatusId=Status.StatusId;
                 View.ExpiresAtMs=Status.ExpiresAtServerMs;
             }
-            // Owner-only: who taunts and where a stealthed body is never reach any other observer through this view.
+            // Owner-only: who taunts never reaches any other observer through this view.
             if (LDControl::IsTaunted(Body->Taunt,NowMs))
             {
                 FLDCombatStatusView& TauntStatus=Out.Statuses.AddDefaulted_GetRef();
                 TauntStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Taunt);
                 TauntStatus.ExpiresAtMs=Body->Taunt->ExpiresAtMs;
-                TauntStatus.ControlBlocks=uint8(ELDCombatControlBlock::Move)|uint8(ELDCombatControlBlock::Cast)|uint8(ELDCombatControlBlock::Gear);
-            }
-            if (LDControl::IsStealthed(Body->Stealth,NowMs))
-            {
-                FLDCombatStatusView& StealthStatus=Out.Statuses.AddDefaulted_GetRef();
-                StealthStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Stealth);
-                StealthStatus.ExpiresAtMs=Body->Stealth->ExpiresAtMs;
+                TauntStatus.ControlBlocks=uint8(ELDCombatControlBlock::Move)|uint8(ELDCombatControlBlock::Cast);
             }
             if (Body->Action.IsSet())
             {
@@ -1271,7 +1033,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
     for (const ELDCombatEntry Slot : LDCombatSourcesDetail::OwnerEntries) { Out.Entries.Add(EntryView(*Record,Body,Slot,NowMs)); }
     double MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec);
     // The owning client predicts with the same effective speed the authority moves its body at.
-    if (Body && !Body->bPendingDeath && !EffectiveMoveSpeed(*Body,NowMs,MoveSpeed))
+    if (Body && !Body->bPendingDeath && !EffectiveMoveSpeed(*Body,MoveSpeed))
     { MoveSpeed=LDCombatSourcesDetail::RationalValue(Projection.Final.MoveSpeedCmPerSec); }
     Out.MoveSpeedCmPerSec=float(MoveSpeed);
     Out.AttackRangeCm=float(LDCombatSourcesDetail::RationalValue(Projection.Final.AttackRangeCm));

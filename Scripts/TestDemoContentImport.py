@@ -209,9 +209,9 @@ class DemoContentImport(unittest.TestCase):
                 self.assertEqual(guard["ranks"][rank - 1]["effects"][0]["base"]["p2"], 2000 * rank)
                 self.assertEqual(guard["ranks"][rank - 1]["effects"][1]["opcode"], 3)
                 self.assertEqual(snare["ranks"][rank - 1]["effects"][1]["duration"]["ms"], 250 * rank)
-        battery = self.baseline.catalog.definition("item_arcane_battery")["active"]["rank"]
-        self.assertEqual([row["opcode"] for row in battery["effects"]], [9, 2])
-        self.assertEqual(battery["effects"][0]["ratio"]["bp"], 2000)
+        battery = self.baseline.catalog.definition("item_arcane_battery")
+        self.assertIsNone(battery["passive"])
+        self.assertNotIn("active", battery)
 
     def test_mutating_each_active_rank_field_changes_projected_value(self):
         baseline_bytes = (self.root / demo.CONTENT_SOURCE).read_bytes()
@@ -392,7 +392,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"].update({"CAMP.Low.AggroRadiusCm": {"unit": "cm", "value": 0}}),
             lambda data: data["abilities"][0]["ranks"][0].update(extra=1),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(hidden_legacy_fallback=True),
-            lambda data: data["equipment"][5]["active"].update(range={"unit": "cm", "value": 120}),
+            lambda data: data["equipment"][0]["passive"].update(range={"unit": "cm", "value": 120}),
             lambda data: data["character"]["dash"].update(windup={"unit": "s", "value": 0}),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -420,7 +420,9 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"].update(active_arc_bolt=61),
             lambda data: data["abilities"].update(active_arc_bolt=63),
             lambda data: data["abilities"].update(active_arc_bolt=200),
-            lambda data: data["retired_ranges"].update(abilities=[0, 60]),
+            lambda data: data["retired_ranges"].update(abilities=[[0, 60]]),
+            lambda data: data["retired_ranges"].update(equipment=[[0, 98], [107, 107]]),
+            lambda data: data["retired_ranges"].update(equipment=[0, 98]),
             lambda data: data["effect_ops"].pop("shield"),
         ):
             (self.root / demo.IDS_SOURCE).write_bytes(original)
@@ -439,7 +441,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0]["ranks"].reverse(),
             lambda data: data["abilities"][0]["ranks"][1].update(rank=1),
             lambda data: data["abilities"][0]["ranks"][2].pop("mana_cost"),
-            lambda data: data["equipment"][5]["active"]["rank"].update(rank=2),
+            lambda data: data["abilities"][3]["ranks"][0].update(rank=2),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -452,7 +454,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["equipment"][3]["passive"].update(family="passive_cleave"),
             lambda data: data["abilities"][3]["ranks"][0]["effects"][0].update(stats={"ADFlat": {"unit": "points", "value": 1}}),
             lambda data: data["equipment"][5].update(active=None),
-            lambda data: data["equipment"][0].update(active=deepcopy(data["equipment"][5]["active"])),
+            lambda data: data["equipment"][5].update(passive=deepcopy(data["equipment"][0]["passive"])),
             lambda data: data["equipment"][4].update(passive=None),
             lambda data: data["equipment"][4]["passive"].update(family="passive_cleave"),
             lambda data: data["equipment"][4]["passive"]["effects"][0].update(cooldown_ratio={"unit": "ratio", "value": 0}),

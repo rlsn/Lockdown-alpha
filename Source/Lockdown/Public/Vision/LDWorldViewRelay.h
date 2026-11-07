@@ -237,11 +237,6 @@ public:
     // The delayed authority time (FLDWorldView::SampledAtServerSec scale) at which proxies and flights are posed now,
     // so overlays can show a sample's facts when its pose shows. False before the first accepted frame.
     bool ReadPresentationTime(double& OutAtServerSec) const;
-#if WITH_DEV_AUTOMATION_TESTS
-    // DEV scenarios: called with every full frame this relay accepted, before the next one can replace it, so a probe
-    // audits each received frame instead of polling the latest one. Read-only; it never changes the frame.
-    TFunction<void(const FLDWorldView&)> DevOnAcceptedFrame;
-#endif
 private:
     void Present(const TArray<FLDObservedClear>& Cleared);
     void Refuse(const FString& Error);

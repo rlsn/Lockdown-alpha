@@ -11,14 +11,15 @@ class AController;
 
 // ---------------------------------------------------------------- sources and entries
 
-// Innate: the D dash every contender has (D19); it is no learned or gear source and is never sold or forgotten.
+// Innate: the D dash every contender has (D19); it is no learned source and is never forgotten.
+// Gear credits the hits of an equipment passive; equipment has no action entries or cooldown tracks.
 UENUM()
 enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear, Innate };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
 UENUM()
-enum class ELDCombatEntry : uint8 { None, Basic, Q, W, Item1, Item2, Dash };
+enum class ELDCombatEntry : uint8 { None, Basic, Q, W, Dash };
 
 USTRUCT()
 struct FLDCombatSourceRef
@@ -26,9 +27,8 @@ struct FLDCombatSourceRef
     GENERATED_BODY()
     UPROPERTY() ELDCombatSourceKind Kind=ELDCombatSourceKind::None;
     UPROPERTY() FName DefinitionId;   // ability or equipment id; None for Basic; LDCombatSourceRules::InnateDashId for Innate
-    UPROPERTY() FGuid ItemInstance;   // Gear only
     bool operator==(const FLDCombatSourceRef& Other) const
-    { return Kind==Other.Kind && DefinitionId==Other.DefinitionId && ItemInstance==Other.ItemInstance; }
+    { return Kind==Other.Kind && DefinitionId==Other.DefinitionId; }
     bool operator!=(const FLDCombatSourceRef& Other) const { return !(*this==Other); }
 };
 
@@ -58,7 +58,7 @@ struct FLDCombatTarget
     FLDCombatBodyRef ServerBody;                   // Unit from a registered camp member only; never replicated
 };
 
-// Direct request; DirectSequence is monotonic per contender (Q/W/1/2/D share it) or per camp member.
+// Direct request; DirectSequence is monotonic per contender (Q/W/D share it) or per camp member.
 USTRUCT()
 struct FLDCombatActionRequest
 {
@@ -108,7 +108,7 @@ UENUM()
 enum class ELDCombatReject : uint8
 {
     None, InvalidRequest, NotOwner, StaleMatch, StaleLife, StaleRequest, RequestConflict, ReceiptExpired,
-    Cancelled, StaleSource, SourceUnavailable, NoActiveEffect, Busy, Cooldown, AttackNotReady,
+    Cancelled, StaleSource, SourceUnavailable, Busy, Cooldown, AttackNotReady,
     InsufficientMana, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
     MatchClosed, AuthorityDataUnavailable, CapacityUnavailable
 };
@@ -134,7 +134,7 @@ struct FLDCombatActionReceipt
 // ---------------------------------------------------------------- aggressive intent and respawn protection
 
 UENUM()
-enum class ELDAggressiveIntentKind : uint8 { AttackUnit, AttackMove, BasicAttack, ActivateCharacter, ActivateEquipment };
+enum class ELDAggressiveIntentKind : uint8 { AttackUnit, AttackMove, BasicAttack, ActivateCharacter };
 
 UENUM()
 enum class ELDAggressionOrigin : uint8 { Navigation, Combat };
@@ -226,11 +226,11 @@ struct FLDLearnedActiveValue
 
 struct FLDEquippedItemValue
 {
-    ELDCombatEntry Entry=ELDCombatEntry::None;   // Item1 or Item2 (slot order)
+    uint8 Slot=0;                                // 0 or 1 (slot order)
     FGuid Instance;
     FName DefinitionId;
     uint64 ItemRevision=0;
-    // 112 §7: read stats, passive and active terms through LDDemoEquipment::Effective*.
+    // 112 §7: read stats and passive terms through LDDemoEquipment::Effective*.
     bool bUpgraded=false;
 };
 
@@ -262,12 +262,12 @@ enum class ELDCombatPrepareError : uint8
     NumericUnderflow, NumericDomain, CapacityExceeded
 };
 
-// One row per held active source after the change; debt-first rebinding is decided inside Combat Prepare.
+// One row per learned active after the change; a relearned definition keeps its track inside Combat Prepare.
 struct FLDCombatBindingPlan
 {
     ELDCombatEntry Entry=ELDCombatEntry::None;
     FLDCombatSourceRef Source;
-    FGuid IssuedCooldownId;      // persistent cooldown identity (gear: <=2 per definition, learned: 1)
+    FGuid IssuedCooldownId;      // persistent cooldown identity, one per learned definition
     int64 ReadyAtMs=0;           // inherited absolute end; <= now means ready
     bool bNewTrack=false;
 };
@@ -305,16 +305,6 @@ struct FLDCombatPrepareResult
     ELDCombatPrepareError Error=ELDCombatPrepareError::None;
     FString Message;
     bool IsSuccess() const { return Value.IsSet() && Error==ELDCombatPrepareError::None; }
-};
-
-// Read-only shop preview of the cooldown a newly bought copy would inherit (same debt-first rule as Prepare).
-struct FLDGearBindingPreview
-{
-    bool bValid=false;
-    bool bHasActive=false;
-    bool bInherits=false;
-    int64 ReadyAtMs=0;
-    FString Error;
 };
 
 // ---------------------------------------------------------------- camp members
@@ -381,9 +371,7 @@ struct FLDCombatEntryView
     UPROPERTY() ELDCombatEntry Entry=ELDCombatEntry::None;
     UPROPERTY() ELDCombatSourceKind SourceKind=ELDCombatSourceKind::None;
     UPROPERTY() FName DefinitionId;                  // None = empty slot
-    UPROPERTY() FGuid ItemInstance;                  // own gear instance; owner view only
     UPROPERTY() uint8 Rank=0;                        // learned only
-    UPROPERTY() bool bHasActive=false;               // gear without an active is shown unavailable
     UPROPERTY() uint8 TargetMode=0;                  // ELDDemoTargetMode
     UPROPERTY() int32 RangeCm=0;
     UPROPERTY() int64 ManaCostP2=0;
@@ -397,7 +385,7 @@ struct FLDCombatEntryView
 UENUM()
 enum class ELDCombatControlBlock : uint8
 {
-    None=0, Move=1, Basic=2, Cast=4, Gear=8, Displacement=16
+    None=0, Move=1, Basic=2, Cast=4, Displacement=8
 };
 
 USTRUCT()
@@ -467,7 +455,7 @@ struct FLDCombatOwnerView
     UPROPERTY() double HPRegenPerSec=0;
     UPROPERTY() double MPRegenPerSec=0;
     UPROPERTY() uint64 SourceRevision=0;
-    UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Item1, Item2, Dash
+    UPROPERTY() TArray<FLDCombatEntryView> Entries;  // Q, W, Dash
     UPROPERTY() TArray<FLDCombatStatusView> Statuses;
     UPROPERTY() int64 NextAttackAtMs=0;
     UPROPERTY() ELDCombatEntry ActionEntry=ELDCombatEntry::None;

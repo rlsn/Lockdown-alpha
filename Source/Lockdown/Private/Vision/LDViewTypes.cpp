@@ -51,14 +51,11 @@ bool IsPublicEquipmentOrEmpty(uint8 Id)
     case ELDDemoEquipmentId::ItemArcaneBattery:
     case ELDDemoEquipmentId::ItemEchoMaul:
     case ELDDemoEquipmentId::ItemSlingshot:
-    case ELDDemoEquipmentId::ItemPaperBox:
     case ELDDemoEquipmentId::ItemNailUniform:
     case ELDDemoEquipmentId::ItemMegaphone:
     case ELDDemoEquipmentId::ItemDossier:
     case ELDDemoEquipmentId::ItemPrivacyScreen:
     case ELDDemoEquipmentId::ItemSkateboard:
-    case ELDDemoEquipmentId::ItemDecoyWig:
-    case ELDDemoEquipmentId::ItemEnergyDrink:
         return true;
     default:
         return false;
@@ -138,7 +135,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     Ar << Unit.Handle << Unit.ObservationEpoch << Unit.StateRevision << Unit.AuthorizedFieldMask << Kind << Unit.Presentation;
     bool bFeet = true;
     Unit.FeetCm.NetSerialize(Ar, Map, bFeet);
-    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionAbility << Unit.ActionEquipment;
+    Ar << Unit.Facing << Cue << Unit.ActionCueAgeMs << Unit.ActionAbility;
     if (Ar.IsLoading())
     {
         Unit.Kind = static_cast<ELDObservedUnitKind>(Kind);
@@ -208,8 +205,8 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if (uint8(Unit.ActionCue) > uint8(ELDObservedActionCue::Hit)
         || (Unit.ActionCue == ELDObservedActionCue::None && Unit.ActionCueAgeMs != 0))
     { return FailObservation(Error, TEXT("Unknown observed action cue, or a cue age without a cue.")); }
-    if ((Unit.ActionAbility != 0 || Unit.ActionEquipment != 0) && (Unit.ActionCue != ELDObservedActionCue::Cast || (Unit.ActionAbility != 0 && Unit.ActionEquipment != 0)))
-    { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names exactly one ability or equipment.")); }
+    if (Unit.ActionAbility != 0 && Unit.ActionCue != ELDObservedActionCue::Cast)
+    { return FailObservation(Error, TEXT("An observed cast source needs a Cast cue and names an ability.")); }
     const bool Contender = Unit.Kind == ELDObservedUnitKind::Contender;
     if (!Contender && Unit.Kind != ELDObservedUnitKind::CampMember) { return FailObservation(Error, TEXT("Unknown observed unit kind.")); }
     const uint32 Mask = Unit.AuthorizedFieldMask;

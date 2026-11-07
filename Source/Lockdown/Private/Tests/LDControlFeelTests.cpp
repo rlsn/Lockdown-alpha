@@ -72,16 +72,15 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     View.ActionPhase = ELDCombatPhase::Accepted;
     View.ActionEntry = ELDCombatEntry::Basic;
     TestFalse(TEXT("A basic swing is interrupted by an ability, so it holds nothing"), IsWindingUp(View, 1000));
-    View.ActionEntry = ELDCombatEntry::Item2;
+    View.ActionEntry = ELDCombatEntry::W;
     View.bHasBody = false;
     TestFalse(TEXT("No body holds nothing"), IsWindingUp(View, 1000));
-    TestTrue(TEXT("Q, W, both gear actives and the innate D dash are Direct entries"),
-        IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W) && IsDirectEntry(ELDCombatEntry::Item1)
-        && IsDirectEntry(ELDCombatEntry::Item2) && IsDirectEntry(ELDCombatEntry::Dash)
+    TestTrue(TEXT("Q, W and the innate D dash are Direct entries"),
+        IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W) && IsDirectEntry(ELDCombatEntry::Dash)
         && !IsDirectEntry(ELDCombatEntry::Basic) && !IsDirectEntry(ELDCombatEntry::None));
-    TestTrue(TEXT("The D dash fires toward the pointer on the press; Q/W/1/2 still arm"),
+    TestTrue(TEXT("The D dash fires toward the pointer on the press; Q/W still arm"),
         FiresOnPress(ELDCombatEntry::Dash) && !FiresOnPress(ELDCombatEntry::Q) && !FiresOnPress(ELDCombatEntry::W)
-        && !FiresOnPress(ELDCombatEntry::Item1) && !FiresOnPress(ELDCombatEntry::Item2) && !FiresOnPress(ELDCombatEntry::Basic));
+        && !FiresOnPress(ELDCombatEntry::Basic));
     TestTrue(TEXT("A held press lives at most a second"), HoldSeconds == 1.0);
     return true;
 }
@@ -112,7 +111,7 @@ bool FLDControlFeelSourceBufferTest::RunTest(const FString& Parameters)
     PC->CombatView.Revision=3;
     PC->CombatView.SourceRevision=6;
     PC->OnRep_CombatView();
-    TestEqual(TEXT("Changing skills or gear drops the old source's buffered aim"),PC->QueuedCombat.Entry,ELDCombatEntry::None);
+    TestEqual(TEXT("Changing skills drops the old source's buffered aim"),PC->QueuedCombat.Entry,ELDCombatEntry::None);
     PC->QueuedCombat.Entry=ELDCombatEntry::W;
     PC->CombatView.Generation=2;
     PC->CombatView.Revision=1;
@@ -195,12 +194,12 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelRefusedSkillKeepsOrderTest, "Lock
 bool FLDControlFeelRefusedSkillKeepsOrderTest::RunTest(const FString& Parameters)
 {
     using namespace LDOrderRules;
-    // 2026-11-07 decision: a skill, item or D request that cannot start is refused at once and leaves the current move or
+    // 2026-11-07 decision: a skill or D request that cannot start is refused at once and leaves the current move or
     // attack order, the pending request and the shift queue as they were; only a ready one goes on to replace them.
     TestTrue(TEXT("A ready entry goes on"), SkillRequestReady(ELDCombatReject::None));
     TestTrue(TEXT("The own ability windup only delays the request"), SkillRequestReady(ELDCombatReject::Busy));
     for (const ELDCombatReject Refused : {ELDCombatReject::Cooldown, ELDCombatReject::InsufficientMana,
-        ELDCombatReject::ControlBlocked, ELDCombatReject::NoActiveEffect, ELDCombatReject::SourceUnavailable,
+        ELDCombatReject::ControlBlocked, ELDCombatReject::SourceUnavailable,
         ELDCombatReject::Dead, ELDCombatReject::MatchClosed, ELDCombatReject::AuthorityDataUnavailable})
     {
         TestFalse(FString::Printf(TEXT("Unavailability %u is refused without touching the current order"), uint32(Refused)),

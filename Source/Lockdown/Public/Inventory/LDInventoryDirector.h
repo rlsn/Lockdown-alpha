@@ -29,7 +29,7 @@ public:
     // gold or skill data. An unknown definition is an explicit catalog error, never a fake empty slot.
     bool ProjectObservedEquipment(const FGuid& ContenderId, FLDObservedEquipmentView& Out, FString& Error) const;
 
-    // Equipped instances of one contender in slot order (Item1 = slot 0, Item2 = slot 1) from a ledger state,
+    // Equipped instances of one contender in slot order (slot 0, then slot 1) from a ledger state,
     // either the live state or a prepared after-state of a composite commit.
     static void EquippedItems(const LDEconomy::FAuditState& State, const FGuid& ContenderId, TArray<FLDEquippedItemValue>& Out);
 

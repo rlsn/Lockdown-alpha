@@ -343,7 +343,6 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
     Out.WorldMapId = WorldRevision.MapId;
     Out.WorldLayoutRevision = WorldRevision.LayoutRevision;
     Out.WorldGeometryRevision = WorldRevision.GeometryRevision;
-    const FLDCombatCaller Caller = GameMode->Development->MakeCaller(ContenderId);
     TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
     Book.OwnerItems(ContenderId, Owned);
     Out.Items.Reserve(Definitions.Equipment.Num());
@@ -353,31 +352,6 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
         Item.DefinitionId = FName(*Definition.Id);
         Item.BuyPrice = Definition.BuyPrice;
         Item.SellGold = Definition.SellGold;
-        Item.bHasActive = Definition.HasActive;
-        if (!Definition.HasActive)
-        {
-            continue;
-        }
-        // A copy in every slot leaves no purchase of this item to preview (EquipmentFull) and no free track to bind.
-        int32 HeldCopies = 0;
-        for (const TPair<FGuid, LDEconomy::FItem>& Pair : Owned)
-        {
-            HeldCopies += Pair.Value.Definition == Item.DefinitionId ? 1 : 0;
-        }
-        if (HeldCopies >= LDEconomy::EquipmentSlots)
-        {
-            continue;
-        }
-        // Display only: the purchase receipt carries the cooldown Combat actually bound.
-        const FLDGearBindingPreview Preview = GameMode->Combat->PreviewGearBinding(Caller, Item.DefinitionId);
-        if (!Preview.bValid)
-        {
-            UE_LOG(LogLDGrowth, Warning, TEXT("LD_SHOP_PREVIEW_UNAVAILABLE contender=%s item=%s: %s"), *ContenderId.ToString(),
-                *Definition.Id, *Preview.Error);
-            continue;
-        }
-        Item.bInheritsCooldown = Preview.bInherits;
-        Item.InheritedReadyAtMs = Preview.bInherits ? Preview.ReadyAtMs : 0;
     }
     const LDEconomy::FAccount* Account = Book.Account(ContenderId);
     Out.UpgradePrice = Definitions.Parameters.UpgradeCost;
@@ -997,19 +971,6 @@ ELDGrowthReason ALDVendorDirector::CommitTrade(const FGuid& ContenderId, const F
     Revisions.InventoryRevision = ResultInventoryRevision;
     Revisions.bHasBuild = true;
     Revisions.BuildRevision = ResultBuildRevision;
-    if (bBuy)
-    {
-        for (const FLDCombatBindingPlan& Binding : PreparedCombat.Value->Bindings())
-        {
-            if (Binding.Source.ItemInstance == Entry.CreatedInstance)
-            {
-                Receipt.bHasSource = true;
-                Receipt.IssuedCooldownId = Binding.IssuedCooldownId;
-                Receipt.ReadyAtMs = Binding.ReadyAtMs;
-                break;
-            }
-        }
-    }
 
     if (GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
     {

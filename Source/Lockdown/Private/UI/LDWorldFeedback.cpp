@@ -161,16 +161,16 @@ void LDWorldFeedback::FTracker::ObserveUnits(const FSample& Sample,TArray<FEvent
         FUnit Next;
         Next.Handle=Unit.Handle;Next.Epoch=Unit.ObservationEpoch;Next.bCamp=Unit.Kind==ELDObservedUnitKind::CampMember;
         Next.HPP2=Unit.Health.CurrentP2;Next.MaxP2=Unit.Health.MaxP2;Next.SampledAtSec=Frame->SampledAtServerSec;
-        Next.Cue=uint8(Unit.ActionCue);Next.CueAgeMs=Unit.ActionCueAgeMs;Next.Ability=Unit.ActionAbility;Next.Equipment=Unit.ActionEquipment;
+        Next.Cue=uint8(Unit.ActionCue);Next.CueAgeMs=Unit.ActionCueAgeMs;Next.Ability=Unit.ActionAbility;
         const FUnit* Last=bPrime?nullptr:Units.FindByPredicate([&Next](const FUnit& Known){return Known.Handle==Next.Handle&&Known.Epoch==Next.Epoch;});
-        // A cast with a public source shows its name once: when the cue turns to Cast, restarts (its age falls) or names
-        // another source. A unit first seen mid-cast only primes, like its health.
-        const bool bCast=Next.Cue==uint8(ELDObservedActionCue::Cast)&&(Next.Ability!=0||Next.Equipment!=0);
-        if(Last&&bCast&&(Last->Cue!=Next.Cue||Next.CueAgeMs<Last->CueAgeMs||Last->Ability!=Next.Ability||Last->Equipment!=Next.Equipment))
+        // A cast with a public ability shows its name once: when the cue turns to Cast, restarts (its age falls) or names
+        // another ability. A unit first seen mid-cast only primes, like its health.
+        const bool bCast=Next.Cue==uint8(ELDObservedActionCue::Cast)&&Next.Ability!=0;
+        if(Last&&bCast&&(Last->Cue!=Next.Cue||Next.CueAgeMs<Last->CueAgeMs||Last->Ability!=Next.Ability))
         {
             FEvent& Event=Out.AddDefaulted_GetRef();
             Event.Kind=EKind::UnitCast;Event.Amount=0;Event.bOwn=false;Event.Handle=Next.Handle;Event.Epoch=Next.Epoch;
-            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Sample.CastName?Sample.CastName(Next.Ability,Next.Equipment):FString();
+            Event.SampledAtServerSec=Next.SampledAtSec;Event.Name=Sample.CastName?Sample.CastName(Next.Ability):FString();
         }
         if(Last&&Last->MaxP2==Next.MaxP2&&Last->bCamp==Next.bCamp)
         {
@@ -408,7 +408,7 @@ void LDWorldFeedback::MakeSample(const ALDPlayerController& PC,const ALDGameStat
     Out.Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;
     const ALDGameState* PublicState=&Public;
     Out.RosterName=[PublicState](const FGuid& Contender){return LDHUD::RosterName(PublicState->DemoLobby,Contender);};
-    Out.CastName=[Content](uint8 Ability,uint8 Equipment){return Ability!=0?LDHUD::AbilityName(Content,Ability):LDHUD::EquipmentName(Content,Equipment);};
+    Out.CastName=[Content](uint8 Ability){return LDHUD::AbilityName(Content,Ability);};
 }
 
 void ULDWorldFeedback::NativeTick(const FGeometry& Geometry,float Delta)

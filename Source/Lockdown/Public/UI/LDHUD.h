@@ -22,8 +22,8 @@ struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// One Q/W/1/2/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent
-// can be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
+// One Q/W/D entry or equipment slot: a world button that sends the same activation as its hotkey (an equipment slot sends
+// nothing). It is enabled only while an intent can be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
 // the icon, the rank and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot

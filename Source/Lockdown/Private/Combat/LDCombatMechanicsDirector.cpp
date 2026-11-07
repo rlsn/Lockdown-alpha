@@ -8,8 +8,6 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
-#include "Region/LDMapRegistry.h"
-#include "Vision/LDVisionDirector.h"
 #include "Engine/World.h"
 
 // #112 §5 mechanics on Combat's body records; the pure rules live in LDCombatMechanics.cpp.
@@ -66,7 +64,7 @@ const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttribute
         const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Term](const FLDDemoRankDefinition& Row) { return Row.Rank==int32(Term.Rank); });
         if (const FLDDemoEffectDefinition* Effect=Rank ? LDCombatMechanicsDetail::FindOp(*Rank,Op) : nullptr)
         {
-            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Learned; OutSource->DefinitionId=FName(*Term.AbilityId); OutSource->ItemInstance.Invalidate(); }
+            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Learned; OutSource->DefinitionId=FName(*Term.AbilityId); }
             return Effect;
         }
     }
@@ -81,7 +79,7 @@ const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttribute
         for (const FLDDemoEffectDefinition& Effect : *Effects)
         {
             if (Effect.GetOp()!=Op) { continue; }
-            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Gear; OutSource->DefinitionId=FName(*Family.EquipmentId); OutSource->ItemInstance.Invalidate(); }
+            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Gear; OutSource->DefinitionId=FName(*Family.EquipmentId); }
             return &Effect;
         }
     }
@@ -435,7 +433,6 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
         Consider(Zone.EndMs);
     }
     for (const FLDCombatVolleyShot& Shot : VolleyShots) { Consider(Shot.AtMs); }
-    for (const FLDCombatDecoy& Decoy : Decoys) { Consider(Decoy.ExpiresAtMs); }
     return Due;
 }
 
@@ -456,7 +453,6 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
         Projectile.AdvancedThroughMs=NowMs;
         Projectiles.Add(Projectile);
     }
-    Decoys.RemoveAll([NowMs](const FLDCombatDecoy& Decoy) { return Decoy.ExpiresAtMs<=NowMs; });
     // Damage over time: every tick due now, damage terms snapshotted at application, stacks multiplying them.
     for (auto& Pair : Bodies)
     {
@@ -603,11 +599,6 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDBodyCombatState& Body, co
     const FVector& OriginFoot, int64 NowMs, FLDCombatHit& Template) const
 {
     using namespace LDCombatMechanicsDetail;
-    if (const FLDDemoEffectDefinition* Cut=FindOp(Rank,ELDDemoEffectOp::HealCut))
-    {
-        Template.HealCutBp=Cut->RatioBp;
-        Template.HealCutMs=Cut->DurationMs;
-    }
     if (const FLDDemoEffectDefinition* Vulnerable=FindOp(Rank,ELDDemoEffectOp::Vulnerable)) { Template.VulnerableBp=Vulnerable->RatioBp; }
     if (const FLDDemoEffectDefinition* Amp=FindOp(Rank,ELDDemoEffectOp::DebuffAmp)) { Template.NegativeAmpBp=Amp->RatioBp; }
     if (const FLDDemoEffectDefinition* Shatter=FindOp(Rank,ELDDemoEffectOp::ShieldShatter)) { Template.ShieldShatterBp=Shatter->RatioBp; }
@@ -660,7 +651,7 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDBodyCombatState& Body, co
 
 bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
     const FLDDemoRankDefinition& Rank, const FLDCombatHit* Template, const FVector& OriginFoot, const FVector& TargetPoint,
-    const FGuid& EffectId, uint64 Token, int64 DisplacementBonusBp, FString& Error)
+    const FGuid& EffectId, uint64 Token, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
     ALDGameMode* Mode=Core();
@@ -753,74 +744,6 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
             if (!LDMatchLifecycle::AddDurationMs(Now,Volley->IntervalMs*Shot,Later.AtMs,Error)) { return false; }
         }
     }
-    if (const FLDDemoEffectDefinition* Leap=FindOp(Rank,ELDDemoEffectOp::LeapBack))
-    {
-        // Backwards from the body's authority facing, with the same native displacement as a dash.
-        const double Radians=FMath::DegreesToRadians(Actor.GetActorRotation().Yaw+180.);
-        const FVector Back(FMath::Cos(Radians),FMath::Sin(Radians),0.);
-        auto* Movement=Cast<ULDCharacterMovementComponent>(Actor.GetCharacterMovement());
-        // item_phase_anchor lengthens it like any other skill displacement (bonus fixed at the release).
-        const double LeapCm=Cm(Leap->DistanceCm)*double(10000+DisplacementBonusBp)/10000.;
-        if (!Movement || !Movement->StartDemoDash(Back,LeapCm,double(Leap->DurationMs)/1000.,Error)) { return false; }
-        if (!LDMatchLifecycle::AddDurationMs(Now,Leap->DurationMs,Body.DashUntilMs,Error) || !OnMobilityUsed(Body,Now,Error)) { return false; }
-    }
-    if (const FLDDemoEffectDefinition* DecoyDef=FindOp(Rank,ELDDemoEffectOp::Decoy))
-    {
-        FLDCombatDecoy Decoy;
-        Decoy.EffectId=EffectId;
-        Decoy.Holder=SelfRef;
-        Decoy.PointCm=OriginFoot;
-        if (!LDMatchLifecycle::AddDurationMs(Now,DecoyDef->DurationMs,Decoy.ExpiresAtMs,Error)) { return false; }
-        Decoys.Add(Decoy);
-        const UWorld* CurrentWorld=GetWorld();
-        const ULDMapRegistry* Registry=CurrentWorld ? CurrentWorld->GetSubsystem<ULDMapRegistry>() : nullptr;
-        if (!Mode->Vision || !Registry) { Error=TEXT("A decoy lure requires the observation owner and the registered world."); return false; }
-        FLDControlApplication Lure;
-        Lure.Kind=ELDControlKind::Taunt;
-        Lure.EffectId=EffectId;
-        Lure.SourceEntity=Body.Victim.EntityId;
-        Lure.SourceBody=SelfRef;
-        Lure.CreditOwner=Body.Victim.EntityId;
-        Lure.DurationMs=DecoyDef->SecondaryDurationMs;
-        const double Radius=Cm(DecoyDef->RadiusCm);
-        for (auto& Pair : Bodies)
-        {
-            ALDCharacter* Other=Pair.Key.Get();
-            FLDBodyCombatState& Victim=Pair.Value;
-            if (!Other || &Victim==&Body || Victim.bPendingDeath || Victim.Victim.Kind!=ELDVictimKind::Contender
-                || Mode->IsContenderProtected(Victim.Victim.EntityId)) { continue; }
-            const FVector Foot=FootOf(*Other);
-            if (!LDCombatMechanics::InsideZone(Decoy.PointCm,Radius,Foot)) { continue; }
-            // Only enemies that can see the decoy's spot are lured (the same rule as a taunt observing its caster).
-            const ELDSightResult Sight=Mode->Vision->TraceSight(Foot,Decoy.PointCm,Registry->Revision());
-            if (Sight==ELDSightResult::InvalidPoint || Sight==ELDSightResult::StaleWorld)
-            { Error=TEXT("Decoy sight failed on a registered body."); return false; }
-            if (Sight!=ELDSightResult::Visible) { continue; }
-            bool bApplied=false;
-            if (!CommitControl(Victim,Lure,Now,bApplied,Error)) { return false; }
-            if (!bApplied || !Victim.Taunt.IsSet()) { continue; }
-            // The committed taunt is a lure: no attack, cast or item, a forced walk to the decoy.
-            Victim.Taunt->bDecoy=true;
-            Victim.Taunt->DecoyPointCm=Decoy.PointCm;
-            if (Victim.Action.IsSet()) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
-            UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_DECOY_LURE victim=%s source=%s until=%lld"),
-                *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt->ExpiresAtMs);
-        }
-    }
-    if (FindOp(Rank,ELDDemoEffectOp::CooldownRefresh))
-    {
-        // item_energy_drink: of Q and W, the one closer to ready becomes ready now (its availability was checked before
-        // the release paid).
-        FLDCombatEntityRecord* Record=FindRecord(Body.Victim.EntityId);
-        const FLDCombatTrack* Q=Record ? TrackFor(*Record,ELDCombatEntry::Q) : nullptr;
-        const FLDCombatTrack* W=Record ? TrackFor(*Record,ELDCombatEntry::W) : nullptr;
-        const bool bQ=Q && Q->ReadyAtMs>Now, bW=W && W->ReadyAtMs>Now;
-        if (bQ || bW)
-        {
-            const ELDCombatEntry Entry=bQ && (!bW || Q->ReadyAtMs<=W->ReadyAtMs) ? ELDCombatEntry::Q : ELDCombatEntry::W;
-            ReduceCooldown(Body.Victim.EntityId,Entry,MAX_int64);
-        }
-    }
     (void)Template;
     (void)Token;
     return true;
@@ -837,16 +760,6 @@ void ALDCombatDirector::AppendMechanicsStatuses(const FLDBodyCombatState& Body, 
     if (Body.Guard.IsSet() && Body.Guard->ExpiresAtMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::DamageGuard),1,Body.Guard->ExpiresAtMs}); }
     const int64 VulnerableUntil=LDCombatMechanics::VulnerableUntilMs(Body.Vulnerabilities,Body.Roots,NowMs);
     if (VulnerableUntil>0) { Out.Add({uint8(ELDDemoStatusId::Vulnerable),1,VulnerableUntil}); }
-}
-
-bool ALDCombatDirector::ReadDecoyLure(const FLDCombatBodyRef& Victim, FVector& OutPoint) const
-{
-    const ALDGameMode* Mode=Core();
-    const FLDBodyCombatState* Body=FindBody(Victim);
-    if (!Mode || !Body || Body->bPendingDeath || !Body->Taunt.IsSet() || !Body->Taunt->bDecoy
-        || !LDControl::IsTaunted(Body->Taunt,Mode->GetAuthorityNowMs())) { return false; }
-    OutPoint=Body->Taunt->DecoyPointCm;
-    return true;
 }
 
 uint64 ALDCombatDirector::ReadKnockbackSerial(const FLDCombatBodyRef& Ref) const

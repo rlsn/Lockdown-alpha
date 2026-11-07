@@ -45,7 +45,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
-        if (Body.Stealth.IsSet()) { Consider(Body.Stealth->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
         if (Body.AttributeProjection.OutOfCombatHPRegen.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.AttributeProjection.OutOfCombatHPRegen->DelayMs)
@@ -63,7 +62,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         for (const auto& Mark : Body.VampMarks) { Consider(Mark.ExpiresAtMs); }
         if (Body.BuildProjection.Ambush.IsSet())
         {
-            // Dash and stealth credit bring the ambush window closer.
+            // Dash credit brings the ambush window closer.
             const int64 Credit=Body.AmbushCreditFromMs==Body.LastCombatAtMs ? Body.AmbushCreditMs : 0;
             const int64 Wait=FMath::Max<int64>(0,Body.BuildProjection.Ambush->DelayMs-Credit);
             if (Body.LastCombatAtMs<=MAX_int64-Wait) { Consider(Body.LastCombatAtMs+Wait); }

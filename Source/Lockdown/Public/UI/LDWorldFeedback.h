@@ -50,8 +50,8 @@ namespace LDWorldFeedback
         const FLDWorldView* Frame=nullptr;
         // Public roster name of a contender; empty when the roster does not list it.
         TFunction<FString(const FGuid&)> RosterName;
-        // Display name of a visible cast's source (an ability or an equipment native id, the other 0); empty when unknown.
-        TFunction<FString(uint8,uint8)> CastName;
+        // Display name of a visible cast's ability native id; empty when unknown.
+        TFunction<FString(uint8)> CastName;
     };
     // The sample of PC's own projections, the room-public views of Public and PC's current authorized frame of this match
     // and life (none while dead or for another generation), as both the feedback layer and the playtest log observe it.
@@ -80,11 +80,10 @@ namespace LDWorldFeedback
             int64 HPP2=0;
             int64 MaxP2=0;
             double SampledAtSec=0;
-            // The unit's cue (ELDObservedActionCue), its age and cast source in that frame, so a new cast is told apart.
+            // The unit's cue (ELDObservedActionCue), its age and cast ability in that frame, so a new cast is told apart.
             uint8 Cue=0;
             uint16 CueAgeMs=0;
             uint8 Ability=0;
-            uint8 Equipment=0;
         };
         void Reset(uint32 InMatch);
         void ObserveBody(const FSample& Sample,TArray<FEvent>& Out);

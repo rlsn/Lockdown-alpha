@@ -62,7 +62,7 @@ driver 在下一步开始时释放已被消费的前缀，营地成员批次没�
 `RunDemoCoreCheck` 的 DEV 审计在两步之间读取并确认仍保留的前缀。
 native record sequence 与最终圈事件/提供者序列分开。`CompleteNativeMotion` 和这类内存回收
 都不是最终 Motion Fence、Sealing 或喷漆/守护完成证明。骨骼动画没有根运动（都原地播放）。
-没有按住加速或地表减速的独立运动分派；D 冲刺、技能冲刺与假发片后跳只在 Combat 成功释放后、击退（#112）只在
+没有按住加速或地表减速的独立运动分派；D 冲刺与技能冲刺只在 Combat 成功释放后、击退（#112）只在
 `CommitControl` 提交成功后经 `StartDemoDash` 写入原生 CMC 的服务器位移，沿地面积分、遇阻挡停在最远合法位置，不瞬移；
 击退同时递增 `KnockbackSerial`，导航据此以 `ELDOrderFailure::KnockedBack` 放弃当前订单。冲刺
 由同一原生运动记录链积分；Root 期间由 Combat 准入/释放拒绝，不付费。
@@ -79,7 +79,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
    在 Actions 前被更新请求取代的进攻意图仍补做一次保护解除。
-   带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/1/2/D 不进待处理槽，而是排进最多 8 步的
+   带 `bQueue`（Shift）的订单和经 `ServerQueueCombatAction` 的 Q/W/D 不进待处理槽，而是排进最多 8 步的
    Shift 队列，轮到时才作为普通待处理请求或 Combat Direct 请求执行（[操作 §4.5](../demo/CONTROLS_AND_TARGETING.md#45-shift-指令队列)）。
 3. `ClientOrderReceipt` 只接受当前身份的结果，避免迟到确认重启已取消路线。
 4. `Stop` 提升 order 和取消 epoch，清本地预测跟随；服务器在获准 Actions 阶段停止，
@@ -99,7 +99,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    - 悬停：指针下当前帧获准可见的单位（`ObservedUnderPointer`，与右键攻击同一选取）脚下显示与攻击标记同色的红色虚线环（近黑底衬），
      光标不变。`ReadHovered` 供 HUD 的技能合法性显示使用。
    - 光标：`ULDGameInstance::OnStart` 用 `LDCursor::Install` 把游戏视口的每种光标类型都换成软件箭头（白面深色描边，尖端在热点上），
-     系统光标不再出现；攻击移动待确认时 `TickPointer` 设 `LDCursor::AttackAim`（红光描边），技能/装备主动待确认时设 `LDCursor::CastAim`（蓝光描边），其余为普通箭头。
+     系统光标不再出现；攻击移动待确认时 `TickPointer` 设 `LDCursor::AttackAim`（红光描边），技能待确认时设 `LDCursor::CastAim`（蓝光描边），其余为普通箭头。
    - 选中：左键检视的单位（`ReadInspected`，当前帧仍列出时）脚下显示一圈不转动、短而密的浅色点线环（`SetSelected`，半径 64 cm，
      在 76 cm 的红色悬停环之内），HUD 不再在其身上画方框；失视野或换帧不再列出即消失。
    - 按住移动键（默认右键）时，地面右键之后按指针地面点继续下普通 MoveGround 订单：
@@ -110,7 +110,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
      （`ALDPointerFeedback::SetQueue`）；步骤开始或结束、Stop、新生命时移除。
    - 世界点击、悬停与武装确认共用 `PointerPosition`/`GroundUnderPointer`；DEV 场景可用 `DevSetPointer`
      代替鼠标（仅 `WITH_DEV_AUTOMATION_TESTS` 生效）。
-   - 预输入（`LDCombatPreInput`）：自己的 Q/W/1/2 技能前摇期间再按的 Direct 键在拥有客户端暂存一个（新按的替换旧的），
+   - 预输入（`LDCombatPreInput`）：自己的 Q/W 技能前摇期间再按的 Direct 键在拥有客户端暂存一个（新按的替换旧的），
      前摇结束（已到 `ActionReleaseAtMs` 或视图不再显示前摇）时作为普通 Direct 请求发出（新序号、当前来源修订）；
      S、新生命/新对局、输入被抑制即丢弃，暂存超过 1 s 丢弃并提示。普攻无需暂存：攻击订单本就在服务器等身体空闲。
    - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
@@ -175,7 +175,7 @@ navmesh 点。注册表的拒绝原因写明被调整的是路线起点还是目
 `IsWorldLifeValid()` 只看生命与阶段——`PublicMatch`（唯一的代次/阶段来源，不读 DemoLobby 镜像）的代次等于
 本人 Core 生命投影的 Match、阶段为 Development/CaptureOpen、本人 Alive 且持有身体；
 `IsWorldInputSuppressed()` 只看本地输入——菜单/设置（`SetMenuOpen`）、文本编辑或子确认（`IsWorldInputCaptured()`），
-以及菜单、焦点或映射变化后仍未释放的按键。新的世界命令（订单、Q/W/1/2、A、S、世界与小地图点击）两半都要满足；
+以及菜单、焦点或映射变化后仍未释放的按键。新的世界命令（订单、Q/W/D、A、S、世界与小地图点击）两半都要满足；
 Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、窗口内焦点移入面板控件（引擎经 `FlushPressedKeys` 清键）
 和重建映射都只经 `ReleaseLocalInput` 取消本地准备态与回中锁存并等待按键释放：
 不 Stop 已接受订单、不停心跳、不阻断身体沿路径前进，关闭后也不重放仍按住的输入。
@@ -187,7 +187,7 @@ Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、�
 未登记的面板明确提示尚未接入。Esc 经 `V05Back` 每次只处理一层：
 `CloseTopModal`（结束文本编辑或关闭子确认）→ `CancelArmedCombat`（取消战斗准备态）→ `CloseTopPanel`（关闭主面板）→ 打开菜单。
 关闭面板不停止已接受订单、不提交或回滚领域请求。
-顶层为文本编辑或子确认时，`IsWorldInputCaptured()` 拦下全部新输入：Q/W/1/2 与 A 不进入准备态也不发送
+顶层为文本编辑或子确认时，`IsWorldInputCaptured()` 拦下全部新输入：Q/W/D 与 A 不进入准备态也不发送
 （HUD 图标同样经 `ActivateCombatEntry`），S、世界点击、镜头键与缩放都不生效；子确认在已有准备态之上打开时，
 控制器在下一帧前取消该准备态。它属于输入抑制一半，只拦新输入，已接受订单与其心跳继续。
 P 在死亡等待期间也能打开属性面板；Lobby 与前端不响应。
@@ -228,7 +228,7 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
-`Skill1`/`Skill2`（Q/W 角色主动）、`Item1`/`Item2`（1/2 装备主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
+`Skill1`/`Skill2`（Q/W 角色主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
 `Mark`（F9 试玩标记，见[开发指南](../DEVELOPMENT.md#试玩问题排查)）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
@@ -244,10 +244,12 @@ pitch −60°、yaw −45°、FOV 55°和目标偏移 Z=20 cm；身体、等待�
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
 schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS` 和绑定是完整正向清单。
-当前文件 schema 是 16，与产品/网络版本无关；schema 5–15 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
+当前文件 schema 是 17，与产品/网络版本无关；schema 5–16 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
 schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关闭；加载本身不改写旧文件。
 schema 15 字段与当前相同，只是按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
-补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；schema 16 缺它不补。
+补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；当前 schema 缺它不补。
+schema 16 字段与当前相同，只是按键表仍有已退役的装备主动键 `Item1`/`Item2`：schema 5–16 迁移时只删除这两项并在提示中说明，
+其余绑定原样保留；当前 schema 的文件含有它们时按未知动作走恢复。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
 恢复默认会把它还原为 1。音量的实际生效链见 [视野与 UI](VISION_AND_UI.md#音效与音量)。

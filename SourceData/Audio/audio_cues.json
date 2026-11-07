@@ -158,7 +158,7 @@
       "pack_path": "Audio/drop_002.ogg",
       "sha256": "4ac4d1cef7e936965cbf795852ca2020300b9e2ba7daa59f2bf4f1f7bf416218",
       "duration_sec": 0.191,
-      "purpose": "本人技能或装备主动释放成功",
+      "purpose": "本人技能释放成功",
       "loudness_lufs": -20.61,
       "volume": 1.073
     },

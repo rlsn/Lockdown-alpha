@@ -69,7 +69,7 @@ namespace LDTactical
         TArray<FLDCombatBreach>& Breaches, TArray<FLDCombatVampMark>& VampMarks, int64 AtMs);
     // HP strictly below ThresholdBp of MaxHP (a dead or empty pool never counts).
     LOCKDOWN_API bool BelowHPThreshold(int64 HPP2, int64 MaxHPP2, int64 ThresholdBp);
-    // The ambush window opens DelayMs after the last combat instant; CreditMs (dashes, jumps, stealth) brings it closer.
+    // The ambush window opens DelayMs after the last combat instant; CreditMs (dashes, jumps) brings it closer.
     LOCKDOWN_API bool AmbushReady(int64 LastCombatAtMs, int64 DelayMs, int64 AtMs, int64 CreditMs = 0);
     // Active timed bonuses (in apply order), the conditional low-HP bonus and the strongest slow at AtMs.
     LOCKDOWN_API FLDTemporaryAttributeTerms TemporaryTerms(const TArray<FLDCombatTimedBonus>& Bonuses,

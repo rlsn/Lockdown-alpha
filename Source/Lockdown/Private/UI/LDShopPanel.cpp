@@ -36,11 +36,12 @@ void ShopPanelIconButton(ULDCommandButton* Icon)
     for(FSlateBrush* Face:{&Bare.Normal,&Bare.Hovered,&Bare.Pressed,&Bare.Disabled}){Face->TintColor=FSlateColor(FLinearColor::Transparent);}
     Bare.NormalPadding=FMargin(0);Bare.PressedPadding=FMargin(0);Icon->SetStyle(Bare);
 }
-// Placeholder item icons until real art lands: a rounded square with the name's first character, orange for an item with
-// an active effect and blue for a passive-only one; dimmed while the gold does not cover it.
-void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordable)
+// Placeholder item icons until real art lands: a blue rounded square with the name's first character, dimmed while the
+// gold does not cover it.
+const FLinearColor ShopPanelIconBase(.08f,.28f,.52f);
+void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bAffordable)
 {
-    const FLinearColor Base=bActive?FLinearColor(.62f,.22f,.04f):FLinearColor(.08f,.28f,.52f);
+    const FLinearColor Base=ShopPanelIconBase;
     const FLinearColor Fill=bAffordable?Base:Base*.4f;
     const FLinearColor Rim(1,1,1,bAffordable?.45f:.2f);
     Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,Rim,1.5f));Shape->SetBrushColor(Fill);
@@ -48,9 +49,9 @@ void ShopPanelIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordabl
 }
 // A queued pre-order's icon: the grid's placeholder, lit with a gold rim while the gold covers its price, greyed out
 // otherwise (gold unknown or the item not listed included).
-void ShopPanelQueueIcon(UBorder* Shape,UTextBlock* Glyph,bool bActive,bool bAffordable)
+void ShopPanelQueueIcon(UBorder* Shape,UTextBlock* Glyph,bool bAffordable)
 {
-    const FLinearColor Base=bActive?FLinearColor(.62f,.22f,.04f):FLinearColor(.08f,.28f,.52f);
+    const FLinearColor Base=ShopPanelIconBase;
     Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,8.f,bAffordable?LDHUDStyle::TextAccent:FLinearColor(1,1,1,.15f),bAffordable?2.5f:1.5f));
     Shape->SetBrushColor(bAffordable?Base:Base.Desaturate(1.f)*.35f);
     Glyph->SetColorAndOpacity(FSlateColor(bAffordable?FLinearColor::White:FLinearColor(.5f,.5f,.52f)));
@@ -172,7 +173,7 @@ bool ULDShopPanel::ClosePanel()
     // still reaches the player as a notice without reopening the panel.
     bOpen=false;SetVisibility(ESlateVisibility::Collapsed);UpdateDetail();return true;
 }
-void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop)
+void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop)
 {
     // A new match closes the shop and starts without pre-orders. A session ending, a new life or death only switch the
     // list back to the catalog and block trading; taking damage never closes the panel.
@@ -185,7 +186,7 @@ void ULDShopPanel::Present(const FLDShopView* View,const FLDEquipmentView* Equip
     }
     bLatestView=View!=nullptr;Latest=View?*View:FLDShopView();LatestEquipment=EquipView?*EquipView:FLDEquipmentView();
     bLatestBuildKnown=bBuildKnown;LatestBuildRevision=BuildRevision;LatestMatch=Match;LatestLife=Life;LatestPhase=Phase;
-    bLatestClock=bClock;LatestNowMs=NowMs;LatestContent=ContentDefs;bPresented=true;bLatestNear=bNearShop;
+    LatestContent=ContentDefs;bPresented=true;bLatestNear=bNearShop;
     Listing=HasSession()?Latest.Items:LDHUD::CatalogItems(ContentDefs);
     PrunePresells();
     TryAutoTrade();
@@ -371,8 +372,8 @@ void ULDShopPanel::RefreshShop()
         // Unknown gold shows every icon as affordable; the hover hint and the server decide. An owned upgradable item is
         // priced at its upgrade.
         const bool bAffordable=!bEquipKnown||PriceFor(ItemView)<=LatestEquipment.Gold;
-        const uint8 Look=uint8(ItemView.bHasActive)|uint8(bAffordable)<<1|0x80;
-        if(ItemLooks[ItemIdx]!=Look){ItemLooks[ItemIdx]=Look;ShopPanelIcon(ItemShapes[ItemIdx],ItemGlyphs[ItemIdx],ItemView.bHasActive,bAffordable);}
+        const uint8 Look=uint8(bAffordable)<<1|0x80;
+        if(ItemLooks[ItemIdx]!=Look){ItemLooks[ItemIdx]=Look;ShopPanelIcon(ItemShapes[ItemIdx],ItemGlyphs[ItemIdx],bAffordable);}
     }
     bDetailStale=true;
     RefreshPreorders();
@@ -456,7 +457,7 @@ void ULDShopPanel::FillDetail(int32 Index,bool bQueuedIcon)
 {
     const bool bEquipKnown=EquipmentKnown();
     const FLDShopItemView& Item=Listing[Index];
-    const LDHUD::FShopItemView ShownItem=LDHUD::ShopItem(Item,bEquipKnown?LatestEquipment.Gold:0,bLatestClock,LatestNowMs,LatestContent);
+    const LDHUD::FShopItemView ShownItem=LDHUD::ShopItem(Item,bEquipKnown?LatestEquipment.Gold:0,LatestContent);
     // An owned upgradable item is bought as its upgrade, at the upgrade price.
     const bool bUpgrade=OwnedUpgradable(Item.DefinitionId);
     const int64 Price=bUpgrade?UpgradeQuote():Item.BuyPrice;
@@ -646,9 +647,7 @@ FString ULDShopPanel::AppliedNotice(const FLDShopReceipt& Receipt) const
     {UE_LOG(LogLDUI,Warning,TEXT("LD_SHOP_PANEL_GOLD_DELTA_DIFFERS Request %llu moved %lld gold for a quoted price of %lld."),PendingRequest,GoldMoved,PendingPrice);}
     if(DoneKind==ELDShopCommandKind::Buy)
     {
-        FString Summary=FString::Printf(TEXT("已买入 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);
-        if(Receipt.bHasSource&&bLatestClock&&Receipt.ReadyAtMs>LatestNowMs){Summary+=TEXT("，继承冷却 ")+LDHUD::TenthsUp(Receipt.ReadyAtMs-LatestNowMs);}
-        return Summary;
+        return FString::Printf(TEXT("已买入 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);
     }
     if(DoneKind==ELDShopCommandKind::Sell){return FString::Printf(TEXT("已卖出 %s，获得 %lld %s"),*ItemName,Receipt.ActualGoldDelta,LDTerms::Gold);}
     if(DoneKind==ELDShopCommandKind::Upgrade){return FString::Printf(TEXT("已进阶 %s，花费 %lld %s"),*ItemName,GoldMoved,LDTerms::Gold);}
@@ -693,9 +692,8 @@ void ULDShopPanel::RefreshPreorders()
         const int64 Price=Row?(bUpgrade?UpgradeQuote():Row->BuyPrice):0;
         const bool bAffordable=Row&&EquipmentKnown()&&Price>0&&Price<=Gold;
         if(bAffordable){Gold-=Price;bUpgradeLeft&=!bUpgrade;}
-        const bool bActive=Row&&Row->bHasActive;
-        const uint8 Look=uint8(bActive)|uint8(bAffordable)<<1|0x80;
-        if(PreorderLooks[ChipIdx]!=Look){PreorderLooks[ChipIdx]=Look;ShopPanelQueueIcon(PreorderShapes[ChipIdx],PreorderGlyphs[ChipIdx],bActive,bAffordable);}
+        const uint8 Look=uint8(bAffordable)<<1|0x80;
+        if(PreorderLooks[ChipIdx]!=Look){PreorderLooks[ChipIdx]=Look;ShopPanelQueueIcon(PreorderShapes[ChipIdx],PreorderGlyphs[ChipIdx],bAffordable);}
     }
 }
 void ULDShopPanel::Sound(ELDAudioCue Cue) const

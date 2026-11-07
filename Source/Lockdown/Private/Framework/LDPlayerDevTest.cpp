@@ -212,7 +212,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
             for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment)
             {
                 Ar.Logf(TEXT("  item    %s %s buy %lld sell %lld%s"), *Item.Id, *DevTestDisplayName(Definitions, Item.Id),
-                    Item.BuyPrice, Item.SellGold, Item.HasActive ? TEXT(" (active)") : TEXT(""));
+                    Item.BuyPrice, Item.SellGold, Item.HasPassive ? TEXT(" (passive)") : TEXT(""));
             }
         }));
 
