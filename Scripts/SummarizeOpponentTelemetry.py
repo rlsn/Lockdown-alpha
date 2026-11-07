@@ -4,7 +4,7 @@ The Host writes Telemetry.json and one MatchNN.json per match (LDDemoOpponentTel
 winner, the flagpole opening, the first kill, every kill with its assisters, every contender death with its killer and
 assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level, XP and gold curves,
 purchases, sales, spray attempts, and the growth record of #112 §13 (first active, final skills and top-rank count, rerolls
-earned and used, choices, active replacements with their level, mechanic tags of the final build). This aggregates them
+earned and used, choices, active replacements with their level, advanced skills of the final build). This aggregates them
 across matches. The numbers describe how
 these matches went; they are not balance targets and the summary judges nothing.
 """

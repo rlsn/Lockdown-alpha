@@ -32,7 +32,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 `Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
 定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
 `Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
-旧技能编号 0–61、旧物品编号 0–98 不得复用；新编号必须同时匹配作者映射与原生声明。
+`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91、属性卡 0–14、物品 0–98 等）；新编号必须同时匹配作者映射与原生声明。
 
 生产输入必须是经审查的 `SourceData\Demo\content.json`，其中
 `identity.approval.status` 为 `approved`，`decision` 引用实际审批决定。
@@ -180,7 +180,7 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 保存投影比较递归检查字符串的精确内容，不依赖默认不区分大小写的 FString 反射相等性。
 
 `LDDemoContentDefinitions.h` 的成员区分 P2、R4 basis points、毫秒及约分有理数；
-参数、公式/政策枚举、角色、完整三级效果、属性、装备、经验、营地和显示定义均有原生成员。
+参数、公式/政策枚举、角色、两档（初级/高级）完整效果与卡面模板、属性、装备、经验、营地和显示定义均有原生成员。
 `Snapshot.Get()` 和 `FindAbility/FindAttribute/FindEquipment/FindMonster/FindDisplay`
 提供只读消费；查找失败给出错误，不返回伪造的默认定义。世界几何仅用于检查已编译的
 边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。

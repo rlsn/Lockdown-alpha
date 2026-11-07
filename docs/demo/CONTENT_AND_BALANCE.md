@@ -550,7 +550,7 @@ v7 §2 的开局 5 秒倒计时与开局卡不在本目录的运行输入中；�
 | `item_edge_blade` 折叠椅（摔跤同款） | AD+20、ASBonusRatio+.10 | 被动 `passive_third_strike`：每第 3 次成功出手的普攻额外造成 20 点物理伤害（独立附加命中，不暴击、不触发命中特效；计数随生命清零） | 320 / 208 |
 | `item_runic_focus` 键盘 | AP+30、CooldownHaste+15 | 被动 `passive_mana_refund`：技能命中返还 5 法力，每次施放只返还一次 | 320 / 208 |
 | `item_siphon_emblem` 大金链子 | AD+12、MagicResist+12 | 被动「回本」；`Passive.Family=passive_siphon`；`HealRatio=.15`；普攻主击（含并入的强化伤害）造成的实际 HP 损失 ×.15×命中特效系数，向下取.01回复本人；无内部CD | 360 / 234 |
-| `item_phase_anchor` 《润学指南》 | MoveSpeedBonusRatio+.12 | 被动「说润就润」（D20）；`Passive.Family=passive_stride`；`dash_boost`：D 冲刺 `CooldownRatio=.50`、`DistanceBonus=.50`；带冲刺或跳跃的角色主动 `SkillCooldownRatio=.80`（技能急速之前）、`SkillDistanceBonus=.25` | 400 / 260 |
+| `item_phase_anchor` 《润学指南》 | MoveSpeedBonusRatio+.12 | 被动「说润就润」（D20）；`Passive.Family=passive_stride`；`dash_boost`：D 冲刺 `CooldownRatio=.50`、`DistanceBonus=.50`；带冲刺的角色主动 `SkillCooldownRatio=.80`（技能急速之前）、`SkillDistanceBonus=.25` | 400 / 260 |
 | `item_arcane_battery` 充电宝 | MaxMP+120、MagicResist+10 | — | 400 / 260 |
 | `item_echo_maul` 自拍杆 | AD+14、AttackRangeCmFlat+40 | 被动「一杆清」；`Passive.Family=passive_cleave`、`Trigger=PrimaryBasicContact`、`CleaveRatio=.35`、`RadiusCm=180`；主击命中点圆形物理副击，规则见下 | 400 / 260 |
 | `item_slingshot` 大号滋水枪 | AttackRangeCmFlat+120、ASBonusRatio+.12 | — | 320 / 208 |
@@ -564,7 +564,7 @@ v7 §2 的开局 5 秒倒计时与开局卡不在本目录的运行输入中；�
 通用冲刺（D19）是每名参赛者的固定来源（`character.dash`），不是装备：方向目标、无前摇、0 法力，
 原生位移遇阻挡停在最远合法位置，不穿墙、不无敌、不清 Root；起步方向立即被阻挡时拒绝，不耗冷却。
 Root 禁止 Dash。它是移动而不是进攻意图，不解除复活保护。
-《润学指南》的「说润就润」被动在释放时生效：D 冲刺冷却 ×.50、距离 ×1.50；带冲刺或跳跃的角色主动基础冷却 ×.80、冲刺距离与跳跃射程 ×1.25；时长不变；同名被动只算一次，两本《润学指南》不叠加。
+《润学指南》的「说润就润」被动在释放时生效：D 冲刺冷却 ×.50、距离 ×1.50；带冲刺的角色主动（润了润了）基础冷却 ×.80、冲刺距离 ×1.25；时长不变；同名被动只算一次，两本《润学指南》不叠加。
 冷却结束时刻在释放那一刻按当时持有的装备固定为绝对 ReadyAt；之后带上或卖掉《润学指南》都不改写这个结束时刻，
 既不缩短也不延长，因而买卖《润学指南》不能成为刷新冷却的捷径（§10.2）。没有额外0.75s加速，最高普通行走372cm/s来自两件固定移速相加。
 

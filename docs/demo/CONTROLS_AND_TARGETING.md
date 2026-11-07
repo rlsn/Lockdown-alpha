@@ -86,17 +86,18 @@
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
   构建中替代鼠标，其他构建无效。
 
-### 2.1 四类能力目标与来源
+### 2.1 能力目标与来源
 
-能力目标模式只由内容定义给出（`ELDDemoTargetMode`：`Self`、`Unit`、`DirectionProjectile`、`DirectionDash`），
-请求上的目标种类为 `ELDCombatTargetKind`：`Missing`、`Self`、`Unit`、`Direction`。
-地面点只用于移动、攻击移动和砍一刀小摊订单；没有以地面点为目标的能力。
+能力目标模式只由内容定义给出（`ELDDemoTargetMode`：`Self`、`Unit`、`DirectionProjectile`、`DirectionDash`、`GroundPoint`），
+请求上的目标种类为 `ELDCombatTargetKind`：`Missing`、`Self`、`Unit`、`Direction`、`Point`。
+以地面点为目标的能力只有 `GroundPoint` 区域技能（当前目录为临时开个短会）；其余地面点只用于移动、攻击移动和砍一刀小摊订单。
 
 | 目标模式 | 准备与确认 | 服务器处理 |
 | --- | --- | --- |
 | Self | 按键或 HUD 图标直接发送 | 目标固定为当前自己的身体。 |
 | Unit | 进入准备；左键取指针下的当前可见单位（观察句柄与 ObservationEpoch） | 当前观察权限、目标生命、关系、距离与内容条件；失效不改选附近目标、不改为地面或自身。 |
 | DirectionProjectile / DirectionDash | 进入准备；左键取自身脚点到指针地面点的平面方向 | 有限、非零的平面方向及内容几何；位移经 CMC root motion。 |
+| GroundPoint | 进入准备；左键取指针下的地面点（`Point`） | 有限的地面点；释放时夹到技能射程，区域在该点生效。 |
 | 无法解析的确认 | 指针下没有单位/地面或方向为零时，以 `Missing` 目标发送 | 服务器明确拒绝；不在客户端吞掉确认。 |
 
 **快速施法**（本地设置 `QuickCast`，`ULDControlSettings::GetQuickCast`，默认关闭）：开启后，
@@ -565,7 +566,7 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 
 当前代码没有：静态 IA/IMC 输入资产与 Bootstrap 输入生成、控制设置 profile 或 Tactical/Hybrid 默认集、
 按住加速的旧 Sprint、Skill3+/Item3+ 槽、左键开店或拾取、方向普攻式的 A、“接近但不追击”的旧订单、
-以地面点为目标的能力、单独的订单视图类型或动作结果回调。退役范围以
+单独的订单视图类型或动作结果回调。退役范围以
 [架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束) 为准，不得恢复。
 
 ## 10. 验证

@@ -3593,7 +3593,8 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// 112 §6: draft weights, tag affinity, per-offer limits, reroll avoidance and the replacement rank.
+// #147 v7 §5.1: the slotted three-choice draft (upgrade, new skill, attribute or new skill), the full-slot new-active weight,
+// per-offer limits, reroll avoidance, and a replacement active starting at its basic rank.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthDraftTest, "Lockdown.Rules.DemoGrowthDraft",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3602,7 +3603,7 @@ bool FLDDemoGrowthDraftTest::RunTest(const FString& Parameters)
     return GrowthTestRunDraft(*this);
 }
 
-// 112 §7: equipment upgrade in the ledger, the effective definitions and the attribute projection.
+// #147: a skill's fixed amounts grow with its owner's level, G(L) = 1 + SKILL.GrowthPerLevel x (L - 1).
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthSkillGrowthTest, "Lockdown.Rules.DemoGrowthSkillGrowth",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3611,6 +3612,7 @@ bool FLDDemoGrowthSkillGrowthTest::RunTest(const FString& Parameters)
     return GrowthTestRunSkillGrowth(*this);
 }
 
+// 112 §7: equipment upgrade in the ledger, the effective definitions and the attribute projection.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthUpgradeTest, "Lockdown.Rules.DemoGrowthUpgrade",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

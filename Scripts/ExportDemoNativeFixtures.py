@@ -718,7 +718,8 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("aliased_root_key", lambda d: d.update({"Parameters": d.pop("parameters")}), "missing")
     bad_content("aliased_parameter", lambda d: d["parameters"].update({"STAT.ad.Base": d["parameters"].pop("STAT.AD.Base")}), "missing")
     bad_content("aliased_target", lambda d: d["abilities"][0]["target"].update({"mode": "directionprojectile"}), "unsupported target")
-    bad_content("aliased_damage_type", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"damage_type": "magical"}), "unknown damage type")
+    bad_content("aliased_damage_type", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["ranks"][0]["effects"][0]
+        .update({"damage_type": "magical"}), "unknown damage type")
     bad_content("aliased_policy", lambda d: d["policies"].update({"DuplicateEquipment": "allowed"}), "unsupported constant")
     bad_content("aliased_approval", lambda d: d["identity"]["approval"].update({"status": "APPROVED"}), "approval metadata")
     bad_content("aliased_display_namespace", lambda d: d["display"][0].update({"namespace": "democontent"}), "display reference")
