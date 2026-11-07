@@ -377,6 +377,14 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("and the card lists each placeholder's value"),IcedFace.Values==TArray<FString>({TEXT("20"),TEXT("2")}));
     TestEqualSensitive(TEXT("Its upgrade card shows the haste change and the unchanged regeneration once"),
         LDHUD::CardText(IcedTemplate,IcedAdvanced,&IcedBasic,L1,1000).Plain,FString(TEXT("技能急速 +20 → 30，法力回复 +2/秒。")));
+    // The attributes panel's learned passive: the sentence at its rank, plus the advanced line once advanced.
+    FLDDemoAbilityDefinition IcedSkill;IcedSkill.Id=TEXT("hud_rules_fixture_iced");IcedSkill.Kind=ELDDemoAbilityKind::Passive;IcedSkill.Ranks={IcedBasic,IcedAdvanced};
+    TestTrue(TEXT("A basic learned passive lists its sentence only"),
+        LDHUD::LearnedCardLines(IcedTemplate,TEXT("普攻命中也减冷却。"),IcedSkill,1,L1,1000)==TArray<FString>({TEXT("技能急速 +20，法力回复 +2/秒。")}));
+    TestTrue(TEXT("An advanced learned passive also lists its advanced change"),
+        LDHUD::LearnedCardLines(IcedTemplate,TEXT("普攻命中也减冷却。"),IcedSkill,2,L1,1000)
+            ==TArray<FString>({TEXT("技能急速 +30，法力回复 +2/秒。"),TEXT("高级：普攻命中也减冷却。")}));
+    TestTrue(TEXT("A rank the skill does not have lists nothing"),LDHUD::LearnedCardLines(IcedTemplate,TEXT(""),IcedSkill,3,L1,1000).IsEmpty());
     const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Basic,nullptr,L1,1000);
     TestTrue(TEXT("Slow and control are separate keywords"),Both.Keywords==TArray<FString>({TEXT("减速"),TEXT("控制")})
         &&Both.Rich==TEXT("被<b>减速</>或被<b>控制</>的敌人。"));

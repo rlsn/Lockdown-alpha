@@ -83,15 +83,45 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
                 && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
+    // #147: a skill's fixed amounts grow with its owner's level (LDSkillGrowth), so its envelope is checked at the top
+    // level's factor G(MaxLevel); the shared burn base grows the same way for the applier's level.
+    int64 Steps = 0, Factor = 0;
+    if (!N.Mul64(FMath::Max(D.Progression.MaxLevel - 1, 0), P.SkillGrowthPerLevelBp, Steps, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Add64(10000, Steps, Factor, TEXT("SKILL.GrowthPerLevel")))
+    {
+        return false;
+    }
+    const auto Grow = [&N, Factor](int64 AmountP2, int64& Out, const FString& Path)
+    {
+        int64 Product = 0;
+        if (!N.Mul64(AmountP2, Factor, Product, Path)) { return false; }
+        Out = Product / 10000;
+        return true;
+    };
     for (const auto& Ability : D.Abilities)
     {
         for (const auto& Rank : Ability.Ranks)
         {
             for (const auto& Effect : Rank.Effects)
             {
-                if (!CheckEffect(Effect, Ability.Id)) { return false; }
+                FLDDemoEffectDefinition Grown = Effect;
+                if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
+                if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
+                {
+                    for (FLDDemoStatBonus& Stat : Grown.Stats)
+                    {
+                        if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
+                    }
+                }
+                if (!CheckEffect(Grown, Ability.Id)) { return false; }
             }
         }
+    }
+    int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
+    if (!Grow(P.BurnPerSecP2, BurnBase, TEXT("COMBAT.BurnPerSec")) || !N.Mul64(P.AP.MaxP2, P.BurnAPRatioBp, BurnAP, TEXT("COMBAT.BurnAPRatioPerSec"))
+        || !N.Add64(BurnBase, BurnAP / 10000, BurnTotal, TEXT("COMBAT.BurnPerSec")))
+    {
+        return false;
     }
     for (const auto& Item : D.Equipment)
     {

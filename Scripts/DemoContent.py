@@ -1035,17 +1035,34 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     max_armor = params["STAT.Armor.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
+    # #147: a skill's fixed amounts grow with its owner's level, G(L) = 1 + SKILL.GrowthPerLevel x (L - 1), so a skill's
+    # envelope is checked with its bases grown for the top level (equipment never grows); the burn base grows likewise.
+    factor = checked_add(10000, checked_mul(max(data["progression"]["max_level"] - 1, 0),
+                                            params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"), "SKILL.GrowthPerLevel")
+    grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
+    checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
+                checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
+    abilities = {id(row) for row in data["abilities"]}
     for row in (*data["abilities"], *data["equipment"]):
+        skill = id(row) in abilities
         for effect in all_effects(row):
+            base = effect["base"]["p2"] if "base" in effect else 0
+            if skill and effect["op"] != "mana_on_hit":
+                base = grow(base, row["id"])
+            if skill and effect["op"] == "timed_stat_bonus":
+                for stat in effect.get("stats", {}).values():
+                    for storage in ("p2", "bp"):
+                        if storage in stat:
+                            grow(stat[storage], row["id"])
             if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
-                numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
+                numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
             elif effect["op"] == "thorns":
-                numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
+                numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_armor, effect["armor_ratio"]["bp"], row["id"]), row["id"])
                 if "max_hp_ratio" in effect:
                     numerator = checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])

@@ -25,8 +25,9 @@
 namespace
 {
 const FLinearColor ChoicesIdle(.045f,.12f,.15f),ChoicesSelected(.26f,.2f,.05f);
-// Compact card geometry (1080p reference units): every card has the same one-name, one-summary layout, so the three share
-// one height and never scroll; larger text preferences grow all three alike.
+// Compact card geometry (1080p reference units): every card has a name, the short summary and the full rule sentence
+// (#147, wrapped, never cut), so the row takes the tallest card's height and never scrolls; larger text preferences grow
+// all cards alike.
 constexpr float ChoicesPanelScale=.8f;
 constexpr float ChoicesCardWidth=250.f,ChoicesCardHeight=64.f,ChoicesIconSize=44.f,ChoicesDetailWidth=300.f;
 void ChoicesTint(ULDCommandButton* Button,const FLinearColor& Color)
@@ -81,6 +82,11 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
             Card.Name=OneLine(17);Lines->AddChildToVerticalBox(Card.Name);
             Card.Summary=OneLine(13);Card.Summary->SetColorAndOpacity(LDHUDStyle::TextAccent);Lines->AddChildToVerticalBox(Card.Summary)->SetPadding(FMargin(0,2,0,0));
+            // User 2026-11-07: "卡上直接显示主句，悬停再看高级行和关键词解释" -- the whole sentence wraps inside the card.
+            Card.Sentence=LDWidgets::RichText(WidgetTree,13,FName(*FString::Printf(TEXT("ChoiceSentence%d"),Index)));
+            Card.Sentence->SetAutoWrapText(false);Card.Sentence->SetWrapTextAt(ChoicesCardWidth-ChoicesIconSize-40.f);
+            Card.Sentence->SetVisibility(bReroll?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            Lines->AddChildToVerticalBox(Card.Sentence)->SetPadding(FMargin(0,4,0,0));
             auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
             Card.Button=bReroll?LDWidgets::Button(WidgetTree,TEXT(""),[this](){Reroll();},false,TEXT("ChoicesReroll"))
                 :LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseCard(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
@@ -91,6 +97,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(ChoicesCardWidth);Size->SetMinDesiredHeight(ChoicesCardHeight);Size->SetContent(Card.Button);
             Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
             CardWidgets.Add(Card.Button);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
+            CardWidgets.Add(Card.Sentence);
         }
         CardViews.SetNum(Cards.Num());
         // The reroll card: a slate circle with a turn arrow; its lines say what it does and how many rerolls are left.
@@ -166,9 +173,10 @@ void ULDChoicesPanel::UpdateDetail()
         {
             const LDHUD::FChoiceCardView& View=CardViews[Next];
             ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Detail);
-            // The face (sentence and advanced line), the details, then what each bold keyword means (#147 v7 §4.1).
+            // The sentence is on the card; the detail adds the advanced line, the details, then what each bold keyword means
+            // (#147 v7 §4.1; user 2026-11-07).
             TArray<FString> Blocks;
-            Blocks.Add(View.Advanced.IsEmpty()?View.Sentence:View.Sentence+TEXT("\n")+View.Advanced);
+            if(!View.Advanced.IsEmpty()){Blocks.Add(View.Advanced);}
             if(!View.Lines.IsEmpty()){Blocks.Add(FString::Join(View.Lines,TEXT("\n")));}
             if(!View.Keywords.IsEmpty()){Blocks.Add(FString::Join(View.Keywords,TEXT("\n")));}
             if(View.bNeedsReplacement){Blocks.Add(TEXT("Q/W 已满：点选后再点 HUD 上要遗忘的 Q 或 W 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从初级开始。"));}
@@ -251,7 +259,11 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(bOffer&&bStatsChanged&&View.Offer.OfferId==ShownOffer&&View.Offer.OfferRevision==ShownOfferRevision)
     {
         // Same cards, new level or stats: only the numbers change (#147).
-        for(int32 Index=0;Index<Cards.Num();++Index){CardViews[Index]=LDHUD::ChoiceCard(View.Offer.Options[Index],View,Content,Stats);}
+        for(int32 Index=0;Index<Cards.Num();++Index)
+        {
+            CardViews[Index]=LDHUD::ChoiceCard(View.Offer.Options[Index],View,Content,Stats);
+            Cards[Index].Sentence->SetText(FText::FromString(CardViews[Index].Sentence));
+        }
         bDetailStale=true;
     }
     if(!bOffer||View.Offer.OfferId!=ShownOffer||View.Offer.OfferRevision!=ShownOfferRevision)
@@ -271,6 +283,7 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
             const LDHUD::FChoiceCardView Shown=LDHUD::ChoiceCard(View.Offer.Options[Index],View,Content,Stats);
             CardViews[Index]=Shown;
             ChoicesText(Card.Name,Shown.Name);ChoicesText(Card.Summary,Shown.Summary);ChoicesText(Card.Glyph,Shown.Glyph);
+            Card.Sentence->SetText(FText::FromString(Shown.Sentence));
             ChoicesIcon(Card.IconSize,Card.IconShape,Shown.Icon);
         }
         if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}

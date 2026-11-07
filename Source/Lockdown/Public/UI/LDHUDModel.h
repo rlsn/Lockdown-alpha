@@ -14,6 +14,7 @@ struct FLDDemoStatBonus;
 struct FLDDemoEffectDefinition;
 struct FLDDemoTargetDefinition;
 struct FLDDemoRankDefinition;
+struct FLDDemoAbilityDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
@@ -45,6 +46,10 @@ namespace LDHUD
         const FCardStats& Stats,int64 GrowthPerLevelBp);
     // Characters a player reads: everything but spaces (v7 R1/R2: a sentence at most 26, an advanced line at most 18).
     LOCKDOWN_API int32 CardLength(const FString& Plain);
+    // A learned skill's effect lines: its card sentence at Rank for Stats, then, at its top (advanced) rank, the "高级：" line
+    // with the change that rank adds. Empty when Ability has no such rank.
+    LOCKDOWN_API TArray<FString> LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
+        uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp);
     // "<b>减速</>：…" for each keyword.
     LOCKDOWN_API TArray<FString> KeywordLines(const TArray<FString>& Keywords);
     // Real local frame intervals over a window of at least WindowSeconds (a long frame is never cut; it closes its window

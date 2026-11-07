@@ -167,9 +167,10 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
 
 const FLDDemoRankDefinition* FLDDemoContentSnapshot::FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank, uint8 Level) const
 {
-    const int32 Index = int32(&Ability - Definitions.Abilities.GetData());
+    // Membership by address first: Ability may belong to another snapshot or be a free-standing object.
+    const int32 Index = Definitions.Abilities.IndexOfByPredicate([&Ability](const FLDDemoAbilityDefinition& Row) { return &Row == &Ability; });
     const int32 MaxLevel = Definitions.Progression.MaxLevel;
-    if (Index < 0 || Index >= Definitions.Abilities.Num() || Level < 1 || int32(Level) > MaxLevel)
+    if (Index == INDEX_NONE || Level < 1 || int32(Level) > MaxLevel)
     {
         return nullptr;
     }

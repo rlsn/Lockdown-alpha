@@ -975,6 +975,16 @@ LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoRankDefini
     Text.Keywords=MoveTemp(Ordered);
     return Text;
 }
+TArray<FString> LDHUD::LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
+    uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp)
+{
+    TArray<FString> Lines;
+    const FLDDemoRankDefinition* Row=Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& R){return R.Rank==int32(Rank);});
+    if(!Row){return Lines;}
+    Lines.Add(CardText(Sentence,*Row,nullptr,Stats,GrowthPerLevelBp).Plain);
+    if(!Advanced.IsEmpty()&&Row==&Ability.Ranks.Last()){Lines.Add(TEXT("高级：")+CardText(Advanced,*Row,nullptr,Stats,GrowthPerLevelBp).Plain);}
+    return Lines;
+}
 int32 LDHUD::CardLength(const FString& Plain)
 {
     int32 Count=0;

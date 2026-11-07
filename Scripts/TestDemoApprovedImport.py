@@ -506,6 +506,20 @@ class ApprovedDemoData(unittest.TestCase):
         with self.assertRaisesRegex(content.ContentError, "InvalidGeometry"):
             content.validate_numbers(projected)
 
+    def test_grown_skill_bases_fit_inside_int64_at_the_top_level(self):
+        # #147: an advanced base that fits ungrown but overflows once grown for the top level is refused at import,
+        # never served as a missing rank.
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        schema.validate(author)
+        projected = schema.project(author)
+        content.validate_definitions(projected, ids)
+        bolt = next(row for row in projected["abilities"] if row["id"] == "active_snark_bolt")
+        bolt["ranks"][1]["effects"][0]["base"]["p2"] = 6 * 10 ** 14
+        with self.assertRaises(content.ContentError):
+            content.validate_numbers(projected)
+
     def approved_projection_inputs(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
         schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))

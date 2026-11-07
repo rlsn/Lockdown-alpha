@@ -663,6 +663,9 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bolt = lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")
     bad_content("bad_damage_type", lambda d: bolt(d)["ranks"][0]["effects"][0].update({"damage_type": "True"}), "unknown damage type")
     bad_content("wrong_target", lambda d: bolt(d).update({"target": {"mode": "Self"}}), "wrong definition target")
+    # #147: fits ungrown, overflows once grown for the top level.
+    bad_content("grown_base_overflow", lambda d: bolt(d)["ranks"][1]["effects"][0]["base"].update({"p2": 6 * 10 ** 14}),
+                "multiplication overflow")
     bad_content("wrong_family", lambda d: d["abilities"][0].update({"cooldown_family": "cd_wrong"}), "cooldown family")
     bad_content("zero_cooldown", lambda d: d["abilities"][0]["ranks"][0]["cooldown"].update({"ms": 0}), "integer outside")
     bad_content("negative_cost", lambda d: d["abilities"][0]["ranks"][0]["mana_cost"].update({"p2": -1}), "integer outside")

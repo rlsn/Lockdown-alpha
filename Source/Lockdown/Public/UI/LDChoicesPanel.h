@@ -78,6 +78,8 @@ private:
         TObjectPtr<USizeBox> IconSize;
         TObjectPtr<UBorder> IconShape;
         TObjectPtr<UTextBlock> Glyph,Name,Summary;
+        // The rule sentence on the card face (#147; user 2026-11-07: shown on the card in full, keywords bold).
+        TObjectPtr<URichTextBlock> Sentence;
     };
     TArray<FCardWidgets> Cards;
     // #97: the free reroll is a fourth card of the same shape.

@@ -74,9 +74,10 @@ FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionVi
         const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Skill](const FLDDemoRankDefinition& R){return R.Rank==int32(Skill.Rank);});
         const FLDDemoDisplayDefinition* Display=Definitions->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;});
         if(!Rank||!Display){Lines.Add(FString::Printf(TEXT("  缺少 %d 级定义"),int32(Skill.Rank)));continue;}
-        // #147: the passive's card sentence with this level's numbers.
+        // #147: the passive's card sentence with this level's numbers and, once advanced, the change that rank adds.
         const LDHUD::FCardStats Stats=LDHUD::CardStatsOf(Progression->Level,Combat?Combat->Attributes:TArray<FLDCombatAttributeRowView>());
-        Lines.Add(TEXT("  ")+LDHUD::CardText(Display->DescriptionText,*Rank,nullptr,Stats,Definitions->Parameters.SkillGrowthPerLevelBp).Plain);
+        for(const FString& Line:LDHUD::LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Skill.Rank,Stats,
+            Definitions->Parameters.SkillGrowthPerLevelBp)){Lines.Add(TEXT("  ")+Line);}
     }
     return AttrPanelLines(Lines);
 }
