@@ -1,6 +1,8 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import CIChangeScope
 
@@ -111,6 +113,42 @@ class ImportInputsTest(unittest.TestCase):
             ['Source/Lockdown/Private/AI/LDOpponentPolicy.cpp', 'Scripts/RunDemoOpponentCheck.ps1',
              'Scripts/CheckEconomyEvidence.py', 'Content/Lockdown/Generated/Maps/L_Demo.umap', 'docs/DEVELOPMENT.md'],
             self.native, importer), [])
+
+    def test_deleted_or_renamed_importer_source_runs_the_group(self):
+        # The closure is computed on the new tree, where a deleted or renamed-away importer file no longer appears.
+        importer = {'Source/Lockdown/Private/Development/LDDemoContentCatalog.cpp'}
+        old = 'Source/Lockdown/Private/Development/LDDemoContentOld.h'
+        self.assertEqual(CIChangeScope.import_inputs([old], self.native, importer, {old}), [old])
+        renamed_to = 'Source/Lockdown/Private/Development/Renamed.h'
+        self.assertEqual(CIChangeScope.import_inputs([old, renamed_to], self.native, importer, {old}), [old])
+        self.assertEqual(CIChangeScope.import_inputs(['docs/gone.md', 'Scripts/Gone.ps1x'], self.native, importer,
+                                                     {'docs/gone.md'}), [])
+
+    def test_changed_paths_reports_deletions_and_renames(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            def run(*args):
+                subprocess.run(['git', '-C', str(root), *args], check=True, capture_output=True)
+            run('init', '-q')
+            run('config', 'user.email', 't@example.com')
+            run('config', 'user.name', 't')
+            for name in ('Kept.h', 'Gone.h', 'Moved.h'):
+                (root / 'Source' / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / 'Source' / name).write_text(name, encoding='utf-8')
+            run('add', '-A')
+            run('commit', '-q', '-m', 'base')
+            (root / 'Source' / 'Gone.h').unlink()
+            (root / 'Source' / 'Moved.h').rename(root / 'Source' / 'MovedNew.h')
+            run('add', '-A')
+            run('commit', '-q', '-m', 'head')
+            with mock.patch.object(CIChangeScope, 'ROOT', root):
+                paths, deleted = CIChangeScope.changed_paths('HEAD~1', 'HEAD')
+                self.assertEqual(paths, ['Source/Gone.h', 'Source/Moved.h', 'Source/MovedNew.h'])
+                self.assertEqual(deleted, {'Source/Gone.h', 'Source/Moved.h'})
+                (root / 'Source' / 'Kept.h').unlink()
+                (root / 'Source' / 'Untracked.h').write_text('x', encoding='utf-8')
+                paths, deleted = CIChangeScope.changed_paths('HEAD', None)
+                self.assertEqual((paths, deleted), (['Source/Kept.h', 'Source/Untracked.h'], {'Source/Kept.h'}))
 
 
 if __name__ == '__main__':

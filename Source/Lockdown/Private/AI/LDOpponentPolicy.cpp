@@ -547,7 +547,9 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
         Body.Kind = EBody::Keep;
         return Body;
     }
-    if (!C.CanAttempt(Body.Key) || !C.CanWalk()) { return Hold(C); }
+    // A target already in reach is struck where the body stands; only a chase needs the body's walking (#160).
+    const bool bInReach = C.Distance(Unit.FootCm) <= C.AttackRangeCm;
+    if (!C.CanAttempt(Body.Key) || (!bInReach && !C.CanWalk())) { return Hold(C); }
     Body.Kind = EBody::AttackUnit;
     return Body;
 }

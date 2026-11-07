@@ -293,7 +293,7 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 `DemoContent.TypedProjection/StrictRefusal/AtomicAssetRoundTrip` 与 `DemoWorld.TypedProjection/AtomicAssetRoundTrip`），
 它们把全部导出夹具经原生导入器逐个导入，占一次完整运行的大半时间。
 它们只读 SourceData、生成的 Demo 数据、夹具导出脚本及其 import、导入器原生源码（由 `CIChangeScope.py`
-从导入器文件按 `#include` 闭包算出）、规则测试 runner 与构建配置。`RunTests.ps1 -ImportTests Auto`
+从导入器文件按 `#include` 闭包算出；闭包只按改动后的代码计算，所以删除或改名掉的原生源文件一律算作输入）、规则测试 runner 与构建配置。`RunTests.ps1 -ImportTests Auto`
 用 `CIChangeScope.py --worktree` 比较当前工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点，
 这些输入都没变时跳过该组，其余必需测试照常全部运行；`-ImportTests Skip` 直接跳过，`Run`（默认）照常运行。
 PR 检查用同一判定，改到这些输入的 PR 一定会跑该组。
@@ -336,8 +336,9 @@ AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <
 带 `-Filter` 或跳过数据导入组时，`CheckRuleReport.py --plan` 先核对源码注册与必需集合完全一致，
 再把所选用例换算成 `Automation RunTests` 的锚定过滤（`^前缀.`、`^完整名$`），报告必须恰好包含所选用例。
 原生测试夹具由 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache` 提供：
-按它读取的全部输入（自身及 `Scripts` 内的 import、`SourceData`、生成的 Demo 数据、原生 ID 与 contract 头文件）的哈希建目录，
-每次使用前逐个核对导出文件的哈希，输入不变时直接复用，任何输入或文件变化都会重新导出；保留当前和上一份。
+按它读取的全部输入（自身及 `Scripts` 内的 import、`SourceData`、生成的 Demo 数据、原生 ID 与 contract 头文件）的哈希建目录。
+清单记录导出过程实际写出的每个文件及其哈希，发布前与暂存目录逐一比对；每次使用前再逐个核对，输入不变时直接复用，任何输入或文件变化都会重新导出。
+保留当前和上一份；别的运行正在写的暂存目录（`*.tmp`）不清理，超过 6 小时才视为遗留并删除。
 原生测试只读这些夹具（需要改源文件的检查先复制到 `Intermediate` 下的临时目录）。
 需要更具体的选择、网络条件或打包路径时，先查看相关脚本参数，不把所有昂贵场景作为每次文档改动的门槛。
 Core、Combat、Camp、Growth、Capture、Vision、Opponent 和 SessionFault 这 8 个 `RunDemo*Check.ps1`

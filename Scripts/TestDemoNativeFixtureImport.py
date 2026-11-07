@@ -1,11 +1,14 @@
 """Test-only export consistency; these checks do not substitute for UE automation."""
 from concurrent.futures import ProcessPoolExecutor
+import hashlib
 import json
+import os
 from pathlib import Path
 import pickle
 import re
 import shutil
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -29,7 +32,12 @@ class DemoNativeFixturesTest(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix="export-test-", dir=artifacts)
         cls.addClassCleanup(cls.temp.cleanup)
         cls.root = Path(cls.temp.name) / "fixtures"
-        cls.index = native.export(cls.root)
+        cls.written = {}
+        cls.index = native.export(cls.root, written=cls.written)
+
+    def test_export_records_exactly_the_files_it_wrote(self):
+        self.assertGreater(len(self.written), 1000)
+        self.assertEqual(native._file_hashes(self.root), self.written)
 
     def test_valid_outputs_use_the_existing_compiler_contract(self):
         cases = self.index["valid"]
@@ -227,13 +235,18 @@ class DemoNativeFixtureCacheTest(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.temp = Path(temp.name)
         self.exports = []
+        self.lose_file = False
 
-    def fake_export(self, output, *, jobs=None):
+    def fake_export(self, output, *, jobs=None, written=None):
         output = Path(output)
         self.assertFalse(output.exists())
         (output / "base").mkdir(parents=True)
-        (output / "index.json").write_text(json.dumps({"export": len(self.exports)}), encoding="utf-8")
-        (output / "base" / "native_expected.json").write_text("{}", encoding="utf-8")
+        files = {"index.json": json.dumps({"export": len(self.exports)}).encode(), "base/native_expected.json": b"{}"}
+        for relative, raw in files.items():
+            (output / relative).write_bytes(raw)
+            written[relative] = hashlib.sha256(raw).hexdigest()
+        if self.lose_file:
+            (output / "base" / "native_expected.json").unlink()
         self.exports.append(output)
 
     def cached(self, key):
@@ -265,11 +278,31 @@ class DemoNativeFixtureCacheTest(unittest.TestCase):
                 self.assertEqual((again, reused, len(self.exports)), (entry, False, count + 1))
                 self.assertEqual(self.cached("c" * 64)[1], True)
 
+    def test_a_file_lost_before_publishing_is_refused(self):
+        self.lose_file = True
+        with self.assertRaisesRegex(demo.ContentError, "differ from what the export wrote"):
+            self.cached("d" * 64)
+        self.assertFalse((self.temp / "cache" / ("d" * 64)).exists())
+
     def test_old_entries_are_pruned(self):
         for letter in "defgh":
             self.cached(letter * 64)
         entries = sorted(p.name[0] for p in (self.temp / "cache").iterdir())
         self.assertEqual(entries, ["g", "h"])
+
+    def test_another_runs_staging_survives_pruning_until_it_is_stale(self):
+        cache = self.temp / "cache"
+        running = cache / ("e" * 64 + ".4242.tmp")
+        abandoned = cache / ("f" * 64 + ".4343.tmp")
+        for staging in (running, abandoned):
+            staging.mkdir(parents=True)
+            (staging / "index.json").write_text("{}", encoding="utf-8")
+        old = time.time() - native.STAGING_STALE_SECONDS - 60
+        os.utime(abandoned, (old, old))
+        self.cached("a" * 64)
+        self.cached("b" * 64)
+        self.assertTrue((running / "index.json").is_file())
+        self.assertFalse(abandoned.exists())
 
     def test_cache_must_stay_below_artifacts(self):
         with self.assertRaises(demo.ContentError):

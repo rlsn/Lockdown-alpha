@@ -477,14 +477,18 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentS
             // A refused replacement leaves the incumbent order running unchanged.
             ++Tally.OrdersRejected;
             Learn(Candidate.Intent.Key, Settle, Self, NowMs);
-            LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, Receipt.Failure == ELDOrderFailure::InvalidGround
-                || Receipt.Failure == ELDOrderFailure::NoCompletePath, Self, NowMs, Content->Get().Parameters.AI);
+            // Only a refusal for ground or path speaks about the body's walking; any other leaves its budget as it was.
+            if (Receipt.Failure == ELDOrderFailure::InvalidGround || Receipt.Failure == ELDOrderFailure::NoCompletePath)
+            {
+                LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, true, Self, NowMs, Content->Get().Parameters.AI);
+            }
             Candidate = FOrderTrack();
         }
         else
         {
             // Admitted, or cancelled together with the incumbent by a Stop or a life end: it replaced the incumbent.
-            if (Receipt.Status != ELDOrderStatus::Cancelled)
+            // An admitted attack may strike in place without planning any path, so only a ground walk proves the body can walk.
+            if (Receipt.Status != ELDOrderStatus::Cancelled && Candidate.Intent.Kind != ELDOpponentBodyKind::AttackUnit)
             {
                 LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, false, Self, NowMs, Content->Get().Parameters.AI);
             }

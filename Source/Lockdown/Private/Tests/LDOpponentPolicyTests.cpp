@@ -2461,12 +2461,21 @@ bool RunWalkRefusals(FAutomationTestBase& Test)
     }
     Frame.Public.NowMs = Now + 60000;
     bGood &= Test.TestFalse(TEXT("After the retry budget no walk is sent from where the body stands"), Walks(LDOpponentPolicy::Decide(Frame, C, State)));
+    const double Reach = double(Frame.Self.Attributes.AttackRangeCm.Numerator) / double(Frame.Self.Attributes.AttackRangeCm.Denominator);
     bGood &= Test.TestFalse(TEXT("No attack chase either"), [&]
     {
         auto Fight = Frame;
-        Fight.Units = {Unit(4, ELDOpponentUnitKind::Contender, 300, 0)};
+        Fight.Units = {Unit(4, ELDOpponentUnitKind::Contender, Reach * 1.5, 0)};
         FLDOpponentPolicyState Copy = State;
         return Walks(LDOpponentPolicy::Decide(Fight, C, Copy));
+    }());
+    bGood &= Test.TestTrue(TEXT("A target already in reach is still attacked where the body stands"), [&]
+    {
+        auto Fight = Frame;
+        Fight.Units = {Unit(4, ELDOpponentUnitKind::Contender, Reach * .5, 0)};
+        FLDOpponentPolicyState Copy = State;
+        const auto Decision = LDOpponentPolicy::Decide(Fight, C, Copy);
+        return Decision.Body.Kind == EBody::AttackUnit || Decision.Body.Kind == EBody::Activate;
     }());
     FLDOpponentPolicyState Moved = State;
     auto Elsewhere = Frame;

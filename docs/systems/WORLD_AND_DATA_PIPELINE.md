@@ -213,7 +213,7 @@ ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、�
 几何负坐标、正负分数和 int64 边界由原生专用规则覆盖。
 
 `RunTests.ps1` 调用 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache`：
-按导出所读全部输入的哈希取缓存目录，逐个文件核对哈希后复用，输入或文件有任何变化就导出到新的临时目录再发布；
+按导出所读全部输入的哈希取缓存目录，逐个文件核对哈希后复用，输入或文件有任何变化就导出到新的临时目录，与导出实际写出的文件清单一致后再发布；
 `--output <全新 Artifacts 子目录>` 仍可一次性导出。
 只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content；原生测试只读夹具，
 需要改源文件的往返检查先把 base 用例复制到 `Intermediate` 下的临时目录。

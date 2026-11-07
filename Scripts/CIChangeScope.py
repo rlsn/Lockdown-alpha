@@ -10,7 +10,7 @@ scripts and everything they import from Scripts count as native inputs.
 import_tests=run|skip: whether the native rule tests must include the data-import group (CheckRuleReport.IMPORT_TESTS).
 Only a change to their inputs needs it: SourceData, the generated data, a Python script RunTests.ps1 loads, the rule-test
 runner, build configuration, or the importer's native source (IMPORTER_ROOTS and the project headers they include,
-with each such header's own .cpp). `RunTests.ps1 -ImportTests Auto` applies the same decision to a local worktree.
+with each such header's own .cpp; any deleted or renamed-away native source file also counts). `RunTests.ps1 -ImportTests Auto` applies the same decision to a local worktree.
 """
 
 import argparse
@@ -112,15 +112,18 @@ def importer_sources(root: Path) -> set[str]:
     return set(found)
 
 
-def import_inputs(paths: list[str], native_modules: set[str], importer: set[str]) -> list[str]:
-    """The changed paths that can change what the data-import tests see."""
+def import_inputs(paths: list[str], native_modules: set[str], importer: set[str], deleted: set[str] = frozenset()) -> list[str]:
+    """The changed paths that can change what the data-import tests see. The importer closure is computed on the new
+    tree only, so a deleted (or renamed-away) native source file always counts: it may have been part of the old one."""
+    removed = {path.replace('\\', '/') for path in deleted}
     hits = []
     for raw in paths:
         path = raw.replace('\\', '/')
         parts = path.split('/')
         script = len(parts) == 2 and parts[0] == 'Scripts' and parts[1].endswith('.py') and parts[1][:-3] in native_modules
+        gone_source = path in removed and path.startswith('Source/') and path.endswith(('.h', '.cpp'))
         if (path.startswith(('SourceData/', 'Content/Lockdown/Data/', 'Config/')) or script or path in IMPORT_RUNNERS
-                or path in importer or path.endswith(('.uproject', '.Build.cs', '.Target.cs'))):
+                or path in importer or gone_source or path.endswith(('.uproject', '.Build.cs', '.Target.cs'))):
             hits.append(path)
     return hits
 
@@ -132,15 +135,17 @@ def git(*args: str) -> str:
     return result.stdout
 
 
-def changed_paths(base: str, head: str | None) -> list[str]:
-    """Files changed from base to head, or with head None from base to this worktree including untracked files."""
+def changed_paths(base: str, head: str | None) -> tuple[list[str], set[str]]:
+    """Files changed from base to head, or with head None from base to this worktree including untracked files, and
+    those of them that were deleted (a rename counts as a deletion of the old path)."""
     if head is None:
         merge_base = git('merge-base', base, 'HEAD').strip()
-        lines = git('diff', '--name-only', '--no-renames', merge_base).splitlines()
-        lines += git('ls-files', '--others', '--exclude-standard').splitlines()
+        lines = git('diff', '--name-status', '--no-renames', merge_base).splitlines()
+        lines += [f'A\t{line}' for line in git('ls-files', '--others', '--exclude-standard').splitlines()]
     else:
-        lines = git('diff', '--name-only', '--no-renames', base, head).splitlines()
-    return sorted({line for line in lines if line})
+        lines = git('diff', '--name-status', '--no-renames', base, head).splitlines()
+    rows = [line.split('\t', 1) for line in lines if line]
+    return sorted({path for _, path in rows}), {path for status, path in rows if status.startswith('D')}
 
 
 def main() -> int:
@@ -151,12 +156,12 @@ def main() -> int:
     target.add_argument('--worktree', action='store_true',
                         help='compare this worktree, with uncommitted and untracked files, to its merge base with --base')
     args = parser.parse_args()
-    paths = changed_paths(args.base, None if args.worktree else args.head)
+    paths, deleted = changed_paths(args.base, None if args.worktree else args.head)
     if not paths and not args.worktree:
         raise RuntimeError(f'No changed files between {args.base} and {args.head}.')
     modules = native_python_modules(SCRIPTS)
     scope, native = classify(paths, modules)
-    imports = import_inputs(paths, modules, importer_sources(ROOT)) if scope == 'native' else []
+    imports = import_inputs(paths, modules, importer_sources(ROOT), deleted) if scope == 'native' else []
     print(f'scope={scope}')
     print(f'import_tests={"run" if imports else "skip"}')
     if native:
