@@ -15,6 +15,9 @@ namespace LDHUDStyle
     inline const FLinearColor TextAccent(1.f,.82f,.40f);
     inline const FLinearColor TextWarning(1.f,.70f,.45f);
     inline const FLinearColor TextDanger(1.f,.47f,.42f);
+    // Own status squares: what helps the bearer is edged green, what hurts it red (LDHUD::FSelfIconView::bPositive).
+    inline const FLinearColor StatusPositive(.45f,.95f,.50f);
+    inline const FLinearColor StatusNegative(1.f,.47f,.42f);
     // Outline behind world-anchored text and bars, so they read over any ground or body.
     inline const FLinearColor Rim(0.f,0.f,0.f,.85f);
 

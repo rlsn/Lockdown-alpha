@@ -167,7 +167,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;
     // The squares' current views; the hovered one opens the slot popup (LDHUD::SelfIconDetail).
     TArray<LDHUD::FSelfIconView> SelfIconViews;
-    TArray<int32> SelfIconKinds;
+    // Each square's applied tone: -1 none yet, 0 negative, 1 positive.
+    TArray<int32> SelfIconTones;
     TArray<float> SelfIconRing;
     LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;

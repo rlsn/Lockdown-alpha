@@ -1305,6 +1305,29 @@ FString LDHUD::IconGlyph(const FString& Name)
     const FString Trimmed=Name.TrimStartAndEnd();
     return Trimmed.IsEmpty()?FString(TEXT("?")):Trimmed.Left(1).ToUpper();
 }
+bool LDHUD::StatusIsPositive(uint8 StatusId)
+{
+    switch(static_cast<ELDDemoStatusId>(StatusId))
+    {
+    case ELDDemoStatusId::Shield:
+    case ELDDemoStatusId::StatBoost:
+    case ELDDemoStatusId::Empowered:
+    case ELDDemoStatusId::RespawnProtection:
+    case ELDDemoStatusId::CampReturning:
+        return true;
+    case ELDDemoStatusId::Root:
+    case ELDDemoStatusId::Slow:
+    case ELDDemoStatusId::Exposed:
+    case ELDDemoStatusId::Taunt:
+    case ELDDemoStatusId::Disarm:
+    case ELDDemoStatusId::Stun:
+    case ELDDemoStatusId::Knockback:
+    case ELDDemoStatusId::Silence:
+    case ELDDemoStatusId::Burn:
+        return false;
+    }
+    return false;
+}
 LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
     const FLDDemoContentDefinitions* Content)
 {
@@ -1319,6 +1342,7 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             FSelfIconView Icon;
             const FString Name=StatusName(Content,Status.StatusId);
             Icon.Kind=Status.ControlBlocks!=0?ESelfIconKind::Control:ESelfIconKind::Temporary;
+            Icon.bPositive=StatusIsPositive(Status.StatusId);
             Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Source=ESelfIconSource::Status;
             if(const TCHAR* Id=HudStatusContentId(Status.StatusId)){Icon.ContentId=Id;}
             Icon.Key=FName(*FString::Printf(TEXT("Status.%d"),int32(Status.StatusId)));
@@ -1384,12 +1408,12 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
     switch(Icon.Source)
     {
     case ESelfIconSource::Status:
-        Detail.Summary=Icon.Kind==ESelfIconKind::Control?TEXT("控制状态"):TEXT("临时状态");
+        Detail.Summary=FString(Icon.Kind==ESelfIconKind::Control?TEXT("控制状态"):TEXT("临时状态"))+(Icon.bPositive?TEXT(" · 正面"):TEXT(" · 负面"));
         break;
     case ESelfIconSource::OutOfCombatRegen:
     case ESelfIconSource::DormRegen:
     {
-        Detail.Summary=TEXT("临时状态");
+        Detail.Summary=TEXT("临时状态 · 正面");
         if(!Content){break;}
         const FLDDemoContentParameters& P=Content->Parameters;
         const bool bDorm=Icon.Source==ESelfIconSource::DormRegen;

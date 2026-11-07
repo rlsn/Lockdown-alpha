@@ -501,7 +501,15 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content).Overflow,0);
     // The hover popup names the square and its kind; the description and effect lines come from the content catalog.
     const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],LDHUD::FCardStats(),nullptr);
-    TestTrue(TEXT("A control status popup heads with its line and kind"),RootDetail.Name==Full.Items[0].Tip&&RootDetail.Summary==TEXT("控制状态"));
+    TestTrue(TEXT("A control status popup heads with its line, kind and tone"),RootDetail.Name==Full.Items[0].Tip&&RootDetail.Summary==TEXT("控制状态 · 负面"));
+    // Status tone: what helps the bearer is positive, every control and affliction negative, an unknown id negative.
+    for(const ELDDemoStatusId Id:{ELDDemoStatusId::Shield,ELDDemoStatusId::StatBoost,ELDDemoStatusId::Empowered,ELDDemoStatusId::RespawnProtection,ELDDemoStatusId::CampReturning})
+    {TestTrue(FString::Printf(TEXT("Status %d is positive"),int32(Id)),LDHUD::StatusIsPositive(uint8(Id)));}
+    for(const ELDDemoStatusId Id:{ELDDemoStatusId::Root,ELDDemoStatusId::Slow,ELDDemoStatusId::Exposed,ELDDemoStatusId::Taunt,ELDDemoStatusId::Disarm,
+        ELDDemoStatusId::Stun,ELDDemoStatusId::Knockback,ELDDemoStatusId::Silence,ELDDemoStatusId::Burn})
+    {TestFalse(FString::Printf(TEXT("Status %d is negative"),int32(Id)),LDHUD::StatusIsPositive(uint8(Id)));}
+    TestFalse(TEXT("An unknown status reads as negative"),LDHUD::StatusIsPositive(31));
+    TestTrue(TEXT("Learned passives are positive"),Full.Items[1].bPositive&&!Full.Items[0].bPositive);
     TestEqualSensitive(TEXT("A learned passive popup says 角色被动"),LDHUD::SelfIconDetail(Full.Items[1],LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("角色被动")));
     LDHUD::FSelfIconView Gear;Gear.Source=LDHUD::ESelfIconSource::Equipment;Gear.Tip=TEXT("铁板");Gear.bUpgraded=true;
     TestEqualSensitive(TEXT("An upgraded equipment passive says so"),LDHUD::SelfIconDetail(Gear,LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("装备被动（已进阶）")));
@@ -536,6 +544,8 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
         Tips(Icons),HudName(TEXT("root"))+TEXT(" 1.3s | ")+HudName(TEXT("shield"))+TEXT(" 81 2.0s"));
     TestTrue(TEXT("Timed statuses carry their end instant and kind"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Control
         &&Icons.Items[0].ExpiresAtMs==11201&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==12000&&!Icons.bSyncing);
+    TestTrue(TEXT("The root square is negative and the shield square positive"),!Icons.Items[0].bPositive&&Icons.Items[1].bPositive
+        &&LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),nullptr).Summary==TEXT("临时状态 · 正面"));
     TestEqualSensitive(TEXT("The placeholder icon is the name's first character"),Icons.Items[0].Glyph,LDHUD::IconGlyph(HudName(TEXT("root"))));
     TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),Tips(LDHUD::SelfIcons(&Progression,&Combat,false,0,&Content)),
         HudName(TEXT("root"))+TEXT(" | ")+HudName(TEXT("shield"))+TEXT(" 81"));
@@ -558,10 +568,11 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
         +LDHUD::SkillRankName(2)+TEXT("） | ")+HudName(TEXT("item_iron_plate")));
     TestTrue(TEXT("Recoveries are untimed temporary squares"),Icons.Items.Num()==4&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Temporary
         &&Icons.Items[0].ExpiresAtMs==0&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==0);
+    TestTrue(TEXT("Recoveries and passives are all positive"),Icons.Items.FilterByPredicate([](const LDHUD::FSelfIconView& Icon){return Icon.bPositive;}).Num()==4);
     Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;Content.Parameters.OutOfCombatMaxMPRegenBp=150;
     Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;Content.Parameters.DormMaxMPRegenBp=1000;
     const LDHUD::FActionDetailView Slow=LDHUD::SelfIconDetail(Icons.Items[0],LDHUD::FCardStats(),&Content);
-    TestTrue(TEXT("The out-of-combat popup states the REGEN delay and share"),Slow.Name==LDTerms::OutOfCombatRegen&&Slow.Summary==TEXT("临时状态")
+    TestTrue(TEXT("The out-of-combat popup states the REGEN delay and share"),Slow.Name==LDTerms::OutOfCombatRegen&&Slow.Summary==TEXT("临时状态 · 正面")
         &&Slow.Body==TEXT("脱战 5s 后，每秒恢复 1.5% 生命上限和法力上限\n出手、释放伤害技能或受到伤害立即停止"));
     const LDHUD::FActionDetailView Dorm=LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),&Content);
     TestTrue(TEXT("The dorm popup states the DORM delay and share"),Dorm.Body.StartsWith(FString(TEXT("站在"))+LDTerms::Dorm+TEXT("内且脱战 3s 后，每秒恢复 10% 生命上限和法力上限")));

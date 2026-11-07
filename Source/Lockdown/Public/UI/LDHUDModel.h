@@ -384,12 +384,15 @@ namespace LDHUD
     // One square of the own status grid under the 属性 button: a temporary status, an active recovery (脱战回复中, 躺平角回血中),
     // a learned passive or an equipment passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
     // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
+    // bPositive is the square's tone: green when it helps its bearer, red when it hurts (StatusIsPositive); recoveries
+    // and passives are always positive.
     enum class ESelfIconKind : uint8 { Control, Temporary, Passive };
     enum class ESelfIconSource : uint8 { Status, OutOfCombatRegen, DormRegen, Learned, Equipment };
     struct FSelfIconView
     {
         ESelfIconKind Kind=ESelfIconKind::Passive;
         ESelfIconSource Source=ESelfIconSource::Status;
+        bool bPositive=true;
         FString Glyph;
         FString Tip;
         // The content entry the popup describes: the status, the learned passive or the equipment granting the passive.
@@ -421,11 +424,14 @@ namespace LDHUD
     LOCKDOWN_API FSelfIconsView SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
         const FLDDemoContentDefinitions* Content);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
-    // "角色被动", "装备被动", upgraded when it is), then the full content description: a status's or equipment's text
+    // a status or recovery followed by its tone, " · 正面" or " · 负面"; "角色被动", "装备被动", upgraded when it is), then the full content description: a status's or equipment's text
     // (with the equipment's passive effect lines), a recovery's rule with the REGEN/DORM parameters, or a learned
     // passive's card lines rendered for Card (LearnedCardLines).
     // Built only for the hovered square.
     LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content);
+    // Whether a status helps its bearer (护盾, 增益, 强化普攻, 复活保护, 回位) rather than hurts it (every control, 减速,
+    // 破防, 灼烧). A fixed property of the native status identity; an unknown id reads as negative.
+    LOCKDOWN_API bool StatusIsPositive(uint8 StatusId);
     // The placeholder icon of a name: its first character, Latin letters upper-cased; "?" for an empty name.
     LOCKDOWN_API FString IconGlyph(const FString& Name);
     // Remaining-time rings of the timed own statuses. The view carries only the end instant, so the remaining time when
