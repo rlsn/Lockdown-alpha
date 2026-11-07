@@ -1336,6 +1336,12 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
                 + (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
             FLDLegalGround SeamGround;
             GroundAt(SeamFoot, Ramp.Id + TEXT(" capsule support across low seam"), SeamGround);
+            const FVector2D HighSeam = High - (High - Low).GetSafeNormal();
+            FVector HighSeamFoot = Foot(HighSeam);
+            HighSeamFoot.Z += Gradient
+                + (UCharacterMovementComponent::MIN_FLOOR_DIST + UCharacterMovementComponent::MAX_FLOOR_DIST) * .5;
+            FLDLegalGround HighSeamGround;
+            GroundAt(HighSeamFoot, Ramp.Id + TEXT(" capsule support across high seam"), HighSeamGround);
             FLDLegalGround Bottom, Middle, Top;
             const bool Ends = GroundAt(Foot(Low - Up), Ramp.Id + TEXT(" foot"), Bottom)
                 & GroundAt(Foot((Low + High) * .5), Ramp.Id + TEXT(" slope"), Middle)

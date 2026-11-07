@@ -64,6 +64,7 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     const double Gradient = double(LDDemoWorld::RampRise) / LDDemoWorld::RampRun;
     const double Lift = Radius * (FMath::Sqrt(1.0 + Gradient * Gradient) - 1.0);
     const double Gap = UCharacterMovementComponent::MAX_FLOOR_DIST + UE_KINDA_SMALL_NUMBER;
+    const double MinSupportNormalDot = 1.0 / FMath::Sqrt(1.0 + Gradient * Gradient);
     FHitResult Hit;
     const bool NearFloor = Foot.Z >= Expected - Gap;
     const bool HitFloor = NearFloor && World.SweepSingleByChannel(Hit,
@@ -72,11 +73,12 @@ bool Ground(UWorld& World, const FLDDemoWorldGeometry& Geometry, const LDDemoWor
     double SupportHeight = 0;
     FVector SupportNormal = FVector::UpVector;
     if (HitFloor) { Terrain.Ground(FVector2D(Hit.ImpactPoint.X, Hit.ImpactPoint.Y), SupportHeight, SupportNormal); }
-    if (!NearFloor || !HitFloor || Hit.bStartPenetrating || FVector::DotProduct(Hit.ImpactNormal, SupportNormal) < 1.0 - 1e-4
+    if (!NearFloor || !HitFloor || Hit.bStartPenetrating || FVector::DotProduct(Hit.ImpactNormal, SupportNormal) < MinSupportNormalDot - 1e-4
         || FMath::Abs(Hit.ImpactPoint.Z - SupportHeight) > Gap)
     {
-        const FString Detail = FString::Printf(TEXT("NotGrounded: no matching local support; foot=%s terrain=%.3f hit=%d normalZ=%.6f impactZ=%.6f hitActor=%s. No downward fallback."),
-            *Foot.ToString(), Expected, HitFloor, Hit.ImpactNormal.Z, Hit.ImpactPoint.Z, *GetNameSafe(Hit.GetActor()));
+        const FString Detail = FString::Printf(TEXT("NotGrounded: no matching local support; foot=%s terrain=%.3f hit=%d penetrating=%d normalZ=%.6f supportNormalZ=%.6f normalDot=%.6f minDot=%.6f impactZ=%.6f supportZ=%.6f hitActor=%s. No downward fallback."),
+            *Foot.ToString(), Expected, HitFloor, Hit.bStartPenetrating, Hit.ImpactNormal.Z, SupportNormal.Z,
+            FVector::DotProduct(Hit.ImpactNormal, SupportNormal), MinSupportNormalDot, Hit.ImpactPoint.Z, SupportHeight, *GetNameSafe(Hit.GetActor()));
         return Reject(ELDWorldQueryFailure::NotGrounded, *Detail, Failure, Error);
     }
     UPrimitiveComponent* Support = Hit.GetComponent();
