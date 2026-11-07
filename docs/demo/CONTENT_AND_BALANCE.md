@@ -42,6 +42,12 @@ chairs for fence, crate/box for drops, and put some decorative stuffs too. e.g. 
 树先选小尺寸（“Smaller trees”），随后改用两种低多边形树（“trees look too complex, and varying, try use 2 low poly ones from other packages”），
 仍按 260 cm 树高缩放、树干碰撞 80 cm 不变；挡住角色的树、集装箱与废车半透明（“just make them transparent a bit when characters stand behind them from camera”）。
 只是试玩布局，不是平衡测试。
+**2026-11-07 用户决定加营地、减营地收益（#97）：** 原话：“too little camps in the outer rim, too dense in the middle, add 10 more camps
+on the edges of the map. more strong ones in the middle. you can remove obstacles for clearance”，以及“resource too much from camps
+now that there are more, reduce 50% exp and money output”。外圈新增 10 个低档营地 `l13`–`l22`（每边两个出生点之间各两个，东北与西南对角各一个），
+离出生点至少 7 m、离其他营地至少 9 m，清掉其 3 m 净空内的树和地被；离旗杆最近的四个低档营地（原 `l01`、`l02`、`l06`、`l07`）
+改为高档营地 `h05`–`h08`，营地共 26 个（高档 8、低档 18）。野怪每只收益减半：低档 20XP/15 金币，高档 80XP/60 金币。
+下文 §7 的供给情景仍按旧的五营地、旧收益计算，只是历史记录；这次调整只供试玩，不是平衡测试。
 **2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
 世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
 ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。
@@ -487,8 +493,8 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 | `REWARD.PlayerGold`（`.Base=80`、`.PerLevel=10`） | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；击杀者全额，没有范围奖励 |
 | `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被护盾吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时（#112 票中给定） |
 | `REWARD.AssistGoldRatio` | 比例/R4，0.5 | 助攻金币=受害者基础击杀金币的50%（不含额外赏金），助攻者平分向下取整（#112 票中给定） |
-| `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只40XP/30金币 | 整组80XP/60金币，首个完整低营即可首次升级 |
-| `CAMP.High.RewardXP/RewardGold` | 每只160XP/120金币 | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
+| `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只20XP/15金币（2026-11-07 减半） | 整组40XP/30金币，首次升级（80XP）要两个完整低营 |
+| `CAMP.High.RewardXP/RewardGold` | 每只80XP/60金币（2026-11-07 减半） | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
 
 不保留旧 PvP 配对冷却、总XP上限、固定击杀次数池。合法新生命可继续产生奖励；
 同一生命重复致死/回包不能产生第二份。人为送人头仍是自由混战的行为风险，不能未经产品授权

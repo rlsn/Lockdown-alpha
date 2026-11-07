@@ -362,36 +362,19 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "l01",
+      "id": "h05",
       "kind": "Camp",
       "members": [
         {
-          "id": "l01_0",
+          "id": "h05_0",
           "position_cm": {
             "x": {
               "denominator": 1,
-              "numerator": 1780
+              "numerator": 1805
             },
             "y": {
               "denominator": 1,
-              "numerator": 668
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        },
-        {
-          "id": "l01_1",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": 1830
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 516
+              "numerator": 592
             },
             "z": {
               "denominator": 1,
@@ -417,36 +400,19 @@
       "surface_id": "demo_ground"
     },
     {
-      "id": "l02",
+      "id": "h06",
       "kind": "Camp",
       "members": [
         {
-          "id": "l02_0",
+          "id": "h06_0",
           "position_cm": {
             "x": {
               "denominator": 1,
-              "numerator": 1417
+              "numerator": 1478
             },
             "y": {
               "denominator": 1,
-              "numerator": 1813
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        },
-        {
-          "id": "l02_1",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": 1539
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 1711
+              "numerator": 1762
             },
             "z": {
               "denominator": 1,
@@ -463,6 +429,82 @@
         "y": {
           "denominator": 1,
           "numerator": 1762
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "h07",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "h07_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1985
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -558
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -1985
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -558
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "h08",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "h08_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -1192
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1908
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -1192
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1908
         },
         "z": {
           "denominator": 1,
@@ -628,116 +670,6 @@
         "y": {
           "denominator": 1,
           "numerator": 1363
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "l06",
-      "kind": "Camp",
-      "members": [
-        {
-          "id": "l06_0",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": -1963
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -635
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        },
-        {
-          "id": "l06_1",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": -2007
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -481
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        }
-      ],
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -1985
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -558
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "l07",
-      "kind": "Camp",
-      "members": [
-        {
-          "id": "l07_0",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": -1124
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -1950
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        },
-        {
-          "id": "l07_1",
-          "position_cm": {
-            "x": {
-              "denominator": 1,
-              "numerator": -1260
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -1866
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        }
-      ],
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -1192
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -1908
         },
         "z": {
           "denominator": 1,
@@ -1022,6 +954,556 @@
       "surface_id": "demo_ground"
     },
     {
+      "id": "l13",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l13_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -928
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4286
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l13_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -772
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4318
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -850
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4302
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l14",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l14_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 803
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4243
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l14_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 959
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 4211
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 881
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4227
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l15",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l15_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -773
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4329
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l15_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -929
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4299
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -851
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4314
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l16",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l16_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1623
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4122
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l16_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 1473
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -4178
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 1548
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4150
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l17",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l17_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4238
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1588
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l17_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4292
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1438
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -4265
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1513
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l18",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l18_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4256
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1477
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l18_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -4200
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1627
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -4228
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1552
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l19",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l19_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4223
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1595
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l19_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4277
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 1445
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4250
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1520
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l20",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l20_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4292
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1473
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        },
+        {
+          "id": "l20_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 4238
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1623
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 100
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4265
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1548
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l21",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l21_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 3243
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3357
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l21_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": 3357
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 3243
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 3300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 3300
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "l22",
+      "kind": "Camp",
+      "members": [
+        {
+          "id": "l22_0",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -3243
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3357
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        },
+        {
+          "id": "l22_1",
+          "position_cm": {
+            "x": {
+              "denominator": 1,
+              "numerator": -3357
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -3243
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        }
+      ],
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -3300
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -3300
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
       "id": "s00",
       "kind": "Spawn",
       "position_cm": {
@@ -1289,7 +1771,7 @@
     }
   ],
   "approval": {
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art. A playtest baseline, not a balance check.",
+    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps added. A playtest baseline, not a balance check.",
     "status": "approved"
   },
   "author_schema_sha256": "06d8ebac5b620694c51e0fa50b68b2c3dcd49dfa3bd90b9b9b9032764e479cab",
@@ -1889,35 +2371,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4557
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1620
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_007",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4556
           },
           "y": {
@@ -2050,64 +2503,6 @@
           "numerator": 260
         },
         "id": "tree_012",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4548
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1371
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_013",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4545
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1497
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_014",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -2324,35 +2719,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4485
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1486
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_022",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4482
           },
           "y": {
@@ -2411,35 +2777,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4481
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1234
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_025",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4479
           },
           "y": {
@@ -2485,35 +2822,6 @@
           "numerator": 260
         },
         "id": "tree_027",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4478
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1627
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_028",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -2701,35 +3009,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4465
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1756
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_035",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4464
           },
           "y": {
@@ -2746,35 +3025,6 @@
           "numerator": 260
         },
         "id": "tree_036",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4464
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1363
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_037",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -2875,93 +3125,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4411
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1753
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_041",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4408
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1630
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_042",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4407
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1364
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_043",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4405
           },
           "y": {
@@ -3007,35 +3170,6 @@
           "numerator": 260
         },
         "id": "tree_045",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4403
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1492
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_046",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -3181,93 +3315,6 @@
           "numerator": 260
         },
         "id": "tree_051",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4334
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1760
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_052",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4334
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1242
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_053",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4328
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1496
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_054",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -3600,35 +3647,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4250
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1628
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_066",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4246
           },
           "y": {
@@ -3645,35 +3663,6 @@
           "numerator": 260
         },
         "id": "tree_067",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4243
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1360
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_068",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -3774,35 +3763,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4177
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1492
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_072",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4175
           },
           "y": {
@@ -3819,35 +3779,6 @@
           "numerator": 260
         },
         "id": "tree_073",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4173
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1753
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_074",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -3935,35 +3866,6 @@
           "numerator": 260
         },
         "id": "tree_077",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4111
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1618
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_078",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -4151,35 +4053,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -4091
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1353
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_085",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -4089
           },
           "y": {
@@ -4196,35 +4069,6 @@
           "numerator": 260
         },
         "id": "tree_086",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4035
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1376
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_087",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -4428,35 +4272,6 @@
           "numerator": 260
         },
         "id": "tree_094",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -4017
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1614
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_095",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -6819,35 +6634,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3941
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1750
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_107",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 2946
           },
           "y": {
@@ -7009,35 +6795,6 @@
           "numerator": 260
         },
         "id": "tree_1075",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 2953
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3322
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1076",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -7573,35 +7330,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3023
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3453
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1093",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 3025
           },
           "y": {
@@ -7705,35 +7433,6 @@
           "numerator": 260
         },
         "id": "tree_1097",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3031
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3174
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1098",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -8037,64 +7736,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3094
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3572
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1108",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3094
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3315
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1109",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3879
           },
           "y": {
@@ -8111,35 +7752,6 @@
           "numerator": 260
         },
         "id": "tree_111",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3096
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3051
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1110",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -8488,35 +8100,6 @@
           "numerator": 260
         },
         "id": "tree_1121",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3163
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3436
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1122",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -8894,35 +8477,6 @@
           "numerator": 260
         },
         "id": "tree_1134",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3177
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3172
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1135",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -9607,35 +9161,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": 3565
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1157",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3252
-          },
-          "y": {
-            "denominator": 1,
             "numerator": -1633
           },
           "z": {
@@ -9806,35 +9331,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3259
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3310
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1163",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 3260
           },
           "y": {
@@ -9851,35 +9347,6 @@
           "numerator": 260
         },
         "id": "tree_1164",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3261
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3044
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1165",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -10083,35 +9550,6 @@
           "numerator": 260
         },
         "id": "tree_1171",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3319
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3184
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1172",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -10344,35 +9782,6 @@
           "numerator": 260
         },
         "id": "tree_118",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3326
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3448
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1180",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -10709,35 +10118,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": 3574
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1191",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3394
-          },
-          "y": {
-            "denominator": 1,
             "numerator": 447
           },
           "z": {
@@ -10937,35 +10317,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3397
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3057
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1199",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3867
           },
           "y": {
@@ -11127,35 +10478,6 @@
           "numerator": 260
         },
         "id": "tree_1204",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3406
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3324
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1205",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -11359,35 +10681,6 @@
           "numerator": 260
         },
         "id": "tree_1211",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3464
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3186
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1212",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -11881,35 +11174,6 @@
           "numerator": 260
         },
         "id": "tree_1228",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3483
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3439
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1229",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -12478,35 +11742,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": 3055
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1247",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3551
-          },
-          "y": {
-            "denominator": 1,
             "numerator": 1233
           },
           "z": {
@@ -12677,35 +11912,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3560
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3321
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1253",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 3615
           },
           "y": {
@@ -12780,35 +11986,6 @@
           "numerator": 260
         },
         "id": "tree_1256",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 3619
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 3436
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1257",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -14301,35 +13478,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 3931
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1369
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1304",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 3936
           },
           "y": {
@@ -14736,64 +13884,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4085
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1488
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1318",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4086
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1755
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1319",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3726
           },
           "y": {
@@ -14823,35 +13913,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4140
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1630
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1320",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4143
           },
           "y": {
@@ -14868,64 +13929,6 @@
           "numerator": 260
         },
         "id": "tree_1321",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4146
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1873
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1322",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4150
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1355
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1323",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -15013,64 +14016,6 @@
           "numerator": 260
         },
         "id": "tree_1326",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4213
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1501
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1327",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4215
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1614
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1328",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -15200,35 +14145,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4234
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1751
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1332",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4236
           },
           "y": {
@@ -15245,93 +14161,6 @@
           "numerator": 260
         },
         "id": "tree_1333",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4289
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1618
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1334",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4289
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1366
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1335",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4292
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1750
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1336",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -15461,35 +14290,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4294
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1882
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1340",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4295
           },
           "y": {
@@ -15577,64 +14377,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4306
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1486
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1344",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4311
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1244
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1345",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4311
           },
           "y": {
@@ -15680,35 +14422,6 @@
           "numerator": 260
         },
         "id": "tree_1347",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4363
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1756
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1348",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -15867,35 +14580,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4374
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1359
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1353",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4377
           },
           "y": {
@@ -15970,64 +14654,6 @@
           "numerator": 260
         },
         "id": "tree_1356",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4381
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1636
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1357",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4383
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1486
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1358",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -16186,35 +14812,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4443
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1245
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1363",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4445
           },
           "y": {
@@ -16244,35 +14841,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4447
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1748
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1365",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4451
           },
           "y": {
@@ -16289,35 +14857,6 @@
           "numerator": 260
         },
         "id": "tree_1366",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4452
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1490
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1367",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -16476,64 +15015,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4459
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1361
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1372",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4459
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1626
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1373",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4460
           },
           "y": {
@@ -16579,64 +15060,6 @@
           "numerator": 260
         },
         "id": "tree_1375",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4518
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1363
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1376",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4518
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1747
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1377",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -16853,35 +15276,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 4526
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1497
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1384",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 4527
           },
           "y": {
@@ -16985,35 +15379,6 @@
           "numerator": 260
         },
         "id": "tree_1388",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4534
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1625
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1389",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -17188,35 +15553,6 @@
           "numerator": 260
         },
         "id": "tree_1394",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4594
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -1614
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1395",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -17507,35 +15843,6 @@
           "numerator": 260
         },
         "id": "tree_1404",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 4609
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 1502
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_1405",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -18332,35 +16639,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3568
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3301
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_166",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3566
           },
           "y": {
@@ -19028,35 +17306,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3489
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3445
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_190",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3488
           },
           "y": {
@@ -19073,35 +17322,6 @@
           "numerator": 260
         },
         "id": "tree_191",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3488
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3175
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_192",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -19189,35 +17409,6 @@
           "numerator": 260
         },
         "id": "tree_195",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3430
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3302
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_196",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -19434,35 +17625,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3423
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3056
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_204",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3422
           },
           "y": {
@@ -19479,35 +17641,6 @@
           "numerator": 260
         },
         "id": "tree_205",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3422
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3566
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_206",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -19902,35 +18035,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": -3442
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_220",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3356
-          },
-          "y": {
-            "denominator": 1,
             "numerator": 203
           },
           "z": {
@@ -20275,35 +18379,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3340
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3182
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_233",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3338
           },
           "y": {
@@ -20391,35 +18466,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3283
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3319
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_237",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3279
           },
           "y": {
@@ -20436,35 +18482,6 @@
           "numerator": 260
         },
         "id": "tree_238",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3279
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3571
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_239",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -20639,35 +18656,6 @@
           "numerator": 260
         },
         "id": "tree_245",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3270
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3048
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_246",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -20958,64 +18946,6 @@
           "numerator": 260
         },
         "id": "tree_256",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3209
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3431
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_257",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3209
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3172
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_258",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -21580,64 +19510,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3130
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3305
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_278",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3128
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3054
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_279",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3127
           },
           "y": {
@@ -21712,35 +19584,6 @@
           "numerator": 260
         },
         "id": "tree_282",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -3127
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3569
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_283",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -22131,35 +19974,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3054
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3188
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_297",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -3053
           },
           "y": {
@@ -22508,35 +20322,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -3039
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3439
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_310",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -2983
           },
           "y": {
@@ -22698,35 +20483,6 @@
           "numerator": 260
         },
         "id": "tree_316",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -2973
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3322
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 0
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_317",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -31672,35 +29428,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -1098
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4353
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_626",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -1097
           },
           "y": {
@@ -31730,35 +29457,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -1096
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4232
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_628",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -1094
           },
           "y": {
@@ -31775,35 +29473,6 @@
           "numerator": 260
         },
         "id": "tree_629",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -1092
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4471
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_630",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -31862,35 +29531,6 @@
           "numerator": 260
         },
         "id": "tree_632",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -1034
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4213
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_633",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -32049,93 +29689,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -1021
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4619
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_639",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -1020
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4362
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_640",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -1020
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4488
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_641",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -1019
           },
           "y": {
@@ -32227,35 +29780,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": 4341
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_645",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -959
-          },
-          "y": {
-            "denominator": 1,
             "numerator": -1625
           },
           "z": {
@@ -32268,35 +29792,6 @@
           "numerator": 260
         },
         "id": "tree_646",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -958
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4476
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_647",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -32326,35 +29821,6 @@
           "numerator": 260
         },
         "id": "tree_648",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -950
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4610
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_649",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -32455,35 +29921,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -942
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4087
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_653",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -940
           },
           "y": {
@@ -32529,64 +29966,6 @@
           "numerator": 260
         },
         "id": "tree_655",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -886
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4235
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_656",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -882
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4492
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_657",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -32890,35 +30269,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": -586
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4353
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_668",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": -583
           },
           "y": {
@@ -33167,35 +30517,6 @@
           "numerator": 260
         },
         "id": "tree_677",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": -506
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4344
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_678",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -36167,35 +33488,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 552
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4089
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_781",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 556
           },
           "y": {
@@ -36647,35 +33939,6 @@
           "numerator": 260
         },
         "id": "tree_797",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 700
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4096
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_798",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -37501,35 +34764,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 927
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4495
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_827",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 929
           },
           "y": {
@@ -37617,35 +34851,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 990
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4350
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_831",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 1002
           },
           "y": {
@@ -37691,35 +34896,6 @@
           "numerator": 260
         },
         "id": "tree_833",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1078
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4478
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_834",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -37865,35 +35041,6 @@
           "numerator": 260
         },
         "id": "tree_839",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1146
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": 4356
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_840",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -38516,35 +35663,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 1368
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4353
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_862",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 1370
           },
           "y": {
@@ -38810,35 +35928,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": -4480
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_872",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1439
-          },
-          "y": {
-            "denominator": 1,
             "numerator": 447
           },
           "z": {
@@ -39054,35 +36143,6 @@
           "numerator": 260
         },
         "id": "tree_880",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1458
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4218
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_881",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -39506,35 +36566,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": -4358
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_896",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1535
-          },
-          "y": {
-            "denominator": 1,
             "numerator": -3308
           },
           "z": {
@@ -39796,35 +36827,6 @@
           },
           "y": {
             "denominator": 1,
-            "numerator": -4480
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_906",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1601
-          },
-          "y": {
-            "denominator": 1,
             "numerator": 3843
           },
           "z": {
@@ -39966,35 +36968,6 @@
         "center_cm": {
           "x": {
             "denominator": 1,
-            "numerator": 1612
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4227
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_912",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
             "numerator": 1664
           },
           "y": {
@@ -40040,35 +37013,6 @@
           "numerator": 260
         },
         "id": "tree_914",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1665
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4340
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_915",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -40185,35 +37129,6 @@
           "numerator": 260
         },
         "id": "tree_919",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1677
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -3841
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_920",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -40881,35 +37796,6 @@
           "numerator": 260
         },
         "id": "tree_943",
-        "radius_cm": {
-          "denominator": 1,
-          "numerator": 40
-        },
-        "shape": "cylinder",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "center_cm": {
-          "x": {
-            "denominator": 1,
-            "numerator": 1827
-          },
-          "y": {
-            "denominator": 1,
-            "numerator": -4348
-          },
-          "z": {
-            "denominator": 1,
-            "numerator": 100
-          }
-        },
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 260
-        },
-        "id": "tree_944",
         "radius_cm": {
           "denominator": 1,
           "numerator": 40
@@ -46256,8 +43142,8 @@
       }
     ]
   },
-  "geometry_revision": 5,
-  "layout_revision": 5,
+  "geometry_revision": 6,
+  "layout_revision": 6,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -46377,5 +43263,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "1465bf5171f2a53d79a731692f7657b68c7087d7a6bdbdc547f3fbff9969accc"
+  "source_sha256": "e4bdac56ea2deaaeb4891f82d174e11e0b0ee465be97646ac4950fb47d85119f"
 }

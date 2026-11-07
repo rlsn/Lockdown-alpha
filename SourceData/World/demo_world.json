@@ -2,11 +2,11 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 5,
-  "geometry_revision": 5,
+  "layout_revision": 6,
+  "geometry_revision": 6,
   "approval": {
     "status": "approved",
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art. A playtest baseline, not a balance check."
+    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps added. A playtest baseline, not a balance check."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -122,11 +122,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_007", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4557, "y": -1620, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_008", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4556, "y": 4095, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -149,16 +144,6 @@
       {
         "id": "tree_012", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4549, "y": 3319, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_013", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4548, "y": -1371, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_014", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4545, "y": 1497, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -197,11 +182,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_022", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4485, "y": -1486, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_023", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4482, "y": 2913, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -212,11 +192,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_025", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4481, "y": -1234, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_026", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4479, "y": -463, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -224,11 +199,6 @@
       {
         "id": "tree_027", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4479, "y": 1112, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_028", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4478, "y": 1627, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -262,18 +232,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_035", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4465, "y": -1756, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_036", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4464, "y": -3051, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_037", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4464, "y": 1363, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -292,21 +252,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_041", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4411, "y": 1753, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_042", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4408, "y": -1630, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_043", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4407, "y": -1364, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_044", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4405, "y": 980, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -314,11 +259,6 @@
       {
         "id": "tree_045", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4405, "y": -3185, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_046", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4403, "y": 1492, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -344,21 +284,6 @@
       {
         "id": "tree_051", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4388, "y": 4612, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_052", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4334, "y": -1760, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_053", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4334, "y": -1242, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_054", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4328, "y": -1496, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -417,18 +342,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_066", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4250, "y": -1628, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_067", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4246, "y": 4607, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_068", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4243, "y": -1360, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -447,18 +362,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_072", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4177, "y": -1492, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_073", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4175, "y": -3047, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_074", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4173, "y": -1753, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -474,11 +379,6 @@
       {
         "id": "tree_077", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4112, "y": -314, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_078", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4111, "y": -1618, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -512,18 +412,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_085", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4091, "y": -1353, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_086", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4089, "y": -589, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_087", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4035, "y": 1376, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -559,11 +449,6 @@
       {
         "id": "tree_094", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4017, "y": 2914, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_095", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -4017, "y": 1614, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -972,11 +857,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_107", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3941, "y": 1750, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1070", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 2946, "y": 4356, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1004,11 +884,6 @@
       {
         "id": "tree_1075", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 2948, "y": -2920, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1076", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 2953, "y": 3322, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1102,11 +977,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1093", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3023, "y": 3453, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1094", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3025, "y": -2800, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1124,11 +994,6 @@
       {
         "id": "tree_1097", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3029, "y": 4478, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1098", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3031, "y": 3174, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1182,23 +1047,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1108", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3094, "y": 3572, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1109", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3094, "y": 3315, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_111", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3879, "y": -707, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1110", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3096, "y": 3051, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1259,11 +1109,6 @@
       {
         "id": "tree_1121", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3163, "y": 1618, "z": 50}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1122", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3163, "y": 3436, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1329,11 +1174,6 @@
       {
         "id": "tree_1134", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3176, "y": 2133, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1135", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3177, "y": 3172, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1452,11 +1292,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1157", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3252, "y": 3565, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1158", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3252, "y": -1633, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1487,18 +1322,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1163", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3259, "y": 3310, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1164", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3260, "y": 4357, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1165", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3261, "y": 3044, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1534,11 +1359,6 @@
       {
         "id": "tree_1171", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3318, "y": 2932, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1172", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3319, "y": 3184, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1579,11 +1399,6 @@
       {
         "id": "tree_118", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3869, "y": 1880, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1180", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3326, "y": 3448, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1642,11 +1457,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1191", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3394, "y": 3574, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1192", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3394, "y": 447, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1682,11 +1492,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1199", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3397, "y": 3057, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_120", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3867, "y": 3969, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1714,11 +1519,6 @@
       {
         "id": "tree_1204", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3405, "y": -4230, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1205", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3406, "y": 3324, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1754,11 +1554,6 @@
       {
         "id": "tree_1211", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3464, "y": -2004, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1212", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3464, "y": 3186, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1844,11 +1639,6 @@
       {
         "id": "tree_1228", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3482, "y": 4478, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1229", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3483, "y": 3439, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -1947,11 +1737,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1247", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3551, "y": 3055, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1248", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3551, "y": 1233, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1982,11 +1767,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1253", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3560, "y": 3321, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1254", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3615, "y": -1490, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -1999,11 +1779,6 @@
       {
         "id": "tree_1256", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3617, "y": 1363, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1257", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3619, "y": 3436, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2262,11 +2037,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1304", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 3931, "y": 1369, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1305", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 3936, "y": 3188, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2337,38 +2107,13 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1318", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4085, "y": -1488, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1319", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4086, "y": -1755, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_132", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3726, "y": -3044, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1320", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4140, "y": -1630, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1321", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4143, "y": 3582, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1322", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4146, "y": -1873, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1323", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4150, "y": -1355, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2384,16 +2129,6 @@
       {
         "id": "tree_1326", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4159, "y": -2912, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1327", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4213, "y": -1501, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1328", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4215, "y": 1614, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2417,28 +2152,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1332", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4234, "y": -1751, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1333", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4236, "y": -3058, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1334", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4289, "y": -1618, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1335", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4289, "y": -1366, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1336", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4292, "y": 1750, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2462,11 +2177,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1340", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4294, "y": -1882, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1341", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4295, "y": -594, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2482,16 +2192,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1344", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4306, "y": 1486, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1345", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4311, "y": 1244, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1346", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4311, "y": 3312, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2499,11 +2199,6 @@
       {
         "id": "tree_1347", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4363, "y": 3456, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1348", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4363, "y": -1756, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2532,11 +2227,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1353", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4374, "y": 1359, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1354", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4377, "y": -3834, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2549,16 +2239,6 @@
       {
         "id": "tree_1356", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4380, "y": 1103, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1357", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4381, "y": 1636, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1358", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4383, "y": -1486, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2587,28 +2267,13 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1363", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4443, "y": 1245, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1364", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4445, "y": -3447, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1365", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4447, "y": 1748, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1366", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4451, "y": -4485, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1367", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4452, "y": 1490, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2637,16 +2302,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1372", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4459, "y": -1361, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1373", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4459, "y": -1626, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1374", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4460, "y": -1894, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2654,16 +2309,6 @@
       {
         "id": "tree_1375", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4517, "y": 3190, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1376", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4518, "y": 1363, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1377", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4518, "y": -1747, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2702,11 +2347,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_1384", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4526, "y": -1497, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_1385", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4527, "y": -975, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -2724,11 +2364,6 @@
       {
         "id": "tree_1388", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4533, "y": 1117, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1389", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4534, "y": 1625, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2759,11 +2394,6 @@
       {
         "id": "tree_1394", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4592, "y": -3439, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1395", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4594, "y": -1614, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2814,11 +2444,6 @@
       {
         "id": "tree_1404", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 4608, "y": 1761, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_1405", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 4609, "y": 1502, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -2957,11 +2582,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_166", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3568, "y": -3301, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_167", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3566, "y": -1496, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3077,18 +2697,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_190", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3489, "y": -3445, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_191", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3488, "y": -2651, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_192", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3488, "y": -3175, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3104,11 +2714,6 @@
       {
         "id": "tree_195", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3430, "y": -4611, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_196", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3430, "y": -3302, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3147,18 +2752,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_204", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3423, "y": -3056, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_205", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3422, "y": 1881, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_206", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3422, "y": -3566, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3227,11 +2822,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_220", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3356, "y": -3442, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_221", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3356, "y": 203, "z": 50}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3292,11 +2882,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_233", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3340, "y": -3182, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_234", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3338, "y": -332, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3312,18 +2897,8 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_237", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3283, "y": -3319, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_238", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3279, "y": 323, "z": 50}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_239", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3279, "y": -3571, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3354,11 +2929,6 @@
       {
         "id": "tree_245", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3271, "y": 2393, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_246", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3270, "y": -3048, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3409,16 +2979,6 @@
       {
         "id": "tree_256", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3210, "y": 3312, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_257", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3209, "y": -3431, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_258", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3209, "y": -3172, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3517,16 +3077,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_278", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3130, "y": -3305, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_279", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3128, "y": -3054, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_280", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3127, "y": 3193, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3539,11 +3089,6 @@
       {
         "id": "tree_282", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3127, "y": -978, "z": 50}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_283", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3127, "y": -3569, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -3612,11 +3157,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_297", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3054, "y": -3188, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_298", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -3053, "y": 3053, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3677,11 +3217,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_310", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -3039, "y": -3439, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_311", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -2983, "y": -3061, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -3709,11 +3244,6 @@
       {
         "id": "tree_316", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -2975, "y": 3452, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_317", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -2973, "y": -3322, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -5257,28 +4787,13 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_626", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1098, "y": 4353, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_627", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -1097, "y": 3585, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_628", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1096, "y": -4232, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_629", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -1094, "y": -3190, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_630", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1092, "y": -4471, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -5289,11 +4804,6 @@
       {
         "id": "tree_632", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -1036, "y": 1373, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_633", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1034, "y": 4213, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -5322,21 +4832,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_639", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1021, "y": -4619, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_640", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1020, "y": -4362, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_641", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -1020, "y": 4488, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_642", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -1019, "y": 1102, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -5352,28 +4847,13 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_645", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -959, "y": 4341, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_646", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -959, "y": -1625, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_647", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -958, "y": -4476, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_648", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -953, "y": 3319, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_649", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -950, "y": 4610, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -5392,11 +4872,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_653", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -942, "y": 4087, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_654", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -940, "y": 1226, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -5404,16 +4879,6 @@
       {
         "id": "tree_655", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -940, "y": 342, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_656", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -886, "y": 4235, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_657", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -882, "y": 4492, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -5467,11 +4932,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_668", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -586, "y": -4353, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_669", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -583, "y": 1371, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -5514,11 +4974,6 @@
       {
         "id": "tree_677", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -509, "y": 1755, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_678", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": -506, "y": 4344, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6032,11 +5487,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_781", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 552, "y": 4089, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_782", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 556, "y": -3439, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6114,11 +5564,6 @@
       {
         "id": "tree_797", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 700, "y": 1493, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_798", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 700, "y": 4096, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6262,11 +5707,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_827", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 927, "y": 4495, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_828", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 929, "y": -3314, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6282,11 +5722,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_831", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 990, "y": 4350, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_832", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1002, "y": -3971, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6294,11 +5729,6 @@
       {
         "id": "tree_833", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1008, "y": 4601, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_834", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1078, "y": 4478, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6324,11 +5754,6 @@
       {
         "id": "tree_839", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1142, "y": 710, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_840", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1146, "y": 4356, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6437,11 +5862,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_862", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1368, "y": -4353, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_863", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1370, "y": 322, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6487,11 +5907,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_872", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1439, "y": -4480, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_873", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1439, "y": 447, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6529,11 +5944,6 @@
       {
         "id": "tree_880", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1452, "y": 205, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_881", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1458, "y": -4218, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6607,11 +6017,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_896", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1535, "y": -4358, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_897", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1535, "y": -3308, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6657,11 +6062,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_906", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1601, "y": -4480, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_907", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1601, "y": 3843, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6687,11 +6087,6 @@
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
-        "id": "tree_912", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1612, "y": -4227, "z": 100}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
         "id": "tree_913", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1664, "y": -981, "z": 0}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -6699,11 +6094,6 @@
       {
         "id": "tree_914", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1664, "y": 2134, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_915", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1665, "y": -4340, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6724,11 +6114,6 @@
       {
         "id": "tree_919", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1675, "y": -3051, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_920", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1677, "y": -3841, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -6844,11 +6229,6 @@
       {
         "id": "tree_943", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": 1823, "y": 1635, "z": 0}, "radius_cm": 40,
-        "height_cm": 260, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "tree_944", "shape": "cylinder", "surface_id": "demo_ground",
-        "center_cm": {"x": 1827, "y": -4348, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
       },
       {
@@ -7232,12 +6612,20 @@
       "members": [{"id": "h04_0", "position_cm": {"x": 624, "y": -2934, "z": 0}}]
     },
     {
-      "id": "l01", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1805, "y": 592, "z": 0},
-      "members": [{"id": "l01_0", "position_cm": {"x": 1780, "y": 668, "z": 0}}, {"id": "l01_1", "position_cm": {"x": 1830, "y": 516, "z": 0}}]
+      "id": "h05", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1805, "y": 592, "z": 0},
+      "members": [{"id": "h05_0", "position_cm": {"x": 1805, "y": 592, "z": 0}}]
     },
     {
-      "id": "l02", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1478, "y": 1762, "z": 0},
-      "members": [{"id": "l02_0", "position_cm": {"x": 1417, "y": 1813, "z": 0}}, {"id": "l02_1", "position_cm": {"x": 1539, "y": 1711, "z": 0}}]
+      "id": "h06", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1478, "y": 1762, "z": 0},
+      "members": [{"id": "h06_0", "position_cm": {"x": 1478, "y": 1762, "z": 0}}]
+    },
+    {
+      "id": "h07", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1985, "y": -558, "z": 0},
+      "members": [{"id": "h07_0", "position_cm": {"x": -1985, "y": -558, "z": 0}}]
+    },
+    {
+      "id": "h08", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1192, "y": -1908, "z": 0},
+      "members": [{"id": "h08_0", "position_cm": {"x": -1192, "y": -1908, "z": 0}}]
     },
     {
       "id": "l03", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1675, "y": 2901, "z": 0},
@@ -7250,14 +6638,6 @@
     {
       "id": "l05", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3060, "y": 1363, "z": 0},
       "members": [{"id": "l05_0", "position_cm": {"x": -3093, "y": 1290, "z": 0}}, {"id": "l05_1", "position_cm": {"x": -3027, "y": 1436, "z": 0}}]
-    },
-    {
-      "id": "l06", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1985, "y": -558, "z": 0},
-      "members": [{"id": "l06_0", "position_cm": {"x": -1963, "y": -635, "z": 0}}, {"id": "l06_1", "position_cm": {"x": -2007, "y": -481, "z": 0}}]
-    },
-    {
-      "id": "l07", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1192, "y": -1908, "z": 0},
-      "members": [{"id": "l07_0", "position_cm": {"x": -1124, "y": -1950, "z": 0}}, {"id": "l07_1", "position_cm": {"x": -1260, "y": -1866, "z": 0}}]
     },
     {
       "id": "l08", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -1490, "y": -3056, "z": 0},
@@ -7278,6 +6658,46 @@
     {
       "id": "l12", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4200, "y": -4200, "z": 100},
       "members": [{"id": "l12_0", "position_cm": {"x": 4257, "y": -4143, "z": 100}}, {"id": "l12_1", "position_cm": {"x": 4143, "y": -4257, "z": 100}}]
+    },
+    {
+      "id": "l13", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -850, "y": 4302, "z": 100},
+      "members": [{"id": "l13_0", "position_cm": {"x": -928, "y": 4286, "z": 100}}, {"id": "l13_1", "position_cm": {"x": -772, "y": 4318, "z": 100}}]
+    },
+    {
+      "id": "l14", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 881, "y": 4227, "z": 100},
+      "members": [{"id": "l14_0", "position_cm": {"x": 803, "y": 4243, "z": 100}}, {"id": "l14_1", "position_cm": {"x": 959, "y": 4211, "z": 100}}]
+    },
+    {
+      "id": "l15", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -851, "y": -4314, "z": 100},
+      "members": [{"id": "l15_0", "position_cm": {"x": -773, "y": -4329, "z": 100}}, {"id": "l15_1", "position_cm": {"x": -929, "y": -4299, "z": 100}}]
+    },
+    {
+      "id": "l16", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 1548, "y": -4150, "z": 100},
+      "members": [{"id": "l16_0", "position_cm": {"x": 1623, "y": -4122, "z": 100}}, {"id": "l16_1", "position_cm": {"x": 1473, "y": -4178, "z": 100}}]
+    },
+    {
+      "id": "l17", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4265, "y": -1513, "z": 100},
+      "members": [{"id": "l17_0", "position_cm": {"x": -4238, "y": -1588, "z": 100}}, {"id": "l17_1", "position_cm": {"x": -4292, "y": -1438, "z": 100}}]
+    },
+    {
+      "id": "l18", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -4228, "y": 1552, "z": 100},
+      "members": [{"id": "l18_0", "position_cm": {"x": -4256, "y": 1477, "z": 100}}, {"id": "l18_1", "position_cm": {"x": -4200, "y": 1627, "z": 100}}]
+    },
+    {
+      "id": "l19", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4250, "y": 1520, "z": 100},
+      "members": [{"id": "l19_0", "position_cm": {"x": 4223, "y": 1595, "z": 100}}, {"id": "l19_1", "position_cm": {"x": 4277, "y": 1445, "z": 100}}]
+    },
+    {
+      "id": "l20", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 4265, "y": -1548, "z": 100},
+      "members": [{"id": "l20_0", "position_cm": {"x": 4292, "y": -1473, "z": 100}}, {"id": "l20_1", "position_cm": {"x": 4238, "y": -1623, "z": 100}}]
+    },
+    {
+      "id": "l21", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": 3300, "y": 3300, "z": 0},
+      "members": [{"id": "l21_0", "position_cm": {"x": 3243, "y": 3357, "z": 0}}, {"id": "l21_1", "position_cm": {"x": 3357, "y": 3243, "z": 0}}]
+    },
+    {
+      "id": "l22", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3300, "y": -3300, "z": 0},
+      "members": [{"id": "l22_0", "position_cm": {"x": -3243, "y": -3357, "z": 0}}, {"id": "l22_1", "position_cm": {"x": -3357, "y": -3243, "z": 0}}]
     },
     {
       "id": "s00", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": -2413, "y": 4481, "z": 100}

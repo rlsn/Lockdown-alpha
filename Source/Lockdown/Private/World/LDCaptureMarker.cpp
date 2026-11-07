@@ -1,4 +1,5 @@
 #include "World/LDCaptureMarker.h"
+#include "Character/LDCameraSettings.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Engine/StaticMesh.h"
@@ -87,6 +88,8 @@ ALDCaptureMarker::ALDCaptureMarker()
     Graffiti->SetCanEverAffectNavigation(false);
     Graffiti->SetCastShadow(false);
     Graffiti->SetRelativeLocation(FVector(0., 0., LDGraffitiBoardLiftCm));
+    // The board's face looks along its local X; turned by the fixed camera yaw it faces the camera (#97 north-up).
+    Graffiti->SetRelativeRotation(FRotator(0., LDCamera::Yaw, 0.));
     Graffiti->SetRelativeScale3D(LDGraffitiBoardCm / 100.);
     Graffiti->SetVisibility(false);
 }
