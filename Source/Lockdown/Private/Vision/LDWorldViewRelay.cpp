@@ -23,6 +23,13 @@
 #include "EngineUtils.h"
 #include "Camera/PlayerCameraManager.h"
 
+namespace
+{
+// Fog mask outside current coverage (255 is fully lit). #97: raised from 64 so the fogged ground reads lighter
+// (user: "war fog color is too dark, make it lighter").
+constexpr uint8 LDFogHidden = 140;
+}
+
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
     *this = FLDObservedCatalog();
@@ -840,7 +847,7 @@ void ALDWorldViewRelay::UploadFog()
     FogTarget.SetNumUninitialized(LDObservation::CoverageCells);
     for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
     {
-        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : 64;
+        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : LDFogHidden;
     }
     // The first coverage shows at once; later ones blend from what is on screen.
     if (FogShown.Num() != LDObservation::CoverageCells)
@@ -857,7 +864,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
     if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
     // One publication interval per full fade: a cell entering or leaving coverage eases over about 0.1 s.
-    const float Step = (255.f - 64.f) * FMath::Max(Delta, 0.f) / .1f;
+    const float Step = (255.f - LDFogHidden) * FMath::Max(Delta, 0.f) / .1f;
     bool bMoving = false;
     const int32 Side = LDObservation::CoverageSide;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];

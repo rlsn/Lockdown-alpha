@@ -42,6 +42,8 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
     // Equipment slots: the held instance this slot shows (invalid otherwise) and the yellow "S" disc of a pre-sold item.
     FGuid ItemInstance;
+    // A skill is bound or an item is held: only such a slot can be dragged onto another (#97).
+    bool bHasSource=false;
     UPROPERTY() TObjectPtr<USizeBox> PresellMark;
     // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
@@ -79,6 +81,15 @@ protected:
     // Opens the item menu on a right click on an own equipment slot and closes it on any press outside it.
     virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
+    // #97 drag to swap: a left press on a filled Q/W or equipment slot that moves a few units drags a ghost of it; letting go
+    // over the other slot of the same group swaps the two in the controller's local slot order.
+    int32 DragFrom=INDEX_NONE;
+    FVector2D DragStart=FVector2D::ZeroVector;
+    bool bDragging=false;
+    UPROPERTY() TObjectPtr<UBorder> DragGhost;
+    UPROPERTY() TObjectPtr<UTextBlock> DragGhostGlyph;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> DragGhostSlot;
+    void UpdateDrag();
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
 private:
     UPROPERTY() TObjectPtr<UBorder> DiagnosticsPanel;
@@ -183,9 +194,12 @@ private:
     void CloseItemMenu();
     void ChooseItemMenu();
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // Blind-box button in the bottom-right corner, left of the shop entry: disabled without a pending choice; it pulses for
-    // a few seconds after the count rises, then stays steady.
+    // Blind-box button right above the band's Q/W slots (#97), under the three-choice panel it opens: disabled without a
+    // pending choice; it pulses for a few seconds after the count rises, then stays steady.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
+    UPROPERTY() TObjectPtr<UBorder> PromptFrame;
+    UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
+    float AppliedChoicesDock=-1;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptCount=0;

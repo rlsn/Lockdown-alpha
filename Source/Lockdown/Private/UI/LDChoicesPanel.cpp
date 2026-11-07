@@ -26,7 +26,7 @@ namespace
 const FLinearColor ChoicesIdle(.045f,.12f,.15f),ChoicesSelected(.26f,.2f,.05f);
 // Compact card geometry (1080p reference units): every card has the same one-name, one-summary layout, so the three share
 // one height and never scroll; larger text preferences grow all three alike.
-constexpr float ChoicesCardWidth=308.f,ChoicesCardHeight=64.f,ChoicesIconSize=44.f,ChoicesDetailWidth=300.f;
+constexpr float ChoicesCardWidth=250.f,ChoicesCardHeight=64.f,ChoicesIconSize=44.f,ChoicesDetailWidth=300.f;
 void ChoicesTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
     auto Style=Button->GetStyle();Style.Normal.TintColor=FSlateColor(Color);Style.Hovered.TintColor=FSlateColor(Color*1.6f);Button->SetStyle(Style);
@@ -59,11 +59,14 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto OneLine=[&Text](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);return Line;};
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        Header=Text(TEXT(""),17);Top->AddChildToHorizontalBox(Header)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        auto* HeaderSlot=Top->AddChildToHorizontalBox(Header=Text(TEXT(""),17));HeaderSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeaderSlot->SetVerticalAlignment(VAlign_Center);
+        RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
+        Top->AddChildToHorizontalBox(RerollButton)->SetPadding(FMargin(12,0,0,0));
         // No close button: the HUD's blind-box button toggles the panel, and Back closes it like every main panel.
-        // The three compact cards stack in a right-hand column, so the panel never covers the own body and its surroundings
-        // while the match keeps running. A click on a card is the choice; there is no separate confirm button.
-        auto* Row=WidgetTree->ConstructWidget<UVerticalBox>();
+        // #97: the three compact cards sit side by side in one low row right above the HUD's skill slots, so the eyes and
+        // the pointer travel little between a card and the Q/W slot it may replace. A click on a card is the choice; there
+        // is no separate confirm button.
+        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
         Root->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,8));
         for(int32 Index=0;Index<3;++Index)
         {
@@ -87,42 +90,21 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             // their own width in the middle of the card; they start at the card's left edge instead.
             if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
             auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(ChoicesCardWidth);Size->SetMinDesiredHeight(ChoicesCardHeight);Size->SetContent(Card.Button);
-            Row->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,0,0,Index<2?8:0));
+            Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
             CardWidgets.Add(Card.Button);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
         }
         CardViews.SetNum(Cards.Num());
-        auto* Replace=WidgetTree->ConstructWidget<UVerticalBox>();
-        ReplaceText=Text(TEXT(""),16);Replace->AddChildToVerticalBox(ReplaceText);
-        Replace->AddChildToVerticalBox(Text(TEXT("被替换的技能会被遗忘，旧投入不返还；新技能从旧技能的等级减一开始（至少 1 级）；冷却照常计时。"),14))->SetPadding(FMargin(0,6,0,0));
-        // The slot buttons carry only their key letter (the skills they hold are named in the prompt above, which wraps);
-        // clicking one is the replacement's confirmation and submits it.
-        auto* ReplaceActions=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(ReplaceActions)->SetPadding(FMargin(0,10,0,0));
-        for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
-        {
-            ReplaceSlotButtons[SkillSlot]=LDWidgets::Button(WidgetTree,SkillSlot?TEXT("W"):TEXT("Q"),[this,SkillSlot](){ChooseReplacement(SkillSlot);},false,SkillSlot?FName(TEXT("ReplaceSlotW")):FName(TEXT("ReplaceSlotQ")));
-            auto* SlotSize=WidgetTree->ConstructWidget<USizeBox>();SlotSize->SetMinDesiredWidth(56);SlotSize->SetContent(ReplaceSlotButtons[SkillSlot]);
-            CastChecked<UTextBlock>(ReplaceSlotButtons[SkillSlot]->GetContent())->SetJustification(ETextJustify::Center);
-            ReplaceActions->AddChildToHorizontalBox(SlotSize)->SetPadding(FMargin(0,0,8,0));
-        }
-        auto* BackSlot=ReplaceActions->AddChildToHorizontalBox(LDWidgets::Button(WidgetTree,TEXT("返回三卡"),[this](){CloseChildConfirmation();},false,TEXT("ReplaceBack")));
-        BackSlot->SetPadding(FMargin(8,0,0,0));
-        ReplacePanel=LDWidgets::Panel(WidgetTree,Replace,FMargin(16));ReplacePanel->SetBrushColor(FLinearColor(.06f,.05f,.03f,.9f));ReplacePanel->SetVisibility(ESlateVisibility::Collapsed);
-        Root->AddChildToVerticalBox(ReplacePanel)->SetPadding(FMargin(0,2,0,8));
-        auto* Bottom=WidgetTree->ConstructWidget<UVerticalBox>();Root->AddChildToVerticalBox(Bottom);
-        Feedback=Text(TEXT(""),14);Bottom->AddChildToVerticalBox(Feedback);
-        RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
-        Bottom->AddChildToVerticalBox(RerollButton)->SetPadding(FMargin(0,6,0,0));
-        // A see-through backing in the bottom-right corner, right above the HUD's shop entry (SetBottomDock): clear of the
-        // centre (the own body and about 5 m around it at either resolution) and of the bottom band.
+        // The status line wraps at the row's width, so a long notice never widens the panel.
+        Feedback=Text(TEXT(""),14);Feedback->SetAutoWrapText(false);Feedback->SetWrapTextAt(3*ChoicesCardWidth+16.f);Root->AddChildToVerticalBox(Feedback);
+        // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
-        auto* Width=WidgetTree->ConstructWidget<USizeBox>();Width->SetWidthOverride(340);Width->SetContent(MainPanel);
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Right);Frame->SetVerticalAlignment(VAlign_Bottom);
-        Frame->SetPadding(FMargin(0,0,16,BottomDock));Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Width);
-        DockFrame=Frame;
-        // The full description of the hovered or focused card pops up left of the column, level with that card. It sits on its
-        // own canvas layer over the whole panel, so its size never moves or squeezes the cards (which would drop the hover and
-        // flicker), and it wraps at a fixed width so it measures the same from its first frame. It takes no pointer input, so
-        // the world beside the panel stays clickable, and it only shows while a card is being read.
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Bottom);
+        Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(MainPanel);
+        DockFrame=Frame;SetBottomDock(BottomDock,DockCentreX);
+        // The full description of the hovered or focused card pops up above that card. It sits on its own canvas layer over
+        // the whole panel, so its size never moves or squeezes the cards (which would drop the hover and flicker), and it
+        // wraps at a fixed width so it measures the same from its first frame. It takes no pointer input, so the world
+        // beside the panel stays clickable, and it only shows while a card is being read.
         auto* DetailLines=WidgetTree->ConstructWidget<UVerticalBox>();
         auto FixedWrap=[](UTextBlock* Line){Line->SetAutoWrapText(false);Line->SetWrapTextAt(ChoicesDetailWidth-28.f);return Line;};
         DetailName=FixedWrap(Text(TEXT(""),17));DetailLines->AddChildToVerticalBox(DetailName);
@@ -132,7 +114,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto* DetailWidth=WidgetTree->ConstructWidget<USizeBox>();DetailWidth->SetWidthOverride(ChoicesDetailWidth);DetailWidth->SetContent(Detail);
         DetailWidth->SetVisibility(ESlateVisibility::Collapsed);
         DetailLayer=WidgetTree->ConstructWidget<UCanvasPanel>();DetailLayer->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-        DetailSlot=DetailLayer->AddChildToCanvas(DetailWidth);DetailSlot->SetAutoSize(true);DetailSlot->SetAlignment(FVector2D(1,0));
+        DetailSlot=DetailLayer->AddChildToCanvas(DetailWidth);DetailSlot->SetAutoSize(true);DetailSlot->SetAlignment(FVector2D(.5f,1));
         auto* Layers=WidgetTree->ConstructWidget<UOverlay>();Layers->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         auto* FrameLayer=Layers->AddChildToOverlay(Frame);FrameLayer->SetHorizontalAlignment(HAlign_Fill);FrameLayer->SetVerticalAlignment(VAlign_Fill);
         auto* PopupLayer=Layers->AddChildToOverlay(DetailLayer);PopupLayer->SetHorizontalAlignment(HAlign_Fill);PopupLayer->SetVerticalAlignment(VAlign_Fill);
@@ -170,27 +152,35 @@ void ULDChoicesPanel::UpdateDetail()
             const LDHUD::FChoiceCardView& View=CardViews[Next];
             ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Summary);
             FString Body=View.Description;for(const FString& Line:View.Lines){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n"))+Line;}
-            if(View.bNeedsReplacement){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n\n"))+FString(TEXT("Q/W 已满：点选后需选择要遗忘的技能。"));}
+            if(View.bNeedsReplacement){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n\n"))+FString(TEXT("Q/W 已满：点选后再点 HUD 上要遗忘的 Q 或 W 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从旧技能的等级减一开始（至少 1 级）。"));}
             ChoicesText(DetailBody,Body);
         }
     }
     if(DetailCard!=INDEX_NONE&&DetailLayer&&Popup)
     {
-        // Right edge 8 units left of the card, top level with it, read from last frame's layout. The card's place does not
-        // depend on the popup, so this never feeds back; the popup is only pulled up to stay on screen.
-        const FGeometry& Layer=DetailLayer->GetCachedGeometry();
-        const FVector2D CardTop=Layer.AbsoluteToLocal(Cards[DetailCard].Button->GetCachedGeometry().GetAbsolutePosition());
-        const float Bottom=float(Layer.GetLocalSize().Y)-float(Popup->GetDesiredSize().Y)-8.f;
-        const FVector2D Place(FMath::RoundToFloat(float(CardTop.X)-8.f),FMath::RoundToFloat(FMath::Max(0.f,FMath::Min(float(CardTop.Y),Bottom))));
+        // Centred 8 units above the card, read from last frame's layout. The card's place does not depend on the popup, so
+        // this never feeds back; the popup is only pushed sideways to stay on screen.
+        const FGeometry& Layer=DetailLayer->GetCachedGeometry();const FGeometry& Card=Cards[DetailCard].Button->GetCachedGeometry();
+        const FVector2D CardTop=Layer.AbsoluteToLocal(Card.GetAbsolutePosition());
+        const FVector2D CardEnd=Layer.AbsoluteToLocal(Card.GetAbsolutePosition()+Card.GetAbsoluteSize());
+        const float Half=ChoicesDetailWidth*.5f+8.f;const float Wide=float(Layer.GetLocalSize().X);
+        const float Centre=float(CardTop.X+CardEnd.X)*.5f;
+        const FVector2D Place(FMath::RoundToFloat(Wide>2*Half?FMath::Clamp(Centre,Half,Wide-Half):Centre),
+            FMath::RoundToFloat(FMath::Max(float(Popup->GetDesiredSize().Y),float(CardTop.Y)-8.f)));
         if(!DetailSlot->GetPosition().Equals(Place,.5f)){DetailSlot->SetPosition(Place);}
     }
 }
-void ULDChoicesPanel::SetBottomDock(float Bottom)
+void ULDChoicesPanel::SetBottomDock(float Bottom,float CentreX)
 {
-    BottomDock=Bottom;
-    if(DockFrame){DockFrame->SetPadding(FMargin(0,0,16,Bottom));}
+    BottomDock=Bottom;DockCentreX=CentreX;
+    // The column is centred on the screen centre shifted by CentreX: padding twice the shift on one side moves the centre.
+    if(DockFrame){DockFrame->SetPadding(FMargin(FMath::Max(0.f,2*CentreX),0,FMath::Max(0.f,-2*CentreX),Bottom));}
 }
-UWidget* ULDChoicesPanel::FocusScope() const{return bReplacing?static_cast<UWidget*>(ReplacePanel.Get()):static_cast<UWidget*>(MainPanel.Get());}
+float ULDChoicesPanel::PanelTop() const
+{
+    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y):0.f);
+}
+UWidget* ULDChoicesPanel::FocusScope() const{return MainPanel;}
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
@@ -221,12 +211,11 @@ void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 bool ULDChoicesPanel::CloseChildConfirmation()
 {
     if(!bReplacing){return false;}
-    ResetReplacement();ChoicesText(Feedback,TEXT("已返回三卡，没有消耗本次选择。"));return true;
+    ResetReplacement();ChoicesText(Feedback,TEXT("已取消替换，没有消耗本次选择。"));return true;
 }
 void ULDChoicesPanel::ResetReplacement()
 {
     bReplacing=false;ReplaceSlot=INDEX_NONE;ReplaceSkill=NAME_None;ReplaceRank=0;ReplaceBuildRevision=0;
-    if(ReplacePanel){ReplacePanel->SetVisibility(ESlateVisibility::Collapsed);}
 }
 void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content)
 {
@@ -277,18 +266,16 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
 void ULDChoicesPanel::RefreshSelection()
 {
     for(int32 Index=0;Index<Cards.Num();++Index){ChoicesTint(Cards[Index].Button,Index==Selected?ChoicesSelected:ChoicesIdle);}
-    const bool bReady=Selected!=INDEX_NONE&&!PendingRequest&&ShownOffer.IsValid()&&LDGrowthWire::IsChoicePhase(LatestPhase);
     const uint8 Tokens=Latest.RerollTokens;
     const bool bCanReroll=Latest.bHasOffer&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
         &&LDGrowthWire::IsChoicePhase(LatestPhase)&&!bReplacing;
     RerollButton->SetIsEnabled(bCanReroll);
     ChoicesText(CastChecked<UTextBlock>(RerollButton->GetContent()),Latest.bHasOffer&&Latest.Offer.bRerolled
         ?FString::Printf(TEXT("本组已重抽 · 剩 %d 次"),Tokens):FString::Printf(TEXT("免费重抽 · 剩 %d 次"),Tokens));
-    for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
-    {
-        ReplaceSlotButtons[SkillSlot]->SetIsEnabled(bReady&&bReplacing);
-        ChoicesTint(ReplaceSlotButtons[SkillSlot],int32(SkillSlot)==ReplaceSlot?ChoicesSelected:ChoicesIdle);
-    }
+}
+bool ULDChoicesPanel::IsReplacementTarget(uint8 SkillSlot) const
+{
+    return bReplacing&&!PendingRequest&&SkillSlot<2&&Latest.Skills.ContainsByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
 }
 bool ULDChoicesPanel::ChooseCard(int32 Index)
 {
@@ -331,18 +318,19 @@ void ULDChoicesPanel::ConfirmChoice()
     {
         if(!bReplacing)
         {
-            // Child confirmation: both current actives, no default slot.
-            bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;ReplacePanel->SetVisibility(ESlateVisibility::Visible);
-            // The buttons say only Q/W; the wrapping prompt names what each holds and the rank the new skill starts at.
-            FString Prompt=TEXT("学习「")+Shown.Name+TEXT("」需要遗忘一个主动技能。点要遗忘的技能槽即确认：");
+            // #97 short path: the HUD's Q/W slots glow red (IsReplacementTarget) and a click on one is the choice of what to
+            // forget, with no further confirmation and no default slot; another card restarts from that card, Back cancels.
+            bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;
+            FString Ranks;
             for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
             {
                 const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
-                Prompt+=FString::Printf(TEXT("\n%s：%s"),SkillSlot?TEXT("W"):TEXT("Q"),Skill?*FString::Printf(TEXT("%s %d 级 → 新技能 %d 级"),
-                    *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank,LDProgression::ReplacementRank(Skill->Rank)):TEXT("空"));
+                if(Skill){Ranks+=FString::Printf(TEXT("%s%s %d 级 → %d 级"),Ranks.IsEmpty()?TEXT(""):TEXT("，"),
+                    *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank,LDProgression::ReplacementRank(Skill->Rank));}
             }
-            ChoicesText(ReplaceText,Prompt);
-            ChoicesText(Feedback,TEXT("点 Q 或 W 选择要遗忘的技能，或返回三卡。"));RefreshSelection();
+            ChoicesText(Feedback,TEXT("学习「")+Shown.Name+TEXT("」：点 HUD 上要替换的技能（")+Ranks+TEXT("），或点另一张卡。"));
+            if(Notify){Notify(TEXT("选择要替换的技能"));}
+            RefreshSelection();
             return;
         }
         if(ReplaceSlot==INDEX_NONE||!FLDDefinitionWire::Encode(ReplaceSkill,Command.ExpectedOldSkillId))

@@ -30,8 +30,7 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
-#include "Components/UniformGridPanel.h"
-#include "Components/UniformGridSlot.h"
+#include "Components/ScaleBox.h"
 #include "Components/CanvasPanel.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
@@ -95,7 +94,11 @@ const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDComb
 static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
     && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
-// centre block, resources over the 2+2+1 action entries, sits on the screen centre directly under the character.
+// centre block, the 2+2+1 action entries over the resources, sits on the screen centre directly under the character.
+// #97: the whole band draws at HudBandScale of these sizes (user: "shrink them to about 75%").
+constexpr float HudBandScale=.75f;
+// A press on a slot becomes a drag once the pointer moves this far (screen units).
+constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
@@ -407,11 +410,6 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto* RuleSlot=Bottom->AddChildToHorizontalBox(RuleBox);RuleSlot->SetPadding(FMargin(HudBlockGap*.5f,4));RuleSlot->SetVerticalAlignment(VAlign_Fill);
         }
         auto* Centre=WidgetTree->ConstructWidget<UVerticalBox>();
-        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::OwnHealth,B,T,HudCentreWidth,24,&HealthRegenText));HealthBar=B;HealthText=T;
-        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::Mana,B,T,HudCentreWidth,22,&ManaRegenText))->SetPadding(FMargin(0,3,0,0));ManaBar=B;ManaText=T;
-        LevelBar=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(LevelBar,LDHUDStyle::Experience);LevelBar->SetPercent(0);
-        auto* LevelStrip=WidgetTree->ConstructWidget<USizeBox>();LevelStrip->SetHeightOverride(8);LevelStrip->SetContent(LevelBar);
-        Centre->AddChildToVerticalBox(LevelStrip)->SetPadding(FMargin(0,4,0,0));
         auto* Actions=WidgetTree->ConstructWidget<UHorizontalBox>();
         for(int32 Index=0;Index<HudActionCount;++Index)
         {
@@ -461,7 +459,15 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
             const ELDCombatEntry Activated=HudActionEntries[Index];
-            Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[PC,Activated](){if(Activated!=ELDCombatEntry::None){PC->ActivateCombatEntry(Activated);}},true,HudActionNames[Index]);
+            // A Q/W slot fires the entry the local slot order puts there; during the replacement pick it is the choice of
+            // the skill to forget instead (#97); a press that became a drag fires nothing.
+            Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,PC,Activated,Index]()
+            {
+                if(bDragging&&DragFrom==Index){return;}
+                const ELDCombatEntry Fired=Index<2?PC->SkillAtKey[Index]:Activated;
+                if(Index<2&&ChoicesPanel&&ChoicesPanel->HasChildConfirmation()){ChoicesPanel->ChooseReplacement(Fired==ELDCombatEntry::W?1:0);return;}
+                if(Fired!=ELDCombatEntry::None){PC->ActivateCombatEntry(Fired);}
+            },true,HudActionNames[Index]);
             // The face draws every state itself, so the button keeps no chrome of its own.
             auto ButtonStyle=Entry.Button->GetStyle();ButtonStyle.Normal=FSlateNoResource();ButtonStyle.Hovered=FSlateNoResource();ButtonStyle.Pressed=FSlateNoResource();ButtonStyle.Disabled=FSlateNoResource();
             ButtonStyle.NormalPadding=FMargin(0);ButtonStyle.PressedPadding=FMargin(0);Entry.Button->SetStyle(ButtonStyle);
@@ -471,7 +477,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // Character actives (Q/W), the two equipment slots and the innate dash (D) are separate groups, never one merged bar.
             Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2||Index==4?HudGroupGap:HudSlotGap,0,0,0));
         }
-        Centre->AddChildToVerticalBox(Actions)->SetPadding(FMargin(0,8,0,0));
+        // #97: the action entries on top, right under the blind-box button and the three-choice panel; health, mana and the
+        // experience strip below them.
+        Centre->AddChildToVerticalBox(Actions);
+        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::OwnHealth,B,T,HudCentreWidth,24,&HealthRegenText))->SetPadding(FMargin(0,8,0,0));HealthBar=B;HealthText=T;
+        Centre->AddChildToVerticalBox(Bar(LDHUDStyle::Mana,B,T,HudCentreWidth,22,&ManaRegenText))->SetPadding(FMargin(0,3,0,0));ManaBar=B;ManaText=T;
+        LevelBar=WidgetTree->ConstructWidget<UProgressBar>();HudBarStyle(LevelBar,LDHUDStyle::Experience);LevelBar->SetPercent(0);
+        auto* LevelStrip=WidgetTree->ConstructWidget<USizeBox>();LevelStrip->SetHeightOverride(8);LevelStrip->SetContent(LevelBar);
+        Centre->AddChildToVerticalBox(LevelStrip)->SetPadding(FMargin(0,4,0,0));
         auto* CentreWidth=WidgetTree->ConstructWidget<USizeBox>();CentreWidth->SetWidthOverride(HudCentreWidth);CentreWidth->SetContent(Centre);
         Bottom->AddChildToHorizontalBox(CentreWidth)->SetVerticalAlignment(VAlign_Bottom);
         Band=LDWidgets::Panel(WidgetTree,Bottom,FMargin(HudBandPadX,10));HitPanels.Add(Band);
@@ -484,7 +497,10 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         const float HudLeftReach=HudSideWidth+HudBlockGap+1;
         auto* BandStack=WidgetTree->ConstructWidget<UVerticalBox>();BandStack->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         BandStack->AddChildToVerticalBox(Band)->SetHorizontalAlignment(HAlign_Center);
-        Place(BandStack,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(-HudLeftReach*.5f,-12));
+        // The scale box lays the band out at HudBandScale, so its hit area, popups and the stack above it follow the drawn size.
+        auto* BandScale=WidgetTree->ConstructWidget<UScaleBox>();BandScale->SetStretch(EStretch::UserSpecified);BandScale->SetUserSpecifiedScale(HudBandScale);
+        BandScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);BandScale->SetContent(BandStack);
+        Place(BandScale,FAnchors(.5f,1),FVector2D(.5f,1),FVector2D(-HudLeftReach*.5f*HudBandScale,-12));
         // The toast is centred on the screen centre by its own canvas slot, 8 units above the band (RefreshReadModel follows
         // the band's height), so its width never shifts it off centre; a translucent face keeps the world visible behind it.
         Toast=OneLine(TEXT(""),16,640);Toast->SetJustification(ETextJustify::Center);
@@ -513,11 +529,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ItemMenuSlot=Canvas->AddChildToCanvas(ItemMenu);ItemMenuSlot->SetAutoSize(true);ItemMenuSlot->SetAlignment(FVector2D(.5f,1));ItemMenuSlot->SetZOrder(21);
         }
 
-        // Bottom-right corner, left to right: the blind-box button and the shop entry. Each toggles its own panel, which
-        // docks right above them; neither has a hotkey. The blind-box button is the Choices panel's only entry besides the
-        // opening's automatic open: greyed out and disabled while no choice is pending, and it pulses when the count rises.
-        // The shop entry shows the own gold and pre-order count; buying and upgrading still need the shop itself, and
-        // pre-orders and pre-sells (marked from the equipment slots' right-click menu) trade themselves there (ULDShopPanel).
+        // The blind-box button sits right above the band's Q/W slots (#97) and the shop entry in the bottom-right corner.
+        // Each toggles its own panel, which docks right above it; neither has a hotkey. The blind-box button is the Choices
+        // panel's only entry besides the opening's automatic open: greyed out and disabled while no choice is pending, and it
+        // pulses when the count rises. The shop entry shows the own gold and pre-order count; buying and upgrading still
+        // need the shop itself, and pre-orders and pre-sells (marked from the equipment slots' right-click menu) trade
+        // themselves there (ULDShopPanel).
         auto* Prompt=LDWidgets::Button(WidgetTree,TEXT(""),[PC](){if(PC->RootUI){PC->RootUI->ToggleMainPanel(ELDUIMainPanel::Choices);}},true,TEXT("HUDChoicesPrompt"));
         PromptButton=Prompt;
         PromptText=CastChecked<UTextBlock>(Prompt->GetContent());HudFace(PromptText,true,0);PromptText->SetColorAndOpacity(HudPromptInk);
@@ -533,16 +550,21 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Caption->SetJustification(ETextJustify::Center);
             if(UButtonSlot* CaptionSlot=Cast<UButtonSlot>(Caption->Slot)){CaptionSlot->SetPadding(FMargin(0));CaptionSlot->SetHorizontalAlignment(HAlign_Center);CaptionSlot->SetVerticalAlignment(VAlign_Center);}
         }
-        // A uniform grid gives both buttons the same size: the larger of the two, so neither caption is clipped.
-        auto* CornerRow=WidgetTree->ConstructWidget<UUniformGridPanel>();CornerRow->SetSlotPadding(FMargin(4,0));
-        for(int32 Column=0;Column<2;++Column)
-        {
-            UUniformGridSlot* Cell=CornerRow->AddChildToUniformGrid(Column?static_cast<UWidget*>(ShopButton.Get()):static_cast<UWidget*>(PendingPrompt.Get()),0,Column);
-            Cell->SetHorizontalAlignment(HAlign_Fill);Cell->SetVerticalAlignment(VAlign_Fill);
-        }
-        auto* ShopFrame=Panel(CornerRow,true);ShopFrame->SetPadding(FMargin(4));
+        auto* ShopFrame=Panel(ShopButton,true);ShopFrame->SetPadding(FMargin(4));
         Place(ShopFrame,FAnchors(1,1),FVector2D(1,1),FVector2D(-16,-16));
         ShopEntry=ShopFrame;
+        // RefreshReadModel keeps the blind-box button centred over the Q/W pair, right above the band.
+        PromptFrame=Panel(PendingPrompt,true);PromptFrame->SetPadding(FMargin(4));
+        PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(.5f,1));PromptSlot->SetAlignment(FVector2D(.5f,1));PromptSlot->SetAutoSize(true);
+        {
+            // The dragged slot's ghost follows the pointer; it takes no input.
+            DragGhostGlyph=OneLine(TEXT(""),26,0);HudFace(DragGhostGlyph,true,2);DragGhostGlyph->SetJustification(ETextJustify::Center);
+            DragGhost=WidgetTree->ConstructWidget<UBorder>();DragGhost->SetBrush(HudRound(6.f,LDHUDStyle::TextAccent,2.f));
+            DragGhost->SetHorizontalAlignment(HAlign_Center);DragGhost->SetVerticalAlignment(VAlign_Center);DragGhost->SetContent(DragGhostGlyph);
+            auto* GhostBox=WidgetTree->ConstructWidget<USizeBox>();GhostBox->SetWidthOverride(HudSlotWidth*HudBandScale);GhostBox->SetHeightOverride(HudSlotHeight*HudBandScale);
+            GhostBox->SetContent(DragGhost);GhostBox->SetRenderOpacity(.8f);GhostBox->SetVisibility(ESlateVisibility::Collapsed);
+            DragGhostSlot=Canvas->AddChildToCanvas(GhostBox);DragGhostSlot->SetAutoSize(true);DragGhostSlot->SetAlignment(FVector2D(.5f,.5f));DragGhostSlot->SetZOrder(30);
+        }
 
         // Normal main panels fill the canvas with a hit-transparent frame, so the world beside them keeps its input.
         AttributesPanel=CreateWidget<ULDAttributesPanel>(PC);ChoicesPanel=CreateWidget<ULDChoicesPanel>(PC);ShopPanel=CreateWidget<ULDShopPanel>(PC);
@@ -617,6 +639,17 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
     const FVector2D At=E.GetScreenSpacePosition();
     // Any press outside the open item menu closes it and still goes where it was aimed.
     if(ItemMenuIndex!=INDEX_NONE&&!(ItemMenu&&ItemMenu->GetCachedGeometry().IsUnderLocation(At))){CloseItemMenu();}
+    // A left press on a filled Q/W or equipment slot may become a drag (UpdateDrag); the press still reaches the button.
+    // The replacement pick takes Q/W clicks as its choice, so nothing drags meanwhile.
+    if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible()&&!(ChoicesPanel&&ChoicesPanel->HasChildConfirmation()))
+    {
+        DragFrom=INDEX_NONE;bDragging=false;
+        for(int32 Index=0;Index<FMath::Min(4,ActionSlots.Num());++Index)
+        {
+            const FLDHUDActionSlot& Entry=ActionSlots[Index];
+            if(Entry.bHasSource&&Entry.Box&&Entry.Box->GetCachedGeometry().IsUnderLocation(At)){DragFrom=Index;DragStart=At;break;}
+        }
+    }
     // A right click on an own equipment slot opens its menu; seen before the slot button (which answers only the left
     // button), so the world never gets this right click.
     if(E.GetEffectingButton()==EKeys::RightMouseButton&&Band&&Band->IsVisible())
@@ -628,6 +661,45 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
         }
     }
     return Super::NativeOnPreviewMouseButtonDown(G,E);
+}
+void ULDHUD::UpdateDrag()
+{
+    if(DragFrom==INDEX_NONE||!FSlateApplication::IsInitialized()){return;}
+    auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    UWidget* Ghost=DragGhostSlot?DragGhostSlot->Content.Get():nullptr;
+    const FVector2D At=FSlateApplication::Get().GetCursorPos();
+    const bool bHeld=FSlateApplication::Get().GetPressedMouseButtons().Contains(EKeys::LeftMouseButton);
+    if(!PC||!ActionSlots.IsValidIndex(DragFrom)||!Band||!Band->IsVisible())
+    {
+        DragFrom=INDEX_NONE;bDragging=false;if(Ghost){Ghost->SetVisibility(ESlateVisibility::Collapsed);}return;
+    }
+    if(!bDragging&&bHeld&&FVector2D::Distance(At,DragStart)>=HudDragStartPx)
+    {
+        bDragging=true;CloseItemMenu();
+        const FLDHUDActionSlot& From=ActionSlots[DragFrom];
+        if(DragGhost){DragGhost->SetBrushColor(From.Icon->GetBrushColor());}
+        HudSetText(DragGhostGlyph,From.Glyph->GetText().ToString());
+        if(Ghost){Ghost->SetVisibility(ESlateVisibility::HitTestInvisible);}
+    }
+    if(bDragging&&Ghost)
+    {
+        const FVector2D Place=GetCachedGeometry().AbsoluteToLocal(At);
+        if(!DragGhostSlot->GetPosition().Equals(Place,.5f)){DragGhostSlot->SetPosition(Place);}
+    }
+    if(bHeld){return;}
+    if(bDragging)
+    {
+        // Dropped on the other slot of the same group (skills with skills, equipment with equipment): the two trade places.
+        for(int32 To=0;To<FMath::Min(4,ActionSlots.Num());++To)
+        {
+            if(To==DragFrom||(To<2)!=(DragFrom<2)||!ActionSlots[To].Box->GetCachedGeometry().IsUnderLocation(At)){continue;}
+            if(To<2){Swap(PC->SkillAtKey[0],PC->SkillAtKey[1]);}else{Swap(PC->EquipmentAtPosition[0],PC->EquipmentAtPosition[1]);}
+            for(FLDHUDActionSlot& Changed:ActionSlots){Changed.AppliedLook=-1;Changed.bCooling=false;}
+            break;
+        }
+    }
+    DragFrom=INDEX_NONE;bDragging=false;
+    if(Ghost){Ghost->SetVisibility(ESlateVisibility::Collapsed);}
 }
 void ULDHUD::OpenItemMenu(int32 SlotIndex)
 {
@@ -677,6 +749,7 @@ const FLDDemoContentDefinitions* ULDHUD::DisplayDefinitions()
 void ULDHUD::NativeTick(const FGeometry& Geometry,float DeltaSeconds)
 {
     Super::NativeTick(Geometry,DeltaSeconds);
+    UpdateDrag();
     const auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
     if (!PC || !DiagnosticsPanel) { return; }
     const bool Network=PC->Controls && PC->Controls->bShowNetworkDiagnostics;
@@ -753,7 +826,8 @@ void ULDHUD::RefreshReadModel()
         // The result replaces gameplay UI: no main panel outlives play (UI 3.1); closing never undoes submitted work.
         for(ULDPanel* Open:MainPanels()){if(Open->IsPanelOpen()){Open->ClosePanel();}}
     }
-    HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(ShopEntry,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
+    if(bOwnMatch&&PC->SlotOrderMatch!=O.Match){PC->ResetSlotOrder(O.Match);}
+    HudSetShown(Band,bShow,ESlateVisibility::Visible);HudSetShown(ShopEntry,bShow,ESlateVisibility::Visible);HudSetShown(PromptFrame,bShow,ESlateVisibility::Visible);HudSetShown(MapColumn,bShow,ESlateVisibility::Visible);HudSetShown(PhaseBanner,bShow,ESlateVisibility::HitTestInvisible);
     HudSetShown(ResultPanel,bResults&&!Overlay,ESlateVisibility::Visible);
     if(bResults&&!Overlay){RefreshResult(*PC,*GS);}
     if(!bShow)
@@ -938,15 +1012,24 @@ void ULDHUD::RefreshReadModel()
     }
     if(ShopEntry)
     {
-        // The shop and blind-box panels dock in the bottom-right corner, right above the shop entry (whose height follows
-        // the text size); the root shows one main panel at a time, so they never stack.
+        // The shop panel docks in the bottom-right corner, right above the shop entry (whose height follows the text size).
         const float Dock=FMath::RoundToFloat(16.f+float(ShopEntry->GetDesiredSize().Y)+8.f);
-        if(AppliedPanelDock!=Dock)
-        {
-            AppliedPanelDock=Dock;
-            if(ChoicesPanel){ChoicesPanel->SetBottomDock(Dock);}
-            if(ShopPanel){ShopPanel->SetBottomDock(Dock);}
-        }
+        if(AppliedPanelDock!=Dock){AppliedPanelDock=Dock;if(ShopPanel){ShopPanel->SetBottomDock(Dock);}}
+    }
+    // #97: bottom up in the centre, the band, the blind-box button centred over the Q/W pair, then the three-choice panel
+    // over the button, so a card and the Q/W slot it may replace are a short move apart. Heights follow last frame's layout
+    // (text size changes them); the root shows one main panel at a time.
+    const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
+    const float PromptX=FMath::RoundToFloat((-HudCentreWidth*.5f+HudSlotWidth+HudSlotGap*.5f)*HudBandScale);
+    const float PromptTop=BandTop+8.f+(PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f);
+    if(PromptSlot)
+    {
+        const FVector2D Place(PromptX,-FMath::RoundToFloat(BandTop+8.f));
+        if(!PromptSlot->GetPosition().Equals(Place,.5f)){PromptSlot->SetPosition(Place);}
+    }
+    {
+        const float Dock=FMath::RoundToFloat(PromptTop+8.f);
+        if(ChoicesPanel&&AppliedChoicesDock!=Dock){AppliedChoicesDock=Dock;ChoicesPanel->SetBottomDock(Dock,PromptX);}
     }
     if(DevTestPanel)
     {
@@ -960,7 +1043,7 @@ void ULDHUD::RefreshReadModel()
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const int32 Pending=Progression?int32(Progression->PendingChoiceCount):0;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // The blind-box button stays in the corner: greyed out and disabled without a pending choice (an open panel with nothing
+    // The blind-box button stays over the Q/W slots: greyed out and disabled without a pending choice (an open panel with nothing
     // left closes itself), lit with the count otherwise; after the count rises it pulses at ~1 Hz for a few seconds.
     if(Pending>PromptCount){PromptPulseAt=UiNow;}
     PromptCount=Pending;
@@ -987,7 +1070,7 @@ void ULDHUD::RefreshReadModel()
             // The pressed slot's ring turns red for a moment where the player is looking; the toast says why.
             const bool bSlotRefused=!LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty();
             for(int32 Pressed=0;Pressed<ActionSlots.Num()&&bSlotRefused;++Pressed)
-            {if(HudActionEntries[Pressed]==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
+            {if((Pressed<2?PC->SkillAtKey[Pressed]:HudActionEntries[Pressed])==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
         }
     }
     uint8 ControlBits=0;
@@ -998,12 +1081,13 @@ void ULDHUD::RefreshReadModel()
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
-        const ELDCombatEntry Wanted=HudActionEntries[Index];
+        // Q/W positions show the entries the local slot order puts there (#97 drag to swap).
+        const ELDCombatEntry Wanted=Index<2?PC->SkillAtKey[Index]:HudActionEntries[Index];
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
         FGuid HeldItem;
         if(LDHUD::IsEquipmentSlot(SlotKind))
         {
-            const uint8 SlotIndex=SlotKind==LDHUD::EActionSlot::Equipment1?0:1;
+            const uint8 SlotIndex=PC->EquipmentAtPosition[SlotKind==LDHUD::EActionSlot::Equipment1?0:1];
             const FLDEquipmentSlotView* Held=Equipment?Equipment->Slots.FindByPredicate([SlotIndex](const FLDEquipmentSlotView& Row){return Row.SlotIndex==SlotIndex;}):nullptr;
             if(Held)
             {
@@ -1032,13 +1116,16 @@ void ULDHUD::RefreshReadModel()
             :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
         const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<HudNoticeSeconds;
-        const int32 LookKey=((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0);
+        // #97 replacement pick: a filled Q/W slot glows red on its edge; clicking it forgets that skill.
+        const bool bReplacePick=Index<2&&ChoicesPanel&&ChoicesPanel->IsReplacementTarget(Wanted==ELDCombatEntry::W?1:0);
+        Entry.bHasSource=Index<4&&Input.bHasSource;
+        const int32 LookKey=(((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0))*2+(bReplacePick?1:0);
         if(Entry.AppliedLook!=LookKey)
         {
             // Hovering brightens the edge and a refused press turns the ring red; the fill and the icon keep naming the state.
             Entry.AppliedLook=LookKey;
-            const FLinearColor Edge=bRejected?LDHUDStyle::TextDanger:bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
-            const float EdgeWidth=bRejected?3.f:bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth;
+            const FLinearColor Edge=bRejected||bReplacePick?LDHUDStyle::TextDanger:bHover?Style.Edge+(FLinearColor::White-Style.Edge)*.4f:Style.Edge;
+            const float EdgeWidth=bReplacePick?4.f:bRejected?3.f:bHover?FMath::Max(Style.EdgeWidth,2.f):Style.EdgeWidth;
             Entry.Frame->SetBrush(HudRound(8.f,Edge,EdgeWidth));Entry.Frame->SetBrushColor(bRejected?FMath::Lerp(Style.Fill,LDHUDStyle::TextDanger,.5f):Style.Fill);
             Entry.Icon->SetBrushColor(HudIconColor(IconKind,Look));
             HudSetColor(Entry.Glyph,Look==LDHUD::EActionLook::Blocked||Look==LDHUD::EActionLook::Empty?LDHUDStyle::TextSecondary:LDHUDStyle::TextPrimary);
@@ -1066,7 +1153,7 @@ void ULDHUD::RefreshReadModel()
         else{Entry.FlashAt=-1;}
         const float Pop=bFlash?1.f+.08f*FMath::Sin(UE_PI*FlashPhase):1.f;
         if(Entry.AppliedPop!=Pop){Entry.AppliedPop=Pop;Entry.Box->SetRenderScale(FVector2D(Pop,Pop));}
-        Entry.Button->SetIsEnabled(View.bCanSubmitIntent);
+        Entry.Button->SetIsEnabled(View.bCanSubmitIntent||bReplacePick);
         // The open item menu replaces the description.
         if(DetailIndex==INDEX_NONE&&ItemMenuIndex==INDEX_NONE&&Entry.Box->GetCachedGeometry().IsUnderLocation(Pointer)){DetailIndex=Index;DetailView=LDHUD::ActionDetail(View,Input,Context,Content);}
     }
@@ -1138,9 +1225,11 @@ void ULDHUD::RefreshReadModel()
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
     HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    if(ToastSlot&&Band)
+    if(ToastSlot)
     {
-        const FVector2D Above(0,-FMath::RoundToFloat(12.f+float(Band->GetDesiredSize().Y)+8.f));
+        // Above the blind-box button, or above the three-choice panel while it is open (its replacement prompt reads there).
+        const float Under=ChoicesPanel&&ChoicesPanel->IsPanelOpen()?ChoicesPanel->PanelTop():PromptTop;
+        const FVector2D Above(0,-FMath::RoundToFloat(Under+8.f));
         if(!ToastSlot->GetPosition().Equals(Above,.5f)){ToastSlot->SetPosition(Above);}
     }
 }

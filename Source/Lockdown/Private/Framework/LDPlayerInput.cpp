@@ -254,8 +254,9 @@ void ALDPlayerController::V05Pressed(FName Action)
         Navigation->ClickMove(IsQueueModifierDown());
     }
     else if (Action==TEXT("AttackMove")) { ArmAttackMove(); }
-    else if (Action==TEXT("Skill1")) { ActivateCombatEntry(ELDCombatEntry::Q); }
-    else if (Action==TEXT("Skill2")) { ActivateCombatEntry(ELDCombatEntry::W); }
+    // The skill keys follow the local slot order the HUD shows (#97 drag to swap).
+    else if (Action==TEXT("Skill1")) { ActivateCombatEntry(SkillAtKey[0]); }
+    else if (Action==TEXT("Skill2")) { ActivateCombatEntry(SkillAtKey[1]); }
     else if (Action==TEXT("Dash")) { ActivateCombatEntry(ELDCombatEntry::Dash); }
 }
 
