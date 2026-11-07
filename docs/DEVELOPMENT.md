@@ -77,10 +77,16 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 与 Epic 的原生编辑器 MCP；来源版本和 MIT 许可见 `.github\LICENSE.agent-customizations`。
 不需要 Claude Code，不安装上游的 hooks、模型配置、文档树或团队编排。
 
-Copilot App 自动读取仓库 Agent、Skill 和 MCP 配置。新增文件后，在新会话里选择
-`game-designer`，或在提示中明确要求使用 `balance-check` / `unreal-mcp`；
-在 **Customize → Installed** 核对资源是否可用。现有会话需要重新加载相应资源时，
-使用 App 提供的重载/重连操作或开启新会话，不以磁盘上有文件冒充已经加载。
+Copilot App 从会话所在的工作区读取仓库 Agent、Skill 和 MCP 配置；这些不是面向所有项目的
+个人全局安装。只有包含对应文件的分支和工作区才能发现它们：尚未合并到 `main` 的资源不会
+出现在基于 `main` 的新工作区。资源合并后，新会话仍需基于已更新的分支；现有会话可能需要
+重新加载或重连。
+
+在包含这些文件的会话里，通过输入框的 Agent 下拉菜单或 `/agent` 选择 `game-designer`；
+在提示中指定 `/balance-check` 或 `unreal-mcp` 使用对应 Skill。MCP 服务器可在项目设置的
+**Repository customizations → MCP servers** 查看，连接仍需要编辑器运行。
+**Customize → Installed** 是自定义项的管理入口，不作为项目级资源是否已被当前会话加载的
+唯一依据；也不以磁盘上有文件冒充已经加载。
 设计 Agent 提出方案；平衡检查只读分析，不批准或自动应用新数值，也不把模型结果当成试玩验收。
 规格、内容与数值仍由现有文档和批准流程维护。
 
