@@ -365,6 +365,18 @@ bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Timed stats: points grow, ratios do not"),
         LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Basic,nullptr,L5,1000).Plain,
         FString(TEXT("护甲 +17，攻速 +50%。")));
+    // passive_iced_americano: MPRegenFlat (like HPRegenFlat and AttackRangeCmFlat) is an exact fraction in Cm, not Amount.
+    FLDDemoEffectDefinition Iced;Iced.Opcode=uint8(ELDDemoEffectOp::StatBonus);
+    FLDDemoStatBonus Regen;Regen.Stat=ELDDemoBonusStat::MPRegenFlat;Regen.Cm.Numerator=2;Regen.Cm.Denominator=1;
+    Iced.Stats={{ELDDemoBonusStat::CooldownHasteFlat,2000,{}},Regen};
+    FLDDemoRankDefinition IcedBasic;IcedBasic.Rank=1;IcedBasic.Effects={Iced};
+    FLDDemoRankDefinition IcedAdvanced=IcedBasic;IcedAdvanced.Rank=2;IcedAdvanced.Effects[0].Stats[0].Amount=3000;
+    const FString IcedTemplate=TEXT("技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。");
+    const LDHUD::FCardText IcedFace=LDHUD::CardText(IcedTemplate,IcedBasic,nullptr,L5,1000);
+    TestEqualSensitive(TEXT("Mana regeneration reads its Cm fraction (+2/秒), never +0"),IcedFace.Plain,FString(TEXT("技能急速 +20，法力回复 +2/秒。")));
+    TestTrue(TEXT("and the card lists each placeholder's value"),IcedFace.Values==TArray<FString>({TEXT("20"),TEXT("2")}));
+    TestEqualSensitive(TEXT("Its upgrade card shows the haste change and the unchanged regeneration once"),
+        LDHUD::CardText(IcedTemplate,IcedAdvanced,&IcedBasic,L1,1000).Plain,FString(TEXT("技能急速 +20 → 30，法力回复 +2/秒。")));
     const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Basic,nullptr,L1,1000);
     TestTrue(TEXT("Slow and control are separate keywords"),Both.Keywords==TArray<FString>({TEXT("减速"),TEXT("控制")})
         &&Both.Rich==TEXT("被<b>减速</>或被<b>控制</>的敌人。"));

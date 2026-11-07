@@ -4,6 +4,7 @@
 
 #include "../Development/LDDemoContentJson.h"
 #include "Combat/LDAttributeProjection.h"
+#include "Development/LDDemoCardText.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Internationalization/StringTableCore.h"
@@ -127,6 +128,58 @@ bool Forbidden(const FString& Text)
         || Text.Contains(TEXT("内容目录中找不到"));
 }
 
+// Whether the rank's authored data behind a placeholder is non-zero (before growth and the owner's stats).
+bool Configured(const LDDemoCardText::FToken& Token, const FLDDemoRankDefinition& Rank)
+{
+    using LDDemoCardText::EField;
+    const FLDDemoEffectDefinition* Effect = LDDemoCardText::FindEffect(Rank, Token);
+    if (!Effect) { return false; }
+    switch (Token.Field)
+    {
+    case EField::Amount: return Effect->BaseP2 != 0 || Effect->ADRatioBp != 0 || Effect->APRatioBp != 0 || Effect->MaxHPRatioBp != 0
+        || Effect->ArmorRatioBp != 0;
+    case EField::Burst: return Effect->SecondaryRatioBp != 0;
+    case EField::BasicCount: return Effect->BasicCount != 0;
+    case EField::CooldownCut: return Effect->CooldownRatioBp != 10000;
+    case EField::Refund: return Effect->AmountMs != 0;
+    case EField::Duration: return Effect->DurationMs != 0;
+    case EField::Ratio: return Effect->RatioBp != 0;
+    case EField::Count: return Effect->Count != 0;
+    case EField::Radius: return Effect->RadiusCm.Numerator != 0;
+    case EField::Distance: return Effect->DistanceCm.Numerator != 0;
+    case EField::Interval: return Effect->IntervalMs != 0;
+    case EField::Delay: return Effect->DelayMs != 0;
+    case EField::SecondaryRatio: return Effect->SecondaryRatioBp != 0;
+    case EField::SecondaryDuration: return Effect->SecondaryDurationMs != 0;
+    case EField::Stat:
+    {
+        const FLDDemoStatBonus* Stat = Effect->Stats.FindByPredicate([&Token](const FLDDemoStatBonus& S) { return S.Stat == Token.Stat; });
+        return Stat && (Stat->Amount != 0 || Stat->Cm.Numerator != 0);
+    }
+    default: return false;
+    }
+}
+
+// Every placeholder whose authored data is non-zero must read a non-zero number (a value read from the wrong storage
+// field shows as 0, e.g. a stat held in Cm read through Amount).
+void CheckNonZero(FAutomationTestBase& Test, const FString& Label, const FString& Template, const FLDDemoRankDefinition& Rank,
+    const LDHUD::FCardText& Text)
+{
+    TArray<LDDemoCardText::FToken> Tokens;
+    FString Error;
+    if (!Test.TestTrue(Label + TEXT(": the template parses ") + Error, LDDemoCardText::Parse(Template, Tokens, Error))) { return; }
+    int32 Index = 0;
+    for (const LDDemoCardText::FToken& Token : Tokens)
+    {
+        if (!Token.bValue) { continue; }
+        const FString Value = Text.Values.IsValidIndex(Index) ? Text.Values[Index] : FString();
+        ++Index;
+        if (!Configured(Token, Rank)) { continue; }
+        Test.TestFalse(FString::Printf(TEXT("%s: placeholder %d reads %s from a non-zero authored value"), *Label, Index, *Value),
+            Value.IsEmpty() || FMath::IsNearlyZero(FCString::Atod(*Value)));
+    }
+}
+
 FLDChoiceOption Option(ELDChoiceOptionKind Kind, const FString& Id, uint8 From, uint8 To)
 {
     FLDChoiceOption Out;
@@ -196,6 +249,14 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
             const LDHUD::FCardText Line = LDHUD::CardText(Display->AdvancedText, *Advanced, nullptr, Stats, Growth);
             const LDHUD::FCardText Upgrade = LDHUD::CardText(Display->DescriptionText, *Advanced, Basic, Stats, Growth);
             TestTrue(At + TEXT(": every placeholder reads a number"), Sentence.bComplete && Line.bComplete && Upgrade.bComplete);
+            CheckNonZero(*this, At + TEXT(" sentence"), Display->DescriptionText, *Basic, Sentence);
+            CheckNonZero(*this, At + TEXT(" advanced line"), Display->AdvancedText, *Advanced, Line);
+            CheckNonZero(*this, At + TEXT(" upgrade"), Display->DescriptionText, *Advanced, Upgrade);
+            if (Ability.Id == TEXT("passive_iced_americano"))
+            {
+                TestTrue(At + TEXT(": iced americano shows its mana regeneration (") + Sentence.Plain + TEXT(")"),
+                    Sentence.Plain.Contains(TEXT("+2/秒")));
+            }
             // v7 measured R1/R2 with level-1 numbers; at level 10 a grown number may add a digit (reported, not asserted).
             const int32 SentenceLength = LDHUD::CardLength(Sentence.Plain), LineLength = LDHUD::CardLength(Line.Plain);
             if (Stats.Level == 1)

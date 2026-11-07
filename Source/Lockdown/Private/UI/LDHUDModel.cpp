@@ -920,7 +920,9 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& 
         if(!Stat){return false;}
         switch(Stat->Stat)
         {
-        case ELDDemoBonusStat::AttackRangeCmFlat: case ELDDemoBonusStat::HPRegenFlat: Out=HudRational(Stat->Cm);return true;
+        // The importer stores these exact fractions in Cm (unit cm, hp/s, mp/s); Amount stays 0.
+        case ELDDemoBonusStat::AttackRangeCmFlat: case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat:
+            Out=HudRational(Stat->Cm);return true;
         case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
         case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio: Out=HudDecimal(double(Stat->Amount)/100.);return true;
         default: Out=FString::Printf(TEXT("%lld"),(Stat->Amount+50)/100);return true;
@@ -951,6 +953,7 @@ LDHUD::FCardText LDHUD::CardText(const FString& Template,const FLDDemoRankDefini
         if(!Token.bValue){Text.Plain+=Token.Literal;continue;}
         FString To,Was;
         if(!CardValue(Token,Grown,Stats,To)){Text.bComplete=false;To=TEXT("?");}
+        Text.Values.Add(To);
         Text.Plain+=From&&CardValue(Token,GrownFrom,Stats,Was)&&Was!=To?Was+TEXT(" → ")+To:To;
     }
     // Keywords in the plain text become bold; the longest glossary match wins at each position.

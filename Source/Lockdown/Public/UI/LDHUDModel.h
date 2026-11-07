@@ -36,6 +36,8 @@ namespace LDHUD
         TArray<FString> Keywords;
         // False when a placeholder reads nothing (never shown as a number).
         bool bComplete=true;
+        // Each placeholder's value at Rank, in template order ("?" when it reads nothing).
+        TArray<FString> Values;
     };
     // Renders a card template (LDDemoCardText) against Rank grown for Stats.Level; with From, every value that changes reads
     // "A → B". The 13 glossary keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
