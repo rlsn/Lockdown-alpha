@@ -6,6 +6,7 @@
 # Art: third-party CC0 model and texture sources are binary or embed binary buffers.
 /SourceData/Art/**/*.gltf filter=lfs diff=lfs merge=lfs -text
 /SourceData/Art/**/*.glb filter=lfs diff=lfs merge=lfs -text
+/SourceData/Art/**/*.bin filter=lfs diff=lfs merge=lfs -text
 /SourceData/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
 # UI: full-screen background images supplied by the project owner.
 /SourceData/UI/*.png filter=lfs diff=lfs merge=lfs -text

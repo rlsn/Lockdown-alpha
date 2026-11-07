@@ -35,6 +35,13 @@
 这些值覆盖上文较早批准的移速、发育期、守护与外卖间隔，仍是试玩输入，未经平衡测试。
 **2026-11-07 用户决定镜头改为正北朝上（#97）：** 固定 yaw 由 −45° 改为 −90°（世界 −Y 在屏幕上方），pitch、FOV 与臂长不变，
 方形场地与跟随镜头的小地图因此对齐屏幕、铺满小地图（用户选择原话：“Camera north-up (−90°)”）。
+**2026-11-07 用户决定场地换用美术素材（#97）：** 原话：“use trees in stylized nature kit, then use cars, containers, etc. for wall. fence,
+chairs for fence, crate/box for drops, and put some decorative stuffs too. e.g. grass, flowers”。City Pack 无许可文件，按用户选择不用
+（“Skip City Pack”）；墙与围栏的碰撞跟随模型、按阻挡高度定缩放（“collision follows art, sized by limiting height”）：
+内墙改为废车（东北）与大小集装箱（西南），通道围栏各改为两段长栅栏，外墙改为集装箱排（“Container row”）；
+树先选小尺寸（“Smaller trees”），随后改用两种低多边形树（“trees look too complex, and varying, try use 2 low poly ones from other packages”），
+仍按 260 cm 树高缩放、树干碰撞 80 cm 不变；挡住角色的树、集装箱与废车半透明（“just make them transparent a bit when characters stand behind them from camera”）。
+只是试玩布局，不是平衡测试。
 **2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
 世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
 ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。

@@ -466,7 +466,7 @@ AStaticMeshActor* Place(UWorld& World, const FString& Id, UStaticMesh* Mesh, UMa
     if (!Actor) { Fail(Error, TEXT("Static geometry actor creation failed: ") + Id); return nullptr; }
     Actor->SetActorLabel(Id);
     Actor->Tags.Add(FName(*Id));
-    Actor->Tags.Add(TEXT("LDDemoStaticGeometry"));
+    Actor->Tags.Add(LDDemoWorld::StaticGeometryTag);
     Actor->SetActorScale3D(Scale);
     auto* Component = Actor->GetStaticMeshComponent();
     Component->SetStaticMesh(Mesh);
@@ -1161,7 +1161,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             ++Aprons;
             Apron = Mesh;
         }
-        if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(TEXT("LDDemoStaticGeometry")))
+        if (const auto* Mesh = Cast<AStaticMeshActor>(Actor); Mesh && Mesh->Tags.Contains(LDDemoWorld::StaticGeometryTag))
         {
             ++StaticCount;
             Steppable += Mesh->GetStaticMeshComponent()->CanCharacterStepUpOn == ECB_No ? 0 : 1;

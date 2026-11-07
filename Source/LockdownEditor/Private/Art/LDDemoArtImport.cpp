@@ -24,10 +24,14 @@
 #include "InterchangeManager.h"
 #include "InterchangeSourceData.h"
 #include "Materials/Material.h"
+#include "Materials/MaterialExpressionAdd.h"
 #include "Materials/MaterialExpressionCustom.h"
+#include "Materials/MaterialExpressionMax.h"
 #include "Materials/MaterialExpressionMultiply.h"
 #include "Materials/MaterialExpressionOneMinus.h"
+#include "Materials/MaterialExpressionPerInstanceCustomData.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
+#include "Materials/MaterialExpressionSubtract.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialInstanceConstant.h"
@@ -37,6 +41,7 @@
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
 #include "PhysicsEngine/BodySetup.h"
+#include "Region/LDMapGeometry.h"
 #include "ReferenceSkeleton.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
@@ -49,10 +54,24 @@ namespace
     const TCHAR* const ArtCatalogPackage = TEXT("/Game/Lockdown/Art/DA_DemoArt");
     const TCHAR* const ArtMasterPackage = TEXT("/Game/Lockdown/Art/Materials/M_ArtSurface");
     const TCHAR* const ArtFadeMasterPackage = TEXT("/Game/Lockdown/Art/Materials/M_ArtSurfaceFade");
+    const TCHAR* const ArtMaskedMasterPackage = TEXT("/Game/Lockdown/Art/Materials/M_ArtSurfaceMasked");
     const TCHAR* const ArtTextureRoot = TEXT("/Game/Lockdown/Art/Textures/");
     const TCHAR* const ArtCharacterRoot = TEXT("/Game/Lockdown/Art/Characters/");
     const TCHAR* const ArtPropRoot = TEXT("/Game/Lockdown/Art/Props/");
     const TCHAR* const ArtTextureParameter = TEXT("BaseTexture");
+    // Masked surfaces: a pixel stays where the base image's alpha reaches the source material's glTF alphaCutoff.
+    const TCHAR* const ArtAlphaCutoffParameter = TEXT("AlphaCutoff");
+    // glTF sampler magFilter LINEAR: a painted image sampled smoothly (#97 foliage and bark). Without it the image is a
+    // palette atlas whose swatches must stay flat (Kenney kits declare NEAREST or leave the filter unset).
+    constexpr int32 ArtGltfLinear = 9729;
+
+    // The three art master materials: opaque, opaque with the camera fade dither, and alpha-cut (glTF MASK, #97 foliage).
+    enum class EArtSurface : uint8 { Opaque, Fade, Masked };
+
+    const TCHAR* ArtMasterPackageOf(EArtSurface Surface)
+    {
+        return Surface == EArtSurface::Fade ? ArtFadeMasterPackage : Surface == EArtSurface::Masked ? ArtMaskedMasterPackage : ArtMasterPackage;
+    }
     // Vertices within this height of the lowest point form the footprint whose centre becomes a prop's pivot.
     constexpr double ArtFootprintSliceCm = 5.;
 
@@ -82,7 +101,7 @@ namespace
 
     struct FArtDecorationSpec
     {
-        FString Prop;
+        FString Prop, Blocker;
         ELDArtZone Zone = ELDArtZone::Count;
         FVector Location = FVector::ZeroVector;
         float Yaw = 0.f, Scale = 1.f;
@@ -96,13 +115,19 @@ namespace
         TArray<FArtPropSpec> Props;
         TArray<FArtDecorationSpec> Decorations;
         TSet<FString> Files;
+        // #97 dressing: every tree blocker shows one of TreeProps; HiddenBlockers are drawn by Outside props; the crate.
+        TArray<FString> TreeProps, HiddenBlockers;
+        FString AirdropProp;
     };
 
-    // Colour and base-colour image of one source material, read from the glTF itself.
+    // Colour and base-colour image of one source material, read from the glTF itself: its alpha mode and cutoff, and
+    // whether its image is sampled smoothly (mips, linear) or as a flat-swatch palette.
     struct FArtSourceMaterial
     {
         FLinearColor Color = FLinearColor::White;
         FString Image;
+        bool bMasked = false, bSmooth = false;
+        float AlphaCutoff = .5f;
     };
 
     bool ArtFail(FString& Error, const FString& Message) { Error = Message; return false; }
@@ -212,9 +237,9 @@ namespace
             if (!Value->TryGetObject(File) || !(*File)->TryGetStringField(TEXT("path"), Path) || !ArtSafeRelative(Path) || Listed.Contains(Path)
                 || !(*File)->TryGetStringField(TEXT("pack"), Pack) || !PackIds.Contains(Pack) || !(*File)->TryGetStringField(TEXT("pack_path"), PackPath)
                 || PackPath.IsEmpty() || !(*File)->TryGetStringField(TEXT("sha256"), Hash) || !(*File)->TryGetStringField(TEXT("purpose"), Purpose) || Purpose.IsEmpty()
-                || !(Path.EndsWith(TEXT(".gltf")) || Path.EndsWith(TEXT(".glb")) || Path.EndsWith(TEXT(".png"))))
+                || !(Path.EndsWith(TEXT(".gltf")) || Path.EndsWith(TEXT(".glb")) || Path.EndsWith(TEXT(".bin")) || Path.EndsWith(TEXT(".png"))))
             {
-                return ArtFail(Error, TEXT("Every art file needs a unique .gltf/.glb/.png path, a declared pack, its pack_path, sha256 and purpose: ") + Path);
+                return ArtFail(Error, TEXT("Every art file needs a unique .gltf/.glb/.bin/.png path, a declared pack, its pack_path, sha256 and purpose: ") + Path);
             }
             if (!ArtCheckHash(Path, Hash, Error)) { return false; }
             Listed.Add(Path);
@@ -325,9 +350,9 @@ namespace
             if (!Value->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("id"), Spec.Id) || !LDArt::IsValidId(Spec.Id)
                 || Out.Props.ContainsByPredicate([&Spec](const FArtPropSpec& Other) { return Other.Id == Spec.Id; })
                 || !(*Object)->TryGetStringField(TEXT("source"), Spec.Source) || !Out.Files.Contains(Spec.Source)
-                || !Spec.Source.EndsWith(TEXT(".glb")) || !ArtNumberField(*Object, TEXT("scale"), .01, 100., Spec.Scale))
+                || !(Spec.Source.EndsWith(TEXT(".glb")) || Spec.Source.EndsWith(TEXT(".gltf"))) || !ArtNumberField(*Object, TEXT("scale"), .01, 100., Spec.Scale))
             {
-                return ArtFail(Error, TEXT("Every prop needs a unique id, a listed .glb source and a scale."));
+                return ArtFail(Error, TEXT("Every prop needs a unique id, a listed .glb/.gltf source and a scale."));
             }
             if ((*Object)->HasField(TEXT("fadeable")) && !(*Object)->TryGetBoolField(TEXT("fadeable"), Spec.bFadeable))
             {
@@ -360,7 +385,33 @@ namespace
                 return ArtFail(Error, FString::Printf(TEXT("Decoration %d z must be 0..1000."), Index));
             }
             Spec.Location = FVector(X, Y, Z);
+            // #97: a blocker-zone prop names the world blocker it draws.
+            if ((*Object)->TryGetStringField(TEXT("blocker"), Spec.Blocker) != (Spec.Zone == ELDArtZone::Blocker) || (Spec.Zone == ELDArtZone::Blocker && Spec.Blocker.IsEmpty()))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("Decoration %d must name a blocker exactly when its zone is blocker."), Index));
+            }
             Out.Decorations.Add(MoveTemp(Spec));
+        }
+        const TSharedPtr<FJsonObject>* Dressing = nullptr;
+        const auto KnownProp = [&Out](const FString& Id) { return Out.Props.ContainsByPredicate([&Id](const FArtPropSpec& Prop) { return Prop.Id == Id; }); };
+        if (!Json->TryGetObjectField(TEXT("dressing"), Dressing) || !(*Dressing)->TryGetStringField(TEXT("airdrop_prop"), Out.AirdropProp) || !KnownProp(Out.AirdropProp))
+        {
+            return ArtFail(Error, TEXT("art_assets.json dressing needs the airdrop_prop of a declared prop."));
+        }
+        for (const TPair<const TCHAR*, TArray<FString>*> List : { TPair<const TCHAR*, TArray<FString>*>(TEXT("tree_props"), &Out.TreeProps),
+                                                                   TPair<const TCHAR*, TArray<FString>*>(TEXT("hidden_blockers"), &Out.HiddenBlockers) })
+        {
+            const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
+            if (!(*Dressing)->TryGetArrayField(List.Key, Items)) { return ArtFail(Error, FString::Printf(TEXT("art_assets.json dressing needs %s."), List.Key)); }
+            for (const TSharedPtr<FJsonValue>& Item : *Items)
+            {
+                FString Id;
+                if (!Item->TryGetString(Id) || Id.IsEmpty() || List.Value->Contains(Id) || (List.Value == &Out.TreeProps && !KnownProp(Id)))
+                {
+                    return ArtFail(Error, FString::Printf(TEXT("dressing %s entries must be unique, and tree props declared props."), List.Key));
+                }
+                List.Value->Add(Id);
+            }
         }
         return true;
     }
@@ -441,6 +492,17 @@ namespace
                 return ArtFail(Error, TEXT("Every glTF material needs a unique name: ") + Relative);
             }
             FArtSourceMaterial& Source = Out.Add(Name);
+            FString AlphaMode;
+            if ((*Material)->TryGetStringField(TEXT("alphaMode"), AlphaMode) && AlphaMode != TEXT("OPAQUE"))
+            {
+                double Cutoff = .5;
+                if (AlphaMode != TEXT("MASK") || ((*Material)->HasField(TEXT("alphaCutoff")) && (!(*Material)->TryGetNumberField(TEXT("alphaCutoff"), Cutoff) || !(Cutoff > 0. && Cutoff < 1.))))
+                {
+                    return ArtFail(Error, FString::Printf(TEXT("%s material %s must be OPAQUE or MASK with a cutoff in (0, 1)."), *Relative, *Name));
+                }
+                Source.bMasked = true;
+                Source.AlphaCutoff = float(Cutoff);
+            }
             const TSharedPtr<FJsonObject>* Pbr = nullptr;
             if (!(*Material)->TryGetObjectField(TEXT("pbrMetallicRoughness"), Pbr)) { continue; }
             if ((*Pbr)->HasField(TEXT("baseColorFactor")) && !ArtReadColor((*Pbr)->TryGetField(TEXT("baseColorFactor")), Source.Color))
@@ -449,7 +511,11 @@ namespace
             }
             const TSharedPtr<FJsonObject>* ColorTexture = nullptr;
             int32 TextureIndex = 0, ImageIndex = 0;
-            if (!(*Pbr)->TryGetObjectField(TEXT("baseColorTexture"), ColorTexture)) { continue; }
+            if (!(*Pbr)->TryGetObjectField(TEXT("baseColorTexture"), ColorTexture))
+            {
+                if (Source.bMasked) { return ArtFail(Error, FString::Printf(TEXT("%s material %s is masked without a base colour image."), *Relative, *Name)); }
+                continue;
+            }
             const TSharedPtr<FJsonObject>* TextureObject = nullptr;
             const TSharedPtr<FJsonObject>* ImageObject = nullptr;
             FString Uri;
@@ -461,6 +527,12 @@ namespace
                 return ArtFail(Error, FString::Printf(TEXT("%s material %s must use an external relative base colour image."), *Relative, *Name));
             }
             Source.Image = FPaths::GetPath(Relative) / Uri;
+            int32 SamplerIndex = 0, MagFilter = 0;
+            const TArray<TSharedPtr<FJsonValue>>* Samplers = nullptr;
+            const TSharedPtr<FJsonObject>* Sampler = nullptr;
+            Source.bSmooth = (*TextureObject)->TryGetNumberField(TEXT("sampler"), SamplerIndex) && Json->TryGetArrayField(TEXT("samplers"), Samplers)
+                && Samplers->IsValidIndex(SamplerIndex) && (*Samplers)[SamplerIndex]->TryGetObject(Sampler)
+                && (*Sampler)->TryGetNumberField(TEXT("magFilter"), MagFilter) && MagFilter == ArtGltfLinear;
         }
         return true;
     }
@@ -494,9 +566,13 @@ namespace
     // The master graph is code: every import rebuilds it in place, so editing ArtMasterMaterial and running
     // ImportDemoArt -Mode Import is the only way to change it; edits made to the asset are replaced.
     // Base: one opaque two-sided surface for every art mesh: base colour = BaseTexture x Tint, emissive = Flash.
-    // The fade variant is masked with a pixel dither on 1 - LDFadeStrength x LDFade, so it fades without translucency sorting.
-    UMaterial* ArtMasterMaterial(const TCHAR* PackageName, bool bFade, FString& Error)
+    // The fade variant is masked with a pixel dither on 1 - LDFadeStrength x max(LDFade, per-instance fade), so it fades
+    // without translucency sorting, a whole component or one instance at a time.
+    // The masked variant cuts where BaseTexture alpha is below AlphaCutoff (glTF MASK foliage, #97).
+    UMaterial* ArtMasterMaterial(EArtSurface Surface, FString& Error)
     {
+        const TCHAR* PackageName = ArtMasterPackageOf(Surface);
+        const bool bFade = Surface == EArtSurface::Fade;
         UMaterial* Material = ArtLoadOrCreate<UMaterial>(PackageName, true);
         auto* White = LoadObject<UTexture>(nullptr, TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"));
         if (!Material || !White) { ArtFail(Error, FString(TEXT("Cannot create the art master material ")) + PackageName); return nullptr; }
@@ -543,7 +619,14 @@ namespace
             auto* Reach = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
             Reach->ParameterName = ULDArtCatalog::FadeStrengthParameter;
             Reach->DefaultValue = .9f;
-            Strength->A.Connect(0, Fade);
+            // #97: an instanced prop fades one instance at a time through its first per-instance custom float.
+            auto* Instance = ArtAddExpression<UMaterialExpressionPerInstanceCustomData>(*Material);
+            Instance->DataIndex = 0;
+            Instance->ConstDefaultValue = 0.f;
+            auto* Either = ArtAddExpression<UMaterialExpressionMax>(*Material);
+            Either->A.Connect(0, Fade);
+            Either->B.Connect(0, Instance);
+            Strength->A.Connect(0, Either);
             Strength->B.Connect(0, Reach);
             auto* Opacity = ArtAddExpression<UMaterialExpressionOneMinus>(*Material);
             Opacity->Input.Connect(0, Strength);
@@ -557,7 +640,21 @@ namespace
             Dithered->Inputs[0].Input.Connect(0, Opacity);
             Inputs->OpacityMask.Connect(0, Dithered);
         }
-        Material->BlendMode = bFade ? BLEND_Masked : BLEND_Opaque;
+        if (Surface == EArtSurface::Masked)
+        {
+            auto* Cutoff = ArtAddExpression<UMaterialExpressionScalarParameter>(*Material);
+            Cutoff->ParameterName = ArtAlphaCutoffParameter;
+            Cutoff->DefaultValue = .5f;
+            auto* Below = ArtAddExpression<UMaterialExpressionSubtract>(*Material);
+            Below->A.Connect(4, Texture);
+            Below->B.Connect(0, Cutoff);
+            // alpha - cutoff + 0.5 against the 0.5 clip keeps exactly the pixels whose alpha reaches the cutoff.
+            auto* Centred = ArtAddExpression<UMaterialExpressionAdd>(*Material);
+            Centred->A.Connect(0, Below);
+            Centred->ConstB = .5f;
+            Inputs->OpacityMask.Connect(0, Centred);
+        }
+        Material->BlendMode = Surface == EArtSurface::Opaque ? BLEND_Opaque : BLEND_Masked;
         Material->OpacityMaskClipValue = .5f;
         Material->TwoSided = true;
         Material->SetUsageByFlag(MATUSAGE_SkeletalMesh, true);
@@ -576,8 +673,9 @@ namespace
     }
 
     // The graph ArtMasterMaterial builds, checked after every build and load: an empty or partial graph renders black.
-    bool ArtCheckMasterGraph(const UMaterial& Material, bool bFade, FString& Error)
+    bool ArtCheckMasterGraph(const UMaterial& Material, EArtSurface Surface, FString& Error)
     {
+        const bool bFade = Surface == EArtSurface::Fade, bMasked = Surface == EArtSurface::Masked;
         TArray<FName> Parameters;
         for (const UMaterialExpression* Expression : Material.GetExpressions())
         {
@@ -585,12 +683,13 @@ namespace
         }
         TArray<FName> Expected{ULDArtCatalog::TintParameter, ULDArtCatalog::FlashParameter, ArtTextureParameter, TEXT("Roughness")};
         if (bFade) { Expected.Append({ULDArtCatalog::FadeParameter, ULDArtCatalog::FadeStrengthParameter}); }
+        if (bMasked) { Expected.Add(ArtAlphaCutoffParameter); }
         Parameters.Sort(FNameLexicalLess());
         Expected.Sort(FNameLexicalLess());
         const UMaterialEditorOnlyData* Inputs = Material.GetEditorOnlyData();
-        const bool bGraph = Inputs && Material.GetExpressions().Num() == (bFade ? 10 : 5) && Parameters == Expected
+        const bool bGraph = Inputs && Material.GetExpressions().Num() == (bFade ? 12 : bMasked ? 8 : 5) && Parameters == Expected
             && Inputs->BaseColor.IsConnected() && Inputs->Roughness.IsConnected() && Inputs->EmissiveColor.IsConnected()
-            && Inputs->OpacityMask.IsConnected() == bFade && Material.BlendMode == (bFade ? BLEND_Masked : BLEND_Opaque) && Material.TwoSided;
+            && Inputs->OpacityMask.IsConnected() == (bFade || bMasked) && Material.BlendMode == (bFade || bMasked ? BLEND_Masked : BLEND_Opaque) && Material.TwoSided;
         return bGraph || ArtFail(Error, FString::Printf(TEXT("%s does not hold the importer's graph (%d expressions, %d parameters); ")
             TEXT("run ImportDemoArt.ps1 -Mode Import to rebuild it."), *Material.GetPathName(), Material.GetExpressions().Num(), Parameters.Num()));
     }
@@ -604,7 +703,22 @@ namespace
     }
 
     // Kenney palette atlases: nearest filtering without mips keeps every swatch a flat colour at any distance.
-    UTexture2D* ArtImportTexture(const FString& Relative, TArray<UObject*>& Assets, FString& Error)
+    // Smooth images (the glTF asks for linear filtering, #97 foliage and bark) keep mips and default compression.
+    void ArtTextureSettings(UTexture2D& Texture, bool bSmooth)
+    {
+        Texture.Filter = bSmooth ? TF_Default : TF_Nearest;
+        Texture.MipGenSettings = bSmooth ? TMGS_FromTextureGroup : TMGS_NoMipmaps;
+        Texture.CompressionSettings = bSmooth ? TC_Default : TC_EditorIcon;
+        Texture.LODGroup = TEXTUREGROUP_World;
+    }
+
+    bool ArtTextureMatches(const UTexture2D& Texture, bool bSmooth)
+    {
+        return Texture.Filter == (bSmooth ? TF_Default : TF_Nearest) && Texture.MipGenSettings == (bSmooth ? TMGS_FromTextureGroup : TMGS_NoMipmaps)
+            && Texture.CompressionSettings == (bSmooth ? TC_Default : TC_EditorIcon) && Texture.SRGB;
+    }
+
+    UTexture2D* ArtImportTexture(const FString& Relative, bool bSmooth, TArray<UObject*>& Assets, FString& Error)
     {
         const FString Name = TEXT("T_") + ArtAssetName(Relative);
         UPackage* Package = CreatePackage(*(FString(ArtTextureRoot) + Name));
@@ -618,9 +732,7 @@ namespace
         Factory->RemoveFromRoot();
         auto* Texture = Cast<UTexture2D>(Imported);
         if (!Texture || bCancelled) { ArtFail(Error, TEXT("Texture import failed: ") + Relative); return nullptr; }
-        Texture->Filter = TF_Nearest;
-        Texture->MipGenSettings = TMGS_NoMipmaps;
-        Texture->CompressionSettings = TC_EditorIcon;
+        ArtTextureSettings(*Texture, bSmooth);
         Texture->SRGB = true;
         Texture->NeverStream = true;
         Texture->PostEditChange();
@@ -630,7 +742,7 @@ namespace
     }
 
     UMaterialInstanceConstant* ArtSlotMaterial(UMaterial& Master, const FString& Folder, const FString& Owner, FName Slot, const FLinearColor& Color,
-        UTexture2D* Texture, TArray<UObject*>& Assets, FString& Error)
+        UTexture2D* Texture, const FArtSourceMaterial& Source, TArray<UObject*>& Assets, FString& Error)
     {
         const FString PackageName = Folder / (TEXT("MI_") + Owner + TEXT("_") + ArtAssetName(Slot.ToString()));
         auto* Instance = ArtLoadOrCreate<UMaterialInstanceConstant>(PackageName, true);
@@ -639,6 +751,7 @@ namespace
         Instance->ClearParameterValuesEditorOnly();
         Instance->SetVectorParameterValueEditorOnly(FMaterialParameterInfo(ULDArtCatalog::TintParameter), Color);
         if (Texture) { Instance->SetTextureParameterValueEditorOnly(FMaterialParameterInfo(ArtTextureParameter), Texture); }
+        if (Source.bMasked) { Instance->SetScalarParameterValueEditorOnly(FMaterialParameterInfo(ArtAlphaCutoffParameter), Source.AlphaCutoff); }
         Instance->PostEditChange();
         Instance->MarkPackageDirty();
         Assets.AddUnique(Instance);
@@ -790,10 +903,18 @@ namespace
         return true;
     }
 
+    // The master of one slot: masked sources cut on their alpha; a fadeable prop must be wholly opaque.
+    bool ArtSlotSurface(const FArtSourceMaterial& Source, bool bFadeable, const FString& Owner, const FString& Slot, EArtSurface& Out, FString& Error)
+    {
+        if (Source.bMasked && bFadeable) { return ArtFail(Error, FString::Printf(TEXT("%s slot %s is masked; a fadeable prop must be opaque."), *Owner, *Slot)); }
+        Out = Source.bMasked ? EArtSurface::Masked : bFadeable ? EArtSurface::Fade : EArtSurface::Opaque;
+        return true;
+    }
+
     // Replaces every imported slot with an art material instance: the source colour (or the manifest override) and image.
     template<typename TSlot>
     bool ArtAssignMaterials(TArray<TSlot>& Slots, const TMap<FString, FArtSourceMaterial>& Sources, const TMap<FString, FLinearColor>& Colors,
-        UMaterial& Master, const FString& Folder, const FString& Owner, TArray<UObject*>& Assets, FString& Error)
+        const TMap<EArtSurface, UMaterial*>& Masters, bool bFadeable, const FString& Folder, const FString& Owner, TArray<UObject*>& Assets, FString& Error)
     {
         TSet<FString> Seen;
         for (TSlot& Slot : Slots)
@@ -801,14 +922,17 @@ namespace
             const FString Name = Slot.ImportedMaterialSlotName.ToString();
             const FArtSourceMaterial* Source = Sources.Find(Name);
             if (!Source) { return ArtFail(Error, FString::Printf(TEXT("%s slot %s is not a source material."), *Owner, *Name)); }
+            EArtSurface Surface;
+            if (!ArtSlotSurface(*Source, bFadeable, Owner, Name, Surface, Error)) { return false; }
             UTexture2D* Texture = nullptr;
             if (!Source->Image.IsEmpty())
             {
-                Texture = ArtImportTexture(Source->Image, Assets, Error);
+                Texture = ArtImportTexture(Source->Image, Source->bSmooth, Assets, Error);
                 if (!Texture) { return false; }
             }
             const FLinearColor* Override = Colors.Find(Name);
-            UMaterialInstanceConstant* Instance = ArtSlotMaterial(Master, Folder, Owner, Slot.ImportedMaterialSlotName, Override ? *Override : Source->Color, Texture, Assets, Error);
+            UMaterialInstanceConstant* Instance = ArtSlotMaterial(*Masters[Surface], Folder, Owner, Slot.ImportedMaterialSlotName, Override ? *Override : Source->Color,
+                Texture, *Source, Assets, Error);
             if (!Instance) { return false; }
             Slot.MaterialInterface = Instance;
             Seen.Add(Name);
@@ -822,7 +946,7 @@ namespace
 
     template<typename TSlot>
     bool ArtCheckMaterials(const TArray<TSlot>& Slots, const TMap<FString, FArtSourceMaterial>& Sources, const TMap<FString, FLinearColor>& Colors,
-        const FString& Folder, const FString& Owner, const TCHAR* MasterPackage, FString& Error)
+        const FString& Folder, const FString& Owner, bool bFadeable, FString& Error)
     {
         for (const TSlot& Slot : Slots)
         {
@@ -831,8 +955,16 @@ namespace
             const auto* Instance = Cast<UMaterialInstanceConstant>(Slot.MaterialInterface);
             FLinearColor Tint;
             const FLinearColor* Override = Colors.Find(Name);
+            EArtSurface Surface = EArtSurface::Opaque;
+            float Cutoff = 0.f;
+            if (Source && !ArtSlotSurface(*Source, bFadeable, Owner, Name, Surface, Error)) { return false; }
+            if (Source && Source->bMasked && (!Instance || !Instance->GetScalarParameterValue(FHashedMaterialParameterInfo(ArtAlphaCutoffParameter), Cutoff)
+                || !FMath::IsNearlyEqual(Cutoff, Source->AlphaCutoff, 1e-4f)))
+            {
+                return ArtFail(Error, FString::Printf(TEXT("%s slot %s does not cut at its source alpha cutoff."), *Owner, *Name));
+            }
             if (!Source || !Instance || !Instance->GetPathName().StartsWith(Folder) || !Instance->Parent
-                || Instance->Parent->GetOutermost()->GetName() != MasterPackage
+                || Instance->Parent->GetOutermost()->GetName() != ArtMasterPackageOf(Surface)
                 || !Instance->GetVectorParameterValue(FHashedMaterialParameterInfo(ULDArtCatalog::TintParameter), Tint)
                 || !Tint.Equals(Override ? *Override : Source->Color, 1e-4f))
             {
@@ -846,12 +978,17 @@ namespace
                 {
                     return Error.IsEmpty() ? ArtFail(Error, Owner + TEXT(" slot ") + Name + TEXT(" lost its source image.")) : false;
                 }
+                const auto* Image = Cast<UTexture2D>(Texture);
+                if (!Image || !ArtTextureMatches(*Image, Source->bSmooth))
+                {
+                    return ArtFail(Error, FString::Printf(TEXT("%s slot %s image is not sampled as its glTF asks (%s)."), *Owner, *Name, Source->bSmooth ? TEXT("smooth") : TEXT("palette")));
+                }
             }
         }
         return true;
     }
 
-    bool ArtImportCharacter(const FArtCharacterSpec& Spec, UMaterial& Master, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
+    bool ArtImportCharacter(const FArtCharacterSpec& Spec, const TMap<EArtSurface, UMaterial*>& Masters, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
     {
         TMap<FString, FArtSourceMaterial> Sources;
         TArray<UObject*> Imported;
@@ -869,7 +1006,7 @@ namespace
             else if (auto* Sequence = Cast<UAnimSequence>(Object)) { Sequences.Add(Sequence); }
         }
         if (!Mesh || !Mesh->GetSkeleton()) { return ArtFail(Error, TEXT("No skinned mesh and skeleton imported from ") + Spec.Source); }
-        if (!ArtAssignMaterials(Mesh->GetMaterials(), Sources, Spec.Colors, Master, Folder, Spec.Id, Assets, Error)) { return false; }
+        if (!ArtAssignMaterials(Mesh->GetMaterials(), Sources, Spec.Colors, Masters, false, Folder, Spec.Id, Assets, Error)) { return false; }
         for (int32 LOD=0; LOD<Mesh->GetLODNum(); ++LOD) { Mesh->GetLODInfo(LOD)->bAllowCPUAccess = true; }
         Mesh->PostEditChange();
         Mesh->MarkPackageDirty();
@@ -916,7 +1053,7 @@ namespace
         return true;
     }
 
-    bool ArtImportProp(const FArtPropSpec& Spec, UMaterial& Master, UMaterial& FadeMaster, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
+    bool ArtImportProp(const FArtPropSpec& Spec, const TMap<EArtSurface, UMaterial*>& Masters, ULDArtCatalog& Catalog, TArray<UObject*>& Assets, FString& Error)
     {
         TMap<FString, FArtSourceMaterial> Sources;
         TArray<UObject*> Imported;
@@ -933,14 +1070,72 @@ namespace
             Body->CollisionTraceFlag = CTF_UseSimpleAsComplex;
         }
         Mesh->bHasNavigationData = false;
-        if (!ArtAssignMaterials(Mesh->GetStaticMaterials(), Sources, {}, Spec.bFadeable ? FadeMaster : Master, Folder, Spec.Id, Assets, Error)) { return false; }
+        if (!ArtAssignMaterials(Mesh->GetStaticMaterials(), Sources, {}, Masters, Spec.bFadeable, Folder, Spec.Id, Assets, Error)) { return false; }
         Mesh->PostEditChange();
         Mesh->MarkPackageDirty();
         Assets.Add(Mesh);
+        FVector Pivot;
+        if (!ArtFootprintPivot(*Mesh, Pivot, Error)) { return false; }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_ART_PROP %s bounds=%s pivot=%s"), *Spec.Id, *Mesh->GetBoundingBox().ToString(), *Pivot.ToString());
         FLDArtProp& Prop = Catalog.Props.AddDefaulted_GetRef();
         Prop.Id = Spec.Id;
         Prop.bFadeable = Spec.bFadeable;
         Prop.Mesh = Mesh;
+        return true;
+    }
+}
+
+namespace
+{
+    // The decorations the catalog holds: the manifest's own, then one look per tree blocker (#97): a tree prop picked
+    // and turned by a hash of the tree id, standing on the tree centre and scaled to the tree's height.
+    bool ArtExpandDecorations(const FArtManifest& Manifest, const ULDArtCatalog& Catalog, const FLDDemoWorldGeometry& World,
+        TArray<FArtDecorationSpec>& Out, FString& Error)
+    {
+        Out = Manifest.Decorations;
+        if (Manifest.TreeProps.IsEmpty()) { return true; }
+        for (const FLDDemoWorldBlocker& Blocker : World.Blockers)
+        {
+            if (Blocker.Shape != ELDDemoWorldBlockerShape::Cylinder) { continue; }
+            const uint32 Hash = FCrc::StrCrc32(*Blocker.Id);
+            const FString& PropId = Manifest.TreeProps[int32(Hash % uint32(Manifest.TreeProps.Num()))];
+            const int32 Index = Manifest.Props.IndexOfByPredicate([&PropId](const FArtPropSpec& Prop) { return Prop.Id == PropId; });
+            FVector Centre;
+            if (Index == INDEX_NONE || !Catalog.Props.IsValidIndex(Index) || !Catalog.Props[Index].Mesh || !Blocker.CenterCm.ToVector(Centre, Error)
+                || Blocker.HeightCm.Denominator <= 0)
+            {
+                return Error.IsEmpty() ? ArtFail(Error, TEXT("Tree dressing cannot place a prop on ") + Blocker.Id) : false;
+            }
+            const double MeshHeight = Catalog.Props[Index].Mesh->GetBoundingBox().GetSize().Z * Manifest.Props[Index].Scale;
+            if (MeshHeight < 1.) { return ArtFail(Error, TEXT("Tree prop has no height: ") + PropId); }
+            FArtDecorationSpec& Spec = Out.AddDefaulted_GetRef();
+            Spec.Prop = PropId;
+            Spec.Blocker = Blocker.Id;
+            Spec.Zone = ELDArtZone::Blocker;
+            Spec.Location = Centre;
+            Spec.Yaw = float((Hash >> 8) % 360u);
+            Spec.Scale = float(double(Blocker.HeightCm.Numerator) / double(Blocker.HeightCm.Denominator) / MeshHeight);
+        }
+        return true;
+    }
+
+    // The crate stands with its footprint centre on the drop point at its manifest scale.
+    bool ArtAirdropTransform(const FArtManifest& Manifest, const ULDArtCatalog& Catalog, FTransform& Out, FString& Error)
+    {
+        const int32 Index = Manifest.Props.IndexOfByPredicate([&Manifest](const FArtPropSpec& Prop) { return Prop.Id == Manifest.AirdropProp; });
+        if (Index == INDEX_NONE || !Catalog.Props.IsValidIndex(Index) || !Catalog.Props[Index].Mesh) { return ArtFail(Error, TEXT("The airdrop prop is not imported.")); }
+        return ArtDecorationTransform(FArtDecorationSpec(), Manifest.Props[Index], *Catalog.Props[Index].Mesh, Out, Error);
+    }
+
+    bool ArtLoadMasters(bool bCreate, TMap<EArtSurface, UMaterial*>& Out, FString& Error)
+    {
+        for (const EArtSurface Surface : { EArtSurface::Opaque, EArtSurface::Fade, EArtSurface::Masked })
+        {
+            UMaterial* Master = bCreate ? ArtMasterMaterial(Surface, Error) : ArtLoadOrCreate<UMaterial>(ArtMasterPackageOf(Surface), false);
+            if (!Master) { return ArtFail(Error, FString::Printf(TEXT("Art master material %s is missing; run ImportDemoArt.ps1 -Mode Import. %s"), ArtMasterPackageOf(Surface), *Error)); }
+            if (!ArtCheckMasterGraph(*Master, Surface, Error)) { return false; }
+            Out.Add(Surface, Master);
+        }
         return true;
     }
 }
@@ -951,22 +1146,20 @@ bool LDDemoArtImport::Import(FString& Error)
     FArtManifest Manifest;
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     TArray<UObject*> Assets;
-    UMaterial* Master = ArtMasterMaterial(ArtMasterPackage, false, Error);
-    UMaterial* FadeMaster = Master ? ArtMasterMaterial(ArtFadeMasterPackage, true, Error) : nullptr;
+    TMap<EArtSurface, UMaterial*> Masters;
+    if (!ArtLoadMasters(true, Masters, Error)) { return false; }
     auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, true);
-    if (!Master || !Catalog) { return ArtFail(Error, TEXT("The art master material or catalog cannot be created: ") + Error); }
-    if (!FadeMaster) { return ArtFail(Error, TEXT("The fadeable art master material cannot be created: ") + Error); }
-    if (!ArtCheckMasterGraph(*Master, false, Error) || !ArtCheckMasterGraph(*FadeMaster, true, Error)) { return false; }
-    Assets.Add(Master);
-    Assets.Add(FadeMaster);
+    if (!Catalog) { return ArtFail(Error, TEXT("The art catalog cannot be created.")); }
+    for (const TPair<EArtSurface, UMaterial*>& Master : Masters) { Assets.Add(Master.Value); }
     Catalog->Characters.Reset();
     Catalog->Seats.Reset();
     Catalog->Monsters.Reset();
     Catalog->Props.Reset();
     Catalog->Decorations.Reset();
+    Catalog->HiddenBlockers = Manifest.HiddenBlockers;
     for (const FArtCharacterSpec& Spec : Manifest.Characters)
     {
-        if (!ArtImportCharacter(Spec, *Master, *Catalog, Assets, Error)) { return false; }
+        if (!ArtImportCharacter(Spec, Masters, *Catalog, Assets, Error)) { return false; }
     }
     for (int32 Seat = 0; Seat < Manifest.Seats.Num(); ++Seat)
     {
@@ -982,16 +1175,23 @@ bool LDDemoArtImport::Import(FString& Error)
     }
     for (const FArtPropSpec& Spec : Manifest.Props)
     {
-        if (!ArtImportProp(Spec, *Master, *FadeMaster, *Catalog, Assets, Error)) { return false; }
+        if (!ArtImportProp(Spec, Masters, *Catalog, Assets, Error)) { return false; }
     }
-    for (const FArtDecorationSpec& Spec : Manifest.Decorations)
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TSharedPtr<const FLDDemoWorldGeometry> World;
+    TArray<FArtDecorationSpec> Decorations;
+    if (!LDArt::LoadDemoWorld(Content, World, Error) || !ArtExpandDecorations(Manifest, *Catalog, *World, Decorations, Error)) { return false; }
+    for (const FArtDecorationSpec& Spec : Decorations)
     {
         const int32 Index = Manifest.Props.IndexOfByPredicate([&Spec](const FArtPropSpec& Prop) { return Prop.Id == Spec.Prop; });
         FLDArtDecoration& Decoration = Catalog->Decorations.AddDefaulted_GetRef();
         Decoration.Prop = Spec.Prop;
         Decoration.Zone = Spec.Zone;
+        Decoration.Blocker = Spec.Blocker;
         if (!ArtDecorationTransform(Spec, Manifest.Props[Index], *Catalog->Props[Index].Mesh, Decoration.Transform, Error)) { return false; }
     }
+    Catalog->AirdropProp = Manifest.AirdropProp;
+    if (!ArtAirdropTransform(Manifest, *Catalog, Catalog->AirdropTransform, Error)) { return false; }
     FLDArtResolved Resolved;
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Imported art catalog is invalid: ") + Error); }
     if (!LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error)) { return ArtFail(Error, TEXT("Decoration placement: ") + Error); }
@@ -1013,18 +1213,24 @@ bool LDDemoArtImport::Validate(FString& Error)
     if (!ArtLoadManifest(Manifest, Error)) { return false; }
     const auto* Catalog = ArtLoadOrCreate<ULDArtCatalog>(ArtCatalogPackage, false);
     if (!Catalog) { return ArtFail(Error, TEXT("Art catalog DA_DemoArt is missing; run ImportDemoArt.ps1 -Mode Import.")); }
-    for (const bool bFade : {false, true})
-    {
-        const auto* Master = ArtLoadOrCreate<UMaterial>(bFade ? ArtFadeMasterPackage : ArtMasterPackage, false);
-        if (!Master) { return ArtFail(Error, TEXT("An art master material is missing; run ImportDemoArt.ps1 -Mode Import.")); }
-        if (!ArtCheckMasterGraph(*Master, bFade, Error)) { return false; }
-    }
+    TMap<EArtSurface, UMaterial*> Masters;
+    if (!ArtLoadMasters(false, Masters, Error)) { return false; }
     FLDArtResolved Resolved;
     if (!Catalog->Resolve(Resolved, Error)) { return ArtFail(Error, TEXT("Art catalog is invalid: ") + Error); }
-    if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->Props.Num() != Manifest.Props.Num()
-        || Catalog->Decorations.Num() != Manifest.Decorations.Num())
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TSharedPtr<const FLDDemoWorldGeometry> World;
+    TArray<FArtDecorationSpec> Decorations;
+    if (Catalog->Props.Num() != Manifest.Props.Num())
     {
-        return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));
+        return ArtFail(Error, TEXT("Art catalog props differ from art_assets.json; run ImportDemoArt.ps1 -Mode Import."));
+    }
+    if (!LDArt::LoadDemoWorld(Content, World, Error) || !ArtExpandDecorations(Manifest, *Catalog, *World, Decorations, Error)) { return false; }
+    FTransform Crate;
+    if (Catalog->Characters.Num() != Manifest.Characters.Num() || Catalog->Decorations.Num() != Decorations.Num()
+        || Catalog->HiddenBlockers != Manifest.HiddenBlockers || Catalog->AirdropProp != Manifest.AirdropProp
+        || !ArtAirdropTransform(Manifest, *Catalog, Crate, Error) || !Crate.Equals(Catalog->AirdropTransform, 1e-2))
+    {
+        return ArtFail(Error, TEXT("Art catalog entries differ from art_assets.json or the world's trees; run ImportDemoArt.ps1 -Mode Import."));
     }
     for (int32 Index = 0; Index < Manifest.Characters.Num(); ++Index)
     {
@@ -1040,7 +1246,7 @@ bool LDDemoArtImport::Validate(FString& Error)
             return ArtFail(Error, TEXT("Character differs from art_assets.json: ") + Spec.Id + (Error.IsEmpty() ? FString() : TEXT(" ") + Error));
         }
         if (!ArtImportedFromCurrentBytes(Body.Mesh->GetAssetImportData(), Spec.Source, Body.Mesh->GetPathName(), Error)
-            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Body.Mesh->GetMaterials(), Sources, Spec.Colors, Folder, Spec.Id, ArtMasterPackage, Error))
+            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Body.Mesh->GetMaterials(), Sources, Spec.Colors, Folder, Spec.Id, false, Error))
         {
             return false;
         }
@@ -1081,18 +1287,19 @@ bool LDDemoArtImport::Validate(FString& Error)
             return ArtFail(Error, TEXT("Prop differs from art_assets.json or carries collision/navigation data: ") + Spec.Id);
         }
         if (!ArtImportedFromCurrentBytes(Prop.Mesh->GetAssetImportData(), Spec.Source, Prop.Mesh->GetPathName(), Error)
-            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Prop.Mesh->GetStaticMaterials(), Sources, {}, Folder, Spec.Id, Spec.bFadeable ? ArtFadeMasterPackage : ArtMasterPackage, Error))
+            || !ArtReadSourceMaterials(Spec.Source, Sources, Error) || !ArtCheckMaterials(Prop.Mesh->GetStaticMaterials(), Sources, {}, Folder, Spec.Id, Spec.bFadeable, Error))
         {
             return false;
         }
     }
-    for (int32 Index = 0; Index < Manifest.Decorations.Num(); ++Index)
+    for (int32 Index = 0; Index < Decorations.Num(); ++Index)
     {
-        const FArtDecorationSpec& Spec = Manifest.Decorations[Index];
+        const FArtDecorationSpec& Spec = Decorations[Index];
         const FLDArtDecoration& Have = Catalog->Decorations[Index];
         const int32 Prop = Manifest.Props.IndexOfByPredicate([&Spec](const FArtPropSpec& Candidate) { return Candidate.Id == Spec.Prop; });
         FTransform Expected;
-        if (Have.Prop != Spec.Prop || Have.Zone != Spec.Zone || !ArtDecorationTransform(Spec, Manifest.Props[Prop], *Catalog->Props[Prop].Mesh, Expected, Error)
+        if (Have.Prop != Spec.Prop || Have.Zone != Spec.Zone || Have.Blocker != Spec.Blocker
+            || !ArtDecorationTransform(Spec, Manifest.Props[Prop], *Catalog->Props[Prop].Mesh, Expected, Error)
             || !Expected.Equals(Have.Transform, 1e-2))
         {
             return ArtFail(Error, FString::Printf(TEXT("Decoration %d (%s) differs from art_assets.json."), Index, *Spec.Prop));

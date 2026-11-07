@@ -162,6 +162,21 @@ bool FLDArtCatalogTest::RunTest(const FString& Parameters)
     Unplaced.Id = TEXT("unplaced_prop");
     Unplaced.Mesh = Source->Props[0].Mesh;
     ArtExpectRejected(*this, *Copy, TEXT("A prop that is never placed is an error"), TEXT("unplaced_prop"));
+    // #97: a blocker's look names its block, only that zone names one, a block is drawn once, and the crate exists.
+    const int32 Drawn = ArtFindDecoration(*Source, ELDArtZone::Blocker), Other = ArtFindDecoration(*Source, ELDArtZone::Outside);
+    if (TestTrue(TEXT("The catalog draws a world block and places an outside prop"), Drawn != INDEX_NONE && Other != INDEX_NONE))
+    {
+        Copy = ArtCopy(*Source); Copy->Decorations[Drawn].Blocker.Reset();
+        ArtExpectRejected(*this, *Copy, TEXT("A blocker-zone prop naming no block is an error"), TEXT("exactly when"));
+        Copy = ArtCopy(*Source); Copy->Decorations[Other].Blocker = Source->Decorations[Drawn].Blocker;
+        ArtExpectRejected(*this, *Copy, TEXT("An outside prop naming a block is an error"), TEXT("exactly when"));
+        Copy = ArtCopy(*Source); Copy->Decorations.Add(Source->Decorations[Drawn]);
+        ArtExpectRejected(*this, *Copy, TEXT("Two props drawing one block are an error"), TEXT("same world blocker"));
+        Copy = ArtCopy(*Source); Copy->HiddenBlockers.Add(Source->Decorations[Drawn].Blocker);
+        ArtExpectRejected(*this, *Copy, TEXT("Hiding a block a prop already draws is an error"), TEXT("already drawn"));
+    }
+    Copy = ArtCopy(*Source); Copy->AirdropProp = TEXT("nothing");
+    ArtExpectRejected(*this, *Copy, TEXT("An airdrop crate that is no catalog prop is an error"), TEXT("airdrop crate"));
     return true;
 }
 
@@ -268,6 +283,51 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Shop].Transform.SetScale3D(Copy->Decorations[Shop].Transform.GetScale3D() * FVector(1, 1, 2));
         ArtExpectMisplaced(*this, *Copy, TEXT("A shop landmark tall enough to hide bodies is rejected"), TEXT("hide bodies"));
+    }
+
+    // #97: collision follows the art. A blocker's prop is its block's footprint and height; a tree's prop stands on it.
+    const int32 Wall = Catalog->Decorations.IndexOfByPredicate([](const FLDArtDecoration& Decoration)
+        { return Decoration.Zone == ELDArtZone::Blocker && !Decoration.Blocker.StartsWith(TEXT("tree_")); });
+    const int32 Tree = Catalog->Decorations.IndexOfByPredicate([](const FLDArtDecoration& Decoration)
+        { return Decoration.Zone == ELDArtZone::Blocker && Decoration.Blocker.StartsWith(TEXT("tree_")); });
+    const int32 Ground = ArtFindDecoration(*Catalog, ELDArtZone::Ground);
+    if (TestTrue(TEXT("The catalog draws a wall or fence, a tree, and ground cover"), Wall != INDEX_NONE && Tree != INDEX_NONE && Ground != INDEX_NONE))
+    {
+        TestTrue(TEXT("The saved art fits every block it draws: ") + Error, LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error));
+        ULDArtCatalog* Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Transform.AddToTranslation(FVector(50, 0, 0));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop shifted off its polygon is rejected"), TEXT("not the polygon"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Transform.SetScale3D(Copy->Decorations[Wall].Transform.GetScale3D() * FVector(1, 1, 1.2));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop taller than the block is rejected"), TEXT("spans"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Blocker = TEXT("no_such_block");
+        ArtExpectMisplaced(*this, *Copy, TEXT("A prop drawing an unknown block is rejected"), TEXT("names no world blocker"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Tree].Transform.AddToTranslation(FVector(800, 0, 0));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A tree prop moved off its trunk is rejected"), TEXT("does not stand over its tree"));
+        Copy = ArtCopy(*Catalog);
+        {
+            // Stretch the cover upward with its base kept on its floor, so only its height is wrong.
+            FTransform& Placement = Copy->Decorations[Ground].Transform;
+            const FLDArtProp* Cover = Catalog->Props.FindByPredicate([&](const FLDArtProp& Prop) { return Prop.Id == Catalog->Decorations[Ground].Prop; });
+            const double Before = Cover->Mesh->GetBoundingBox().TransformBy(Placement).Min.Z;
+            Placement.SetScale3D(Placement.GetScale3D() * FVector(1, 1, 20));
+            Placement.AddToTranslation(FVector(0, 0, Before - Cover->Mesh->GetBoundingBox().TransformBy(Placement).Min.Z));
+        }
+        ArtExpectMisplaced(*this, *Copy, TEXT("Ground cover taller than the sight sample is rejected"), TEXT("sight"));
+        FString SpawnId;
+        FVector Spot;
+        if (ArtSpawnByWall(*this, SpawnId, Spot))
+        {
+            Copy = ArtCopy(*Catalog);
+            Copy->Decorations[Ground].Transform.SetLocation(Spot);
+            ArtExpectMisplaced(*this, *Copy, TEXT("Ground cover beside a spawn point is rejected"), SpawnId);
+        }
+        Copy = ArtCopy(*Catalog);
+        Copy->HiddenBlockers.Add(Catalog->Decorations[Wall].Blocker);
+        Copy->Decorations.RemoveAt(Wall);
+        ArtExpectMisplaced(*this, *Copy, TEXT("Hiding a block that stands on the floor is rejected"), TEXT("reaches over the arena floor"));
     }
 
     // Display only in a live world: nothing collides, overlaps, blocks a trace or reaches navigation.

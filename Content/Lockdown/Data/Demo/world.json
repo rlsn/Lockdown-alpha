@@ -1289,7 +1289,7 @@
     }
   ],
   "approval": {
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m. A playtest baseline, not a balance check.",
+    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art. A playtest baseline, not a balance check.",
     "status": "approved"
   },
   "author_schema_sha256": "06d8ebac5b620694c51e0fa50b68b2c3dcd49dfa3bd90b9b9b9032764e479cab",
@@ -1302,16 +1302,16 @@
           "denominator": 1,
           "numerator": 100
         },
-        "id": "fence_lane_e",
+        "id": "fence_lane_e_1",
         "polygon_cm": [
           {
             "x": {
               "denominator": 1,
-              "numerator": 1698
+              "numerator": 2233
             },
             "y": {
               "denominator": 1,
-              "numerator": 15
+              "numerator": -7
             },
             "z": {
               "denominator": 1,
@@ -1321,11 +1321,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 2248
+              "numerator": 1981
             },
             "y": {
               "denominator": 1,
-              "numerator": -54
+              "numerator": 24
             },
             "z": {
               "denominator": 1,
@@ -1335,11 +1335,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 2252
+              "numerator": 1973
             },
             "y": {
               "denominator": 1,
-              "numerator": -24
+              "numerator": -34
             },
             "z": {
               "denominator": 1,
@@ -1349,11 +1349,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 1702
+              "numerator": 2226
             },
             "y": {
               "denominator": 1,
-              "numerator": 45
+              "numerator": -66
             },
             "z": {
               "denominator": 1,
@@ -1371,16 +1371,16 @@
           "denominator": 1,
           "numerator": 100
         },
-        "id": "fence_lane_w",
+        "id": "fence_lane_e_2",
         "polygon_cm": [
           {
             "x": {
               "denominator": 1,
-              "numerator": -1698
+              "numerator": 1977
             },
             "y": {
               "denominator": 1,
-              "numerator": -15
+              "numerator": 25
             },
             "z": {
               "denominator": 1,
@@ -1390,11 +1390,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -2248
+              "numerator": 1724
             },
             "y": {
               "denominator": 1,
-              "numerator": 54
+              "numerator": 57
             },
             "z": {
               "denominator": 1,
@@ -1404,11 +1404,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -2252
+              "numerator": 1717
             },
             "y": {
               "denominator": 1,
-              "numerator": 24
+              "numerator": -2
             },
             "z": {
               "denominator": 1,
@@ -1418,11 +1418,149 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1702
+              "numerator": 1969
             },
             "y": {
               "denominator": 1,
-              "numerator": -45
+              "numerator": -33
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": false,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 100
+        },
+        "id": "fence_lane_w_1",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -2233
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 7
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1981
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -24
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1973
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 34
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -2226
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 66
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          }
+        ],
+        "shape": "polygon",
+        "surface_id": "demo_ground"
+      },
+      {
+        "blocks_movement": true,
+        "blocks_sight": false,
+        "height_cm": {
+          "denominator": 1,
+          "numerator": 100
+        },
+        "id": "fence_lane_w_2",
+        "polygon_cm": [
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1977
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -25
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1724
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -57
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1717
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 2
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -1969
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": 33
             },
             "z": {
               "denominator": 1,
@@ -42386,11 +42524,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 1190
+              "numerator": 1124
             },
             "y": {
               "denominator": 1,
-              "numerator": 863
+              "numerator": 697
             },
             "z": {
               "denominator": 1,
@@ -42400,11 +42538,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 1048
+              "numerator": 1317
             },
             "y": {
               "denominator": 1,
-              "numerator": 1079
+              "numerator": 927
             },
             "z": {
               "denominator": 1,
@@ -42414,11 +42552,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 1015
+              "numerator": 840
             },
             "y": {
               "denominator": 1,
-              "numerator": 1057
+              "numerator": 1329
             },
             "z": {
               "denominator": 1,
@@ -42428,80 +42566,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": 1156
+              "numerator": 647
             },
             "y": {
               "denominator": 1,
-              "numerator": 841
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        ],
-        "shape": "polygon",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": true,
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 200
-        },
-        "id": "wall_basin_ne_2",
-        "polygon_cm": [
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 1039
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 1086
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 799
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 1192
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 783
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 1155
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 1023
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 1050
+              "numerator": 1099
             },
             "z": {
               "denominator": 1,
@@ -42524,11 +42593,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1190
+              "numerator": -1282
             },
             "y": {
               "denominator": 1,
-              "numerator": -863
+              "numerator": -888
             },
             "z": {
               "denominator": 1,
@@ -42538,11 +42607,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1048
+              "numerator": -969
             },
             "y": {
               "denominator": 1,
-              "numerator": -1079
+              "numerator": -1152
             },
             "z": {
               "denominator": 1,
@@ -42552,11 +42621,11 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1015
+              "numerator": -843
             },
             "y": {
               "denominator": 1,
-              "numerator": -1057
+              "numerator": -1002
             },
             "z": {
               "denominator": 1,
@@ -42570,7 +42639,7 @@
             },
             "y": {
               "denominator": 1,
-              "numerator": -841
+              "numerator": -738
             },
             "z": {
               "denominator": 1,
@@ -42593,35 +42662,7 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1039
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -1086
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -799
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -1192
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -783
+              "numerator": -966
             },
             "y": {
               "denominator": 1,
@@ -42635,11 +42676,39 @@
           {
             "x": {
               "denominator": 1,
-              "numerator": -1023
+              "numerator": -808
             },
             "y": {
               "denominator": 1,
-              "numerator": -1050
+              "numerator": -1287
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -682
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1137
+            },
+            "z": {
+              "denominator": 1,
+              "numerator": 0
+            }
+          },
+          {
+            "x": {
+              "denominator": 1,
+              "numerator": -840
+            },
+            "y": {
+              "denominator": 1,
+              "numerator": -1004
             },
             "z": {
               "denominator": 1,
@@ -46187,8 +46256,8 @@
       }
     ]
   },
-  "geometry_revision": 4,
-  "layout_revision": 4,
+  "geometry_revision": 5,
+  "layout_revision": 5,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -46308,5 +46377,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "73936d280c7bc73815432fca0329862733dbb31c877bb33fef519686ece4edc6"
+  "source_sha256": "1465bf5171f2a53d79a731692f7657b68c7087d7a6bdbdc547f3fbff9969accc"
 }

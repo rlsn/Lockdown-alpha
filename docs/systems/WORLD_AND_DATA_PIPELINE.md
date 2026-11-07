@@ -250,8 +250,9 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 
 ### 美术素材与装饰
 
-角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、若干 Kenney 套件），
-只提交实际选用的 `.gltf`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
+角色与场地道具只用确认为 CC0 的素材包（Quaternius Ultimate Modular Men/Women、Stylized Nature MegaKit、Toon Shooter Game Kit、
+若干 Kenney 套件），只提交实际选用的 `.gltf`/`.bin`/`.glb`/`.png`（Git LFS），各包许可原文 `License.txt` 与文件放在同一目录。
+Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者页面所写的 CC0 与核对日期。
 `SourceData\Art\art_assets.json` 是唯一清单：包名、作者、页面与下载地址、下载日期、许可及其哈希，
 逐文件的包内路径、SHA-256 与用途；三个身体（参赛者、已读不回的 HR、追着办卡的私教）的显示身高、着色槽、右手骨骼、
 朝向骨骼和每个状态的源动画、播放速率、出手时刻；六个座位与两档野怪各用哪个身体；道具的基础缩放，
@@ -259,7 +260,8 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 `--check` 拒绝与清单不符的数值。
 
 `Scripts\ImportDemoArt.ps1 -Mode Import` 经 Interchange 导入到 `Content\Lockdown\Art`，
-所有材质槽换成 `M_ArtSurface` 的实例（向量参数 `Tint` 身份色、`Flash` 自发光），并保存类型化目录
+所有材质槽换成 `M_ArtSurface` 的实例（向量参数 `Tint` 身份色、`Flash` 自发光；glTF `alphaMode` 为 MASK 的槽用 `M_ArtSurfaceMasked`，
+按源 `alphaCutoff` 裁切；贴图按 glTF 采样器：`magFilter` 为 LINEAR 时平滑采样带 mip，否则按 Kenney 调色板最近点采样），并保存类型化目录
 `DA_DemoArt`（`ULDArtCatalog`）。`-Mode Validate`（Bootstrap Validate 也执行）拒绝清单外的文件、
 许可原文不是 CC0 的包、源哈希变化、不是由当前源字节导入的资产、与清单不符的目录项和违反放置区域的装饰。
 资产经 `DirectoriesToAlwaysCook` 进入包。
@@ -285,10 +287,16 @@ CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
 `outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
 `wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与旗杆；
+`ground` 是场地上的矮地被（草、花、三叶草、蘑菇、石子），守 `wall_base` 除贴墙外的全部规则；生成时另离每个阻挡至少 60 cm，只落在身体能走到的导航面上；
+`blocker`（#97，碰撞跟随美术）是一个世界阻挡的外观：清单写 `blocker` 阻挡 id，道具站在阻挡底面、高度等于阻挡高度，
+转向后的模型包围矩形就是阻挡多边形（误差 `BlockerFitToleranceCm` 2 cm）；墙与围栏的多边形按选定模型、以阻挡高度定缩放后的脚印写入世界数据。
+清单 `dressing.tree_props` 规定每棵树（圆柱阻挡）的外观：导入时按树 id 的哈希选道具与朝向，按树高缩放并站在树心，展开为 `blocker` 装饰；
+`dressing.hidden_blockers` 是完全在场地外、改由 `outside` 装饰绘制的阻挡（四面外墙由集装箱排绘制）；`dressing.airdrop_prop` 是天降外卖落地后的箱子。
+被美术绘制的阻挡（`FLDArtResolved::HiddenBlockers`）在 `ULDArtWorldSubsystem` 生成装饰后隐藏生成的方块网格，碰撞与视线响应不变（`LD_ART_DECORATIONS_READY` 报告数目）。
 它整块站在同一平层上（#97 地图四周是高台，装饰的可选 `z` 写所在层高度，例如二层高台 100），世界在墙内侧留出无树走道；
 `capture`/`shop` 是覆盖其锚点的细小地标（旗杆、每个商店一个砍一刀小摊的摊位，各自对准最近的商店锚点），摊位高度不超过 150 cm，
-以免在固定俯视镜头下挡住角色。全部 14 种道具、78 处摆放中，只有旗杆会遮挡身体：
-清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·LDFade` 逐像素抖动，
+以免在固定俯视镜头下挡住角色。除 #97 绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
+清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·max(LDFade, 每实例自定义浮点 0)` 逐像素抖动，
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
 

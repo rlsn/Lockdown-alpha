@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Core/LDLog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDModelPicking.h"
@@ -972,14 +973,27 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                     UMaterialInterface* Material = Mesh->GetMaterial(Index);
                     bAll &= Material && Material->GetScalarParameterValue(FHashedMaterialParameterInfo(LDPropFade::Parameter), Value);
                 }
+                const auto* Instanced = Cast<UInstancedStaticMeshComponent>(Mesh);
+                Prop.bPerInstance = bAll && Instanced && Instanced->NumCustomDataFloats >= 1 && Instanced->GetStaticMesh();
                 if (bAll)
                 {
                     for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
                     {
                         UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, Prop.bPerInstance ? LDPropFade::InstanceFadedStrength : LDPropFade::FadedStrength); }
                         Prop.Materials.Add(Dynamic);
                     }
+                }
+                if (Prop.bPerInstance)
+                {
+                    const FBox Local = Instanced->GetStaticMesh()->GetBoundingBox();
+                    for (int32 Index = 0; Index < Instanced->GetInstanceCount(); ++Index)
+                    {
+                        FTransform Placement;
+                        Instanced->GetInstanceTransform(Index, Placement, true);
+                        Prop.InstanceBounds.Add(Local.TransformBy(Placement));
+                    }
+                    Prop.InstanceFades.SetNumZeroed(Prop.InstanceBounds.Num());
                 }
                 Prop.bParameter = bAll;
             }
@@ -988,6 +1002,22 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                 UE_LOG(LogLDWorld, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
                     *Primitive->GetPathName());
             }
+        }
+        if (Prop.bPerInstance)
+        {
+            auto* Instanced = Cast<UInstancedStaticMeshComponent>(Primitive);
+            bool bChanged = false;
+            for (int32 Index = 0; Instanced && Index < Prop.InstanceBounds.Num(); ++Index)
+            {
+                bool bHides = false;
+                for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Prop.InstanceBounds[Index], Camera, Target)) { bHides = true; break; } }
+                const float Next = LDPropFade::Step(Prop.InstanceFades[Index], bHides, Delta);
+                if (Next == Prop.InstanceFades[Index]) { continue; }
+                Prop.InstanceFades[Index] = Next;
+                bChanged |= Instanced->SetCustomDataValue(Index, 0, Next, false);
+            }
+            if (bChanged) { Instanced->MarkRenderStateDirty(); }
+            continue;
         }
         bool bOccluding = false;
         const FBox Bounds = Primitive->Bounds.GetBox();

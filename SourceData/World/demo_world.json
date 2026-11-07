@@ -2,11 +2,11 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 4,
-  "geometry_revision": 4,
+  "layout_revision": 5,
+  "geometry_revision": 5,
   "approval": {
     "status": "approved",
-    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m. A playtest baseline, not a balance check."
+    "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art. A playtest baseline, not a balance check."
   },
   "coordinate_unit": "cm",
   "geometry": {
@@ -62,13 +62,23 @@
     },
     "blockers": [
       {
-        "id": "fence_lane_e", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": 1698, "y": 15, "z": 0}, {"x": 2248, "y": -54, "z": 0}, {"x": 2252, "y": -24, "z": 0}, {"x": 1702, "y": 45, "z": 0}],
+        "id": "fence_lane_e_1", "shape": "polygon", "surface_id": "demo_ground",
+        "polygon_cm": [{"x": 2233, "y": -7, "z": 0}, {"x": 1981, "y": 24, "z": 0}, {"x": 1973, "y": -34, "z": 0}, {"x": 2226, "y": -66, "z": 0}],
         "height_cm": 100, "blocks_movement": true, "blocks_sight": false
       },
       {
-        "id": "fence_lane_w", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": -1698, "y": -15, "z": 0}, {"x": -2248, "y": 54, "z": 0}, {"x": -2252, "y": 24, "z": 0}, {"x": -1702, "y": -45, "z": 0}],
+        "id": "fence_lane_e_2", "shape": "polygon", "surface_id": "demo_ground",
+        "polygon_cm": [{"x": 1977, "y": 25, "z": 0}, {"x": 1724, "y": 57, "z": 0}, {"x": 1717, "y": -2, "z": 0}, {"x": 1969, "y": -33, "z": 0}],
+        "height_cm": 100, "blocks_movement": true, "blocks_sight": false
+      },
+      {
+        "id": "fence_lane_w_1", "shape": "polygon", "surface_id": "demo_ground",
+        "polygon_cm": [{"x": -2233, "y": 7, "z": 0}, {"x": -1981, "y": -24, "z": 0}, {"x": -1973, "y": 34, "z": 0}, {"x": -2226, "y": 66, "z": 0}],
+        "height_cm": 100, "blocks_movement": true, "blocks_sight": false
+      },
+      {
+        "id": "fence_lane_w_2", "shape": "polygon", "surface_id": "demo_ground",
+        "polygon_cm": [{"x": -1977, "y": -25, "z": 0}, {"x": -1724, "y": -57, "z": 0}, {"x": -1717, "y": 2, "z": 0}, {"x": -1969, "y": 33, "z": 0}],
         "height_cm": 100, "blocks_movement": true, "blocks_sight": false
       },
       {
@@ -7118,22 +7128,17 @@
       },
       {
         "id": "wall_basin_ne_1", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": 1190, "y": 863, "z": 0}, {"x": 1048, "y": 1079, "z": 0}, {"x": 1015, "y": 1057, "z": 0}, {"x": 1156, "y": 841, "z": 0}],
-        "height_cm": 200, "blocks_movement": true, "blocks_sight": true
-      },
-      {
-        "id": "wall_basin_ne_2", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": 1039, "y": 1086, "z": 0}, {"x": 799, "y": 1192, "z": 0}, {"x": 783, "y": 1155, "z": 0}, {"x": 1023, "y": 1050, "z": 0}],
+        "polygon_cm": [{"x": 1124, "y": 697, "z": 0}, {"x": 1317, "y": 927, "z": 0}, {"x": 840, "y": 1329, "z": 0}, {"x": 647, "y": 1099, "z": 0}],
         "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
         "id": "wall_basin_sw_1", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": -1190, "y": -863, "z": 0}, {"x": -1048, "y": -1079, "z": 0}, {"x": -1015, "y": -1057, "z": 0}, {"x": -1156, "y": -841, "z": 0}],
+        "polygon_cm": [{"x": -1282, "y": -888, "z": 0}, {"x": -969, "y": -1152, "z": 0}, {"x": -843, "y": -1002, "z": 0}, {"x": -1156, "y": -738, "z": 0}],
         "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {
         "id": "wall_basin_sw_2", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": -1039, "y": -1086, "z": 0}, {"x": -799, "y": -1192, "z": 0}, {"x": -783, "y": -1155, "z": 0}, {"x": -1023, "y": -1050, "z": 0}],
+        "polygon_cm": [{"x": -966, "y": -1155, "z": 0}, {"x": -808, "y": -1287, "z": 0}, {"x": -682, "y": -1137, "z": 0}, {"x": -840, "y": -1004, "z": 0}],
         "height_cm": 200, "blocks_movement": true, "blocks_sight": true
       },
       {

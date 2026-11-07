@@ -7,9 +7,10 @@ UENUM()
 enum class ELDArtAnim : uint8 { Idle, Run, Attack, Cast, Hit, Death, Spawn, Count UMETA(Hidden) };
 
 // Where a decoration may stand so that it never reads as an obstacle or hides a gameplay place (LDArt::CheckPlacements):
-// Outside the arena floor, low along the inside of an outer wall, or as the thin landmark of the capture or shop anchor.
+// Outside the arena floor, low along the inside of an outer wall, as the thin landmark of the capture or shop anchor,
+// as the look of one world blocker (#97: the prop covers exactly what blocks), or as low ground cover on the floor.
 UENUM()
-enum class ELDArtZone : uint8 { Outside, WallBase, Capture, Shop, Count UMETA(Hidden) };
+enum class ELDArtZone : uint8 { Outside, WallBase, Capture, Shop, Blocker, Ground, Count UMETA(Hidden) };
 
 namespace LDArt
 {

@@ -135,6 +135,9 @@ namespace LDPropFade
     // A target within this horizontal distance of the prop's bounds, inside its height, is pierced by it (a body about
     // 28 cm in capsule radius, plus its arms).
     constexpr double PierceRadiusCm = 45.;
+    // #97: an instanced prop with a per-instance custom float fades only the instances in the way, and only partly: at full
+    // fade a pixel survives with probability 1 - InstanceFadedStrength, so the body shows through a still readable block.
+    constexpr float InstanceFadedStrength = .6f;
     // Full fade in or out takes 1/FadePerSecond seconds.
     constexpr float FadePerSecond = 6.f;
     LOCKDOWN_API bool Occludes(const FBox& Bounds, const FVector& Camera, const FVector& Target);
@@ -265,6 +268,10 @@ private:
         TWeakObjectPtr<UPrimitiveComponent> Primitive;
         TArray<TWeakObjectPtr<UMaterialInstanceDynamic>> Materials;
         float Fade = 0;
+        // Instanced props with a per-instance fade: each instance's world bounds and fade.
+        TArray<FBox> InstanceBounds;
+        TArray<float> InstanceFades;
+        bool bPerInstance = false;
         bool bResolved = false;
         bool bParameter = false;
         bool bCastShadow = false;  // the prop's own shadow setting, restored when it is opaque again

@@ -83,6 +83,8 @@ struct LOCKDOWN_API FLDArtDecoration
     GENERATED_BODY()
     UPROPERTY(VisibleAnywhere) FString Prop;
     UPROPERTY(VisibleAnywhere) ELDArtZone Zone = ELDArtZone::Count;
+    // Blocker zone only: the world blocker this prop draws in place of its generated block; empty for every other zone.
+    UPROPERTY(VisibleAnywhere) FString Blocker;
     // Demo-map world transform (cm). Decorations never collide, block sight or affect navigation.
     UPROPERTY(VisibleAnywhere) FTransform Transform;
 };
@@ -96,6 +98,12 @@ struct LOCKDOWN_API FLDArtResolved
     TArray<FTransform> DecorationTransforms;
     // World bounds (cm) of every shop-zone decoration: the shop is clicked on its model, not on the ground around it.
     TArray<FBox> ShopModelBounds;
+    // World blockers whose generated block is hidden because art draws them: every Blocker-zone decoration's blocker
+    // and the catalog's HiddenBlockers. Hiding is display only; the block keeps its collision and sight response.
+    TSet<FString> HiddenBlockers;
+    // The airdrop crate and its transform relative to the drop point (footprint centre on the ground).
+    const FLDArtProp* AirdropCrate = nullptr;
+    FTransform AirdropTransform;
     // Null for a seat outside the roster or an unknown camp tier.
     const FLDArtCharacter* ForSeat(uint8 Seat) const;
     const FLDArtCharacter* ForMonster(uint8 CreatureId) const;
@@ -125,5 +133,10 @@ public:
     UPROPERTY(VisibleAnywhere) TArray<FLDArtMonsterLook> Monsters;
     UPROPERTY(VisibleAnywhere) TArray<FLDArtProp> Props;
     UPROPERTY(VisibleAnywhere) TArray<FLDArtDecoration> Decorations;
+    // Blockers wholly off the arena floor (the boundary walls) that Outside decorations draw instead of their block.
+    UPROPERTY(VisibleAnywhere) TArray<FString> HiddenBlockers;
+    // The airdrop crate prop and its transform relative to the drop point.
+    UPROPERTY(VisibleAnywhere) FString AirdropProp;
+    UPROPERTY(VisibleAnywhere) FTransform AirdropTransform;
     bool Resolve(FLDArtResolved& Out, FString& Error) const;
 };

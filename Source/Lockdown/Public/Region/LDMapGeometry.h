@@ -61,6 +61,8 @@ namespace LDDemoWorld
         MaxAirdrops = 16, BossWaypoints = 4, MaxBlockers = 2048;
     // Actor tag of every generated plateau and ramp floor piece; the base ground keeps its surface id tag.
     inline const FName TerrainTag(TEXT("LDDemoTerrain"));
+    // Every generated blocker actor carries this tag and its blocker id as a second tag.
+    inline const FName StaticGeometryTag(TEXT("LDDemoStaticGeometry"));
     // Steepest ramp: rise / run at most 7 / 10 (about 35 degrees), under the bodies' 40 degree walkable floor.
     constexpr int64 RampRise = 7, RampRun = 10;
 

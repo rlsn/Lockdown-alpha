@@ -9,7 +9,7 @@ namespace
 {
     const TCHAR* const ArtAnimIds[] = { TEXT("Idle"), TEXT("Run"), TEXT("Attack"), TEXT("Cast"), TEXT("Hit"), TEXT("Death"), TEXT("Spawn") };
     static_assert(UE_ARRAY_COUNT(ArtAnimIds) == LDArt::AnimCount, "Every presentation state needs exactly one stable id.");
-    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("shop") };
+    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("shop"), TEXT("blocker"), TEXT("ground") };
     static_assert(UE_ARRAY_COUNT(ArtZoneIds) == int32(ELDArtZone::Count), "Every placement zone needs exactly one stable id.");
     // A flinch reads as a hit only if it ends before the next blow of a fast exchange.
     constexpr float ArtHitMaxSec = .3f;
@@ -198,11 +198,31 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         { return ArtFail(Error, FString::Printf(TEXT("Decoration %d (%s) has an unusable transform."), Index, *Decoration.Prop)); }
         if (Decoration.Zone >= ELDArtZone::Count)
         { return ArtFail(Error, FString::Printf(TEXT("Decoration %d (%s) has no placement zone."), Index, *Decoration.Prop)); }
+        // A blocker's look names exactly one blocker, drawn once; no other zone names one.
+        if ((Decoration.Zone == ELDArtZone::Blocker) == Decoration.Blocker.IsEmpty())
+        { return ArtFail(Error, FString::Printf(TEXT("Decoration %d (%s) must name a world blocker exactly when it is in the blocker zone."), Index, *Decoration.Prop)); }
+        if (!Decoration.Blocker.IsEmpty())
+        {
+            bool bAlready = false;
+            Out.HiddenBlockers.Add(Decoration.Blocker, &bAlready);
+            if (bAlready) { return ArtFail(Error, TEXT("Two decorations draw the same world blocker: ") + Decoration.Blocker); }
+        }
         Placed.Add(Decoration.Prop);
         Out.DecorationProps.Add(Prop);
         Out.DecorationTransforms.Add(Decoration.Transform);
         if (Decoration.Zone == ELDArtZone::Shop) { Out.ShopModelBounds.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
     }
+    for (const FString& Blocker : HiddenBlockers)
+    {
+        bool bAlready = false;
+        Out.HiddenBlockers.Add(Blocker, &bAlready);
+        if (Blocker.IsEmpty() || bAlready) { return ArtFail(Error, TEXT("A hidden blocker is empty or already drawn by a decoration: ") + Blocker); }
+    }
+    Out.AirdropCrate = PropsById.FindRef(AirdropProp);
+    if (!Out.AirdropCrate || !ArtUsableTransform(AirdropTransform))
+    { return ArtFail(Error, TEXT("The airdrop crate needs a catalog prop and a usable transform, found '") + AirdropProp + TEXT("'.")); }
+    Out.AirdropTransform = AirdropTransform;
+    Placed.Add(AirdropProp);
     for (const FLDArtProp& Prop : Props)
     {
         if (!Placed.Contains(Prop.Id)) { return ArtFail(Error, TEXT("Prop is never placed: ") + Prop.Id); }
