@@ -325,6 +325,26 @@ FTransform GuardTransform(const FCliffGuard& Guard, double Height)
         FVector(Along.Size(), GuardThicknessCm, Height) / 100.);
 }
 
+// Every face of a generated convex prism faces away from its interior, as Unreal reads a triangle's front
+// (Cross(P2 - P0, P1 - P0)): tops face the sky, cliff and wall faces face out, so nothing renders inside out.
+bool FacesOutward(const UStaticMesh& Mesh)
+{
+    const FMeshDescription* Description = Mesh.GetMeshDescription(0);
+    if (!Description || Description->Triangles().Num() == 0) { return false; }
+    FStaticMeshConstAttributes Attributes(*Description);
+    const auto Positions = Attributes.GetVertexPositions();
+    FVector3f Inside = FVector3f::ZeroVector;
+    for (const FVertexID Vertex : Description->Vertices().GetElementIDs()) { Inside += Positions[Vertex]; }
+    Inside /= float(Description->Vertices().Num());
+    for (const FTriangleID Triangle : Description->Triangles().GetElementIDs())
+    {
+        const TArrayView<const FVertexID> Corner = Description->GetTriangleVertices(Triangle);
+        const FVector3f A = Positions[Corner[0]], B = Positions[Corner[1]], C = Positions[Corner[2]];
+        if (FVector3f::DotProduct(FVector3f::CrossProduct(C - A, B - A), (A + B + C) / 3.f - Inside) <= 0) { return false; }
+    }
+    return true;
+}
+
 bool GuardChannelsMatch(const UStaticMeshComponent& Component)
 {
     if (Component.GetCollisionEnabled() != ECollisionEnabled::QueryAndPhysics || Component.GetCollisionObjectType() != ECC_WorldStatic
@@ -379,17 +399,19 @@ UStaticMesh* BuildPrism(const FString& Id, const TArray<FVector>& Points, const 
         }
         Description.CreatePolygon(Group, Instances);
     };
+    // Rings run counterclockwise in plan. Unreal takes a triangle's front side from Cross(P2 - P0, P1 - P0), so each
+    // face lists its corners clockwise as seen from outside: the top faces up, the base down and every side outward.
     const int32 Ring = Points.Num() / 2;
     for (int32 I = 1; I + 1 < Ring; ++I)
     {
-        Triangle(0, I + 1, I);
-        Triangle(Ring, Ring + I, Ring + I + 1);
+        Triangle(0, I, I + 1);
+        Triangle(Ring, Ring + I + 1, Ring + I);
     }
     for (int32 I = 0; I < Ring; ++I)
     {
         const int32 Next = (I + 1) % Ring;
-        Triangle(I, Next, Next + Ring);
-        Triangle(I, Next + Ring, I + Ring);
+        Triangle(I, Next + Ring, Next);
+        Triangle(I, I + Ring, Next + Ring);
     }
     if (bHardEdges)
     {
@@ -1090,6 +1112,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(FString(World.GetOutermost()->GetMetaData().GetValue(&World, GeometryStamp)).Equals(Definition.Checksum, ESearchCase::CaseSensitive),
         TEXT("Saved map stamp identifies the verified world payload"));
     int32 Anchors = 0, BoundsCount = 0, NavCount = 0, StaticCount = 0, Steppable = 0;
+    TSet<const UStaticMesh*> Faced;
+    TArray<FString> InsideOut;
     int32 Suns = 0, Skies = 0, SkyLights = 0, Fogs = 0, Grades = 0, Aprons = 0;
     const AStaticMeshActor* Apron = nullptr;
     TMap<FString, const AStaticMeshActor*> Meshes;
@@ -1141,6 +1165,12 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         {
             ++StaticCount;
             Steppable += Mesh->GetStaticMeshComponent()->CanCharacterStepUpOn == ECB_No ? 0 : 1;
+            const UStaticMesh* Shape = Mesh->GetStaticMeshComponent()->GetStaticMesh();
+            if (Shape && Shape->GetPathName().StartsWith(GeometryRoot) && !Faced.Contains(Shape))
+            {
+                Faced.Add(Shape);
+                if (!FacesOutward(*Shape)) { InsideOut.Add(Shape->GetName()); }
+            }
             const FString Id = Mesh->Tags[0].ToString();
             Check(!Meshes.Contains(Id), TEXT("Unique static geometry identity: ") + Id);
             Meshes.Add(Id, Mesh);
@@ -1153,6 +1183,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     Check(Anchors == 1 && BoundsCount == 1 && NavCount == 1 && StaticCount == 1 + Terrain.Num() + Geometry->Blockers.Num() + Guards.Num(),
         TEXT("Exact native anchor, navigation and static-geometry counts"));
     Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
+    Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
+        TEXT("Every generated terrain, wall, fence, stall and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
     Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
         TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
     const auto* Navigation = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());

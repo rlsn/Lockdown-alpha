@@ -143,14 +143,30 @@ namespace
 using namespace LDDemoContent;
 using FPoint = FLDDemoWorldPoint;
 
+// At is the plain-double shadow of the exact point; it only feeds the screens below, never a verdict.
 struct FXY
 {
     FExact X, Y;
+    FVector2D At = FVector2D::ZeroVector;
 };
 
-FXY XY(const FPoint& Point, FNumbers& N) { return {N.Value(Point.X), N.Value(Point.Y)}; }
-FXY Add(const FXY& A, const FXY& B, FNumbers& N) { return {N.Add(A.X, B.X), N.Add(A.Y, B.Y)}; }
-FXY Sub(const FXY& A, const FXY& B, FNumbers& N) { return {N.Sub(A.X, B.X), N.Sub(A.Y, B.Y)}; }
+double Approx(const FLDDemoRational& R) { return double(R.Numerator) / double(R.Denominator); }
+FXY XY(const FPoint& Point, FNumbers& N) { return {N.Value(Point.X), N.Value(Point.Y), FVector2D(Approx(Point.X), Approx(Point.Y))}; }
+FXY Add(const FXY& A, const FXY& B, FNumbers& N) { return {N.Add(A.X, B.X), N.Add(A.Y, B.Y), A.At + B.At}; }
+FXY Sub(const FXY& A, const FXY& B, FNumbers& N) { return {N.Sub(A.X, B.X), N.Sub(A.Y, B.Y), A.At - B.At}; }
+
+// #97 forests hold over a thousand trunks and every exact step is 2048-bit rational arithmetic. A screen skips an exact
+// contact test only when plain doubles put the two shapes' bounds apart by more than ScreenCm, far beyond double error at
+// map scale; anything nearer still runs the exact test, so no verdict changes.
+constexpr double ScreenCm = 1.;
+
+bool Apart(const TArray<FPoint>& Ring, const FVector2D& At, double Reach)
+{
+    FBox2D Bounds(ForceInit);
+    for (const FPoint& Vertex : Ring) { Bounds += FVector2D(Approx(Vertex.X), Approx(Vertex.Y)); }
+    const double Margin = Reach + ScreenCm;
+    return At.X + Margin < Bounds.Min.X || Bounds.Max.X < At.X - Margin || At.Y + Margin < Bounds.Min.Y || Bounds.Max.Y < At.Y - Margin;
+}
 FExact Dot(const FXY& A, const FXY& B, FNumbers& N) { return N.Add(N.Mul(A.X, B.X), N.Mul(A.Y, B.Y)); }
 FExact Cross(const FXY& A, const FXY& B, FNumbers& N) { return N.Sub(N.Mul(A.X, B.Y), N.Mul(A.Y, B.X)); }
 FExact DistanceSquared(const FXY& A, const FXY& B, FNumbers& N)
@@ -323,21 +339,26 @@ FExact LevelHeight(const FLDDemoWorldGeometry& World, int32 Level, FNumbers& N)
 }
 
 // The flat level a disc stands on wholly: inside one plateau of that level (or on the ground), and meeting no higher
-// plateau and no ramp. INDEX_NONE when it straddles a cliff or a ramp.
-int32 DiscLevel(const FLDDemoWorldGeometry& World, const FXY& Centre, const FExact& Radius, FNumbers& N)
+// plateau and no ramp. INDEX_NONE when it straddles a cliff or a ramp. Reach is the plain-double radius for the screen.
+int32 DiscLevel(const FLDDemoWorldGeometry& World, const FXY& Centre, const FExact& Radius, double Reach, FNumbers& N)
 {
     int32 Level = 0;
+    TArray<const FLDDemoWorldPlateau*, TInlineAllocator<8>> Near;
     for (const auto& Plateau : World.Plateaus)
     {
-        if (Plateau.Level > Level && DiscInside(Plateau.PolygonCm, Centre, Radius, N)) { Level = Plateau.Level; }
+        if (!Apart(Plateau.PolygonCm, Centre.At, Reach)) { Near.Add(&Plateau); }
     }
-    for (const auto& Plateau : World.Plateaus)
+    for (const auto* Plateau : Near)
     {
-        if (Plateau.Level > Level && DiscOverlaps(Plateau.PolygonCm, Centre, Radius, N)) { return INDEX_NONE; }
+        if (Plateau->Level > Level && DiscInside(Plateau->PolygonCm, Centre, Radius, N)) { Level = Plateau->Level; }
+    }
+    for (const auto* Plateau : Near)
+    {
+        if (Plateau->Level > Level && DiscOverlaps(Plateau->PolygonCm, Centre, Radius, N)) { return INDEX_NONE; }
     }
     for (const auto& Ramp : World.Ramps)
     {
-        if (DiscOverlaps(Ramp.PolygonCm, Centre, Radius, N)) { return INDEX_NONE; }
+        if (!Apart(Ramp.PolygonCm, Centre.At, Reach) && DiscOverlaps(Ramp.PolygonCm, Centre, Radius, N)) { return INDEX_NONE; }
     }
     return Level;
 }
@@ -363,21 +384,26 @@ int32 RingLevel(const FLDDemoWorldGeometry& World, const TArray<FPoint>& Ring, F
     return Level;
 }
 
-bool ClearOfBlockers(const FXY& Position, const FExact& Radius, const FLDDemoWorldGeometry& World, FNumbers& N)
+bool ClearOfBlockers(const FXY& Position, const FExact& Radius, double Reach, const FLDDemoWorldGeometry& World, FNumbers& N)
 {
     if (!CircleInSurface(Position, Radius, World.Surfaces[0], N)) { return false; }
     for (const auto& Blocker : World.Blockers)
     {
-        if (Blocker.BlocksMovement && CircleTouchesBlocker(Position, Radius, Blocker, N)) { return false; }
+        if (!Blocker.BlocksMovement) { continue; }
+        const bool Screened = Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder
+            ? FVector2D::Distance(Position.At, FVector2D(Approx(Blocker.CenterCm.X), Approx(Blocker.CenterCm.Y)))
+                > Reach + Approx(Blocker.RadiusCm) + ScreenCm
+            : Apart(Blocker.PolygonCm, Position.At, Reach);
+        if (!Screened && CircleTouchesBlocker(Position, Radius, Blocker, N)) { return false; }
     }
     return true;
 }
 
 // A disc of standing ground at height Z: wholly on one flat level at that height, clear of every movement blocker.
-bool ClearCircle(const FXY& Position, const FExact& Z, const FExact& Radius, const FLDDemoWorldGeometry& World, FNumbers& N)
+bool ClearCircle(const FXY& Position, const FExact& Z, const FExact& Radius, double Reach, const FLDDemoWorldGeometry& World, FNumbers& N)
 {
-    const int32 Level = DiscLevel(World, Position, Radius, N);
-    return Level != INDEX_NONE && N.EQ(Z, LevelHeight(World, Level, N)) && ClearOfBlockers(Position, Radius, World, N);
+    const int32 Level = DiscLevel(World, Position, Radius, Reach, N);
+    return Level != INDEX_NONE && N.EQ(Z, LevelHeight(World, Level, N)) && ClearOfBlockers(Position, Radius, Reach, World, N);
 }
 
 bool Elevation(FFields& Fields, FLDDemoWorldGeometry& Out, FNumbers& N)
@@ -543,7 +569,7 @@ bool Geometry(FFields& Root, FLDDemoWorldGeometry& Out, FNumbers& N)
             }
             const FExact Radius = N.Value(Blocker.RadiusCm);
             const FXY Centre = XY(Blocker.CenterCm, N);
-            const int32 Level = N.LT(N.Value(0), Radius) ? DiscLevel(Out, Centre, Radius, N) : INDEX_NONE;
+            const int32 Level = N.LT(N.Value(0), Radius) ? DiscLevel(Out, Centre, Radius, Approx(Blocker.RadiusCm), N) : INDEX_NONE;
             if (!Check.Require(Level != INDEX_NONE && N.EQ(N.Value(Blocker.CenterCm.Z), LevelHeight(Out, Level, N))
                     && CircleInSurface(Centre, Radius, GroundSurface, N),
                 Blocker.Id, TEXT("cylinder must stand wholly on one flat level of its ground with a positive radius")))
@@ -689,7 +715,8 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                     || !Point(Member.Take(TEXT("position_cm")), Home.PositionCm, Check, Member.Path + TEXT(".position_cm"))
                     || !Check.Require(InSurface(Home.PositionCm, Out.Surfaces[0], N), Home.Id, TEXT("member outside its surface"))
                     || !Member.Done()
-                    || !Check.Require(ClearCircle(XY(Home.PositionCm, N), N.Value(Home.PositionCm.Z), N.Value(Content.Parameters.CampResetArrivalRadiusCm), Out, N),
+                    || !Check.Require(ClearCircle(XY(Home.PositionCm, N), N.Value(Home.PositionCm.Z), N.Value(Content.Parameters.CampResetArrivalRadiusCm),
+                        Approx(Content.Parameters.CampResetArrivalRadiusCm), Out, N),
                         Home.Id, TEXT("member return region is not clear")))
                 {
                     return false;
@@ -702,7 +729,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         // A shop anchor stands in its stall; its point still sits at the height of the flat level beneath it.
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Shop)
         {
-            const int32 Level = DiscLevel(Out, XY(Anchor.PositionCm, N), N.Value(0), N);
+            const int32 Level = DiscLevel(Out, XY(Anchor.PositionCm, N), N.Value(0), 0, N);
             if (!Check.Require(Level != INDEX_NONE && N.EQ(N.Value(Anchor.PositionCm.Z), LevelHeight(Out, Level, N)),
                 Anchor.Id, TEXT("shop anchor is off its level's height"))) { return false; }
         }
@@ -712,7 +739,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? N.Add(Radius, N.Value(Content.Parameters.DormRadiusCm))
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop ? N.Add(Radius, N.Value(Content.Parameters.AirdropPickupRadiusCm)) : Radius;
-            if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), N.Value(Anchor.PositionCm.Z), Clearance, Out, N), Anchor.Id,
+            const double Body = Approx(Content.Parameters.CollisionRadiusCm);
+            const double Reach = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? Approx(Out.CampClearanceCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? Approx(Content.Parameters.CaptureRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Dorm ? Body + Approx(Content.Parameters.DormRadiusCm)
+                : Anchor.Kind == ELDDemoWorldAnchorKind::Airdrop ? Body + Approx(Content.Parameters.AirdropPickupRadiusCm) : Body;
+            if (!Check.Require(ClearCircle(XY(Anchor.PositionCm, N), N.Value(Anchor.PositionCm.Z), Clearance, Reach, Out, N), Anchor.Id,
                 TEXT("anchor clearance intersects static geometry, a cliff or a ramp, or is off its level's height")))
             {
                 return false;
@@ -846,7 +878,8 @@ bool Placement(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoW
         for (const auto& Anchor : Out.Anchors)
         {
             if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn
-                && !Check.Require(ClearCircle(Add(XY(Anchor.PositionCm, N), Delta, N), N.Value(Anchor.PositionCm.Z), Radius, Out, N),
+                && !Check.Require(ClearCircle(Add(XY(Anchor.PositionCm, N), Delta, N), N.Value(Anchor.PositionCm.Z), Radius,
+                    Approx(Content.Parameters.CollisionRadiusCm), Out, N),
                     Anchor.Id, TEXT("local spawn placement is not statically clear")))
             {
                 return false;
