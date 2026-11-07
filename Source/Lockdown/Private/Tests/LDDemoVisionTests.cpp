@@ -57,6 +57,8 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Unit.Actives.Ranks[0] = 2;
     Unit.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveSnarkBolt);
     Unit.Actives.Ranks[1] = 1;
+    Unit.Actives.Abilities[2] = uint8(ELDDemoAbilityId::ActiveNotMad);
+    Unit.Actives.Ranks[2] = 1;
     return Unit;
 }
 
@@ -112,12 +114,13 @@ FLDObservedUnitTermination Death(const FLDObservedUnitView& Unit, uint32 Generat
 FLDObservedCatalog TestCatalog()
 {
     FLDObservedCatalog Catalog;
-    Catalog.MaxLevel = 10;
+    Catalog.MaxLevel = 16;
     for (uint8 Id = uint8(ELDDemoEquipmentId::ItemIronPlate); Id <= uint8(ELDDemoEquipmentId::ItemEchoMaul); ++Id) { Catalog.Equipment.Add(Id); }
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterScavenger));
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterGuardian));
     Catalog.MaxSkillRank = 2;
-    for (const ELDDemoAbilityId Id : {ELDDemoAbilityId::ActivePantsDown, ELDDemoAbilityId::ActiveSnarkBolt})
+    for (const ELDDemoAbilityId Id : {
+        ELDDemoAbilityId::ActivePantsDown, ELDDemoAbilityId::ActiveSnarkBolt, ELDDemoAbilityId::ActiveNotMad})
     {
         Catalog.Abilities.Add(uint8(Id));
         Catalog.ActiveAbilities.Add(uint8(Id));
@@ -657,7 +660,7 @@ bool FLDDemoVisionOrderingTest::RunTest(const FString& Parameters)
     Cleared.Reset();
     TestTrue(TEXT("Another world revision is rejected"), Receiver.AcceptFull(Foreign, World, Catalog, 30, Cleared, Error) == EResult::Rejected);
     FLDObservedUnitView TooHigh = ContenderUnit(3);
-    TooHigh.Level = 11;
+    TooHigh.Level = 17;
     TestTrue(TEXT("Levels above the approved maximum are rejected"), Full(8, 1, 3, {TooHigh}) == EResult::Rejected);
     FLDObservedCatalog Narrow = Catalog;
     Narrow.Equipment.Remove(uint8(ELDDemoEquipmentId::ItemEdgeBlade));
@@ -1363,22 +1366,23 @@ bool FLDDemoVisionFlightTrailTest::RunTest(const FString& Parameters)
     }
     return true;
 }
-// #112 §10: a visible contender shows its Q/W actives, ranks and the advanced mark through the same authorized frame; the camp
+// A visible contender shows its Q/W/E actives, ranks and the advanced mark through the same authorized frame; the camp
 // carries none; malformed or unapproved actives are refused; the card shows no cooldown.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionOpponentActivesTest, "Lockdown.Rules.DemoVision.OpponentActives",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
 {
-    TestTrue(TEXT("Q/W actives are part of the complete contender field set, not of the camp set"),
+    TestTrue(TEXT("Q/W/E actives are part of the complete contender field set, not of the camp set"),
         (LDObservation::ContenderFields & LDObservation::Actives) != 0 && (LDObservation::CampFields & LDObservation::Actives) == 0);
     FLDWorldView Frame = ActiveFrame(7, 3, 42);
     Frame.Units.Add(ContenderUnit());
     Frame.Units.Add(CampUnit());
     FLDWorldView Read;
-    if (!TestTrue(TEXT("A frame with Q/W actives round-trips"), Wire(Frame, Read) && Read.Units.Num() == 2)) { return false; }
+    if (!TestTrue(TEXT("A frame with Q/W/E actives round-trips"), Wire(Frame, Read) && Read.Units.Num() == 2)) { return false; }
     const FLDObservedActivesView& Got = Read.Units[0].Actives;
-    TestTrue(TEXT("Both slots keep their ability and rank"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown) && Got.Ranks[0] == 2
-        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Ranks[1] == 1);
+    TestTrue(TEXT("All three slots keep their ability and rank"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown) && Got.Ranks[0] == 2
+        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Ranks[1] == 1
+        && Got.Abilities[2] == uint8(ELDDemoAbilityId::ActiveNotMad) && Got.Ranks[2] == 1);
     TestTrue(TEXT("The camp member carries no actives"), Read.Units[1].Actives.Abilities[0] == 0 && Read.Units[1].Actives.Ranks[1] == 0);
     auto Refused = [&](const TCHAR* What, TFunctionRef<void(FLDObservedUnitView&, FLDObservedUnitView&)> Change)
     {
@@ -1399,26 +1403,27 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Empty = ContenderUnit();
     Empty.Actives = FLDObservedActivesView();
     FString Error;
-    TestTrue(TEXT("Two empty slots are a valid contender"), LDObservation::ValidateUnit(Empty, Error));
+    TestTrue(TEXT("Three empty slots are a valid contender"), LDObservation::ValidateUnit(Empty, Error));
 
     const FLDObservedCatalog Catalog = TestCatalog();
     TestTrue(TEXT("Approved actives at approved ranks are accepted"), Catalog.Accepts(ContenderUnit(), Error));
     FLDObservedUnitView Passive = ContenderUnit();
     Passive.Actives.Abilities[1] = uint8(ELDDemoAbilityId::PassiveThickFace);
-    TestFalse(TEXT("A passive in a Q/W slot is refused"), Catalog.Accepts(Passive, Error));
+    TestFalse(TEXT("A passive in a Q/W/E slot is refused"), Catalog.Accepts(Passive, Error));
     FLDObservedCatalog Narrow = Catalog;
     Narrow.MaxSkillRank = 1;
     TestFalse(TEXT("A rank above the approved maximum is refused"), Narrow.Accepts(ContenderUnit(), Error));
 
     const LDHUD::FObservedCard Card = LDHUD::ObservedCard(ContenderUnit(), TEXT("对手"), nullptr, 0.);
-    TestTrue(TEXT("The target card shows both Q/W tiles"), Card.bActives && Card.Actives[0].Key == TEXT("Q") && Card.Actives[1].Key == TEXT("W")
-        && !Card.Actives[0].bEmpty && !Card.Actives[1].bEmpty);
+    TestTrue(TEXT("The target card shows all Q/W/E tiles"), Card.bActives && Card.Actives[0].Key == TEXT("Q")
+        && Card.Actives[1].Key == TEXT("W") && Card.Actives[2].Key == TEXT("E")
+        && !Card.Actives[0].bEmpty && !Card.Actives[1].bEmpty && !Card.Actives[2].bEmpty);
     TestTrue(TEXT("The advanced rank is marked, the basic rank is not"), Card.Actives[0].bMaxRank && Card.Actives[0].Rank == TEXT("高级")
         && !Card.Actives[1].bMaxRank && Card.Actives[1].Rank == TEXT("初级"));
     const FString Text = LDHUD::ObservedUnit(ContenderUnit(), TEXT("对手"), nullptr, 0.);
     TestTrue(TEXT("The card text names the ranks and never a cooldown"), Text.Contains(TEXT("高级")) && !Text.Contains(TEXT("冷却")));
     const LDHUD::FObservedCard CampCard = LDHUD::ObservedCard(CampUnit(), FString(), nullptr, 0.);
-    TestFalse(TEXT("A camp member's card has no Q/W tiles"), CampCard.bActives);
+    TestFalse(TEXT("A camp member's card has no Q/W/E tiles"), CampCard.bActives);
     return true;
 }
 // #147: every public status a unit can carry at once (all combat cues plus its kind's marker) fits the bound, so a fully

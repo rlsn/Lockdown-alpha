@@ -149,7 +149,8 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(result.catalog.parameter("STAT.AttackSpeedPerLevelRatio"), {"unit": "ratio", "bp": 300})
         self.assertEqual(result.catalog.parameter("UNIT.BasicAttackWindupSec"), {"unit": "ms", "ms": 125})
         self.assertEqual(result.catalog.definition("item_iron_plate")["sell_gold"], 25)
-        self.assertEqual(result.catalog.data["progression"]["xp_to_next"], (50, 60, 70, 80, 90, 100, 110, 120, 130))
+        self.assertEqual(result.catalog.data["progression"]["xp_to_next"],
+                         (50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190))
         self.assertEqual(result.catalog.definition("monster_guardian")["attack_interval_ms"], 1334)
         self.assertEqual(result.catalog.definition("character_demo")["basic_attack"]["interval_ms"], 1000)
         self.assertEqual(result.catalog.definition("active_snark_bolt")["native_id"], 94)
@@ -499,7 +500,7 @@ class DemoContentImport(unittest.TestCase):
     def test_capped_gains_clamp_instead_of_refusing(self):
         # Every attribute clamps to its bounds in the projection (#112 §4): a source sum past a cap still compiles.
         for mutation in (
-            lambda data: data["parameters"]["STAT.AD.Max"].update(value=30),
+            lambda data: data["parameters"]["STAT.AD.Max"].update(value=40),
             lambda data: data["parameters"]["STAT.AttackSpeed.Max"].update(value=1.1),
             lambda data: data["parameters"]["STAT.MoveSpeed.Max"].update(value=510),
             lambda data: data["parameters"]["STAT.CritChance.Base"].update(value=0.99),
@@ -529,8 +530,11 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["opening_cards"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}), "UnknownField"),
             (lambda data: data["progression"].update(reroll_levels=[7, 4]), "RerollLevels"),
             (lambda data: data["progression"].update(reroll_levels=[4, 4]), "RerollLevels"),
-            (lambda data: data["progression"].update(reroll_levels=[11]), "NumericOverflow"),
+            (lambda data: data["progression"].update(reroll_levels=[17]), "NumericOverflow"),
             (lambda data: data["progression"].pop("reroll_levels"), "MissingField"),
+            (lambda data: data["parameters"]["CHOICE.AttributeQuality.GreenChance"].update(value=0.39), "InvalidPolicy"),
+            (lambda data: data["parameters"]["CHOICE.AttributeQuality.GoldMultiplier"].update(value=0), "InvalidPolicy"),
+            (lambda data: data["parameters"].pop("CHOICE.AttributeQuality.BlueChance"), "MissingField"),
             (lambda data: data["abilities"][0].update(tags=["Mobility"]), "UnknownField|SchemaVariant"),
             (lambda data: data["equipment"][0].update(tags=["Tank"]), "UnknownField"),
             (lambda data: data["abilities"][0].pop("draftable"), "MissingField|SchemaVariant"),

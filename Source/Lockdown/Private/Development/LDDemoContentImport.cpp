@@ -275,6 +275,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("STAT.CooldownHaste.Base"), TEXT("points"), TEXT("p2"), &P.CooldownHasteBaseP2, 0, MAX_int64},
         {TEXT("STAT.CooldownHaste.Max"), TEXT("points"), TEXT("p2"), &P.CooldownHasteMaxP2, 0, MAX_int64},
         {TEXT("SKILL.GrowthPerLevel"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelBp, 0, 10000},
+        {TEXT("SKILL.GrowthPerLevelAfter10"), TEXT("ratio"), TEXT("bp"), &P.SkillGrowthPerLevelAfter10Bp, 0, 10000},
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
@@ -297,8 +298,18 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
         {TEXT("REWARD.AssistGoldRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistGoldBp, 0, 10000},
         {TEXT("SHOP.UpgradeStatBonusRatio"), TEXT("ratio"), TEXT("bp"), &P.UpgradeStatBonusBp, 0, 10000},
+        {TEXT("CHOICE.NewActiveFreeSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveFreeSlotWeightBp, 1, 10000},
         {TEXT("CHOICE.NewActiveFullSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveFullSlotWeightBp, 1, 10000},
+        {TEXT("CHOICE.FirstSlotUpgradeChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.FirstSlotUpgradeBp, 0, 10000},
         {TEXT("CHOICE.FreeSlotAttributeChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.FreeSlotAttributeBp, 0, 10000},
+        {TEXT("CHOICE.AttributeQuality.GreenChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeGreenChanceBp, 0, 10000},
+        {TEXT("CHOICE.AttributeQuality.GreenMultiplier"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeGreenMultiplierBp, 1, MAX_int64},
+        {TEXT("CHOICE.AttributeQuality.BlueChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeBlueChanceBp, 0, 10000},
+        {TEXT("CHOICE.AttributeQuality.BlueMultiplier"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeBlueMultiplierBp, 1, MAX_int64},
+        {TEXT("CHOICE.AttributeQuality.PurpleChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributePurpleChanceBp, 0, 10000},
+        {TEXT("CHOICE.AttributeQuality.PurpleMultiplier"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributePurpleMultiplierBp, 1, MAX_int64},
+        {TEXT("CHOICE.AttributeQuality.GoldChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeGoldChanceBp, 0, 10000},
+        {TEXT("CHOICE.AttributeQuality.GoldMultiplier"), TEXT("ratio"), TEXT("bp"), &P.Choice.AttributeGoldMultiplierBp, 1, MAX_int64},
         {TEXT("AI.RetreatHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.RetreatHPBp, 0, 10000},
         {TEXT("AI.ResumeFarmHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.ResumeFarmHPBp, 0, 10000},
         {TEXT("AI.HighCampEntryHPRatio"), TEXT("ratio"), TEXT("bp"), &P.AI.HighCampEntryHPBp, 0, 10000},
@@ -851,6 +862,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
                     || !Check.Require((StatMask(Out.Stats) & ~TemporaryStats) == 0, Path, TEXT("timed bonuses cannot change resource maxima"))))
                 || !OptionalFixed(F, TEXT("cleave_ratio"), TEXT("ratio"), TEXT("bp"), Out.SecondaryRatioBp, 1, 10000)
                 || (F.Has(TEXT("cleave_radius")) && !F.Fraction(TEXT("cleave_radius"), TEXT("cm"), Out.RadiusCm, true))
+                || (F.Has(TEXT("basic_stacks")) && !IntInto(F, TEXT("basic_stacks"), Out.BasicCount, 1, 10))
                 || !Check.Require((Out.SecondaryRatioBp > 0) == (Out.RadiusCm.Numerator > 0), Path,
                     TEXT("an empowered cleave needs its ratio and a positive radius")))
             {
@@ -1069,6 +1081,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         if (!F.Fixed(TEXT("base"), TEXT("hp"), TEXT("p2"), Out.BaseP2)
             || !F.Fixed(TEXT("max_hp_ratio"), TEXT("ratio"), TEXT("bp"), Out.MaxHPRatioBp, 0, 10000)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
+            || (F.Has(TEXT("count")) && !IntInto(F, TEXT("count"), Out.Count, 1, 6))
             || !Check.Require(Out.BaseP2 > 0 || Out.MaxHPRatioBp > 0, Path, TEXT("ineffective shield")))
         {
             return false;
@@ -1549,10 +1562,10 @@ bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString
 bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.progression"));
-    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, 10, 10)
-        || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 10, 10)
+    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, 16, 16)
+        || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 16, 16)
         || !F.SmallInt(TEXT("max_skill_rank"), Out.MaxSkillRank, 2, 2)
-        || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 2, 2)
+        || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 3, 3)
         || !F.SmallInt(TEXT("equipment_slots"), Out.EquipmentSlots, 2, 2)
         || !F.Int(TEXT("xp_start"), Out.XPStart, 0, 0))
     {
@@ -1561,7 +1574,7 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
     for (const auto& Pair : {TPair<const TCHAR*, TArray<int64>*>(TEXT("xp_thresholds"), &Out.XPThresholds),
         {TEXT("xp_to_next"), &Out.XPToNext}})
     {
-        const int32 Count = Pair.Value == &Out.XPThresholds ? 10 : 9;
+        const int32 Count = Pair.Value == &Out.XPThresholds ? 16 : 15;
         const TArray<FValue>* Rows;
         if (!Array(F.Take(Pair.Key), Rows, Check, F.Path, Count, Count))
         {
@@ -1584,7 +1597,7 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         return false;
     }
     const TArray<FValue>* Rerolls;
-    if (!Array(F.Take(TEXT("reroll_levels")), Rerolls, Check, F.Path, 0, 10))
+    if (!Array(F.Take(TEXT("reroll_levels")), Rerolls, Check, F.Path, 0, 16))
     {
         return false;
     }

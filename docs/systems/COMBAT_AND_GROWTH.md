@@ -1,6 +1,6 @@
 # 战斗、效果与成长
 
-本文说明可复用的原生结算链。Demo 的属性、三选一、两个主动槽和死亡保留规则来自
+本文说明可复用的原生结算链。Demo 的属性、三选一、Q/W/E 三个主动槽和死亡保留规则来自
 [App Spec](../APP_SPEC.md)，不能靠修改文档或目录标签宣称已经实现。
 
 ## 当前组件
@@ -34,7 +34,7 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 失败要明确，不让客户端通过同时点击技能图标和快捷键产生两次效果。
 已释放的效果是否继续存在由其生命周期决定，不通过销毁 UI 或更换槽位退款。
 
-普攻、Q/W 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
+普攻、Q/W/E 与 D 冲刺经同一 `SubmitAction` 入口（真人 RPC、对手 AI 与营地成员各自的服务器 Caller）：
 本人/形状/请求窗口先验，进攻意图随即经生命域解除保护，再验来源、冷却、蓝量、控制、目标与几何；
 未准入不付费，已解除的保护不恢复。技能释放时重验来源与目标（普攻释放见下文 `BasicReleaseGate`），成功才扣蓝并按 `FORMULA.CooldownMs`
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
@@ -265,12 +265,13 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **延迟第二爆**：`echo`（`delay`、`ratio`）在自身区域释放后，延迟到点时以同一条存活生命当时的脚点再爆一次，载荷由 `EchoHit` 只缩放伤害项（灼烧层不变）。
 - **按嘲讽人数给护盾**：`taunt_shield` 按本次实际被嘲讽的参赛者数（`ApplyTauntEffect` 的 `OutTaunted`）给护盾。
 - **解除缴械**：`dispel_disarm`（释放前与解除定身、解除减速一起在 `ApplyCleanses` 结算）。
-- **普攻命中缩短两个主动冷却**：被动 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 `Actives` 两个技能的剩余冷却。
+- **普攻命中缩短三个主动冷却**：被动 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 Q/W/E 三个技能的剩余冷却。
 - 属性 `MPRegenFlat`（法力回复固定值）与 `HPRegenFlat` 同形。
 
 ## 构筑与来源
 
-成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/主动槽、属性卡与 Revision）。
+成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/Q-W-E 主动槽、
+按家族与品质分组的属性卡与 Revision）。
 构筑可带的选择数为 min(等级, 最大选择次数)：开局即有一次三选一，1 级构筑可带一张卡（D10）。
 
 开局方向卡（#153）是 `ELDChoiceOptionKind::Opening`：`FLDGrowthBuild::OpeningCard` 记录永久三属性包，
@@ -292,13 +293,14 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性与被动效果只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects`
 取得，属性投影、来源与效果处理器不另写进阶分支；同款双持时同名被动取有进阶的一件。
 来源冷却轨道与回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，重学回绑原结束时间，进阶不刷新冷却。
-Q/W 都满时学新主动替换的那一槽，新主动从 rank 1（初级）开始；技能最高 rank 为 `progression.max_skill_rank`（2，高级）。
+Q/W/E 都满时学新主动替换的那一槽，新主动从 rank 1（初级）开始；技能最高 rank 为 `progression.max_skill_rank`（2，高级）。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
 ### 技能等级成长（#147）
 
-技能的固定数值随拥有者**当前等级** L 成长：G(L) = 1 + `SKILL.GrowthPerLevel` ×（L − 1）（`LDSkillGrowth::FactorBp`，
-原生 `SkillGrowthPerLevelBp`）。高级的 ×1.5 已写在 rank 2 的作者数据里，代码不再乘。
+技能的固定数值随拥有者**当前等级** L 分段成长：1–10 级每级使用 `SKILL.GrowthPerLevel`（10%），
+11–16 级每级使用 `SKILL.GrowthPerLevelAfter10`（5%），所以 G(10)=1.9、G(16)=2.2。
+每个 rank 的基础值由作者数据直接给出，代码不再额外乘高级固定倍率。
 
 - **成长范围**（`LDSkillGrowth::GrowEffect`）：效果的基础量（伤害、护盾、反伤、强化普攻与周期伤害；法力授予除外）与限时属性
   的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数在两档间不变。

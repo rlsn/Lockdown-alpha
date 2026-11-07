@@ -244,14 +244,16 @@ private:
             {
                 return Refuse(EError::UnknownDefinition, Field, LookupError);
             }
-            if (Cards.Contains(Attribute))
+            const FString SourceKey = FString::Printf(TEXT("%s:%u"), *Card.AttributeId, uint8(Card.Quality));
+            if (CardSources.Contains(SourceKey))
             {
-                return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" is listed more than once"));
+                return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" and quality are listed more than once"));
             }
-            if (Card.Count < 1)
+            if (Card.Count < 1 || Card.Quality == ELDAttributeQuality::None)
             {
-                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry must hold at least one card"));
+                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry needs a quality and at least one card"));
             }
+            CardSources.Add(SourceKey);
             Cards.Add(Attribute);
             ConsumedChoices += Card.Count;
         }
@@ -422,11 +424,18 @@ private:
         }
         for (int32 Index = 0; Index < Cards.Num(); ++Index)
         {
-            const FExact Count = Numbers.Value(Build.AttributeCards[Index].Count);
+            const FLDAttributeCardValue& Card = Build.AttributeCards[Index];
+            const int64 MultiplierBp = Card.Quality == ELDAttributeQuality::Green ? P.Choice.AttributeGreenMultiplierBp
+                : Card.Quality == ELDAttributeQuality::Blue ? P.Choice.AttributeBlueMultiplierBp
+                : Card.Quality == ELDAttributeQuality::Purple ? P.Choice.AttributePurpleMultiplierBp
+                : Card.Quality == ELDAttributeQuality::Gold ? P.Choice.AttributeGoldMultiplierBp
+                : 0;
+            const FExact Count = Numbers.Value(Card.Count);
+            const FExact ScaledCount = Numbers.Mul(Count, Numbers.Value(MultiplierBp, 10000));
             const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
             for (const FLDDemoStatBonus& Bonus : Cards[Index]->Stats)
             {
-                if (!AddBonus(Bonus, &FAttributeSum::Choices, Count, Field))
+                if (!AddBonus(Bonus, &FAttributeSum::Choices, ScaledCount, Field))
                 {
                     return false;
                 }
@@ -735,6 +744,7 @@ private:
     TArray<const FLDDemoAbilityDefinition*, TInlineAllocator<8>> Passives;
     TArray<const FLDDemoRankDefinition*, TInlineAllocator<8>> PassiveRanks;
     TArray<const FLDDemoAttributeDefinition*, TInlineAllocator<8>> Cards;
+    TSet<FString> CardSources;
     const FLDDemoOpeningCardDefinition* Opening = nullptr;
     TArray<const FLDDemoEquipmentDefinition*, TInlineAllocator<2>> Items;
     TArray<FLDEquipmentPassiveFamily> Families;

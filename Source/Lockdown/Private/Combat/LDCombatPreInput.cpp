@@ -2,7 +2,7 @@
 
 bool LDCombatPreInput::IsDirectEntry(ELDCombatEntry Entry)
 {
-    return Entry == ELDCombatEntry::Q || Entry == ELDCombatEntry::W || Entry == ELDCombatEntry::Dash;
+    return Entry == ELDCombatEntry::Q || Entry == ELDCombatEntry::W || Entry == ELDCombatEntry::E || Entry == ELDCombatEntry::Dash;
 }
 
 bool LDCombatPreInput::FiresOnPress(ELDCombatEntry Entry)

@@ -52,6 +52,17 @@ void ChoicesIcon(USizeBox* Size,UBorder* Shape,LDHUD::EChoiceIcon Icon)
     Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,Radius,FLinearColor(1,1,1,.55f),1.5f));Shape->SetBrushColor(Fill);
     Shape->SetRenderTransformPivot(FVector2D(.5f,.5f));Shape->SetRenderTransformAngle(bDiamond?45.f:0.f);
 }
+FLinearColor AttributeQualityColor(ELDAttributeQuality Quality)
+{
+    switch(Quality)
+    {
+    case ELDAttributeQuality::Green:return FLinearColor(.12f,.62f,.22f);
+    case ELDAttributeQuality::Blue:return FLinearColor(.12f,.38f,.84f);
+    case ELDAttributeQuality::Purple:return FLinearColor(.58f,.18f,.82f);
+    case ELDAttributeQuality::Gold:return FLinearColor(.90f,.62f,.08f);
+    default:return LDHUDStyle::TextAccent;
+    }
+}
 }
 
 TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
@@ -179,7 +190,7 @@ void ULDChoicesPanel::UpdateDetail()
             if(!View.Advanced.IsEmpty()){Blocks.Add(View.Advanced);}
             if(!View.Lines.IsEmpty()){Blocks.Add(FString::Join(View.Lines,TEXT("\n")));}
             if(!View.Keywords.IsEmpty()){Blocks.Add(FString::Join(View.Keywords,TEXT("\n")));}
-            if(View.bNeedsReplacement){Blocks.Add(TEXT("Q/W 已满：点选后再点 HUD 上要遗忘的 Q 或 W 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从初级开始。"));}
+            if(View.bNeedsReplacement){Blocks.Add(TEXT("Q/W/E 已满：点选后再点 HUD 上要遗忘的 Q、W 或 E 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从初级开始。"));}
             const FText Body=FText::FromString(FString::Join(Blocks,TEXT("\n\n")));
             if(!DetailBody->GetText().EqualTo(Body)){DetailBody->SetText(Body);}
         }
@@ -285,6 +296,9 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
             ChoicesText(Card.Name,Shown.Name);ChoicesText(Card.Summary,Shown.Summary);ChoicesText(Card.Glyph,Shown.Glyph);
             Card.Sentence->SetText(FText::FromString(Shown.Sentence));
             ChoicesIcon(Card.IconSize,Card.IconShape,Shown.Icon);
+            const FLinearColor Quality=AttributeQualityColor(Shown.AttributeQuality);
+            Card.Summary->SetColorAndOpacity(Quality);
+            if(Shown.AttributeQuality!=ELDAttributeQuality::None){Card.IconShape->SetBrushColor(Quality);}
         }
         if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}
     }
@@ -318,7 +332,7 @@ void ULDChoicesPanel::RefreshSelection()
 }
 bool ULDChoicesPanel::IsReplacementTarget(uint8 SkillSlot) const
 {
-    return bReplacing&&!PendingRequest&&SkillSlot<2&&Latest.Skills.ContainsByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
+    return bReplacing&&!PendingRequest&&SkillSlot<3&&Latest.Skills.ContainsByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
 }
 bool ULDChoicesPanel::ChooseCard(int32 Index)
 {
@@ -337,7 +351,7 @@ bool ULDChoicesPanel::PreviewChoice(int32 Index)
 }
 bool ULDChoicesPanel::ChooseReplacement(uint8 SkillSlot)
 {
-    if(!bReplacing||SkillSlot>1){return false;}
+    if(!bReplacing||SkillSlot>2){return false;}
     if(PendingRequest){ChoicesText(Feedback,TEXT("上一次选择仍在处理中。"));return false;}
     const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
     if(!Skill){ChoicesText(Feedback,TEXT("该技能槽为空，无需替换；请重新点卡。"));return false;}
@@ -361,9 +375,9 @@ void ULDChoicesPanel::ConfirmChoice()
     {
         if(!bReplacing)
         {
-            // #97 short path: the HUD's Q/W slots glow red (IsReplacementTarget) and a click on one is the choice of what to
+            // #97 short path: the HUD's Q/W/E slots glow red (IsReplacementTarget) and a click on one is the choice of what to
             // forget, with no further confirmation and no default slot; another card restarts from that card, Back cancels.
-            // The pick holds no input (ChildConfirmationYields): play and Q/W casts go on until a slot is clicked.
+            // The pick holds no input (ChildConfirmationYields): play and Q/W/E casts go on until a slot is clicked.
             bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;
             // The HUD holds the prompt toast while the pick waits; the red slot rings show where; the card popup keeps the rank rule.
             ChoicesText(Feedback,TEXT(""));

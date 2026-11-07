@@ -706,7 +706,8 @@ def validate_definitions(data, ids):
                 if field in effect:
                     require(exact_equal(effect[field], twin.get(field)), "AdvancedRank", identity,
                             f"{effect['op']}.{field} changes between ranks")
-            if "base" in effect and effect["op"] != "mana_on_hit":
+            if "base" in effect and effect["op"] != "mana_on_hit" and not (
+                    identity == "active_triple_combo" and effect["op"] == "empower_basic"):
                 require(quantity(twin["base"]) == quantity(effect["base"]) * Fraction(3, 2), "AdvancedRank", identity,
                         f"{effect['op']}.base must be 1.5x in the advanced rank")
     attribute_stats = {
@@ -914,14 +915,15 @@ def upgraded_stats(stats, ratio_bp, path):
 def validate_numbers(data):
     params = data["parameters"]
     p = lambda key: quantity(params[key])
+    level_steps = data["progression"]["max_level"] - 1
     for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
         key = "STAT." + stat
         minimum, maximum = p(key + ".Min"), p(key + ".Max")
         base, growth = p(key + ".Base"), p(key + ".PerLevel")
-        require(minimum <= base <= base + 9 * growth <= maximum,
+        require(minimum <= base <= base + level_steps * growth <= maximum,
                 "StatBounds", key, "base/level growth is outside the declared projection bounds")
         if stat not in ("HPRegen", "MPRegen"):
-            checked_add(params[key + ".Base"]["p2"], checked_mul(9, params[key + ".PerLevel"]["p2"], key), key)
+            checked_add(params[key + ".Base"]["p2"], checked_mul(level_steps, params[key + ".PerLevel"]["p2"], key), key)
     require(p("STAT.MaxHP.Min") > 0 and p("STAT.MaxHP.Base") > 0,
             "NumericDomain", "STAT.MaxHP", "alive characters require positive HP")
     require(p("STAT.AD.Base") > 0, "NumericDomain", "STAT.AD.Base", "initial basic attack requires positive damage")
@@ -973,7 +975,7 @@ def validate_numbers(data):
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
 
     thresholds = [0]
-    for level in range(1, 10):
+    for level in range(1, data["progression"]["max_level"]):
         increment = checked_add(params["XP.BaseToNext"],
                                 checked_mul(level - 1, params["XP.IncreasePerLevel"], "XP"), "XP")
         thresholds.append(checked_add(thresholds[-1], increment, "XP"))
@@ -981,7 +983,7 @@ def validate_numbers(data):
             "XPThresholds", "progression", "thresholds do not match the explicit linear XP parameters")
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
     for reward in ("REWARD.PlayerXP", "REWARD.PlayerGold"):
-        checked_add(params[reward + ".Base"], checked_mul(9, params[reward + ".PerLevel"], reward), reward)
+        checked_add(params[reward + ".Base"], checked_mul(level_steps, params[reward + ".PerLevel"], reward), reward)
 
     for item in data["equipment"]:
         price = item["buy_price"]
@@ -990,8 +992,16 @@ def validate_numbers(data):
         require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
         checked_add(params["SHOP.StartingGold"], price, item["id"])
         item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
-    require(params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0, "NumericDomain", "CHOICE.NewActiveFullSlotWeight",
-            "a draft weight must be positive")
+    require(params["CHOICE.NewActiveFreeSlotWeight"]["bp"] > 0
+            and params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0,
+            "NumericDomain", "CHOICE", "active draft weights must be positive")
+    quality_chances = [params[f"CHOICE.AttributeQuality.{name}Chance"]["bp"]
+                       for name in ("Green", "Blue", "Purple", "Gold")]
+    quality_multipliers = [params[f"CHOICE.AttributeQuality.{name}Multiplier"]["bp"]
+                           for name in ("Green", "Blue", "Purple", "Gold")]
+    require(sum(quality_chances) == 10000 and all(value > 0 for value in quality_multipliers),
+            "InvalidPolicy", "CHOICE.AttributeQuality",
+            "attribute quality chances must sum to one and multipliers must be positive")
     checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
@@ -1049,10 +1059,14 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     max_armor = params["STAT.Armor.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
-    # #147: a skill's fixed amounts grow with its owner's level, G(L) = 1 + SKILL.GrowthPerLevel x (L - 1), so a skill's
-    # envelope is checked with its bases grown for the top level (equipment never grows); the burn base grows likewise.
-    factor = checked_add(10000, checked_mul(max(data["progression"]["max_level"] - 1, 0),
-                                            params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"), "SKILL.GrowthPerLevel")
+    # #166: levels 2..10 grow by the first step, levels 11..16 by the second.
+    top_level = data["progression"]["max_level"]
+    first_steps = min(max(top_level - 1, 0), 9)
+    later_steps = max(top_level - 10, 0)
+    factor = checked_add(10000, checked_mul(first_steps, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
+                         "SKILL.GrowthPerLevel")
+    factor = checked_add(factor, checked_mul(later_steps, params["SKILL.GrowthPerLevelAfter10"]["bp"],
+                                            "SKILL.GrowthPerLevelAfter10"), "SKILL.GrowthPerLevelAfter10")
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")

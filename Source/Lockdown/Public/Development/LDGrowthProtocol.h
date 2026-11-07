@@ -139,6 +139,8 @@ struct LOCKDOWN_API FLDChoiceOption
     UPROPERTY() FName DefinitionId;
     UPROPERTY() uint8 FromRank = 0;
     UPROPERTY() uint8 ToRank = 0;
+    // Attribute options only. Opening and skill options always carry None.
+    UPROPERTY() ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
 };
 
 USTRUCT()
@@ -164,7 +166,7 @@ struct LOCKDOWN_API FLDLearnedSkillView
     UPROPERTY() FName DefinitionId;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint8 Rank = 0;
-    // Active skills only: 0 = Q, 1 = W.
+    // Active skills only: 0 = Q, 1 = W, 2 = E.
     UPROPERTY() uint8 Slot = 0;
 };
 
@@ -175,6 +177,7 @@ struct LOCKDOWN_API FLDAttributeCardView
 
     UPROPERTY() FName DefinitionId;
     UPROPERTY() uint8 Count = 0;
+    UPROPERTY() ELDAttributeQuality Quality = ELDAttributeQuality::None;
 };
 
 USTRUCT()
@@ -247,6 +250,7 @@ struct LOCKDOWN_API FLDChoiceReceipt
     UPROPERTY() ELDChoiceOptionKind Kind = ELDChoiceOptionKind::None;
     UPROPERTY() FName DefinitionId;
     UPROPERTY() uint8 NewRank = 0;
+    UPROPERTY() ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
     UPROPERTY() bool bReplaced = false;
     UPROPERTY() uint8 ReplacedSlot = 0;
     UPROPERTY() FName ReplacedSkillId;

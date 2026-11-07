@@ -396,7 +396,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
     // #147: a broken damage-triggered shield bursts; positive damage taken from another body may grant the next one.
-    if (bShieldBroken && !BurstBrokenShield(*Body,ShieldBefore,NowMs,Error)) { return false; }
+    if (bShieldBroken && !BurstBrokenShield(*Body,ShieldBefore,Hit.SourceBody,NowMs,Error)) { return false; }
     if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !OnDamaged(*Body,NowMs,Error))
     { return false; }
     if (!OnHitLanded(*Body,Hit,Damage.DamageP2,NowMs,Error)) { return false; }
@@ -765,6 +765,11 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 FLDCombatHit Contact=Projectile.Payload;
                 Contact.HitId=FGuid::NewGuid();
                 Contact.Target=Targets[TargetIndex].Body;
+                if (!Projectile.Struck.IsEmpty())
+                {
+                    Contact.SlowBp=0;
+                    Contact.SlowDurationMs=0;
+                }
                 PendingHits.Add(Contact);
                 Projectile.Struck.Add(Contact.Target);
             }

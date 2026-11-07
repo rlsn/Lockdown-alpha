@@ -28,7 +28,7 @@ namespace LDCA
 
     bool IsContenderEntry(ELDCombatEntry Entry)
     {
-        return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::Dash;
+        return Entry==ELDCombatEntry::Q || Entry==ELDCombatEntry::W || Entry==ELDCombatEntry::E || Entry==ELDCombatEntry::Dash;
     }
 
     bool SameTerms(const FLDCombatActionRequest& A, const FLDCombatActionRequest& B)
@@ -890,6 +890,10 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
             Hit.CleaveRatioBp=FMath::Max(Hit.CleaveRatioBp,Bonus->CleaveRatioBp);
             Hit.CleaveRadiusCm=FMath::Max(Hit.CleaveRadiusCm,Bonus->CleaveRadiusCm);
         }
+        if (Bonus->Charges==0 && Bonus->FinalBreachStacks>0)
+        {
+            Hit.BreachStacks=FMath::Max(Hit.BreachStacks,Bonus->FinalBreachStacks);
+        }
         // The stats held while charges remain end with the last charge.
         if (Bonus->Charges==0 && Bonus->bChargeBonus
             && Body.TimedBonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Row) { return Row.EffectId==Bonus->EffectId; })>0
@@ -915,7 +919,7 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatH
     if (!Mode) { Error=TEXT("A landed basic requires the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
     const FGuid& Entity=Body.Victim.EntityId;
-    // #147 passive_iced_americano advanced: every landed basic cuts both learned actives.
+    // #166 passive_iced_americano advanced: every landed basic cuts all three learned actives.
     {
         TArray<FLDPassiveEffectRef> Refunds;
         if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::CooldownRefund,Refunds,Error)) { return false; }
@@ -924,6 +928,7 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatH
             if (Ref.Effect->Trigger!=ELDDemoEffectTrigger::BasicHit) { continue; }
             ReduceCooldown(Entity,ELDCombatEntry::Q,Ref.Effect->AmountMs);
             ReduceCooldown(Entity,ELDCombatEntry::W,Ref.Effect->AmountMs);
+            ReduceCooldown(Entity,ELDCombatEntry::E,Ref.Effect->AmountMs);
         }
     }
     // item_edge_blade: every Count-th landed basic adds its own physical hit (added damage: no crit, no on-hit).
@@ -1114,6 +1119,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Armed.Charges=FMath::Max(Effect.Count,1);
             Armed.CleaveRatioBp=Effect.SecondaryRatioBp;
             Armed.CleaveRadiusCm=LDCA::ToDouble(Effect.RadiusCm);
+            Armed.FinalBreachStacks=Effect.BasicCount;
             if (!Effect.Stats.IsEmpty())
             {
                 FLDCombatTimedBonus Bonus;
@@ -1155,11 +1161,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             if (TauntShieldEffect && Taunted>0)
             {
                 const int64 MaxHP=Body.Resources.MaxHpP2;
+                const int32 ShieldTargets=TauntShieldEffect->Count>0?FMath::Min(Taunted,TauntShieldEffect->Count):Taunted;
                 // The released rank row is already grown for the caster's level (#147, ActiveOf).
                 const int64 Each=TauntShieldEffect->BaseP2
                     +MaxHP/10000*TauntShieldEffect->MaxHPRatioBp+MaxHP%10000*TauntShieldEffect->MaxHPRatioBp/10000;
-                if (Each>MAX_int64/Taunted) { Error=TEXT("Taunt shield overflowed."); return false; }
-                if (!GrantShieldTo(Body,Each*Taunted,TauntShieldEffect->DurationMs,EffectId,Body.Victim.EntityId,Now,Error)) { return false; }
+                if (Each>MAX_int64/ShieldTargets) { Error=TEXT("Taunt shield overflowed."); return false; }
+                if (!GrantShieldTo(Body,Each*ShieldTargets,TauntShieldEffect->DurationMs,EffectId,Body.Victim.EntityId,Now,Error)) { return false; }
             }
             break;
         }

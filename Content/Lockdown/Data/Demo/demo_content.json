@@ -36,7 +36,7 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "silence",
@@ -78,7 +78,7 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "silence",
@@ -273,7 +273,7 @@
             },
             {
               "duration": {
-                "ms": 600,
+                "ms": 800,
                 "unit": "ms"
               },
               "op": "stun",
@@ -315,7 +315,7 @@
             },
             {
               "duration": {
-                "ms": 600,
+                "ms": 800,
                 "unit": "ms"
               },
               "op": "stun",
@@ -453,7 +453,7 @@
                 "unit": "cm"
               },
               "wall_stun": {
-                "ms": 1000,
+                "ms": 1200,
                 "unit": "ms"
               }
             }
@@ -612,7 +612,7 @@
             },
             {
               "duration": {
-                "ms": 1000,
+                "ms": 1200,
                 "unit": "ms"
               },
               "op": "root",
@@ -654,13 +654,13 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "root",
               "opcode": 4,
               "slowed_stun": {
-                "ms": 1000,
+                "ms": 1200,
                 "unit": "ms"
               }
             }
@@ -841,7 +841,7 @@
             },
             {
               "duration": {
-                "ms": 750,
+                "ms": 1000,
                 "unit": "ms"
               },
               "op": "zone_root",
@@ -1080,7 +1080,7 @@
               "op": "slow",
               "opcode": 12,
               "ratio": {
-                "bp": 2500,
+                "bp": 3500,
                 "unit": "ratio"
               }
             },
@@ -1134,7 +1134,7 @@
           "effects": [
             {
               "duration": {
-                "ms": 750,
+                "ms": 900,
                 "unit": "ms"
               },
               "op": "taunt",
@@ -1178,7 +1178,7 @@
           "effects": [
             {
               "duration": {
-                "ms": 1000,
+                "ms": 1200,
                 "unit": "ms"
               },
               "op": "taunt",
@@ -1212,6 +1212,7 @@
                 "p2": 6000,
                 "unit": "hp"
               },
+              "count": 2,
               "duration": {
                 "ms": 3000,
                 "unit": "ms"
@@ -1254,7 +1255,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 1500,
+                "bp": 1000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1262,7 +1263,7 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 2000,
+                "p2": 1500,
                 "unit": "points"
               },
               "charges": 3,
@@ -1275,7 +1276,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 5000,
+                  "bp": 3000,
                   "unit": "ratio"
                 }
               }
@@ -1295,7 +1296,7 @@
           "effects": [
             {
               "ad_ratio": {
-                "bp": 1500,
+                "bp": 1000,
                 "unit": "ratio"
               },
               "ap_ratio": {
@@ -1303,9 +1304,10 @@
                 "unit": "ratio"
               },
               "base": {
-                "p2": 3000,
+                "p2": 2000,
                 "unit": "points"
               },
+              "basic_stacks": 2,
               "charges": 3,
               "cleave_radius": {
                 "denominator": 1,
@@ -1325,7 +1327,7 @@
               "opcode": 22,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 5000,
+                  "bp": 3000,
                   "unit": "ratio"
                 }
               }
@@ -1382,7 +1384,7 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "disarm",
@@ -1424,7 +1426,7 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "disarm",
@@ -1432,7 +1434,7 @@
             },
             {
               "duration": {
-                "ms": 1250,
+                "ms": 1500,
                 "unit": "ms"
               },
               "op": "slow",
@@ -1553,7 +1555,7 @@
             },
             {
               "cooldown": {
-                "ms": 250,
+                "ms": 150,
                 "unit": "ms"
               },
               "entries": "Actives",
@@ -1581,7 +1583,7 @@
               "op": "control_damage_amp",
               "opcode": 17,
               "ratio": {
-                "bp": 1200,
+                "bp": 1000,
                 "unit": "ratio"
               }
             }
@@ -1598,7 +1600,7 @@
               "op": "control_damage_amp",
               "opcode": 17,
               "ratio": {
-                "bp": 1800,
+                "bp": 1500,
                 "unit": "ratio"
               }
             }
@@ -1623,7 +1625,7 @@
               "opcode": 5,
               "stats": {
                 "CritChanceBonusRatio": {
-                  "bp": 1500,
+                  "bp": 1200,
                   "unit": "ratio"
                 }
               }
@@ -1638,7 +1640,7 @@
               "opcode": 5,
               "stats": {
                 "CritChanceBonusRatio": {
-                  "bp": 2000,
+                  "bp": 1800,
                   "unit": "ratio"
                 }
               }
@@ -1759,7 +1761,7 @@
               "opcode": 15,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 3500,
+                  "bp": 3000,
                   "unit": "ratio"
                 },
                 "MoveSpeedBonusRatio": {
@@ -1786,7 +1788,7 @@
               "opcode": 15,
               "stats": {
                 "AttackSpeedBonusRatio": {
-                  "bp": 5000,
+                  "bp": 4000,
                   "unit": "ratio"
                 },
                 "MoveSpeedBonusRatio": {
@@ -2044,7 +2046,7 @@
       "native_id": 19,
       "stats": {
         "APFlat": {
-          "p2": 1800,
+          "p2": 2000,
           "unit": "points"
         },
         "MaxHPFlat": {
@@ -2058,15 +2060,15 @@
       "native_id": 18,
       "stats": {
         "ArmorFlat": {
-          "p2": 600,
+          "p2": 500,
           "unit": "points"
         },
         "MagicResistFlat": {
-          "p2": 600,
+          "p2": 500,
           "unit": "points"
         },
         "MaxHPFlat": {
-          "p2": 9000,
+          "p2": 8000,
           "unit": "hp"
         }
       }
@@ -2080,7 +2082,7 @@
           "unit": "points"
         },
         "AttackSpeedBonusRatio": {
-          "bp": 1000,
+          "bp": 700,
           "unit": "ratio"
         }
       }
@@ -2091,11 +2093,11 @@
       "stats": {
         "AttackRangeCmFlat": {
           "denominator": 1,
-          "numerator": 60,
+          "numerator": 50,
           "unit": "cm"
         },
         "AttackSpeedBonusRatio": {
-          "bp": 800,
+          "bp": 500,
           "unit": "ratio"
         }
       }
@@ -2109,7 +2111,7 @@
           "unit": "hp"
         },
         "MoveSpeedBonusRatio": {
-          "bp": 500,
+          "bp": 400,
           "unit": "ratio"
         }
       }
@@ -2133,17 +2135,17 @@
       "native_id": 22,
       "penalties": {
         "MaxHPFlat": {
-          "p2": 8000,
+          "p2": 10000,
           "unit": "hp"
         }
       },
       "stats": {
         "ADFlat": {
-          "p2": 1400,
+          "p2": 900,
           "unit": "points"
         },
         "AttackSpeedBonusRatio": {
-          "bp": 1200,
+          "bp": 700,
           "unit": "ratio"
         }
       }
@@ -2638,7 +2640,7 @@
     },
     {
       "advanced_key": "active_snark_bolt.advanced",
-      "advanced_text": "穿透，命中路径上所有敌人。",
+      "advanced_text": "穿透，首个目标减速 [slow.ratio]%。",
       "description_key": "active_snark_bolt.description",
       "description_text": "直线飞弹，命中首个敌人造成 [damage.amount] 魔法伤害并减速 [slow.ratio]%。",
       "icon_id": "icon_active_snark_bolt",
@@ -2649,7 +2651,7 @@
     },
     {
       "advanced_key": "active_stare_down.advanced",
-      "advanced_text": "每嘲讽一名对手，获得 [taunt_shield.amount] 护盾。",
+      "advanced_text": "护盾最多按两名被嘲讽对手计算。",
       "description_key": "active_stare_down.description",
       "description_text": "嘲讽身边敌人 [taunt.duration] 秒，自己护甲和魔抗 +[timed_stat_bonus.ArmorFlat]。",
       "icon_id": "icon_active_stare_down",
@@ -2660,7 +2662,7 @@
     },
     {
       "advanced_key": "active_triple_combo.advanced",
-      "advanced_text": "这 [empower_basic.count] 次普攻带横扫。",
+      "advanced_text": "三击带横扫；第三击施加 [empower_basic.basic_count] 层破防。",
       "description_key": "active_triple_combo.description",
       "description_text": "接下来 [empower_basic.count] 次普攻攻速 +[empower_basic.AttackSpeedBonusRatio]%，各多造成 [empower_basic.amount] 物理伤害。",
       "icon_id": "icon_active_triple_combo",
@@ -3027,7 +3029,7 @@
     },
     {
       "advanced_key": "passive_iced_americano.advanced",
-      "advanced_text": "普攻命中使技能冷却 −[cooldown_refund.refund] 秒。",
+      "advanced_text": "普攻使三主动各减 [cooldown_refund.refund] 秒。",
       "description_key": "passive_iced_americano.description",
       "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。",
       "icon_id": "icon_passive_iced_americano",
@@ -3060,7 +3062,7 @@
     },
     {
       "advanced_key": "passive_moral_victory.advanced",
-      "advanced_text": "护盾破了就炸身边敌人 [triggered_shield.burst] 魔法伤害。",
+      "advanced_text": "打破者承受 [triggered_shield.burst]，附近敌人一半。",
       "description_key": "passive_moral_victory.description",
       "description_text": "受到伤害时获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒，[triggered_shield.interval] 秒一次。",
       "icon_id": "icon_passive_moral_victory",
@@ -3939,7 +3941,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approvals: 2026-11-02 D01-D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash; #79 dorm, camp return, airdrop, Boss, leader. 2026-11-05 #112 spray-guard D33; #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050; #147 build v7 (2 ranks grown by level, slotted draft, 12+10+8). #153 openings. A playtest, not a balance check.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning. Equipment excluded. playtest input, not a balance test.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -4139,12 +4141,52 @@
       "ms": 3500,
       "unit": "ms"
     },
-    "CHOICE.FreeSlotAttributeChance": {
+    "CHOICE.AttributeQuality.BlueChance": {
+      "bp": 3500,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.BlueMultiplier": {
+      "bp": 10000,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.GoldChance": {
+      "bp": 500,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.GoldMultiplier": {
+      "bp": 12000,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.GreenChance": {
       "bp": 4000,
       "unit": "ratio"
     },
+    "CHOICE.AttributeQuality.GreenMultiplier": {
+      "bp": 9000,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.PurpleChance": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "CHOICE.AttributeQuality.PurpleMultiplier": {
+      "bp": 11000,
+      "unit": "ratio"
+    },
+    "CHOICE.FirstSlotUpgradeChance": {
+      "bp": 7000,
+      "unit": "ratio"
+    },
+    "CHOICE.FreeSlotAttributeChance": {
+      "bp": 6000,
+      "unit": "ratio"
+    },
+    "CHOICE.NewActiveFreeSlotWeight": {
+      "bp": 7500,
+      "unit": "ratio"
+    },
     "CHOICE.NewActiveFullSlotWeight": {
-      "bp": 5000,
+      "bp": 3500,
       "unit": "ratio"
     },
     "COMBAT.BreachMaxStacks": 5,
@@ -4270,6 +4312,10 @@
       "bp": 1000,
       "unit": "ratio"
     },
+    "SKILL.GrowthPerLevelAfter10": {
+      "bp": 500,
+      "unit": "ratio"
+    },
     "STAT.AD.Base": {
       "p2": 7000,
       "unit": "points"
@@ -4333,8 +4379,8 @@
       "unit": "cm"
     },
     "STAT.AttackSpeed.Max": {
-      "denominator": 2,
-      "numerator": 5,
+      "denominator": 10,
+      "numerator": 23,
       "unit": "attacks/s"
     },
     "STAT.AttackSpeed.Min": {
@@ -4521,18 +4567,18 @@
     "StatStacking": "AddFlatThenAdditivePercent"
   },
   "progression": {
-    "active_slots": 2,
+    "active_slots": 3,
     "equipment_slots": 2,
-    "max_choices": 10,
-    "max_level": 10,
+    "max_choices": 16,
+    "max_level": 16,
     "max_skill_rank": 2,
     "opening_offer": {
-      "matched_skill_weight": 2,
-      "other_skill_weight": 1
+      "matched_skill_weight": 3,
+      "other_skill_weight": 2
     },
     "reroll_levels": [
-      4,
-      7
+      5,
+      11
     ],
     "xp_start": 0,
     "xp_thresholds": [
@@ -4545,7 +4591,13 @@
       780,
       980,
       1200,
-      1440
+      1440,
+      1700,
+      1980,
+      2280,
+      2600,
+      2940,
+      3300
     ],
     "xp_to_next": [
       80,
@@ -4556,7 +4608,13 @@
       180,
       200,
       220,
-      240
+      240,
+      260,
+      280,
+      300,
+      320,
+      340,
+      360
     ]
   },
   "world": {

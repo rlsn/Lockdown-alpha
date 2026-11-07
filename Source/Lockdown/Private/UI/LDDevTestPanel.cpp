@@ -63,7 +63,7 @@ TArray<LDDevPanel::FLearnRow> LDDevPanel::LearnRows(const FLDDemoContentDefiniti
         {
             for(const FLDAttributeCardView& Card:Progression->AttributeCards)
             {
-                if(Card.DefinitionId.ToString().Equals(Attribute.Id,ESearchCase::IgnoreCase)){Row.Held=Card.Count;}
+                if(Card.DefinitionId.ToString().Equals(Attribute.Id,ESearchCase::IgnoreCase)){Row.Held+=Card.Count;}
             }
         }
     }
@@ -73,12 +73,12 @@ TArray<LDDevPanel::FLearnRow> LDDevPanel::LearnRows(const FLDDemoContentDefiniti
 bool LDDevPanel::BothActiveSlotsHeld(const FLDProgressionView* Progression)
 {
     if(!Progression||!Progression->bValid){return false;}
-    bool bSlots[2]={false,false};
+    bool bSlots[3]={false,false,false};
     for(const FLDLearnedSkillView& Skill:Progression->Skills)
     {
-        if(Skill.bActive&&Skill.Slot<2){bSlots[Skill.Slot]=true;}
+        if(Skill.bActive&&Skill.Slot<3){bSlots[Skill.Slot]=true;}
     }
-    return bSlots[0]&&bSlots[1];
+    return bSlots[0]&&bSlots[1]&&bSlots[2];
 }
 
 FString LDDevPanel::HeldText(const FLearnRow& Row)
@@ -349,7 +349,7 @@ void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDEqu
         DevPanelShow(LearnReplace[Index],bBothHeld&&Now[Index].bActiveSkill&&Now[Index].Held==0,ESlateVisibility::SelfHitTestInvisible);
     }
     const bool bChoice=Progression&&Progression->bValid&&Progression->PendingChoiceCount>0;
-    DevPanelSetText(LearnHint,bChoice?FString(TEXT("学习受真实规则约束：等级上限、Q/W 两槽与选择数上限；Q/W 都满时用“替换”。"))
+    DevPanelSetText(LearnHint,bChoice?FString(TEXT("学习受真实规则约束：等级上限、Q/W/E 三槽与选择数上限；Q/W/E 都满时用“替换”。"))
         :FString::Printf(TEXT("现在没有未用的选择机会：先加%s升级，再学习。"),LDTerms::Experience));
     DevPanelShow(HostSection,bHost,ESlateVisibility::SelfHitTestInvisible);
 }

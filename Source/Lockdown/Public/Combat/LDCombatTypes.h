@@ -19,7 +19,7 @@ enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear, Innate };
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
 UENUM()
-enum class ELDCombatEntry : uint8 { None, Basic, Q, W, Dash };
+enum class ELDCombatEntry : uint8 { None = 0, Basic = 1, Q = 2, W = 3, Dash = 4, E = 5 };
 
 USTRUCT()
 struct FLDCombatSourceRef
@@ -223,7 +223,7 @@ struct FLDLearnedActiveValue
 {
     FName AbilityId;
     uint8 Rank=0;                                // 1..3
-    ELDCombatEntry Entry=ELDCombatEntry::None;   // Q or W
+    ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
 };
 
 struct FLDEquippedItemValue

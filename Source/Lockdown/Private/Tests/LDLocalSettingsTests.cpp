@@ -969,7 +969,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -985,8 +985,9 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
-    TestTrue(TEXT("Spec defaults: Q/W abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
+    TestTrue(TEXT("Spec defaults: Q/W/E abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
+        && Settings->Key(TEXT("SkillE")) == EKeys::E
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape

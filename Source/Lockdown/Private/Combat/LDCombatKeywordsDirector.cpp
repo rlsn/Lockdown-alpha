@@ -207,7 +207,8 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     return true;
 }
 
-bool ALDCombatDirector::BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId, int64 NowMs, FString& Error)
+bool ALDCombatDirector::BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId,
+    const FLDCombatBodyRef& BreakerBody, int64 NowMs, FString& Error)
 {
     if (!Body.ShieldBurst.IsSet()) { return true; }
     const FLDCombatShieldBurst Burst=Body.ShieldBurst.GetValue();
@@ -218,8 +219,25 @@ bool ALDCombatDirector::BurstBrokenShield(FLDBodyCombatState& Body, const FGuid&
     if (!CollectAreaTargets(FootOf(*Actor),Burst.RadiusCm,&Body,Body.Victim.EntityId,Targets,Error))
     { Error=TEXT("Shield burst: ")+Error; return false; }
     const FGuid EffectId=FGuid::NewGuid();
+    const FLDBodyCombatState* Breaker=FindBody(BreakerBody);
+    if (Breaker && Breaker!=&Body && !Breaker->bPendingDeath)
+    {
+        FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
+        Hit.HitId=FGuid::NewGuid();
+        Hit.EffectId=EffectId;
+        Hit.Target=BreakerBody;
+        Hit.SourceBody={Body.Victim,Body.Identity};
+        Hit.SourceEntity=Body.Victim.EntityId;
+        Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
+        Hit.Source=Burst.Source;
+        Hit.HitClass=ELDCombatHitClass::Ability;
+        Hit.BaseP2=LDCombatKeywords::ShieldBurstShareP2(Burst.GrantedP2,Burst.RatioBp,false);
+        Hit.DamageType=ELDDemoDamageType::Magical;
+        Hit.bFromShieldTrigger=true;
+    }
     for (const FLDCombatBodyRef& Target : Targets)
     {
+        if (Target==BreakerBody) { continue; }
         FLDCombatHit& Hit=PendingHits.AddDefaulted_GetRef();
         Hit.HitId=FGuid::NewGuid();
         Hit.EffectId=EffectId;
@@ -229,13 +247,13 @@ bool ALDCombatDirector::BurstBrokenShield(FLDBodyCombatState& Body, const FGuid&
         Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
         Hit.Source=Burst.Source;
         Hit.HitClass=ELDCombatHitClass::Ability;
-        Hit.BaseP2=LDCombatKeywordsDetail::Share(Burst.GrantedP2,Burst.RatioBp);
+        Hit.BaseP2=LDCombatKeywords::ShieldBurstShareP2(Burst.GrantedP2,Burst.RatioBp,true);
         Hit.DamageType=ELDDemoDamageType::Magical;
         // A burst never grants another shield-triggered effect.
         Hit.bFromShieldTrigger=true;
     }
-    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_SHIELD_BURST holder=%s targets=%d at=%lld"),*LDLog::Id(Body.Victim.EntityId),
-        Targets.Num(),NowMs);
+    UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_SHIELD_BURST holder=%s targets=%d breaker=%s at=%lld"),*LDLog::Id(Body.Victim.EntityId),
+        Targets.Num(),*LDLog::Id(BreakerBody.Victim.EntityId),NowMs);
     return true;
 }
 

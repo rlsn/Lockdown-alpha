@@ -233,7 +233,8 @@ def parameter_projection(parameters):
     for source, dest in (
         ("STAT.AttackSpeedPerLevelRatio", "AttackSpeedPerLevelBp"), ("STAT.CritChance.Base", "CritChanceBaseBp"),
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.AbilityCritMultiplier", "AbilityCritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
-        ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
+        ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("SKILL.GrowthPerLevel", "SkillGrowthPerLevelBp"),
+        ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
         ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
@@ -284,8 +285,18 @@ def parameter_projection(parameters):
         result["AI"][dest] = scalar(parameters["AI." + source])
     result["AI"]["RetryMaxAttempts"] = parameters["AI.RetryPolicy.MaxAttempts"]
     result["Choice"] = {dest: scalar(parameters["CHOICE." + source]) for source, dest in (
+        ("NewActiveFreeSlotWeight", "NewActiveFreeSlotWeightBp"),
         ("NewActiveFullSlotWeight", "NewActiveFullSlotWeightBp"),
+        ("FirstSlotUpgradeChance", "FirstSlotUpgradeBp"),
         ("FreeSlotAttributeChance", "FreeSlotAttributeBp"),
+        ("AttributeQuality.GreenChance", "AttributeGreenChanceBp"),
+        ("AttributeQuality.GreenMultiplier", "AttributeGreenMultiplierBp"),
+        ("AttributeQuality.BlueChance", "AttributeBlueChanceBp"),
+        ("AttributeQuality.BlueMultiplier", "AttributeBlueMultiplierBp"),
+        ("AttributeQuality.PurpleChance", "AttributePurpleChanceBp"),
+        ("AttributeQuality.PurpleMultiplier", "AttributePurpleMultiplierBp"),
+        ("AttributeQuality.GoldChance", "AttributeGoldChanceBp"),
+        ("AttributeQuality.GoldMultiplier", "AttributeGoldMultiplierBp"),
     )}
     return result
 

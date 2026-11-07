@@ -22,6 +22,7 @@ struct FLDAttributeCardCount
 {
     FName Id;
     uint8 Count = 0;
+    ELDAttributeQuality Quality = ELDAttributeQuality::Blue;
 };
 
 struct LOCKDOWN_API FLDGrowthBuild
@@ -106,6 +107,7 @@ namespace LDProgression
         FName DefinitionId;
         uint8 FromRank = 0;
         uint8 ToRank = 0;
+        ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
         // Opening only: the hidden draftable active the card teaches.
         FName HiddenActive;
     };
@@ -127,6 +129,7 @@ namespace LDProgression
         uint8 Slot = 0;
         FName ReplacedId;
         uint8 ReplacedRank = 0;
+        ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
         // Opening only: the active learned at rank 1 in Slot.
         FName OpeningActive;
     };
@@ -159,8 +162,8 @@ namespace LDProgression
         TArray<FLegalOption> Avoid;
     };
 
-    // Weight of a new skill in a level-up offer in basis points: 10000, except an unlearned active while Q and W are
-    // both occupied (CHOICE.NewActiveFullSlotWeight). Nothing depends on what else the build holds. DataInvalid for
+    // Weight of a new skill in a level-up offer in basis points: passives weigh 10000; an unlearned active uses the
+    // approved free-slot/full-slot weight. Nothing depends on build tags. DataInvalid for
     // upgrades, attribute cards and unknown definitions.
     LOCKDOWN_API ELDGrowthReason NewSkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLegalOption& Option, int64& OutWeight);
@@ -180,7 +183,7 @@ namespace LDProgression
     // 1. upgrade: one learned draftable skill below the top rank, uniform; a new skill when there is none;
     // 2. new skill: one unlearned draftable skill weighted by NewSkillWeight;
     // 3. free: an attribute card (uniform) with CHOICE.FreeSlotAttributeChance, otherwise another new skill.
-    // With Q/W full at most one new active per offer. A slot with no skill left takes an attribute card. Every pick is
+    // Every offer has at most one new active. A slot with no eligible row takes the other approved category. Every pick is
     // without replacement and deterministic in Seed.
     LOCKDOWN_API ELDGrowthReason DrawOffer(const FDrawInput& Input, const TArray<FLegalOption>& Pool, TArray<FLegalOption>& Out);
     // Private per-opportunity random material; a retry of the same ordinal reuses it.
@@ -191,9 +194,9 @@ namespace LDProgression
     LOCKDOWN_API uint8 RerollTokensEarned(const FLDDemoProgressionDefinition& Progression, uint8 Level);
     LOCKDOWN_API bool OptionStillLegal(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
         const FLDChoiceOption& Option);
-    // Applies one option. A new active with both Q/W occupied needs a confirmed replacement naming the exact
+    // Applies one option. A new active with Q/W/E occupied needs a confirmed replacement naming the exact
     // slot, old skill and old rank; the old skill is forgotten without refund and the new one starts at rank 1 (#147 D13).
-    // An Opening option (#153) needs its HiddenActive, a new draftable active, and a free Q/W slot: the card becomes the
+    // An Opening option (#153) needs its HiddenActive, a new draftable active, and a free Q/W/E slot: the card becomes the
     // build's opening card and the active is learned at rank 1 (Q first). Every other option takes no HiddenActive, and
     // only a new active takes a replacement. Revision is not changed here.
     LOCKDOWN_API ELDGrowthReason ApplyOption(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Current,

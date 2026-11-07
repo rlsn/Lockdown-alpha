@@ -42,14 +42,15 @@ namespace
     constexpr uint32 MarklessSchema = 15;
     // Schema 16 has the current layout; its key list still holds the retired equipment-active keys Item1 and Item2.
     constexpr uint32 ItemKeysSchema = 16;
-    // Schema 17 has the current layout and key list; only its preferences predate the auto attack after cast flag.
-    constexpr uint32 AutoAttacklessSchema = 17;
+    // Schema 17 predates both the third character active bound to E and the auto attack after cast preference.
+    constexpr uint32 SkillEAutoAttacklessSchema = 17;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
     const FName DashAction(TEXT("Dash"));
     const FName ScoreboardAction(TEXT("Scoreboard"));
     const FName MarkAction(TEXT("Mark"));
+    const FName SkillEAction(TEXT("SkillE"));
     const FName RetiredItemActions[] = {FName(TEXT("Item1")), FName(TEXT("Item2"))};
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
@@ -200,6 +201,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Navigate"),FString(TEXT("移动 / 攻击 / 前往"))+LDTerms::Shop,EKeys::RightMouseButton},
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
+        {TEXT("SkillE"),TEXT("角色主动 E"),EKeys::E},
         {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
@@ -524,7 +526,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
-            || SavedSchema == AutoAttacklessSchema);
+            || SavedSchema == SkillEAutoAttacklessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -547,7 +549,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema >= QuickCastlessSchema) { Reader << Orientation; }
     if (SavedSchema >= DashlessSchema) { Reader << Quick; }
     if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
-    if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
+    if (SavedSchema > SkillEAutoAttacklessSchema) { Reader << AutoAttack; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -604,7 +606,10 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     // otherwise it stays missing and the file is refused below like any other incomplete key list.
     FString DashDefault;
     struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
-    for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash}, FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard}, FAddedAction{MarkAction, MarklessSchema, TEXT("标记")} })
+    for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash},
+        FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard},
+        FAddedAction{MarkAction, MarklessSchema, TEXT("标记")},
+        FAddedAction{SkillEAction, SkillEAutoAttacklessSchema, TEXT("角色主动 E")} })
     {
         if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
         const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
@@ -637,7 +642,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         DashDefault += TEXT("施法后自动攻击默认开启。");
-        if (SavedSchema == AutoAttacklessSchema)
+        if (SavedSchema == SkillEAutoAttacklessSchema)
         {
             return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
                 TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。") + DashDefault };

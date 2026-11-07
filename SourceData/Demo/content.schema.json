@@ -33,7 +33,7 @@
         "STAT.HPRegen.Base", "STAT.HPRegen.PerLevel", "STAT.HPRegen.Min", "STAT.HPRegen.Max",
         "STAT.MPRegen.Base", "STAT.MPRegen.PerLevel", "STAT.MPRegen.Min", "STAT.MPRegen.Max",
         "STAT.BaseAttackSpeed", "STAT.AttackSpeedPerLevelRatio", "STAT.AttackSpeed.Min", "STAT.AttackSpeed.Max",
-        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.AbilityCritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel",
+        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.AbilityCritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel", "SKILL.GrowthPerLevelAfter10",
         "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Min", "STAT.MoveSpeed.Max",
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm",
@@ -41,7 +41,12 @@
         "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
         "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec",
         "SHOP.StartingGold", "SHOP.SellRatio", "SHOP.UpgradeCost", "SHOP.UpgradeStatBonusRatio",
-        "CHOICE.NewActiveFullSlotWeight", "CHOICE.FreeSlotAttributeChance", "CAMP.ResetArrivalRadiusCm",
+        "CHOICE.NewActiveFreeSlotWeight", "CHOICE.NewActiveFullSlotWeight", "CHOICE.FirstSlotUpgradeChance", "CHOICE.FreeSlotAttributeChance",
+        "CHOICE.AttributeQuality.GreenChance", "CHOICE.AttributeQuality.GreenMultiplier",
+        "CHOICE.AttributeQuality.BlueChance", "CHOICE.AttributeQuality.BlueMultiplier",
+        "CHOICE.AttributeQuality.PurpleChance", "CHOICE.AttributeQuality.PurpleMultiplier",
+        "CHOICE.AttributeQuality.GoldChance", "CHOICE.AttributeQuality.GoldMultiplier",
+        "CAMP.ResetArrivalRadiusCm",
         "CAMP.ReturnDeadEndPlans", "CAMP.ReturnDeadEndSec",
         "AIRDROP.FirstLandSec", "AIRDROP.IntervalSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
         "AIRDROP.RewardXP", "AIRDROP.RewardGold",
@@ -78,6 +83,7 @@
         "STAT.CritChance.Base": {"$ref": "#/$defs/probability"}, "STAT.CritMultiplier": {"$ref": "#/$defs/multiplier"}, "STAT.AbilityCritMultiplier": {"$ref": "#/$defs/multiplier"},
         "STAT.CooldownHaste.Base": {"$ref": "#/$defs/points"}, "STAT.CooldownHaste.Max": {"$ref": "#/$defs/points"},
         "SKILL.GrowthPerLevel": {"$ref": "#/$defs/probability"},
+        "SKILL.GrowthPerLevelAfter10": {"$ref": "#/$defs/probability"},
         "UNIT.MoveSpeedCmPerSec": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Min": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Max": {"$ref": "#/$defs/speed"},
         "UNIT.CollisionRadiusCm": {"$ref": "#/$defs/cm"}, "UNIT.BasicAttackRangeCm": {"$ref": "#/$defs/cm"},
         "STAT.AttackRange.Min": {"$ref": "#/$defs/cm"}, "STAT.AttackRange.Max": {"$ref": "#/$defs/cm"},
@@ -91,7 +97,18 @@
         "DORM.MaxHPRatioPerSec": {"$ref": "#/$defs/probability"}, "DORM.MaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
         "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"},
         "SHOP.UpgradeCost": {"$ref": "#/$defs/positive_count"}, "SHOP.UpgradeStatBonusRatio": {"$ref": "#/$defs/probability"},
-        "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/probability"}, "CHOICE.FreeSlotAttributeChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.NewActiveFreeSlotWeight": {"$ref": "#/$defs/probability"},
+        "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/probability"},
+        "CHOICE.FirstSlotUpgradeChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.FreeSlotAttributeChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.AttributeQuality.GreenChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.AttributeQuality.GreenMultiplier": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.AttributeQuality.BlueChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.AttributeQuality.BlueMultiplier": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.AttributeQuality.PurpleChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.AttributeQuality.PurpleMultiplier": {"$ref": "#/$defs/multiplier"},
+        "CHOICE.AttributeQuality.GoldChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.AttributeQuality.GoldMultiplier": {"$ref": "#/$defs/multiplier"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"},
         "CAMP.ReturnDeadEndPlans": {"$ref": "#/$defs/positive_count"}, "CAMP.ReturnDeadEndSec": {"$ref": "#/$defs/positive_sec"},
         "AIRDROP.FirstLandSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.IntervalSec": {"$ref": "#/$defs/positive_sec"},
@@ -214,17 +231,17 @@
       "type": "object", "additionalProperties": false,
       "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer", "reroll_levels"],
       "properties": {
-        "max_level": {"type": "integer", "const": 10}, "max_choices": {"type": "integer", "const": 10},
-        "max_skill_rank": {"type": "integer", "const": 2}, "active_slots": {"type": "integer", "const": 2},
+        "max_level": {"type": "integer", "const": 16}, "max_choices": {"type": "integer", "const": 16},
+        "max_skill_rank": {"type": "integer", "const": 2}, "active_slots": {"type": "integer", "const": 3},
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
-        "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}},
+        "xp_thresholds": {"type": "array", "minItems": 16, "maxItems": 16, "items": {"$ref": "#/$defs/count"}},
         "opening_offer": {
           "type": "object", "additionalProperties": false, "required": ["matched_skill_weight", "other_skill_weight"],
           "properties": {
             "matched_skill_weight": {"type": "integer", "minimum": 1, "maximum": 100}, "other_skill_weight": {"type": "integer", "minimum": 1, "maximum": 100}
           }
         },
-        "reroll_levels": {"type": "array", "minItems": 0, "maxItems": 10, "items": {"type": "integer", "minimum": 2, "maximum": 10}}
+        "reroll_levels": {"type": "array", "minItems": 0, "maxItems": 16, "items": {"type": "integer", "minimum": 2, "maximum": 16}}
       }
     },
     "world": {
@@ -390,7 +407,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "duration"],
-          "properties": {"op": {"const": "empower_basic"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}, "charges": {"type": "integer", "minimum": 1, "maximum": 10}, "stats": {"$ref": "#/$defs/stat_bonus"}, "cleave_ratio": {"$ref": "#/$defs/probability"}, "cleave_radius": {"$ref": "#/$defs/cm"}}
+          "properties": {"op": {"const": "empower_basic"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "duration": {"$ref": "#/$defs/positive_sec"}, "charges": {"type": "integer", "minimum": 1, "maximum": 10}, "stats": {"$ref": "#/$defs/stat_bonus"}, "cleave_ratio": {"$ref": "#/$defs/probability"}, "cleave_radius": {"$ref": "#/$defs/cm"}, "basic_stacks": {"type": "integer", "minimum": 1, "maximum": 10}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "armor_ratio", "damage_type", "radius", "interval", "critical_multiplier", "trigger"],
@@ -483,7 +500,7 @@
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "max_hp_ratio", "duration"],
-          "properties": {"op": {"const": "taunt_shield"}, "base": {"$ref": "#/$defs/hp"}, "max_hp_ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}
+          "properties": {"op": {"const": "taunt_shield"}, "base": {"$ref": "#/$defs/hp"}, "max_hp_ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}, "count": {"type": "integer", "minimum": 1, "maximum": 6}}
         },
         {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "dispel_disarm"}}},
         {

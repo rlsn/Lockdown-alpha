@@ -34,8 +34,9 @@ struct FLDBuildPrimitivesAccess
     { return Driver.LandBasic(Actor, Body, Action, Error); }
     static bool ApplyCleanses(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, int64 NowMs)
     { return Driver.ApplyCleanses(Body, Rank, NowMs); }
-    static bool BurstBrokenShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FGuid& Broken, int64 NowMs, FString& Error)
-    { return Driver.BurstBrokenShield(Body, Broken, NowMs, Error); }
+    static bool BurstBrokenShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FGuid& Broken,
+        const FLDCombatBodyRef& Breaker, int64 NowMs, FString& Error)
+    { return Driver.BurstBrokenShield(Body, Broken, Breaker, NowMs, Error); }
     static void ExpireStatuses(ALDCombatDirector& Driver, int64 NowMs) { Driver.ExpireStatuses(NowMs); }
     static void CancelEntityEffects(ALDCombatDirector& Driver, const FGuid& Entity) { Driver.CancelEntityEffects(Entity); }
     static void KeywordStatuses(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out)
@@ -627,6 +628,10 @@ bool FLDBuildPassiveTriggersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("and starts the 10 s rest"), Guard.DamagedShieldReadyAtMs == 11000);
     TestTrue(TEXT("The burst remembers that shield"), Guard.ShieldBurst.IsSet() && Guard.ShieldBurst->ShieldEffectId == Guard.Shield->EffectId
         && Guard.ShieldBurst->GrantedP2 == 10000 && Guard.ShieldBurst->RatioBp == 5000);
+    TestEqual(TEXT("The breaker takes 50% of the granted shield"),
+        LDCombatKeywords::ShieldBurstShareP2(10000,5000,false),int64(5000));
+    TestEqual(TEXT("Every other nearby enemy takes 25% of the granted shield"),
+        LDCombatKeywords::ShieldBurstShareP2(10000,5000,true),int64(2500));
     TestTrue(TEXT("While resting no new shield comes"), F.Apply(FFixture::Hit(Target, Guarded, 1000), Error)
         && Guard.Resources.ShieldP2 == 9000 && Guard.DamagedShieldReadyAtMs == 11000);
     FLDBodyCombatState& Strong = F.Body(Shielded);
@@ -636,9 +641,10 @@ bool FLDBuildPassiveTriggersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A shield weaker than the one held is not granted"), F.Apply(FFixture::Hit(Target, Shielded, 1000), Error)
         && Strong.Shield->EffectId == Held);
     TestEqual(TEXT("and then the rest does not start"), Strong.DamagedShieldReadyAtMs, int64(0));
-    TestTrue(TEXT("A broken shield that is not the remembered one does not burst"),
-        FAccess::BurstBrokenShield(*F.Driver, Guard, FGuid::NewGuid(), 1000, Error) && !Guard.ShieldBurst.IsSet()
-        && FAccess::PendingHits(*F.Driver).IsEmpty());
+    FAccess::PendingHits(*F.Driver).Reset();
+    TestTrue(TEXT("A body without a remembered burst ignores another broken shield"),
+        FAccess::BurstBrokenShield(*F.Driver, Guard, FGuid::NewGuid(), Target, 1000, Error)
+        && !Guard.ShieldBurst.IsSet() && FAccess::PendingHits(*F.Driver).IsEmpty());
     return true;
 }
 
@@ -656,13 +662,14 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     const FLDAttributeProjectionResult Base = LDAttributeProjection::Project(Empty, *F.Catalog);
     if (!TestTrue(TEXT("A level-1 projection"), Base.IsSuccess())) { return false; }
     Body.BuildProjection = Body.AttributeProjection = Base.Value.GetValue();
-    // Advanced passive_iced_americano refunds 0.25 s of every active per landed basic; advanced passive_freeloader
+    // Advanced passive_iced_americano refunds 0.15 s of every active per landed basic; advanced passive_freeloader
     // steals 18% and doubles it against a body below half HP.
     F.LearnPassive(Attacker, TEXT("passive_iced_americano"), 2);
     F.LearnPassive(Attacker, TEXT("passive_freeloader"), 2);
     FLDCombatEntityRecord& Record = FAccess::Records(*F.Driver).FindChecked(Attacker.Victim.EntityId);
-    Record.Build.Actives = {{TEXT("active_snark_bolt"), 1, ELDCombatEntry::Q}, {TEXT("active_pants_down"), 1, ELDCombatEntry::W}};
-    for (const TCHAR* Id : {TEXT("active_snark_bolt"), TEXT("active_pants_down")})
+    Record.Build.Actives = {{TEXT("active_snark_bolt"), 1, ELDCombatEntry::Q}, {TEXT("active_pants_down"), 1, ELDCombatEntry::W},
+        {TEXT("active_elbow"), 1, ELDCombatEntry::E}};
+    for (const TCHAR* Id : {TEXT("active_snark_bolt"), TEXT("active_pants_down"), TEXT("active_elbow")})
     {
         FLDCombatTrack& Track = Record.Tracks.AddDefaulted_GetRef();
         Track.IssuedCooldownId = FGuid::NewGuid();
@@ -679,12 +686,13 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     Armed.Charges = 3;
     Armed.CleaveRatioBp = 3500;
     Armed.CleaveRadiusCm = 180;
+    Armed.FinalBreachStacks = 2;
     Armed.bChargeBonus = true;
     Body.Empower = Armed;
     FLDCombatTimedBonus Haste;
     Haste.EffectId = Release;
     Haste.SourceDefinition = Armed.SourceDefinitionId;
-    Haste.Stats.Add({ELDDemoBonusStat::AttackSpeedBonusRatio, 5000, {}});
+    Haste.Stats.Add({ELDDemoBonusStat::AttackSpeedBonusRatio, 3000, {}});
     Haste.ExpiresAtMs = 6000;
     Body.TimedBonuses.Add(Haste);
     FString Error;
@@ -709,6 +717,8 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
         {
             TestTrue(FString::Printf(TEXT("Charge %d adds its damage and carries the cleave"), Swing), Primary->BaseP2 == 2000 && Primary->bCleave
                 && Primary->CleaveRatioBp == 3500 && Primary->CleaveRadiusCm == 180);
+            TestEqual(FString::Printf(TEXT("Only the third empowered hit carries two breach stacks (%d)"), Swing),
+                Primary->BreachStacks, Swing == 3 ? 2 : 0);
             TestEqual(TEXT("The attack-speed bonus lasts while charges remain"),
                 Body.TimedBonuses.ContainsByPredicate([&Release](const FLDCombatTimedBonus& Row) { return Row.EffectId == Release; }), Swing < 3);
         }
@@ -719,8 +729,9 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Every landed basic carries the passive's lifesteal and its low-HP share"), Primary->bLifesteal
             && Primary->LifestealRatioBp == 1800 && Primary->LifestealLowHPBp == 1800 && Primary->LifestealLowHPBelowBp == 5000);
     }
-    TestTrue(TEXT("Each landed basic cut both actives' remaining cooldown by 0.25 s"),
-        Record.Tracks[0].ReadyAtMs == 6000 - 4 * 250 && Record.Tracks[1].ReadyAtMs == 6000 - 4 * 250);
+    TestTrue(TEXT("Each landed basic cut all three actives' remaining cooldown by 0.15 s"),
+        Record.Tracks[0].ReadyAtMs == 6000 - 4 * 150 && Record.Tracks[1].ReadyAtMs == 6000 - 4 * 150
+        && Record.Tracks[2].ReadyAtMs == 6000 - 4 * 150);
     return true;
 }
 

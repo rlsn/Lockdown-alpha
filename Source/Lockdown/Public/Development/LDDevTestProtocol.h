@@ -23,10 +23,10 @@ enum class ELDDevTestOp : uint8
     GrantGold = 2,
     // Amount == 0: the current Alive body's HP and MP to their committed maxima; the shield is untouched.
     RefillResources = 3,
-    // Amount == 0: every cooldown track of the caller (Q/W and gear, bound or debt) ready at the commit boundary.
+    // Amount == 0: every cooldown track of the caller (Q/W/E and gear, bound or debt) ready at the commit boundary.
     ResetCooldowns = 4,
     // Definition = a skill or attribute card id: consumed as the head opportunity's choice, as if it had been offered.
-    // It must be a legal option of the current build; Slot 1/2 confirms replacing the active in Q/W, 0 replaces nothing.
+    // It must be a legal option of the current build; Slot 1/2/3 confirms replacing the active in Q/W/E, 0 replaces nothing.
     LearnOption = 5,
     // Definition = an item id, Slot 0: one Buy at the catalog price without a shop session or reach.
     BuyItem = 6,

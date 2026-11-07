@@ -66,13 +66,13 @@ struct FLDObservedEquipmentView
     UPROPERTY() uint8 Slots[2] = {0, 0}; // ELDDemoEquipmentId; 0 = empty slot
 };
 
-// The two Q/W actives of a visible contender and their ranks (#112 §10). No cooldown, passive, mana cost or other field.
+// The three Q/W/E actives of a visible contender and their ranks. No cooldown, passive, mana cost or other field.
 USTRUCT()
 struct FLDObservedActivesView
 {
     GENERATED_BODY()
-    UPROPERTY() uint8 Abilities[2] = {0, 0}; // ELDDemoAbilityId in Q, W order; 0 = empty slot
-    UPROPERTY() uint8 Ranks[2] = {0, 0};     // 1..MaxActiveRank with an ability, 0 for an empty slot
+    UPROPERTY() uint8 Abilities[3] = {0, 0, 0}; // ELDDemoAbilityId in Q, W, E order; 0 = empty slot
+    UPROPERTY() uint8 Ranks[3] = {0, 0, 0};     // 1..MaxActiveRank with an ability, 0 for an empty slot
 };
 
 USTRUCT()

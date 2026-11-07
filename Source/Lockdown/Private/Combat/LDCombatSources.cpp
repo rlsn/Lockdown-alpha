@@ -11,11 +11,11 @@
 
 namespace LDCombatSourcesDetail
 {
-    constexpr ELDCombatEntry LearnedEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W};
-    constexpr ELDCombatEntry OwnerEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::Dash};
+    constexpr ELDCombatEntry LearnedEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E};
+    constexpr ELDCombatEntry OwnerEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E,ELDCombatEntry::Dash};
 
     int32 LearnedSlot(ELDCombatEntry Entry)
-    { return Entry==ELDCombatEntry::Q ? 0 : Entry==ELDCombatEntry::W ? 1 : INDEX_NONE; }
+    { return Entry==ELDCombatEntry::Q ? 0 : Entry==ELDCombatEntry::W ? 1 : Entry==ELDCombatEntry::E ? 2 : INDEX_NONE; }
 
     const FLDLearnedActiveValue* FindLearned(const FLDBuildProjectionInput& Build, ELDCombatEntry Entry)
     {
@@ -785,7 +785,8 @@ bool ALDCombatDirector::PublicActivesOf(const FLDBuildProjectionInput& Build, co
     const int32 MaxRank=Content.Get().Progression.MaxSkillRank;
     for (const FLDLearnedActiveValue& Active : Build.Actives)
     {
-        const int32 Slot=Active.Entry==ELDCombatEntry::Q ? 0 : Active.Entry==ELDCombatEntry::W ? 1 : INDEX_NONE;
+        const int32 Slot=Active.Entry==ELDCombatEntry::Q ? 0 : Active.Entry==ELDCombatEntry::W ? 1
+            : Active.Entry==ELDCombatEntry::E ? 2 : INDEX_NONE;
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
         if (Slot==INDEX_NONE || Out.Abilities[Slot]!=0 || Active.Rank<1 || int32(Active.Rank)>MaxRank

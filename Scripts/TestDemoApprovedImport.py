@@ -64,9 +64,9 @@ ACTIVE_FRAMES = {
 RANK_EFFECTS = {
     "active_account_banned": (
         [("damage", {"ad_ratio": 0, "ap_ratio": r("0.8"), "base": 60, "damage_type": "Magical", "max_hp_ratio": 0}),
-         ("silence", {"duration": r("1.25")})],
+         ("silence", {"duration": r("1.5")})],
         [("damage", {"ad_ratio": 0, "ap_ratio": r("0.8"), "base": 90, "damage_type": "Magical", "max_hp_ratio": 0}),
-         ("silence", {"duration": r("1.25")}),
+         ("silence", {"duration": r("1.5")}),
          ("breach", {"stacks": 3})],
     ),
     "active_bail_out": (
@@ -78,16 +78,16 @@ RANK_EFFECTS = {
     ),
     "active_crotch_grab": (
         [("damage", {"ad_ratio": r("0.8"), "ap_ratio": 0, "base": 80, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("stun", {"duration": r("0.6")})],
+         ("stun", {"duration": r("0.8")})],
         [("damage", {"ad_ratio": r("0.8"), "ap_ratio": 0, "base": 120, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("stun", {"duration": r("0.6")}),
+         ("stun", {"duration": r("0.8")}),
          ("execute", {"hp_below": r("0.5"), "ratio": r("0.3")})],
     ),
     "active_elbow": (
         [("damage", {"ad_ratio": r("0.6"), "ap_ratio": 0, "base": 70, "damage_type": "Physical", "max_hp_ratio": 0}),
          ("knockback", {"distance": 250, "duration": r("0.25")})],
         [("damage", {"ad_ratio": r("0.6"), "ap_ratio": 0, "base": 105, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("knockback", {"distance": 250, "duration": r("0.25"), "wall_distance": 225, "wall_stun": 1})],
+         ("knockback", {"distance": 250, "duration": r("0.25"), "wall_distance": 225, "wall_stun": r("1.2")})],
     ),
     "active_not_mad": (
         [("shield", {"ap_ratio": r("0.6"), "base": 80, "duration": 3, "max_hp_ratio": r("0.06")}),
@@ -99,9 +99,9 @@ RANK_EFFECTS = {
     ),
     "active_pants_down": (
         [("damage", {"ad_ratio": r("0.5"), "ap_ratio": 0, "base": 60, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("root", {"duration": 1})],
+         ("root", {"duration": r("1.2")})],
         [("damage", {"ad_ratio": r("0.5"), "ap_ratio": 0, "base": 90, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("root", {"duration": r("1.25"), "slowed_stun": 1})],
+         ("root", {"duration": r("1.5"), "slowed_stun": r("1.2")})],
     ),
     "active_quick_meeting": (
         [("zone", {"count": 1, "delay": 0, "duration": 3, "interval": 1, "radius": 250}),
@@ -112,7 +112,7 @@ RANK_EFFECTS = {
          ("zone_damage", {"ad_ratio": 0, "ap_ratio": r("0.7"), "base": 75, "damage_type": "Magical"}),
          ("zone_slow", {"interval": r("0.25"), "linger": r("0.5"), "ratio": r("0.3")}),
          ("zone_burn", {"interval": 1, "stacks": 1}),
-         ("zone_root", {"duration": r("0.75")})],
+         ("zone_root", {"duration": 1})],
     ),
     "active_seethe": (
         [("self_area", {"radius": 300}),
@@ -127,29 +127,29 @@ RANK_EFFECTS = {
         [("damage", {"ad_ratio": 0, "ap_ratio": 1, "base": 90, "damage_type": "Magical", "max_hp_ratio": 0}),
          ("slow", {"duration": r("1.5"), "ratio": r("0.25")})],
         [("damage", {"ad_ratio": 0, "ap_ratio": 1, "base": 135, "damage_type": "Magical", "max_hp_ratio": 0}),
-         ("slow", {"duration": r("1.5"), "ratio": r("0.25")}),
+         ("slow", {"duration": r("1.5"), "ratio": r("0.35")}),
          ("pierce", {})],
     ),
     "active_stare_down": (
-        [("taunt", {"duration": r("0.75"), "radius": 300}),
+        [("taunt", {"duration": r("0.9"), "radius": 300}),
          ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 12, "MagicResistFlat": 12}})],
-        [("taunt", {"duration": 1, "radius": 300}),
+        [("taunt", {"duration": r("1.2"), "radius": 300}),
          ("timed_stat_bonus", {"duration": 3, "stats": {"ArmorFlat": 18, "MagicResistFlat": 18}}),
-         ("taunt_shield", {"base": 60, "duration": 3, "max_hp_ratio": r("0.04")})],
+         ("taunt_shield", {"base": 60, "count": 2, "duration": 3, "max_hp_ratio": r("0.04")})],
     ),
     "active_triple_combo": (
-        [("empower_basic", {"ad_ratio": r("0.15"), "ap_ratio": 0, "base": 20, "charges": 3, "damage_type": "Physical", "duration": 5,
-                            "stats": {"AttackSpeedBonusRatio": r("0.5")}})],
-        [("empower_basic", {"ad_ratio": r("0.15"), "ap_ratio": 0, "base": 30, "charges": 3, "cleave_radius": 180,
+        [("empower_basic", {"ad_ratio": r("0.10"), "ap_ratio": 0, "base": 15, "charges": 3, "damage_type": "Physical", "duration": 5,
+                            "stats": {"AttackSpeedBonusRatio": r("0.3")}})],
+        [("empower_basic", {"ad_ratio": r("0.10"), "ap_ratio": 0, "base": 20, "basic_stacks": 2, "charges": 3, "cleave_radius": 180,
                             "cleave_ratio": r("0.35"), "damage_type": "Physical", "duration": 5,
-                            "stats": {"AttackSpeedBonusRatio": r("0.5")}})],
+                            "stats": {"AttackSpeedBonusRatio": r("0.3")}})],
     ),
     "active_unplug": (
         [("damage", {"ad_ratio": r("0.5"), "ap_ratio": 0, "base": 50, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("disarm", {"duration": r("1.25")})],
+         ("disarm", {"duration": r("1.5")})],
         [("damage", {"ad_ratio": r("0.5"), "ap_ratio": 0, "base": 75, "damage_type": "Physical", "max_hp_ratio": 0}),
-         ("disarm", {"duration": r("1.25")}),
-         ("slow", {"duration": r("1.25"), "ratio": r("0.3")})],
+         ("disarm", {"duration": r("1.5")}),
+         ("slow", {"duration": r("1.5"), "ratio": r("0.3")})],
     ),
     "passive_freeloader": (
         [("lifesteal", {"ratio": r("0.12")})],
@@ -158,15 +158,15 @@ RANK_EFFECTS = {
     "passive_iced_americano": (
         [("stat_bonus", {"stats": {"CooldownHasteFlat": 20, "MPRegenFlat": 2}})],
         [("stat_bonus", {"stats": {"CooldownHasteFlat": 30, "MPRegenFlat": 2}}),
-         ("cooldown_refund", {"cooldown": r("0.25"), "entries": "Actives", "trigger": "BasicHit"})],
+         ("cooldown_refund", {"cooldown": r("0.15"), "entries": "Actives", "trigger": "BasicHit"})],
     ),
     "passive_kick_down": (
-        [("control_damage_amp", {"ratio": r("0.12")})],
-        [("control_damage_amp", {"hp_below": r("0.5"), "ratio": r("0.18")})],
+        [("control_damage_amp", {"ratio": r("0.10")})],
+        [("control_damage_amp", {"hp_below": r("0.5"), "ratio": r("0.15")})],
     ),
     "passive_lucky_star": (
-        [("stat_bonus", {"stats": {"CritChanceBonusRatio": r("0.15")}})],
-        [("stat_bonus", {"stats": {"CritChanceBonusRatio": r("0.2")}}),
+        [("stat_bonus", {"stats": {"CritChanceBonusRatio": r("0.12")}})],
+        [("stat_bonus", {"stats": {"CritChanceBonusRatio": r("0.18")}}),
          ("ability_crit", {"abilities": ACTIVE_IDS, "mode": "Chance", "ratio": 1})],
     ),
     "passive_moral_victory": (
@@ -175,9 +175,9 @@ RANK_EFFECTS = {
                                "max_hp_ratio": r("0.04"), "trigger": "Damaged"})],
     ),
     "passive_pressed": (
-        [("low_hp_stat_bonus", {"stats": {"AttackSpeedBonusRatio": r("0.35"), "MoveSpeedBonusRatio": r("0.1")},
+        [("low_hp_stat_bonus", {"stats": {"AttackSpeedBonusRatio": r("0.30"), "MoveSpeedBonusRatio": r("0.1")},
                                 "threshold": r("0.4")})],
-        [("low_hp_stat_bonus", {"lifesteal": r("0.15"), "stats": {"AttackSpeedBonusRatio": r("0.5"), "MoveSpeedBonusRatio": r("0.1")},
+        [("low_hp_stat_bonus", {"lifesteal": r("0.15"), "stats": {"AttackSpeedBonusRatio": r("0.40"), "MoveSpeedBonusRatio": r("0.1")},
                                 "threshold": r("0.4")})],
     ),
     "passive_special_forces": (
@@ -207,7 +207,8 @@ ADVANCED_CHANGES = {
     "active_seethe": {"echo"}, "active_bail_out": {"path_slow"},
     "active_elbow": {"knockback.wall_distance", "knockback.wall_stun"}, "active_not_mad": {"dispel_root", "dispel_disarm"},
     "active_stare_down": {"taunt_shield"}, "active_quick_meeting": {"zone_root"}, "active_account_banned": {"breach"},
-    "active_unplug": {"slow"}, "active_triple_combo": {"empower_basic.cleave_ratio", "empower_basic.cleave_radius"},
+    "active_unplug": {"slow"}, "active_triple_combo": {
+        "empower_basic.basic_stacks", "empower_basic.cleave_ratio", "empower_basic.cleave_radius"},
     "passive_pressed": {"low_hp_stat_bonus.lifesteal"}, "passive_tilted": {"breach.stacks"},
     "passive_stoke": {"burn.basic_stacks"}, "passive_kick_down": {"control_damage_amp.hp_below"},
     "passive_thick_face": {"thorns.slow", "thorns.slow_duration"},
@@ -236,10 +237,10 @@ class ApprovedDemoData(unittest.TestCase):
         for text in ("2026-11-02", "D01-D03", "2026-11-04", "#82", "playtest", "not a balance"):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
-        self.assertIn("camera 2250 (1300-2400)", approval["decision"])
-        self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
-                      "flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050", approval["decision"])
-        self.assertIn("#147 build v7 (2 ranks grown by level, slotted draft, 12+10+8)", approval["decision"])
+        self.assertIn("camera 2250", approval["decision"])
+        for text in ("2026-11-07 movement -25%", "flagpole 180s", "vision/leash 1050", "#147 build v7",
+                     "2026-11-08 #166 level 16/QWE", "Equipment excluded"):
+            self.assertIn(text, approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (22, 8, 13, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -271,9 +272,10 @@ class ApprovedDemoData(unittest.TestCase):
                 expected[f"STAT.{stat}.{suffix}"] = (unit, value)
         for key, unit, value in (
             ("STAT.BaseAttackSpeed", "attacks/s", ".90"), ("STAT.AttackSpeedPerLevelRatio", "ratio", ".02"),
-            ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.50"),
+            ("STAT.AttackSpeed.Min", "attacks/s", ".30"), ("STAT.AttackSpeed.Max", "attacks/s", "2.30"),
             ("STAT.CritChance.Base", "ratio", "0"), ("STAT.CritMultiplier", "ratio", "2"), ("STAT.AbilityCritMultiplier", "ratio", "1.5"),
-            ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"), ("SKILL.GrowthPerLevel", "ratio", ".10"),
+            ("STAT.CooldownHaste.Base", "points", "0"), ("STAT.CooldownHaste.Max", "points", "60"),
+            ("SKILL.GrowthPerLevel", "ratio", ".10"), ("SKILL.GrowthPerLevelAfter10", "ratio", ".05"),
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
@@ -292,8 +294,13 @@ class ApprovedDemoData(unittest.TestCase):
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
             ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistGoldRatio", "ratio", ".5"),
-            ("SHOP.UpgradeStatBonusRatio", "ratio", ".35"), ("CHOICE.NewActiveFullSlotWeight", "ratio", ".5"),
-            ("CHOICE.FreeSlotAttributeChance", "ratio", ".4"),
+            ("SHOP.UpgradeStatBonusRatio", "ratio", ".35"),
+            ("CHOICE.NewActiveFreeSlotWeight", "ratio", ".75"), ("CHOICE.NewActiveFullSlotWeight", "ratio", ".35"),
+            ("CHOICE.FirstSlotUpgradeChance", "ratio", ".70"), ("CHOICE.FreeSlotAttributeChance", "ratio", ".60"),
+            ("CHOICE.AttributeQuality.GreenChance", "ratio", ".40"), ("CHOICE.AttributeQuality.GreenMultiplier", "ratio", ".90"),
+            ("CHOICE.AttributeQuality.BlueChance", "ratio", ".35"), ("CHOICE.AttributeQuality.BlueMultiplier", "ratio", "1"),
+            ("CHOICE.AttributeQuality.PurpleChance", "ratio", ".20"), ("CHOICE.AttributeQuality.PurpleMultiplier", "ratio", "1.10"),
+            ("CHOICE.AttributeQuality.GoldChance", "ratio", ".05"), ("CHOICE.AttributeQuality.GoldMultiplier", "ratio", "1.20"),
             ("AI.RetreatHPRatio", "ratio", ".25"), ("AI.ResumeFarmHPRatio", "ratio", ".60"),
             ("AI.HighCampEntryHPRatio", "ratio", ".80"), ("AI.HighCampReserveHPRatio", "ratio", ".35"),
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
@@ -491,7 +498,7 @@ class ApprovedDemoData(unittest.TestCase):
                     for field in ("ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio"):
                         if field in effect:
                             self.assertEqual(amount(twin[field]), amount(effect[field]), f"{effect['op']}.{field}")
-                    if "base" in effect:
+                    if "base" in effect and not (identity == "active_triple_combo" and effect["op"] == "empower_basic"):
                         self.assertEqual(amount(twin["base"]), amount(effect["base"]) * Fraction(3, 2), effect["op"])
                 self.assertEqual(added, change)
 
@@ -585,13 +592,13 @@ class ApprovedDemoData(unittest.TestCase):
         # #147 v7: eight repeatable composite cards; the wild card names its explicit deduction.
         expected = {
             "attr_protein": ({"ADFlat": 6, "MaxHPFlat": 60}, None),
-            "attr_fast_hands": ({"AttackSpeedBonusRatio": r(".1"), "ADFlat": 4}, None),
+            "attr_fast_hands": ({"AttackSpeedBonusRatio": r(".07"), "ADFlat": 4}, None),
             "attr_all_nighter": ({"APFlat": 24, "CooldownHasteFlat": 10}, None),
-            "attr_canteen": ({"MaxHPFlat": 90, "ArmorFlat": 6, "MagicResistFlat": 6}, None),
-            "attr_big_talk": ({"APFlat": 18, "MaxHPFlat": 60}, None),
-            "attr_morning_rush": ({"MoveSpeedBonusRatio": r(".05"), "MaxHPFlat": 70}, None),
-            "attr_hand_out": ({"AttackRangeCmFlat": 60, "AttackSpeedBonusRatio": r(".08")}, None),
-            "attr_wild_frenzy": ({"ADFlat": 14, "AttackSpeedBonusRatio": r(".12")}, {"MaxHPFlat": 80}),
+            "attr_canteen": ({"MaxHPFlat": 80, "ArmorFlat": 5, "MagicResistFlat": 5}, None),
+            "attr_big_talk": ({"APFlat": 20, "MaxHPFlat": 60}, None),
+            "attr_morning_rush": ({"MoveSpeedBonusRatio": r(".04"), "MaxHPFlat": 70}, None),
+            "attr_hand_out": ({"AttackRangeCmFlat": 50, "AttackSpeedBonusRatio": r(".05")}, None),
+            "attr_wild_frenzy": ({"ADFlat": 9, "AttackSpeedBonusRatio": r(".07")}, {"MaxHPFlat": 100}),
         }
         self.assertEqual({row["id"] for row in self.data["attributes"]}, set(expected))
         for identity, (stats, penalties) in expected.items():
@@ -720,11 +727,12 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
 
     def test_monster_and_progression_values(self):
-        self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
-        self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
-        # #153: directions hide distinct actives with 2:1 growth-intersection weights; level 4/7 each earn a reroll.
-        self.assertEqual(self.data["progression"]["opening_offer"], {"matched_skill_weight": 2, "other_skill_weight": 1})
-        self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
+        self.assertEqual(self.data["progression"]["xp_thresholds"],
+                         (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440, 1700, 1980, 2280, 2600, 2940, 3300))
+        self.assertEqual(self.data["progression"]["xp_to_next"],
+                         (80, 100, 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320, 340, 360))
+        self.assertEqual(self.data["progression"]["opening_offer"], {"matched_skill_weight": 3, "other_skill_weight": 2})
+        self.assertEqual(self.data["progression"]["reroll_levels"], (5, 11))
         # #147: two skill ranks (初级/高级).
         self.assertEqual(self.data["progression"]["max_skill_rank"], 2)
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (

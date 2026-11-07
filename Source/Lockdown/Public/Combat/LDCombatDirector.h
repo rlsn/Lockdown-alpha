@@ -662,8 +662,9 @@ private:
     bool AdvanceBurns(int64 NowMs, FString& Error);
     // The damage-triggered shield of Body after it took positive damage (rest only after a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
-    // The burst of a damage-triggered shield that this hit broke (BrokenShieldId), around the holder.
-    bool BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId, int64 NowMs, FString& Error);
+    // The burst of a damage-triggered shield: the breaker always takes the full answer and other nearby enemies take half.
+    bool BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId,
+        const FLDCombatBodyRef& BreakerBody, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).

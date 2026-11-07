@@ -218,15 +218,15 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestLearn(
     TEXT("ld.Dev.Learn"),
-    TEXT("DEV test session: take <id> (skill or attribute card) as your current choice; [Q|W] confirms replacing that active."),
+    TEXT("DEV test session: take <id> (skill or attribute card) as your current choice; [Q|W|E] confirms replacing that active."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {
             const FString SlotText = Args.Num() == 2 ? Args[1].TrimStartAndEnd().ToUpper() : FString();
-            const uint8 Slot = SlotText == TEXT("Q") ? 1 : SlotText == TEXT("W") ? 2 : 0;
+            const uint8 Slot = SlotText == TEXT("Q") ? 1 : SlotText == TEXT("W") ? 2 : SlotText == TEXT("E") ? 3 : 0;
             if (Args.IsEmpty() || Args.Num() > 2 || (Args.Num() == 2 && Slot == 0))
             {
-                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Learn <skill or card id> [Q|W]"));
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Learn <skill or card id> [Q|W|E]"));
                 return;
             }
             DevTestSend(World, ELDDevTestOp::LearnOption, 0, Ar, FName(*Args[0].TrimStartAndEnd()), Slot);
@@ -365,7 +365,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestRefill(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestResetCooldowns(
     TEXT("ld.Dev.ResetCooldowns"),
-    TEXT("DEV test session: make every Q/W and gear cooldown of yours ready now."),
+    TEXT("DEV test session: make every Q/W/E and gear cooldown of yours ready now."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {

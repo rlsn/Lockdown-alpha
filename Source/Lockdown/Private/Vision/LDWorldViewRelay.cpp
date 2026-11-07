@@ -77,7 +77,7 @@ bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error
         Error = TEXT("Observed cast source is not an approved public definition.");
         return false;
     }
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         if (Unit.Actives.Abilities[Slot] != 0
             && (!ActiveAbilities.Contains(Unit.Actives.Abilities[Slot]) || Unit.Actives.Ranks[Slot] > MaxSkillRank))

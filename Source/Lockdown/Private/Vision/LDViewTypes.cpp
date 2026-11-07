@@ -164,7 +164,9 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     if (Mask & LDObservation::Equipment) { Ar << Unit.Equipment.Slots[0] << Unit.Equipment.Slots[1]; }
     if (Mask & LDObservation::Actives)
     {
-        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0] << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1];
+        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
+            << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1]
+            << Unit.Actives.Abilities[2] << Unit.Actives.Ranks[2];
     }
     return !Ar.IsError();
 }
@@ -288,14 +290,17 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     { return FailObservation(Error, TEXT("Observed equipment must be two public equipment definitions or empty slots.")); }
     const FLDObservedActivesView& Actives = Unit.Actives;
     bool bActives = true;
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         bActives &= Contender
             ? (Actives.Abilities[Slot] == 0) == (Actives.Ranks[Slot] == 0) && Actives.Ranks[Slot] <= MaxActiveRank
             : Actives.Abilities[Slot] == 0 && Actives.Ranks[Slot] == 0;
     }
-    if (!bActives || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1]))
-    { return FailObservation(Error, TEXT("Observed Q/W actives must be two distinct ranked abilities or empty slots, contenders only.")); }
+    const bool bDuplicate = (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1])
+        || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[2])
+        || (Actives.Abilities[1] != 0 && Actives.Abilities[1] == Actives.Abilities[2]);
+    if (!bActives || bDuplicate)
+    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct ranked abilities or empty slots, contenders only.")); }
     Error.Reset();
     return true;
 }

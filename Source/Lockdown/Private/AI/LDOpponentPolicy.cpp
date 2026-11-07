@@ -397,11 +397,13 @@ struct FContext
         return Best;
     }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
-    // The learned rank of the active bound to a Q/W source slot; 0 when unknown (the innate dash has no skill).
+    // The learned rank of the active bound to a Q/W/E source slot; 0 when unknown (the innate dash has no skill).
     uint8 RankOf(ELDOpponentSourceSlot Slot) const
     {
         const ELDOpponentSkillSlot Skill = Slot == ELDOpponentSourceSlot::Q ? ELDOpponentSkillSlot::Q
-            : Slot == ELDOpponentSourceSlot::W ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::Passive;
+            : Slot == ELDOpponentSourceSlot::W ? ELDOpponentSkillSlot::W
+            : Slot == ELDOpponentSourceSlot::E ? ELDOpponentSkillSlot::E
+            : ELDOpponentSkillSlot::Passive;
         if (Skill == ELDOpponentSkillSlot::Passive) { return 0; }
         const auto* Found = Self.Skills.FindByPredicate([Skill](const FLDOpponentSkill& S) { return S.Slot == Skill; });
         return Found ? Found->Rank : 0;
@@ -568,7 +570,8 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
-    static constexpr ELDOpponentSourceSlot Slots[] = {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::Dash};
+    static constexpr ELDOpponentSourceSlot Slots[] = {
+        ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : Slots)
@@ -1317,26 +1320,32 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         return false;
     }
     const auto& Content = Catalog.Get();
-    const FLDOpponentSkill* Active[2] = {nullptr, nullptr};
+    const FLDOpponentSkill* Active[3] = {nullptr, nullptr, nullptr};
     for (const auto& Skill : Self.Skills)
     {
-        if (Skill.Slot != ELDOpponentSkillSlot::Passive) { Active[Skill.Slot == ELDOpponentSkillSlot::Q ? 0 : 1] = &Skill; }
+        if (Skill.Slot != ELDOpponentSkillSlot::Passive)
+        {
+            const int32 Slot = Skill.Slot == ELDOpponentSkillSlot::Q ? 0
+                : Skill.Slot == ELDOpponentSkillSlot::W ? 1 : 2;
+            Active[Slot] = &Skill;
+        }
     }
-    FLDOpponentUsage SlotUsage[2];
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    FLDOpponentUsage SlotUsage[3];
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
         if (Active[Slot] && (!Catalog.FindAbility(Active[Slot]->DefinitionId, Ability, Error) || !Ability)) { return false; }
         if (Ability) { SlotUsage[Slot] = AbilityUsage(*Ability); }
     }
-    const bool bEngageCovered = SlotUsage[0].bEngage || SlotUsage[1].bEngage;
-    const bool bProtectCovered = SlotUsage[0].bSelfProtect || SlotUsage[1].bSelfProtect;
+    const bool bEngageCovered = SlotUsage[0].bEngage || SlotUsage[1].bEngage || SlotUsage[2].bEngage;
+    const bool bProtectCovered = SlotUsage[0].bSelfProtect || SlotUsage[1].bSelfProtect || SlotUsage[2].bSelfProtect;
     struct FCandidate
     {
         int32 Tier = 0;
         // Replacements that keep every currently unique role usage come first within a tier.
         int32 Loses = 0;
         int32 Forgotten = 0;
+        int32 Quality = 0;
         int32 Order = 0;
         int32 Slot = 0;
         FLDOpponentChoicePick Pick;
@@ -1345,6 +1354,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
             if (Tier != Other.Tier) { return Tier < Other.Tier; }
             if (Loses != Other.Loses) { return Loses < Other.Loses; }
             if (Forgotten != Other.Forgotten) { return Forgotten < Other.Forgotten; }
+            if (Quality != Other.Quality) { return Quality > Other.Quality; }
             if (Order != Other.Order) { return Order < Other.Order; }
             return Slot < Other.Slot;
         }
@@ -1381,6 +1391,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 return false;
             }
             Candidate.Tier = 5;
+            Candidate.Quality = int32(Option.AttributeQuality);
             Consider(Candidate);
             continue;
         }
@@ -1402,7 +1413,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         {
             const auto Usage = AbilityUsage(*Ability);
             const bool bGain = (Usage.bEngage && !bEngageCovered) || (Usage.bSelfProtect && !bProtectCovered);
-            const int32 Empty = !Active[0] ? 0 : !Active[1] ? 1 : INDEX_NONE;
+            const int32 Empty = !Active[0] ? 0 : !Active[1] ? 1 : !Active[2] ? 2 : INDEX_NONE;
             if (Empty != INDEX_NONE)
             {
                 Candidate.Tier = bGain ? 1 : 3;
@@ -1410,11 +1421,18 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 Consider(Candidate);
                 break;
             }
-            for (int32 Slot = 0; Slot < 2; ++Slot)
+            for (int32 Slot = 0; Slot < 3; ++Slot)
             {
-                const auto& Kept = SlotUsage[1 - Slot];
-                const bool bLoses = (bEngageCovered && !Kept.bEngage && !Usage.bEngage)
-                    || (bProtectCovered && !Kept.bSelfProtect && !Usage.bSelfProtect);
+                bool bKeptEngage = false;
+                bool bKeptProtect = false;
+                for (int32 Other = 0; Other < 3; ++Other)
+                {
+                    if (Other == Slot) { continue; }
+                    bKeptEngage |= SlotUsage[Other].bEngage;
+                    bKeptProtect |= SlotUsage[Other].bSelfProtect;
+                }
+                const bool bLoses = (bEngageCovered && !bKeptEngage && !Usage.bEngage)
+                    || (bProtectCovered && !bKeptProtect && !Usage.bSelfProtect);
                 FCandidate Replace = Candidate;
                 Replace.Tier = bGain && !bLoses ? 1 : 6;
                 Replace.Loses = bLoses ? 1 : 0;
@@ -1422,7 +1440,8 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 Replace.Forgotten = Active[Slot]->Rank - 1;
                 Replace.Slot = Slot;
                 Replace.Pick.bReplace = true;
-                Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;
+                Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q
+                    : Slot == 1 ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::E;
                 Replace.Pick.ReplacedSkillId = Active[Slot]->DefinitionId;
                 Replace.Pick.ReplacedRank = Active[Slot]->Rank;
                 Consider(Replace);

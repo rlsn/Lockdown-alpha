@@ -30,11 +30,12 @@ struct FLDLearnedPassiveValue
 
 struct FLDAttributeCardValue
 {
-    FLDAttributeCardValue(FString InAttributeId, uint8 InCount)
-        : AttributeId(MoveTemp(InAttributeId)), Count(InCount) {}
+    FLDAttributeCardValue(FString InAttributeId, uint8 InCount, ELDAttributeQuality InQuality = ELDAttributeQuality::Blue)
+        : AttributeId(MoveTemp(InAttributeId)), Count(InCount), Quality(InQuality) {}
 
     FString AttributeId;
     uint8 Count;
+    ELDAttributeQuality Quality;
 };
 
 struct FLDAttributeBuildValues

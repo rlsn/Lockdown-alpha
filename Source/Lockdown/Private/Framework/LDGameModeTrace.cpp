@@ -26,18 +26,19 @@ namespace LDGameModeTraceDetail
         return Connection ? Connection->LowLevelGetRemoteAddress(true) : FString(TEXT("-"));
     }
 
-    // Q/W actives and passives with ranks, then attribute cards with counts: "learned=active_snark_bolt@2/Q,passive_x@1 cards=attr_protein*2".
+    // Q/W/E actives and passives with ranks, then attribute cards with quality/count.
     FString BuildText(const FLDGrowthBuild& Build)
     {
         FString Skills, Cards;
         for (const FLDLearnedSkill& Skill : Build.Skills)
         {
             Skills += FString::Printf(TEXT("%s%s@%u%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Skill.Id.ToString(), uint32(Skill.Rank),
-                Skill.bActive ? (Skill.Slot == 0 ? TEXT("/Q") : TEXT("/W")) : TEXT(""));
+                Skill.bActive ? (Skill.Slot == 0 ? TEXT("/Q") : Skill.Slot == 1 ? TEXT("/W") : TEXT("/E")) : TEXT(""));
         }
         for (const FLDAttributeCardCount& Card : Build.Cards)
         {
-            Cards += FString::Printf(TEXT("%s%s*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *Card.Id.ToString(), uint32(Card.Count));
+            Cards += FString::Printf(TEXT("%s%s@%u*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *Card.Id.ToString(),
+                uint32(Card.Quality), uint32(Card.Count));
         }
         return FString::Printf(TEXT("skills=%s cards=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills, Cards.IsEmpty() ? TEXT("-") : *Cards);
     }

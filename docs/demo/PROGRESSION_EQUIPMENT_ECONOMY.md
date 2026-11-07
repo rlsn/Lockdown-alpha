@@ -26,9 +26,9 @@ Development 持有。死亡奖励、选择和买卖各自在同一权威批次�
 | 已确认的产品约束 | 本域必须落实的结果 |
 | --- | --- |
 | 所有人初始近战、单体普攻；群攻和攻击距离可经装备或属性成长获得 | 初始构筑不授主动；获准的攻击距离、普攻群攻修正进入同一 Combat 投影，不是只有面板数值。 |
-| 1 至 10 级，开局一次、每升级一次三选一，最多十次 | 开局机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
+| 1 至 16 级，开局一次、每升级一次三选一，最多十六次 | 开局机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
 | 三张不同且合法的卡；技能两档（初级、高级） | 未学技能仅提供初级学习，已学初级仅提供高级，高级排除；属性卡不可冒充三个相同选项。 |
-| Q/W 两角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；新主动从初级开始。被动无独立槽上限。 |
+| Q/W/E 三角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；新主动从初级开始。被动无独立槽上限。 |
 | 两装备、无背包、允许同款双持，满槽先卖后买 | 容量由权威物品位置限制，不由 UI 格子限制；售出和随后买入是两个独立事务。 |
 | 同款基础属性相加，同名被动只生效一次 | 属性逐实例汇总；被动按稳定内容键去重，不按本地化名字或实例数触发。 |
 | 装备没有主动技能 | 装备只提供固定属性与被动，不发行冷却记录。 |
@@ -82,12 +82,12 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 | Vendor 的私有会话（SessionId、Life、QuoteRevision）与 Shop 请求流 | 当前生命的会话/报价修订、请求序列/条款/结果；报价视图携带本局 CatalogDigest 与世界修订；不是持有装备或金币的权威。 | 当前拥有者商店页及 AI 购物适配。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写账、成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
-机会队列采用最多十项的有界表示：`EarnedThrough`、`ConsumedThrough` 表示连续机会序号，
+机会队列采用最多十六项的有界表示：`EarnedThrough`、`ConsumedThrough` 表示连续机会序号，
 待处理区间是二者之间尚未消费的序号，队首是 `ConsumedThrough + 1`。
 开局机会与每次升级各占一个序号；`FLDChoiceRecord{Ordinal, OfferId, OptionId, RequestId}` 最多十份整局保留，不能因回执窗口淘汰而丢失
 “这个 Offer 已消费”的证明。1 号是开局机会：成长 `BeginMatch`（Progression 提供者 Prepare、发育期开放前）
 为每名参赛者（真人与 AI）授予它，并在同一 `BeginMatch` 内用 `DrawHead` 生成并保留其首张 Offer；复活从不再授予，新 Match 整体重建。达到 k 级授予 k 号机会，
-`EarnedThrough` 必须等于当前等级（最多 `MaxChoices = MaxLevel = 10`）；
+`EarnedThrough` 必须等于当前等级（最多 `MaxChoices = MaxLevel = 16`）；
 二者在同一奖励 patch 中推进，`ConsumedThrough` 只能随有效选择推进。
 PendingChoiceCount 从队列计算，UI 不保存另一可写次数。
 
@@ -420,19 +420,22 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 | 机会 | 组成（`LDProgression::DrawOffer`） |
 | --- | --- |
 | 1 号（开局） | #153：从 `OpeningCards` 等概率抽三个不同方向，各配一个不同的隐藏初级主动。`ActiveGrowthStats` 从主动实际效果读取成长属性，与方向交集对应 `OpeningMatchedSkillWeight`，否则 `OpeningOtherSkillWeight`，数值见内容 §4.7.1。 |
-| 2–10 号 | 三个固定卡位，从左到右：**升级位**从可进卡池的已学初级技能中等概率抽 1 个升为高级，没有时改抽一张新技能；**新技能位**从未学技能中按 `NewSkillWeight` 抽 1 个；**自由位**以 `CHOICE.FreeSlotAttributeChance`（0.4）从属性卡等概率抽，否则再抽一张新技能。没有技能可抽的卡位用属性卡补位。 |
+| 2–16 号 | 三个固定卡位：第一张 70% 升级/30% 属性；第二张新技能；第三张 60% 属性/40% 新技能。新主动有空槽权重 0.75、Q/W/E 满槽权重 0.35；整组最多一个新主动，同一属性家族最多一次。 |
 
-新技能权重（`LDProgression::NewSkillWeight`，基点）：一律 10000；Q/W 都满时未学主动为 `CHOICE.NewActiveFullSlotWeight`（0.5），
-且一组抽到一张新主动后，剩余新主动退出本组（每组最多 1 张新主动）。权重只看槽位状态，不看构筑其他内容。
-自由位的概率判定总会消耗一次随机数，所以它的来源不改变其后的随机流。所有抽取逐张不放回，同一技能不会同时以学习与升级出现。
+新技能权重（`LDProgression::NewSkillWeight`，基点）：新被动为 10000；未学主动在有空槽时为 7500，
+Q/W/E 满槽时为 3500。一组抽到一张新主动后，剩余新主动退出本组。权重只看槽位状态，不看构筑其他内容。
+第一张与第三张的概率判定总会消耗一次随机数，所以类别补位不改变其后的随机流。所有抽取逐张不放回，
+同一技能不会同时以学习与升级出现；属性卡先抽家族再抽品质。
 
-重抽：`progression.reroll_levels`（4、7）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
+重抽：`progression.reroll_levels`（5、11）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
 `bReroll` 命令走选择请求流（同一请求窗口、回执与去重、Match/Life/生命阶段/OfferRevision/BuildRevision 保护），在 Transactions 阶段提交：
 开局方向卡 `OpeningNoReroll`（即使后来获得令牌），没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
-上一组的三张卡在每个卡位都优先排除（池中没有别的卡时才允许重复），回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不花米、不消费机会、不改构筑修订。
+上一组的技能定义与属性家族在每个卡位都优先排除（池中没有别的卡时才允许重复），
+回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不花米、不消费机会、不改构筑修订。
 
 内容验证与 `DrawFeasible` 共同保证：开局方向与可进卡池主动各不少于三个（不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位）；
-升级组按最坏情况（自由位抽到属性卡、无技能可抽的卡位改用属性卡、Q/W 满槽时最多 1 张新主动）计算，属性卡数量足以补齐三张。覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
+升级组按最坏情况（类别补位、Q/W/E 满槽时最多 1 张新主动）计算，属性家族数量足以补齐三张。
+覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
 
 开局主动分配仅在 `FLDChoiceOfferState::HiddenActives` 中，不进入 `FLDChoiceOption` 或本人/对手视图，不在生成日志中记录。
 选定时 `ApplyOption` 同时记录 `Build.OpeningCard` 并学会初级主动、装 Q；原子投影按永久选择属性来源处理，

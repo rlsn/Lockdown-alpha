@@ -83,11 +83,14 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
             || (N.Mul64(P.AD.MaxP2, Effect.ADRatioBp, AD, Path) && N.Add64(Sum, AD, Sum, Path)
                 && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, HP, Path) && N.Add64(Sum, HP, Sum, Path));
     };
-    // #147: a skill's fixed amounts grow with its owner's level (LDSkillGrowth), so its envelope is checked at the top
-    // level's factor G(MaxLevel); the shared burn base grows the same way for the applier's level.
-    int64 Steps = 0, Factor = 0;
-    if (!N.Mul64(FMath::Max(D.Progression.MaxLevel - 1, 0), P.SkillGrowthPerLevelBp, Steps, TEXT("SKILL.GrowthPerLevel"))
-        || !N.Add64(10000, Steps, Factor, TEXT("SKILL.GrowthPerLevel")))
+    // #166: levels 2..10 and 11..16 have separate fixed-amount growth steps.
+    int64 FirstGrowth = 0, LaterGrowth = 0, Factor = 0;
+    if (!N.Mul64(FMath::Min(FMath::Max(D.Progression.MaxLevel - 1, 0), 9), P.SkillGrowthPerLevelBp,
+            FirstGrowth, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Mul64(FMath::Max(D.Progression.MaxLevel - 10, 0), P.SkillGrowthPerLevelAfter10Bp,
+            LaterGrowth, TEXT("SKILL.GrowthPerLevelAfter10"))
+        || !N.Add64(10000, FirstGrowth, Factor, TEXT("SKILL.GrowthPerLevel"))
+        || !N.Add64(Factor, LaterGrowth, Factor, TEXT("SKILL.GrowthPerLevelAfter10")))
     {
         return false;
     }
@@ -146,7 +149,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.MaxMP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
     {
         int64 Growth, Final;
-        if (!N.Mul64(9, Bounds->PerLevelP2, Growth, TEXT("stat bounds"))
+        if (!N.Mul64(D.Progression.MaxLevel - 1, Bounds->PerLevelP2, Growth, TEXT("stat bounds"))
             || !N.Add64(Bounds->BaseP2, Growth, Final, TEXT("stat bounds"))
             || !Check.Require(Bounds->MinP2 <= Bounds->BaseP2 && Final <= Bounds->MaxP2,
                 TEXT("stat bounds"), TEXT("base/level growth is outside the declared bounds")))
@@ -156,7 +159,8 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     }
     for (const FLDDemoRateBounds* Bounds : {&P.HPRegen, &P.MPRegen})
     {
-        const FExact Final = N.Add(N.Value(Bounds->Base), N.Mul(N.Value(9), N.Value(Bounds->PerLevel)));
+        const FExact Final = N.Add(N.Value(Bounds->Base),
+            N.Mul(N.Value(D.Progression.MaxLevel - 1), N.Value(Bounds->PerLevel)));
         if (!Check.Require(N.LE(N.Value(Bounds->Min), N.Value(Bounds->Base)) && N.LE(Final, N.Value(Bounds->Max)),
             TEXT("regeneration bounds"), TEXT("base/level growth is outside the declared bounds")))
         {
@@ -255,9 +259,16 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     const auto& Choice = P.Choice;
-    if (!Check.Require(Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
-        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000, TEXT("CHOICE"),
-        TEXT("the full-slot active weight must lie in (0, 1] and the free-slot attribute chance in [0, 1]")))
+    const int64 QualityChance = Choice.AttributeGreenChanceBp + Choice.AttributeBlueChanceBp
+        + Choice.AttributePurpleChanceBp + Choice.AttributeGoldChanceBp;
+    if (!Check.Require(Choice.NewActiveFreeSlotWeightBp > 0 && Choice.NewActiveFreeSlotWeightBp <= 10000
+        && Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
+        && Choice.FirstSlotUpgradeBp >= 0 && Choice.FirstSlotUpgradeBp <= 10000
+        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000
+        && QualityChance == 10000
+        && Choice.AttributeGreenMultiplierBp > 0 && Choice.AttributeBlueMultiplierBp > 0
+        && Choice.AttributePurpleMultiplierBp > 0 && Choice.AttributeGoldMultiplierBp > 0, TEXT("CHOICE"),
+        TEXT("choice weights, chances and quality multipliers are outside their approved domains")))
     {
         return false;
     }
@@ -266,7 +277,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     {
         return false;
     }
-    for (int32 I = 0; I < 9; ++I)
+    for (int32 I = 0; I < D.Progression.MaxLevel - 1; ++I)
     {
         int64 Growth, Increment;
         if (!N.Mul64(I, P.XPIncreasePerLevel, Growth, TEXT("XP"))
@@ -279,9 +290,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     int64 Growth, Reward;
-    if (!N.Mul64(9, P.PlayerXPPerLevel, Growth, TEXT("player XP reward"))
+    if (!N.Mul64(D.Progression.MaxLevel - 1, P.PlayerXPPerLevel, Growth, TEXT("player XP reward"))
         || !N.Add64(P.PlayerXPBase, Growth, Reward, TEXT("player XP reward"))
-        || !N.Mul64(9, P.PlayerGoldPerLevel, Growth, TEXT("player gold reward"))
+        || !N.Mul64(D.Progression.MaxLevel - 1, P.PlayerGoldPerLevel, Growth, TEXT("player gold reward"))
         || !N.Add64(P.PlayerGoldBase, Growth, Reward, TEXT("player gold reward")))
     {
         return false;
