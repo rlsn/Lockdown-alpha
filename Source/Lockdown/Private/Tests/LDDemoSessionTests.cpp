@@ -354,11 +354,12 @@ bool FLDDemoSessionTest::RunTest(const FString& Parameters)
     TestNull(TEXT("Rejected start creates no old combat service"), Mode->Combat.Get());
     TestFalse(TEXT("Rejected start cannot open gameplay write gate"), Mode->IsGameplayWriteOpen(Mode->MatchContext));
     Mode->MatchPhase = ELDMatchPhase::Starting;
+    Mode->bAuthorityInitialized = true;
     Mode->LockedAISlots = Mode->LobbyAISlots;
     auto* Opponent = World->SpawnActor<ALDPlayerController>();
     if (!TestNotNull(TEXT("An isolated server opponent controller"), Opponent)) { return false; }
     const auto AI = Mode->RegisterAIContender(*Opponent, 0, Mode->MatchContext);
-    if (!TestTrue(TEXT("The opponent registers during preparation"), AI.Binding.IsValid())) { return false; }
+    if (!TestTrue(TEXT("The opponent registers during preparation: ") + AI.Error, AI.Binding.IsValid())) { return false; }
     Mode->SpawnRandom.Initialize(153);
     int64 OpeningAfterMs = 0;
     uint8 OpeningIndex = 0;

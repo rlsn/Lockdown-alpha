@@ -302,7 +302,7 @@ bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, 
     Index = 0;
     Seed = 0;
     const FLDContenderRecord* Contender = Binding.IsValid() ? FindContender(Binding.GetContender()) : nullptr;
-    if (MatchPhase != ELDMatchPhase::Starting || Binding.GetMatch() != MatchContext || !Contender
+    if (!HasAuthority() || !bAuthorityInitialized || MatchPhase != ELDMatchPhase::Starting || Binding.GetMatch() != MatchContext || !Contender
         || Contender->Kind != ELDContenderKind::OpponentAI)
     {
         Error = TEXT("An opening plan needs a registered opponent in the current starting match.");

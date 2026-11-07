@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentText.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevTestProtocol.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -3812,6 +3813,10 @@ bool FLDDemoGrowthOpeningCardTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if (!GrowthTestReadFixture(*this, Catalog)) { return false; }
+    FString DisplayError;
+    if (!TestTrue(TEXT("The approved display table is registered for this standalone test"),
+        LDDemoContentText::Register(*Catalog, DisplayError)))
+    { AddError(DisplayError); return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     FLDGrowthBuild Empty;
     TArray<LDProgression::FLegalOption> Pool, Picked;
