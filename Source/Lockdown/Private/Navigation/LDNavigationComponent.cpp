@@ -53,8 +53,8 @@ namespace LDNavigationDetail
         case ELDOrderFailure::Superseded: return TEXT("已被新订单替换");
         case ELDOrderFailure::Stopped: return TEXT("已停止");
         case ELDOrderFailure::Expired: return TEXT("订单已过期");
-        case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能找喊你的人")+LDTerms::BasicAttackVerb; return *Text; }
-        case ELDOrderFailure::KnockedBack: return TEXT("被掀飞了，指令中断");
+        case ELDOrderFailure::Taunted: { static const FString Text=FString(LDTerms::Taunt)+TEXT("：只能")+LDTerms::BasicAttack+TEXT("嘲讽你的人"); return *Text; }
+        case ELDOrderFailure::KnockedBack: return TEXT("被击退，指令中断");
         case ELDOrderFailure::QueueFull: return TEXT("指令队列已满");
         case ELDOrderFailure::CastRefused: return TEXT("技能无法施放");
         default: return TEXT("订单失败");
@@ -80,7 +80,7 @@ namespace LDNavigationDetail
     {
         if (Receipt.Kind==ELDSpatialOrderKind::CastUnit) { return Receipt.bEngaged ? TEXT("准备施法") : TEXT("接近目标施法"); }
         if (Receipt.Kind==ELDSpatialOrderKind::CastPoint) { return Receipt.bEngaged ? TEXT("准备施法") : TEXT("接近施法位置"); }
-        if (Receipt.bEngaged) { static const FString Text=FString(TEXT("正在"))+LDTerms::BasicAttackVerb; return *Text; }
+        if (Receipt.bEngaged) { static const FString Text=FString(TEXT("正在"))+LDTerms::BasicAttack; return *Text; }
         switch (Receipt.Kind)
         {
         case ELDSpatialOrderKind::AttackUnit: return TEXT("追击目标");

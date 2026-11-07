@@ -430,21 +430,23 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDBasicAttackTermTest,"Lockdown.Rules.HUDBasicAttackTerm",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDBasicAttackTermTest::RunTest(const FString& Parameters)
 {
-    // APP_SPEC 1.2: the player reads the basic attack by its glossary term (LDTerms::BasicAttack); 普攻 stays a technical term only.
+    // APP_SPEC 1.2 (#148): the player reads the basic attack by its generic glossary term; retired memes never return in system text.
     const FString NotReady=LDHUD::CombatRejectText(ELDCombatReject::AttackNotReady);
     TestTrue(TEXT("The attack-not-ready reason names the basic attack by its player term"),
-        NotReady.Contains(LDTerms::BasicAttack,ESearchCase::CaseSensitive)&&!NotReady.Contains(TEXT("普攻"),ESearchCase::CaseSensitive));
+        NotReady.Contains(LDTerms::BasicAttack,ESearchCase::CaseSensitive));
     FLDDemoEffectDefinition Lifesteal;Lifesteal.Opcode=uint8(ELDDemoEffectOp::Lifesteal);Lifesteal.RatioBp=1500;
     TestEqualSensitive(TEXT("The lifesteal line names the basic attack by its player term"),LDHUD::EffectLine(Lifesteal),FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 15% 回复自身"));
     TestEqualSensitive(TEXT("The basic entry label uses the player term"),LDHUD::EntryLabel(ELDCombatEntry::Basic),FString(LDTerms::BasicAttack));
+    const TCHAR* const Retired[]={TEXT("大比兜"),TEXT("精神状态"),TEXT("电量"),TEXT("力大砖飞"),TEXT("阴阳怪气"),TEXT("嘴硬"),TEXT("心大"),TEXT("手速"),
+        TEXT("润"),TEXT("整活频率"),TEXT("物理超度"),TEXT("精神攻击"),TEXT("心理防线"),TEXT("提裤子"),TEXT("腿软"),TEXT("捂裆"),TEXT("免死金牌")};
     FString Technical;
     for(int32 Value=0;Value<=MAX_uint8;++Value)
     {
         FLDDemoEffectDefinition Effect;Effect.Opcode=uint8(Value);
         for(const FString& Line:{LDHUD::CombatRejectText(static_cast<ELDCombatReject>(Value)),LDHUD::EffectLine(Effect),LDHUD::EntryLabel(static_cast<ELDCombatEntry>(Value))})
-        {if(Line.Contains(TEXT("普攻"),ESearchCase::CaseSensitive)){Technical+=Line+TEXT(" | ");}}
+        {for(const TCHAR* Term:Retired){if(Line.Contains(Term,ESearchCase::CaseSensitive)){Technical+=Line+TEXT(" | ");break;}}}
     }
-    TestTrue(*FString::Printf(TEXT("No combat reason, effect line or entry label shows the technical term (found: %s)"),*Technical),Technical.IsEmpty());
+    TestTrue(*FString::Printf(TEXT("No combat reason, effect line or entry label shows a retired meme term (found: %s)"),*Technical),Technical.IsEmpty());
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDIdentityPaletteTest,"Lockdown.Rules.HUDIdentityPalette",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
