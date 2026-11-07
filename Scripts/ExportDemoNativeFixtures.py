@@ -956,7 +956,7 @@ def main():
     try:
         if args.cache:
             path, reused = export_cached(args.cache, jobs=args.jobs)
-            print(f"TEST ONLY: {'reused' if reused else 'exported'} native fixtures for unchanged inputs: {path}")
+            print(f"TEST ONLY: {'reused native fixtures for unchanged inputs' if reused else 'exported native fixtures for changed inputs'}: {path}")
             print(f"FIXTURES={path}")
             return
         index = export(args.output, jobs=args.jobs)
