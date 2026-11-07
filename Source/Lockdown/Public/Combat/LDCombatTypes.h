@@ -110,7 +110,9 @@ enum class ELDCombatReject : uint8
     None, InvalidRequest, NotOwner, StaleMatch, StaleLife, StaleRequest, RequestConflict, ReceiptExpired,
     Cancelled, StaleSource, SourceUnavailable, Busy, Cooldown, AttackNotReady,
     InsufficientMana, ControlBlocked, TargetUnavailable, InvalidDirection, OutOfRange, Blocked, Dead,
-    MatchClosed, AuthorityDataUnavailable, CapacityUnavailable
+    MatchClosed, AuthorityDataUnavailable, CapacityUnavailable,
+    // #153: the opening countdown admits no attack, ability or dash before T=0.
+    NotStarted
 };
 
 // Owner-only receipt. A Rejected receipt may still carry bProtectionRemoved: the intent broke protection.

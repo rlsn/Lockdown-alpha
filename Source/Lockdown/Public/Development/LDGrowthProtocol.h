@@ -37,6 +37,8 @@ enum class ELDGrowthReason : uint16
     None = 0,
     InvalidRequest = 1, OldMatch = 2, OldLife = 3, LifePhaseChanged = 4, LeftMatch = 5, MatchClosed = 6,
     NotContender = 7, CatalogMismatch = 8, NotAuthority = 9, Dead = 10,
+    // #153: a trade before the match's T=0 (the opening countdown).
+    MatchNotStarted = 11,
     RequestConflict = 20, OutOfOrder = 21, ReceiptExpired = 22, RequestInFlight = 23,
     NoOffer = 40, UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44,
     BuildStale = 45, ReplacementRequired = 46, ReplacementMismatch = 47, ReplacementNotAllowed = 48,

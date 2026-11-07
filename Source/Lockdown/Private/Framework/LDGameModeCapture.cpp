@@ -17,6 +17,11 @@ int64 ALDGameMode::NextCaptureDueMs() const
     return IsGameplayWriteOpen(MatchContext) ? CaptureReducer.NextDueMs() : MAX_int64;
 }
 
+int64 ALDGameMode::NextCountdownDueMs() const
+{
+    return IsOpeningCountdown(MatchContext) ? MatchStartedAtMs : MAX_int64;
+}
+
 bool ALDGameMode::CaptureCompletesInsideStep()
 {
     // Only between Motion and every later phase: afterwards the boundary instant already has side effects.
@@ -37,12 +42,14 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
     if (!LDCaptureCircle::Resolve(*Registry, *DemoContent, CaptureCircle, Error)) { return false; }
     const auto& Parameters = DemoContent->Get().Parameters;
     int64 OpenAtMs = 0;
-    MatchStartedAtMs = AuthorityNowMs;
-    if (Parameters.DevelopmentMs <= 0
+    // #153: T=0 is the end of the opening countdown; the development phase and every other match timer start there.
+    if (Parameters.CountdownMs <= 0 || Parameters.DevelopmentMs <= 0
+        || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, Parameters.CountdownMs, MatchStartedAtMs, Error)
         || !LDMatchLifecycle::AddDurationMs(MatchStartedAtMs, Parameters.DevelopmentMs, OpenAtMs, Error)
         || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("The approved development, spray or guard duration is invalid."); }
+        if (Error.IsEmpty()) { Error = TEXT("The approved countdown, development, spray or guard duration is invalid."); }
+        MatchStartedAtMs = 0;
         CaptureCircle = {};
         return false;
     }
@@ -325,6 +332,16 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
         ? CaptureReducer.CloseThroughCompletion(Permit.GetBoundary().AtMs, Proposal, Error)
         : CaptureReducer.CloseBoundary(Permit.GetBoundary().AtMs, Proposal, Error);
     if (!Closed) { return false; }
+    // #153: the step that reaches T=0 still belongs to the countdown (its actions and trades were refused); the
+    // match enters development once that boundary closes, so the first playable step starts exactly at T=0.
+    if (MatchPhase == ELDMatchPhase::Countdown && Permit.GetBoundary().AtMs >= MatchStartedAtMs)
+    {
+        MatchPhase = ELDMatchPhase::Development;
+        bPublicMatchDirty = true;
+        bLobbyDirty = true;
+        UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_COUNTDOWN_END generation=%u at_ms=%lld started_at_ms=%lld open_at_ms=%lld"),
+            MatchContext.Generation, Permit.GetBoundary().AtMs, MatchStartedAtMs, CaptureReducer.GetOpenAtMs());
+    }
     if (CaptureReducer.IsOpen() && MatchPhase == ELDMatchPhase::Development)
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;
@@ -542,8 +559,8 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.Generation = MatchContext.Generation;
     View.PublicRevision = PublicMatchRevision;
     View.Phase = MatchPhase;
-    const bool Active = MatchPhase == ELDMatchPhase::Development || MatchPhase == ELDMatchPhase::CaptureOpen
-        || MatchPhase == ELDMatchPhase::Results;
+    const bool Active = MatchPhase == ELDMatchPhase::Countdown || MatchPhase == ELDMatchPhase::Development
+        || MatchPhase == ELDMatchPhase::CaptureOpen || MatchPhase == ELDMatchPhase::Results;
     if (!Active || !CaptureReducer.IsActive()) { return View; }
     View.ServerNowMs = bResultLocked ? ResultView.EndedAtMs : AuthorityNowMs;
     View.StartedAtMs = MatchStartedAtMs;

@@ -92,7 +92,9 @@ enum class ELDOrderFailure : uint8
     // The shift queue already holds LDOrderRules::MaxQueuedSteps steps.
     QueueFull,
     // A CastUnit's skill could not be cast (not ready, refused by Combat); its Combat receipt carries the reason.
-    CastRefused
+    CastRefused,
+    // #153: the opening countdown admits no new order before the match's T=0.
+    NotStarted
 };
 
 // Owner-only order receipt. Goal is only ever a public ground point or a visible target's approach point.
