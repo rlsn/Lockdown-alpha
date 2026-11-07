@@ -360,7 +360,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SightText=Text(TEXT(""),14);SightText->SetColorAndOpacity(LDHUDStyle::TextWarning);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,0,0,4));
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
-        MapBox->AddChildToVerticalBox(MapFrame)->SetHorizontalAlignment(HAlign_Left);
+        // The match timer sits centred over the map frame itself, so a wide sight line above never shifts it.
+        auto* MapStack=WidgetTree->ConstructWidget<UVerticalBox>();
+        MatchTimerText=OneLine(TEXT(""),16,0);HudFace(MatchTimerText,true,1);MatchTimerText->SetJustification(ETextJustify::Center);
+        MatchTimerText->SetVisibility(ESlateVisibility::Collapsed);
+        MapStack->AddChildToVerticalBox(MatchTimerText)->SetHorizontalAlignment(HAlign_Center);
+        auto* FrameSlot=MapStack->AddChildToVerticalBox(MapFrame);FrameSlot->SetHorizontalAlignment(HAlign_Left);FrameSlot->SetPadding(FMargin(0,2,0,0));
+        MapBox->AddChildToVerticalBox(MapStack)->SetHorizontalAlignment(HAlign_Left);
         MapColumn=Panel(MapBox,true);
         // Bottom-left, right above the minimap column: the room's event feed (LDHUD::FEventFeed). The newest line is at the
         // bottom, next to the map, and older lines are pushed up; the stack grows upward from the column, so the map never
@@ -673,6 +679,15 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
     const FVector2D At=E.GetScreenSpacePosition();
     // Any press outside the open item menu closes it and still goes where it was aimed.
     if(ItemMenuIndex!=INDEX_NONE&&!(ItemMenu&&ItemMenu->GetCachedGeometry().IsUnderLocation(At))){CloseItemMenu();}
+    // #97: the replacement pick holds nothing. A press on the HUD other than on a Q/W slot (its answer) or on the choices
+    // panel itself (a card restarts from that card) cancels the pick and still goes where it was aimed.
+    if(ChoicesPanel&&ChoicesPanel->ChildConfirmationYields()&&!ChoicesPanel->IsPanelHit(At))
+    {
+        bool bOnSkillSlot=false;
+        for(int32 Index=0;Index<FMath::Min(2,ActionSlots.Num());++Index)
+        {if(ActionSlots[Index].Box&&ActionSlots[Index].Box->GetCachedGeometry().IsUnderLocation(At)){bOnSkillSlot=true;break;}}
+        if(!bOnSkillSlot){ChoicesPanel->CloseChildConfirmation();}
+    }
     // A left press on a filled Q/W or equipment slot may become a drag (UpdateDrag); the press still reaches the button.
     // The replacement pick takes Q/W clicks as its choice, so nothing drags meanwhile.
     if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible()&&!(ChoicesPanel&&ChoicesPanel->HasChildConfirmation()))
@@ -917,6 +932,8 @@ void ULDHUD::RefreshReadModel()
     RefreshScoreboard(*GS,O);
     HudSetText(OpeningCountdownText,LDHUD::OpeningCountdown(Public,bClock,NowMs));
     HudSetShown(OpeningCountdownText,!OpeningCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
+    HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
     if(Death.bVisible)

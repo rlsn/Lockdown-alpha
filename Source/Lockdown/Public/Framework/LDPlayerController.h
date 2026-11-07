@@ -215,6 +215,9 @@ private:
     // Ends every local gesture without touching an accepted order: the armed preview and the held recenter are
     // cleared and every key must be released before the next world command.
     void ReleaseLocalInput();
+    // Answers a yielding child confirmation (the #97 replacement pick) with this input: true when the input was its
+    // answer (Q/W picks a slot); otherwise the confirmation is cancelled and the input should act as usual.
+    bool AnswerYieldingConfirmation(FName Action);
     // bQueue sends the request to the shift queue (no pre-input hold: the queue itself waits); AimCm as ConfirmArmedEntry.
     void SendCombatAction(ELDCombatEntry Entry, const FLDCombatTarget& Target, bool bQueue=false, const FVector* AimCm=nullptr);
     // Pre-input (LDCombatPreInput): one Direct press held during the own ability windup, sent when it ends.

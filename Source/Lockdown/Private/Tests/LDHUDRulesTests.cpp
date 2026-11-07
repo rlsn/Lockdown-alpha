@@ -221,6 +221,36 @@ bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A stale match or life context never sends"),!View.bCanSubmitIntent&&(View.ExecutionBlocks&LDHUD::ActionUnsynced));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMatchTimerTest,"Lockdown.Rules.HUDMatchTimer",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDMatchTimerTest::RunTest(const FString& Parameters)
+{
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Countdown;Public.StartedAtMs=50000;
+    TestEqualSensitive(TEXT("The opening countdown reads 0:00: the match time starts at T=0"),LDHUD::MatchTimer(Public,true,46000),FString(TEXT("0:00")));
+    Public.Phase=ELDMatchPhase::Development;
+    TestEqualSensitive(TEXT("T=0 reads 0:00"),LDHUD::MatchTimer(Public,true,50000),FString(TEXT("0:00")));
+    TestEqualSensitive(TEXT("Elapsed seconds round down"),LDHUD::MatchTimer(Public,true,50999),FString(TEXT("0:00")));
+    TestEqualSensitive(TEXT("Minutes carry no leading zero"),LDHUD::MatchTimer(Public,true,62000),FString(TEXT("0:12")));
+    TestEqualSensitive(TEXT("Seconds keep two digits"),LDHUD::MatchTimer(Public,true,115000),FString(TEXT("1:05")));
+    TestEqualSensitive(TEXT("Ten minutes and more show their own digits"),LDHUD::MatchTimer(Public,true,50000+725000),FString(TEXT("12:05")));
+    TestTrue(TEXT("Without the authority clock no time is guessed"),LDHUD::MatchTimer(Public,false,62000).IsEmpty());
+    Public.StartedAtMs=0;
+    TestTrue(TEXT("Without a published T=0 no time is shown"),LDHUD::MatchTimer(Public,true,62000).IsEmpty());
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDReplacePickInputTest,"Lockdown.Rules.HUDReplacePickInput",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDReplacePickInputTest::RunTest(const FString& Parameters)
+{
+    TestEqual(TEXT("Skill1 under the default order picks the Q slot"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::Q,ELDCombatEntry::W),0);
+    TestEqual(TEXT("Skill2 under the default order picks the W slot"),LDHUD::ReplacePickSlot(TEXT("Skill2"),ELDCombatEntry::Q,ELDCombatEntry::W),1);
+    TestEqual(TEXT("A swapped slot order picks the slot the key fires"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::W,ELDCombatEntry::Q),1);
+    TestEqual(TEXT("A swapped slot order picks the slot the key fires (Skill2)"),LDHUD::ReplacePickSlot(TEXT("Skill2"),ELDCombatEntry::W,ELDCombatEntry::Q),0);
+    int32 Cancels=0;
+    for(const TCHAR* Other:{TEXT("Navigate"),TEXT("Select"),TEXT("Stop"),TEXT("AttackMove"),TEXT("Dash"),TEXT("Attributes"),TEXT("PanUp"),TEXT("Recenter"),TEXT("Mark"),TEXT("")})
+    {Cancels+=LDHUD::ReplacePickSlot(Other,ELDCombatEntry::Q,ELDCombatEntry::W)==INDEX_NONE?1:0;}
+    TestEqual(TEXT("Every other input answers nothing, so it cancels the pick"),Cancels,10);
+    TestEqual(TEXT("A key bound to no skill entry picks nothing"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::None,ELDCombatEntry::W),int32(INDEX_NONE));
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {

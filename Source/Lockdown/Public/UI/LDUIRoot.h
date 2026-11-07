@@ -49,6 +49,9 @@ public:
     // Ends text editing, else closes the topmost child confirmation (the root's own, else the open main panel's).
     // True when that layer consumed Back, including a panel prompt that must be answered explicitly.
     bool CloseTopModal();
+    // The open main panel's child confirmation when it gives way to other input (ULDPanel::ChildConfirmationYields) and
+    // nothing above it (text editing, the root's own confirmation) holds input; null otherwise.
+    ULDPanel* YieldingConfirmation() const;
     // Closes the open main panel; the frontend Start page first cancels its in-flight join.
     // True also when the panel kept itself open by showing its own confirmation.
     bool CloseTopPanel();

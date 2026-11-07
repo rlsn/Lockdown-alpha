@@ -48,6 +48,8 @@ public:
     virtual bool ClosePanel() override;
     virtual bool HasChildConfirmation() const override {return bReplacing;}
     virtual bool CloseChildConfirmation() override;
+    // The replacement pick never holds the player still: only a Q/W pick answers it, anything else cancels it.
+    virtual bool ChildConfirmationYields() const override {return bReplacing;}
     bool HasPendingRequest() const {return PendingRequest!=0;}
     // The HUD opened this panel for the opening offer (D10): it folds back to the pending pill after a few seconds unless
     // the player engages with it (LDHUD::FChoicesFold).
