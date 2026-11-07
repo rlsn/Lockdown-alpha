@@ -200,10 +200,11 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
-        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks);
+        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
+        Tally.OrdersRejected);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -474,12 +475,23 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentS
         else if (Receipt.Status == ELDOrderStatus::Rejected)
         {
             // A refused replacement leaves the incumbent order running unchanged.
+            ++Tally.OrdersRejected;
             Learn(Candidate.Intent.Key, Settle, Self, NowMs);
+            // Only a refusal for ground or path speaks about the body's walking; any other leaves its budget as it was.
+            if (Receipt.Failure == ELDOrderFailure::InvalidGround || Receipt.Failure == ELDOrderFailure::NoCompletePath)
+            {
+                LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, true, Self, NowMs, Content->Get().Parameters.AI);
+            }
             Candidate = FOrderTrack();
         }
         else
         {
             // Admitted, or cancelled together with the incumbent by a Stop or a life end: it replaced the incumbent.
+            // An admitted attack may strike in place without planning any path, so only a ground walk proves the body can walk.
+            if (Receipt.Status != ELDOrderStatus::Cancelled && Candidate.Intent.Kind != ELDOpponentBodyKind::AttackUnit)
+            {
+                LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, false, Self, NowMs, Content->Get().Parameters.AI);
+            }
             Incumbent = Candidate;
             Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
             Candidate = FOrderTrack();

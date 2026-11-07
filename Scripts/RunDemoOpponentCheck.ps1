@@ -76,6 +76,21 @@ function Wait-OpponentReports {
     throw "Opponent scenario evidence timed out: $output"
 }
 
+# Clients can connect as soon as the Host's lobby exists; its own HostJoined marker comes many seconds later, once the
+# rendered Host's probe first ticks, and the probe still waits for every role's marker before the lobby steps.
+function Wait-HostLobby {
+    $log = Join-Path $output 'Host.log'
+    $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds + 60)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $processes[0].Refresh()
+        if ($processes[0].HasExited) { throw "Opponent scenario Host exited before its lobby opened: $(Get-OpponentFailure). Evidence: $output" }
+        if ((Test-Path -LiteralPath (Join-Path $evidence 'HostJoined.json')) -or
+            ((Test-Path -LiteralPath $log) -and (Select-String -LiteralPath $log -Pattern 'LD_DEMO_LOBBY generation=' -SimpleMatch -Quiet))) { return }
+        Start-Sleep -Milliseconds 200
+    }
+    throw "Opponent scenario Host lobby timed out: $output"
+}
+
 function Invoke-OpponentTelemetry {
     Start-OpponentRole 'Telemetry' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoTelemetryHost'
     # The Host ends itself after the last match, or on the first failure with its reason in Telemetry.json.
@@ -97,7 +112,7 @@ function Invoke-OpponentTelemetry {
 try {
     if ($Telemetry) { Invoke-OpponentTelemetry; return }
     Start-OpponentRole 'Host' '/Game/Lockdown/Generated/Maps/L_Demo?listen?Name=DemoOpponentHost'
-    Wait-OpponentReports @('HostJoined.json')
+    Wait-HostLobby
     foreach ($index in 1..2) {
         $url = '127.0.0.1:{0}?Name=DemoOpponentClient{1}?LDWire={2}?LDProduct={3}?LDCatalog={4}' -f $port,$index,$wire,$version,$digest
         Start-OpponentRole "Client$index" $url
@@ -129,9 +144,9 @@ try {
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
     Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
     foreach ($ai in $first.opponents) {
-        Write-Host ('AI slot {0}: level {1}, choices {2}, items {3} [{4}], deaths {5}, respawns {6}, kills {7}, orders {8} (refused {9}), actions {10}, trades {11}, max 30 s body requests {12}{13}' -f
+        Write-Host ('AI slot {0}: level {1}, choices {2}, items {3} [{4}], deaths {5}, respawns {6}, kills {7}, orders {8} (refused {9}, refused at admission {14}), actions {10}, trades {11}, max 30 s body requests {12}{13}' -f
             $ai.slot,$ai.level,$ai.choices,$ai.items_max,$ai.gear,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
-            $ai.actions,$ai.trades,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }))
+            $ai.actions,$ai.trades,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }),$ai.orders_rejected)
     }
     $notExercised = @($reports | ForEach-Object { @($_.checks) } | Where-Object { $_.status -eq 'not_exercised' } |
         ForEach-Object { [string]$_.name } | Sort-Object -Unique)

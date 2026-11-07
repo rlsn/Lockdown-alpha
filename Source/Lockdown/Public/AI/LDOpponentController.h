@@ -19,6 +19,8 @@ struct FLDOpponentRequestTally
 {
     uint32 Orders = 0;
     uint32 OrdersRefused = 0;
+    // Orders accepted on receipt that navigation then refused when it came to admit them (#160).
+    uint32 OrdersRejected = 0;
     uint32 Stops = 0;
     uint32 Actions = 0;
     uint32 ActionsRefused = 0;

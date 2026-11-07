@@ -1,8 +1,17 @@
-"""Validate the complete set of currently supported native rule tests."""
+"""Validate the complete set of currently supported native rule tests, or plan and check a narrower run.
+
+A full run must report exactly REQUIRED_TESTS. A run narrowed by path prefixes (--prefix) is a development aid and
+never a gate. A run that only leaves out IMPORT_TESTS (--skip-import) is a gate only where CIChangeScope.py found no
+change to their inputs.
+"""
 
 import argparse
 import json
+import re
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SUITE = "Lockdown.Rules"
 
 
 REQUIRED_TESTS = frozenset(
@@ -164,6 +173,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoOpponentPolicy.Airdrop",
         "Lockdown.Rules.DemoOpponentPolicy.HuntLeader",
         "Lockdown.Rules.DemoOpponentPolicy.AvoidBoss",
+        "Lockdown.Rules.DemoOpponentPolicy.BossEscapeKept",
+        "Lockdown.Rules.DemoOpponentPolicy.WalkRefusals",
         "Lockdown.Rules.DemoOrders.AttackMoveCandidate",
         "Lockdown.Rules.DemoOrders.BookIsolation",
         "Lockdown.Rules.DemoOrders.ChasePress",
@@ -274,7 +285,91 @@ REQUIRED_TESTS = frozenset(
 )
 
 
-def check_report(report):
+# The data-import group: each test imports the exported fixture cases through the native importer and together they
+# take most of a full run. CIChangeScope.py decides from the changed files whether a change can affect them.
+IMPORT_TESTS = frozenset(
+    {
+        "Lockdown.Rules.DemoContent.AtomicAssetRoundTrip",
+        "Lockdown.Rules.DemoContent.StrictRefusal",
+        "Lockdown.Rules.DemoContent.TypedProjection",
+        "Lockdown.Rules.DemoWorld.AtomicAssetRoundTrip",
+        "Lockdown.Rules.DemoWorld.TypedProjection",
+    }
+)
+assert IMPORT_TESTS <= REQUIRED_TESTS
+
+# UE keeps its whole command line in a fixed buffer (16384 characters); stay well inside it.
+MAX_FILTER_CHARS = 8000
+REGISTRATION = re.compile(r'IMPLEMENT_\w+_AUTOMATION_TEST\s*\(\s*\w+\s*,\s*"(Lockdown\.Rules\.[^"]+)"')
+
+
+def registered_tests(root=ROOT):
+    """Every Lockdown.Rules test registered in the native source, as written in its registration macro."""
+    names = []
+    for source in sorted((Path(root) / "Source").rglob("*.cpp")):
+        names.extend(REGISTRATION.findall(source.read_text(encoding="utf-8-sig")))
+    return names
+
+
+def check_registrations(root=ROOT):
+    """A narrowed run cannot see an unregistered or unlisted test, so the source must list exactly REQUIRED_TESTS."""
+    names = registered_tests(root)
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    missing = REQUIRED_TESTS - set(names)
+    unlisted = set(names) - REQUIRED_TESTS
+    if duplicates or missing or unlisted:
+        raise ValueError(
+            "Native registrations differ from REQUIRED_TESTS; "
+            f"duplicates={duplicates}, not registered={sorted(missing)}, not in REQUIRED_TESTS={sorted(unlisted)}"
+        )
+
+
+def select_tests(prefixes=(), skip_import=False):
+    """The required tests a run must report: those under any of `prefixes` (all when none), less IMPORT_TESTS when
+    `skip_import`."""
+    for prefix in prefixes:
+        if not isinstance(prefix, str) or not (prefix == SUITE or prefix.startswith(SUITE + ".")) \
+                or re.search(r"[\s+^$,\"]", prefix):
+            raise ValueError(f"Filter must be a plain {SUITE} test path prefix: {prefix!r}")
+        if not any(name.startswith(prefix) for name in REQUIRED_TESTS):
+            raise ValueError(f"Filter {prefix} matches no required test")
+    selected = frozenset(
+        name for name in REQUIRED_TESTS
+        if (not prefixes or any(name.startswith(prefix) for prefix in prefixes))
+        and not (skip_import and name in IMPORT_TESTS)
+    )
+    if not selected:
+        raise ValueError("The filter leaves no test to run")
+    return selected
+
+
+def automation_filter(selected):
+    """The `Automation RunTests` argument that runs exactly `selected`. UE matches each '+'-joined term against the full
+    test path: '^' anchors it at the start and '$' at the end. A whole name group is one term when it leaves nothing
+    out."""
+    selected = frozenset(selected)
+    if not selected <= REQUIRED_TESTS:
+        raise ValueError(f"Not required tests: {sorted(selected - REQUIRED_TESTS)}")
+    if selected == REQUIRED_TESTS:
+        return SUITE
+    left_out = REQUIRED_TESTS - selected
+    terms = set()
+    for name in selected:
+        parts = name.split(".")
+        term = f"^{name}$"
+        for depth in range(3, len(parts)):
+            group = ".".join(parts[:depth]) + "."
+            if not any(other.startswith(group) for other in left_out):
+                term = "^" + group
+                break
+        terms.add(term)
+    result = "+".join(sorted(terms))
+    if len(result) > MAX_FILTER_CHARS:
+        raise ValueError(f"The test filter needs {len(result)} characters, more than the {MAX_FILTER_CHARS} allowed")
+    return result
+
+
+def check_report(report, expected=REQUIRED_TESTS):
     if not isinstance(report, dict):
         raise ValueError("Automation report must be an object")
     for field in ("failed", "notRun", "inProcess", "succeeded"):
@@ -300,8 +395,8 @@ def check_report(report):
         seen.add(name)
         if test.get("state") != "Success":
             raise ValueError(f"Automation test did not succeed: {name}")
-    missing = REQUIRED_TESTS - seen
-    unexpected = seen - REQUIRED_TESTS
+    missing = expected - seen
+    unexpected = seen - expected
     if missing or unexpected:
         raise ValueError(
             "Automation test set differs from the required registrations; "
@@ -311,15 +406,35 @@ def check_report(report):
 
 
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("report", type=Path)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("report", type=Path, nargs="?", help="automation index.json to check")
+    parser.add_argument("--prefix", action="append", default=[], help="only tests whose path starts with this; repeatable")
+    parser.add_argument("--skip-import", action="store_true", help="leave out the data-import group")
+    parser.add_argument("--plan", action="store_true", help="print the automation filter as JSON instead of checking")
     args = parser.parse_args()
+    if bool(args.plan) == bool(args.report):
+        parser.error("give either a report or --plan")
     try:
+        expected = select_tests(args.prefix, args.skip_import)
+        if expected != REQUIRED_TESTS:
+            check_registrations()
+        if args.plan:
+            print(json.dumps({"filter": automation_filter(expected), "count": len(expected),
+                              "required": len(REQUIRED_TESTS), "partial": bool(args.prefix),
+                              "skipped_import": sorted(IMPORT_TESTS - expected) if args.skip_import else []}))
+            return
         with args.report.open(encoding="utf-8-sig") as stream:
-            count = check_report(json.load(stream))
+            count = check_report(json.load(stream), expected)
     except (OSError, ValueError) as error:
-        parser.exit(1, f"Invalid rule report {args.report}: {error}\n")
-    print(f"All {count} required native rule tests succeeded.")
+        parser.exit(1, f"Invalid rule report {args.report or 'plan'}: {error}\n")
+    if args.prefix:
+        print(f"PARTIAL RUN, NOT A GATE: {count} of {len(REQUIRED_TESTS)} required native rule tests succeeded "
+              f"(filter {' '.join(args.prefix)}).")
+    elif args.skip_import:
+        print(f"All {count} required native rule tests outside the data-import group succeeded; "
+              f"the {len(IMPORT_TESTS)} data-import tests did not run.")
+    else:
+        print(f"All {count} required native rule tests succeeded.")
 
 
 if __name__ == "__main__":

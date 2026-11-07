@@ -548,6 +548,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Acted &= Track.RespawnsActed == Track.RespawnsChecked;
         DeathsSeen += Track.Deaths;
         QuietWhileDead &= Track.bQuietWhileDead;
+        // Refusals on receipt. Admission refusals are reported (orders_rejected), not bounded here: a body that navigation
+        // finds standing on no registered support has every walk refused, a world fault the AI cannot loop on (#160, #163).
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
         OpeningPicks &= Track.OpeningPickMs >= 0 && Track.OpeningPickMs <= OpeningPickWithinMs;
         // An early rival fight at level one can leave a body waiting on regeneration for most of development; that is
@@ -603,6 +605,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("challenges_released"), T.ChallengesReleased);
         Value->SetNumberField(TEXT("holder_attacks"), T.HolderAttacks);
         Value->SetNumberField(TEXT("owner_attacks"), T.OwnerAttacks);
+        Value->SetNumberField(TEXT("orders_rejected"), T.OrdersRejected);
         Rows.Add(MakeShared<FJsonValueObject>(Value));
     }
     Summary->SetArrayField(TEXT("opponents"), Rows);
