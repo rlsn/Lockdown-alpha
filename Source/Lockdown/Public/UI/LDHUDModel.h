@@ -381,11 +381,11 @@ namespace LDHUD
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
     // Own equipment slot -> equipment slot input (projected once the own equipment view is known).
     LOCKDOWN_API FActionInput EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
-    // One square of the own status grid under the 属性 button: a temporary status, a learned passive or an equipment
-    // passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
+    // One square of the own status grid under the 属性 button: a temporary status, an active recovery (脱战回复中, 躺平角回血中),
+    // a learned passive or an equipment passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
     // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
     enum class ESelfIconKind : uint8 { Control, Temporary, Passive };
-    enum class ESelfIconSource : uint8 { Status, Learned, Equipment };
+    enum class ESelfIconSource : uint8 { Status, OutOfCombatRegen, DormRegen, Learned, Equipment };
     struct FSelfIconView
     {
         ESelfIconKind Kind=ESelfIconKind::Passive;
@@ -407,7 +407,7 @@ namespace LDHUD
     inline constexpr int32 SelfIconMax=SelfIconColumns*SelfIconRows;
     struct FSelfIconsView
     {
-        // At most SelfIconMax: control statuses, other temporary statuses, then learned and equipment passives.
+        // At most SelfIconMax: control statuses, other temporary statuses and active recoveries, then learned and equipment passives.
         TArray<FSelfIconView> Items;
         // Items beyond SelfIconMax; the grid shows "…" and the attribute panel lists them all.
         int32 Overflow=0;
@@ -415,13 +415,15 @@ namespace LDHUD
         bool bSyncing=false;
     };
     // Own temporary statuses (passive auras and respawn protection, which the life line shows, are left out; shield
-    // points round up and a remainder needs the matching authority clock) and own passives (learned passives with their
-    // rank, then each equipment passive once, named after the equipment granting it).
+    // points round up and a remainder needs the matching authority clock), the active out-of-combat and dorm recoveries
+    // (conditional, so no remaining time), and own passives (learned passives with their rank, then each equipment passive
+    // once, named after the equipment granting it).
     LOCKDOWN_API FSelfIconsView SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
         const FLDDemoContentDefinitions* Content);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
     // "角色被动", "装备被动", upgraded when it is), then the full content description: a status's or equipment's text
-    // (with the equipment's passive effect lines), or a learned passive's card lines rendered for Card (LearnedCardLines).
+    // (with the equipment's passive effect lines), a recovery's rule with the REGEN/DORM parameters, or a learned
+    // passive's card lines rendered for Card (LearnedCardLines).
     // Built only for the hovered square.
     LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content);
     // The placeholder icon of a name: its first character, Latin letters upper-cased; "?" for an empty name.
