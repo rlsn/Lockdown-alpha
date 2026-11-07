@@ -160,7 +160,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     Choice.CatalogDigest.Bytes[0] = 0xAB;
     Choice.bReplace = true;
     Choice.ReplaceSlot = 1;
-    Choice.ExpectedOldSkillId = GrowthTestRawWire(TEXT("active_arc_bolt"));
+    Choice.ExpectedOldSkillId = GrowthTestRawWire(TEXT("active_snark_bolt"));
     Choice.ExpectedOldRank = 2;
     Choice.bReplaceConfirmed = true;
     const TCHAR* ChoiceFamily = TEXT("Choice");
@@ -185,7 +185,7 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("ReplaceSlot"), Choice,
         [](FLDChoiceCommand& Mutated) { Mutated.ReplaceSlot = 0; });
     bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("ExpectedOldSkillId"), Choice,
-        [](FLDChoiceCommand& Mutated) { Mutated.ExpectedOldSkillId = GrowthTestRawWire(TEXT("active_guard_pulse")); });
+        [](FLDChoiceCommand& Mutated) { Mutated.ExpectedOldSkillId = GrowthTestRawWire(TEXT("active_not_mad")); });
     bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("ExpectedOldRank"), Choice,
         [](FLDChoiceCommand& Mutated) { Mutated.ExpectedOldRank = 1; });
     bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("bReplaceConfirmed"), Choice,
@@ -1104,8 +1104,8 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     FString Missing;
     bool bApproved = Test.TestTrue(TEXT("Fixture carries XP.Threshold 0/80/180/300/440/600/780/980/1200/1440"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 10, MaxChoices 10 (opening + nine level-ups), MaxSkillRank 3, two active and two equipment slots"),
-        Curve.MaxLevel == 10 && Curve.MaxChoices == 10 && Curve.MaxSkillRank == 3 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel 10, MaxChoices 10 (opening + nine level-ups), MaxSkillRank 2, two active and two equipment slots"),
+        Curve.MaxLevel == 10 && Curve.MaxChoices == 10 && Curve.MaxSkillRank == 2 && Curve.ActiveSlots == 2 && Curve.EquipmentSlots == 2);
     bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level and REWARD.PlayerGold 80 + 10/level"),
         Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20 && Tuning.PlayerGoldBase == 80 && Tuning.PlayerGoldPerLevel == 10);
     bApproved &= Test.TestTrue(TEXT("Fixture carries SHOP.UpgradeCost 240, SHOP.StartingGold 320 and SHOP.SellRatio .65"),
@@ -1445,117 +1445,113 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         ELDGrowthReason::DataInvalid);
     bGood &= Test.TestEqual(TEXT("Refused draws offer nothing"), Refused.Num(), 0);
 
-    const FName ArcBolt(TEXT("active_arc_bolt"));
-    const FName Snare(TEXT("active_binding_snare"));
-    const FName GuardPulse(TEXT("active_guard_pulse"));
+    const FName SnarkBolt(TEXT("active_snark_bolt"));
+    const FName PantsDown(TEXT("active_pants_down"));
+    const FName NotMad(TEXT("active_not_mad"));
     FLDGrowthBuild Build;
     LDProgression::FAppliedOption Applied;
 
-    const FLDChoiceOption LearnArc = GrowthTestOption(ELDChoiceOptionKind::LearnActive, ArcBolt, 0, 1);
+    const FLDChoiceOption LearnSnark = GrowthTestOption(ELDChoiceOptionKind::LearnActive, SnarkBolt, 0, 1);
     bGood &= Test.TestTrue(TEXT("Learning a first active is legal on an empty build"),
-        LDProgression::OptionStillLegal(*Catalog, Build, LearnArc));
-    if (!GrowthTestApply(Test, *Catalog, Build, LearnArc, nullptr, ELDGrowthReason::None, Applied, TEXT("Learning the first active")))
+        LDProgression::OptionStillLegal(*Catalog, Build, LearnSnark));
+    if (!GrowthTestApply(Test, *Catalog, Build, LearnSnark, nullptr, ELDGrowthReason::None, Applied, TEXT("Learning the first active")))
     {
         return false;
     }
-    bGood &= GrowthTestExpectSkill(Test, Build, ArcBolt, 1, true, 0, TEXT("The first active"));
+    bGood &= GrowthTestExpectSkill(Test, Build, SnarkBolt, 1, true, 0, TEXT("The first active"));
     bGood &= Test.TestTrue(TEXT("The first active lands in Q (slot 0) at rank 1 and replaces nothing"), Applied.Slot == 0
         && !Applied.bReplaced && Applied.NewRank == 1 && Applied.Kind == ELDChoiceOptionKind::LearnActive
-        && Applied.DefinitionId == ArcBolt);
+        && Applied.DefinitionId == SnarkBolt);
     bGood &= Test.TestFalse(TEXT("The applied learn option is no longer legal"),
-        LDProgression::OptionStillLegal(*Catalog, Build, LearnArc));
-    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnArc, nullptr, ELDGrowthReason::InvalidOption, Applied,
+        LDProgression::OptionStillLegal(*Catalog, Build, LearnSnark));
+    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnSnark, nullptr, ELDGrowthReason::InvalidOption, Applied,
         TEXT("Applying the first active again"));
 
-    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, Snare, 0, 1), nullptr,
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, PantsDown, 0, 1), nullptr,
         ELDGrowthReason::None, Applied, TEXT("Learning the second active")))
     {
         return false;
     }
-    bGood &= GrowthTestExpectSkill(Test, Build, Snare, 1, true, 1, TEXT("The second active"));
+    bGood &= GrowthTestExpectSkill(Test, Build, PantsDown, 1, true, 1, TEXT("The second active"));
     bGood &= Test.TestEqual(TEXT("The second active lands in W (slot 1)"), int32(Applied.Slot), 1);
 
-    const FLDChoiceOption UpgradeArc = GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, ArcBolt, 1, 2);
-    if (!GrowthTestApply(Test, *Catalog, Build, UpgradeArc, nullptr, ELDGrowthReason::None, Applied, TEXT("Upgrading Q to rank 2")))
+    const FLDChoiceOption UpgradeSnark = GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, SnarkBolt, 1, 2);
+    if (!GrowthTestApply(Test, *Catalog, Build, UpgradeSnark, nullptr, ELDGrowthReason::None, Applied, TEXT("Upgrading Q to rank 2")))
     {
         return false;
     }
-    bGood &= GrowthTestExpectSkill(Test, Build, ArcBolt, 2, true, 0, TEXT("The upgraded Q active"));
+    bGood &= GrowthTestExpectSkill(Test, Build, SnarkBolt, 2, true, 0, TEXT("The upgraded Q active"));
     bGood &= Test.TestFalse(TEXT("The applied upgrade option is no longer legal"),
-        LDProgression::OptionStillLegal(*Catalog, Build, UpgradeArc));
+        LDProgression::OptionStillLegal(*Catalog, Build, UpgradeSnark));
 
-    const FLDChoiceOption LearnGuard = GrowthTestOption(ELDChoiceOptionKind::LearnActive, GuardPulse, 0, 1);
-    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnGuard, nullptr, ELDGrowthReason::ReplacementRequired, Applied,
+    const FLDChoiceOption LearnNotMad = GrowthTestOption(ELDChoiceOptionKind::LearnActive, NotMad, 0, 1);
+    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnNotMad, nullptr, ELDGrowthReason::ReplacementRequired, Applied,
         TEXT("A third active without a replacement"));
     LDProgression::FReplacement Replacement;
     Replacement.Slot = 0;
-    Replacement.OldSkillId = ArcBolt;
+    Replacement.OldSkillId = SnarkBolt;
     Replacement.OldRank = 1;
     Replacement.bConfirmed = true;
-    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnGuard, &Replacement, ELDGrowthReason::ReplacementMismatch, Applied,
+    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnNotMad, &Replacement, ELDGrowthReason::ReplacementMismatch, Applied,
         TEXT("A replacement naming rank 1 of the rank 2 Q active"));
     Replacement.OldRank = 2;
     Replacement.bConfirmed = false;
-    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnGuard, &Replacement, ELDGrowthReason::ReplacementRequired, Applied,
+    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnNotMad, &Replacement, ELDGrowthReason::ReplacementRequired, Applied,
         TEXT("An unconfirmed replacement"));
     Replacement.bConfirmed = true;
     Replacement.Slot = 1;
-    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnGuard, &Replacement, ELDGrowthReason::ReplacementMismatch, Applied,
+    bGood &= GrowthTestApply(Test, *Catalog, Build, LearnNotMad, &Replacement, ELDGrowthReason::ReplacementMismatch, Applied,
         TEXT("A replacement naming the wrong slot"));
     Replacement.Slot = 0;
-    if (!GrowthTestApply(Test, *Catalog, Build, LearnGuard, &Replacement, ELDGrowthReason::None, Applied,
+    if (!GrowthTestApply(Test, *Catalog, Build, LearnNotMad, &Replacement, ELDGrowthReason::None, Applied,
         TEXT("The confirmed replacement of Q")))
     {
         return false;
     }
-    bGood &= Test.TestNull(TEXT("The replaced active and its rank are forgotten"), Build.FindSkill(ArcBolt));
-    bGood &= GrowthTestExpectSkill(Test, Build, GuardPulse, 1, true, 0, TEXT("The replacing active"));
-    bGood &= GrowthTestExpectSkill(Test, Build, Snare, 1, true, 1, TEXT("The untouched W active"));
+    bGood &= Test.TestNull(TEXT("The replaced active and its rank are forgotten"), Build.FindSkill(SnarkBolt));
+    bGood &= GrowthTestExpectSkill(Test, Build, NotMad, 1, true, 0, TEXT("The replacing active"));
+    bGood &= GrowthTestExpectSkill(Test, Build, PantsDown, 1, true, 1, TEXT("The untouched W active"));
     bGood &= Test.TestTrue(TEXT("The replacement reports the slot and the forgotten skill and rank"), Applied.bReplaced && Applied.Slot == 0
-        && Applied.ReplacedId == ArcBolt && Applied.ReplacedRank == 2 && Applied.NewRank == 1 && Applied.DefinitionId == GuardPulse);
+        && Applied.ReplacedId == SnarkBolt && Applied.ReplacedRank == 2 && Applied.NewRank == 1 && Applied.DefinitionId == NotMad);
     TArray<LDProgression::FLegalOption> AfterReplacement;
     bGood &= GrowthTestReason(Test, TEXT("The legal pool after the replacement"),
         LDProgression::LegalPool(*Catalog, Build, AfterReplacement), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("A forgotten active can be learned again from rank 1"),
-        GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::LearnActive, ArcBolt, 0, 1));
+        GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::LearnActive, SnarkBolt, 0, 1));
     bGood &= Test.TestTrue(TEXT("Held actives offer their next rank"),
-        GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::UpgradeActive, Snare, 1, 2)
-        && GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::UpgradeActive, GuardPulse, 1, 2));
+        GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::UpgradeActive, PantsDown, 1, 2)
+        && GrowthTestPoolHas(AfterReplacement, ELDChoiceOptionKind::UpgradeActive, NotMad, 1, 2));
     bGood &= Test.TestTrue(TEXT("The pool stays sorted after a replacement"), GrowthTestPoolSorted(AfterReplacement));
 
     // A replacement that would be valid for Q is still refused by every option that is not a slot-bound new active.
-    Replacement.OldSkillId = GuardPulse;
+    Replacement.OldSkillId = NotMad;
     Replacement.OldRank = 1;
     bGood &= GrowthTestApply(Test, *Catalog, Build,
-        GrowthTestOption(ELDChoiceOptionKind::LearnPassive, FName(TEXT("passive_precision")), 0, 1), &Replacement,
+        GrowthTestOption(ELDChoiceOptionKind::LearnPassive, FName(TEXT("passive_lucky_star")), 0, 1), &Replacement,
         ELDGrowthReason::ReplacementNotAllowed, Applied, TEXT("A replacement passed to a passive"));
-    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::Attribute, FName(TEXT("attr_might")), 0, 1),
+    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::Attribute, FName(TEXT("attr_protein")), 0, 1),
         &Replacement, ELDGrowthReason::ReplacementNotAllowed, Applied, TEXT("A replacement passed to an attribute card"));
-    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, Snare, 1, 2), &Replacement,
+    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, PantsDown, 1, 2), &Replacement,
         ELDGrowthReason::ReplacementNotAllowed, Applied, TEXT("A replacement passed to an upgrade"));
     FLDGrowthBuild FreeSlots;
-    bGood &= GrowthTestApply(Test, *Catalog, FreeSlots, LearnArc, &Replacement, ELDGrowthReason::ReplacementNotAllowed, Applied,
+    bGood &= GrowthTestApply(Test, *Catalog, FreeSlots, LearnSnark, &Replacement, ELDGrowthReason::ReplacementNotAllowed, Applied,
         TEXT("A replacement while an active slot is free"));
 
-    for (uint8 FromRank = 1; FromRank < 3; ++FromRank)
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, PantsDown, 1, 2), nullptr,
+        ELDGrowthReason::None, Applied, TEXT("Upgrading W to rank 2")))
     {
-        const uint8 ToRank = uint8(FromRank + 1);
-        if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, Snare, FromRank, ToRank), nullptr,
-            ELDGrowthReason::None, Applied, *FString::Printf(TEXT("Upgrading W to rank %d"), ToRank)))
-        {
-            return false;
-        }
-        bGood &= Test.TestEqual(TEXT("An upgrade keeps the active in its slot"), int32(Applied.Slot), 1);
+        return false;
     }
-    bGood &= GrowthTestExpectSkill(Test, Build, Snare, 3, true, 1, TEXT("The rank 3 W active"));
+    bGood &= Test.TestEqual(TEXT("An upgrade keeps the active in its slot"), int32(Applied.Slot), 1);
+    bGood &= GrowthTestExpectSkill(Test, Build, PantsDown, 2, true, 1, TEXT("The rank 2 W active"));
     TArray<LDProgression::FLegalOption> MaxedPool;
-    bGood &= GrowthTestReason(Test, TEXT("The legal pool with a rank 3 active"), LDProgression::LegalPool(*Catalog, Build, MaxedPool),
+    bGood &= GrowthTestReason(Test, TEXT("The legal pool with a rank 2 active"), LDProgression::LegalPool(*Catalog, Build, MaxedPool),
         ELDGrowthReason::None);
-    bGood &= Test.TestFalse(TEXT("A rank 3 active is absent from the legal pool"), GrowthTestPoolMentions(MaxedPool, Snare));
-    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, Snare, 3, 4), nullptr,
-        ELDGrowthReason::InvalidOption, Applied, TEXT("Upgrading past rank 3"));
+    bGood &= Test.TestFalse(TEXT("A rank 2 (advanced) active is absent from the legal pool"), GrowthTestPoolMentions(MaxedPool, PantsDown));
+    bGood &= GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::UpgradeActive, PantsDown, 2, 3), nullptr,
+        ELDGrowthReason::InvalidOption, Applied, TEXT("Upgrading past rank 2"));
 
-    for (const TCHAR* PassiveText : {TEXT("passive_battle_rhythm"), TEXT("passive_precision"), TEXT("passive_second_wind")})
+    for (const TCHAR* PassiveText : {TEXT("passive_iced_americano"), TEXT("passive_lucky_star"), TEXT("passive_freeloader")})
     {
         const FName PassiveId(PassiveText);
         if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnPassive, PassiveId, 0, 1), nullptr,
@@ -1565,35 +1561,35 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
         }
         bGood &= GrowthTestExpectSkill(Test, Build, PassiveId, 1, false, 0, TEXT("A passive learned with both active slots held"));
     }
-    bGood &= Test.TestEqual(TEXT("Q still holds the guard pulse after three passives"), GrowthTestActiveIn(Build, 0), GuardPulse);
-    bGood &= Test.TestEqual(TEXT("W still holds the binding snare after three passives"), GrowthTestActiveIn(Build, 1), Snare);
+    bGood &= Test.TestEqual(TEXT("Q still holds active_not_mad after three passives"), GrowthTestActiveIn(Build, 0), NotMad);
+    bGood &= Test.TestEqual(TEXT("W still holds active_pants_down after three passives"), GrowthTestActiveIn(Build, 1), PantsDown);
     bGood &= Test.TestEqual(TEXT("Two actives and three passives are learned"), Build.Skills.Num(), 5);
 
-    const FName Might(TEXT("attr_might"));
-    const FLDChoiceOption FirstMight = GrowthTestOption(ELDChoiceOptionKind::Attribute, Might, 0, 1);
-    if (!GrowthTestApply(Test, *Catalog, Build, FirstMight, nullptr, ELDGrowthReason::None, Applied, TEXT("The first attr_might card")))
+    const FName Protein(TEXT("attr_protein"));
+    const FLDChoiceOption FirstProtein = GrowthTestOption(ELDChoiceOptionKind::Attribute, Protein, 0, 1);
+    if (!GrowthTestApply(Test, *Catalog, Build, FirstProtein, nullptr, ELDGrowthReason::None, Applied, TEXT("The first attr_protein card")))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("attr_might count after one card"), GrowthTestCardCount(Build, Might), 1);
+    bGood &= Test.TestEqual(TEXT("attr_protein count after one card"), GrowthTestCardCount(Build, Protein), 1);
     bGood &= Test.TestEqual(TEXT("The first card reports its new count"), int32(Applied.NewRank), 1);
     bGood &= Test.TestFalse(TEXT("The applied card option is no longer legal"),
-        LDProgression::OptionStillLegal(*Catalog, Build, FirstMight));
+        LDProgression::OptionStillLegal(*Catalog, Build, FirstProtein));
     TArray<LDProgression::FLegalOption> CardPool;
     bGood &= GrowthTestReason(Test, TEXT("The legal pool after one card"), LDProgression::LegalPool(*Catalog, Build, CardPool),
         ELDGrowthReason::None);
-    bGood &= Test.TestTrue(TEXT("The pool offers attr_might from count 1 to 2"),
-        GrowthTestPoolHas(CardPool, ELDChoiceOptionKind::Attribute, Might, 1, 2));
-    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::Attribute, Might, 1, 2), nullptr,
-        ELDGrowthReason::None, Applied, TEXT("The second attr_might card")))
+    bGood &= Test.TestTrue(TEXT("The pool offers attr_protein from count 1 to 2"),
+        GrowthTestPoolHas(CardPool, ELDChoiceOptionKind::Attribute, Protein, 1, 2));
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::Attribute, Protein, 1, 2), nullptr,
+        ELDGrowthReason::None, Applied, TEXT("The second attr_protein card")))
     {
         return false;
     }
-    bGood &= Test.TestEqual(TEXT("attr_might count after two cards"), GrowthTestCardCount(Build, Might), 2);
+    bGood &= Test.TestEqual(TEXT("attr_protein count after two cards"), GrowthTestCardCount(Build, Protein), 2);
     bGood &= Test.TestEqual(TEXT("The second card reports its new count"), int32(Applied.NewRank), 2);
-    bGood &= GrowthTestApply(Test, *Catalog, Build, FirstMight, nullptr, ELDGrowthReason::InvalidOption, Applied,
+    bGood &= GrowthTestApply(Test, *Catalog, Build, FirstProtein, nullptr, ELDGrowthReason::InvalidOption, Applied,
         TEXT("Re-applying the stale first card"));
-    bGood &= Test.TestEqual(TEXT("Other attribute cards are untouched"), GrowthTestCardCount(Build, FName(TEXT("attr_vitality"))), 0);
+    bGood &= Test.TestEqual(TEXT("Other attribute cards are untouched"), GrowthTestCardCount(Build, FName(TEXT("attr_canteen"))), 0);
     bGood &= Test.TestTrue(TEXT("ApplyOption leaves the level and build revision to its caller"), Build.Level == 1 && Build.Revision == 1);
     return bGood;
 }
@@ -1640,48 +1636,48 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
         FString GrantError;
         FString Detail;
         bGood &= Test.TestTrue(TEXT("DevQueueOffer is refused without the switch and names it"),
-            !Development->DevQueueOffer(Contender, {FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))},
-                QueueError) && QueueError.Contains(TEXT("-LDDevGrowthFixture")));
+            !Development->DevQueueOffer(Contender, {FName(TEXT("active_snark_bolt")), FName(TEXT("attr_protein")),
+                FName(TEXT("attr_all_nighter"))}, QueueError) && QueueError.Contains(TEXT("-LDDevGrowthFixture")));
         FString StageError;
         bGood &= Test.TestTrue(TEXT("StageOffer (the Lobby entry) is refused without the switch and names it"),
-            !LDDevGrowthFixture::StageOffer(World, Contender, {FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")),
-                FName(TEXT("attr_focus"))}, StageError) && StageError.Contains(TEXT("-LDDevGrowthFixture")));
+            !LDDevGrowthFixture::StageOffer(World, Contender, {FName(TEXT("active_snark_bolt")), FName(TEXT("attr_protein")),
+                FName(TEXT("attr_all_nighter"))}, StageError) && StageError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("DevGrantReward is refused without the switch and issues no ticket"),
             Economy->DevGrantReward(Contender, 80, 50, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("No ticket exists to poll after a refused grant"),
             Economy->DevGrantStatus(1, Detail) == ELDDevGrantStatus::Unknown);
     }
 
-    const FName Bolt(TEXT("active_arc_bolt"));
-    const FName Snare(TEXT("active_binding_snare"));
-    const FName Pulse(TEXT("active_guard_pulse"));
-    const FName Precision(TEXT("passive_precision"));
-    const FName Might(TEXT("attr_might"));
-    const FName Focus(TEXT("attr_focus"));
-    const FName Reach(TEXT("attr_reach"));
+    const FName Snark(TEXT("active_snark_bolt"));
+    const FName PantsDown(TEXT("active_pants_down"));
+    const FName NotMad(TEXT("active_not_mad"));
+    const FName LuckyStar(TEXT("passive_lucky_star"));
+    const FName Protein(TEXT("attr_protein"));
+    const FName AllNighter(TEXT("attr_all_nighter"));
+    const FName HandOut(TEXT("attr_hand_out"));
     FLDGrowthBuild Fresh;
     TArray<LDProgression::FLegalOption> Resolved;
     bGood &= Test.TestTrue(FString::Printf(TEXT("Three legal cards resolve in their given order with kinds from the build (%s)"), *Error),
-        LDDevGrowthFixture::ResolvePreset(*Catalog, Fresh, {Bolt, Precision, Might}, Resolved, Error) && Resolved.Num() == 3
-        && Resolved[0].DefinitionId == Bolt && Resolved[0].Kind == ELDChoiceOptionKind::LearnActive && Resolved[0].ToRank == 1
-        && Resolved[1].DefinitionId == Precision && Resolved[1].Kind == ELDChoiceOptionKind::LearnPassive
-        && Resolved[2].DefinitionId == Might && Resolved[2].Kind == ELDChoiceOptionKind::Attribute && Resolved[2].ToRank == 1);
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Fresh, {Snark, LuckyStar, Protein}, Resolved, Error) && Resolved.Num() == 3
+        && Resolved[0].DefinitionId == Snark && Resolved[0].Kind == ELDChoiceOptionKind::LearnActive && Resolved[0].ToRank == 1
+        && Resolved[1].DefinitionId == LuckyStar && Resolved[1].Kind == ELDChoiceOptionKind::LearnPassive
+        && Resolved[2].DefinitionId == Protein && Resolved[2].Kind == ELDChoiceOptionKind::Attribute && Resolved[2].ToRank == 1);
     FLDGrowthBuild Learned;
     Learned.Level = 6;
-    Learned.Skills = {{Bolt, 2, true, 0}, {Pulse, 3, true, 1}};
-    Learned.Cards = {{Might, 2}};
+    Learned.Skills = {{Snark, 1, true, 0}, {NotMad, 2, true, 1}};
+    Learned.Cards = {{Protein, 2}};
     bGood &= Test.TestTrue(FString::Printf(TEXT("A learned skill resolves to its next rank and a held card to one more (%s)"), *Error),
-        LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, {Bolt, Might, Snare}, Resolved, Error) && Resolved.Num() == 3
-        && Resolved[0].Kind == ELDChoiceOptionKind::UpgradeActive && Resolved[0].FromRank == 2 && Resolved[0].ToRank == 3
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, {Snark, Protein, PantsDown}, Resolved, Error) && Resolved.Num() == 3
+        && Resolved[0].Kind == ELDChoiceOptionKind::UpgradeActive && Resolved[0].FromRank == 1 && Resolved[0].ToRank == 2
         && Resolved[1].Kind == ELDChoiceOptionKind::Attribute && Resolved[1].FromRank == 2 && Resolved[1].ToRank == 3
         && Resolved[2].Kind == ELDChoiceOptionKind::LearnActive);
     const FGrowthTestPreset BadPresets[] = {
-        {TEXT("two cards"), {Bolt, Might}},
-        {TEXT("four cards"), {Bolt, Might, Focus, Reach}},
-        {TEXT("a repeated card"), {Bolt, Might, Bolt}},
-        {TEXT("an unknown definition"), {Bolt, Might, FName(TEXT("active_unknown"))}},
-        {TEXT("NAME_None"), {Bolt, Might, FName()}},
-        {TEXT("a skill at its rank cap"), {Pulse, Might, Focus}}};
+        {TEXT("two cards"), {Snark, Protein}},
+        {TEXT("four cards"), {Snark, Protein, AllNighter, HandOut}},
+        {TEXT("a repeated card"), {Snark, Protein, Snark}},
+        {TEXT("an unknown definition"), {Snark, Protein, FName(TEXT("active_unknown"))}},
+        {TEXT("NAME_None"), {Snark, Protein, FName()}},
+        {TEXT("a skill at its rank cap"), {NotMad, Protein, AllNighter}}};
     for (const FGrowthTestPreset& Bad : BadPresets)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("A preset with %s is refused with a reason and no cards"), Bad.What),
@@ -1698,20 +1694,21 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
     bGood &= GrowthTestReason(Test, TEXT("The fresh build's legal pool"), LDProgression::LegalPool(*Catalog, Fresh, Pool), ELDGrowthReason::None);
     bGood &= GrowthTestReason(Test, TEXT("The ordinary seeded draw"), LDProgression::DrawOffer(Input, Pool, Ordinary),
         ELDGrowthReason::None);
-    TArray<TArray<FName>> Queue = {{Snare, Focus, Reach}, {Bolt, FName(TEXT("active_unknown")), Might}, {Pulse, Precision, Might}};
+    TArray<TArray<FName>> Queue = {{PantsDown, AllNighter, HandOut}, {Snark, FName(TEXT("active_unknown")), Protein},
+        {NotMad, LuckyStar, Protein}};
     TArray<LDProgression::FLegalOption> Picked;
     bool bPreset = false;
     FString PresetError;
     bGood &= Test.TestTrue(TEXT("The first head draw takes the oldest preset, in its order"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
-        && PresetError.IsEmpty() && Picked.Num() == 3 && Picked[0].DefinitionId == Snare && Picked[1].DefinitionId == Focus
-        && Picked[2].DefinitionId == Reach && Queue.Num() == 2);
+        && PresetError.IsEmpty() && Picked.Num() == 3 && Picked[0].DefinitionId == PantsDown && Picked[1].DefinitionId == AllNighter
+        && Picked[2].DefinitionId == HandOut && Queue.Num() == 2);
     bGood &= Test.TestTrue(TEXT("A preset that no longer resolves is consumed with an explicit error and the ordinary draw runs"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && !PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary) && Queue.Num() == 1);
     bGood &= Test.TestTrue(TEXT("The next head draw takes the next preset"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && bPreset
-        && Picked[0].DefinitionId == Pulse && Picked[1].DefinitionId == Precision && Picked[2].DefinitionId == Might && Queue.IsEmpty());
+        && Picked[0].DefinitionId == NotMad && Picked[1].DefinitionId == LuckyStar && Picked[2].DefinitionId == Protein && Queue.IsEmpty());
     bGood &= Test.TestTrue(TEXT("With no preset left the head is the ordinary seeded draw: a preset shapes one offer only"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None && !bPreset
         && PresetError.IsEmpty() && GrowthTestSameOptions(Picked, Ordinary));
@@ -1975,13 +1972,14 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
 
     // Contract 2: a non-draftable skill (new actives until #117) never enters any offer, opening or level-up.
     FLDDemoContentDefinitions Gated = Content;
-    const FName Held(TEXT("active_arc_bolt"));
-    Gated.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& Row) { return Row.Id == TEXT("active_arc_bolt"); })->Draftable = false;
+    const FName Held(TEXT("active_snark_bolt"));
+    Gated.Abilities.FindByPredicate([](const FLDDemoAbilityDefinition& Row)
+        { return Row.Id == TEXT("active_snark_bolt"); })->Draftable = false;
     LDProgression::FDrawInput GatedInput = Input;
     GatedInput.Content = &Gated;
     FLDGrowthBuild Level3;
     Level3.Level = 3;
-    Level3.Skills = {{FName(TEXT("passive_precision")), 1, false, 0}};
+    Level3.Skills = {{FName(TEXT("passive_lucky_star")), 1, false, 0}};
     bool bNeverGated = true;
     for (uint64 Seed = 1; Seed <= 512; ++Seed)
     {
@@ -2006,7 +2004,7 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     FLDDemoContentDefinitions Short = Content;
     for (FLDDemoAbilityDefinition& Ability : Short.Abilities)
     {
-        Ability.Draftable = Ability.Kind == ELDDemoAbilityKind::Passive || Ability.Id == TEXT("active_arc_bolt");
+        Ability.Draftable = Ability.Kind == ELDDemoAbilityKind::Passive || Ability.Id == TEXT("active_snark_bolt");
     }
     LDProgression::FDrawInput ShortInput = Input;
     ShortInput.Content = &Short;
@@ -2024,13 +2022,14 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     bGood &= Test.TestEqual(TEXT("Refused opening draws offer nothing"), Refused.Num(), 0);
 
     // The DEV fixture still presets any legal cards for the opening; without a preset it draws the opening composition.
-    TArray<TArray<FName>> Queue = {{FName(TEXT("active_arc_bolt")), FName(TEXT("attr_might")), FName(TEXT("attr_focus"))}};
+    TArray<TArray<FName>> Queue = {{FName(TEXT("active_snark_bolt")), FName(TEXT("attr_protein")),
+        FName(TEXT("attr_all_nighter"))}};
     TArray<LDProgression::FLegalOption> Picked;
     bool bPreset = false;
     FString PresetError;
     bGood &= Test.TestTrue(TEXT("An opening preset is still honoured as the DEV override"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
-        && bPreset && Picked.Num() == 3 && Picked[0].DefinitionId == FName(TEXT("active_arc_bolt")) && Queue.IsEmpty());
+        && bPreset && Picked.Num() == 3 && Picked[0].DefinitionId == FName(TEXT("active_snark_bolt")) && Queue.IsEmpty());
     bGood &= Test.TestTrue(TEXT("Without a preset the fixture draws the ordinary opening offer"),
         LDDevGrowthFixture::PickHead(Input, Pool, Queue, Picked, bPreset, PresetError) == ELDGrowthReason::None
         && !bPreset && GrowthTestSameOptions(Picked, First));
@@ -3118,7 +3117,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Out.Slot = Slot;
         return Out;
     };
-    FLDDevTestCommand BadSlot = Learn(1, TEXT("attr_might"), 3);
+    FLDDevTestCommand BadSlot = Learn(1, TEXT("attr_protein"), 3);
     GrowthTestReason(*this, TEXT("A learn names slot 0..2"), LDDevTest::ValidateShape(BadSlot), ELDGrowthReason::InvalidRequest);
     FLDDevTestCommand NoDefinition = Command(Gen, 1, 1, ELDDevTestOp::LearnOption, 0);
     GrowthTestReason(*this, TEXT("A learn names a definition"), LDDevTest::ValidateShape(NoDefinition), ELDGrowthReason::InvalidRequest);
@@ -3142,14 +3141,14 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         }
         return nullptr;
     };
-    if (!Commit(TEXT("Request 6: learn while unspawned"), Learn(6, TEXT("attr_might"), 0), ELDGrowthReason::LifePhaseChanged))
+    if (!Commit(TEXT("Request 6: learn while unspawned"), Learn(6, TEXT("attr_protein"), 0), ELDGrowthReason::LifePhaseChanged))
     { return false; }
     Mode->Lives.FindChecked(Tester).Phase = ELDLifePhase::Dead;
     const FLDProgressionState* Before = Development->FindProgression(Tester);
     const uint8 ConsumedBefore = Before ? Before->ConsumedThrough : 0;
     if (!Commit(TEXT("Request 7: an id that is no legal option"), Learn(7, TEXT("attr_unknown"), 0), ELDGrowthReason::InvalidOption))
     { return false; }
-    if (!Commit(TEXT("Request 8: replacing an empty Q"), Learn(8, TEXT("attr_might"), 1), ELDGrowthReason::ReplacementMismatch))
+    if (!Commit(TEXT("Request 8: replacing an empty Q"), Learn(8, TEXT("attr_protein"), 1), ELDGrowthReason::ReplacementMismatch))
     { return false; }
 
     // ---- DEV attribute layer: Combat's installed build, without a growth or inventory revision ----
@@ -3181,23 +3180,23 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A Growth build change that names a DEV layer"),
         int32(Driver->PrepareBuildChange(GrowthCaller, Smuggled, Fighter.Installed).Error), int32(ELDCombatPrepareError::InvalidInput));
 
-    const FLDDevTestReceipt* LearnedReceipt = Commit(TEXT("Request 11: an attribute card while dead"), Learn(11, TEXT("attr_might"), 0),
+    const FLDDevTestReceipt* LearnedReceipt = Commit(TEXT("Request 11: an attribute card while dead"), Learn(11, TEXT("attr_protein"), 0),
         ELDGrowthReason::None);
     if (!LearnedReceipt) { return false; }
-    TestTrue(TEXT("The receipt names the learned definition"), LearnedReceipt->Definition == FName(TEXT("attr_might")));
+    TestTrue(TEXT("The receipt names the learned definition"), LearnedReceipt->Definition == FName(TEXT("attr_protein")));
     const FLDGrowthBuild* AfterLearn = Development->FindBuild(Tester);
     const FLDProgressionState* ProgressionAfter = Development->FindProgression(Tester);
     TestTrue(TEXT("The card is in the build and the opening opportunity is consumed"),
-        AfterLearn && AfterLearn->Cards.Num() == 1 && AfterLearn->Cards[0].Id == FName(TEXT("attr_might"))
+        AfterLearn && AfterLearn->Cards.Num() == 1 && AfterLearn->Cards[0].Id == FName(TEXT("attr_protein"))
         && AfterLearn->Cards[0].Count == 1 && ProgressionAfter && ProgressionAfter->ConsumedThrough == ConsumedBefore + 1
         && ProgressionAfter->Records.Num() == 1);
     TestTrue(TEXT("Combat installed the new build"), Driver->Records.FindChecked(Tester).Installed.BuildRevision == AfterLearn->Revision);
-    const FLDAttributeProjectionResult CardOnly = ProjectWith({}, {FLDAttributeCardValue(TEXT("attr_might"), 1)});
+    const FLDAttributeProjectionResult CardOnly = ProjectWith({}, {FLDAttributeCardValue(TEXT("attr_protein"), 1)});
     TestTrue(TEXT("The real build change keeps the installed DEV term on top of the new card"),
         CardOnly.IsSuccess() && Fighter.Build.DevBonuses.Num() == 1 && Fighter.Build.AttributeCards.Num() == 1
         && Fighter.Projection.Final.ADP2 == CardOnly.Value->Final.ADP2 + 2000);
     const FLDDevTestReceipt* NoOpportunity = Commit(TEXT("Request 12: learn with no opportunity left"),
-        Learn(12, TEXT("attr_focus"), 0), ELDGrowthReason::NoOffer);
+        Learn(12, TEXT("attr_all_nighter"), 0), ELDGrowthReason::NoOffer);
     TestTrue(TEXT("The refusal says to raise the level first"), NoOpportunity && NoOpportunity->Detail.Contains(TEXT("raise the level")));
     TestTrue(TEXT("Nothing more was learned"), Development->FindBuild(Tester)->Cards.Num() == 1);
     if (!Commit(TEXT("Request 13: clear the DEV layer"), Command(Gen, 1, 13, ELDDevTestOp::ClearAttributes, 0), ELDGrowthReason::None))
@@ -3293,7 +3292,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The pure track drop keeps only the innate dash, ready now"), ALDCombatDirector::DevDropTracks(Mixed, 1000) == 2
         && Mixed.Num() == 1 && Mixed[0].Kind == ELDCombatSourceKind::Innate && Mixed[0].ReadyAtMs == 1000);
     const FLDDevTestReceipt* Relearned = Commit(TEXT("Request 16: the fresh opening opportunity takes a card again"),
-        Learn(16, TEXT("attr_might"), 0), ELDGrowthReason::None);
+        Learn(16, TEXT("attr_protein"), 0), ELDGrowthReason::None);
     TestTrue(TEXT("After the reset the card is learned once more"), Relearned && Development->FindBuild(Tester)->Cards.Num() == 1
         && Development->FindProgression(Tester)->ConsumedThrough == 1);
 

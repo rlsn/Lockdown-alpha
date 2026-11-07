@@ -135,8 +135,8 @@ try {
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
         "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then skills learned by ordinary " +
-        "choices of DEV-fixture-preset offers: active_binding_snare root observed, active_guard_pulse shield and dispel, " +
-        "Client1's active_arc_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), an attr_reach basic " +
+        "choices of DEV-fixture-preset offers: active_pants_down root observed, advanced active_not_mad shield and dispel, " +
+        "Client1's active_snark_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), an attr_hand_out basic " +
         "hit at $($hostReport.reach_hit_cm) cm.$impairment " +
         "DEV growth fixture: Host only ($fixtureSwitch). Rendered Host captures for presentation review (not pixel-compared): " +
         "$captures. Not camps, AI, capture or full-match acceptance. Evidence: $output")

@@ -1157,7 +1157,7 @@ bool FLDDemoVisionFlightTrailTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A chalk standing still has no trail"), Puffs.IsEmpty());
     Layout(MinSpacingCm / SpacingPerSpeed - 1.f, Puffs);
     TestTrue(TEXT("A drift below the threshold shows no trail"), Puffs.IsEmpty());
-    // The approved active_arc_bolt flies at 1600 cm/s; the proxy reaches about 70 % of it in the first frames.
+    // The approved active_snark_bolt flies at 1600 cm/s; the proxy reaches about 70 % of it in the first frames.
     for (const float Speed : {1120.f, 1600.f})
     {
         Layout(Speed, Puffs);

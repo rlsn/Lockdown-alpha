@@ -49,10 +49,10 @@ bool FLDBuildExpansionTimedBonusTest::RunTest(const FString& Parameters)
     using namespace LDTactical;
     using LDBuildExpansionRulesTestDetail::Bonus;
     TArray<FLDCombatTimedBonus> Bonuses;
-    const FName Flurry(TEXT("active_combo_flurry")), Moves(TEXT("active_slick_moves"));
-    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Flurry, {Bonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 3000)}, 5000});
-    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Moves, {Bonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 5000)}, 3000});
-    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Flurry, {Bonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 6000)}, 6000});
+    const FName Combo(TEXT("active_triple_combo")), Frenzy(TEXT("passive_special_forces"));
+    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Combo, {Bonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 3000)}, 5000});
+    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Frenzy, {Bonus(ELDDemoBonusStat::MoveSpeedBonusRatio, 5000)}, 3000});
+    ApplyTimedBonus(Bonuses, {FGuid::NewGuid(), Combo, {Bonus(ELDDemoBonusStat::AttackSpeedBonusRatio, 6000)}, 6000});
     TestEqual(TEXT("A recast of the same source replaces its bonus; other sources aggregate"), Bonuses.Num(), 2);
     FLDTemporaryAttributeTerms Terms = TemporaryTerms(Bonuses, {}, {}, 100, 100, 2000);
     TestTrue(TEXT("Both active sources project their stats"), Terms.Bonuses.Num() == 2 && Terms.MoveSlowBp == 0

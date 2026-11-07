@@ -92,7 +92,7 @@ namespace LDCombatSourceRules
         int64 NowMs, const FLDDemoContentSnapshot& Content, TArray<FLDCombatBindingPlan>& Out,
         ELDCombatPrepareError& Code, FString& Error);
 
-    // The remaining-cooldown cut shared by every refund (active_combo_flurry/active_lunge Lv3, passive_precision, C2 passive_mental_gymnastics):
+    // The remaining-cooldown cut shared by every refund (cooldown_refund, e.g. passive_iced_americano advanced):
     // a cooling track ends AmountMs earlier but never before NowMs; MAX_int64 makes it ready now. A ready track
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);

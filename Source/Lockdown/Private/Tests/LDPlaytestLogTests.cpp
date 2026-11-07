@@ -32,8 +32,8 @@ bool FLDPlaytestLogFormatTest::RunTest(const FString& Parameters)
     FLDCombatSourceRef Source;
     TestEqual(TEXT("A sourceless effect"),LDLog::Source(Source),FString(TEXT("none")));
     Source.Kind=ELDCombatSourceKind::Learned;
-    Source.DefinitionId=TEXT("active_arc_bolt");
-    TestEqual(TEXT("A learned source names its ability"),LDLog::Source(Source),FString(TEXT("learned:active_arc_bolt")));
+    Source.DefinitionId=TEXT("active_snark_bolt");
+    TestEqual(TEXT("A learned source names its ability"),LDLog::Source(Source),FString(TEXT("learned:active_snark_bolt")));
     Source.Kind=ELDCombatSourceKind::Gear;
     Source.DefinitionId=TEXT("item_slingshot");
     TestEqual(TEXT("A gear source names its item"),LDLog::Source(Source),FString(TEXT("gear:item_slingshot")));

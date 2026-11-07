@@ -468,7 +468,7 @@ public:
     // body's diminishing-returns chain, the instance is applied with its action interruptions, the spray interrupt and
     // the assist contribution are recorded. bApplied is false when nothing landed (an existing instance, a zero duration).
     bool CommitControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, bool& bApplied, FString& Error);
-    // Any active root, stun, disarm, taunt, knockback, silence or slow (#147 "被减速或被控制", passive_public_shame).
+    // Any active root, stun, disarm, taunt, knockback, silence or slow (#147 "被减速或被控制", passive_kick_down).
     bool IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const;
     // A Q/W/D activation of this source kind blocked now: Cast for every kind, Skill (silence) for learned actives.
     bool IsCastBlocked(const FLDBodyCombatState& Body, ELDCombatSourceKind Kind) const;

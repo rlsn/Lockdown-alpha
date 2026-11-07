@@ -263,27 +263,27 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!ReadApprovedContent(*this, Content)) { return false; }
     FString Error;
-    const FLDDemoAbilityDefinition* Peach = nullptr;
-    const FLDDemoAbilityDefinition* Lunge = nullptr;
+    const FLDDemoAbilityDefinition* Unplug = nullptr;
+    const FLDDemoAbilityDefinition* BailOut = nullptr;
     const FLDDemoAbilityDefinition* ThickFace = nullptr;
     const FLDDemoEquipmentDefinition* Uniform = nullptr;
-    if (!Content->FindAbility(TEXT("active_monkey_peach"), Peach, Error)
-        || !Content->FindAbility(TEXT("active_lunge"), Lunge, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error)
+    if (!Content->FindAbility(TEXT("active_unplug"), Unplug, Error)
+        || !Content->FindAbility(TEXT("active_bail_out"), BailOut, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error)
         || !Content->FindEquipment(TEXT("item_nail_uniform"), Uniform, Error))
     {
         AddError(Error);
         return false;
     }
-    for (const FLDDemoRankDefinition& Rank : Peach->Ranks)
+    for (const FLDDemoRankDefinition& Rank : Unplug->Ranks)
     {
         const FLDDemoEffectDefinition* Disarm = FindOp(Rank.Effects, ELDDemoEffectOp::Disarm);
-        TestTrue(TEXT("Every peach rank damages and disarms a unit"), Peach->Target.Mode == ELDDemoTargetMode::Unit
+        TestTrue(TEXT("Every unplug rank damages and disarms a unit"), Unplug->Target.Mode == ELDDemoTargetMode::Unit
             && FindOp(Rank.Effects, ELDDemoEffectOp::Damage) && Disarm && Disarm->DurationMs > 0);
     }
-    for (const FLDDemoRankDefinition& Rank : Lunge->Ranks)
+    for (const FLDDemoRankDefinition& Rank : BailOut->Ranks)
     {
         const FLDDemoEffectDefinition* Empower = FindOp(Rank.Effects, ELDDemoEffectOp::EmpowerBasic);
-        TestTrue(TEXT("Every lunge rank dashes and arms one empowered basic"), Lunge->Target.Mode == ELDDemoTargetMode::DirectionDash
+        TestTrue(TEXT("Every bail-out rank dashes and arms one empowered basic"), BailOut->Target.Mode == ELDDemoTargetMode::DirectionDash
             && FindOp(Rank.Effects, ELDDemoEffectOp::Dash) && Empower && Empower->DurationMs > 0
             && (Empower->BaseP2 > 0 || Empower->ADRatioBp > 0));
     }
@@ -306,7 +306,7 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
         [](const FLDEquipmentPassiveFamily& Family) { return Family.Family == TEXT("passive_prickle"); }));
 
     // Functional display: every new effect, target and status has explicit player text.
-    for (const FLDDemoAbilityDefinition* Ability : {Peach, Lunge, ThickFace})
+    for (const FLDDemoAbilityDefinition* Ability : {Unplug, BailOut, ThickFace})
     {
         for (const FLDDemoEffectDefinition& Effect : Ability->Ranks[0].Effects)
         {

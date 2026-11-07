@@ -23,7 +23,7 @@ namespace
 // A private table id keeps the fixture away from the real DemoContent display table. Its names are the approved
 // catalog's (#111), so expectations read them through HudName instead of repeating them.
 const FName HudFixtureTable(TEXT("LDHUDRulesDisplayFixture"));
-const TCHAR* const HudFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian"),TEXT("item_iron_plate"),TEXT("passive_battle_rhythm")};
+const TCHAR* const HudFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_guardian"),TEXT("item_iron_plate"),TEXT("passive_iced_americano")};
 TMap<FString,FString> HudFixtureNames;
 FString HudName(const TCHAR* Id)
 {
@@ -405,7 +405,7 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     FLDDemoRankDefinition Second=Rank;Second.Rank=2;Second.Effects[0].BaseP2=15000;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
     Content.Parameters.SkillGrowthPerLevelBp=1000;
     FLDProgressionView Progression;
-    for(uint8 Slot=0;Slot<2;++Slot){FLDLearnedSkillView Skill;Skill.DefinitionId=Slot?FName(TEXT("active_guard_pulse")):FName(TEXT("active_binding_snare"));Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);}
+    for(uint8 Slot=0;Slot<2;++Slot){FLDLearnedSkillView Skill;Skill.DefinitionId=Slot?FName(TEXT("active_not_mad")):FName(TEXT("active_pants_down"));Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);}
     FLDChoiceOption Learn;Learn.Kind=ELDChoiceOptionKind::LearnActive;Learn.DefinitionId=TEXT("hud_rules_fixture_bolt");Learn.ToRank=1;
     LDHUD::FCardStats Stats;
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
@@ -459,13 +459,13 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),LDHUD::SelfStatusLine(Combat,false,0,&Content),HudName(TEXT("root"))+TEXT(" · ")+HudName(TEXT("shield"))+TEXT(" 81"));
     TestEqualSensitive(TEXT("Missing projections read as syncing, never as none"),LDHUD::PassiveLine(nullptr,nullptr,&Content),FString(TEXT("被动：角色被动同步中、装备被动同步中")));
     FLDProgressionView Progression;
-    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_battle_rhythm");Rhythm.Rank=2;
-    FLDLearnedSkillView Active;Active.DefinitionId=TEXT("active_guard_pulse");Active.bActive=true;Active.Rank=3;
+    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_iced_americano");Rhythm.Rank=2;
+    FLDLearnedSkillView Active;Active.DefinitionId=TEXT("active_not_mad");Active.bActive=true;Active.Rank=2;
     Progression.Skills={Rhythm,Active};
     Content.Equipment[0].HasPassive=true;Content.Equipment[0].Passive.Family=TEXT("passive_siphon");
     Combat.EquipmentPassives={FName(TEXT("passive_siphon")),FName(TEXT("passive_siphon"))};
     TestEqualSensitive(TEXT("Learned passives keep their rank; an equipment passive appears once under its equipment"),
-        LDHUD::PassiveLine(&Progression,&Combat,&Content),TEXT("被动：")+HudName(TEXT("passive_battle_rhythm"))+TEXT(" 2级、")+HudName(TEXT("item_iron_plate")));
+        LDHUD::PassiveLine(&Progression,&Combat,&Content),TEXT("被动：")+HudName(TEXT("passive_iced_americano"))+TEXT(" 2级、")+HudName(TEXT("item_iron_plate")));
     Progression.Skills={Active};Combat.EquipmentPassives.Reset();
     TestEqualSensitive(TEXT("Known projections without passives say so"),LDHUD::PassiveLine(&Progression,&Combat,&Content),FString(TEXT("被动：无")));
     FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;
@@ -877,7 +877,7 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
     // Catalog rows: skills then attribute cards, with what the own progression holds.
     FLDDemoContentDefinitions Content=HudFixtureContent();
     FLDDemoAbilityDefinition Active;Active.Id=TEXT("root");Active.Kind=ELDDemoAbilityKind::Active;Content.Abilities.Add(Active);
-    FLDDemoAbilityDefinition Passive;Passive.Id=TEXT("passive_battle_rhythm");Passive.Kind=ELDDemoAbilityKind::Passive;Content.Abilities.Add(Passive);
+    FLDDemoAbilityDefinition Passive;Passive.Id=TEXT("passive_iced_americano");Passive.Kind=ELDDemoAbilityKind::Passive;Content.Abilities.Add(Passive);
     FLDDemoAttributeDefinition Card;Card.Id=TEXT("shield");Content.Attributes.Add(Card);
     Content.Equipment[0].BuyPrice=300;
     FLDProgressionView Progression;Progression.bValid=true;Progression.Level=3;Progression.CumulativeXP=450;Progression.PendingChoiceCount=1;

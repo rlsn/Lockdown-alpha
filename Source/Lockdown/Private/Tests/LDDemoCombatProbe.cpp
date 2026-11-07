@@ -90,11 +90,11 @@ constexpr int32 CombatProbeChaseBearings = 16;
 constexpr double CombatProbeChaseStepCm = 25.0;
 constexpr double CombatProbeChaseReachCm = 3000.0;
 constexpr double CombatProbeChaseResolutionCm = 0.5;
-// Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range and beyond the
-// reach-carded basic range even when both bodies stop at the far edge of their arrival slack, so the reach card's
-// chase must close in before its hit lands. Client1 throws its arc bolt from its farther duel site, so the flight
-// spans several 100 ms observation publications the Host can render.
-constexpr double CombatProbeSkillGapCm = 420.0;
+// Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range (active_pants_down,
+// 450 cm) and beyond the reach-carded basic range (220 + attr_hand_out 60 cm) even when both bodies stop at the far edge of
+// Navigation's 40 cm goal acceptance, so the reach card's chase must close in before its hit lands. Client1 throws its
+// snark bolt from its farther duel site, so the flight spans several 100 ms observation publications the Host can render.
+constexpr double CombatProbeSkillGapCm = 365.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
 // Client1's Shift-queue walk to the skill site: a detour waypoint at one of these fractions of the straight walk and this
@@ -122,16 +122,17 @@ constexpr double CombatProbeFeelSettleSeconds = 0.5;
 // The Host's ground click for the marker capture lands this far beside its duel site.
 constexpr double CombatProbeBesideCm = 250.0;
 
-// The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer.
+// The fixture's preset cards each role learns, in level order; two attribute cards only fill each offer. A repeated skill
+// is its upgrade: Client1 raises active_not_mad to its advanced rank, whose release also cleanses a root (#147 v7).
 TArray<FName> CombatProbeSkillPlan(bool bHost)
 {
-    return bHost ? TArray<FName>{FName(TEXT("attr_reach")), FName(TEXT("active_binding_snare"))}
-        : TArray<FName>{FName(TEXT("active_guard_pulse")), FName(TEXT("active_arc_bolt"))};
+    return bHost ? TArray<FName>{FName(TEXT("attr_hand_out")), FName(TEXT("active_pants_down"))}
+        : TArray<FName>{FName(TEXT("active_not_mad")), FName(TEXT("active_not_mad")), FName(TEXT("active_snark_bolt"))};
 }
 
 TArray<FName> CombatProbePreset(FName Card)
 {
-    return {Card, FName(TEXT("attr_might")), FName(TEXT("attr_focus"))};
+    return {Card, FName(TEXT("attr_protein")), FName(TEXT("attr_all_nighter"))};
 }
 
 double CombatProbeRational(const FLDDemoRational& Value)
@@ -240,7 +241,7 @@ public:
     // Skills, both roles: the preset cards learned so far and the choice in flight.
     int32 SkillsLearned = 0;
     uint64 ChoiceRequest = 0;
-    // Client1: the skill site on the open duel line, the snare's root deadline and the guard pulse's shield.
+    // Client1: the skill site on the open duel line, the snare's root deadline and the advanced not_mad's shield.
     FVector SkillSite = FVector::ZeroVector;
     int64 RootUntilMs = 0;
     // Host: the fixture grants, then each cast's baseline on the struck authority body and what the casts showed.
@@ -1172,12 +1173,15 @@ public:
     {
         const TArray<FName> Plan = LDDemoCombatScenario::CombatProbeSkillPlan(IsHost());
         const FName Wanted = Plan[SkillsLearned];
+        // The rank this choice reaches: one per appearance of the card in the plan so far.
+        int32 WantedRank = 0;
+        for (int32 Index = 0; Index <= SkillsLearned; ++Index) { WantedRank += Plan[Index] == Wanted ? 1 : 0; }
         const FLDProgressionView* View = PC.ReadOwnProgression();
         if (ChoiceRequest != 0)
         {
-            const bool bLearned = View && (View->Skills.ContainsByPredicate([&Wanted](const FLDLearnedSkillView& Row)
+            const bool bLearned = View && (View->Skills.ContainsByPredicate([&Wanted, WantedRank](const FLDLearnedSkillView& Row)
             {
-                return Row.DefinitionId == Wanted && Row.Rank == 1;
+                return Row.DefinitionId == Wanted && Row.Rank == WantedRank;
             }) || View->AttributeCards.ContainsByPredicate([&Wanted](const FLDAttributeCardView& Row)
             {
                 return Row.DefinitionId == Wanted && Row.Count == 1;
@@ -1390,7 +1394,7 @@ public:
             }
             RootUntilMs = Root->ExpiresAtMs;
             Check(PC.CombatView.bRooted && (Root->ControlBlocks & uint8(ELDCombatControlBlock::Move)) != 0, TEXT("Skills"),
-                TEXT("The snare (active_binding_snare) roots this owned body: its own Combat projection shows the root blocking movement"),
+                TEXT("The snare (active_pants_down) roots this owned body: its own Combat projection shows the root blocking movement"),
                 FString::Printf(TEXT("root_until_ms=%lld"), RootUntilMs));
             if (!Passed) { return Finish(); }
             StageAt = Now;
@@ -1402,7 +1406,7 @@ public:
             return Fail(TEXT("Skills"), TEXT("The Host did not confirm the observed root in time"));
         }
         const ELDCombatEntry Guard = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false)[0]);
-        if (Guard == ELDCombatEntry::None) { return Fail(TEXT("Skills"), TEXT("The learned guard pulse holds no Q/W entry")); }
+        if (Guard == ELDCombatEntry::None) { return Fail(TEXT("Skills"), TEXT("The learned not_mad holds no Q/W entry")); }
         ReceiptSerialBefore = PC.CombatReceipts.Serial();
         // A Self skill sends from its hotkey entry at once.
         PC.ActivateCombatEntry(Guard);
@@ -1415,14 +1419,14 @@ public:
         if (const FLDCombatActionReceipt* Seen = PC.CombatReceipts.FindLatestSince(ReceiptSerialBefore,
             [](const FLDCombatActionReceipt& Receipt) { return Receipt.Phase == ELDCombatPhase::Rejected; }))
         {
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The guard pulse was refused (reject=%d)"), int32(Seen->Reject)));
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The not_mad shield was refused (reject=%d)"), int32(Seen->Reject)));
         }
         const FLDCombatStatusView* Shield = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Shield);
         const FLDCombatStatusView* Root = LDDemoCombatScenario::CombatProbeOwnStatus(PC.CombatView, ELDDemoStatusId::Root);
         if (!Shield || Root || PC.CombatView.ShieldP2 <= 0)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), TEXT("The guard pulse never showed its shield without the root in this owner's projection"));
+            return Fail(TEXT("Skills"), TEXT("The advanced not_mad never showed its shield without the root in this owner's projection"));
         }
         // The shield and the dispel are one release: the shield's start must precede the root's own end.
         const FLDDemoAbilityDefinition* Guard = nullptr;
@@ -1431,14 +1435,14 @@ public:
         if (Catalog->FindAbility(LDDemoCombatScenario::CombatProbeSkillPlan(false)[0].ToString(), Guard, GuardError) && Guard
             && Guard->Ranks.Num() > 0)
         {
-            for (const FLDDemoEffectDefinition& Effect : Guard->Ranks[0].Effects)
+            for (const FLDDemoEffectDefinition& Effect : Guard->Ranks.Last().Effects)
             {
                 ShieldMs = Effect.GetOp() == ELDDemoEffectOp::Shield ? Effect.DurationMs : ShieldMs;
             }
         }
         const int64 ShieldFromMs = Shield->ExpiresAtMs - ShieldMs;
         Check(ShieldMs > 0 && ShieldFromMs < RootUntilMs && !PC.CombatView.bRooted, TEXT("Skills"),
-            TEXT("The guard pulse (active_guard_pulse) shields this body and dispels the snare's root before the root would have ended"),
+            TEXT("The advanced not_mad (active_not_mad) shields this body and dispels the snare's root before the root would have ended"),
             FString::Printf(TEXT("shield_p2=%lld shield_from_ms=%lld root_until_ms=%lld %s"), PC.CombatView.ShieldP2, ShieldFromMs,
                 RootUntilMs, *GuardError));
         if (!Passed || !Mark(TEXT("Client1Shielded.json"))) { return Finish(); }
@@ -1461,18 +1465,18 @@ public:
         return true;
     }
 
-    // The arc bolt flies along this owner's aim at the Host's observed feet.
+    // The snark bolt flies along this owner's aim at the Host's observed feet.
     bool TickThrow(double Now, ALDPlayerController& PC)
     {
         const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
         const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, HostId) : nullptr;
-        const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false)[1]);
+        const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false).Last());
         const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Bolt](const FLDCombatEntryView& Entry) { return Entry.Entry == Bolt; });
         const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
         if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt never became castable at a visible Host (unavailable=%d)"),
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt never became castable at a visible Host (unavailable=%d)"),
                 Row ? int32(Row->Unavailable) : -1));
         }
         const FVector Direction = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
@@ -1494,7 +1498,7 @@ public:
     {
         if (const FLDCombatActionReceipt* Refused = Refusal(PC))
         {
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The arc bolt was refused (reject=%d)"), int32(Refused->Reject)));
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
         }
         if (!Exists(TEXT("HostSkillsDone.json")))
         {
@@ -1720,7 +1724,7 @@ public:
         return true;
     }
 
-    // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's arc bolt and the reach card. ----
+    // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's snark bolt and the reach card. ----
 
     // The fixture's XP grants raise each role one level past its planned cards (the opening offer took the first), as before
     // the opening choice, so level-dependent checks keep their values; that last opportunity stays unchosen.
@@ -1942,7 +1946,7 @@ public:
             if (!Own || Own->Cues.LastHitAtMs <= HitBeforeMs)
             {
                 if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
-                return Fail(TEXT("Skills"), FString::Printf(TEXT("Client1's arc bolt never hit the Host (projectile samples=%d)"),
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("Client1's snark bolt never hit the Host (projectile samples=%d)"),
                     ProjectileSamples));
             }
             TArray<FLDObservedProjectileFact> Flying;
@@ -1962,9 +1966,9 @@ public:
                 ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
                 Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, HitAgeMs, *FlyingError, *StruckError);
             Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
-                TEXT("Client1's arc bolt (active_arc_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
+                TEXT("Client1's snark bolt (active_snark_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
             Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
-                TEXT("Skills"), TEXT("The arc bolt hits the Host, takes its shield or health and ends its flight"), Detail);
+                TEXT("Skills"), TEXT("The snark bolt hits the Host, takes its shield or health and ends its flight"), Detail);
             Check(bCastCueSeen && bStruck && bHitCueCorrect,
                 TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing Hit cue or its on-time expiry"), Detail);
             if (!Passed) { return Finish(); }
@@ -2516,8 +2520,8 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's arc bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse and active_arc_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the arc bolt at the Host. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's snark bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_not_mad (raised to advanced) and active_snark_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the snark bolt at the Host. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetNumberField(TEXT("skills_learned"), SkillsLearned);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);

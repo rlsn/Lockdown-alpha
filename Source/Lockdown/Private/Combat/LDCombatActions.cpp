@@ -1110,7 +1110,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         }
         case ELDDemoEffectOp::PathSlow:
         {
-            // active_lunge Lv3: bodies along the travelled segment are slowed when the dash ends.
+            // active_bail_out advanced: bodies along the travelled segment are slowed when the dash ends.
             FLDCombatDashSweep Sweep;
             Sweep.Body=SelfRef;
             Sweep.EffectId=EffectId;

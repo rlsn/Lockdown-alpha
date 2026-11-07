@@ -99,7 +99,7 @@ FLDCombatBodyRef Contender(uint32 Id, uint32 Life = 1)
 FLDCombatBodyRef CampMember(uint32 Slot)
 { return {{ELDVictimKind::CampMember, FGuid(9, 0, 0, Slot), 1}, FGuid(9, 1, 0, Slot)}; }
 
-// The taunt of active_come_here is not in the catalog yet (assembled at integration); CONTENT_AND_BALANCE 15.3 rank 1 terms.
+// Rule-test taunt terms, the advanced (rank 2) taunt of active_stare_down: 300 cm for 1 s.
 constexpr double TauntRadiusCm = 300;
 constexpr int64 TauntMs = 1000;
 

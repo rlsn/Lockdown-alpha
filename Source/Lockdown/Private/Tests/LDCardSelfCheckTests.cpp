@@ -94,12 +94,16 @@ bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCont
     return true;
 }
 
-// The game registers the approved display table at startup; an editor test registers the same names for the card faces.
+// The game registers the approved display table at startup; when this editor session has not, the test registers the same
+// names for the card faces (OutTable stays None when the existing table is used and nothing must be unregistered).
 bool RegisterDisplayNames(FAutomationTestBase& Test, const FLDDemoContentDefinitions& Content, FName& OutTable)
 {
+    OutTable = NAME_None;
     TMap<FString, FString> Names;
     if (!LDTestApprovedDisplay::Names(Test, Names) || Content.Display.IsEmpty()) { return false; }
-    OutTable = FName(*Content.Display[0].Namespace);
+    const FName Namespace(*Content.Display[0].Namespace);
+    if (FStringTableRegistry::Get().FindStringTable(Namespace).IsValid()) { return true; }
+    OutTable = Namespace;
     FStringTableRef Table = FStringTable::NewStringTable();
     Table->SetNamespace(OutTable.ToString());
     for (const FLDDemoDisplayDefinition& Row : Content.Display)
@@ -152,7 +156,7 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     FName Table;
     if (!RegisterDisplayNames(*this, Content, Table)) { return false; }
-    ON_SCOPE_EXIT { FStringTableRegistry::Get().UnregisterStringTable(Table); };
+    ON_SCOPE_EXIT { if (!Table.IsNone()) { FStringTableRegistry::Get().UnregisterStringTable(Table); } };
     const auto Base = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, {}), *Catalog);
     if (!TestTrue(TEXT("The bare level-1 build projects"), Base.IsSuccess())) { return false; }
     LDHUD::FCardStats L1;

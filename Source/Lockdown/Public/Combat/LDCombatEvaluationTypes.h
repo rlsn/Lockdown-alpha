@@ -25,7 +25,7 @@ struct FLDDamageDefinitionValues
     int64 ADRatioBp;
     int64 APRatioBp;
     ELDDemoDamageType DamageType;
-    // R4 coefficient of the source's own max HP (P2), alongside AD and AP (active_body_slam).
+    // R4 coefficient of the source's own max HP (P2), alongside AD and AP (active_seethe).
     int64 MaxHPRatioBp;
 };
 
