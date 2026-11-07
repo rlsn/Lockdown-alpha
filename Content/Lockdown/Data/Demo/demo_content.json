@@ -6869,6 +6869,10 @@
       "ms": 15000,
       "unit": "ms"
     },
+    "MATCH.CountdownSec": {
+      "ms": 5000,
+      "unit": "ms"
+    },
     "MATCH.DevelopmentSec": {
       "ms": 180000,
       "unit": "ms"

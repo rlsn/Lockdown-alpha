@@ -16,7 +16,8 @@
 
 bool LDPlaytest::InRunningMatch(uint32 Match, uint32 CurrentMatch, ELDMatchPhase Phase)
 {
-    return Match != 0 && Match == CurrentMatch && (Phase == ELDMatchPhase::Development || Phase == ELDMatchPhase::CaptureOpen);
+    return Match != 0 && Match == CurrentMatch && (Phase == ELDMatchPhase::Countdown || Phase == ELDMatchPhase::Development
+        || Phase == ELDMatchPhase::CaptureOpen);
 }
 
 namespace LDPlaytestTraceDetail

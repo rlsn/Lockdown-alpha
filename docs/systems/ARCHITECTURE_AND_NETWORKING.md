@@ -54,7 +54,7 @@ ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于
 
 `ServerDemoSessionCommand` 传入网络 Generation、单连接序号、命令、结构名单版本及其必要字段，
 发送者由拥有 Controller 决定；只有 Host 可以改变 AI 数量、开始、结束本局或带房间回 Lobby。
-`EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果；
+`EndMatch` 只在 Development/CaptureOpen 于两步之间受理，以最后已关闭边界无胜者锁定结果（开局倒计时内以 `WrongPhase` 拒绝：T=0 之前没有可结算的用时）；
 有待重试的死亡奖励（或因此等待结算边界的守护完成）时返回 `RequestInFlight`，下一边界结清后才可结束。
 `ReturnToLobby` 只在 Results 受理并须携带当前 ResultId。离开房间沿用断开连接/`Logout`，没有另一条 RPC。
 Listen Host 离开（菜单离开房间或对局）时，引擎换图先关闭网络驱动、后销毁 Host 的控制器，`Logout` 已无法通知成员；
@@ -94,8 +94,9 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 8：去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源后递增到 7；
-  #147 新增公开状态沉默、灼烧并把每个单位的公开状态上限（`LDObservation::MaxStatuses`）提高到全部公开状态同时存在的 12 个后递增到 8。
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 9：#147 新增公开状态沉默、灼烧，并把每个单位的公开状态上限（`LDObservation::MaxStatuses`）
+  提高到全部公开状态同时存在的 12 个后递增；8 是 `ELDMatchPhase` 在 Starting 与 Development 之间插入 Countdown（#153）时的版本，
+  7 是去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源时的版本。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
 
@@ -123,7 +124,17 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 到 `RespawnAtMs` 时从十个出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
 成长、商店、营地与终局按各自提供者接入。
-`IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit。
+`IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Countdown/Development/CaptureOpen 为真。
+
+开局倒计时（#153）：`StartDemoMatch` 完成初次出生后进入 `Countdown`，不直接进入 Development。
+`InitializeCaptureMatch` 把 `MatchStartedAtMs`（本局 T=0）设为权威时间起点加 `MATCH.CountdownSec`，
+发育期截止、外卖、上热搜与画饼老板的时间表都从这个 T=0 计算，`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs` 也是它。
+倒计时内写闸保持打开：权威时钟照常推进，开局三选一、离局与观测照常提交；
+`ALDGameMode::IsOpeningCountdown` 让各域拒绝新的动作：导航的新订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，
+Combat 的直接动作（普攻、Q/W、冲刺 D）回 `ELDCombatReject::NotStarted`，商店买卖与进阶在提交时回 `ELDGrowthReason::MatchNotStarted`；
+这些拒绝都记入各自的回执窗口，T=0 后重放仍得到同一拒绝。营地在倒计时内不处理意图，对手 AI 的决策在非 Development/CaptureOpen 阶段停止。
+`NextCountdownDueMs` 让 T=0 成为精确的步边界；到达 T=0 的这一步仍属于倒计时，`ExecuteCapturePhase` 在它闭合后切到 Development，
+第一个可行动的步从 T=0 开始。
 `LDMatchLifecycleTypes` 的 VictimKey/BodyRef/DeathKey 区分稳定主体、一次生命和短寿命身体。
 GameMode 的 `Lives` 保存唯一当前生命阶段/绑定及退休水位；当前 HP/MP/盾仍只在
 `Combat.Bodies.Resources`，OwnerState 是 P2 到显示点数的投影，不从旧 double Hp/Tactical 状态补值。
@@ -229,7 +240,7 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |
 | `LD_SHOP_TRADE` / `LD_SHOP_REJECTED` | `LDVendorDirector.cpp` | 买、卖、进阶成功的物品、槽位、金币变化与结余；拒绝原因 |
-| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
+| `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于开局倒计时、发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
 | `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、金币、K/D/A、技能及等级、属性卡、装备 |
 | `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
 

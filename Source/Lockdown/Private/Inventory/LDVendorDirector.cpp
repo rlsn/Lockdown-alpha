@@ -670,6 +670,11 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
     {
         return Reject(ELDGrowthReason::MatchClosed);
     }
+    // #153: the shop can be browsed during the opening countdown, but no trade commits before T=0.
+    if (GameMode->IsOpeningCountdown(Match))
+    {
+        return Reject(ELDGrowthReason::MatchNotStarted);
+    }
     if (!Record->Session.IsSet() || Record->Session->SessionId != Command.SessionId || Record->Session->Life != Life.Life)
     {
         return Reject(ELDGrowthReason::NoShopSession);

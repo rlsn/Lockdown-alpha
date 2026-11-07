@@ -80,6 +80,12 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the match clock.")); }
     switch (View.Phase)
     {
+    case ELDMatchPhase::Countdown:
+        // #153: the frozen opening before T=0; nothing that counts from T=0 has happened yet.
+        if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs > View.StartedAtMs
+            || Owned || bDrop || Named.Leader.IsValid())
+        { return FailCaptureView(Error, TEXT("The opening countdown publishes only its T=0 and the closed circle.")); }
+        break;
     case ELDMatchPhase::Development:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs >= View.OpenAtMs || Owned)
         { return FailCaptureView(Error, TEXT("The development phase cannot publish an open circle or a result.")); }
