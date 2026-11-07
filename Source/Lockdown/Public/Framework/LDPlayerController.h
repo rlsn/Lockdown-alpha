@@ -209,8 +209,14 @@ private:
     void HandleShopArrived(FName ShopId, uint32 Life);
     // ---- end Growth/Shop ----
     FLDOwnerState LatestOwner;
-    FVector LastBodyPosition=FVector::ZeroVector;
+    void UpdateLocalViewTarget();
+    FTransform LastCameraPose;
+    float LastCameraFOV=0.f;
+    bool bHasCameraPose=false;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDFixedCameraTest;
+#endif
     // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp and LDPlayerInput.cpp) ----
     // Ends every local gesture without touching an accepted order: the armed preview and the held recenter are
     // cleared and every key must be released before the next world command.

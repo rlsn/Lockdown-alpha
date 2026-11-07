@@ -14,6 +14,12 @@ namespace LDCamera
     inline constexpr float FieldOfView = 55.f;
     inline constexpr float TargetOffsetZ = 20.f;
 
+    inline float PanDelta(float Delta)
+    {
+        // A stalled frame is not a history of pointer/key input; do not turn it into a multi-metre pan.
+        return FMath::IsFinite(Delta) ? FMath::Clamp(Delta,0.f,.05f) : 0.f;
+    }
+
     inline bool IsValidArmLength(float Value)
     { return FMath::IsFinite(Value) && Value >= MinArmLength && Value <= MaxArmLength; }
 }

@@ -3,6 +3,8 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraTypes.h"
+#include "Camera/CameraActor.h"
+#include "Framework/LDPlayerController.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -45,6 +47,41 @@ bool FLDFixedCameraTest::RunTest(const FString& Parameters)
     Body->CalcCamera(.016f,View);
     TestTrue(TEXT("Pan and zoom are visible in the same camera evaluation"),
         View.Location.Equals(ALDCharacter::DefaultArmCameraPose(Centre+FVector(100,50,0),1300).GetLocation(),.001));
+    TestTrue(TEXT("Normal camera input keeps its frame duration"),FMath::IsNearlyEqual(LDCamera::PanDelta(.016f),.016f));
+    TestTrue(TEXT("A 1300 ms stall cannot apply 1300 ms of stale camera input"),
+        FMath::IsNearlyEqual(LDCamera::PanDelta(1.3f),.05f));
+    TestTrue(TEXT("Invalid camera input duration cannot move the camera"),
+        LDCamera::PanDelta(-1)==0 && LDCamera::PanDelta(std::numeric_limits<float>::infinity())==0);
+
+    auto* PC=World->SpawnActor<ALDPlayerController>();
+    if (PC) { PC->SpawnPlayerCameraManager(); }
+    if (!TestNotNull(TEXT("Camera owner"),PC) || !TestNotNull(TEXT("Native camera manager"),PC->PlayerCameraManager.Get())) { return false; }
+    PC->SetPawn(Body);
+    PC->SetViewTarget(PC);
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("A late engine view-target reset is repaired before camera evaluation"),PC->GetViewTarget()==Body);
+    PC->LastCameraPose=FTransform(View.Rotation,View.Location);
+    PC->LastCameraFOV=View.FOV;
+    PC->bHasCameraPose=true;
+    PC->OwnerState.LifePhase=ELDLifePhase::Alive;
+    PC->SetPawn(nullptr);
+    PC->SetViewTarget(PC);
+    PC->UpdateLocalViewTarget();
+    ACameraActor* Waiting=PC->WaitingCamera;
+    TestTrue(TEXT("Missing pawn with a delayed Alive receipt preserves the last rendered camera, not the origin"),
+        Waiting && PC->GetViewTarget()==Waiting && Waiting->GetActorTransform().Equals(PC->LastCameraPose,.001)
+        && FMath::IsNearlyEqual(Waiting->GetCameraComponent()->FieldOfView,View.FOV));
+    PC->OwnerState.LifePhase=ELDLifePhase::Dead;
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("The death receipt cannot recreate or jump the waiting camera"),PC->WaitingCamera==Waiting);
+    PC->SetViewTarget(PC);
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("A late reset during the pawn gap cannot replace the waiting view"),PC->GetViewTarget()==Waiting);
+    auto* Respawned=World->SpawnActor<ALDCharacter>();
+    PC->SetPawn(Respawned);
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("Replicated respawn rebinds the actual body even before its life receipt"),
+        PC->GetViewTarget()==Respawned && !PC->WaitingCamera && !IsValid(Waiting));
     return true;
 }
 

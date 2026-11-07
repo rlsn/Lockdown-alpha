@@ -20,6 +20,7 @@
 #include "Vision/LDWorldViewRelay.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
@@ -27,7 +28,10 @@
 #include "Net/UnrealNetwork.h"
 
 ALDPlayerController::ALDPlayerController()
-{ Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands")); }
+{
+    Navigation=CreateDefaultSubobject<ULDNavigationComponent>(TEXT("NavigationCommands"));
+    bAutoManageActiveCameraTarget=false;
+}
 
 // New world commands need both halves (LDPlayerInput.cpp): a valid life in the running match and unsuppressed input.
 bool ALDPlayerController::CanWorldCommand() const
@@ -193,10 +197,17 @@ void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
 {
     if (GetLocalPlayer())
     {
+        if (!IsFrontend()) { UpdateLocalViewTarget(); }
         if (auto* Active=Cast<ALDCharacter>(GetPawn())) { Active->UpdateOwnerPresentation(DeltaSeconds); }
         Navigation->UpdateLocalCamera(DeltaSeconds);
     }
     Super::UpdateCameraManager(DeltaSeconds);
+    if (GetLocalPlayer() && !IsFrontend() && PlayerCameraManager)
+    {
+        LastCameraPose=FTransform(PlayerCameraManager->GetCameraRotation(),PlayerCameraManager->GetCameraLocation());
+        LastCameraFOV=PlayerCameraManager->GetFOVAngle();
+        bHasCameraPose=true;
+    }
 }
 
 void ALDPlayerController::PlayerTick(float Delta)
@@ -206,17 +217,25 @@ void ALDPlayerController::PlayerTick(float Delta)
     UpdateV05Inputs(Delta);
     if (!GetLocalPlayer() || IsFrontend()) { return; }
     Trace().Tick(*this);
+}
+
+void ALDPlayerController::UpdateLocalViewTarget()
+{
     if (auto* Active=Cast<ALDCharacter>(GetPawn()))
     {
-        LastBodyPosition=Active->GetActorLocation();
-        if (WaitingCamera)
+        // Possession and the owner life receipt travel independently. Always bind the actual local body before
+        // evaluating the camera, even if a late engine restart/reset previously selected the controller.
+        if (GetViewTarget()!=Active) { SetViewTarget(Active); }
+        if (IsValid(WaitingCamera))
         {
-            SetViewTarget(Active);
             WaitingCamera->Destroy();
             WaitingCamera=nullptr;
         }
+        return;
     }
-    else if (OwnerState.LifePhase!=ELDLifePhase::Alive && !WaitingCamera)
+    // A missing replicated pawn does not mean the owner life receipt has caught up. Keep the last rendered pose
+    // through this gap instead of exposing the controller's origin or a newly spawned pawn's default arm position.
+    if (!IsValid(WaitingCamera))
     {
         WaitingCamera=GetWorld()->SpawnActor<ACameraActor>();
         if (!WaitingCamera)
@@ -225,15 +244,16 @@ void ALDPlayerController::PlayerTick(float Delta)
             return;
         }
         const float ArmLength=Controls?Controls->Zoom:LDCamera::DefaultArmLength;
-        WaitingCamera->SetActorTransform(ALDCharacter::DefaultArmCameraPose(LastBodyPosition,ArmLength));
+        WaitingCamera->SetActorTransform(bHasCameraPose ? LastCameraPose
+            : ALDCharacter::DefaultArmCameraPose(FVector::ZeroVector,ArmLength));
         auto* Camera=WaitingCamera->GetCameraComponent();
-        Camera->FieldOfView=LDCamera::FieldOfView;
+        Camera->FieldOfView=bHasCameraPose ? LastCameraFOV : LDCamera::FieldOfView;
         Camera->PostProcessSettings.bOverride_AutoExposureMinBrightness=true;
         Camera->PostProcessSettings.AutoExposureMinBrightness=0;
         Camera->PostProcessSettings.bOverride_AutoExposureMaxBrightness=true;
         Camera->PostProcessSettings.AutoExposureMaxBrightness=0;
         Camera->PostProcessSettings.bOverride_MotionBlurAmount=true;
         Camera->PostProcessSettings.MotionBlurAmount=0;
-        SetViewTarget(WaitingCamera);
     }
+    if (GetViewTarget()!=WaitingCamera) { SetViewTarget(WaitingCamera); }
 }

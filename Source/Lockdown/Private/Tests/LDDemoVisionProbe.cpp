@@ -7,6 +7,8 @@
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "Combat/LDCombatTypes.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -35,6 +37,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 #include "UnrealClient.h"
+#include "UObject/CoreNet.h"
 
 // Carries the topology-only assertions of the retired LDViewNetworkProbe (#1, #9, #15, #23, #28 of the observation
 // closure plan) plus the Listen Host presentation gate. Codec, ordering, handles and sight stay in
@@ -474,13 +477,24 @@ public:
             if (!Mode) { return Fail(TEXT("#15H"), TEXT("The Listen Host has no authoritative game mode")); }
             CheckHostPresentation(InWorld, *Mode, Owner, *Relay, *Frame);
             if (!Passed) { return Finish(); }
-            PendingImage = FPaths::Combine(Output, TEXT("HostSighted.png"));
-            ImageAt = Now;
-            FScreenshotRequest::RequestScreenshot(PendingImage, true, false);
-            Stage = 5;
+        }
+        else { CheckRestrictedRegistry(InWorld, Owner, *Relay, *Frame); }
+        FNetBitWriter Writer(nullptr,1<<18);
+        FLDWorldView WireFrame=*Frame;
+        bool bEncoded=true;
+        WireFrame.NetSerialize(Writer,nullptr,bEncoded);
+        Check(bEncoded && !Writer.IsError(),TEXT("#23"),TEXT("The received authorized frame re-encodes without error"));
+        Check(Writer.GetNumBytes()<1100,TEXT("#23"),FString::Printf(
+            TEXT("The shared-anchor observation payload fits below 1100 bytes (%lld bytes)"),Writer.GetNumBytes()));
+        if (!Passed) { return Finish(); }
+        if (Role==TEXT("Host") || FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionRendered")))
+        {
+            PendingImage=FPaths::Combine(Output,Role+TEXT("Sighted.png"));
+            ImageAt=Now;
+            FScreenshotRequest::RequestScreenshot(PendingImage,true,false);
+            Stage=5;
             return true;
         }
-        CheckRestrictedRegistry(InWorld, Owner, *Relay, *Frame);
         if (!Passed || !Mark(Role + TEXT("Sighted.json"))) { return Finish(); }
         Stage = 6;
         return true;
@@ -491,11 +505,11 @@ public:
         if (IFileManager::Get().FileSize(*PendingImage) <= 0)
         {
             if (Now - ImageAt < 10) { return true; }
-            return Fail(TEXT("#1"), TEXT("The participating Listen Host rendered no screenshot of its main view"));
+            return Fail(TEXT("#1"), TEXT("The rendered participant left no screenshot of its main view"));
         }
         Images.Add(MakeShared<FJsonValueString>(FPaths::GetCleanFilename(PendingImage)));
-        Check(true, TEXT("#1"), TEXT("The participating Listen Host renders its main view (screenshot kept for presentation review)"));
-        if (!Mark(TEXT("HostSighted.json"))) { return Finish(); }
+        Check(true, TEXT("#1"), TEXT("The participant renders its main view (screenshot kept for presentation review)"));
+        if (!Mark(Role+TEXT("Sighted.json"))) { return Finish(); }
         Stage = 6;
         return true;
     }
@@ -512,13 +526,29 @@ public:
         }
         if (Exists(TEXT("Client1Stalling.json")) && !Exists(TEXT("Client1Recovered.json")))
         {
-            bControlObserved = true;
             const ALDWorldViewRelay* Relay = nullptr;
-            if (!CurrentFrame(Owner, Relay) || !Relay || Relay->ProxyCount() == 0) { bControlViolated = true; }
+            const FLDWorldView* Frame=CurrentFrame(Owner,Relay);
+            if (Frame && Relay && Relay->ProxyCount()>0) { bControlObserved=true; }
+            else if (FParse::Param(FCommandLine::Get(),TEXT("LDDemoVisionNetEmulated")) && Relay)
+            {
+                // Ambient lag/loss can legitimately expire the control connection too. It must fail closed,
+                // not retain units, and must not inherit Client1's injected total-loss setting.
+                const FLDObservedFrameRead Read=Relay->ReadObservedFrame();
+                if (Read.Status!=ELDObservedViewStatus::Stale || Relay->ProxyCount()!=0
+                    || !Read.Frame || !Read.Frame->Units.IsEmpty() || !Read.Frame->Footprint.CurrentBits.IsEmpty())
+                { bControlViolated=true; }
+#if DO_ENABLE_NET_TEST
+                const UNetDriver* Driver=InWorld.GetNetDriver();
+                if (!Driver || Driver->PacketSimulationSettings.PktIncomingLoss==100
+                    || (Driver->ServerConnection && Driver->ServerConnection->PacketSimulationSettings.PktIncomingLoss==100))
+                { bControlViolated=true; }
+#endif
+            }
+            else { bControlViolated=true; }
         }
         if (!Exists(TEXT("Client1Recovered.json"))) { return true; }
         Check(bControlObserved && !bControlViolated, TEXT("#23"),
-            TEXT("Another owner's current view and proxies are untouched while one connection loses its frames"));
+            TEXT("Another owner receives its own view during the isolated loss; any ambient timeout clears rather than retains units"));
         if (!Passed || !Mark(Role + TEXT("Control.json"))) { return Finish(); }
         Stage = 7;
         return true;
@@ -556,6 +586,12 @@ public:
                 return Fail(TEXT("#23"), TEXT("Two seconds without any received frame did not time the view out"));
             }
             CheckTimeoutClear(InWorld, *Relay, Read);
+            const ALDCharacter* Body=Cast<ALDCharacter>(Owner.GetPawn());
+            const FTransform Expected=Body ? ALDCharacter::DefaultArmCameraPose(
+                Body->CameraArm->GetComponentLocation(),Body->CameraArm->TargetArmLength) : FTransform::Identity;
+            Check(Body && Owner.GetViewTarget()==Body && Owner.PlayerCameraManager
+                && Owner.PlayerCameraManager->GetCameraLocation().Equals(Expected.GetLocation(),10.),
+                TEXT("#23"),TEXT("Loss of observation packets never moves the owning camera to a controller or foreign view"));
             EndFrameLoss();
             if (!Passed) { return Finish(); }
             StageAt = Now;
