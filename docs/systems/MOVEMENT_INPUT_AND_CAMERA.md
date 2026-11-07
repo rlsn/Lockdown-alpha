@@ -115,6 +115,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
      S、新生命/新对局、输入被抑制即丢弃，暂存超过 1 s 丢弃并提示。普攻无需暂存：攻击订单本就在服务器等身体空闲。
    - 快速施法（本地设置 `QuickCast`，默认关）：打开后，对单位技能在指针下已有获准可见单位、方向技能在指针下有地面时，
      按键即按同一确认路径朝指针施放；对单位技能指针下无单位时仍进入普通武装、左键确认。
+   - 施法后自动攻击（本地设置 `bAutoAttackAfterCast`，默认开）：不带 Shift 的施放订单完成后，客户端对单位技能的目标、
+     或地面/方向技能施法前正在攻击且仍可见的单位发出普通 `AttackUnit` 订单；规则见 `LDOrderRules::CastFollowUpTarget`
+     与 `CastFollowUpStep`，细节见 [操作与选择](../demo/CONTROLS_AND_TARGETING.md)。
    - CharacterMovement：`MaxAcceleration` 与 `BrakingDecelerationWalking` 均为 8000，
      300 cm/s 基础移速约 38 ms 达到全速；朝向随转向输入即时设置（`SetFacing`）。
 
@@ -289,6 +292,7 @@ schema 6 是含名称但不含主音量的同一清单，同样显式迁移：�
 schema 7 是不含镜头平移速度的同一清单，显式迁移时平移速度取默认 1800；schema 5、6 迁移同样取 1800。
 schema 8 是不含小地图朝向的同一清单，显式迁移时朝向取跟随镜头；schema 5–7 迁移同样取跟随镜头。
 schema 9 是不含快速施法的同一清单，显式迁移时快速施法取默认关闭；schema 5–8 迁移同样关闭。
+schema 17 是不含施法后自动攻击的同一清单，显式迁移时该开关取默认开启；schema 5–16 迁移同样开启。
 schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10 迁移时若缺 `Dash` 且默认键 D 未被其他动作占用，
 补上默认 D 并在迁移提示中说明；D 已被占用时不改键、不挪键，缺动作的文件按 `Corrupt` 走恢复。
 schema 11、12 已有全部绑定和偏好，显式迁移到 13 时不补 Dash。schema 5–11 必须先按旧 1100–1700 cm、

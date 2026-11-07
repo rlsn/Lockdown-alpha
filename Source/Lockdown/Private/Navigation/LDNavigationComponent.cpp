@@ -331,6 +331,9 @@ void ULDNavigationComponent::NavigateGround(const FVector& Surface, FName Surfac
 }
 
 void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue)
+{ SendAttackUnit(Observed,ObservationEpoch,bQueue,false); }
+
+void ULDNavigationComponent::SendAttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue, bool bAutomatic)
 {
     bHeldMove=false;
     FLDSpatialOrderRequest Request;
@@ -338,7 +341,7 @@ void ULDNavigationComponent::AttackUnit(const FGuid& Observed, uint32 Observatio
     Request.Observed=Observed;
     Request.ObservationEpoch=ObservationEpoch;
     Request.bQueue=bQueue;
-    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind))) { return; }
+    if (!SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),nullptr,bAutomatic)) { return; }
     if (ALDPointerFeedback* Feedback=EnsurePointer()) { Feedback->ShowAttack(Observed,ObservationEpoch); }
 }
 
@@ -363,6 +366,61 @@ void ULDNavigationComponent::CastAtPoint(const FLDCombatActionRequest& Cast, con
     Request.SurfaceHint=GroundSurfaceHint();
     Request.bQueue=bQueue;
     SendOrder(Request,LDNavigationDetail::PendingText(Request.Kind),&Cast);
+}
+
+// The accepted attack may be older than Local, which can name a queued or refused request.
+void ULDNavigationComponent::PrepareCastFollowUp(ELDSpatialOrderKind Kind, const FLDCombatActionRequest& Cast, bool bQueue,
+    FGuid& OutTarget, uint32& OutEpoch) const
+{
+    const auto* PC=Controller();
+    LDOrderRules::FCastFollowUpInput Input;
+    Input.bEnabled=PC && PC->Controls && PC->Controls->GetAutoAttackAfterCast();
+    Input.bQueued=bQueue;
+    Input.CastKind=Kind;
+    Input.CastTarget=Cast.Target.Observed;
+    Input.CastEpoch=Cast.Target.ObservationEpoch;
+    const FAttackIntent* ActiveAttack=ClientActive.Order && ActiveKind==ELDSpatialOrderKind::AttackUnit
+        && !bLocalStop && ClientActive.Epoch==Local.Epoch
+        ? SentAttackTargets.FindByPredicate([this](const FAttackIntent& Attack) { return Attack.Identity==ClientActive; })
+        : nullptr;
+    Input.bPriorAttackCurrent=ActiveAttack!=nullptr;
+    if (ActiveAttack)
+    {
+        Input.PriorTarget=ActiveAttack->Observed;
+        Input.PriorEpoch=ActiveAttack->ObservationEpoch;
+    }
+    LDOrderRules::CastFollowUpTarget(Input,OutTarget,OutEpoch);
+}
+
+void ULDNavigationComponent::RememberSentOrder(const FLDSpatialOrderRequest& Request, const FGuid& Target,
+    uint32 ObservationEpoch, bool bAutomaticAttack)
+{
+    ClearCastFollowUp();
+    if (Request.Kind==ELDSpatialOrderKind::AttackUnit)
+    { SentAttackTargets.Add({Request.Identity,Request.Observed,Request.ObservationEpoch}); }
+    if (Target.IsValid()) { CastFollowUp={Request.Identity,Target,ObservationEpoch}; }
+    if (bAutomaticAttack) { AutoAttackIdentity=Request.Identity; }
+}
+
+void ULDNavigationComponent::ClearCastFollowUp()
+{ CastFollowUp={}; }
+
+// Runs after the receipt updated the order state, so the follow-up attack is an ordinary newest own order.
+void ULDNavigationComponent::StepCastFollowUp(const FLDOrderReceipt& Receipt)
+{
+    if (CastFollowUp.Identity.Order==0 || Receipt.Identity!=CastFollowUp.Identity) { return; }
+    const auto* PC=Controller();
+    const auto* Relay=PC?PC->LocalView():nullptr;
+    FLDObservedUnitView Unit;
+    const bool bVisible=Relay && Relay->ReadUnit(CastFollowUp.Observed,CastFollowUp.ObservationEpoch,Unit);
+    const auto Step=LDOrderRules::CastFollowUpStep(Receipt.Status,Receipt.Failure,Receipt.Identity==Local,bVisible);
+    if (Step==LDOrderRules::ECastFollowUp::Wait) { return; }
+    const FAttackIntent FollowUp=CastFollowUp;
+    ClearCastFollowUp();
+    UE_LOG(LogLDNav,Log,TEXT("LD_CAST_FOLLOW_UP cast=%u step=%s visible=%d"),FollowUp.Identity.Order,
+        Step==LDOrderRules::ECastFollowUp::Attack?TEXT("Attack"):TEXT("Drop"),bVisible?1:0);
+    if (Step!=LDOrderRules::ECastFollowUp::Attack) { return; }
+    SendAttackUnit(FollowUp.Observed,FollowUp.ObservationEpoch,false,true);
 }
 
 // A missing ground point is still sent: the server judges the intent and ends protection.
@@ -392,11 +450,18 @@ void ULDNavigationComponent::ApproachShop(FName ShopId)
 }
 
 // The previous accepted order keeps running (and is still predicted) until the server activates this one.
-bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast)
+bool ULDNavigationComponent::SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus,
+    const FLDCombatActionRequest* Cast, bool bAutomaticAttack)
 {
     auto* PC=Controller();
-    if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand() || !NextLocalIdentity(false,Local)) { return false; }
+    if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand()) { return false; }
+    FGuid FollowUp;
+    uint32 FollowUpEpoch=0;
+    if (Cast) { PrepareCastFollowUp(Request.Kind,*Cast,Request.bQueue,FollowUp,FollowUpEpoch); }
+    if (!NextLocalIdentity(false,Local)) { return false; }
     Request.Identity=Local;
+    // Listen hosts can receive a terminal receipt synchronously inside the server call.
+    RememberSentOrder(Request,FollowUp,FollowUpEpoch,bAutomaticAttack);
     LogOwnOrder(Request);
     // Only the newest local order can carry the shop interaction binding.
     ShopBindingId=Request.Kind==ELDSpatialOrderKind::ApproachShop ? Request.ShopId : NAME_None;
@@ -424,6 +489,8 @@ void ULDNavigationComponent::QueueCombatAction(const FLDCombatActionRequest& Req
 {
     auto* PC=Controller();
     if (!Enabled() || !IsLocalOwner() || !PC->CanWorldCommand()) { return; }
+    // A Shift step decides what follows the current order; an automatic non-Shift attack would drop it.
+    ClearCastFollowUp();
     Status=LDNavigationDetail::QueuedText();
     ServerQueueCombatAction(Request,AimCm!=nullptr,AimCm?FVector_NetQuantize10(*AimCm):FVector_NetQuantize10(FVector::ZeroVector));
 }
@@ -452,6 +519,7 @@ void ULDNavigationComponent::Stop()
     bHeldMove=false;
     PC->CancelArmedCombat();
     if (!NextLocalIdentity(true,Local)) { return; }
+    ClearCastFollowUp();
     ShopBindingId=NAME_None;
     ShopBindingIdentity={};
     bShopArrived=false;
@@ -497,6 +565,9 @@ void ULDNavigationComponent::ResetLife()
     bActiveHasGoal=bActiveEngaged=false;
     bHeldMove=false;
     ClientActive={};
+    ClearCastFollowUp();
+    SentAttackTargets.Reset();
+    AutoAttackIdentity={};
     ShopBindingId=NAME_None;
     ShopBindingIdentity={};
     bShopArrived=false;
@@ -527,6 +598,9 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
     LastReceiptSerial=Receipt.ReceiptSerial;
     LastReceipt=Receipt;
     const FLDMoveIdentity& Identity=Receipt.Identity;
+    if (Receipt.Status==ELDOrderStatus::Rejected || Receipt.Status==ELDOrderStatus::Cancelled
+        || Receipt.Status==ELDOrderStatus::Completed)
+    { SentAttackTargets.RemoveAll([&Identity](const FAttackIntent& Attack) { return Attack.Identity==Identity; }); }
     const bool bLocal=Identity==Local;
     const bool bActive=ClientActive.Order!=0 && Identity==ClientActive;
     if (bLocal && AcknowledgedOrder!=Identity.Order)
@@ -573,7 +647,9 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
     if (bLocal || (bActive && !bLocalPending))
     {
         Status=LDNavigationDetail::ReceiptText(Receipt,bLocal && bLocalStop);
-        PC->PostIntentNotice(LDNavigationDetail::NoticeText(Receipt));
+        // A refused automatic follow-up attack only means the body stays after its cast; the status line still says why.
+        if (!(Identity==AutoAttackIdentity && Receipt.Status==ELDOrderStatus::Rejected))
+        { PC->PostIntentNotice(LDNavigationDetail::NoticeText(Receipt)); }
     }
     RefreshLocalActive();
     if (!ShopBindingId.IsNone() && Identity==ShopBindingIdentity)
@@ -593,6 +669,7 @@ void ULDNavigationComponent::ClientOrderReceipt_Implementation(const FLDOrderRec
             bShopArrived=false;
         }
     }
+    StepCastFollowUp(Receipt);
 }
 
 bool ULDNavigationComponent::ReadShopInteraction(FName& OutShopId, uint32& OutLife) const

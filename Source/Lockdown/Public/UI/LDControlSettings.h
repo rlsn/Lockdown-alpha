@@ -115,7 +115,7 @@ UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 }
 enum class ELDPreferenceGroup : uint8
 {
     Audio,      // MasterVolume
-    Controls,   // Bindings, bQuickCast
+    Controls,   // Bindings, bQuickCast, bAutoAttackAfterCast
     Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
     Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS
 };
@@ -124,7 +124,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 17;
+    static constexpr int32 CurrentSchema = 18;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -147,6 +147,10 @@ public:
     // Quick cast (off by default, CONTROLS 3): Combat casts a unit skill at the pointed visible unit and a direction skill
     // toward the pointer on the key press itself, instead of arming it for a left-click confirmation.
     UPROPERTY(SaveGame) bool bQuickCast=false;
+    // Auto attack after a cast (on by default, the user's decision, CONTROLS 3): once a non-queued Q/W cast order completes,
+    // the owning client sends an ordinary attack order at the skill's unit target, or, for a ground/direction skill, at the
+    // unit it was attacking before the cast while that unit is still visible. Client intent only; the server validates it.
+    UPROPERTY(SaveGame) bool bAutoAttackAfterCast=true;
     UPROPERTY(SaveGame) bool bShowNetworkDiagnostics=false;
     UPROPERTY(SaveGame) bool bShowFPS=false;
     // The single Demo action registry; every binding, label and saved file uses it.
@@ -164,6 +168,7 @@ public:
     bool SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error);
     ELDMinimapOrientation GetMinimapOrientation() const { return MinimapOrientation; }
     bool GetQuickCast() const { return bQuickCast; }
+    bool GetAutoAttackAfterCast() const { return bAutoAttackAfterCast; }
     // Player-facing name of an orientation (跟随镜头 / 跟随角色朝向 / 固定正北); empty for any other value.
     static FString MinimapOrientationLabel(ELDMinimapOrientation Value);
     void SetAppliedFollowing(bool Value);
@@ -182,7 +187,7 @@ public:
     bool ValidateLocalSettings(FString& Error) const;
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
-    // Restores every preference group (keys, quick cast, camera including the pan speed, text, minimap orientation,
+    // Restores every preference group (keys, quick cast, auto attack after cast, camera including the pan speed, text, minimap orientation,
     // diagnostics and master volume); the player name is never cleared by a defaults reset. Display values belong to
     // UGameUserSettings; the settings panel restores them through the display apply.
     void ResetLocalDefaults();

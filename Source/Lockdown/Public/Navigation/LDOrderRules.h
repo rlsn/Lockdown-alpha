@@ -128,4 +128,29 @@ namespace LDOrderRules
         FVector TargetFootCm = FVector::ZeroVector;
     };
     LOCKDOWN_API bool ChasePress(const FChasePressInput& Input);
+
+    // #167 auto attack after cast (local setting, on by default; user decision: "主要是为了修复手感, 让战斗持续,而不是放完技能后傻站着挨打").
+    // Client intent only: the follow-up is an ordinary non-Shift AttackUnit order the server validates like a right click.
+    struct FCastFollowUpInput
+    {
+        bool bEnabled = false;
+        bool bQueued = false;
+        ELDSpatialOrderKind CastKind = ELDSpatialOrderKind::CastUnit;
+        // The unit-target skill's own target.
+        FGuid CastTarget;
+        uint32 CastEpoch = 0;
+        // The target of the currently accepted AttackUnit, never a queued or refused request.
+        bool bPriorAttackCurrent = false;
+        FGuid PriorTarget;
+        uint32 PriorEpoch = 0;
+    };
+    // Chosen when the cast order is sent: off or Shift-queued (the queue defines what follows) -> none; a unit skill ->
+    // its own target; a ground/direction skill -> the unit the accepted attack names, otherwise none (stand).
+    LOCKDOWN_API bool CastFollowUpTarget(const FCastFollowUpInput& Input, FGuid& OutTarget, uint32& OutEpoch);
+    // What a receipt of the cast order does to its pending follow-up: Wait while it is queued or running, Attack once
+    // the server completed it without failure while it is still the newest own order and the target is still visible,
+    // Drop on anything else (refused, cancelled, superseded by a newer own order or Stop, target gone).
+    enum class ECastFollowUp : uint8 { Wait, Attack, Drop };
+    LOCKDOWN_API ECastFollowUp CastFollowUpStep(ELDOrderStatus Status, ELDOrderFailure Failure, bool bNewestOwnOrder,
+        bool bTargetVisible);
 }

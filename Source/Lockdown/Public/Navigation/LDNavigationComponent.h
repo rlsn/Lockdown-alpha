@@ -47,7 +47,7 @@ public:
     // direction aim also carries the ground point it was aimed at, so the server re-aims it when its turn comes.
     void QueueCombatAction(const FLDCombatActionRequest& Request, const FVector* AimCm);
     // Owning client: a unit-target Q/W becomes a CastUnit order that replaces the current one (or queues with Shift):
-    // the body approaches the target until the skill is in reach, casts, then stands (2026-11-06 decision).
+    // the body approaches the target until the skill is in reach and casts.
     void CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue=false);
     // Owning client: a ground-point or projectile Q/W aimed at PointCm becomes a CastPoint order: the body walks toward
     // the point until it lies within the skill's reach, then casts at it from there (2026-11-06 decision).
@@ -280,7 +280,9 @@ private:
     // ---- Owning client.
     bool NextLocalIdentity(bool Cancel, FLDMoveIdentity& Out);
     // False when the order was not sent (no life, suppressed input or exhausted identities).
-    bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast=nullptr);
+    bool SendOrder(FLDSpatialOrderRequest Request, const TCHAR* PendingStatus, const FLDCombatActionRequest* Cast=nullptr,
+        bool bAutomaticAttack=false);
+    void SendAttackUnit(const FGuid& Observed, uint32 ObservationEpoch, bool bQueue, bool bAutomatic);
     // Owning client playtest log of a sent order (LD_SELF_ORDER), rate-limited; own intent and public identities only.
     void LogOwnOrder(const FLDSpatialOrderRequest& Request);
     LDLog::FRateLimit OrderLogLimit{.25};
@@ -367,6 +369,26 @@ private:
     FName ShopBindingId;
     FLDMoveIdentity ShopBindingIdentity;
     bool bShopArrived=false;
+    // Targets of sent AttackUnit orders, retained until their terminal receipts. ClientActive selects the accepted one;
+    // pending and Shift-queued attacks cannot replace it. The receipt itself does not carry an observation handle.
+    struct FAttackIntent
+    {
+        FLDMoveIdentity Identity;
+        FGuid Observed;
+        uint32 ObservationEpoch=0;
+    };
+    TArray<FAttackIntent> SentAttackTargets;
+    // The follow-up of a non-Shift cast, and the last automatic attack whose refusal is no extra toast.
+    FAttackIntent CastFollowUp;
+    FLDMoveIdentity AutoAttackIdentity;
+    void PrepareCastFollowUp(ELDSpatialOrderKind Kind, const FLDCombatActionRequest& Cast, bool bQueue, FGuid& OutTarget, uint32& OutEpoch) const;
+    void RememberSentOrder(const FLDSpatialOrderRequest& Request, const FGuid& Target, uint32 ObservationEpoch, bool bAutomaticAttack);
+    void ClearCastFollowUp();
+    void StepCastFollowUp(const FLDOrderReceipt& Receipt);
+#if WITH_DEV_AUTOMATION_TESTS
+    friend class FLDControlFeelAutoAttackAfterCastTest;
+    friend class FLDDemoCombatProbe;
+#endif
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     FLDOrderReceipt LastReceipt;
     uint64 LastReceiptSerial=0;

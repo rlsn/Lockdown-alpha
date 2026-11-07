@@ -42,6 +42,8 @@ namespace
     constexpr uint32 MarklessSchema = 15;
     // Schema 16 has the current layout; its key list still holds the retired equipment-active keys Item1 and Item2.
     constexpr uint32 ItemKeysSchema = 16;
+    // Schema 17 has the current layout and key list; only its preferences predate the auto attack after cast flag.
+    constexpr uint32 AutoAttacklessSchema = 17;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -314,6 +316,7 @@ void ULDControlSettings::CopyPreferences(const ULDControlSettings& Other)
     CameraPanCmPerSec = Other.CameraPanCmPerSec;
     MinimapOrientation = Other.MinimapOrientation;
     bQuickCast = Other.bQuickCast;
+    bAutoAttackAfterCast = Other.bAutoAttackAfterCast;
     bShowNetworkDiagnostics = Other.bShowNetworkDiagnostics;
     bShowFPS = Other.bShowFPS;
 }
@@ -465,6 +468,7 @@ void ULDControlSettings::ResetPreferenceGroup(ELDPreferenceGroup Group)
         break;
     case ELDPreferenceGroup::Controls:
         bQuickCast = CurrentDefaults->bQuickCast;
+        bAutoAttackAfterCast = CurrentDefaults->bAutoAttackAfterCast;
         ResetBindings();
         break;
     case ELDPreferenceGroup::Camera:
@@ -519,7 +523,8 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
-            || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema);
+            || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
+            || SavedSchema == AutoAttacklessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -528,7 +533,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     auto* Settings = NewObject<ULDControlSettings>();
     Settings->Storage = InStorage;
     uint8 RetiredSelector = 0, Edge = 0, Follow = 0, Orientation = uint8(Settings->MinimapOrientation), Quick = Settings->bQuickCast ? 1 : 0;
-    uint8 Network = 0, FPS = 0;
+    uint8 Network = 0, FPS = 0, AutoAttack = Settings->bAutoAttackAfterCast ? 1 : 0;
     int32 Count = 0;
     FString SavedName;
     if (RetiredRegistry) { Reader << RetiredSelector; }
@@ -542,14 +547,16 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema >= QuickCastlessSchema) { Reader << Orientation; }
     if (SavedSchema >= DashlessSchema) { Reader << Quick; }
     if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
+    if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
     Reader << Count;
-    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || Count < 0 || Count > MaxBindingCount)
+    if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
     if (SavedName.Len() != FCString::Strlen(*SavedName))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("已保存的名称格式错误。文件未被替换。") }; }
     Settings->bEdgePan = Edge != 0;
     Settings->bStartFollowing = Follow != 0;
     Settings->bQuickCast = Quick != 0;
+    Settings->bAutoAttackAfterCast = AutoAttack != 0;
     Settings->bShowNetworkDiagnostics = Network != 0;
     Settings->bShowFPS = FPS != 0;
     Settings->PlayerName = SavedName;
@@ -626,9 +633,15 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–16 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–17 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
+        DashDefault += TEXT("施法后自动攻击默认开启。");
+        if (SavedSchema == AutoAttacklessSchema)
+        {
+            return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
+                TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。") + DashDefault };
+        }
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
         const FString PanDefault = FString::Printf(TEXT("镜头平移速度使用默认值 %.0f cm/s，"), Settings->CameraPanCmPerSec) + OrientationDefault;
         const FString Message = SavedSchema == NamelessSchema
@@ -670,14 +683,14 @@ FLDLocalSettingsSaveResult ULDControlSettings::SaveLocalSettings()
 
     // Deliberate field whitelist: UObject/SaveGame serialization would also write unrelated properties.
     // Current schema order: edge, follow, text scale, zoom, player name (empty = unset), master volume, camera pan speed,
-    // minimap orientation, quick cast, network diagnostics, FPS, binding count, bindings.
+    // minimap orientation, quick cast, network diagnostics, FPS, auto attack after cast, binding count, bindings.
     FBufferArchive Payload;
     uint8 Edge = bEdgePan ? 1 : 0, Follow = bStartFollowing ? 1 : 0, SavedOrientation = uint8(MinimapOrientation), SavedQuick = bQuickCast ? 1 : 0;
-    uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0;
+    uint8 Network = bShowNetworkDiagnostics ? 1 : 0, FPS = bShowFPS ? 1 : 0, AutoAttack = bAutoAttackAfterCast ? 1 : 0;
     float SavedTextScale = TextScale, SavedZoom = Zoom, SavedVolume = MasterVolume, SavedPanSpeed = CameraPanCmPerSec;
     FString SavedName = PlayerName;
     int32 Count = Definitions().Num();
-    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << Count;
+    Payload << Edge << Follow << SavedTextScale << SavedZoom << SavedName << SavedVolume << SavedPanSpeed << SavedOrientation << SavedQuick << Network << FPS << AutoAttack << Count;
     for (const auto& Binding : Definitions())
     {
         FString Action = Binding.Action.ToString(), KeyName = Key(Binding.Action).GetFName().ToString();

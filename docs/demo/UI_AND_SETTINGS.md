@@ -49,7 +49,7 @@
 | `ULDAttributesPanel`、`ULDChoicesPanel`、`ULDShopPanel` | 属性 P、成长三选一（含满 Q/W 替换子确认）、两装备砍一刀小摊（买、再买同款即进阶；卖出由 HUD 装备格右键菜单标预售，无确认）；命令经 `SubmitChoice/SubmitShopCommand` 带所见版本提交 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
 | `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
-| `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 17）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
+| `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 18）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
 | `ALDWorldViewRelay`（`Vision/`） | 唯一观察帧读取（`ReadObservedFrame/ReadUnit/ReadPresentedLocation`）、呈现时钟与代理、迷雾、可淡化道具 |
 | `LDWidgets`（`UI/LDWidgets.*`） | native 文本/按钮/面板构造、`ULDPanel` 焦点与命中区域、子确认接口 |
 
@@ -216,7 +216,7 @@ Settings（固定阅读宽度、居中；身后的世界加暗但继续运行）
 | --- | --- | --- |
 | 画面 | 垂直同步（开关）、画质（‹ 低/中/高/极高/电影级 ›，自定义组合显示“自定义”） | 垂直同步行说明写明帧率上限为刷新率、显卡吃紧时会掉帧并增加延迟；画质行说明随草稿档位写出该档的渲染比例（引擎预设 50/71/87/100/100%）与主要效果，引擎默认组合（某档效果 + 渲染比例 0，按显示器分辨率自动）说明为“默认：X档效果”。显示草稿：改动后该行说明写“已更改，尚未应用（当前生效：…）”并附草稿档位说明，页签带“●”，底部应用栏列出“未应用：项 旧 → 新”，可“应用”或“撤销更改”；改回生效值即无草稿 |
 | 音频 | 主音量（滑条 + 百分比） | 立即应用，延迟保存 |
-| 操作 | 快速施法（开关）；按键表每个动作一行，右侧按键框 | 立即应用并保存 |
+| 操作 | 快速施法（开关）；施法后自动攻击（开关，默认开启）；按键表每个动作一行，右侧按键框 | 立即应用并保存 |
 | 镜头 | 镜头距离（当前值 + “采用推荐镜头”）、边缘平移、开局镜头跟随（开关）、镜头平移速度（‹ cm/s ›，每次 300） | 立即应用并保存 |
 | 界面 | 文字大小（100% / 125%）、小地图朝向（三选一）、网络诊断、FPS 显示（开关） | 立即应用并保存 |
 
@@ -500,11 +500,11 @@ Saved/Invalid/WriteFailed 和 Applied/PersistenceVerified，不用 void/空对�
 | --- | --- | --- |
 | 名称 / `ULDControlSettings` | `PlayerName`，显示使用会话域规范化后的公共名称 | Start 编辑，本机保存；房间公开名称由服务器验证。恢复游戏设置不隐式删名称；不保存 join 密钥、比赛数据或新增账号页。 |
 | 按键 / 同类 | `Bindings:TMap<FName,FKey>, Schema` | 单动态 registry；Rebind/Valid 检查重复、reserved Back、设备/轴/滚轮冲突。没有自动抢占另一个动作；改后所有标签同源，旧键释放前不生效。删除 Profile/Hybrid/Tactical 迁移和旧运行槽选择。 |
-| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，默认 2250、范围 1300–2400、步长 80；“采用推荐镜头”只改 Zoom，不改变其他偏好或姓名。TextScale 是倍率。`CameraPanCmPerSec` 是镜头键盘/边缘平移速度 cm/s，合法域为 900–3600 的有限值，默认 1800（非平衡测试值）；设置页以 300 cm/s 步进、确认即应用。`MinimapOrientation` 为跟随镜头（默认，用户决定）、跟随角色朝向（无身体时同跟随镜头）或固定正北（世界 −Y 朝上、+X 朝右）；三种都只是真实俯视的旋转加统一缩放，不镜像。`bQuickCast` 默认关闭；打开后由 Combat 对光标下合法单位或光标方向施放。当前 schema 16 保存，schema 5–15 显式迁移，旧 Zoom 必须先满足原范围（schema 5–11 为 1100–1700，schema 12 为 1100–1900，schema 13–15 为当前范围），低于当前最小值 1300 的调整为 1300 并提示，其余原值保留，包括 1400、1850；不自动覆盖用户偏好。缺失的平移速度取默认 1800、朝向取跟随镜头、快速施法关闭；仅 schema 5–10 可按操作域规则补缺失 Dash，schema 11 不补；schema 5–13 可补缺失的 Scoreboard（Tab），schema 14 不补；schema 5–15 可补缺失的试玩标记 Mark（F9），schema 16 不补。越界或非有限值按损坏拒绝。镜头不授予视野。 |
+| 镜头/文字 / 同类 | `bEdgePan, bStartFollowing, Zoom, TextScale, CameraPanCmPerSec, MinimapOrientation, bQuickCast, bAutoAttackAfterCast`；缩放上下限、步长和边缘带比例由操作域定义，不是设置项 | Zoom 是厘米臂长，默认 2250、范围 1300–2400、步长 80；“采用推荐镜头”只改 Zoom，不改变其他偏好或姓名。TextScale 是倍率。`CameraPanCmPerSec` 是镜头键盘/边缘平移速度 cm/s，合法域为 900–3600 的有限值，默认 1800（非平衡测试值）；设置页以 300 cm/s 步进、确认即应用。`MinimapOrientation` 为跟随镜头（默认，用户决定）、跟随角色朝向（无身体时同跟随镜头）或固定正北（世界 −Y 朝上、+X 朝右）；三种都只是真实俯视的旋转加统一缩放，不镜像。`bQuickCast` 默认关闭；打开后由 Combat 对光标下合法单位或光标方向施放。`bAutoAttackAfterCast` 默认开启，见操作与选择 §施法后自动攻击。当前 schema 18 保存，schema 5–17 显式迁移，旧 Zoom 必须先满足原范围（schema 5–11 为 1100–1700，schema 12 为 1100–1900，schema 13–15 为当前范围），低于当前最小值 1300 的调整为 1300 并提示，其余原值保留，包括 1400、1850；不自动覆盖用户偏好。缺失的平移速度取默认 1800、朝向取跟随镜头、快速施法关闭、施法后自动攻击开启；仅 schema 5–10 可按操作域规则补缺失 Dash，schema 11 不补；schema 5–13 可补缺失的 Scoreboard（Tab），schema 14 不补；schema 5–15 可补缺失的试玩标记 Mark（F9），schema 16 不补。越界或非有限值按损坏拒绝。镜头不授予视野。 |
 | 诊断 / `ULDControlSettings` | `bShowNetworkDiagnostics, bShowFPS`，分别保存、默认关闭 | 设置页“界面”分类下的两个开关立即应用并保存，不属于待应用的显示草稿。HUD 右上角分别显示连接 RTT/抖动/收发丢包/未收包时长/本人移动校正，以及 FPS/平均帧耗时/窗口峰值；数据来源与缺失状态见 [视野与 UI](../systems/VISION_AND_UI.md#ui-只读模型)。恢复默认关闭两项，schema 5–14 迁移也关闭两项，保留其余已验证偏好。 |
 | 显示/画质 / `UGameUserSettings` | VSync、整体画质预设 | 游戏只以无边框全屏、桌面分辨率运行（#98，用户决定：“remove window display settings at all and make it full screen only”，选定无边框桌面分辨率），设置页没有窗口模式、分辨率或保留/回滚试用。VSync/画质留在草稿，明确 Apply 后立即应用并保存。不建庞大高级渲染中心，游戏仍不暂停。 |
 | 音量 / 本地偏好 + Engine 声音分组 | 单一 `MasterVolume`，无量纲 0..1 | 本 Demo 声音统一经 Master SoundClass/SoundMix 生效，不修改共享 CDO；应用后实际音频响应。没有音频消费者时不把滑条当完成。 |
-| 恢复默认 | 按设置页当前分类：画面（VSync、整体画质）、音频（主音量）、操作（全部按键、快速施法）、镜头（Zoom、边缘平移、开局跟随、平移速度）、界面（文字、小地图朝向、两个诊断开关） | 已实现：底栏“恢复本页默认”先在确认卡列出本页将恢复的默认值，并说明其他页、名称与本局进度不变；确认后才执行。偏好分类经 `ULDControlSettings::ResetPreferenceGroup` 只还原该组并立即应用、保存（四组合起来正好是 `ResetLocalDefaults`，由 `Lockdown.Rules.LocalSettingsPreferenceGroups` 覆盖）。画面分类把显示草稿设为产品默认（临时对象 `SetToDefaults` 的整体画质，VSync 取 `r.VSync` 引擎默认）并随即应用（渲染比例同时回到项目默认，不需重启），替换未应用的草稿，已是默认则说明且不应用。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
+| 恢复默认 | 按设置页当前分类：画面（VSync、整体画质）、音频（主音量）、操作（全部按键、快速施法、施法后自动攻击）、镜头（Zoom、边缘平移、开局跟随、平移速度）、界面（文字、小地图朝向、两个诊断开关） | 已实现：底栏“恢复本页默认”先在确认卡列出本页将恢复的默认值，并说明其他页、名称与本局进度不变；确认后才执行。偏好分类经 `ULDControlSettings::ResetPreferenceGroup` 只还原该组并立即应用、保存（四组合起来正好是 `ResetLocalDefaults`，由 `Lockdown.Rules.LocalSettingsPreferenceGroups` 覆盖）。画面分类把显示草稿设为产品默认（临时对象 `SetToDefaults` 的整体画质，VSync 取 `r.VSync` 引擎默认）并随即应用（渲染比例同时回到项目默认，不需重启），替换未应用的草稿，已是默认则说明且不应用。不把 `ResetToCurrentSettings` 当“恢复产品默认”。 |
 
 本地操作明确区分 **EditingDraft → ConfirmedApplied → PersistenceVerified**；
 本地设置在明确 Apply 后直接进入 ConfirmedApplied。

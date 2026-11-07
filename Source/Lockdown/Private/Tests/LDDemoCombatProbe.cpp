@@ -251,8 +251,16 @@ public:
     FString FlightError;
     int32 ProjectileSamples = 0;
     bool bBoltHeading = true, bCastCueSeen = false, bBoltLanded = false;
+    bool bShieldCaptured = false;
     double SkillGapCm = 0, ReachHitCm = 0;
-    FLDMoveIdentity ReachOrder;
+    FLDMoveIdentity ReachOrder, HostCastOrder;
+    FGuid HostCastTarget;
+    uint32 HostCastTargetEpoch = 0;
+    enum class EFollowUpStep : uint8 { Start, AwaitAttack, AwaitRefusal, AwaitFollowUp, Return };
+    EFollowUpStep FollowUpStep = EFollowUpStep::Start;
+    FLDMoveIdentity FollowUpAttack, FollowUpQueued, FollowUpRefused, FollowUpCast;
+    FGuid FollowUpTarget, QueuedTarget;
+    uint32 FollowUpTargetEpoch = 0;
     // Client1, on its walk to the skill site: a ground order to a detour waypoint, then a Shift-queued order to the
     // site over the owning connection. The queued step must wait for the first one's arrival, then run to the site.
     enum class EQueueStep : uint8 { Send, Walking, Done };
@@ -1501,19 +1509,137 @@ public:
         return true;
     }
 
-    // The snark bolt flies along this owner's aim at the Host's observed feet.
+    // Exercise a retained accepted target across the owning connection before the snark bolt is aimed at the Host.
     bool TickThrow(double Now, ALDPlayerController& PC)
     {
+        ULDNavigationComponent& Nav = *PC.Navigation;
+        if (FollowUpStep == EFollowUpStep::Return)
+        {
+            if (const FLDCombatActionReceipt* Refused = Refusal(PC))
+            {
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
+            }
+            if (!Exists(TEXT("HostBoltLanded.json")))
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+                return Fail(TEXT("Skills"), TEXT("The Host did not observe the snark bolt landing"));
+            }
+            bool bArrived = false;
+            if (!Walk(Now, PC, ClientSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+            if (bArrived)
+            {
+                if (!Mark(TEXT("Client1FollowUpDone.json"))) { return Finish(); }
+                SetStage(EStage::SkillsDone);
+            }
+            return true;
+        }
+
+        const FLDOrderReceipt& Latest = Nav.LatestReceipt();
+        if (FollowUpStep == EFollowUpStep::AwaitFollowUp)
+        {
+            if (const FLDCombatActionReceipt* Refused = Refusal(PC))
+            {
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
+            }
+            if (Latest.Identity == FollowUpCast && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled))
+            {
+                return Fail(TEXT("CastFollowUp"), TEXT("Client1's point-cast order ended without a cast: ") + Nav.Status);
+            }
+            const FLDMoveIdentity Automatic = Nav.LocalIdentity();
+            if (Automatic.Order > FollowUpCast.Order && Nav.ClientActive == Automatic
+                && Nav.ActiveKind == ELDSpatialOrderKind::AttackUnit)
+            {
+                const auto* Sent = Nav.SentAttackTargets.FindByPredicate([&Automatic](const ULDNavigationComponent::FAttackIntent& Attack)
+                { return Attack.Identity == Automatic; });
+                if (!Check(Nav.PredictedIdentity() == Automatic && Sent && Sent->Observed == FollowUpTarget
+                    && Sent->ObservationEpoch == FollowUpTargetEpoch, TEXT("CastFollowUp"),
+                    TEXT("The owning client resumes its accepted attack on the Host after a direction CastPoint")))
+                { return Finish(); }
+                // Stop the follow-up order without cancelling the already admitted bolt; the Host observes its landing.
+                Nav.Stop();
+                NavigateAttempts = 0;
+                FollowUpStep = EFollowUpStep::Return;
+                StageAt = Now;
+                return true;
+            }
+            if (Automatic.Order > FollowUpCast.Order && Latest.Identity == Automatic && Latest.Status == ELDOrderStatus::Rejected)
+            {
+                return Fail(TEXT("CastFollowUp"), TEXT("The automatic attack was refused: ") + Nav.Status);
+            }
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            return Fail(TEXT("CastFollowUp"), TEXT("Client1 did not receive an activated automatic attack after its point cast"));
+        }
+
         const FLDWorldView* Frame = LDDemoCombatScenario::CombatProbeFrame(PC);
         const FLDObservedUnitView* Target = Frame ? LDDemoCombatScenario::CombatProbeContender(*Frame, HostId) : nullptr;
         const ELDCombatEntry Bolt = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(false).Last());
         const FLDCombatEntryView* Row = PC.CombatView.Entries.FindByPredicate([Bolt](const FLDCombatEntryView& Entry) { return Entry.Entry == Bolt; });
         const ALDCharacter* Own = Cast<ALDCharacter>(PC.GetPawn());
-        if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own)
+        if (FollowUpStep == EFollowUpStep::Start)
         {
-            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt never became castable at a visible Host (unavailable=%d)"),
-                Row ? int32(Row->Unavailable) : -1));
+            if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt never became castable at a visible Host (unavailable=%d)"),
+                    Row ? int32(Row->Unavailable) : -1));
+            }
+            if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast(), TEXT("CastFollowUp"),
+                TEXT("The owning client's default enables auto attack after casts"))) { return Finish(); }
+            FollowUpTarget = Target->Handle;
+            FollowUpTargetEpoch = Target->ObservationEpoch;
+            Nav.AttackUnit(FollowUpTarget, FollowUpTargetEpoch);
+            FollowUpAttack = Nav.LocalIdentity();
+            FollowUpStep = EFollowUpStep::AwaitAttack;
+            StageAt = Now;
+            return true;
+        }
+
+        if (FollowUpStep == EFollowUpStep::AwaitAttack)
+        {
+            if (Latest.Identity == FollowUpAttack && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled))
+            {
+                return Fail(TEXT("CastFollowUp"), TEXT("Client1's initial attack was refused: ") + Nav.Status);
+            }
+            if (Nav.ClientActive != FollowUpAttack || Nav.ActiveKind != ELDSpatialOrderKind::AttackUnit)
+            {
+                if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+                return Fail(TEXT("CastFollowUp"), TEXT("Client1's initial attack never activated"));
+            }
+            // A distinct, deliberately stale observation is queued behind the live Host target. The mismatched unit
+            // aim for the direction skill is then refused at receipt, preserving both the active order and the queue.
+            QueuedTarget = FGuid::NewGuid();
+            Nav.AttackUnit(QueuedTarget, 1, true);
+            FollowUpQueued = Nav.LocalIdentity();
+            FLDCombatTarget RefusedAim;
+            RefusedAim.Kind = ELDCombatTargetKind::Unit;
+            RefusedAim.Observed = QueuedTarget;
+            RefusedAim.ObservationEpoch = 1;
+            if (!ArmAndConfirm(PC, Bolt, RefusedAim)) { return Finish(); }
+            FollowUpRefused = Nav.LocalIdentity();
+            if (!Check(FollowUpQueued.Order > FollowUpAttack.Order && FollowUpRefused.Order > FollowUpQueued.Order,
+                TEXT("CastFollowUp"), TEXT("A queued stale attack and mismatched cast follow the accepted attack")))
+            { return Finish(); }
+            FollowUpStep = EFollowUpStep::AwaitRefusal;
+            StageAt = Now;
+            return true;
+        }
+
+        const FLDCombatActionReceipt* Refused = Refusal(PC);
+        if (Nav.LocalIdentity() != FollowUpRefused || Nav.bLocalPending || !Refused)
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            return Fail(TEXT("CastFollowUp"), TEXT("Client1 did not receive the deliberately refused cast"));
+        }
+        const auto* Queued = Nav.SentAttackTargets.FindByPredicate([this](const ULDNavigationComponent::FAttackIntent& Attack)
+        { return Attack.Identity == FollowUpQueued; });
+        if (!Check(Refused->Reject == ELDCombatReject::SourceUnavailable && !Nav.CastFollowUp.Identity.Order
+            && Queued && Queued->Observed == QueuedTarget
+            && Nav.ClientActive == FollowUpAttack && Nav.PredictedIdentity() == FollowUpAttack,
+            TEXT("CastFollowUp"), TEXT("A refused cast and queued stale attack leave the Host attack active")))
+        { return Finish(); }
+        if (!Target || Target->Handle != FollowUpTarget || Target->ObservationEpoch != FollowUpTargetEpoch || !Row || !Own)
+        {
+            return Fail(TEXT("CastFollowUp"), TEXT("The original Host target is no longer visible for the point cast"));
         }
         const FVector Direction = (FVector(Target->FeetCm) - ALDCombatDirector::FootOf(*Own)).GetSafeNormal2D();
         if (Direction.IsNearlyZero())
@@ -1523,8 +1649,13 @@ public:
         FLDCombatTarget Aim;
         Aim.Kind = ELDCombatTargetKind::Direction;
         Aim.Direction = Direction;
-        if (!ArmAndConfirm(PC, Bolt, Aim)) { return Finish(); }
-        SetStage(EStage::SkillsDone);
+        const FVector Point = FVector(Target->FeetCm);
+        if (!ArmAndConfirm(PC, Bolt, Aim, &Point)) { return Finish(); }
+        FollowUpCast = Nav.LocalIdentity();
+        if (!Check(FollowUpCast.Order > FollowUpRefused.Order, TEXT("CastFollowUp"),
+            TEXT("The direction aim sends a new point-cast order"))) { return Finish(); }
+        FollowUpStep = EFollowUpStep::AwaitFollowUp;
+        StageAt = Now;
         return true;
     }
 
@@ -1823,7 +1954,7 @@ public:
     }
 
     // Arms a learned Q/W entry through its hotkey path and confirms it on an explicit aim; false when it cannot arm.
-    bool ArmAndConfirm(ALDPlayerController& PC, ELDCombatEntry Entry, const FLDCombatTarget& Aim)
+    bool ArmAndConfirm(ALDPlayerController& PC, ELDCombatEntry Entry, const FLDCombatTarget& Aim, const FVector* AimCm = nullptr)
     {
         ELDCombatEntry Armed = ELDCombatEntry::None;
         PC.ActivateCombatEntry(Entry);
@@ -1833,7 +1964,7 @@ public:
             return false;
         }
         ReceiptSerialBefore = PC.CombatReceipts.Serial();
-        return Check(PC.ConfirmArmedEntry(Aim), TEXT("Skills"), TEXT("The armed entry confirms on its aim"));
+        return Check(PC.ConfirmArmedEntry(Aim, AimCm), TEXT("Skills"), TEXT("The armed entry confirms on its aim"));
     }
 
     // The server's refusal of the cast confirmed last; null while it is not refused.
@@ -1871,6 +2002,9 @@ public:
         Aim.ObservationEpoch = Target->ObservationEpoch;
         HitBeforeMs = Victim->Cues.LastHitAtMs;
         if (!ArmAndConfirm(PC, Snare, Aim)) { return Finish(); }
+        HostCastOrder = PC.Navigation->LocalIdentity();
+        HostCastTarget = Target->Handle;
+        HostCastTargetEpoch = Target->ObservationEpoch;
         SetStage(EStage::Rooting);
         return true;
     }
@@ -1895,15 +2029,43 @@ public:
         const FLDObservedStatus* Root = Target ? LDDemoCombatScenario::CombatProbeStatus(Target->Statuses, ELDDemoStatusId::Root) : nullptr;
         const ALDCharacter* Other = ClientBody(Mode);
         const FLDBodyCombatState* Victim = Other ? Mode.Combat->StateFor(Other) : nullptr;
-        if (!Root || !Victim)
+        ULDNavigationComponent& Nav = *PC.Navigation;
+        const FLDMoveIdentity Automatic = Nav.LocalIdentity();
+        const bool bAttackActive = Automatic.Order > HostCastOrder.Order && Nav.ClientActive == Automatic
+            && Nav.ActiveKind == ELDSpatialOrderKind::AttackUnit;
+        if (!Root || !Victim || !bAttackActive)
         {
             if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-            return Fail(TEXT("Skills"), TEXT("The Host never observed the snare's root on Client1"));
+            return Fail(TEXT("CastFollowUp"), TEXT("The Host did not observe both the snare root and its automatic attack"));
         }
         Check(Victim->Cues.LastHitAtMs > HitBeforeMs && Root->ExpiresAtServerMs > Victim->Cues.LastHitAtMs, TEXT("Skills"),
             TEXT("The snare lands on Client1 and the Host's observation frame shows its root with the server deadline"),
             FString::Printf(TEXT("hit_ms=%lld root_until_ms=%lld"), Victim->Cues.LastHitAtMs, Root->ExpiresAtServerMs));
         if (!Passed) { return Finish(); }
+        const auto* Sent = Nav.SentAttackTargets.FindByPredicate([&Automatic](const ULDNavigationComponent::FAttackIntent& Attack)
+        { return Attack.Identity == Automatic; });
+        if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast() && Sent && Sent->Observed == HostCastTarget
+            && Sent->ObservationEpoch == HostCastTargetEpoch, TEXT("CastFollowUp"),
+            TEXT("The Listen Host's unit cast starts an accepted attack on its target"))) { return Finish(); }
+
+        const ELDCombatEntry Snare = EntryOf(PC, LDDemoCombatScenario::CombatProbeSkillPlan(true)[1]);
+        FLDCombatTarget RefusedAim;
+        RefusedAim.Kind = ELDCombatTargetKind::Unit;
+        RefusedAim.Observed = FGuid::NewGuid();
+        RefusedAim.ObservationEpoch = 1;
+        if (!ArmAndConfirm(PC, Snare, RefusedAim)) { return Finish(); }
+        const FLDOrderReceipt Refused = Nav.LatestReceipt();
+        FGuid Prior;
+        uint32 PriorEpoch = 0;
+        FLDCombatActionRequest PointCast;
+        Nav.PrepareCastFollowUp(ELDSpatialOrderKind::CastPoint, PointCast, false, Prior, PriorEpoch);
+        if (!Check(Refused.Identity == Nav.LocalIdentity() && Refused.Status == ELDOrderStatus::Rejected
+            && Refused.Failure == ELDOrderFailure::CastRefused && !Nav.CastFollowUp.Identity.Order
+            && Nav.PredictedIdentity() == Automatic && Prior == HostCastTarget && PriorEpoch == HostCastTargetEpoch,
+            TEXT("CastFollowUp"), TEXT("A synchronous refused cast leaves no follow-up and preserves the accepted attack")))
+        { return Finish(); }
+        Nav.Stop();
+        NavigateAttempts = 0;
         BeginShot(TEXT("HostSees-Root.png"), [this](FString& Facts) { return ShowsClient(ELDDemoStatusId::Root, false, Facts); },
             LDDemoCombatScenario::CombatProbeSkillSeconds);
         return true;
@@ -1915,6 +2077,13 @@ public:
         {
             if (ShotPending()) { return true; }
             if (!ShotSaved(TEXT("Client1's shield after its dispelled root"))) { return Finish(); }
+            bShieldCaptured = true;
+        }
+        if (bShieldCaptured)
+        {
+            bool bArrived = false;
+            if (!Walk(Now, PC, HostSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
+            if (!bArrived) { return true; }
             // Client1's bolt targets the Host: its own authority body is the baseline, and the flight is sampled and
             // captured on every frame until it lands.
             const FLDBodyCombatState* Own = AuthorityState(Mode, &PC);
@@ -2010,11 +2179,20 @@ public:
                 TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing Hit cue or its on-time expiry"), Detail);
             if (!Passed) { return Finish(); }
             bBoltLanded = true;
+            if (!Mark(TEXT("HostBoltLanded.json"))) { return Finish(); }
             // The landed flight leaves the frame at the next publication at the latest.
             if (Shot) { Shot->Deadline = FMath::Min(Shot->Deadline, FPlatformTime::Seconds() + 1.0); }
         }
-        if (ShotPending()) { return true; }
-        if (!ShotSaved(TEXT("Client1's chalk in flight on its own observation frame"))) { return Finish(); }
+        if (Shot)
+        {
+            if (ShotPending()) { return true; }
+            if (!ShotSaved(TEXT("Client1's chalk in flight on its own observation frame"))) { return Finish(); }
+        }
+        if (!Exists(TEXT("Client1FollowUpDone.json")))
+        {
+            if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+            return Fail(TEXT("CastFollowUp"), TEXT("Client1 did not finish its follow-up check and return to its site"));
+        }
         SetStage(EStage::Reach);
         return true;
     }

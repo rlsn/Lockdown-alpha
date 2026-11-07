@@ -345,6 +345,9 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
             // to arming when no unit is pointed.
             AddRow(Tree,Content,TEXT("快速施法"),TEXT("按技能键立即对指针下的单位或指针方向施放；未指向单位时照常瞄准。"),
                 Switch(Tree,TEXT("ToggleQuickCast"),[this](){ChangePreference([](auto& S){S.bQuickCast=!S.bQuickCast;});}));
+            // Auto attack after cast (on by default): a completed Q/W cast order continues with an ordinary attack order.
+            AddRow(Tree,Content,TEXT("施法后自动攻击"),TEXT("技能施放完成后继续攻击：对单位技能攻击其目标；对地面/方向技能恢复攻击施法前的可见目标。"),
+                Switch(Tree,TEXT("ToggleAutoAttackAfterCast"),[this](){ChangePreference([](auto& S){S.bAutoAttackAfterCast=!S.bAutoAttackAfterCast;});}));
             AddSection(Tree,Content,TEXT("按键"));
             Content->AddChildToVerticalBox(Text(Tree,TEXT("点击右侧按键框，再按下新的键盘按键或鼠标按键即可更改；Esc 取消。"),NoteSize,LDHUDStyle::TextSecondary))
                 ->SetPadding(FMargin(6,0,6,6));
@@ -490,6 +493,7 @@ void ULDControlsPanel::PopulatePreferences()
 {
     const auto& Applied=*CastChecked<ALDPlayerController>(GetOwningPlayer())->Controls;
     SetSwitch(WidgetTree,TEXT("ToggleQuickCast"),Applied.GetQuickCast());
+    SetSwitch(WidgetTree,TEXT("ToggleAutoAttackAfterCast"),Applied.GetAutoAttackAfterCast());
     SetSwitch(WidgetTree,TEXT("ToggleEdgePan"),Applied.bEdgePan);
     SetSwitch(WidgetTree,TEXT("ToggleStartFollow"),Applied.bStartFollowing);
     SetSwitch(WidgetTree,TEXT("ToggleNetworkDiagnostics"),Applied.bShowNetworkDiagnostics);
@@ -627,7 +631,7 @@ void ULDControlsPanel::AskReset()
     case ECategory::Audio:
         Scope=FString::Printf(TEXT("主音量 %d%%。"),FMath::RoundToInt(100*Defaults->MasterVolume));break;
     case ECategory::Controls:
-        Scope=FString::Printf(TEXT("全部按键恢复为默认键，快速施法 %s。"),OnOff(Defaults->bQuickCast));break;
+        Scope=FString::Printf(TEXT("全部按键恢复为默认键，快速施法 %s，施法后自动攻击 %s。"),OnOff(Defaults->bQuickCast),OnOff(Defaults->bAutoAttackAfterCast));break;
     case ECategory::Camera:
         Scope=FString::Printf(TEXT("镜头距离 %.0f 厘米、边缘平移 %s、开局镜头跟随 %s、镜头平移速度 %.0f cm/s。"),
             Defaults->Zoom,OnOff(Defaults->bEdgePan),OnOff(Defaults->bStartFollowing),Defaults->CameraPanCmPerSec);break;

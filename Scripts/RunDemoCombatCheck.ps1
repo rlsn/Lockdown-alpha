@@ -28,8 +28,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report each check group it owns; a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection','Skills','Render','Feel','Pointer')
-    Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection','Skills','Feel','Queue')
+    Host = @('Net','Start','ChaseGoal','AttackMove','Stop','Death','Respawn','Protection','Skills','CastFollowUp','Render','Feel','Pointer')
+    Client1 = @('Net','Start','Settings','AttackMove','Stop','Death','DeathCamera','Respawn','Protection','Skills','CastFollowUp','Feel','Queue')
 }
 # Only the Host runs the DEV growth fixture: it presets offers and grants XP on its authority, with no RPC.
 $fixtureSwitch = '-LDDevGrowthFixture'
@@ -136,7 +136,8 @@ try {
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
         "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then skills learned by ordinary " +
         "choices of DEV-fixture-preset offers: active_pants_down root observed, advanced active_not_mad shield and dispel, " +
-        "Client1's active_snark_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), an attr_hand_out basic " +
+        "Client1's active_snark_bolt hitting the Host ($($hostReport.projectile_samples) flight samples), Host and Client1 " +
+        "cast follow-up and refused-cast tracking, an attr_hand_out basic " +
         "hit at $($hostReport.reach_hit_cm) cm.$impairment " +
         "DEV growth fixture: Host only ($fixtureSwitch). Rendered Host captures for presentation review (not pixel-compared): " +
         "$captures. Not camps, AI, capture or full-match acceptance. Evidence: $output")

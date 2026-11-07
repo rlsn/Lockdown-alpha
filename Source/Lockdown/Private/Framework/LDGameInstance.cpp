@@ -295,6 +295,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
             LocalControlSettings->MinimapOrientation = Loaded.RecoverablePreferences->MinimapOrientation;
             LocalControlSettings->bQuickCast = Loaded.RecoverablePreferences->bQuickCast;
+            LocalControlSettings->bAutoAttackAfterCast = Loaded.RecoverablePreferences->bAutoAttackAfterCast;
             LocalControlSettings->bShowNetworkDiagnostics = Loaded.RecoverablePreferences->bShowNetworkDiagnostics;
             LocalControlSettings->bShowFPS = Loaded.RecoverablePreferences->bShowFPS;
         }

@@ -1,6 +1,10 @@
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Combat/LDCombatPreInput.h"
 #include "Framework/LDPlayerController.h"
+#include "UI/LDControlSettings.h"
+#include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Misc/ScopeExit.h"
 
@@ -207,6 +211,166 @@ bool FLDControlFeelRefusedSkillKeepsOrderTest::RunTest(const FString& Parameters
     }
     TestTrue(TEXT("A refused cast step moves on to the next queued step instead of dropping the queue"),
         QueueAfter(ELDOrderFailure::CastRefused) == EQueueAfter::Next);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelAutoAttackAfterCastTest, "Lockdown.Rules.DemoControlFeel.AutoAttackAfterCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelAutoAttackAfterCastTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOrderRules;
+    // #167 user decisions: a unit skill continues with an attack on its target; a ground/direction skill resumes the unit
+    // the body was attacking before the cast while it is still visible, otherwise the body stands; the setting is on by
+    // default and off restores the plain stand-after-cast behaviour.
+    const FGuid SkillTarget = FGuid::NewGuid(), Prior = FGuid::NewGuid();
+    auto Input = [&](ELDSpatialOrderKind Kind, bool bEnabled, bool bQueued, bool bPriorCurrent)
+    {
+        FCastFollowUpInput In;
+        In.bEnabled = bEnabled;
+        In.bQueued = bQueued;
+        In.CastKind = Kind;
+        In.CastTarget = Kind == ELDSpatialOrderKind::CastUnit ? SkillTarget : FGuid();
+        In.CastEpoch = Kind == ELDSpatialOrderKind::CastUnit ? 7 : 0;
+        In.bPriorAttackCurrent = bPriorCurrent;
+        In.PriorTarget = Prior;
+        In.PriorEpoch = 3;
+        return In;
+    };
+    FGuid Target;
+    uint32 Epoch = 0;
+    TestTrue(TEXT("On: a unit skill continues with an attack on its own target"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastUnit, true, false, true), Target, Epoch) && Target == SkillTarget && Epoch == 7);
+    TestTrue(TEXT("On: a ground/direction skill resumes the unit attacked before the cast"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastPoint, true, false, true), Target, Epoch) && Target == Prior && Epoch == 3);
+    TestFalse(TEXT("On: a ground/direction skill without a current attack stands"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastPoint, true, false, false), Target, Epoch));
+    TestTrue(TEXT("No follow-up leaves no target"), !Target.IsValid() && Epoch == 0);
+    for (const ELDSpatialOrderKind Kind : {ELDSpatialOrderKind::CastUnit, ELDSpatialOrderKind::CastPoint})
+    {
+        TestFalse(TEXT("Off: no cast continues with an attack"), CastFollowUpTarget(Input(Kind, false, false, true), Target, Epoch));
+        TestFalse(TEXT("A Shift-queued cast never continues with an attack: the queue defines what follows"),
+            CastFollowUpTarget(Input(Kind, true, true, true), Target, Epoch));
+    }
+    FCastFollowUpInput Missing = Input(ELDSpatialOrderKind::CastUnit, true, false, true);
+    Missing.CastTarget.Invalidate();
+    TestFalse(TEXT("A unit skill without a resolved target has nothing to attack"), CastFollowUpTarget(Missing, Target, Epoch));
+    TestFalse(TEXT("Only cast orders carry a follow-up"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::AttackMove, true, false, true), Target, Epoch));
+
+    for (const ELDOrderStatus Running : {ELDOrderStatus::Queued, ELDOrderStatus::Activated, ELDOrderStatus::Progress})
+    {
+        TestTrue(TEXT("The follow-up waits while the cast order is queued or running"),
+            CastFollowUpStep(Running, ELDOrderFailure::None, true, true) == ECastFollowUp::Wait);
+    }
+    TestTrue(TEXT("A completed cast with a visible target attacks"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, true, true) == ECastFollowUp::Attack);
+    TestTrue(TEXT("A target no longer visible is not attacked: the body stands"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, true, false) == ECastFollowUp::Drop);
+    TestTrue(TEXT("A newer own order or Stop replaces the follow-up"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, false, true) == ECastFollowUp::Drop);
+    TestTrue(TEXT("A refused cast never continues with an attack"),
+        CastFollowUpStep(ELDOrderStatus::Rejected, ELDOrderFailure::CastRefused, true, true) == ECastFollowUp::Drop);
+    for (const ELDOrderFailure Failure : {ELDOrderFailure::CastRefused, ELDOrderFailure::Superseded, ELDOrderFailure::Stopped,
+        ELDOrderFailure::TargetDied})
+    {
+        TestTrue(FString::Printf(TEXT("A cast order cancelled by failure %u drops its follow-up"), uint32(Failure)),
+            CastFollowUpStep(ELDOrderStatus::Cancelled, Failure, true, true) == ECastFollowUp::Drop);
+        TestTrue(TEXT("A completion carrying a failure is no successful cast"),
+            CastFollowUpStep(ELDOrderStatus::Completed, Failure, true, true) == ECastFollowUp::Drop);
+    }
+
+    const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+    if (!TestNotNull(TEXT("Follow-up receipt fixture world"),World)) { return false; }
+    ON_SCOPE_EXIT { World->DestroyWorld(false); };
+    auto* PC=World->SpawnActor<ALDPlayerController>();
+    if (!TestNotNull(TEXT("Follow-up receipt controller"),PC)) { return false; }
+    PC->Player=NewObject<ULocalPlayer>(GEngine);
+    PC->Controls=NewObject<ULDControlSettings>(PC);
+    PC->OwnerState.Match=1;
+    PC->OwnerState.Life=1;
+    if (!TestTrue(TEXT("Receipts are applied on the owning controller"),PC->IsLocalController() && PC->GetLocalPlayer())) { return false; }
+    ULDNavigationComponent& Nav=*PC->Navigation;
+    uint64 ReceiptSerial=0;
+    const auto Receive=[&](const FLDSpatialOrderRequest& Request, ELDOrderStatus Status, ELDOrderFailure Failure)
+    {
+        FLDOrderReceipt Receipt;
+        Receipt.Identity=Request.Identity;
+        Receipt.Kind=Request.Kind;
+        Receipt.Status=Status;
+        Receipt.Failure=Failure;
+        Receipt.ReceiptSerial=++ReceiptSerial;
+        Nav.ClientOrderReceipt_Implementation(Receipt);
+    };
+    const auto Remember=[&](const FLDSpatialOrderRequest& Request, const FGuid& FollowUp=FGuid(), uint32 FollowUpEpoch=0,
+        bool bAutomatic=false)
+    {
+        Nav.Local=Request.Identity;
+        Nav.RememberSentOrder(Request,FollowUp,FollowUpEpoch,bAutomatic);
+    };
+    FLDSpatialOrderRequest AttackA;
+    AttackA.Identity={1,1,1,1};
+    AttackA.Kind=ELDSpatialOrderKind::AttackUnit;
+    AttackA.Observed=SkillTarget;
+    AttackA.ObservationEpoch=7;
+    Remember(AttackA);
+    FLDCombatActionRequest PointCast;
+    const auto PreparePoint=[&]()
+    { Nav.PrepareCastFollowUp(ELDSpatialOrderKind::CastPoint,PointCast,false,Target,Epoch); };
+    PreparePoint();
+    TestFalse(TEXT("An attack without an activation receipt is not yet the current attack"),Target.IsValid());
+    Receive(AttackA,ELDOrderStatus::Activated,ELDOrderFailure::None);
+
+    FLDSpatialOrderRequest AttackB=AttackA;
+    AttackB.Identity.Order=2;
+    AttackB.Observed=Prior;
+    AttackB.ObservationEpoch=3;
+    AttackB.bQueue=true;
+    Remember(AttackB);
+    Receive(AttackB,ELDOrderStatus::Queued,ELDOrderFailure::None);
+    PreparePoint();
+    TestTrue(TEXT("A queued attack on B does not replace the accepted attack on A"),
+        Target==SkillTarget && Epoch==7);
+
+    FLDSpatialOrderRequest RefusedCast;
+    RefusedCast.Identity={1,1,3,1};
+    RefusedCast.Kind=ELDSpatialOrderKind::CastUnit;
+    Remember(RefusedCast,Prior,3);
+    Receive(RefusedCast,ELDOrderStatus::Rejected,ELDOrderFailure::CastRefused);
+    PreparePoint();
+    TestTrue(TEXT("A synchronous or remote cast refusal clears only that cast and retains the accepted attack on A"),
+        !Nav.CastFollowUp.Identity.Order && Nav.ClientActive==AttackA.Identity && Target==SkillTarget && Epoch==7);
+    Receive(AttackB,ELDOrderStatus::Rejected,ELDOrderFailure::QueueFull);
+    PreparePoint();
+    TestTrue(TEXT("A rejected queued attack cannot erase the accepted target"),Target==SkillTarget && Epoch==7);
+
+    AttackB.Identity.Order=4;
+    Remember(AttackB);
+    Receive(AttackB,ELDOrderStatus::Queued,ELDOrderFailure::None);
+    Receive(AttackA,ELDOrderStatus::Completed,ELDOrderFailure::TargetDied);
+    Receive(AttackB,ELDOrderStatus::Activated,ELDOrderFailure::None);
+    PreparePoint();
+    TestTrue(TEXT("Once the queued attack activates, B becomes the accepted target"),Target==Prior && Epoch==3);
+    Nav.Local={1,1,5,2};
+    Nav.bLocalStop=true;
+    PreparePoint();
+    TestFalse(TEXT("A newer Stop epoch cannot revive the previous accepted attack"),Target.IsValid());
+    Nav.ResetLife();
+    TestTrue(TEXT("A new life discards every remembered target and follow-up"),
+        Nav.SentAttackTargets.IsEmpty() && !Nav.CastFollowUp.Identity.Order && !Nav.AutoAttackIdentity.Order);
+
+    FLDSpatialOrderRequest AutoAttack=AttackA;
+    AutoAttack.Identity={1,1,6,2};
+    const uint32 NoticeBefore=PC->FeedbackSerial();
+    Remember(AutoAttack,FGuid(),0,true);
+    Receive(AutoAttack,ELDOrderStatus::Rejected,ELDOrderFailure::TargetUnavailable);
+    TestEqual(TEXT("An immediate automatic-attack refusal does not post an extra notice"),PC->FeedbackSerial(),NoticeBefore);
+    AutoAttack.Identity.Order=7;
+    Remember(AutoAttack);
+    Receive(AutoAttack,ELDOrderStatus::Rejected,ELDOrderFailure::TargetUnavailable);
+    TestEqual(TEXT("An ordinary attack refusal still posts its notice"),PC->FeedbackSerial(),NoticeBefore+1);
     return true;
 }
 

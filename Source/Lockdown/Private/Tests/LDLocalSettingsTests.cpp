@@ -69,6 +69,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 MarklessFixtureSchema = 15;
     // Schema 16 writes the current layout; its key list still holds the retired equipment-active keys Item1/Item2.
     constexpr uint32 ItemKeysFixtureSchema = 16;
+    // Schema 17 writes every current preference except the auto attack after a cast.
+    constexpr uint32 AutoAttacklessFixtureSchema = 17;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -89,6 +91,7 @@ constexpr uint32 NearZoomFixtureSchema = 12;
         { uint8 Quick = Values.bQuickCast ? 1 : 0; Payload << Quick; }
         if (Schema > DiagnosticslessFixtureSchema)
         { uint8 Network=Values.bShowNetworkDiagnostics?1:0, FPS=Values.bShowFPS?1:0; Payload << Network << FPS; }
+        if (Schema > AutoAttacklessFixtureSchema) { uint8 AutoAttack = Values.bAutoAttackAfterCast ? 1 : 0; Payload << AutoAttack; }
         Payload << Count;
         for (const auto& Pair : Values.Bindings)
         {
@@ -1422,6 +1425,63 @@ bool FLDLocalSettingsQuickCastTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// #167: the auto attack after a cast is a saved local control preference, on by default.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsAutoAttackAfterCastTest, "Lockdown.Rules.LocalSettingsAutoAttackAfterCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsAutoAttackAfterCastTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes) { return TestTrue(TEXT("Write explicit auto attack fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    FString Error;
+    auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
+    TestTrue(TEXT("Auto attack after a cast is on by default"),
+        Applied->GetAutoAttackAfterCast() && GetDefault<ULDControlSettings>()->bAutoAttackAfterCast);
+    auto* Draft = Applied->CreateDraft();
+    Draft->bAutoAttackAfterCast = false;
+    TestTrue(TEXT("Applying a draft turns it off"), Applied->ApplyLocalSettings(*Draft, Error) && !Applied->GetAutoAttackAfterCast());
+    TestTrue(TEXT("The choice is saved and verified from disk"), Applied->SaveLocalSettings().IsSaved());
+    const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A current-schema round trip restores the off choice"),
+        Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && !Loaded.Settings->GetAutoAttackAfterCast());
+
+    // A schema 17 file has no such field: it migrates with the setting on and keeps every other preference.
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->PlayerName = TEXT("王小明");
+    Values->bQuickCast = true;
+    Values->bAutoAttackAfterCast = false;
+    const auto Before = FixtureBytes(*Values, AutoAttacklessFixtureSchema, 0);
+    Write(Before);
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 17 file migrates with the auto attack on and its other preferences kept"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->GetAutoAttackAfterCast()
+        && Migrated.Settings->GetQuickCast() && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->IsDirty() && Migrated.Message.Contains(TEXT("施法后自动攻击默认开启")));
+    TArray<uint8> After;
+    TestTrue(TEXT("Loading a schema 17 file does not rewrite it"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+
+    // A stored flag other than 0 or 1 is malformed, never read as on.
+    TArray<uint8> Bad = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    Values->bAutoAttackAfterCast = true;
+    const TArray<uint8> Good = FixtureBytes(*Values, ULDControlSettings::CurrentSchema, 0);
+    int32 FlagAt = INDEX_NONE;
+    for (int32 Index = 12; Index < Good.Num() && Index < Bad.Num(); ++Index) { if (Good[Index] != Bad[Index]) { FlagAt = Index; break; } }
+    if (TestTrue(TEXT("The auto attack byte is located in the fixture"), FlagAt != INDEX_NONE))
+    {
+        Bad[FlagAt] = 2;
+        const uint32 Checksum = FCrc::MemCrc32(Bad.GetData() + 12, Bad.Num() - 12);
+        FMemory::Memcpy(Bad.GetData() + 8, &Checksum, sizeof(Checksum));
+        Write(Bad);
+        TestTrue(TEXT("A malformed auto attack flag is corrupt"), ULDControlSettings::LoadLocalSettings(Fixture.Storage).Status == ELDLocalSettingsLoadStatus::Corrupt);
+    }
+
+    auto* Reset = Applied->CreateDraft();
+    Reset->ResetPreferenceGroup(ELDPreferenceGroup::Controls);
+    TestTrue(TEXT("Restoring the controls group turns it back on"), Reset->bAutoAttackAfterCast);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsDashMigrationTest, "Lockdown.Rules.LocalSettingsDashMigration",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsDashMigrationTest::RunTest(const FString& Parameters)
@@ -1610,7 +1670,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 17);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 18);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1722,8 +1782,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 17"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 17);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 18"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 18);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom
@@ -1827,6 +1887,7 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
         Draft->PlayerName=TEXT("GroupPlayer");
         Draft->MasterVolume=.35f;
         Draft->bQuickCast=!Defaults->bQuickCast;
+        Draft->bAutoAttackAfterCast=!Defaults->bAutoAttackAfterCast;
         Draft->Zoom=1500;
         Draft->bEdgePan=!Defaults->bEdgePan;
         Draft->bStartFollowing=!Defaults->bStartFollowing;
@@ -1843,7 +1904,8 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
         switch(Group)
         {
         case ELDPreferenceGroup::Audio: return S.MasterVolume==Defaults->MasterVolume;
-        case ELDPreferenceGroup::Controls: return S.Key(TEXT("Stop"))==Stop->Key&&S.bQuickCast==Defaults->bQuickCast;
+        case ELDPreferenceGroup::Controls: return S.Key(TEXT("Stop"))==Stop->Key&&S.bQuickCast==Defaults->bQuickCast
+            &&S.bAutoAttackAfterCast==Defaults->bAutoAttackAfterCast;
         case ELDPreferenceGroup::Camera: return S.Zoom==Defaults->Zoom&&S.bEdgePan==Defaults->bEdgePan
             &&S.bStartFollowing==Defaults->bStartFollowing&&S.CameraPanCmPerSec==Defaults->CameraPanCmPerSec;
         case ELDPreferenceGroup::Interface: return S.TextScale==Defaults->TextScale&&S.MinimapOrientation==Defaults->MinimapOrientation
@@ -1875,6 +1937,7 @@ bool FLDLocalSettingsPreferenceGroupsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("All four groups together are exactly the complete local defaults"),
         Groupwise->Bindings.OrderIndependentCompareEqual(Complete->Bindings)
         &&Groupwise->MasterVolume==Complete->MasterVolume&&Groupwise->bQuickCast==Complete->bQuickCast
+        &&Groupwise->bAutoAttackAfterCast==Complete->bAutoAttackAfterCast
         &&Groupwise->Zoom==Complete->Zoom&&Groupwise->bEdgePan==Complete->bEdgePan&&Groupwise->bStartFollowing==Complete->bStartFollowing
         &&Groupwise->CameraPanCmPerSec==Complete->CameraPanCmPerSec&&Groupwise->TextScale==Complete->TextScale
         &&Groupwise->MinimapOrientation==Complete->MinimapOrientation&&Groupwise->bShowNetworkDiagnostics==Complete->bShowNetworkDiagnostics
