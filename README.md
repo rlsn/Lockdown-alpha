@@ -9,7 +9,7 @@
 
 ## 当前状态
 
-Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）→ 从零打野、对抗、
+Demo 的完整流程已经实现：前端建房或加入 → Lobby（Host 选 0–3 个对手 AI）→ 开局倒计时与方向卡三选一 → 从零打野、对抗、
 三选一与购物 → 旗杆开放后喷漆、守护与围攻 → 唯一结果 → Host 带房间回 Lobby 开新局。
 运行入口只有前端和唯一 Demo 地图，旧模式代码已经删除。
 
@@ -52,7 +52,7 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`，当前 269 项） | `.\Scripts\RunTests.ps1` |
+| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`） | `.\Scripts\RunTests.ps1` |
 | 开发中只跑相关规则测试（部分运行，不算门禁；节奏见[开发指南](docs/DEVELOPMENT.md#开发循环与验证节奏)） | `.\Scripts\RunTests.ps1 -Filter <测试路径前缀>…`；`-ImportTests Auto` 在数据导入输入未改动时跳过 5 个数据导入测试 |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
 | Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |

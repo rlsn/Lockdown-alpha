@@ -145,9 +145,13 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
+    int32 OpeningSeed = 0;
+    if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningPickIndex, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
+    UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld card=%u seed=%d"), *Binding.GetContender().ToString(),
+        OpeningPickAfterMs, uint32(OpeningPickIndex), OpeningSeed);
     return true;
 }
 
@@ -368,6 +372,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
         return false;
     }
+    Me.OpeningPickAtMs = Public.StartedAtMs - Content->Get().Parameters.CountdownMs + OpeningPickAfterMs;
+    Me.OpeningPickIndex = OpeningPickIndex;
     // Live own read: unlike the publication it also shows an open still queued for the next Transactions phase.
     Reads.Shop = Mode.Vendor->ReadShop(Own.ContenderId);
     if (Own.LifePhase == ELDLifePhase::Dead) { return true; }

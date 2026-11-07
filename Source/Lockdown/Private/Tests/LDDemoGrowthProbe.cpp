@@ -15,6 +15,8 @@
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDEconomyLedger.h"
 #include "Framework/LDCaptureTypes.h"
+#include "UI/LDChoicesPanel.h"
+#include "Components/RichTextBlock.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchProviders.h"
@@ -123,7 +125,8 @@ bool GrowthProbeSameChoice(const FLDChoiceReceipt& A, const FLDChoiceReceipt& B)
         && A.OpportunityOrdinal == B.OpportunityOrdinal && A.ConsumedThrough == B.ConsumedThrough && A.Kind == B.Kind
         && A.DefinitionId == B.DefinitionId && A.NewRank == B.NewRank && A.bReplaced == B.bReplaced
         && A.ReplacedSlot == B.ReplacedSlot && A.ReplacedSkillId == B.ReplacedSkillId && A.ReplacedRank == B.ReplacedRank
-        && A.bHasNextOffer == B.bHasNextOffer && A.NextOfferId == B.NextOfferId;
+        && A.bHasNextOffer == B.bHasNextOffer && A.NextOfferId == B.NextOfferId
+        && A.OpeningActiveId == B.OpeningActiveId;
 }
 
 bool GrowthProbeSameShop(const FLDShopReceipt& A, const FLDShopReceipt& B)
@@ -158,6 +161,7 @@ bool GrowthProbeSameOwner(const FLDProgressionView& ProgA, const FLDEquipmentVie
         && ProgA.EarnedThrough == ProgB.EarnedThrough && ProgA.ConsumedThrough == ProgB.ConsumedThrough
         && ProgA.PendingChoiceCount == ProgB.PendingChoiceCount && ProgA.bHasOffer == ProgB.bHasOffer
         && ProgA.Skills.Num() == ProgB.Skills.Num() && ProgA.AttributeCards.Num() == ProgB.AttributeCards.Num()
+        && ProgA.OpeningCard == ProgB.OpeningCard
         && EquipA.Gold == EquipB.Gold && EquipA.AccountRevision == EquipB.AccountRevision
         && EquipA.InventoryRevision == EquipB.InventoryRevision && EquipA.Slots.Num() == EquipB.Slots.Num();
     for (int32 SlotIndex = 0; bSame && SlotIndex < EquipA.Slots.Num(); ++SlotIndex)
@@ -280,6 +284,11 @@ bool GrowthProbeRewardTail(const TArray<FString>& Lines, int64 Gold, int64 XP, F
 
 TArray<FName> GrowthProbePlannedCards(int32 Index)
 {
+    if (Index == 0)
+    {
+        return {TEXT("opening_grinder"), TEXT("active_not_mad"), TEXT("opening_athlete"), TEXT("active_pants_down"),
+            TEXT("opening_keyboard"), TEXT("active_snark_bolt")};
+    }
     const FGrowthProbeOffer& Planned = GrowthProbePlan[Index];
     return {FName(Planned.Cards[0]), FName(Planned.Cards[1]), FName(Planned.Cards[2])};
 }
@@ -295,12 +304,18 @@ bool GrowthProbeIsPreset(const FLDProgressionView& View)
     const TArray<FName> Planned = GrowthProbePlannedCards(Index);
     for (int32 Card = 0; Card < 3; ++Card)
     {
-        if (View.Offer.Options[Card].DefinitionId != Planned[Card])
+        if (View.Offer.Options[Card].DefinitionId != Planned[Planned.Num() == 6 ? Card * 2 : Card])
         {
             return false;
         }
     }
     return true;
+}
+
+ULDChoicesPanel* GrowthProbeChoices(const ALDPlayerController& PC)
+{
+    const FObjectProperty* Property = PC.HUDUI ? FindFProperty<FObjectProperty>(ULDHUD::StaticClass(), TEXT("ChoicesPanel")) : nullptr;
+    return Property ? Cast<ULDChoicesPanel>(Property->GetObjectPropertyValue_InContainer(PC.HUDUI)) : nullptr;
 }
 
 const FLDLearnedSkillView* GrowthProbeSkill(const FLDProgressionView& View, FName Id)
@@ -401,6 +416,9 @@ public:
 
     // Client1: the single choice and its receipt query.
     bool bChoiceDone = false, bChoiceSent = false, bQuerySent = false;
+    bool bOpeningRerollSent = false, bOpeningRerollChecked = false, bOpeningFaceChecked = false, bOpeningObserverChecked = false;
+    FLDChoiceCommand OpeningReroll;
+    FLDProgressionView BeforeOpeningReroll;
     FLDProgressionView ChoiceBefore;
     FLDChoiceOption ChoicePicked;
     FLDChoiceCommand ChoiceSent;
@@ -884,7 +902,8 @@ public:
             return false;
         }
         FString Refusal;
-        const TArray<FName> Twice = {FName(TEXT("active_not_mad")), FName(TEXT("active_not_mad")), FName(TEXT("attr_protein"))};
+        const TArray<FName> Twice = {TEXT("opening_grinder"), TEXT("active_not_mad"), TEXT("opening_grinder"),
+            TEXT("active_pants_down"), TEXT("opening_keyboard"), TEXT("active_snark_bolt")};
         Check(!LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, Twice, Refusal) && !Refusal.IsEmpty(), TEXT("Fixture"),
             TEXT("The fixture refuses a preset that repeats a card, with a reason"), Refusal);
         for (int32 Index = 0; Index < LDDemoGrowthScenario::GrowthProbePlannedOffers; ++Index)
@@ -892,8 +911,7 @@ public:
             const TArray<FName> Cards = LDDemoGrowthScenario::GrowthProbePlannedCards(Index);
             FString QueueError;
             const bool bQueued = LDDevGrowthFixture::StageOffer(LobbyWorld, ClientId, Cards, QueueError);
-            if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture stages the buyer's offer %d: %s, %s, %s"), Index + 1,
-                *Cards[0].ToString(), *Cards[1].ToString(), *Cards[2].ToString()), QueueError))
+            if (!Check(bQueued, TEXT("Fixture"), FString::Printf(TEXT("The fixture stages the buyer's offer %d"), Index + 1), QueueError))
             {
                 return false;
             }
@@ -921,6 +939,17 @@ public:
             && View.bHasOffer && View.Offer.OpportunityOrdinal == 1 && View.Offer.OfferId.IsValid() && bDistinct, Id,
             TEXT("The match opens with exactly one pending three-choice: its kept opening offer of three distinct cards"),
             LDDemoGrowthScenario::GrowthProbeProgressionText(View));
+        bGood &= Check(View.Skills.IsEmpty() && View.OpeningCard.IsNone()
+            && Cards.Num() == 3 && Cards.ContainsByPredicate([](const FLDChoiceOption& Card)
+                { return Card.Kind == ELDChoiceOptionKind::Opening; })
+            && !FindFProperty<FProperty>(FLDChoiceOption::StaticStruct(), TEXT("HiddenActive")),
+            Id, TEXT("The owning view exposes only direction cards; no hidden active assignment or learned skill is present"));
+        for (const auto& Card : Cards)
+        {
+            bGood &= Check(Card.Kind == ELDChoiceOptionKind::Opening && Card.FromRank == 0 && Card.ToRank == 1
+                && Catalog->Get().OpeningCards.ContainsByPredicate([&Card](const FLDDemoOpeningCardDefinition& D)
+                    { return FName(*D.Id) == Card.DefinitionId; }), Id, TEXT("Every visible opening option is an approved direction"));
+        }
         if (bStagedPreset)
         {
             bGood &= Check(LDDemoGrowthScenario::GrowthProbeIsPreset(View), TEXT("Fixture"),
@@ -988,6 +1017,21 @@ public:
         {
             return Fail(TEXT("Countdown"), TEXT("The opening countdown did not end with its checks complete"));
         }
+        if (!bOpeningFaceChecked && ProgView && View.Phase == ELDMatchPhase::Countdown)
+        {
+            ULDChoicesPanel* Panel = LDDemoGrowthScenario::GrowthProbeChoices(PC);
+            if (Panel && Panel->IsPanelOpen())
+            {
+                const URichTextBlock* Face = Cast<URichTextBlock>(Panel->WidgetTree->FindWidget(TEXT("ChoiceSentence0")));
+                const UButton* Reroll = Cast<UButton>(Panel->WidgetTree->FindWidget(TEXT("ChoicesReroll")));
+                if (Face && Face->GetText().ToString().Contains(LDTerms::OpeningHiddenActive))
+                {
+                    Check(Reroll && !Reroll->GetIsEnabled(), TEXT("Opening"),
+                        TEXT("The rendered face keeps the active hidden and disables opening reroll"));
+                    bOpeningFaceChecked = true;
+                }
+            }
+        }
         if (!bCountdownSeen)
         {
             if (View.Generation != PC.OwnerState.Match || !Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !ProgView || !bClock)
@@ -1008,6 +1052,7 @@ public:
             Check(ProgView->bHasOffer && ProgView->bCanChoose && ProgView->ConsumedThrough == 0 && ProgView->PendingChoiceCount == 1,
                 TEXT("Countdown"), TEXT("The opening three-choice is open and choosable during the countdown"),
                 LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
+            CheckOpening(*ProgView, TEXT("Opening"), OpeningRow, !IsHost());
             Check(PC.CanWorldCommand(), TEXT("Countdown"), TEXT("Camera and commands stay usable; the server answers each world command"));
             if (IsHost())
             {
@@ -1139,6 +1184,7 @@ public:
         Check(ProgView->bHasOffer && ProgView->ConsumedThrough == 0 && ProgView->PendingChoiceCount == 1, TEXT("Countdown"),
             TEXT("An opening choice not taken in the countdown is kept, never chosen for the player"),
             LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
+        Check(bOpeningFaceChecked, TEXT("Opening"), TEXT("Opening direction cards were rendered before T=0"));
         CountdownRow = MakeShared<FJsonObject>();
         CountdownRow->SetNumberField(TEXT("started_at_ms"), double(View.StartedAtMs));
         CountdownRow->SetNumberField(TEXT("open_at_ms"), double(View.OpenAtMs));
@@ -1192,20 +1238,27 @@ public:
         ShopCentre = ShopAnchor->Position;
         const FVector Outward = (ShopAnchor->Position - CaptureAnchor->Position).GetSafeNormal2D();
         const FVector Across(Outward.Y, -Outward.X, 0.0);
-        KillSite = ShopAnchor->Position + Across * (2.0 * ShopReach);
-        HostSite = KillSite - Outward * AttackReach;
         FCollisionShape Capsule;
         FString SiteError;
-        bool bLegal = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
-        for (const FVector& Site : {KillSite, HostSite})
+        const bool bCapsule = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
+        bool bLegal = false;
+        for (const FVector& Direction : {Across, -Across, Outward, -Outward})
         {
-            FLDLegalGround LegalSite;
-            ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
-            bool bWithin = true;
-            bLegal = bLegal
-                && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
-                && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+            if (!bCapsule) { break; }
+            KillSite = ShopAnchor->Position + Direction * (2.0 * ShopReach);
+            HostSite = KillSite - Outward * AttackReach;
+            bool bPairLegal = true;
+            for (const FVector& Site : {KillSite, HostSite})
+            {
+                FLDLegalGround LegalSite;
+                ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
+                bool bWithin = true;
+                bPairLegal = bPairLegal
+                    && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
+                    && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
+                    && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+            }
+            if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
         }
         bSitesReady = bLegal;
         return Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
@@ -1263,6 +1316,35 @@ public:
     {
         ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
         if (!Mode) { return Fail(TEXT("Net"), TEXT("The Listen Host lost its authoritative game mode")); }
+        if (!bOpeningObserverChecked && Mode->Development)
+        {
+            const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
+            const FLDObservedUnitView* Seen = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, ClientId) : nullptr;
+            const FLDProgressionView Owner = Mode->Development->ReadProgression(ClientId);
+            const FLDProgressionState* Private = Mode->Development->FindProgression(ClientId);
+            if (Seen && Owner.ConsumedThrough == 0 && Private && Private->Offer.IsSet())
+            {
+                bool bHidden = Private->Offer->HiddenActives.Num() == 3 && Owner.Skills.IsEmpty() && Owner.OpeningCard.IsNone()
+                    && Seen->Actives.Abilities[0] == 0 && Seen->Actives.Abilities[1] == 0 && Seen->ActionAbility == 0;
+                const FString Observed = LDHUD::ObservedUnit(*Seen, TEXT("buyer"), &Catalog->Get(), 0);
+                for (const FName Hidden : Private->Offer->HiddenActives)
+                {
+                    const FString Name = LDHUD::ContentName(&Catalog->Get(), Hidden.ToString());
+                    bHidden &= !Observed.Contains(Hidden.ToString()) && !Observed.Contains(Name);
+                    for (const FLDChoiceOption& Option : Owner.Offer.Options)
+                    {
+                        const auto Card = LDHUD::ChoiceCard(Option, Owner, &Catalog->Get(), {});
+                        const FString Text = Card.Name + Card.Detail + Card.SentencePlain + Card.AdvancedPlain
+                            + FString::Join(Card.Lines, TEXT("\n"));
+                        bHidden &= !Text.Contains(Hidden.ToString()) && !Text.Contains(Name);
+                    }
+                }
+                Check(bHidden, TEXT("Opening"),
+                    TEXT("Actual owner and opponent views contain no hidden skill ID or Chinese display name before selection"));
+                bOpeningObserverChecked = true;
+                if (!Passed) { return Finish(); }
+            }
+        }
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         if (PC.OwnerState.LifePhase == ELDLifePhase::Alive && Body && PC.CanWorldCommand())
         {
@@ -1604,6 +1686,7 @@ public:
     // Host: export the first match's ledger, then end the match without a winner through the Host's own session command.
     bool EndFirstMatch(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
+        Check(bOpeningObserverChecked, TEXT("Opening"), TEXT("A real opponent view was checked before direction selection"));
         Check(Mode.IsGameplayWriteOpen(Mode.GetMatchContext()), TEXT("Ledger"),
             TEXT("The first match stayed open for the whole scenario: no capture result, fault or reset"));
         FString EvidenceText, ExportError;
@@ -2434,7 +2517,7 @@ public:
         AttackOrders = 0;
         if (!Passed) { return Finish(); }
         // The victim stays dead for the approved respawn delay, so the choice cannot race a reward.
-        if (!bChoiceDone && (ProgView.PendingChoiceCount >= 2 || EquipView.Gold >= GoldGoal))
+        if (!bChoiceDone && ProgView.Level >= Catalog->Get().Progression.RerollLevels[0])
         {
             SetStage(EStage::Choice);
             return true;
@@ -2469,12 +2552,18 @@ public:
         {
             return nullptr;
         }
-        const FName Wanted(LDDemoGrowthScenario::GrowthProbePlan[Index].Cards[0]);
+        const FName Wanted = LDDemoGrowthScenario::GrowthProbePlannedCards(Index)[0];
         return View.Offer.Options.FindByPredicate([Wanted](const FLDChoiceOption& Card) { return Card.DefinitionId == Wanted; });
     }
 
     bool BuildShowsChoice(const FLDProgressionView& View) const
     {
+        if (ChoicePicked.Kind == ELDChoiceOptionKind::Opening)
+        {
+            const auto* Learned = LDDemoGrowthScenario::GrowthProbeActiveIn(View, 0);
+            return View.OpeningCard == ChoicePicked.DefinitionId && Learned
+                && Learned->DefinitionId == ChoiceFinal.OpeningActiveId && Learned->Rank == 1;
+        }
         if (ChoicePicked.Kind == ELDChoiceOptionKind::Attribute)
         {
             const FLDAttributeCardView* Before = ChoiceBefore.AttributeCards.FindByPredicate([this](const FLDAttributeCardView& CardRow)
@@ -2499,6 +2588,41 @@ public:
     bool TickChoice(double Now, ALDPlayerController& PC)
     {
         const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        if (!bOpeningRerollChecked)
+        {
+            if (!ProgView || !ProgView->bCanChoose) { return true; }
+            if (!bOpeningRerollSent)
+            {
+                Check(ProgView->RerollTokens > 0 && ProgView->ConsumedThrough == 0, TEXT("Opening"),
+                    TEXT("A real owning client reached a reroll level without choosing the opening direction"));
+                BeforeOpeningReroll = *ProgView;
+                OpeningReroll.OfferId = ProgView->Offer.OfferId;
+                OpeningReroll.OfferRevision = ProgView->Offer.OfferRevision;
+                OpeningReroll.ExpectedBuildRevision = ProgView->BuildRevision;
+                OpeningReroll.CatalogDigest = ProgView->CatalogDigest;
+                OpeningReroll.bReroll = true;
+                ChoiceResultMark = ChoiceResults.Num();
+                ELDGrowthReason Local = ELDGrowthReason::None;
+                OpeningReroll.RequestId = PC.SubmitChoice(OpeningReroll, Local);
+                bOpeningRerollSent = true;
+                if (!Check(OpeningReroll.RequestId != 0, TEXT("Opening"), TEXT("The owning client submits a hostile opening reroll")))
+                { return Finish(); }
+                return true;
+            }
+            const auto* Answer = FindChoiceAnswer(OpeningReroll.RequestId, ChoiceResultMark);
+            if (!Answer)
+            {
+                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+                return Fail(TEXT("Opening"), TEXT("The opening reroll received no final answer"));
+            }
+            Check(Answer->bHasReceipt && Answer->Receipt.Header.Outcome == ELDReceiptOutcome::Rejected
+                && LDGrowthWire::Reason(Answer->Receipt.Header.Reason) == ELDGrowthReason::OpeningNoReroll
+                && ProgView->Offer.OfferId == BeforeOpeningReroll.Offer.OfferId
+                && ProgView->RerollTokens == BeforeOpeningReroll.RerollTokens && ProgView->ConsumedThrough == 0,
+                TEXT("Opening"), TEXT("The server refuses opening reroll despite earned tokens, preserving cards and tokens"));
+            bOpeningRerollChecked = true;
+            if (!Passed) { return Finish(); }
+        }
         if (!bChoiceSent)
         {
             if (!ProgView || !ProgView->bHasOffer || !ProgView->bCanChoose)
@@ -2507,7 +2631,7 @@ public:
                 return Fail(TEXT("A10"), TEXT("The earned opportunity never offered a choosable head offer"));
             }
             const FLDChoiceOption* Chosen = PickOption(*ProgView);
-            if (!Check(LDDemoGrowthScenario::GrowthProbeIsPreset(*ProgView) && Chosen && Chosen->Kind == ELDChoiceOptionKind::LearnActive,
+            if (!Check(LDDemoGrowthScenario::GrowthProbeIsPreset(*ProgView) && Chosen && Chosen->Kind == ELDChoiceOptionKind::Opening,
                 TEXT("Fixture"), TEXT("The first head offer is exactly the Host's preset, and its planned card learns an active"),
                 FString::Printf(TEXT("ordinal=%u"), uint32(ProgView->Offer.OpportunityOrdinal))))
             {
@@ -2530,8 +2654,24 @@ public:
             ChoiceResultMark = ChoiceResults.Num();
             ChoicePublishMark = PC.OwnerState.Growth.PublishRevision;
             const uint64 Peeked = PC.PeekGrowthRequestId(ELDGrowthFamily::Choice);
-            ELDGrowthReason LocalReason = ELDGrowthReason::None;
-            ChoiceSent.RequestId = PC.SubmitChoice(Command, LocalReason);
+            ELDGrowthReason LocalReason = ELDGrowthReason::InvalidRequest;
+            ULDChoicesPanel* Panel = LDDemoGrowthScenario::GrowthProbeChoices(PC);
+            if (!Panel) { return Fail(TEXT("Opening"), TEXT("The owning client has no choices panel")); }
+            if (!Check(bool(Panel->SubmitChoice), TEXT("Opening"), TEXT("The panel has its owning-connection submit adapter")))
+            { return Finish(); }
+            const auto Original = Panel->SubmitChoice;
+            uint64 Submitted = 0;
+            Panel->SubmitChoice = [&Original, &Submitted, &LocalReason](const FLDChoiceCommand& Sent, ELDGrowthReason& Reason)
+            {
+                Submitted = Original(Sent, Reason);
+                LocalReason = Reason;
+                return Submitted;
+            };
+            Panel->OpenPanel();
+            const bool bClicked = Panel->ChooseCard(0);
+            Panel->SubmitChoice = Original;
+            if (!bClicked) { return Fail(TEXT("Opening"), TEXT("The opening card click failed")); }
+            ChoiceSent.RequestId = Submitted;
             bChoiceSent = true;
             if (!Check(ChoiceSent.RequestId != 0 && ChoiceSent.RequestId == Peeked && LocalReason == ELDGrowthReason::None,
                 TEXT("A10"), TEXT("The owning client submits the head offer with the next choice request id"),
@@ -2559,6 +2699,19 @@ public:
             return Fail(TEXT("A10"), TEXT("The choice did not receive its admission, final receipt and owner publication in time"));
         }
         ChoiceFinal = Answer->Receipt;
+        if (ChoiceFinal.Kind == ELDChoiceOptionKind::Opening)
+        {
+            const FString Revealed = LDTerms::OpeningRevealed(LDHUD::ContentName(&Catalog->Get(), ChoiceFinal.OpeningActiveId.ToString()));
+            const auto* Q = LDDemoGrowthScenario::GrowthProbeEntry(PC.CombatView, ELDCombatEntry::Q);
+            ULDChoicesPanel* Panel = LDDemoGrowthScenario::GrowthProbeChoices(PC);
+            const FObjectProperty* Field = Panel ? FindFProperty<FObjectProperty>(ULDChoicesPanel::StaticClass(), TEXT("Feedback")) : nullptr;
+            const auto* Feedback = Field ? Cast<UTextBlock>(Field->GetObjectPropertyValue_InContainer(Panel)) : nullptr;
+            if ((!Q || !Feedback || !Feedback->GetText().ToString().Contains(Revealed))
+                && Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
+            Check(Q && Q->DefinitionId == ChoiceFinal.OpeningActiveId && Q->Rank == 1 && Q->ReadyAtMs <= PC.CombatView.AsOfMs
+                && Feedback && Feedback->GetText().ToString().Contains(Revealed), TEXT("Opening"),
+                TEXT("The card click reveals the random active, teaches it in Q and makes its cooldown ready"));
+        }
         const FString Detail = LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView)
             + FString::Printf(TEXT(" card=%s rank=%u"), *ChoicePicked.DefinitionId.ToString(), uint32(ChoicePicked.ToRank));
         Check(Admission->Status == ELDAdmissionStatus::AcceptedPending && Answer->Lookup == ELDReceiptLookup::Final

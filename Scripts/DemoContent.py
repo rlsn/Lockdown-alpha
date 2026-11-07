@@ -729,14 +729,28 @@ def validate_definitions(data, ids):
                 "UnknownField", attribute["id"], "attribute definition does not declare these penalties")
         if penalties is not None:
             _positive_stats(attribute["penalties"], attribute["id"])
+    # #153 opening direction cards (v7 §2.2): three permanent stats each, no native ID (never replicated by number).
+    opening_stats = {
+        "opening_athlete": {"ADFlat", "AttackSpeedBonusRatio", "MaxHPFlat"},
+        "opening_grinder": {"APFlat", "CooldownHasteFlat", "MaxMPFlat"},
+        "opening_dorm_warden": {"MaxHPFlat", "ArmorFlat", "MagicResistFlat"},
+        "opening_rider": {"MoveSpeedBonusRatio", "ADFlat", "AttackSpeedBonusRatio"},
+        "opening_keyboard": {"AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio"},
+        "opening_hexagon": {"ADFlat", "APFlat", "MaxHPFlat"},
+    }
+    openings = rows_by_id(data["opening_cards"], "opening_cards")
+    collections["opening_cards"] = data["opening_cards"]
+    require(not all_ids.intersection(openings), "DuplicateId", "opening_cards", "definition appears in another category")
+    all_ids.update(openings)
+    for card in data["opening_cards"]:
+        require(card["id"] in opening_stats and set(card["stats"]) == opening_stats[card["id"]],
+                "UnknownField", card["id"], "opening card does not declare these stats")
+        _positive_stats(card["stats"], card["id"])
     progression = data["progression"]
-    opening = progression["opening_offer"]
-    draftable = {kind: sum(1 for row in data["abilities"] if row["kind"] == kind and row["draftable"])
-                 for kind in ("active", "passive")}
-    require(opening["active_count"] + opening["passive_count"] == 3
-            and opening["active_count"] <= draftable["active"] and opening["passive_count"] <= draftable["passive"],
-            "OpeningOffer", "progression.opening_offer",
-            "the opening offer must draw three distinct new skills from the draftable actives and passives")
+    # Each of the three opening cards hides a distinct new draftable active.
+    draftable_actives = sum(1 for row in data["abilities"] if row["kind"] == "active" and row["draftable"])
+    require(draftable_actives >= 3, "OpeningOffer", "progression.opening_offer",
+            "the opening offer must hide three distinct draftable actives")
     reroll_levels = progression["reroll_levels"]
     require(reroll_levels == sorted(set(reroll_levels))
             and all(2 <= level <= progression["max_level"] for level in reroll_levels),
@@ -1207,7 +1221,7 @@ def content_contract_bytes(payload_digest, catalog_digest):
 
 def _sort_definitions(data, fields):
     prefixes = {}
-    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "attributes", "equipment", "display")]
+    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "attributes", "opening_cards", "equipment", "display")]
     arrays.extend((("content.camps.monsters", data["camps"]["monsters"], "id"),
                    ("content.camps.placements", data["camps"]["placements"], "anchor_id"),
                    ("content.world.spawn_ids", data["world"]["spawn_ids"], None),

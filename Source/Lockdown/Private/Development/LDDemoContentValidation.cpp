@@ -231,20 +231,28 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     const FLDDemoProgressionDefinition& Opening = D.Progression;
-    int32 Actives = 0, Passives = 0;
+    int32 Actives = 0;
     for (const auto& Ability : D.Abilities)
     {
-        if (Ability.Draftable)
-        {
-            (Ability.Kind == ELDDemoAbilityKind::Passive ? Passives : Actives) += 1;
-        }
+        Actives += Ability.Draftable && Ability.Kind == ELDDemoAbilityKind::Active ? 1 : 0;
     }
-    if (!Check.Require(Opening.OpeningActiveCount >= 0 && Opening.OpeningPassiveCount >= 0
-        && Opening.OpeningActiveCount + Opening.OpeningPassiveCount == 3
-        && Opening.OpeningActiveCount <= Actives && Opening.OpeningPassiveCount <= Passives,
-        TEXT("progression.opening_offer"), TEXT("opening offer cannot draw three distinct new draftable skills")))
+    // #153: three distinct opening cards, each hiding a distinct new draftable active.
+    if (!Check.Require(Opening.OpeningMatchedSkillWeight >= 1 && Opening.OpeningOtherSkillWeight >= 1 && Actives >= 3
+        && D.OpeningCards.Num() >= 3, TEXT("progression.opening_offer"),
+        TEXT("opening offer cannot draw three distinct opening cards with three distinct hidden draftable actives")))
     {
         return false;
+    }
+    for (const auto& Card : D.OpeningCards)
+    {
+        const bool bShared = D.Abilities.ContainsByPredicate([&Card](const FLDDemoAbilityDefinition& Row) { return Row.Id == Card.Id; })
+            || D.Attributes.ContainsByPredicate([&Card](const FLDDemoAttributeDefinition& Row) { return Row.Id == Card.Id; })
+            || D.Equipment.ContainsByPredicate([&Card](const FLDDemoEquipmentDefinition& Row) { return Row.Id == Card.Id; });
+        if (!Check.Require(!bShared && Card.Stats.Num() == 3, TEXT("opening_cards"),
+            TEXT("an opening card needs its own ID and exactly three stats")))
+        {
+            return false;
+        }
     }
     const auto& Choice = P.Choice;
     if (!Check.Require(Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000

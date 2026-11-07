@@ -435,6 +435,17 @@ struct FLDDemoAttributeDefinition
     UPROPERTY() TArray<FLDDemoStatBonus> Penalties;
 };
 
+// #153 opening direction card (v7 §2.2): three permanent stats; the choice also teaches one hidden draftable active.
+// Identified by its id only (no native number): it is never replicated as anything but a definition id.
+USTRUCT()
+struct FLDDemoOpeningCardDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FString Id;
+    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+};
+
 USTRUCT()
 struct FLDDemoEquipmentPassive
 {
@@ -561,9 +572,11 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
-    // 112 §6: the opening offer holds OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable passives.
-    UPROPERTY() int32 OpeningActiveCount = 0;
-    UPROPERTY() int32 OpeningPassiveCount = 0;
+    // #153 (D6): the opening offer draws three distinct opening cards uniformly, each hiding one distinct new draftable
+    // active drawn with weight OpeningMatchedSkillWeight when the active grows with one of the card's stats, otherwise
+    // OpeningOtherSkillWeight.
+    UPROPERTY() int32 OpeningMatchedSkillWeight = 0;
+    UPROPERTY() int32 OpeningOtherSkillWeight = 0;
     // Reaching each of these levels earns one free reroll token.
     UPROPERTY() TArray<int32> RerollLevels;
 };
@@ -634,6 +647,7 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoCharacterDefinition Character;
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
     UPROPERTY() TArray<FLDDemoAttributeDefinition> Attributes;
+    UPROPERTY() TArray<FLDDemoOpeningCardDefinition> OpeningCards;
     UPROPERTY() TArray<FLDDemoEquipmentDefinition> Equipment;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;

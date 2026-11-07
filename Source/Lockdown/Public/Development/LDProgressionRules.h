@@ -31,12 +31,15 @@ struct LOCKDOWN_API FLDGrowthBuild
     TArray<FLDLearnedSkill> Skills;
     // Sorted by Id; one row per attribute card taken at least once.
     TArray<FLDAttributeCardCount> Cards;
+    // #153: the chosen opening direction card, a permanent stat source; None until the opening choice is taken.
+    FName OpeningCard;
     uint64 Revision = 1;
 
     const FLDLearnedSkill* FindSkill(FName Id) const;
     // Index into Skills of the active in Slot, or INDEX_NONE.
     int32 ActiveInSlot(uint8 Slot) const;
-    // Every learned rank plus every attribute card is one consumed choice.
+    // Every learned rank plus every attribute card is one consumed choice; the opening choice counts through the rank of
+    // the active it taught, its card adds none.
     int32 ChoicesInvested() const;
 };
 
@@ -47,6 +50,9 @@ struct FLDChoiceOfferState
     // 112 §6: this offer already replaced the opportunity's first offer with a free reroll (one per offer).
     bool bRerolled = false;
     TArray<FLDChoiceOption> Options;
+    // #153 server-only: the active each Opening option hides, parallel to Options (None for every other kind). Never
+    // published, logged or sent before its option is applied.
+    TArray<FName> HiddenActives;
     uint64 GeneratedBuildRevision = 0;
     uint64 GuardBuildRevision = 0;
     uint64 Revision = 0;
@@ -100,6 +106,8 @@ namespace LDProgression
         FName DefinitionId;
         uint8 FromRank = 0;
         uint8 ToRank = 0;
+        // Opening only: the hidden draftable active the card teaches.
+        FName HiddenActive;
     };
 
     struct FReplacement
@@ -119,6 +127,8 @@ namespace LDProgression
         uint8 Slot = 0;
         FName ReplacedId;
         uint8 ReplacedRank = 0;
+        // Opening only: the active learned at rank 1 in Slot.
+        FName OpeningActive;
     };
 
     // Highest level whose cumulative threshold XP has reached; thresholds are strictly increasing from 0.
@@ -154,11 +164,19 @@ namespace LDProgression
     // upgrades, attribute cards and unknown definitions.
     LOCKDOWN_API ELDGrowthReason NewSkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const FLegalOption& Option, int64& OutWeight);
+    // #153 D6: the stats an active grows with, as ELDDemoBonusStat bits: ADFlat for an AD coefficient, APFlat for an AP
+    // coefficient and MaxHPFlat for a max-HP coefficient in any effect of any of its ranks.
+    LOCKDOWN_API uint32 ActiveGrowthStats(const FLDDemoAbilityDefinition& Ability);
+    // #153 D6: weight of Ability as the hidden active of opening card Card: OpeningMatchedSkillWeight when it grows with one
+    // of the card's stats, otherwise OpeningOtherSkillWeight.
+    LOCKDOWN_API int64 OpeningActiveWeight(const FLDDemoContentDefinitions& Content, const FLDDemoOpeningCardDefinition& Card,
+        const FLDDemoAbilityDefinition& Ability);
     // Whether the draw of opportunity Ordinal can always fill three distinct cards from Pool, whatever the seed.
     LOCKDOWN_API bool DrawFeasible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
         const TArray<FLegalOption>& Pool, uint8 Ordinal);
-    // Opportunity 1 (opening): OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable passives,
-    // uniform within each group, in shuffled positions. Later opportunities fill three fixed slots (#147):
+    // Opportunity 1 (#153 opening): three distinct opening cards drawn uniformly, then for each card in order one distinct
+    // hidden active among the pool's new draftable actives weighted by OpeningActiveWeight. Later opportunities fill three
+    // fixed slots (#147):
     // 1. upgrade: one learned draftable skill below the top rank, uniform; a new skill when there is none;
     // 2. new skill: one unlearned draftable skill weighted by NewSkillWeight;
     // 3. free: an attribute card (uniform) with CHOICE.FreeSlotAttributeChance, otherwise another new skill.
@@ -175,7 +193,10 @@ namespace LDProgression
         const FLDChoiceOption& Option);
     // Applies one option. A new active with both Q/W occupied needs a confirmed replacement naming the exact
     // slot, old skill and old rank; the old skill is forgotten without refund and the new one starts at rank 1 (#147 D13).
-    // Every other option rejects a replacement. Revision is not changed here.
+    // An Opening option (#153) needs its HiddenActive, a new draftable active, and a free Q/W slot: the card becomes the
+    // build's opening card and the active is learned at rank 1 (Q first). Every other option takes no HiddenActive, and
+    // only a new active takes a replacement. Revision is not changed here.
     LOCKDOWN_API ELDGrowthReason ApplyOption(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Current,
-        const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail);
+        const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail,
+        FName HiddenActive = NAME_None);
 }

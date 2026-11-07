@@ -91,6 +91,11 @@ inline constexpr TCHAR OutOfCombatRegen[]=TEXT("脱战回复中");
 inline constexpr TCHAR Choice[]=TEXT("开盲盒");
 inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%d"),Level);}
 inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
+// 开局方向卡（#153）：卡面只写方向与三项属性，技能选了才揭晓；只出现一次，不能重抽。
+inline constexpr TCHAR OpeningCardKind[]=TEXT("开局方向");
+inline constexpr TCHAR OpeningHiddenActive[]=TEXT("？随机主动（选了才揭晓）");
+inline constexpr TCHAR OpeningNoReroll[]=TEXT("开局方向卡不能重抽");
+inline FString OpeningRevealed(const FString& Active){return FString::Printf(TEXT("开出了：%s！"),*Active);}
 
 // 阶段与旗杆（喷漆守护终局）
 // 开局倒计时（#153）：屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内可以移动和选技能，攻击和交易被拒绝。

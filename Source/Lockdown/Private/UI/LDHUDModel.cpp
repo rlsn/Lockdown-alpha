@@ -1006,6 +1006,10 @@ TArray<FString> LDHUD::KeywordLines(const TArray<FString>& Keywords)
     }
     return Lines;
 }
+bool LDHUD::IsOpeningOffer(const FLDChoiceOfferView& Offer)
+{
+    return Offer.Options.ContainsByPredicate([](const FLDChoiceOption& Option){return Option.Kind==ELDChoiceOptionKind::Opening;});
+}
 LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
     const FCardStats& Stats)
 {
@@ -1022,7 +1026,24 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
     case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动");Card.Icon=EChoiceIcon::Passive;break;
     case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动升级");Card.Icon=EChoiceIcon::Passive;break;
     case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性卡");Card.Icon=EChoiceIcon::Attribute;break;
+    case ELDChoiceOptionKind::Opening: Card.Kind=LDTerms::OpeningCardKind;Card.Icon=EChoiceIcon::Attribute;break;
     default: Card.Kind=TEXT("未知选项");break;
+    }
+    // #153: the card face names the direction and its three stats; the active it teaches stays hidden until chosen.
+    if(Option.Kind==ELDChoiceOptionKind::Opening)
+    {
+        Card.RankText=TEXT("只出现一次");
+        Card.Summary=TEXT("开局");Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
+        if(const FLDDemoOpeningCardDefinition* Definition=Content?Content->OpeningCards.FindByPredicate([&Id](const FLDDemoOpeningCardDefinition& D){return D.Id==Id;}):nullptr)
+        {
+            TArray<FString> Parts;
+            for(const FLDDemoStatBonus& Stat:Definition->Stats){Parts.Add(StatLine(Stat));}
+            Card.SentencePlain=(Display?Display->DescriptionText:FString())+TEXT("\n")+FString::Join(Parts,TEXT("\n"))
+                +TEXT("\n")+LDTerms::OpeningHiddenActive;
+            Card.Sentence=CardEscape(Card.SentencePlain);
+        }
+        else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该开局方向卡");}
+        return Card;
     }
     if(Option.Kind==ELDChoiceOptionKind::Attribute)
     {
@@ -1179,6 +1200,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("该选项不能替换技能");
     case ELDGrowthReason::NoReroll: return TEXT("没有免费重抽次数");
     case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("这一组已经重抽过一次");
+    case ELDGrowthReason::OpeningNoReroll: return LDTerms::OpeningNoReroll;
     case ELDGrowthReason::NoShopSession: return FString(LDTerms::Shop)+TEXT("尚未打开");
     case ELDGrowthReason::QuoteStale: return TEXT("报价已更新，请重新确认");
     case ELDGrowthReason::PriceChanged: return TEXT("价格已变化，请重新确认");

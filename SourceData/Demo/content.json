@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approvals: 2026-11-02 D01-D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash; #79 dorm, camp return, airdrop, Boss, leader. 2026-11-05 #112 spray-guard D33; #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050; #147 build v7 (2 ranks grown by level, slotted draft, 12+10+8). A playtest, not a balance check."
+      "decision": "User approvals: 2026-11-02 D01-D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash; #79 dorm, camp return, airdrop, Boss, leader. 2026-11-05 #112 spray-guard D33; #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050; #147 build v7 (2 ranks grown by level, slotted draft, 12+10+8). #153 openings. A playtest, not a balance check."
     }
   },
   "parameters": {
@@ -407,6 +407,14 @@
     {"id": "attr_hand_out", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 60}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.08}}},
     {"id": "attr_wild_frenzy", "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "penalties": {"MaxHPFlat": {"unit": "hp", "value": 80}}}
   ],
+  "opening_cards": [
+    {"id": "opening_athlete", "stats": {"ADFlat": {"unit": "points", "value": 7}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.06}, "MaxHPFlat": {"unit": "hp", "value": 60}}},
+    {"id": "opening_grinder", "stats": {"APFlat": {"unit": "points", "value": 35}, "CooldownHasteFlat": {"unit": "points", "value": 15}, "MaxMPFlat": {"unit": "mp", "value": 80}}},
+    {"id": "opening_dorm_warden", "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 8}, "MagicResistFlat": {"unit": "points", "value": 8}}},
+    {"id": "opening_rider", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.08}, "ADFlat": {"unit": "points", "value": 6}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.06}}},
+    {"id": "opening_keyboard", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.10}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.03}}},
+    {"id": "opening_hexagon", "stats": {"ADFlat": {"unit": "points", "value": 5}, "APFlat": {"unit": "points", "value": 12}, "MaxHPFlat": {"unit": "hp", "value": 90}}}
+  ],
   "equipment": [
     {"id": "item_iron_plate", "buy_price": 310, "stats": {"MaxHPFlat": {"unit": "hp", "value": 180}, "ArmorFlat": {"unit": "points", "value": 15}},
      "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": {"unit": "ratio", "value": 0.15}}], "upgraded": {"effects": [{"op": "crit_damage_reduction", "ratio": {"unit": "ratio", "value": 0.20}}]}}},
@@ -491,7 +499,7 @@
   "progression": {
     "max_level": 10, "max_choices": 10, "max_skill_rank": 2, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
     "xp_thresholds": [0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440],
-    "opening_offer": {"active_count": 2, "passive_count": 1},
+    "opening_offer": {"matched_skill_weight": 2, "other_skill_weight": 1},
     "reroll_levels": [4, 7]
   },
   "world": {
@@ -525,6 +533,12 @@
     {"id": "passive_moral_victory", "namespace": "DemoContent", "name_key": "passive_moral_victory.name", "name_text": "精神胜利", "description_key": "passive_moral_victory.description", "description_text": "受到伤害时获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒，[triggered_shield.interval] 秒一次。", "advanced_key": "passive_moral_victory.advanced", "advanced_text": "护盾破了就炸身边敌人 [triggered_shield.burst] 魔法伤害。", "icon_id": "icon_passive_moral_victory"},
     {"id": "passive_iced_americano", "namespace": "DemoContent", "name_key": "passive_iced_americano.name", "name_text": "冰美式续命", "description_key": "passive_iced_americano.description", "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。", "advanced_key": "passive_iced_americano.advanced", "advanced_text": "普攻命中使技能冷却 −[cooldown_refund.refund] 秒。", "icon_id": "icon_passive_iced_americano"},
     {"id": "passive_lucky_star", "namespace": "DemoContent", "name_key": "passive_lucky_star.name", "name_text": "欧皇附体", "description_key": "passive_lucky_star.description", "description_text": "暴击率 +[stat_bonus.CritChanceBonusRatio]%。", "advanced_key": "passive_lucky_star.advanced", "advanced_text": "技能也能暴击。", "icon_id": "icon_passive_lucky_star"},
+    {"id": "opening_athlete", "namespace": "DemoContent", "name_key": "opening_athlete.name", "name_text": "体育生", "description_key": "opening_athlete.description", "description_text": "贴脸普攻，抗揍能打。", "icon_id": "icon_opening_athlete"},
+    {"id": "opening_grinder", "namespace": "DemoContent", "name_key": "opening_grinder.name", "name_text": "卷王", "description_key": "opening_grinder.description", "description_text": "技能输出，冷却快。", "icon_id": "icon_opening_grinder"},
+    {"id": "opening_dorm_warden", "namespace": "DemoContent", "name_key": "opening_dorm_warden.name", "name_text": "宿管大爷", "description_key": "opening_dorm_warden.description", "description_text": "扛揍，站得住。", "icon_id": "icon_opening_dorm_warden"},
+    {"id": "opening_rider", "namespace": "DemoContent", "name_key": "opening_rider.name", "name_text": "外卖骑手", "description_key": "opening_rider.description", "description_text": "跑得快，追得上。", "icon_id": "icon_opening_rider"},
+    {"id": "opening_keyboard", "namespace": "DemoContent", "name_key": "opening_keyboard.name", "name_text": "键盘侠", "description_key": "opening_keyboard.description", "description_text": "隔着网线输出（远程普攻）。", "icon_id": "icon_opening_keyboard"},
+    {"id": "opening_hexagon", "namespace": "DemoContent", "name_key": "opening_hexagon.name", "name_text": "六边形战士", "description_key": "opening_hexagon.description", "description_text": "啥都沾点。", "icon_id": "icon_opening_hexagon"},
     {"id": "attr_protein", "namespace": "DemoContent", "name_key": "attr_protein.name", "name_text": "吃了口蛋白粉", "description_key": "attr_protein.description", "description_text": "永久属性加成，可以重复选择。", "icon_id": "icon_attr_protein"},
     {"id": "attr_fast_hands", "namespace": "DemoContent", "name_key": "attr_fast_hands.name", "name_text": "单身手速", "description_key": "attr_fast_hands.description", "description_text": "永久属性加成，可以重复选择。", "icon_id": "icon_attr_fast_hands"},
     {"id": "attr_all_nighter", "namespace": "DemoContent", "name_key": "attr_all_nighter.name", "name_text": "熬夜冲浪", "description_key": "attr_all_nighter.description", "description_text": "永久属性加成，可以重复选择。", "icon_id": "icon_attr_all_nighter"},

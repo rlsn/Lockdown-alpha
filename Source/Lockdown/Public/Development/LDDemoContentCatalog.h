@@ -33,6 +33,7 @@ public:
     const FLDDemoContentDefinitions& Get() const { return Definitions; }
     bool FindAbility(const FString& Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const;
     bool FindAttribute(const FString& Id, const FLDDemoAttributeDefinition*& Out, FString& Error) const;
+    bool FindOpeningCard(const FString& Id, const FLDDemoOpeningCardDefinition*& Out, FString& Error) const;
     bool FindEquipment(const FString& Id, const FLDDemoEquipmentDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;

@@ -942,7 +942,7 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     // two #147 statuses (silence, burn).
     const int32 Statuses = 6 + 5 + 1 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
@@ -1075,6 +1075,11 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Attribute"), Row.Id, [&](const FString& Id)
         { const FLDDemoAttributeDefinition* Out = nullptr; return Snapshot->FindAttribute(Id, Out, Error) ? Out : nullptr; });
     }
+    for (const FLDDemoOpeningCardDefinition& Row : Definitions.OpeningCards)
+    {
+        Expect(TEXT("Opening"), Row.Id, [&](const FString& Id)
+        { const FLDDemoOpeningCardDefinition* Out = nullptr; return Snapshot->FindOpeningCard(Id, Out, Error) ? Out : nullptr; });
+    }
     for (const FLDDemoEquipmentDefinition& Row : Definitions.Equipment)
     {
         Expect(TEXT("Equipment"), Row.Id, [&](const FString& Id)
@@ -1093,7 +1098,7 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
         !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.Equipment.IsEmpty()
         && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
-        + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        + Definitions.OpeningCards.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;

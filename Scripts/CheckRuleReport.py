@@ -141,6 +141,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoGrowthProgression",
         "Lockdown.Rules.DemoGrowthOpening",
         "Lockdown.Rules.DemoGrowthOpeningPool",
+        "Lockdown.Rules.DemoGrowthOpeningCard",
         "Lockdown.Rules.DemoGrowthPrivacySchema",
         "Lockdown.Rules.DemoGrowthRetireAwaitsReward",
         "Lockdown.Rules.DemoAssist.Contributions",

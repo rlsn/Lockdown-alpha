@@ -562,12 +562,35 @@ bool RunPriorities(FAutomationTestBase& Test)
     auto Decision = Decide(Frame);
     bool bGood = Expect(Test, TEXT("Outside a running match nothing is proposed"), Decision, EMode::Stopped, EBody::None)
         && Test.TestTrue(TEXT("No build change outside a running match"), Decision.Build.Kind == ELDOpponentBuildKind::None);
-    // #153: an AI does not act during the opening countdown, not even on a choice.
+    // #153: only an opening direction pick at the adapter's drawn time is permitted during the countdown.
     Frame = Base;
     Frame.Public.Phase = ELDMatchPhase::Countdown;
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("The opening countdown proposes no body intent"), Decision, EMode::Stopped, EBody::None)
         && Test.TestTrue(TEXT("Nor a build change before T=0"), Decision.Build.Kind == ELDOpponentBuildKind::None);
+    FLDOpponentOffer Opening;
+    Opening.OfferId = FGuid(0x153, 0, 0, 1);
+    Opening.OfferRevision = 1;
+    Opening.Options = {Option(1, ELDOpponentOptionKind::Opening, TEXT("opening_athlete")),
+        Option(2, ELDOpponentOptionKind::Opening, TEXT("opening_grinder")),
+        Option(3, ELDOpponentOptionKind::Opening, TEXT("opening_keyboard"))};
+    Frame.Self.Offer = Opening;
+    Frame.Self.OpeningPickAtMs = Frame.Public.NowMs + 1;
+    Decision = Decide(Frame);
+    bGood &= Test.TestTrue(TEXT("Before the drawn time no choice is proposed"), Decision.Build.Kind == ELDOpponentBuildKind::None);
+    Frame.Public.NowMs += 1;
+    for (uint8 Index = 0; Index < 3; ++Index)
+    {
+        Frame.Self.OpeningPickIndex = Index;
+        Decision = Decide(Frame);
+        bGood &= Expect(Test, TEXT("The opening pick never moves"), Decision, EMode::Choose, EBody::None)
+            && Test.TestTrue(TEXT("Every randomly planned position selects its own direction without reading a skill"),
+                Decision.Build.Kind == ELDOpponentBuildKind::Choose
+                && Decision.Build.Choice.OptionId == Opening.Options[Index].OptionId && !Decision.Build.Choice.bReroll);
+    }
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestTrue(TEXT("An in-flight opening choice is not resubmitted"),
+        Decide(Frame).Build.Kind == ELDOpponentBuildKind::None);
 
     Frame = Base;
     Frame.Self.Phase = ELDLifePhase::Dead;

@@ -275,6 +275,7 @@ FLDAISelfReadResult ALDGameMode::ReadAISelf(const FLDAIContenderBinding& Binding
         Result.Error = TEXT("The AI binding belongs to another match.");
         return Result;
     }
+
     for (const auto& Pair : Contenders)
     {
         if (Pair.Value.Session != Binding.GetContender()) { continue; }
@@ -292,4 +293,24 @@ FLDAISelfReadResult ALDGameMode::ReadAISelf(const FLDAIContenderBinding& Binding
     }
     Result.Error = TEXT("Unknown AI contender.");
     return Result;
+}
+
+bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed,
+    FString& Error)
+{
+    AfterMs = 0;
+    Index = 0;
+    Seed = 0;
+    const FLDContenderRecord* Contender = Binding.IsValid() ? FindContender(Binding.GetContender()) : nullptr;
+    if (!HasAuthority() || !bAuthorityInitialized || MatchPhase != ELDMatchPhase::Starting || Binding.GetMatch() != MatchContext || !Contender
+        || Contender->Kind != ELDContenderKind::OpponentAI)
+    {
+        Error = TEXT("An opening plan needs a registered opponent in the current starting match.");
+        return false;
+    }
+    Seed = SpawnRandom.GetCurrentSeed();
+    AfterMs = SpawnRandom.RandRange(1000, 4000);
+    Index = uint8(SpawnRandom.RandRange(0, 2));
+    Error.Reset();
+    return true;
 }
