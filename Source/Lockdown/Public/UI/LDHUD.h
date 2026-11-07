@@ -177,7 +177,6 @@ private:
     // Throttles the automatic session request for pre-orders (local presentation time of the last request).
     double PreorderOpenAt=-1;
     uint32 PreorderOpenLife=0;
-    UPROPERTY() TObjectPtr<UTextBlock> CameraText;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
     // The hovered slot's full description, popped up above it like the shop and blind-box descriptions; it takes no input.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;

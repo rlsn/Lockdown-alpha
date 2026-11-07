@@ -245,7 +245,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 
 | ID | 单位/类型 | 建议初值/派生 | 依据与适用范围 |
 | --- | --- | --- | --- |
-| `VISION.RadiusCm` | cm/Cm | 1400 | 正面无遮挡时先看见再进入 220cm 普攻距离，基速间隔约 3.93s；绕角/网络时延不保证这段预警 |
+| `VISION.RadiusCm` | cm/Cm | 1050 | 2026-11-07 用户（视野负责人）决定由 1400 降到 75%（#97，原话：“reduce base vision range to 75% right away and adjust tests accordingly”）；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 2.77s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1050, 2×220)=440 不变 |
 | `SHOP.InteractRadiusCm` | cm/Cm | 600 | 固定锚点中心距；世界须证明交互区有合法接近点，不是安全区。2026-11-06 用户批准由 350 提高到 600，玩家不必贴近小摊即可买卖；交互盘可以与障碍相交，范围内即可交易，不看路径或视线 |
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
 | `CAPTURE.RadiusCm` | cm/Cm | 300 | 2026-11-05 用户批准（#112）由600缩小；直径600cm，基速穿过约2.0s；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |

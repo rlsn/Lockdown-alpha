@@ -351,13 +351,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ScorePanel=Panel(ScoreBox,false);Place(ScorePanel,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-60));ScorePanel->SetVisibility(ESlateVisibility::Collapsed);
         }
 
-        // Bottom-left, left of the bottom band: the sight state (only when it is not the normal current view) and the camera
-        // mode over the minimap, which sits in the corner.
+        // Bottom-left, left of the bottom band: the sight state (only when it is not the normal current view) over the
+        // minimap, which sits in the corner. #97: no standing camera-mode line.
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SightText=Text(TEXT(""),14);SightText->SetColorAndOpacity(LDHUDStyle::TextWarning);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,0,0,4));
-        CameraText=Text(TEXT(""),14);CameraText->SetColorAndOpacity(LDHUDStyle::TextSecondary);MapBox->AddChildToVerticalBox(CameraText)->SetPadding(FMargin(0,0,0,4));
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
-        MapBox->AddChildToVerticalBox(MapFrame);
+        MapBox->AddChildToVerticalBox(MapFrame)->SetHorizontalAlignment(HAlign_Left);
         MapColumn=Panel(MapBox,true);
         // Bottom-left, right above the minimap column: the room's event feed (LDHUD::FEventFeed). The newest line is at the
         // bottom, next to the map, and older lines are pushed up; the stack grows upward from the column, so the map never
@@ -371,7 +370,8 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         EventFeedPanel=Panel(FeedBox,false);EventFeedPanel->SetBrushColor(FLinearColor(.02f,.03f,.05f,.55f));EventFeedPanel->SetVisibility(ESlateVisibility::Collapsed);
         auto* BottomLeft=WidgetTree->ConstructWidget<UVerticalBox>();BottomLeft->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
         BottomLeft->AddChildToVerticalBox(EventFeedPanel)->SetHorizontalAlignment(HAlign_Left);
-        BottomLeft->AddChildToVerticalBox(MapColumn)->SetPadding(FMargin(0,8,0,0));
+        // #97: the map column keeps its own width; a wide feed line above must not stretch the minimap frame.
+        auto* MapSlot=BottomLeft->AddChildToVerticalBox(MapColumn);MapSlot->SetPadding(FMargin(0,8,0,0));MapSlot->SetHorizontalAlignment(HAlign_Left);
         Place(BottomLeft,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
@@ -1190,7 +1190,6 @@ void ULDHUD::RefreshReadModel()
             if(!ActionDetailSlot->GetPosition().Equals(Place,.5f)){ActionDetailSlot->SetPosition(Place);}
         }
     }
-    HudSetText(CameraText,PC->Navigation->bFollowCamera?FString(TEXT("镜头：跟随")):TEXT("镜头：自由 · ")+PC->BindingLabel(TEXT("Follow"))+TEXT(" 跟随"));
 
     const ALDWorldViewRelay* Relay=PC->LocalView();
     const FLDObservedFrameRead Frame=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();

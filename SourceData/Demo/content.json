@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; camp loot -50%. A playtest baseline, not a balance check."
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (balance 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; camp loot -50%; vision 1050. A playtest, not a balance check."
     }
   },
   "parameters": {
@@ -58,7 +58,7 @@
     "STAT.AttackRange.Min": {"unit": "cm", "value": 80},
     "STAT.AttackRange.Max": {"unit": "cm", "value": 1000},
     "UNIT.BasicAttackWindupSec": {"unit": "s", "value": 0.250},
-    "VISION.RadiusCm": {"unit": "cm", "value": 1400},
+    "VISION.RadiusCm": {"unit": "cm", "value": 1050},
     "SHOP.InteractRadiusCm": {"unit": "cm", "value": 600},
     "CAPTURE.RadiusCm": {"unit": "cm", "value": 300},
     "CAPTURE.SpraySec": {"unit": "s", "value": 3.5},

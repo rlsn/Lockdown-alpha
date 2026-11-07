@@ -717,8 +717,8 @@ const TCHAR* BlockerMaterialPath(const FLDDemoWorldGeometry& Geometry, const FLD
     return FenceMaterialPath;
 }
 
-// Raised ground: mottled grass on plateau tops and ramps, weathered rock on the cliff faces, told apart by the face
-// normal so a cliff reads as a wall from below.
+// Raised ground: mottled grass on plateau tops, ramps and cliff faces alike (#97: the darker rock faces now take the
+// surrounding grass; lighting alone sets a cliff apart from the top).
 UMaterial* BuildHillMaterial(FString& Error)
 {
     UMaterial* Material = NewGeneratedMaterial(HillMaterialPath, Error);
@@ -735,11 +735,7 @@ UMaterial* BuildHillMaterial(FString& Error)
     auto* Grass = AddNode<UMaterialExpressionMultiply>(*Material);
     Grass->A.Connect(0, ColorNode(*Material, FLinearColor(.11f, .29f, .07f)));
     Grass->B.Connect(0, Mottle);
-    auto* Rock = AddNode<UMaterialExpressionMultiply>(*Material);
-    Rock->A.Connect(0, ColorNode(*Material, FLinearColor(.26f, .22f, .17f)));
-    Rock->B.Connect(0, Mottle);
-    UMaterialExpression* Up = MaskNode(*Material, AddNode<UMaterialExpressionVertexNormalWS>(*Material), false, false, true);
-    return FinishMaterial(*Material, ChooseNode(*Material, Up, .5f, Rock, Grass), .92f, .3f, HillMaterialPath, Error);
+    return FinishMaterial(*Material, Grass, .92f, .3f, HillMaterialPath, Error);
 }
 
 // Campus paving beyond the walls: warm grey two-metre slabs with darker joints and faint weathering, darker than the
