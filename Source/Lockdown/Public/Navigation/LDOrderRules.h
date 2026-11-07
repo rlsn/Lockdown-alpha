@@ -81,6 +81,12 @@ namespace LDOrderRules
     // Busy, only delays it); an admitted request then replaces the order or drops the queue as before.
     LOCKDOWN_API bool SkillRequestReady(ELDCombatReject Unavailable);
 
+    // #153 opening countdown (2026-11-07 user decision: "开局五秒允许移动和选技能,但不允许攻击和购买"): before T=0 a
+    // movement order (ground move or the walk to the shop, Shift-queued or not) and the D dash are admitted; attack and
+    // cast orders and Q/W are refused. Trades are refused by the shop itself.
+    LOCKDOWN_API bool CountdownAdmitsOrder(const FLDSpatialOrderRequest& Request);
+    LOCKDOWN_API bool CountdownAdmitsAction(ELDCombatEntry Entry);
+
     // A taunt forces the one current order of a body (CONTENT_AND_BALANCE 15.5): Begin replaces any other order (or a
     // forced chase of an earlier taunter), Keep advances the forced chase, End returns control when the taunt is gone
     // (the replaced order is not resumed), None leaves ordinary orders alone. While taunted every own order is refused.

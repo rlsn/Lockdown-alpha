@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatSourceRules.h"
+#include "Navigation/LDOrderRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Combat/LDControlRules.h"
 #include "Character/LDCharacter.h"
@@ -241,8 +242,9 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     default: break;
     }
     Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
-    // #153: no attack, ability or dash before T=0. The refusal is kept, so a replay after T=0 cannot start it late.
-    if (Mode->IsOpeningCountdown(Caller.Match))
+    // #153: before T=0 only the D dash is admitted; basic attacks and Q/W are refused. The refusal is kept, so a replay
+    // after T=0 cannot start it late.
+    if (Mode->IsOpeningCountdown(Caller.Match) && !LDOrderRules::CountdownAdmitsAction(Request.Entry))
     {
         Refuse(ELDCombatReject::NotStarted);
         StoreReceipt(*Record,Request,Receipt);

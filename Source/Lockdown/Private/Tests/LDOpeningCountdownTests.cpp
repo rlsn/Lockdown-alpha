@@ -6,6 +6,7 @@
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
+#include "Navigation/LDOrderRules.h"
 #include "Navigation/LDOrderTypes.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
@@ -50,7 +51,7 @@ bool FLDDemoOpeningCountdownTest::RunTest(const FString& Parameters)
     Progression.ReadFinalLevel = [](const ALDGameMode&, const FGuid&, uint8& Level, FString&) { Level = 1; return true; };
     LDMatchProviders::FScopedTestTable Providers({{ELDMatchProvider::Progression, Progression}});
 
-    // A started match: the bodies stand frozen from authority time 0 and T=0 is the countdown's end.
+    // A started match: the bodies stand from authority time 0 and T=0 is the countdown's end.
     constexpr int64 CountdownMs = 5000, DevelopmentMs = 180000;
     Mode->MatchPhase = ELDMatchPhase::Countdown;
     Mode->MatchStartedAtMs = CountdownMs;
@@ -151,6 +152,28 @@ bool FLDDemoOpeningCountdownTest::RunTest(const FString& Parameters)
         FString(LDTerms::NotStartedYet));
     TestEqual(TEXT("So does a refused attack, ability or dash"), LDHUD::CombatRejectText(ELDCombatReject::NotStarted),
         FString(LDTerms::NotStartedYet));
+
+    // 2026-11-07 user decision: "开局五秒允许移动和选技能,但不允许攻击和购买".
+    for (const ELDSpatialOrderKind Kind : {ELDSpatialOrderKind::MoveGround, ELDSpatialOrderKind::ApproachShop})
+    {
+        FLDSpatialOrderRequest Move;
+        Move.Kind = Kind;
+        TestTrue(TEXT("A ground move or the walk to the shop is admitted before T=0"), LDOrderRules::CountdownAdmitsOrder(Move));
+        Move.bQueue = true;
+        TestTrue(TEXT("Also as a Shift step"), LDOrderRules::CountdownAdmitsOrder(Move));
+    }
+    for (const ELDSpatialOrderKind Kind : {ELDSpatialOrderKind::AttackUnit, ELDSpatialOrderKind::AttackMove,
+        ELDSpatialOrderKind::CastUnit, ELDSpatialOrderKind::CastPoint})
+    {
+        FLDSpatialOrderRequest Attack;
+        Attack.Kind = Kind;
+        TestFalse(TEXT("An attack or cast order is refused before T=0"), LDOrderRules::CountdownAdmitsOrder(Attack));
+    }
+    TestTrue(TEXT("The D dash is movement and is admitted"), LDOrderRules::CountdownAdmitsAction(ELDCombatEntry::Dash));
+    for (const ELDCombatEntry Entry : {ELDCombatEntry::Basic, ELDCombatEntry::Q, ELDCombatEntry::W})
+    {
+        TestFalse(TEXT("A basic attack or Q/W is refused before T=0"), LDOrderRules::CountdownAdmitsAction(Entry));
+    }
 
     // An AI request refused by the countdown teaches the failure memory nothing.
     FLDOrderReceipt Order;
