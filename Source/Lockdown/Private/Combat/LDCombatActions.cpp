@@ -873,12 +873,21 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     }
     UE_LOG(LogLDCombat,Verbose,TEXT("LD_COMBAT_BASIC_RELEASE token=%llu outcome=hit distance_cm=%.0f"),Action.Token,
         FVector::Dist2D(FootOf(Actor),FootOf(*TargetActor)));
+    return LandBasic(Actor,Body,Action,Error);
+}
+
+bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error)
+{
+    auto* Mode=Core();
+    const auto* Content=Catalog();
+    if (!Mode || !Content || !Action.TargetBody.IsValid())
+    { Error=TEXT("A landing basic lost its core, catalog or committed target."); return false; }
     const auto& Final=Body.AttributeProjection.Final;
     FLDCombatHit Hit;
     Hit.HitId=FGuid::NewGuid();
     Hit.EffectId=FGuid::NewGuid();
     Hit.Token=Action.Token;
-    Hit.Target=TargetRef;
+    Hit.Target=Action.TargetBody;
     Hit.SourceBody={Body.Victim,Body.Identity};
     Hit.SourceEntity=Body.Victim.EntityId;
     Hit.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
