@@ -772,7 +772,7 @@ HP/MP比例由P2只读值在显示侧格式化，UI不再次投影战斗属性�
 新增不在此白名单内的字段仍须重新审查，不能借“状态”输送私有CD或构筑。
 
 可见Returning统一使用同一 `Statuses` 中已注册的公共显示定义
-`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回工位”）。
+`StatusDefinitionId=camp_returning`（`ELDDemoStatusId::CampReturning`，“回位”）。
 它由 `ALDCampDirector::AppendObservedFacts` 在 Vision 发布当前获准可见、确处于Returning的CampMember时追加，
 无堆叠、到期倒计时、Home/路径目标、仇恨或内部phase字段；不是第二份可写Combat状态或Buff。
 被控制而暂停移动时仍显示Returning，退出该状态/失视野时移除，不在隐藏期间继续更新。

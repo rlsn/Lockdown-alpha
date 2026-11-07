@@ -5158,7 +5158,7 @@
   "display": [
     {
       "description_key": "active_arc_bolt.description",
-      "description_text": "朝指定方向甩出一个空酒瓶，直线飞，砸到第一个敌人或障碍就碎；对敌人造成物理超度，能躲开。攻击距离越远扔得越远。满级时砸中的敌人嘴硬降低一段时间。",
+      "description_text": "朝指定方向甩出一个空酒瓶，直线飞，砸到第一个敌人或障碍就碎；对敌人造成物理伤害，能躲开。攻击距离越远扔得越远。满级时砸中的敌人护甲降低一段时间。",
       "icon_id": "icon_active_arc_bolt",
       "id": "active_arc_bolt",
       "name_key": "active_arc_bolt.name",
@@ -5167,7 +5167,7 @@
     },
     {
       "description_key": "active_barrage_rant.description",
-      "description_text": "朝一个方向连发几句短喷，每句都刷新你挂在目标身上的持续伤害和腿软；满级时每句都能触发命中特效。",
+      "description_text": "朝一个方向连发几句短喷，每句都刷新你挂在目标身上的持续伤害和减速；满级时每句都能触发命中特效。",
       "icon_id": "icon_active_barrage_rant",
       "id": "active_barrage_rant",
       "name_key": "active_barrage_rant.name",
@@ -5176,7 +5176,7 @@
     },
     {
       "description_key": "active_binding_snare.description",
-      "description_text": "一把扒下一名看得见的敌人的裤子，只露出大花裤衩：造成精神攻击，并让对方忙着提裤子、走不动。伤害随阴阳怪气提高，不会暴击。",
+      "description_text": "一把扒下一名看得见的敌人的裤子，只露出大花裤衩：造成魔法伤害并使其定身。伤害随法术强度提高，不会暴击。",
       "icon_id": "icon_active_binding_snare",
       "id": "active_binding_snare",
       "name_key": "active_binding_snare.name",
@@ -5185,7 +5185,7 @@
     },
     {
       "description_key": "active_body_slam.description",
-      "description_text": "跳到指定地点一屁股坐下：落地时对周围的敌人造成物理超度并让其腿软。伤害随力大砖飞和自己的精神状态上限提高。提裤子时跳不起来。满级时每坐到一个敌人，按精神状态上限获得心理防线。",
+      "description_text": "跳到指定地点一屁股坐下：落地时对周围的敌人造成物理伤害并使其减速。伤害随攻击力和自己的生命上限提高。定身时跳不起来。满级时每坐到一个敌人，按生命上限获得护盾。",
       "icon_id": "icon_active_body_slam",
       "id": "active_body_slam",
       "name_key": "active_body_slam.name",
@@ -5194,7 +5194,7 @@
     },
     {
       "description_key": "active_cancel_blast.description",
-      "description_text": "对一个人发出实锤：他身上每有一种负面状态，伤害就更高；满级时先击碎他一部分心理防线，并按状态数回复自己。",
+      "description_text": "对一个人发出实锤：他身上每有一种负面状态，伤害就更高；满级时先击碎他一部分护盾，并按状态数回复自己。",
       "icon_id": "icon_active_cancel_blast",
       "id": "active_cancel_blast",
       "name_key": "active_cancel_blast.name",
@@ -5203,7 +5203,7 @@
     },
     {
       "description_key": "active_combo_flurry.description",
-      "description_text": "左右开弓停不下来：短时间内大幅提高手速。满级时持续期间每抽中一下大比兜，另一个主动技能的剩余冷却缩短。",
+      "description_text": "左右开弓停不下来：短时间内大幅提高攻速。满级时持续期间每次普攻命中，另一个主动技能的剩余冷却缩短。",
       "icon_id": "icon_active_combo_flurry",
       "id": "active_combo_flurry",
       "name_key": "active_combo_flurry.name",
@@ -5212,7 +5212,7 @@
     },
     {
       "description_key": "active_come_here.description",
-      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被激得「瞅你咋地」，只能追着你抽大比兜，不能放技能、用装备或润；同时短时间内提高自己的嘴硬和心大。满级时瞅你咋地结束，按期间挨打的次数对周围造成精神攻击。",
+      "description_text": "冲身边看得见你的敌人喊一句「你瞅啥」：他们被嘲讽，只能追着你普攻，不能放技能、用装备或冲刺；同时短时间内提高自己的护甲和魔抗。满级时嘲讽结束，按期间挨打的次数对周围造成魔法伤害。",
       "icon_id": "icon_active_come_here",
       "id": "active_come_here",
       "name_key": "active_come_here.name",
@@ -5221,7 +5221,7 @@
     },
     {
       "description_key": "active_expose_post.description",
-      "description_text": "指定一个人挂出小作文：持续造成精神攻击，每跳都让他的嘴硬和心大再降一截；满级时他在此期间位移会再挨一下。",
+      "description_text": "指定一个人挂出小作文：持续造成魔法伤害，每跳都让他的护甲和魔抗再降一截；满级时他在此期间位移会再挨一下。",
       "icon_id": "icon_active_expose_post",
       "id": "active_expose_post",
       "name_key": "active_expose_post.name",
@@ -5230,7 +5230,7 @@
     },
     {
       "description_key": "active_fart_dash.description",
-      "description_text": "原地放个屁，再朝指定方向润出一段距离：屁的范围内的敌人受到精神攻击并腿软。伤害随力大砖飞和阴阳怪气提高；提裤子时不能用。",
+      "description_text": "原地放个屁，再朝指定方向冲刺一段距离：屁的范围内的敌人受到魔法伤害并减速。伤害随攻击力和法术强度提高；定身时不能用。",
       "icon_id": "icon_active_fart_dash",
       "id": "active_fart_dash",
       "name_key": "active_fart_dash.name",
@@ -5239,7 +5239,7 @@
     },
     {
       "description_key": "active_guard_pulse.description",
-      "description_text": "嘴上说没事，顺手把裤子提好：给自己加上心理防线，并立刻解除身上的提裤子和腿软。心理防线随阴阳怪气和自己的精神状态上限提高。满级时若真解除了提裤子或腿软，心理防线翻倍并返还一部分冷却。",
+      "description_text": "嘴上说没事，顺手把裤子提好：给自己加上护盾，并立刻解除身上的定身和减速。护盾随法术强度和自己的生命上限提高。满级时若真解除了定身或减速，护盾翻倍并返还一部分冷却。",
       "icon_id": "icon_active_guard_pulse",
       "id": "active_guard_pulse",
       "name_key": "active_guard_pulse.name",
@@ -5248,7 +5248,7 @@
     },
     {
       "description_key": "active_lunge.description",
-      "description_text": "朝指定方向滑铲出一段距离，碰到阻挡就停下；之后一段时间内的下一次大比兜额外造成物理超度，会暴击、吸血和横扫。提裤子时不能用。满级时滑铲路上的敌人腿软，强化大比兜打中后本技能冷却缩短。",
+      "description_text": "朝指定方向滑铲出一段距离，碰到阻挡就停下；之后一段时间内的下一次普攻额外造成物理伤害，会暴击、吸血和横扫。定身时不能用。满级时滑铲路上的敌人减速，强化普攻打中后本技能冷却缩短。",
       "icon_id": "icon_active_lunge",
       "id": "active_lunge",
       "name_key": "active_lunge.name",
@@ -5257,7 +5257,7 @@
     },
     {
       "description_key": "active_monkey_peach.description",
-      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理超度并让其捂裆，期间抽不了大比兜，仍可移动、放技能和用装备；出手后马上能抽下一下大比兜。伤害随力大砖飞提高。满级时对方正被控住或破防了，这一掏必定暴击。",
+      "description_text": "隔着裤子往下三路一掏：对身边一名看得见的敌人造成物理伤害并使其缴械，期间无法普攻，仍可移动、放技能和用装备；出手后马上能进行下一次普攻。伤害随攻击力提高。满级时对方正被控住或处于破防，这一掏必定暴击。",
       "icon_id": "icon_active_monkey_peach",
       "id": "active_monkey_peach",
       "name_key": "active_monkey_peach.name",
@@ -5266,7 +5266,7 @@
     },
     {
       "description_key": "active_pie_chart.description",
-      "description_text": "在一块地上拉群画饼：你站在里面会反复获得心理防线，敌人在里面腿软；满级时结束那一刻把还在圈里的人提裤子。",
+      "description_text": "在一块地上拉群画饼：你站在里面会反复获得护盾，敌人在里面减速；满级时结束那一刻让还在圈里的人定身。",
       "icon_id": "icon_active_pie_chart",
       "id": "active_pie_chart",
       "name_key": "active_pie_chart.name",
@@ -5275,7 +5275,7 @@
     },
     {
       "description_key": "active_porcelain_flop.description",
-      "description_text": "往地上一躺：短时间内受到的伤害降低；期间挨的打够多就反震周围的人并获得心理防线，满级反震改为让人 CPU 干烧。",
+      "description_text": "往地上一躺：短时间内受到的伤害降低；期间挨的打够多就反震周围的人并获得护盾，满级反震改为让人眩晕。",
       "icon_id": "icon_active_porcelain_flop",
       "id": "active_porcelain_flop",
       "name_key": "active_porcelain_flop.name",
@@ -5284,7 +5284,7 @@
     },
     {
       "description_key": "active_slick_moves.description",
-      "description_text": "绕着柱子跑，谁也追不上：短时间内大幅提高润速和攻击距离。满级时施放先解除自身腿软，之后一小会儿跑出的路程攒成下一次大比兜的额外物理超度。",
+      "description_text": "绕着柱子跑，谁也追不上：短时间内大幅提高移速和攻击距离。满级时施放先解除自身减速，之后一小会儿跑出的路程攒成下一次普攻的额外物理伤害。",
       "icon_id": "icon_active_slick_moves",
       "id": "active_slick_moves",
       "name_key": "active_slick_moves.name",
@@ -5293,7 +5293,7 @@
     },
     {
       "description_key": "active_slipper_throw.description",
-      "description_text": "朝一名看得见的敌人泼一杯珍珠奶茶，必定命中，造成物理超度，黏糊糊的让对方腿软。伤害随力大砖飞提高。满级时对方腿软期间，你打他掉的精神状态有一部分回到自己身上。",
+      "description_text": "朝一名看得见的敌人泼一杯珍珠奶茶，必定命中，造成物理伤害，黏糊糊的让对方减速。伤害随攻击力提高。满级时对方减速期间，你打掉他的生命有一部分回到自己身上。",
       "icon_id": "icon_active_slipper_throw",
       "id": "active_slipper_throw",
       "name_key": "active_slipper_throw.name",
@@ -5302,7 +5302,7 @@
     },
     {
       "description_key": "active_table_flip.description",
-      "description_text": "先获得心理防线，再把当前这层心理防线整个掀出去，伤到周围的人；满级时把周围的人掀飞出去。",
+      "description_text": "先获得护盾，再把当前这层护盾整个掀出去，伤到周围的人；满级时把周围的人击退。",
       "icon_id": "icon_active_table_flip",
       "id": "active_table_flip",
       "name_key": "active_table_flip.name",
@@ -5311,7 +5311,7 @@
     },
     {
       "description_key": "active_thousand_year.description",
-      "description_text": "专挑背后下手：对贴身的一名看得见的敌人造成精神攻击，伤害随力大砖飞和阴阳怪气提高。从对方背后出手时伤害更高，并让对方 CPU 干烧了。满级时对方提裤子、腿软或瞅你咋地期间也算背后。",
+      "description_text": "专挑背后下手：对贴身的一名看得见的敌人造成魔法伤害，伤害随攻击力和法术强度提高。从对方背后出手时伤害更高，并使对方眩晕。满级时对方定身、减速或嘲讽期间也算背后。",
       "icon_id": "icon_active_thousand_year",
       "id": "active_thousand_year",
       "name_key": "active_thousand_year.name",
@@ -5320,16 +5320,16 @@
     },
     {
       "description_key": "ambush_ready.description",
-      "description_text": "潜水党已就绪：下一次大比兜或伤害技能额外造成精神攻击。",
+      "description_text": "潜水党已就绪：下一次普攻或伤害技能额外造成魔法伤害。",
       "icon_id": "icon_ambush_ready",
       "id": "ambush_ready",
       "name_key": "ambush_ready.name",
-      "name_text": "蹲到了",
+      "name_text": "伏击就绪",
       "namespace": "DemoContent"
     },
     {
       "description_key": "attr_focus.description",
-      "description_text": "网上冲浪学来的话术：本局永久提高阴阳怪气和整活频率，可以重复选。",
+      "description_text": "网上冲浪学来的话术：本局永久提高法术强度和技能急速，可以重复选。",
       "icon_id": "icon_attr_focus",
       "id": "attr_focus",
       "name_key": "attr_focus.name",
@@ -5338,7 +5338,7 @@
     },
     {
       "description_key": "attr_focus_as.description",
-      "description_text": "打字比说话快：本局永久提高阴阳怪气和手速，可以重复选。",
+      "description_text": "打字比说话快：本局永久提高法术强度和攻速，可以重复选。",
       "icon_id": "icon_attr_focus_as",
       "id": "attr_focus_as",
       "name_key": "attr_focus_as.name",
@@ -5347,7 +5347,7 @@
     },
     {
       "description_key": "attr_focus_defense.description",
-      "description_text": "心里早骂过了：本局永久提高阴阳怪气、嘴硬和心大，可以重复选。",
+      "description_text": "心里早骂过了：本局永久提高法术强度、护甲和魔抗，可以重复选。",
       "icon_id": "icon_attr_focus_defense",
       "id": "attr_focus_defense",
       "name_key": "attr_focus_defense.name",
@@ -5356,7 +5356,7 @@
     },
     {
       "description_key": "attr_might.description",
-      "description_text": "本局永久提高力大砖飞和暴击率，可以重复选。",
+      "description_text": "本局永久提高攻击力和暴击率，可以重复选。",
       "icon_id": "icon_attr_might",
       "id": "attr_might",
       "name_key": "attr_might.name",
@@ -5365,7 +5365,7 @@
     },
     {
       "description_key": "attr_might_haste.description",
-      "description_text": "出手又快又狠：本局永久提高力大砖飞和整活频率，可以重复选。",
+      "description_text": "出手又快又狠：本局永久提高攻击力和技能急速，可以重复选。",
       "icon_id": "icon_attr_might_haste",
       "id": "attr_might_haste",
       "name_key": "attr_might_haste.name",
@@ -5374,7 +5374,7 @@
     },
     {
       "description_key": "attr_might_hp.description",
-      "description_text": "操场加练：本局永久提高力大砖飞和精神状态上限，可以重复选。",
+      "description_text": "操场加练：本局永久提高攻击力和生命上限，可以重复选。",
       "icon_id": "icon_attr_might_hp",
       "id": "attr_might_hp",
       "name_key": "attr_might_hp.name",
@@ -5383,7 +5383,7 @@
     },
     {
       "description_key": "attr_reach.description",
-      "description_text": "伸手就够得着：本局永久提高大比兜的攻击距离和手速，可以重复选。",
+      "description_text": "伸手就够得着：本局永久提高普攻的攻击距离和攻速，可以重复选。",
       "icon_id": "icon_attr_reach",
       "id": "attr_reach",
       "name_key": "attr_reach.name",
@@ -5392,7 +5392,7 @@
     },
     {
       "description_key": "attr_reach_ms.description",
-      "description_text": "打一下就跑：本局永久提高大比兜的攻击距离和润速，可以重复选。",
+      "description_text": "打一下就跑：本局永久提高普攻的攻击距离和移速，可以重复选。",
       "icon_id": "icon_attr_reach_ms",
       "id": "attr_reach_ms",
       "name_key": "attr_reach_ms.name",
@@ -5401,7 +5401,7 @@
     },
     {
       "description_key": "attr_resolve.description",
-      "description_text": "捂住耳朵就不疼：本局永久提高精神状态上限、嘴硬和心大，可以重复选。",
+      "description_text": "捂住耳朵就不疼：本局永久提高生命上限、护甲和魔抗，可以重复选。",
       "icon_id": "icon_attr_resolve",
       "id": "attr_resolve",
       "name_key": "attr_resolve.name",
@@ -5410,7 +5410,7 @@
     },
     {
       "description_key": "attr_roam_hybrid.description",
-      "description_text": "一天打卡八个点：本局永久提高润速、力大砖飞和阴阳怪气，可以重复选。",
+      "description_text": "一天打卡八个点：本局永久提高移速、攻击力和法术强度，可以重复选。",
       "icon_id": "icon_attr_roam_hybrid",
       "id": "attr_roam_hybrid",
       "name_key": "attr_roam_hybrid.name",
@@ -5419,7 +5419,7 @@
     },
     {
       "description_key": "attr_vitality.description",
-      "description_text": "吃饱了心态就好：本局永久提高精神状态上限、电量上限和精神状态回复，当前值按比例一起涨，可以重复选。",
+      "description_text": "吃饱了心态就好：本局永久提高生命上限、法力上限和生命回复，当前值按比例一起涨，可以重复选。",
       "icon_id": "icon_attr_vitality",
       "id": "attr_vitality",
       "name_key": "attr_vitality.name",
@@ -5428,7 +5428,7 @@
     },
     {
       "description_key": "attr_wild_brawler.description",
-      "description_text": "贴脸输出：本局永久大幅提高手速和润速，但大比兜的攻击距离缩短，可以重复选。",
+      "description_text": "贴脸输出：本局永久大幅提高攻速和移速，但普攻的攻击距离缩短，可以重复选。",
       "icon_id": "icon_attr_wild_brawler",
       "id": "attr_wild_brawler",
       "name_key": "attr_wild_brawler.name",
@@ -5437,7 +5437,7 @@
     },
     {
       "description_key": "attr_wild_glass_cannon.description",
-      "description_text": "豁出去了：本局永久大幅提高力大砖飞、阴阳怪气和手速，但精神状态上限降低，可以重复选。",
+      "description_text": "豁出去了：本局永久大幅提高攻击力、法术强度和攻速，但生命上限降低，可以重复选。",
       "icon_id": "icon_attr_wild_glass_cannon",
       "id": "attr_wild_glass_cannon",
       "name_key": "attr_wild_glass_cannon.name",
@@ -5446,7 +5446,7 @@
     },
     {
       "description_key": "attr_wild_juggernaut.description",
-      "description_text": "谁也推不动：本局永久大幅提高精神状态上限、嘴硬和心大，但润速降低，可以重复选。",
+      "description_text": "谁也推不动：本局永久大幅提高生命上限、护甲和魔抗，但移速降低，可以重复选。",
       "icon_id": "icon_attr_wild_juggernaut",
       "id": "attr_wild_juggernaut",
       "name_key": "attr_wild_juggernaut.name",
@@ -5455,16 +5455,16 @@
     },
     {
       "description_key": "camp_returning.description",
-      "description_text": "野怪正在回工位，途中不攻击也不换目标，但仍会挨打；回到工位后精神状态回满。",
+      "description_text": "野怪正在回位，途中不攻击也不换目标，但仍会挨打；回到原位后生命回满。",
       "icon_id": "icon_camp_returning",
       "id": "camp_returning",
       "name_key": "camp_returning.name",
-      "name_text": "回工位",
+      "name_text": "回位",
       "namespace": "DemoContent"
     },
     {
       "description_key": "character_demo.description",
-      "description_text": "已成年，一碰就碎但嘴很硬。开局只会抽大比兜，涨粉后开盲盒挑技能或属性，也能去砍一刀小摊买装备。",
+      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻，涨粉后开盲盒挑技能或属性，也能去砍一刀小摊买装备。",
       "icon_id": "icon_character_demo",
       "id": "character_demo",
       "name_key": "character_demo.name",
@@ -5478,57 +5478,57 @@
       "icon_id": "icon_damage_guard",
       "id": "damage_guard",
       "name_key": "damage_guard.name",
-      "name_text": "碰瓷中",
+      "name_text": "减伤",
       "namespace": "DemoContent"
     },
     {
       "description_key": "disarm.description",
-      "description_text": "两只手忙着捂裆：抽不了大比兜，但仍可以移动、润、放技能和用装备。",
+      "description_text": "两只手忙着护裆：无法普攻，但仍可以移动、冲刺、放技能和用装备。",
       "icon_id": "icon_disarm",
       "id": "disarm",
       "name_key": "disarm.name",
-      "name_text": "捂裆",
+      "name_text": "缴械",
       "namespace": "DemoContent"
     },
     {
       "description_key": "empowered.description",
-      "description_text": "下一次打中敌人的大比兜额外造成伤害；打出或到时间就没了。",
+      "description_text": "下一次打中敌人的普攻额外造成伤害；打出或到时间就没了。",
       "icon_id": "icon_empowered",
       "id": "empowered",
       "name_key": "empowered.name",
-      "name_text": "蓄力大比兜",
+      "name_text": "强化普攻",
       "namespace": "DemoContent"
     },
     {
       "description_key": "enraged.description",
-      "description_text": "他急了生效中：精神状态过低，力大砖飞提高。",
+      "description_text": "他急了生效中：生命过低，攻击力提高。",
       "icon_id": "icon_enraged",
       "id": "enraged",
       "name_key": "enraged.name",
-      "name_text": "急了",
+      "name_text": "狂暴",
       "namespace": "DemoContent"
     },
     {
       "description_key": "exposed.description",
-      "description_text": "嘴硬或心大被削了：一段时间内受到的物理超度或精神攻击更高。",
+      "description_text": "护甲或魔抗被削了：一段时间内受到的物理伤害或魔法伤害更高。",
       "icon_id": "icon_exposed",
       "id": "exposed",
       "name_key": "exposed.name",
-      "name_text": "破防了",
+      "name_text": "破防",
       "namespace": "DemoContent"
     },
     {
       "description_key": "heal_cut.description",
-      "description_text": "黑料缠身：受到的治疗和心理防线减少，同类效果只按最狠的算。",
+      "description_text": "黑料缠身：受到的治疗和护盾减少，同类效果只按最狠的算。",
       "icon_id": "icon_heal_cut",
       "id": "heal_cut",
       "name_key": "heal_cut.name",
-      "name_text": "被开盒",
+      "name_text": "重伤",
       "namespace": "DemoContent"
     },
     {
       "description_key": "item_arcane_battery.description",
-      "description_text": "提高电量上限和心大。主动「插上电」：立刻回复一部分电量，并给自己加上心理防线。",
+      "description_text": "提高法力上限和魔抗。主动「插上电」：立刻回复一部分法力，并给自己加上护盾。",
       "icon_id": "icon_item_arcane_battery",
       "id": "item_arcane_battery",
       "name_key": "item_arcane_battery.name",
@@ -5537,7 +5537,7 @@
     },
     {
       "description_key": "item_decoy_wig.description",
-      "description_text": "提高力大砖飞和阴阳怪气；主动：解除自己的提裤子和腿软，向后一跳，原地留下假发片诱饵，让周围的人追着诱饵瞅。",
+      "description_text": "提高攻击力和法术强度；主动：解除自己的定身和减速，向后一跳，原地留下假发片诱饵，让周围的人追着诱饵瞅。",
       "icon_id": "icon_item_decoy_wig",
       "id": "item_decoy_wig",
       "name_key": "item_decoy_wig.name",
@@ -5546,7 +5546,7 @@
     },
     {
       "description_key": "item_dossier.description",
-      "description_text": "提高阴阳怪气和精神状态上限；主动：对一个人抖黑料，造成精神攻击并让他一段时间内受到的治疗和心理防线减少。",
+      "description_text": "提高法术强度和生命上限；主动：对一个人抖黑料，造成魔法伤害并让他一段时间内受到的治疗和护盾减少。",
       "icon_id": "icon_item_dossier",
       "id": "item_dossier",
       "name_key": "item_dossier.name",
@@ -5555,7 +5555,7 @@
     },
     {
       "description_key": "item_echo_maul.description",
-      "description_text": "提高力大砖飞和攻击距离。被动「一杆清」：大比兜命中时顺带扫到目标附近的其他敌人，造成主击一部分的物理超度。",
+      "description_text": "提高攻击力和攻击距离。被动「一杆清」：普攻命中时顺带扫到目标附近的其他敌人，造成主击一部分的物理伤害。",
       "icon_id": "icon_item_echo_maul",
       "id": "item_echo_maul",
       "name_key": "item_echo_maul.name",
@@ -5564,7 +5564,7 @@
     },
     {
       "description_key": "item_edge_blade.description",
-      "description_text": "提高力大砖飞和手速。被动：每第几下大比兜额外造成物理超度。",
+      "description_text": "提高攻击力和攻速。被动：每第几下普攻额外造成物理伤害。",
       "icon_id": "icon_item_edge_blade",
       "id": "item_edge_blade",
       "name_key": "item_edge_blade.name",
@@ -5573,7 +5573,7 @@
     },
     {
       "description_key": "item_energy_drink.description",
-      "description_text": "提高整活频率和手速；主动：两个技能里冷却快好的那个立即就绪。",
+      "description_text": "提高技能急速和攻速；主动：两个技能里冷却快好的那个立即就绪。",
       "icon_id": "icon_item_energy_drink",
       "id": "item_energy_drink",
       "name_key": "item_energy_drink.name",
@@ -5582,7 +5582,7 @@
     },
     {
       "description_key": "item_iron_plate.description",
-      "description_text": "提高精神状态上限和嘴硬。被动：受到的暴击伤害降低。",
+      "description_text": "提高生命上限和护甲。被动：受到的暴击伤害降低。",
       "icon_id": "icon_item_iron_plate",
       "id": "item_iron_plate",
       "name_key": "item_iron_plate.name",
@@ -5591,7 +5591,7 @@
     },
     {
       "description_key": "item_megaphone.description",
-      "description_text": "提高阴阳怪气和整活频率；你造成的持续伤害更高，施加的腿软更狠。",
+      "description_text": "提高法术强度和技能急速；你造成的持续伤害更高，施加的减速更狠。",
       "icon_id": "icon_item_megaphone",
       "id": "item_megaphone",
       "name_key": "item_megaphone.name",
@@ -5600,7 +5600,7 @@
     },
     {
       "description_key": "item_nail_uniform.description",
-      "description_text": "提高精神状态上限和嘴硬。被动「扎心了老铁」：被近处敌人的大比兜打中时，让对方受到精神攻击，随嘴硬和精神状态上限提高；同一人短时间内只触发一次。",
+      "description_text": "提高生命上限和护甲。被动「扎心了老铁」：被近处敌人的普攻打中时，让对方受到魔法伤害，随护甲和生命上限提高；同一人短时间内只触发一次。",
       "icon_id": "icon_item_nail_uniform",
       "id": "item_nail_uniform",
       "name_key": "item_nail_uniform.name",
@@ -5609,7 +5609,7 @@
     },
     {
       "description_key": "item_paper_box.description",
-      "description_text": "提高阴阳怪气和润速。主动「泯然众人」：混进人群查无此人一小会儿，润速略降，潜水党立刻就绪；离得很近的敌人仍能认出你，抽大比兜、放技能、用装备或挨打都会现身。",
+      "description_text": "提高法术强度和移速。主动「泯然众人」：混进人群查无此人一小会儿，移速略降，潜水党立刻就绪；离得很近的敌人仍能认出你，普攻、放技能、用装备或挨打都会现身。",
       "icon_id": "icon_item_paper_box",
       "id": "item_paper_box",
       "name_key": "item_paper_box.name",
@@ -5618,7 +5618,7 @@
     },
     {
       "description_key": "item_phase_anchor.description",
-      "description_text": "提高润速。被动「说润就润」：带着时润的冷却缩短、润得更远；带冲刺或跳跃的技能和装备主动也冲得更远、冷却更短。两本同款只算一次。",
+      "description_text": "提高移速。被动「说润就润」：带着时冲刺的冷却缩短、冲刺更远；带冲刺或跳跃的技能和装备主动也冲得更远、冷却更短。两本同款只算一次。",
       "icon_id": "icon_item_phase_anchor",
       "id": "item_phase_anchor",
       "name_key": "item_phase_anchor.name",
@@ -5627,7 +5627,7 @@
     },
     {
       "description_key": "item_privacy_screen.description",
-      "description_text": "提高精神状态上限和阴阳怪气；心理防线被打破时，对打破者造成精神攻击并让他腿软。",
+      "description_text": "提高生命上限和法术强度；护盾被打破时，对打破者造成魔法伤害并使其减速。",
       "icon_id": "icon_item_privacy_screen",
       "id": "item_privacy_screen",
       "name_key": "item_privacy_screen.name",
@@ -5636,7 +5636,7 @@
     },
     {
       "description_key": "item_runic_focus.description",
-      "description_text": "键盘侠专用：提高阴阳怪气和整活频率。被动：技能命中时回一点电量，每次施放一次。",
+      "description_text": "键盘侠专用：提高法术强度和技能急速。被动：技能命中时回复一点法力，每次施放一次。",
       "icon_id": "icon_item_runic_focus",
       "id": "item_runic_focus",
       "name_key": "item_runic_focus.name",
@@ -5645,7 +5645,7 @@
     },
     {
       "description_key": "item_siphon_emblem.description",
-      "description_text": "提高力大砖飞和心大。被动「回本」：大比兜（含强化大比兜）让对方实际掉的精神状态，按比例回到自己身上。",
+      "description_text": "提高攻击力和魔抗。被动「回本」：普攻（含强化普攻）让对方实际损失的生命，按比例回到自己身上。",
       "icon_id": "icon_item_siphon_emblem",
       "id": "item_siphon_emblem",
       "name_key": "item_siphon_emblem.name",
@@ -5654,7 +5654,7 @@
     },
     {
       "description_key": "item_skateboard.description",
-      "description_text": "提高力大砖飞和润速；大比兜打中人后短时间内润得更快。",
+      "description_text": "提高攻击力和移速；普攻打中人后短时间内移动更快。",
       "icon_id": "icon_item_skateboard",
       "id": "item_skateboard",
       "name_key": "item_skateboard.name",
@@ -5663,7 +5663,7 @@
     },
     {
       "description_key": "item_slingshot.description",
-      "description_text": "看着吓人，其实滋水：提高攻击距离和手速。",
+      "description_text": "看着吓人，其实滋水：提高攻击距离和攻速。",
       "icon_id": "icon_item_slingshot",
       "id": "item_slingshot",
       "name_key": "item_slingshot.name",
@@ -5672,11 +5672,11 @@
     },
     {
       "description_key": "knockback.description",
-      "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、润、抽大比兜、放技能和用装备。",
+      "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、冲刺、普攻、放技能和用装备。",
       "icon_id": "icon_knockback",
       "id": "knockback",
       "name_key": "knockback.name",
-      "name_text": "被掀飞",
+      "name_text": "击退",
       "namespace": "DemoContent"
     },
     {
@@ -5690,7 +5690,7 @@
     },
     {
       "description_key": "monster_guardian.description",
-      "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回工位。",
+      "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。",
       "icon_id": "icon_monster_guardian",
       "id": "monster_guardian",
       "name_key": "monster_guardian.name",
@@ -5699,7 +5699,7 @@
     },
     {
       "description_key": "monster_scavenger.description",
-      "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回工位。",
+      "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。",
       "icon_id": "icon_monster_scavenger",
       "id": "monster_scavenger",
       "name_key": "monster_scavenger.name",
@@ -5708,7 +5708,7 @@
     },
     {
       "description_key": "passive_battle_rhythm.description",
-      "description_text": "抢过演唱会门票的手：学会后持续提高手速；每抽一下大比兜短暂提高润速，可叠几层。满级时叠满后大比兜出手更快。",
+      "description_text": "抢过演唱会门票的手：学会后持续提高攻速；每次普攻短暂提高移速，可叠几层。满级时叠满后普攻出手更快。",
       "icon_id": "icon_passive_battle_rhythm",
       "id": "passive_battle_rhythm",
       "name_key": "passive_battle_rhythm.name",
@@ -5717,7 +5717,7 @@
     },
     {
       "description_key": "passive_cornered.description",
-      "description_text": "急眼了劲更大：精神状态低于一定比例时，力大砖飞按比例提高，造成的伤害按比例回到自己身上；精神状态回升后恢复。满级时跌破更低比例时获得心理防线，有内置冷却。",
+      "description_text": "急眼了劲更大：生命低于一定比例时，攻击力按比例提高，造成的伤害按比例回复自己的生命；生命回升后恢复。满级时跌破更低比例时获得护盾，有内置冷却。",
       "icon_id": "icon_passive_cornered",
       "id": "passive_cornered",
       "name_key": "passive_cornered.name",
@@ -5726,7 +5726,7 @@
     },
     {
       "description_key": "passive_dox_master.description",
-      "description_text": "大比兜和伤害技能打中人时给他叠上破防：持续掉精神状态，嘴硬和心大降低；满级时叠满的人受到的治疗和心理防线减少。",
+      "description_text": "普攻和伤害技能打中人时给他叠上破防：持续损失生命，护甲和魔抗降低；满级时叠满的人受到的治疗和护盾减少。",
       "icon_id": "icon_passive_dox_master",
       "id": "passive_dox_master",
       "name_key": "passive_dox_master.name",
@@ -5735,7 +5735,7 @@
     },
     {
       "description_key": "passive_eagle_eye.description",
-      "description_text": "顺着网线就能打到你：学会后提高大比兜的攻击距离；离目标越远，你对他的伤害越高，有上限。满级时扔东西和指向技能的距离也变远。",
+      "description_text": "顺着网线就能打到你：学会后提高普攻的攻击距离；离目标越远，你对他的伤害越高，有上限。满级时扔东西和指向技能的距离也变远。",
       "icon_id": "icon_passive_eagle_eye",
       "id": "passive_eagle_eye",
       "name_key": "passive_eagle_eye.name",
@@ -5744,7 +5744,7 @@
     },
     {
       "description_key": "passive_iron_crotch.description",
-      "description_text": "专治手欠：被近处敌人的大比兜或技能打中时，让对方受到精神攻击，随嘴硬和精神状态上限提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。满级时反伤让对方手速和润速短暂降低。",
+      "description_text": "专治手欠：被近处敌人的普攻或技能打中时，让对方受到魔法伤害，随护甲和生命上限提高，被暴击时翻倍。背后来袭不触发，同一人短时间内只触发一次。满级时反伤让对方攻速和移速短暂降低。",
       "icon_id": "icon_passive_iron_crotch",
       "id": "passive_iron_crotch",
       "name_key": "passive_iron_crotch.name",
@@ -5753,7 +5753,7 @@
     },
     {
       "description_key": "passive_keyboard_warrior.description",
-      "description_text": "每次大比兜额外附带一次精神攻击；满级时放完技能后一段时间内手速和攻击距离提高。",
+      "description_text": "每次普攻额外附带一次魔法伤害；满级时放完技能后一段时间内攻速和攻击距离提高。",
       "icon_id": "icon_passive_keyboard_warrior",
       "id": "passive_keyboard_warrior",
       "name_key": "passive_keyboard_warrior.name",
@@ -5762,7 +5762,7 @@
     },
     {
       "description_key": "passive_lurking.description",
-      "description_text": "潜水够久，冒泡第一下最疼：脱离战斗一段时间后，下一次大比兜或伤害技能额外造成精神攻击；每次润或跳都让准备时间缩短。伤害随力大砖飞和阴阳怪气提高。满级时这一下让对方嘴硬和心大降低一段时间。",
+      "description_text": "潜水够久，冒泡第一下最疼：脱离战斗一段时间后，下一次普攻或伤害技能额外造成魔法伤害；每次冲刺或跳跃都让准备时间缩短。伤害随攻击力和法术强度提高。满级时这一下让对方护甲和魔抗降低一段时间。",
       "icon_id": "icon_passive_lurking",
       "id": "passive_lurking",
       "name_key": "passive_lurking.name",
@@ -5771,7 +5771,7 @@
     },
     {
       "description_key": "passive_mental_gymnastics.description",
-      "description_text": "心理防线被打破或成功刷新时，对周围造成精神攻击，并让技能冷却缩短；满级时附带腿软。",
+      "description_text": "护盾被打破或成功刷新时，对周围造成魔法伤害，并让技能冷却缩短；满级时附带减速。",
       "icon_id": "icon_passive_mental_gymnastics",
       "id": "passive_mental_gymnastics",
       "name_key": "passive_mental_gymnastics.name",
@@ -5780,7 +5780,7 @@
     },
     {
       "description_key": "passive_precision.description",
-      "description_text": "招招往下三路招呼：学会后提高大比兜的暴击率；大比兜暴击时，两个主动技能的剩余冷却缩短。满级时掏蛋子、珍珠奶茶泼脸、扒裤子、年轻人不讲武德能以一半暴击率暴击。",
+      "description_text": "招招往下三路招呼：学会后提高普攻的暴击率；普攻暴击时，两个主动技能的剩余冷却缩短。满级时掏蛋子、珍珠奶茶泼脸、扒裤子、年轻人不讲武德能以一半暴击率暴击。",
       "icon_id": "icon_passive_precision",
       "id": "passive_precision",
       "name_key": "passive_precision.name",
@@ -5789,7 +5789,7 @@
     },
     {
       "description_key": "passive_public_shame.description",
-      "description_text": "丑态已截图，存档备用：对被提裤子、CPU 干烧了、捂裆、瞅你咋地或腿软的敌人，你造成的伤害提高。满级时亲手控住或让人腿软时回一点电量。",
+      "description_text": "丑态已截图，存档备用：对被定身、眩晕、缴械、嘲讽或减速的敌人，你造成的伤害提高。满级时亲手控住或减速敌人时回复一点法力。",
       "icon_id": "icon_passive_public_shame",
       "id": "passive_public_shame",
       "name_key": "passive_public_shame.name",
@@ -5798,7 +5798,7 @@
     },
     {
       "description_key": "passive_second_wind.description",
-      "description_text": "发完疯就舒服了：脱离战斗一段时间后，每秒按精神状态上限回暖；挨了技能后短时间内回暖和回电加倍。满级时战斗中也保留一半脱战回暖。",
+      "description_text": "发完疯就舒服了：脱离战斗一段时间后，每秒按生命上限回复生命；挨了技能后短时间内生命回复和法力回复加倍。满级时战斗中也保留一半脱战回复。",
       "icon_id": "icon_passive_second_wind",
       "id": "passive_second_wind",
       "name_key": "passive_second_wind.name",
@@ -5807,7 +5807,7 @@
     },
     {
       "description_key": "passive_thick_skin.description",
-      "description_text": "每次位移或控住别人都会获得心理防线，有内置冷却；满级时获得后不久的下一次攻击附带伤害。",
+      "description_text": "每次位移或控住别人都会获得护盾，有内置冷却；满级时获得后不久的下一次攻击附带伤害。",
       "icon_id": "icon_passive_thick_skin",
       "id": "passive_thick_skin",
       "name_key": "passive_thick_skin.name",
@@ -5816,20 +5816,20 @@
     },
     {
       "description_key": "respawn_protection.description",
-      "description_text": "刚从出租屋回来，暂时不受伤害和控制；一出手就没了，失手也没了。金牌在身时不能争旗杆。",
+      "description_text": "刚从出租屋回来，暂时不受伤害和控制；一出手就没了，失手也没了。复活保护期间不能争旗杆。",
       "icon_id": "icon_respawn_protection",
       "id": "respawn_protection",
       "name_key": "respawn_protection.name",
-      "name_text": "免死金牌",
+      "name_text": "复活保护",
       "namespace": "DemoContent"
     },
     {
       "description_key": "root.description",
-      "description_text": "裤子被扒了，忙着提：不能移动和润，但仍可以抽大比兜、放技能和用装备。",
+      "description_text": "裤子被扒了，忙着提：不能移动和冲刺，但仍可以普攻、放技能和用装备。",
       "icon_id": "icon_root",
       "id": "root",
       "name_key": "root.name",
-      "name_text": "提裤子",
+      "name_text": "定身",
       "namespace": "DemoContent"
     },
     {
@@ -5838,30 +5838,30 @@
       "icon_id": "icon_shield",
       "id": "shield",
       "name_key": "shield.name",
-      "name_text": "心理防线",
+      "name_text": "护盾",
       "namespace": "DemoContent"
     },
     {
       "description_key": "slow.description",
-      "description_text": "润速暂时降低，到时间就恢复；同时中了好几次腿软，只按最狠的那次算。",
+      "description_text": "移速暂时降低，到时间就恢复；同时中了好几次减速，只按最狠的那次算。",
       "icon_id": "icon_slow",
       "id": "slow",
       "name_key": "slow.name",
-      "name_text": "腿软",
+      "name_text": "减速",
       "namespace": "DemoContent"
     },
     {
       "description_key": "stat_boost.description",
-      "description_text": "技能带来的属性提升，上头一阵，到时间就消失。",
+      "description_text": "技能带来的属性提升，到时间就消失。",
       "icon_id": "icon_stat_boost",
       "id": "stat_boost",
       "name_key": "stat_boost.name",
-      "name_text": "上头",
+      "name_text": "增益",
       "namespace": "DemoContent"
     },
     {
       "description_key": "stealth.description",
-      "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被认出来。抽大比兜、放技能、用装备或挨打都会现身。",
+      "description_text": "离得较远的敌人看不见你，也无法锁定你；离得很近会被认出来。普攻、放技能、用装备或挨打都会现身。",
       "icon_id": "icon_stealth",
       "id": "stealth",
       "name_key": "stealth.name",
@@ -5870,29 +5870,29 @@
     },
     {
       "description_key": "stun.description",
-      "description_text": "脑子转不动了：不能移动、润、抽大比兜、放技能和用装备；正在准备的动作会被打断。",
+      "description_text": "脑子转不动了：不能移动、冲刺、普攻、放技能和用装备；正在准备的动作会被打断。",
       "icon_id": "icon_stun",
       "id": "stun",
       "name_key": "stun.name",
-      "name_text": "CPU 干烧了",
+      "name_text": "眩晕",
       "namespace": "DemoContent"
     },
     {
       "description_key": "taunt.description",
-      "description_text": "被激到了：只能追着冲你喊「你瞅啥」的人抽大比兜，不能放技能、用装备、润或自己下令；对方寄了、离开或不在视野里时立刻解除。",
+      "description_text": "被激到了：只能追着冲你喊「你瞅啥」的人普攻，不能放技能、用装备、冲刺或自己下令；对方寄了、离开或不在视野里时立刻解除。",
       "icon_id": "icon_taunt",
       "id": "taunt",
       "name_key": "taunt.name",
-      "name_text": "瞅你咋地",
+      "name_text": "嘲讽",
       "namespace": "DemoContent"
     },
     {
       "description_key": "vulnerable.description",
-      "description_text": "提裤子期间更怕打：受到的持续伤害和大比兜伤害提高。",
+      "description_text": "定身期间更怕打：受到的持续伤害和普攻伤害提高。",
       "icon_id": "icon_vulnerable",
       "id": "vulnerable",
       "name_key": "vulnerable.name",
-      "name_text": "裤子没了",
+      "name_text": "易伤",
       "namespace": "DemoContent"
     }
   ],

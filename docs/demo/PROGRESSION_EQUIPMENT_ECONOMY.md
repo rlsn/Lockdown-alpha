@@ -346,7 +346,7 @@ ResolvedLifeThrough 时仅重放/拒旧；Create 只使用账本签出的
 | 致死与正式离局先后 | 致死在先则资格/归属锁定，后来离局不改既成结果；离局在先则立即移除身体并取消其独立效果，不再产生后续击杀。原始时间先于毫秒桶/phase。 |
 | 营地成员死亡/整组清空/刷新 | 每成员同一 Life 只一次；清空/刷新仅世界生命周期，不再发一份清营奖。 |
 
-**助攻资格与记录。** 唯一的伤害/状态施加路径（`ALDCombatDirector::ApplyHit` 的已提交正伤害——含被心理防线吸收的部分——或定身、缴械、眩晕、减速；
+**助攻资格与记录。** 唯一的伤害/状态施加路径（`ALDCombatDirector::ApplyHit` 的已提交正伤害——含被护盾吸收的部分——或定身、缴械、眩晕、减速；
 `ApplyTauntEffect` 的嘲讽；后续加入的击退、持续伤害、破防、减疗减盾等在其施加成功处）对参赛者受害者调用
 `ALDCombatDirector::RecordAssistContribution`，按效果的实际所有者（CreditOwner）在受害者这条生命的身体上记下最近贡献时刻
 （`FLDBodyCombatState::AssistContributions`，纯规则 `LDAssist::RecordContribution`），换命随身体一起消失。
