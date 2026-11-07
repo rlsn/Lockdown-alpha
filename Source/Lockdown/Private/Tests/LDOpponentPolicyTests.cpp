@@ -2378,6 +2378,154 @@ bool RunAvoidBoss(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A camp member is not the Boss"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Camp)));
     return bGood;
 }
+
+// #160: the Opponent scenario saw a body flip every decision between stepping away from the Boss and the errand that led
+// back to it (Shop/Farm against AvoidBoss), a new order each time.
+bool RunBossEscapeKept(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    Base.Self.FootCm = FVector(500, -500, 0);
+    const TCHAR* Dean = *C.Get().Boss.Id;
+    auto IsAvoid = [](const FLDOpponentDecision& D) { return D.Reason == ELDOpponentReason::AvoidBoss; };
+
+    auto Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    FLDOpponentPolicyState State;
+    const auto Step = LDOpponentPolicy::Decide(Frame, C, State);
+    bool bGood = Expect(Test, TEXT("Inside the band the body walks away from the Boss"), Step, EMode::Disengage, EBody::MoveGround)
+        && Test.TestTrue(TEXT("The walk away is an escape from the Boss"), State.bEscapingBoss);
+    const FName Retreat = Step.Body.POI;
+    // The walk is under way, the body has left the band and the Boss is still in sight: without the escape this frame
+    // turns back to farming (the Far case of AvoidBoss).
+    auto Away = Base;
+    Away.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 2500, -500, Dean)};
+    Away.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Away.Order.POI = Retreat;
+    for (const ELDOpponentOrderStatus Walking : {ELDOpponentOrderStatus::Pending, ELDOpponentOrderStatus::Active})
+    {
+        Frame = Away;
+        Frame.Public.NowMs += 250;
+        Frame.Order.Status = Walking;
+        const auto During = LDOpponentPolicy::Decide(Frame, C, State);
+        bGood &= Expect(Test, FString::Printf(TEXT("Out of the band the escape (status %u) walks on to its place"), uint8(Walking)),
+            During, EMode::Disengage, EBody::Keep, Retreat) && Test.TestTrue(TEXT("Still an escape from the Boss"), IsAvoid(During));
+    }
+    FLDOpponentPolicyState Fresh;
+    Frame = Away;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    bGood &= Test.TestFalse(TEXT("A body that was not escaping carries on out of the band"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Fresh)));
+    // The walk arrived: the escape is over even with the Boss in sight.
+    FLDOpponentPolicyState Arrived = State;
+    Frame = Away;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    bGood &= Test.TestFalse(TEXT("An escape ends when its walk has arrived"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Arrived)))
+        && Test.TestFalse(TEXT("The arrived escape is forgotten"), Arrived.bEscapingBoss);
+    // The Boss went out of sight: the errand resumes.
+    FLDOpponentPolicyState Unseen = State;
+    Frame = Away;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Units.Reset();
+    bGood &= Test.TestFalse(TEXT("An escape ends once the Boss is out of sight"), IsAvoid(LDOpponentPolicy::Decide(Frame, C, Unseen)))
+        && Test.TestFalse(TEXT("The unseen Boss's escape is forgotten"), Unseen.bEscapingBoss);
+    // Back inside the band the body steps away again and keeps its place while that still leads away.
+    FLDOpponentPolicyState Again = State;
+    Frame = Base;
+    Frame.Units = {Unit(9, ELDOpponentUnitKind::CampMember, 700, -400, Dean)};
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Active;
+    Frame.Order.POI = Retreat;
+    bGood &= Expect(Test, TEXT("Inside the band a live escape is kept, not re-ordered"), LDOpponentPolicy::Decide(Frame, C, Again),
+        EMode::Disengage, EBody::Keep, Retreat);
+    return bGood;
+}
+
+// #160: a body standing where navigation refuses every walk (NotGrounded) sent a new walk to another place on every
+// decision, 80 body requests in 30 s, and spent every place's retry budget.
+bool RunWalkRefusals(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    const auto& AI = C.Get().Parameters.AI;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    auto Goal = [](const TCHAR* POI)
+    {
+        FLDOpponentRetryKey Key;
+        Key.Category = ELDOpponentFailure::Path;
+        Key.POI = POI;
+        return Key;
+    };
+    auto Walks = [](const FLDOpponentDecision& D)
+    {
+        return D.Body.Kind == EBody::MoveGround || D.Body.Kind == EBody::ApproachShop || D.Body.Kind == EBody::AttackUnit;
+    };
+    auto Frame = Base;
+    FLDOpponentPolicyState State;
+    const auto First = LDOpponentPolicy::Decide(Frame, C, State);
+    bool bGood = Expect(Test, TEXT("The healthy body walks to farm"), First, EMode::Farm, EBody::MoveGround);
+    LDOpponentPolicy::RecordWalkAdmission(State, First.Body.Key, true, Frame.Self, Frame.Public.NowMs, AI);
+    Frame.Public.NowMs += 1;
+    bGood &= Test.TestFalse(TEXT("Right after a refused walk no other walk is sent"), Walks(LDOpponentPolicy::Decide(Frame, C, State)));
+    // Refusals of different places from the same standing point spend the body's walking budget.
+    int64 Now = Frame.Public.NowMs;
+    for (const TCHAR* Place : {TEXT("l2"), TEXT("l3"), TEXT("h1"), TEXT("s00")})
+    {
+        Now += AI.RetryMaxBackoffMs + 1;
+        LDOpponentPolicy::RecordWalkAdmission(State, Goal(Place), true, Frame.Self, Now, AI);
+    }
+    Frame.Public.NowMs = Now + 60000;
+    bGood &= Test.TestFalse(TEXT("After the retry budget no walk is sent from where the body stands"), Walks(LDOpponentPolicy::Decide(Frame, C, State)));
+    const double Reach = double(Frame.Self.Attributes.AttackRangeCm.Numerator) / double(Frame.Self.Attributes.AttackRangeCm.Denominator);
+    bGood &= Test.TestFalse(TEXT("No attack chase either"), [&]
+    {
+        auto Fight = Frame;
+        Fight.Units = {Unit(4, ELDOpponentUnitKind::Contender, Reach * 1.5, 0)};
+        FLDOpponentPolicyState Copy = State;
+        return Walks(LDOpponentPolicy::Decide(Fight, C, Copy));
+    }());
+    bGood &= Test.TestTrue(TEXT("A target already in reach is still attacked where the body stands"), [&]
+    {
+        auto Fight = Frame;
+        Fight.Units = {Unit(4, ELDOpponentUnitKind::Contender, Reach * .5, 0)};
+        FLDOpponentPolicyState Copy = State;
+        const auto Decision = LDOpponentPolicy::Decide(Fight, C, Copy);
+        return Decision.Body.Kind == EBody::AttackUnit || Decision.Body.Kind == EBody::Activate;
+    }());
+    FLDOpponentPolicyState Moved = State;
+    auto Elsewhere = Frame;
+    Elsewhere.Self.FootCm += FVector(40, 0, 0);
+    bGood &= Test.TestTrue(TEXT("Once the body has moved it walks again"), Walks(LDOpponentPolicy::Decide(Elsewhere, C, Moved)));
+    FLDOpponentPolicyState Respawned = State;
+    auto NextLife = Frame;
+    NextLife.Self.Life += 1;
+    bGood &= Test.TestTrue(TEXT("A new life walks again"), Walks(LDOpponentPolicy::Decide(NextLife, C, Respawned)));
+    // The same place refused again is that place's own failure, not the body's.
+    FLDOpponentPolicyState Same;
+    Frame = Base;
+    for (int32 Attempt = 0; Attempt < 4; ++Attempt)
+    {
+        LDOpponentPolicy::RecordWalkAdmission(Same, Goal(TEXT("l2")), true, Frame.Self, Frame.Public.NowMs, AI);
+        Frame.Public.NowMs += AI.RetryMaxBackoffMs + 1;
+    }
+    bGood &= Test.TestTrue(TEXT("One place refused repeatedly does not stop the body walking elsewhere"), Walks(LDOpponentPolicy::Decide(Frame, C, Same)));
+    // An admitted walk clears the count at once.
+    FLDOpponentPolicyState Cleared;
+    Frame = Base;
+    LDOpponentPolicy::RecordWalkAdmission(Cleared, Goal(TEXT("l2")), true, Frame.Self, Frame.Public.NowMs, AI);
+    LDOpponentPolicy::RecordWalkAdmission(Cleared, Goal(TEXT("l3")), true, Frame.Self, Frame.Public.NowMs, AI);
+    LDOpponentPolicy::RecordWalkAdmission(Cleared, Goal(TEXT("l1")), false, Frame.Self, Frame.Public.NowMs, AI);
+    bGood &= Test.TestTrue(TEXT("An admitted walk lets the next walk go at once"), Walks(LDOpponentPolicy::Decide(Frame, C, Cleared)));
+    return bGood;
+}
 }
 }
 
@@ -2403,6 +2551,22 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentAvoidBossTest, "Lockdown.Rules.D
 bool FLDDemoOpponentAvoidBossTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunAvoidBoss(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentBossEscapeKeptTest, "Lockdown.Rules.DemoOpponentPolicy.BossEscapeKept",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentBossEscapeKeptTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunBossEscapeKept(*this);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentWalkRefusalsTest, "Lockdown.Rules.DemoOpponentPolicy.WalkRefusals",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentWalkRefusalsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentPolicyTests::RunWalkRefusals(*this);
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentDormRecoveryTest, "Lockdown.Rules.DemoOpponentPolicy.DormRecovery",

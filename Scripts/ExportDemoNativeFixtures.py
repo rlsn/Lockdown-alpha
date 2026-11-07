@@ -2,17 +2,26 @@
 
 Nothing here is a production content source or an approval decision. All output
 must be a new directory under this worktree's ignored Artifacts directory.
+
+With --cache the export is kept under that directory, keyed by the hash of every input it reads (this script and the
+Scripts modules it imports, SourceData, the generated Demo data and the native id and contract headers), and reused
+while the key and every exported file's hash still match. Native tests only read the fixtures.
 """
 import argparse
 from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 from decimal import Decimal
+import hashlib
 import json
 import math
 import os
 from pathlib import Path
+import shutil
+import sys
+import time
 
 from CatalogTools import encode
+from CIChangeScope import python_closure
 import DemoContent as demo
 import DemoContentTestFixtures as fixtures
 import DemoWorld
@@ -500,13 +509,21 @@ def _init_worker():
     _worker_reuse.__enter__()
 
 
+def _case_hashes(output, name):
+    """Hashes of the files one case's writer has just written, keyed relative to the export root. Each case writes
+    only below its own directory."""
+    root = Path(output) / name
+    return {p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
 def _valid_job(output, name, author, world, literal):
     compilation, assertions = _valid_case(output, name, author, world, literal)
-    return compilation.digest.hex(), assertions
+    return compilation.digest.hex(), assertions, _case_hashes(output, name)
 
 
 def _approved_job(output):
-    return _approved_case(output).digest.hex()
+    return _approved_case(output).digest.hex(), _case_hashes(output, "approved_base")
 
 
 class _InlinePool:
@@ -529,17 +546,18 @@ class _InlinePool:
         return False
 
 
-def export(output, *, rank_mutations=True, jobs=None):
+def export(output, *, rank_mutations=True, jobs=None, written=None):
     """Write every fixture case. Valid cases compile in up to `jobs` processes (default: CPU count); the written
-    bytes and index order do not depend on `jobs`."""
+    bytes and index order do not depend on `jobs`. When `written` is a dict, each writer records there the hash of
+    every file it wrote, keyed relative to `output`."""
     jobs = default_jobs() if jobs is None else jobs
     demo.require(type(jobs) is int and jobs >= 1, "FixtureJobs", output, "jobs must be a positive integer")
     # Most cases share the fixture world and its binding sections; validate each distinct pair once per process.
     with DemoWorld.reuse_binding_reports():
-        return _export(output, rank_mutations=rank_mutations, jobs=jobs)
+        return _export(output, rank_mutations=rank_mutations, jobs=jobs, written={} if written is None else written)
 
 
-def _export(output, *, rank_mutations, jobs):
+def _export(output, *, rank_mutations, jobs, written):
     output = Path(output)
     resolved = output.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
@@ -549,6 +567,7 @@ def _export(output, *, rank_mutations, jobs):
     output.mkdir(parents=True)
     index = {"format": "demo-native-fixtures-1", "test_only": True, "valid": [], "invalid": []}
     base, base_assertions = _valid_case(output, "base")
+    written.update(_case_hashes(output, "base"))
     index["valid"].append({"name": "base", "catalog_sha256": base.digest.hex(), "changed_paths": [], "mutated_quantity": ""})
     pool = _InlinePool() if jobs == 1 else ProcessPoolExecutor(jobs, initializer=_init_worker)
     with pool:
@@ -560,15 +579,20 @@ def _export(output, *, rank_mutations, jobs):
             job = pool.submit(_valid_job, output, name, deepcopy(author), deepcopy(world), literal)
             pending.append((name, mutated_quantity, job))
 
-        _export_cases(output, index, base, rank_mutations, valid)
-        index["valid"].append({"name": "approved_base", "catalog_sha256": approved.result(),
+        _export_cases(output, index, base, rank_mutations, valid, written)
+        approved_digest, approved_files = approved.result()
+        written.update(approved_files)
+        index["valid"].append({"name": "approved_base", "catalog_sha256": approved_digest,
                               "changed_paths": [], "mutated_quantity": ""})
         for name, mutated_quantity, job in pending:
-            digest, assertions = job.result()
+            digest, assertions, files = job.result()
+            written.update(files)
             changes = [key for key, value in assertions.items() if not key.startswith("Identity.") and base_assertions.get(key) != value]
             index["valid"].append({"name": name, "catalog_sha256": digest,
                                   "changed_paths": changes, "mutated_quantity": mutated_quantity})
-    _save(output / "index.json", encode(demo.canonical(index)))
+    raw = encode(demo.canonical(index))
+    _save(output / "index.json", raw)
+    written["index.json"] = hashlib.sha256(raw).hexdigest()
     return index
 
 
@@ -597,7 +621,7 @@ def _rank_mutation(author, path):
     return changed
 
 
-def _export_cases(output, index, base, rank_mutations, valid):
+def _export_cases(output, index, base, rank_mutations, valid, written):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
@@ -634,6 +658,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         root = output / name
         for relative, raw in bundle.items():
             _save(root / relative, raw)
+            written[(Path(name) / relative).as_posix()] = hashlib.sha256(raw).hexdigest()
         index["invalid"].append({"name": name, "catalog_sha256": digest, "error_contains": error})
 
     def bad_content(name, mutate, error):
@@ -858,12 +883,115 @@ def _export_cases(output, index, base, rank_mutations, valid):
     invalid("stale_expected_root", _bundle(base), "0" * 64, "expected root")
 
 
+CACHE_FORMAT = "demo-native-fixture-cache-1"
+CACHE_MANIFEST = "cache.json"
+# Cache entries kept beside the current one, for the worktree state before the last input change.
+CACHE_KEEP = 1
+# A staging directory (<key>.<pid>.tmp) belongs to an export that may still be running in another process; it is removed
+# only once it is far older than any export takes, so its writer has certainly ended.
+STAGING_STALE_SECONDS = 6 * 3600
+
+
+def cache_inputs(root=None):
+    """Every file the export reads, relative to the project root."""
+    root = Path(root or demo.ROOT)
+    scripts = Path(__file__).resolve().parent
+    files = {f"Scripts/{name}.py" for name in python_closure(scripts, [Path(__file__).stem], Path(__file__).name)}
+    for folder in ("SourceData", demo.DATA.as_posix()):
+        files.update(p.relative_to(root).as_posix() for p in (root / folder).rglob("*") if p.is_file())
+    files.update(p.as_posix() for p in (demo.NATIVE_IDS, demo.CONTENT_CONTRACT, demo.WORLD_CONTRACT))
+    return sorted(files)
+
+
+def cache_key(root=None):
+    root = Path(root or demo.ROOT)
+    digest = hashlib.sha256(f"{CACHE_FORMAT}\0python {sys.version_info[0]}.{sys.version_info[1]}\0".encode())
+    for relative in cache_inputs(root):
+        raw = (root / relative).read_bytes()
+        digest.update(f"{relative}\0{len(raw)}\0".encode())
+        digest.update(raw)
+    return digest.hexdigest()
+
+
+def _file_hashes(folder):
+    folder = Path(folder)
+    return {p.relative_to(folder).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+            for p in sorted(folder.rglob("*")) if p.is_file() and p.name != CACHE_MANIFEST}
+
+
+def _cache_valid(entry, key):
+    try:
+        manifest = json.loads((entry / CACHE_MANIFEST).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return (isinstance(manifest, dict) and manifest.get("format") == CACHE_FORMAT and manifest.get("key") == key
+            and manifest.get("files") == _file_hashes(entry))
+
+
+def _prune(cache, current):
+    entries = [p for p in cache.iterdir() if p.is_dir() and p != current]
+    staging = [p for p in entries if p.name.endswith(".tmp")]
+    entries = [p for p in entries if p not in staging]
+    stale = [p for p in entries if not (p / CACHE_MANIFEST).is_file()]
+    stale += [p for p in staging if time.time() - p.stat().st_mtime > STAGING_STALE_SECONDS]
+    kept = sorted((p for p in entries if p not in stale), key=lambda p: (p / CACHE_MANIFEST).stat().st_mtime, reverse=True)
+    for path in stale + kept[CACHE_KEEP:]:
+        # Another run may still read an old entry; whatever cannot be removed now goes on a later run.
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def export_cached(cache, *, jobs=None, root=None):
+    """Return (fixture directory, reused) for the current inputs, exporting only when no valid entry exists."""
+    cache = Path(cache)
+    resolved = cache.resolve()
+    artifacts = (demo.ROOT / "Artifacts").resolve()
+    demo.require(resolved.is_relative_to(artifacts) and resolved != artifacts, "FixturePath", cache,
+                 "the fixture cache must be a directory below this worktree's Artifacts")
+    key = cache_key(root)
+    entry = resolved / key
+    if _cache_valid(entry, key):
+        os.utime(entry / CACHE_MANIFEST)
+        _prune(resolved, entry)
+        return entry, True
+    shutil.rmtree(entry, ignore_errors=True)
+    demo.require(not entry.exists(), "FixtureCache", entry, "an invalid cache entry could not be removed")
+    resolved.mkdir(parents=True, exist_ok=True)
+    staging = resolved / f"{key}.{os.getpid()}.tmp"
+    shutil.rmtree(staging, ignore_errors=True)
+    written = {}
+    try:
+        export(staging, jobs=jobs, written=written)
+        demo.require(cache_key(root) == key, "InputsChanged", cache, "fixture inputs changed during the export")
+        # The manifest is what the export wrote, not what is on disk afterwards; a file lost or added meanwhile refuses.
+        demo.require(_file_hashes(staging) == written, "FixtureCache", staging, "staged fixtures differ from what the export wrote")
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    manifest = {"format": CACHE_FORMAT, "key": key, "files": written}
+    (staging / CACHE_MANIFEST).write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    try:
+        staging.rename(entry)
+    except OSError:
+        # A concurrent run published the same key first; use that entry if it is complete.
+        shutil.rmtree(staging, ignore_errors=True)
+        demo.require(_cache_valid(entry, key), "FixtureCache", entry, "could not publish the exported fixtures")
+    _prune(resolved, entry)
+    return entry, False
+
+
 def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", required=True, type=Path)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    target = parser.add_mutually_exclusive_group(required=True)
+    target.add_argument("--output", type=Path, help="export into this new directory")
+    target.add_argument("--cache", type=Path, help="reuse or refresh the input-keyed export below this directory")
     parser.add_argument("--jobs", type=int, default=None, help="worker processes for valid cases (default: CPU count)")
     args = parser.parse_args()
     try:
+        if args.cache:
+            path, reused = export_cached(args.cache, jobs=args.jobs)
+            print(f"TEST ONLY: {'reused native fixtures for unchanged inputs' if reused else 'exported native fixtures for changed inputs'}: {path}")
+            print(f"FIXTURES={path}")
+            return
         index = export(args.output, jobs=args.jobs)
     except (demo.ContentError, OSError) as error:
         parser.exit(1, f"Demo native fixture export failed: {error}\n")

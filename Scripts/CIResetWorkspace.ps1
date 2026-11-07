@@ -23,8 +23,12 @@ function Clear-Directory([string]$Path) {
 
 & git -C $root clean -ffd
 if ($LASTEXITCODE -ne 0) { throw 'git clean failed.' }
-# Earlier runs' outputs: uploaded as artifacts or already reported in their own run.
-Clear-Directory (Join-Path $root 'Artifacts')
+# Earlier runs' outputs: uploaded as artifacts or already reported in their own run. The native fixture cache stays: it
+# is keyed by its inputs and every file is verified before reuse (ExportDemoNativeFixtures.py --cache).
+$fixtureCache = 'DemoContentFixtureCache'
+if (Test-Path -LiteralPath (Join-Path $root 'Artifacts')) {
+    Get-ChildItem -LiteralPath (Join-Path $root 'Artifacts') -Force | Where-Object Name -ne $fixtureCache | Remove-Item -Recurse -Force
+}
 foreach ($relative in 'Saved/Logs', 'Saved/Crashes', 'Saved/Autosaves', 'Saved/StagedBuilds') {
     Clear-Directory (Join-Path $root $relative)
 }

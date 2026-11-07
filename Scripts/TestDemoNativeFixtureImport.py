@@ -1,11 +1,16 @@
 """Test-only export consistency; these checks do not substitute for UE automation."""
 from concurrent.futures import ProcessPoolExecutor
+import hashlib
 import json
+import os
 from pathlib import Path
 import pickle
 import re
+import shutil
 import tempfile
+import time
 import unittest
+from unittest import mock
 
 import DemoContent as demo
 import ExportDemoNativeFixtures as native
@@ -27,7 +32,12 @@ class DemoNativeFixturesTest(unittest.TestCase):
         cls.temp = tempfile.TemporaryDirectory(prefix="export-test-", dir=artifacts)
         cls.addClassCleanup(cls.temp.cleanup)
         cls.root = Path(cls.temp.name) / "fixtures"
-        cls.index = native.export(cls.root)
+        cls.written = {}
+        cls.index = native.export(cls.root, written=cls.written)
+
+    def test_export_records_exactly_the_files_it_wrote(self):
+        self.assertGreater(len(self.written), 1000)
+        self.assertEqual(native._file_hashes(self.root), self.written)
 
     def test_valid_outputs_use_the_existing_compiler_contract(self):
         cases = self.index["valid"]
@@ -215,6 +225,117 @@ class DemoNativeFixtureParallelismTest(unittest.TestCase):
         self.assertIs(type(error), demo.ContentError)
         self.assertEqual((error.code, error.path, error.detail, str(error)),
                          ("Code", str(Path("a", "b")), "detail", f"Code: {Path('a', 'b')}: detail"))
+
+
+class DemoNativeFixtureCacheTest(unittest.TestCase):
+    def setUp(self):
+        artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
+        artifacts.mkdir(parents=True, exist_ok=True)
+        temp = tempfile.TemporaryDirectory(prefix="cache-test-", dir=artifacts)
+        self.addCleanup(temp.cleanup)
+        self.temp = Path(temp.name)
+        self.exports = []
+        self.lose_file = False
+
+    def fake_export(self, output, *, jobs=None, written=None):
+        output = Path(output)
+        self.assertFalse(output.exists())
+        (output / "base").mkdir(parents=True)
+        files = {"index.json": json.dumps({"export": len(self.exports)}).encode(), "base/native_expected.json": b"{}"}
+        for relative, raw in files.items():
+            (output / relative).write_bytes(raw)
+            written[relative] = hashlib.sha256(raw).hexdigest()
+        if self.lose_file:
+            (output / "base" / "native_expected.json").unlink()
+        self.exports.append(output)
+
+    def cached(self, key):
+        with mock.patch.object(native, "export", self.fake_export), mock.patch.object(native, "cache_key", lambda root=None: key):
+            return native.export_cached(self.temp / "cache")
+
+    def test_unchanged_inputs_reuse_the_export(self):
+        first, reused = self.cached("a" * 64)
+        self.assertEqual((first.name, reused, len(self.exports)), ("a" * 64, False, 1))
+        again, reused = self.cached("a" * 64)
+        self.assertEqual((again, reused, len(self.exports)), (first, True, 1))
+
+    def test_changed_inputs_always_export_again(self):
+        first, _ = self.cached("a" * 64)
+        second, reused = self.cached("b" * 64)
+        self.assertEqual((second.name, reused, len(self.exports)), ("b" * 64, False, 2))
+        self.assertTrue(first.is_dir())
+
+    def test_a_changed_or_extra_cached_file_is_exported_again(self):
+        for tamper in (lambda entry: (entry / "index.json").write_text("{}", encoding="utf-8"),
+                       lambda entry: (entry / "base" / "extra.json").write_text("{}", encoding="utf-8"),
+                       lambda entry: (entry / "base" / "native_expected.json").unlink(),
+                       lambda entry: (entry / native.CACHE_MANIFEST).unlink()):
+            with self.subTest(tamper=tamper):
+                entry, _ = self.cached("c" * 64)
+                count = len(self.exports)
+                tamper(entry)
+                again, reused = self.cached("c" * 64)
+                self.assertEqual((again, reused, len(self.exports)), (entry, False, count + 1))
+                self.assertEqual(self.cached("c" * 64)[1], True)
+
+    def test_a_file_lost_before_publishing_is_refused(self):
+        self.lose_file = True
+        with self.assertRaisesRegex(demo.ContentError, "differ from what the export wrote"):
+            self.cached("d" * 64)
+        self.assertFalse((self.temp / "cache" / ("d" * 64)).exists())
+
+    def test_old_entries_are_pruned(self):
+        for letter in "defgh":
+            self.cached(letter * 64)
+        entries = sorted(p.name[0] for p in (self.temp / "cache").iterdir())
+        self.assertEqual(entries, ["g", "h"])
+
+    def test_another_runs_staging_survives_pruning_until_it_is_stale(self):
+        cache = self.temp / "cache"
+        running = cache / ("e" * 64 + ".4242.tmp")
+        abandoned = cache / ("f" * 64 + ".4343.tmp")
+        for staging in (running, abandoned):
+            staging.mkdir(parents=True)
+            (staging / "index.json").write_text("{}", encoding="utf-8")
+        old = time.time() - native.STAGING_STALE_SECONDS - 60
+        os.utime(abandoned, (old, old))
+        self.cached("a" * 64)
+        self.cached("b" * 64)
+        self.assertTrue((running / "index.json").is_file())
+        self.assertFalse(abandoned.exists())
+
+    def test_cache_must_stay_below_artifacts(self):
+        with self.assertRaises(demo.ContentError):
+            native.export_cached(demo.ROOT / "SourceData" / "never-a-fixture-cache")
+        self.assertFalse((demo.ROOT / "SourceData" / "never-a-fixture-cache").exists())
+
+    def test_key_covers_every_input_and_nothing_else(self):
+        root = self.temp / "root"
+        for relative in native.cache_inputs():
+            target = root / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(demo.ROOT / relative, target)
+        inputs = native.cache_inputs(root)
+        for required in ("Scripts/ExportDemoNativeFixtures.py", "Scripts/DemoContent.py", "Scripts/DemoContentTestFixtures.py",
+                         demo.CONTENT_SOURCE.as_posix(), demo.WORLD_SOURCE.as_posix(), demo.CONTENT_OUTPUT.as_posix(),
+                         demo.NATIVE_IDS.as_posix(), demo.CONTENT_CONTRACT.as_posix(), demo.WORLD_CONTRACT.as_posix()):
+            self.assertIn(required, inputs)
+        base = native.cache_key(root)
+        self.assertEqual(native.cache_key(root), base)
+        (root / "docs").mkdir()
+        (root / "docs" / "note.md").write_text("not an input", encoding="utf-8")
+        self.assertEqual(native.cache_key(root), base)
+        for relative in ("Scripts/DemoWorld.py", demo.CONTENT_SOURCE.as_posix(), demo.MANIFEST_OUTPUT.as_posix(),
+                         demo.WORLD_CONTRACT.as_posix()):
+            with self.subTest(relative=relative):
+                path = root / relative
+                original = path.read_bytes()
+                path.write_bytes(original + b"\n")
+                self.assertNotEqual(native.cache_key(root), base)
+                path.write_bytes(original)
+                self.assertEqual(native.cache_key(root), base)
+        (root / "SourceData" / "Demo" / "new_input.json").write_text("{}", encoding="utf-8")
+        self.assertNotEqual(native.cache_key(root), base)
 
 
 if __name__ == "__main__":
