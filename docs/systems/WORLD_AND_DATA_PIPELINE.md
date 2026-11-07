@@ -212,10 +212,15 @@ ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、�
 共享 `FNumbers` 按符号和正幅值比较，避开锁定 UE 负数关系运算的错误/递归，不修改共享引擎。
 几何负坐标、正负分数和 int64 边界由原生专用规则覆盖。
 
-`RunTests.ps1` 调用 `ExportDemoNativeFixtures.py --output <全新 Artifacts 子目录>`，
-只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content。
+`RunTests.ps1` 调用 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache`：
+按导出所读全部输入的哈希取缓存目录，逐个文件核对哈希后复用，输入或文件有任何变化就导出到新的临时目录再发布；
+`--output <全新 Artifacts 子目录>` 仍可一次性导出。
+只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content；原生测试只读夹具，
+需要改源文件的往返检查先把 base 用例复制到 `Intermediate` 下的临时目录。
 向原生自动化传 `-LDDemoContentFixtures="<该目录>"`，执行
 `Lockdown.Rules.DemoContent.TypedProjection`、`.StrictRefusal`、`.AtomicAssetRoundTrip`。
+`DemoWorld.TypedProjection` 在同一次运行中直接取用 `DemoContent.TypedProjection` 对同一夹具字节导入出的内容快照，
+单独运行时自行导入。
 缺少夹具会失败而非跳过。覆盖全部反射字段的独立断言、每个 rank 数量字段变异、
 完整保存投影逐字段损坏拒绝、内存 DataAsset 序列化、失败保留与当前文件/根拒旧。
 这些证明导入和定义一致性，不证明真实 `.uasset` 保存/Cook、图标资源解析、地图生成、
