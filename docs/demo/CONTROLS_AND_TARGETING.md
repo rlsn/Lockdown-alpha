@@ -86,17 +86,18 @@
   是世界点击、悬停和准备确认共用的指针入口。`DevSetPointer` 只在 `WITH_DEV_AUTOMATION_TESTS`
   构建中替代鼠标，其他构建无效。
 
-### 2.1 四类能力目标与来源
+### 2.1 能力目标与来源
 
-能力目标模式只由内容定义给出（`ELDDemoTargetMode`：`Self`、`Unit`、`DirectionProjectile`、`DirectionDash`），
-请求上的目标种类为 `ELDCombatTargetKind`：`Missing`、`Self`、`Unit`、`Direction`。
-地面点只用于移动、攻击移动和砍一刀小摊订单；没有以地面点为目标的能力。
+能力目标模式只由内容定义给出（`ELDDemoTargetMode`：`Self`、`Unit`、`DirectionProjectile`、`DirectionDash`、`GroundPoint`），
+请求上的目标种类为 `ELDCombatTargetKind`：`Missing`、`Self`、`Unit`、`Direction`、`Point`。
+以地面点为目标的能力只有 `GroundPoint` 区域技能（当前目录为临时开个短会）；其余地面点只用于移动、攻击移动和砍一刀小摊订单。
 
 | 目标模式 | 准备与确认 | 服务器处理 |
 | --- | --- | --- |
 | Self | 按键或 HUD 图标直接发送 | 目标固定为当前自己的身体。 |
 | Unit | 进入准备；左键取指针下的当前可见单位（观察句柄与 ObservationEpoch） | 当前观察权限、目标生命、关系、距离与内容条件；失效不改选附近目标、不改为地面或自身。 |
 | DirectionProjectile / DirectionDash | 进入准备；左键取自身脚点到指针地面点的平面方向 | 有限、非零的平面方向及内容几何；位移经 CMC root motion。 |
+| GroundPoint | 进入准备；左键取指针下的地面点（`Point`） | 有限的地面点；释放时夹到技能射程，区域在该点生效。 |
 | 无法解析的确认 | 指针下没有单位/地面或方向为零时，以 `Missing` 目标发送 | 服务器明确拒绝；不在客户端吞掉确认。 |
 
 **快速施法**（本地设置 `QuickCast`，`ULDControlSettings::GetQuickCast`，默认关闭）：开启后，
@@ -237,7 +238,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 - 在射程内等下一次节拍时，目标比上一次样本沿两者连线后退 ≥ 1 cm 即继续贴近（press），
   向自己走来才停下等待，静止样本维持原状态；样本跳变超过 200 cm（换目标、被位移）不算走开
   （`LDOrderRules::ChasePress`）。贴近期间回执的接近半径为 0，客户端预测不在射程边缘停下。
-  这样同速追击是“接近 → 射程内起手 → 必定命中 → 继续追 → 再次进入射程起手”，不在射程边缘走走停停
+  这样同速追击是“接近 → 射程内起手 → 出手命中（不查射程，仍须可见且无遮挡）→ 继续追 → 再次进入射程起手”，不在射程边缘走走停停
   （2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”，见 [战斗与属性](COMBAT_AND_ATTRIBUTES.md) §6.3）。
 - 对同一观察目标（同句柄与 epoch）重新下达 AttackUnit（例如追击中连点右键）时，新订单经
   `ALDCombatDirector::AdoptNavAttack` 接管尚未出手的普攻；其他新订单、S 与订单结束仍取消它，已承诺节拍不退回。
@@ -256,7 +257,7 @@ Listen Host 不预测，直接由服务器运动驱动。预测的 `MoveGround` 
 
 **失去视野：** 取消锁定并结束这条订单（AttackUnit 与已锁定目标的 AttackMove 都是
 `Cancelled/TargetUnavailable`），不走向最后可见位置、不恢复原 A 目的地，重新可见也不重启旧订单。
-已在前摇的普攻照样出手命中（2026-11-07），订单原地等它出手后才结束，不因失去视野作废这一下。
+已在前摇的普攻随订单一起取消，不打出（2026-11-07 后续用户决定 "let's add back the visibility and line of sight check"：出手时目标须可见且视线无遮挡）。
 只有授权观察到的死亡才让 AttackUnit 以 `Completed/TargetDied` 结束、让 AttackMove 续行；
 隐藏、过期或 `TargetUnavailable` 都不被当作死亡。
 
@@ -573,7 +574,7 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 
 当前代码没有：静态 IA/IMC 输入资产与 Bootstrap 输入生成、控制设置 profile 或 Tactical/Hybrid 默认集、
 按住加速的旧 Sprint、Skill3+/Item3+ 槽、左键开店或拾取、方向普攻式的 A、“接近但不追击”的旧订单、
-以地面点为目标的能力、单独的订单视图类型或动作结果回调。退役范围以
+单独的订单视图类型或动作结果回调。退役范围以
 [架构 §3.2](ARCHITECTURE.md#32-删除清单与防回归约束) 为准，不得恢复。
 
 ## 10. 验证

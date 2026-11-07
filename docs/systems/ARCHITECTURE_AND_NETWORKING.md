@@ -94,8 +94,9 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 9：#147 新增公开状态沉默、灼烧，并把每个单位的公开状态上限（`LDObservation::MaxStatuses`）
-  提高到全部公开状态同时存在的 12 个后递增；8 是 `ELDMatchPhase` 在 Starting 与 Development 之间插入 Countdown（#153）时的版本，
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 10：#147 第 2 层删除旧目录专用状态（狂暴、伏击就绪、重伤、格挡、易伤）后，
+  每个单位的公开状态上限（`LDObservation::MaxStatuses`）降为全部公开状态同时存在的 11 个；
+  9 是新增公开状态沉默、灼烧并把上限提高到 12 个时的版本；8 是 `ELDMatchPhase` 在 Starting 与 Development 之间插入 Countdown（#153）时的版本，
   7 是去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源时的版本。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
@@ -235,7 +236,7 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
 | `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
-| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害、护盾吸收与碎盾、扣血前后、增幅与抗性、暴击/背刺/保护/持续/反伤、控制、吸血（来源实际回复的生命，已计治疗削减和生命上限）、是否致死 |
+| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
 | `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
 | `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |

@@ -335,73 +335,18 @@ ELDGrowthReason LDProgression::LegalPool(const FLDDemoContentSnapshot& Catalog, 
     return ELDGrowthReason::None;
 }
 
-int32 LDProgression::SharedTagCount(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-    const TArray<FName>& Equipment, const FLegalOption& Option)
-{
-    const FLDDemoAbilityDefinition* Candidate = ProgressionIsSkill(Option.Kind) ? ProgressionFindAbilityIn(Content, Option.DefinitionId) : nullptr;
-    if (!Candidate)
-    {
-        return 0;
-    }
-    TSet<ELDDemoMechanicTag> BuildTags;
-    for (const FLDLearnedSkill& Skill : Build.Skills)
-    {
-        // Approved choice A: an upgrade candidate does not count its own tags.
-        if (Skill.Id == Option.DefinitionId)
-        {
-            continue;
-        }
-        if (const FLDDemoAbilityDefinition* Learned = ProgressionFindAbilityIn(Content, Skill.Id))
-        {
-            BuildTags.Append(Learned->Tags);
-        }
-    }
-    for (const FName Item : Equipment)
-    {
-        if (const FLDDemoEquipmentDefinition* Held = ProgressionFindEquipment(Content, Item))
-        {
-            BuildTags.Append(Held->Tags);
-        }
-    }
-    int32 Shared = 0;
-    for (const ELDDemoMechanicTag Tag : Candidate->Tags)
-    {
-        Shared += BuildTags.Contains(Tag) ? 1 : 0;
-    }
-    return Shared;
-}
-
-ELDGrowthReason LDProgression::SkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
-    const TArray<FName>& Equipment, const FLegalOption& Option, int64& OutWeight)
+ELDGrowthReason LDProgression::NewSkillWeight(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
+    const FLegalOption& Option, int64& OutWeight)
 {
     OutWeight = 0;
-    const FLDDemoChoiceWeights& Weights = Content.Parameters.Choice;
-    int64 Base = 0;
-    switch (Option.Kind)
-    {
-    case ELDChoiceOptionKind::UpgradeActive:
-    case ELDChoiceOptionKind::UpgradePassive: Base = Weights.UpgradeWeightBp; break;
-    case ELDChoiceOptionKind::LearnActive:
-        Base = ProgressionQWFull(Build) ? Weights.NewActiveFullSlotWeightBp : Weights.NewActiveOpenSlotWeightBp; break;
-    case ELDChoiceOptionKind::LearnPassive: Base = Weights.NewPassiveWeightBp; break;
-    default: return ELDGrowthReason::DataInvalid;
-    }
-    if (!ProgressionFindAbilityIn(Content, Option.DefinitionId) || Base <= 0 || Weights.AffinityStepBp < 10000
-        || Weights.AffinityCapBp < 10000)
+    const int64 FullSlot = Content.Parameters.Choice.NewActiveFullSlotWeightBp;
+    if ((Option.Kind != ELDChoiceOptionKind::LearnActive && Option.Kind != ELDChoiceOptionKind::LearnPassive)
+        || !ProgressionFindAbilityIn(Content, Option.DefinitionId) || FullSlot <= 0 || FullSlot > 10000)
     {
         return ELDGrowthReason::DataInvalid;
     }
-    int64 Affinity = 10000;
-    for (int32 Shared = SharedTagCount(Content, Build, Equipment, Option); Shared > 0 && Affinity < Weights.AffinityCapBp; --Shared)
-    {
-        if (!ProgressionCheckedMul(Affinity, Weights.AffinityStepBp, Affinity))
-        {
-            return ELDGrowthReason::ArithmeticOverflow;
-        }
-        Affinity /= 10000;
-    }
-    return ProgressionCheckedMul(Base, FMath::Min(Affinity, Weights.AffinityCapBp), OutWeight)
-        ? ELDGrowthReason::None : ELDGrowthReason::ArithmeticOverflow;
+    OutWeight = Option.Kind == ELDChoiceOptionKind::LearnActive && ProgressionQWFull(Build) ? FullSlot : 10000;
+    return ELDGrowthReason::None;
 }
 
 bool LDProgression::DrawFeasible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
@@ -429,10 +374,21 @@ bool LDProgression::DrawFeasible(const FLDDemoContentDefinitions& Content, const
     }
     TArray<FLegalOption> Skills, Attributes;
     ProgressionSkillRows(Content, Pool, Skills, Attributes);
-    const int32 NewActives = Skills.FilterByPredicate([](const FLegalOption& Row) { return Row.Kind == ELDChoiceOptionKind::LearnActive; }).Num();
+    int32 Upgrades = 0, NewActives = 0, NewPassives = 0;
+    for (const FLegalOption& Row : Skills)
+    {
+        Upgrades += Row.Kind == ELDChoiceOptionKind::UpgradeActive || Row.Kind == ELDChoiceOptionKind::UpgradePassive ? 1 : 0;
+        NewActives += Row.Kind == ELDChoiceOptionKind::LearnActive ? 1 : 0;
+        NewPassives += Row.Kind == ELDChoiceOptionKind::LearnPassive ? 1 : 0;
+    }
     // With Q/W full only one new active can ever be picked into an offer.
-    const int32 Usable = Skills.Num() - NewActives + (ProgressionQWFull(Build) ? FMath::Min(NewActives, 1) : NewActives);
-    return Usable >= 2 && Usable + (Attributes.IsEmpty() ? 0 : 1) >= 3;
+    int32 NewSkills = NewPassives + (ProgressionQWFull(Build) ? FMath::Min(NewActives, 1) : NewActives);
+    // Worst case: the free slot rolls an attribute card; a skill slot with nothing left falls back to one too.
+    int32 SkillCards = 0;
+    if (Upgrades > 0) { ++SkillCards; }
+    else if (NewSkills > 0) { ++SkillCards; --NewSkills; }
+    if (NewSkills > 0) { ++SkillCards; }
+    return Attributes.Num() >= 3 - SkillCards;
 }
 
 ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<FLegalOption>& Pool, TArray<FLegalOption>& Out)
@@ -476,12 +432,17 @@ ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<F
     }
     TArray<FLegalOption> SkillRows, AttributeRows;
     ProgressionSkillRows(Content, Pool, SkillRows, AttributeRows);
-    TArray<FProgressionCandidate> Skills, Attributes;
+    TArray<FProgressionCandidate> Upgrades, NewSkills, Attributes;
     for (const FLegalOption& Row : SkillRows)
     {
-        FProgressionCandidate& Candidate = Skills.AddDefaulted_GetRef();
+        if (Row.Kind == ELDChoiceOptionKind::UpgradeActive || Row.Kind == ELDChoiceOptionKind::UpgradePassive)
+        {
+            Upgrades.Add({Row, 1});
+            continue;
+        }
+        FProgressionCandidate& Candidate = NewSkills.AddDefaulted_GetRef();
         Candidate.Option = Row;
-        if (const ELDGrowthReason Reason = SkillWeight(Content, Build, Input.Equipment, Row, Candidate.Weight); Reason != ELDGrowthReason::None)
+        if (const ELDGrowthReason Reason = NewSkillWeight(Content, Build, Row, Candidate.Weight); Reason != ELDGrowthReason::None)
         {
             return Fail(Reason);
         }
@@ -491,33 +452,30 @@ ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<F
         Attributes.Add({Row, 1});
     }
     const bool bFull = ProgressionQWFull(Build);
-    const auto PickSkill = [&](FLegalOption& Picked)
+    const auto PickNew = [&](FLegalOption& Picked)
     {
-        if (!ProgressionPick(Skills, Input.Avoid, State, Picked))
+        if (!ProgressionPick(NewSkills, Input.Avoid, State, Picked))
         {
             return false;
         }
         if (bFull && Picked.Kind == ELDChoiceOptionKind::LearnActive)
         {
-            Skills.RemoveAll([](const FProgressionCandidate& Row) { return Row.Option.Kind == ELDChoiceOptionKind::LearnActive; });
+            NewSkills.RemoveAll([](const FProgressionCandidate& Row) { return Row.Option.Kind == ELDChoiceOptionKind::LearnActive; });
         }
         return true;
     };
-    for (int32 Slot = 0; Slot < 2; ++Slot)
-    {
-        if (!PickSkill(Out.AddDefaulted_GetRef()))
-        {
-            return Fail(ELDGrowthReason::DataInvalid);
-        }
-    }
-    // The roll is always taken, so the third card's source does not shift the rest of the stream.
-    const bool bAttribute = ProgressionSplitMix64(State) % 10000 < uint64(Content.Parameters.Choice.ThirdSlotAttributeBp);
-    FLegalOption& Third = Out.AddDefaulted_GetRef();
-    const bool bPicked = (bAttribute && !Attributes.IsEmpty()) || Skills.IsEmpty()
-        ? ProgressionPick(Attributes, Input.Avoid, State, Third) : PickSkill(Third);
-    return bPicked ? ELDGrowthReason::None : Fail(ELDGrowthReason::DataInvalid);
+    const auto PickAttribute = [&](FLegalOption& Picked) { return ProgressionPick(Attributes, Input.Avoid, State, Picked); };
+    FLegalOption& Upgrade = Out.AddDefaulted_GetRef();
+    const bool bUpgrade = !Upgrades.IsEmpty() ? ProgressionPick(Upgrades, Input.Avoid, State, Upgrade)
+        : !NewSkills.IsEmpty() ? PickNew(Upgrade) : PickAttribute(Upgrade);
+    FLegalOption& Fresh = Out.AddDefaulted_GetRef();
+    const bool bFresh = !NewSkills.IsEmpty() ? PickNew(Fresh) : PickAttribute(Fresh);
+    // The roll is always taken, so the free slot's source does not shift the rest of the stream.
+    const bool bAttribute = ProgressionSplitMix64(State) % 10000 < uint64(Content.Parameters.Choice.FreeSlotAttributeBp);
+    FLegalOption& Free = Out.AddDefaulted_GetRef();
+    const bool bFree = bAttribute || NewSkills.IsEmpty() ? PickAttribute(Free) : PickNew(Free);
+    return bUpgrade && bFresh && bFree ? ELDGrowthReason::None : Fail(ELDGrowthReason::DataInvalid);
 }
-
 uint64 LDProgression::OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal)
 {
     uint32 Words[9] = {MatchSecret.A, MatchSecret.B, MatchSecret.C, MatchSecret.D,
@@ -624,8 +582,8 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
             return ELDGrowthReason::ReplacementMismatch;
         }
         Out.Skills.RemoveAll([&](const FLDLearnedSkill& Skill) { return Skill.Id == Old.Id; });
-        // 112 §6: the replacement keeps part of the investment; the old skill is still forgotten without refund.
-        Detail.NewRank = FMath::Min<uint8>(ReplacementRank(Old.Rank), uint8(Catalog.Get().Progression.MaxSkillRank));
+        // #147 D13: the old skill is forgotten without refund and the new active starts at rank 1.
+        Detail.NewRank = 1;
         Out.Skills.Add({Option.DefinitionId, Detail.NewRank, true, Replacement->Slot});
         Detail.bReplaced = true;
         Detail.Slot = Replacement->Slot;

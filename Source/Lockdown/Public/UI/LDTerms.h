@@ -132,4 +132,22 @@ inline constexpr TCHAR Scoreboard[]=TEXT("排行榜");
 inline constexpr TCHAR ResultKills[]=TEXT("淫了几个");
 inline constexpr TCHAR ResultDeaths[]=TEXT("寄了几次");
 inline constexpr TCHAR ResultAssists[]=TEXT("助攻");
+
+// 卡面关键词（#147，v7 §4.1）：全局 13 个，卡面加粗，悬停卡片时在详情里逐个解释。卡面与关键词解释都不写喷漆或守护。
+struct FCardKeyword { const TCHAR* Name; const TCHAR* Explain; };
+inline constexpr FCardKeyword CardKeywords[]={
+    {TEXT("减速"),TEXT("移速降低一定比例；同时有多个减速时只取最强的。减速不是控制")},
+    {TEXT("定身"),TEXT("不能移动和冲刺，可以普攻和施法")},
+    {TEXT("眩晕"),TEXT("什么都不能做")},
+    {TEXT("沉默"),TEXT("不能施放技能，可以移动、普攻和冲刺")},
+    {TEXT("缴械"),TEXT("不能普攻，可以移动和施法")},
+    {TEXT("嘲讽"),TEXT("被迫攻击嘲讽者，不能施法")},
+    {TEXT("击退"),TEXT("被推开一段距离，期间不能行动")},
+    {TEXT("控制"),TEXT("处于定身、眩晕、沉默、缴械、嘲讽、击退中的任意一种。不含减速")},
+    {TEXT("破防"),TEXT("每层护甲和魔抗 -3，最多 5 层；新的一层刷新整组时间")},
+    {TEXT("灼烧"),TEXT("每层每秒造成魔法伤害，最多 5 层；新的一层刷新整组时间")},
+    {TEXT("护盾"),TEXT("先于生命承受伤害，到期消失；身上只有一份，新的不弱于剩余量才替换")},
+    {TEXT("吸血"),TEXT("按普攻实际造成的生命损失回复生命；多个吸血相加，最多 35%")},
+    {TEXT("横扫"),TEXT("普攻同时对主目标身边的其他敌人造成部分伤害")},
+};
 }

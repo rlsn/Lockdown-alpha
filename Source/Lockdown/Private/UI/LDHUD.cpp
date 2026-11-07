@@ -951,7 +951,13 @@ void ULDHUD::RefreshReadModel()
     // Combat itself refuses and cancels any armed preview while input is captured.
     const bool bInputSuppressed=PC->IsWorldInputSuppressed();
     if(AttributesPanel){AttributesPanel->Present(OwnCombat,Progression,bClock,NowMs,Content);}
-    if(ChoicesPanel){ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content);}
+    if(ChoicesPanel)
+    {
+        // #147: the cards show this level's numbers; while no projection is published (dead) the last stats stay in use.
+        if(OwnCombat&&!OwnCombat->Attributes.IsEmpty()){ChoiceStats=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat->Attributes);}
+        else if(Progression){ChoiceStats.Level=FMath::Max<uint8>(Progression->Level,1);}
+        ChoicesPanel->Present(Progression?*Progression:FLDProgressionView(),O.Match,O.Life,O.LifePhase,Content,ChoiceStats);
+    }
     // D10: the opening three-choice opens its panel once per match, when its offer first reaches this owner and nothing
     // else is open; it never opens later over the player's own UI or armed preview, and nothing is picked for the player.
     // Growth may publish the match's progression before the opening offer, so the one chance waits for the offer itself.
@@ -1114,6 +1120,7 @@ void ULDHUD::RefreshReadModel()
         Context.bPlaying=Playing;Context.bAlive=bAlive;Context.bClock=bClock;Context.NowMs=NowMs;
         Context.bInputCaptured=bInputSuppressed;
         Context.bManaKnown=OwnCombat&&OwnCombat->bHasBody&&OwnCombat->MaxMPP2>0;Context.ManaP2=OwnCombat?OwnCombat->MPP2:0;
+        Context.Card=LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>());
         const LDHUD::FActionView View=LDHUD::Action(Input,Context);
         FLDHUDActionSlot& Entry=ActionSlots[Index];
         const LDHUD::EActionLook Look=LDHUD::ActionLook(View,bArmed&&ArmedEntry==Wanted);
@@ -1440,7 +1447,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             RangeCm=Source?float(Source->RangeCm):0.f;
             bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
             bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
-            // A ground point previews where the jump would land: the pointer, clamped to the reach.
+            // A ground point previews where the zone would sit: the pointer, clamped to the reach.
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}

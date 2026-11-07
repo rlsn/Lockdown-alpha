@@ -466,8 +466,8 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         const FLDDemoMonsterDefinition* Monster = nullptr;
         const FLDDemoDisplayDefinition* Display = nullptr;
         TestTrue(TEXT("Typed lookups consume enabled definitions"),
-            Snapshot->FindAbility(TEXT("active_arc_bolt"), Ability, Error)
-            && Snapshot->FindAttribute(TEXT("attr_focus"), Attribute, Error)
+            Snapshot->FindAbility(TEXT("active_snark_bolt"), Ability, Error)
+            && Snapshot->FindAttribute(TEXT("attr_all_nighter"), Attribute, Error)
             && Snapshot->FindEquipment(TEXT("item_arcane_battery"), Item, Error)
             && Snapshot->FindMonster(TEXT("monster_guardian"), Monster, Error)
             && Snapshot->FindDisplay(TEXT("camp_returning"), Display, Error));
@@ -477,7 +477,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         // Without case-preserving names a packaged build returns the first registered spelling; lookups fold to the
         // canonical identity instead of refusing it. Author input stays strictly lowercase at import.
         TestTrue(TEXT("A case alias resolves to the canonical definition"),
-            Snapshot->FindAbility(TEXT("Active_arc_bolt"), Ability, Error) && Ability == OldAbility);
+            Snapshot->FindAbility(TEXT("Active_snark_bolt"), Ability, Error) && Ability == OldAbility);
     }
     TestEqual(TEXT("Every rank's typed quantity has a compiler-backed native change case"), UnchangedRankQuantities.Num(), 0);
 
@@ -928,11 +928,19 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     int32 Entries = 0;
     const auto Count = [&Entries](const FString&, const FString&) { ++Entries; return true; };
     Table->EnumerateSourceStrings(TFunctionRef<bool(const FString&, const FString&)>(Count));
-    TestEqual(TEXT("Every display row contributes exactly a name and a description"), Entries, Definitions.Display.Num() * 2);
+    // #147: every skill row also carries its advanced line; no other row does.
+    int32 AdvancedLines = 0;
+    for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
+    {
+        AdvancedLines += Row.AdvancedKey.IsEmpty() ? 0 : 1;
+    }
+    TestEqual(TEXT("Every skill row carries an advanced line"), AdvancedLines, Definitions.Abilities.Num());
+    TestEqual(TEXT("Every display row contributes exactly a name and a description, a skill row also its advanced line"),
+        Entries, Definitions.Display.Num() * 2 + AdvancedLines);
     // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
-    // Statuses 1..14 without the retired 11, the four #112 C2 statuses (knockback, heal cut, damage guard, vulnerable; a
-    // breach shows as exposed) and the two #147 statuses (silence, burn).
-    const int32 Statuses = int32(ELDDemoStatusId::Empowered) - 1 + 4 + 2;
+    // Statuses 1..6, 9, 10 and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed) and the
+    // two #147 statuses (silence, burn).
+    const int32 Statuses = 6 + 5 + 1 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);
@@ -944,6 +952,9 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("Description resolves from the display key: ") + Row.Id,
             Table->GetSourceString(FTextKey(Row.DescriptionKey), Description)
             && Description.Equals(Row.DescriptionText, ESearchCase::CaseSensitive));
+        FString Advanced;
+        TestTrue(TEXT("An advanced line resolves from its display key: ") + Row.Id, Row.AdvancedKey.IsEmpty()
+            || (Table->GetSourceString(FTextKey(Row.AdvancedKey), Advanced) && Advanced.Equals(Row.AdvancedText, ESearchCase::CaseSensitive)));
     }
     // The statuses system text names directly read the same in the table as in the glossary (#111).
     for (const TPair<const TCHAR*, const TCHAR*>& Expected : {

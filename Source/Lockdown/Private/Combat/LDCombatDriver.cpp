@@ -51,8 +51,6 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
         Consider(Body.MonsterNextAttackAtMs);
-        if (Body.AttributeProjection.OutOfCombatHPRegen.IsSet() && Body.LastCombatAtMs<=MAX_int64-Body.AttributeProjection.OutOfCombatHPRegen->DelayMs)
-        { Consider(Body.LastCombatAtMs+Body.AttributeProjection.OutOfCombatHPRegen->DelayMs); }
         // D21: a contender's out-of-combat recovery starts on its own exact boundary.
         if (Body.Victim.Kind==ELDVictimKind::Contender && RecoveryDelayMs>=0 && Body.LastCombatAtMs<=MAX_int64-RecoveryDelayMs)
         { Consider(Body.LastCombatAtMs+RecoveryDelayMs); }
@@ -62,25 +60,11 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // Temporary terms end exactly on their deadlines so the next motion uses the restored speed.
         for (const auto& Slow : Body.Slows) { Consider(Slow.ExpiresAtMs); }
         for (const auto& Bonus : Body.TimedBonuses) { Consider(Bonus.ExpiresAtMs); }
-        for (const auto& Breach : Body.Breaches) { Consider(Breach.ExpiresAtMs); }
-        for (const auto& Mark : Body.VampMarks) { Consider(Mark.ExpiresAtMs); }
-        if (Body.BuildProjection.Ambush.IsSet())
-        {
-            // Dash credit brings the ambush window closer.
-            const int64 Credit=Body.AmbushCreditFromMs==Body.LastCombatAtMs ? Body.AmbushCreditMs : 0;
-            const int64 Wait=FMath::Max<int64>(0,Body.BuildProjection.Ambush->DelayMs-Credit);
-            if (Body.LastCombatAtMs<=MAX_int64-Wait) { Consider(Body.LastCombatAtMs+Wait); }
-        }
-        if (Body.Momentum.IsSet()) { Consider(Body.Momentum->AccumulateUntilMs); Consider(Body.Momentum->ConsumeUntilMs); }
-        if (Body.Retaliation.IsSet()) { Consider(Body.Retaliation->EndAtMs); }
-        if (Body.RegenSurgeUntilMs>0) { Consider(Body.RegenSurgeUntilMs); }
     }
-    // A jump lands on its exact boundary; a dash's path sweep resolves when it ends.
-    for (const auto& Landing : Landings) { Consider(Landing.LandAtMs); }
     // #147: a second blast and a knockback's wall check resolve on their exact boundaries.
     for (const auto& Echo : Echoes) { Consider(Echo.AtMs); }
     for (const auto& Check : WallChecks) { Consider(Check.AtMs); }
-    // #112 mechanics: ticks, pulses, shots and their records' ends.
+    // #112 mechanics: zone pulses and their records' ends; a dash's path sweep resolves when it ends.
     Consider(NextMechanicsDueMs(NowMs));
     for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
     // The basic cadence and every ability cooldown end on exact boundaries, not one frame late.
@@ -308,11 +292,9 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    AdvanceMomentum(Now);
-    // Damage over time, zones and later volley shots due now join this boundary's hits and projectiles.
-    if (!AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveLandings(Error) || !ResolveEchoes(Error)
-        || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error)
-        || !AdvanceProjectiles(Error)) { return false; }
+    // Zones and burns due now join this boundary's hits and projectiles.
+    if (!AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveEchoes(Error)
+        || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {
         const FLDCombatHit Hit=PendingHits[Index];

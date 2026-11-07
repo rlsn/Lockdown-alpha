@@ -85,7 +85,7 @@ class ExactNumbers(unittest.TestCase):
             demo.fixed(parsed["x"], 2, "fixture")
 
     def test_wire_identity_and_digest_shapes(self):
-        for identity in ("active_arc_bolt", "x" * 63):
+        for identity in ("active_snark_bolt", "x" * 63):
             wire = demo.definition_to_wire(identity)
             self.assertEqual(len(wire), 64)
             self.assertEqual(demo.definition_from_wire(wire), identity)
@@ -152,15 +152,15 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(result.catalog.data["progression"]["xp_to_next"], (50, 60, 70, 80, 90, 100, 110, 120, 130))
         self.assertEqual(result.catalog.definition("monster_guardian")["attack_interval_ms"], 1334)
         self.assertEqual(result.catalog.definition("character_demo")["basic_attack"]["interval_ms"], 1000)
-        self.assertEqual(result.catalog.definition("active_arc_bolt")["native_id"], 62)
+        self.assertEqual(result.catalog.definition("active_snark_bolt")["native_id"], 94)
         projected = demo.parse_json(result.outputs[demo.CONTENT_OUTPUT], "output")
         demo.validate_integer_tree(projected, "output")
         with self.assertRaises(TypeError):
             result.catalog.data["character"]["id"] = "mutated"
         with self.assertRaises(TypeError):
-            result.catalog.definition("active_arc_bolt")["ranks"][0]["effects"][0]["base"]["p2"] = 1
+            result.catalog.definition("active_snark_bolt")["ranks"][0]["effects"][0]["base"]["p2"] = 1
         with self.assertRaisesRegex(demo.ContentError, "UnknownId"):
-            result.catalog.definition("arc_bolt")
+            result.catalog.definition("snark_bolt")
         with self.assertRaisesRegex(demo.ContentError, "UnknownParameter"):
             result.catalog.parameter("CAMP.Low.AggroRadiusCm")
 
@@ -192,24 +192,30 @@ class DemoContentImport(unittest.TestCase):
     def test_every_author_leaf_has_exact_destination_after_row_sorting(self):
         self.assert_leaf_projection(self.baseline, self.author)
         fields = self.baseline.catalog.field_projection
-        self.assertEqual(fields["content.abilities[1].ranks[0].effects[0].base.value"],
-                         ("content.abilities[3].ranks[0].effects[0].base.p2",))
+        self.assertEqual(fields["content.abilities[0].ranks[0].effects[0].base.value"],
+                         ("content.abilities[2].ranks[0].effects[0].base.p2",))
 
     def test_each_rank_projects_all_effects_costs_and_coefficients(self):
-        arc = self.baseline.catalog.definition("active_arc_bolt")
-        guard = self.baseline.catalog.definition("active_guard_pulse")
-        snare = self.baseline.catalog.definition("active_binding_snare")
-        for rank in range(1, 4):
+        bolt = self.baseline.catalog.definition("active_snark_bolt")
+        guard = self.baseline.catalog.definition("active_not_mad")
+        snare = self.baseline.catalog.definition("active_pants_down")
+        self.assertEqual(len(bolt["ranks"]), 2)
+        for rank in range(1, 3):
             with self.subTest(rank=rank):
-                row = arc["ranks"][rank - 1]
-                self.assertEqual(row["effects"][0]["base"]["p2"], 800 * rank)
-                self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], 1250 * rank)
+                row = bolt["ranks"][rank - 1]
+                # The advanced rank multiplies the growing base by 1.5 and keeps every coefficient.
+                self.assertEqual(row["effects"][0]["base"]["p2"], (800, 1200)[rank - 1])
+                self.assertEqual(row["effects"][0]["ap_ratio"]["bp"], 1250)
                 self.assertEqual(row["effects"][0]["opcode"], 1)
+                self.assertEqual(row["effects"][1]["opcode"], 12)
                 self.assertEqual(row["mana_cost"]["p2"], (5 + rank) * 100)
                 self.assertEqual(row["cooldown"]["ms"], 3000)
-                self.assertEqual(guard["ranks"][rank - 1]["effects"][0]["base"]["p2"], 2000 * rank)
-                self.assertEqual(guard["ranks"][rank - 1]["effects"][1]["opcode"], 3)
+                self.assertEqual(guard["ranks"][rank - 1]["effects"][0]["base"]["p2"], (2000, 3000)[rank - 1])
+                self.assertEqual(guard["ranks"][rank - 1]["effects"][1]["opcode"], 37)
                 self.assertEqual(snare["ranks"][rank - 1]["effects"][1]["duration"]["ms"], 250 * rank)
+        # Only the advanced rank carries its qualitative change.
+        self.assertEqual([effect["opcode"] for effect in bolt["ranks"][1]["effects"]], [1, 12, 73])
+        self.assertEqual([effect["opcode"] for effect in guard["ranks"][1]["effects"]], [2, 37, 3, 76])
         battery = self.baseline.catalog.definition("item_arcane_battery")
         self.assertIsNone(battery["passive"])
         self.assertNotIn("active", battery)
@@ -218,7 +224,7 @@ class DemoContentImport(unittest.TestCase):
         baseline_bytes = (self.root / demo.CONTENT_SOURCE).read_bytes()
         changes = 0
         for ability_index in range(3):
-            for rank_index in range(3):
+            for rank_index in range(2):
                 for field, amount, output_field in (("mana_cost", 1, "p2"), ("cooldown", 1, "ms")):
                     with self.subTest(ability=ability_index, rank=rank_index, field=field):
                         (self.root / demo.CONTENT_SOURCE).write_bytes(baseline_bytes)
@@ -230,7 +236,7 @@ class DemoContentImport(unittest.TestCase):
                         new = result.catalog.definition(identity)["ranks"][rank_index][field][output_field]
                         self.assertEqual(new - old, 100 if output_field == "p2" else 1000)
                         changes += 1
-        self.assertEqual(changes, 18)
+        self.assertEqual(changes, 12)
         self.assert_outputs_equal()
 
     def test_deterministic_bytes_do_not_depend_on_author_object_or_definition_order(self):
@@ -403,7 +409,7 @@ class DemoContentImport(unittest.TestCase):
     def test_unknown_duplicate_retired_ids_and_missing_handlers_refuse(self):
         for mutation in (
             lambda data: data["abilities"][0].update(id="unknown_ability"),
-            lambda data: data["abilities"][0].update(id="arc_bolt"),
+            lambda data: data["abilities"][0].update(id="snark_bolt"),
             lambda data: data["equipment"][0].update(id="ItemIronPlate"),
             lambda data: data["equipment"][0].update(id=data["equipment"][1]["id"]),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(op="legacy_damage"),
@@ -417,13 +423,20 @@ class DemoContentImport(unittest.TestCase):
     def test_native_id_tampering_and_tombstone_reuse_refuse(self):
         original = (self.root / demo.IDS_SOURCE).read_bytes()
         for mutation in (
-            lambda data: data["abilities"].update(active_arc_bolt=True),
-            lambda data: data["abilities"].update(active_arc_bolt=61),
-            lambda data: data["abilities"].update(active_arc_bolt=63),
-            lambda data: data["abilities"].update(active_arc_bolt=200),
-            lambda data: data["retired_ranges"].update(abilities=[[0, 60]]),
+            lambda data: data["abilities"].update(active_snark_bolt=True),
+            lambda data: data["abilities"].update(active_snark_bolt=91),
+            lambda data: data["abilities"].update(active_snark_bolt=95),
+            lambda data: data["abilities"].update(active_snark_bolt=200),
+            # A retired identity and its retired number cannot return.
+            lambda data: data["abilities"].update(active_arc_bolt=62),
+            lambda data: data["retired_ranges"].update(abilities=[[0, 90]]),
+            lambda data: data["retired_ranges"].update(attributes=[[0, 13]]),
             lambda data: data["retired_ranges"].update(equipment=[[0, 98], [107, 107]]),
             lambda data: data["retired_ranges"].update(equipment=[0, 98]),
+            lambda data: data["retired_ranges"].update(effect_ops=[[6, 6]]),
+            lambda data: data["retired_ranges"].pop("statuses"),
+            lambda data: data["effect_ops"].update(dot=42),
+            lambda data: data["statuses"].update(enraged=7),
             lambda data: data["effect_ops"].pop("shield"),
         ):
             (self.root / demo.IDS_SOURCE).write_bytes(original)
@@ -432,7 +445,7 @@ class DemoContentImport(unittest.TestCase):
         (self.root / demo.IDS_SOURCE).write_bytes(original)
         path = self.root / demo.NATIVE_IDS
         # An unused number: a renumbering, not a collision with another declared identity.
-        path.write_bytes(path.read_bytes().replace(b"ActiveArcBolt=62", b"ActiveArcBolt=200"))
+        path.write_bytes(path.read_bytes().replace(b"ActiveSnarkBolt=94", b"ActiveSnarkBolt=200"))
         with self.assertRaisesRegex(ValueError, "NativeId"):
             demo.compile_content(self.root)
 
@@ -441,7 +454,8 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0]["ranks"].pop(),
             lambda data: data["abilities"][0]["ranks"].reverse(),
             lambda data: data["abilities"][0]["ranks"][1].update(rank=1),
-            lambda data: data["abilities"][0]["ranks"][2].pop("mana_cost"),
+            lambda data: data["abilities"][0]["ranks"][1].pop("mana_cost"),
+            lambda data: data["abilities"][0]["ranks"].append(dict(deepcopy(data["abilities"][0]["ranks"][1]), rank=3)),
             lambda data: data["abilities"][3]["ranks"][0].update(rank=2),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -475,8 +489,8 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["equipment"][0]["stats"].update(APFlat={"unit": "points", "value": 1}),
             lambda data: data["attributes"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
             lambda data: data["attributes"][5].pop("penalties"),
-            lambda data: data["attributes"][5].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
-            lambda data: data["attributes"][5]["penalties"]["AttackRangeCmFlat"].update(value=0),
+            lambda data: data["attributes"][5].update(penalties={"AttackRangeCmFlat": {"unit": "cm", "value": 5}}),
+            lambda data: data["attributes"][5]["penalties"]["MaxHPFlat"].update(value=0),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
@@ -505,17 +519,14 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "UnknownField"),
             (lambda data: data["progression"]["opening_offer"].pop("passive_count"), "MissingField"),
             # Only draftable skills fill the opening: one draftable active cannot fill two active cards.
-            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] != "active_arc_bolt"
+            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] != "active_snark_bolt"
                            and row["kind"] == "active"], "OpeningOffer"),
             (lambda data: data["progression"].update(reroll_levels=[7, 4]), "RerollLevels"),
             (lambda data: data["progression"].update(reroll_levels=[4, 4]), "RerollLevels"),
             (lambda data: data["progression"].update(reroll_levels=[11]), "NumericOverflow"),
             (lambda data: data["progression"].pop("reroll_levels"), "MissingField"),
-            (lambda data: data["abilities"][0].update(tags=[]), "ArrayLength"),
-            (lambda data: data["abilities"][0].update(tags=["Mobility", "Mobility"]), "MechanicTags"),
-            (lambda data: data["abilities"][0].update(tags=["Burst"]), "UnknownEnum|SchemaVariant"),
-            (lambda data: data["equipment"][0].update(tags=["Tank", "Shield", "Breach", "Mobility"]), "ArrayLength"),
-            (lambda data: data["equipment"][0].pop("tags"), "MissingField"),
+            (lambda data: data["abilities"][0].update(tags=["Mobility"]), "UnknownField|SchemaVariant"),
+            (lambda data: data["equipment"][0].update(tags=["Tank"]), "UnknownField"),
             (lambda data: data["abilities"][0].pop("draftable"), "MissingField|SchemaVariant"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),

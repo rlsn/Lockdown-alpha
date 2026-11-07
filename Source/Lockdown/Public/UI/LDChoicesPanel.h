@@ -5,6 +5,7 @@
 #include "Development/LDGrowthProtocol.h"
 #include "LDChoicesPanel.generated.h"
 class UTextBlock;
+class URichTextBlock;
 class UBorder;
 class USizeBox;
 class UCanvasPanel;
@@ -28,7 +29,9 @@ public:
     TFunction<uint64()> PeekRequestId;
     // Result notices for a request that ends while the panel is closed (the HUD shows them as a toast).
     TFunction<void(const FString&)> Notify;
-    void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content);
+    // Stats: the owner's level and stats, so every card shows its numbers for now (#147).
+    void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content,
+        const LDHUD::FCardStats& Stats);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDChoiceReceiptQueryResult& Result);
     // A card click: submits that card, or starts the replacement pick when it needs one.
@@ -75,6 +78,8 @@ private:
         TObjectPtr<USizeBox> IconSize;
         TObjectPtr<UBorder> IconShape;
         TObjectPtr<UTextBlock> Glyph,Name,Summary;
+        // The rule sentence on the card face (#147; user 2026-11-07: shown on the card in full, keywords bold).
+        TObjectPtr<URichTextBlock> Sentence;
     };
     TArray<FCardWidgets> Cards;
     // #97: the free reroll is a fourth card of the same shape.
@@ -89,7 +94,7 @@ private:
     UPROPERTY() TObjectPtr<UBorder> Detail;
     UPROPERTY() TObjectPtr<UTextBlock> DetailName;
     UPROPERTY() TObjectPtr<UTextBlock> DetailSummary;
-    UPROPERTY() TObjectPtr<UTextBlock> DetailBody;
+    UPROPERTY() TObjectPtr<URichTextBlock> DetailBody;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<ULDCommandButton> RerollButton;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardWidgets;
@@ -97,6 +102,7 @@ private:
     uint32 LatestMatch=0,LatestLife=0;
     ELDLifePhase LatestPhase=ELDLifePhase::Unspawned;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
+    LDHUD::FCardStats LatestStats;
     FGuid ShownOffer;
     uint64 ShownOfferRevision=0;
     int32 Selected=INDEX_NONE;

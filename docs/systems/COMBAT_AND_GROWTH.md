@@ -42,8 +42,9 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
 `ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`；它不是进攻意图，不解除保护。
 每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
-释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）计算距离与冷却：
-`dash_boost` 乘冷却比例、加距离比例，时长不变，冷却不吃技能急速；结束时刻写成绝对 ReadyAt，之后换装不改写。
+释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）与已学被动的触发项
+（`LearnedTriggers`，按其 rank 与等级取定义；目前是特种兵 `passive_special_forces` 高级的“冲刺（D）冷却 −30%”）计算距离与冷却：
+每个带 `dash_boost` 的来源乘冷却比例、加距离比例，时长不变，冷却不吃技能急速；结束时刻写成绝对 ReadyAt，之后换装或学习不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
 Root/屏障/Root 净化/定点回复的规则是 `LDTacticalRules` 中的纯函数：
 Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所列动作；屏障为 ReplaceIfNotWeaker，
@@ -56,9 +57,11 @@ Q/W 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTa
 订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
 嘲讽只出现在本人 `CombatView` 的状态里（`Taunt` 及到期），不进入他人可见的公开状态。
 同一身体正在普攻前摇时，准入的技能会放弃这次普攻并开始施法；另一技能前摇未出手时再提交技能被拒绝（`Busy`）。
-普攻释放（`ReleaseBasic`）不重查距离、观察或视线，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
+普攻释放（`ReleaseBasic`）不重查距离，只经纯函数 `LDCombatSourceRules::BasicReleaseGate`：攻击者自身
 被缴械/眩晕/击退或被嘲讽转向他人时放弃（`ControlBlocked`），目标那条生命已死亡或濒死、离局、换命或换身体时放弃
-（`TargetUnavailable`），否则必定命中起手时提交的目标生命（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”）。
+（`TargetUnavailable`），参赛者攻击者重新观察不到该生命时放弃（`TargetUnavailable`），视线被挡时放弃（`Blocked`），
+否则命中起手时提交的目标生命（2026-11-07 用户决定：“只要起手就判定一定会打中，即使跑远了”；可见与视线检查按
+2026-11-07 后续用户决定 "let's add back the visibility and line of sight check" 恢复）。
 导航对同一观察目标重新下达的 AttackUnit 经 `ALDCombatDirector::AdoptNavAttack` 把未出手的普攻改挂到新订单，
 不因替换订单作废已提交的节拍；其他替换、S 与订单结束仍经 `CancelNavAttack` 放弃它。
 `FLDCombatBodyRead::ActionReleaseAtMs` 给出前摇中动作的释放时刻，供导航判断本 Actions 阶段即将出手的普攻已不再占住身体。
@@ -122,7 +125,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 护盾为旋转的亮青色栅栏罩加光环，复活保护为白金光柱加环绕光球；护盾与复活保护的每个标记背后沿本机视线放一个稍大的
 近黑副本作为描边，在同色系座位（青色、黄色）身上也能分开；
 带复活保护首次出现时由小变大并有光柱；死亡由不复制、无碰撞的 `ALDBodyPuppet` 在原地播放死亡片段倒地，再下沉、缩没
-（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；天外飞瓶飞行由 `ULDFlightTrailComponent` 拖出粉尘。
+（本人身体须等自身投影确认该命已死，终局或离局移除身体不播放）；阴阳怪气（`active_snark_bolt`，唯一的弹道技能）的飞行由 `ULDFlightTrailComponent` 拖出粉尘。
 驱散不等于回滚伤害，也不等于永久禁止持续来源重新施加效果。
 **助攻贡献**（#112 §8）只有一个记录入口 `ALDCombatDirector::RecordAssistContribution(Victim, CreditOwner, NowMs)`：
 受害者是参赛者、CreditOwner 是另一名有 Combat 记录的参赛者时，按纯规则 `LDAssist::RecordContribution` 在受害者这条生命的
@@ -134,44 +137,33 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
 
 临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
-`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、他急了一类的条件增益与最强一个减速
+`LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、急了（`passive_pressed`）的低血条件增益与最强一个减速
 （负比例），点数类向下取整并夹紧到目录上下限；生命上限/法力上限不接受临时项。`RefreshAllTemporary` 在 Actions
 （回复结算后）与 Effects（命中后）各执行一次，到期、血线越界与施加都在下一次运动前生效；`NextDueMs` 包含这些截止时刻。
-减速、限时增益、破防与吸血标记的纯规则在 `LDTacticalRules`（`ApplySlow`、`DispelSlows`、`ApplyTimedBonus`、`ApplyBreach`/`HasBreach`/`BreachedResistanceP2`、
-`ApplyVampMark`/`VampMarkBp`/`SyncVampMarks`、`TemporaryTerms`）；减速可带 `AttackRatioBp`（攻速减成，取最强一个）。
-吸血标记（珍珠奶茶泼脸 3 级）绑定产生它的那次减速（`SlowEffectId`）：只在该减速仍生效时计入，减速被净化或移除即失效，
-减速被刷新时标记期限随之更新。
-伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者生命上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带生命上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/生命上限）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
-的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。潜水党的附加伤害是独立的技能伤害实例：
-普攻在开始挥击时、伤害技能在释放时判定脱战窗口；冲刺或跳跃按 `DashCreditMs` 提前就绪（只对当前这段脱战有效，`AmbushReadyNow`）。
-施放者离局时 `CancelEntityEffects` 一并移除其减速、破防、吸血标记与路径扫掠，营地回位清空全部临时项。
+减速与限时增益的纯规则在 `LDTacticalRules`（`ApplySlow`、`StrongestSlowBp`、`DispelSlows`、`ApplyTimedBonus`、`TemporaryTerms`）；
+减速只减移速，按效果实例保存，只取最强一个。破防与灼烧见下文“构筑 v7 战斗原语”。
+伤害系数为基础值、`ad_ratio`、`ap_ratio` 与 `max_hp_ratio`（施放者生命上限，`FLDDamageDefinitionValues::MaxHPRatioBp`），同在抗性前相加；普攻不带生命上限系数。技能命中载荷在释放时快照（含施放者 AD/AP/生命上限，以及按施放者当前等级成长后的 rank，见“技能等级成长”）：指向单位、弹体或 `self_area`（释放瞬间脚点为圆心、与横扫共用 `CollectAreaTargets`
+的逐目标合法性与视线检查）各得一份；控制与减速随命中经 `CommitControl` 施加。
+施放者离局时 `CancelEntityEffects` 一并移除其减速、灼烧层、区域与路径扫掠，营地回位清空全部临时项。
 
-### 控制、背后判定、强化下一击、反伤与跳跃
+### 控制、强化普攻与反伤
 
 纯规则在 `Combat\LDCombatControlRules`（`LDCombatControl`），Combat 的准入、释放、命中与读模型都只经它判断：
 
-- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺、跳跃）；缴械禁普攻；眩晕禁移动、位移、普攻与
+- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺）；缴械禁普攻；沉默禁 Q/W；眩晕禁移动、位移、普攻与
   技能。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
   同一效果不续期，换命即消失，营地回位与离局清除。命中时眩晕放弃任何未出手的动作、缴械放弃未出手的普攻（回执 `ControlBlocked`，
   不付费也不退节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
   `bAttackAllowed`/`bMovementAllowed` 同步关闭，导航攻击指令因此原地等待而不重复提交；出手时再判一次。
   本人视图给出 Disarm/Stun/Empowered 状态及其 `ControlBlocks`，`bRooted` 表示“移动被禁”（定身或眩晕）；
   观察者看到公开的缴械、眩晕。
-- **背后判定**（`IsBehind`）：以命中时刻目标的服务器朝向与双方脚点为准，攻击者落在 `COMBAT.RearArcDeg` 的后方扇形内即为背后。
-  身体的服务器朝向是最近的移动方向，普攻或技能被接受时转向其目标/方向/落点。`backstab` 让同一条目的伤害在背后命中时
-  按 `RatioBp` 放大（`FLDDamageEvaluationInput::AmplifyBp`，在抗性之前）并附加眩晕。
-- **强化下一击**（`empower_basic`）：释放时武装一次（替换不叠加），由下一次已提交命中的普攻消费（`ConsumeEmpower`），
-  额外伤害在暴击采样前并入该次 `BasicPrimary`（吃暴击、吸血、横扫与命中特效）；`RefundMs` 让消费后返还武装来源的剩余冷却；
-  到期在 Effects 阶段移除。秦王绕柱 3 级的 `Momentum` 以同一方式并入。
-- **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（只记录等级，不产生属性项），装备被动按同名家族一次。
-  命中后持有者仍存活、伤害为正、命中类别符合（主普攻，或允许时的技能命中）、距离不超过半径、非免疫的背后来袭，
-  且该来源对同一攻击者已过 `IntervalMs` 时，生成一个 `bReflect` 的技能类命中，伤害=基础+护甲×比例+生命上限×比例
-  （`LDCombatControl::ThornsBaseP2`，被暴击时乘 `CriticalMultiplierBp`），可附攻速/移速减成（`cripple_*`，按减速实例施加），
+- **强化普攻**（`empower_basic`）：释放时武装一次（同来源替换不叠加），由接下来已提交命中的普攻逐次消费（`ConsumeEmpower`，
+  `Charges` 次），额外伤害在暴击采样前并入该次 `BasicPrimary`（吃暴击、吸血、横扫与命中特效）；到期在 Effects 阶段移除。
+- **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（记录 rank 与拥有者等级，不产生属性项），装备被动按同名家族一次。
+  命中后持有者仍存活、伤害为正、命中是主普攻、距离不超过半径，且该来源对同一攻击者已过 `IntervalMs` 时（`ThornsTriggers`），
+  生成一个 `bReflect` 的技能类命中，伤害=基础+护甲×比例+生命上限×比例
+  （`LDCombatControl::ThornsBaseP2`，被暴击时乘 `CriticalMultiplierBp`；学会被动的基础值按等级成长），可附只减移速的减速（`slow`/`slow_duration`），
   走同一伤害、归属、死亡锁定与奖励路径；反伤命中不再触发反伤，也不暴击、不吸血、不触发命中特效。
-- **跳到指定点**（目标 `GroundPoint`、效果 `jump`）：请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），
-  距离夹到目标射程，用与冲刺相同的原生根运动沿地面移动（遇阻停在合法前段，接地与喷漆区进出照常由运动链计算）；
-  同一条目里其余效果在 `LandAtMs` 由 `ResolveLandings` 以落地身体为中心生效：自身效果直接施加，伤害/定身/减速/缴械/眩晕按起跳时快照的命中载荷（`HitTemplate`）交给落地脚点 `self_area` 半径内经 `CollectAreaTargets` 点名的每个目标，潜水党就绪时各附一次附加伤害（体重即正义），
-  死亡或换命丢弃落地。
 
 ### 共用战斗原语（#112）
 
@@ -181,59 +173,52 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   窗口为最晚硬控结束后 2 秒）；只有实际落地的控制才推进计数与修订。嘲讽只作用于参赛者。击退（不递减）在本函数内提交其禁动窗口
   （`Knockbacks`），放弃未出手的动作并递增 `KnockbackSerial`；位移本身由 `ApplyKnockback` 在提交成功后启动（见下节）。
   每次实际提交的定身、眩晕、沉默、嘲讽、击退在此调用喷漆打断，每次实际提交的控制与减速在此记录助攻贡献。
-  `IsImpaired(Body, Now)` 判断任何控制（含击退）或减速（已截图、掏蛋子 3 级使用）。
+  `IsImpaired(Body, Now)` 判断任何控制（含击退、沉默）或减速（痛打落水狗 `passive_kick_down` 的“被减速或被控制”）。
 - **命中特效**：`FLDCombatHit::OnHitScaleBp` 是该命中的特效系数（普攻主击 10000，技能按定义，附加伤害/反伤/副击为 0）；
   `SnapshotOnHit(Body, ScaleBp, Hit, Error)` 在释放时快照吸血、横扫等来源，`ApplyHit` 内 `ApplyOnHitEffects` 按系数提交。
-  `bAddedDamage` 的命中不暴击、不触发命中特效；`MakeAmbushHit` 是附加伤害命中的唯一构造。
-- **伤害求值顺序**（`ApplyHit`）：技能暴击判定（`bCritIfImpaired`、`AbilityCritChanceBp`，每命中一次）→ 加成池
+  `bAddedDamage` 的命中不暴击、不触发命中特效；`AddedHit` 是附加伤害命中（折叠椅第 3 击、路径减速）的唯一构造。
+- **伤害求值顺序**（`ApplyHit`）：技能暴击判定（`AbilityCritChanceBp`，欧皇附体高级，每目标每次施放一次）→ 加成池
   `FLDDamageEvaluationInput::DamageBonusBp`（#147 D21：`ControlAmpBp`（被减速或被控制，`ControlAmpBelowBp` 时低血目标也算）、
-  `DistanceAmpPer100Bp`、`ExecuteBp`、背后 `BackstabRatioBp`、易伤、负面状态、`ExtraAmplifyBp` 全部相加；`EvaluateDamage` 再为技能暴击加
+  `ExecuteBp`（命中前低于 `ExecuteBelowBp`）与 `ExtraAmplifyBp`（大喇叭对灼烧 tick）全部相加；`EvaluateDamage` 再为技能暴击加
   `STAT.AbilityCritMultiplier − 1`）乘一次，普攻暴击 ×`STAT.CritMultiplier` 在池前；`AmplifyBp` 只剩目标暴击减伤
-  （`crit_damage_reduction`）→ 破防后的抗性（`BreachedResistanceP2`：legacy 固定值与共享破防层先减，再乘比例）→ 碰瓷减伤 → 护盾 → 生命；
-  吸血（命中特效吸血×系数及其低血加成、全能吸血、低血普攻吸血、吸血标记）相加后经 `LDCombatKeywords::CapLifestealBp` 夹到
-  `COMBAT.LifestealCap`，按 `HPLostP2` 回复；灼烧不吸血。`LD_HIT` 的 `amp_bp` 是池与倍率合起来的系数，末尾 `pool_bp` 是加成池。
+  （`crit_damage_reduction`）→ 破防后的抗性（`LDCombatKeywords::BreachedResistanceP2`：共享破防层的固定值）→ 护盾 → 生命；
+  吸血（命中特效吸血×系数及其低血加成、急了高级的低血普攻吸血）相加后经 `LDCombatKeywords::CapLifestealBp` 夹到
+  `COMBAT.LifestealCap`，按 `HPLostP2` 经 `HealBody` 回复；灼烧不吸血。`LD_HIT` 的 `amp_bp` 是池与倍率合起来的系数，末尾 `pool_bp` 是加成池。
 - **剩余冷却缩减**：`ALDCombatDirector::ReduceCooldown(Entity, ELDCombatEntry, AmountMs)` 与按定义查找槽位的
   `ReduceLearnedCooldown`，都经纯函数 `LDCombatSourceRules::ReduceReadyAt`（不早于当前时刻；`MAX_int64` 表示立即就绪；
   已就绪轨道不变）。
-- **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺、跳跃）；
-  `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（技能急速之前）与距离加成；
-  `CastRangeCm` 统一给出技能施法距离（天外飞瓶的普攻距离加成、网线够长 3 级的 +80cm）。
+- **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺，目前是润了润了）；
+  `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（技能急速之前）与距离加成（《润学指南》）；
+  `CastRangeCm` 统一给出技能施法距离：目标定义的射程，加上目标定义 `AttackRangeRatioBp` 允许的额外普攻距离份额（有上限；当前目录没有条目使用）。
 - **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动与装备被动（同名家族一次）的唯一读取口；
   装备效果后续经 `LDDemoEquipment::Effective*` 取当前生效定义。
-- 其余 3 级状态：`Momentum`（秦王绕柱）、`Retaliation`（你瞅啥）、`DashSweeps`（一个滑铲路径减速）、`BasicHitRefund`（无影大比兜）、
-  `RegenSurgeUntilMs`（发疯文学）、`LowHPShieldReadyAtMs`（他急了），均在 `NextDueMs` 中登记截止时刻。
+- **路径减速**（`path_slow`，润了润了高级）：冲刺释放时登记 `FLDCombatDashSweep`，冲刺结束时 `ResolveDashSweeps` 对走过线段
+  半宽内的敌人施加减速；与延迟第二爆、撞墙判定一样在 `NextDueMs` 中登记截止时刻。
 
 
 ### #112 新机制（`LDCombatMechanics`、`LDCombatMechanicsDirector.cpp`）
 
-纯规则在 `Combat\LDCombatMechanics`（减疗减盾、护盾事件、击退方向、负面状态计数、周期脉冲、区域判定、掀桌伤害、碰瓷触发），
-Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与数值见内容报告 §15.11。
+纯规则在 `Combat\LDCombatMechanics`（护盾打破判定、击退方向、区域脉冲时刻），
+Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它们的条目与数值见[内容与数值 §4–§5](../demo/CONTENT_AND_BALANCE.md#4-技能状态和属性目录)。
 
 - **击退**：`ApplyKnockback(Target, Body, Hit, Now, bApplied, Error)` 先经 `CommitControl(Knockback)` 提交窗口，再用与冲刺相同的
   `ULDCharacterMovementComponent::StartDemoDash` 沿地面推开（遇阻停在最远合法点）；方向由 `KnockbackDirection` 从施放点（命中的
   `KnockbackAnchorCm` 或来源脚点）指向目标脚点。窗口内 `IsActionBlocked` 拒绝移动、位移、普攻与技能；Navigation 看到
   `ReadKnockbackSerial` 变化即放弃当前订单（`ELDOrderFailure::KnockedBack`，AI 视为 Dropped）。公开状态 `knockback`。
-- **护盾入口**：所有护盾（技能、触发护盾 `GrantShield`、区域、反震）只经 `GrantShieldTo`：先按身体最强减疗减盾缩减，
-  再 `ReplaceIfNotWeaker`；`LDCombatMechanics::GrantShield` 区分 Gained 与 Refreshed（替换仍有剩余量的记录才算刷新）。刷新与被伤害打空
-  （`ShieldBroken`）触发 `PulseShieldEvent`（精神胜利法）；打空另触发防窥膜反击 `OnShieldBroken`。`bFromShieldTrigger` 的命中
-  （脉冲、反击）所带控制不再触发社交牛逼症。`ShieldGrantedP2` 记录当前记录的获得量。
-- **治疗入口**：一次性治疗（吸血/全能吸血/吸血标记、实锤冲塔 3 级）经 `HealBody` 按最强减疗缩减；自然与脱战回复不经过它。
-  减疗记录 `FLDCombatHealCut` 每来源一份，取最强（`StrongestHealCutBp`），公开状态 `heal_cut`。
-- **持续伤害**：`FLDCombatDot`（挂人小作文为定次，开盒大师为叠层共用计时），`AdvanceMechanics` 在 Effects 命中前按到期点生成
-  `bPeriodic` 命中（不暴击、受扒裤子 3 级易伤影响——易伤只在安装它的那次定身（同一 EffectId）仍生效时计入，定身被净化、到期或随施放者离局移除即失效，见 `LDCombatMechanics::VulnerableBp`、伤害吃施放时快照的大喇叭倍率）；双抗削减写入 C1 的 `FLDCombatBreach`，
-  每层一次 `LDTactical::ApplyBreach`（`Stacks=1`、`MaxStacks` 为层数上限）。开盒大师由 `StackDox` 叠层：系数命中经
-  `ApplyOnHitEffects`、伤害技能命中经 `OnHitLanded`。
-- **区域**：`FLDCombatZone` 按 `NextPulseAtMs` 的定次脉冲（自身护盾、区域伤害并以系数快照命中特效 `SnapshotOnHit`），减速每
-  `IntervalMs` 判定一次并保留 linger，结束时可定身区域内敌人；`InsideZone` 含边界。
-- **连射**：`ReleaseMechanics` 在释放时登记后续弹（`FLDCombatVolleyShot`，复用首发弹体载荷）。
-- **碰瓷**：`FLDCombatGuard` 在求值中设 `MitigateBp`（抗性之后、护盾之前），`PreMitigationP2` 累计到 `GuardTriggers` 越过阈值时
-  反震一次（区域命中 + `GrantShieldTo`）。
-- **负面状态计数**：`NegativeKindsOf` 给出定身、减速、缴械、眩晕、嘲讽、破防（含持续伤害）六种；实锤冲塔按命中前计数放大。
+- **护盾入口**：所有护盾（技能、受伤触发护盾、按嘲讽人数的护盾）只经 `GrantShieldTo` 以 `ReplaceIfNotWeaker` 安装；
+  `ShieldGrantedP2` 记录当前记录的获得量。被伤害打空（`LDCombatMechanics::ShieldBroken`，到期或被消耗不算）时触发防窥膜反击
+  `OnShieldBroken`（内置冷却 `RetortReadyAtMs`）与精神胜利高级的爆炸 `BurstBrokenShield`；这些命中带 `bFromShieldTrigger`，
+  不算 Q/W 命中。
+- **治疗入口**：一次性治疗（吸血）经 `HealBody`；自然与脱战回复不经过它。没有治疗削减。
+- **区域**（`zone`，临时开个短会）：目标 `GroundPoint` 的请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），释放时夹到目标射程，
+  `ReleaseMechanics` 在该点登记 `FLDCombatZone`（载荷在释放时快照）。`zone_damage` 按 `NextPulseAtMs` 的定次脉冲结算伤害；
+  `zone_slow` 每 `IntervalMs` 判定一次并保留 linger；`zone_burn` 每 `interval` 给区内敌人加灼烧层；`zone_root` 在结束时定身区内敌人。
+  区内目标与横扫一样经 `CollectAreaTargets`（含边界、要求视线、排除保护者）。
 - **负属性与夹取**：`FLDDemoAttributeDefinition::Penalties` 在 `LDAttributeProjection` 中作为同类扣减项参与相加；所有属性最终统一夹到
   目录上下限（不再拒绝构筑；只有带 DEV 测试项的属性超过上限时拒绝，DEV 项不靠夹取），内容验证 `BuildEnvelope` 只检查极值下伤害/护盾不溢出。
-- 离局 `CancelEntityEffects` 一并移除其区域、连射、击退、持续伤害与减疗；营地回位清空全部。
+- 离局 `CancelEntityEffects` 一并移除其区域、路径减速、延迟第二爆、撞墙判定、击退与灼烧层；营地回位清空全部。
 
-持续伤害按原计划的 tick 和受害者 life 去重；晚进入区域不重新领取整段总伤害。
+周期伤害（区域脉冲、灼烧 tick）按原计划的到期点和受害者 life 结算；晚进入区域不重新领取整段总伤害。
 释放者、资源预算所有者、当前伤害归属和受害者生命是不同概念，
 反射、死亡或替换来源不能重建免费预算或让旧投射物击中新 life。
 
@@ -243,9 +228,11 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；条目与�
 
 ### 构筑 v7 战斗原语（#147，`LDCombatKeywords`、`LDCombatKeywordsDirector.cpp`）
 
-纯规则在 `Combat\LDCombatKeywords`（共享破防与灼烧、吸血上限、撞墙判定、穿透顺序、G(L) 接口），
+纯规则在 `Combat\LDCombatKeywords`（共享破防与灼烧、吸血上限、撞墙判定、穿透顺序），
 Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参数是内容参数 `COMBAT.Breach*`、`COMBAT.Burn*`、`COMBAT.LifestealCap`
-（`FLDKeywordTerms::From`）。下一层（目录替换）只需写数据；字段用法见 `FLDDemoEffectDefinition` 的注释。
+与 `SKILL.GrowthPerLevel`（`FLDKeywordTerms::From`）。当前目录（12 主动、10 被动）只用这些原语与上文的共用原语；字段用法见
+`FLDDemoEffectDefinition` 的注释。效果触发 `ELDDemoEffectTrigger` 只有 `None`、`BasicHit`、`AbilityHit`、`Damaged` 四种
+（反伤的 `trigger` 是它自己的字段，只接受 `Basic`）。
 
 - **沉默**（`silence`，`ELDControlKind::Silence`，状态 `silence`）：实例形同缴械/眩晕，存于 `Silences`；矩阵动作 `ELDCombatControlAction::Skill`
   只被沉默与眩晕禁止。Q/W 的准入、释放与 `EntryView` 都经 `IsCastBlocked(Body, SourceKind)`（Cast 对所有入口，Skill 只对 Learned），
@@ -257,8 +244,9 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **灼烧**（`burn`）：`FLDBodyCombatState::Burn`，层共享计时，每层记住施加者并快照其**等级与法强**（`FLDCombatBurnLayer::Level/SourceAPP2`）；
   每 `COMBAT.BurnTickSec` 由 `AdvanceBurns` 按施加者各生成一个魔法 tick 命中（`bBurnTick`、`bPeriodic`：不暴击、不触发命中特效、不吸血，
   带施加者存活时的受控增伤），最后一跳落在截止时刻；满层时新层替换最早一层；施加者离局移除其层，营地回位清空。每层每秒
-  `LDCombatKeywords::BurnLayerPerSecondP2(Level, AP)` = G(L)·`COMBAT.BurnPerSec` + `COMBAT.BurnAPRatioPerSec`×法强，其中 G(L) 经
-  `GrowthScaledP2` 接入——**灼烧基础值的等级成长由目录层接入**，本层不实现 G(L)。
+  `LDCombatKeywords::BurnLayerPerSecondP2(Level, AP)` = G(L施加者)·`COMBAT.BurnPerSec` + `COMBAT.BurnAPRatioPerSec`×法强，
+  G(L) 取 `LDSkillGrowth::FactorBp`（施加者等级由 `GrowthLevelOf` 给出，营地身体按 1 级）。大喇叭的 `affliction_amp` 让持有者
+  的灼烧 tick 带 `ExtraAmplifyBp`，进入统一加成池。
 - **施加途径**：主动 rank 的 `breach`/`burn` `stacks` 随命中载荷（灼烧在释放时快照）；被动 `breach`/`burn` 的 `basic_stacks`（普攻主击）与
   `stacks`（Learned Q/W 命中，`Token≠0`）在 `ApplyKeywordStacks` 中按存活施加者结算；周期、反伤、附加伤害与护盾触发的命中不算；
   `zone_burn` 让区域每 `interval` 给区内敌人加层。
@@ -267,16 +255,16 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 - **吸血**：`lifesteal` 的 `hp_below` + `low_hp_multiplier` 对低血目标加倍（计入上限）；`low_hp_stat_bonus` 的 `lifesteal` 是低血期间的普攻吸血。
 - **多次强化普攻**：`empower_basic` 的 `charges`（`FLDCombatEmpower::Charges`，`ConsumeEmpower` 每次取一层）、`stats`（期间的限时属性，
   随最后一层或窗口结束）与 `cleave_ratio`/`cleave_radius`（被强化的普攻带横扫）。
-- **施放后限时属性**：沿用 `cast_frenzy`（Learned 释放后限时属性，如移速）。
-- **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`）：承受他人正伤害后给护盾（G(L)·base + 生命上限比例），
+- **施放后限时属性**：`cast_frenzy`（特种兵：Learned 技能释放后的限时移速）。
+- **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`）：承受他人正伤害后给护盾（按等级成长的 base + 生命上限比例），
   只有真正替换成功才开始 `interval` 冷却；`burst_ratio`/`burst_radius` 记在 `ShieldBurst`，该护盾被打破时 `BurstBrokenShield` 以获得量的比例对周围敌人造成魔法伤害。
-- **反伤**：`thorns` 的固定值经 `GrowthScaledP2`；`slow`/`slow_duration` 是只减移速的减速（与 `cripple_*` 二选一）。
+- **反伤**：学会被动的 `thorns` 基础值随拥有者等级成长（装备不成长）；`slow`/`slow_duration` 是只减移速的减速（城墙脸皮高级）。
 - **条件切换控制**：`root` 的 `slowed_stun`：命中前目标在减速中则改为眩晕。
 - **弹体穿透**：`pierce` 让弹体按 `LDCombatKeywords::PierceContacts` 依次命中路径上的每个身体，每条生命一次（`FLDCombatProjectile::Struck`），地形与射程仍结束飞行。
 - **撞墙判定**：`knockback` 的 `wall_distance` + `wall_stun`：击退窗口结束时（`FLDCombatWallCheck`、`ResolveWallChecks`）实际平面位移小于阈值即经 `CommitControl` 眩晕。
 - **延迟第二爆**：`echo`（`delay`、`ratio`）在自身区域释放后，延迟到点时以同一条存活生命当时的脚点再爆一次，载荷由 `EchoHit` 只缩放伤害项（灼烧层不变）。
 - **按嘲讽人数给护盾**：`taunt_shield` 按本次实际被嘲讽的参赛者数（`ApplyTauntEffect` 的 `OutTaunted`）给护盾。
-- **解除缴械**：`dispel_disarm`（释放前与其他净化一起结算，跳跃落地同样可用）。
+- **解除缴械**：`dispel_disarm`（释放前与解除定身、解除减速一起在 `ApplyCleanses` 结算）。
 - **普攻命中缩短两个主动冷却**：被动 `cooldown_refund` 的 `BasicHit` 触发（无窗口）在每次普攻主击时缩短 `Actives` 两个技能的剩余冷却。
 - 属性 `MPRegenFlat`（法力回复固定值）与 `HPRegenFlat` 同形。
 
@@ -292,18 +280,33 @@ Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 
 已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性与被动效果只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects`
 取得，属性投影、来源与效果处理器不另写进阶分支；同款双持时同名被动取有进阶的一件。
 来源冷却轨道与回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，重学回绑原结束时间，进阶不刷新冷却。
-
+Q/W 都满时学新主动替换的那一槽，新主动从 rank 1（初级）开始；技能最高 rank 为 `progression.max_skill_rank`（2，高级）。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
+
+### 技能等级成长（#147）
+
+技能的固定数值随拥有者**当前等级** L 成长：G(L) = 1 + `SKILL.GrowthPerLevel` ×（L − 1）（`LDSkillGrowth::FactorBp`，
+原生 `SkillGrowthPerLevelBp`）。高级的 ×1.5 已写在 rank 2 的作者数据里，代码不再乘。
+
+- **成长范围**（`LDSkillGrowth::GrowEffect`）：效果的基础量（伤害、护盾、反伤、强化普攻与周期伤害；法力授予除外）与限时属性
+  的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数在两档间不变。
+  装备的被动与属性永不经过这里（D15）。
+- **预计算**：`FLDDemoContentSnapshot` 构造时对每个技能的每个 rank、每个等级 1..`MaxLevel` 用 `LDSkillGrowth::GrowRank` 生成一行；
+  `FindRank(Ability, Rank, Level)` 返回该行，等级越界或某行算术溢出（内容验证已证明不会发生）时返回空并由调用方明确失败。
+- **读取**：主动经 `ActiveOf(Source, Rank, Level, …)` 在准入与释放时取成长后的 rank，命中载荷在释放时快照；
+  被动与触发项经属性投影的 `FLDLearnedTriggerTerm`（`AbilityId`、`Rank`、`Level`）读取，升级重新投影构筑，所以触发时用当时等级；
+  护盾与灼烧在施加时固定（灼烧层快照施加者等级与法强）。HUD 卡面用同一 `LDSkillGrowth::GrowRank` 渲染当前等级的数字（见[视野与 UI](VISION_AND_UI.md)）。
 
 ## 检查入口
 
 `Lockdown.Rules.DemoCombatEvaluation.*`、`DemoCombatStatus.*`、`DemoCombatSources.*`（含 `InnateDash`）、`DemoOrders.*`、
 `DemoAttributeProjection.*` 与 `DemoCore.*` 分别覆盖纯数值（含 `AbilityCrit`）、Root/屏障/回复/冷却规则、来源轨道回绑、
-攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.*` 覆盖减速、限时增益、
-低血线/潜水党窗口与破防/吸血标记的纯规则，`DemoCombatPrimitives.*` 覆盖硬控递减、`CommitControl`、剩余冷却缩减、破防叠加、
-攻速减速与解除减速、回复翻倍窗口，`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
-`DemoCombatEvaluation.ControlAmplify/Mitigation` 覆盖增伤结算与碰瓷减伤位置，`DemoMechanics.*` 覆盖减疗减盾、护盾事件、
-击退方向、破防叠层、负面状态计数与周期脉冲/区域/碰瓷触发；`DemoControl.ActionMatrix/RearArc/EmpowerOnce/ThornsRules/JumpPlan/ExpansionContent` 覆盖动作禁止矩阵、背后扇形、强化下一击单次消费、反伤触发/去重/数值、跳跃落点规划与扩展条目的类型化导入与显示；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
+攻击移动选敌与订单簿换局/换命隔离、属性及核心身份/许可/时间/投影边界；`DemoBuildExpansion.Slow/TimedBonus/ConditionalTriggers` 覆盖减速、限时增益
+与低血条件项的纯规则，`DemoCombatPrimitives.*` 覆盖硬控递减、`CommitControl`、剩余冷却缩减与解除减速，
+`DemoAttributeProjection.TemporaryTerms/ExpansionPassives` 覆盖临时项投影与条件被动，
+`DemoCombatEvaluation.ControlAmplify` 覆盖增伤结算，`DemoMechanics.ShieldEvents/Knockback/Periodic` 覆盖护盾打破判定、
+击退方向与区域脉冲时刻；`DemoControl.ActionMatrix/EmpowerOnce/ThornsRules/ExpansionContent` 覆盖动作禁止矩阵、强化普攻消费、反伤触发/去重/数值与条目的类型化导入与显示；
+`DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的 rank；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`（#147）覆盖关键词纯规则、伤害加成池、沉默、共享破防与灼烧、命中中的加成池、吸血上限、条件切换与撞墙、被动触发与受伤护盾、多次强化普攻，
 `DemoAssist.*` 覆盖助攻贡献记录与窗口、奖励分配、多账户链式账本、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
@@ -317,13 +320,13 @@ Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地
 远程攻击移动接敌与 S、右键击杀的击杀播报与复活延迟、死亡期间小地图平移驱动的静态镜头、
 十点随机复活的精确保护和公共状态，以及空 Q 经同一 Direct 入口被拒但解除保护且不恢复；
 随后 Host 的 DEV 成长夹具（只有 Host 带 `-LDDevGrowthFixture`；选项在 Lobby 按 Start 前暂存，第一组即开局 Offer）为双方预置开局与下一组选项并发放经验（升级比所学卡多一级，最后一次机会不选），
-Host 经普通 `SubmitChoice` 学会 attr_reach 与扒裤子，Client1 学会我没事我很好与天外飞瓶，再经快捷入口的准备与确认施放：
-扒裤子定身 Client1 且 Host 的观察帧看到 Root、我没事我很好在定身到期前加护盾并解除定身、
-Client1 从较远的对决点扔出的天外飞瓶作为 Chalk 投射物事实飞向 Host 并命中、增程卡让右键追击在基础射程之外落下普攻。
+Host 经普通 `SubmitChoice` 学会伸手党（`attr_hand_out`）与扒裤子，Client1 学会我没急并升到高级（只有高级解除定身）与阴阳怪气，
+再经快捷入口的准备与确认施放：扒裤子定身 Client1 且 Host 的观察帧看到 Root、高级我没急在定身到期前加护盾并解除定身、
+Client1 从相距 365 cm 的对决点射出的阴阳怪气作为 Chalk 投射物事实飞向 Host 并命中、伸手党的普攻距离让右键追击在基础射程之外落下普攻。
 Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回可能卡住游戏线程数秒，先在这里吸收）、
 在对决点旁的地面右键（DEV 指针代替鼠标，走普通 `ClickMove`）后的落点标记、本人被远程普攻击中、
 右键击杀前指针悬停在 Client1 身上的悬停环与十字光标、右键后的攻击标记、
-自己的观察帧显示定身、护盾、天外飞瓶飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
+自己的观察帧显示定身、护盾、阴阳怪气飞行中段（实际绘制的投射物代理离 Client1 脚点至少 120 cm），
 以及本人普攻挥击时各读回一帧
 （`HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png`，含 UI），
 只在读回的那一帧仍显示该时刻时保存，供人工审阅画面可读性，不做像素比对；

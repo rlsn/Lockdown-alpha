@@ -19,8 +19,8 @@ namespace LDObservation
     // the 26 camps (8 high x 1, 18 low x 2) and the Boss, 50 units; the wire counts are uint8.
     constexpr int32 MaxUnits = 50;
     // Every public status a unit can show at once: each definition appears at most once, a contender adds respawn
-    // protection and a camp member camp_returning to the eleven combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 12;
+    // protection and a camp member camp_returning to the ten combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
+    constexpr int32 MaxStatuses = 11;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 16;
@@ -31,7 +31,7 @@ namespace LDObservation
     constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
     // Highest public rank of a Q/W active (APP_SPEC: every character skill tops out at 3); a full rank is the Lv3 mark.
-    constexpr uint8 MaxActiveRank = 3;
+    constexpr uint8 MaxActiveRank = 2;  // #147: 初级 and 高级
 }
 
 UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 };

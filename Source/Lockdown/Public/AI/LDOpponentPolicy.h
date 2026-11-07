@@ -217,6 +217,8 @@ struct FLDOpponentBodyIntent
     ELDOpponentSourceSlot Source = ELDOpponentSourceSlot::Q;
     ELDDemoTargetMode TargetMode = ELDDemoTargetMode::Self;
     FVector Direction = FVector::ZeroVector;
+    // GroundPoint activations: the requested zone centre (#147 active_quick_meeting).
+    FVector Point = FVector::ZeroVector;
     // Failure memory of MoveGround, ApproachShop, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
 };
