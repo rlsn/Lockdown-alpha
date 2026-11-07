@@ -196,7 +196,8 @@ struct FLDOpponentDecisionFrame
     bool bShopOpen = false;
 };
 
-enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Shop, Choice };
+// Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
+enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Shop, Choice, Walk };
 
 struct FLDOpponentRetryKey
 {
@@ -320,6 +321,13 @@ struct FLDOpponentPolicyState
     bool bRecovering = false;
     // The public place this recovery escapes toward; kept while it still leads away from visible threats.
     FName RetreatPOI;
+    // D26 (#160): the walk to RetreatPOI steps away from the Boss and continues while the Boss stays in sight, so the
+    // body does not turn back at the edge of the Boss's band and flip between the escape and its errand.
+    bool bEscapingBoss = false;
+    // #160: the goal of the last walk navigation refused for its ground or path; a different refused goal from the
+    // same standing point counts against the body's own walking.
+    FLDOpponentRetryKey LastRefusedWalk;
+    bool bHasRefusedWalk = false;
     FName VisitPOI;
     int64 VisitEngagedAtMs = 0;
     FName ExplorePOI;
@@ -412,4 +420,10 @@ namespace LDOpponentPolicy
     // lost unit target is suppressed for this visibility interval and released as the current target.
     LOCKDOWN_API void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key,
         ELDOpponentOutcome Outcome, const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
+    // #160: the admission answer to a walk (a ground move, shop approach or attack chase). A refusal for its ground
+    // or path that names a different goal than the last one counts once against the body's own walking from where it
+    // stands; within the retry policy every new walk waits, and once it is spent none is sent until the body has moved
+    // or respawned. Any admitted walk clears it.
+    LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
+        const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
 }

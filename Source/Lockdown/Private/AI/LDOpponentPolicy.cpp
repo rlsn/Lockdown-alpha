@@ -410,6 +410,9 @@ struct FContext
 
     uint64 Print(ELDOpponentFailure Category) const { return LDOpponentPolicy::Fingerprint(Category, Self); }
     bool CanAttempt(const FLDOpponentRetryKey& Key) const { return State.Failures.CanAttempt(Key, Print(Key.Category), Now); }
+    // #160: refused walks from this standing point hold every new walk, whatever its goal.
+    bool CanWalk() const { return CanAttempt(WalkKey()); }
+    static FLDOpponentRetryKey WalkKey() { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Walk; return Key; }
     bool Suppressed(const FLDOpponentRetryKey& Key) const { return State.Failures.IsSuppressed(Key, Print(Key.Category)); }
     static FLDOpponentRetryKey PathKey(FName POI) { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Path; Key.POI = POI; return Key; }
     // One shop visit: the approach, the open and every trade of the current plan share this budget.
@@ -467,6 +470,7 @@ void ForgetBody(FLDOpponentPolicyState& State)
     EndVisit(State);
     State.ExplorePOI = NAME_None;
     State.RetreatPOI = NAME_None;
+    State.bEscapingBoss = false;
     State.bRecovering = false;
 }
 
@@ -503,6 +507,8 @@ FLDOpponentBodyIntent MoveTo(const FContext& C, const FLDOpponentPOI& POI, ELDOp
     const auto& Order = C.Frame.Order;
     Body.Kind = Order.IsLive() && Order.Kind == Kind && Order.POI == POI.Id ? EBody::Keep
         : Kind == ELDOpponentOrderKind::ApproachShop ? EBody::ApproachShop : EBody::MoveGround;
+    // A body whose walks are refused where it stands keeps what it has instead of trying the next place at once (#160).
+    if (Body.Kind != EBody::Keep && !C.CanWalk()) { Body.Kind = Order.IsLive() ? EBody::Keep : EBody::None; }
     return Body;
 }
 
@@ -541,7 +547,9 @@ FLDOpponentBodyIntent AttackBody(const FContext& C, const FLDOpponentUnit& Unit)
         Body.Kind = EBody::Keep;
         return Body;
     }
-    if (!C.CanAttempt(Body.Key)) { return Hold(C); }
+    // A target already in reach is struck where the body stands; only a chase needs the body's walking (#160).
+    const bool bInReach = C.Distance(Unit.FootCm) <= C.AttackRangeCm;
+    if (!C.CanAttempt(Body.Key) || (!bInReach && !C.CanWalk())) { return Hold(C); }
     Body.Kind = EBody::AttackUnit;
     return Body;
 }
@@ -1551,6 +1559,12 @@ uint64 Fingerprint(ELDOpponentFailure Category, const FLDOpponentSelf& Self)
     {
     case ELDOpponentFailure::Engagement: return Self.BuildRevision;
     case ELDOpponentFailure::Choice: return Self.Offer.IsSet() ? Self.Offer->OfferRevision : 0;
+    case ELDOpponentFailure::Walk:
+    {
+        // The standing point to the centimetre, in this life: any move or a respawn gives the body's walking a fresh budget.
+        const FIntVector Spot(FMath::RoundToInt(Self.FootCm.X), FMath::RoundToInt(Self.FootCm.Y), FMath::RoundToInt(Self.FootCm.Z));
+        return (uint64(Self.Life) << 32) | uint64(GetTypeHash(Spot));
+    }
     default: return Self.Life;
     }
 }
@@ -1637,7 +1651,14 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         }
         EndVisit(State);
     }
-    if (!State.bRecovering) { State.RetreatPOI = NAME_None; }
+    // D26 (#160): an escape from the Boss lasts while its walk to the retreat place is live and the Boss is in sight.
+    if (State.bEscapingBoss)
+    {
+        const auto& Order = Frame.Order;
+        State.bEscapingBoss = C.Boss && !State.RetreatPOI.IsNone() && Order.IsLive()
+            && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == State.RetreatPOI;
+    }
+    if (!State.bRecovering && !State.bEscapingBoss) { State.RetreatPOI = NAME_None; }
     const auto Body = [&Out, bActionLive](const FLDOpponentBodyIntent& Intent)
     {
         Out.Body = Intent;
@@ -1707,13 +1728,20 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Finish(EMode::Disengage, EReason::Recover);
     }
     // D26 (#79): a body inside the Boss's acquire band steps away from it before anything but the circle; out of the
-    // band it carries on, and a recovering body has already disengaged above.
-    if (C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm && !bHoldingSolo)
+    // band it carries on, and a recovering body has already disengaged above. #160: an escape that has left the band
+    // walks on to its place while the Boss stays in sight; turning back at the band's edge sent a new order on every
+    // decision, flipping between the escape and the errand that led back toward the Boss.
+    const bool bInBossBand = C.Boss && C.Distance(C.Boss->FootCm) <= C.BossBandCm;
+    if (C.Boss && !bHoldingSolo && (bInBossBand || State.bEscapingBoss))
     {
         EndVisit(State, false);
-        Body(DisengageBody(C));
+        const FLDOpponentPOI* Kept = bInBossBand ? nullptr : C.FindPOI(State.RetreatPOI);
+        Body(Kept ? MoveTo(C, *Kept) : DisengageBody(C));
+        State.bEscapingBoss = !State.RetreatPOI.IsNone() && Out.Body.POI == State.RetreatPOI
+            && (Out.Body.Kind == EBody::MoveGround || Out.Body.Kind == EBody::Keep);
         return Finish(EMode::Disengage, EReason::AvoidBoss);
     }
+    State.bEscapingBoss = false;
     if (!State.bRecovering)
     {
         if (const FLDOpponentUnit* Target = SelectEngageTarget(C))
@@ -1847,5 +1875,23 @@ void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key
         State.Failures.RecordFailure(Key, Fingerprint(Key.Category, Self), NowMs, AI);
         return;
     }
+}
+
+void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
+    const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI)
+{
+    using namespace Detail;
+    const FLDOpponentRetryKey Walk = FContext::WalkKey();
+    if (!bRefusedForGround)
+    {
+        State.Failures.RecordSuccess(Walk);
+        State.bHasRefusedWalk = false;
+        return;
+    }
+    // The same goal refused again is that goal's own failure memory; only a different goal points at the body.
+    const bool bOtherGoal = !State.bHasRefusedWalk || !(State.LastRefusedWalk == Goal);
+    State.LastRefusedWalk = Goal;
+    State.bHasRefusedWalk = true;
+    if (bOtherGoal) { State.Failures.RecordFailure(Walk, Fingerprint(ELDOpponentFailure::Walk, Self), NowMs, AI); }
 }
 }
