@@ -103,6 +103,8 @@ constexpr double CombatProbeSkillArrivalCm = 60.0;
 constexpr double CombatProbeQueueAlong[] = {.5, .35, .65, .2, .8};
 constexpr double CombatProbeQueueDetourCm[] = {320.0, -320.0, 220.0, -220.0, 150.0, -150.0};
 constexpr double CombatProbeQueuePassCm = 90.0;
+// The queued walk starts at Client1's random respawn point, up to the map's width from the skill site, with a detour.
+constexpr double CombatProbeQueueWalkSeconds = 40.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
 // The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
@@ -1287,7 +1289,7 @@ public:
         const bool bCurrent = PC.CombatView.Generation == PC.OwnerState.Match && PC.CombatView.Life == PC.OwnerState.Life;
         const FLDCombatEntryView* Row = bCurrent ? PC.CombatView.Entries.FindByPredicate([&Definition](const FLDCombatEntryView& Entry)
         {
-            return Entry.DefinitionId == Definition && Entry.bHasActive;
+            return Entry.DefinitionId == Definition && Entry.SourceKind == ELDCombatSourceKind::Learned;
         }) : nullptr;
         return Row ? Row->Entry : ELDCombatEntry::None;
     }
@@ -1386,7 +1388,7 @@ public:
             bHandled = false;
             return true;
         }
-        if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
+        if (Now - StageAt <= LDDemoCombatScenario::CombatProbeQueueWalkSeconds) { return true; }
         return Fail(TEXT("Queue"), TEXT("The queued walk did not finish: ") + PC.Navigation->Status);
     }
 
@@ -2544,8 +2546,8 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's arc bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not gear actives, camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse and active_arc_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the arc bolt at the Host. Not gear actives, camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's arc bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_guard_pulse and active_arc_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the arc bolt at the Host. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetNumberField(TEXT("skills_learned"), SkillsLearned);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);

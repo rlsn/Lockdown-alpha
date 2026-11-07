@@ -40,12 +40,15 @@ namespace
     constexpr uint32 DiagnosticslessSchema = 14;
     // Schema 15 has the current layout; only its key list predates the playtest mark key.
     constexpr uint32 MarklessSchema = 15;
+    // Schema 16 has the current layout; its key list still holds the retired equipment-active keys Item1 and Item2.
+    constexpr uint32 ItemKeysSchema = 16;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
     const FName DashAction(TEXT("Dash"));
     const FName ScoreboardAction(TEXT("Scoreboard"));
     const FName MarkAction(TEXT("Mark"));
+    const FName RetiredItemActions[] = {FName(TEXT("Item1")), FName(TEXT("Item2"))};
     constexpr int64 MaxSettingsBytes = 65536;
     constexpr int32 MaxBindingCount = 64;
 
@@ -195,7 +198,6 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
         {TEXT("Navigate"),FString(TEXT("移动 / 攻击 / 前往"))+LDTerms::Shop,EKeys::RightMouseButton},
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
-        {TEXT("Item1"),TEXT("装备主动 1"),EKeys::One},{TEXT("Item2"),TEXT("装备主动 2"),EKeys::Two},
         {TEXT("Dash"),FString(LDTerms::Dash)+TEXT("（立即朝指针）"),EKeys::D},
         {TEXT("Stop"),TEXT("停止"),EKeys::S},
         {TEXT("Attributes"),TEXT("属性面板"),EKeys::P},
@@ -517,7 +519,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
         && (SavedSchema == NamelessSchema || SavedSchema == VolumelessSchema || SavedSchema == PanlessSchema
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
-            || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema);
+            || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -605,6 +607,14 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             DashDefault += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
         }
     }
+    // Every layout up to schema 16 stored the equipment-active keys 1/2; equipment has no active any more, so exactly
+    // those two retired actions are dropped and reported, and their keys become free.
+    if (Migrating && SavedSchema <= ItemKeysSchema)
+    {
+        int32 Dropped = 0;
+        for (const FName& Retired : RetiredItemActions) { Dropped += Settings->Bindings.Remove(Retired); }
+        if (Dropped > 0) { DashDefault += TEXT("装备不再有主动，已移除装备主动 1/2 的按键。"); }
+    }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
     if (!Settings->ValidatePreferences(Error))
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, Origin + Error + TEXT("文件未被替换。") }; }
@@ -616,7 +626,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–15 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–16 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
@@ -634,7 +644,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             : SavedSchema == QuickCastlessSchema
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
-        if (SavedSchema == MarklessSchema)
+        if (SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema)
         { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
         if (SavedSchema == DiagnosticslessSchema)
         { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") + DashDefault }; }

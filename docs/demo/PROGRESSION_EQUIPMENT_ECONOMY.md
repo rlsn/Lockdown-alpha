@@ -31,16 +31,16 @@ Development 持有。死亡奖励、选择和买卖各自在同一权威批次�
 | Q/W 两角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；再学一级。被动无独立槽上限。 |
 | 两装备、无背包、允许同款双持，满槽先卖后买 | 容量由权威物品位置限制，不由 UI 格子限制；售出和随后买入是两个独立事务。 |
 | 同款基础属性相加，同名被动只生效一次 | 属性逐实例汇总；被动按稳定内容键去重，不按本地化名字或实例数触发。 |
-| 两份同款主动独立冷却，可以连续使用两次 | 两个持久 `IssuedCooldownId` 各自持有截止时刻，不使用同款共享 `ReadyAt`。 |
-| 失去来源期间继续计时，重持有沿用原结束时间 | 售出、遗忘、换槽、死亡不缩短已开始的 `ReadyAtMs`；回购优先承接未结束的离体债务。 |
+| 装备没有主动技能 | 装备只提供固定属性与被动，不发行冷却记录。 |
+| 失去来源期间继续计时，重持有沿用原结束时间 | 遗忘、换槽、死亡不缩短已开始的 `ReadyAtMs`；重学承接原记录的截止时刻。 |
 | 已释放独立效果不因普通死亡、售出或遗忘而取消 | 继续原定期限；依赖持续持有/施法的光环、被动、引导按维持条件失效。正式离局取消未结束独立效果，但不追溯改写既成死亡事实。 |
 | 野怪的 XP 和金币归最后一击实际所有者；参赛者击杀另有助攻（#112） | 合法击杀一次结清：参赛者受害者的击杀者全额金币，助攻者平分 50% 基础击杀金币，XP 由击杀者与助攻者平分（App Spec §4.1）；阵亡但仍在本局的来源可以收奖或得助攻。无主、自杀、回位、离开不产生额外收益。 |
 | 死亡不丢成长、金币、装备或待选；新局清局内状态 | 持久状态不放在 Pawn / Widget；死亡取消身体期请求，不重发初始资源。 |
 | 死亡等待可以确认选择，只更新保留构筑 | 不提前复活、不治疗尸体；当前 Life 和生/死确认阶段重新校验。 |
 | 最大 HP/MP 改变时保持原生命/法力百分比 | 活体只按一次最终属性投影同比换算；不采用保持原绝对当前值的规则，精度由内容/Combat 单点定义。 |
-| 商店不安全，本体不可攻击 | 买卖重查存活、比赛阶段和实际范围；受伤本身不附加脱战、安静或无敌政策。1/2 主动不依赖商店。 |
+| 商店不安全，本体不可攻击 | 买卖重查存活、比赛阶段和实际范围；受伤本身不附加脱战、安静或无敌政策。 |
 
-以上双持、叠加、独立主动与失源继续计时已获用户确认，不保留共享冷却或冻结计时备选。
+以上双持、叠加与失源继续计时已获用户确认，不保留共享冷却或冻结计时备选。
 内容与数值以 2026-11-02 批准的首轮方案（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
 资源同比换算的精度与边界只由内容/Combat 的唯一公式定义。批准输入与规则测试都不代表真实联机或平衡已通过。
 
@@ -78,7 +78,7 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 | 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、已获/已消费机会边界、当前一个 `FLDChoiceOfferState`、最多十条选择记录 `FLDChoiceRecord`；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号派生（`LDProgression::OfferSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
 | `ALDEconomyDirector` 持有的 `LDEconomy::FLedger` | 唯一 `int64 Gold`、AccountRevision；物品 `InstanceId / IssueSerial / Definition / Owner / Slot / Revision`；每 owner 的 InventoryRevision。每活实例只有一个位置，最多两个活装备位置。 | Inventory 查询/准备、自身钱物 DTO；Combat 只消费来源和属性，不改账。 |
 | `ALDInventoryDirector` | 两槽资格、实例解析、准备变更；不另存可写 Items/Bindings/Actor Holder 镜像。槽只允许 0/1，无背包、Quick、地面掉落位置。 | `FLDEquipmentView`、Vendor、Combat 准备器。 |
-| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision, InventoryRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、可选绑定实例、ReadyAtMs）与 `SourceRevision`；被动来源及需保留的触发状态。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W、1/2、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
+| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision, InventoryRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；被动来源及需保留的触发状态。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W、D、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
 | Vendor 的私有会话（SessionId、Life、QuoteRevision）与 Shop 请求流 | 当前生命的会话/报价修订、请求序列/条款/结果；报价视图携带本局 CatalogDigest 与世界修订；不是持有装备或金币的权威。 | 当前拥有者商店页及 AI 购物适配。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写账、成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
@@ -115,7 +115,7 @@ Offer/Option ID 由服务器在相应机会生成时一次建立；OptionId 不�
 | 字段族 | 唯一类型 / 编码 | 初值、限制与换代 |
 | --- | --- | --- |
 | Generation / Life | `uint32`，沿核心编码 | 仅核心推进，零值不接受为有效比赛/已建立生命；到上限明确失败，不回绕。LedgerMatch仍是FGuid。 |
-| ContenderId / LedgerMatch / OfferId / OptionId / ItemInstance / IssuedCooldownId / ShopSessionId | `FGuid`，UE内置四个uint32的16字节编码 | 有效ID非零；可选项单独带存在标志，不拿零GUID当成功默认。Offer/Option/会话由服务器一次建立；Item按§4发行；CD每定义最多两份。新Match无旧执行权。 |
+| ContenderId / LedgerMatch / OfferId / OptionId / ItemInstance / IssuedCooldownId / ShopSessionId | `FGuid`，UE内置四个uint32的16字节编码 | 有效ID非零；可选项单独带存在标志，不拿零GUID当成功默认。Offer/Option/会话由服务器一次建立；Item按§4发行；CD每技能定义一份。新Match无旧执行权。 |
 | RequestId / Ledger Serial / IssueSerial / CommitBatch | `uint64` | 请求每Family从1开始，只在新Match重置；死亡不重置。Ledger/发行独立计数见§4；CommitBatch 是提交所在权威边界的 `BatchSerial`。0不表示一笔成功业务。 |
 | Build / Inventory / Item / Account / Progression / Offer / Quote revisions | `uint64`，包括所有Expected/Guard引用 | 匹配初始化或对象建立完成后基准为1，只由相应唯一写入者checked递增；当前倒计时不逐帧增修订。不能截断后比较。 |
 | Level / Rank / OpportunityOrdinal / SlotIndex | `uint8` | Level=1..10、已学Rank=1..3、机会=1..10、Slot=0/1；队列计数可为0。未学/空槽用可选存在位，不伪造Rank0技能记录。 |
@@ -331,7 +331,7 @@ ResolvedLifeThrough 时仅重放/拒旧；Create 只使用账本签出的
 
 `CommitDeathReward` 只从核心 committed-death inbox 接收事实，不作为客户端/AI RPC。
 资格先看受害对象与关系，再看实际所有者；另一参赛者或野怪的合法击杀才发奖。
-持续效果、装备主动、获准普攻副命中使用 Combat 已锁定的真实所有者；
+持续效果、装备被动触发、获准普攻副命中使用 Combat 已锁定的真实所有者；
 抑制副命中的吸血/递归触发不抑制其合法死亡奖励。
 
 | 输入 | 期望结果 |
@@ -447,10 +447,10 @@ Inventory 从 Ledger 解析两个真实位置，Combat 引用实例/定义，视
 
 | 事务 | 同一次提交的全部后果 |
 | --- | --- |
-| Buy | 检查目录/明确展示价、余额、空槽；准备唯一 Instance、占用空槽、扣款、属性/被动/主动绑定、修订和回执。满槽 `EquipmentFull`，不自动卖/毁旧物。 |
-| Sell | 按精确 Instance/ItemRevision/真实位置验证；按目录预算的卖价（`SellGold`，即 `FORMULA.SellGold`）销毁其权威持有、移除对应贡献/未释放来源、回款、保留冷却债并发布修订。 |
+| Buy | 检查目录/明确展示价、余额、空槽；准备唯一 Instance、占用空槽、扣款、属性/被动绑定、修订和回执。满槽 `EquipmentFull`，不自动卖/毁旧物。 |
+| Sell | 按精确 Instance/ItemRevision/真实位置验证；按目录预算的卖价（`SellGold`，即 `FORMULA.SellGold`）销毁其权威持有、移除对应贡献、回款并发布修订。 |
 | Sell 后 Buy | 两次独立请求。Sell 成功后重读余额/槽位再发 Buy；后买失败保留真实卖出结果，不恢复已卖物或虚构新物。 |
-| Upgrade | 账本 cause `Upgrade`：Burn `SHOP.UpgradeCost`（240）+ 把一件本人持有、未进阶的实例标为 `bUpgraded`（ItemRevision 与 InventoryRevision 各进一），账户 `bUpgradeUsed` 置位；每个账户整局一次，卖掉进阶装备后不恢复。物品须所有被动/主动块都有已批准的进阶形式（`LDDemoEquipment::Upgradable`），否则 `UpgradeUnavailable`；已用 `UpgradeUsed`、已进阶 `AlreadyUpgraded`。同一复合提交推进 BuildRevision 与 Combat 投影；来源轨道按实例保留，进阶不刷新冷却。 |
+| Upgrade | 账本 cause `Upgrade`：Burn `SHOP.UpgradeCost`（240）+ 把一件本人持有、未进阶的实例标为 `bUpgraded`（ItemRevision 与 InventoryRevision 各进一），账户 `bUpgradeUsed` 置位；每个账户整局一次，卖掉进阶装备后不恢复。物品的被动块须有已批准的进阶形式（`LDDemoEquipment::Upgradable`），否则 `UpgradeUnavailable`；已用 `UpgradeUsed`、已进阶 `AlreadyUpgraded`。同一复合提交推进 BuildRevision 与 Combat 投影；进阶不刷新冷却。 |
 
 账务分类只保留所需操作（`LDEconomy::ECause`）：`DeathReward` 的 Mint，`Buy` 的 Burn+Create，
 `Sell` 的 Consume+Mint，`AccountRetire`；DEV 构建另有仅限 `-LDDevGrowthFixture` 的 `DevFixture` Mint 与 DEV 测试重置的 `DevReset`，
@@ -487,44 +487,25 @@ InvalidApproachRegion 要映射成明确反馈；失败不返回成功默认采�
 
 ### 7.2 `IssuedCooldownId` 与防洗冷却
 
-持久 CD 键使用共同 Match/Contender，加来源 Kind、技能或**装备定义**及 `IssuedCooldownId`；
-不使用 Q/W/1/2 槽号或新 ItemInstance 作为完整冷却身份。
-不同装备即使复用一个底层技能 handler，也不能误合并成同一来源定义。
-角色技能每定义只有其原持久来源；不能借装备双轨为角色技能多发使用次数。
+持久 CD 键使用共同 Match/Contender，加来源 Kind、技能定义及 `IssuedCooldownId`；
+不使用 Q/W 槽号作为完整冷却身份。装备没有主动，不发行冷却记录。
+角色技能每定义只有其原持久来源；D 冲刺是唯一的 `Innate` 记录。
 
-每个 owner、本局、装备定义最多两条已发行记录，各保存可选绑定 ItemInstance 和 ReadyAtMs。
-到期记录仍留本局复用，不能删掉再造第三条；定义集合由批准目录有界。
-**只有 Combat 写 ReadyAtMs**，其随发行/绑定计划进入同一复合提交，不由 Vendor 自行设置为 ready。
+到期记录仍留本局复用，不能删掉再造一条；定义集合由批准目录有界。
+**只有 Combat 写 ReadyAtMs**，其随发行/绑定计划进入同一复合提交，不由 Vendor 或成长域自行设置为 ready。
 
-购买指定定义时，Combat 在 `PrepareBuildChange` 中确定唯一回绑对象（商店预览用只读 `PreviewGearBinding` 同一规则）：
+学习指定技能时，Combat 在 `PrepareBuildChange` 中回绑该定义已有的记录；本局从未发行过时才创建第一条。
+客户端不能挑 ID、传 ReadyAt、借目标槽位决定回绑。最终准备重验来源绑定修订与当前 readiness；
+失败不留下新 ID、绑定或机会消耗。
 
-1. 未绑定且未结束的旧债优先；按剩余时间降序，同值按 IssuedCooldownId 稳定排序。
-2. 没有未绑定债时，按 ID 顺序使用未绑定且已就绪的已发行记录。
-3. 该定义从未发行过时创建第一条；若没有任何未绑定旧记录、当前第一条仍绑定在真正持有
-   的装备上且此次确实形成同款双持，才允许首次发行第二条。绝不发行第三条。
-
-客户端不能挑 ID、传 ReadyAt、借目标槽位决定回绑。最终准备重验持有、来源绑定修订、
-当前 readiness 及债优先排序；失败不留下新 ID、绑定、扣款或实例。
-购买预览/回执说明本次继承的截止，显示使用服务器时间，不通过重新购买承诺立即可用。
-
-**必测反例：** 第一条已就绪且未绑定，第二条刚释放后售出且未到期；
-买一件必须回绑第二条债，而不是按发行顺序挑第一条 ready。
-两件全卖再买两件分别继承两条截止，不合并债务，也不把另一仍持有的 ready 来源连带锁住。
-两个实际持有且就绪的同款实例可依正常动作时序连续合法释放两次，
-各自消耗应有法力并推进自己的截止；独立 CD 不豁免目标、控制或资源条件。
-
-出售精确解绑所售实例，保留原截止；换定义、遗忘、死亡均不缩短截止。
-重学技能从一级开始但继承原期限；到期后自然可用不算洗 CD。
+换槽、遗忘、死亡均不缩短截止。重学技能从一级开始但继承原期限；到期后自然可用不算洗 CD。
 升阶、换装/冷却属性变化不重写已开始的期限，下次合法释放才按当时批准参数计算。
-施法先提交则出售留下新债；出售先提交则旧实例/旧绑定的迟到施法失效，
-不能因新实例绑定同 ID 而复活旧动作。
 
 ### 7.3 被动与攻击形态投影
 
 基础属性逐实例相加，被动按内容稳定 `Passive.Family` / 被动定义键建立一次执行记录，
 另保留贡献来源集合。两份减一份不重新注册触发、不重置内部冷却、不重复发一次性收益；
 最后一份移除才移除持续贡献。若被动有未结束触发期限，按同一 Combat 来源合同保留必要债务。
-不得把防主动洗 CD 的双轨扩展成同名被动触发两次。
 
 `item_echo_maul` 的属性/普攻群攻贡献与 `CHOICE.attr_reach.AttackRangeCmFlat`
 经同一最终投影到普攻几何和命中；同款锤属性相加、`passive_cleave` 一次。
@@ -533,11 +514,6 @@ InvalidApproachRegion 要映射成明确反馈；失败不返回成功默认采�
 均不取消，不再要求当前仍持有原 ItemInstance/技能；目标 Life、终局和正式离局取消仍检查。
 维持型光环、装备被动和引导则按持续持有/施法条件解绑失效，不能与独立快照混用。
 本域解绑不回滚已提交命中、伤害或奖励，不给资源退款，原 CD 截止照常继续。
-
-装备 1/2 仅走 `FLDCombatSourceRef`、真实 Instance/Definition/ItemRevision、
-Combat 已安装的 BuildRevision/InventoryRevision 与来源绑定、CatalogDigest 和 Combat 目标/资源检查。
-**不带 ShopSession、报价、购买余额、商店距离或空槽条件。**
-两装备已满、商店外、喷漆区内必须仍可使用现有主动，释放不卸装备。
 
 ## 8. SC-09 命令、回执、读取与生命周期
 
@@ -607,7 +583,7 @@ AI 由服务器适配器直接调用 `QueueShopOpen`。
 | `FLDChoiceReceipt / FLDShopReceipt` 的共同头（`FLDGrowthReceiptHeader`） | Generation:uint32、Family、RequestId:uint64、OriginalLife:uint32、OriginalLifePhase、Outcome（Applied/Rejected）、Reason:uint16、可选CommitBatch:uint64（提交或拒绝所在权威边界的 BatchSerial）、结果版本集合。只读重放标志属于传输外壳，不改原业务结果。 |
 | 结果版本集合（`FLDResultRevisions`） | Account/Progression/Build/Inventory/Offer revisions均uint64，按存在位标明本次适用字段；Applied给提交后的版本，Rejected的当前guard只作同步提示、不宣称曾提交。Combat 来源修订不在此集合中。 |
 | `FLDChoiceReceipt` 载荷 | 原OfferId/OptionId、OpportunityOrdinal:uint8、消费后ConsumedThrough:uint8、Kind/DefinitionId/NewRank、替换时的 ReplacedSlot/ReplacedSkillId/ReplacedRank、可选下一OfferId；Rejected不伪造消费或下一卡。 |
-| `FLDShopReceipt` 载荷 | Buy/Sell、精确Instance/IssueSerial:uint64/DefinitionId/SlotIndex、ActualGoldDelta:int64、可选LedgerSerial:uint64、买入带主动时的可选 IssuedCooldownId/ReadyAtMs；不是整个旧OwnerState副本。 |
+| `FLDShopReceipt` 载荷 | Buy/Sell、精确Instance/IssueSerial:uint64/DefinitionId/SlotIndex、ActualGoldDelta:int64、可选LedgerSerial:uint64；不是整个旧OwnerState副本。 |
 | `FLDRewardReceipt`（仅服务器内部） | DeathKey、冻结事实指纹（SHA-256原始32字节）、§4四态/Reason、Recipient、可选LedgerSerial、GoldDelta/XPDelta:int64、LevelBefore/After:uint8、新授机会区间 `OpportunityFirst..OpportunityLast`（First>Last 表示无）和结果版本。Granted/NoReward是终态；暂失败无提交号，不伪造版本增长。 |
 | `FLDChoiceReceiptQueryResult / FLDShopReceiptQueryResult` | 原FLDReceiptQuery（Generation:uint32、Family、RequestId:uint64）、LookupStatus、可选FLDPendingReceiptInfo、可选对应FLDChoiceReceipt或FLDShopReceipt；不是业务终态Receipt本身。 |
 | `FLDPendingReceiptInfo` | 已受理请求的OriginalLife:uint32、OriginalLifePhase；没有业务Outcome/CommitBatch或成功载荷，不需要伪造原生命。 |
@@ -623,10 +599,10 @@ AI 由服务器适配器直接调用 `QueueShopOpen`。
 | --- | --- | --- |
 | `FLDChoiceCommand` | Generation、当前参赛记录 Life、ExpectedLifePhase（Alive/Dead）、递增 RequestId；OfferId/OfferRevision、OptionId、ExpectedBuildRevision、CatalogDigest；满槽时 Slot 0/1、ExpectedOldSkillId/Rank、明确 ReplaceConfirmed。 | Transactions 阶段查当前成员/生命状态、队首及原卡/版本；成功回旧 Offer 的唯一结果及新状态修订。最多一个 Option，不收任意 Build、rank/属性数组或奖励金额。 |
 | `FLDShopOpenCommand` | Generation/Life、公共ShopId（`FLDDefinitionWire`）、客户端所见世界修订 `WorldMapId/WorldLayoutRevision/WorldGeometryRevision`；请求不携Permit。 | 先进入权威队列，在Transactions借当次Permit重验存活/进行中及世界资格后给SessionId/QuoteRevision；失败不给默认商店或旧会话执行权。 |
-| `FLDShopCommand::Buy` | Generation/Life/RequestId、SessionId、QuoteRevision、CatalogDigest、世界修订三字段；ExpectedAccount/Inventory/BuildRevision；商品 DefinitionId、明确展示 BuyPrice。来源绑定由 Combat Prepare 按当前状态重验，客户端不传来源修订。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订和继承 CD。一次只买一件。 |
+| `FLDShopCommand::Buy` | Generation/Life/RequestId、SessionId、QuoteRevision、CatalogDigest、世界修订三字段；ExpectedAccount/Inventory/BuildRevision；商品 DefinitionId、明确展示 BuyPrice。来源绑定由 Combat Prepare 按当前状态重验，客户端不传来源修订。 | 当前会话、实际范围、价格、余额、容量、全部准备合法才 Create+扣款+来源一次提交；回 Instance/Slot/结果修订。一次只买一件。 |
 | `FLDShopCommand::Sell` | 上述上下文与预期版本；精确 Instance、ExpectedItemRevision、展示 SellPrice。 | 重查所有权/位置/卖价，Consume+回款+解绑一次提交；回具体已卖实例及修订。一次只卖一件。 |
 | `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原查询键与LookupStatus，OriginalLife仅来自实际存在的PendingInfo或Final业务Receipt。本局历史与终局已有结果可查，不覆盖当前身体/新局。 |
-| 装备/角色施法 | 按 Combat 正式请求及当前来源版本。 | 不走本表 Shop/Choice 许可；1/2 与 Q/W 分别真实来源，失败不耗资源。 |
+| 角色施法 | 按 Combat 正式请求及当前来源版本。 | 不走本表 Shop/Choice 许可；Q/W 与 D 为真实来源，失败不耗资源。 |
 
 ID/枚举由当前批准 catalog 支持集解码；不是接受到历史最大枚举为止。
 固定摘要长度、单命令单对象、合法槽/rank范围、非零身份、整数范围均在反序列化/受理入口验证。
@@ -665,9 +641,8 @@ ExpectedLifePhase 只表达该次明确确认所见的生/死状态，不是新�
 `FLDProgressionView` 提供当前生命/选择资格、Level/MaxLevel/CumulativeXP、当前级与下一级阈值、
 ProgressionRevision/BuildRevision、EarnedThrough/ConsumedThrough/PendingChoiceCount、当前一组固定 Offer、已学技能与属性卡计数及 CatalogDigest。
 `FLDEquipmentView` 提供自身 Gold/AccountRevision、InventoryRevision、两个槽的
-Instance/IssueSerial/Definition/ItemRevision；1/2 的 IssuedCooldownId/ReadyAtMs
-只由 Combat 的本人 `FLDCombatOwnerView` 发布，不在装备视图复制第二份。
-`FLDShopView` 提供当前合法商品、买价/卖价、会话/报价版本、可卖实例和继承债预览（`PreviewGearBinding` 只读预览，以回执为准）。
+Instance/IssueSerial/Definition/ItemRevision；技能冷却只由 Combat 的本人 `FLDCombatOwnerView` 发布。
+`FLDShopView` 提供当前合法商品、买价/卖价、会话/报价版本与可卖实例。
 
 View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FLDGrowthOwnerView`），
 附 Generation/Life/发布修订及各子域结果修订。
@@ -676,8 +651,8 @@ View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FL
 重放的旧生命成功回执只能作为历史结果查询，不改当前生命资源/来源。
 等待期间关闭面板不撤销已受理事实，重开查询真实结果；请求失败不保留假成功图标。
 
-自身被动列表可展开/滚动，不新增玩法槽上限。Q/W 和 1/2 从真实输入映射显示按键，
-两个同款主动分别显示自己的截止，选中别人不改变按钮所有者。
+自身被动列表可展开/滚动，不新增玩法槽上限。Q/W 和 D 从真实输入映射显示按键，
+选中别人不改变按钮所有者。
 UI 手势由输入域捕获，不穿透发世界命令；打开、选择、购物都不暂停/授无敌。
 GameState、全场击杀通知不获取本域私有钱物/Offer/来源 ID。
 
@@ -707,7 +682,7 @@ K/D 由核心按唯一 DeathKey 归约，不从奖励回执再计一次，也不
 | --- | --- | --- | --- | --- | --- |
 | XP/等级/永久属性/技能/金币/装备 | 不变 | 全部保留，不再初始化；复活投影同构筑 | 不转移给替补或新加入者 | 冻结 | 按批准初始输入重建 |
 | 队列/固定 Offer | 只清本地草稿，Pending 查真实结果 | 原卡/机会保留，复活不再授开局机会；可用当前Dead阶段确认，只更新持久Build；旧阶段拒绝 | 不再提交 | 冻结，不继续选 | 清队列/Offer/结果域，重新授予开局机会及其首张 Offer |
-| 来源/IssuedCooldownId/ReadyAtMs | 不因图标/草稿清除；售出/遗忘不取消独立已释放效果 | 时间继续；独立效果续原期限，新身体重绑保留来源 | 禁止新命令并取消尚未结束独立效果，不追溯改写既成事实 | 不再释放，展示只读 | 旧 ID/期限全部失效 |
+| 来源/IssuedCooldownId/ReadyAtMs | 不因图标/草稿清除；遗忘不取消独立已释放效果 | 时间继续；独立效果续原期限，新身体重绑保留来源 | 禁止新命令并取消尚未结束独立效果，不追溯改写既成事实 | 不再释放，展示只读 | 旧 ID/期限全部失效 |
 | 商店会话/未提交买卖 | 关闭表现不声称回滚已受理交易 | 死亡失效；复活必须新 Life/会话 | 失效，未提交拒绝 | 新成交拒绝 | 旧报价/会话无效 |
 | 致死到奖励 | 不是 UI 可取消意图 | 死者可收合法存续效果奖励 | 按实际致死时资格，后来离局不撤销；离局先则不再产生效果击杀 | 无新提交；必需未决不越过正常闸 | 旧 DeathKey 拒绝 |
 | 已提交回执 | 可查，不重新 apply | 历史结果不写新身体 | 仅服务器获准诊断 | 可只读查既有本局结果 | 不写新局；旧投影拒绝 |
@@ -732,13 +707,13 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `REWARD.PlayerXP / PlayerGold` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP / RewardGold` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
 | `CHOICE.UpgradeWeight / NewActiveOpenSlotWeight / NewActiveFullSlotWeight / NewPassiveWeight / AffinityStep / AffinityCap / ThirdSlotAttributeChance`、`progression.opening_offer / reroll_levels`、`CHOICE.<id>` | 权重与亲和为 R4 基点（权重 > 0，亲和 ≥ 1）；第三卡属性概率为基点概率；重抽等级严格递增且可达；属性增量按内容量纲；复合项全量预检。 | §6.3 抽卡与重抽、十次界限（含开局一次）、无放回、`DemoGrowthDraft/Reroll/OpeningPool`。 |
-| `SHOP.UpgradeCost / UpgradeStatBonusRatio`、`equipment[].passive.upgraded`、`equipment[].active.upgraded_rank`、生成的 `upgraded_stats` | 整金币；R4 比例；进阶块与原块同一组 handler 同序；固定属性由生成器按 P2/R4/整厘米向下取整算出，原生导入复核。 | Upgrade 事务、`LDDemoEquipment::Effective*`、构筑包络（两件装备至多一件进阶）、`DemoGrowthUpgrade`。 |
+| `SHOP.UpgradeCost / UpgradeStatBonusRatio`、`equipment[].passive.upgraded`、生成的 `upgraded_stats` | 整金币；R4 比例；进阶块与原块同一组 handler 同序；固定属性由生成器按 P2/R4/整厘米向下取整算出，原生导入复核。 | Upgrade 事务、`LDDemoEquipment::Effective*`、构筑包络（两件装备至多一件进阶）、`DemoGrowthUpgrade`。 |
 | `ABILITY.<id>.Rank[r]` | 三级正式效果、目标、法力/时间/距离、伤害与触发规则。 | Build/Combat；rank 演进、重新学习、未选 handler 删除依据。 |
-| `ITEM.<id>.BuyPrice / Stats / Passive / Active` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、独立来源、商店显示与实际能力。 |
+| `ITEM.<id>.BuyPrice / Stats / Passive` | 整数价格；属性单位沿 Combat；被动稳定键；每装备定义来源关系。 | 两实例属性相加、同名被动一次、商店显示与实际能力。 |
 | `SHOP.StartingGold / SellRatio`、`FORMULA.SellGold` | 比例按内容固定精度/精确有理值解释，乘法检查溢出，**仅最终卖价向下取整到整金币**；不拿 UI 浮点值结算。 | 初始化/卖出；非负、卖价不超买价、循环无正金币收益。 |
 | `SHOP.InteractRadiusCm` | Unreal 厘米；脚点到锚点 XY 距离，世界单点查询；客户端不传可接受半径。 | Open/Buy/Sell 当前资格；边界内外、错误地面/分层。 |
 | `CHOICE.attr_reach.AttackRangeCmFlat` / `ITEM.item_echo_maul` | 普攻距离厘米增量与获准普攻群攻内容；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程、横扫去重/来源奖励。 |
-| `POLICY.DuplicateEquipmentActive=IndependentSources` / `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 两个 IssuedCooldownId、失源/重购/重学/死亡。 |
+| `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 失源/重学/死亡。 |
 | `POLICY.DeadChoiceCommit`、`POLICY.ResourceMaxChange`、`FORMULA.ResourceMaxChange` | 死时确认和保持资源百分比已确认；精度/取整/边界由内容公式单点维护，不是运行时多模式开关。 | 选择准入、活体一次最终同比换算、循环无取整获益、死亡不治疗。 |
 
 秒到毫秒使用生命周期的唯一转换合同，作者秒值必须能按批准精度准确表示；
@@ -785,10 +760,10 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 
 保护解除也沿最新已确认 Combat 合同：通过局/生命/调用权限过滤的进攻意图即解除保护，
 目标、距离或蓝量校验随后失败也不恢复保护；旧局/旧生命/未授权包先拒绝。
-装备1/2采用同规则，选择/购物本身不是进攻意图。失败施法仍不扣蓝或启动技能冷却。
+选择/购物本身不是进攻意图。失败施法仍不扣蓝或启动技能冷却。
 
 上述行为不再作为待选方案；具体技能/装备/价格/阈值/公式及射程/横扫内容只由内容报告
-单点维护。工程类型、债优先排序、版本保护、Permit 和有限故障收口不转成用户逐字段选择。
+单点维护。工程类型、版本保护、Permit 和有限故障收口不转成用户逐字段选择。
 
 ## 11. 新增、复用、改造与删除结果
 
@@ -800,7 +775,7 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | N03 新增 | `ALDEconomyDirector::CommitDeathReward`，Combat 在 DeathsAndRewards 按 DeathKey 调用 | `AwardExperience/RecordEconomyGold`、营地 Contact/Reward/PvPKill、LastOwner 兜底与任意授予入口 |
 | N04 新增 | `Development\LDDevelopmentDirector.*`、`LDProgressionRules.*`：持久机会/Offer、窄 Choice、Q/W 替换 | R09 `LDCharacterBuild` 与 `ULDCharacterCatalog`、职业六维/点数/开局技能、整份草稿与站点 hold |
 | N05 新增，D15/D16 | `Inventory\LDVendorDirector.*`（会话/报价/Buy/Sell/回执、世界资格）、`LDInventoryDirector.*`（两槽投影） | 书店 Vendor 与 `LDVendorTypes`、背包/重量/Quick/十一绑定/掉落整理、`LDInventoryTypes`/`ALDItem`、`LDGearRules`、`LDLoadoutRequest`、V07/V08 获取/装备/战术目录 |
-| R07/R09 来源 | Combat 唯一持有来源冷却轨道与债优先回绑（`PrepareBuildChange/ApplyBuildChange/PreviewGearBinding`） | `LDV08Loadout`/`LDV08Modifiers`、ItemFamilies 共享主动 CD、施法伪库存修订 |
+| R07/R09 来源 | Combat 唯一持有来源冷却轨道与回绑（`PrepareBuildChange/ApplyBuildChange`） | `LDV08Loadout`/`LDV08Modifiers`、ItemFamilies 共享主动 CD、施法伪库存修订 |
 | D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的 Choices/Shop 面板 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
 ### 11.1 数据、adapter、生成与资产退出
 
@@ -850,12 +825,10 @@ UI 到零不授权。属性和派生数值的计算类型、上下界、截断�
 | A13 选择竞争 | 两请求同Offer、选择与买卖/升级竞争；最多一次消费；stale返回同卡及新保护，不用旧整Build覆盖新CD。 |
 | A14 生死选择 | 死前Alive确认不能借同Life在Dead应用，死时新确认允许且不需要活Pawn、不治疗尸体，复活旧确认拒绝，机会不丢。 |
 | A15 两装备/真实例 | 两次显式购买同款产生两个实例，第三件拒绝；满槽先Sell后Buy，后Buy失败不回滚真实出售；无隐藏背包。 |
-| A16 原子买卖/新修订 | 钱不足、旧价/旧库存/旧实例、创建/投影/绑定失败均无扣钱/物品/CD席泄漏；统一 ItemRevision 不混用旧物理与Ledger计数。 |
+| A16 原子买卖/新修订 | 钱不足、旧价/旧库存/旧实例、创建/投影/绑定失败均无扣钱/物品泄漏；统一 ItemRevision 不混用旧物理与Ledger计数。 |
 | A17 商店同刻 | 开店/买卖仅Transactions借当次Permit调用正式世界查询，拒跨栈/旧许可；同ceil桶内不同真实子时刻用对应运动证据。移出范围/死亡/复活/终局/离局均重验，几何通过后最终安装仍复验，无迟到成交；受击本身不禁止。 |
 | A18 双属性/单被动 | 同款两实例属性相加、同名被动一次；卖一份不断另一份、不重置触发，卖最后一份移除贡献；装备被动不消耗成长选择。 |
-| A19 独立双主动 | 两就绪同款在店外/喷漆区内、满两槽时分别合法使用，可连续两次；各自截止不同，不存在family共享锁，不忽略法力/控制/目标。 |
-| A20 回绑反例 | ready旧轨与未结债并存先取债；长短债优先最长，平局稳定；售双重买两债分别继承；反复卖买不出第三ID，失败不发行。 |
-| A21 CD生命周期 | 换槽/升级/遗忘重学/售出重购/换定义返回/死亡保持截止，一条不改另一条；已释放独立效果仍续原期限且不再查原持有，维持型按条件取消，正式离局取消独立效果。 |
+| A21 CD生命周期 | 换槽/升级/遗忘重学/死亡保持截止；已释放独立效果仍续原期限且不再查原持有，维持型按条件取消，正式离局取消独立效果。 |
 | A22 当前血蓝 | 买/卖/升阶/原子替换后保持原资源百分比，仅按最终投影一次；覆盖往返、精度、零上限/最小正值及真实伤害夹在两次交易之间，不能量化套利或治疗尸体；正常复活满新上限。 |
 | A23 射程与群攻 | attr_reach与echo_maul在服务端真实改变普攻范围/获准副命中；不扩大未指定技能距离；双自拍杆不重复触发横扫，副命中奖励仍恰一次。 |
 | A24 回包/过窗 | 同ID同条款重放、异条款拒绝、64窗外拒旧+同步；先快照后回执/先回执后快照均不回滚当前状态；双击Pending不创建第二业务。 |

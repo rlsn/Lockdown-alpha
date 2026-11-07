@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "retired_ranges": {
-    "abilities": [0, 61],
-    "equipment": [0, 98]
+    "abilities": [[0, 61]],
+    "equipment": [[0, 98], [107, 107], [113, 114]]
   },
   "character": {
     "character_demo": 1
@@ -64,14 +64,11 @@
     "item_arcane_battery": 104,
     "item_echo_maul": 105,
     "item_slingshot": 106,
-    "item_paper_box": 107,
     "item_nail_uniform": 108,
     "item_megaphone": 109,
     "item_dossier": 110,
     "item_privacy_screen": 111,
-    "item_skateboard": 112,
-    "item_decoy_wig": 113,
-    "item_energy_drink": 114
+    "item_skateboard": 112
   },
   "monsters": {
     "monster_scavenger": 1,
@@ -89,7 +86,6 @@
     "ambush_ready": 8,
     "exposed": 9,
     "taunt": 10,
-    "stealth": 11,
     "disarm": 12,
     "stun": 13,
     "empowered": 14,
@@ -107,7 +103,6 @@
     "out_of_combat_regen": 6,
     "lifesteal": 7,
     "dash": 8,
-    "restore_mana": 9,
     "cleave": 10,
     "dash_boost": 11,
     "slow": 12,
@@ -117,7 +112,6 @@
     "ambush_damage": 16,
     "control_damage_amp": 17,
     "taunt": 18,
-    "stealth": 19,
     "disarm": 20,
     "stun": 21,
     "empower_basic": 22,
@@ -138,7 +132,6 @@
     "dispel_slow": 37,
     "path_slow": 38,
     "knockback": 40,
-    "heal_cut": 41,
     "dot": 42,
     "mobility_punish": 43,
     "volley": 44,
@@ -155,9 +148,6 @@
     "damage_guard": 55,
     "shield_burst": 56,
     "vulnerable": 57,
-    "decoy": 58,
-    "leap_back": 59,
-    "cooldown_refresh": 60,
     "breach_stacks": 61,
     "mobility_shield": 62,
     "shield_pulse": 63,

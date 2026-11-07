@@ -70,9 +70,6 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
         for index, ability in enumerate(data["abilities"]):
             quantities(ability["ranks"], f"content.abilities[{index}].ranks")
-        for index, item in enumerate(data["equipment"]):
-            if item["active"] is not None:
-                quantities(item["active"]["rank"], f"content.equipment[{index}].active.rank")
         seen = set()
         for case in self.index["valid"]:
             if not case["mutated_quantity"]:

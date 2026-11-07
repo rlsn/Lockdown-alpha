@@ -13,7 +13,7 @@ class FLDGameplayWritePermit;
 
 // N05 shop: private sessions at the single fixed shop, atomic one-item Buy/Sell against the single ledger.
 // Opening and every transaction re-check life, match phase and the world's shop eligibility in Transactions.
-// The shop is not a safe zone and never gates equipment actives (Combat owns 1/2 casting).
+// The shop is not a safe zone.
 UCLASS()
 class LOCKDOWN_API ALDVendorDirector : public AActor
 {

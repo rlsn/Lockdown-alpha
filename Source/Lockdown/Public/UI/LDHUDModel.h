@@ -160,22 +160,24 @@ namespace LDHUD
     // room roster; a contender no longer in it is shown as having left. Empty for another match's feed.
     LOCKDOWN_API TArray<FScoreLine> Scoreboard(const FLDKillFeedView& Feed,uint32 Generation,const FLDLobbyView& Lobby,const FGuid& Self);
 
-    enum class EActionSlot : uint8 { Q, W, Item1, Item2, Dash };
+    // The band's five slots: the Q/W actives, the two equipment slots (shown, never activated) and the D dash.
+    enum class EActionSlot : uint8 { Q, W, Equipment1, Equipment2, Dash };
+    // ActionPassive: an occupied equipment slot, whose stats and passive apply without any activation.
     enum EActionBlock : uint32
     {
-        ActionUnsynced=1<<0, ActionEmpty=1<<1, ActionNoActive=1<<2, ActionCooldown=1<<3, ActionMana=1<<4,
+        ActionUnsynced=1<<0, ActionEmpty=1<<1, ActionPassive=1<<2, ActionCooldown=1<<3, ActionMana=1<<4,
         ActionControlled=1<<5, ActionDead=1<<6, ActionNotPlaying=1<<7, ActionServer=1<<8
     };
+    LOCKDOWN_API bool IsEquipmentSlot(EActionSlot Slot);
     struct FActionInput
     {
         EActionSlot Slot=EActionSlot::Q;
         bool bProjected=false;    // a current owner combat projection exists for this match and life
-        bool bHasSource=false;
+        bool bHasSource=false;    // an active is bound, or the equipment slot holds an item
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
         uint8 Rank=0;             // learned rank; equipment has none
-        bool bUpgraded=false;     // the bound equipment instance is upgraded (112 §7)
-        bool bHasActive=false;
+        bool bUpgraded=false;     // the held equipment instance is upgraded (112 §7)
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
         int64 CooldownMs=0;       // duration last issued on this track, for the sweep only
@@ -289,10 +291,10 @@ namespace LDHUD
         TArray<FString> Lines;
         bool bAffordable=false;
     };
-    LOCKDOWN_API FShopItemView ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
+    LOCKDOWN_API FShopItemView ShopItem(const FLDShopItemView& Item,int64 Gold,const FLDDemoContentDefinitions* Content);
     // Shop pre-orders (like a quick-buy list): at most this many queued items, kept locally for one match.
     constexpr int32 MaxShopPreorders=2;
-    // The approved catalog as shop rows (definition, buy and sell price, active), for browsing and pre-ordering away from
+    // The approved catalog as shop rows (definition, buy and sell price), for browsing and pre-ordering away from
     // the shop; a session's quote replaces it whenever one is shown. Empty without content.
     LOCKDOWN_API TArray<FLDShopItemView> CatalogItems(const FLDDemoContentDefinitions* Content);
     // Index into Queue of the pre-order to buy next: queue order, the first one the listing prices, the gold covers and an
@@ -301,7 +303,7 @@ namespace LDHUD
     // (no free slot, too little gold, or not listed).
     LOCKDOWN_API int32 NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots,
         const TArray<FName>& Upgradable=TArray<FName>(),int64 UpgradePrice=0);
-    // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive/active terms); empty parts are omitted.
+    // 112 §7: what an upgraded copy holds (stats +35% floored, the upgraded passive terms); empty parts are omitted.
     LOCKDOWN_API TArray<FString> UpgradeLines(const FLDDemoEquipmentDefinition& Item);
     struct FAttributeRowView
     {
@@ -316,6 +318,8 @@ namespace LDHUD
     LOCKDOWN_API FString CombatRejectText(ELDCombatReject Reject);
     // Owner combat entry -> action input; Unavailable stays a display-only server reason.
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
+    // Own equipment slot -> equipment slot input (projected once the own equipment view is known).
+    LOCKDOWN_API FActionInput EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
     // Own temporary statuses for the HUD band: passive auras and respawn protection (shown on the life line) are left
     // out; shield points round up and a remainder needs the matching authority clock. Empty when none.
     LOCKDOWN_API FString SelfStatusLine(const FLDCombatOwnerView& Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
@@ -326,7 +330,7 @@ namespace LDHUD
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);
-    // The same execution failure for the pressed Q/W/1/2/D slot, which already names its entry: the reason only. Empty for
+    // The same execution failure for the pressed Q/W/D slot, which already names its entry: the reason only. Empty for
     // other entries and for anything CombatReceiptNotice would not report as a failure.
     LOCKDOWN_API FString CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt);
     // The toast line for every own receipt that arrived since the last frame, oldest first: each distinct notice once, in

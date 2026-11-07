@@ -213,7 +213,7 @@ struct FLDDemoFormulas
 UENUM()
 enum class ELDDemoPolicy : uint8
 {
-    None, AddFlatThenAdditivePercent, Allowed, OncePerFamily, IndependentSources,
+    None, AddFlatThenAdditivePercent, Allowed, OncePerFamily,
     ContinueServerTime, PreserveRatio, ContinueForRemainingContender, CancelUnsettledNoRefund,
     BreakOnAggressiveIntent, OncePerAttackId, PrimaryBasicAttackHPLost, Disabled,
     CarrySubP2Remainder, ReplaceIfNotWeaker, ConfirmedCombatHit, ReturnThenReset, NotApplicable
@@ -230,7 +230,6 @@ struct FLDDemoPolicies
     UPROPERTY() ELDDemoPolicy StatStacking = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy DuplicateEquipment = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy DuplicateEquipmentPassive = ELDDemoPolicy::None;
-    UPROPERTY() ELDDemoPolicy DuplicateEquipmentActive = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy MissingSourceCooldown = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy DeadChoiceCommit = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy ResourceMaxChange = ELDDemoPolicy::None;
@@ -374,9 +373,7 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int32 Count = 0;
     // backstab: impaired targets (rooted, slowed, taunted, knocked back) count as struck from behind.
     UPROPERTY() bool bImpaired = false;
-    // stealth: entering stealth readies the owner's ambush passive.
-    UPROPERTY() bool bAmbushReady = false;
-    // dash_boost: cooldown ratio and distance bonus of every dash or jump active (character and gear) at release.
+    // dash_boost: cooldown ratio and distance bonus of every learned dash or jump active at release.
     UPROPERTY() int64 SkillCooldownRatioBp = 0;
     UPROPERTY() int64 SkillDistanceBonusBp = 0;
     // ability_crit (Chance): the abilities that may crit with the share of the owner's crit chance.
@@ -441,20 +438,6 @@ struct FLDDemoAttributeDefinition
 };
 
 USTRUCT()
-struct FLDDemoEquipmentActive
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FLDDemoTargetDefinition Target;
-    UPROPERTY() int64 WindupMs = 0;
-    UPROPERTY() FString CooldownFamily;
-    UPROPERTY() FLDDemoRankDefinition Rank;
-    // 112 §7: the same action one step stronger once its item is upgraded (same handlers in the same order).
-    UPROPERTY() bool HasUpgradedRank = false;
-    UPROPERTY() FLDDemoRankDefinition UpgradedRank;
-};
-
-USTRUCT()
 struct FLDDemoEquipmentPassive
 {
     GENERATED_BODY()
@@ -479,12 +462,21 @@ struct FLDDemoEquipmentDefinition
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
     // Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2, R4, whole cm).
     UPROPERTY() TArray<FLDDemoStatBonus> UpgradedStats;
-    UPROPERTY() bool HasActive = false;
-    UPROPERTY() FLDDemoEquipmentActive Active;
     UPROPERTY() bool HasPassive = false;
     UPROPERTY() FLDDemoEquipmentPassive Passive;
 
     ELDDemoEquipmentId GetNativeId() const { return static_cast<ELDDemoEquipmentId>(NativeId); }
+};
+
+USTRUCT()
+struct FLDDemoDashDefinition
+{
+    GENERATED_BODY()
+
+    UPROPERTY() FLDDemoTargetDefinition Target;
+    UPROPERTY() int64 WindupMs = 0;
+    UPROPERTY() FString CooldownFamily;
+    UPROPERTY() FLDDemoRankDefinition Rank;
 };
 
 USTRUCT()
@@ -500,7 +492,7 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() int64 BasicIntervalMs = 0;
     // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
     // no windup, one rank with the approved mana cost, cooldown and a single Dash effect.
-    UPROPERTY() FLDDemoEquipmentActive Dash;
+    UPROPERTY() FLDDemoDashDefinition Dash;
 };
 
 // D26 (#79) 画饼老板 Boss: the boss-only rules. Its body stats are the Monsters row with Id and Tier Boss (aggro radius as
@@ -650,14 +642,14 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;
 };
 
-// 112 §7: the "current effective definition" of an equipped instance. Every reader of equipment stats, passive terms or
-// active terms goes through these, so an upgrade changes parameters without a second handler branch.
+// 112 §7: the "current effective definition" of an equipped instance. Every reader of equipment stats or passive terms
+// goes through these, so an upgrade changes parameters without a second handler branch.
 namespace LDDemoEquipment
 {
-    // Upgradable only when every passive/active block of the item carries its approved upgraded form; never falls back.
+    // Upgradable only when the item's passive, if any, carries its approved upgraded form; never falls back.
     inline bool Upgradable(const FLDDemoEquipmentDefinition& Item)
     {
-        return (!Item.HasPassive || Item.Passive.HasUpgraded) && (!Item.HasActive || Item.Active.HasUpgradedRank);
+        return !Item.HasPassive || Item.Passive.HasUpgraded;
     }
     inline const TArray<FLDDemoStatBonus>& EffectiveStats(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
     {
@@ -669,11 +661,5 @@ namespace LDDemoEquipment
         if (!Item.HasPassive) { return nullptr; }
         if (!bUpgraded) { return &Item.Passive.Effects; }
         return Item.Passive.HasUpgraded ? &Item.Passive.UpgradedEffects : nullptr;
-    }
-    inline const FLDDemoRankDefinition* EffectiveActiveRank(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
-    {
-        if (!Item.HasActive) { return nullptr; }
-        if (!bUpgraded) { return &Item.Active.Rank; }
-        return Item.Active.HasUpgradedRank ? &Item.Active.UpgradedRank : nullptr;
     }
 }

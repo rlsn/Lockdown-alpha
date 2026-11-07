@@ -2,12 +2,11 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "Combat/LDControlRules.h"
 #include "Combat/LDTacticalRules.h"
 #include "Misc/AutomationTest.h"
 
 // #112 §5 mechanics (C2): pure rules of heal/shield reduction, shield events, knockback, breach layers, the negative-kind count,
-// periodic schedules, zones, the shield burst and the damage guard, plus the decoy lure's control matrix.
+// periodic schedules, zones, the shield burst and the damage guard.
 namespace LDCombatMechanicsTests
 {
 FGuid Id(uint32 Seed) { return FGuid(Seed, Seed + 1, Seed + 2, Seed + 3); }
@@ -87,22 +86,6 @@ bool FLDDemoMechanicsKnockbackTest::RunTest(const FString& Parameters)
         && Direction.Equals(FVector(0, 1, 0), 1e-9));
     TestFalse(TEXT("Non-finite input is refused"),
         LDCombatMechanics::KnockbackDirection(FVector(std::numeric_limits<double>::quiet_NaN(), 0, 0), FVector(1, 0, 0), 0, Direction));
-    // A decoy lure (taunt with bDecoy) also forbids every basic attack; an ordinary taunt allows swings at its taunter.
-    FLDCombatTaunt Lure;
-    Lure.EffectId = LDCombatMechanicsTests::Id(7);
-    Lure.SourceEntity = LDCombatMechanicsTests::Id(8);
-    Lure.ExpiresAtMs = 1000;
-    Lure.bDecoy = true;
-    const TOptional<FLDCombatTaunt> Lured(Lure);
-    TestTrue(TEXT("A lured body cannot attack"), LDControl::TauntBlocks(Lured, 0, ELDCombatControlAction::Basic));
-    TestTrue(TEXT("A lured body cannot cast"), LDControl::TauntBlocks(Lured, 0, ELDCombatControlAction::Cast));
-    TestTrue(TEXT("A lured body cannot use items"), LDControl::TauntBlocks(Lured, 0, ELDCombatControlAction::Gear));
-    TestFalse(TEXT("No basic swing is allowed at anyone while lured"), LDControl::TauntAllows(Lured, 0, true, Lure.SourceBody));
-    TestFalse(TEXT("The lure ends at its half-open expiry"), LDControl::TauntBlocks(Lured, 1000, ELDCombatControlAction::Basic));
-    FLDCombatTaunt Taunt = Lure;
-    Taunt.bDecoy = false;
-    const TOptional<FLDCombatTaunt> Taunted(Taunt);
-    TestFalse(TEXT("An ordinary taunt still allows basic attacks"), LDControl::TauntBlocks(Taunted, 0, ELDCombatControlAction::Basic));
     return true;
 }
 

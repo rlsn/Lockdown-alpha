@@ -450,11 +450,11 @@ bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Rival=WorldFeedbackTestUnit(ELDObservedUnitKind::Contender,50000,60000);
     FLDWorldView Frame=WorldFeedbackTestFrame(3,1,1,1,10.);Frame.Units={Rival};
     LDWorldFeedback::FSample Sample=WorldFeedbackTestSample(3,1,FGuid::NewGuid());Sample.Frame=&Frame;
-    Sample.CastName=[](uint8 Ability,uint8 Equipment){return Ability==7?FString(TEXT("技能甲")):Equipment==3?FString(TEXT("装备甲")):FString();};
-    auto Step=[&Frame](uint32 Revision,ELDObservedActionCue Cue,uint16 AgeMs,uint8 Ability,uint8 Equipment)
+    Sample.CastName=[](uint8 Ability){return Ability==7?FString(TEXT("技能甲")):Ability==8?FString(TEXT("技能乙")):FString();};
+    auto Step=[&Frame](uint32 Revision,ELDObservedActionCue Cue,uint16 AgeMs,uint8 Ability)
     {
         Frame.Revision=Revision;Frame.SampledAtServerSec=10.+Revision*.1;
-        FLDObservedUnitView& Unit=Frame.Units[0];Unit.ActionCue=Cue;Unit.ActionCueAgeMs=AgeMs;Unit.ActionAbility=Ability;Unit.ActionEquipment=Equipment;
+        FLDObservedUnitView& Unit=Frame.Units[0];Unit.ActionCue=Cue;Unit.ActionCueAgeMs=AgeMs;Unit.ActionAbility=Ability;
     };
     auto Casts=[&Tracker,&Sample]()
     {
@@ -462,23 +462,23 @@ bool FLDWorldFeedbackCastsTest::RunTest(const FString& Parameters)
         for(const LDWorldFeedback::FEvent& Event:WorldFeedbackTestObserve(Tracker,Sample)){if(Event.Kind==EKind::UnitCast){Out.Add(Event);}}
         return Out;
     };
-    Step(1,ELDObservedActionCue::Cast,40,7,0);
+    Step(1,ELDObservedActionCue::Cast,40,7);
     TestTrue(TEXT("A unit first seen mid-cast only primes"),Casts().IsEmpty());
-    Step(2,ELDObservedActionCue::Cast,140,7,0);
+    Step(2,ELDObservedActionCue::Cast,140,7);
     TestTrue(TEXT("The same cast seen again stays quiet"),Casts().IsEmpty());
-    Step(3,ELDObservedActionCue::None,0,0,0);Casts();
-    Step(4,ELDObservedActionCue::Cast,60,7,0);
+    Step(3,ELDObservedActionCue::None,0,0);Casts();
+    Step(4,ELDObservedActionCue::Cast,60,7);
     const TArray<LDWorldFeedback::FEvent> Named=Casts();
-    TestTrue(TEXT("A new cast shows its source's display name once, on that unit, stamped with its frame"),Named.Num()==1&&!Named[0].bOwn
+    TestTrue(TEXT("A new cast shows its ability's display name once, on that unit, stamped with its frame"),Named.Num()==1&&!Named[0].bOwn
         &&Named[0].Handle==Rival.Handle&&Named[0].SampledAtServerSec==Frame.SampledAtServerSec&&LDWorldFeedback::Text(Named[0])==TEXT("技能甲！"));
-    Step(5,ELDObservedActionCue::Cast,20,0,3);
-    const TArray<LDWorldFeedback::FEvent> Item=Casts();
-    TestTrue(TEXT("A restarted cast with another source shows again: an equipment active reads by its equipment name"),
-        Item.Num()==1&&LDWorldFeedback::Text(Item[0])==TEXT("装备甲！"));
-    Step(6,ELDObservedActionCue::Attack,10,0,0);
+    Step(5,ELDObservedActionCue::Cast,20,8);
+    const TArray<LDWorldFeedback::FEvent> Other=Casts();
+    TestTrue(TEXT("A restarted cast with another ability shows again under that ability's name"),
+        Other.Num()==1&&LDWorldFeedback::Text(Other[0])==TEXT("技能乙！"));
+    Step(6,ELDObservedActionCue::Attack,10,0);
     TestTrue(TEXT("An attack or a hit never names anything"),Casts().IsEmpty());
-    Step(7,ELDObservedActionCue::Cast,10,0,0);
-    TestTrue(TEXT("A cast without a public source shows nothing"),Casts().IsEmpty());
+    Step(7,ELDObservedActionCue::Cast,10,0);
+    TestTrue(TEXT("A cast without a public ability shows nothing"),Casts().IsEmpty());
     LDWorldFeedback::FEvent Unknown;Unknown.Kind=EKind::UnitCast;
     TestEqualSensitive(TEXT("An unknown source reads as a plain cast"),LDWorldFeedback::Text(Unknown),FString(TEXT("施法！")));
     return true;

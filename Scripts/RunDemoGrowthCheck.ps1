@@ -23,7 +23,7 @@ $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
     Host = @('Net','Start','Opening','Ledger','Fixture','A14','N03','Iso','DevTest')
-    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A19','A21','A24','Iso','DevTest')
+    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
@@ -211,13 +211,13 @@ try {
     Write-Host ("DEV-only owned-connection growth/shop scenario passed: rendered participating Listen Host (victim, -LDDevGrowthFixture " +
         "stages the buyer's offers in the Lobby) plus one owning client; each owner opened each match with exactly one pending opening " +
         "choice, never re-granted by a respawn; level $($buyer.match1.level) from $($buyer.kills) kills, buy x2 / full / " +
-        "replay / item active / sell with cooldown debt / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
+        "replay / sell / outside at the shop; Q's cooling rank-2 skill replaced after a refused " +
         "unconfirmed pick, relearned at rank 1 on its old track and deadline; after the Host's own DevFixture grant it killed the buyer, " +
         "which chose while dead without revive or heal and respawned full; the Host's own kill and two low-camp last hits paid their " +
         "exact rewards into its own view and rendered HUD; first ledger replayed with --dev-fixture and equal to both owner projections. " +
         "The Host then ended the match " +
         "(no winner) and returned to Lobby generation $($buyer.second_generation): a second normal match started both owners at clean " +
-        "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, quoted no inherited cooldown " +
+        "growth, gold, equipment and cooldown state, refused the first match's choice, Buy and receipt query, opened a fresh shop quote with nothing to sell " +
         "and opened a fresh ledger under a new LedgerMatch (replayed). DEV test commands: the buyer through its remote owner RPC " +
         "(stale match, replay and conflict refused or answered without a second commit; gold grant, buy and sell away from the shop, " +
         "cooldown reset, refill, learn on the open opportunity, learn without one refused, a DEV AD term shown as its own row " +

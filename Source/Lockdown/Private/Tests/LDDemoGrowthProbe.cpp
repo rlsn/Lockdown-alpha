@@ -128,8 +128,7 @@ bool GrowthProbeSameShop(const FLDShopReceipt& A, const FLDShopReceipt& B)
 {
     return GrowthProbeSameHeader(A.Header, B.Header) && A.Kind == B.Kind && A.Instance == B.Instance
         && A.IssueSerial == B.IssueSerial && A.DefinitionId == B.DefinitionId && A.SlotIndex == B.SlotIndex
-        && A.ActualGoldDelta == B.ActualGoldDelta && A.bHasLedgerSerial == B.bHasLedgerSerial && A.LedgerSerial == B.LedgerSerial
-        && A.bHasSource == B.bHasSource && A.IssuedCooldownId == B.IssuedCooldownId && A.ReadyAtMs == B.ReadyAtMs;
+        && A.ActualGoldDelta == B.ActualGoldDelta && A.bHasLedgerSerial == B.bHasLedgerSerial && A.LedgerSerial == B.LedgerSerial;
 }
 
 bool GrowthProbeSameSlot(const FLDEquipmentSlotView& A, const FLDEquipmentSlotView& B)
@@ -141,12 +140,6 @@ bool GrowthProbeSameSlot(const FLDEquipmentSlotView& A, const FLDEquipmentSlotVi
 const FLDEquipmentSlotView* GrowthProbeSlot(const TArray<FLDEquipmentSlotView>& Rows, uint8 Wanted)
 {
     return Rows.FindByPredicate([Wanted](const FLDEquipmentSlotView& SlotRow) { return SlotRow.SlotIndex == Wanted; });
-}
-
-// Equipment slot 0 is the Item1 entry and slot 1 is Item2 (the Combat projection input of the growth module).
-ELDCombatEntry GrowthProbeItemEntry(uint8 SlotIndex)
-{
-    return SlotIndex == 0 ? ELDCombatEntry::Item1 : ELDCombatEntry::Item2;
 }
 
 const FLDCombatEntryView* GrowthProbeEntry(const FLDCombatOwnerView& Own, ELDCombatEntry Wanted)
@@ -338,7 +331,7 @@ public:
     {
         Join, Lobby, Spawned, Victim,
         ToSite, KillSeek, KillWait, Choice, ChoiceQuery,
-        ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Activate, Sell, WalkOut, Outside,
+        ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Sell, WalkOut, Outside,
         // Q/W replacement and a choice while dead on the Host's preset offers: two more planned choices, Q's skill in
         // use, the replacement, the relearn, then the Host kills the buyer and it chooses while dead.
         Advance, UseSkill, Replace, Relearn, AwaitDeath, DeadChoice, Respawn,
@@ -421,12 +414,6 @@ public:
     FLDShopOpenResult Opened;
     FLDShopCommand Buy1Sent;
     FLDShopReceipt Buy1Receipt, Buy2Receipt;
-
-    // Client1: the first copy's active puts only its own persistent track on cooldown; selling it leaves Combat's debt.
-    bool bActivateSent = false;
-    uint32 ActivateReceiptMark = 0;
-    FGuid UsedTrack, KeptTrack;
-    int64 UsedReadyAtMs = 0, FirstDebtReadyAtMs = 0;
 
     // Host: the victim's current life.
     uint32 VictimLife = 0;
@@ -1033,18 +1020,10 @@ public:
     bool PlanKills()
     {
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        // Item A: the cheapest approved equipment (ties by id) whose active needs no target and no precondition, so the
-        // buyer can put a real persistent cooldown track in motion and the next match can prove it was not carried over.
-        // (item_energy_drink's refresh needs a cooling Q or W and is refused before paying otherwise.)
+        // Item A: the cheapest approved equipment (ties by id), so the fewest kills afford two copies.
         const FLDDemoEquipmentDefinition* Cheapest = nullptr;
         for (const FLDDemoEquipmentDefinition& Candidate : Defs.Equipment)
         {
-            if (!Candidate.HasActive || Candidate.Active.Target.Mode != ELDDemoTargetMode::Self || Candidate.Active.Rank.CooldownMs <= 0
-                || Candidate.Active.Rank.Effects.ContainsByPredicate([](const FLDDemoEffectDefinition& Effect)
-                    { return Effect.GetOp() == ELDDemoEffectOp::CooldownRefresh; }))
-            {
-                continue;
-            }
             if (!Cheapest || Candidate.BuyPrice < Cheapest->BuyPrice
                 || (Candidate.BuyPrice == Cheapest->BuyPrice && Candidate.Id.Compare(Cheapest->Id, ESearchCase::CaseSensitive) < 0))
             {
@@ -1054,7 +1033,7 @@ public:
         LDProgression::FRewardAmounts Bounty;
         const ELDGrowthReason BountyReason = LDProgression::ContenderKillReward(Defs.Parameters, uint8(Defs.Progression.MaxLevel), 1, Bounty);
         if (!Check(Cheapest && Cheapest->BuyPrice > 0 && BountyReason == ELDGrowthReason::None && Bounty.Gold > 0 && Bounty.XP > 0,
-            TEXT("N03"), TEXT("The catalog sells an item with an untargeted, cooling active and pays a positive bounty for a level-1 contender"),
+            TEXT("N03"), TEXT("The catalog sells a priced item and pays a positive bounty for a level-1 contender"),
             LDGrowthWire::ReasonName(BountyReason)))
         {
             return false;
@@ -1067,7 +1046,20 @@ public:
         GoldGoal = 2 * ItemBuyPrice;
         const int64 Shortfall = GoldGoal - Defs.Parameters.StartingGold;
         KillsPlanned = Shortfall <= 0 ? 1 : int32((Shortfall + Bounty.Gold - 1) / Bounty.Gold);
-        return true;
+        // The kills also reach the level whose opportunities (one per level, the opening one included) every planned
+        // offer consumes: the shop choice, the Q/W replacement and the choice while dead earn no further XP.
+        uint8 PlannedLevel = 0;
+        ELDGrowthReason LevelReason = ELDGrowthReason::None;
+        while ((LevelReason = LDProgression::LevelForXP(Defs.Progression,
+            Defs.Progression.XPStart + int64(KillsPlanned) * Bounty.XP, PlannedLevel)) == ELDGrowthReason::None
+            && PlannedLevel < LDDemoGrowthScenario::GrowthProbePlannedOffers && int32(PlannedLevel) < int32(Defs.Progression.MaxLevel))
+        {
+            ++KillsPlanned;
+        }
+        return Check(LevelReason == ELDGrowthReason::None && PlannedLevel >= LDDemoGrowthScenario::GrowthProbePlannedOffers, TEXT("N03"),
+            TEXT("The planned kills reach a level with an opportunity for every planned offer"),
+            FString::Printf(TEXT("kills=%d level=%u offers=%d %s"), KillsPlanned, uint32(PlannedLevel),
+                LDDemoGrowthScenario::GrowthProbePlannedOffers, LDGrowthWire::ReasonName(LevelReason)));
     }
 
     // ---- Host: the victim never attacks until the buyer asks to die; it walks back to its duel site after every respawn. ----
@@ -1412,7 +1404,6 @@ public:
             FString::Printf(TEXT("life %u: %s"), PC.OwnerState.Life, *LDDemoGrowthScenario::GrowthProbeProgressionText(FirstProgression)));
         FirstMatchRow->SetNumberField(TEXT("skills"), FirstProgression.Skills.Num());
         FirstMatchRow->SetNumberField(TEXT("attribute_cards"), FirstProgression.AttributeCards.Num());
-        FirstMatchRow->SetNumberField(TEXT("cooldown_debt_ready_at_ms"), double(FirstDebtReadyAtMs));
     }
 
     // Host: export the first match's ledger, then end the match without a winner through the Host's own session command.
@@ -1570,21 +1561,19 @@ public:
                 Equipment.Gold, Equipment.AccountRevision, Equipment.InventoryRevision,
                 FirstEquipment.Slots.FilterByPredicate([](const FLDEquipmentSlotView& SlotRow) { return SlotRow.bOccupied; }).Num()));
         // The innate D dash is every contender's source: it is held from the start, but a fresh match issues it a fresh,
-        // ready track (no duration issued yet), never the first match's debt.
+        // ready track (no duration issued yet); Q and W start empty, with no learned skill's track carried over.
         const bool bNoSource = !Own.Entries.ContainsByPredicate([&Own](const FLDCombatEntryView& EntryRow)
         {
             if (EntryRow.Entry == ELDCombatEntry::Dash) { return EntryRow.ReadyAtMs > Own.AsOfMs || EntryRow.CooldownMs != 0; }
-            return !EntryRow.DefinitionId.IsNone() || EntryRow.ItemInstance.IsValid() || EntryRow.IssuedCooldownId.IsValid()
-                || EntryRow.ReadyAtMs > Own.AsOfMs;
+            return !EntryRow.DefinitionId.IsNone() || EntryRow.IssuedCooldownId.IsValid() || EntryRow.ReadyAtMs > Own.AsOfMs;
         });
         const bool bNoContribution = !Own.Attributes.ContainsByPredicate([](const FLDCombatAttributeRowView& Row)
         {
             return Row.Choices.Numerator != 0 || Row.Passives.Numerator != 0 || Row.Equipment.Numerator != 0;
         });
         Check(bNoSource && bNoContribution && Own.EquipmentPassives.IsEmpty() && Own.NextAttackAtMs <= Own.AsOfMs, TEXT("Iso"),
-            TEXT("Combat carries no learned or equipped source, no issued cooldown track or debt and no build contribution"),
-            FString::Printf(TEXT("entries=%d attributes=%d as_of=%lld first-match debt until %lld"), Own.Entries.Num(),
-                Own.Attributes.Num(), Own.AsOfMs, FirstDebtReadyAtMs));
+            TEXT("Combat carries no learned source, no issued Q/W cooldown track and no build contribution"),
+            FString::Printf(TEXT("entries=%d attributes=%d as_of=%lld"), Own.Entries.Num(), Own.Attributes.Num(), Own.AsOfMs));
         if (!IsHost()) { return; }
         // Host only: the authority ledger of the second match.
         const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
@@ -2115,7 +2104,6 @@ public:
         case EStage::Buy2: return TickBuy(Now, PC, false);
         case EStage::BuyFull: return TickBuyFull(Now, PC);
         case EStage::Replay: return TickReplay(Now, PC);
-        case EStage::Activate: return TickActivate(Now, PC);
         case EStage::Sell: return TickSell(Now, PC);
         case EStage::WalkOut: return TickToSite(Now, PC, *Body, KillSite, EStage::Outside, TEXT("A17"));
         case EStage::Outside: return TickOutside(Now, PC, *Body, Lobby);
@@ -2261,10 +2249,10 @@ public:
 
     bool ContinueKills(int64 CurrentGold)
     {
-        if (CurrentGold >= GoldGoal)
+        if (Kills >= KillsPlanned)
         {
-            if (!Check(Kills == KillsPlanned && bChoiceDone, TEXT("N03"),
-                TEXT("The gold goal is reached after exactly the planned kills, with the choice made between them"),
+            if (!Check(CurrentGold >= GoldGoal && bChoiceDone, TEXT("N03"),
+                TEXT("The planned kills reach the gold goal, with the choice made between them"),
                 FString::Printf(TEXT("kills=%d planned=%d gold=%lld goal=%lld"), Kills, KillsPlanned, CurrentGold, GoldGoal)))
             {
                 return Finish();
@@ -2273,10 +2261,6 @@ public:
             ApproachAttempts = 0;
             SetStage(EStage::ShopApproach);
             return true;
-        }
-        if (Kills >= KillsPlanned)
-        {
-            return Fail(TEXT("N03"), FString::Printf(TEXT("The planned %d kills did not reach the %lld gold goal"), KillsPlanned, GoldGoal));
         }
         SetStage(EStage::KillSeek);
         return true;
@@ -2799,66 +2783,6 @@ public:
             Answered->bHasShopReceipt ? &Answered->ShopReceipt : nullptr);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
-        bActivateSent = false;
-        SetStage(EStage::Activate);
-        return true;
-    }
-
-    // The first copy's untargeted active through the owner's own entry (what its hotkey sends): only that copy's
-    // persistent track starts its cooldown, the second copy's track stays ready.
-    bool TickActivate(double Now, ALDPlayerController& PC)
-    {
-        const ELDCombatEntry UsedEntry = LDDemoGrowthScenario::GrowthProbeItemEntry(Buy1Receipt.SlotIndex);
-        const ELDCombatEntry KeptEntry = LDDemoGrowthScenario::GrowthProbeItemEntry(Buy2Receipt.SlotIndex);
-        const FLDCombatOwnerView& Own = PC.CombatView;
-        const bool bCurrent = Own.Generation == PC.OwnerState.Match && Own.Life == PC.OwnerState.Life;
-        const FLDCombatEntryView* Used = bCurrent ? LDDemoGrowthScenario::GrowthProbeEntry(Own, UsedEntry) : nullptr;
-        const FLDCombatEntryView* Kept = bCurrent ? LDDemoGrowthScenario::GrowthProbeEntry(Own, KeptEntry) : nullptr;
-        if (!bActivateSent)
-        {
-            const bool bBound = Used && Kept && Used->DefinitionId == ItemId && Kept->DefinitionId == ItemId
-                && Used->ItemInstance == Buy1Receipt.Instance && Kept->ItemInstance == Buy2Receipt.Instance
-                && Used->IssuedCooldownId.IsValid() && Kept->IssuedCooldownId.IsValid();
-            if (!bBound)
-            {
-                if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-                return Fail(TEXT("A19"), TEXT("The Combat owner view never showed both purchased copies bound to their own tracks"));
-            }
-            if (!Check(Used->IssuedCooldownId != Kept->IssuedCooldownId && Used->ReadyAtMs <= Own.AsOfMs && Kept->ReadyAtMs <= Own.AsOfMs
-                && Used->bHasActive && Used->TargetMode == uint8(ELDDemoTargetMode::Self), TEXT("A19"),
-                TEXT("Two copies of one definition hold two distinct persistent cooldown tracks, both ready before use"),
-                FString::Printf(TEXT("tracks %s / %s ready at %lld / %lld as of %lld"),
-                    *LDDemoGrowthScenario::GrowthProbeGuid(Used->IssuedCooldownId), *LDDemoGrowthScenario::GrowthProbeGuid(Kept->IssuedCooldownId),
-                    Used->ReadyAtMs, Kept->ReadyAtMs, Own.AsOfMs)))
-            {
-                return Finish();
-            }
-            UsedTrack = Used->IssuedCooldownId;
-            KeptTrack = Kept->IssuedCooldownId;
-            ActivateReceiptMark = PC.CombatReceipts.Serial();
-            PC.ActivateCombatEntry(UsedEntry);
-            bActivateSent = true;
-            StageAt = Now;
-            return true;
-        }
-        if (const FLDCombatActionReceipt* Refused = PC.CombatReceipts.FindLatestSince(ActivateReceiptMark,
-            [UsedEntry](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == UsedEntry && Receipt.Phase == ELDCombatPhase::Rejected; }))
-        {
-            return Fail(TEXT("A19"), TEXT("The item's active was rejected: ")
-                + StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Refused->Reject)));
-        }
-        if (!Used || Used->IssuedCooldownId != UsedTrack || Used->ReadyAtMs <= Own.AsOfMs)
-        {
-            if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
-            return Fail(TEXT("A19"), TEXT("Using the first copy's active did not put its own track on cooldown"));
-        }
-        UsedReadyAtMs = Used->ReadyAtMs;
-        Check(Kept && Kept->IssuedCooldownId == KeptTrack && Kept->ReadyAtMs <= Own.AsOfMs, TEXT("A19"),
-            TEXT("Using one copy's active cools only its own track; the other copy's track stays ready"),
-            FString::Printf(TEXT("used ready at %lld, kept ready at %lld, as of %lld"), UsedReadyAtMs, Kept ? Kept->ReadyAtMs : -1,
-                Own.AsOfMs));
-        if (!Passed) { return Finish(); }
-        Call = FShopCall();
         SetStage(EStage::Sell);
         return true;
     }
@@ -2894,19 +2818,6 @@ public:
             && Kept->Instance == Buy2Receipt.Instance, TEXT("A15"),
             TEXT("Selling consumes exactly the first instance and frees its slot; the second copy stays"),
             LDDemoGrowthScenario::GrowthProbeShopText(*Seen));
-        // The sold copy's track left with its instance, yet its cooldown debt stays with Combat: the quote refreshed by
-        // the sale's own publication shows that a new copy would inherit exactly that debt.
-        const FLDShopView* ShopView = PC.ReadOwnShop();
-        const FLDShopItemView* Quote = ShopView ? ShopView->Items.FindByPredicate([this](const FLDShopItemView& ItemRow)
-        {
-            return ItemRow.DefinitionId == ItemId;
-        }) : nullptr;
-        Check(Quote && Quote->bInheritsCooldown && Quote->InheritedReadyAtMs == UsedReadyAtMs
-            && Quote->InheritedReadyAtMs > PC.CombatView.AsOfMs, TEXT("A21"),
-            TEXT("Selling the used copy unbinds it, yet its cooldown debt stays: the quote shows a new copy would inherit it"),
-            FString::Printf(TEXT("inherits=%d ready_at=%lld used_ready_at=%lld as_of=%lld"), Quote && Quote->bInheritsCooldown ? 1 : 0,
-                Quote ? Quote->InheritedReadyAtMs : -1, UsedReadyAtMs, PC.CombatView.AsOfMs));
-        FirstDebtReadyAtMs = Quote ? Quote->InheritedReadyAtMs : 0;
         RecordShop(PC, TEXT("Applied"), LDDemoGrowthScenario::GrowthProbeReason(Seen->Header.Reason), Seen);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
@@ -3461,7 +3372,7 @@ public:
         return true;
     }
 
-    // Client1, second match: a fresh session whose quote shows no inherited cooldown, so no track or debt survived.
+    // Client1, second match: a fresh session that quotes the planned item and holds nothing to sell.
     bool TickSecondQuote(ALDPlayerController& PC)
     {
         const FLDShopView* ShopView = PC.ReadOwnShop();
@@ -3469,14 +3380,11 @@ public:
         {
             return ItemRow.DefinitionId == ItemId;
         }) : nullptr;
-        const bool bNoDebt = ShopView && !ShopView->Items.ContainsByPredicate([](const FLDShopItemView& ItemRow)
-        {
-            return ItemRow.bInheritsCooldown || ItemRow.InheritedReadyAtMs != 0;
-        });
-        Check(ShopView && Opened.View.SessionId != FirstSessionId && Quote && Quote->bHasActive && bNoDebt && ShopView->Sellable.IsEmpty(),
-            TEXT("Iso"), TEXT("The second match's fresh shop quote shows no inherited cooldown: the first match's debt did not survive"),
-            FString::Printf(TEXT("session %s -> %s, first-match debt until %lld"), *LDDemoGrowthScenario::GrowthProbeGuid(FirstSessionId),
-                ShopView ? *LDDemoGrowthScenario::GrowthProbeGuid(ShopView->SessionId) : TEXT("none"), FirstDebtReadyAtMs));
+        Check(ShopView && Opened.View.SessionId != FirstSessionId && Quote && Quote->BuyPrice == ItemBuyPrice
+            && Quote->SellGold == ItemSellGold && ShopView->Sellable.IsEmpty(),
+            TEXT("Iso"), TEXT("The second match opens a fresh shop session that quotes the catalog price and offers nothing to sell"),
+            FString::Printf(TEXT("session %s -> %s"), *LDDemoGrowthScenario::GrowthProbeGuid(FirstSessionId),
+                ShopView ? *LDDemoGrowthScenario::GrowthProbeGuid(ShopView->SessionId) : TEXT("none")));
         // The second match's own gold before the DEV stage; the runner compares it with the fresh ledger's starting gold.
         if (const FLDEquipmentView* EquipView = PC.ReadOwnEquipment()) { Match2Gold = EquipView->Gold; }
         if (!Passed || !Mark(TEXT("Client1Match2Done.json"))) { return Finish(); }
@@ -3497,7 +3405,7 @@ public:
             TEXT("Lobby AI count, readiness and Start through owning session RPCs with every normal-start provider registered"));
         Report->SetStringField(TEXT("scope"), IsHost()
             ? TEXT("DEV-only owned-connection growth/shop scenario, victim and ledger-export role: a rendered, participating Listen Host with -LDDevGrowthFixture that stages the buyer's offers in the Lobby (its opening offer first), opens each match with exactly one pending opening choice, never attacks until the buyer asks to die, then takes its own DEV XP/gold grant, kills the buyer and both scavengers of low camp L1 and sees each exact reward in its own owner view and rendered HUD, ends the first match without a winner and checks its own state in a second normal match. Not AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: exactly one pending opening choice at each match start (never re-granted by a respawn), real kill rewards, choices on the Host's preset offers, two-slot shop trades and an item active through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
+            : TEXT("DEV-only owned-connection growth/shop scenario, buyer role: exactly one pending opening choice at each match start (never re-granted by a respawn), real kill rewards, choices on the Host's preset offers, two-slot shop trades through the owning connection, a confirmed Q replacement whose relearn keeps the old cooldown deadline, a choice confirmed while dead, then clean owner state and refused stale requests in a second normal match. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);
         Report->SetStringField(TEXT("detail"), Error);

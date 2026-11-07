@@ -87,10 +87,8 @@ struct FLDObservedUnitView
     UPROPERTY() ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
     UPROPERTY() uint16 ActionCueAgeMs = 0; // time since the current cue began on the authority clock; 0 without a cue
     // The source of a Cast cue, so a visible cast can show its display name at that moment (user-approved amendment of
-    // CB-P10): an ELDDemoAbilityId for Q/W or an ELDDemoEquipmentId for an equipment active, at most one, both 0 otherwise.
-    // No rank, cooldown or learned list is ever carried.
+    // CB-P10): an ELDDemoAbilityId for Q/W, 0 otherwise. No rank, cooldown or learned list is ever carried.
     UPROPERTY() uint8 ActionAbility = 0;
-    UPROPERTY() uint8 ActionEquipment = 0;
     UPROPERTY() FGuid ContenderId;  // Contender identity -> public roster name
     UPROPERTY() uint8 CreatureId = 0; // CampMember identity -> ELDDemoMonsterId
     UPROPERTY() uint8 Level = 0;
@@ -192,9 +190,8 @@ struct FLDObservedPublicFacts
     // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
     ELDObservedActionCue ActionCue = ELDObservedActionCue::None;
     int64 ActionCueAtMs = 0;
-    // Source of a Cast cue (FLDObservedUnitView::ActionAbility/ActionEquipment): one approved native id, 0 otherwise.
+    // Source of a Cast cue (FLDObservedUnitView::ActionAbility): one approved ability id, 0 otherwise.
     uint8 ActionAbility = 0;
-    uint8 ActionEquipment = 0;
 };
 
 // Server-only authority record of one projectile in flight, sampled by the observation owner. Never serialized.

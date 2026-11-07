@@ -142,7 +142,6 @@ struct FLDStatusExpiry
     bool bRootsChanged = false;
     bool bShieldChanged = false;
     bool bTauntChanged = false;
-    bool bStealthChanged = false;
 };
 
 // One taunt on a contender life (EFFECT taunt): until it ends the victim may only basic-attack the taunter's body.
@@ -152,18 +151,6 @@ struct FLDCombatTaunt
     FGuid SourceEntity;
     FLDCombatBodyRef SourceBody;
     int64 ExpiresAtMs = 0;
-    // A decoy lure (item_decoy_wig): the victim walks to DecoyPointCm and may neither attack, cast nor use items.
-    bool bDecoy = false;
-    FVector DecoyPointCm = FVector::ZeroVector;
-};
-
-// Self stealth (EFFECT stealth): enemies observe the body only within RevealRadiusCm (inclusive) while it lasts.
-struct FLDCombatStealth
-{
-    FGuid EffectId;
-    int64 ExpiresAtMs = 0;
-    double RevealRadiusCm = 0;
-    int64 MoveSpeedPenaltyBp = 0;
 };
 
 // A hostile body inside a taunt's radius at the release moment, as Combat read it.
@@ -173,7 +160,7 @@ struct FLDTauntCandidate
     FVector FootCm = FVector::ZeroVector;
     bool bPendingDeath = false;
     bool bProtected = false;
-    // Observation of the caster from this candidate (geometry plus stealth); only Visible may be taunted.
+    // Observation of the caster from this candidate; only Visible may be taunted.
     bool bSeesCaster = false;
 };
 

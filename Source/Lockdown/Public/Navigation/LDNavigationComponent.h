@@ -43,13 +43,13 @@ public:
     // click keeps walking toward the pointer while its button is held (LDOrderRules::ShouldRepeatHeldMove); a Shift
     // click is one queued step and never repeats.
     void ClickMove(bool bQueue=false);
-    // Owning client: a Shift Q/W/1/2/D request goes to the server's shift queue rather than straight to Combat. A
+    // Owning client: a Shift Q/W/D request goes to the server's shift queue rather than straight to Combat. A
     // direction aim also carries the ground point it was aimed at, so the server re-aims it when its turn comes.
     void QueueCombatAction(const FLDCombatActionRequest& Request, const FVector* AimCm);
-    // Owning client: a unit-target Q/W/1/2 becomes a CastUnit order that replaces the current one (or queues with Shift):
+    // Owning client: a unit-target Q/W becomes a CastUnit order that replaces the current one (or queues with Shift):
     // the body approaches the target until the skill is in reach, casts, then stands (2026-11-06 decision).
     void CastAtUnit(const FLDCombatActionRequest& Cast, bool bQueue=false);
-    // Owning client: a ground-point or projectile Q/W/1/2 aimed at PointCm becomes a CastPoint order: the body walks toward
+    // Owning client: a ground-point or projectile Q/W aimed at PointCm becomes a CastPoint order: the body walks toward
     // the point until it lies within the skill's reach, then casts at it from there (2026-11-06 decision).
     void CastAtPoint(const FLDCombatActionRequest& Cast, const FVector& PointCm, bool bQueue=false);
     // Owning client: own queued spatial steps still waiting (their markers and the path line), newest last.
@@ -102,7 +102,7 @@ public:
     // ---- Server entries shared by the owning RPCs and the registered opponent AI.
     // Receives and queues only; protection removal, admission and replacement happen in the Actions phase.
     FLDOrderReceipt SubmitOrder(const FLDOrderCaller& Caller, const FLDSpatialOrderRequest& Request);
-    // A CastUnit/CastPoint order with its Direct request: the request must name the order's aim, a Q/W/1/2 entry and a
+    // A CastUnit/CastPoint order with its Direct request: the request must name the order's aim, a Q/W entry and a
     // sequence Combat has not seen. A non-Shift cast whose entry is not ready (LDOrderRules::SkillRequestReady) is refused
     // at receipt and leaves the current order, the pending request and the shift queue alone (2026-11-07 decision);
     // readiness is judged again at activation, where an admitted cast replaces the order and drops the steps queued
@@ -111,7 +111,7 @@ public:
     // Stop semantics: Identity must advance both the order and the cancellation epoch.
     FLDOrderReceipt CancelOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity, ELDOrderCancelReason Reason);
     FLDOrderReceipt QueryOrder(const FLDOrderCaller& Caller, const FLDMoveIdentity& Identity) const;
-    // Shift queue: appends one Q/W/1/2/D request behind the current order and the queued steps. Only checks the caller,
+    // Shift queue: appends one Q/W/D request behind the current order and the queued steps. Only checks the caller,
     // the request shape, its freshness against Combat's Direct window and the queue bound; Combat judges the action when
     // its turn comes (ALDCombatDirector::SubmitAction). AimCm re-aims a direction request from the body at that time.
     FLDCombatActionReceipt QueueAction(const FLDOrderCaller& Caller, const FLDCombatActionRequest& Request, const FVector* AimCm);
@@ -121,9 +121,9 @@ public:
     void ClearQueue(ELDOrderFailure Failure, uint64 BeforeStep=MAX_uint64);
     // Server: queued steps still waiting (not the current order nor a running queued action).
     int32 QueuedSteps() const { return Queue.Num(); }
-    // A non-Shift Direct Q/W/1/2/D request from the owner (2026-11-07 decision: a refused skill keeps the shift queue).
+    // A non-Shift Direct Q/W/D request from the owner (2026-11-07 decision: a refused skill keeps the shift queue).
     // While steps wait, an entry that is not ready (LDOrderRules::SkillRequestReady) is refused here before Combat sees
-    // it: true with Out holding the refusal; a Q/W/1/2 still ends protection in the next Actions phase. False lets
+    // it: true with Out holding the refusal; a Q/W still ends protection in the next Actions phase. False lets
     // Combat judge it.
     bool RefuseUnreadyDirect(const FLDCombatActionRequest& Request, FLDCombatActionReceipt& Out);
     // A non-Shift Direct request Combat took: once Combat admitted it (any verdict but a refusal) the steps queued
@@ -212,9 +212,6 @@ private:
         // Taunt chase: server-made, never in the owner's book or receipts; Identity.Order stays 0.
         bool bForced=false;
         FLDCombatBodyRef ForcedTarget;
-        // Decoy lure (item_decoy_wig): a forced walk to LurePoint; no attack is ever started.
-        bool bLure=false;
-        FVector LurePoint=FVector::ZeroVector;
     };
     struct FOrderRecord
     {
@@ -222,7 +219,7 @@ private:
         bool bStop=false;
         FLDOrderReceipt Receipt;
     };
-    // One shift-queued step: a spatial order (bAction false) or a Direct Q/W/1/2/D request handed to Combat in turn.
+    // One shift-queued step: a spatial order (bAction false) or a Direct Q/W/D request handed to Combat in turn.
     struct FQueuedStep
     {
         bool bAction=false;
@@ -316,9 +313,6 @@ private:
     bool AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     // Taunted body: refuses its own orders and chases the taunter through this observer's current view.
     bool AdvanceForced(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FLDCombatBodyRef& Taunter,
-        const FLDGameplayWritePermit& Permit, FString& Error);
-    // Lured body: refuses its own orders and walks to the decoy point (#112 §5).
-    bool AdvanceLure(ALDGameMode& Mode, ALDCharacter& Body, const FLDCombatBodyRef& Self, const FVector& Point,
         const FLDGameplayWritePermit& Permit, FString& Error);
     bool AcquireTarget(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit,
         FLDAuthorityTargetSample& Out, bool& bFound, FString& Error);

@@ -131,10 +131,10 @@
     },
     "policies": {
       "type": "object", "additionalProperties": false,
-      "required": ["StatStacking", "DuplicateEquipment", "DuplicateEquipmentPassive", "DuplicateEquipmentActive", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShopRequiresLineOfSight", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampManaPolicy"],
+      "required": ["StatStacking", "DuplicateEquipment", "DuplicateEquipmentPassive", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShopRequiresLineOfSight", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampManaPolicy"],
       "properties": {
         "StatStacking": {"const": "AddFlatThenAdditivePercent"}, "DuplicateEquipment": {"const": "Allowed"},
-        "DuplicateEquipmentPassive": {"const": "OncePerFamily"}, "DuplicateEquipmentActive": {"const": "IndependentSources"},
+        "DuplicateEquipmentPassive": {"const": "OncePerFamily"},
         "MissingSourceCooldown": {"const": "ContinueServerTime"}, "DeadChoiceCommit": {"const": "Allowed"},
         "ResourceMaxChange": {"const": "PreserveRatio"}, "ReleasedEffectSourceLoss": {"const": "ContinueForRemainingContender"},
         "SourceLeave": {"const": "CancelUnsettledNoRefund"}, "InvalidAggressionProtection": {"const": "BreakOnAggressiveIntent"},
@@ -343,10 +343,6 @@
           "properties": {"op": {"const": "dash"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         },
         {
-          "type": "object", "additionalProperties": false, "required": ["op", "ratio"],
-          "properties": {"op": {"const": "restore_mana"}, "ratio": {"$ref": "#/$defs/probability"}}
-        },
-        {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio", "radius"],
           "properties": {"op": {"const": "cleave"}, "ratio": {"$ref": "#/$defs/probability"}, "radius": {"$ref": "#/$defs/cm"}}
         },
@@ -381,10 +377,6 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "radius", "duration"],
           "properties": {"op": {"const": "taunt"}, "radius": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
-        },
-        {
-          "type": "object", "additionalProperties": false, "required": ["op", "duration", "reveal_radius", "move_speed_penalty"],
-          "properties": {"op": {"const": "stealth"}, "duration": {"$ref": "#/$defs/positive_sec"}, "reveal_radius": {"$ref": "#/$defs/cm"}, "move_speed_penalty": {"$ref": "#/$defs/probability"}, "ambush_ready": {"const": true}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "duration"],
@@ -463,10 +455,6 @@
           "properties": {"op": {"const": "knockback"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         },
         {
-          "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
-          "properties": {"op": {"const": "heal_cut"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}
-        },
-        {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "interval", "count", "shred"],
           "properties": {"op": {"const": "dot"}, "base": {"$ref": "#/$defs/points"}, "ad_ratio": {"$ref": "#/$defs/multiplier"}, "ap_ratio": {"$ref": "#/$defs/multiplier"}, "damage_type": {"enum": ["Physical", "Magical"]}, "interval": {"$ref": "#/$defs/positive_sec"}, "count": {"type": "integer", "minimum": 1, "maximum": 10}, "shred": {"$ref": "#/$defs/points"}}
         },
@@ -529,18 +517,6 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "ratio"],
           "properties": {"op": {"const": "vulnerable"}, "ratio": {"$ref": "#/$defs/multiplier"}}
-        },
-        {
-          "type": "object", "additionalProperties": false, "required": ["op", "duration", "radius", "taunt_duration"],
-          "properties": {"op": {"const": "decoy"}, "duration": {"$ref": "#/$defs/positive_sec"}, "radius": {"$ref": "#/$defs/cm"}, "taunt_duration": {"$ref": "#/$defs/positive_sec"}}
-        },
-        {
-          "type": "object", "additionalProperties": false, "required": ["op", "distance", "duration"],
-          "properties": {"op": {"const": "leap_back"}, "distance": {"$ref": "#/$defs/cm"}, "duration": {"$ref": "#/$defs/positive_sec"}}
-        },
-        {
-          "type": "object", "additionalProperties": false, "required": ["op"],
-          "properties": {"op": {"const": "cooldown_refresh"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "interval", "duration", "max_stacks", "shred", "heal_cut"],
@@ -622,18 +598,9 @@
       ]
     },
     "equipment": {
-      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "tags", "stats", "active", "passive"],
+      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "tags", "stats", "passive"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "tags": {"$ref": "#/$defs/tags"}, "stats": {"$ref": "#/$defs/stat_bonus"},
-        "active": {
-          "oneOf": [
-            {"type": "null"},
-            {
-              "type": "object", "additionalProperties": false, "required": ["target", "windup", "cooldown_family", "rank"],
-              "properties": {"target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"}, "rank": {"$ref": "#/$defs/active_rank"}, "upgraded_rank": {"$ref": "#/$defs/active_rank"}}
-            }
-          ]
-        },
         "passive": {
           "oneOf": [
             {"type": "null"},

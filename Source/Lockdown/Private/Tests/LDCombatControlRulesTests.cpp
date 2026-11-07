@@ -144,10 +144,10 @@ bool FLDCombatControlMatrixTest::RunTest(const FString& Parameters)
     const FLDDemoPolicies Policies = RootPolicies();
     const TArray<FLDCombatRoot> None;
     const TArray<FLDCombatRoot> Active = {Instance(2000)};
-    const EAction Actions[] = {EAction::Move, EAction::Displacement, EAction::Basic, EAction::Cast, EAction::Gear};
+    const EAction Actions[] = {EAction::Move, EAction::Displacement, EAction::Basic, EAction::Cast};
     // Expected matrix rows: Root, Disarm, Stun; columns follow Actions.
-    const bool RootRow[] = {true, true, false, false, false};
-    const bool DisarmRow[] = {false, false, true, false, false};
+    const bool RootRow[] = {true, true, false, false};
+    const bool DisarmRow[] = {false, false, true, false};
     for (int32 Index = 0; Index < UE_ARRAY_COUNT(Actions); ++Index)
     {
         TestEqual(FString::Printf(TEXT("Root column %d"), Index), LDCombatControl::Blocks(Active, None, None, 1000, Policies, Actions[Index]), RootRow[Index]);
@@ -158,7 +158,7 @@ bool FLDCombatControlMatrixTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Disarm displays only the basic block"), LDCombatControl::DisarmBlockBits() == uint8(ELDCombatControlBlock::Basic));
     const uint8 All = uint8(uint8(ELDCombatControlBlock::Move) | uint8(ELDCombatControlBlock::Basic) | uint8(ELDCombatControlBlock::Cast)
-        | uint8(ELDCombatControlBlock::Gear) | uint8(ELDCombatControlBlock::Displacement));
+        | uint8(ELDCombatControlBlock::Displacement));
     TestTrue(TEXT("Stun displays every block"), LDCombatControl::StunBlockBits() == All);
 
     TArray<FLDCombatRoot> Disarms, Stuns;

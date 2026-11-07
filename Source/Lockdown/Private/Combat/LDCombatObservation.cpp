@@ -24,26 +24,25 @@ bool ALDCombatDirector::AppendObservedAction(const ALDCharacter& Body, int64 Now
 {
     InOut.ActionCue=ELDObservedActionCue::None;
     InOut.ActionCueAtMs=0;
-    InOut.ActionAbility=InOut.ActionEquipment=0;
+    InOut.ActionAbility=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
-    uint8 Ability=0, Equipment=0;
-    if (!ObservedCastSource(Body,NowMs,Ability,Equipment))
+    uint8 Ability=0;
+    if (!ObservedCastSource(Body,NowMs,Ability))
     {
-        Error=TEXT("The visible cast has no approved ability or gear source.");
+        Error=TEXT("The visible cast has no approved ability source.");
         return false;
     }
     InOut.ActionCue=Cue.Cue;
     InOut.ActionCueAtMs=Cue.AtMs;
     InOut.ActionAbility=Ability;
-    InOut.ActionEquipment=Equipment;
     return true;
 }
 
-bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const
+bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility) const
 {
-    OutAbility=OutEquipment=0;
+    OutAbility=0;
     const FLDBodyCombatState* State=StateFor(&Body);
     if (!State || State->bPendingDeath) { return true; }
     const LDCombatCues::FCue Cue=LDCombatCues::Select(CueFactsOf(*State),NowMs);
@@ -52,7 +51,7 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     const bool bActing=State->Action.IsSet() && State->Action->Kind!=ELDCombatActionKind::Basic
         && State->Action->StartedAtMs==Cue.AtMs;
     const FLDCombatSourceRef& Source=bActing ? State->Action->Source : State->ReleasedSource;
-    // The innate dash is movement shared by every contender: its cast shows no ability or gear name.
+    // The innate dash is movement shared by every contender: its cast shows no ability name.
     if (Source.Kind==ELDCombatSourceKind::Innate) { return true; }
     const FLDDemoContentSnapshot* Content=Catalog();
     FString Error;
@@ -60,11 +59,6 @@ bool ALDCombatDirector::ObservedCastSource(const ALDCharacter& Body, int64 NowMs
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if (Content->FindAbility(Source.DefinitionId.ToString(),Ability,Error)) { OutAbility=Ability->NativeId; return true; }
-    }
-    else if (Content && Source.Kind==ELDCombatSourceKind::Gear)
-    {
-        const FLDDemoEquipmentDefinition* Item=nullptr;
-        if (Content->FindEquipment(Source.DefinitionId.ToString(),Item,Error)) { OutEquipment=Item->NativeId; return true; }
     }
     UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_CAST_SOURCE_UNAVAILABLE %s %s"),*Source.DefinitionId.ToString(),*Error);
     return false;

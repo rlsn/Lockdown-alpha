@@ -54,7 +54,7 @@ public:
     // EquipView is the own two-slot view (nullptr when not projected); BuildRevision is the owner's current build revision
     // (bBuildKnown=false when the progression view is not projected).
     // bNearShop: the own body stands in the shop's range by the local check (ULDNavigationComponent::OwnBodyAtShop).
-    void Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop);
+    void Present(const FLDShopView* View,const FLDEquipmentView* EquipView,bool bBuildKnown,uint64 BuildRevision,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* ContentDefs,bool bNearShop);
     // The right click on an icon: buys it (or upgrades the owned copy) right away in the shop's range with this life's
     // quote, else pre-orders it; false (with feedback) when nothing was sent or queued.
     bool QuickBuy(int32 Index);
@@ -137,8 +137,6 @@ private:
     uint64 LatestBuildRevision=0;
     uint32 LatestMatch=0,LatestLife=0;
     ELDLifePhase LatestPhase=ELDLifePhase::Unspawned;
-    bool bLatestClock=false;
-    int64 LatestNowMs=0;
     const FLDDemoContentDefinitions* LatestContent=nullptr;
     bool bPresented=false;
     TArray<FName> ShownItems;

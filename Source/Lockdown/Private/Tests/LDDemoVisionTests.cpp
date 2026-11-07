@@ -472,7 +472,7 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TestEqual(*FString::Printf(TEXT("%s schema complete"), *Struct->GetName()), Count, Allowed.Num());
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
-        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ActionEquipment"), TEXT("ContenderId"), TEXT("CreatureId"),
+        TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look")});
@@ -1043,7 +1043,7 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     View.Units[0].ActionAbility = 7;
     FLDWorldView Read;
     TestTrue(TEXT("Cues and their ages round-trip"), Wire(View, Read) && Read.Units.Num() == 2
-        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7 && Read.Units[0].ActionEquipment == 0
+        && Read.Units[0].ActionCue == ELDObservedActionCue::Cast && Read.Units[0].ActionCueAgeMs == 180 && Read.Units[0].ActionAbility == 7
         && Read.Units[1].ActionCue == ELDObservedActionCue::Hit && Read.Units[1].ActionCueAgeMs == 40);
     FString Error;
     for (const ELDObservedActionCue Cue : {ELDObservedActionCue::None, ELDObservedActionCue::Attack, ELDObservedActionCue::Cast, ELDObservedActionCue::Hit})
@@ -1059,17 +1059,14 @@ bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
     FLDObservedUnitView Aged = ContenderUnit();
     Aged.ActionCueAgeMs = 1;
     TestFalse(TEXT("No cue carries no age"), LDObservation::ValidateUnit(Aged, Error));
-    // A cast may name its one public source at that moment (user-approved CB-P10 amendment); nothing else may.
+    // A cast may name its public ability at that moment (user-approved CB-P10 amendment); nothing else may.
     FLDObservedUnitView Named = ContenderUnit();
     Named.ActionCue = ELDObservedActionCue::Cast;
     Named.ActionCueAgeMs = 30;
-    Named.ActionEquipment = 3;
-    TestTrue(TEXT("A cast may name one equipment source"), LDObservation::ValidateUnit(Named, Error));
     Named.ActionAbility = 7;
-    TestFalse(TEXT("A cast names at most one source"), LDObservation::ValidateUnit(Named, Error));
-    Named.ActionEquipment = 0;
+    TestTrue(TEXT("A cast may name its ability"), LDObservation::ValidateUnit(Named, Error));
     Named.ActionCue = ELDObservedActionCue::Attack;
-    TestFalse(TEXT("Only a cast names a source"), LDObservation::ValidateUnit(Named, Error));
+    TestFalse(TEXT("Only a cast names an ability"), LDObservation::ValidateUnit(Named, Error));
     for (uint8 Seat = 0; Seat < LDObservation::MaxPresentations; ++Seat)
     {
         FLDObservedUnitView Unit = ContenderUnit();

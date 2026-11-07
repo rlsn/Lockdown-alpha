@@ -48,7 +48,6 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::AmbushReady: return TEXT("ambush_ready");
     case ELDDemoStatusId::Exposed: return TEXT("exposed");
     case ELDDemoStatusId::Taunt: return TEXT("taunt");
-    case ELDDemoStatusId::Stealth: return TEXT("stealth");
     case ELDDemoStatusId::Disarm: return TEXT("disarm");
     case ELDDemoStatusId::Stun: return TEXT("stun");
     case ELDDemoStatusId::Empowered: return TEXT("empowered");
@@ -525,25 +524,29 @@ LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winn
     return View;
 }
 
+bool LDHUD::IsEquipmentSlot(EActionSlot Slot) { return Slot==EActionSlot::Equipment1||Slot==EActionSlot::Equipment2; }
 LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext& Context)
 {
     FActionView View;
     View.Slot=Input.Slot;View.Key=Context.KeyLabel;
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W;
     const bool bDash=Input.Slot==EActionSlot::Dash;
-    View.Kind=bLearned?TEXT("角色主动"):bDash?TEXT("通用冲刺"):TEXT("装备主动");
+    const bool bEquipment=IsEquipmentSlot(Input.Slot);
+    View.Kind=bLearned?TEXT("角色主动"):bDash?TEXT("通用冲刺"):TEXT("装备");
     View.Name=!Input.bHasSource?(bLearned?FString(TEXT("空槽")):bDash?FString(LDTerms::Dash)+TEXT("不可用"):FString(TEXT("无装备")))
         :bLearned&&Input.Rank>0?FString::Printf(TEXT("%s %d级"),*Input.Name,Input.Rank):Input.Name;
-    // Only a current own context may send; a predicted execution failure never suppresses the intent itself.
-    View.bCanSubmitIntent=Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
+    // Only a current own context may send; a predicted execution failure never suppresses the intent itself. An equipment
+    // slot is never activated.
+    View.bCanSubmitIntent=!bEquipment&&Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
     FString State;
     auto Block=[&View,&State](uint32 Flag,const FString& Text){View.ExecutionBlocks|=Flag;if(State.IsEmpty()){State=Text;}};
     if(!Context.bOwnContext||!Input.bProjected){Block(ActionUnsynced,TEXT("未同步"));}
     if(!Context.bPlaying){Block(ActionNotPlaying,TEXT("对局未进行"));}
     else if(!Context.bAlive){Block(ActionDead,LDTerms::Dead);}
     if(Input.bProjected&&!Input.bHasSource){Block(ActionEmpty,bLearned?TEXT("空槽"):TEXT("无装备"));}
-    else if(Input.bProjected&&!Input.bHasActive){Block(ActionNoActive,TEXT("无主动效果"));}
-    if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ReadyAtMs>0)
+    else if(Input.bProjected&&bEquipment){Block(ActionPassive,TEXT("已装备"));}
+    const bool bActive=Input.bProjected&&Input.bHasSource&&!bEquipment;
+    if(bActive&&Input.ReadyAtMs>0)
     {
         if(!Context.bClock){Block(ActionUnsynced,TEXT("冷却时间同步中"));}
         else if(Input.ReadyAtMs>Context.NowMs)
@@ -553,12 +556,12 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
             Block(ActionCooldown,TEXT("冷却 ")+TenthsUp(View.CooldownRemainingMs));
         }
     }
-    if(Input.bProjected&&Input.bHasActive&&Input.bControlled){Block(ActionControlled,TEXT("受控制无法使用"));}
-    if(Input.bProjected&&Input.bHasActive&&Context.bManaKnown&&Input.ManaCostP2>Context.ManaP2){Block(ActionMana,LDTerms::NotEnoughMana());}
+    if(bActive&&Input.bControlled){Block(ActionControlled,TEXT("受控制无法使用"));}
+    if(bActive&&Context.bManaKnown&&Input.ManaCostP2>Context.ManaP2){Block(ActionMana,LDTerms::NotEnoughMana());}
     if(Input.bProjected&&!Input.ServerBlock.IsEmpty()){Block(ActionServer,Input.ServerBlock);}
     View.State=State.IsEmpty()?FString(TEXT("就绪")):State;
     View.Countdown=CooldownText(View.CooldownRemainingMs);
-    if(Input.bProjected&&Input.bHasSource&&Input.bHasActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
+    if(bActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
     if(bLearned&&Input.bHasSource&&Input.Rank>0){View.Rank=FString::FromInt(Input.Rank);}
     return View;
@@ -567,7 +570,8 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
 {
     FActionDetailView Detail;
     Detail.Name=View.Name;
-    Detail.Summary=FString::Printf(TEXT("%s [%s] · %s"),*View.Kind,*View.Key,*View.State);
+    Detail.Summary=View.Key.IsEmpty()?FString::Printf(TEXT("%s · %s"),*View.Kind,*View.State)
+        :FString::Printf(TEXT("%s [%s] · %s"),*View.Kind,*View.Key,*View.State);
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W;
     const bool bDash=Input.Slot==EActionSlot::Dash;
     TArray<FString> Lines;
@@ -597,15 +601,8 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
             for(const FLDDemoStatBonus& Stat:LDDemoEquipment::EffectiveStats(*Item,Input.bUpgraded)){Lines.Add(StatLine(Stat));}
             if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(*Item,Input.bUpgraded))
             {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-            if(const FLDDemoRankDefinition* Active=Item->HasActive?LDDemoEquipment::EffectiveActiveRank(*Item,Input.bUpgraded):nullptr)
-            {
-                Lines.Add(TEXT("主动：")+TargetLine(Item->Active.Target));
-                for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
-            }
-            else{Lines.Add(TEXT("无主动效果"));}
         }
         else if(Content){Lines.Add(TEXT("内容目录中找不到该装备"));}
-        Lines.Add(TEXT("装备主动没有角色等级；两件同款各自独立冷却"));
     }
     if(Context.bInputCaptured){Lines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
     Detail.Body=FString::Join(Lines,TEXT("\n"));
@@ -615,7 +612,7 @@ LDHUD::EActionLook LDHUD::ActionLook(const FActionView& View,bool bArmed)
 {
     const uint32 Blocks=View.ExecutionBlocks;
     if(Blocks&(ActionUnsynced|ActionNotPlaying|ActionDead)){return EActionLook::Blocked;}
-    if(Blocks&(ActionEmpty|ActionNoActive)){return EActionLook::Empty;}
+    if(Blocks&(ActionEmpty|ActionPassive)){return EActionLook::Empty;}
     if(bArmed){return EActionLook::Armed;}
     if(Blocks&ActionControlled){return EActionLook::Controlled;}
     if(Blocks&ActionCooldown){return EActionLook::Cooling;}
@@ -774,12 +771,11 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     }
     case ELDDemoEffectOp::Lifesteal: return FString(LDTerms::BasicAttack)+TEXT("打掉的")+LDTerms::Health+TEXT("的 ")+HudPercent(Effect.RatioBp)+TEXT(" 回复自身");
     case ELDDemoEffectOp::Dash: return TEXT("朝方向冲刺 ")+HudRational(Effect.DistanceCm)+TEXT("cm（")+HudSeconds(Effect.DurationMs)+TEXT("）");
-    case ELDDemoEffectOp::RestoreMana: return TEXT("回复 ")+HudPercent(Effect.RatioBp)+TEXT(" ")+LDTerms::MaxMana();
     case ELDDemoEffectOp::DashBoost:
     {
         FString Text=FString(LDTerms::Dash)+TEXT("的冷却变为 ")+HudPercent(Effect.CooldownRatioBp)+TEXT("，")+LDTerms::Dash+TEXT("的距离 +")+HudPercent(Effect.DistanceBonusBp);
         if(Effect.SkillDistanceBonusBp>0||Effect.SkillCooldownRatioBp>0)
-        {Text+=TEXT("；带冲刺或跳跃的技能与装备主动距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
+        {Text+=TEXT("；带冲刺或跳跃的技能距离 +")+HudPercent(Effect.SkillDistanceBonusBp)+TEXT("，冷却变为 ")+HudPercent(Effect.SkillCooldownRatioBp);}
         return Text;
     }
     case ELDDemoEffectOp::Cleave: return TEXT("横扫：主目标周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内造成主击 ")+HudPercent(Effect.RatioBp)+TEXT(" 的")+LDTerms::PhysicalDamage+TEXT("副击");
@@ -810,13 +806,6 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     }
     case ELDDemoEffectOp::ControlDamageAmp: return TEXT("对处于任何控制或")+FString(LDTerms::Slow)+TEXT("下的敌人，伤害 +")+HudPercent(Effect.RatioBp);
     case ELDDemoEffectOp::Taunt: return FString(LDTerms::Taunt)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("：自身周围 ")+HudRational(Effect.RadiusCm)+TEXT("cm 内的敌人");
-    case ELDDemoEffectOp::Stealth:
-    {
-        FString Text=FString(LDTerms::Stealth)+TEXT(" ")+HudSeconds(Effect.DurationMs)+TEXT("，")+HudRational(Effect.RadiusCm)
-            +TEXT("cm 内的敌人可认出，")+LDTerms::MoveSpeed+TEXT(" -")+HudPercent(Effect.RatioBp);
-        if(Effect.bAmbushReady){Text+=TEXT("；进入")+FString(LDTerms::Stealth)+TEXT("时潜水党立即就绪");}
-        return Text;
-    }
     case ELDDemoEffectOp::Disarm: return FString(LDTerms::Disarm)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Stun: return FString(LDTerms::Stun)+TEXT(" ")+HudSeconds(Effect.DurationMs);
     case ELDDemoEffectOp::Backstab:
@@ -955,11 +944,6 @@ TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
     for(const FLDDemoStatBonus& Stat:Item.UpgradedStats){Lines.Add(StatLine(Stat));}
     if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(Item,true))
     {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-    if(const FLDDemoRankDefinition* Active=LDDemoEquipment::EffectiveActiveRank(Item,true))
-    {
-        Lines.Add(TEXT("主动 [1/2]：")+TargetLine(Item.Active.Target));
-        for(const FString& Line:RankLines(*Active,true)){Lines.Add(TEXT("  ")+Line);}
-    }
     return Lines;
 }
 TArray<FLDShopItemView> LDHUD::CatalogItems(const FLDDemoContentDefinitions* Content)
@@ -969,7 +953,7 @@ TArray<FLDShopItemView> LDHUD::CatalogItems(const FLDDemoContentDefinitions* Con
     for(const FLDDemoEquipmentDefinition& Definition:Content->Equipment)
     {
         FLDShopItemView& Row=Items.AddDefaulted_GetRef();
-        Row.DefinitionId=FName(*Definition.Id);Row.BuyPrice=Definition.BuyPrice;Row.SellGold=Definition.SellGold;Row.bHasActive=Definition.HasActive;
+        Row.DefinitionId=FName(*Definition.Id);Row.BuyPrice=Definition.BuyPrice;Row.SellGold=Definition.SellGold;
     }
     return Items;
 }
@@ -989,7 +973,7 @@ int32 LDHUD::NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemVie
     }
     return INDEX_NONE;
 }
-LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
+LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,const FLDDemoContentDefinitions* Content)
 {
     FShopItemView View;
     const FString Id=Item.DefinitionId.ToString();
@@ -1000,16 +984,8 @@ LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,bool
     {
         for(const FLDDemoStatBonus& Stat:Definition->Stats){View.Lines.Add(StatLine(Stat));}
         if(Definition->HasPassive){for(const FLDDemoEffectDefinition& Effect:Definition->Passive.Effects){View.Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-        if(Definition->HasActive)
-        {
-            View.Lines.Add(TEXT("主动 [1/2]：")+TargetLine(Definition->Active.Target));
-            for(const FString& Line:RankLines(Definition->Active.Rank,true)){View.Lines.Add(TEXT("  ")+Line);}
-        }
-        else{View.Lines.Add(TEXT("无主动效果"));}
     }
     else if(Content){View.Lines.Add(TEXT("内容目录中找不到该装备"));}
-    if(Item.bInheritsCooldown&&Item.InheritedReadyAtMs>0)
-    {View.Lines.Add(bClock&&Item.InheritedReadyAtMs>NowMs?TEXT("购买后继承未结束冷却 ")+TenthsUp(Item.InheritedReadyAtMs-NowMs):FString(TEXT("购买后继承此前的冷却记录")));}
     return View;
 }
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
@@ -1114,9 +1090,8 @@ FString LDHUD::CombatRejectText(ELDCombatReject Reject)
     case ELDCombatReject::RequestConflict: return TEXT("请求冲突");
     case ELDCombatReject::ReceiptExpired: return TEXT("回执已过期");
     case ELDCombatReject::Cancelled: return TEXT("已取消");
-    case ELDCombatReject::StaleSource: return TEXT("技能或装备已变化");
+    case ELDCombatReject::StaleSource: return TEXT("技能已变化");
     case ELDCombatReject::SourceUnavailable: return TEXT("没有可用来源");
-    case ELDCombatReject::NoActiveEffect: return TEXT("无主动效果");
     case ELDCombatReject::Busy: return TEXT("正在执行其他动作");
     case ELDCombatReject::Cooldown: return TEXT("冷却中");
     case ELDCombatReject::AttackNotReady: return FString(LDTerms::BasicAttack)+TEXT("尚未就绪");
@@ -1142,9 +1117,22 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     if(Input.bHasSource){Input.Name=Slot==EActionSlot::Dash?FString(LDTerms::Dash):ContentName(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
-    Input.Rank=Entry.Rank;Input.bHasActive=Entry.bHasActive;Input.ManaCostP2=Entry.ManaCostP2;
+    Input.Rank=Entry.Rank;Input.ManaCostP2=Entry.ManaCostP2;
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
+    return Input;
+}
+LDHUD::FActionInput LDHUD::EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content)
+{
+    FActionInput Input;
+    Input.Slot=Slot;Input.bProjected=true;
+    Input.bHasSource=Held.bOccupied&&!Held.DefinitionId.IsNone();
+    if(Input.bHasSource)
+    {
+        Input.DefinitionId=Held.DefinitionId;
+        Input.Name=ContentName(Content,Held.DefinitionId.ToString());
+        Input.bUpgraded=Held.bUpgraded;
+    }
     return Input;
 }
 namespace
@@ -1194,8 +1182,6 @@ FString LDHUD::EntryLabel(ELDCombatEntry Entry)
     case ELDCombatEntry::Basic: return LDTerms::BasicAttack;
     case ELDCombatEntry::Q: return TEXT("角色技能 1");
     case ELDCombatEntry::W: return TEXT("角色技能 2");
-    case ELDCombatEntry::Item1: return TEXT("装备 1");
-    case ELDCombatEntry::Item2: return TEXT("装备 2");
     case ELDCombatEntry::Dash: return LDTerms::Dash;
     default: return TEXT("动作");
     }
@@ -1212,8 +1198,7 @@ FString LDHUD::CombatReceiptNotice(const FLDCombatActionReceipt& Receipt)
 }
 FString LDHUD::CombatReceiptSlotNotice(const FLDCombatActionReceipt& Receipt)
 {
-    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Item1||Receipt.Entry==ELDCombatEntry::Item2
-        ||Receipt.Entry==ELDCombatEntry::Dash;
+    const bool bSlot=Receipt.Entry==ELDCombatEntry::Q||Receipt.Entry==ELDCombatEntry::W||Receipt.Entry==ELDCombatEntry::Dash;
     if(!bSlot||Receipt.Phase!=ELDCombatPhase::Rejected||Receipt.Origin!=ELDCombatRequestOrigin::Direct
         ||Receipt.Reject==ELDCombatReject::None||Receipt.Reject==ELDCombatReject::Cancelled){return FString();}
     return CombatRejectText(Receipt.Reject);

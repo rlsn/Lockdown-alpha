@@ -229,7 +229,7 @@ bool ALDCampDirector::BuildCandidates(const FLDCampMemberState& Member, const FM
             return false;
         }
         const FVector TargetFoot = Target->GetCharacterMovement()->GetActorFeetLocation();
-        // Camp perception honours stealth exactly like a contender's observation.
+        // Camp perception uses the same sight rule as a contender's observation.
         switch (Mode->Vision->TraceObservation(Self.FootCm, *Target, Registry->Revision()))
         {
         case ELDSightResult::Visible:
@@ -523,7 +523,7 @@ bool ALDCampDirector::ProcessBoss(const FLDGameplayWritePermit& Permit, FString&
         Error = TEXT("Combat has no readable state for the living Boss.");
         return false;
     }
-    // Every living contender, as the Boss sees it now (stealth honoured exactly like a contender's observation).
+    // Every living contender, as the Boss sees it now (the same sight rule as a contender's observation).
     TArray<LDAirdrop::FCandidate> Feet;
     Mode->Combat->ReadLivingContenderFeet(Feet);
     TArray<LDBoss::FCandidate> Living;

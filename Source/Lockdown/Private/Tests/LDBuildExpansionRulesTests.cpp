@@ -99,7 +99,7 @@ bool FLDBuildExpansionConditionalTest::RunTest(const FString& Parameters)
     // Dash credit (passive_lurking) brings the window closer; it never makes a nonpositive delay ready.
     TestTrue(TEXT("A two-second credit opens the window two seconds early"), AmbushReady(1000, 4000, 3000, 2000));
     TestFalse(TEXT("The credit window is exact"), AmbushReady(1000, 4000, 2999, 2000));
-    TestTrue(TEXT("A full credit readies at once (item_paper_box)"), AmbushReady(1000, 4000, 1000, 4000));
+    TestTrue(TEXT("A full credit readies at once"), AmbushReady(1000, 4000, 1000, 4000));
     // Vamp marks (active_slipper_throw Lv3): one per source, bound to the slow that made it, refreshed by that source,
     // invisible to every other source, and only while the bound slow lasts.
     TArray<FLDCombatVampMark> Marks;

@@ -134,7 +134,7 @@ struct FLDBodyCombatState
     TArray<FLDCombatVampMark> VampMarks;
     // Hard-control diminishing returns of this life (LDCombatControl::DiminishHardControl).
     FLDHardControlChain HardControl;
-    // Ambush readiness credit from dashes, jumps and stealth; valid only while LastCombatAtMs equals AmbushCreditFromMs.
+    // Ambush readiness credit from dashes and jumps; valid only while LastCombatAtMs equals AmbushCreditFromMs.
     int64 AmbushCreditMs=0;
     int64 AmbushCreditFromMs=0;
     // passive_battle_rhythm stacks (their speed term is a timed bonus keyed by the passive) and item_edge_blade's landed-basic count.
@@ -164,7 +164,6 @@ struct FLDBodyCombatState
     TArray<FLDAssistContribution> AssistContributions;
     TOptional<FLDCombatShield> Shield;
     TOptional<FLDCombatTaunt> Taunt;       // contenders only
-    TOptional<FLDCombatStealth> Stealth;
     TOptional<FLDCombatAction> Action;
     int64 LastCombatAtMs=0;
     int64 RegenThroughMs=0;
@@ -175,7 +174,7 @@ struct FLDBodyCombatState
     int64 DashUntilMs=0;
     // Released action and last landed hit of this life for the visible action cue.
     FLDCombatCueFacts Cues;
-    // Source of the last released action (the visible Cast cue's ability or gear once its windup released).
+    // Source of the last released action (the visible Cast cue's ability once its windup released).
     FLDCombatSourceRef ReleasedSource;
     uint64 ResetThroughEpoch=0;
     bool bPendingDeath=false;
@@ -198,14 +197,12 @@ struct FLDBodyCombatState
     int64 ShieldBonusUntilMs=0;
 };
 
-// Persistent cooldown identity; an item instance or entry slot is only its current binding.
+// Persistent cooldown identity; the entry slot is only its current binding.
 struct FLDCombatTrack
 {
     FGuid IssuedCooldownId;
     ELDCombatSourceKind Kind=ELDCombatSourceKind::None;
     FName DefinitionId;
-    FGuid BoundInstance;      // Gear: the bound item instance
-    bool bBound=false;
     int64 ReadyAtMs=0;
     int64 LastDurationMs=0;
 };
@@ -305,7 +302,6 @@ struct FLDCombatHit
     int64 KnockbackMs=0;
     bool bKnockbackFromAnchor=false; // pushed away from KnockbackAnchorCm instead of the source body's foot
     FVector KnockbackAnchorCm=FVector::ZeroVector;
-    int64 HealCutBp=0, HealCutMs=0;
     int64 VulnerableBp=0;            // installed for as long as the root this hit applies
     int64 NegativeAmpBp=0;           // per negative kind on the target at this hit (active_cancel_blast)
     int64 ShieldShatterBp=0;         // share of the target's shield removed before the damage (not a break)
@@ -395,15 +391,6 @@ struct FLDCombatZone
     int64 OnHitScaleBp=0;
 };
 
-// A decoy left by item_decoy_wig: neither attackable nor selectable; lured victims walk to it until it ends.
-struct FLDCombatDecoy
-{
-    FGuid EffectId;
-    FLDCombatBodyRef Holder;
-    FVector PointCm=FVector::ZeroVector;
-    int64 ExpiresAtMs=0;
-};
-
 UCLASS()
 class LOCKDOWN_API ALDCombatDirector : public AActor
 {
@@ -440,7 +427,7 @@ public:
     FLDCombatActionReceipt StartNavAttack(const FLDCombatCaller& Caller, const FLDCombatRequestKey& Key,
         const FLDCombatBodyRef& Target, const FGuid& Observed, uint32 ObservationEpoch,
         const FLDGameplayWritePermit& Permit);
-    // Navigation's approach-and-cast orders (unit, ground-point and projectile Q/W/1/2, 2026-11-06 decisions): judges the
+    // Navigation's approach-and-cast orders (unit, ground-point and projectile Q/W, 2026-11-06 decisions): judges the
     // owner's Direct request now, inside the Actions permit, exactly as a queued Direct request would be judged.
     // OutOfRange and Busy (and Blocked sight to a unit) leave the request unrecorded (bFinal false) so the order keeps
     // closing in or waiting; every other outcome records, reports and returns it like an ordinary Direct receipt
@@ -458,27 +445,21 @@ public:
     // Voluntary movement blocked by Root or Stun (LDCombatControl matrix); a taunt forces movement instead.
     bool IsMoveBlocked(const ALDCharacter& Body) const;
     // The control matrix for one registered body at the current authority time: Root/Disarm/Stun (LDCombatControl)
-    // and a taunt's ban on abilities, items and displacement (LDControl::TauntBlocks).
+    // and a taunt's ban on abilities and displacement (LDControl::TauntBlocks).
     bool IsActionBlocked(const FLDBodyCombatState& Body, ELDCombatControlAction Action) const;
     bool ReadMoveSpeed(const ALDCharacter& Body, float& OutCmPerSec) const;
     // The taunter's exact body while Victim is taunted now; false otherwise. Navigation forces its order from this.
     bool ReadTaunter(const FLDCombatBodyRef& Victim, FLDCombatBodyRef& OutTaunter) const;
-    // A decoy lure on Victim now (item_decoy_wig): the point Navigation walks it to. False when it is not lured.
-    bool ReadDecoyLure(const FLDCombatBodyRef& Victim, FVector& OutPoint) const;
     // Knockbacks that landed on this body life so far; Navigation drops the current order whenever it changes.
     uint64 ReadKnockbackSerial(const FLDCombatBodyRef& Body) const;
-    // Every decoy standing now, for presentation (owner, point, expiry).
-    const TArray<FLDCombatDecoy>& ReadDecoys() const { return Decoys; }
-    // Planar distance beyond which enemies cannot observe this body now (stealth); 0 when it is not hidden.
-    double ConcealBeyondCm(const ALDCharacter& Body) const;
     // Public Root/Shield cues of a registered body at NowMs; protection is derived by the life domain.
     void AppendObservedStatuses(const ALDCharacter& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // Action cue of a registered body at NowMs (LDCombatCues); None after a lethal hit (LDCombatObservation.cpp).
     // Fails (with Error) when a visible cast has no approved source, so the publication fails rather than hiding it.
     bool AppendObservedAction(const ALDCharacter& Body, int64 NowMs, FLDObservedPublicFacts& InOut, FString& Error) const;
-    // The approved native ids of the cast the body's visible Cast cue shows at NowMs (Q/W ability or gear active, dash
-    // included); both zero when no Cast cue shows. Fails only when a cast source has no approved definition.
-    bool ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility, uint8& OutEquipment) const;
+    // The approved native id of the Q/W ability the body's visible Cast cue shows at NowMs; zero when no Cast cue shows
+    // or the cast is the innate dash. Fails only when a cast source has no approved definition.
+    bool ObservedCastSource(const ALDCharacter& Body, int64 NowMs, uint8& OutAbility) const;
     // Every projectile still in flight after the last Effects advance, for the observation owner to sample.
     // Fails without output for a projectile whose source has no approved look.
     bool ReadObservedProjectiles(TArray<FLDObservedProjectileFact>& Out, FString& Error) const;
@@ -495,15 +476,14 @@ public:
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
-    FLDGearBindingPreview PreviewGearBinding(const FLDCombatCaller& Caller, FName EquipmentId) const;
 
 #if WITH_DEV_AUTOMATION_TESTS
     // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDEconomyDirector inside the Transactions permit.
     // The contender's current Alive body to its committed HP/MP maxima (the shield is untouched). False with Detail when
     // the permit, the contender record or a living body is missing; nothing changes then.
     bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
-    // Every cooldown track of the contender (learned and gear, bound or unbound debt) ready at the permit boundary;
-    // tracks keep their identity and binding. False with Detail when the permit or the contender record is missing.
+    // Every cooldown track of the contender (learned, held or forgotten, and the innate dash) ready at the permit
+    // boundary; tracks keep their identity. False with Detail when the permit or the contender record is missing.
     bool DevResetCooldowns(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
     // Pure parts of the two commands. RefillPool returns whether HP or MP changed; ResetTracks the number of tracks
     // that were cooling down at NowMs.
@@ -522,8 +502,8 @@ public:
     // DEV test reset to the match start, part 1 (pure, inside the reset composite): the empty level-1 build without a
     // DEV layer at Growth's and the ledger's result revisions, through PrepareProjected like any build change.
     FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision, uint64 ResultInventoryRevision) const;
-    // Part 2, right after ApplyBuildChange of part 1: every learned and gear cooldown track is dropped (a later learn or
-    // buy issues a new one, as at the match start), the innate dash track is ready at NowMs and a living body's HP/MP
+    // Part 2, right after ApplyBuildChange of part 1: every learned cooldown track is dropped (a later learn issues a
+    // new one, as at the match start), the innate dash track is ready at NowMs and a living body's HP/MP
     // are full. Returns the number of dropped tracks.
     int32 DevFinishReset(const FGuid& Contender, int64 NowMs);
     // Pure part of DevFinishReset's tracks.
@@ -648,10 +628,8 @@ private:
     // inside the current Actions/Effects permit. A contender body's spray progress clears through the capture domain;
     // camp bodies and a world without an active spray reducer are untouched. Disarm, slow and damage never call it.
     bool InterruptSpray(const FLDBodyCombatState& Target, FString& Error);
-    // Effective speed of one body: the projection, less an active stealth penalty.
-    bool EffectiveMoveSpeed(const FLDBodyCombatState& Body, int64 NowMs, double& OutCmPerSec) const;
-    // Stealth ends at an accepted attack/ability/item or a positive hit.
-    void RevealStealth(FLDBodyCombatState& Body);
+    // Effective speed of one body: its projection with the current temporary terms.
+    bool EffectiveMoveSpeed(const FLDBodyCombatState& Body, double& OutCmPerSec) const;
     bool Regenerate(int64 NowMs, FString& Error);
     // Settles every living body through NowMs; only contender bodies receive the D21 Recovery, and a contender whose
     // foot stands inside one of Dorms at this settle also receives DormRecovery for the interval (#79).
@@ -675,9 +653,9 @@ private:
     // The lone resolver of passive effects a projection holds: learned trigger ranks and equipment families (once each).
     bool CollectPassiveEffects(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op, TArray<FLDPassiveEffectRef>& Out,
         FString& Error) const;
-    // Whether the body's ambush passive is ready at NowMs, its dash/stealth credit included.
+    // Whether the body's ambush passive is ready at NowMs, its dash credit included.
     bool AmbushReadyNow(const FLDBodyCombatState& Body, int64 NowMs) const;
-    // Adds ambush readiness credit for the current out-of-combat window (passive_lurking dashes, item_paper_box stealth).
+    // Adds ambush readiness credit for the current out-of-combat window (passive_lurking dashes).
     void CreditAmbush(FLDBodyCombatState& Body, int64 AmountMs);
     // Mana and shield grants of triggered effects; both mark the owner view.
     void GrantMana(FLDBodyCombatState& Body, int64 AmountP2);
@@ -717,7 +695,7 @@ private:
     // abandoned and the current order dropped (KnockbackSerial).
     bool ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState& Body, const FLDCombatHit& Hit, int64 NowMs, bool& bApplied,
         FString& Error);
-    // A body displaced itself (dash, jump, leap): expose-post punishments on it and its own thick-skin shield.
+    // A body displaced itself (dash, jump): expose-post punishments on it and its own thick-skin shield.
     bool OnMobilityUsed(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // The source of Hit applied a control or slow: its thick-skin shield (unless the hit came from a shield trigger).
     bool OnControlApplied(const FLDCombatHit& Hit, int64 NowMs, FString& Error);
@@ -728,7 +706,7 @@ private:
     bool StackDox(FLDBodyCombatState& Target, FLDBodyCombatState& Source, const FLDCombatHit& Hit, int64 NowMs, FString& Error);
     // The guard of Body counts this hit and recoils once past its threshold.
     bool CountGuard(ALDCharacter& Actor, FLDBodyCombatState& Body, int64 PreMitigationP2, int64 NowMs, FString& Error);
-    // Dots, zones, volley shots, decoys and lapsed mechanics records, due at NowMs (Effects, before the hits).
+    // Dots, zones, volley shots and lapsed mechanics records, due at NowMs (Effects, before the hits).
     bool AdvanceMechanics(int64 NowMs, FString& Error);
     bool ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs);
     int64 NextMechanicsDueMs(int64 NowMs) const;
@@ -743,14 +721,12 @@ private:
     ALDCharacter* ActorOf(const FLDBodyCombatState& Body) const;
     // passive_thick_skin of Body: a shield on mobility or control, behind its internal cooldown.
     bool GrantThickSkin(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
-    // The release-time content of the #112 actives (zones, volleys, guard, burst, decoy, cooldown refresh, leap).
-    // The release-time self content of the #112 actives: the guard, zones, later volley shots, the decoy and its lure,
-    // the backward leap and the cooldown refresh. Hit payloads ride on Template (null when the rank has no hit).
-    // DisplacementBonusBp is the item_phase_anchor distance bonus fixed at this release; it lengthens the backward leap.
+    // The release-time self content of the #112 actives: the guard, zones and later volley shots.
+    // Hit payloads ride on Template (null when the rank has no hit).
     bool ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatSourceRef& Source,
         const FLDDemoRankDefinition& Rank, const FLDCombatHit* Template, const FVector& OriginFoot, const FVector& TargetPoint,
-        const FGuid& EffectId, uint64 Token, int64 DisplacementBonusBp, FString& Error);
-    // Hit extras of a #112 rank (dot, heal cut, vulnerability, negative-kind terms, knockback, refresh, on-hit scale).
+        const FGuid& EffectId, uint64 Token, FString& Error);
+    // Hit extras of a #112 rank (dot, vulnerability, negative-kind terms, knockback, refresh, on-hit scale).
     void FillMechanicsTemplate(const FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, const FVector& OriginFoot,
         int64 NowMs, FLDCombatHit& Template) const;
 
@@ -764,11 +740,10 @@ private:
     const FLDCombatTrack* TrackFor(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry) const;
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
-        uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility, const FLDDemoEquipmentDefinition*& OutEquipment) const;
-    // The executable active of a resolved entry: a learned rank, a gear active or the innate dash; false without one.
+        uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility) const;
+    // The executable active of a resolved entry: a learned rank or the innate dash; false without one.
     bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, const FLDDemoAbilityDefinition* Ability,
-        const FLDDemoEquipmentDefinition* Equipment, const FLDDemoTargetDefinition*& OutTarget,
-        const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const;
+        const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const;
     // D19/D20 innate dash terms for the body's installed equipment passives (the persistent build without a body).
     bool InnateDashFor(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, FLDInnateDashTerms& Out,
         FString& Error) const;
@@ -785,7 +760,6 @@ private:
     TArray<FLDCombatLanding> Landings;
     TArray<FLDCombatZone> Zones;
     TArray<FLDCombatVolleyShot> VolleyShots;
-    TArray<FLDCombatDecoy> Decoys;
     TArray<FLDCombatDashSweep> DashSweeps;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.

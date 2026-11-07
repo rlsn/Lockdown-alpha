@@ -38,7 +38,7 @@ int32 ALDCombatDirector::DevResetTracks(TArray<FLDCombatTrack>& Tracks, int64 No
     {
         if (Track.ReadyAtMs > NowMs)
         {
-            // Only the end moves: identity, binding and the last duration stay, so a bound source keeps its track.
+            // Only the end moves: identity and the last duration stay, so a held source keeps its track.
             Track.ReadyAtMs = NowMs;
             ++Reset;
         }

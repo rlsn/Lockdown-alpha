@@ -73,7 +73,6 @@ inline constexpr TCHAR Shield[]=TEXT("护盾");
 inline constexpr TCHAR Root[]=TEXT("定身");
 inline constexpr TCHAR Slow[]=TEXT("减速");
 inline constexpr TCHAR Taunt[]=TEXT("嘲讽");
-inline constexpr TCHAR Stealth[]=TEXT("查无此人");
 inline constexpr TCHAR Disarm[]=TEXT("缴械");
 inline constexpr TCHAR Stun[]=TEXT("眩晕");
 inline constexpr TCHAR RespawnProtection[]=TEXT("复活保护");

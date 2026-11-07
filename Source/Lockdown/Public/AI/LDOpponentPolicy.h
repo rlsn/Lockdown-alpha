@@ -28,7 +28,7 @@ enum class ELDOpponentReason : uint8
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
-enum class ELDOpponentSourceSlot : uint8 { Q, W, Gear0, Gear1, Dash };
+enum class ELDOpponentSourceSlot : uint8 { Q, W, Dash };
 
 struct FLDOpponentSkill
 {
@@ -364,7 +364,6 @@ struct FLDEquipmentPairRank
     int32 Filled = 0;
     int32 BasicGrowth = 0;
     int32 Survival = 0;
-    int32 ActiveSources = 0;
     int32 DistinctPassives = 0;
     int32 Compare(const FLDEquipmentPairRank& Other) const;
 };

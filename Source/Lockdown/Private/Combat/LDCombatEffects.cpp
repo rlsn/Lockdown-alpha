@@ -384,8 +384,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         // A zone's periodic slow refresh is not a visible hit.
         if (!Hit.bSilent || Damage.DamageP2>0) { Body->Cues.LastHitAtMs=NowMs; }
         MarkViewChanged(Body->Victim.EntityId);
-        // Being hurt (absorbed damage included) or controlled reveals a stealthed body.
-        RevealStealth(*Body);
         // Committed positive damage (absorbed included) is the owner's assist contribution; controls record in CommitControl.
         if (Damage.DamageP2>0) { RecordAssistContribution(*Body,Hit.CreditOwner,NowMs); }
     }
@@ -472,14 +470,6 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         }
     }
     // #112 §5 mechanics of this committed hit, after its damage and controls.
-    if (bControllable && Hit.HealCutBp>0 && Hit.HealCutMs>0)
-    {
-        FLDCombatHealCut Cut{Hit.EffectId,Hit.SourceEntity,Hit.HealCutBp,0};
-        if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.HealCutMs,Cut.ExpiresAtMs,Error)) { return false; }
-        if (LDCombatMechanics::ApplyHealCut(Body->HealCuts,Cut,NowMs)) { ++Body->StateRevision; }
-        // A heal and shield cut is a debuff: its owner's assist contribution on this life.
-        RecordAssistContribution(*Body,Hit.CreditOwner,NowMs);
-    }
     if (bControllable && Hit.Dot.IsSet())
     {
         FLDCombatDot Dot=Hit.Dot.GetValue();
@@ -703,7 +693,7 @@ FLDCombatHit ALDCombatDirector::MakeAmbushHit(const FLDCombatHit& Primary, const
     Hit.bPeriodic=Hit.bFromShieldTrigger=Hit.bSilent=Hit.bRefreshDebuffs=Hit.bKnockbackFromAnchor=false;
     Hit.ExtraAmplifyBp=10000;
     Hit.KnockbackCm=0;
-    Hit.KnockbackMs=Hit.HealCutBp=Hit.HealCutMs=Hit.VulnerableBp=Hit.NegativeAmpBp=Hit.ShieldShatterBp=Hit.NegativeHealMaxHPBp=0;
+    Hit.KnockbackMs=Hit.VulnerableBp=Hit.NegativeAmpBp=Hit.ShieldShatterBp=Hit.NegativeHealMaxHPBp=0;
     Hit.Dot.Reset();
     // passive_lurking Lv3: the first strike shreds both resistances of the struck body.
     Hit.ShredKey=FName(*Term.AbilityId);
@@ -1292,12 +1282,12 @@ void ALDCombatDirector::ExpireStatuses(int64 NowMs)
     {
         FLDBodyCombatState& Body=Pair.Value;
         const FLDStatusExpiry Expired=LDTactical::ExpireTimedStatuses(Body.Roots,Body.Shield,Body.Resources.ShieldP2,NowMs);
-        const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,Body.Stealth,NowMs);
+        const FLDStatusExpiry Control=LDControl::ExpireControlStatuses(Body.Taunt,NowMs);
         const bool bControls=LDCombatControl::ExpireDisarmsAndStuns(Body.Disarms,Body.Stuns,NowMs);
         const bool bEmpower=Body.Empower.IsSet() && Body.Empower->ExpiresAtMs<=NowMs;
         if (bEmpower) { Body.Empower.Reset(); }
         const bool bMechanics=ExpireMechanics(Body,NowMs);
-        if (!Expired.bRootsChanged && !Expired.bShieldChanged && !Control.bTauntChanged && !Control.bStealthChanged
+        if (!Expired.bRootsChanged && !Expired.bShieldChanged && !Control.bTauntChanged
             && !bControls && !bEmpower && !bMechanics) { continue; }
         ++Body.StateRevision;
         if (Expired.bShieldChanged) { ++Body.Resources.Revision; }

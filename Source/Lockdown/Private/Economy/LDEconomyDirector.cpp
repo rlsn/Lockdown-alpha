@@ -73,8 +73,7 @@ void EconomyDeathFactBytes(const FLDCommittedDeath& Death, TArray<uint8>& Out)
     FGuid CreditOwner = Death.CreditOwner;
     uint8 SourceKind = uint8(Death.ReleasedSource.Kind);
     FString SourceDefinition = Death.ReleasedSource.DefinitionId.ToString();
-    FGuid SourceInstance = Death.ReleasedSource.ItemInstance;
-    Writer << VictimBody << VictimContender << FatalEffect << CreditOwner << SourceKind << SourceDefinition << SourceInstance;
+    Writer << VictimBody << VictimContender << FatalEffect << CreditOwner << SourceKind << SourceDefinition;
     EconomyWriteVictim(Writer, Death.SourceBodyAtRelease.Victim);
     FGuid SourceBody = Death.SourceBodyAtRelease.BodyIdentity;
     FString RewardDefinition = Death.RewardBasis.RewardDefinitionId.ToString();

@@ -32,7 +32,7 @@
 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) | M1、M2、M5 | 核心类型/时钟/许可/驱动边界；房间、喷漆与守护、死亡/复活、结果、新局及故障退出 |
 | [操作与目标](CONTROLS_AND_TARGETING.md) | M3 | 全部输入、点击分派、持续攻击/攻击移动、目标模式、可见性重查、取消、UI 捕获、镜头与操作手感 |
 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md) | M4 | 动作/来源/P2 写入、typed 字段消费、Prepare/Apply 投影、致死集合与 CampReset |
-| [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md) | M6、M7、M8 | 死亡奖励、开局与升级三选一、替换、两装备与独立冷却债、账本复算、查询结果 |
+| [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md) | M6、M7、M8 | 死亡奖励、开局与升级三选一、替换、两装备与冷却债、账本复算、查询结果 |
 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md) | M9G、M9C、M10 | 单层坐标与模型、合法路径、十锚点、营地、单一稀疏观测与隐私 |
 | [对手 AI](OPPONENT_AI.md) | M12 | 受限快照、无连接 adapter、P0–P9 核心循环、同一命令/回执；参数来自内容表 |
 | [UI与设置](UI_AND_SETTINGS.md) | M11 | 单一输入层、全界面合法投影、设置保存与固定无边框窗口 |

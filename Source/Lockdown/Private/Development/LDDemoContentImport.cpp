@@ -68,14 +68,11 @@ const FNativeId NativeIds[] =
     DEMO_ID("equipment", "item_arcane_battery", ELDDemoEquipmentId, ItemArcaneBattery),
     DEMO_ID("equipment", "item_echo_maul", ELDDemoEquipmentId, ItemEchoMaul),
     DEMO_ID("equipment", "item_slingshot", ELDDemoEquipmentId, ItemSlingshot),
-    DEMO_ID("equipment", "item_paper_box", ELDDemoEquipmentId, ItemPaperBox),
     DEMO_ID("equipment", "item_nail_uniform", ELDDemoEquipmentId, ItemNailUniform),
     DEMO_ID("equipment", "item_megaphone", ELDDemoEquipmentId, ItemMegaphone),
     DEMO_ID("equipment", "item_dossier", ELDDemoEquipmentId, ItemDossier),
     DEMO_ID("equipment", "item_privacy_screen", ELDDemoEquipmentId, ItemPrivacyScreen),
     DEMO_ID("equipment", "item_skateboard", ELDDemoEquipmentId, ItemSkateboard),
-    DEMO_ID("equipment", "item_decoy_wig", ELDDemoEquipmentId, ItemDecoyWig),
-    DEMO_ID("equipment", "item_energy_drink", ELDDemoEquipmentId, ItemEnergyDrink),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -89,7 +86,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("statuses", "ambush_ready", ELDDemoStatusId, AmbushReady),
     DEMO_ID("statuses", "exposed", ELDDemoStatusId, Exposed),
     DEMO_ID("statuses", "taunt", ELDDemoStatusId, Taunt),
-    DEMO_ID("statuses", "stealth", ELDDemoStatusId, Stealth),
     DEMO_ID("statuses", "disarm", ELDDemoStatusId, Disarm),
     DEMO_ID("statuses", "stun", ELDDemoStatusId, Stun),
     DEMO_ID("statuses", "empowered", ELDDemoStatusId, Empowered),
@@ -105,7 +101,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "out_of_combat_regen", ELDDemoEffectOp, OutOfCombatRegen),
     DEMO_ID("effect_ops", "lifesteal", ELDDemoEffectOp, Lifesteal),
     DEMO_ID("effect_ops", "dash", ELDDemoEffectOp, Dash),
-    DEMO_ID("effect_ops", "restore_mana", ELDDemoEffectOp, RestoreMana),
     DEMO_ID("effect_ops", "cleave", ELDDemoEffectOp, Cleave),
     DEMO_ID("effect_ops", "dash_boost", ELDDemoEffectOp, DashBoost),
     DEMO_ID("effect_ops", "slow", ELDDemoEffectOp, Slow),
@@ -115,7 +110,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "ambush_damage", ELDDemoEffectOp, AmbushDamage),
     DEMO_ID("effect_ops", "control_damage_amp", ELDDemoEffectOp, ControlDamageAmp),
     DEMO_ID("effect_ops", "taunt", ELDDemoEffectOp, Taunt),
-    DEMO_ID("effect_ops", "stealth", ELDDemoEffectOp, Stealth),
     DEMO_ID("effect_ops", "disarm", ELDDemoEffectOp, Disarm),
     DEMO_ID("effect_ops", "stun", ELDDemoEffectOp, Stun),
     DEMO_ID("effect_ops", "empower_basic", ELDDemoEffectOp, EmpowerBasic),
@@ -136,7 +130,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "dispel_slow", ELDDemoEffectOp, DispelSlow),
     DEMO_ID("effect_ops", "path_slow", ELDDemoEffectOp, PathSlow),
     DEMO_ID("effect_ops", "knockback", ELDDemoEffectOp, Knockback),
-    DEMO_ID("effect_ops", "heal_cut", ELDDemoEffectOp, HealCut),
     DEMO_ID("effect_ops", "dot", ELDDemoEffectOp, Dot),
     DEMO_ID("effect_ops", "mobility_punish", ELDDemoEffectOp, MobilityPunish),
     DEMO_ID("effect_ops", "volley", ELDDemoEffectOp, Volley),
@@ -153,9 +146,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("effect_ops", "damage_guard", ELDDemoEffectOp, DamageGuard),
     DEMO_ID("effect_ops", "shield_burst", ELDDemoEffectOp, ShieldBurst),
     DEMO_ID("effect_ops", "vulnerable", ELDDemoEffectOp, Vulnerable),
-    DEMO_ID("effect_ops", "decoy", ELDDemoEffectOp, Decoy),
-    DEMO_ID("effect_ops", "leap_back", ELDDemoEffectOp, LeapBack),
-    DEMO_ID("effect_ops", "cooldown_refresh", ELDDemoEffectOp, CooldownRefresh),
     DEMO_ID("effect_ops", "breach_stacks", ELDDemoEffectOp, BreachStacks),
     DEMO_ID("effect_ops", "mobility_shield", ELDDemoEffectOp, MobilityShield),
     DEMO_ID("effect_ops", "shield_pulse", ELDDemoEffectOp, ShieldPulse),
@@ -203,16 +193,31 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     {
         return false;
     }
+    // Inclusive retired identity ranges per section; they must stay exactly these and are never reused.
+    struct FRetiredRange { int64 First; int64 Last; };
+    static const FRetiredRange RetiredAbilities[] = {{0, 61}};
+    static const FRetiredRange RetiredEquipment[] = {{0, 98}, {107, 107}, {113, 114}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
-    for (const auto& Pair : {TPair<const TCHAR*, int64>(TEXT("abilities"), 61), {TEXT("equipment"), 98}})
+    for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
+        {TEXT("equipment"), RetiredEquipment}})
     {
-        const TArray<FValue>* Range;
-        int64 First, Last;
-        if (!Array(Retired.Take(Pair.Key), Range, Check, Retired.Path, 2, 2)
-            || !Integer((*Range)[0], First, Check, Retired.Path, 0, 0)
-            || !Integer((*Range)[1], Last, Check, Retired.Path, Pair.Value, Pair.Value))
+        const TArray<FValue>* Ranges;
+        const int32 Count = Pair.Value.Num();
+        if (!Array(Retired.Take(Pair.Key), Ranges, Check, Retired.Path, Count, Count))
         {
             return false;
+        }
+        for (int32 Index = 0; Index < Count; ++Index)
+        {
+            const TArray<FValue>* Range;
+            int64 First, Last;
+            const FRetiredRange& Expected = Pair.Value[Index];
+            if (!Array((*Ranges)[Index], Range, Check, Retired.Path, 2, 2)
+                || !Integer((*Range)[0], First, Check, Retired.Path, Expected.First, Expected.First)
+                || !Integer((*Range)[1], Last, Check, Retired.Path, Expected.Last, Expected.Last))
+            {
+                return false;
+            }
         }
     }
     if (!Retired.Done())
@@ -421,7 +426,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
     const FEntry Entries[] =
     {
         DEMO_POLICY(StatStacking, AddFlatThenAdditivePercent), DEMO_POLICY(DuplicateEquipment, Allowed),
-        DEMO_POLICY(DuplicateEquipmentPassive, OncePerFamily), DEMO_POLICY(DuplicateEquipmentActive, IndependentSources),
+        DEMO_POLICY(DuplicateEquipmentPassive, OncePerFamily),
         DEMO_POLICY(MissingSourceCooldown, ContinueServerTime), DEMO_POLICY(DeadChoiceCommit, Allowed),
         DEMO_POLICY(ResourceMaxChange, PreserveRatio), DEMO_POLICY(ReleasedEffectSourceLoss, ContinueForRemainingContender),
         DEMO_POLICY(SourceLeave, CancelUnsettledNoRefund), DEMO_POLICY(InvalidAggressionProtection, BreakOnAggressiveIntent),
@@ -747,7 +752,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         }
         break;
     case ELDDemoEffectOp::Lifesteal:
-    case ELDDemoEffectOp::RestoreMana:
     case ELDDemoEffectOp::Cleave:
         if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000))
         {
@@ -766,7 +770,7 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         }
         break;
     case ELDDemoEffectOp::DashBoost:
-        // skill_*: the boost of every dash or jump active (character and gear), fixed at its release.
+        // skill_*: the boost of every learned dash or jump active, fixed at its release.
         if (!F.Fixed(TEXT("cooldown_ratio"), TEXT("ratio"), TEXT("bp"), Out.CooldownRatioBp, 1, 10000)
             || !F.Fixed(TEXT("distance_bonus"), TEXT("ratio"), TEXT("bp"), Out.DistanceBonusBp)
             || !Check.Require(Out.CooldownRatioBp < 10000 || Out.DistanceBonusBp > 0, Path, TEXT("ineffective dash boost"))
@@ -842,17 +846,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
             return false;
         }
         break;
-    case ELDDemoEffectOp::Stealth:
-        // RadiusCm is the reveal distance; RatioBp is the movement-speed penalty while hidden (below 100%).
-        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
-            || !F.Fraction(TEXT("reveal_radius"), TEXT("cm"), Out.RadiusCm, true)
-            || !F.Fixed(TEXT("move_speed_penalty"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 0, 9999)
-            || (F.Has(TEXT("ambush_ready")) && (!F.Flag(TEXT("ambush_ready"), Out.bAmbushReady)
-                || !Check.Require(Out.bAmbushReady, Path, TEXT("an optional flag is present only when set")))))
-        {
-            return false;
-        }
-        break;
     case ELDDemoEffectOp::Disarm:
     case ELDDemoEffectOp::Stun:
     case ELDDemoEffectOp::Jump:
@@ -919,16 +912,14 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
     }
     // #112 handlers (LDCombatMechanics). Field use: see FLDDemoEffectDefinition and docs/systems/COMBAT_AND_GROWTH.md.
     case ELDDemoEffectOp::Knockback:
-    case ELDDemoEffectOp::LeapBack:
         if (!F.Fraction(TEXT("distance"), TEXT("cm"), Out.DistanceCm, true)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
         {
             return false;
         }
         break;
-    case ELDDemoEffectOp::HealCut:
     case ELDDemoEffectOp::HitHaste:
-        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, Out.GetOp() == ELDDemoEffectOp::HealCut ? 9999 : 10000)
+        if (!F.Fixed(TEXT("ratio"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000)
             || !F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1))
         {
             return false;
@@ -955,7 +946,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         }
         break;
     case ELDDemoEffectOp::RefreshDebuffs:
-    case ELDDemoEffectOp::CooldownRefresh:
         break;
     case ELDDemoEffectOp::OnHit:
         if (!F.Fixed(TEXT("scale"), TEXT("ratio"), TEXT("bp"), Out.RatioBp, 1, 10000))
@@ -1040,14 +1030,6 @@ bool Effect(const FValue& Value, FLDDemoEffectDefinition& Out, FCheck& Check, co
         Out.DamageType = Type.Equals(TEXT("Physical"), ESearchCase::CaseSensitive) ? ELDDemoDamageType::Physical : ELDDemoDamageType::Magical;
         break;
     }
-    case ELDDemoEffectOp::Decoy:
-        if (!F.Fixed(TEXT("duration"), TEXT("ms"), TEXT("ms"), Out.DurationMs, 1)
-            || !F.Fraction(TEXT("radius"), TEXT("cm"), Out.RadiusCm, true)
-            || !F.Fixed(TEXT("taunt_duration"), TEXT("ms"), TEXT("ms"), Out.SecondaryDurationMs, 1))
-        {
-            return false;
-        }
-        break;
     case ELDDemoEffectOp::CooldownRefund:
     {
         FString Entries;
@@ -1593,9 +1575,7 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
         return false;
     }
     uint32 ExpectedStats = 0;
-    FOpMask ActiveOps, PassiveOps;
-    ELDDemoTargetMode Mode = ELDDemoTargetMode::Self;
-    const TCHAR* ActiveFamily = nullptr;
+    FOpMask PassiveOps;
     const TCHAR* PassiveFamily = nullptr;
     switch (Out.GetNativeId())
     {
@@ -1615,16 +1595,12 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
         ExpectedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
         PassiveFamily = TEXT("passive_stride"); PassiveOps = OpBit(ELDDemoEffectOp::DashBoost); break;
     case ELDDemoEquipmentId::ItemArcaneBattery:
-        ExpectedStats = Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::MagicResistFlat);
-        ActiveFamily = TEXT("cd_arcane_battery"); ActiveOps = OpBit(ELDDemoEffectOp::RestoreMana) | OpBit(ELDDemoEffectOp::Shield); break;
+        ExpectedStats = Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::MagicResistFlat); break;
     case ELDDemoEquipmentId::ItemEchoMaul:
         ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::AttackRangeCmFlat);
         PassiveFamily = TEXT("passive_cleave"); PassiveOps = OpBit(ELDDemoEffectOp::Cleave); break;
     case ELDDemoEquipmentId::ItemSlingshot:
         ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat) | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio); break;
-    case ELDDemoEquipmentId::ItemPaperBox:
-        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
-        ActiveFamily = TEXT("cd_paper_box"); ActiveOps = OpBit(ELDDemoEffectOp::Stealth); break;
     case ELDDemoEquipmentId::ItemNailUniform:
         ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::ArmorFlat);
         PassiveFamily = TEXT("passive_prickle"); PassiveOps = OpBit(ELDDemoEffectOp::Thorns); break;
@@ -1632,22 +1608,13 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
         ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::CooldownHasteFlat);
         PassiveFamily = TEXT("passive_megaphone"); PassiveOps = OpBit(ELDDemoEffectOp::AfflictionAmp); break;
     case ELDDemoEquipmentId::ItemDossier:
-        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MaxHPFlat); Mode = ELDDemoTargetMode::Unit;
-        ActiveFamily = TEXT("cd_dossier"); ActiveOps = OpBit(ELDDemoEffectOp::Damage) | OpBit(ELDDemoEffectOp::HealCut); break;
+        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MaxHPFlat); break;
     case ELDDemoEquipmentId::ItemPrivacyScreen:
         ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::APFlat);
         PassiveFamily = TEXT("passive_privacy_screen"); PassiveOps = OpBit(ELDDemoEffectOp::ShieldBreakRetort); break;
     case ELDDemoEquipmentId::ItemSkateboard:
         ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
         PassiveFamily = TEXT("passive_skateboard"); PassiveOps = OpBit(ELDDemoEffectOp::HitHaste); break;
-    case ELDDemoEquipmentId::ItemDecoyWig:
-        ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::APFlat);
-        ActiveFamily = TEXT("cd_decoy_wig");
-        ActiveOps = OpBit(ELDDemoEffectOp::DispelRoot) | OpBit(ELDDemoEffectOp::DispelSlow) | OpBit(ELDDemoEffectOp::LeapBack)
-            | OpBit(ELDDemoEffectOp::Decoy); break;
-    case ELDDemoEquipmentId::ItemEnergyDrink:
-        ExpectedStats = Bit(ELDDemoBonusStat::CooldownHasteFlat) | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio);
-        ActiveFamily = TEXT("cd_energy_drink"); ActiveOps = OpBit(ELDDemoEffectOp::CooldownRefresh); break;
     default:
         return Check.Require(false, Path, TEXT("unimplemented equipment projection"));
     }
@@ -1655,46 +1622,15 @@ bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Che
     {
         return false;
     }
-    const FValue Active = F.Take(TEXT("active"));
     const FValue Passive = F.Take(TEXT("passive"));
     if (!Check.Good)
     {
         return false;
     }
-    Out.HasActive = Active->Type != EJson::Null;
     Out.HasPassive = Passive->Type != EJson::Null;
-    if (!Check.Require(Out.HasActive == (ActiveFamily != nullptr) && Out.HasPassive == (PassiveFamily != nullptr),
-        Path, TEXT("wrong active/passive presence")))
+    if (!Check.Require(Out.HasPassive == (PassiveFamily != nullptr), Path, TEXT("wrong passive presence")))
     {
         return false;
-    }
-    if (Out.HasActive)
-    {
-        FFields A(Check, Active, Path + TEXT(".active"));
-        if (!Target(A.Take(TEXT("target")), Out.Active.Target, Check, A.Path + TEXT(".target"))
-            || !Check.Require(Out.Active.Target.Mode == Mode, A.Path, TEXT("wrong active target"))
-            || !A.Fixed(TEXT("windup"), TEXT("ms"), TEXT("ms"), Out.Active.WindupMs)
-            || !A.Identifier(TEXT("cooldown_family"), Out.Active.CooldownFamily)
-            || !Check.Require(Out.Active.CooldownFamily == ActiveFamily, A.Path, TEXT("wrong cooldown family"))
-            || !Rank(A.Take(TEXT("rank")), Out.Active.Rank, 1, true, ActiveOps, Check, A.Path + TEXT(".rank")))
-        {
-            return false;
-        }
-        // 112 §7: optional until its value is approved; an item missing it is simply not upgradable.
-        if (A.Object.IsValid() && A.Object->HasField(TEXT("upgraded_rank")))
-        {
-            Out.Active.HasUpgradedRank = true;
-            if (!Rank(A.Take(TEXT("upgraded_rank")), Out.Active.UpgradedRank, 2, true, ActiveOps, Check, A.Path + TEXT(".upgraded_rank"))
-                || !Check.Require(SameHandlers(Out.Active.Rank.Effects, Out.Active.UpgradedRank.Effects), A.Path,
-                    TEXT("the upgraded active must keep the base handlers in the same order")))
-            {
-                return false;
-            }
-        }
-        if (!A.Done())
-        {
-            return false;
-        }
     }
     if (Out.HasPassive)
     {
@@ -1931,7 +1867,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     }
     // D19: the innate dash is projected into the single-rank active shape Combat executes for every source.
     FFields Dash(Check, Character.Take(TEXT("dash")), TEXT("content.character.dash"));
-    FLDDemoEquipmentActive& InnateDash = Out.Character.Dash;
+    FLDDemoDashDefinition& InnateDash = Out.Character.Dash;
     FLDDemoEffectDefinition& DashMove = InnateDash.Rank.Effects.AddDefaulted_GetRef();
     InnateDash.Target.Mode = ELDDemoTargetMode::DirectionDash;
     InnateDash.Rank.Rank = 1;
@@ -1944,7 +1880,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Dash.Done() || !Character.Done()
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 30, Ability)
         || !Definitions(F.Take(TEXT("attributes")), Out.Attributes, Check, TEXT("content.attributes"), 3, 14, Attribute)
-        || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 16, Equipment)
+        || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 13, Equipment)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
         return false;

@@ -94,7 +94,7 @@ TArray<LDDevPanel::FItemRow> LDDevPanel::ItemRows(const FLDDemoContentDefinition
     {
         FItemRow& Row=Rows.AddDefaulted_GetRef();
         Row.Id=FName(*Item.Id);Row.Name=LDHUD::ContentName(&Content,Item.Id);Row.Price=Item.BuyPrice;
-        Row.Traits=Item.HasActive&&Item.HasPassive?TEXT("主动 + 被动"):Item.HasActive?TEXT("主动"):Item.HasPassive?TEXT("被动"):TEXT("属性");
+        Row.Traits=Item.HasPassive?TEXT("被动"):TEXT("属性");
     }
     return Rows;
 }
