@@ -388,14 +388,17 @@ struct FContext
             return nullptr;
         }
         const FVector& Centre = Frame.Public.LeaderCircleCentreCm;
+        // An arrival without the leader in sight is remembered in the visit memory, so neither that place nor any other
+        // place reached recently is ordered again while the next one is walked to (no turnback, no repeated orders).
+        if (Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.Status == ELDOpponentOrderStatus::Completed)
+        {
+            const FLDOpponentPOI* Reached = Frame.POIs.FindByPredicate([this](const FLDOpponentPOI& P) { return P.Id == Frame.Order.POI; });
+            if (Reached && FVector::Dist2D(Reached->FootCm, Centre) <= LeaderRadiusCm) { RecordVisit(Reached->Id); }
+        }
         const FLDOpponentPOI* Best = nullptr;
         for (const auto& POI : Frame.POIs)
         {
-            // A place just reached without the leader in sight is not ordered again at once: the walk would end on
-            // arrival and repeat every decision.
-            const bool bReached = Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI == POI.Id
-                && Frame.Order.Status == ELDOpponentOrderStatus::Completed;
-            if (POI.Kind == ELDOpponentPOIKind::Shop || bReached || !CanAttempt(PathKey(POI.Id))
+            if (POI.Kind == ELDOpponentPOIKind::Shop || RecentlyVisited(POI.Id) || !CanAttempt(PathKey(POI.Id))
                 || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
             const double Distance = FVector::Dist2D(POI.FootCm, Centre);
             if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)

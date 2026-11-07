@@ -2118,6 +2118,29 @@ bool RunHuntLeader(FAutomationTestBase& Test)
     const auto Again = LDOpponentPolicy::Decide(Frame, C, Arrived);
     bGood &= Test.TestFalse(TEXT("D27: a hunt place just reached is not ordered again at every decision"),
         Again.Body.Kind == EBody::MoveGround && Again.Body.POI == FName(TEXT("h1")));
+    // A second public place inside the circle: after h1 the hunt walks on to it, and while that walk is pending or under
+    // way the place just reached is not ordered again (no turnback).
+    auto Wider = Base;
+    Wider.POIs.Add(POI(TEXT("s01"), ELDOpponentPOIKind::Spawn, 1400, 600));
+    Frame = Wider;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("h1");
+    FLDOpponentPolicyState Onward;
+    const auto Next = LDOpponentPolicy::Decide(Frame, C, Onward);
+    bGood &= Expect(Test, TEXT("D27: after the nearest place the hunt walks on to the next one in the circle"), Next,
+        EMode::Explore, EBody::MoveGround, TEXT("s01"));
+    for (const ELDOpponentOrderStatus Walking : {ELDOpponentOrderStatus::Pending, ELDOpponentOrderStatus::Active})
+    {
+        Frame = Wider;
+        Frame.Public.NowMs += 250;
+        Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Frame.Order.Status = Walking;
+        Frame.Order.POI = TEXT("s01");
+        const auto During = LDOpponentPolicy::Decide(Frame, C, Onward);
+        bGood &= Test.TestFalse(FString::Printf(TEXT("D27: the walk to the next place (status %u) is not turned back to the place just reached"),
+            uint8(Walking)), During.Body.Kind == EBody::MoveGround && During.Body.POI == FName(TEXT("h1")));
+    }
     Frame = Base;
     Frame.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel - 1);
     FLDOpponentPolicyState Weak;
