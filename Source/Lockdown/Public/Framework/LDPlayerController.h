@@ -10,6 +10,7 @@
 #include "LDPlayerController.generated.h"
 
 struct FInputActionValue;
+class ACameraActor;
 class ULDUIRoot;
 class FLDPlaytestTrace;
 
@@ -25,6 +26,9 @@ public:
     virtual void UpdateCameraManager(float DeltaSeconds) override;
     virtual void FlushPressedKeys() override;
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out) const override;
+#if WITH_DEV_AUTOMATION_TESTS
+    void SetDevArtCaptureCamera(ACameraActor* Camera);
+#endif
     void SetMenuOpen(bool bOpen);
     void SetDemoReady(bool Ready);
     void SetDemoAICount(uint8 Count);
@@ -215,6 +219,7 @@ private:
     bool bHasCameraPose=false;
     UPROPERTY() TObjectPtr<class ACameraActor> WaitingCamera;
 #if WITH_DEV_AUTOMATION_TESTS
+    TWeakObjectPtr<ACameraActor> DevArtCaptureCamera;
     friend class FLDFixedCameraTest;
 #endif
     // ---- Combat and orders (combat-orders module, Framework/LDPlayerOrders.cpp and LDPlayerInput.cpp) ----

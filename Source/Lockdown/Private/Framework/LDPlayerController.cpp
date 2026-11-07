@@ -195,14 +195,18 @@ void ALDPlayerController::SetMenuOpen(bool bOpen)
 
 void ALDPlayerController::UpdateCameraManager(float DeltaSeconds)
 {
+    bool bDevArtCapture=false;
+#if WITH_DEV_AUTOMATION_TESTS
+    bDevArtCapture=DevArtCaptureCamera.IsValid();
+#endif
     if (GetLocalPlayer())
     {
         if (!IsFrontend()) { UpdateLocalViewTarget(); }
         if (auto* Active=Cast<ALDCharacter>(GetPawn())) { Active->UpdateOwnerPresentation(DeltaSeconds); }
-        Navigation->UpdateLocalCamera(DeltaSeconds);
+        if (!bDevArtCapture) { Navigation->UpdateLocalCamera(DeltaSeconds); }
     }
     Super::UpdateCameraManager(DeltaSeconds);
-    if (GetLocalPlayer() && !IsFrontend() && PlayerCameraManager)
+    if (!bDevArtCapture && GetLocalPlayer() && !IsFrontend() && PlayerCameraManager)
     {
         LastCameraPose=FTransform(PlayerCameraManager->GetCameraRotation(),PlayerCameraManager->GetCameraLocation());
         LastCameraFOV=PlayerCameraManager->GetFOVAngle();
@@ -219,8 +223,20 @@ void ALDPlayerController::PlayerTick(float Delta)
     Trace().Tick(*this);
 }
 
+#if WITH_DEV_AUTOMATION_TESTS
+void ALDPlayerController::SetDevArtCaptureCamera(ACameraActor* Camera)
+{ DevArtCaptureCamera=Camera; }
+#endif
+
 void ALDPlayerController::UpdateLocalViewTarget()
 {
+#if WITH_DEV_AUTOMATION_TESTS
+    if (auto* CaptureCamera=DevArtCaptureCamera.Get())
+    {
+        if (GetViewTarget()!=CaptureCamera) { SetViewTarget(CaptureCamera); }
+        return;
+    }
+#endif
     if (auto* Active=Cast<ALDCharacter>(GetPawn()))
     {
         // Possession and the owner life receipt travel independently. Always bind the actual local body before

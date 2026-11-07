@@ -24,6 +24,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
+#include "Framework/LDPlayerController.h"
 #include "GameFramework/PlayerController.h"
 #include "HAL/FileManager.h"
 #include "Materials/Material.h"
@@ -60,6 +61,7 @@ namespace
     {
         TWeakObjectPtr<UWorld> World;
         TWeakObjectPtr<ACameraActor> Camera;
+        TWeakObjectPtr<ALDPlayerController> CaptureController;
         FString Directory, PendingImage;
         TArray<TSharedPtr<FJsonValue>> Checks, Images, Bodies, Decorations, Occluders, OccludedPoints;
         TArray<FArtShot> Shots;
@@ -81,6 +83,7 @@ namespace
         bool Finish(const FString& Error = FString())
         {
             if (!Error.IsEmpty()) { Check(false, Error); }
+            if (auto* Controller = CaptureController.Get()) { Controller->SetDevArtCaptureCamera(nullptr); }
             auto Report = MakeShared<FJsonObject>();
             Report->SetBoolField(TEXT("passed"), !Failed);
             Report->SetStringField(TEXT("scope"), TEXT("DEV art fixture in the Demo map Lobby: catalog bodies posed per clip and the decorated field rendered from the game camera angle; decoration collision, sight-trace and navigation checks on the Listen Host. Not a gameplay, combat wiring or network acceptance."));
@@ -387,6 +390,10 @@ namespace
             View->GetCameraComponent()->PostProcessBlendWeight = 1.f;
             View->GetCameraComponent()->bConstrainAspectRatio = false;
             Camera = View;
+            auto* Controller = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
+            if (!Check(Controller != nullptr, TEXT("Art capture has a local Lockdown controller"))) { return false; }
+            CaptureController = Controller;
+            Controller->SetDevArtCaptureCamera(View);
             return true;
         }
 
@@ -416,8 +423,9 @@ namespace
             // Wait for the new art materials to compile so that no screenshot shows the default material.
             if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling()) { NextAt = Now + 1.; return true; }
             if (Shot >= Shots.Num()) { return Finish(); }
-            APlayerController* Controller = Target.GetFirstPlayerController();
-            if (!Camera.IsValid() || !Controller) { return Finish(TEXT("No capture camera or local player controller")); }
+            auto* Controller = Cast<ALDPlayerController>(Target.GetFirstPlayerController());
+            if (!Camera.IsValid() || !Controller || Controller != CaptureController.Get())
+            { return Finish(TEXT("No capture camera or original local player controller")); }
             const FArtShot& Current = Shots[Shot];
             Camera->SetActorTransform(Current.bTopDown
                 ? FTransform(FRotator(-90., -90., 0.), FVector(Current.Focus.X, Current.Focus.Y, Current.ArmCm))

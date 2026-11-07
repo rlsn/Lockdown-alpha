@@ -82,6 +82,38 @@ bool FLDFixedCameraTest::RunTest(const FString& Parameters)
     PC->UpdateLocalViewTarget();
     TestTrue(TEXT("Replicated respawn rebinds the actual body even before its life receipt"),
         PC->GetViewTarget()==Respawned && !PC->WaitingCamera && !IsValid(Waiting));
+
+    PC->SetPawn(nullptr);
+    PC->UpdateLocalViewTarget();
+    ACameraActor* CaptureWaiting=PC->WaitingCamera;
+    if (!TestNotNull(TEXT("Waiting camera before DEV art capture"),CaptureWaiting)) { return false; }
+    auto* Capture=World->SpawnActor<ACameraActor>();
+    if (!TestNotNull(TEXT("DEV art capture camera"),Capture)) { return false; }
+    PC->SetDevArtCaptureCamera(Capture);
+    PC->SetViewTarget(PC);
+    bool bCaptureRetained=true;
+    for (int32 I=0;I<4;++I)
+    {
+        PC->UpdateLocalViewTarget();
+        bCaptureRetained&=PC->GetViewTarget()==Capture && PC->WaitingCamera==CaptureWaiting;
+    }
+    TestTrue(TEXT("DEV art capture retains its camera across repeated pawnless evaluations"),bCaptureRetained);
+    PC->SetPawn(Respawned);
+    PC->SetViewTarget(PC);
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("DEV art capture retains its camera when a pawn arrives"),PC->GetViewTarget()==Capture);
+    PC->SetDevArtCaptureCamera(nullptr);
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("Releasing DEV art capture restores the body camera"),
+        PC->GetViewTarget()==Respawned && !PC->WaitingCamera && !IsValid(CaptureWaiting));
+    PC->SetPawn(nullptr);
+    PC->UpdateLocalViewTarget();
+    ACameraActor* RestoredWaiting=PC->WaitingCamera;
+    PC->SetDevArtCaptureCamera(Capture);
+    Capture->Destroy();
+    PC->UpdateLocalViewTarget();
+    TestTrue(TEXT("A destroyed DEV capture camera automatically restores the waiting camera"),
+        RestoredWaiting && PC->GetViewTarget()==RestoredWaiting);
     return true;
 }
 
