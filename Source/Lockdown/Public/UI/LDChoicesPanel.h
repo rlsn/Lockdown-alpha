@@ -77,6 +77,8 @@ private:
         TObjectPtr<UTextBlock> Glyph,Name,Summary;
     };
     TArray<FCardWidgets> Cards;
+    // #97: the free reroll is a fourth card of the same shape.
+    FCardWidgets RerollCard;
     TArray<LDHUD::FChoiceCardView> CardViews;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> DockFrame;
@@ -88,7 +90,6 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DetailName;
     UPROPERTY() TObjectPtr<UTextBlock> DetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> DetailBody;
-    UPROPERTY() TObjectPtr<UTextBlock> Header;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
     UPROPERTY() TObjectPtr<ULDCommandButton> RerollButton;
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardWidgets;

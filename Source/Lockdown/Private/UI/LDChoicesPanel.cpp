@@ -4,7 +4,6 @@
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
 #include "Development/LDDemoContentDefinitions.h"
-#include "Development/LDProgressionRules.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Components/Border.h"
@@ -60,19 +59,15 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         auto Text=[this](const FString& Value,int32 Size){return LDWidgets::Text(WidgetTree,Value,Size);};
         auto OneLine=[&Text](int32 Size){UTextBlock* Line=Text(TEXT(""),Size);Line->SetAutoWrapText(false);Line->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);return Line;};
         auto* Root=WidgetTree->ConstructWidget<UVerticalBox>();
-        auto* Top=WidgetTree->ConstructWidget<UHorizontalBox>();Root->AddChildToVerticalBox(Top);
-        auto* HeaderSlot=Top->AddChildToHorizontalBox(Header=Text(TEXT(""),17));HeaderSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));HeaderSlot->SetVerticalAlignment(VAlign_Center);
-        RerollButton=LDWidgets::Button(WidgetTree,TEXT("免费重抽"),[this](){Reroll();},false,TEXT("ChoicesReroll"));
-        Top->AddChildToHorizontalBox(RerollButton)->SetPadding(FMargin(12,0,0,0));
-        // No close button: the HUD's blind-box button toggles the panel, and Back closes it like every main panel.
-        // #97: the three compact cards sit side by side in one low row right above the HUD's skill slots, so the eyes and
-        // the pointer travel little between a card and the Q/W slot it may replace. A click on a card is the choice; there
-        // is no separate confirm button.
+        // No header and no close button: the HUD's blind-box button shows the pending count and toggles the panel, and Back
+        // closes it like every main panel. #97: the three compact cards sit side by side in one low row next to that
+        // button, with the free reroll as a fourth card; a click on a card is the choice, with no separate confirm button.
         auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Root->AddChildToVerticalBox(Row)->SetPadding(FMargin(0,8));
-        for(int32 Index=0;Index<3;++Index)
+        Root->AddChildToVerticalBox(Row);
+        for(int32 Index=0;Index<4;++Index)
         {
-            FCardWidgets& Card=Cards.AddDefaulted_GetRef();
+            const bool bReroll=Index==3;
+            FCardWidgets& Card=bReroll?RerollCard:Cards.AddDefaulted_GetRef();
             auto* Face=WidgetTree->ConstructWidget<UHorizontalBox>();
             auto* IconBox=WidgetTree->ConstructWidget<UOverlay>();
             Card.IconShape=WidgetTree->ConstructWidget<UBorder>();Card.IconShape->SetVisibility(ESlateVisibility::HitTestInvisible);
@@ -86,7 +81,8 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Card.Name=OneLine(17);Lines->AddChildToVerticalBox(Card.Name);
             Card.Summary=OneLine(13);Card.Summary->SetColorAndOpacity(LDHUDStyle::TextAccent);Lines->AddChildToVerticalBox(Card.Summary)->SetPadding(FMargin(0,2,0,0));
             auto* LinesSlot=Face->AddChildToHorizontalBox(Lines);LinesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));LinesSlot->SetVerticalAlignment(VAlign_Center);
-            Card.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseCard(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
+            Card.Button=bReroll?LDWidgets::Button(WidgetTree,TEXT(""),[this](){Reroll();},false,TEXT("ChoicesReroll"))
+                :LDWidgets::Button(WidgetTree,TEXT(""),[this,Index](){ChooseCard(Index);},false,FName(*FString::Printf(TEXT("ChoiceCard%d"),Index)));
             Card.Button->SetContent(Face);
             // After SetContent: replacing the caption makes a new, centred slot, which would shrink the icon and lines to
             // their own width in the middle of the card; they start at the card's left edge instead.
@@ -96,8 +92,14 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             CardWidgets.Add(Card.Button);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
         }
         CardViews.SetNum(Cards.Num());
-        // The status line wraps at the row's width, so a long notice never widens the panel.
-        Feedback=Text(TEXT(""),14);Feedback->SetAutoWrapText(false);Feedback->SetWrapTextAt(3*ChoicesCardWidth+16.f);Root->AddChildToVerticalBox(Feedback);
+        // The reroll card: a slate circle with a turn arrow; its lines say what it does and how many rerolls are left.
+        RerollButton=RerollCard.Button;
+        ChoicesIcon(RerollCard.IconSize,RerollCard.IconShape,LDHUD::EChoiceIcon::Passive);RerollCard.IconShape->SetBrushColor(FLinearColor(.20f,.26f,.32f));
+        ChoicesText(RerollCard.Glyph,TEXT("↻"));ChoicesText(RerollCard.Name,TEXT("免费重抽"));
+        // Only a result or a refusal shows under the cards (no standing instructions); it collapses while empty and wraps
+        // at the row's width, so a long notice never widens the panel.
+        Feedback=Text(TEXT(""),14);Feedback->SetAutoWrapText(false);Feedback->SetWrapTextAt(4*ChoicesCardWidth+24.f);
+        Feedback->SetVisibility(ESlateVisibility::Collapsed);Root->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,8,0,0));
         // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
         auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Left);Frame->SetVerticalAlignment(VAlign_Bottom);
@@ -131,6 +133,11 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
 void ULDChoicesPanel::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
+    if(Feedback)
+    {
+        const ESlateVisibility Shown=Feedback->GetText().IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible;
+        if(Feedback->GetVisibility()!=Shown){Feedback->SetVisibility(Shown);}
+    }
     UpdateDetail();
 }
 void ULDChoicesPanel::UpdateDetail()
@@ -189,7 +196,7 @@ UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}
 void ULDChoicesPanel::OpenPanel()
 {
     bOpen=true;ResultNotice.Reset();SetVisibility(ESlateVisibility::SelfHitTestInvisible);Fold.Opened(false,UiNow());
-    if(!PendingRequest){ChoicesText(Feedback,TEXT("点卡片即选定；悬停或聚焦查看详情。对局不会暂停。"));}
+    if(!PendingRequest){ChoicesText(Feedback,TEXT(""));}
 }
 bool ULDChoicesPanel::ClosePanel()
 {
@@ -215,7 +222,7 @@ void ULDChoicesPanel::UpdateFold(bool bOwnHit)
 bool ULDChoicesPanel::CloseChildConfirmation()
 {
     if(!bReplacing){return false;}
-    ResetReplacement();ChoicesText(Feedback,TEXT("已取消替换，没有消耗本次选择。"));return true;
+    ResetReplacement();ChoicesText(Feedback,TEXT(""));return true;
 }
 void ULDChoicesPanel::ResetReplacement()
 {
@@ -229,8 +236,6 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
     if(!MainPanel){return;}
     const bool bUsable=View.bValid&&View.Generation==Match&&View.Life==Life;
     const bool bOffer=bUsable&&View.bHasOffer&&View.Offer.Options.Num()==3;
-    const FString DeadNote=Phase==ELDLifePhase::Dead?FString(TEXT(" · "))+LDTerms::Dead+TEXT("也能开，只更新构筑"):FString();
-    ChoicesText(Header,!bUsable?FString(LDTerms::Choice)+TEXT(" · 成长数据同步中"):FString::Printf(TEXT("%s · 待选 %d 次%s"),LDTerms::Choice,View.PendingChoiceCount,*DeadNote));
     if(!bOffer||View.Offer.OfferId!=ShownOffer||View.Offer.OfferRevision!=ShownOfferRevision)
     {
         // A new offer replaces the cards. A revised offer of the same opportunity refreshes its guarded versions and keeps
@@ -274,8 +279,8 @@ void ULDChoicesPanel::RefreshSelection()
     const bool bCanReroll=Latest.bHasOffer&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
         &&LDGrowthWire::IsChoicePhase(LatestPhase)&&!bReplacing;
     RerollButton->SetIsEnabled(bCanReroll);
-    ChoicesText(CastChecked<UTextBlock>(RerollButton->GetContent()),Latest.bHasOffer&&Latest.Offer.bRerolled
-        ?FString::Printf(TEXT("本组已重抽 · 剩 %d 次"),Tokens):FString::Printf(TEXT("免费重抽 · 剩 %d 次"),Tokens));
+    RerollButton->SetVisibility(ShownOffer.IsValid()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
+    ChoicesText(RerollCard.Summary,Latest.bHasOffer&&Latest.Offer.bRerolled?FString::Printf(TEXT("本组已重抽 · 剩 %d"),Tokens):FString::Printf(TEXT("剩 %d 次"),Tokens));
 }
 bool ULDChoicesPanel::IsReplacementTarget(uint8 SkillSlot) const
 {
@@ -301,7 +306,7 @@ bool ULDChoicesPanel::ChooseReplacement(uint8 SkillSlot)
     if(!bReplacing||SkillSlot>1){return false;}
     if(PendingRequest){ChoicesText(Feedback,TEXT("上一次选择仍在处理中。"));return false;}
     const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
-    if(!Skill){ChoicesText(Feedback,TEXT("该技能槽为空，无需替换；请返回三卡重新确认。"));return false;}
+    if(!Skill){ChoicesText(Feedback,TEXT("该技能槽为空，无需替换；请重新点卡。"));return false;}
     // The slot click is the explicit choice of what to forget, so it submits at once with that skill and rank as expected.
     ReplaceSlot=SkillSlot;ReplaceSkill=Skill->DefinitionId;ReplaceRank=Skill->Rank;RefreshSelection();
     ConfirmChoice();
@@ -325,14 +330,8 @@ void ULDChoicesPanel::ConfirmChoice()
             // #97 short path: the HUD's Q/W slots glow red (IsReplacementTarget) and a click on one is the choice of what to
             // forget, with no further confirmation and no default slot; another card restarts from that card, Back cancels.
             bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;
-            FString Ranks;
-            for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
-            {
-                const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
-                if(Skill){Ranks+=FString::Printf(TEXT("%s%s %d 级 → %d 级"),Ranks.IsEmpty()?TEXT(""):TEXT("，"),
-                    *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank,LDProgression::ReplacementRank(Skill->Rank));}
-            }
-            ChoicesText(Feedback,TEXT("学习「")+Shown.Name+TEXT("」：点 HUD 上要替换的技能（")+Ranks+TEXT("），或点另一张卡。"));
+            // The toast asks; the red slot rings show where; the selected card's popup keeps the rank rule.
+            ChoicesText(Feedback,TEXT(""));
             if(Notify){Notify(TEXT("选择要替换的技能"));}
             RefreshSelection();
             return;
@@ -376,7 +375,7 @@ void ULDChoicesPanel::Send(const FLDChoiceCommand& Command)
         const FString Why=LDHUD::GrowthReasonText(Reason);
         ChoicesText(Feedback,TEXT("没有提交：")+(Why.IsEmpty()?FString(TEXT("原因未知")):Why));RefreshSelection();return;
     }
-    if(Answers==Before){PendingRequest=Request;ChoicesText(Feedback,TEXT("已提交，等待服务器确认…"));}
+    if(Answers==Before){PendingRequest=Request;ChoicesText(Feedback,TEXT(""));}
     RefreshSelection();
 }
 void ULDChoicesPanel::FinishRequest()
@@ -412,7 +411,7 @@ void ULDChoicesPanel::HandleSubmit(const FLDSubmitResult& Result)
     ++Answers;
     switch(Result.Status)
     {
-    case ELDAdmissionStatus::AcceptedPending: ChoicesText(Feedback,TEXT("已受理，等待结算…"));return;
+    case ELDAdmissionStatus::AcceptedPending: return;
     case ELDAdmissionStatus::AdmissionRejected:
         ChoicesText(Feedback,TEXT("没有受理：")+LDHUD::GrowthReasonText(LDGrowthWire::Reason(Result.Reason)));
         if(Result.bSequenceReserved){return;}
@@ -430,7 +429,7 @@ void ULDChoicesPanel::HandleReceipt(const FLDChoiceReceiptQueryResult& Result)
     ++Answers;
     switch(Result.Lookup)
     {
-    case ELDReceiptLookup::Pending: ChoicesText(Feedback,TEXT("已受理，等待结算…"));return;
+    case ELDReceiptLookup::Pending: return;
     case ELDReceiptLookup::Final:
         if(Result.bHasReceipt){ShowFinal(Result.Receipt);}else{ChoicesText(Feedback,TEXT("回执缺少结果，请以当前状态为准。"));}
         break;

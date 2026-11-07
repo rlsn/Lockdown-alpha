@@ -25,9 +25,9 @@
 
 namespace
 {
-// Fog mask outside current coverage (255 is fully lit). #97: raised from 64 so the fogged ground reads lighter
-// (user: "war fog color is too dark, make it lighter").
-constexpr uint8 LDFogHidden = 140;
+// Fog mask outside current coverage (255 is fully lit). #97: raised from 64 to 140, then to 190, so the fogged ground
+// reads lighter (user: "war fog color is too dark, make it lighter", then "further lighten fog of war color").
+constexpr uint8 LDFogHidden = 190;
 }
 
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
