@@ -131,6 +131,10 @@ public:
     bool RosterKept = true, ReadsKept = true;
     // #134: every role presses the playtest mark once, a minute into the match, so the logs carry a mark to review.
     bool bPlaytestMarked = false;
+    // #153: each AI body's foot when the countdown was first sampled, and the largest drift seen before T=0.
+    TMap<TWeakObjectPtr<ALDOpponentController>, FVector> CountdownAIFeet;
+    double MaxCountdownAIDriftCm = 0;
+    int32 CountdownSamples = 0;
     uint32 FirstGeneration = 0;
     int64 RespawnMs = 0, DevelopmentMs = 0, NextSampleMs = 0, StartedAtMs = -1;
     int32 MaxSeenOpponents = 0;
@@ -741,11 +745,33 @@ bool FLDDemoOpponentProbe::Tick()
             Error = TEXT("The start aborted: ") + PC->IntentFeedback;
             return Finish();
         }
+        // #153: through the opening countdown no opponent AI moves (sampled on the authority until T=0).
+        if (bHost && Mode && View.Generation == Lobby.Generation && Mode->IsOpeningCountdown(Mode->GetMatchContext()))
+        {
+            for (TActorIterator<ALDOpponentController> It(World); It; ++It)
+            {
+                const APawn* Pawn = It->GetPawn();
+                if (!Pawn) { continue; }
+                const FVector Foot = Pawn->GetActorLocation();
+                if (const FVector* First = CountdownAIFeet.Find(*It))
+                { MaxCountdownAIDriftCm = FMath::Max(MaxCountdownAIDriftCm, FVector::Dist2D(*First, Foot)); }
+                else { CountdownAIFeet.Add(*It, Foot); }
+            }
+            ++CountdownSamples;
+            return true;
+        }
         if (View.Phase != ELDMatchPhase::Development || View.Generation != Lobby.Generation || !Cast<ALDCharacter>(PC->GetPawn())
             || PC->OwnerState.LifePhase != ELDLifePhase::Alive) { return true; }
         if (OpponentIds.IsEmpty()) { OpponentIds = OpponentRows(Lobby); }
         Check(CountKind(Lobby, ELDContenderKind::Human) == HumanCount && OpponentIds.Num() == OpponentCount,
             TEXT("The room plays with three humans and three AI on the locked roster"));
+        if (bHost)
+        {
+            Check(CountdownSamples > 0 && CountdownAIFeet.Num() == OpponentCount && MaxCountdownAIDriftCm < 1.,
+                TEXT("No opponent AI moves during the opening countdown"));
+            Summary->SetNumberField(TEXT("countdown_samples"), CountdownSamples);
+            Summary->SetNumberField(TEXT("countdown_ai_drift_cm"), MaxCountdownAIDriftCm);
+        }
         if (bHost && !BindOpponents(*World, *Mode, Lobby)) { return Finish(); }
         if (!Passed) { return Finish(); }
         Stage = ELDOpponentProbeStage::Match;

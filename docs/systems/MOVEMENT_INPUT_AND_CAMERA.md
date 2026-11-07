@@ -173,7 +173,7 @@ navmesh 点。注册表的拒绝原因写明被调整的是路线起点还是目
 等现有控制器边界，不在每个 Widget 中重新判断一套角色可行动状态。
 `CanWorldCommand` 是两半之积（实现在 `LDPlayerInput.cpp`）：
 `IsWorldLifeValid()` 只看生命与阶段——`PublicMatch`（唯一的代次/阶段来源，不读 DemoLobby 镜像）的代次等于
-本人 Core 生命投影的 Match、阶段为 Development/CaptureOpen、本人 Alive 且持有身体；
+本人 Core 生命投影的 Match、阶段为 Countdown/Development/CaptureOpen（开局倒计时内镜头与界面可用，世界命令照常发出并由服务器以 `NotStarted` 拒绝）、本人 Alive 且持有身体；
 `IsWorldInputSuppressed()` 只看本地输入——菜单/设置（`SetMenuOpen`）、文本编辑或子确认（`IsWorldInputCaptured()`），
 以及菜单、焦点或映射变化后仍未释放的按键。新的世界命令（订单、Q/W/D、A、S、世界与小地图点击）两半都要满足；
 Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、窗口内焦点移入面板控件（引擎经 `FlushPressedKeys` 清键）

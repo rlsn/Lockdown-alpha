@@ -85,6 +85,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     if (const auto* Mode=Core())
     {
         Consider(Mode->NextLifeDueMs());
+        // #153: the opening countdown ends (T=0) on an exact boundary.
+        Consider(Mode->NextCountdownDueMs());
         // Opening time and the Solo completion must each be an exact step boundary; a resume inside a paused
         // contest is closed at its own instant by CaptureCompletesInsideStep, so it adds no stop here.
         Consider(Mode->NextCaptureDueMs());
@@ -254,7 +256,8 @@ bool ALDCombatDirector::RunActions(const FLDGameplayWritePermit& Permit, FString
     if (!RefreshTaunts(Error)) { return false; }
     // Camp members submit their basic attacks through the same entry first, so they are admitted below.
     if (!Mode->Camps) { Error=TEXT("Camp intents require the camp owner of this match."); return false; }
-    if (!Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
+    // #153: camps stay idle (no aggro, chase or attack) until the opening countdown ends.
+    if (!Mode->IsOpeningCountdown(Mode->GetMatchContext()) && !Mode->Camps->ProcessAuthorityIntents(Permit,Error)) { return false; }
     // Direct intents first: an ability may interrupt a basic windup before Navigation starts the next one.
     TArray<FGuid> Entities;
     Records.GetKeys(Entities);

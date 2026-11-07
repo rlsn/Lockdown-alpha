@@ -57,7 +57,7 @@ void ALDGameState::SyncAirdropMarker()
 {
     UWorld* World=GetWorld();
     const FLDAirdropView& Drop=PublicMatch.Airdrop;
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     const bool bShow=bActive&&Drop.Phase!=ELDAirdropPhase::None&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
         &&UWorld::RemovePIEPrefix(World->GetOutermost()->GetName())==LDDemoEntry::WorldMap;
@@ -119,7 +119,7 @@ void ALDGameState::ClearDormMarkers()
 void ALDGameState::SyncDormMarkers()
 {
     UWorld* World=GetWorld();
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // Like the flagpole boundary: Demo world presentation only, rebuilt for each match generation.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer
@@ -162,7 +162,7 @@ void ALDGameState::SyncDormMarkers()
 void ALDGameState::SyncCaptureMarker()
 {
     UWorld* World=GetWorld();
-    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
+    const bool bActive=PublicMatch.Phase==ELDMatchPhase::Countdown||PublicMatch.Phase==ELDMatchPhase::Development||PublicMatch.Phase==ELDMatchPhase::CaptureOpen
         ||PublicMatch.Phase==ELDMatchPhase::Results;
     // The boundary belongs to the Demo world's presentation; fixture worlds without its registry show none.
     const bool bShow=bActive&&World&&!World->bIsTearingDown&&GetNetMode()!=NM_DedicatedServer

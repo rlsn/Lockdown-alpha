@@ -384,6 +384,8 @@ ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
     case ELDOrderFailure::StaleLife:
     case ELDOrderFailure::Dead:
     case ELDOrderFailure::MatchEnded:
+    // #153: the opening countdown refused it; the next decision after T=0 starts fresh.
+    case ELDOrderFailure::NotStarted:
     case ELDOrderFailure::Superseded:
     case ELDOrderFailure::Stopped:
     case ELDOrderFailure::Expired:
@@ -413,6 +415,7 @@ ELDOpponentSettle SettleAction(const FLDCombatActionReceipt& Receipt)
     case ELDCombatReject::StaleLife:
     case ELDCombatReject::StaleMatch:
     case ELDCombatReject::MatchClosed:
+    case ELDCombatReject::NotStarted:
     case ELDCombatReject::ReceiptExpired: return ELDOpponentSettle::Dropped;
     // Readiness, mana, control, range, a changed source and malformed requests back off and stay bounded.
     default: return ELDOpponentSettle::Failed;
@@ -428,6 +431,7 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     case ELDGrowthReason::LifePhaseChanged:
     case ELDGrowthReason::LeftMatch:
     case ELDGrowthReason::MatchClosed:
+    case ELDGrowthReason::MatchNotStarted:
     case ELDGrowthReason::Dead:
     case ELDGrowthReason::StaleContext:
     case ELDGrowthReason::OfferAlreadyCommitted: return ELDOpponentSettle::Dropped;

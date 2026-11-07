@@ -125,6 +125,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
     UPROPERTY() int64 DefendRouteBudgetMs = 0;
+    // #153: the opening countdown between the initial spawn and the match's T=0; every match timer counts from T=0.
+    UPROPERTY() int64 CountdownMs = 0;
     UPROPERTY() int64 DevelopmentMs = 0;
     UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;

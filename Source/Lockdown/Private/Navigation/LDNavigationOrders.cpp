@@ -229,6 +229,14 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     }
     if (Request.Identity.Order<=Book.Received.Order || Request.Identity.Epoch<Book.Received.Epoch)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
+    // #153: no movement, attack, cast or shift step is admitted before T=0. The identity is spent and its refusal kept,
+    // so a replay after T=0 answers the same refusal instead of starting the order late.
+    if (AuthorityMode()->IsOpeningCountdown(Caller.Match))
+    {
+        Book.Received=Request.Identity;
+        AddRecord(Request,false);
+        return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::NotStarted,true);
+    }
     if (!Request.bQueue && Cast)
     {
         // A cast whose skill could not start anyway (cooldown, mana, control, empty slot) is refused here (2026-11-07
@@ -307,6 +315,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
     { return Refuse(ELDCombatReject::InvalidRequest); }
     auto* Mode=AuthorityMode();
+    if (Mode->IsOpeningCountdown(Caller.Match)) { return Refuse(ELDCombatReject::NotStarted); }
     auto* PC=Controller();
     FLDCombatCaller CombatCaller;
     FString Error;

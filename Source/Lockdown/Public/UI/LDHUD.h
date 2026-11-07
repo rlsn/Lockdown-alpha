@@ -129,6 +129,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DeathCauseText;
     UPROPERTY() TObjectPtr<UTextBlock> DeathCountdown;
     UPROPERTY() TObjectPtr<UTextBlock> DeathNote;
+    // #153: the centre-screen opening countdown ("5" .. "1", then "开淫！"); click-through.
+    UPROPERTY() TObjectPtr<UTextBlock> OpeningCountdownText;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
     // Bottom offset applied to the shop and blind-box panels, which dock right above the shop entry.
     float AppliedPanelDock=-1;

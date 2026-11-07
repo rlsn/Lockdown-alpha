@@ -57,6 +57,7 @@ namespace LDNavigationDetail
         case ELDOrderFailure::KnockedBack: return TEXT("被击退，指令中断");
         case ELDOrderFailure::QueueFull: return TEXT("指令队列已满");
         case ELDOrderFailure::CastRefused: return TEXT("技能无法施放");
+        case ELDOrderFailure::NotStarted: return LDTerms::NotStartedYet;
         default: return TEXT("订单失败");
         }
     }
