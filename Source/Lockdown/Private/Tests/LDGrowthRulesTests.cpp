@@ -3864,9 +3864,67 @@ bool FLDDemoGrowthOpeningCardTest::RunTest(const FString& Parameters)
         FLDAttributeBuildValues Values(1, {}, {}, {});
         Values.OpeningCard = Direction.Id;
         const auto Projection = LDAttributeProjection::Project(Values, *Catalog);
-        const auto Base = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, {}), *Catalog);
-        if (!TestTrue(TEXT("All six approved bundles project at level 1"), Projection.IsSuccess() && Base.IsSuccess()))
+        if (!TestTrue(TEXT("All six approved bundles project at level 1"), Projection.IsSuccess()))
         { return false; }
+        const auto& P = Content.Parameters;
+        FLDProjectedAttributes Expected;
+        Expected.MaxHPP2 = P.MaxHP.BaseP2;
+        Expected.MaxMPP2 = P.MaxMP.BaseP2;
+        Expected.ADP2 = P.AD.BaseP2;
+        Expected.APP2 = P.AP.BaseP2;
+        Expected.ArmorP2 = P.Armor.BaseP2;
+        Expected.MagicResistP2 = P.MagicResist.BaseP2;
+        Expected.AttackSpeed = P.AttackSpeed.Base;
+        Expected.MoveSpeedCmPerSec = P.MoveSpeedCmPerSec.Base;
+        Expected.AttackRangeCm = P.AttackRangeCm.Base;
+        Expected.HPRegenPerSec = P.HPRegen.Base;
+        Expected.MPRegenPerSec = P.MPRegen.Base;
+        Expected.CritChanceBp = P.CritChanceBaseBp;
+        Expected.CooldownHasteP2 = P.CooldownHasteBaseP2;
+        for (const auto& Bonus : Direction.Stats)
+        {
+            switch (Bonus.Stat)
+            {
+            case ELDDemoBonusStat::ADFlat: Expected.ADP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::APFlat: Expected.APP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MaxHPFlat: Expected.MaxHPP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MaxMPFlat: Expected.MaxMPP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::ArmorFlat: Expected.ArmorP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MagicResistFlat: Expected.MagicResistP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::CooldownHasteFlat: Expected.CooldownHasteP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::AttackSpeedBonusRatio:
+                Expected.AttackSpeed.Numerator *= 10000 + Bonus.Amount;
+                Expected.AttackSpeed.Denominator *= 10000;
+                break;
+            case ELDDemoBonusStat::MoveSpeedBonusRatio:
+                Expected.MoveSpeedCmPerSec.Numerator *= 10000 + Bonus.Amount;
+                Expected.MoveSpeedCmPerSec.Denominator *= 10000;
+                break;
+            case ELDDemoBonusStat::AttackRangeCmFlat:
+                Expected.AttackRangeCm.Numerator = Expected.AttackRangeCm.Numerator * Bonus.Cm.Denominator
+                    + Bonus.Cm.Numerator * Expected.AttackRangeCm.Denominator;
+                Expected.AttackRangeCm.Denominator *= Bonus.Cm.Denominator;
+                break;
+            default: AddError(TEXT("An opening bundle contains an unsupported expected stat")); return false;
+            }
+        }
+        const auto& Actual = Projection.Value->Final;
+        const FString Label = Direction.Id + TEXT(": ");
+        TestEqual(Label + TEXT("max HP"), Actual.MaxHPP2, Expected.MaxHPP2);
+        TestEqual(Label + TEXT("max MP"), Actual.MaxMPP2, Expected.MaxMPP2);
+        TestEqual(Label + TEXT("AD"), Actual.ADP2, Expected.ADP2);
+        TestEqual(Label + TEXT("AP"), Actual.APP2, Expected.APP2);
+        TestEqual(Label + TEXT("armor"), Actual.ArmorP2, Expected.ArmorP2);
+        TestEqual(Label + TEXT("magic resist"), Actual.MagicResistP2, Expected.MagicResistP2);
+        TestEqual(Label + TEXT("haste"), Actual.CooldownHasteP2, Expected.CooldownHasteP2);
+        TestEqual(Label + TEXT("crit"), Actual.CritChanceBp, Expected.CritChanceBp);
+        const auto EqualRate = [](const FLDDemoRational& A, const FLDDemoRational& B)
+            { return A.Numerator * B.Denominator == B.Numerator * A.Denominator; };
+        TestTrue(Label + TEXT("attack speed"), EqualRate(Actual.AttackSpeed, Expected.AttackSpeed));
+        TestTrue(Label + TEXT("move speed"), EqualRate(Actual.MoveSpeedCmPerSec, Expected.MoveSpeedCmPerSec));
+        TestTrue(Label + TEXT("attack range"), EqualRate(Actual.AttackRangeCm, Expected.AttackRangeCm));
+        TestTrue(Label + TEXT("HP regeneration"), EqualRate(Actual.HPRegenPerSec, Expected.HPRegenPerSec));
+        TestTrue(Label + TEXT("MP regeneration"), EqualRate(Actual.MPRegenPerSec, Expected.MPRegenPerSec));
         FLDProgressionView View;
         View.Level = 1;
         View.Offer.Options = {Option};
@@ -3878,7 +3936,10 @@ bool FLDDemoGrowthOpeningCardTest::RunTest(const FString& Parameters)
         {
             TestTrue(TEXT("Every stat is visible without hovering"), Card.SentencePlain.Contains(LDHUD::StatLine(Stat)));
         }
-        TestFalse(TEXT("The card model carries no hidden skill"), Card.SentencePlain.Contains(Hidden.ToString()));
+        const FString HiddenName = LDHUD::ContentName(&Content, Hidden.ToString());
+        const FString FaceText = Card.Name + Card.Detail + Card.SentencePlain + Card.AdvancedPlain + FString::Join(Card.Lines, TEXT("\n"));
+        TestFalse(TEXT("The owner card model carries no hidden skill ID"), FaceText.Contains(Hidden.ToString()));
+        TestFalse(TEXT("The owner card model carries no hidden skill display name"), FaceText.Contains(HiddenName));
         Draw.Build = &Applied;
         Draw.Ordinal = 2;
         LDProgression::LegalPool(*Catalog, Applied, Pool);

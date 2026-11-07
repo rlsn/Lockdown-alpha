@@ -145,15 +145,13 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
         Error = TEXT("The approved AI decision interval is not positive.");
         return false;
     }
+    int32 OpeningSeed = 0;
+    if (!Mode->DrawOpponentOpeningPlan(InBinding, OpeningPickAfterMs, OpeningPickIndex, OpeningSeed, Error)) { return false; }
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
-    const FGuid Seed = FGuid::NewGuid();
-    FRandomStream Opening(int32(Seed.A ^ Seed.B ^ Seed.C ^ Seed.D));
-    OpeningPickAfterMs = Opening.RandRange(1000, 4000);
-    OpeningPickIndex = uint8(Opening.RandRange(0, 2));
-    UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld card=%u"), *Binding.GetContender().ToString(),
-        OpeningPickAfterMs, uint32(OpeningPickIndex));
+    UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld card=%u seed=%d"), *Binding.GetContender().ToString(),
+        OpeningPickAfterMs, uint32(OpeningPickIndex), OpeningSeed);
     return true;
 }
 

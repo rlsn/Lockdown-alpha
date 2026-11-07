@@ -280,6 +280,10 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 `OpeningMatchedSkillWeight/OpeningOtherSkillWeight` 抽隐藏主动。技能只在服务器 `FLDChoiceOfferState::HiddenActives` 中，
 本人 `Offer.Options`、公开观察和生成日志都不带分配；提交后 `FLDChoiceReceipt::OpeningActiveId` 才揭晓。
 `RerollHead` 对开局类型返回 `OpeningNoReroll`，即使玩家升到重抽等级也不换组。
+
+AI 的开局时刻/卡位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定时从现有服务器 `SpawnRandom` 流抽取，
+不是每个 AI 新建 GUID 种子。`LD_AI_OPENING_PLAN` 记录抽取前的流状态 `seed`，可用同状态重放这两次抽取；
+该状态只在服务器日志中，纯策略只收到计划的时刻和卡位，不收到隐藏技能分配。
 选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W 主动、
 两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
 同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。

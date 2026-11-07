@@ -416,7 +416,7 @@ public:
 
     // Client1: the single choice and its receipt query.
     bool bChoiceDone = false, bChoiceSent = false, bQuerySent = false;
-    bool bOpeningRerollSent = false, bOpeningRerollChecked = false, bOpeningFaceChecked = false;
+    bool bOpeningRerollSent = false, bOpeningRerollChecked = false, bOpeningFaceChecked = false, bOpeningObserverChecked = false;
     FLDChoiceCommand OpeningReroll;
     FLDProgressionView BeforeOpeningReroll;
     FLDProgressionView ChoiceBefore;
@@ -1238,20 +1238,27 @@ public:
         ShopCentre = ShopAnchor->Position;
         const FVector Outward = (ShopAnchor->Position - CaptureAnchor->Position).GetSafeNormal2D();
         const FVector Across(Outward.Y, -Outward.X, 0.0);
-        KillSite = ShopAnchor->Position + Across * (2.0 * ShopReach);
-        HostSite = KillSite - Outward * AttackReach;
         FCollisionShape Capsule;
         FString SiteError;
-        bool bLegal = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
-        for (const FVector& Site : {KillSite, HostSite})
+        const bool bCapsule = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
+        bool bLegal = false;
+        for (const FVector& Direction : {Across, -Across, Outward, -Outward})
         {
-            FLDLegalGround LegalSite;
-            ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
-            bool bWithin = true;
-            bLegal = bLegal
-                && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
-                && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+            if (!bCapsule) { break; }
+            KillSite = ShopAnchor->Position + Direction * (2.0 * ShopReach);
+            HostSite = KillSite - Outward * AttackReach;
+            bool bPairLegal = true;
+            for (const FVector& Site : {KillSite, HostSite})
+            {
+                FLDLegalGround LegalSite;
+                ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
+                bool bWithin = true;
+                bPairLegal = bPairLegal
+                    && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
+                    && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
+                    && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+            }
+            if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
         }
         bSitesReady = bLegal;
         return Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
@@ -1309,6 +1316,35 @@ public:
     {
         ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
         if (!Mode) { return Fail(TEXT("Net"), TEXT("The Listen Host lost its authoritative game mode")); }
+        if (!bOpeningObserverChecked && Mode->Development)
+        {
+            const FLDWorldView* Frame = LDDemoGrowthScenario::GrowthProbeFrame(PC);
+            const FLDObservedUnitView* Seen = Frame ? LDDemoGrowthScenario::GrowthProbeContender(*Frame, ClientId) : nullptr;
+            const FLDProgressionView Owner = Mode->Development->ReadProgression(ClientId);
+            const FLDProgressionState* Private = Mode->Development->FindProgression(ClientId);
+            if (Seen && Owner.ConsumedThrough == 0 && Private && Private->Offer.IsSet())
+            {
+                bool bHidden = Private->Offer->HiddenActives.Num() == 3 && Owner.Skills.IsEmpty() && Owner.OpeningCard.IsNone()
+                    && Seen->Actives.Abilities[0] == 0 && Seen->Actives.Abilities[1] == 0 && Seen->ActionAbility == 0;
+                const FString Observed = LDHUD::ObservedUnit(*Seen, TEXT("buyer"), &Catalog->Get(), 0);
+                for (const FName Hidden : Private->Offer->HiddenActives)
+                {
+                    const FString Name = LDHUD::ContentName(&Catalog->Get(), Hidden.ToString());
+                    bHidden &= !Observed.Contains(Hidden.ToString()) && !Observed.Contains(Name);
+                    for (const FLDChoiceOption& Option : Owner.Offer.Options)
+                    {
+                        const auto Card = LDHUD::ChoiceCard(Option, Owner, &Catalog->Get(), {});
+                        const FString Text = Card.Name + Card.Detail + Card.SentencePlain + Card.AdvancedPlain
+                            + FString::Join(Card.Lines, TEXT("\n"));
+                        bHidden &= !Text.Contains(Hidden.ToString()) && !Text.Contains(Name);
+                    }
+                }
+                Check(bHidden, TEXT("Opening"),
+                    TEXT("Actual owner and opponent views contain no hidden skill ID or Chinese display name before selection"));
+                bOpeningObserverChecked = true;
+                if (!Passed) { return Finish(); }
+            }
+        }
         const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
         if (PC.OwnerState.LifePhase == ELDLifePhase::Alive && Body && PC.CanWorldCommand())
         {
@@ -1650,6 +1686,7 @@ public:
     // Host: export the first match's ledger, then end the match without a winner through the Host's own session command.
     bool EndFirstMatch(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
+        Check(bOpeningObserverChecked, TEXT("Opening"), TEXT("A real opponent view was checked before direction selection"));
         Check(Mode.IsGameplayWriteOpen(Mode.GetMatchContext()), TEXT("Ledger"),
             TEXT("The first match stayed open for the whole scenario: no capture result, fault or reset"));
         FString EvidenceText, ExportError;
@@ -2617,12 +2654,24 @@ public:
             ChoiceResultMark = ChoiceResults.Num();
             ChoicePublishMark = PC.OwnerState.Growth.PublishRevision;
             const uint64 Peeked = PC.PeekGrowthRequestId(ELDGrowthFamily::Choice);
-            ELDGrowthReason LocalReason = ELDGrowthReason::None;
+            ELDGrowthReason LocalReason = ELDGrowthReason::InvalidRequest;
             ULDChoicesPanel* Panel = LDDemoGrowthScenario::GrowthProbeChoices(PC);
             if (!Panel) { return Fail(TEXT("Opening"), TEXT("The owning client has no choices panel")); }
+            if (!Check(bool(Panel->SubmitChoice), TEXT("Opening"), TEXT("The panel has its owning-connection submit adapter")))
+            { return Finish(); }
+            const auto Original = Panel->SubmitChoice;
+            uint64 Submitted = 0;
+            Panel->SubmitChoice = [&Original, &Submitted, &LocalReason](const FLDChoiceCommand& Sent, ELDGrowthReason& Reason)
+            {
+                Submitted = Original(Sent, Reason);
+                LocalReason = Reason;
+                return Submitted;
+            };
             Panel->OpenPanel();
-            if (!Panel->ChooseCard(0)) { return Fail(TEXT("Opening"), TEXT("The opening card click failed")); }
-            ChoiceSent.RequestId = Peeked;
+            const bool bClicked = Panel->ChooseCard(0);
+            Panel->SubmitChoice = Original;
+            if (!bClicked) { return Fail(TEXT("Opening"), TEXT("The opening card click failed")); }
+            ChoiceSent.RequestId = Submitted;
             bChoiceSent = true;
             if (!Check(ChoiceSent.RequestId != 0 && ChoiceSent.RequestId == Peeked && LocalReason == ELDGrowthReason::None,
                 TEXT("A10"), TEXT("The owning client submits the head offer with the next choice request id"),

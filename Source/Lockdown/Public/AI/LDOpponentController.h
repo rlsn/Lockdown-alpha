@@ -179,7 +179,7 @@ private:
     bool bTallyReported = false;
     bool bWasInDorm = false;
     uint64 LastClaimedAirdrop = 0;
-    // #153 (v7 §2.1): drawn once per match from a fresh server random stream: the moment after the countdown began at
+    // #153 (v7 §2.1): drawn once per match from the core's server random stream: the moment after the countdown began at
     // which the opening direction card is taken (1-4 s), and which of its three cards (uniform).
     int64 OpeningPickAfterMs = 0;
     uint8 OpeningPickIndex = 0;
