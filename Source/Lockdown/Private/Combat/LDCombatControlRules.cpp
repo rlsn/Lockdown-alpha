@@ -6,7 +6,7 @@
 namespace LDCombatControl
 {
     bool Blocks(const TArray<FLDCombatRoot>& Roots, const TArray<FLDCombatRoot>& Disarms, const TArray<FLDCombatRoot>& Stuns,
-        int64 AtMs, const FLDDemoPolicies& Policies, ELDCombatControlAction Action)
+        int64 AtMs, const FLDDemoPolicies& Policies, ELDCombatControlAction Action, const TArray<FLDCombatRoot>* Silences)
     {
         if (LDTactical::HasActiveRoot(Stuns, AtMs)) { return true; }
         switch (Action)
@@ -14,11 +14,14 @@ namespace LDCombatControl
         case ELDCombatControlAction::Move: return LDTactical::RootBlocks(Roots, AtMs, Policies, ELDDemoRootBlock::Move);
         case ELDCombatControlAction::Displacement: return LDTactical::RootBlocks(Roots, AtMs, Policies, ELDDemoRootBlock::Dash);
         case ELDCombatControlAction::Basic: return LDTactical::HasActiveRoot(Disarms, AtMs);
+        case ELDCombatControlAction::Skill: return Silences && LDTactical::HasActiveRoot(*Silences, AtMs);
         default: return false;
         }
     }
 
     uint8 DisarmBlockBits() { return uint8(ELDCombatControlBlock::Basic); }
+
+    uint8 SilenceBlockBits() { return uint8(ELDCombatControlBlock::Cast); }
 
     uint8 StunBlockBits()
     {
@@ -29,10 +32,11 @@ namespace LDCombatControl
     bool Apply(TArray<FLDCombatRoot>& Instances, const FLDCombatRoot& Instance, int64 AtMs)
     { return LDTactical::ApplyRoot(Instances, Instance, AtMs); }
 
-    bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs)
+    bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs,
+        TArray<FLDCombatRoot>* Silences)
     {
         const auto Ended=[AtMs](const FLDCombatRoot& Instance) { return Instance.ExpiresAtMs <= AtMs; };
-        const int32 Removed = Disarms.RemoveAll(Ended) + Stuns.RemoveAll(Ended);
+        const int32 Removed = Disarms.RemoveAll(Ended) + Stuns.RemoveAll(Ended) + (Silences ? Silences->RemoveAll(Ended) : 0);
         return Removed > 0;
     }
 
@@ -51,7 +55,16 @@ namespace LDCombatControl
     TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs)
     {
         TOptional<FLDCombatEmpower> Taken;
-        if (Armed.IsSet() && Armed->ExpiresAtMs > AtMs) { Taken = Armed; }
+        if (Armed.IsSet() && Armed->ExpiresAtMs > AtMs)
+        {
+            Taken = Armed;
+            Taken->Charges = FMath::Max(Armed->Charges, 1) - 1;
+            if (Taken->Charges > 0)
+            {
+                Armed->Charges = Taken->Charges;
+                return Taken;
+            }
+        }
         Armed.Reset();
         return Taken;
     }
@@ -128,7 +141,7 @@ namespace LDCombatControl
     bool IsHardControl(ELDControlKind Kind)
     {
         return Kind == ELDControlKind::Root || Kind == ELDControlKind::Stun || Kind == ELDControlKind::Disarm
-            || Kind == ELDControlKind::Taunt;
+            || Kind == ELDControlKind::Taunt || Kind == ELDControlKind::Silence;
     }
 
     int64 DiminishHardControl(FLDHardControlChain& Chain, int64 NowMs, int64 DurationMs)

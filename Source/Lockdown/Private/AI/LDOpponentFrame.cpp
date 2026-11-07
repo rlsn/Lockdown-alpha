@@ -282,11 +282,14 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.MaxMpP2 = Combat.MaxMPP2;
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
+    int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {
         // Root and Stun both hold the body in place; the policy plans no movement until they end.
         if (Status.StatusId == uint8(ELDDemoStatusId::Root) || Status.StatusId == uint8(ELDDemoStatusId::Stun))
         { Out.MoveBlockedUntilMs = FMath::Max(Out.MoveBlockedUntilMs, Status.ExpiresAtMs); }
+        // #147: a silence keeps the learned Q/W unready until it ends; the dash stays available.
+        if (Status.StatusId == uint8(ELDDemoStatusId::Silence)) { SilencedUntilMs = FMath::Max(SilencedUntilMs, Status.ExpiresAtMs); }
     }
     // Rooted without a timed status still blocks movement now; the policy never assumes it has ended.
     if (Combat.bRooted && Out.MoveBlockedUntilMs <= NowMs) { Out.MoveBlockedUntilMs = NowMs + 1; }
@@ -300,7 +303,8 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
         FLDOpponentSource Source;
         Source.Slot = Slot;
         Source.DefinitionId = CanonicalId(Entry.DefinitionId);
-        Source.bReady = Entry.Unavailable == ELDCombatReject::None && Entry.ReadyAtMs <= NowMs;
+        Source.bReady = Entry.Unavailable == ELDCombatReject::None && Entry.ReadyAtMs <= NowMs
+            && !(Entry.SourceKind == ELDCombatSourceKind::Learned && SilencedUntilMs > NowMs);
         Source.RangeCm = Entry.RangeCm;
         Out.Sources.Add(MoveTemp(Source));
     }

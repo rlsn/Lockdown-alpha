@@ -1360,5 +1360,66 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A camp member's card has no Q/W tiles"), CampCard.bActives);
     return true;
 }
+// #147: every public status a unit can carry at once (all combat cues plus its kind's marker) fits the bound, so a fully
+// debuffed body never stops the observation; one more than the bound, or a repeated status, is still refused.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionFullStatusBoundTest, "Lockdown.Rules.DemoVision.FullStatusBound",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
+{
+    // Each kind's accepted status ids, probed one at a time with every stacks/expiry shape a status may use.
+    const auto AcceptedAlone = [](FLDObservedUnitView Unit)
+    {
+        TArray<FLDObservedStatus> Accepted;
+        for (int32 Id = 1; Id < 256; ++Id)
+        {
+            for (const FLDObservedStatus Shape : {FLDObservedStatus{uint8(Id), 1, 0}, FLDObservedStatus{uint8(Id), 1, 5000}})
+            {
+                Unit.Statuses = {Shape};
+                FString Error;
+                if (LDObservation::ValidateUnit(Unit, Error)) { Accepted.Add(Shape); break; }
+            }
+        }
+        return Accepted;
+    };
+    const TArray<FLDObservedStatus> ContenderAll = AcceptedAlone(ContenderUnit());
+    const TArray<FLDObservedStatus> CampAll = AcceptedAlone(CampUnit());
+    const auto Has = [](const TArray<FLDObservedStatus>& Rows, ELDDemoStatusId Id)
+    { return Rows.ContainsByPredicate([Id](const FLDObservedStatus& Row) { return Row.StatusId == uint8(Id); }); };
+    TestTrue(TEXT("Silence and burn are public on both kinds"), Has(ContenderAll, ELDDemoStatusId::Silence) && Has(ContenderAll, ELDDemoStatusId::Burn)
+        && Has(CampAll, ELDDemoStatusId::Silence) && Has(CampAll, ELDDemoStatusId::Burn));
+    TestEqual(TEXT("The bound is exactly the most public statuses one unit can show at once"),
+        FMath::Max(ContenderAll.Num(), CampAll.Num()), LDObservation::MaxStatuses);
+
+    FLDWorldView Frame = ActiveFrame(7, 3, 44);
+    for (int32 Index = 0; Index < LDObservation::MaxUnits; ++Index)
+    {
+        FLDObservedUnitView Unit = Index % 2 ? CampUnit(Index + 1) : ContenderUnit(Index + 1);
+        Unit.Statuses = Index % 2 ? CampAll : ContenderAll;
+        for (FLDObservedStatus& Status : Unit.Statuses) { if (Status.StatusId == uint8(ELDDemoStatusId::Burn)) { Status.Stacks = 5; } }
+        FString Error;
+        TestTrue(TEXT("A unit with every public status of its kind is valid"), LDObservation::ValidateUnit(Unit, Error));
+        Frame.Units.Add(Unit);
+    }
+    FLDWorldView Read;
+    int64 Bytes = 0;
+    if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
+    { return false; }
+    AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
+    TestTrue(TEXT("and stays inside the frame capacity"), Bytes < 8192);
+    TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
+        && Read.Units[1].Statuses.Num() == CampAll.Num()
+        && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)
+        { return Row.StatusId == uint8(ELDDemoStatusId::Burn) && Row.Stacks == 5; }));
+
+    FLDObservedUnitView Over = ContenderUnit();
+    Over.Statuses = ContenderAll;
+    Over.Statuses.Add(ContenderAll[0]);
+    FString Error;
+    TestFalse(TEXT("One more than the bound is refused"), LDObservation::ValidateUnit(Over, Error));
+    Over.Statuses.Pop();
+    Over.Statuses.Last() = Over.Statuses[0];
+    TestFalse(TEXT("A repeated status is refused within the bound"), LDObservation::ValidateUnit(Over, Error));
+    return true;
+}
 } // namespace LDDemoVisionTests
 #endif

@@ -94,7 +94,8 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 8：`ELDMatchPhase` 在 Starting 与 Development 之间插入 Countdown（#153），复制的阶段编号随之改变后递增；
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 9：#147 新增公开状态沉默、灼烧，并把每个单位的公开状态上限（`LDObservation::MaxStatuses`）
+  提高到全部公开状态同时存在的 12 个后递增；8 是 `ELDMatchPhase` 在 Starting 与 Development 之间插入 Countdown（#153）时的版本，
   7 是去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源时的版本。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
@@ -128,9 +129,9 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 开局倒计时（#153）：`StartDemoMatch` 完成初次出生后进入 `Countdown`，不直接进入 Development。
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（本局 T=0）设为权威时间起点加 `MATCH.CountdownSec`，
 发育期截止、外卖、上热搜与画饼老板的时间表都从这个 T=0 计算，`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs` 也是它。
-倒计时内写闸保持打开：权威时钟照常推进，开局三选一、离局与观测照常提交；
-`ALDGameMode::IsOpeningCountdown` 让各域拒绝新的动作：导航的新订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，
-Combat 的直接动作（普攻、Q/W、冲刺 D）回 `ELDCombatReject::NotStarted`，商店买卖与进阶在提交时回 `ELDGrowthReason::MatchNotStarted`；
+倒计时内写闸保持打开：权威时钟照常推进，移动、开局三选一、离局与观测照常提交（2026-11-07 用户决定倒计时内允许移动和选技能、不允许攻击和购买）；
+`ALDGameMode::IsOpeningCountdown` 加上 `LDOrderRules::CountdownAdmitsOrder/CountdownAdmitsAction` 决定拒绝范围：导航的攻击移动、攻击单位与施法订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，地面移动与走向小摊照常受理；
+Combat 的普攻与 Q/W 回 `ELDCombatReject::NotStarted`，冲刺 D 属于移动照常受理；商店买卖与进阶在提交时回 `ELDGrowthReason::MatchNotStarted`；
 这些拒绝都记入各自的回执窗口，T=0 后重放仍得到同一拒绝。营地在倒计时内不处理意图，对手 AI 的决策在非 Development/CaptureOpen 阶段停止。
 `NextCountdownDueMs` 让 T=0 成为精确的步边界；到达 T=0 的这一步仍属于倒计时，`ExecuteCapturePhase` 在它闭合后切到 Development，
 第一个可行动的步从 T=0 开始。

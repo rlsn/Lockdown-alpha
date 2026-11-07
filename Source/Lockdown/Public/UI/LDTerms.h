@@ -75,6 +75,9 @@ inline constexpr TCHAR Slow[]=TEXT("减速");
 inline constexpr TCHAR Taunt[]=TEXT("嘲讽");
 inline constexpr TCHAR Disarm[]=TEXT("缴械");
 inline constexpr TCHAR Stun[]=TEXT("眩晕");
+inline constexpr TCHAR Silence[]=TEXT("沉默");
+inline constexpr TCHAR Breach[]=TEXT("破防");
+inline constexpr TCHAR Burn[]=TEXT("灼烧");
 inline constexpr TCHAR RespawnProtection[]=TEXT("复活保护");
 inline FString ProtectionRemoved(){return FString(RespawnProtection)+TEXT("没了");}
 
@@ -90,7 +93,7 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
 
 // 阶段与旗杆（喷漆守护终局）
-// 开局倒计时（#153）：全员出生后冻结，屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内的动作和交易都被拒绝。
+// 开局倒计时（#153）：屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内可以移动和选技能，攻击和交易被拒绝。
 inline constexpr TCHAR OpeningCountdown[]=TEXT("开局倒计时");
 inline constexpr TCHAR CountdownGo[]=TEXT("开淫！");
 inline constexpr TCHAR NotStartedYet[]=TEXT("还没开始呢，急什么");

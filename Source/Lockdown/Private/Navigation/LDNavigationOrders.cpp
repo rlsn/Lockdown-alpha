@@ -229,9 +229,9 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     }
     if (Request.Identity.Order<=Book.Received.Order || Request.Identity.Epoch<Book.Received.Epoch)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
-    // #153: no movement, attack, cast or shift step is admitted before T=0. The identity is spent and its refusal kept,
-    // so a replay after T=0 answers the same refusal instead of starting the order late.
-    if (AuthorityMode()->IsOpeningCountdown(Caller.Match))
+    // #153: before T=0 only movement is admitted (LDOrderRules::CountdownAdmitsOrder); an attack or cast order is refused.
+    // The identity is spent and its refusal kept, so a replay after T=0 answers the same refusal instead of starting late.
+    if (AuthorityMode()->IsOpeningCountdown(Caller.Match) && !LDOrderRules::CountdownAdmitsOrder(Request))
     {
         Book.Received=Request.Identity;
         AddRecord(Request,false);
@@ -315,7 +315,8 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
     { return Refuse(ELDCombatReject::InvalidRequest); }
     auto* Mode=AuthorityMode();
-    if (Mode->IsOpeningCountdown(Caller.Match)) { return Refuse(ELDCombatReject::NotStarted); }
+    if (Mode->IsOpeningCountdown(Caller.Match) && !LDOrderRules::CountdownAdmitsAction(Request.Entry))
+    { return Refuse(ELDCombatReject::NotStarted); }
     auto* PC=Controller();
     FLDCombatCaller CombatCaller;
     FString Error;

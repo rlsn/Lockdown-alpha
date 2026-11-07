@@ -36,7 +36,7 @@ POLICIES = (
 BONUS_STATS = (
     "ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
     "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio", "ADBonusRatio",
-    "HPRegenFlat", "APBonusRatio",
+    "HPRegenFlat", "APBonusRatio", "MPRegenFlat",
 )
 TARGETS = ("Self", "Unit", "DirectionProjectile", "DirectionDash", "GroundPoint")
 MECHANIC_TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
@@ -98,7 +98,7 @@ def rational(value=None):
 
 
 # Rational stats keep their exact amount in Cm (range in cm, HP regeneration in hp/s) and leave Amount 0.
-RATIONAL_STATS = frozenset(("AttackRangeCmFlat", "HPRegenFlat"))
+RATIONAL_STATS = frozenset(("AttackRangeCmFlat", "HPRegenFlat", "MPRegenFlat"))
 
 
 def stats(values):
@@ -119,7 +119,8 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "Release", "EmpowerHit", "BasicHit", "BasicCrit", "Cleanse", "LandingHit", "LowHP", "AbilityHit", "Control")
+TRIGGERS = ("None", "Release", "EmpowerHit", "BasicHit", "BasicCrit", "Cleanse", "LandingHit", "LowHP", "AbilityHit", "Control",
+            "Damaged")
 COOLDOWN_ENTRIES = ("None", "Basic", "Self", "OtherActives", "Actives")
 CRIT_MODES = ("None", "Impaired", "Chance")
 
@@ -132,7 +133,7 @@ def effect(value):
         "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
         "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
         "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0, "MagicResistRatioBp": 0, "VampRatioBp": 0,
-        "MultiplierBp": 0, "Count": 0, "bImpaired": False, "SkillCooldownRatioBp": 0,
+        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "bImpaired": False, "SkillCooldownRatioBp": 0,
         "SkillDistanceBonusBp": 0, "AbilityIds": [], "PerCountP2": 0, "CapP2": 0, "CapBp": 0, "MaxHPPerSecBp": 0,
         "ShredP2": 0, "ThresholdP2": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0, "CooldownCutMs": 0,
     }
@@ -154,6 +155,10 @@ def effect(value):
         ("heal_cut", "SecondaryRatioBp"), ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
         ("linger", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
         ("internal_cooldown", "IntervalMs"), ("cooldown_cut", "CooldownCutMs"),
+        # #147 build v7 terms.
+        ("hp_below", "SecondaryRatioBp"), ("slowed_stun", "SecondaryDurationMs"), ("wall_stun", "SecondaryDurationMs"),
+        ("cleave_ratio", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
+        ("lifesteal", "SecondaryRatioBp"),
     ):
         if source in value:
             result[dest] = scalar(value[source])
@@ -162,11 +167,14 @@ def effect(value):
         result["MaxHPPerSecBp"] = scalar(value["max_hp_ratio"])
     if "cap" in value:
         result["CapBp" if op == "long_reach" else "CapP2"] = scalar(value["cap"])
-    for source in ("count", "max_stacks", "max_hits"):
+    for source in ("count", "max_stacks", "max_hits", "stacks", "charges"):
         if source in value:
             result["Count"] = value[source]
+    if "basic_stacks" in value:
+        result["BasicCount"] = value["basic_stacks"]
     for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"),
-                         ("half_width", "RadiusCm"), ("cast_range", "DistanceCm")):
+                         ("half_width", "RadiusCm"), ("cast_range", "DistanceCm"), ("wall_distance", "RadiusCm"),
+                         ("cleave_radius", "RadiusCm"), ("burst_radius", "RadiusCm")):
         if source in value:
             result[dest] = rational(value[source])
     for source in ("count", "max_stacks"):
@@ -254,6 +262,9 @@ def parameter_projection(parameters):
         ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"),
         ("AIRDROP.FirstLandSec", "AirdropFirstLandMs"), ("AIRDROP.IntervalSec", "AirdropIntervalMs"),
         ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
+        ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
+        ("COMBAT.BurnPerSec", "BurnPerSecP2"), ("COMBAT.BurnAPRatioPerSec", "BurnAPRatioBp"),
+        ("COMBAT.BurnTickSec", "BurnTickMs"), ("COMBAT.BurnSec", "BurnMs"), ("COMBAT.LifestealCap", "LifestealCapBp"),
     ):
         result[dest] = scalar(parameters[source])
     for source, dest in (
@@ -273,6 +284,7 @@ def parameter_projection(parameters):
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("AIRDROP.RewardGold", "AirdropRewardGold"),
         ("LEADER.MinLevel", "LeaderMinLevel"), ("LEADER.BountyGoldPerRefresh", "LeaderBountyGoldPerRefresh"),
         ("LEADER.BountyGoldMax", "LeaderBountyGoldMax"),
+        ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
     ):
         result[dest] = parameters[source]
     result["AI"] = {}

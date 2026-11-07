@@ -879,7 +879,9 @@ bool FLDHUDTermsGlossaryTest::RunTest(const FString& Parameters)
     if(!LDTestApprovedDisplay::Names(*this,Names)){return false;}
     const TPair<const TCHAR*,const TCHAR*> Shared[]={{TEXT("shield"),LDTerms::Shield},{TEXT("root"),LDTerms::Root},{TEXT("slow"),LDTerms::Slow},
         {TEXT("taunt"),LDTerms::Taunt},{TEXT("disarm"),LDTerms::Disarm},{TEXT("stun"),LDTerms::Stun},
-        {TEXT("respawn_protection"),LDTerms::RespawnProtection}};
+        {TEXT("respawn_protection"),LDTerms::RespawnProtection},
+        // #147 keywords: silence and burn are statuses of their own; breach is the shared resistance shred (exposed).
+        {TEXT("silence"),LDTerms::Silence},{TEXT("burn"),LDTerms::Burn},{TEXT("exposed"),LDTerms::Breach}};
     for(const TPair<const TCHAR*,const TCHAR*>& Pair:Shared)
     {
         const FString* Name=Names.Find(Pair.Key);

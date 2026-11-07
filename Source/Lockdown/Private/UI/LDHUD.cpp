@@ -309,7 +309,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         for(UTextBlock* DeathLine:{DeathTitle.Get(),DeathCauseText.Get(),DeathCountdown.Get(),DeathNote.Get()})
         {DeathLine->SetJustification(ETextJustify::Center);DeathBox->AddChildToVerticalBox(DeathLine)->SetHorizontalAlignment(HAlign_Center);}
         DeathBanner=Panel(DeathBox,false);Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,200));DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
-        // #153: the opening countdown, large in the screen centre above the frozen bodies; it never takes pointer input.
+        // #153: the opening countdown, large in the screen centre; it never takes pointer input.
         OpeningCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),96,TEXT("OpeningCountdownText"));OpeningCountdownText->SetAutoWrapText(false);
         OpeningCountdownText->SetJustification(ETextJustify::Center);HudFace(OpeningCountdownText,true,4);
         OpeningCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);

@@ -208,8 +208,8 @@ namespace LDTactical
 | `FLDBasicTimingInput` | 显式的 BaseAttackSpeed、CurrentAttackSpeed 有理数及 BaseWindupMs；玩家来自 `STAT.BaseAttackSpeed/UNIT.BasicAttackWindupSec`，怪物来自 `CAMP.Low/High.AttackSpeed/AttackWindupSec`，均接相同公式语义。 |
 | `FLDBasicTimingResult` | 与伤害一致的 Value/Error 形状，成功给 IntervalMs/WindupMs 正时长且前摇小于间隔；不生成绝对 NextAttackAt、ReadyAt 或权威时间。 |
 
-HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；主普攻与内容明确列出的技能（#112 技能暴击，
-倍率 `STAT.AbilityCritMultiplier`）允许本次暴击，副击、反伤与附加伤害不暴击；
+HitClass 明确区分 BasicPrimary、BasicSecondary、Ability；主普攻（×`STAT.CritMultiplier`，在加成池之前）与内容明确列出的技能
+（#112 技能暴击；#147 D21 起在 `DamageBonusBp` 加成池里加 `STAT.AbilityCritMultiplier − 1`）允许本次暴击，副击、反伤与附加伤害不暴击；
 两个 Basic 分类均拒绝 AP 系数和魔法伤害。完整字段、数值域与精确算术校验先于保护零伤，
 不能靠受保护掩盖坏输入。中间有理数复用同一受检精确算术，保留到最终一次 floor/ceil。
 原生公式夹具使用 producer 生成的 `approved_base`；原有 `base` 仍是独立合成输入，

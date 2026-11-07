@@ -5538,6 +5538,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "burn.description",
+      "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。",
+      "icon_id": "icon_burn",
+      "id": "burn",
+      "name_key": "burn.name",
+      "name_text": "灼烧",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "camp_returning.description",
       "description_text": "野怪正在回位，途中不攻击也不换目标，但仍会挨打；回到原位后生命回满。",
       "icon_id": "icon_camp_returning",
@@ -5896,6 +5905,15 @@
       "id": "shield",
       "name_key": "shield.name",
       "name_text": "护盾",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "silence.description",
+      "description_text": "号被封了：不能放技能，但仍可以移动、冲刺和普攻；正在准备的技能会被打断。",
+      "icon_id": "icon_silence",
+      "id": "silence",
+      "name_key": "silence.name",
+      "name_text": "沉默",
       "namespace": "DemoContent"
     },
     {
@@ -6856,6 +6874,36 @@
     },
     "CHOICE.UpgradeWeight": {
       "bp": 22000,
+      "unit": "ratio"
+    },
+    "COMBAT.BreachMaxStacks": 5,
+    "COMBAT.BreachPerStack": {
+      "p2": 300,
+      "unit": "points"
+    },
+    "COMBAT.BreachSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.BurnAPRatioPerSec": {
+      "bp": 300,
+      "unit": "ratio"
+    },
+    "COMBAT.BurnMaxStacks": 5,
+    "COMBAT.BurnPerSec": {
+      "p2": 300,
+      "unit": "points"
+    },
+    "COMBAT.BurnSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
+    "COMBAT.BurnTickSec": {
+      "ms": 500,
+      "unit": "ms"
+    },
+    "COMBAT.LifestealCap": {
+      "bp": 3500,
       "unit": "ratio"
     },
     "COMBAT.RearArcDeg": {

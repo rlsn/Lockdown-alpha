@@ -96,7 +96,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    // #153: everyone is spawned and frozen; the opening countdown runs to T=0 (MatchStartedAtMs), when development begins.
+    // #153: everyone is spawned; the opening countdown (moves and choices only, no attack or trade) runs to T=0 (MatchStartedAtMs), when development begins.
     MatchPhase = ELDMatchPhase::Countdown;
     bPublicMatchDirty = true;
     bKillFeedDirty = true;

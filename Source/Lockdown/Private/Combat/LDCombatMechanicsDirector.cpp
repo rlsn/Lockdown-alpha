@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatKeywords.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -386,8 +387,10 @@ FLDNegativeKinds ALDCombatDirector::NegativeKindsOf(const FLDBodyCombatState& Bo
     Kinds.bDisarm=Active(Body.Disarms);
     Kinds.bStun=Active(Body.Stuns);
     Kinds.bTaunt=LDControl::IsTaunted(Body.Taunt,NowMs);
-    // Q4: any armor/MR breach or damage over time counts as one kind.
+    // Q4: any armor/MR breach or damage over time counts as one kind, including the shared breach and burn records.
     Kinds.bBreach=LDTactical::HasBreach(Body.Breaches,NowMs)
+        || LDCombatKeywords::BreachStacks(Body.SharedBreach,NowMs)>0
+        || LDCombatKeywords::BurnActive(Body.Burn,NowMs)
         || Body.Dots.ContainsByPredicate([NowMs](const FLDCombatDot& Dot) { return Dot.ExpiresAtMs>NowMs; });
     return Kinds;
 }
@@ -430,6 +433,7 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
     {
         if (Zone.Pulsed<Zone.Count) { Consider(Zone.StartMs+Zone.DelayMs+Zone.IntervalMs*Zone.Pulsed); }
         if (Zone.bSlow) { Consider(Zone.NextSlowAtMs); }
+        if (Zone.BurnStacks>0 && Zone.NextBurnAtMs<Zone.EndMs) { Consider(Zone.NextBurnAtMs); }
         Consider(Zone.EndMs);
     }
     for (const FLDCombatVolleyShot& Shot : VolleyShots) { Consider(Shot.AtMs); }
@@ -581,6 +585,23 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
             }
             Zone.NextSlowAtMs+=Zone.SlowCheckMs;
         }
+        while (Zone.BurnStacks>0 && Zone.BurnIntervalMs>0 && Zone.NextBurnAtMs<=NowMs && Zone.NextBurnAtMs<Zone.EndMs)
+        {
+            TArray<FLDCombatBodyRef> Targets;
+            if (!Inside(Targets,Error)) { Error=TEXT("Zone burn: ")+Error; return false; }
+            const FGuid PulseId=FGuid::NewGuid();
+            for (const FLDCombatBodyRef& Target : Targets)
+            {
+                FLDCombatHit& Hit=Emit(Target);
+                Hit.EffectId=PulseId;
+                Hit.BurnStacks=Zone.BurnStacks;
+                Hit.BurnLevel=Zone.BurnLevel;
+                Hit.BurnAPP2=Zone.BurnAPP2;
+                Hit.bPeriodic=true;
+                Hit.bSilent=true;
+            }
+            Zone.NextBurnAtMs+=Zone.BurnIntervalMs;
+        }
         if (Zone.EndMs<=NowMs)
         {
             if (Zone.EndRootMs>0)
@@ -610,6 +631,9 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDBodyCombatState& Body, co
         Template.KnockbackMs=Push->DurationMs;
         Template.bKnockbackFromAnchor=true;
         Template.KnockbackAnchorCm=OriginFoot;
+        // #147: a push that travels less than this met a wall and stuns.
+        Template.WallCheckCm=Cm(Push->RadiusCm);
+        Template.WallStunMs=Push->SecondaryDurationMs;
     }
     Template.bRefreshDebuffs=FindOp(Rank,ELDDemoEffectOp::RefreshDebuffs)!=nullptr;
     if (const FLDDemoEffectDefinition* OnHit=FindOp(Rank,ELDDemoEffectOp::OnHit))
@@ -714,6 +738,17 @@ bool ALDCombatDirector::ReleaseMechanics(ALDCharacter& Actor, FLDBodyCombatState
             Zone.NextSlowAtMs=Now;
         }
         if (const FLDDemoEffectDefinition* Root=FindOp(Rank,ELDDemoEffectOp::ZoneRoot)) { Zone.EndRootMs=Root->DurationMs; }
+        // #147: burn layers on the enemies inside, every interval from the zone's start.
+        if (const FLDDemoEffectDefinition* Burn=FindOp(Rank,ELDDemoEffectOp::ZoneBurn))
+        {
+            FLDCombatBurnLayer Layer;
+            if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
+            Zone.BurnStacks=Burn->Count;
+            Zone.BurnIntervalMs=Burn->IntervalMs;
+            Zone.NextBurnAtMs=Now;
+            Zone.BurnLevel=Layer.Level;
+            Zone.BurnAPP2=Layer.SourceAPP2;
+        }
         if (const FLDDemoEffectDefinition* Damage=FindOp(Rank,ELDDemoEffectOp::ZoneDamage))
         {
             Zone.bDamage=true;

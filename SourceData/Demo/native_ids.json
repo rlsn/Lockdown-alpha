@@ -92,7 +92,9 @@
     "knockback": 20,
     "heal_cut": 22,
     "damage_guard": 23,
-    "vulnerable": 24
+    "vulnerable": 24,
+    "silence": 25,
+    "burn": 26
   },
   "effect_ops": {
     "damage": 1,
@@ -155,6 +157,15 @@
     "cast_frenzy": 65,
     "affliction_amp": 66,
     "shield_break_retort": 67,
-    "hit_haste": 68
+    "hit_haste": 68,
+    "silence": 69,
+    "breach": 70,
+    "burn": 71,
+    "execute": 72,
+    "pierce": 73,
+    "echo": 74,
+    "taunt_shield": 75,
+    "dispel_disarm": 76,
+    "zone_burn": 77
   }
 }
