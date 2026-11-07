@@ -89,8 +89,7 @@ namespace LDTactical
         {
             return Fail(EError::Numeric, TEXT("bCritical"), TEXT("The critical-hit result must be explicit"));
         }
-        // A primary basic crits at STAT.CritMultiplier; an ability crit (active_monkey_peach Lv3, passive_precision Lv3) at
-        // STAT.AbilityCritMultiplier. Sweeps never crit.
+        // Sweeps never crit; how a basic and an ability crit count is below (the bonus pool).
         if (Input.bCritical.GetValue() && Input.HitClass == ELDCombatHitClass::BasicSecondary)
         {
             return Fail(EError::Domain, TEXT("bCritical"), TEXT("A secondary basic hit cannot be critical"));
@@ -165,15 +164,21 @@ namespace LDTactical
             Damage = Numbers.Add(Damage, Numbers.Mul(Numbers.Value(Input.SourceMaxHPP2.GetValue()),
                 Numbers.Value(Definition.MaxHPRatioBp, 10000)));
         }
-        if (Input.bCritical.GetValue())
+        // A primary basic crits at STAT.CritMultiplier before the bonus pool; an ability crit (#147 D21) adds
+        // STAT.AbilityCritMultiplier - 1 to the pool instead of multiplying. Sweeps never crit.
+        if (Input.bCritical.GetValue() && Input.HitClass != ELDCombatHitClass::Ability)
         {
-            const int64 Multiplier = Input.HitClass == ELDCombatHitClass::Ability
-                ? Parameters.AbilityCritMultiplierBp : Parameters.CritMultiplierBp;
-            Damage = Numbers.Mul(Damage, Numbers.Value(Multiplier, 10000));
+            Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
-        if (Input.AmplifyBp < 0)
+        if (Input.AmplifyBp < 0 || Input.DamageBonusBp < 0)
         {
             return Fail(EError::Domain, TEXT("AmplifyBp"), TEXT("A damage amplification cannot be negative"));
+        }
+        const int64 PoolBp = Input.DamageBonusBp
+            + (Input.bCritical.GetValue() && Input.HitClass == ELDCombatHitClass::Ability ? Parameters.AbilityCritMultiplierBp - 10000 : 0);
+        if (PoolBp != 0)
+        {
+            Damage = Numbers.Mul(Damage, Numbers.Value(10000 + PoolBp, 10000));
         }
         if (Input.AmplifyBp != 10000)
         {
@@ -435,9 +440,9 @@ namespace LDTactical
         return Breaches.ContainsByPredicate([AtMs](const FLDCombatBreach& Breach) { return Breach.ExpiresAtMs > AtMs; });
     }
 
-    int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs)
+    int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs, int64 ExtraFlatP2)
     {
-        int64 Flat = 0, Ratio = 0;
+        int64 Flat = FMath::Clamp<int64>(ExtraFlatP2, 0, MAX_int32), Ratio = 0;
         for (const FLDCombatBreach& Breach : Breaches)
         {
             if (Breach.ExpiresAtMs <= AtMs) { continue; }

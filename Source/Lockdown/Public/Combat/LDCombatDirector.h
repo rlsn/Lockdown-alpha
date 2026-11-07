@@ -7,6 +7,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
+#include "Combat/LDCombatKeywords.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -76,6 +77,17 @@ struct FLDCombatDashSweep
     int64 SlowBp=0;
     int64 SlowMs=0;
     double HalfWidthCm=0;
+};
+
+// #147 damage-triggered shield with a burst: when the shield it granted (ShieldEffectId) is broken, the holder answers
+// the bodies within RadiusCm with RatioBp of the granted amount as magic damage.
+struct FLDCombatShieldBurst
+{
+    FGuid ShieldEffectId;
+    FLDCombatSourceRef Source;
+    int64 GrantedP2=0;
+    int64 RatioBp=0;
+    double RadiusCm=0;
 };
 
 // One passive effect a body holds (learned rank or equipment family), resolved from the approved catalog.
@@ -195,6 +207,13 @@ struct FLDBodyCombatState
     // passive_thick_skin Lv3: the next basic or ability hit of this body before ShieldBonusUntilMs adds ShieldBonusP2.
     int64 ShieldBonusP2=0;
     int64 ShieldBonusUntilMs=0;
+    // #147 build v7 keywords (LDCombatKeywords): silence instances (shaped like disarm and stun), the one shared breach
+    // and burn of this life, the damage-triggered shield's rest and the burst its current shield carries.
+    TArray<FLDCombatRoot> Silences;
+    FLDCombatSharedBreach SharedBreach;
+    FLDCombatBurn Burn;
+    int64 DamagedShieldReadyAtMs=0;
+    TOptional<FLDCombatShieldBurst> ShieldBurst;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -308,6 +327,23 @@ struct FLDCombatHit
     int64 NegativeHealMaxHPBp=0;     // the source heals this share of its max HP per negative kind
     bool bRefreshDebuffs=false;      // restarts this source's slows and damage over time on the target
     TOptional<FLDCombatDot> Dot;     // a damage over time this hit installs on its target
+    // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
+    int64 SilenceDurationMs=0;
+    int32 BreachStacks=0;            // shared breach stacks this hit applies
+    int32 BurnStacks=0;              // burn layers this hit applies, at the applier level and AP snapshotted at release
+    int32 BurnLevel=1;
+    int64 BurnAPP2=0;
+    bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
+    int64 ExecuteBp=0;               // pool bonus against a target below ExecuteBelowBp of its max HP before this hit
+    int64 ExecuteBelowBp=0;
+    int64 ControlAmpBelowBp=0;       // the source's control amplification also counts a target below this HP share
+    int64 SlowedStunMs=0;            // a target slowed at this hit is stunned this long instead of rooted
+    bool bPierce=false;              // a projectile keeps flying through the bodies it hits (each body life once)
+    double WallCheckCm=0;            // a knockback that travels less than this met a wall and stuns WallStunMs
+    int64 WallStunMs=0;
+    int64 LifestealLowHPBp=0;        // extra on-hit lifesteal against a target below LifestealLowHPBelowBp
+    int64 LifestealLowHPBelowBp=0;
+    int64 LowHPBasicLifestealBp=0;   // the source's primary-basic lifesteal while its low-HP passive is active
 };
 
 // A released jump: the landing effects resolve at LandAtMs on the same body life, centred on its landing foot.
@@ -353,6 +389,8 @@ struct FLDCombatProjectile
     int64 SlowBp=0, SlowDurationMs=0;
     // Ambush damage snapshotted at release; delivered with the first body this projectile strikes.
     TOptional<FLDAmbushDamageTerm> Ambush;
+    // #147 pierce: the body lives this flight already struck (each at most once).
+    TArray<FLDCombatBodyRef> Struck;
     // The complete hit payload snapshotted at release; the contact copies it and names the struck body.
     FLDCombatHit Payload;
 };
@@ -389,6 +427,35 @@ struct FLDCombatZone
     ELDDemoDamageType DamageType=ELDDemoDamageType::Magical;
     int64 SourceADP2=0, SourceAPP2=0;
     int64 OnHitScaleBp=0;
+    // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
+    // every BurnIntervalMs from the zone's start while it lasts.
+    int32 BurnStacks=0;
+    int32 BurnLevel=1;
+    int64 BurnIntervalMs=0, NextBurnAtMs=0, BurnAPP2=0;
+};
+
+// #147 echo: a self-area release blasts again at AtMs around the same living body's foot with its scaled payload.
+struct FLDCombatEcho
+{
+    FLDCombatBodyRef Body;
+    int64 AtMs=0;
+    double RadiusCm=0;
+    FLDCombatHit Template;
+};
+
+// #147 wall stun: when a committed knockback's window ends, a body life that travelled less than ThresholdCm from
+// StartFootCm met a wall and is stunned (through the single control path, credited to the push's source).
+struct FLDCombatWallCheck
+{
+    FLDCombatBodyRef Target;
+    FGuid EffectId;
+    FGuid SourceEntity;
+    FLDCombatBodyRef SourceBody;
+    FGuid CreditOwner;
+    FVector StartFootCm=FVector::ZeroVector;
+    int64 AtMs=0;
+    double ThresholdCm=0;
+    int64 StunMs=0;
 };
 
 UCLASS()
@@ -523,8 +590,10 @@ public:
     // body's diminishing-returns chain, the instance is applied with its action interruptions, the spray interrupt and
     // the assist contribution are recorded. bApplied is false when nothing landed (an existing instance, a zero duration).
     bool CommitControl(FLDBodyCombatState& Victim, const FLDControlApplication& App, int64 NowMs, bool& bApplied, FString& Error);
-    // Any active root, stun, disarm, taunt, knockback or slow (passive_public_shame, active_monkey_peach Lv3).
+    // Any active root, stun, disarm, taunt, knockback, silence or slow (#147 "被减速或被控制", passive_public_shame).
     bool IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // A Q/W/D activation of this source kind blocked now: Cast for every kind, Skill (silence) for learned actives.
+    bool IsCastBlocked(const FLDBodyCombatState& Body, ELDCombatSourceKind Kind) const;
     // The remaining-cooldown cut of one entry's bound track (LDCombatSourceRules::ReduceReadyAt); MAX_int64 = ready now.
     // False when the entity holds no track at that entry.
     bool ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs);
@@ -536,6 +605,9 @@ public:
     bool StampSourceTerms(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
     // The passive ambush bonus of one struck body: its own damage instance (added damage), never a crit, control or on-hit.
     static FLDCombatHit MakeAmbushHit(const FLDCombatHit& Primary, const FLDAmbushDamageTerm& Term);
+    // #147 echo: the second blast's payload, a new effect whose damage terms are RatioBp of the first blast's (every other
+    // term, such as its burn stacks, unchanged).
+    static FLDCombatHit EchoHit(const FLDCombatHit& Template, int64 RatioBp);
 
 private:
     friend class ALDGameMode;
@@ -552,6 +624,7 @@ private:
     friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
+    friend struct FLDBuildPrimitivesAccess;
 
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -618,12 +691,16 @@ private:
     bool ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FGuid& EffectId,
         int64 NowMs, FString& Error, bool bCleansed=false);
     bool ResolveLandings(FString& Error);
+    // #147: second blasts and knockback wall checks due by now (Effects, before the hits).
+    bool ResolveEchoes(FString& Error);
+    bool ResolveWallChecks(FString& Error);
     void ExpireStatuses(int64 NowMs);
     // Ends taunts whose taunter died, left or is no longer observed by the victim (Actions, before any intent).
     bool RefreshTaunts(FString& Error);
-    // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body.
+    // Taunt release (LDCombatControl.cpp): every eligible contender in the radius is taunted by this body; OutTaunted
+    // counts the taunts that landed (#147 taunt_shield).
     bool ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-        const FGuid& EffectId, FString& Error);
+        const FGuid& EffectId, FString& Error, int32* OutTaunted=nullptr);
     // Spray interruption (APP_SPEC 2.2): called once for every root, stun, taunt or knockback committed on a body,
     // inside the current Actions/Effects permit. A contender body's spray progress clears through the capture domain;
     // camp bodies and a world without an active spray reducer are untouched. Disarm, slow and damage never call it.
@@ -719,6 +796,23 @@ private:
         FLDCombatSourceRef* OutSource=nullptr) const;
     // The registered actor of one body state, or null.
     ALDCharacter* ActorOf(const FLDBodyCombatState& Body) const;
+    // ---- #147 build v7 keywords (LDCombatKeywordsDirector.cpp).
+    bool KeywordTerms(FLDKeywordTerms& Out, FString& Error) const;
+    // The level a body's G(L) reads: a contender's build level; camp bodies use level 1.
+    int32 GrowthLevelOf(const FLDBodyCombatState& Body) const;
+    // A burn layer of Source with Source's level and AP now snapshotted in it.
+    bool BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out, FString& Error) const;
+    // Shared breach and burn of one committed hit on Target: the hit's own stacks and its living source's passive
+    // breach/burn (basic_stacks on a primary basic, stacks on a learned Q/W hit). Assists are recorded per application.
+    bool ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
+    // Burn ticks due by now: one damage hit per applier and tick; lapsed burns end.
+    bool AdvanceBurns(int64 NowMs, FString& Error);
+    // The damage-triggered shield of Body after it took positive damage (rest only after a granted shield).
+    bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
+    // The burst of a damage-triggered shield that this hit broke (BrokenShieldId), around the holder.
+    bool BurstBrokenShield(FLDBodyCombatState& Body, const FGuid& BrokenShieldId, int64 NowMs, FString& Error);
+    // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
+    void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // passive_thick_skin of Body: a shield on mobility or control, behind its internal cooldown.
     bool GrantThickSkin(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
     // The release-time self content of the #112 actives: the guard, zones and later volley shots.
@@ -762,6 +856,8 @@ private:
     TArray<FLDCombatZone> Zones;
     TArray<FLDCombatVolleyShot> VolleyShots;
     TArray<FLDCombatDashSweep> DashSweeps;
+    TArray<FLDCombatEcho> Echoes;
+    TArray<FLDCombatWallCheck> WallChecks;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

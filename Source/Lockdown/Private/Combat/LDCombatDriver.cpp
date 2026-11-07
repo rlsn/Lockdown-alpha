@@ -42,6 +42,10 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         for (const auto& Root : Body.Roots) { Consider(Root.ExpiresAtMs); }
         for (const auto& Disarm : Body.Disarms) { Consider(Disarm.ExpiresAtMs); }
         for (const auto& Stun : Body.Stuns) { Consider(Stun.ExpiresAtMs); }
+        // #147: silences, the shared breach and the burn's ticks end or fall on exact boundaries.
+        for (const auto& Silence : Body.Silences) { Consider(Silence.ExpiresAtMs); }
+        if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
+        if (!Body.Burn.Layers.IsEmpty()) { Consider(Body.Burn.NextTickAtMs); }
         if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
@@ -73,6 +77,9 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
     }
     // A jump lands on its exact boundary; a dash's path sweep resolves when it ends.
     for (const auto& Landing : Landings) { Consider(Landing.LandAtMs); }
+    // #147: a second blast and a knockback's wall check resolve on their exact boundaries.
+    for (const auto& Echo : Echoes) { Consider(Echo.AtMs); }
+    for (const auto& Check : WallChecks) { Consider(Check.AtMs); }
     // #112 mechanics: ticks, pulses, shots and their records' ends.
     Consider(NextMechanicsDueMs(NowMs));
     for (const auto& Sweep : DashSweeps) { Consider(Sweep.EndAtMs); }
@@ -300,7 +307,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     ExpireStatuses(Now);
     AdvanceMomentum(Now);
     // Damage over time, zones and later volley shots due now join this boundary's hits and projectiles.
-    if (!AdvanceMechanics(Now,Error) || !ResolveLandings(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error)
+    if (!AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveLandings(Error) || !ResolveEchoes(Error)
+        || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !ResolveRetaliations(Error)
         || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {

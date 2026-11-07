@@ -32,6 +32,8 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Stun:
     case ELDDemoStatusId::Knockback:
     case ELDDemoStatusId::HealCut:
+    case ELDDemoStatusId::Silence:
+    case ELDDemoStatusId::Burn:
         return true;
     default:
         return false;

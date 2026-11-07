@@ -75,6 +75,9 @@ inline constexpr TCHAR Slow[]=TEXT("减速");
 inline constexpr TCHAR Taunt[]=TEXT("嘲讽");
 inline constexpr TCHAR Disarm[]=TEXT("缴械");
 inline constexpr TCHAR Stun[]=TEXT("眩晕");
+inline constexpr TCHAR Silence[]=TEXT("沉默");
+inline constexpr TCHAR Breach[]=TEXT("破防");
+inline constexpr TCHAR Burn[]=TEXT("灼烧");
 inline constexpr TCHAR RespawnProtection[]=TEXT("复活保护");
 inline FString ProtectionRemoved(){return FString(RespawnProtection)+TEXT("没了");}
 

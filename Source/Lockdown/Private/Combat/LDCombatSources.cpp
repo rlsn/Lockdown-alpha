@@ -640,7 +640,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     Gate.ManaCostP2=View.ManaCostP2;
     Gate.bDash=Target->Mode==ELDDemoTargetMode::DirectionDash || Target->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bControlBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Cast);
+    Gate.bControlBlocked=IsCastBlocked(*Body,Source.Kind);
     Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     View.Unavailable=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (View.Unavailable==ELDCombatReject::None && Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability)
@@ -947,6 +947,14 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 StunStatus.ExpiresAtMs=StunnedUntilMs;
                 StunStatus.ControlBlocks=LDCombatControl::StunBlockBits();
             }
+            // #147: a silence locks the Q/W bar (the dash stays).
+            if (const int64 SilencedUntilMs=LDTactical::ActiveRootUntilMs(Body->Silences,NowMs); SilencedUntilMs>0)
+            {
+                FLDCombatStatusView& SilenceStatus=Out.Statuses.AddDefaulted_GetRef();
+                SilenceStatus.StatusId=static_cast<uint8>(ELDDemoStatusId::Silence);
+                SilenceStatus.ExpiresAtMs=SilencedUntilMs;
+                SilenceStatus.ControlBlocks=LDCombatControl::SilenceBlockBits();
+            }
             // An armed next-basic bonus (active_lunge, or active_slick_moves Lv3 once its gathering ended) is the owner's Empowered status.
             const bool bMomentum=Body->Momentum.IsSet() && NowMs>=Body->Momentum->AccumulateUntilMs && NowMs<Body->Momentum->ConsumeUntilMs;
             if ((Body->Empower.IsSet() && Body->Empower->ExpiresAtMs>NowMs) || bMomentum)
@@ -970,8 +978,18 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
             int64 BoostUntil=0;
             for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
             if (BoostUntil>0) { Temporary.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
-            if (const int64 BreachUntil=LDTactical::BreachUntilMs(Body->Breaches,NowMs); BreachUntil>0)
+            if (const int64 BreachUntil=LDTactical::BreachUntilMs(Body->Breaches,NowMs); BreachUntil>0
+                && LDCombatKeywords::BreachStacks(Body->SharedBreach,NowMs)==0)
             { Temporary.Add({uint8(ELDDemoStatusId::Exposed),1,BreachUntil}); }
+            // #147: breach x stacks and burn x stacks (the silence is shown above with its blocks).
+            {
+                TArray<FLDObservedStatus> Keywords;
+                AppendKeywordStatuses(*Body,NowMs,Keywords);
+                for (const FLDObservedStatus& Status : Keywords)
+                {
+                    if (Status.StatusId!=uint8(ELDDemoStatusId::Silence)) { Temporary.Add(Status); }
+                }
+            }
             if (Projection.LowHPBonus.IsSet()
                 && LDTactical::BelowHPThreshold(Body->Resources.HpP2,Body->Resources.MaxHpP2,Projection.LowHPBonus->ThresholdBp))
             { Temporary.Add({uint8(ELDDemoStatusId::Enraged),1,0}); }
@@ -983,6 +1001,7 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
                 FLDCombatStatusView& View=Out.Statuses.AddDefaulted_GetRef();
                 View.StatusId=Status.StatusId;
                 View.ExpiresAtMs=Status.ExpiresAtServerMs;
+                View.Stacks=Status.Stacks;
             }
             // Owner-only: who taunts never reaches any other observer through this view.
             if (LDControl::IsTaunted(Body->Taunt,NowMs))
@@ -1169,6 +1188,11 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     Body->Stuns.Reset();
     Body->Empower.Reset();
     Body->Shield.Reset();
+    // #147 keyword records end with the reset too (the camp's burn clears on its return).
+    Body->Silences.Reset();
+    Body->SharedBreach=FLDCombatSharedBreach();
+    Body->Burn=FLDCombatBurn();
+    Body->ShieldBurst.Reset();
     // #112 records end with the reset too (the knockback window, breaches, damage over time, heal cuts).
     Body->Knockbacks.Reset();
     Body->Breaches.Reset();
