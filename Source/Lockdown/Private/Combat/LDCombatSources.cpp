@@ -298,7 +298,7 @@ const FName& LDCombatSourceRules::InnateDashId()
 }
 
 bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
-    FLDInnateDashTerms& Out, FString& Error)
+    const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error)
 {
     Out=FLDInnateDashTerms();
     const FLDDemoDashDefinition& Dash=Content.Get().Character.Dash;
@@ -312,6 +312,28 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     }
     int64 CooldownMs=Dash.Rank.CooldownMs;
     FLDDemoRational Distance=Move->DistanceCm;
+    const auto Boost=[&CooldownMs,&Distance,&Out,&Error](const TArray<FLDDemoEffectDefinition>& Effects, const FString& SourceId)
+    {
+        for (const FLDDemoEffectDefinition& Effect : Effects)
+        {
+            if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
+            const int64 Scale=10000+Effect.DistanceBonusBp;
+            if (Effect.CooldownRatioBp<=0 || Effect.CooldownRatioBp>10000 || Effect.DistanceBonusBp<0
+                || CooldownMs>MAX_int64/Effect.CooldownRatioBp || Distance.Numerator>MAX_int64/Scale || Distance.Denominator>MAX_int64/10000)
+            {
+                Error=FString::Printf(TEXT("NumericDomain: dash boost of %s is outside the checked domain."),*SourceId);
+                return false;
+            }
+            const int64 Scaled=CooldownMs*Effect.CooldownRatioBp;
+            CooldownMs=Scaled/10000+(Scaled%10000!=0 ? 1 : 0);
+            const int64 Numerator=Distance.Numerator*Scale, Denominator=Distance.Denominator*10000;
+            const int64 Divisor=LDCombatSourcesDetail::CommonDivisor(Numerator,Denominator);
+            Distance.Numerator=Numerator/Divisor;
+            Distance.Denominator=Denominator/Divisor;
+            Out.bBoosted=true;
+        }
+        return true;
+    };
     for (const FLDEquipmentPassiveFamily& Family : Passives)
     {
         const FLDDemoEquipmentDefinition* Item=nullptr;
@@ -327,24 +349,22 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
             Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
             return false;
         }
-        for (const FLDDemoEffectDefinition& Effect : *Effects)
+        if (!Boost(*Effects,Item->Id)) { return false; }
+    }
+    // A learned passive rank with a dash boost (passive_special_forces advanced) applies like an equipment family.
+    for (const FLDLearnedTriggerTerm& Term : Learned)
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        FString LookupError;
+        const FLDDemoRankDefinition* Rank=Content.FindAbility(Term.AbilityId,Ability,LookupError) && Ability
+            ? Content.FindRank(*Ability,Term.Rank,Term.Level) : nullptr;
+        if (!Rank)
         {
-            if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
-            const int64 Scale=10000+Effect.DistanceBonusBp;
-            if (Effect.CooldownRatioBp<=0 || Effect.CooldownRatioBp>10000 || Effect.DistanceBonusBp<0
-                || CooldownMs>MAX_int64/Effect.CooldownRatioBp || Distance.Numerator>MAX_int64/Scale || Distance.Denominator>MAX_int64/10000)
-            {
-                Error=FString::Printf(TEXT("NumericDomain: dash boost of %s is outside the checked domain."),*Item->Id);
-                return false;
-            }
-            const int64 Scaled=CooldownMs*Effect.CooldownRatioBp;
-            CooldownMs=Scaled/10000+(Scaled%10000!=0 ? 1 : 0);
-            const int64 Numerator=Distance.Numerator*Scale, Denominator=Distance.Denominator*10000;
-            const int64 Divisor=LDCombatSourcesDetail::CommonDivisor(Numerator,Denominator);
-            Distance.Numerator=Numerator/Divisor;
-            Distance.Denominator=Denominator/Divisor;
-            Out.bBoosted=true;
+            Error=FString::Printf(TEXT("Catalog: learned passive %s rank %d has no approved terms. %s"),*Term.AbilityId,
+                int32(Term.Rank),*LookupError);
+            return false;
         }
+        if (!Boost(Rank->Effects,Term.AbilityId)) { return false; }
     }
     if (CooldownMs<=Move->DurationMs)
     {
@@ -545,7 +565,7 @@ bool ALDCombatDirector::InnateDashFor(const FLDCombatEntityRecord& Record, const
     }
     // A body uses its installed projection; a dead contender explains the persistent build of the next life.
     const FLDAttributeProjection& Projection=Body ? Body->AttributeProjection : Record.Projection;
-    return LDCombatSourceRules::InnateDashTerms(*Content,Projection.EquipmentPassives,Out,Error);
+    return LDCombatSourceRules::InnateDashTerms(*Content,Projection.EquipmentPassives,Projection.LearnedTriggers,Out,Error);
 }
 
 bool ALDCombatDirector::PlanBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,

@@ -75,9 +75,10 @@ namespace LDCombatSourceRules
     LOCKDOWN_API const FName& InnateDashId();
     // D19/D20: approved CHARACTER dash terms; each held passive family with a DashBoost effect applies once,
     // multiplying the cooldown by CooldownRatioBp (ceil to whole ms) and the distance by (1 + DistanceBonusBp).
-    // The duration is unchanged, so a boosted dash covers its longer distance in the same time.
+    // The duration is unchanged, so a boosted dash covers its longer distance in the same time. A learned trigger
+    // passive whose rank holds DashBoost (passive_special_forces advanced) applies the same way.
     LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
-        FLDInnateDashTerms& Out, FString& Error);
+        const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error);
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
     LOCKDOWN_API ELDCombatReject ActiveGate(const FLDActiveGateInput& Input, const FLDDemoPolicies& Policies);
