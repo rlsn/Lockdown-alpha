@@ -1,8 +1,10 @@
-"""Exact approved baseline and complete-world assertions; not a native/play-balance test."""
+"""Exact approved content baseline, world contract, and world-element function tests on synthetic geometry.
+
+Not a native or play-balance test, and nothing here pins the current map layout.
+"""
 from decimal import Decimal
 from fractions import Fraction
 import json
-import math
 from pathlib import Path
 import shutil
 import tempfile
@@ -35,7 +37,6 @@ class ApprovedDemoData(unittest.TestCase):
         cls.root_bundle = content.compile_content()
         cls.data = cls.catalog.data
         cls.geometry = world.Geometry(cls.world.world)
-        cls.model = world.PathModel(cls.geometry, Fraction(40))
         cls.anchors = {row["id"]: row for row in cls.world.world["anchors"]}
 
     def test_approval_and_complete_selected_directory(self):
@@ -47,8 +48,8 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertIn(text, approval["decision"])
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250 (1300-2400)", approval["decision"])
-        self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225, route 35s; "
-                      "flagpole 180s, guard 30s, airdrop 80s.", approval["decision"])
+        self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
+                      "flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 13, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -86,9 +87,9 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.MoveSpeedCmPerSec", "cm/s", "300"), ("STAT.MoveSpeed.Min", "cm/s", "173"), ("STAT.MoveSpeed.Max", "cm/s", "675"),
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
-            ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
+            ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1050"),
             ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
-            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"), ("TIMING.DefendRouteBudgetSec", "ms", "35"),
+            ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
             ("MATCH.CountdownSec", "ms", "5"), ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
@@ -350,6 +351,19 @@ class ApprovedDemoData(unittest.TestCase):
         # 15.3: max eagle eye plus one slingshot reaches 540 cm; two reach 660 cm.
         base = amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))
         self.assertEqual((base + 200 + 120, base + 200 + 240), (540, 660))
+
+    def test_camp_perception_fits_inside_vision(self):
+        # #97: a camp member's perception (its leash) beyond VISION.RadiusCm would fault the camp decision at T=0.
+        author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
+        schema = content.AuthorSchema(content.parse_json((content.ROOT / content.SCHEMA_SOURCE).read_bytes(), "content schema"))
+        ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
+        schema.validate(author)
+        projected = schema.project(author)
+        guardian = next(row for row in projected["camps"]["monsters"] if row["id"] == "monster_guardian")
+        guardian["leash_radius"].update(numerator=1100, denominator=1)
+        content.validate_definitions(projected, ids)
+        with self.assertRaisesRegex(content.ContentError, "InvalidGeometry"):
+            content.validate_numbers(projected)
 
     def test_build_expansion_a_refusals(self):
         author = content.parse_json((content.ROOT / content.CONTENT_SOURCE).read_bytes(), "content author")
@@ -640,8 +654,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 15, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 60, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
@@ -666,119 +680,20 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
                          {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
 
-    def test_exact_world_surface_anchors_and_member_homes(self):
-        expected = {
-            "s00": (4400, 0), "s01": (3560, 2586), "s02": (1360, 4185), "s03": (-1360, 4185), "s04": (-3560, 2586),
-            "s05": (-4400, 0), "s06": (-3560, -2586), "s07": (-1360, -4185), "s08": (1360, -4185), "s09": (3560, -2586),
-            "l1": (2473, 803), "h1": (0, 2600), "l2": (-2473, 803), "h2": (-1528, -2103), "l3": (1528, -2103),
-            "shop": (778, 778), "capture": (0, 0), "dorm_nw": (-4400, 4400), "dorm_se": (4400, -4400),
-            "airdrop_ne": (1940, 2670), "airdrop_nw": (-1940, 2670), "airdrop_s": (0, -3300),
-            "boss_patrol_1": (2400, 2400), "boss_patrol_2": (-2400, 2400), "boss_patrol_3": (-2400, -2400),
-            "boss_patrol_4": (2400, -2400),
-        }
-        self.assertEqual(set(self.anchors), set(expected))
-        for identity, xy in expected.items():
-            self.assertEqual(world.point(self.anchors[identity]["position_cm"], identity), (*xy, 0))
-        homes = {member["id"]: world.point(member["position_cm"], member["id"]) for row in self.anchors.values() for member in row.get("members", ())}
-        self.assertEqual(homes, {"l1_0": (2450, 874, 0), "l1_1": (2496, 732, 0), "h1_0": (0, 2600, 0),
-                                 "l2_0": (-2496, 732, 0), "l2_1": (-2450, 874, 0), "h2_0": (-1528, -2103, 0),
-                                 "l3_0": (1589, -2059, 0), "l3_1": (1467, -2147, 0)})
-        self.assertEqual(self.geometry.minimum, (-5000, -5000, 0))
-        self.assertEqual(self.geometry.maximum, (5000, 5000, 0))
+    def test_world_identity_and_shared_values(self):
         self.assertEqual(self.world.world["map_id"], "demo_world")
-        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (2, 2))
-
-    def test_exact_polygons_heights_and_collision_classification(self):
-        polygons = {
-            "midwall_054": ((1748, 832), (1983, 1155), (486, 2243), (251, 1919)),
-            "midwall_126": ((-251, 1919), (-486, 2243), (-1983, 1155), (-1748, 832)),
-            "midwall_198": ((-1903, 354), (-2283, 231), (-1711, -1529), (-1331, -1405)),
-            "midwall_270": ((-925, -1700), (-925, -2100), (925, -2100), (925, -1700)),
-            "midwall_342": ((1331, -1405), (1711, -1529), (2283, 231), (1903, 354)),
-            "wall_n": ((-5300, 5000), (5300, 5000), (5300, 5300), (-5300, 5300)),
-            "wall_s": ((-5300, -5300), (5300, -5300), (5300, -5000), (-5300, -5000)),
-            "wall_e": ((5000, -5300), (5300, -5300), (5300, 5300), (5000, 5300)),
-            "wall_w": ((-5300, -5300), (-5000, -5300), (-5000, 5300), (-5300, 5300)),
-            "shop_stall": ((718, 718), (838, 718), (838, 838), (718, 838)),
-        }
-        self.assertEqual(set(self.geometry.polygons), set(polygons))
-        for identity, xy in polygons.items():
-            self.assertEqual(self.geometry.polygons[identity], tuple((*p, 0) for p in xy))
-            row = self.geometry.rows[identity]
-            self.assertEqual(content._wire_fraction(row["height_cm"], identity), 80 if identity == "shop_stall" else 600)
-            self.assertTrue(row["blocks_movement"])
-            self.assertEqual(row["blocks_sight"], identity != "shop_stall")
-            self.assertNotIn("min_cm", row)
+        self.assertEqual((self.world.world["schema_version"], self.world.world["projection_revision"]), (3, 3))
         self.assertEqual(content._wire_fraction(self.world.world["geometry"]["sight_sample_height_cm"], "sight"), 120)
-        self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 500)
+        self.assertEqual(content._wire_fraction(self.world.world["geometry"]["camp_clearance_cm"], "clearance"), 300)
 
-    def test_exact_placement_connections_and_parameter_references(self):
+    def test_exact_placement_and_parameter_references(self):
         placement = self.world.world["placement"]
         self.assertEqual([world.point(row, "offset") for row in placement["spawn_offsets_cm"]],
                          [(0, 0, 0), (100, 0, 0), (50, 87, 0), (-50, 87, 0), (-100, 0, 0), (-50, -87, 0), (50, -87, 0)])
         self.assertEqual(content._wire_fraction(placement["spawn_validation_radius_cm"], "envelope"), 200)
-        self.assertEqual([(row["id"], tuple(row["wall_ids"]), row["camp_id"]) for row in self.world.world["connections"]], [
-            ("g018", ("midwall_342", "midwall_054"), "l1"), ("g090", ("midwall_054", "midwall_126"), "h1"),
-            ("g162", ("midwall_126", "midwall_198"), "l2"), ("g234", ("midwall_198", "midwall_270"), "h2"),
-            ("g306", ("midwall_270", "midwall_342"), "l3")])
         self.assertEqual(self.world.world["parameter_refs"], (
-            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm", "TIMING.DefendRouteBudgetSec",
-            "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "UNIT.MoveSpeedCmPerSec", "VISION.RadiusCm"))
-
-    def test_published_route_lengths_and_whole_ground_budget(self):
-        captures = (4175.255, 4175.436, 4175.833, 4175.833, 4175.436, 4175.255, 4175.554, 4175.820, 4175.820, 4175.554)
-        shops = (3104.614, 2933.627, 3229.117, 3422.275, 4468.133, 4636.361, 4974.744, 4952.690, 4397.008, 4136.503)
-        lows = (
-            (2087.615, 6923.428, 3559.634), (2088.219, 6516.459, 5110.357), (3560.434, 5111.733, 6515.950),
-            (5111.733, 3560.434, 6923.191), (6516.459, 2088.219, 6922.817), (6923.428, 2087.615, 6515.710),
-            (6923.400, 3559.057, 5110.874), (6516.137, 5110.667, 3560.234), (5110.667, 6516.137, 2088.767),
-            (3559.057, 6923.400, 2088.615),
-        )
-        for index in range(10):
-            identity = f"s{index:02d}"
-            route = self.world.report["routes"][identity]
-            self.assertAlmostEqual(route["capture_cm"], captures[index], delta=.00051)
-            self.assertAlmostEqual(route["shop_cm"], shops[index], delta=.00051)
-            start = world.point(self.anchors[identity]["position_cm"], identity)
-            for camp_id, expected in zip(("l1", "l2", "l3"), lows[index]):
-                target = world.point(self.anchors[camp_id]["position_cm"], camp_id)
-                self.assertAlmostEqual(self.model.distance(start, target, 0), expected, delta=.00051)
-        for identity, capture, shop in (
-            ("l1", 2300.103, 1095.505), ("h1", 2300, 1390.297), ("l2", 2300.103, 2651.504),
-            ("h2", 2299.499, 3090.230), ("l3", 2299.499, 2381.535),
-        ):
-            self.assertAlmostEqual(self.world.report["routes"][identity]["capture_cm"], capture, delta=.00051)
-            self.assertAlmostEqual(self.world.report["routes"][identity]["shop_cm"], shop, delta=.00051)
-        self.assertAlmostEqual(self.world.report["route_upper_bound_cm"], 9524.661, delta=.00051)
-        speed = amount(self.data["parameters"]["UNIT.MoveSpeedCmPerSec"])
-        budget = amount(self.data["parameters"]["TIMING.DefendRouteBudgetSec"])
-        self.assertEqual((speed, budget), (300, 35))
-        self.assertLess(self.world.report["route_upper_bound_cm"], speed * budget)
-        self.assertGreater(self.world.report["route_upper_bound_cm"], speed * 31)
-        self.assertAlmostEqual(self.world.report["min_inner_angular_gap_degrees"], 11.662, delta=.00051)
-        candidates = [row["capture_cm"] for key, row in self.world.report["routes"].items() if ":" in key]
-        self.assertEqual(len(candidates), 70)
-        self.assertAlmostEqual(min(candidates), 4075.611, delta=.00051)
-        self.assertAlmostEqual(max(candidates), 4276.064, delta=.00051)
-
-    def test_actual_melee_opportunities_and_sight_counterexamples(self):
-        self.assertTrue(self.geometry.sight_clear((0, 1500, 0), (0, 2600, 0)))
-        self.assertFalse(self.geometry.sight_clear((0, -1650, 0), (0, -2150, 0)))
-        for identity, approach in (
-            ("l1", (2616, 849, 0)), ("h1", (0, 2800, 0)), ("l2", (-2616, 849, 0)),
-            ("h2", (-1646, -2265, 0)), ("l3", (1616, -2224, 0)),
-        ):
-            self.assertTrue(self.geometry.legal(approach, Fraction(40)))
-            for member in self.anchors[identity]["members"]:
-                home = world.point(member["position_cm"], member["id"])
-                distance = math.sqrt(float(world.squared_distance(approach, home)))
-                self.assertGreaterEqual(distance, 80)
-                self.assertLessEqual(distance, 220)
-                self.assertTrue(self.geometry.sight_clear(approach, home))
-        low = self.anchors["l1"]
-        self.assertLess(world.squared_distance(world.point(low["position_cm"], "l1"),
-                                              world.point(low["members"][0]["position_cm"], "l1_0")), 80 ** 2)
-        self.assertFalse(self.geometry.legal((778, 778, 0), Fraction(40)))
+            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
+            "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"))
 
     def test_byte_provenance_and_acyclic_producer_order(self):
         self.assertEqual(self.world.world["source_sha256"], content.sha256((content.ROOT / content.WORLD_SOURCE).read_bytes()))
@@ -789,11 +704,103 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual(world.compile_world().outputs, self.world.outputs)
         self.assertEqual(set(self.world.world), {
             "schema_version", "projection_revision", "map_id", "layout_revision", "geometry_revision",
-            "source_sha256", "author_schema_sha256", "approval", "geometry", "placement", "connections", "parameter_refs", "anchors"})
+            "source_sha256", "author_schema_sha256", "approval", "geometry", "placement", "parameter_refs", "anchors"})
         self.assertNotIn(self.root_bundle.digest.hex(), self.world.outputs[content.WORLD_OUTPUT].decode("utf-8"))
         self.assertEqual(content.verify_runtime_files(content.ROOT, self.root_bundle.digest), self.root_bundle.digest)
         content.check_outputs(content.ROOT, self.root_bundle.outputs)
         world_sync.synchronize(check=True)
+
+
+def wire(value):
+    value = Fraction(value)
+    return {"numerator": value.numerator, "denominator": value.denominator}
+
+
+def vec(x, y, z=0):
+    return {"x": wire(x), "y": wire(y), "z": wire(z)}
+
+
+def box(x0, y0, x1, y1, z=0):
+    return [vec(x0, y0, z), vec(x1, y0, z), vec(x1, y1, z), vec(x0, y1, z)]
+
+
+class WorldGeometryFunctions(unittest.TestCase):
+    """What each world element does, on a small synthetic world instead of the current map layout."""
+
+    @classmethod
+    def setUpClass(cls):
+        def polygon(identity, points, height, sight):
+            return {"id": identity, "shape": "polygon", "polygon_cm": points, "height_cm": wire(height),
+                    "blocks_movement": True, "blocks_sight": sight}
+        blockers = [
+            polygon("wall", box(-100, -1000, 100, 1000), 200, True),
+            polygon("fence", box(-1000, 2000, 1000, 2020), 100, False),
+            {"id": "tree", "shape": "cylinder", "center_cm": vec(-2000, -3000), "radius_cm": wire(50), "height_cm": wire(200),
+             "blocks_movement": True, "blocks_sight": True},
+            {"id": "high_tree", "shape": "cylinder", "center_cm": vec(2200, 300, 150), "radius_cm": wire(50),
+             "height_cm": wire(200), "blocks_movement": True, "blocks_sight": True},
+        ]
+        elevation = {
+            "level_step_cm": wire(150),
+            "plateaus": [{"id": "hill_1", "level": 1, "polygon_cm": box(2000, -500, 3000, 500, 150)},
+                         {"id": "hill_2", "level": 2, "polygon_cm": box(2400, -200, 2800, 200, 300)}],
+            "ramps": [{"id": "ramp_0", "lower_level": 0,
+                       "polygon_cm": [vec(1700, 100), vec(1700, -100), vec(2000, -100, 150), vec(2000, 100, 150)]}],
+        }
+        cls.geometry = world.Geometry({"geometry": {
+            "surfaces": [{"id": "ground", "min_cm": vec(-5000, -5000), "max_cm": vec(5000, 5000)}],
+            "elevation": elevation, "blockers": blockers}})
+        cls.radius = Fraction(40)
+
+    def test_wall_blocks_walking_and_sight(self):
+        g = self.geometry
+        self.assertFalse(g.legal((0, 0, 0), self.radius))
+        self.assertFalse(g.legal((-139, 0, 0), self.radius))
+        self.assertTrue(g.legal((-140, 0, 0), self.radius))
+        self.assertFalse(g.sight_clear((-500, 0, 0), (500, 0, 0)))
+        self.assertTrue(g.sight_clear((-500, 1500, 0), (500, 1500, 0)))
+
+    def test_fence_blocks_walking_but_not_sight(self):
+        g = self.geometry
+        self.assertFalse(g.legal((0, 2010, 0), self.radius))
+        self.assertFalse(g.legal((0, 1961, 0), self.radius))
+        self.assertTrue(g.legal((0, 1960, 0), self.radius))
+        self.assertTrue(g.sight_clear((0, 1500, 0), (0, 2500, 0)))
+
+    def test_tree_blocks_walking_within_body_radius_and_sight_through_its_trunk(self):
+        g = self.geometry
+        self.assertFalse(g.legal((-2000, -3000 + 89, 0), self.radius))
+        self.assertTrue(g.legal((-2000, -3000 + 90, 0), self.radius))
+        self.assertFalse(g.sight_clear((-2300, -3000, 0), (-1700, -3000, 0)))
+        self.assertTrue(g.sight_clear((-2300, -2950, 0), (-1700, -2950, 0)))
+
+    def test_standing_follows_the_level_under_the_whole_body(self):
+        g = self.geometry
+        self.assertTrue(g.legal((2500, -400, 150), self.radius))
+        self.assertFalse(g.legal((2500, -400, 0), self.radius))
+        # A body across a cliff edge stands on no single level.
+        self.assertFalse(g.legal((2010, -400, 150), self.radius))
+        self.assertFalse(g.legal((1990, -400, 0), self.radius))
+        self.assertEqual([g.terrain.tier(p) for p in ((1000, 0), (1850, 0), (2100, 0), (2600, 0))], [0, 1, 2, 4])
+
+    def test_high_ground_sees_low_ground_not_the_reverse(self):
+        clear = self.geometry.sight_clear
+        ground, ramp, low, high = (1000, 0, 0), (1850, 0, 75), (2100, 0, 150), (2600, 0, 300)
+        self.assertEqual((clear(ground, low), clear(low, ground)), (False, True))
+        self.assertEqual((clear(ground, ramp), clear(ramp, ground)), (False, True))
+        self.assertEqual((clear(ramp, low), clear(low, ramp)), (False, True))
+        self.assertEqual((clear(low, high), clear(high, low)), (False, True))
+        self.assertTrue(clear(high, (1500, 0, 0)))
+        # A plateau between two ground points hides them from each other.
+        self.assertFalse(clear((1500, 0, 0), (3500, 0, 0)))
+        self.assertTrue(clear((1500, 700, 0), (3500, 700, 0)))
+
+    def test_obstacles_hide_only_from_their_level_and_below(self):
+        clear = self.geometry.sight_clear
+        self.assertFalse(clear((1000, 0, 0), (-300, 0, 0)))
+        self.assertTrue(clear((2100, 0, 150), (-300, 0, 0)))
+        self.assertFalse(clear((2050, 300, 150), (2350, 300, 150)))
+        self.assertTrue(clear((2500, 150, 300), (2100, 380, 150)))
 
 
 class ApprovedDemoRefusals(unittest.TestCase):
@@ -855,6 +862,12 @@ class ApprovedDemoRefusals(unittest.TestCase):
     def test_coordinated_schema_extensions_reject_every_nested_author_object_kind(self):
         source_raw = (self.root / content.WORLD_SOURCE).read_bytes()
         schema_raw = (self.root / content.WORLD_SCHEMA_SOURCE).read_bytes()
+        # One row of each author shape, wherever the current layout puts it.
+        source = json.loads(source_raw)
+        polygon = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "polygon")
+        cylinder = next(i for i, row in enumerate(source["geometry"]["blockers"]) if row["shape"] == "cylinder")
+        place = next(i for i, row in enumerate(source["anchors"]) if "members" not in row)
+        camp = next(i for i, row in enumerate(source["anchors"]) if len(row.get("members", ())) == 2)
         cases = (
             ((), ()),
             (("approval",), ("properties", "approval")),
@@ -862,16 +875,17 @@ class ApprovedDemoRefusals(unittest.TestCase):
             (("geometry", "surfaces", 0), ("properties", "geometry", "properties", "surfaces", "items")),
             (("geometry", "surfaces", 0, "min_cm"), ("$defs", "vector")),
             (("geometry", "surfaces", 0, "max_cm"), ("$defs", "vector")),
-            (("geometry", "blockers", 9), ("properties", "geometry", "properties", "blockers", "items")),
-            (("geometry", "blockers", 9, "polygon_cm", 3), ("$defs", "vector")),
+            (("geometry", "blockers", polygon), ("$defs", "blocker", "oneOf", 0)),
+            (("geometry", "blockers", polygon, "polygon_cm", 3), ("$defs", "vector")),
+            (("geometry", "blockers", cylinder), ("$defs", "blocker", "oneOf", 1)),
+            (("geometry", "blockers", cylinder, "center_cm"), ("$defs", "vector")),
             (("placement",), ("properties", "placement")),
             (("placement", "spawn_offsets_cm", 6), ("$defs", "vector")),
-            (("connections", 4), ("properties", "connections", "items")),
-            (("anchors", 16), ("$defs", "anchor", "oneOf", 0)),
-            (("anchors", 16, "position_cm"), ("$defs", "vector")),
-            (("anchors", 14), ("$defs", "anchor", "oneOf", 1)),
-            (("anchors", 14, "members", 1), ("$defs", "anchor", "oneOf", 1, "properties", "members", "items")),
-            (("anchors", 14, "members", 1, "position_cm"), ("$defs", "vector")),
+            (("anchors", place), ("$defs", "anchor", "oneOf", 0)),
+            (("anchors", place, "position_cm"), ("$defs", "vector")),
+            (("anchors", camp), ("$defs", "anchor", "oneOf", 1)),
+            (("anchors", camp, "members", 1), ("$defs", "anchor", "oneOf", 1, "properties", "members", "items")),
+            (("anchors", camp, "members", 1, "position_cm"), ("$defs", "vector")),
         )
         for author_path, schema_path in cases:
             with self.subTest(path=author_path):
@@ -915,17 +929,30 @@ class ApprovedDemoRefusals(unittest.TestCase):
 
     def test_bad_full_world_input_refuses_without_partial_outputs(self):
         original = (self.root / content.WORLD_SOURCE).read_bytes()
+        source = json.loads(original)
+        rows = source["geometry"]["blockers"]
+        # Cases pick their rows by kind, not by a position in one layout's file.
+        # The boundary wall reaches farthest from the centre; without it a ground edge stays open.
+        reach = lambda row: max(abs(v[a]) for v in row["polygon_cm"] for a in "xy")
+        wall = max((i for i, row in enumerate(rows) if row["shape"] == "polygon"), key=lambda i: reach(rows[i]))
+        polygon = next(i for i, row in enumerate(rows) if row["shape"] == "polygon")
+        stall = next(i for i, row in enumerate(rows) if row["id"].endswith("_stall"))
+        tree = next(i for i, row in enumerate(rows) if row["shape"] == "cylinder")
+        capture = next(row for row in source["anchors"] if row["kind"] == "Capture")["position_cm"]
         for change in (
             lambda d: d.update(coordinate_unit="m"),
             lambda d: d["approval"].update(status="pending"),
-            lambda d: d["geometry"]["blockers"].pop(),
-            lambda d: d["geometry"]["blockers"][0]["polygon_cm"].reverse(),
-            lambda d: d["geometry"]["blockers"][0]["polygon_cm"][0].update(z=1),
-            lambda d: d["geometry"]["blockers"][0].update(height_cm=0),
-            lambda d: d["geometry"]["blockers"][-1].update(blocks_sight=True),
+            lambda d: d["geometry"]["blockers"].pop(wall),
+            lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"].reverse(),
+            lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"][0].update(z=1),
+            lambda d: d["geometry"]["blockers"][polygon].update(height_cm=0),
+            lambda d: d["geometry"]["blockers"][stall].update(blocks_sight=True),
+            lambda d: d["geometry"]["blockers"][tree]["center_cm"].update(z=1),
+            lambda d: d["geometry"]["blockers"][tree].update(radius_cm=0),
+            lambda d: d["geometry"]["blockers"][tree].update(shape="polygon"),
+            lambda d: d["geometry"]["blockers"][tree]["center_cm"].update(x=capture["x"], y=capture["y"]),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=300),
             lambda d: d["placement"]["spawn_offsets_cm"][1].update(x=True),
-            lambda d: d["connections"][0]["wall_ids"].__setitem__(0, "unknown_wall"),
             lambda d: d["parameter_refs"].append("UNAPPROVED.NumericDefault"),
             lambda d: d["geometry"]["surfaces"][0]["min_cm"].update(x=content.INT64_MIN),
         ):
@@ -959,7 +986,7 @@ class ApprovedDemoRefusals(unittest.TestCase):
             self.assertEqual((self.root / relative).read_bytes(), expected)
 
     def test_world_contract_write_failure_rolls_back_world_bundle(self):
-        self.edit(content.WORLD_SOURCE, lambda d: d.update(layout_revision=2))
+        self.edit(content.WORLD_SOURCE, lambda d: d.update(layout_revision=3))
         compilation = world.compile_world(self.root)
         install = content_sync._install_output
 

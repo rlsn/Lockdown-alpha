@@ -177,6 +177,7 @@ FLDDemoWorldGeometry TestGeometry()
     Surface.MaxCm = Ground(5000, 5000);
     Geometry.Surfaces.Add(Surface);
     Geometry.SightSampleHeightCm = Whole(120);
+    Geometry.LevelStepCm = Whole(150);
     FLDDemoWorldBlocker Wall;
     Wall.Id = TEXT("wall");
     Wall.SurfaceId = Surface.Id;
@@ -908,6 +909,127 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     return true;
 }
 
+// #97 tiers: a level-1 plateau east of the wall with a level-2 plateau on it, a ramp from the ground onto its west edge
+// and a tree standing on level 1.
+FLDDemoWorldGeometry TieredGeometry()
+{
+    const auto At = [](int64 X, int64 Y, int64 Z) { FLDDemoWorldPoint Point = Ground(X, Y); Point.Z = Whole(Z); return Point; };
+    FLDDemoWorldGeometry Geometry = TestGeometry();
+    FLDDemoWorldPlateau Low;
+    Low.Id = TEXT("hill_1");
+    Low.Level = 1;
+    Low.PolygonCm = {At(2000, -500, 150), At(3000, -500, 150), At(3000, 500, 150), At(2000, 500, 150)};
+    FLDDemoWorldPlateau High;
+    High.Id = TEXT("hill_2");
+    High.Level = 2;
+    High.PolygonCm = {At(2400, -200, 300), At(2800, -200, 300), At(2800, 200, 300), At(2400, 200, 300)};
+    Geometry.Plateaus = {Low, High};
+    FLDDemoWorldRamp Ramp;
+    Ramp.Id = TEXT("ramp_0");
+    Ramp.LowerLevel = 0;
+    Ramp.PolygonCm = {At(1700, 100, 0), At(1700, -100, 0), At(2000, -100, 150), At(2000, 100, 150)};
+    Geometry.Ramps = {Ramp};
+    FLDDemoWorldBlocker Tree;
+    Tree.Id = TEXT("tree_1");
+    Tree.SurfaceId = Geometry.Surfaces[0].Id;
+    Tree.Shape = ELDDemoWorldBlockerShape::Cylinder;
+    Tree.CenterCm = At(2200, 300, 150);
+    Tree.RadiusCm = Whole(50);
+    Tree.HeightCm = Whole(200);
+    Tree.BlocksMovement = true;
+    Tree.BlocksSight = true;
+    Geometry.Blockers.Add(Tree);
+    return Geometry;
+}
+
+// #97: high ground sees low ground, never the reverse; a ramp sees its lower level and itself; obstacles hide only
+// from observers at or below their level.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionTieredSightTest, "Lockdown.Rules.DemoVision.TieredSight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionTieredSightTest::RunTest(const FString& Parameters)
+{
+    FLDSightGeometry Sight, Wide;
+    FString Error;
+    if (!TestTrue(TEXT("Tiered geometry builds"), Sight.Build(TieredGeometry(), DemoRevision(), Whole(1400), Error))
+        || !TestTrue(TEXT("Wide tiered geometry builds"), Wide.Build(TieredGeometry(), DemoRevision(), Whole(3000), Error))) { return false; }
+    const FVector GroundEye(1000, 0, 0), RampEye(1850, 0, 75), LowEye(2100, 0, 150), HighEye(2600, 0, 300);
+    TestTrue(TEXT("Low ground does not see high ground"), Sight.Trace(GroundEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("High ground sees low ground"), Sight.Trace(LowEye, GroundEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("A ramp sees the low ground"), Sight.Trace(RampEye, GroundEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Low ground does not see onto a ramp"), Sight.Trace(GroundEye, RampEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A ramp does not see the plateau it climbs to"), Sight.Trace(RampEye, LowEye) == ELDSightResult::Blocked);
+    TestTrue(TEXT("The plateau sees down its ramp"), Sight.Trace(LowEye, RampEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Level 1 does not see level 2, level 2 sees level 1"),
+        Sight.Trace(LowEye, HighEye) == ELDSightResult::Blocked && Sight.Trace(HighEye, LowEye) == ELDSightResult::Visible);
+    TestTrue(TEXT("Level 2 sees the ground over level 1"), Sight.Trace(HighEye, FVector(1500, 0, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A plateau between two ground points hides them from each other"),
+        Wide.Trace(FVector(1500, 0, 0), FVector(3500, 0, 0)) == ELDSightResult::Blocked
+        && Wide.Trace(FVector(1500, 700, 0), FVector(3500, 700, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A ground wall hides the ground behind it from the ground, not from level 1"),
+        Wide.Trace(GroundEye, FVector(-300, 0, 0)) == ELDSightResult::Blocked
+        && Wide.Trace(LowEye, FVector(-300, 0, 0)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A level-1 tree hides level 1 from level 1, not from level 2"),
+        Sight.Trace(FVector(2050, 300, 150), FVector(2350, 300, 150)) == ELDSightResult::Blocked
+        && Sight.Trace(FVector(2500, 150, 300), FVector(2100, 380, 150)) == ELDSightResult::Visible);
+    TArray<uint8> GroundBits, LowBits;
+    Sight.Coverage(GroundEye, GroundBits);
+    Sight.Coverage(LowEye, LowBits);
+    const int32 Side = LDObservation::CoverageSide;
+    auto CellOf = [Side](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    TestTrue(TEXT("Ground coverage lights the ground and leaves the plateau dark"),
+        LDObservation::CoverageBit(GroundBits, CellOf(1500, 300)) && !LDObservation::CoverageBit(GroundBits, CellOf(2200, -300)));
+    TestTrue(TEXT("Plateau coverage lights the ground below it"), LDObservation::CoverageBit(LowBits, CellOf(1300, 300)));
+    FLDDemoWorldGeometry Floating = TieredGeometry();
+    Floating.Blockers.Last().CenterCm.Z = Whole(75);
+    TestFalse(TEXT("A sight blocker off every flat level is rejected"), FLDSightGeometry().Build(Floating, DemoRevision(), Whole(1400), Error));
+    return true;
+}
+
+// #97: a tree is an upright cylinder; its closed disc blocks sight like a polygon blocker's closed outline.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionTreeSightTest, "Lockdown.Rules.DemoVision.TreeSight",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionTreeSightTest::RunTest(const FString& Parameters)
+{
+    FLDDemoWorldGeometry Geometry = TestGeometry();
+    FLDDemoWorldBlocker Tree;
+    Tree.Id = TEXT("tree");
+    Tree.SurfaceId = Geometry.Surfaces[0].Id;
+    Tree.Shape = ELDDemoWorldBlockerShape::Cylinder;
+    Tree.CenterCm = Ground(-2000, -2000);
+    Tree.RadiusCm = Whole(50);
+    Tree.HeightCm = Whole(200);
+    Tree.BlocksMovement = true;
+    Tree.BlocksSight = true;
+    Geometry.Blockers.Add(Tree);
+    FLDSightGeometry Sight;
+    FString Error;
+    if (!TestTrue(TEXT("Geometry with a tree builds"), Sight.Build(Geometry, DemoRevision(), Whole(1400), Error))) { return false; }
+    TestTrue(TEXT("A sight line through the trunk is blocked"),
+        Sight.Trace(FVector(-2500, -2000, 2), FVector(-1500, -2000, 2)) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A sight line touching the trunk's edge is blocked"),
+        Sight.Trace(FVector(-2500, -1950, 2), FVector(-1500, -1950, 2)) == ELDSightResult::Blocked);
+    TestTrue(TEXT("A sight line just past the trunk is visible"),
+        Sight.Trace(FVector(-2500, -1949, 2), FVector(-1500, -1949, 2)) == ELDSightResult::Visible);
+    TestTrue(TEXT("A target behind the trunk is hidden, beside it visible"),
+        Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -2000, 2)) == ELDSightResult::Blocked
+        && Sight.Trace(FVector(-2600, -2000, 2), FVector(-1900, -1800, 2)) == ELDSightResult::Visible);
+    TArray<uint8> Bits;
+    Sight.Coverage(FVector(-2600, -2000, 2), Bits);
+    const int32 Side = LDObservation::CoverageSide;
+    auto CellOf = [Side](double X, double Y)
+    { return FMath::FloorToInt32((Y + 5000.0) / (10000.0 / Side)) * Side + FMath::FloorToInt32((X + 5000.0) / (10000.0 / Side)); };
+    TestFalse(TEXT("Coverage leaves the trunk's shadow dark"), LDObservation::CoverageBit(Bits, CellOf(-1700, -2000)));
+    TestTrue(TEXT("Coverage lights the open ground beside the shadow"), LDObservation::CoverageBit(Bits, CellOf(-1700, -1600)));
+    FLDDemoWorldGeometry Low = Geometry;
+    Low.Blockers.Last().HeightCm = Whole(100);
+    TestFalse(TEXT("A sight-blocking tree below the sample height is rejected"), FLDSightGeometry().Build(Low, DemoRevision(), Whole(1400), Error));
+    FLDDemoWorldGeometry Flat = Geometry;
+    Flat.Blockers.Last().RadiusCm = Whole(0);
+    TestFalse(TEXT("A tree without a radius is rejected"), FLDSightGeometry().Build(Flat, DemoRevision(), Whole(1400), Error));
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionActionCueTest, "Lockdown.Rules.DemoVision.ActionCues",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionActionCueTest::RunTest(const FString& Parameters)
@@ -1283,7 +1405,9 @@ bool FLDDemoVisionFullStatusBoundTest::RunTest(const FString& Parameters)
     if (!TestTrue(TEXT("A frame of fully debuffed units round-trips"), Wire(Frame, Read, &Bytes) && Read.Units.Num() == LDObservation::MaxUnits))
     { return false; }
     AddInfo(FString::Printf(TEXT("Fully debuffed observation frame: %lld bytes"), Bytes));
-    TestTrue(TEXT("and stays inside the frame capacity"), Bytes < 8192);
+    // #97: with 50 units every one fully debuffed the frame is about 12 KB; the unreliable full view still travels as
+    // partial bunches, so the bound is twice the old 8 KB rather than a cap the runtime enforces.
+    TestTrue(TEXT("and stays inside the frame capacity"), Bytes < 16384);
     TestTrue(TEXT("Every status and its stacks survive"), Read.Units[0].Statuses.Num() == ContenderAll.Num()
         && Read.Units[1].Statuses.Num() == CampAll.Num()
         && Read.Units[0].Statuses.ContainsByPredicate([](const FLDObservedStatus& Row)

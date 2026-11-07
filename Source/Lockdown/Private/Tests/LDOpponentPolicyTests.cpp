@@ -1091,54 +1091,71 @@ bool RunProjections(FAutomationTestBase& Test)
     const auto& C = *Catalog;
     FString Error;
 
+    // The approved ids, at synthetic positions: every shop and camp of the catalog, one spawn, three airdrops, two dorms.
+    const auto& Refs = C.Get().World;
     FLDDemoWorldGeometry World;
-    World.Anchors = {Anchor(TEXT("capture"), ELDDemoWorldAnchorKind::Capture, 0, 3000),
-        Anchor(TEXT("shop"), ELDDemoWorldAnchorKind::Shop, -3000, 0), Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 10, 20),
+    World.Anchors = {Anchor(*Refs.CaptureId, ELDDemoWorldAnchorKind::Capture, 0, 3000),
+        Anchor(*Refs.SpawnIds[0], ELDDemoWorldAnchorKind::Spawn, 10, 20),
         Anchor(TEXT("airdrop_ne"), ELDDemoWorldAnchorKind::Airdrop, 1940, 2670),
         Anchor(TEXT("airdrop_nw"), ELDDemoWorldAnchorKind::Airdrop, -1940, 2670),
         Anchor(TEXT("airdrop_s"), ELDDemoWorldAnchorKind::Airdrop, 0, -3300),
         // D26: Boss patrol points are not places a body goes; the projection leaves them out.
         Anchor(TEXT("boss_patrol_1"), ELDDemoWorldAnchorKind::BossWaypoint, 2400, 2400),
-        Anchor(TEXT("h1"), ELDDemoWorldAnchorKind::Camp, 1500, 1500, 1), Anchor(TEXT("h2"), ELDDemoWorldAnchorKind::Camp, -2500, 2500, 1),
-        Anchor(TEXT("l1"), ELDDemoWorldAnchorKind::Camp, 2000, 0, 2), Anchor(TEXT("l2"), ELDDemoWorldAnchorKind::Camp, 0, -2500, 2),
-        Anchor(TEXT("l3"), ELDDemoWorldAnchorKind::Camp, -2000, -2000, 2),
         Anchor(TEXT("dorm_nw"), ELDDemoWorldAnchorKind::Dorm, -4400, 4400), Anchor(TEXT("dorm_se"), ELDDemoWorldAnchorKind::Dorm, 4400, -4400)};
+    for (int32 Index = 0; Index < Refs.ShopIds.Num(); ++Index)
+    {
+        World.Anchors.Add(Anchor(*Refs.ShopIds[Index], ELDDemoWorldAnchorKind::Shop, -3000, 400 * Index));
+    }
+    FString HighId, LowId;
+    for (int32 Index = 0; Index < C.Get().Camps.Num(); ++Index)
+    {
+        const FLDDemoCampPlacement& Camp = C.Get().Camps[Index];
+        const bool bHigh = Camp.MonsterId == TEXT("monster_guardian");
+        (bHigh ? HighId : LowId) = (bHigh ? HighId : LowId).IsEmpty() ? Camp.AnchorId : (bHigh ? HighId : LowId);
+        World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bHigh ? 1 : 2));
+    }
+    const int32 Places = World.Anchors.Num() - 1;
     TArray<FLDOpponentPOI> POIs;
     bool bGood = Test.TestTrue(TEXT("Approved anchors and the camp roster form the public places: ") + Error,
-        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == 13);
+        LDOpponentFrame::ReadPublicPOIs(World, C, POIs, Error) && POIs.Num() == Places);
     const auto* DropPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("airdrop_s"); });
     bGood &= Test.TestTrue(TEXT("D26: each airdrop point is a public place"),
         DropPOI && DropPOI->Kind == ELDOpponentPOIKind::Airdrop && DropPOI->FootCm.Equals(FVector(0, -3300, 0)));
     const auto* DormPOI = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("dorm_se"); });
     bGood &= Test.TestTrue(TEXT("D21: each dorm is public recovery ground"),
         DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
-    const auto* High = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("h1"); });
-    const auto* Low = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("l2"); });
-    const auto* Spawn = POIs.FindByPredicate([](const FLDOpponentPOI& P) { return P.Id == TEXT("s00"); });
+    const auto* High = POIs.FindByPredicate([&HighId](const FLDOpponentPOI& P) { return P.Id == FName(*HighId); });
+    const auto* Low = POIs.FindByPredicate([&LowId](const FLDOpponentPOI& P) { return P.Id == FName(*LowId); });
+    const auto* Spawn = POIs.FindByPredicate([&Refs](const FLDOpponentPOI& P) { return P.Id == FName(*Refs.SpawnIds[0]); });
     bGood &= Test.TestTrue(TEXT("Camp tier and creature come from the public catalog"),
         High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
-    auto OneDorm = World;
-    OneDorm.Anchors.RemoveAt(OneDorm.Anchors.Num() - 1);
-    bGood &= Test.TestFalse(TEXT("A world without both dorms is refused"), LDOpponentFrame::ReadPublicPOIs(OneDorm, C, POIs, Error));
-    auto TwoDrops = World;
-    TwoDrops.Anchors.RemoveAt(3);
-    bGood &= Test.TestFalse(TEXT("A world without all three airdrop points is refused"), LDOpponentFrame::ReadPublicPOIs(TwoDrops, C, POIs, Error));
+    const auto Without = [&World](ELDDemoWorldAnchorKind Kind, int32 Count)
+    {
+        auto Out = World;
+        for (int32 Index = Out.Anchors.Num() - 1; Index >= 0 && Count > 0; --Index)
+        {
+            if (Out.Anchors[Index].Kind == Kind) { Out.Anchors.RemoveAt(Index); --Count; }
+        }
+        return Out;
+    };
+    bGood &= Test.TestFalse(TEXT("A world without any dorm is refused"),
+        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Dorm, 2), C, POIs, Error));
+    bGood &= Test.TestFalse(TEXT("A world without any airdrop point is refused"),
+        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Airdrop, 3), C, POIs, Error));
     auto Unplaced = World;
     Unplaced.Anchors.Add(Anchor(TEXT("x9"), ELDDemoWorldAnchorKind::Camp, 0, 0, 2));
     bGood &= Test.TestFalse(TEXT("A camp anchor outside the approved roster is refused"), LDOpponentFrame::ReadPublicPOIs(Unplaced, C, POIs, Error));
-    auto MissingCamp = World;
-    MissingCamp.Anchors.RemoveAt(MissingCamp.Anchors.Num() - 3);
-    bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"), LDOpponentFrame::ReadPublicPOIs(MissingCamp, C, POIs, Error));
-    auto NoShop = World;
-    NoShop.Anchors.RemoveAt(1);
-    bGood &= Test.TestFalse(TEXT("A world without its single shop is refused"), LDOpponentFrame::ReadPublicPOIs(NoShop, C, POIs, Error));
+    bGood &= Test.TestFalse(TEXT("A world missing an approved camp is refused"),
+        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Camp, 1), C, POIs, Error));
+    bGood &= Test.TestFalse(TEXT("A world missing an approved shop is refused"),
+        LDOpponentFrame::ReadPublicPOIs(Without(ELDDemoWorldAnchorKind::Shop, 1), C, POIs, Error));
     auto Unknown = World;
     Unknown.Anchors.Add(Anchor(TEXT("s99"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
     bGood &= Test.TestFalse(TEXT("An unapproved public anchor is refused"), LDOpponentFrame::ReadPublicPOIs(Unknown, C, POIs, Error));
     auto Duplicate = World;
-    Duplicate.Anchors.Add(Anchor(TEXT("s00"), ELDDemoWorldAnchorKind::Spawn, 0, 0));
+    Duplicate.Anchors.Add(Anchor(*Refs.SpawnIds[0], ELDDemoWorldAnchorKind::Spawn, 0, 0));
     bGood &= Test.TestFalse(TEXT("Duplicate public ids are refused"), LDOpponentFrame::ReadPublicPOIs(Duplicate, C, POIs, Error));
 
     FLDWorldView View;

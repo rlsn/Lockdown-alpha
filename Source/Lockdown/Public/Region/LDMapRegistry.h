@@ -3,6 +3,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "CollisionShape.h"
 #include "World/LDWorldQueryTypes.h"
+#include "Region/LDMapGeometry.h"
 #include "LDMapRegistry.generated.h"
 class ULDMapDefinition;
 class UPrimitiveComponent;
@@ -42,6 +43,12 @@ public:
     TSharedRef<FJsonObject> Report() const;
     const FLDWorldRevision& Revision() const { return WorldRevision; }
     const FLDDemoWorldGeometry* GetGeometry() const { return Geometry.Get(); }
+    // #97: plateaus, ramps and the ground they rise from; one registered surface made of several floor pieces.
+    const LDDemoWorld::FTerrain& GetTerrain() const { return Terrain; }
+    // Whether a native floor is one of the registered terrain pieces (ground, plateau or ramp).
+    bool IsTerrainFloor(const UPrimitiveComponent* Floor) const;
+    // #97: the registered shop whose interaction disk is nearest to FootCm in XY, or NAME_None.
+    FName NearestShop(const FVector& FootCm) const;
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
@@ -50,7 +57,8 @@ public:
     bool FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
         const FCollisionShape& Capsule, FLDLegalGround& OutGround, FLDCompletePath& OutPath,
         ELDWorldQueryFailure& Failure, FString& Error) const;
-    bool QueryShopReach(const FLDWorldRevision& Expected, const FVector& FootCm, bool& WithinReach,
+    // Whether FootCm is within interaction reach of the named shop.
+    bool QueryShopReach(const FLDWorldRevision& Expected, FName ShopId, const FVector& FootCm, bool& WithinReach,
         ELDWorldQueryFailure& Failure, FString& Error) const;
     FLDShopEligibilityResult QueryShopEligibility(const FLDGameplayWritePermit& Permit,
         const FLDCombatBodyRef& Buyer, FName ShopId, const FLDWorldRevision& Expected) const;
@@ -72,6 +80,8 @@ private:
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;
     FLDWorldRevision WorldRevision;
     TWeakObjectPtr<UPrimitiveComponent> GroundComponent;
+    TArray<TWeakObjectPtr<UPrimitiveComponent>> TerrainFloors;
+    LDDemoWorld::FTerrain Terrain;
     TArray<FLDMapBinding> Bindings,ServiceBindings;
 };
 

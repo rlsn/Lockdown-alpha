@@ -4971,7 +4971,7 @@
         "id": "monster_guardian",
         "leash_radius": {
           "denominator": 1,
-          "numerator": 1100,
+          "numerator": 1050,
           "unit": "cm"
         },
         "lose_target_grace": {
@@ -4999,15 +4999,15 @@
         "native_id": 2,
         "perception_radius": {
           "denominator": 1,
-          "numerator": 1100,
+          "numerator": 1050,
           "unit": "cm"
         },
         "respawn": {
           "ms": 65000,
           "unit": "ms"
         },
-        "reward_gold": 120,
-        "reward_xp": 160,
+        "reward_gold": 60,
+        "reward_xp": 80,
         "tier": "High"
       },
       {
@@ -5095,30 +5095,114 @@
           "ms": 25000,
           "unit": "ms"
         },
-        "reward_gold": 30,
-        "reward_xp": 40,
+        "reward_gold": 15,
+        "reward_xp": 20,
         "tier": "Low"
       }
     ],
     "placements": [
       {
-        "anchor_id": "h1",
+        "anchor_id": "h01",
         "monster_id": "monster_guardian"
       },
       {
-        "anchor_id": "h2",
+        "anchor_id": "h02",
         "monster_id": "monster_guardian"
       },
       {
-        "anchor_id": "l1",
+        "anchor_id": "h03",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h04",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h05",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h06",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h07",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h08",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "l03",
         "monster_id": "monster_scavenger"
       },
       {
-        "anchor_id": "l2",
+        "anchor_id": "l04",
         "monster_id": "monster_scavenger"
       },
       {
-        "anchor_id": "l3",
+        "anchor_id": "l05",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l08",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l09",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l10",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l11",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l12",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l13",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l14",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l15",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l16",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l17",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l18",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l19",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l20",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l21",
+        "monster_id": "monster_scavenger"
+      },
+      {
+        "anchor_id": "l22",
         "monster_id": "monster_scavenger"
       }
     ]
@@ -6669,7 +6753,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (CONTENT_AND_BALANCE 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225, route 35s; flagpole 180s, guard 30s, airdrop 80s. A playtest baseline, not a balance check.",
+      "decision": "User approvals: 2026-11-02 D01, D02, D03 (content, world, attack-move); 2026-11-04 #82 D17-D24, pointer dash and builds (balance 15.4, 15.7-15.9); #79 dorm, camp return, airdrop, Boss and leader. 2026-11-05 #112 builds and spray-guard D33 (15.2, 15.6, 15.10-15.11); #79 Boss windup/patrol; #82 camera 2250 (1300-2400). 2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050. A playtest, not a balance check.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -7111,10 +7195,6 @@
       "numerator": 173,
       "unit": "cm/s"
     },
-    "TIMING.DefendRouteBudgetSec": {
-      "ms": 35000,
-      "unit": "ms"
-    },
     "UNIT.BasicAttackRangeCm": {
       "denominator": 1,
       "numerator": 220,
@@ -7136,7 +7216,7 @@
     },
     "VISION.RadiusCm": {
       "denominator": 1,
-      "numerator": 1400,
+      "numerator": 1050,
       "unit": "cm"
     },
     "XP.BaseToNext": 80,
@@ -7211,15 +7291,39 @@
   },
   "world": {
     "camp_ids": [
-      "h1",
-      "h2",
-      "l1",
-      "l2",
-      "l3"
+      "h01",
+      "h02",
+      "h03",
+      "h04",
+      "h05",
+      "h06",
+      "h07",
+      "h08",
+      "l03",
+      "l04",
+      "l05",
+      "l08",
+      "l09",
+      "l10",
+      "l11",
+      "l12",
+      "l13",
+      "l14",
+      "l15",
+      "l16",
+      "l17",
+      "l18",
+      "l19",
+      "l20",
+      "l21",
+      "l22"
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
-    "shop_id": "shop",
+    "shop_ids": [
+      "shop_n",
+      "shop_s"
+    ],
     "spawn_ids": [
       "s00",
       "s01",
@@ -7230,7 +7334,9 @@
       "s06",
       "s07",
       "s08",
-      "s09"
+      "s09",
+      "s10",
+      "s11"
     ]
   }
 }

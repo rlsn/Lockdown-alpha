@@ -129,10 +129,12 @@ class DemoNativeFixturesTest(unittest.TestCase):
                                          Path("Source", "Lockdown", "Public", "Development", "LDDemoContentDefinitions.h"),
                                          Path("Source", "Lockdown", "Public", "Region", "LDMapGeometry.h"))
         self.assertEqual(native.flatten(expected), json.loads((self.root / "base" / "native_world_expected.json").read_bytes()))
-        self.assertEqual(len(expected["Blockers"]), 10)
-        self.assertEqual(len(expected["Anchors"]), 26)
+        world = json.loads(compilation.inputs[demo.WORLD_OUTPUT])
+        self.assertEqual(len(expected["Blockers"]), len(world["geometry"]["blockers"]))
+        self.assertIn(1, {row["Shape"] for row in expected["Blockers"]})
+        self.assertEqual(len(expected["Anchors"]), len(json.loads((demo.ROOT / demo.WORLD_SOURCE).read_bytes())["anchors"]))
         self.assertEqual(len(expected["SpawnOffsetsCm"]), 7)
-        self.assertEqual(len(expected["Connections"]), 5)
+        self.assertNotIn("Connections", expected)
 
     def test_valid_world_changes_use_the_single_producer(self):
         from DemoWorld import compile_world

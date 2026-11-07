@@ -138,7 +138,8 @@ bool TickRoom(const TSharedRef<FRoomProbe>& Probe)
         const bool NavigationReady = LDDemoEntry::LoadRuntimeContent(Catalog, Error)
             && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error) && Start
             && Registry->QueryGround(Registry->Revision(), Start->Position, Capsule, Start->Surface, Origin, Failure, Error)
-            && Registry->FindPublicApproach(Registry->Revision(), Origin, TEXT("shop"), Capsule, Approach, Path, Failure, Error);
+            && !Catalog->Get().World.ShopIds.IsEmpty()
+            && Registry->FindPublicApproach(Registry->Revision(), Origin, FName(*Catalog->Get().World.ShopIds[0]), Capsule, Approach, Path, Failure, Error);
         Check(NavigationReady, TEXT("This connection resolves real ground and a complete shop-range approach"));
         if (NavigationReady) { Report->SetNumberField(TEXT("shop_path_cm"), Path.LengthCm); }
     }

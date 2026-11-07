@@ -40,6 +40,7 @@ public:
     FLDCombatBodyRef OriginalBody;
     FLDMoveIdentity OldOrder, AcceptedOrder;
     FVector StartPosition=FVector::ZeroVector;
+    FVector ArrivalGoal=FVector::ZeroVector;
     TMap<FGuid,FVector> StoppedBodies;
     TArray<TSharedPtr<FJsonValue>> Checks;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -163,7 +164,7 @@ public:
             bPrepared=!Hooks || !Hooks->Prepare || Hooks->Prepare(Mode,Start,Error);
         }
         if (!Check(bPrepared,TEXT("Fixture prepares every registered provider like a normal start"))) { return false; }
-        const FName ShopId(*Content->Get().World.ShopId);
+        const FName ShopId=Content->Get().World.ShopIds.IsEmpty() ? FName() : FName(*Content->Get().World.ShopIds[0]);
         const auto* Shop=Registry.Resolve(ShopId,Registry.Generation);
         if (!Shop) { Error=TEXT("Shop geometry fixture has no approved anchor."); return false; }
         const auto& ShopRadius=Content->Get().Parameters.ShopInteractRadiusCm;
@@ -171,21 +172,21 @@ public:
         bool WithinReach=false;
         ELDWorldQueryFailure ShopFailure;
         FString ShopError;
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius-1,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius-1,0,0),
             WithinReach,ShopFailure,ShopError) && WithinReach && ShopFailure==ELDWorldQueryFailure::None,
             TEXT("Registered shop reach accepts a legal in-range foot point"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,0),
             WithinReach,ShopFailure,ShopError) && WithinReach,
             TEXT("Registered shop reach includes its exact approved radius"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius+1,0,0),
+        if (!Check(Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius+1,0,0),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::None && ShopError.IsEmpty(),
             TEXT("Outside shop range is a successful false query, not a world failure"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
-        if (!Check(!Registry.QueryShopReach(Registry.Revision(),Shop->Position+FVector(Radius,0,50),
+        if (!Check(!Registry.QueryShopReach(Registry.Revision(),ShopId,Shop->Position+FVector(Radius,0,50),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::NotGrounded && !ShopError.IsEmpty(),
             TEXT("Invalid shop support is explicitly rejected rather than treated as out of range"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
         auto StaleShopWorld=Registry.Revision();
         ++StaleShopWorld.GeometryRevision;
-        if (!Check(!Registry.QueryShopReach(StaleShopWorld,Shop->Position+FVector(Radius,0,0),
+        if (!Check(!Registry.QueryShopReach(StaleShopWorld,ShopId,Shop->Position+FVector(Radius,0,0),
             WithinReach,ShopFailure,ShopError) && !WithinReach && ShopFailure==ELDWorldQueryFailure::StaleWorld && !ShopError.IsEmpty(),
             TEXT("Shop reach rejects a stale registered world before range evaluation"))) { if (!ShopError.IsEmpty()) { Error=ShopError; } return false; }
         bool Registered=Mode.ExecuteAuthorityPhase(*Mode.Combat,ELDCommitPhase::RespawnsAndWorld,
@@ -612,7 +613,13 @@ public:
         }
         if (Stage==8 && FPaths::FileExists(FPaths::Combine(Output,TEXT("Continue.json"))))
         {
-            Nav->NavigateGround(Goal->Position,Goal->Surface);
+            // Bodies block each other (#97), so the three owned bodies cannot all stand on the capture point: each role
+            // finishes on its own point of a ring around it, four capsule radii out, on the same open capture ground.
+            const int32 Slot=Role==TEXT("Host")?0:Role==TEXT("Client1")?1:2;
+            const double Angle=Slot*UE_TWO_PI/3;
+            ArrivalGoal=Goal->Position+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)
+                *4*Body->GetCapsuleComponent()->GetScaledCapsuleRadius();
+            Nav->NavigateGround(ArrivalGoal,Goal->Surface);
             Stage=9;
         }
         else if (Stage==9 && !Nav->HasMoveOrder() && Nav->LatestReceipt().Status==ELDOrderStatus::Completed
@@ -625,10 +632,10 @@ public:
             const double ClientErrorCm=FMath::Sqrt(GetDefault<AGameNetworkManager>()->MAXPOSITIONERRORSQUARED);
             // The reliable completion receipt can precede the final unreliable CMC correction under packet lag/loss.
             if (ArrivalReceivedAt==0) { ArrivalReceivedAt=FPlatformTime::Seconds(); }
-            if (FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)>Arrived.AcceptanceCm+ClientErrorCm
+            if (FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)>Arrived.AcceptanceCm+ClientErrorCm
                 && FPlatformTime::Seconds()-ArrivalReceivedAt<3) { return true; }
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
-                && FVector::Dist2D(Body->GetNavAgentLocation(),Goal->Position)<=Arrived.AcceptanceCm+ClientErrorCm
+                && FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
             Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==1,
                 TEXT("Navigation and corrections do not allocate a new body or life"));

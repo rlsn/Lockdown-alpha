@@ -1615,7 +1615,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
     TestTrue(TEXT("The fixed camera direction is unchanged"),
-        Character->CameraArm->GetRelativeRotation().Equals(FRotator(-60.f, -45.f, 0.f)));
+        Character->CameraArm->GetRelativeRotation().Equals(FRotator(-60.f, -90.f, 0.f)));
     TestEqual(TEXT("One zoom step remains 80 cm"), ALDCharacter::ZoomedArmLength(2250.f, 1.f), 2170.f);
     TestEqual(TEXT("Zoom out clamps at 2400 cm"), ALDCharacter::ZoomedArmLength(2350.f, -1.f), 2400.f);
     TestEqual(TEXT("Zoom in clamps at 1300 cm"), ALDCharacter::ZoomedArmLength(1340.f, 1.f), 1300.f);

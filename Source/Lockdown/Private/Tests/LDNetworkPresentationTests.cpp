@@ -1,3 +1,4 @@
+#include "Character/LDCameraSettings.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
@@ -36,7 +37,7 @@ bool FLDFixedCameraTest::RunTest(const FString& Parameters)
         Body->CalcCamera(.016f,View);
         TestTrue(TEXT("Camera evaluates the current fixed arm, without waiting for its component tick"),
             View.Location.Equals(ALDCharacter::DefaultArmCameraPose(Centre,Body->CameraArm->TargetArmLength).GetLocation(),.001)
-            && View.Rotation.Equals(FRotator(-60,-45,0),.001));
+            && View.Rotation.Equals(FRotator(LDCamera::Pitch,LDCamera::Yaw,0),.001));
     }
     Body->CameraArm->TargetArmLength=1300;
     Body->CameraArm->SetWorldLocation(Centre+FVector(100,50,0));

@@ -13,9 +13,10 @@ struct FLDDemoContentDefinitions;
 
 // Three-card level-up choice (APP_SPEC 4.2, UI 3.2): a normal main panel over one fixed server offer.
 // Compact cards show a placeholder icon, the name and one kind/rank line; hovering or focusing a card pops its full
-// description beside it. Clicking a card submits it at once; the command carries stable OfferId/OptionId and versions,
-// never a row index. A learn-active card with both Q/W filled opens the replacement child confirmation instead, which
-// never picks a slot by default; clicking the Q or W slot there is the replacement's confirmation.
+// description above it. Clicking a card submits it at once; the command carries stable OfferId/OptionId and versions,
+// never a row index. A learn-active card with both Q/W filled starts the replacement pick instead (#97): the HUD's Q/W
+// slots glow red and clicking one submits the replacement of that slot; no slot is picked by default, another card
+// restarts from that card and Back cancels.
 UCLASS()
 class LOCKDOWN_API ULDChoicesPanel : public ULDPanel
 {
@@ -30,12 +31,14 @@ public:
     void Present(const FLDProgressionView& View,uint32 Match,uint32 Life,ELDLifePhase Phase,const FLDDemoContentDefinitions* Content);
     void HandleSubmit(const FLDSubmitResult& Result);
     void HandleReceipt(const FLDChoiceReceiptQueryResult& Result);
-    // A card click: submits that card, or opens the replacement child confirmation when it needs one.
+    // A card click: submits that card, or starts the replacement pick when it needs one.
     bool ChooseCard(int32 Index);
     // Shows a card's detail popup without choosing it, as hovering does (automation and review captures).
     bool PreviewChoice(int32 Index);
-    // A slot click in the replacement child: forgets that slot's skill and submits the replacement at once.
+    // A HUD Q/W slot click during the replacement pick: forgets that slot's skill and submits the replacement at once.
     bool ChooseReplacement(uint8 SkillSlot);
+    // The replacement pick is waiting and this skill slot (0 Q, 1 W) holds an active that a click would replace.
+    bool IsReplacementTarget(uint8 SkillSlot) const;
     // Submits the chosen card (or the chosen replacement); a card click and a slot click both end here.
     void ConfirmChoice();
     // 112 §6: spends one free reroll on the shown offer (one per offer, never paid with gold).
@@ -55,8 +58,11 @@ public:
     bool IsEngaged() const {return DetailCard!=INDEX_NONE||Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
     // The card whose detail popup is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
-    // Distance of the card column's bottom edge from the screen bottom: the HUD keeps it right above its shop entry.
-    void SetBottomDock(float Bottom);
+    // Distance of the panel's bottom edge from the screen bottom and of its left edge from the screen left: the HUD keeps
+    // it in the blind-box button's row, right of the button (#97).
+    void SetBottomDock(float Bottom,float Left);
+    // Distance of the panel's top edge from the screen bottom (last layout), so the HUD can stack the toast above it.
+    float PanelTop() const;
 protected:
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual void NativeTick(const FGeometry& Geometry,float Delta) override;
@@ -71,11 +77,12 @@ private:
         TObjectPtr<UTextBlock> Glyph,Name,Summary;
     };
     TArray<FCardWidgets> Cards;
+    // #97: the free reroll is a fourth card of the same shape.
+    FCardWidgets RerollCard;
     TArray<LDHUD::FChoiceCardView> CardViews;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> DockFrame;
-    float BottomDock=96.f;
-    UPROPERTY() TObjectPtr<UBorder> ReplacePanel;
+    float BottomDock=96.f,DockLeft=16.f;
     // The detail popup lives on its own full-panel canvas layer, so its size never moves the card column.
     UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> DetailSlot;
@@ -83,11 +90,8 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> DetailName;
     UPROPERTY() TObjectPtr<UTextBlock> DetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> DetailBody;
-    UPROPERTY() TObjectPtr<UTextBlock> Header;
     UPROPERTY() TObjectPtr<UTextBlock> Feedback;
-    UPROPERTY() TObjectPtr<UTextBlock> ReplaceText;
     UPROPERTY() TObjectPtr<ULDCommandButton> RerollButton;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ReplaceSlotButtons[2];
     UPROPERTY() TArray<TObjectPtr<UWidget>> CardWidgets;
     FLDProgressionView Latest;
     uint32 LatestMatch=0,LatestLife=0;

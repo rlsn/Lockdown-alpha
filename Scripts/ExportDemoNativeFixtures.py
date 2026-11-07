@@ -54,8 +54,8 @@ def scalar(value):
 def expected_world_projection(compilation):
     world = json.loads(compilation.inputs[demo.WORLD_OUTPUT])
 
-    def point(value):
-        return {axis.upper(): rational(value[axis]) for axis in ("x", "y", "z")}
+    def point(value=None):
+        return {axis.upper(): rational(None if value is None else value[axis]) for axis in ("x", "y", "z")}
 
     return {
         "MapId": world["map_id"], "LayoutRevision": world["layout_revision"],
@@ -65,9 +65,15 @@ def expected_world_projection(compilation):
         "ApprovalDecision": world["approval"]["decision"],
         "Surfaces": [{"Id": row["id"], "MinCm": point(row["min_cm"]), "MaxCm": point(row["max_cm"])}
                      for row in world["geometry"]["surfaces"]],
+        "LevelStepCm": rational(world["geometry"]["elevation"]["level_step_cm"]),
+        "Plateaus": [{"Id": row["id"], "Level": row["level"], "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]]}
+                     for row in world["geometry"]["elevation"]["plateaus"]],
+        "Ramps": [{"Id": row["id"], "LowerLevel": row["lower_level"], "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]]}
+                  for row in world["geometry"]["elevation"]["ramps"]],
         "Blockers": [{
-            "Id": row["id"], "SurfaceId": row["surface_id"],
-            "PolygonCm": [point(vertex) for vertex in row["polygon_cm"]],
+            "Id": row["id"], "SurfaceId": row["surface_id"], "Shape": ("polygon", "cylinder").index(row["shape"]),
+            "PolygonCm": [point(vertex) for vertex in row.get("polygon_cm", [])],
+            "CenterCm": point(row.get("center_cm")), "RadiusCm": rational(row.get("radius_cm")),
             "HeightCm": rational(row["height_cm"]), "BlocksMovement": row["blocks_movement"],
             "BlocksSight": row["blocks_sight"],
         } for row in world["geometry"]["blockers"]],
@@ -75,8 +81,6 @@ def expected_world_projection(compilation):
         "CampClearanceCm": rational(world["geometry"]["camp_clearance_cm"]),
         "SpawnOffsetsCm": [point(value) for value in world["placement"]["spawn_offsets_cm"]],
         "SpawnValidationRadiusCm": rational(world["placement"]["spawn_validation_radius_cm"]),
-        "Connections": [{"Id": row["id"], "WallIds": row["wall_ids"], "CampId": row["camp_id"]}
-                        for row in world["connections"]],
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
             "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
@@ -245,7 +249,7 @@ def parameter_projection(parameters):
         ("STAT.AttackSpeedPerLevelRatio", "AttackSpeedPerLevelBp"), ("STAT.CritChance.Base", "CritChanceBaseBp"),
         ("STAT.CritMultiplier", "CritMultiplierBp"), ("STAT.AbilityCritMultiplier", "AbilityCritMultiplierBp"), ("STAT.CooldownHaste.Base", "CooldownHasteBaseP2"),
         ("STAT.CooldownHaste.Max", "CooldownHasteMaxP2"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
-        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"), ("TIMING.DefendRouteBudgetSec", "DefendRouteBudgetMs"),
+        ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
         ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
         ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistGoldRatio", "AssistGoldBp"),
@@ -357,7 +361,7 @@ def expected_projection(compilation):
             ("active_count", "OpeningActiveCount"), ("passive_count", "OpeningPassiveCount"),
         )}, "RerollLevels": data["progression"]["reroll_levels"]},
         "World": {dest: data["world"][source] for source, dest in (
-            ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_id", "ShopId"), ("capture_id", "CaptureId"),
+            ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_ids", "ShopIds"), ("capture_id", "CaptureId"),
         )},
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
@@ -696,7 +700,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("zero_denominator", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"denominator": 0}), "integer outside")
     bad_content("wrong_monster", lambda d: d["camps"]["placements"][0].update({"monster_id": "monster_missing"}), "camp/monster")
     bad_content("bad_perception", lambda d: d["camps"]["monsters"][0]["perception_radius"].update({"numerator": 301}), "perception")
-    bad_content("bad_world_ref", lambda d: d["world"].update({"shop_id": "shop_missing"}), "anchor reference")
+    bad_content("bad_world_ref", lambda d: d["world"].update({"shop_ids": ["shop_missing"]}), "anchor reference")
     bad_content("duplicate_world_ref", lambda d: d["world"]["spawn_ids"].__setitem__(1, d["world"]["spawn_ids"][0]), "duplicate")
     bad_content("bad_display_key", lambda d: d["display"][0].update({"name_key": "wrong.name"}), "display reference")
     bad_content("missing_display", lambda d: d["display"].pop(), "array length")
@@ -757,16 +761,46 @@ def _export_cases(output, index, base, rank_mutations, valid):
     invalid("noncanonical_bytes", bundle, digest, "canonical encoding")
 
     def low_camp(world):
-        return next(row for row in world["anchors"] if row["id"] == "l1")
+        return next(row for row in world["anchors"] if row["kind"] == "Camp" and len(row["members"]) == 2)
+
+    def tree(world):
+        return next(row for row in world["geometry"]["blockers"] if row["shape"] == "cylinder")
+
+    def ramp(world, index=0):
+        return world["geometry"]["elevation"]["ramps"][index]
+
+    def plateau(world, index=0):
+        return world["geometry"]["elevation"]["plateaus"][index]
+
+    def shift(vertex, axis, amount):
+        vertex[axis].update({"numerator": vertex[axis]["numerator"] + amount})
+
+    def cm(value):
+        return value["numerator"] / value["denominator"]
+
+    def detach(world, level):
+        # Slide the first ramp of this level 1 m down its own slope, so its high edge leaves the plateau above
+        # without reaching any other ground.
+        row = next(r for r in world["geometry"]["elevation"]["ramps"] if r["lower_level"] == level)
+        p = row["polygon_cm"]
+        dx = (cm(p[0]["x"]) + cm(p[1]["x"])) - (cm(p[2]["x"]) + cm(p[3]["x"]))
+        dy = (cm(p[0]["y"]) + cm(p[1]["y"])) - (cm(p[2]["y"]) + cm(p[3]["y"]))
+        length = (dx * dx + dy * dy) ** 0.5
+        for vertex in p:
+            for axis, delta in (("x", dx), ("y", dy)):
+                shift(vertex, axis, round(100 * delta / length) * vertex[axis]["denominator"])
+
+    def last_waypoint(world):
+        return max(i for i, row in enumerate(world["anchors"]) if row["kind"] == "BossWaypoint")
 
     for name, mutate, error in (
-        ("world_missing_anchor", lambda w: w["anchors"].pop(), "array length"),
+        ("world_missing_anchor", lambda w: w["anchors"].pop(last_waypoint(w)), "four Boss waypoints"),
         ("world_wrong_surface", lambda w: w["anchors"][0].update({"surface_id": "missing_surface"}), "unknown surface"),
         ("world_duplicate_home", lambda w: low_camp(w)["members"].__setitem__(1, deepcopy(low_camp(w)["members"][0])), "duplicate"),
         ("world_member_count", lambda w: low_camp(w)["members"].pop(), "member-home count"),
         ("world_out_of_bounds", lambda w: w["anchors"][0]["position_cm"]["x"].update({"numerator": 6000}), "outside"),
         ("world_bad_bounds", lambda w: w["geometry"]["surfaces"][0]["max_cm"]["x"].update({"numerator": -5000}), "nonempty"),
-        ("world_bad_flags", lambda w: w["geometry"]["blockers"][0].update({"blocks_movement": False, "blocks_sight": False}), "classification"),
+        ("world_bad_flags", lambda w: w["geometry"]["blockers"][0].update({"blocks_movement": False, "blocks_sight": False}), "stops movement"),
         ("world_unknown_field", lambda w: w["anchors"][0].update({"home_default": True}), "unknown field"),
         ("world_aliased_kind", lambda w: w["anchors"][0].update({"kind": "spawn"}), "unknown anchor kind"),
         ("world_old_projection", lambda w: w.update({"projection_revision": 1}), "integer outside"),
@@ -776,7 +810,20 @@ def _export_cases(output, index, base, rank_mutations, valid):
         ("world_missing_polygon", lambda w: w["geometry"]["blockers"][0].pop("polygon_cm"), "missing"),
         ("world_missing_offset", lambda w: w["placement"]["spawn_offsets_cm"].pop(), "array length"),
         ("world_duplicate_offset", lambda w: w["placement"]["spawn_offsets_cm"].__setitem__(1, deepcopy(w["placement"]["spawn_offsets_cm"][0])), "overlap"),
-        ("world_duplicate_connection", lambda w: w["connections"].__setitem__(1, deepcopy(w["connections"][0])), "duplicate connection"),
+        ("world_unknown_shape", lambda w: tree(w).update({"shape": "box"}), "unknown blocker shape"),
+        ("world_tree_polygon_field", lambda w: tree(w).update({"polygon_cm": []}), "unknown field"),
+        ("world_tree_off_ground", lambda w: tree(w)["center_cm"]["z"].update({"numerator": 1}), "cylinder must stand"),
+        ("world_tree_outside", lambda w: tree(w)["center_cm"]["x"].update({"numerator": -4980}), "cylinder must stand"),
+        ("world_plateau_height", lambda w: shift(plateau(w)["polygon_cm"][0], "z", 1), "plateau vertex"),
+        ("world_plateau_level", lambda w: plateau(w).update({"level": 3}), "integer outside"),
+        ("world_ramp_height", lambda w: shift(ramp(w)["polygon_cm"][2], "z", -1), "ramp low edge"),
+        ("world_ramp_steep", lambda w: [shift(ramp(w)["polygon_cm"][i], "y", 200) for i in (0, 1)], "steeper"),
+        ("world_ramp_skewed", lambda w: shift(ramp(w)["polygon_cm"][3], "y", 50), "parallel"),
+        ("world_ramp_detached", lambda w: detach(w, 0), "one level up"),
+        ("world_upper_ramp_detached", lambda w: detach(w, 1), "one level up"),
+        ("world_tree_on_cliff", lambda w: tree(w)["center_cm"].update({"x": {"numerator": 2900, "denominator": 1},
+                                                                      "y": {"numerator": 3700, "denominator": 1}}), "one flat level"),
+        ("world_inner_wall_outside", lambda w: [v["x"].update({"numerator": v["x"]["numerator"] + 10000}) for v in w["geometry"]["blockers"][0]["polygon_cm"]], "closing a ground edge"),
         ("world_duplicate_parameter", lambda w: w["parameter_refs"].__setitem__(1, w["parameter_refs"][0]), "parameter reference"),
         ("world_source_identity", lambda w: w.update({"source_sha256": "0" * 64}), "file bytes"),
         ("world_schema_identity", lambda w: w.update({"author_schema_sha256": "0" * 64}), "file bytes"),

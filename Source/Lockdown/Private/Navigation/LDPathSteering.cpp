@@ -3,6 +3,8 @@
 #include "Region/LDMapRegistry.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "EngineUtils.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavigationData.h"
@@ -65,6 +67,57 @@ namespace LDPathSteering
             && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(AcceptanceCm);
     }
 
+    bool BlockedAtHeldGoal(const FVector2D& Foot, double Radius, const FVector2D& Goal, TConstArrayView<FBodyDisc> Others)
+    {
+        const auto Touch=[](const FVector2D& A, double RA, const FBodyDisc& B)
+        { return FVector2D::DistSquared(A,B.Foot)<=FMath::Square(RA+B.Radius+WaypointToleranceCm); };
+        TArray<bool> Holds;
+        Holds.Init(false,Others.Num());
+        TArray<int32> Open;
+        for (int32 I=0; I<Others.Num(); ++I)
+        {
+            if (FVector2D::DistSquared(Others[I].Foot,Goal)<FMath::Square(Others[I].Radius+Radius)) { Holds[I]=true; Open.Add(I); }
+        }
+        while (!Open.IsEmpty())
+        {
+            const int32 Holder=Open.Pop(EAllowShrinking::No);
+            if (Touch(Foot,Radius,Others[Holder])) { return true; }
+            for (int32 I=0; I<Others.Num(); ++I)
+            {
+                if (!Holds[I] && Touch(Others[Holder].Foot,Others[Holder].Radius,Others[I])) { Holds[I]=true; Open.Add(I); }
+            }
+        }
+        return false;
+    }
+
+    bool BlockedAtHeldGoal(const ACharacter& Body, const FVector& Goal)
+    {
+        const auto* Movement=Body.GetCharacterMovement();
+        const auto* World=Body.GetWorld();
+        if (!World || !Movement->IsMovingOnGround() || Movement->HasRootMotionSources()) { return false; }
+        TArray<FBodyDisc> Others;
+        for (TActorIterator<ACharacter> It(World); It; ++It)
+        {
+            const auto* Capsule=It->GetCapsuleComponent();
+            if (*It==&Body || !IsValid(*It) || !Capsule || !Capsule->IsCollisionEnabled()
+                || Capsule->GetCollisionResponseToChannel(ECC_Pawn)!=ECR_Block) { continue; }
+            const FVector Other=It->GetNavAgentLocation();
+            Others.Add({FVector2D(Other.X,Other.Y),Capsule->GetScaledCapsuleRadius()});
+        }
+        const FVector Foot=Body.GetNavAgentLocation();
+        return BlockedAtHeldGoal(FVector2D(Foot.X,Foot.Y),Body.GetCapsuleComponent()->GetScaledCapsuleRadius(),
+            FVector2D(Goal.X,Goal.Y),Others);
+    }
+
+    // #97: the registered terrain's standing height at an XY (ground, plateau or ramp), where a foot there rests.
+    FVector TerrainFoot(const ULDMapRegistry& Registry, double X, double Y)
+    {
+        double Z=0;
+        FVector Normal;
+        Registry.GetTerrain().Ground(FVector2D(X,Y),Z,Normal);
+        return FVector(X,Y,Z);
+    }
+
     bool PlanStart(const ULDMapRegistry& Registry, const FLDLegalGround& BodyGround, const FCollisionShape& Capsule,
         FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error)
     {
@@ -82,9 +135,29 @@ namespace LDPathSteering
             Error.Reset();
             return true;
         }
-        // Only the planar start moves: same support id and foot height, and it must itself be legal ground.
-        return Registry.QueryGround(Registry.Revision(),FVector(OnMesh.Location.X,OnMesh.Location.Y,BodyGround.FootCm.Z),
+        // Only the planar start moves: same support id, the terrain's height there, and it must itself be legal ground.
+        return Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,OnMesh.Location.X,OnMesh.Location.Y),
             Capsule,BodyGround.SurfaceId,Out,Failure,Error);
+    }
+
+    // The navmesh point nearest an XY. Detour ranks only the first 128 polygons a query box gathers, in tile order, so a
+    // map-wide box over a forest-cut navmesh answers with an arbitrary far point. The box grows from the body's width
+    // instead; once one finds the navmesh, a last box as wide as that distance keeps any nearer point just past its edge.
+    bool NearestNavPoint(UNavigationSystemV1& Nav, const ANavigationData& Data, const FVector& At, double Limit, double HalfHeight,
+        FNavLocation& Out)
+    {
+        for (double Half=FMath::Min(Limit,100.);; Half=FMath::Min(Limit,Half*2))
+        {
+            if (Nav.ProjectPointToNavigation(At,Out,FVector(Half,Half,HalfHeight),&Data))
+            {
+                const double Found=FVector::Dist2D(At,Out.Location);
+                FNavLocation Nearer;
+                if (Found>Half && Nav.ProjectPointToNavigation(At,Nearer,FVector(Found,Found,HalfHeight),&Data)
+                    && FVector::Dist2D(At,Nearer.Location)<Found) { Out=Nearer; }
+                return true;
+            }
+            if (Half>=Limit) { return false; }
+        }
     }
 
     bool ProjectableGoalFailure(ELDWorldQueryFailure Failure)
@@ -111,12 +184,12 @@ namespace LDPathSteering
             Error=TEXT("MissingNavigation: no navigation data to project the destination onto.");
             return false;
         }
-        // The single registered surface is flat: search at its height, across the whole surface, for the nearest
-        // navmesh point to the clicked XY (a wall, a box top or a spot too close to an obstacle).
-        const FVector Flat(Clicked.X,Clicked.Y,From.FootCm.Z);
+        // Search at the terrain's height under the click, across the whole surface, for the nearest navmesh point to
+        // the clicked XY (a wall, a box top or a spot too close to an obstacle).
+        const FVector Flat=TerrainFoot(Registry,Clicked.X,Clicked.Y);
         const double Reach=FMath::Max(Max.X-Min.X,Max.Y-Min.Y);
         FNavLocation OnMesh;
-        if (!Nav->ProjectPointToNavigation(Flat,OnMesh,FVector(Reach,Reach,Capsule.GetCapsuleHalfHeight()),Data))
+        if (!NearestNavPoint(*Nav,*Data,Flat,Reach,Capsule.GetCapsuleHalfHeight(),OnMesh))
         {
             Failure=ELDWorldQueryFailure::Unreachable;
             Error=TEXT("Unreachable: no navmesh point near the clicked destination.");
@@ -156,9 +229,9 @@ namespace LDPathSteering
                 FNavLocation Candidate;
                 if (Step==0) { Candidate.Location=Base; }
                 else if (!Nav->ProjectPointToNavigation(
-                    FVector(Base.X,Base.Y,From.FootCm.Z)+Inward*Step,Candidate,
+                    TerrainFoot(Registry,Base.X+Inward.X*Step,Base.Y+Inward.Y*Step),Candidate,
                     FVector(1.,1.,Capsule.GetCapsuleHalfHeight()),Data)) { continue; }
-                if (!Registry.QueryGround(Registry.Revision(),FVector(Candidate.Location.X,Candidate.Location.Y,From.FootCm.Z),
+                if (!Registry.QueryGround(Registry.Revision(),TerrainFoot(Registry,Candidate.Location.X,Candidate.Location.Y),
                     Capsule,SurfaceId,Out,Failure,Error)) { continue; }
                 FLDCompletePath CandidatePath;
                 if (!Registry.QueryCompletePath(Registry.Revision(),From,Out,Capsule,CandidatePath,Failure,Error)) { continue; }

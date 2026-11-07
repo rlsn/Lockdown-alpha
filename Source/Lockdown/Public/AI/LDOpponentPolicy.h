@@ -272,7 +272,8 @@ enum class ELDOpponentOutcome : uint8 { Succeeded, Failed, TargetLost };
 class LOCKDOWN_API FLDOpponentRetryLedger
 {
 public:
-    static constexpr int32 Capacity = 32;
+    // #97: path, engagement and shop keys for every public place of the larger world.
+    static constexpr int32 Capacity = 96;
     bool CanAttempt(const FLDOpponentRetryKey& Key, uint64 Fingerprint, int64 NowMs) const;
     bool IsSuppressed(const FLDOpponentRetryKey& Key, uint64 Fingerprint) const;
     void RecordFailure(const FLDOpponentRetryKey& Key, uint64 Fingerprint, int64 NowMs, const FLDDemoAIParameters& AI);

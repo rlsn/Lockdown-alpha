@@ -28,11 +28,35 @@
 **2026-11-07 用户批准移速整体再降 25% 与对局节奏调整**（原话：“移速还是太快,再整体减慢25%”；
 “现在痛点就是感觉镜头高度足够了，但是感觉还是看不清，应该是玩家移动的太快了”；并批准按比例方案与构筑节奏评审的节奏数值）：
 基础移速 300cm/s，移速夹限 173..675cm/s（230×0.75=172.5 向上取整，使 300 的 30% 减速 210 不被夹紧），
-低/高营野怪移速 240/260cm/s、画饼老板 225cm/s，离线路线预算 35s（10400cm÷300≈34.67s 向上取整）；
+低/高营野怪移速 240/260cm/s、画饼老板 225cm/s；
 发育期 `MATCH.DevelopmentSec`=180s（旗杆在 180s 开放）、守护 `CAPTURE.GuardSec`=30s、
 外卖间隔 `AIRDROP.IntervalSec`=80s（45/125/205/285s 落地，首次 45s 与提前 15s 公告不变）。
 冲刺距离/时长、镜头、投射物速度与击退不变。
-这些值覆盖上文较早批准的移速、路线预算、发育期、守护与外卖间隔，仍是试玩输入，未经平衡测试。
+这些值覆盖上文较早批准的移速、发育期、守护与外卖间隔，仍是试玩输入，未经平衡测试。
+**2026-11-07 用户决定镜头改为正北朝上（#97）：** 固定 yaw 由 −45° 改为 −90°（世界 −Y 在屏幕上方），pitch、FOV 与臂长不变，
+方形场地与跟随镜头的小地图因此对齐屏幕、铺满小地图（用户选择原话：“Camera north-up (−90°)”）。
+**2026-11-07 用户决定场地换用美术素材（#97）：** 原话：“use trees in stylized nature kit, then use cars, containers, etc. for wall. fence,
+chairs for fence, crate/box for drops, and put some decorative stuffs too. e.g. grass, flowers”。City Pack 无许可文件，按用户选择不用
+（“Skip City Pack”）；墙与围栏的碰撞跟随模型、按阻挡高度定缩放（“collision follows art, sized by limiting height”）：
+内墙改为废车（东北）与大小集装箱（西南），通道围栏各改为两段长栅栏，外墙改为集装箱排（“Container row”）；
+树先选小尺寸（“Smaller trees”），随后改用两种低多边形树（“trees look too complex, and varying, try use 2 low poly ones from other packages”），
+仍按 260 cm 树高缩放、树干碰撞 80 cm 不变；挡住角色的树、集装箱与废车半透明（“just make them transparent a bit when characters stand behind them from camera”）。
+只是试玩布局，不是平衡测试。
+**2026-11-07 用户决定加营地、减营地收益（#97）：** 原话：“too little camps in the outer rim, too dense in the middle, add 10 more camps
+on the edges of the map. more strong ones in the middle. you can remove obstacles for clearance”，以及“resource too much from camps
+now that there are more, reduce 50% exp and money output”。外圈新增 10 个低档营地 `l13`–`l22`（每边两个出生点之间各两个，东北与西南对角各一个），
+离出生点至少 7 m、离其他营地至少 9 m，清掉其 3 m 净空内的树和地被；离旗杆最近的四个低档营地（原 `l01`、`l02`、`l06`、`l07`）
+改为高档营地 `h05`–`h08`，营地共 26 个（高档 8、低档 18）。野怪每只收益减半：低档 20XP/15 金币，高档 80XP/60 金币。
+下文 §7 的供给情景仍按旧的五营地、旧收益计算，只是历史记录；这次调整只供试玩，不是平衡测试。
+**2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
+世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
+ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。
+**2026-11-06 #97 试玩地图：** 用户批准安装新布局（“Install and build”）。营地净空由 5 m 改为 3 m
+（世界 `camp_clearance_cm=300`；原话：“then camp's 5m clearance is too large, make it 3”）；两个商店分处北、南两路旁，
+距旗杆约 28 m（原话：“place two shops farther part from each other, away from the pole too”）；树林拆成同尺寸树的小树丛
+（原话：“forest cluster too large, separate into smaller ones”，此前：“all trees should be equal size”）。
+同日层高改为 50 cm、树的直径改为与身体相同的 80 cm（原话：“make it proly 0.5m high. trees too large, make its hitbox
+diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_world.json` 为准，下文首版坐标只是历史记录。
 本文 §3–8 的样例按新值离线复算；这些是可复算模型结果，**未经过平衡测试**。世界观与玩家显示术语只以 App Spec §1 为准。
 后续构筑扩展集中在 §15：方向已批准，建议数值仍须逐批复核，不在当前运行输入中。
 其中首个扩展批次的条目选择（主动 珍珠奶茶泼脸、秦王绕柱、无影大比兜、放个屁就润，被动 网线够长、他急了，装备 大号滋水枪）
@@ -68,7 +92,6 @@
 | `UNIT.MoveSpeedCmPerSec`、`UNIT.CollisionRadiusCm`、`UNIT.BasicAttackRangeCm` | 内容模块定单位与建议值，世界模块验证通道和接近几何 |
 | `VISION.RadiusCm`、`SHOP.InteractRadiusCm` | 内容模块定半径；世界与视野模块验证遮挡、权限和交互可达 |
 | `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`MATCH.CountdownSec`、`MATCH.DevelopmentSec` | 内容模块定尺度与节奏；比赛模块实现 Spec 的同刻结算和唯一胜者 |
-| `TIMING.DefendRouteBudgetSec` | 世界模块提供最远关键路径；内容模块复算赶回旗杆的时间，不保证每次死亡后必能打断喷漆或守护 |
 | `LIFE.RespawnSec`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
 | `CAMP.Low.*`、`CAMP.High.*` | 内容模块定构成、强度、收益、刷新、追击与重置；世界模块配置五个稳定营地锚点 |
 
@@ -168,7 +191,7 @@
 | `STAT.CritChance.Base` | 概率/R4 | 0 | 0..1 | 仅普攻允许暴击；由 precision 被动获得概率 |
 | `STAT.CritMultiplier` | 倍率/R4 | 2.00 | 固定 | 不作为首版可堆叠属性；70 AD 暴击原始量 140 |
 | `STAT.CooldownHaste.Base` | 冷却点/P2 | 0 | 0..60 | 只影响角色主动的下一次释放，不影响 proc/复活/刷新/喷漆/守护 |
-| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 300 | 派生 173..675 | 2026-11-05 用户批准由520下调至480，同日再批准“偏慢偏俯视”下调至400；2026-11-07 用户批准再整体减慢25%至300（原话：“移速还是太快,再整体减慢25%”）；10400cm 路径对应 35s 回防验证预算；是设计值，不宣称由引擎默认值批准 |
+| `UNIT.MoveSpeedCmPerSec` | cm/s/Rate | 300 | 派生 173..675 | 2026-11-05 用户批准由520下调至480，同日再批准“偏慢偏俯视”下调至400；2026-11-07 用户批准再整体减慢25%至300（原话：“移速还是太快,再整体减慢25%”）；是设计值，不宣称由引擎默认值批准 |
 | `STAT.MoveSpeedCmPerSec` | cm/s/Rate | 按来源派生 | 173..675 | `FORMULA.MoveSpeed`；下限 2026-11-05 用户批准随基速按比例由300降至230（“按比例降到 230，减速与惩罚保持原有手感”），2026-11-07 随基速再按比例降至173、上限900降至675（230×0.75=172.5向上取整）；30%减速 300→210 不被夹紧；初始300，一件《润学指南》336，两件372；UI/运动读取最终值 |
 | `UNIT.CollisionRadiusCm` | cm/Cm | 40 | 固定 | 最小双身体中心分离 80cm，小于建议普攻距离；世界负责净空/防重叠 |
 | `UNIT.BasicAttackRangeCm` | cm/Cm | 220 | 基础值 | 给80cm碰撞分离之外的接近余量；真实射程必须读下行派生值 |
@@ -222,13 +245,12 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 
 | ID | 单位/类型 | 建议初值/派生 | 依据与适用范围 |
 | --- | --- | --- | --- |
-| `VISION.RadiusCm` | cm/Cm | 1400 | 正面无遮挡时先看见再进入 220cm 普攻距离，基速间隔约 3.93s；绕角/网络时延不保证这段预警 |
+| `VISION.RadiusCm` | cm/Cm | 1050 | 2026-11-07 用户（视野负责人）决定由 1400 降到 75%（#97，原话：“reduce base vision range to 75% right away and adjust tests accordingly”）；正面无遮挡时先看见再进入 220cm 普攻距离，基速（300）间隔约 2.77s；绕角/网络时延不保证这段预警；A 搜敌半径 min(1050, 2×220)=440 不变 |
 | `SHOP.InteractRadiusCm` | cm/Cm | 600 | 固定锚点中心距；世界须证明交互区有合法接近点，不是安全区。2026-11-06 用户批准由 350 提高到 600，玩家不必贴近小摊即可买卖；交互盘可以与障碍相交，范围内即可交易，不看路径或视线 |
 | `TARGET.AttackMoveAcquireRadiusCm` | cm/Cm | min(VISION.RadiusCm, 2×STAT.AttackRangeCm)，初始440 | 随真实普攻射程变化；只搜合法可见目标，最高1320cm；订单/优先级归操作域 |
 | `CAPTURE.RadiusCm` | cm/Cm | 300 | 2026-11-05 用户批准（#112）由600缩小；直径600cm，基速穿过约2.0s；按脚点平面距离判定、边界算在内；区内仍可走位，普通受击不打断喷漆 |
 | `CAPTURE.SpraySec` | s/Sec | 3.5 | 2026-11-05 用户批准（#112）；喷漆区内独自累积满即喷上涂鸦；争夺暂停保留，离区/死亡/离局/硬控施加清零。时长短，主要靠在场的人进区争夺或硬控/击杀打断 |
 | `CAPTURE.GuardSec` | s/Sec | 30 | 2026-11-05 用户批准（#112）；2026-11-07 用户批准由20s延长到30s（构筑节奏评审）；喷上涂鸦后守护累积满即获胜；用户原话：“喷完需要守护一段时间，期间可以打但不打断，只计算连续喷漆存在的时间”。2026-11-07 用户决定守护只在主人独自在区内时计时（主人离区暂停、他人在区内冻结），取代“主人可离区自由战斗”，时长不变。用户原话：“胜利判断好像还是有问题 - 当旗杆被占领但无人在圈内的时候不计算时间，时间停止，现在好像是时间继续计算是吗”；主人死亡/离局清除涂鸦 |
-| `TIMING.DefendRouteBudgetSec` | s/Sec | 35 | 300cm/s 下对应 10500cm；世界离线整图路径上界 9524.661cm，名义需 31.748870s。2026-11-05 随移速整组批准由19s改为21s，同日随400移速改为26s；2026-11-07 随300移速改为35s（10400cm÷300≈34.67s 向上取整）。只用于离线/编辑器路线校验，不改变喷漆/守护或场景超时 |
 | `MATCH.CountdownSec` | s/Sec | 5 | 2026-11-07 用户批准（[#153](https://github.com/rlsn/Lockdown-alpha/issues/153)），原话：“可以全体等待5秒再开始游戏，加一个开局countdown”。开局倒计时（2026-11-07 用户决定倒计时内允许移动和选技能、不允许攻击和购买）；结束时刻是本局 T=0，下列所有对局计时都从 T=0 起算，倒计时不占发育期 |
 | `MATCH.DevelopmentSec` | s/Sec | 180 | 2026-11-04 用户批准由180s缩短为120s（D22）；2026-11-07 用户批准恢复为180s（构筑节奏评审），旗杆在 T=0（开局倒计时结束）后180s开放；离线供给约支持全员平均三到四次升级（§7.3），开局金币已够首件装备 |
 | `LIFE.RespawnSec` | s/Sec | 15，所有等级相同 | 2026-11-04 用户批准由26s缩短（D22），短于30s守护窗；涂鸦主人的对手死后可能在守护完成前复活返场，但从出生点赶回还需约13.6..14.3s（见§8），主要依靠场上其他人改漆或围攻 |
@@ -305,18 +327,17 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 `DORM.OutOfCombatDelaySec=3` 秒后，每秒恢复 `DORM.MaxHPRatioPerSec=0.10` 倍当前生命上限和 `DORM.MaxMPRatioPerSec=0.10` 倍
 当前法力上限（约 10 秒从零回满）；与上面的脱战慢回和「发疯文学」共用唯一战斗时间，各按自己的延迟起算并叠加
 （3 秒后 10%/秒，5 秒后 11.5%/秒）。判定读取每个权威步结算时的脚点，离开或死亡后下一步停止。
-首版两处躺平角位于地图对角 `dorm_nw` (-4400, 4400) 与 `dorm_se` (4400, -4400)，是 `SourceData/World/demo_world.json` 中的
-`Dorm` 锚点（技术标识仍为 Dorm）；地图重新布局（#97）时随布局调整。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、商店交互圆和营地净空区重叠，
-两处的标识必须是 `dorm_nw` 与 `dorm_se`。同样要求比例是 0.001 的整数倍。数值由用户在 2026-11-04 批准为首轮试玩值，未经平衡验证。
+#97 地图的两处躺平角是东北、西南两个高台角上的 `dorm_ne` 与 `dorm_sw`（`SourceData/World/demo_world.json` 的
+`Dorm` 锚点，技术标识仍为 Dorm）。世界生成器要求躺平角圆盘是合法站立地面，且不与占领圈、商店交互圆、营地净空区和其他事件圆重叠；
+数量在 1..8 之间，标识不再固定。同样要求比例是 0.001 的整数倍。数值由用户在 2026-11-04 批准为首轮试玩值，未经平衡验证。
 
 **天降外卖（D26，#79，技术标识 airdrop）**：第 n 份外卖（从 0 数）在开局后 `AIRDROP.FirstLandSec=45` + n × `AIRDROP.IntervalSec=80` 秒落地
 （45、125、205、285 s…；旗杆 180s 开放后 25s 有第三份），提前 `AIRDROP.AnnounceLeadSec=15` 秒公开落点和倒计时。落地后第一个脚点进入
 `AIRDROP.PickupRadiusCm=150` 圆内、且不在复活保护中的存活参赛者获得 `AIRDROP.RewardXP=200` 流量和 `AIRDROP.RewardGold=150` 米
 （约 1.25 个大野怪营地），走与击杀奖励相同的结算，账本原因 `MapEventReward`，业务键只含对局、事件与序号，每份只付一次。
 同一拍内多人在圈内时离中心最近者得，仍并列时由服务器随机决定（不按参赛者编号）。下一次公开时当前外卖被取代。
-首版三处落点 `airdrop_ne` (1940, 2670)、`airdrop_nw` (-1940, 2670)、`airdrop_s` (0, -3300) 位于中墙外、相邻营地之间，
-与地图一样左右对称，是 `SourceData/World/demo_world.json` 的 `Airdrop` 锚点，随 #97 重新布局调整。
-每份外卖由只在服务器的随机种子从上一份以外的两处中选一处，公告时才公开，所以后续落点无法提前推知。
+#97 地图有四处落点：西北、东南两座坡地的坡顶，以及东、西两路上的开阔处（`SourceData/World/demo_world.json` 的
+`Airdrop` 锚点）。每份外卖由只在服务器的随机种子从上一份以外的落点中选一处，公告时才公开，所以后续落点无法提前推知。
 公开视图只说“已被领走”，不公开领取者和领取时间；领取者从本人视图得知。世界生成器要求拾取圆是合法站立地面，且不与占领圈、商店、
 营地净空区和躺平角重叠；内容校验要求公开提前量不超过首次落地时间且小于间隔。
 节奏、落点数量与奖励由用户在 2026-11-04 批准（“Approve as proposed (Recommended)”）；间隔 2026-11-07 随构筑节奏评审由 75s 改为 80s；落点选择（“Server random, not repeat
@@ -335,9 +356,9 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 副击对受害者造成正mitigated伤害仍刷新其受击时钟，不能被“禁追加proc”错误过滤。
 
 **画饼老板 Boss（D26，#79）**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。开局后 `appear_at=60` 秒
-出现在 `boss_patrol_1`，以 `move_speed=225` cm/s（2026-11-07 随移速整体减慢25%由300改为225）沿 `boss_patrol_1..4` 循环巡逻：(2400, 2400) → (-2400, 2400) →
-(-2400, -2400) → (2400, -2400)，位于中墙外、营地环与出生环之间、左右对称，是 `SourceData/World/demo_world.json` 的
-`BossWaypoint` 锚点，随 #97 重新布局调整。生命 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
+出现在 `boss_patrol_1`，以 `move_speed=225` cm/s（2026-11-07 随移速整体减慢25%由300改为225） 沿 `boss_patrol_1..4` 循环巡逻；#97 地图把四个巡逻点放在旗杆盆地内、
+围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
+`BossWaypoint` 锚点。生命 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
 `attack=70` 物理伤害（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
 碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
 内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活。最后一击得 `reward_xp=300` 流量 + `reward_gold=250` 米
@@ -473,8 +494,8 @@ XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的�
 | `REWARD.PlayerGold`（`.Base=80`、`.PerLevel=10`） | $80+10(L_{victim}-1)$ | Lv1得80金币、Lv10得170；击杀者全额，没有范围奖励 |
 | `REWARD.AssistWindowSec` | 15s | 受害者死亡前15s内（含）有过正伤害（含被护盾吸收）或任一控制/减益的其他在局参赛者算助攻，每次新贡献重新计时（#112 票中给定） |
 | `REWARD.AssistGoldRatio` | 比例/R4，0.5 | 助攻金币=受害者基础击杀金币的50%（不含额外赏金），助攻者平分向下取整（#112 票中给定） |
-| `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只40XP/30金币 | 整组80XP/60金币，首个完整低营即可首次升级 |
-| `CAMP.High.RewardXP/RewardGold` | 每只160XP/120金币 | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
+| `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只20XP/15金币（2026-11-07 减半） | 整组40XP/30金币，首次升级（80XP）要两个完整低营 |
+| `CAMP.High.RewardXP/RewardGold` | 每只80XP/60金币（2026-11-07 减半） | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
 
 不保留旧 PvP 配对冷却、总XP上限、固定击杀次数池。合法新生命可继续产生奖励；
 同一生命重复致死/回包不能产生第二份。人为送人头仍是自由混战的行为风险，不能未经产品授权
@@ -502,7 +523,7 @@ Idle不因接近或看见参赛者先手，不保留AggroRadius自动警戒字�
 | `AttackRangeCm` | Cm | 150 | 175 | 中心距；两种40cm身体可以不重叠地互相普攻 |
 | `MoveSpeedCmPerSec` | Rate/cm每秒 | 240 | 260 | 2026-11-05 随角色基速先按480/520缩放为384/416，同日再按400/480缩放为320/347；2026-11-07 随基速再整体减慢25%（“移速还是太快,再整体减慢25%”）：低营精确240、高营260.25取整260；慢于基础角色；追击/回位都经合法路径 |
 | `CollisionRadiusCm` | Cm | 40 | 40 | 低组两个初始落点不得重叠；净空不扩张射程 |
-| `LeashRadiusCm` | Cm | 900 | 1100 | 相对本组锚点；超界进入返回，不永久追出营地 |
+| `LeashRadiusCm` | Cm | 900 | 1050 | 相对本组锚点；超界进入返回，不永久追出营地。高档由 1100 改为 1050（2026-11-07 用户选择“Guardian leash 1050”）：感知等于拴绳，不能超出提供候选的视野半径 `VISION.RadiusCm`（内容校验拒绝） |
 | `PerceptionRadiusCm` | 派生/Cm | =LeashRadiusCm | =LeashRadiusCm | 当前怪物脚点观测范围；不是允许读取墙后真实目标 |
 | `LoseTargetGraceSec` | Sec | 3 | 4 | 丢失观察立即取消锁定/停止追击；原地等待重新合法观测，到时回营，不向最后位置盲追 |
 | `RespawnSec` | Sec | 25 | 65 | 从该组最后成员死亡/清空时刻开始；低营 2026-11-04 由40s缩短（D23） |
@@ -677,8 +698,6 @@ L7折叠椅（摔跤同款）+防弹秋裤对L3裸角色为7.493s/9次；反向�
 | 各出生锚点至最近低营2087.615..3560.434cm | 基速约6.959..11.868s | 加3.586s低营静态战斗为约10.545..15.454s名义首次升级窗口，仍需动态接敌/最后一击成立 |
 | 十出生锚点至商店交互边3183.627..5224.744cm | 基速约10.612..17.416s | 开局320金币可直接去商店买首件装备，与先清低营是两种合法开局 |
 | 五营中心至喷漆区2299.499..2300.103cm | 基速约7.665..7.667s | 只代表中心，不用它冒充整个发育区最远回防 |
-| 完整合法模型地图任意点至喷漆区构造路径上界9524.661cm | 31.748870s，距35s预算还留975.339cm/约3.251s | 已按整个合法区域而非几个地标闭合离线路径预算；Native导航/动态阻挡仍须实测 |
-| 各营Leash域至喷漆区路径上界8019.206..8220.323cm | 约26.731..27.401s | 低/高营最外活动区也在35s名义预算内；Leash仍是营心XY半径，不改成路径长度玩法 |
 | 商店600交互盘与300喷漆区相离200.258cm | 同一脚点不能同时购物与喷漆 | 不形成安全区；角色在商店附近仍可被攻击 |
 | 低组三对成员间距149.265/149.265/150.426cm | 大于两40cm身体的80cm分离，小于180cm横扫半径 | 提供自拍杆的合法双目标正例；LOS/实际碰撞仍按正式查询 |
 | 70候选到喷漆区的严格欧氏下界4000cm | 双《润学指南》+一次D冲刺理想最快下界9.743011s | 加15s复活至少24.743011s，早于完整30s守护窗；不加保护3s |
@@ -747,7 +766,7 @@ Mute、Disarm 等控制已随旧战斗链删除，未进入首版目录的控制
 `SourceData\Demo` 作者域由 `content.json`、严格 `content.schema.json`
 及稳定 `native_ids.json` 组成。角色、属性/公式、三级能力、装备、成长和营地放在
 同一内容文件内，只有一条生成管线。地图坐标来自世界模块自己的作者域（`SourceData\World`），
-这里只引用五个营地、商店、旗杆喷漆区和出生点的稳定锚点。
+这里只引用营地、商店、旗杆喷漆区和出生点的稳定锚点（#97 起数量随世界，见 `content.json` 的 `world`）。
 
 | 作者段与稳定键 | 必须投影的内容 | 当前消费者/生成产物 |
 | --- | --- | --- |

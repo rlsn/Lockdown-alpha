@@ -46,6 +46,40 @@ bool SightSegmentsTouch(const FVector2D& A, const FVector2D& B, const FVector2D&
         || (O3 == 0 && SightWithinBox(C, D, A)) || (O4 == 0 && SightWithinBox(C, D, B));
 }
 
+// Closed disc test: a segment touching a trunk's edge blocks sight, as a polygon edge does.
+bool SightSegmentTouchesDisc(const FVector2D& A, const FVector2D& B, const FVector2D& Centre, double Radius)
+{
+    const FVector2D Delta = B - A;
+    const double Length = Delta.SizeSquared();
+    const double T = Length > 0 ? FMath::Clamp(FVector2D::DotProduct(Centre - A, Delta) / Length, 0.0, 1.0) : 0.0;
+    return FVector2D::DistSquared(A + Delta * T, Centre) <= Radius * Radius;
+}
+
+// The segment passes through the convex counterclockwise polygon's open interior.
+bool SightSegmentEnters(const FVector2D& A, const FVector2D& B, const TArray<FVector2D>& Polygon)
+{
+    double Lower = 0, Upper = 1;
+    for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+    {
+        const FVector2D Delta = Polygon[(Index + 1) % Polygon.Num()] - Polygon[Index];
+        const double Constant = FVector2D::CrossProduct(Delta, A - Polygon[Index]), Slope = FVector2D::CrossProduct(Delta, B - A);
+        if (Slope == 0)
+        {
+            if (Constant <= 0) { return false; }
+        }
+        else if (Slope > 0) { Lower = FMath::Max(Lower, -Constant / Slope); }
+        else { Upper = FMath::Min(Upper, -Constant / Slope); }
+    }
+    return Lower < Upper;
+}
+
+// The flat level a blocker stands on; the importer requires its base to lie at that level's height.
+bool SightBlockerLevel(double BaseZ, double Step, int32& Out)
+{
+    Out = Step > 0 ? FMath::RoundToInt32(BaseZ / Step) : -1;
+    return Out >= 0 && Out <= LDDemoWorld::MaxLevel && FMath::IsNearlyEqual(Out * Step, BaseZ, 1e-6);
+}
+
 bool SightInsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point)
 {
     for (int32 Index = 0; Index < Polygon.Num(); ++Index)
@@ -107,7 +141,11 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
         Error = TEXT("Observation ground bounds are empty.");
         return false;
     }
+    LDDemoWorld::FTerrain PreparedTerrain;
+    if (!PreparedTerrain.Build(Geometry, Error)) { return false; }
     TArray<TArray<FVector2D>> Prepared;
+    TArray<int32> PreparedLevels;
+    TArray<FCircle> PreparedCircles;
     for (const FLDDemoWorldBlocker& Blocker : Geometry.Blockers)
     {
         double Height = 0;
@@ -117,18 +155,50 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
             return false;
         }
         if (!Blocker.BlocksSight) { continue; }
-        if (Height <= SampleHeight || Blocker.PolygonCm.Num() < 3)
+        if (Height <= SampleHeight)
         {
-            Error = FString::Printf(TEXT("Sight blocker %s must be a polygon taller than the sight sample."), *Blocker.Id);
+            Error = FString::Printf(TEXT("Sight blocker %s must be taller than the sight sample."), *Blocker.Id);
+            return false;
+        }
+        if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder)
+        {
+            FVector Centre;
+            FCircle Circle;
+            if (!Blocker.CenterCm.ToVector(Centre, Error) || !SightRationalValue(Blocker.RadiusCm, Circle.Radius) || Circle.Radius <= 0)
+            {
+                Error = FString::Printf(TEXT("Sight blocker %s has an invalid cylinder."), *Blocker.Id);
+                return false;
+            }
+            Circle.Centre = FVector2D(Centre.X, Centre.Y);
+            if (!SightBlockerLevel(Centre.Z, PreparedTerrain.StepCm, Circle.Level))
+            {
+                Error = FString::Printf(TEXT("Sight blocker %s does not stand on a flat level."), *Blocker.Id);
+                return false;
+            }
+            PreparedCircles.Add(Circle);
+            continue;
+        }
+        if (Blocker.PolygonCm.Num() < 3)
+        {
+            Error = FString::Printf(TEXT("Sight blocker %s must be a polygon of at least three vertices."), *Blocker.Id);
             return false;
         }
         TArray<FVector2D> Polygon;
+        double BaseZ = 0;
         for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
         {
             FVector Vertex;
             if (!Point.ToVector(Vertex, Error)) { return false; }
             Polygon.Add(FVector2D(Vertex.X, Vertex.Y));
+            BaseZ = Vertex.Z;
         }
+        int32 Level = 0;
+        if (!SightBlockerLevel(BaseZ, PreparedTerrain.StepCm, Level))
+        {
+            Error = FString::Printf(TEXT("Sight blocker %s does not stand on a flat level."), *Blocker.Id);
+            return false;
+        }
+        PreparedLevels.Add(Level);
         for (int32 Index = 0; Index < Polygon.Num(); ++Index)
         {
             if (SightOrientation(Polygon[Index], Polygon[(Index + 1) % Polygon.Num()], Polygon[(Index + 2) % Polygon.Num()]) <= 0)
@@ -144,8 +214,42 @@ bool FLDSightGeometry::Build(const FLDDemoWorldGeometry& Geometry, const FLDWorl
     Max = FVector2D(SurfaceMax.X, SurfaceMax.Y);
     RadiusCm = RadiusValue;
     Blockers = MoveTemp(Prepared);
+    BlockerLevels = MoveTemp(PreparedLevels);
+    Circles = MoveTemp(PreparedCircles);
+    Terrain = MoveTemp(PreparedTerrain);
+    BuildGrid();
     Error.Reset();
     return true;
+}
+
+void FLDSightGeometry::CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const
+{
+    X0 = FMath::Clamp(FMath::FloorToInt32((Low.X - Min.X) / GridCellCm), 0, GridWidth - 1);
+    Y0 = FMath::Clamp(FMath::FloorToInt32((Low.Y - Min.Y) / GridCellCm), 0, GridHeight - 1);
+    X1 = FMath::Clamp(FMath::FloorToInt32((High.X - Min.X) / GridCellCm), 0, GridWidth - 1);
+    Y1 = FMath::Clamp(FMath::FloorToInt32((High.Y - Min.Y) / GridCellCm), 0, GridHeight - 1);
+}
+
+void FLDSightGeometry::BuildGrid()
+{
+    GridWidth = FMath::Max(1, FMath::CeilToInt32((Max.X - Min.X) / GridCellCm));
+    GridHeight = FMath::Max(1, FMath::CeilToInt32((Max.Y - Min.Y) / GridCellCm));
+    CellPolygons.SetNum(GridWidth * GridHeight);
+    CellCircles.SetNum(GridWidth * GridHeight);
+    int32 X0, Y0, X1, Y1;
+    for (int32 Index = 0; Index < Blockers.Num(); ++Index)
+    {
+        FBox2D Box(ForceInit);
+        for (const FVector2D& Point : Blockers[Index]) { Box += Point; }
+        CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
+        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellPolygons[Y * GridWidth + X].Add(Index); } }
+    }
+    for (int32 Index = 0; Index < Circles.Num(); ++Index)
+    {
+        MaxCircleRadius = FMath::Max(MaxCircleRadius, Circles[Index].Radius);
+        CellRange(Circles[Index].Centre, Circles[Index].Centre, X0, Y0, X1, Y1);
+        CellCircles[Y0 * GridWidth + X0].Add(Index);
+    }
 }
 
 bool FLDSightGeometry::InBounds(const FVector& FootCm) const
@@ -156,12 +260,44 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
 
 bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To) const
 {
-    for (const TArray<FVector2D>& Polygon : Blockers)
+    const int32 Observer = Terrain.Tier(From);
+    if (Terrain.Tier(To) > Observer) { return true; }
+    for (const auto& Region : Terrain.Regions)
     {
-        if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
-        for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+        if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
+    }
+    const int32 Level = Observer / 2;
+    const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
+    int32 X0, Y0, X1, Y1;
+    // Polygons are listed in every cell their bounds touch; circles only in their centre's cell, so widen by a radius.
+    CellRange(Low, High, X0, Y0, X1, Y1);
+    for (int32 Y = Y0; Y <= Y1; ++Y)
+    {
+        for (int32 X = X0; X <= X1; ++X)
         {
-            if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
+            for (const int32 Blocker : CellPolygons[Y * GridWidth + X])
+            {
+                if (BlockerLevels[Blocker] < Level) { continue; }
+                const TArray<FVector2D>& Polygon = Blockers[Blocker];
+                if (SightInsideConvex(Polygon, From) || SightInsideConvex(Polygon, To)) { return true; }
+                for (int32 Index = 0; Index < Polygon.Num(); ++Index)
+                {
+                    if (SightSegmentsTouch(From, To, Polygon[Index], Polygon[(Index + 1) % Polygon.Num()])) { return true; }
+                }
+            }
+        }
+    }
+    const FVector2D Reach(MaxCircleRadius, MaxCircleRadius);
+    CellRange(Low - Reach, High + Reach, X0, Y0, X1, Y1);
+    for (int32 Y = Y0; Y <= Y1; ++Y)
+    {
+        for (int32 X = X0; X <= X1; ++X)
+        {
+            for (const int32 Index : CellCircles[Y * GridWidth + X])
+            {
+                const FCircle& Circle = Circles[Index];
+                if (Circle.Level >= Level && SightSegmentTouchesDisc(From, To, Circle.Centre, Circle.Radius)) { return true; }
+            }
         }
     }
     return false;
@@ -642,9 +778,10 @@ bool ALDVisionDirector::BeginMatch(const FLDMatchContext& InMatch, FString& Erro
         CampMembers += Monster->CountPerCamp;
     }
     const int64 Contenders = Core->ReadLobby().Members.Num();
-    if (Contenders < 1 || Contenders + CampMembers - 1 > LDObservation::MaxUnits)
+    // An observer sees at most every other contender, every camp member and the Boss.
+    if (Contenders < 1 || Contenders + CampMembers > LDObservation::MaxUnits)
     {
-        Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders and %lld camp members exceed the %d-unit observation bound."),
+        Error = FString::Printf(TEXT("CapacityExceeded: %lld contenders, %lld camp members and the Boss exceed the %d-unit observation bound."),
             Contenders, CampMembers, LDObservation::MaxUnits);
         return false;
     }

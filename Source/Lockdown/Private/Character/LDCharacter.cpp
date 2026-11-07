@@ -25,7 +25,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     bAlwaysRelevant = false;
     bUseControllerRotationYaw = false;
     GetCapsuleComponent()->InitCapsuleSize(28,90);
-    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+    // #97: bodies block each other (contenders, camp members and the Boss; user: "right now characters walk through each
+    // other without collision, add collision"). Only the dash passes through bodies (ULDCharacterMovementComponent).
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
@@ -33,8 +34,13 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     UCharacterMovementComponent* Movement = GetCharacterMovement();
     Movement->MaxAcceleration = 8000;
     Movement->BrakingDecelerationWalking = 8000;
+    // #97: no step-up anywhere (generated geometry refuses it); bodies climb only walkable floor. MaxStepHeight is
+    // then only how far the floor is followed down, e.g. over a ramp's crest. A ramp keeps the flat-ground speed.
     Movement->MaxStepHeight = 35;
+    Movement->bMaintainHorizontalGroundVelocity = true;
     Movement->SetWalkableFloorAngle(40);
+    // #97: cliffs are not traversable in either direction; a body stops at a ledge instead of falling off it.
+    Movement->bCanWalkOffLedges = false;
     Movement->bOrientRotationToMovement = false;
     Movement->bRunPhysicsWithNoController = true;
     Movement->NavAgentProps.bCanJump = false;

@@ -35,7 +35,7 @@ def content_fixture():
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
         ("UNIT.BasicAttackWindupSec", "s", 0.125), ("VISION.RadiusCm", "cm", 1200),
         ("SHOP.InteractRadiusCm", "cm", 200), ("CAPTURE.RadiusCm", "cm", 300),
-        ("CAPTURE.SpraySec", "s", 3), ("CAPTURE.GuardSec", "s", 20), ("TIMING.DefendRouteBudgetSec", "s", 20),
+        ("CAPTURE.SpraySec", "s", 3), ("CAPTURE.GuardSec", "s", 20),
         ("MATCH.CountdownSec", "s", 3), ("MATCH.DevelopmentSec", "s", 90), ("LIFE.RespawnSec", "s", 22), ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
@@ -217,10 +217,13 @@ def content_fixture():
             "hp_regen": q("hp/s", 0), "max_mp": q("mp", 0), "mp_regen": q("mp/s", 0),
             "ap": q("points", 0), "crit_chance": q("ratio", 0),
         })
+    # The world references follow the approved world source, so a layout change needs no fixture edit.
+    world_anchors = demo.parse_json((demo.ROOT / demo.WORLD_SOURCE).read_bytes(), "test world source")["anchors"]
+    named = {kind: sorted(row["id"] for row in world_anchors if row["kind"] == kind) for kind in ("Spawn", "Camp", "Shop")}
     camps = {
         "monsters": monsters,
-        "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if identity.startswith("l") else "monster_guardian"}
-                       for identity in ("l1", "h1", "l2", "h2", "l3")],
+        "placements": [{"anchor_id": identity, "monster_id": "monster_guardian" if len(row_members(world_anchors, identity)) == 1
+                        else "monster_scavenger"} for identity in named["Camp"]],
     }
     boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
@@ -247,10 +250,14 @@ def content_fixture():
         "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 3, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810],
                         "opening_offer": {"active_count": 2, "passive_count": 1}, "reroll_levels": [3, 6]},
-        "world": {"map_id": "demo_world", "spawn_ids": [f"s{index:02d}" for index in range(10)],
-                  "camp_ids": ["l1", "h1", "l2", "h2", "l3"], "shop_id": "shop", "capture_id": "capture"},
+        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "shop_ids": named["Shop"],
+                  "capture_id": "capture"},
         "display": display,
     }
+
+
+def row_members(anchors, identity):
+    return next(row for row in anchors if row["id"] == identity)["members"]
 
 
 def vector(x, y, z=0):

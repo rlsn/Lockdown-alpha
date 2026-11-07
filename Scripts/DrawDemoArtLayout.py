@@ -15,11 +15,19 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENT_CM = 7200
 SCALE = 0.1
 OCCLUDER_CM = 150
-ZONE_COLOURS = {"outside": (96, 125, 160), "wall_base": (46, 150, 80), "capture": (150, 70, 190), "shop": (150, 70, 190)}
+ZONE_COLOURS = {"outside": (96, 125, 160), "wall_base": (46, 150, 80), "capture": (150, 70, 190), "shop": (150, 70, 190),
+                "blocker": (120, 90, 60), "ground": (150, 190, 120)}
 CODES = {"tree_round": "T", "tree_tall": "T", "tree_pine": "P", "flower_bed": "F", "planter": "p", "bench": "B", "trash_bin": "b",
          "flagpole": "FLAG", "grandstand": "G", "bleachers": "S", "snack_stall": "SHOP", "building_shops": "H", "building_block": "H",
-         "street_lamp": "L"}
+         "street_lamp": "L", "shipping_container": "C", "container_small": "C", "broken_car": "V", "fence_long": "f"}
+# #97: trees and ground cover are too many to label; their boxes alone show where they stand.
+UNLABELLED = {"common_tree_1", "common_tree_2", "common_tree_5", "pine_tree_1", "pine_tree_2", "pine_tree_5", "grass_short", "grass_wispy",
+              "flowers_white", "flowers_purple", "clover", "bush_flowering", "mushroom", "pebble", "leafy_plant"}
 
+
+# Anchor rings drawn on the layout: kind -> (radius cm, colour). Event points and patrol waypoints are not drawn.
+ANCHOR_RINGS = {"Spawn": (200, (60, 110, 220)), "Camp": (500, (200, 120, 40)), "Shop": (350, (150, 70, 190)),
+                "Capture": (600, (190, 150, 20))}
 
 def px(x, y):
     return ((x + EXTENT_CM) * SCALE, (y + EXTENT_CM) * SCALE)
@@ -39,12 +47,17 @@ def main():
     surface = world["geometry"]["surfaces"][0]
     draw.rectangle([px(surface["min_cm"]["x"], surface["min_cm"]["y"]), px(surface["max_cm"]["x"], surface["max_cm"]["y"])], fill=(226, 234, 224))
     for blocker in world["geometry"]["blockers"]:
-        points = [px(p["x"], p["y"]) for p in blocker["polygon_cm"]]
-        draw.polygon(points, fill=(80, 90, 100) if blocker["blocks_sight"] else (190, 150, 90))
+        fill = (80, 90, 100) if blocker["blocks_sight"] else (190, 150, 90)
+        if blocker["shape"] == "cylinder":
+            (cx, cy), r = px(blocker["center_cm"]["x"], blocker["center_cm"]["y"]), blocker["radius_cm"] * SCALE
+            draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(60, 120, 50))
+        else:
+            draw.polygon([px(p["x"], p["y"]) for p in blocker["polygon_cm"]], fill=fill)
     for anchor in world["anchors"]:
+        if anchor["kind"] not in ANCHOR_RINGS:
+            continue
         x, y = anchor["position_cm"]["x"], anchor["position_cm"]["y"]
-        radius = {"Spawn": 200, "Camp": 500, "Shop": 350, "Capture": 600}[anchor["kind"]]
-        colour = {"Spawn": (60, 110, 220), "Camp": (200, 120, 40), "Shop": (150, 70, 190), "Capture": (190, 150, 20)}[anchor["kind"]]
+        radius, colour = ANCHOR_RINGS[anchor["kind"]]
         (cx, cy), r = px(x, y), radius * SCALE
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], outline=colour, width=2)
         draw.text((cx + r + 2, cy - 6), anchor["id"].upper(), fill=colour, font=font)
@@ -54,21 +67,24 @@ def main():
     tall = []
     for decoration in report["decorations"]:
         (x0, y0, _), (x1, y1, z1) = decoration["min"], decoration["max"]
-        high = z1 > OCCLUDER_CM
+        # A blocker's prop is the block itself (#97), drawn in its zone colour rather than flagged as a tall prop.
+        high = z1 > OCCLUDER_CM and decoration["zone"] != "blocker"
         on_floor = x1 > surface["min_cm"]["x"] and x0 < surface["max_cm"]["x"] and y1 > surface["min_cm"]["y"] and y0 < surface["max_cm"]["y"]
         colour = (220, 30, 30) if high and on_floor else ZONE_COLOURS[decoration["zone"]]
         draw.rectangle([px(x0, y0), px(x1, y1)], outline=colour, width=2)
         cx, cy = px((x0 + x1) / 2, (y0 + y1) / 2)
-        draw.text((cx - 3, cy - 5), CODES.get(decoration["prop"], "?"), fill=colour, font=font)
+        if decoration["prop"] not in UNLABELLED:
+            draw.text((cx - 3, cy - 5), CODES.get(decoration["prop"], "?"), fill=colour, font=font)
         if high and on_floor:
             tall.append(f"{decoration['prop']} {z1:.0f} cm")
     occluders = ", ".join(f"{o['prop']} ({o['zone']}, {o['height_cm']:.0f} cm): {o['hidden_points']} points" for o in report.get("occluders", [])) or "none"
     lines = [
         "Demo art layout, top view: +X right, +Y down, 10 cm/px. Grey walls block sight; tan shop stall blocks movement only.",
         "Boxes = decoration footprints. Blue outside the walls, green low wall-base props (<=120 cm), purple capture/shop landmarks,",
+        "brown = art drawing a world block (trees, car, containers, fences), pale green = low ground cover,",
         f"red = taller than {OCCLUDER_CM} cm on the arena floor: {', '.join(tall) or 'none'}. Orange = floor points where a body's chest/head is hidden.",
         f"Occluders found by the sweep: {occluders}.",
-        "Codes: T tree, P pine, F flower bed, p planter, B bench, b bin, H building, G grandstand, S bleachers, L lamp.",
+        "Codes: T tree, P pine, F flower bed, p planter, B bench, b bin, H building, G grandstand, S bleachers, L lamp, C container, V car, f fence.",
     ]
     for index, line in enumerate(lines):
         draw.text((10, size + 8 + index * 20), line, fill=(20, 20, 20), font=font)

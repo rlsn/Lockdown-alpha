@@ -277,8 +277,10 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString RankText;
-        // The compact card's single second line, "<kind> · <rank>".
+        // The compact card's short second line (#97): "新" for a new skill, "1→2" for an upgrade, the pick count for an
+        // attribute; the icon shape names the kind and the HUD shows a needed replacement. Detail is "<kind> · <rank>".
         FString Summary;
+        FString Detail;
         FString Description;
         TArray<FString> Lines;
         // Display-table icon reference (empty when the definition has no display row); the placeholder draws Icon + Glyph.

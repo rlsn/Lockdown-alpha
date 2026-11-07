@@ -209,7 +209,8 @@ bool ULDNavigationComponent::QueryBodyGround(FLDLegalGround& Out, FCollisionShap
     }
     // The body's support comes from its native floor mapped to the registry, never from an order hint.
     if (!Registry->QueryGround(Registry->Revision(),Body->GetNavAgentLocation(),Capsule,Surface,Out,Failure,Error)) { return false; }
-    if (Out.Floor.Get()!=Movement->CurrentFloor.HitResult.GetComponent())
+    // Ground, ramp and plateau pieces meet at seams where the foot's trace and the capsule's floor can name neighbours.
+    if (!Registry->IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent()))
     {
         Failure=ELDWorldQueryFailure::WrongSurface;
         Error=TEXT("WrongSurface: the body's native floor is not the registered surface.");
@@ -256,7 +257,8 @@ bool ULDNavigationComponent::ShopAt(const FVector& GroundPoint, FName& OutShop, 
     OutShop=NAME_None;
     const auto* Loaded=DemoContent();
     const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-    const FName ShopId=Loaded?FName(*Loaded->Get().World.ShopId):NAME_None;
+    // #97: the nearest of the registered shops; a ground point is at a shop when it lies in that shop's reach.
+    const FName ShopId=Loaded && Registry?Registry->NearestShop(GroundPoint):NAME_None;
     const FLDMapBinding* Shop=Registry && !ShopId.IsNone()?Registry->Resolve(ShopId,Registry->Generation):nullptr;
     if (!Shop || Loaded->Get().Parameters.ShopInteractRadiusCm.Denominator<=0)
     {
@@ -780,12 +782,13 @@ bool ULDNavigationComponent::ShopUnderPointer(FName& OutShop)
     FVector Start, Direction;
     if (!PC || !Art || Art->ShopModelBounds.IsEmpty() || !Loaded || !Registry || !PointerPosition(At)
         || !PC->DeprojectScreenPositionToWorld(float(At.X),float(At.Y),Start,Direction)) { return false; }
-    const FName ShopId(*Loaded->Get().World.ShopId);
-    if (ShopId.IsNone() || !Registry->Resolve(ShopId,Registry->Generation)) { return false; }
     const FVector End=Start+Direction*1000000.;
     for (const FBox& Model : Art->ShopModelBounds)
     {
-        if (FMath::LineBoxIntersection(Model,Start,End,End-Start)) { OutShop=ShopId; return true; }
+        // Each shop model stands on its own shop anchor; the pointed model names the shop nearest to it.
+        const FName ShopId=Registry->NearestShop(Model.GetCenter());
+        if (!ShopId.IsNone() && Registry->Resolve(ShopId,Registry->Generation)
+            && FMath::LineBoxIntersection(Model,Start,End,End-Start)) { OutShop=ShopId; return true; }
     }
     return false;
 }
@@ -799,9 +802,14 @@ void ULDNavigationComponent::PointerGoal(const FHitResult& GroundHit, FVector& O
     auto* PC=Controller();
     const auto* Body=PC?Cast<ALDCharacter>(PC->GetPawn()):nullptr;
     const FLDArtResolved* Art=ULDArtSubsystem::Get(this);
-    if (!Body || !Art) { return; }
+    const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+    if (!Body || !Art || !Registry) { return; }
+    // Only the pointed shop's own models: each shop stands apart.
     FBox2D Footprint(ForceInit);
-    for (const FBox& Model : Art->ShopModelBounds) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
+    for (const FBox& Model : Art->ShopModelBounds)
+    {
+        if (Registry->NearestShop(Model.GetCenter())==Shop) { Footprint+=FBox2D(FVector2D(Model.Min),FVector2D(Model.Max)); }
+    }
     FVector Foot=Body->GetNavAgentLocation();
     Foot.Z=GroundHit.ImpactPoint.Z;
     FVector Front;

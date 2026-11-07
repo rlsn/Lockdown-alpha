@@ -60,7 +60,6 @@
 | 参数键 | 世界侧消费与反向约束 |
 | --- | --- |
 | `UNIT.CollisionRadiusCm` | 玩家与野怪的实际 capsule、NavAgent、出生预约和障碍外扩必须一致，不能只改配置 |
-| `UNIT.MoveSpeedCmPerSec`、`TIMING.DefendRouteBudgetSec` | 比较基础速度下的合法回防路线；装备加速不能放宽基础回防验收 |
 | `UNIT.BasicAttackRangeCm`、`STAT.AttackRangeCm` | 初始值与当前派生值分开；订单/接近/释放读取当前攻击范围，脚点 XY 中心距不重复加减碰撞半径 |
 | `VISION.RadiusCm` | 身体来源范围；镜头、公开地点、喷漆/守护提示不增加来源 |
 | `SHOP.InteractRadiusCm` | 脚点至固定商店交互锚点的 XY 中心距；本体占地内不能强塞寻路目标 |
@@ -248,28 +247,23 @@ High中心有怪物，Low中心到两个成员约75cm，也不能当作40+40cm�
 出生到喷漆区名义约13.918..13.919s，营心到喷漆区约7.665..7.667s，Shop因偏置为不等长路线。
 营地清理时间、六人分配、升级/金币与购物机会必须使用内容表实际战斗/收益模型，不从路径长度猜收益。
 
-### 2.6 最远发育区、回防上界与最快返场下界
+### 2.6 最快返场下界
 
 不能只测营地中心而忽略拉怪活动区，更不能用模型“最短路上界”冒充最快返场的严格下界。
 
-本次完整模型具有可复算的**构造路径上界**：
-从任一合法脚点向喷漆区边连最短径向线段；外扩五墙的角域互不重叠，最小角间隙11.662°，
-所以该直线至多穿一段中墙，另可能穿商店底盘。
-所有外扩障碍彼此分离、在边界内且不接触喷漆区；将被挡弦替换为该凸障碍两交点间的较短边界弧，
-增加长度不超过该障碍半周长。由此
-`D_any <= sqrt(2)*(5000-40) - 300 + max(中墙半周长) + 商店半周长 = 9524.661cm`。
-以基础移速300cm/s（2026-11-07 批准）恒速计算名义上界31.748870s，小于35s对应的10500cm几何预算（余975.339cm）。
-喷漆区半径由600cm缩为300cm后这一上界超过了原18s预算的9360cm，2026-11-05 用户批准 `TIMING.DefendRouteBudgetSec` 由18s改为19s；
-此后随移速下调依次改为21s、26s，2026-11-07 随基础移速300cm/s改为35s（10400cm÷300≈34.67s 向上取整）。
-它覆盖地图任意合法模型脚点，包括从远处用成长射程打野的人，不只覆盖Camp中心。
-**不是实际原生回防时间上界**；动态单位、加速/制动和操作成本另测。
-
-作为边界诊断，四个合法角点±4960的模型喷漆区边路径为6718.536..6889.882cm；
-这些样本不是“仅查四角就证明全图最大”的替代论证。
-在各营心的Leash圆内，任一点回营心的直线至多遇到两段相邻墙，
-再接营心到喷漆区路径的同类构造上界为 Low 8019.206..8019.972cm、High 8219.206..8220.323cm。
-这些是活动域内路径上界，不把Leash改为路径距离规则，也不声称整圆没有墙。
-**Leash仍按营心XY半径；实际追击/返回必须另走合法完整路径。**
+2026-11-06 用户决定删除回防路线验证预算 `TIMING.DefendRouteBudgetSec` 及离线路线模型（#97，原话：
+“that rule is absurdly unnecessary as our map is currently mostly plain ground with no obstacle. remove that rule”，
+随后选择“Drop it entirely”）。世界编译不再计算或限制任何路线长度，也不再给出全图路径上界；
+同日用户进一步决定：测试只验证功能，不针对具体地图布局（原话：“drop everything that tests on a specific map layout.
+reachability etc. tests should be focus on function not map, e.g. tree blocks sight, wall blocks walk, etc.”）。
+原生资产验证不再检查出生点到商店/喷漆区或锚点之间的路线，也不在固定坐标上取样；只逐元素验证：
+锚点与成员站位合法、每个墙/围栏/摊位阻挡移动且按声明阻挡或放行视线、每棵树阻挡移动与视线、每条坡道可走、每段悬崖不可走。
+同日用户决定层高只为视线服务（原话：“elevations modeled too high. no need for it to be visually accurate so long as vision works.
+make it proly 0.5m high. trees too large, make its hitbox diameter the same as characters”）：每层 50 cm，树的直径 80 cm 与身体相同；
+悬崖由隐形挡块封住而不靠高度（原话：“don't rely on height to make cliffs unwalkable, use a air block or something”）；
+身体没有迈台阶，只能走上可走的坡面，坡上移速不变（原话：“characters don't need step-up or something either, they can climb a ramp
+only because it's walkable, movement speed should remain the same on ramp”）。
+Python 侧的布局逐值断言改为合成小世界上的同类功能测试。
 
 本次70个精确出生候选均合法且连到各自锚点，喷漆区边模型路径最短4075.611cm、最长4276.064cm。
 其严格欧氏下界为 `min(|SpawnCandidate|-CAPTURE.RadiusCm)=4000cm`，
@@ -1054,8 +1048,9 @@ Asset Registry 初始异步扫描必须完成，仍需对照 native字符串/脚
 | 独立关卡/网络可见性QA `world-network-qa-expert` | **可集成准备文档；未发现阻塞稿件的高置信错误。** 独立重建几何算法，核对整合稿、两份研究相关章节、模型/SVG和高风险源码接点；用户定案后的字段/失明/死亡-离局/时序、营地反击/重置、Shop、SurfaceHint和Returning cue亦完成定点审查 | 只批准文档在该研究/模型范围内可供实施审查；不是原生验收、数值批准或全库逐行审计 |
 
 独立QA确认了全图构造上界、70候选的模型圈边距离、欧氏下界与理想返场下界的计算口径（当时半径600cm）。
-喷漆区半径改为300cm后，同一口径由 `Scripts\DemoWorld.py` 的编译报告重算为上界约9524.660907cm、
+喷漆区半径改为300cm后，同一口径曾由 `Scripts\DemoWorld.py` 的编译报告重算为上界约9524.660907cm、
 70候选模型距离约4075.610821..4276.064482cm、欧氏下界4000cm；这次重算未另做独立QA。
+该离线路线模型已于2026-11-06随回防预算删除（#97），这些数值不再由任何工具产出。
 它另以独立内存脚本重算75项锚点查询，报告打印的60个距离均符合三位小数舍入，
 最大差约0.000463cm；核对表/JSON/SVG一致，并在保守固定成员占位排除下核验十点到五个近战接近点的50条路线。
 这不同于只重跑作者脚本后声称独立验证。

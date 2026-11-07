@@ -90,7 +90,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             break;
         case ELDDemoWorldAnchorKind::Shop:
             POI.Kind = ELDOpponentPOIKind::Shop;
-            bApproved = Anchor.Id.Equals(References.ShopId, ESearchCase::CaseSensitive);
+            bApproved = References.ShopIds.Contains(Anchor.Id);
             ++Shops;
             break;
         case ELDDemoWorldAnchorKind::Capture:
@@ -99,7 +99,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
             ++Captures;
             break;
         case ELDDemoWorldAnchorKind::Dorm:
-            // D21: public recovery ground; the world import has already required its two canonical identities.
+            // D21: public recovery ground; the world import has already bounded the dorm count.
             POI.Kind = ELDOpponentPOIKind::Dorm;
             bApproved = true;
             ++Dorms;
@@ -126,10 +126,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != 1 || Captures != 1 || Dorms != 2 || Airdrops != 3)
+    if (Shops != References.ShopIds.Num() || Captures != 1 || Dorms < 1 || Airdrops < 1)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose exactly one shop, one capture place, two dorms and three airdrop points."));
+        return Fail(Error, TEXT("The public world must expose every approved shop, one capture place, and at least one dorm and airdrop point."));
     }
     Error.Reset();
     return true;

@@ -1,4 +1,5 @@
 #include "LDDemoContentJson.h"
+#include "Region/LDMapGeometry.h"
 
 namespace LDDemoContent
 {
@@ -314,7 +315,6 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("UNIT.BasicAttackWindupSec"), TEXT("ms"), TEXT("ms"), &P.BasicAttackWindupMs, 1, MAX_int64},
         {TEXT("CAPTURE.SpraySec"), TEXT("ms"), TEXT("ms"), &P.CaptureSprayMs, 1, MAX_int64},
         {TEXT("CAPTURE.GuardSec"), TEXT("ms"), TEXT("ms"), &P.CaptureGuardMs, 1, MAX_int64},
-        {TEXT("TIMING.DefendRouteBudgetSec"), TEXT("ms"), TEXT("ms"), &P.DefendRouteBudgetMs, 1, MAX_int64},
         {TEXT("MATCH.CountdownSec"), TEXT("ms"), TEXT("ms"), &P.CountdownMs, 1, MAX_int64},
         {TEXT("MATCH.DevelopmentSec"), TEXT("ms"), TEXT("ms"), &P.DevelopmentMs, 0, MAX_int64},
         {TEXT("LIFE.RespawnSec"), TEXT("ms"), TEXT("ms"), &P.RespawnMs, 1, MAX_int64},
@@ -1873,10 +1873,10 @@ bool Definitions(const FValue& Value, TArray<T>& Out, FCheck& Check, const FStri
     return true;
 }
 
-bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString& Path, int32 Count)
+bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString& Path, int32 Min, int32 Max)
 {
     const TArray<FValue>* Rows;
-    if (!Array(Value, Rows, Check, Path, Count, Count))
+    if (!Array(Value, Rows, Check, Path, Min, Max))
     {
         return false;
     }
@@ -2010,7 +2010,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         return false;
     }
     const TArray<FValue>* Placements;
-    if (!Array(Camps.Take(TEXT("placements")), Placements, Check, Camps.Path, 5, 5))
+    if (!Array(Camps.Take(TEXT("placements")), Placements, Check, Camps.Path, 1, LDDemoWorld::MaxCamps))
     {
         return false;
     }
@@ -2076,9 +2076,11 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     }
     FFields World(Check, F.Take(TEXT("world")), TEXT("content.world"));
     if (!World.Identifier(TEXT("map_id"), Out.World.MapId)
-        || !Ids(World.Take(TEXT("spawn_ids")), Out.World.SpawnIds, Check, World.Path + TEXT(".spawn_ids"), 10)
-        || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 5)
-        || !World.Identifier(TEXT("shop_id"), Out.World.ShopId) || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
+        || !Ids(World.Take(TEXT("spawn_ids")), Out.World.SpawnIds, Check, World.Path + TEXT(".spawn_ids"),
+            LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
+        || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
+        || !Ids(World.Take(TEXT("shop_ids")), Out.World.ShopIds, Check, World.Path + TEXT(".shop_ids"), 1, LDDemoWorld::MaxShops)
+        || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
         || !World.Done())
     {
         return false;
@@ -2161,7 +2163,7 @@ bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdent
     const FUTF8ToTCHAR Decoded(reinterpret_cast<const ANSICHAR*>(Bundle.WorldContract.GetData()), Bundle.WorldContract.Num());
     const FString WorldText(Decoded.Length(), Decoded.Get());
     const FString ExpectedWorld = FString::Printf(
-        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION 2\n#define LD_DEMO_WORLD_PROJECTION_REVISION 2\n")
+        TEXT("#pragma once\n#define LD_DEMO_WORLD_SCHEMA_VERSION 3\n#define LD_DEMO_WORLD_PROJECTION_REVISION 3\n")
         TEXT("#define LD_DEMO_WORLD_PAYLOAD_SHA256 TEXT(\"%s\")\n"), *Identity.World.ToHex());
     return Check.Require(WorldText.Replace(TEXT("\r\n"), TEXT("\n")).Equals(ExpectedWorld, ESearchCase::CaseSensitive),
         TEXT("world contract"), TEXT("world schema, projection, byte digest or contract shape differs"));
@@ -2201,8 +2203,8 @@ bool Manifest(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Ex
         return false;
     }
     FFields Contract(Check, WorldRef.Take(TEXT("contract")), TEXT("manifest.world.contract"));
-    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, 2, 2)
-        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision, 2, 2)
+    if (!Contract.SmallInt(TEXT("schema_version"), Out.WorldSchemaVersion, 3, 3)
+        || !Contract.SmallInt(TEXT("projection_revision"), Out.WorldProjectionRevision, 3, 3)
         || !Contract.Digest(TEXT("sha256"), Out.WorldContract) || !Contract.Done() || !WorldRef.Done() || !Root.Done())
     {
         return false;

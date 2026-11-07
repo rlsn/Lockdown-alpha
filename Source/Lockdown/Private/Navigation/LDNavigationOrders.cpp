@@ -1116,7 +1116,7 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
     {
         const auto* Loaded=DemoContent();
         const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-        const FLDMapBinding* Shop=Loaded && Registry && Request.ShopId==FName(*Loaded->Get().World.ShopId)
+        const FLDMapBinding* Shop=Loaded && Registry && Loaded->Get().World.ShopIds.Contains(Request.ShopId.ToString())
             ? Registry->Resolve(Request.ShopId,Registry->Generation) : nullptr;
         if (!Shop) { Failure=ELDOrderFailure::ShopUnavailable; return false; }
         FLDLegalGround From, Approach;
@@ -1231,7 +1231,7 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         bool bWithin=false;
         ELDWorldQueryFailure Failure=ELDWorldQueryFailure::MissingWorld;
         FString Detail;
-        if (Registry && Registry->QueryShopReach(Registry->Revision(),ALDCombatDirector::FootOf(Body),bWithin,Failure,Detail))
+        if (Registry && Registry->QueryShopReach(Registry->Revision(),ActiveOrder->Request.ShopId,ALDCombatDirector::FootOf(Body),bWithin,Failure,Detail))
         {
             if (bWithin) { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
             return true;
@@ -1657,6 +1657,12 @@ void ULDNavigationComponent::TrackProgress(const ALDCharacter& Body, double Now,
     Order.BestProgress=0;
 }
 
+// A ground walk arrives inside its acceptance radius, or quietly beside the bodies that already stand on its spot (#97).
+bool ULDNavigationComponent::GroundArrived(const ALDCharacter& Body, const FActiveOrder& Order) const
+{
+    return LDPathSteering::AtGoal(Body,Order.Goal,Order.Acceptance) || LDPathSteering::BlockedAtHeldGoal(Body,Order.Goal);
+}
+
 bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step, const FLDCombatBodyRef& Ref,
     const FLDGameplayWritePermit& Permit, FString& Error)
 {
@@ -1670,8 +1676,7 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     else if (ActiveOrder && !LeaseFresh(*Mode,*ActiveOrder))
     { EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::Expired,true); }
     // An arrival with a queued walk behind it keeps its momentum; the next step activates in the next Actions phase.
-    if (ActiveOrder && ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround
-        && LDPathSteering::AtGoal(*Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
+    if (ActiveOrder && ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && GroundArrived(*Body,*ActiveOrder))
     { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking()); }
     // Rooted or stunned bodies get no voluntary input; committed root motion (dashes, jumps) still integrates natively.
     const bool bRooted=Mode->Combat && Mode->Combat->IsMoveBlocked(*Body);
@@ -1679,7 +1684,7 @@ bool ULDNavigationComponent::AdvanceAuthorityMotion(const FLDAuthorityStep& Step
     auto* Movement=CastChecked<ULDCharacterMovementComponent>(Body->GetCharacterMovement());
     if (!Movement->AdvanceAuthorityMovement(Step,Ref,Input,Permit,Error)) { return false; }
     if (!ActiveOrder) { return true; }
-    if (ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && LDPathSteering::AtGoal(*Body,ActiveOrder->Goal,ActiveOrder->Acceptance))
+    if (ActiveOrder->Request.Kind==ELDSpatialOrderKind::MoveGround && GroundArrived(*Body,*ActiveOrder))
     {
         EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,!QueueContinuesWalking());
         return true;
