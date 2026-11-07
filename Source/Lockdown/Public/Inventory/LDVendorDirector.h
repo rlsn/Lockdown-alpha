@@ -65,6 +65,8 @@ private:
         FGuid SessionId;
         uint32 Life = 0;
         uint64 QuoteRevision = 0;
+        // #97: the shop this session was opened at; purchases re-check reach to that shop.
+        FName ShopId;
     };
 
     struct FRecord

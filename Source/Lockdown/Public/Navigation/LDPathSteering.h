@@ -22,6 +22,15 @@ namespace LDPathSteering
     LOCKDOWN_API FVector Steering(const TArray<FVector>& Path, int32& Index, const ACharacter& Body);
     // Grounded, no root motion and within Acceptance of Goal (planar footpoint distance).
     LOCKDOWN_API bool AtGoal(const ACharacter& Body, const FVector& Goal, double AcceptanceCm);
+    // A blocking body's planar footprint.
+    struct FBodyDisc { FVector2D Foot; double Radius=0; };
+    // #97: bodies block each other, so a clicked spot another body stands on can never be reached. The spot is held by
+    // every other body too close to it for this body to stand there, and by any body touching a holder (a crowd at the
+    // spot). A ground walk that touches the holding group has arrived. Touching means footprints within
+    // WaypointToleranceCm of contact, the native movement's separation from a blocking capsule included.
+    LOCKDOWN_API bool BlockedAtHeldGoal(const FVector2D& Foot, double Radius, const FVector2D& Goal, TConstArrayView<FBodyDisc> Others);
+    // BlockedAtHeldGoal for a grounded body against every other live character in its world whose capsule blocks pawns.
+    LOCKDOWN_API bool BlockedAtHeldGoal(const ACharacter& Body, const FVector& Goal);
     // Route endpoint for any registered body from its validated ground: a planner's own start, or the foot of a body it
     // chases. Recast erodes the walkable area conservatively, so a legal capsule against a wall or another body, or one
     // cutting a corner, can stand just outside the mesh: the endpoint then moves to the nearest navmesh point at most one

@@ -1,4 +1,5 @@
 #include "Vision/LDWorldViewRelay.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Core/LDLog.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Character/LDModelPicking.h"
@@ -21,6 +22,13 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Camera/PlayerCameraManager.h"
+
+namespace
+{
+// Fog mask outside current coverage (255 is fully lit). #97: raised from 64 to 140, then to 190, so the fogged ground
+// reads lighter (user: "war fog color is too dark, make it lighter", then "further lighten fog of war color").
+constexpr uint8 LDFogHidden = 190;
+}
 
 bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& Error)
 {
@@ -308,6 +316,28 @@ ALDObservedEntityProxy::ALDObservedEntityProxy()
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("ObservedBody"));
     Body->SetupAttachment(RootComponent);
+    Blocker = CreateDefaultSubobject<UCapsuleComponent>(TEXT("BodyBlocker"));
+    Blocker->SetupAttachment(RootComponent);
+    Blocker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Blocker->SetGenerateOverlapEvents(false);
+    Blocker->SetCanEverAffectNavigation(false);
+    Blocker->SetHiddenInGame(true);
+}
+
+void ALDObservedEntityProxy::EnableBodyBlocking(float RadiusCm, float HalfHeightCm)
+{
+    // The root sits at the body's capsule centre (feet + half height), so the capsule centres on it.
+    Blocker->SetCapsuleSize(RadiusCm, HalfHeightCm);
+    Blocker->SetCollisionObjectType(ECC_Pawn);
+    Blocker->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Blocker->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    Blocker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    SetActorEnableCollision(true);
+}
+
+bool ALDObservedEntityProxy::IsBodyBlocking() const
+{
+    return Blocker && Blocker->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
 }
 
 void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
@@ -738,6 +768,17 @@ void ALDWorldViewRelay::SyncProxies()
                     FTransform(FVector(Unit.FeetCm) + FVector(0, 0, HalfHeight)), Params);
             }
             if (IsValid(Proxy)) { Proxy->Apply(Unit, HalfHeight, Snapshot.Frame->SampledAtServerSec); }
+            // #97: on a remote client the presented body blocks the own predicted body; every body shares the own body's
+            // approved capsule. The Host's world has the authority bodies themselves, so its proxies never collide.
+            if (IsValid(Proxy) && GetNetMode() == NM_Client && !Proxy->IsBodyBlocking())
+            {
+                const APlayerController* Local = GetWorld()->GetFirstPlayerController();
+                const auto* Own = Local ? Cast<ACharacter>(Local->GetPawn()) : nullptr;
+                if (Own && Own->GetCapsuleComponent())
+                {
+                    Proxy->EnableBodyBlocking(Own->GetCapsuleComponent()->GetUnscaledCapsuleRadius(), float(HalfHeight));
+                }
+            }
         }
     }
     for (auto It = Proxies.CreateIterator(); It; ++It)
@@ -839,7 +880,7 @@ void ALDWorldViewRelay::UploadFog()
     FogTarget.SetNumUninitialized(LDObservation::CoverageCells);
     for (int32 Index = 0; Index < LDObservation::CoverageCells; ++Index)
     {
-        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : 64;
+        FogTarget[Index] = bCurrent && LDObservation::CoverageBit(Snapshot.Frame->Footprint.CurrentBits, Index) ? 255 : LDFogHidden;
     }
     // The first coverage shows at once; later ones blend from what is on screen.
     if (FogShown.Num() != LDObservation::CoverageCells)
@@ -856,7 +897,7 @@ void ALDWorldViewRelay::BlendFog(float Delta)
     if (!bFogBlending || !FogTexture || !FogTexture->GetResource() || FogShown.Num() != LDObservation::CoverageCells
         || FogTarget.Num() != LDObservation::CoverageCells) { return; }
     // One publication interval per full fade: a cell entering or leaving coverage eases over about 0.1 s.
-    const float Step = (255.f - 64.f) * FMath::Max(Delta, 0.f) / .1f;
+    const float Step = (255.f - LDFogHidden) * FMath::Max(Delta, 0.f) / .1f;
     bool bMoving = false;
     const int32 Side = LDObservation::CoverageSide;
     uint8* Pixels = new uint8[LDObservation::CoverageCells * 4];
@@ -938,7 +979,7 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
     }
     if (FadeableProps.IsEmpty()) { return; }
     // Targets: the own living body and every unit presented right now (head and chest), never a hidden or stale one.
-    TArray<FVector, TInlineAllocator<34>> Targets;
+    TArray<FVector, TInlineAllocator<2 * (1 + LDObservation::MaxUnits)>> Targets;
     const APawn* Own = Owning.OwnerState.LifePhase == ELDLifePhase::Alive ? Owning.GetPawn().Get() : nullptr;
     if (Own) { Targets.Add(Own->GetActorLocation()); Targets.Add(Own->GetActorLocation() + FVector(0, 0, 70)); }
     for (const auto& Pair : Proxies)
@@ -966,14 +1007,27 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                     UMaterialInterface* Material = Mesh->GetMaterial(Index);
                     bAll &= Material && Material->GetScalarParameterValue(FHashedMaterialParameterInfo(LDPropFade::Parameter), Value);
                 }
+                const auto* Instanced = Cast<UInstancedStaticMeshComponent>(Mesh);
+                Prop.bPerInstance = bAll && Instanced && Instanced->NumCustomDataFloats >= 1 && Instanced->GetStaticMesh();
                 if (bAll)
                 {
                     for (int32 Index = 0; Index < Mesh->GetNumMaterials(); ++Index)
                     {
                         UMaterialInstanceDynamic* Dynamic = Mesh->CreateDynamicMaterialInstance(Index);
-                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, LDPropFade::FadedStrength); }
+                        if (Dynamic) { Dynamic->SetScalarParameterValue(LDPropFade::StrengthParameter, Prop.bPerInstance ? LDPropFade::InstanceFadedStrength : LDPropFade::FadedStrength); }
                         Prop.Materials.Add(Dynamic);
                     }
+                }
+                if (Prop.bPerInstance)
+                {
+                    const FBox Local = Instanced->GetStaticMesh()->GetBoundingBox();
+                    for (int32 Index = 0; Index < Instanced->GetInstanceCount(); ++Index)
+                    {
+                        FTransform Placement;
+                        Instanced->GetInstanceTransform(Index, Placement, true);
+                        Prop.InstanceBounds.Add(Local.TransformBy(Placement));
+                    }
+                    Prop.InstanceFades.SetNumZeroed(Prop.InstanceBounds.Num());
                 }
                 Prop.bParameter = bAll;
             }
@@ -982,6 +1036,22 @@ void ALDWorldViewRelay::FadeOccludingProps(const ALDPlayerController& Owning, fl
                 UE_LOG(LogLDWorld, Warning, TEXT("LD_FADEABLE_PARAMETER_MISSING %s has no LDFade material parameter; it hides while it occludes."),
                     *Primitive->GetPathName());
             }
+        }
+        if (Prop.bPerInstance)
+        {
+            auto* Instanced = Cast<UInstancedStaticMeshComponent>(Primitive);
+            bool bChanged = false;
+            for (int32 Index = 0; Instanced && Index < Prop.InstanceBounds.Num(); ++Index)
+            {
+                bool bHides = false;
+                for (const FVector& Target : Targets) { if (LDPropFade::Occludes(Prop.InstanceBounds[Index], Camera, Target)) { bHides = true; break; } }
+                const float Next = LDPropFade::Step(Prop.InstanceFades[Index], bHides, Delta);
+                if (Next == Prop.InstanceFades[Index]) { continue; }
+                Prop.InstanceFades[Index] = Next;
+                bChanged |= Instanced->SetCustomDataValue(Index, 0, Next, false);
+            }
+            if (bChanged) { Instanced->MarkRenderStateDirty(); }
+            continue;
         }
         bool bOccluding = false;
         const FBox Bounds = Primitive->Bounds.GetBox();

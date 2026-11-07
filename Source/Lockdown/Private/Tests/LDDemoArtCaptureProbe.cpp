@@ -183,14 +183,21 @@ namespace
                             TraceHits += Hits.FilterByPredicate([Set](const FHitResult& Hit) { return Hit.GetActor() == Set; }).Num();
                         }
                     }
-                    // The floor under a decoration on the arena stays walkable: the navmesh was not carved by it.
-                    const FVector Floor(Placement.GetLocation().X, Placement.GetLocation().Y, 0.);
-                    if (Navigation && FMath::Abs(Floor.X) < 5000. && FMath::Abs(Floor.Y) < 5000. && FVector::Dist2D(Floor, FVector(778, 778, 0)) > 200.)
-                    {
-                        FNavLocation Projected;
-                        ++NavChecks;
-                        NavMisses += !(Navigation->ProjectPointToNavigation(Floor, Projected, FVector(50., 50., 200.)) && FVector::Dist2D(Projected.Location, Floor) <= 50.);
-                    }
+                }
+            }
+            // The floor under a decoration on the arena stays walkable: the navmesh was not carved by it. A blocker's
+            // prop (#97) stands on its block, which the navmesh rightly leaves out.
+            for (const FLDArtDecoration& Decoration : ArtSubsystem->GetCatalog()->Decorations)
+            {
+                const FVector Floor(Decoration.Transform.GetLocation().X, Decoration.Transform.GetLocation().Y, 0.);
+                if (Navigation && Decoration.Zone != ELDArtZone::Blocker && FMath::Abs(Floor.X) < 5000. && FMath::Abs(Floor.Y) < 5000.
+                    && FVector::Dist2D(Floor, FVector(778, 778, 0)) > 200.)
+                {
+                    FNavLocation Projected;
+                    ++NavChecks;
+                    const bool bMiss = !(Navigation->ProjectPointToNavigation(Floor, Projected, FVector(50., 50., 200.)) && FVector::Dist2D(Projected.Location, Floor) <= 50.);
+                    NavMisses += bMiss;
+                    if (bMiss && NavMisses <= 5) { UE_LOG(LogLDContent, Warning, TEXT("LD_ART_CAPTURE_NAV_MISS %s %s at %s"), *Decoration.Prop, *LDArt::ZoneId(Decoration.Zone), *Floor.ToString()); }
                 }
             }
             Check(Traces > 0 && TraceHits == 0, FString::Printf(TEXT("%d sight, ground-aim, pawn, visibility and camera traces through decorations hit none of them"), Traces));
@@ -214,16 +221,17 @@ namespace
             }
             const FLDDemoRational& Radius = Content->Get().Parameters.CollisionRadiusCm;
             const double Body = Radius.Denominator > 0 ? double(Radius.Numerator) / double(Radius.Denominator) : 0.;
-            TArray<FBox> Blocked;
+            // #97: feet stand on the terrain; ramps are left out of the sweep.
+            LDDemoWorld::FTerrain Terrain;
+            if (!Check(Terrain.Build(*Layout, Error), TEXT("The world terrain builds for the occlusion sweep ") + Error)) { return; }
+            TArray<FBox> Blocked, HiddenBlocks;
             for (const FLDDemoWorldBlocker& Blocker : Layout->Blockers)
             {
+                TArray<FVector2D> Footprint;
                 FBox Box(ForceInit);
-                for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
-                {
-                    FVector Value;
-                    if (Point.ToVector(Value, Error)) { Box += Value; }
-                }
+                if (LDDemoWorld::Footprint(Blocker, Footprint, Error)) { for (const FVector2D& Point : Footprint) { Box += FVector(Point, 0.); } }
                 Blocked.Add(Box.ExpandBy(FVector(Body, Body, 0.)));
+                if (Catalog.HiddenBlockers.Contains(Blocker.Id)) { HiddenBlocks.Add(Box.ExpandBy(FVector(1., 1., 0.))); }
             }
             TMap<FString, const FLDArtProp*> Props;
             for (const FLDArtProp& Prop : Catalog.Props) { Props.Add(Prop.Id, &Prop); }
@@ -247,7 +255,11 @@ namespace
             {
                 for (double Y = FloorMin.Y + Body; Y <= FloorMax.Y - Body; Y += ArtSweepStepCm)
                 {
-                    const FVector Foot(X, Y, 0.);
+                    if (Terrain.Tier(FVector2D(X, Y)) % 2) { continue; }
+                    double Ground = 0.;
+                    FVector Normal;
+                    Terrain.Ground(FVector2D(X, Y), Ground, Normal);
+                    const FVector Foot(X, Y, Ground);
                     if (Blocked.ContainsByPredicate([&Foot](const FBox& Box) { return Box.IsInsideXY(Foot); })) { continue; }
                     ++Points;
                     TSet<int32> Hiders;
@@ -278,12 +290,19 @@ namespace
                     OccludedPoints.Add(MakeShared<FJsonValueObject>(Entry));
                 }
             }
-            bool bOnlyFlagpole = true;
+            // Allowed to hide a body: the capture flagpole, and the art that draws world blocks (#97): a blocker's own prop and
+            // the Outside props standing on a hidden boundary block. Those blocks hid the same bodies before art drew them.
+            bool bOnlyAllowed = true;
             for (int32 Index = 0; Index < Boxes.Num(); ++Index)
             {
                 if (!Counts[Index]) { continue; }
                 const FLDArtDecoration& Decoration = Catalog.Decorations[Index];
-                bOnlyFlagpole &= Decoration.Zone == ELDArtZone::Capture;
+                const FBox& Box = Boxes[Index];
+                const bool bOnHiddenBlock = Decoration.Zone == ELDArtZone::Outside && HiddenBlocks.ContainsByPredicate([&Box](const FBox& Block)
+                    { return Block.IsInsideXY(FVector(Box.Min.X, Box.Min.Y, 0.)) && Block.IsInsideXY(FVector(Box.Max.X, Box.Max.Y, 0.)); });
+                const bool bAllowed = Decoration.Zone == ELDArtZone::Capture || Decoration.Zone == ELDArtZone::Blocker || bOnHiddenBlock;
+                bOnlyAllowed &= bAllowed;
+                if (!bAllowed && Counts[Index]) { UE_LOG(LogLDContent, Warning, TEXT("LD_ART_CAPTURE_OCCLUDER %s %s hides %d points"), *Decoration.Prop, *LDArt::ZoneId(Decoration.Zone), Counts[Index]); }
                 auto Entry = MakeShared<FJsonObject>();
                 Entry->SetStringField(TEXT("prop"), Decoration.Prop);
                 Entry->SetStringField(TEXT("zone"), LDArt::ZoneId(Decoration.Zone));
@@ -291,7 +310,7 @@ namespace
                 Entry->SetNumberField(TEXT("hidden_points"), Counts[Index]);
                 Occluders.Add(MakeShared<FJsonValueObject>(Entry));
             }
-            Check(Points > 0 && bOnlyFlagpole, FString::Printf(TEXT("Occlusion sweep over %d standable floor points at %d zooms: %d points have the upper chest or head behind a prop, and only the listed capture flagpole does it"),
+            Check(Points > 0 && bOnlyAllowed, FString::Printf(TEXT("Occlusion sweep over %d standable floor points at %d zooms: %d points have the upper chest or head behind a prop, and only the capture flagpole or art drawing a world block does it"),
                 Points, int32(UE_ARRAY_COUNT(ArtSweepArms)), Hidden));
         }
 

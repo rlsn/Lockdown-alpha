@@ -118,8 +118,8 @@ bool ULDMapRegistry::DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomS
         return false;
     }
     const auto& Anchors=Content->Get().World.SpawnIds;
-    if (Anchors.Num()!=10)
-    { Error=TEXT("The complete approved ten-anchor pool is unavailable."); return false; }
+    if (Anchors.Num()<LDDemoWorld::MinSpawns)
+    { Error=TEXT("The approved spawn anchor pool is unavailable."); return false; }
     uint32 Index=0;
     while (!LDSpawnPlacement::TryUniformSample(Random.GetUnsignedInt(),uint32(Anchors.Num()),Index)) {}
     TSharedPtr<FLDSpawnSelection> Selection(new FLDSpawnSelection);

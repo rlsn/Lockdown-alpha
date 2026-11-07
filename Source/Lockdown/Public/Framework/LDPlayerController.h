@@ -119,6 +119,18 @@ public:
     // left-click confirmation; right click or Back cancels the armed entry without a world command.
     void ActivateCombatEntry(ELDCombatEntry Entry);
     bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
+    // #97 local slot order (dragging a HUD slot onto another swaps them): SkillAtKey[i] is the combat entry the i-th skill
+    // key (Skill1, Skill2) and HUD skill slot fire and show; EquipmentAtPosition[i] is the held equipment slot the i-th
+    // HUD equipment slot shows. Local presentation and key routing only, like a key binding: the server still sees
+    // entries Q/W and equipment slots 0/1. Each match starts in the default order.
+    ELDCombatEntry SkillAtKey[2] = {ELDCombatEntry::Q, ELDCombatEntry::W};
+    uint8 EquipmentAtPosition[2] = {0, 1};
+    uint32 SlotOrderMatch = 0;
+    void ResetSlotOrder(uint32 Match)
+    {
+        SkillAtKey[0] = ELDCombatEntry::Q; SkillAtKey[1] = ELDCombatEntry::W;
+        EquipmentAtPosition[0] = 0; EquipmentAtPosition[1] = 1; SlotOrderMatch = Match;
+    }
     bool IsAttackMoveArmed() const { return bAttackMoveArmed; }
     void ArmAttackMove();
     // Clears any armed entry or attack-move without sending anything; true if something was armed.

@@ -311,8 +311,10 @@ namespace LDHUD
         FString Kind;
         FString Name;
         FString RankText;
-        // The compact card's single second line, "<kind> · <rank>".
+        // The compact card's short second line (#97): "新" for a new skill, "初→高" for an upgrade, the pick count for an
+        // attribute; the icon shape names the kind and the HUD shows a needed replacement. Detail is "<kind> · <rank>".
         FString Summary;
+        FString Detail;
         // #147 card face: the one-sentence rule with this level's numbers ("A → B" on an upgrade) and the "高级：" line, as
         // rich text with the keywords in <b>…</>; an attribute card's sentence is its stat line. Plain twins drop the markup.
         FString Sentence;

@@ -161,7 +161,12 @@ bool ULDCharacterMovementComponent::MoveUpdatedComponentImpl(const FVector& Delt
     int32 StepMove=0;
     if (NativeCapture && NativeCapture->StepDepth && !NativeCapture->SafeDepth && !NativeCapture->AdjustmentDepth)
     { StepMove=++NativeCapture->StepDirectMoves; }
+    // #97: bodies block each other, but a dash runs through them (its path slow hits the bodies it crosses); the capsule
+    // ignores other bodies only for the dash's own sweeps, so everyone else still bumps into the dashing body.
+    const bool bThroughBodies=Sweep&&UpdatedPrimitive&&IsDashing();
+    if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Ignore); }
     const bool Result=Super::MoveUpdatedComponentImpl(Delta,Rotation,Sweep,Hit,Teleport);
+    if (bThroughBodies) { UpdatedPrimitive->SetCollisionResponseToChannel(ECC_Pawn,ECR_Block); }
     if (!NativeCapture || !NativeCapture->Error.IsEmpty()) { return Result; }
     auto& Capture=*NativeCapture;
     const FVector To=GetActorFeetLocation();

@@ -78,17 +78,21 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         }
     }
     TArray<FBox> Blockers;
+    TArray<FString> BlockerIds;
+    TMap<FString, const FLDDemoWorldBlocker*> BlockersById;
     for (const FLDDemoWorldBlocker& Blocker : World.Blockers)
     {
+        BlockersById.Add(Blocker.Id, &Blocker);
+        TArray<FVector2D> Footprint;
+        if (!LDDemoWorld::Footprint(Blocker, Footprint, Error)) { return false; }
         FBox Box(ForceInit);
-        for (const FLDDemoWorldPoint& Point : Blocker.PolygonCm)
-        {
-            FVector Value;
-            if (!Point.ToVector(Value, Error)) { return false; }
-            Box += Value;
-        }
+        for (const FVector2D& Point : Footprint) { Box += FVector(Point.X, Point.Y, 0); }
         Blockers.Add(Box);
+        BlockerIds.Add(Blocker.Id);
     }
+    // #97: a wall-base decoration stands wholly on one flat level, at that level's height.
+    LDDemoWorld::FTerrain Terrain;
+    if (!Terrain.Build(World, Error)) { return false; }
     TMap<FString, const FLDArtProp*> Props;
     for (const FLDArtProp& Prop : Catalog.Props) { Props.Add(Prop.Id, &Prop); }
     for (int32 Index = 0; Index < Catalog.Decorations.Num(); ++Index)
@@ -105,13 +109,27 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             if (bOverFloor) { return PlaceFail(Error, Label + TEXT(" reaches over the arena floor.")); }
             break;
         case ELDArtZone::WallBase:
+        case ELDArtZone::Ground:
         {
+            // Ground cover follows every wall-base rule except hugging an outer wall: low, flat, clear of places and blocks.
             const bool bOnFloor = Box.Min.X >= FloorMin.X && Box.Max.X <= FloorMax.X && Box.Min.Y >= FloorMin.Y && Box.Max.Y <= FloorMax.Y;
             const double Reach = FMath::Min(FMath::Min(Box.Min.X - FloorMin.X, FloorMax.X - Box.Max.X), FMath::Min(Box.Min.Y - FloorMin.Y, FloorMax.Y - Box.Max.Y));
-            if (!bOnFloor || Reach > WallBaseReachCm)
+            if (!bOnFloor) { return PlaceFail(Error, Label + TEXT(" must stand on the arena floor.")); }
+            if (Decoration.Zone == ELDArtZone::WallBase && Reach > WallBaseReachCm)
             { return PlaceFail(Error, FString::Printf(TEXT("%s must stand on the floor within %.0f cm of an outer wall."), *Label, WallBaseReachCm)); }
-            if (Box.Max.Z > SightHeight)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall, above the %.0f cm sight sample; it would read as a sight blocker."), *Label, Box.Max.Z, SightHeight)); }
+            const int32 Tier = Terrain.Tier(FVector2D(Box.GetCenter()));
+            bool bFlat = Tier % 2 == 0;
+            for (const FVector2D Corner : { FVector2D(Box.Min.X, Box.Min.Y), FVector2D(Box.Max.X, Box.Min.Y),
+                                             FVector2D(Box.Max.X, Box.Max.Y), FVector2D(Box.Min.X, Box.Max.Y) })
+            {
+                bFlat &= Terrain.Tier(Corner) == Tier;
+            }
+            const double Floor = Terrain.StepCm * (Tier / 2);
+            // The prop's footprint pivot puts its lowest point on the floor it names.
+            if (!bFlat || FMath::Abs(Box.Min.Z - Floor) > 1.)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s must stand wholly on one flat level, at its %.0f cm floor."), *Label, Floor)); }
+            if (Box.Max.Z - Box.Min.Z > SightHeight)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall, above the %.0f cm sight sample; it would read as a sight blocker."), *Label, Box.Max.Z - Box.Min.Z, SightHeight)); }
             for (const FPlaceKeepOut& KeepOut : KeepOuts)
             {
                 if (PlaceDistance2D(Box, KeepOut.Centre) < KeepOut.Radius)
@@ -119,7 +137,7 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             }
             for (int32 Blocker = 0; Blocker < Blockers.Num(); ++Blocker)
             {
-                if (PlaceOverlap2D(Box, Blockers[Blocker])) { return PlaceFail(Error, Label + TEXT(" overlaps ") + World.Blockers[Blocker].Id); }
+                if (PlaceOverlap2D(Box, Blockers[Blocker])) { return PlaceFail(Error, Label + TEXT(" overlaps ") + BlockerIds[Blocker]); }
             }
             break;
         }
@@ -128,7 +146,15 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         {
             const bool bCapture = Decoration.Zone == ELDArtZone::Capture;
             const ELDDemoWorldAnchorKind Kind = bCapture ? ELDDemoWorldAnchorKind::Capture : ELDDemoWorldAnchorKind::Shop;
-            const FPlaceKeepOut* Anchor = KeepOuts.FindByPredicate([Kind](const FPlaceKeepOut& KeepOut) { return KeepOut.Kind == Kind; });
+            // #97: several shops; each landmark sits on the nearest anchor of its kind.
+            const FPlaceKeepOut* Anchor = nullptr;
+            for (const FPlaceKeepOut& KeepOut : KeepOuts)
+            {
+                if (KeepOut.Kind == Kind && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
+                {
+                    Anchor = &KeepOut;
+                }
+            }
             const double Limit = bCapture ? CaptureLandmarkHalfExtentCm : ShopLandmarkHalfExtentCm;
             // The transform carries the footprint pivot, so the anchor must lie within the landmark itself.
             if (!Anchor || PlaceDistance2D(Box, Anchor->Centre) > LandmarkCentreToleranceCm)
@@ -139,26 +165,84 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall; at the shop it would hide bodies above %.0f cm."), *Label, Box.Max.Z, OccluderHeightCm)); }
             break;
         }
+        case ELDArtZone::Blocker:
+        {
+            // #97: collision follows the art. The prop stands on the block's base at the block's height, and its own
+            // footprint rectangle, turned with it, is the block's polygon; a tree's prop stands over its trunk.
+            const FLDDemoWorldBlocker* Target = BlockersById.FindRef(Decoration.Blocker);
+            if (!Target) { return PlaceFail(Error, Label + TEXT(" names no world blocker: ") + Decoration.Blocker); }
+            const bool bTree = Target->Shape == ELDDemoWorldBlockerShape::Cylinder;
+            if (!bTree && Target->PolygonCm.IsEmpty()) { return PlaceFail(Error, Label + TEXT(" draws a block without a polygon.")); }
+            FVector Base;
+            if (!(bTree ? Target->CenterCm : Target->PolygonCm[0]).ToVector(Base, Error)) { return false; }
+            const double Height = PlaceValue(Target->HeightCm);
+            if (FMath::Abs(Box.Min.Z - Base.Z) > BlockerFitToleranceCm || FMath::Abs(Box.Max.Z - Box.Min.Z - Height) > BlockerFitToleranceCm)
+            {
+                return PlaceFail(Error, FString::Printf(TEXT("%s spans %.1f..%.1f cm; %s stands %.1f..%.1f cm."), *Label, Box.Min.Z, Box.Max.Z,
+                    *Target->Id, Base.Z, Base.Z + Height));
+            }
+            if (bTree)
+            {
+                if (!Box.IsInsideXY(Base)) { return PlaceFail(Error, Label + TEXT(" does not stand over its tree ") + Target->Id); }
+                break;
+            }
+            const FBox Local = Prop->Mesh->GetBoundingBox();
+            TArray<FVector2D> Corners;
+            for (const FVector2D Corner : { FVector2D(Local.Min.X, Local.Min.Y), FVector2D(Local.Max.X, Local.Min.Y),
+                                             FVector2D(Local.Max.X, Local.Max.Y), FVector2D(Local.Min.X, Local.Max.Y) })
+            {
+                Corners.Add(FVector2D(Decoration.Transform.TransformPosition(FVector(Corner, Local.Min.Z))));
+            }
+            TArray<FVector2D> Polygon;
+            if (!LDDemoWorld::Footprint(*Target, Polygon, Error)) { return false; }
+            bool bFits = Polygon.Num() == Corners.Num();
+            for (const FVector2D& Vertex : Polygon)
+            {
+                bFits &= Corners.ContainsByPredicate([&Vertex](const FVector2D& Corner) { return FVector2D::Distance(Corner, Vertex) <= BlockerFitToleranceCm; });
+            }
+            if (!bFits)
+            {
+                return PlaceFail(Error, FString::Printf(TEXT("%s footprint (%s / %s / %s / %s) is not the polygon of %s."), *Label, *Corners[0].ToString(),
+                    *Corners[1].ToString(), *Corners[2].ToString(), *Corners[3].ToString(), *Target->Id));
+            }
+            break;
+        }
         default:
             return PlaceFail(Error, Label + TEXT(" has no placement zone."));
+        }
+    }
+    // A hidden block is drawn by Outside props instead, so it must lie wholly off the arena floor.
+    for (const FString& Id : Catalog.HiddenBlockers)
+    {
+        const int32 Index = BlockerIds.IndexOfByKey(Id);
+        if (Index == INDEX_NONE) { return PlaceFail(Error, TEXT("Hidden blocker is not a world blocker: ") + Id); }
+        const FBox& Box = Blockers[Index];
+        if (!(Box.Min.X >= FloorMax.X || Box.Max.X <= FloorMin.X || Box.Min.Y >= FloorMax.Y || Box.Max.Y <= FloorMin.Y))
+        {
+            return PlaceFail(Error, TEXT("Hidden blocker reaches over the arena floor: ") + Id);
         }
     }
     Error.Reset();
     return true;
 }
 
-bool LDArt::CheckPlacementsAgainstDemoWorld(const ULDArtCatalog& Catalog, FString& Error)
+bool LDArt::LoadDemoWorld(TSharedPtr<const FLDDemoContentSnapshot>& Content, TSharedPtr<const FLDDemoWorldGeometry>& World, FString& Error)
 {
-    TSharedPtr<const FLDDemoContentSnapshot> Content;
     if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content)
     {
         return PlaceFail(Error, TEXT("Approved Demo content is unavailable for decoration checks: ") + Error);
     }
     const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
-    TSharedPtr<const FLDDemoWorldGeometry> World;
     if (!Definition || !Definition->Read(*Content, World, Error) || !World)
     {
         return PlaceFail(Error, TEXT("The saved Demo world projection is unavailable for decoration checks: ") + Error);
     }
-    return CheckPlacements(Catalog, *World, *Content, Error);
+    return true;
+}
+
+bool LDArt::CheckPlacementsAgainstDemoWorld(const ULDArtCatalog& Catalog, FString& Error)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    TSharedPtr<const FLDDemoWorldGeometry> World;
+    return LoadDemoWorld(Content, World, Error) && CheckPlacements(Catalog, *World, *Content, Error);
 }

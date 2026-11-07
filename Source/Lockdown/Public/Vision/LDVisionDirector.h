@@ -5,6 +5,7 @@
 #include "Navigation/LDNavigationComponent.h"
 #include "World/LDWorldQueryTypes.h"
 #include "Vision/LDViewTypes.h"
+#include "Region/LDMapGeometry.h"
 #include "LDVisionDirector.generated.h"
 class ALDPlayerController;
 class ALDWorldViewRelay;
@@ -65,8 +66,11 @@ struct FLDObservedTarget
     FLDObservedUnitView Presented; // authorized fields; Handle/Epoch/StateRevision are observer-local
 };
 
-// Static line of sight over the approved world geometry. The importer guarantees every
-// sight blocker is a strictly convex ground quad taller than the sight sample height.
+// Static line of sight over the approved world geometry. The importer guarantees every sight blocker is a
+// strictly convex polygon or an upright cylinder standing on one flat level, taller than the sight sample height.
+// #97 tiers (LDDemoWorld::FTerrain): nothing on a higher tier than the observer is seen, terrain of a higher tier
+// between them hides, and an obstacle hides only from observers at or below its level (a ramp counts as its lower
+// level), so high ground sees low ground over its walls and trees.
 class LOCKDOWN_API FLDSightGeometry
 {
 public:
@@ -82,11 +86,29 @@ public:
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
 private:
     bool SegmentBlocked(const FVector2D& From, const FVector2D& To) const;
+    // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
+    // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
+    void BuildGrid();
+    void CellRange(const FVector2D& Low, const FVector2D& High, int32& X0, int32& Y0, int32& X1, int32& Y1) const;
+    static constexpr double GridCellCm = 400.;
+    int32 GridWidth = 0, GridHeight = 0;
+    double MaxCircleRadius = 0;
+    TArray<TArray<int32>> CellPolygons;
+    TArray<TArray<int32>> CellCircles;
+    struct FCircle
+    {
+        FVector2D Centre = FVector2D::ZeroVector;
+        double Radius = 0;
+        int32 Level = 0;
+    };
     FLDWorldRevision World;
     FVector2D Min = FVector2D::ZeroVector;
     FVector2D Max = FVector2D::ZeroVector;
     double RadiusCm = 0;
     TArray<TArray<FVector2D>> Blockers;
+    TArray<int32> BlockerLevels;
+    TArray<FCircle> Circles;
+    LDDemoWorld::FTerrain Terrain;
 };
 
 namespace LDObservation

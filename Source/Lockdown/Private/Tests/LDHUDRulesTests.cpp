@@ -431,17 +431,18 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The card face is the sentence with this level's numbers and the advanced line"),
         Card.SentencePlain==TEXT("命中造成 100 魔法伤害。")&&Card.AdvancedPlain==TEXT("高级：穿透。"));
     TestTrue(TEXT("The details show the target form and the cost"),Card.Lines.Num()==2&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm")&&Card.Lines[1]==LDHUD::CostLine(Rank));
-    TestTrue(TEXT("The compact card line names the kind, rank and the replacement"),Card.Summary==TEXT("新主动 · 初级 · 需替换"));
+    TestTrue(TEXT("The compact card line is short and leaves the kind and the replacement to the UI"),Card.Summary==TEXT("新")&&Card.Detail==TEXT("新主动 · 初级"));
     TestTrue(TEXT("An active card draws the active placeholder icon with the name's first character"),
         Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
     FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
     const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats);
     TestTrue(TEXT("An upgrade states both ranks, shows A → B and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("初级 → 高级")
-        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。"));
+        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。")&&Up.Summary==TEXT("初→高"));
     FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
     FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;
     TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Passive
-        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("属性卡 · 已选 0 次"));
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("已选 0 次"));
+    TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);

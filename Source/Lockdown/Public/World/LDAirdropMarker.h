@@ -8,10 +8,10 @@
 class UInstancedStaticMeshComponent;
 class UMaterialInstanceDynamic;
 
-// Placeholder presentation of the current airdrop (天降外卖, D26 #79): a flat painted ring at the approved
-// AIRDROP.PickupRadiusCm around the public drop point while it is announced, plus a crate once it has landed. It only
+// Presentation of the current airdrop (天降外卖, D26 #79): a flat painted ring at the approved AIRDROP.PickupRadiusCm
+// around the public drop point while it is announced, plus the art catalog's crate once it has landed (#97). It only
 // mirrors the accepted public airdrop view; it is never replicated and has no collision, navigation, sight or height
-// effect. Final art belongs to the presentation ticket.
+// effect.
 UCLASS(NotPlaceable, Transient)
 class LOCKDOWN_API ALDAirdropMarker : public AActor
 {
@@ -19,7 +19,7 @@ class LOCKDOWN_API ALDAirdropMarker : public AActor
 public:
     ALDAirdropMarker();
     // Lays the ring and crate for one drop of one match generation; false with a reason when the cooked mesh or
-    // material is missing or the view names no drop.
+    // material or the art crate is missing or the view names no drop.
     bool Build(const FLDAirdropView& View, double RadiusCm, uint32 InGeneration, FString& Error);
     // Mirrors the phase of the same drop: the crate appears on landing; a claimed drop shows nothing.
     void ShowPhase(ELDAirdropPhase Phase);
@@ -35,7 +35,6 @@ private:
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Ring;
     UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Crate;
     UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> RingPaint;
-    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CratePaint;
     FVector Center = FVector::ZeroVector;
     double Radius = 0;
     uint32 Generation = 0;

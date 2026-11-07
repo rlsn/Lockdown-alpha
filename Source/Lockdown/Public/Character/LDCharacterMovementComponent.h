@@ -52,6 +52,8 @@ public:
     bool StartDemoDash(const FVector& Direction, double DistanceCm, double DurationSeconds, FString& Error);
     // Sweeps the current capsule along a planar direction against static geometry; false when immediately blocked.
     bool CanStartDash(const FVector& Direction, double ProbeCm) const;
+    // The dash root motion is running: its moves pass through other bodies (#97), static geometry still stops it.
+    bool IsDashing() const;
     virtual void PhysWalking(float DeltaSeconds, int32 Iterations) override;
     virtual void PhysFalling(float DeltaSeconds, int32 Iterations) override;
     virtual void MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult) override;

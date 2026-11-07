@@ -297,7 +297,7 @@ FLDShopOpenResult ALDVendorDirector::ReadShop(const FGuid& ContenderId) const
     }
     if (Record->Session.IsSet() && Record->Session->Life == Life.Life && Life.Phase == ELDLifePhase::Alive)
     {
-        Result.ShopId = Content.IsValid() ? FName(*Content->Get().World.ShopId) : FName();
+        Result.ShopId = Record->Session->ShopId;
         FLDShopView View;
         if (!BuildView(ContenderId, Record->Session.GetValue(), View))
         {
@@ -335,7 +335,7 @@ bool ALDVendorDirector::BuildView(const FGuid& ContenderId, const FSession& Sess
     }
     const FLDDemoContentDefinitions& Definitions = Content->Get();
     const FLDWorldRevision& WorldRevision = Registry->Revision();
-    Out.ShopId = FName(*Definitions.World.ShopId);
+    Out.ShopId = Session.ShopId;
     Out.SessionId = Session.SessionId;
     Out.Life = Session.Life;
     Out.QuoteRevision = Session.QuoteRevision;
@@ -559,7 +559,7 @@ FLDShopOpenResult ALDVendorDirector::OpenPendingShop(const FGuid& ContenderId, c
     {
         return Complete(ELDGrowthReason::MatchClosed);
     }
-    if (ShopId != FName(*Content->Get().World.ShopId))
+    if (!Content->Get().World.ShopIds.Contains(ShopId.ToString()))
     {
         return Complete(ELDGrowthReason::UnknownShop);
     }
@@ -590,6 +590,7 @@ FLDShopOpenResult ALDVendorDirector::OpenPendingShop(const FGuid& ContenderId, c
         Session.Life = Life.Life;
         Session.QuoteRevision = 1;
     }
+    Session.ShopId = ShopId;
     FLDShopView View;
     if (!BuildView(ContenderId, Session, View))
     {
@@ -698,7 +699,7 @@ FLDShopReceipt ALDVendorDirector::CommitPendingShopCommand(const FGuid& Contende
     }
     // Death, reach, grounding and the match gate are re-sampled for this commit; the open never authorizes it.
     const ELDGrowthReason Eligibility = VendorEligibilityReason(
-        Registry->QueryShopEligibility(Permit, Life.Body, FName(*Definitions.World.ShopId), ExpectedWorld));
+        Registry->QueryShopEligibility(Permit, Life.Body, Record->Session->ShopId, ExpectedWorld));
     if (Eligibility != ELDGrowthReason::None)
     {
         return Reject(Eligibility);

@@ -122,7 +122,6 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
-    UPROPERTY() int64 DefendRouteBudgetMs = 0;
     // #153: the opening countdown between the initial spawn and the match's T=0; every match timer counts from T=0.
     UPROPERTY() int64 CountdownMs = 0;
     UPROPERTY() int64 DevelopmentMs = 0;
@@ -577,7 +576,8 @@ struct FLDDemoWorldReferences
     UPROPERTY() FString MapId;
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
-    UPROPERTY() FString ShopId;
+    // #97: every shop anchor, ordinal-sorted; a match may have several shops.
+    UPROPERTY() TArray<FString> ShopIds;
     UPROPERTY() FString CaptureId;
 };
 

@@ -31,11 +31,12 @@ namespace LDMinimap
     // Fit is the world box the frame shows. Camera: the camera's ground forward is up and the rotated box's bounds fit the
     // frame. Facing: the living body's facing is up and the box's circumscribed circle fits, so turning never rescales;
     // without a body it is the Camera view. North: world -Y is up whatever the camera or body. Fitting keeps EdgeMargin
-    // clear. An empty box or frame, or a non-finite yaw in use, gives an invalid view.
-    // A positive FitRadius makes both turning views fit the circle of that radius about the box centre instead, so a
-    // square ground turned 45° does not shrink the drawn content; ground beyond the circle may then be cut off at the
-    // frame edge. North always fits the box.
-    LOCKDOWN_API FView MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg,double FitRadius=0.);
+    // clear. An empty box or frame, or a non-finite yaw in use, gives an invalid view. #97: the whole box is always drawn;
+    // a turned square ground shows as a diamond whose corners touch the frame, and nothing of it is cut off.
+    LOCKDOWN_API FView MakeView(ELDMinimapOrientation Mode,const FBox2D& Fit,const FVector2D& FrameSize,double CameraYawDeg,bool bHasBody,double BodyYawDeg);
+    // Whether a frame point (local units) shows the ground: the map is the turned ground itself, and the frame around it
+    // is see-through, so a press there belongs to the world beneath.
+    LOCKDOWN_API bool OnGround(const FView& View,const FVector2D& Local,const FBox2D& Ground);
     // Frame point (local units, y down) of a world point; only X and Y are read.
     LOCKDOWN_API FVector2D ToFrame(const FView& View,const FVector& World);
     // Ground point (Z = 0) under a frame point: the exact inverse of ToFrame, unclamped.

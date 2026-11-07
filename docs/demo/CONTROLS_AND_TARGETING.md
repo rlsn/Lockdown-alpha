@@ -171,7 +171,7 @@ Esc 不调用 Stop、不发送世界命令或候选提交。
 - 边缘平移带为视口四边各 8 px（`TickCamera` 中的固定值），在失焦、指针在 UI 上、
   小地图拖动和 Q/W/D/A 准备态时关闭。
 - Space 按住临时跟随自己，松开恢复；Home 切换跟随并保存 `bStartFollowing` 偏好。
-- 默认臂长 2250 cm，固定 pitch −60°、yaw −45°、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
+- 默认臂长 2250 cm，固定 pitch −60°、yaw −90°（正北朝上，#97）、FOV 55°；共享常量由 `Character\LDCameraSettings.h` 定义，
   身体、死亡等待相机、本地设置与美术镜头检查共用，不改变授权视野。
 - 滚轮每格改变 80 cm 臂长并夹在 1300–2400 cm（`ALDCharacter::ZoomedArmLength`），
   结果保存为本地设置 `Zoom`；这是固定的原生常量，没有可调的缩放步长或范围设置。
@@ -461,6 +461,14 @@ Direct 与 Nav 两种序号域互不比较。
 D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion source，不逐帧传送，遇阻挡由原生 CMC 停在最远合法位置
 （`Lockdown.Rules.DemoMotionProbe.DashStopsAtWall`）；起步方向立即被静态几何挡住时 `CanStartDash` 拒绝；
 定身只停自愿转向，不停重力与已提交的 root motion。
+**身体互相阻挡（#97，用户原话：“right now characters walk through each other without collision, add collision”）：**
+参赛者、营地野怪与 Boss 的胶囊都阻挡彼此（`ECC_Pawn` 不再忽略），服务器运动停在别的身体前或沿其滑开；
+D 冲刺仍穿过身体（冲刺路径减速要命中路径上的敌人），只在冲刺自己的扫掠期间忽略身体（`ULDCharacterMovementComponent::IsDashing`）。
+远程客户端上，当前呈现的可见单位代理带同尺寸的仅查询胶囊，只阻挡本人预测的身体，让预测停在服务器会停的地方；
+Host 世界里已有权威身体，代理不加碰撞。迷雾中看不到的身体只在服务器上阻挡，预测撞上时由服务器纠正。
+点地移动的目标点已被别的身体占住时（2026-11-07 用户选择“Yes, stop quietly”），身体碰到占点的一群身体就算到达，安静停下，
+不推挤到 `PathBlocked`：离点太近、本人站不上去的身体占点，碰着占点身体的身体也算这一群
+（`LDPathSteering::BlockedAtHeldGoal`，规则测试 `Lockdown.Rules.DemoPathSteering.HeldGoal`）。
 
 ### 7.2 世界接口，操作层不得复制实现
 

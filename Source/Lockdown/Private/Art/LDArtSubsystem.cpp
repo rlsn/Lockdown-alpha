@@ -3,7 +3,9 @@
 #include "Art/LDDecorationSet.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Framework/LDDemoEntry.h"
+#include "Region/LDMapGeometry.h"
 #include "Tests/LDDemoArtCaptureProbe.h"
 
 bool ULDArtSubsystem::ShouldCreateSubsystem(UObject* Outer) const
@@ -79,7 +81,28 @@ void ULDArtWorldSubsystem::OnWorldBeginPlay(UWorld& World)
     }
     if (Decorations.IsValid())
     {
-        UE_LOG(LogLDContent, Display, TEXT("LD_ART_DECORATIONS_READY %d placements, display only."), Decorations->GetInstanceCount());
+        // #97: art draws these blocks; their generated meshes stop rendering but keep collision and the sight response.
+        const TSet<FString>& Hidden = Art->GetResolved()->HiddenBlockers;
+        int32 Count = 0;
+        for (TActorIterator<AActor> It(&World); It; ++It)
+        {
+            if (!It->Tags.Contains(LDDemoWorld::StaticGeometryTag)) { continue; }
+            for (const FName Tag : It->Tags)
+            {
+                if (Tag != LDDemoWorld::StaticGeometryTag && Hidden.Contains(Tag.ToString()))
+                {
+                    It->SetActorHiddenInGame(true);
+                    ++Count;
+                    break;
+                }
+            }
+        }
+        if (Count != Hidden.Num())
+        {
+            UE_LOG(LogLDContent, Error, TEXT("LD_ART_BLOCKERS_MISMATCH art draws %d blockers but the map holds %d of them."), Hidden.Num(), Count);
+        }
+        UE_LOG(LogLDContent, Display, TEXT("LD_ART_DECORATIONS_READY %d placements, %d blocks drawn by art, display only."),
+            Decorations->GetInstanceCount(), Count);
     }
     else { UE_LOG(LogLDContent, Error, TEXT("LD_ART_DECORATIONS_UNAVAILABLE %s"), *Error); }
 #if WITH_DEV_AUTOMATION_TESTS

@@ -273,7 +273,12 @@ struct FContext
         for (const auto& POI : Frame.POIs)
         {
             if (POI.Kind == ELDOpponentPOIKind::Capture && !Capture) { Capture = &POI; }
-            if (POI.Kind == ELDOpponentPOIKind::Shop && !Shop) { Shop = &POI; }
+            // #97: a match may have several shops; head for the nearest one.
+            if (POI.Kind == ELDOpponentPOIKind::Shop
+                && (!Shop || FVector::DistSquared2D(Self.FootCm, POI.FootCm) < FVector::DistSquared2D(Self.FootCm, Shop->FootCm)))
+            {
+                Shop = &POI;
+            }
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);

@@ -8,6 +8,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDDemoEntry.h"
+#include "Region/LDMapDefinition.h"
 #include "Engine/Engine.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/SkeletalMesh.h"
@@ -51,6 +53,38 @@ namespace
         const bool bPlaced = LDArt::CheckPlacementsAgainstDemoWorld(Catalog, Error);
         Test.TestFalse(What, bPlaced);
         Test.TestTrue(What + TEXT(" is reported by name: ") + Error, !bPlaced && Error.Contains(Mention));
+    }
+
+    // The spawn nearest the outer wall in the saved Demo world, and a spot on its wall walkway 150 cm from the wall at
+    // the spawn's floor height: a wall-base prop there keeps to the wall but crowds that spawn's ring.
+    bool ArtSpawnByWall(FAutomationTestBase& Test, FString& Id, FVector& Spot)
+    {
+        TSharedPtr<const FLDDemoContentSnapshot> Content;
+        TSharedPtr<const FLDDemoWorldGeometry> World;
+        FString Error;
+        const auto* Definition = LoadObject<ULDMapDefinition>(nullptr, *(FString(LDDemoEntry::WorldDefinition) + TEXT(".DA_DemoWorld")));
+        FVector Min = FVector::ZeroVector, Max = FVector::ZeroVector;
+        const bool bRead = LDDemoEntry::LoadRuntimeContent(Content, Error) && Content
+            && Definition && Definition->Read(*Content, World, Error) && World && World->Surfaces.Num() == 1
+            && World->Surfaces[0].MinCm.ToVector(Min, Error) && World->Surfaces[0].MaxCm.ToVector(Max, Error);
+        if (!Test.TestTrue(TEXT("The saved Demo world is readable: ") + Error, bRead)) { return false; }
+        double Best = TNumericLimits<double>::Max();
+        for (const FLDDemoWorldAnchor& Anchor : World->Anchors)
+        {
+            FVector Foot;
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn || !Anchor.PositionCm.ToVector(Foot, Error)) { continue; }
+            const double Gaps[] = {Foot.X - Min.X, Max.X - Foot.X, Foot.Y - Min.Y, Max.Y - Foot.Y};
+            for (int32 Side = 0; Side < 4; ++Side)
+            {
+                if (Gaps[Side] >= Best) { continue; }
+                Best = Gaps[Side];
+                Id = Anchor.Id;
+                Spot = Foot;
+                const double Wall = Side == 0 ? Min.X + 150 : Side == 1 ? Max.X - 150 : Side == 2 ? Min.Y + 150 : Max.Y - 150;
+                (Side < 2 ? Spot.X : Spot.Y) = Wall;
+            }
+        }
+        return Test.TestFalse(TEXT("The saved Demo world has a spawn"), Id.IsEmpty());
     }
 
     int32 ArtFindDecoration(const ULDArtCatalog& Catalog, ELDArtZone Zone)
@@ -128,6 +162,21 @@ bool FLDArtCatalogTest::RunTest(const FString& Parameters)
     Unplaced.Id = TEXT("unplaced_prop");
     Unplaced.Mesh = Source->Props[0].Mesh;
     ArtExpectRejected(*this, *Copy, TEXT("A prop that is never placed is an error"), TEXT("unplaced_prop"));
+    // #97: a blocker's look names its block, only that zone names one, a block is drawn once, and the crate exists.
+    const int32 Drawn = ArtFindDecoration(*Source, ELDArtZone::Blocker), Other = ArtFindDecoration(*Source, ELDArtZone::Outside);
+    if (TestTrue(TEXT("The catalog draws a world block and places an outside prop"), Drawn != INDEX_NONE && Other != INDEX_NONE))
+    {
+        Copy = ArtCopy(*Source); Copy->Decorations[Drawn].Blocker.Reset();
+        ArtExpectRejected(*this, *Copy, TEXT("A blocker-zone prop naming no block is an error"), TEXT("exactly when"));
+        Copy = ArtCopy(*Source); Copy->Decorations[Other].Blocker = Source->Decorations[Drawn].Blocker;
+        ArtExpectRejected(*this, *Copy, TEXT("An outside prop naming a block is an error"), TEXT("exactly when"));
+        Copy = ArtCopy(*Source); Copy->Decorations.Add(Source->Decorations[Drawn]);
+        ArtExpectRejected(*this, *Copy, TEXT("Two props drawing one block are an error"), TEXT("same world blocker"));
+        Copy = ArtCopy(*Source); Copy->HiddenBlockers.Add(Source->Decorations[Drawn].Blocker);
+        ArtExpectRejected(*this, *Copy, TEXT("Hiding a block a prop already draws is an error"), TEXT("already drawn"));
+    }
+    Copy = ArtCopy(*Source); Copy->AirdropProp = TEXT("nothing");
+    ArtExpectRejected(*this, *Copy, TEXT("An airdrop crate that is no catalog prop is an error"), TEXT("airdrop crate"));
     return true;
 }
 
@@ -202,7 +251,7 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
     FString Error;
     if (!Catalog || !TestTrue(TEXT("The Demo art catalog resolves"), Catalog->Resolve(Art, Error))) { return false; }
 
-    // Placement zones against the approved D02 layout.
+    // Placement zones against the saved Demo world.
     const int32 WallBase = ArtFindDecoration(*Catalog, ELDArtZone::WallBase), Outside = ArtFindDecoration(*Catalog, ELDArtZone::Outside);
     const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture), Shop = ArtFindDecoration(*Catalog, ELDArtZone::Shop);
     if (TestTrue(TEXT("The catalog has wall-base, outside, capture and shop decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
@@ -214,9 +263,17 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[WallBase].Transform.SetScale3D(Copy->Decorations[WallBase].Transform.GetScale3D() * FVector(1, 1, 20));
         ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop taller than the sight sample is rejected"), TEXT("sight"));
+        FString SpawnId;
+        FVector Spot;
+        if (ArtSpawnByWall(*this, SpawnId, Spot))
+        {
+            Copy = ArtCopy(*Catalog);
+            Copy->Decorations[WallBase].Transform.SetLocation(Spot);
+            ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop beside a spawn point is rejected"), SpawnId);
+        }
         Copy = ArtCopy(*Catalog);
-        Copy->Decorations[WallBase].Transform.SetLocation(FVector(4650, 0, 0));
-        ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop beside a spawn point is rejected"), TEXT("s00"));
+        Copy->Decorations[WallBase].Transform.AddToTranslation(FVector(0, 0, -300));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A wall-base prop sunk below its level's floor is rejected"), TEXT("flat level"));
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Outside].Transform.SetLocation(FVector(4000, 4000, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("An outside prop moved over the floor is rejected"), TEXT("arena floor"));
@@ -226,6 +283,51 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Shop].Transform.SetScale3D(Copy->Decorations[Shop].Transform.GetScale3D() * FVector(1, 1, 2));
         ArtExpectMisplaced(*this, *Copy, TEXT("A shop landmark tall enough to hide bodies is rejected"), TEXT("hide bodies"));
+    }
+
+    // #97: collision follows the art. A blocker's prop is its block's footprint and height; a tree's prop stands on it.
+    const int32 Wall = Catalog->Decorations.IndexOfByPredicate([](const FLDArtDecoration& Decoration)
+        { return Decoration.Zone == ELDArtZone::Blocker && !Decoration.Blocker.StartsWith(TEXT("tree_")); });
+    const int32 Tree = Catalog->Decorations.IndexOfByPredicate([](const FLDArtDecoration& Decoration)
+        { return Decoration.Zone == ELDArtZone::Blocker && Decoration.Blocker.StartsWith(TEXT("tree_")); });
+    const int32 Ground = ArtFindDecoration(*Catalog, ELDArtZone::Ground);
+    if (TestTrue(TEXT("The catalog draws a wall or fence, a tree, and ground cover"), Wall != INDEX_NONE && Tree != INDEX_NONE && Ground != INDEX_NONE))
+    {
+        TestTrue(TEXT("The saved art fits every block it draws: ") + Error, LDArt::CheckPlacementsAgainstDemoWorld(*Catalog, Error));
+        ULDArtCatalog* Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Transform.AddToTranslation(FVector(50, 0, 0));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop shifted off its polygon is rejected"), TEXT("not the polygon"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Transform.SetScale3D(Copy->Decorations[Wall].Transform.GetScale3D() * FVector(1, 1, 1.2));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A block's prop taller than the block is rejected"), TEXT("spans"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Wall].Blocker = TEXT("no_such_block");
+        ArtExpectMisplaced(*this, *Copy, TEXT("A prop drawing an unknown block is rejected"), TEXT("names no world blocker"));
+        Copy = ArtCopy(*Catalog);
+        Copy->Decorations[Tree].Transform.AddToTranslation(FVector(800, 0, 0));
+        ArtExpectMisplaced(*this, *Copy, TEXT("A tree prop moved off its trunk is rejected"), TEXT("does not stand over its tree"));
+        Copy = ArtCopy(*Catalog);
+        {
+            // Stretch the cover upward with its base kept on its floor, so only its height is wrong.
+            FTransform& Placement = Copy->Decorations[Ground].Transform;
+            const FLDArtProp* Cover = Catalog->Props.FindByPredicate([&](const FLDArtProp& Prop) { return Prop.Id == Catalog->Decorations[Ground].Prop; });
+            const double Before = Cover->Mesh->GetBoundingBox().TransformBy(Placement).Min.Z;
+            Placement.SetScale3D(Placement.GetScale3D() * FVector(1, 1, 20));
+            Placement.AddToTranslation(FVector(0, 0, Before - Cover->Mesh->GetBoundingBox().TransformBy(Placement).Min.Z));
+        }
+        ArtExpectMisplaced(*this, *Copy, TEXT("Ground cover taller than the sight sample is rejected"), TEXT("sight"));
+        FString SpawnId;
+        FVector Spot;
+        if (ArtSpawnByWall(*this, SpawnId, Spot))
+        {
+            Copy = ArtCopy(*Catalog);
+            Copy->Decorations[Ground].Transform.SetLocation(Spot);
+            ArtExpectMisplaced(*this, *Copy, TEXT("Ground cover beside a spawn point is rejected"), SpawnId);
+        }
+        Copy = ArtCopy(*Catalog);
+        Copy->HiddenBlockers.Add(Catalog->Decorations[Wall].Blocker);
+        Copy->Decorations.RemoveAt(Wall);
+        ArtExpectMisplaced(*this, *Copy, TEXT("Hiding a block that stands on the floor is rejected"), TEXT("reaches over the arena floor"));
     }
 
     // Display only in a live world: nothing collides, overlaps, blocks a trace or reaches navigation.

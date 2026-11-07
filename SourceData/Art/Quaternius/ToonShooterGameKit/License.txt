@@ -1,0 +1,10 @@
+Toon Shooter Game Kit (December 2022) by Quaternius
+
+The downloaded GLB files carry no license text of their own. This note records the license that the author's page
+states for the pack, checked on 2026-11-07 at https://quaternius.com/packs/toonshootergamekit.html:
+
+License: CC0 1.0 Universal (CC0 1.0) Public Domain Dedication
+https://creativecommons.org/publicdomain/zero/1.0/
+
+"free to use in personal and commercial projects." (pack page)
+Models by Quaternius (quaternius.com).

@@ -1328,12 +1328,12 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     }
     bGood &= GrowthTestReason(Test, TEXT("A monster_scavenger kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(40));
-    bGood &= Test.TestEqual(TEXT("monster_scavenger gold"), Reward.Gold, int64(30));
+    bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(20));
+    bGood &= Test.TestEqual(TEXT("monster_scavenger gold"), Reward.Gold, int64(15));
     bGood &= GrowthTestReason(Test, TEXT("A monster_guardian kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), Reward), ELDGrowthReason::None);
-    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(160));
-    bGood &= Test.TestEqual(TEXT("monster_guardian gold"), Reward.Gold, int64(120));
+    bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(80));
+    bGood &= Test.TestEqual(TEXT("monster_guardian gold"), Reward.Gold, int64(60));
     bGood &= GrowthTestReason(Test, TEXT("An unknown monster kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_unknown")), Reward), ELDGrowthReason::DataInvalid);
 

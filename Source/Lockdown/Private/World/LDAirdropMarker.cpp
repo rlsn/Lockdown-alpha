@@ -1,13 +1,9 @@
 #include "World/LDAirdropMarker.h"
 #include "World/LDCaptureMarker.h"
+#include "Art/LDArtSubsystem.h"
 #include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
-
-namespace
-{
-    // Presentation-only crate size on the engine's 100 cm cube; it does not change the pickup radius or any rule.
-    constexpr double LDAirdropCrateCm = 80.;
-}
 
 ALDAirdropMarker::ALDAirdropMarker()
 {
@@ -22,21 +18,22 @@ ALDAirdropMarker::ALDAirdropMarker()
 
 bool ALDAirdropMarker::Build(const FLDAirdropView& View, double RadiusCm, uint32 InGeneration, FString& Error)
 {
+    // #97: the landed crate is the catalog's crate prop with its own art materials; without the catalog no crate is drawn.
+    const FLDArtResolved* Art = ULDArtSubsystem::Get(this);
     if (!InGeneration || !View.Serial || View.Phase == ELDAirdropPhase::None || View.PositionCm.ContainsNaN()
-        || !Crate || !Crate->GetStaticMesh() || !LDGroundRing::Lay(Ring, RadiusCm))
+        || !Crate || !Art || !Art->AirdropCrate || !Art->AirdropCrate->Mesh || !LDGroundRing::Lay(Ring, RadiusCm))
     {
-        Error = TEXT("The airdrop marker needs a public drop, the match generation, the cooked ring mesh and a positive approved radius.");
+        Error = TEXT("The airdrop marker needs a public drop, the match generation, the art crate, the cooked ring mesh and a positive approved radius.");
         return false;
     }
     UMaterialInstanceDynamic* NewRing = nullptr;
-    UMaterialInstanceDynamic* NewCrate = nullptr;
-    if (!LDGroundRing::Paint(*this, *Ring, NewRing, Error) || !LDGroundRing::Paint(*this, *Crate, NewCrate, Error)) { return false; }
+    if (!LDGroundRing::Paint(*this, *Ring, NewRing, Error)) { return false; }
     RingPaint = NewRing;
-    CratePaint = NewCrate;
     RingPaint->SetVectorParameterValue(TEXT("Tint"), Color());
-    CratePaint->SetVectorParameterValue(TEXT("Tint"), FLinearColor(.55f, .36f, .16f));
+    Crate->SetStaticMesh(Art->AirdropCrate->Mesh);
+    Crate->EmptyOverrideMaterials();
     Crate->ClearInstances();
-    Crate->AddInstance(FTransform(FRotator::ZeroRotator, FVector(0., 0., LDAirdropCrateCm * .5), FVector(LDAirdropCrateCm / 100.)));
+    Crate->AddInstance(Art->AirdropTransform);
     Center = View.PositionCm;
     Radius = RadiusCm;
     Generation = InGeneration;

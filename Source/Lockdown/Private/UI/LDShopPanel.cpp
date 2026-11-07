@@ -9,6 +9,7 @@
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
+#include "Components/ScaleBox.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
@@ -81,7 +82,9 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         auto MakeText=[this](const FString& Caption,int32 FontSize){return LDWidgets::Text(WidgetTree,Caption,FontSize);};
         auto* Layout=WidgetTree->ConstructWidget<UVerticalBox>();
         auto* HeadRow=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(HeadRow);
-        HeadRow->AddChildToHorizontalBox(MakeText(LDTerms::Shop,20))->SetVerticalAlignment(VAlign_Center);
+        // The title stays on one line; the gold takes the rest of the row.
+        UTextBlock* Title=MakeText(LDTerms::Shop,20);Title->SetAutoWrapText(false);
+        HeadRow->AddChildToHorizontalBox(Title)->SetVerticalAlignment(VAlign_Center);
         GoldLine=MakeText(FString(LDTerms::Gold)+TEXT(" 同步中"),16);
         UHorizontalBoxSlot* GoldCell=HeadRow->AddChildToHorizontalBox(GoldLine);
         GoldCell->SetSize(FSlateChildSize(ESlateSizeRule::Fill));GoldCell->SetPadding(FMargin(16,0));GoldCell->SetVerticalAlignment(VAlign_Center);
@@ -93,9 +96,14 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         Layout->AddChildToVerticalBox(GridBox)->SetPadding(FMargin(-ShopIconGap*.5f,14,-ShopIconGap*.5f,0));
         // A right click on an icon buys it (or upgrades the owned copy) at the shop or pre-orders it anywhere else
         // (QuickBuy); there is no selection, buy or pre-order button.
-        Feedback=MakeText(TEXT(""),15);Layout->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,14,0,0));
-        // The pre-order list: a line that says how it buys, then one chip per queued item (clicking it removes it).
-        PreorderLine=MakeText(TEXT(""),14);PreorderLine->SetColorAndOpacity(ShopPanelHintColor);
+        // Only a trade's result or a refusal shows here (no standing instructions); it collapses while empty.
+        Feedback=MakeText(TEXT(""),15);Feedback->SetVisibility(ESlateVisibility::Collapsed);Layout->AddChildToVerticalBox(Feedback)->SetPadding(FMargin(0,14,0,0));
+        // #97: a rule splits the goods from the pre-order section, which is titled "预购栏" and holds one chip per queued
+        // item (clicking it removes it).
+        auto* Rule=WidgetTree->ConstructWidget<UBorder>();Rule->SetBrushColor(LDHUDStyle::PanelRim);Rule->SetVisibility(ESlateVisibility::HitTestInvisible);
+        auto* RuleBox=WidgetTree->ConstructWidget<USizeBox>();RuleBox->SetHeightOverride(1);RuleBox->SetContent(Rule);
+        Layout->AddChildToVerticalBox(RuleBox)->SetPadding(FMargin(0,14,0,0));
+        PreorderLine=MakeText(TEXT("预购栏"),14);PreorderLine->SetColorAndOpacity(ShopPanelHintColor);
         Layout->AddChildToVerticalBox(PreorderLine)->SetPadding(FMargin(0,10,0,0));
         auto* PreorderRow=WidgetTree->ConstructWidget<UHorizontalBox>();Layout->AddChildToVerticalBox(PreorderRow)->SetPadding(FMargin(0,6,0,0));
         for(int32 ChipIdx=0;ChipIdx<2;++ChipIdx)
@@ -122,9 +130,12 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         // around it takes no input. Back still closes it like every main panel.
         MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.86f));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(DockWidth);WidthBox->SetContent(MainPanel);
+        // #97: drawn at 80% (user: "shrink the choice list and shop panel size to 80%").
+        auto* ShopScale=WidgetTree->ConstructWidget<UScaleBox>();ShopScale->SetStretch(EStretch::UserSpecified);ShopScale->SetUserSpecifiedScale(.8f);
+        ShopScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);ShopScale->SetContent(WidthBox);
         auto* FrameBorder=WidgetTree->ConstructWidget<UBorder>();FrameBorder->SetBrushColor(FLinearColor::Transparent);
         FrameBorder->SetHorizontalAlignment(HAlign_Right);FrameBorder->SetVerticalAlignment(VAlign_Bottom);
-        FrameBorder->SetPadding(FMargin(0,0,16,BottomDock));DockFrame=FrameBorder;FrameBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);FrameBorder->SetContent(WidthBox);
+        FrameBorder->SetPadding(FMargin(0,0,16,BottomDock));DockFrame=FrameBorder;FrameBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);FrameBorder->SetContent(ShopScale);
         // The hovered or focused item's full description pops up left of the panel, level with its icon, the same way the
         // blind-box cards explain themselves: on its own canvas layer (so it never moves the grid and drops the hover),
         // wrapped at a fixed width, taking no pointer input.
@@ -159,12 +170,7 @@ void ULDShopPanel::OpenPanel()
 {
     if(bOpen){return;}
     bOpen=true;SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-    if(!PendingRequest)
-    {
-        ShopPanelText(Feedback,HasSession()
-            ?FString(TEXT("悬停图标看说明，右键图标直接购买，已有的再买即进阶；右键下方装备格卖出。对局不会暂停，"))+LDTerms::Shop+TEXT("也不是安全区")
-            :FString(TEXT("不在"))+LDTerms::Shop+TEXT("：悬停图标看说明，右键图标加入预购，到了自动买"));
-    }
+    if(!PendingRequest){ShopPanelText(Feedback,TEXT(""));}
     RefreshShop();
 }
 bool ULDShopPanel::ClosePanel()
@@ -412,6 +418,11 @@ void ULDShopPanel::SyncItemButtons()
 void ULDShopPanel::NativeTick(const FGeometry& Geometry,float Delta)
 {
     Super::NativeTick(Geometry,Delta);
+    if(Feedback)
+    {
+        const ESlateVisibility Shown=Feedback->GetText().IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible;
+        if(Feedback->GetVisibility()!=Shown){Feedback->SetVisibility(Shown);}
+    }
     UpdateDetail();
 }
 void ULDShopPanel::UpdateDetail()
@@ -570,7 +581,7 @@ bool ULDShopPanel::Send(const FLDShopCommand& Command,FString ItemName)
     }
     if(PeekedRequest&&AllocatedRequest!=PeekedRequest)
     {UE_LOG(LogLDUI,Error,TEXT("LD_SHOP_PANEL_REQUEST_ID_MISMATCH The peek announced request %llu but the entry allocated %llu."),PeekedRequest,AllocatedRequest);}
-    if(AnswerCount==AnswersBefore){PendingRequest=AllocatedRequest;ShopPanelText(Feedback,TEXT("已提交，等待服务器确认…"));}
+    if(AnswerCount==AnswersBefore){PendingRequest=AllocatedRequest;ShopPanelText(Feedback,TEXT(""));}
     RefreshShop();return true;
 }
 void ULDShopPanel::HandleSubmit(const FLDSubmitResult& Result)
@@ -585,7 +596,7 @@ void ULDShopPanel::HandleSubmit(const FLDSubmitResult& Result)
         {ShopPanelText(Feedback,TEXT("没有受理：")+ShopPanelReason(LDGrowthWire::Reason(Result.Reason))+TEXT("，等待最终回执…"));return;}
         if(bPendingAuto){BlockAutoTrade();}
         FinishRequest(TEXT("没有受理：")+ShopPanelReason(LDGrowthWire::Reason(Result.Reason)));return;
-    case ELDAdmissionStatus::AcceptedPending: ShopPanelText(Feedback,TEXT("已受理，等待结算…"));return;
+    case ELDAdmissionStatus::AcceptedPending: return;
     case ELDAdmissionStatus::Final:
     {
         FLDShopReceiptQueryResult FinalQuery;
@@ -628,7 +639,7 @@ void ULDShopPanel::AnswerReceipt(const FLDShopReceiptQueryResult& Result)
         FinishRequest(TEXT("回执结果无效，请以当前状态为准"));return;
     case ELDReceiptLookup::ReceiptExpired: FinishRequest(TEXT("回执已过期，请以当前状态为准"));return;
     // The controller still holds these in flight, so the panel keeps the request pending with it.
-    case ELDReceiptLookup::Pending: ShopPanelText(Feedback,TEXT("已受理，等待结算…"));return;
+    case ELDReceiptLookup::Pending: return;
     case ELDReceiptLookup::NotFound: ShopPanelText(Feedback,TEXT("服务器没有找到这次交易，请以当前状态为准"));return;
     case ELDReceiptLookup::InvalidContext: ShopPanelText(Feedback,TEXT("回执查询无效，请以当前状态为准"));return;
     default:
@@ -675,9 +686,6 @@ void ULDShopPanel::RefreshPreorders()
     int64 Gold=EquipmentKnown()?LatestEquipment.Gold:0;
     // An owned upgradable item costs its upgrade, and only one upgrade is spent per match.
     bool bUpgradeLeft=true;
-    ShopPanelText(PreorderLine,PreorderQueue.IsEmpty()
-        ?FString::Printf(TEXT("预购：空（最多 %d 件，到%s附近且%s够时自动买入）"),LDHUD::MaxShopPreorders,LDTerms::Shop,LDTerms::Gold)
-        :FString::Printf(TEXT("预购（点图标取消；亮起的%s已够）：到%s附近自动买入"),LDTerms::Gold,LDTerms::Shop));
     for(int32 ChipIdx=0;ChipIdx<2;++ChipIdx)
     {
         ULDCommandButton* Chip=PreorderChips[ChipIdx];
