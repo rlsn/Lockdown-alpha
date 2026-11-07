@@ -56,7 +56,7 @@ int64 FLDCaptureReducer::NextDueMs() const
 
 int64 FLDCaptureReducer::CompletionInsideMs(int64 AtMs) const
 {
-    // Only a fact strictly inside the step can resume a guard that then finishes before the step's end.
+    // Only a fact strictly inside the step can resume a paused or frozen guard that then finishes before the step's end.
     if (!bActive || AtMs <= ClosedThrough
         || !Pending.ContainsByPredicate([AtMs](const FLDCaptureEvent& Event) { return Event.Time.BucketMs < AtMs; }))
     { return MAX_int64; }
@@ -250,8 +250,9 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         NextHolder.Invalidate();
         NextPaused = 0;
     }
-    // Any effective contender other than the owner in the zone freezes the guard (2026-11-07 user decision); it
-    // continues from the frozen value once none is left. The owner leaving the zone while it stays frozen resets it.
+    // The guard runs only while the owner is alone in the zone (2026-11-07 user decision): an empty zone pauses it and
+    // any effective contender other than the owner freezes it; it continues from the kept value once the owner is
+    // alone in the zone again. The owner leaving the zone while a challenger stays in it resets it.
     int64 NextGuardDue = 0;
     int64 NextGuardKept = 0;
     bool bGuardReset = false;
@@ -263,7 +264,8 @@ bool FLDCaptureReducer::Evaluate(const FLDCaptureEventTime& At, const FGuid& Int
         else if (!bWasRunning && !bRuns) { NextGuardKept = GuardKept; }
         else if (bWasRunning) { NextGuardKept = Now - (GuardDue - Guard); }
         else if (!LDMatchLifecycle::AddDurationMs(Now - GuardKept, Guard, NextGuardDue, Error)) { return false; }
-        if (!bRuns && ResetOwner.IsValid() && ResetOwner == NextOwner && OwnerMember && !OwnerMember->bInside)
+        if (!bRuns && Next != ELDCircleState::Empty && ResetOwner.IsValid() && ResetOwner == NextOwner && OwnerMember
+            && !OwnerMember->bInside)
         {
             bGuardReset = NextGuardKept != 0;
             NextGuardKept = 0;
@@ -428,7 +430,7 @@ bool FLDCaptureReducer::Reduce(int64 AtMs, bool bCompleteInside, TOptional<FLDCa
         }
         LastReducedSeconds = Event.Time.Seconds;
         // Exactly simultaneous facts settle a guard reset together: the owner must have been in the zone under a frozen
-        // guard as the instant began and be out of it, with the guard still frozen, once all of them are reduced.
+        // guard as the instant began and be out of it, with a challenger still in it, once all of them are reduced.
         if (Index == 0 || Batch[Index - 1].Time.Seconds != Event.Time.Seconds)
         { ResetOwner = IsOwnerInFrozenGuard() ? Owner : FGuid(); }
         const bool bInstantEnd = Index + 1 == Batch.Num() || Batch[Index + 1].Time.Seconds != Event.Time.Seconds;

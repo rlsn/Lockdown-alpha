@@ -36,6 +36,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCamp.ObservedFacts",
         "Lockdown.Rules.DemoCapture.SprayAndGuard",
         "Lockdown.Rules.DemoCapture.GuardFreeze",
+        "Lockdown.Rules.DemoCapture.GuardNeedsOwner",
         "Lockdown.Rules.DemoCapture.SprayInterrupt",
         "Lockdown.Rules.DemoCapture.GraffitiCleared",
         "Lockdown.Rules.DemoCapture.CombatHitInterrupt",

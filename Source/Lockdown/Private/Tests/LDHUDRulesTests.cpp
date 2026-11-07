@@ -264,9 +264,12 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
         const LDHUD::FCircleView Guard=LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000);
         TestTrue(TEXT("A running guard counts down to its public win instant"),Guard.bProgress&&FMath::IsNearlyEqual(Guard.Progress,.25f,.0001f)
             &&Guard.Line==LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardLeft+TEXT(" 15.0s"));
-        Guarded.CircleState=ELDCircleState::Empty;
-        TestEqualSensitive(TEXT("An owner away from the zone still guards"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000).Line,Guard.Line);
-        Guarded.CircleState=ELDCircleState::Contested;Guarded.GuardDueAtMs=0;Guarded.GuardKeptMs=5000;
+        Guarded.CircleState=ELDCircleState::Empty;Guarded.GuardDueAtMs=0;Guarded.GuardKeptMs=5000;
+        const LDHUD::FCircleView Away=LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000);
+        TestTrue(TEXT("2026-11-07: an owner away from the empty zone pauses his guard at its kept value"),
+            Away.Line==LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardAway+TEXT("（")+LDTerms::GuardLeft+TEXT(" 15.0s）")
+            &&Away.bProgress&&FMath::IsNearlyEqual(Away.Progress,.25f,.0001f));
+        Guarded.CircleState=ELDCircleState::Contested;
         const LDHUD::FCircleView Frozen=LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,105000,3500,20000);
         TestTrue(TEXT("A contest beside the owner names the frozen guard"),Frozen.Line==FString(LDTerms::CircleContested)+TEXT(" · ")+LDTerms::NoProgressKept
             +TEXT(" · ")+LDTerms::GraffitiOf(TEXT("玩家乙"))+TEXT(" · ")+LDTerms::GuardPaused+TEXT("（")+LDTerms::GuardLeft+TEXT(" 15.0s）")
@@ -695,10 +698,12 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
         Feed.Lines().Num()==1&&Feed.Lines()[0].Text==LDTerms::GuardReset&&!Feed.Lines()[0].bSelf);
     In.LocalSeconds=113;Feed.Observe(In);
     TestEqual(TEXT("A guard reset is told once"),Feed.Lines().Num(),1);
-    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=50000;In.LocalSeconds=114;Feed.Observe(In);
+    Public.CircleState=ELDCircleState::Guarded;Public.GuardDueAtMs=50000;In.LocalSeconds=114;Feed.Observe(In);
     TestEqual(TEXT("A guard that runs again tells nothing"),Feed.Lines().Num(),1);
+    Public.CircleState=ELDCircleState::Empty;Public.GuardDueAtMs=0;Public.GuardKeptMs=1500;In.LocalSeconds=114.5;Feed.Observe(In);
+    TestEqual(TEXT("A guard paused by its owner leaving the empty zone is no reset line"),Feed.Lines().Num(),1);
     // A new match starts empty and does not tell the state it opens with.
-    Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;In.LocalSeconds=120;Feed.Observe(In);
+    Public.Generation=4;Kills.Generation=4;Kills.Notices.Reset();Public.GraffitiOwner.Invalidate();Public.GuardDueAtMs=0;Public.GuardKeptMs=0;In.LocalSeconds=120;Feed.Observe(In);
     TestTrue(TEXT("A new match starts with an empty feed"),Feed.Lines().IsEmpty());
     return true;
 }
