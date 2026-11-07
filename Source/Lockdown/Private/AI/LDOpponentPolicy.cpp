@@ -391,7 +391,11 @@ struct FContext
         const FLDOpponentPOI* Best = nullptr;
         for (const auto& POI : Frame.POIs)
         {
-            if (POI.Kind == ELDOpponentPOIKind::Shop || !CanAttempt(PathKey(POI.Id))
+            // A place just reached without the leader in sight is not ordered again at once: the walk would end on
+            // arrival and repeat every decision.
+            const bool bReached = Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.POI == POI.Id
+                && Frame.Order.Status == ELDOpponentOrderStatus::Completed;
+            if (POI.Kind == ELDOpponentPOIKind::Shop || bReached || !CanAttempt(PathKey(POI.Id))
                 || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
             const double Distance = FVector::Dist2D(POI.FootCm, Centre);
             if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)
@@ -1638,9 +1642,10 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
-    // 2026-11-07: a challenger beside the owner freezes the guard and the owner walking out under him resets it to zero,
-    // so a recovering owner keeps fighting in the zone until the stop-loss line, where his death would clear the graffiti.
-    const bool bOwnerStays = bOwner && (!State.bRecovering || (bContesting && !bStopLoss));
+    // 2026-11-07: the guard runs only while its owner stands alone in the zone; an empty zone pauses it, a challenger
+    // beside him freezes it and his walking out under that challenger resets it to zero. So the owner goes back to the
+    // zone and stays in it, recovering too, until the stop-loss line, where his death would clear the graffiti.
+    const bool bOwnerStays = bOwner && !bStopLoss;
     FLDOpponentBodyIntent Intent;
     if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || bOwnerStays
             || ((bUrgent || bContesting || bRivalGraffiti) && !bStopLoss && bMayContest))

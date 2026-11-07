@@ -108,7 +108,7 @@ try {
     $errors = @(Get-ChildItem -LiteralPath $output -Filter '*.log' -File |
         Select-String -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT')
     if ($errors.Count) { throw "Capture scenario logged an error: $($errors[0].Line). Evidence: $output" }
-    Write-Host ("DEV-only normal-start spray-and-guard scenario passed on real owned connections (contest pause/resume, graffiti, a challenger freezing the guard, the owner leaving under a challenger resetting it, guard win), including a second match in generation {0} with fresh contender and camp state ({1}/{2}/{3} required checks). Not 3+3, AI or full gameplay. Evidence: {4}" -f
+    Write-Host ("DEV-only normal-start spray-and-guard scenario passed on real owned connections (contest pause/resume, graffiti, the owner walking away pausing the guard, a challenger freezing it, the owner leaving under a challenger resetting it, guard win with the owner alone in the zone), including a second match in generation {0} with fresh contender and camp state ({1}/{2}/{3} required checks). Not 3+3, AI or full gameplay. Evidence: {4}" -f
         $reports[0].summary.second_generation,$requiredChecks.Host.Count,$requiredChecks.Client1.Count,$requiredChecks.Client2.Count,$output)
 }
 finally {

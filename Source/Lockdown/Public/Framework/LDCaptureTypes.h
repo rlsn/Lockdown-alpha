@@ -91,8 +91,8 @@ struct FLDPublicMatchView
     // public identity slot (his start roster position, the body tint key), zero without an owner.
     UPROPERTY() FGuid GraffitiOwner;
     UPROPERTY() uint8 GraffitiPresentation = 0;
-    // With an owner: the real instant the running guard wins (Empty or Guarded), or the guard progress frozen by a
-    // challenger in the zone (Solo or Contested). Both zero without an owner.
+    // With an owner: the real instant the running guard wins (Guarded), or the guard progress kept while it is paused
+    // (Empty: the owner is away) or frozen by a challenger in the zone (Solo or Contested). Both zero without an owner.
     UPROPERTY() int64 GuardDueAtMs = 0;
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
