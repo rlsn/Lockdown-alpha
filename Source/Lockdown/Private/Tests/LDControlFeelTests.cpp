@@ -210,4 +210,72 @@ bool FLDControlFeelRefusedSkillKeepsOrderTest::RunTest(const FString& Parameters
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDControlFeelAutoAttackAfterCastTest, "Lockdown.Rules.DemoControlFeel.AutoAttackAfterCast",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDControlFeelAutoAttackAfterCastTest::RunTest(const FString& Parameters)
+{
+    using namespace LDOrderRules;
+    // #167 user decisions: a unit skill continues with an attack on its target; a ground/direction skill resumes the unit
+    // the body was attacking before the cast while it is still visible, otherwise the body stands; the setting is on by
+    // default and off restores the plain stand-after-cast behaviour.
+    const FGuid SkillTarget = FGuid::NewGuid(), Prior = FGuid::NewGuid();
+    auto Input = [&](ELDSpatialOrderKind Kind, bool bEnabled, bool bQueued, bool bPriorCurrent)
+    {
+        FCastFollowUpInput In;
+        In.bEnabled = bEnabled;
+        In.bQueued = bQueued;
+        In.CastKind = Kind;
+        In.CastTarget = Kind == ELDSpatialOrderKind::CastUnit ? SkillTarget : FGuid();
+        In.CastEpoch = Kind == ELDSpatialOrderKind::CastUnit ? 7 : 0;
+        In.bPriorAttackCurrent = bPriorCurrent;
+        In.PriorTarget = Prior;
+        In.PriorEpoch = 3;
+        return In;
+    };
+    FGuid Target;
+    uint32 Epoch = 0;
+    TestTrue(TEXT("On: a unit skill continues with an attack on its own target"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastUnit, true, false, true), Target, Epoch) && Target == SkillTarget && Epoch == 7);
+    TestTrue(TEXT("On: a ground/direction skill resumes the unit attacked before the cast"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastPoint, true, false, true), Target, Epoch) && Target == Prior && Epoch == 3);
+    TestFalse(TEXT("On: a ground/direction skill without a current attack stands"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::CastPoint, true, false, false), Target, Epoch));
+    TestTrue(TEXT("No follow-up leaves no target"), !Target.IsValid() && Epoch == 0);
+    for (const ELDSpatialOrderKind Kind : {ELDSpatialOrderKind::CastUnit, ELDSpatialOrderKind::CastPoint})
+    {
+        TestFalse(TEXT("Off: no cast continues with an attack"), CastFollowUpTarget(Input(Kind, false, false, true), Target, Epoch));
+        TestFalse(TEXT("A Shift-queued cast never continues with an attack: the queue defines what follows"),
+            CastFollowUpTarget(Input(Kind, true, true, true), Target, Epoch));
+    }
+    FCastFollowUpInput Missing = Input(ELDSpatialOrderKind::CastUnit, true, false, true);
+    Missing.CastTarget.Invalidate();
+    TestFalse(TEXT("A unit skill without a resolved target has nothing to attack"), CastFollowUpTarget(Missing, Target, Epoch));
+    TestFalse(TEXT("Only cast orders carry a follow-up"),
+        CastFollowUpTarget(Input(ELDSpatialOrderKind::AttackMove, true, false, true), Target, Epoch));
+
+    for (const ELDOrderStatus Running : {ELDOrderStatus::Queued, ELDOrderStatus::Activated, ELDOrderStatus::Progress})
+    {
+        TestTrue(TEXT("The follow-up waits while the cast order is queued or running"),
+            CastFollowUpStep(Running, ELDOrderFailure::None, true, true) == ECastFollowUp::Wait);
+    }
+    TestTrue(TEXT("A completed cast with a visible target attacks"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, true, true) == ECastFollowUp::Attack);
+    TestTrue(TEXT("A target no longer visible is not attacked: the body stands"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, true, false) == ECastFollowUp::Drop);
+    TestTrue(TEXT("A newer own order or Stop replaces the follow-up"),
+        CastFollowUpStep(ELDOrderStatus::Completed, ELDOrderFailure::None, false, true) == ECastFollowUp::Drop);
+    TestTrue(TEXT("A refused cast never continues with an attack"),
+        CastFollowUpStep(ELDOrderStatus::Rejected, ELDOrderFailure::CastRefused, true, true) == ECastFollowUp::Drop);
+    for (const ELDOrderFailure Failure : {ELDOrderFailure::CastRefused, ELDOrderFailure::Superseded, ELDOrderFailure::Stopped,
+        ELDOrderFailure::TargetDied})
+    {
+        TestTrue(FString::Printf(TEXT("A cast order cancelled by failure %u drops its follow-up"), uint32(Failure)),
+            CastFollowUpStep(ELDOrderStatus::Cancelled, Failure, true, true) == ECastFollowUp::Drop);
+        TestTrue(TEXT("A completion carrying a failure is no successful cast"),
+            CastFollowUpStep(ELDOrderStatus::Completed, Failure, true, true) == ECastFollowUp::Drop);
+    }
+    return true;
+}
+
 #endif

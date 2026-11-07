@@ -367,6 +367,21 @@ private:
     FName ShopBindingId;
     FLDMoveIdentity ShopBindingIdentity;
     bool bShopArrived=false;
+    // #167 auto attack after cast. AttackIntent: the unit the newest own order means to attack (an AttackUnit, or a
+    // cast's pending follow-up), keyed by that order. CastFollowUp: the attack a non-Shift cast order continues with once
+    // the server completes it. AutoAttack: the identity of the last follow-up sent, whose refusal is no extra toast.
+    struct FAttackIntent
+    {
+        FLDMoveIdentity Identity;
+        FGuid Observed;
+        uint32 ObservationEpoch=0;
+    };
+    FAttackIntent AttackIntent, CastFollowUp;
+    FLDMoveIdentity AutoAttackIdentity;
+    void PrepareCastFollowUp(ELDSpatialOrderKind Kind, const FLDCombatActionRequest& Cast, bool bQueue, FGuid& OutTarget, uint32& OutEpoch) const;
+    void ArmCastFollowUp(const FGuid& Target, uint32 ObservationEpoch);
+    void ClearCastFollowUp();
+    void StepCastFollowUp(const FLDOrderReceipt& Receipt);
     ELDSpatialOrderKind ActiveKind=ELDSpatialOrderKind::MoveGround;
     FLDOrderReceipt LastReceipt;
     uint64 LastReceiptSerial=0;

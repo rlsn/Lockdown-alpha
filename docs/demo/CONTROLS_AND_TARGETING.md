@@ -104,6 +104,14 @@
 Unit 技能在指针下已有可见单位时、方向技能在指针下有地面时，按键当下即经 `ConfirmArmedCombat` 发送；
 否则仍保持准备，等待普通左键确认。
 
+**施法后自动攻击**（本地设置 `bAutoAttackAfterCast`，`ULDControlSettings::GetAutoAttackAfterCast`，默认开启，#167）：
+不带 Shift 的 `CastUnit/CastPoint` 订单发出时，`ULDNavigationComponent` 按 `LDOrderRules::CastFollowUpTarget`
+记下后续目标：对单位技能取其目标；对地面/方向技能取施法前仍在进行的本地 `AttackUnit` 目标，没有则不跟进。
+该施放订单的回执经 `LDOrderRules::CastFollowUpStep` 判定：仍是最新的本地订单、`Completed` 且无失败、
+目标在 owner view 中仍可见时，客户端发出普通的 `AttackUnit` 订单，服务器照常校验；被拒、取消、
+被更新的订单或 S 取代、目标不可见时放弃，原地站立。Shift 排队的施放、Shift 入队步骤与新生命都清掉待跟进目标。
+自动攻击被服务器拒绝时只更新状态行，不弹提示。攻击移动（A 地面）不在恢复范围内。
+
 **预输入**（`LDCombatPreInput`）：自己的 Q/W 正在前摇时再按一次 Q/W/D，
 控制器只保留最新一次按键，前摇结束后作为普通 Direct 请求发送，而不是先到服务器被判忙。
 S、新生命或新局、输入被抑制或保留超过 1 s 时丢弃；超时会提示“前一个技能未结束，预输入已取消”。
@@ -360,7 +368,7 @@ App Spec §3.1（2026-11-07 用户决定）：Q/W/D 的请求被拒绝（冷却�
   轮到时以排队步骤身份提交（`SubmitAction`/`StartNavCast` 的 `bQueuedStep`），不因更新的序号过期，仍只执行一次；
   与排队步骤同序号的 Direct 请求以 `RequestConflict` 拒绝。判定共用 `LDCombatSourceRules::DirectSequenceVerdict`。
 - 客户端发送施放订单时不提前清掉本地排队标记，被丢弃步骤的 `Cancelled` 回执才移除标记；确认技能不发送 Stop。
-- 已受理后才失败的施放（接近途中目标失效、视线、来源变化等）仍按 §4.6 结束施放订单并原地站立。
+- 已受理后才失败的施放（接近途中目标失效、视线、来源变化等）仍按 §4.6 结束施放订单并原地站立（不触发施法后自动攻击）。
 
 ## 5. SC-09 正式对接表
 

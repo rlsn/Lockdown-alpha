@@ -121,3 +121,29 @@ bool LDOrderRules::ChasePress(const FChasePressInput& Input)
     if (Retreat<=-PressShiftCm) { return false; }
     return Input.bWasPressing;
 }
+bool LDOrderRules::CastFollowUpTarget(const FCastFollowUpInput& Input, FGuid& OutTarget, uint32& OutEpoch)
+{
+    OutTarget.Invalidate();
+    OutEpoch=0;
+    if (!Input.bEnabled || Input.bQueued) { return false; }
+    if (Input.CastKind==ELDSpatialOrderKind::CastUnit) { OutTarget=Input.CastTarget; OutEpoch=Input.CastEpoch; }
+    else if (Input.CastKind==ELDSpatialOrderKind::CastPoint && Input.bPriorAttackCurrent)
+    { OutTarget=Input.PriorTarget; OutEpoch=Input.PriorEpoch; }
+    if (!OutTarget.IsValid()) { OutEpoch=0; return false; }
+    return true;
+}
+
+LDOrderRules::ECastFollowUp LDOrderRules::CastFollowUpStep(ELDOrderStatus Status, ELDOrderFailure Failure,
+    bool bNewestOwnOrder, bool bTargetVisible)
+{
+    if (!bNewestOwnOrder) { return ECastFollowUp::Drop; }
+    switch (Status)
+    {
+    case ELDOrderStatus::Queued:
+    case ELDOrderStatus::Activated:
+    case ELDOrderStatus::Progress: return ECastFollowUp::Wait;
+    case ELDOrderStatus::Completed:
+        return Failure==ELDOrderFailure::None && bTargetVisible ? ECastFollowUp::Attack : ECastFollowUp::Drop;
+    default: return ECastFollowUp::Drop;
+    }
+}
