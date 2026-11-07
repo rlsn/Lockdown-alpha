@@ -11,6 +11,7 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthRequests.h"
+#include "Development/LDSkillGrowth.h"
 #include "Dom/JsonObject.h"
 #include "Economy/LDEconomyDirector.h"
 #include "Economy/LDEconomyLedger.h"
@@ -2167,7 +2168,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= Test.TestEqual(TEXT("Observed world views expose no private growth view"), Observed.Intersect(GrowthPrivateViews).Num(), 0);
     return bGood;
 }
-// ---- 112 §6 draft rules: weights, tag affinity, per-offer limits, reroll avoidance, replacement rank ----
+// ---- #147 slotted draft: upgrade / new skill / free slot, the full-slot active weight, reroll avoidance, replacement ----
 FLDGrowthBuild GrowthTestDraftBuild(uint8 Level, std::initializer_list<FLDLearnedSkill> Skills)
 {
     FLDGrowthBuild Build;
@@ -2176,6 +2177,18 @@ FLDGrowthBuild GrowthTestDraftBuild(uint8 Level, std::initializer_list<FLDLearne
     Build.Skills.Sort([](const FLDLearnedSkill& A, const FLDLearnedSkill& B)
         { return A.Id.ToString().Compare(B.Id.ToString(), ESearchCase::CaseSensitive) < 0; });
     return Build;
+}
+
+// Draftable skills of the approved catalog in catalog order, so the draft rules are checked on whatever it holds.
+void GrowthTestDraftable(const FLDDemoContentDefinitions& Content, TArray<FName>& Actives, TArray<FName>& Passives)
+{
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        if (Ability.Draftable)
+        {
+            (Ability.Kind == ELDDemoAbilityKind::Active ? Actives : Passives).Add(FName(*Ability.Id));
+        }
+    }
 }
 
 bool GrowthTestRunDraft(FAutomationTestBase& Test)
@@ -2187,9 +2200,9 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const FLDDemoChoiceWeights& W = Content.Parameters.Choice;
-    bool bGood = Test.TestTrue(TEXT("The approved draft weights are 2.2 / 1.5 / 0.30 / 1.0, affinity 1.30 capped at 1.70, third slot 65%"),
-        W.UpgradeWeightBp == 22000 && W.NewActiveOpenSlotWeightBp == 15000 && W.NewActiveFullSlotWeightBp == 3000
-        && W.NewPassiveWeightBp == 10000 && W.AffinityStepBp == 13000 && W.AffinityCapBp == 17000 && W.ThirdSlotAttributeBp == 6500);
+    const uint8 TopRank = uint8(Content.Progression.MaxSkillRank);
+    bool bGood = Test.TestTrue(TEXT("The approved draft: a new active weighs 0.5 with Q/W full, the free slot is an attribute 40%"),
+        W.NewActiveFullSlotWeightBp == 5000 && W.FreeSlotAttributeBp == 4000);
     bGood &= Test.TestTrue(TEXT("Rerolls are earned at levels 4 and 7"), Content.Progression.RerollLevels == TArray<int32>{4, 7});
     const uint8 ExpectedTokens[] = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2};
     for (uint8 Level = 1; Level <= 10; ++Level)
@@ -2197,52 +2210,40 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
         bGood &= Test.TestEqual(FString::Printf(TEXT("Rerolls earned by level %u"), uint32(Level)),
             LDProgression::RerollTokensEarned(Content.Progression, Level), ExpectedTokens[Level - 1]);
     }
-    bGood &= Test.TestTrue(TEXT("A replacement keeps max(1, old rank - 1)"), LDProgression::ReplacementRank(1) == 1
-        && LDProgression::ReplacementRank(2) == 1 && LDProgression::ReplacementRank(3) == 2);
-
-    const FName Precision(TEXT("passive_precision")), Flurry(TEXT("active_combo_flurry")), Thousand(TEXT("active_thousand_year"));
-    const FName Fart(TEXT("active_fart_dash")), ComeHere(TEXT("active_come_here")), Arc(TEXT("active_arc_bolt"));
-    const auto Weight = [&](const FLDGrowthBuild& Build, const TArray<FName>& Equipment, ELDChoiceOptionKind Kind, FName Id)
+    TArray<FName> Actives, Passives;
+    GrowthTestDraftable(Content, Actives, Passives);
+    if (!Test.TestTrue(TEXT("The catalog drafts at least four actives and three passives"), Actives.Num() >= 4 && Passives.Num() >= 3))
+    {
+        return false;
+    }
+    const auto Weight = [&](const FLDGrowthBuild& Build, ELDChoiceOptionKind Kind, FName Id)
     {
         int64 Out = -1;
-        const ELDGrowthReason Reason = LDProgression::SkillWeight(Content, Build, Equipment, {Kind, Id, 0, 1}, Out);
-        return Reason == ELDGrowthReason::None ? Out : int64(-1);
+        return LDProgression::NewSkillWeight(Content, Build, {Kind, Id, 0, 1}, Out) == ELDGrowthReason::None ? Out : int64(-1);
     };
     const FLDGrowthBuild Empty;
-    bGood &= Test.TestEqual(TEXT("A new active with a free Q/W weighs 1.5"), Weight(Empty, {}, ELDChoiceOptionKind::LearnActive, Arc),
-        int64(15000) * 10000);
-    bGood &= Test.TestEqual(TEXT("A new passive weighs 1.0"), Weight(Empty, {}, ELDChoiceOptionKind::LearnPassive, Precision),
-        int64(10000) * 10000);
-    // k counts the candidate's tags shared with the rest of the build: Precision (BasicAttack, Breach) vs Flurry (same tags).
-    const FLDGrowthBuild WithPrecision = GrowthTestDraftBuild(2, {{Precision, 1, false, 0}});
-    bGood &= Test.TestEqual(TEXT("Two shared tags multiply by 1.30^2"), Weight(WithPrecision, {}, ELDChoiceOptionKind::LearnActive, Flurry),
-        int64(15000) * 16900);
-    bGood &= Test.TestEqual(TEXT("An upgrade does not count its own tags (approved choice A)"),
-        Weight(WithPrecision, {}, ELDChoiceOptionKind::UpgradePassive, Precision), int64(22000) * 10000);
-    // Thousand (Control, Mobility) + Precision (Breach) cover all three tags of the fart dash: 1.30^3 caps at 1.70.
-    const FLDGrowthBuild Three = GrowthTestDraftBuild(3, {{Precision, 1, false, 0}, {Thousand, 1, true, 0}});
-    bGood &= Test.TestEqual(TEXT("Three shared tags cap at 1.70"), Weight(Three, {}, ELDChoiceOptionKind::LearnActive, Fart),
-        int64(15000) * 17000);
-    bGood &= Test.TestEqual(TEXT("Equipped items join the build's tags (iron plate: Tank)"),
-        Weight(Empty, {FName(TEXT("item_iron_plate"))}, ELDChoiceOptionKind::LearnActive, ComeHere), int64(15000) * 13000);
-    const FLDGrowthBuild Full = GrowthTestDraftBuild(4, {{Thousand, 1, true, 0}, {Arc, 2, true, 1}});
-    bGood &= Test.TestEqual(TEXT("A new active with Q/W full weighs 0.30 times its affinity (fart dash shares Mobility, Control, Breach)"),
-        Weight(Full, {}, ELDChoiceOptionKind::LearnActive, Fart), int64(3000) * 17000);
+    const FLDGrowthBuild Full = GrowthTestDraftBuild(4, {{Actives[0], 1, true, 0}, {Actives[1], 1, true, 1}, {Passives[0], 1, false, 0}});
+    bGood &= Test.TestEqual(TEXT("A new active with a free Q/W weighs 1"), Weight(Empty, ELDChoiceOptionKind::LearnActive, Actives[2]), int64(10000));
+    bGood &= Test.TestEqual(TEXT("A new passive weighs 1"), Weight(Full, ELDChoiceOptionKind::LearnPassive, Passives[1]), int64(10000));
+    bGood &= Test.TestEqual(TEXT("A new active with Q/W full weighs 0.5"), Weight(Full, ELDChoiceOptionKind::LearnActive, Actives[2]), int64(5000));
     int64 Refused = 0;
-    bGood &= GrowthTestReason(Test, TEXT("An attribute card has no skill weight"),
-        LDProgression::SkillWeight(Content, Empty, {}, {ELDChoiceOptionKind::Attribute, FName(TEXT("attr_might")), 0, 1}, Refused),
+    bGood &= GrowthTestReason(Test, TEXT("An upgrade has no new-skill weight"),
+        LDProgression::NewSkillWeight(Content, Full, {ELDChoiceOptionKind::UpgradePassive, Passives[0], 1, 2}, Refused), ELDGrowthReason::DataInvalid);
+    bGood &= GrowthTestReason(Test, TEXT("An attribute card has no new-skill weight"),
+        LDProgression::NewSkillWeight(Content, Full, {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[0].Id), 0, 1}, Refused),
         ELDGrowthReason::DataInvalid);
 
-    // Per-offer limits over many seeds: at most one attribute card, only in the third slot; with Q/W full at most one new
-    // active; every card distinct. The attribute share of the third slot stays near 65%.
+    // Slots over many seeds: an upgrade first, a new skill second, the free slot an attribute about 40% of the time;
+    // with Q/W full at most one new active; three distinct cards; new skills drawn without regard to the build.
     TArray<LDProgression::FLegalOption> FullPool;
     bGood &= GrowthTestReason(Test, TEXT("The full build's pool"), LDProgression::LegalPool(*Catalog, Full, FullPool), ELDGrowthReason::None);
     LDProgression::FDrawInput Input;
     Input.Content = &Content;
     Input.Build = &Full;
     Input.Ordinal = 4;
-    int32 ThirdAttributes = 0, Violations = 0, OpenTwoNewActives = 0;
-    constexpr int32 Seeds = 1024;
+    int32 FreeAttributes = 0, Violations = 0;
+    TMap<FName, int32> SecondSlot;
+    constexpr int32 Seeds = 4096;
     for (int32 Seed = 1; Seed <= Seeds; ++Seed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
@@ -2252,38 +2253,67 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
             ++Violations;
             continue;
         }
-        int32 Attributes = 0, NewActives = 0;
-        for (int32 Index = 0; Index < 3; ++Index)
-        {
-            const LDProgression::FLegalOption& Row = Drawn[Index];
-            if (Row.Kind == ELDChoiceOptionKind::Attribute)
-            {
-                ++Attributes;
-                Violations += Index == 2 ? 0 : 1;
-            }
-            NewActives += Row.Kind == ELDChoiceOptionKind::LearnActive ? 1 : 0;
-        }
-        ThirdAttributes += Drawn[2].Kind == ELDChoiceOptionKind::Attribute ? 1 : 0;
-        Violations += Attributes > 1 || NewActives > 1 || Drawn[0].DefinitionId == Drawn[1].DefinitionId
+        const bool bUpgrade = Drawn[0].Kind == ELDChoiceOptionKind::UpgradeActive || Drawn[0].Kind == ELDChoiceOptionKind::UpgradePassive;
+        const bool bNew = Drawn[1].Kind == ELDChoiceOptionKind::LearnActive || Drawn[1].Kind == ELDChoiceOptionKind::LearnPassive;
+        const bool bFreeOk = Drawn[2].Kind == ELDChoiceOptionKind::Attribute || Drawn[2].Kind == ELDChoiceOptionKind::LearnActive
+            || Drawn[2].Kind == ELDChoiceOptionKind::LearnPassive;
+        const int32 NewActives = Drawn.FilterByPredicate([](const LDProgression::FLegalOption& Row)
+            { return Row.Kind == ELDChoiceOptionKind::LearnActive; }).Num();
+        FreeAttributes += Drawn[2].Kind == ELDChoiceOptionKind::Attribute ? 1 : 0;
+        ++SecondSlot.FindOrAdd(Drawn[1].DefinitionId);
+        Violations += !bUpgrade || !bNew || !bFreeOk || NewActives > 1 || Drawn[0].DefinitionId == Drawn[1].DefinitionId
             || Drawn[0].DefinitionId == Drawn[2].DefinitionId || Drawn[1].DefinitionId == Drawn[2].DefinitionId ? 1 : 0;
     }
-    bGood &= Test.TestEqual(TEXT("Every Q/W-full offer keeps its limits"), Violations, 0);
-    bGood &= Test.TestTrue(FString::Printf(TEXT("The third card is an attribute about 65%% of the time (%d of %d)"), ThirdAttributes, Seeds),
-        ThirdAttributes > Seeds * 55 / 100 && ThirdAttributes < Seeds * 75 / 100);
-    TArray<LDProgression::FLegalOption> OpenPool;
-    LDProgression::LegalPool(*Catalog, WithPrecision, OpenPool);
-    Input.Build = &WithPrecision;
-    for (int32 Seed = 1; Seed <= 256; ++Seed)
+    bGood &= Test.TestEqual(TEXT("Every Q/W-full offer keeps its slots and limits"), Violations, 0);
+    bGood &= Test.TestTrue(FString::Printf(TEXT("The free slot is an attribute about 40%% of the time (%d of %d)"), FreeAttributes, Seeds),
+        FreeAttributes > Seeds * 35 / 100 && FreeAttributes < Seeds * 45 / 100);
+    // Expected second-slot share: weight 1 per unlearned passive, 0.5 per unlearned active.
+    double PassiveCount = 0, ActiveCount = 0;
+    int32 PassiveRows = 0, ActiveRows = 0;
+    for (const FName Id : Passives) { if (!Full.FindSkill(Id)) { PassiveCount += SecondSlot.FindRef(Id); ++PassiveRows; } }
+    for (const FName Id : Actives) { if (!Full.FindSkill(Id)) { ActiveCount += SecondSlot.FindRef(Id); ++ActiveRows; } }
+    const double Ratio = ActiveRows && PassiveRows && PassiveCount > 0 ? (ActiveCount / ActiveRows) / (PassiveCount / PassiveRows) : 0.;
+    bGood &= Test.TestTrue(FString::Printf(TEXT("A new active shows half as often as a new passive with Q/W full (%.3f)"), Ratio),
+        Ratio > 0.40 && Ratio < 0.60);
+    int32 Rarest = MAX_int32, Commonest = 0;
+    for (const FName Id : Passives)
+    {
+        if (Full.FindSkill(Id)) { continue; }
+        Rarest = FMath::Min(Rarest, SecondSlot.FindRef(Id));
+        Commonest = FMath::Max(Commonest, SecondSlot.FindRef(Id));
+    }
+    bGood &= Test.TestTrue(FString::Printf(TEXT("Every new passive is equally likely, whatever the build holds (%d..%d)"), Rarest, Commonest),
+        Rarest > 0 && Commonest < Rarest * 3 / 2);
+
+    // No learned skill below the top rank: the upgrade slot takes a new skill. Everything at the top and learned: three cards.
+    FLDGrowthBuild Topped = GrowthTestDraftBuild(5, {{Actives[0], TopRank, true, 0}, {Passives[0], TopRank, false, 0}});
+    TArray<LDProgression::FLegalOption> ToppedPool;
+    LDProgression::LegalPool(*Catalog, Topped, ToppedPool);
+    Input.Build = &Topped;
+    int32 ToppedBad = 0, OpenTwoNewActives = 0;
+    for (int32 Seed = 1; Seed <= 512; ++Seed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
         Input.Seed = uint64(Seed);
-        LDProgression::DrawOffer(Input, OpenPool, Drawn);
+        ToppedBad += LDProgression::DrawOffer(Input, ToppedPool, Drawn) != ELDGrowthReason::None
+            || (Drawn[0].Kind != ELDChoiceOptionKind::LearnActive && Drawn[0].Kind != ELDChoiceOptionKind::LearnPassive) ? 1 : 0;
         OpenTwoNewActives += Drawn.FilterByPredicate([](const LDProgression::FLegalOption& Row)
             { return Row.Kind == ELDChoiceOptionKind::LearnActive; }).Num() >= 2 ? 1 : 0;
     }
+    bGood &= Test.TestEqual(TEXT("Without an upgrade the first slot holds a new skill"), ToppedBad, 0);
     bGood &= Test.TestTrue(TEXT("With a free Q/W slot an offer may hold two new actives"), OpenTwoNewActives > 0);
+    const TArray<LDProgression::FLegalOption> Cards = {
+        {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[0].Id), 0, 1},
+        {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[1].Id), 0, 1},
+        {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[2].Id), 0, 1}};
+    TArray<LDProgression::FLegalOption> CardsOnly;
+    bGood &= GrowthTestReason(Test, TEXT("A pool of attribute cards alone"), LDProgression::DrawOffer(Input, Cards, CardsOnly),
+        ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("It still fills all three slots"), CardsOnly.Num() == 3);
+    bGood &= Test.TestFalse(TEXT("Two attribute cards and nothing else cannot fill an offer"),
+        LDProgression::DrawFeasible(Content, Topped, {Cards[0], Cards[1]}, 4));
 
-    // Reroll: the same rules, the previous three cards avoided while the pool allows.
+    // Reroll: the same slots, the previous three cards avoided while the pool allows.
     Input.Build = &Full;
     Input.Seed = 41;
     TArray<LDProgression::FLegalOption> First;
@@ -2298,6 +2328,7 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
         if (LDProgression::DrawOffer(Reroll, FullPool, Again) != ELDGrowthReason::None) { ++Overlaps; continue; }
         for (const LDProgression::FLegalOption& Row : Again)
         {
+            // The full build has three upgrades, so the upgrade slot can always avoid; so can every other slot.
             Overlaps += First.ContainsByPredicate([&Row](const LDProgression::FLegalOption& Old)
                 { return Old.Kind == Row.Kind && Old.DefinitionId == Row.DefinitionId; }) ? 1 : 0;
         }
@@ -2305,8 +2336,8 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
     bGood &= Test.TestEqual(TEXT("A reroll never repeats a card of the previous offer while others remain"), Overlaps, 0);
     // A pool with nothing else still fills the offer: avoidance is best effort, never a refusal.
     const TArray<LDProgression::FLegalOption> Tight = {
-        {ELDChoiceOptionKind::UpgradeActive, Thousand, 1, 2}, {ELDChoiceOptionKind::UpgradeActive, Arc, 2, 3},
-        {ELDChoiceOptionKind::Attribute, FName(TEXT("attr_might")), 0, 1}};
+        {ELDChoiceOptionKind::UpgradeActive, Actives[0], 1, 2}, {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[0].Id), 0, 1},
+        {ELDChoiceOptionKind::Attribute, FName(*Content.Attributes[1].Id), 0, 1}};
     LDProgression::FDrawInput TightInput = Input;
     TightInput.Avoid = Tight;
     TArray<LDProgression::FLegalOption> TightDraw;
@@ -2314,31 +2345,95 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
         ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("It repeats the only cards there are"), TightDraw.Num(), 3);
 
-    // Replacement: the new active starts at max(1, old rank - 1); the old skill is forgotten.
-    FLDGrowthBuild Build = GrowthTestDraftBuild(6, {{Thousand, 3, true, 0}, {Arc, 1, true, 1}});
+    // Replacement (#147 D13): the new active starts at rank 1 whatever the forgotten rank was.
+    FLDGrowthBuild Build = GrowthTestDraftBuild(6, {{Actives[0], TopRank, true, 0}, {Actives[1], 1, true, 1}});
     LDProgression::FReplacement Replacement;
     Replacement.Slot = 0;
-    Replacement.OldSkillId = Thousand;
-    Replacement.OldRank = 3;
+    Replacement.OldSkillId = Actives[0];
+    Replacement.OldRank = TopRank;
     Replacement.bConfirmed = true;
     LDProgression::FAppliedOption Applied;
-    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, Fart, 0, 1), &Replacement,
-        ELDGrowthReason::None, Applied, TEXT("Replacing a rank-3 Q")))
+    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, Actives[2], 0, 1), &Replacement,
+        ELDGrowthReason::None, Applied, TEXT("Replacing a top-rank Q")))
     {
         return false;
     }
-    bGood &= Test.TestTrue(TEXT("Replacing rank 3 learns the new active at rank 2 in the same slot"), Applied.bReplaced
-        && Applied.NewRank == 2 && Applied.ReplacedRank == 3 && !Build.FindSkill(Thousand));
-    bGood &= GrowthTestExpectSkill(Test, Build, Fart, 2, true, 0, TEXT("The downgraded replacement"));
-    Replacement.Slot = 1;
-    Replacement.OldSkillId = Arc;
-    Replacement.OldRank = 1;
-    if (!GrowthTestApply(Test, *Catalog, Build, GrowthTestOption(ELDChoiceOptionKind::LearnActive, ComeHere, 0, 1), &Replacement,
-        ELDGrowthReason::None, Applied, TEXT("Replacing a rank-1 W")))
+    bGood &= Test.TestTrue(TEXT("Replacing the top rank learns the new active at rank 1 in the same slot"), Applied.bReplaced
+        && Applied.NewRank == 1 && Applied.ReplacedRank == TopRank && !Build.FindSkill(Actives[0]));
+    bGood &= GrowthTestExpectSkill(Test, Build, Actives[2], 1, true, 0, TEXT("The replacement"));
+    return bGood;
+}
+
+// ---- #147 skill growth: G(L) on a learned skill's fixed amounts, never on mana, ratios, durations or equipment ----
+bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(Test, Catalog))
     {
         return false;
     }
-    bGood &= GrowthTestExpectSkill(Test, Build, ComeHere, 1, true, 1, TEXT("A rank-1 replacement stays at rank 1"));
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const int64 Step = Content.Parameters.SkillGrowthPerLevelBp;
+    bool bGood = Test.TestEqual(TEXT("The approved growth is 10% of the base per level"), Step, int64(1000));
+    bGood &= Test.TestTrue(TEXT("G(1) = 1.0, G(5) = 1.4, G(10) = 1.9; no level 0"), LDSkillGrowth::FactorBp(Step, 1) == 10000
+        && LDSkillGrowth::FactorBp(Step, 5) == 14000 && LDSkillGrowth::FactorBp(Step, 10) == 19000 && LDSkillGrowth::FactorBp(Step, 0) == 0);
+    int64 Grown = 0;
+    bGood &= Test.TestTrue(TEXT("A grown amount floors to P2"), LDSkillGrowth::GrowP2(6001, 14000, Grown) && Grown == 8401);
+    bGood &= Test.TestFalse(TEXT("Overflow is refused"), LDSkillGrowth::GrowP2(MAX_int64 / 2, 19000, Grown));
+
+    FLDDemoEffectDefinition Damage;
+    Damage.Opcode = uint8(ELDDemoEffectOp::Damage);
+    Damage.BaseP2 = 6000; Damage.ADRatioBp = 5000; Damage.DurationMs = 1000; Damage.RatioBp = 2500;
+    FLDDemoEffectDefinition Mana;
+    Mana.Opcode = uint8(ELDDemoEffectOp::ManaOnHit);
+    Mana.BaseP2 = 1200;
+    FLDDemoEffectDefinition Timed;
+    Timed.Opcode = uint8(ELDDemoEffectOp::TimedStatBonus);
+    Timed.DurationMs = 3000;
+    Timed.Stats = {{ELDDemoBonusStat::ArmorFlat, 1200, {}}, {ELDDemoBonusStat::AttackSpeedBonusRatio, 3500, {}}};
+    FLDDemoRankDefinition Rank;
+    Rank.Rank = 1; Rank.ManaCostP2 = 6000; Rank.CooldownMs = 12000;
+    Rank.Effects = {Damage, Mana, Timed};
+    FLDDemoRankDefinition At5;
+    if (!Test.TestTrue(TEXT("A rank grows at level 5"), LDSkillGrowth::GrowRank(Rank, Step, 5, At5)))
+    {
+        return false;
+    }
+    bGood &= Test.TestTrue(TEXT("The base amount grows 1.4x; coefficients, ratios and durations do not"),
+        At5.Effects[0].BaseP2 == 8400 && At5.Effects[0].ADRatioBp == 5000 && At5.Effects[0].DurationMs == 1000 && At5.Effects[0].RatioBp == 2500);
+    bGood &= Test.TestEqual(TEXT("A mana grant does not grow"), At5.Effects[1].BaseP2, int64(1200));
+    bGood &= Test.TestTrue(TEXT("A timed bonus grows its points, not its ratios or duration"), At5.Effects[2].Stats[0].Amount == 1680
+        && At5.Effects[2].Stats[1].Amount == 3500 && At5.Effects[2].DurationMs == 3000);
+    bGood &= Test.TestTrue(TEXT("Mana cost and cooldown never grow"), At5.ManaCostP2 == 6000 && At5.CooldownMs == 12000 && At5.Rank == 1);
+
+    // The snapshot serves every authored rank for every level, grown by the approved step, and refuses anything else.
+    for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
+    {
+        for (const FLDDemoRankDefinition& Authored : Ability.Ranks)
+        {
+            for (int32 Level = 1; Level <= Content.Progression.MaxLevel; ++Level)
+            {
+                const FLDDemoRankDefinition* Served = Catalog->FindRank(Ability, uint8(Authored.Rank), uint8(Level));
+                FLDDemoRankDefinition Expected;
+                const bool bExpected = LDSkillGrowth::GrowRank(Authored, Step, uint8(Level), Expected);
+                bool bSame = Served && bExpected && Served->Effects.Num() == Expected.Effects.Num();
+                for (int32 Index = 0; bSame && Index < Expected.Effects.Num(); ++Index)
+                {
+                    bSame = Served->Effects[Index].BaseP2 == Expected.Effects[Index].BaseP2;
+                }
+                if (!bSame)
+                {
+                    bGood &= Test.TestTrue(FString::Printf(TEXT("%s rank %d at level %d is served grown"), *Ability.Id, Authored.Rank, Level), false);
+                }
+            }
+        }
+        bGood &= Test.TestNull(Ability.Id + TEXT(" has no level 0 row"), Catalog->FindRank(Ability, 1, 0));
+        bGood &= Test.TestNull(Ability.Id + TEXT(" has no row past the top level"), Catalog->FindRank(Ability, 1, uint8(Content.Progression.MaxLevel + 1)));
+        bGood &= Test.TestNull(Ability.Id + TEXT(" has no rank past the top"), Catalog->FindRank(Ability, uint8(Content.Progression.MaxSkillRank + 1), 1));
+    }
+    FLDDemoAbilityDefinition Stranger;
+    Stranger.Ranks = {Rank};
+    bGood &= Test.TestNull(TEXT("An ability outside the snapshot is refused"), Catalog->FindRank(Stranger, 1, 1));
     return bGood;
 }
 
@@ -3509,6 +3604,14 @@ bool FLDDemoGrowthDraftTest::RunTest(const FString& Parameters)
 }
 
 // 112 §7: equipment upgrade in the ledger, the effective definitions and the attribute projection.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthSkillGrowthTest, "Lockdown.Rules.DemoGrowthSkillGrowth",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthSkillGrowthTest::RunTest(const FString& Parameters)
+{
+    return GrowthTestRunSkillGrowth(*this);
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthUpgradeTest, "Lockdown.Rules.DemoGrowthUpgrade",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

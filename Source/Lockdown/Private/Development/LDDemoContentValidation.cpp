@@ -219,10 +219,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         return false;
     }
     const auto& Choice = P.Choice;
-    if (!Check.Require(Choice.UpgradeWeightBp > 0 && Choice.NewActiveOpenSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp > 0
-        && Choice.NewPassiveWeightBp > 0 && Choice.AffinityStepBp >= 10000 && Choice.AffinityCapBp >= 10000
-        && Choice.ThirdSlotAttributeBp >= 0 && Choice.ThirdSlotAttributeBp <= 10000, TEXT("CHOICE"),
-        TEXT("draft weights must be positive and tag affinity never lowers a weight")))
+    if (!Check.Require(Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
+        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000, TEXT("CHOICE"),
+        TEXT("the full-slot active weight must lie in (0, 1] and the free-slot attribute chance in [0, 1]")))
     {
         return false;
     }

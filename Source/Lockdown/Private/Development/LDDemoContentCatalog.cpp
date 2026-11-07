@@ -1,6 +1,7 @@
 #include "Development/LDDemoContentCatalog.h"
 
 #include "LDDemoContentJson.h"
+#include "Development/LDSkillGrowth.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
@@ -137,6 +138,48 @@ bool FLDDemoContentBundle::ReadImportFiles(const FString& ProjectRoot, FLDDemoCo
 bool LDDemoContent::ExactStoredStruct(const UStruct* Type, const void* A, const void* B)
 {
     return ExactStruct(Type, A, B);
+}
+
+FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) : Definitions(MoveTemp(In))
+{
+    const int32 MaxLevel = FMath::Clamp(Definitions.Progression.MaxLevel, 0, int32(MAX_uint8));
+    GrownRanks.SetNum(Definitions.Abilities.Num());
+    for (int32 Index = 0; Index < Definitions.Abilities.Num(); ++Index)
+    {
+        const TArray<FLDDemoRankDefinition>& Authored = Definitions.Abilities[Index].Ranks;
+        TArray<FLDDemoRankDefinition>& Grown = GrownRanks[Index];
+        Grown.Reserve(Authored.Num() * MaxLevel);
+        for (const FLDDemoRankDefinition& Rank : Authored)
+        {
+            for (int32 Level = 1; Level <= MaxLevel; ++Level)
+            {
+                FLDDemoRankDefinition& Row = Grown.AddDefaulted_GetRef();
+                // Content validation proves every grown amount fits; a row that does not is left without a rank so
+                // FindRank refuses it instead of guessing.
+                if (!LDSkillGrowth::GrowRank(Rank, Definitions.Parameters.SkillGrowthPerLevelBp, uint8(Level), Row))
+                {
+                    Row = FLDDemoRankDefinition();
+                }
+            }
+        }
+    }
+}
+
+const FLDDemoRankDefinition* FLDDemoContentSnapshot::FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank, uint8 Level) const
+{
+    const int32 Index = int32(&Ability - Definitions.Abilities.GetData());
+    const int32 MaxLevel = Definitions.Progression.MaxLevel;
+    if (Index < 0 || Index >= Definitions.Abilities.Num() || Level < 1 || int32(Level) > MaxLevel)
+    {
+        return nullptr;
+    }
+    const int32 RankIndex = Ability.Ranks.IndexOfByPredicate([Rank](const FLDDemoRankDefinition& Row) { return Row.Rank == int32(Rank); });
+    if (RankIndex == INDEX_NONE)
+    {
+        return nullptr;
+    }
+    const FLDDemoRankDefinition& Row = GrownRanks[Index][RankIndex * MaxLevel + Level - 1];
+    return Row.Rank == int32(Rank) ? &Row : nullptr;
 }
 
 bool FLDDemoContentSnapshot::FindAbility(const FString& Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const

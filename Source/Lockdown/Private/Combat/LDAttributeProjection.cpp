@@ -221,8 +221,8 @@ private:
                 return Refuse(EError::InputDomain, Field, FString::Printf(
                     TEXT("Rank %d is outside 1..%d"), int32(Learned.Rank), Progression.MaxSkillRank));
             }
-            const FLDDemoRankDefinition* Rank = Ability->Ranks.FindByPredicate(
-                [&Learned](const FLDDemoRankDefinition& Candidate) { return Candidate.Rank == int32(Learned.Rank); });
+            // #147: the passive's fixed amounts as its owner's current level grows them.
+            const FLDDemoRankDefinition* Rank = Catalog.FindRank(*Ability, Learned.Rank, Build.Level);
             if (Rank == nullptr)
             {
                 return Refuse(EError::Catalog, Field, TEXT("The validated catalog has no row for this rank"));
@@ -527,6 +527,7 @@ private:
                         FLDLearnedTriggerTerm& Trigger = LearnedTriggers.AddDefaulted_GetRef();
                         Trigger.AbilityId = Passives[Index]->Id;
                         Trigger.Rank = Build.LearnedPassives[Index].Rank;
+                        Trigger.Level = Build.Level;
                     }
                 }
                 else

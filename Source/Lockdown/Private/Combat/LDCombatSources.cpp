@@ -512,17 +512,17 @@ bool ALDCombatDirector::ResolveEntry(const FLDCombatEntityRecord& Record, ELDCom
     return false;
 }
 
-bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, const FLDDemoAbilityDefinition* Ability,
+bool ALDCombatDirector::ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, uint8 Level, const FLDDemoAbilityDefinition* Ability,
     const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const
 {
     OutTarget=nullptr;
     OutRank=nullptr;
     OutWindupMs=0;
     const FLDDemoContentSnapshot* Content=Catalog();
-    if (Ability)
+    if (Ability && Content)
     {
         OutTarget=&Ability->Target;
-        OutRank=LDCombatSourcesDetail::FindRankRow(*Ability,Rank);
+        OutRank=Content->FindRank(*Ability,Rank,Level);
         OutWindupMs=Ability->WindupMs;
     }
     else if (Source.Kind==ELDCombatSourceKind::Innate && Content)
@@ -589,7 +589,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     const FLDDemoRankDefinition* RankRow=nullptr;
     int64 WindupMs=0;
     if (Ability) { View.Rank=Rank; }
-    if (!ActiveOf(Source,Rank,Ability,Target,RankRow,WindupMs))
+    if (!ActiveOf(Source,Rank,Record.Build.Level,Ability,Target,RankRow,WindupMs))
     {
         View.Unavailable=ELDCombatReject::SourceUnavailable;
         return View;

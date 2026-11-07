@@ -77,21 +77,17 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
-// 112 §6 draft weights, all basis points of a ratio (10000 = 1.0).
+// #147 slotted level-up offer (upgrade, new skill, free slot), basis points of a ratio (10000 = 1.0). Every other new skill
+// and attribute card weighs 1; nothing is weighted by the build.
 USTRUCT()
 struct FLDDemoChoiceWeights
 {
     GENERATED_BODY()
 
-    UPROPERTY() int64 UpgradeWeightBp = 0;
-    UPROPERTY() int64 NewActiveOpenSlotWeightBp = 0;
+    // Weight of an unlearned active while Q and W are both occupied.
     UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
-    UPROPERTY() int64 NewPassiveWeightBp = 0;
-    // Each tag a candidate shares with the rest of the build multiplies its weight by AffinityStep, capped at AffinityCap.
-    UPROPERTY() int64 AffinityStepBp = 0;
-    UPROPERTY() int64 AffinityCapBp = 0;
-    // Chance that the third card of a level-up offer comes from the attribute pool.
-    UPROPERTY() int64 ThirdSlotAttributeBp = 0;
+    // Chance that the free (third) slot holds an attribute card instead of another new skill.
+    UPROPERTY() int64 FreeSlotAttributeBp = 0;
 };
 
 USTRUCT()
@@ -114,6 +110,8 @@ struct FLDDemoContentParameters
     // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (active_monkey_peach Lv3, passive_precision Lv3).
     UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
+    // #147 SKILL.GrowthPerLevel: a learned skill's fixed amounts grow by this share of the base per owner level above 1.
+    UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -282,10 +280,6 @@ UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
 enum class ELDDemoCampTier : uint8 { Low, High, Boss };
 
-// 112 §1: the only mechanic tags of skills and equipment; draft affinity counts shared tags, the UI never shows them as schools.
-UENUM()
-enum class ELDDemoMechanicTag : uint8 { BasicAttack, Mobility, Control, Shield, Tank, Breach };
-
 UENUM()
 enum class ELDDemoBonusStat : uint8
 {
@@ -415,7 +409,6 @@ struct FLDDemoAbilityDefinition
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() ELDDemoAbilityKind Kind = ELDDemoAbilityKind::Active;
-    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
     // False keeps the skill out of every three-card offer (opening and level-up); it stays learnable otherwise.
     UPROPERTY() bool Draftable = false;
     UPROPERTY() FLDDemoTargetDefinition Target;
@@ -459,7 +452,6 @@ struct FLDDemoEquipmentDefinition
     UPROPERTY() uint8 NativeId = 0;
     UPROPERTY() int64 BuyPrice = 0;
     UPROPERTY() int64 SellGold = 0;
-    UPROPERTY() TArray<ELDDemoMechanicTag> Tags;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
     // Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2, R4, whole cm).
     UPROPERTY() TArray<FLDDemoStatBonus> UpgradedStats;

@@ -36,11 +36,16 @@ public:
     bool FindEquipment(const FString& Id, const FLDDemoEquipmentDefinition*& Out, FString& Error) const;
     bool FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const;
     bool FindDisplay(const FString& Id, const FLDDemoDisplayDefinition*& Out, FString& Error) const;
+    // #147 skill growth: Ability's rank row as its owner at Level uses it (LDSkillGrowth::GrowRank with SKILL.GrowthPerLevel).
+    // Null for an ability outside this snapshot, a missing rank or a level outside 1..MaxLevel. Stable for the snapshot's life.
+    const FLDDemoRankDefinition* FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank, uint8 Level) const;
 
 private:
     friend class ULDDemoContentCatalog;
-    explicit FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) : Definitions(MoveTemp(In)) {}
+    explicit FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In);
     FLDDemoContentDefinitions Definitions;
+    // Per ability (index into Definitions.Abilities): its rank rows grown for each level, rank-major.
+    TArray<TArray<FLDDemoRankDefinition>> GrownRanks;
 };
 
 class LOCKDOWN_API FLDDemoPreparedContent

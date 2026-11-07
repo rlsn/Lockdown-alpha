@@ -38,6 +38,8 @@ namespace LDHUD
     // so the content error stays visible instead of a guessed name.
     LOCKDOWN_API bool ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out);
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
+    // #147 two skill ranks: 初级 (1) and 高级 (2); anything else is named by its number.
+    LOCKDOWN_API FString SkillRankName(int32 Rank);
     LOCKDOWN_API FString StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId);
     LOCKDOWN_API FString CreatureName(const FLDDemoContentDefinitions* Content,uint8 CreatureId);
     LOCKDOWN_API FString EquipmentName(const FLDDemoContentDefinitions* Content,uint8 EquipmentId);

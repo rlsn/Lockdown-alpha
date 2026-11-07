@@ -126,10 +126,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Mobility",
-        "Breach"
-      ],
       "target": {
         "attack_range_bonus_cap": {
           "denominator": 1,
@@ -319,10 +315,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Breach",
-        "BasicAttack"
-      ],
       "target": {
         "mode": "DirectionProjectile",
         "projectile_radius": {
@@ -487,10 +479,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "Control",
-        "Breach"
       ],
       "target": {
         "mode": "Unit",
@@ -719,11 +707,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Mobility",
-        "Tank",
-        "Control"
-      ],
       "target": {
         "mode": "GroundPoint",
         "range": {
@@ -887,10 +870,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Control",
-        "Breach"
-      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -1006,10 +985,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "BasicAttack",
-        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -1182,10 +1157,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Control",
-        "Tank"
-      ],
       "target": {
         "mode": "Self"
       },
@@ -1335,10 +1306,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "Breach",
-        "Control"
       ],
       "target": {
         "mode": "Unit",
@@ -1612,11 +1579,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Mobility",
-        "Control",
-        "Breach"
-      ],
       "target": {
         "mode": "DirectionDash"
       },
@@ -1769,10 +1731,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "Shield",
-        "Control"
       ],
       "target": {
         "mode": "Self"
@@ -1958,10 +1916,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Mobility",
-        "BasicAttack"
-      ],
       "target": {
         "mode": "DirectionDash"
       },
@@ -2138,10 +2092,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "BasicAttack",
-        "Control"
       ],
       "target": {
         "mode": "Unit",
@@ -2373,10 +2323,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Shield",
-        "Control"
-      ],
       "target": {
         "mode": "GroundPoint",
         "range": {
@@ -2604,11 +2550,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Tank",
-        "Control",
-        "Shield"
-      ],
       "target": {
         "mode": "Self"
       },
@@ -2744,10 +2685,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "Mobility",
-        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
@@ -2906,10 +2843,6 @@
           },
           "rank": 3
         }
-      ],
-      "tags": [
-        "Control",
-        "BasicAttack"
       ],
       "target": {
         "mode": "Unit",
@@ -3122,10 +3055,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Shield",
-        "Mobility"
-      ],
       "target": {
         "mode": "Self"
       },
@@ -3281,10 +3210,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Control",
-        "Mobility"
-      ],
       "target": {
         "mode": "Unit",
         "range": {
@@ -3399,10 +3324,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "BasicAttack",
-        "Mobility"
-      ],
       "target": {
         "mode": "Self"
       }
@@ -3507,10 +3428,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Tank",
-        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
@@ -3640,10 +3557,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "BasicAttack",
-        "Breach"
-      ],
       "target": {
         "mode": "Self"
       }
@@ -3743,10 +3656,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Mobility",
-        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
@@ -3878,10 +3787,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Tank",
-        "Control"
-      ],
       "target": {
         "mode": "Self"
       }
@@ -3965,10 +3870,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Breach",
-        "BasicAttack"
       ],
       "target": {
         "mode": "Self"
@@ -4078,10 +3979,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Mobility",
-        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -4223,10 +4120,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "Shield",
-        "Breach"
-      ],
       "target": {
         "mode": "Self"
       }
@@ -4328,10 +4221,6 @@
           "rank": 3
         }
       ],
-      "tags": [
-        "BasicAttack",
-        "Breach"
-      ],
       "target": {
         "mode": "Self"
       }
@@ -4390,10 +4279,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Control",
-        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -4484,10 +4369,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Tank",
-        "Breach"
       ],
       "target": {
         "mode": "Self"
@@ -4586,11 +4467,6 @@
           ],
           "rank": 3
         }
-      ],
-      "tags": [
-        "Mobility",
-        "Control",
-        "Shield"
       ],
       "target": {
         "mode": "Self"
@@ -5877,10 +5753,6 @@
           "unit": "mp"
         }
       },
-      "tags": [
-        "Shield",
-        "Breach"
-      ],
       "upgraded_stats": {
         "MagicResistFlat": {
           "p2": 1350,
@@ -5908,10 +5780,6 @@
           "unit": "hp"
         }
       },
-      "tags": [
-        "Breach",
-        "Control"
-      ],
       "upgraded_stats": {
         "APFlat": {
           "p2": 3375,
@@ -5974,10 +5842,6 @@
           "unit": "cm"
         }
       },
-      "tags": [
-        "BasicAttack",
-        "Mobility"
-      ],
       "upgraded_stats": {
         "ADFlat": {
           "p2": 1890,
@@ -6034,9 +5898,6 @@
           "unit": "ratio"
         }
       },
-      "tags": [
-        "BasicAttack"
-      ],
       "upgraded_stats": {
         "ADFlat": {
           "p2": 2700,
@@ -6088,9 +5949,6 @@
           "unit": "hp"
         }
       },
-      "tags": [
-        "Tank"
-      ],
       "upgraded_stats": {
         "ArmorFlat": {
           "p2": 2025,
@@ -6150,10 +6008,6 @@
           "unit": "points"
         }
       },
-      "tags": [
-        "Breach",
-        "Control"
-      ],
       "upgraded_stats": {
         "APFlat": {
           "p2": 3375,
@@ -6253,9 +6107,6 @@
           "unit": "hp"
         }
       },
-      "tags": [
-        "Tank"
-      ],
       "upgraded_stats": {
         "ArmorFlat": {
           "p2": 2430,
@@ -6327,9 +6178,6 @@
           "unit": "ratio"
         }
       },
-      "tags": [
-        "Mobility"
-      ],
       "upgraded_stats": {
         "MoveSpeedBonusRatio": {
           "bp": 1620,
@@ -6401,10 +6249,6 @@
           "unit": "hp"
         }
       },
-      "tags": [
-        "Shield",
-        "Tank"
-      ],
       "upgraded_stats": {
         "APFlat": {
           "p2": 2700,
@@ -6458,9 +6302,6 @@
           "unit": "points"
         }
       },
-      "tags": [
-        "Breach"
-      ],
       "upgraded_stats": {
         "APFlat": {
           "p2": 4050,
@@ -6512,10 +6353,6 @@
           "unit": "points"
         }
       },
-      "tags": [
-        "BasicAttack",
-        "Tank"
-      ],
       "upgraded_stats": {
         "ADFlat": {
           "p2": 1620,
@@ -6575,10 +6412,6 @@
           "unit": "ratio"
         }
       },
-      "tags": [
-        "BasicAttack",
-        "Mobility"
-      ],
       "upgraded_stats": {
         "ADFlat": {
           "p2": 2025,
@@ -6607,10 +6440,6 @@
           "unit": "ratio"
         }
       },
-      "tags": [
-        "BasicAttack",
-        "Mobility"
-      ],
       "upgraded_stats": {
         "AttackRangeCmFlat": {
           "denominator": 1,
@@ -6746,32 +6575,12 @@
       "ms": 3500,
       "unit": "ms"
     },
-    "CHOICE.AffinityCap": {
-      "bp": 17000,
-      "unit": "ratio"
-    },
-    "CHOICE.AffinityStep": {
-      "bp": 13000,
+    "CHOICE.FreeSlotAttributeChance": {
+      "bp": 4000,
       "unit": "ratio"
     },
     "CHOICE.NewActiveFullSlotWeight": {
-      "bp": 3000,
-      "unit": "ratio"
-    },
-    "CHOICE.NewActiveOpenSlotWeight": {
-      "bp": 15000,
-      "unit": "ratio"
-    },
-    "CHOICE.NewPassiveWeight": {
-      "bp": 10000,
-      "unit": "ratio"
-    },
-    "CHOICE.ThirdSlotAttributeChance": {
-      "bp": 6500,
-      "unit": "ratio"
-    },
-    "CHOICE.UpgradeWeight": {
-      "bp": 22000,
+      "bp": 5000,
       "unit": "ratio"
     },
     "COMBAT.RearArcDeg": {
@@ -6862,6 +6671,10 @@
     "SHOP.UpgradeCost": 240,
     "SHOP.UpgradeStatBonusRatio": {
       "bp": 3500,
+      "unit": "ratio"
+    },
+    "SKILL.GrowthPerLevel": {
+      "bp": 1000,
       "unit": "ratio"
     },
     "STAT.AD.Base": {

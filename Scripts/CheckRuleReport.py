@@ -138,6 +138,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoAssist.KillFeedAndResult",
         "Lockdown.Rules.DemoAssist.Settlement",
         "Lockdown.Rules.DemoGrowthDraft",
+        "Lockdown.Rules.DemoGrowthSkillGrowth",
         "Lockdown.Rules.DemoGrowthReroll",
         "Lockdown.Rules.DemoGrowthUpgrade",
         "Lockdown.Rules.DemoDevTestCommands",

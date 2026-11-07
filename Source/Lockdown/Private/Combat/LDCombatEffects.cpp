@@ -588,8 +588,8 @@ bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Proj
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if (!Content->FindAbility(Term.AbilityId,Ability,Error)) { return false; }
-        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Term](const FLDDemoRankDefinition& Row) { return Row.Rank==int32(Term.Rank); });
-        if (!Rank) { Error=FString::Printf(TEXT("Learned trigger %s has no rank %u."),*Term.AbilityId,uint32(Term.Rank)); return false; }
+        const FLDDemoRankDefinition* Rank=Content->FindRank(*Ability,Term.Rank,Term.Level);
+        if (!Rank) { Error=FString::Printf(TEXT("Learned trigger %s has no rank %u at level %u."),*Term.AbilityId,uint32(Term.Rank),uint32(Term.Level)); return false; }
         for (const FLDDemoEffectDefinition& Effect : Rank->Effects)
         {
             if (Effect.GetOp()!=Op) { continue; }

@@ -50,6 +50,7 @@
     "STAT.AbilityCritMultiplier": {"unit": "ratio", "value": 1.50},
     "STAT.CooldownHaste.Base": {"unit": "points", "value": 0},
     "STAT.CooldownHaste.Max": {"unit": "points", "value": 60},
+    "SKILL.GrowthPerLevel": {"unit": "ratio", "value": 0.10},
     "UNIT.MoveSpeedCmPerSec": {"unit": "cm/s", "value": 300},
     "STAT.MoveSpeed.Min": {"unit": "cm/s", "value": 173},
     "STAT.MoveSpeed.Max": {"unit": "cm/s", "value": 675},
@@ -78,13 +79,8 @@
     "SHOP.SellRatio": {"unit": "ratio", "value": 0.65},
     "SHOP.UpgradeCost": 240,
     "SHOP.UpgradeStatBonusRatio": {"unit": "ratio", "value": 0.35},
-    "CHOICE.UpgradeWeight": {"unit": "ratio", "value": 2.2},
-    "CHOICE.NewActiveOpenSlotWeight": {"unit": "ratio", "value": 1.5},
-    "CHOICE.NewActiveFullSlotWeight": {"unit": "ratio", "value": 0.30},
-    "CHOICE.NewPassiveWeight": {"unit": "ratio", "value": 1.0},
-    "CHOICE.AffinityStep": {"unit": "ratio", "value": 1.30},
-    "CHOICE.AffinityCap": {"unit": "ratio", "value": 1.70},
-    "CHOICE.ThirdSlotAttributeChance": {"unit": "ratio", "value": 0.65},
+    "CHOICE.NewActiveFullSlotWeight": {"unit": "ratio", "value": 0.5},
+    "CHOICE.FreeSlotAttributeChance": {"unit": "ratio", "value": 0.4},
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
     "CAMP.ReturnDeadEndPlans": 3,
     "CAMP.ReturnDeadEndSec": {"unit": "s", "value": 6},
@@ -173,7 +169,7 @@
   },
   "abilities": [
     {
-      "id": "active_arc_bolt", "kind": "active", "tags": ["Mobility", "Breach"], "draftable": true, "cooldown_family": "cd_arc_bolt",
+      "id": "active_arc_bolt", "kind": "active", "draftable": true, "cooldown_family": "cd_arc_bolt",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 650}, "projectile_radius": {"unit": "cm", "value": 45}, "projectile_speed": {"unit": "cm/s", "value": 1600}, "attack_range_ratio": {"unit": "ratio", "value": 0.5}, "attack_range_bonus_cap": {"unit": "cm", "value": 300}},
       "windup": {"unit": "s", "value": 0.200},
       "ranks": [
@@ -186,7 +182,7 @@
       ]
     },
     {
-      "id": "active_guard_pulse", "kind": "active", "tags": ["Shield", "Control"], "draftable": true, "cooldown_family": "cd_guard_pulse",
+      "id": "active_guard_pulse", "kind": "active", "draftable": true, "cooldown_family": "cd_guard_pulse",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 16},
@@ -198,7 +194,7 @@
       ]
     },
     {
-      "id": "active_binding_snare", "kind": "active", "tags": ["Control", "Breach"], "draftable": true, "cooldown_family": "cd_binding_snare",
+      "id": "active_binding_snare", "kind": "active", "draftable": true, "cooldown_family": "cd_binding_snare",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 550}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 11.2},
@@ -210,7 +206,7 @@
       ]
     },
     {
-      "id": "passive_battle_rhythm", "kind": "passive", "tags": ["BasicAttack", "Mobility"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_battle_rhythm", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}}, {"op": "basic_stacks", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.04}}, "duration": {"unit": "s", "value": 1.5}, "max_stacks": 3}]},
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.20}}}, {"op": "basic_stacks", "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.04}}, "duration": {"unit": "s", "value": 1.5}, "max_stacks": 3}]},
@@ -218,7 +214,7 @@
       ]
     },
     {
-      "id": "passive_second_wind", "kind": "passive", "tags": ["Tank", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_second_wind", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "out_of_combat_regen", "delay": {"unit": "s", "value": 6}, "max_hp_ratio": {"unit": "ratio", "value": 0.008}, "surge_duration": {"unit": "s", "value": 3}, "surge_multiplier": {"unit": "ratio", "value": 2}}]},
         {"rank": 2, "effects": [{"op": "out_of_combat_regen", "delay": {"unit": "s", "value": 6}, "max_hp_ratio": {"unit": "ratio", "value": 0.012}, "surge_duration": {"unit": "s", "value": 3}, "surge_multiplier": {"unit": "ratio", "value": 2}}]},
@@ -226,14 +222,14 @@
       ]
     },
     {
-      "id": "passive_precision", "kind": "passive", "tags": ["BasicAttack", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_precision", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.08}}}, {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": {"unit": "s", "value": 0.8}}]},
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.14}}}, {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": {"unit": "s", "value": 0.8}}]},
         {"rank": 3, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": {"unit": "ratio", "value": 0.20}}}, {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": {"unit": "s", "value": 0.8}}, {"op": "ability_crit", "mode": "Chance", "ratio": {"unit": "ratio", "value": 0.50}, "abilities": ["active_monkey_peach", "active_slipper_throw", "active_binding_snare", "active_thousand_year"]}]}
       ]
     },    {
-      "id": "active_slipper_throw", "kind": "active", "tags": ["Control", "BasicAttack"], "draftable": true, "cooldown_family": "cd_slipper_throw",
+      "id": "active_slipper_throw", "kind": "active", "draftable": true, "cooldown_family": "cd_slipper_throw",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 9.6},
@@ -245,7 +241,7 @@
       ]
     },
     {
-      "id": "active_fart_dash", "kind": "active", "tags": ["Mobility", "Control", "Breach"], "draftable": true, "cooldown_family": "cd_fart_dash",
+      "id": "active_fart_dash", "kind": "active", "draftable": true, "cooldown_family": "cd_fart_dash",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12.8},
@@ -257,7 +253,7 @@
       ]
     },
     {
-      "id": "active_combo_flurry", "kind": "active", "tags": ["BasicAttack", "Breach"], "draftable": true, "cooldown_family": "cd_combo_flurry",
+      "id": "active_combo_flurry", "kind": "active", "draftable": true, "cooldown_family": "cd_combo_flurry",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 16},
@@ -269,7 +265,7 @@
       ]
     },
     {
-      "id": "active_slick_moves", "kind": "active", "tags": ["Mobility", "BasicAttack"], "draftable": true, "cooldown_family": "cd_slick_moves",
+      "id": "active_slick_moves", "kind": "active", "draftable": true, "cooldown_family": "cd_slick_moves",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 14},
@@ -281,7 +277,7 @@
       ]
     },
     {
-      "id": "passive_cornered", "kind": "passive", "tags": ["Tank", "BasicAttack"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_cornered", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.12}}, "omnivamp": {"unit": "ratio", "value": 0.10}}]},
         {"rank": 2, "effects": [{"op": "low_hp_stat_bonus", "threshold": {"unit": "ratio", "value": 0.50}, "stats": {"ADBonusRatio": {"unit": "ratio", "value": 0.18}}, "omnivamp": {"unit": "ratio", "value": 0.15}}]},
@@ -289,7 +285,7 @@
       ]
     },
     {
-      "id": "passive_lurking", "kind": "passive", "tags": ["Mobility", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_lurking", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical", "dash_credit": {"unit": "s", "value": 2}}]},
         {"rank": 2, "effects": [{"op": "ambush_damage", "delay": {"unit": "s", "value": 4}, "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0.20}, "ap_ratio": {"unit": "ratio", "value": 0.20}, "damage_type": "Magical", "dash_credit": {"unit": "s", "value": 2}}]},
@@ -297,7 +293,7 @@
       ]
     },
     {
-      "id": "passive_public_shame", "kind": "passive", "tags": ["Control", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_public_shame", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.08}}]},
         {"rank": 2, "effects": [{"op": "control_damage_amp", "ratio": {"unit": "ratio", "value": 0.13}}]},
@@ -305,7 +301,7 @@
       ]
     },
     {
-      "id": "passive_eagle_eye", "kind": "passive", "tags": ["Mobility", "BasicAttack"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_eagle_eye", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 80}}}, {"op": "long_reach", "ratio": {"unit": "ratio", "value": 0.025}, "cap": {"unit": "ratio", "value": 0.20}}]},
         {"rank": 2, "effects": [{"op": "stat_bonus", "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 140}}}, {"op": "long_reach", "ratio": {"unit": "ratio", "value": 0.025}, "cap": {"unit": "ratio", "value": 0.20}}]},
@@ -313,7 +309,7 @@
       ]
     },
     {
-      "id": "active_monkey_peach", "kind": "active", "tags": ["BasicAttack", "Control"], "draftable": true, "cooldown_family": "cd_monkey_peach",
+      "id": "active_monkey_peach", "kind": "active", "draftable": true, "cooldown_family": "cd_monkey_peach",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 250}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 9.6},
@@ -325,7 +321,7 @@
       ]
     },
     {
-      "id": "active_thousand_year", "kind": "active", "tags": ["Control", "Mobility"], "draftable": true, "cooldown_family": "cd_thousand_year",
+      "id": "active_thousand_year", "kind": "active", "draftable": true, "cooldown_family": "cd_thousand_year",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 200}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
@@ -337,7 +333,7 @@
       ]
     },
     {
-      "id": "active_lunge", "kind": "active", "tags": ["Mobility", "BasicAttack"], "draftable": true, "cooldown_family": "cd_lunge",
+      "id": "active_lunge", "kind": "active", "draftable": true, "cooldown_family": "cd_lunge",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 40}, "cooldown": {"unit": "s", "value": 11.2},
@@ -349,7 +345,7 @@
       ]
     },
     {
-      "id": "active_body_slam", "kind": "active", "tags": ["Mobility", "Tank", "Control"], "draftable": true, "cooldown_family": "cd_body_slam",
+      "id": "active_body_slam", "kind": "active", "draftable": true, "cooldown_family": "cd_body_slam",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 400}}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 12.8},
@@ -361,7 +357,7 @@
       ]
     },
     {
-      "id": "active_come_here", "kind": "active", "tags": ["Control", "Tank"], "draftable": true, "cooldown_family": "cd_come_here",
+      "id": "active_come_here", "kind": "active", "draftable": true, "cooldown_family": "cd_come_here",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 18},
@@ -373,7 +369,7 @@
       ]
     },
     {
-      "id": "passive_iron_crotch", "kind": "passive", "tags": ["Tank", "Control"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_iron_crotch", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 15}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "max_hp_ratio": {"unit": "ratio", "value": 0.015}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
         {"rank": 2, "effects": [{"op": "thorns", "base": {"unit": "points", "value": 22}, "armor_ratio": {"unit": "ratio", "value": 0.15}, "max_hp_ratio": {"unit": "ratio", "value": 0.015}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 2}, "trigger": "BasicOrAbility", "rear_exempt": true}]},
@@ -381,7 +377,7 @@
       ]
     },
     {
-      "id": "active_porcelain_flop", "kind": "active", "tags": ["Tank", "Control", "Shield"], "draftable": false, "cooldown_family": "cd_porcelain_flop",
+      "id": "active_porcelain_flop", "kind": "active", "draftable": false, "cooldown_family": "cd_porcelain_flop",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 16},
@@ -393,7 +389,7 @@
       ]
     },
     {
-      "id": "active_expose_post", "kind": "active", "tags": ["Breach", "Control"], "draftable": false, "cooldown_family": "cd_expose_post",
+      "id": "active_expose_post", "kind": "active", "draftable": false, "cooldown_family": "cd_expose_post",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 550}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 9.6},
@@ -405,7 +401,7 @@
       ]
     },
     {
-      "id": "active_barrage_rant", "kind": "active", "tags": ["Breach", "BasicAttack"], "draftable": false, "cooldown_family": "cd_barrage_rant",
+      "id": "active_barrage_rant", "kind": "active", "draftable": false, "cooldown_family": "cd_barrage_rant",
       "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 450}, "projectile_radius": {"unit": "cm", "value": 40}, "projectile_speed": {"unit": "cm/s", "value": 1800}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 8.0},
@@ -417,7 +413,7 @@
       ]
     },
     {
-      "id": "active_cancel_blast", "kind": "active", "tags": ["Control", "Breach"], "draftable": false, "cooldown_family": "cd_cancel_blast",
+      "id": "active_cancel_blast", "kind": "active", "draftable": false, "cooldown_family": "cd_cancel_blast",
       "target": {"mode": "Unit", "range": {"unit": "cm", "value": 500}}, "windup": {"unit": "s", "value": 0.200},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 11.2},
@@ -429,7 +425,7 @@
       ]
     },
     {
-      "id": "active_pie_chart", "kind": "active", "tags": ["Shield", "Control"], "draftable": false, "cooldown_family": "cd_pie_chart",
+      "id": "active_pie_chart", "kind": "active", "draftable": false, "cooldown_family": "cd_pie_chart",
       "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 16},
@@ -441,7 +437,7 @@
       ]
     },
     {
-      "id": "active_table_flip", "kind": "active", "tags": ["Shield", "Mobility"], "draftable": false, "cooldown_family": "cd_table_flip",
+      "id": "active_table_flip", "kind": "active", "draftable": false, "cooldown_family": "cd_table_flip",
       "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0},
       "ranks": [
         {"rank": 1, "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 12.8},
@@ -453,7 +449,7 @@
       ]
     },
     {
-      "id": "passive_dox_master", "kind": "passive", "tags": ["BasicAttack", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_dox_master", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "breach_stacks", "base": {"unit": "points", "value": 4}, "ad_ratio": {"unit": "ratio", "value": 0.03}, "ap_ratio": {"unit": "ratio", "value": 0.03}, "damage_type": "Magical", "interval": {"unit": "s", "value": 1}, "duration": {"unit": "s", "value": 3}, "max_stacks": 3, "shred": {"unit": "points", "value": 4}, "heal_cut": {"unit": "ratio", "value": 0}}]},
         {"rank": 2, "effects": [{"op": "breach_stacks", "base": {"unit": "points", "value": 6}, "ad_ratio": {"unit": "ratio", "value": 0.03}, "ap_ratio": {"unit": "ratio", "value": 0.03}, "damage_type": "Magical", "interval": {"unit": "s", "value": 1}, "duration": {"unit": "s", "value": 3}, "max_stacks": 3, "shred": {"unit": "points", "value": 6}, "heal_cut": {"unit": "ratio", "value": 0}}]},
@@ -461,7 +457,7 @@
       ]
     },
     {
-      "id": "passive_thick_skin", "kind": "passive", "tags": ["Mobility", "Control", "Shield"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_thick_skin", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "mobility_shield", "base": {"unit": "hp", "value": 45}, "duration": {"unit": "s", "value": 2.5}, "internal_cooldown": {"unit": "s", "value": 4}, "bonus_ratio": {"unit": "ratio", "value": 0}, "bonus_window": {"unit": "s", "value": 0}}]},
         {"rank": 2, "effects": [{"op": "mobility_shield", "base": {"unit": "hp", "value": 70}, "duration": {"unit": "s", "value": 2.5}, "internal_cooldown": {"unit": "s", "value": 4}, "bonus_ratio": {"unit": "ratio", "value": 0}, "bonus_window": {"unit": "s", "value": 0}}]},
@@ -469,7 +465,7 @@
       ]
     },
     {
-      "id": "passive_mental_gymnastics", "kind": "passive", "tags": ["Shield", "Breach"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_mental_gymnastics", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "shield_pulse", "base": {"unit": "points", "value": 30}, "ad_ratio": {"unit": "ratio", "value": 0.15}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 250}, "cooldown_cut": {"unit": "s", "value": 1.0}, "internal_cooldown": {"unit": "s", "value": 3}, "slow": {"unit": "ratio", "value": 0}, "slow_duration": {"unit": "s", "value": 0}}]},
         {"rank": 2, "effects": [{"op": "shield_pulse", "base": {"unit": "points", "value": 45}, "ad_ratio": {"unit": "ratio", "value": 0.15}, "ap_ratio": {"unit": "ratio", "value": 0.25}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 250}, "cooldown_cut": {"unit": "s", "value": 1.0}, "internal_cooldown": {"unit": "s", "value": 3}, "slow": {"unit": "ratio", "value": 0}, "slow_duration": {"unit": "s", "value": 0}}]},
@@ -477,7 +473,7 @@
       ]
     },
     {
-      "id": "passive_keyboard_warrior", "kind": "passive", "tags": ["Breach", "BasicAttack"], "draftable": true, "target": {"mode": "Self"},
+      "id": "passive_keyboard_warrior", "kind": "passive", "draftable": true, "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1, "effects": [{"op": "basic_rider", "base": {"unit": "points", "value": 5}, "ap_ratio": {"unit": "ratio", "value": 0.2}, "damage_type": "Magical"}]},
         {"rank": 2, "effects": [{"op": "basic_rider", "base": {"unit": "points", "value": 10}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "damage_type": "Magical"}]},
@@ -502,28 +498,28 @@
     {"id": "attr_wild_brawler", "stats": {"AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.14}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.08}}, "penalties": {"AttackRangeCmFlat": {"unit": "cm", "value": 30}}}
   ],
   "equipment": [
-    {"id": "item_iron_plate", "buy_price": 310, "tags": ["Tank"], "stats": {"MaxHPFlat": {"unit": "hp", "value": 180}, "ArmorFlat": {"unit": "points", "value": 15}},
+    {"id": "item_iron_plate", "buy_price": 310, "stats": {"MaxHPFlat": {"unit": "hp", "value": 180}, "ArmorFlat": {"unit": "points", "value": 15}},
      "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": {"unit": "ratio", "value": 0.15}}], "upgraded": {"effects": [{"op": "crit_damage_reduction", "ratio": {"unit": "ratio", "value": 0.20}}]}}},
-    {"id": "item_edge_blade", "buy_price": 320, "tags": ["BasicAttack"], "stats": {"ADFlat": {"unit": "points", "value": 20}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.10}},
+    {"id": "item_edge_blade", "buy_price": 320, "stats": {"ADFlat": {"unit": "points", "value": 20}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.10}},
      "passive": {"family": "passive_third_strike", "effects": [{"op": "nth_basic_bonus", "count": 3, "base": {"unit": "points", "value": 20}, "damage_type": "Physical"}], "upgraded": {"effects": [{"op": "nth_basic_bonus", "count": 3, "base": {"unit": "points", "value": 28}, "damage_type": "Physical"}]}}},
-    {"id": "item_runic_focus", "buy_price": 320, "tags": ["Breach"], "stats": {"APFlat": {"unit": "points", "value": 30}, "CooldownHasteFlat": {"unit": "points", "value": 15}},
+    {"id": "item_runic_focus", "buy_price": 320, "stats": {"APFlat": {"unit": "points", "value": 30}, "CooldownHasteFlat": {"unit": "points", "value": 15}},
      "passive": {"family": "passive_mana_refund", "effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": {"unit": "mp", "value": 5}}], "upgraded": {"effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": {"unit": "mp", "value": 7}}]}}},
-    {"id": "item_siphon_emblem", "buy_price": 360, "tags": ["BasicAttack", "Tank"], "stats": {"ADFlat": {"unit": "points", "value": 12}, "MagicResistFlat": {"unit": "points", "value": 12}},
+    {"id": "item_siphon_emblem", "buy_price": 360, "stats": {"ADFlat": {"unit": "points", "value": 12}, "MagicResistFlat": {"unit": "points", "value": 12}},
      "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.15}}], "upgraded": {"effects": [{"op": "lifesteal", "ratio": {"unit": "ratio", "value": 0.21}}]}}},
-    {"id": "item_phase_anchor", "buy_price": 400, "tags": ["Mobility"], "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}},
+    {"id": "item_phase_anchor", "buy_price": 400, "stats": {"MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.12}},
      "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": {"unit": "ratio", "value": 0.5}, "distance_bonus": {"unit": "ratio", "value": 0.5}, "skill_cooldown_ratio": {"unit": "ratio", "value": 0.80}, "skill_distance_bonus": {"unit": "ratio", "value": 0.25}}], "upgraded": {"effects": [{"op": "dash_boost", "cooldown_ratio": {"unit": "ratio", "value": 0.4}, "distance_bonus": {"unit": "ratio", "value": 0.7}, "skill_cooldown_ratio": {"unit": "ratio", "value": 0.72}, "skill_distance_bonus": {"unit": "ratio", "value": 0.35}}]}}},
-    {"id": "item_arcane_battery", "buy_price": 400, "tags": ["Shield", "Breach"], "stats": {"MaxMPFlat": {"unit": "mp", "value": 120}, "MagicResistFlat": {"unit": "points", "value": 10}}, "passive": null},
-    {"id": "item_echo_maul", "buy_price": 400, "tags": ["BasicAttack", "Mobility"], "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackRangeCmFlat": {"unit": "cm", "value": 40}},
+    {"id": "item_arcane_battery", "buy_price": 400, "stats": {"MaxMPFlat": {"unit": "mp", "value": 120}, "MagicResistFlat": {"unit": "points", "value": 10}}, "passive": null},
+    {"id": "item_echo_maul", "buy_price": 400, "stats": {"ADFlat": {"unit": "points", "value": 14}, "AttackRangeCmFlat": {"unit": "cm", "value": 40}},
      "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}], "upgraded": {"effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.49}, "radius": {"unit": "cm", "value": 180}}]}}},
-    {"id": "item_slingshot", "buy_price": 320, "tags": ["BasicAttack", "Mobility"], "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "passive": null},
-    {"id": "item_nail_uniform", "buy_price": 380, "tags": ["Tank"], "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 18}},
+    {"id": "item_slingshot", "buy_price": 320, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "passive": null},
+    {"id": "item_nail_uniform", "buy_price": 380, "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 18}},
      "passive": {"family": "passive_prickle", "effects": [{"op": "thorns", "base": {"unit": "points", "value": 20}, "armor_ratio": {"unit": "ratio", "value": 0.10}, "max_hp_ratio": {"unit": "ratio", "value": 0.01}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}], "upgraded": {"effects": [{"op": "thorns", "base": {"unit": "points", "value": 28}, "armor_ratio": {"unit": "ratio", "value": 0.14}, "max_hp_ratio": {"unit": "ratio", "value": 0.014}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}]}}},
-    {"id": "item_megaphone", "buy_price": 360, "tags": ["Breach", "Control"], "stats": {"APFlat": {"unit": "points", "value": 25}, "CooldownHasteFlat": {"unit": "points", "value": 10}},
+    {"id": "item_megaphone", "buy_price": 360, "stats": {"APFlat": {"unit": "points", "value": 25}, "CooldownHasteFlat": {"unit": "points", "value": 10}},
      "passive": {"family": "passive_megaphone", "effects": [{"op": "affliction_amp", "dot_ratio": {"unit": "ratio", "value": 0.25}, "slow_scale": {"unit": "ratio", "value": 1.10}}], "upgraded": {"effects": [{"op": "affliction_amp", "dot_ratio": {"unit": "ratio", "value": 0.35}, "slow_scale": {"unit": "ratio", "value": 1.14}}]}}},
-    {"id": "item_dossier", "buy_price": 400, "tags": ["Breach", "Control"], "stats": {"APFlat": {"unit": "points", "value": 25}, "MaxHPFlat": {"unit": "hp", "value": 120}}, "passive": null},
-    {"id": "item_privacy_screen", "buy_price": 380, "tags": ["Shield", "Tank"], "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "APFlat": {"unit": "points", "value": 20}},
+    {"id": "item_dossier", "buy_price": 400, "stats": {"APFlat": {"unit": "points", "value": 25}, "MaxHPFlat": {"unit": "hp", "value": 120}}, "passive": null},
+    {"id": "item_privacy_screen", "buy_price": 380, "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "APFlat": {"unit": "points", "value": 20}},
      "passive": {"family": "passive_privacy_screen", "effects": [{"op": "shield_break_retort", "ratio": {"unit": "ratio", "value": 0.4}, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.5}, "internal_cooldown": {"unit": "s", "value": 6}}], "upgraded": {"effects": [{"op": "shield_break_retort", "ratio": {"unit": "ratio", "value": 0.56}, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.5}, "internal_cooldown": {"unit": "s", "value": 6}}]}}},
-    {"id": "item_skateboard", "buy_price": 380, "tags": ["BasicAttack", "Mobility"], "stats": {"ADFlat": {"unit": "points", "value": 15}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.10}},
+    {"id": "item_skateboard", "buy_price": 380, "stats": {"ADFlat": {"unit": "points", "value": 15}, "MoveSpeedBonusRatio": {"unit": "ratio", "value": 0.10}},
      "passive": {"family": "passive_skateboard", "effects": [{"op": "hit_haste", "ratio": {"unit": "ratio", "value": 0.15}, "duration": {"unit": "s", "value": 1.2}}], "upgraded": {"effects": [{"op": "hit_haste", "ratio": {"unit": "ratio", "value": 0.21}, "duration": {"unit": "s", "value": 1.2}}]}}}
   ],
   "camps": {

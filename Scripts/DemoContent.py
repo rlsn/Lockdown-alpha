@@ -61,8 +61,6 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Effects a self area delivers to the bodies it names (a release area, a jump landing or a damage guard's recoil).
 AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "shield_burst"))
-# 112 §1: the only mechanic tags; the native ELDDemoMechanicTag mirrors this set.
-MECHANIC_TAGS = frozenset(("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
@@ -483,12 +481,6 @@ def _same_handlers(base, upgraded):
     return [effect["op"] for effect in base] == [effect["op"] for effect in upgraded]
 
 
-def _validate_tags(tags, path):
-    # 112 §1: one to three distinct mechanic tags; the schema fixes the six names, the draft weights read them.
-    require(1 <= len(tags) <= 3 and len(set(tags)) == len(tags) and set(tags) <= MECHANIC_TAGS,
-            "MechanicTags", path, "expected one to three distinct mechanic tags")
-
-
 def _positive_stats(stats, path):
     require(stats and all(quantity(value) > 0 for value in stats.values()),
             "IneffectiveChoice", path, "every declared stat bonus must be positive")
@@ -616,8 +608,6 @@ def validate_definitions(data, ids):
         all_ids.update(index)
         for row in rows:
             row["native_id"] = ids[section][row["id"]]
-    for row in (*data["abilities"], *data["equipment"]):
-        _validate_tags(row["tags"], row["id"])
 
     # (target mode, handlers of every rank, handlers rank 3 adds as its qualitative change)
     active_contracts = {
@@ -968,11 +958,8 @@ def validate_numbers(data):
         require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
         checked_add(params["SHOP.StartingGold"], price, item["id"])
         item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
-    for key in ("CHOICE.UpgradeWeight", "CHOICE.NewActiveOpenSlotWeight", "CHOICE.NewActiveFullSlotWeight",
-                "CHOICE.NewPassiveWeight"):
-        require(params[key]["bp"] > 0, "NumericDomain", key, "a draft weight must be positive")
-    require(params["CHOICE.AffinityStep"]["bp"] >= 10000 and params["CHOICE.AffinityCap"]["bp"] >= 10000,
-            "NumericDomain", "CHOICE.Affinity", "tag affinity never lowers a weight")
+    require(params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0, "NumericDomain", "CHOICE.NewActiveFullSlotWeight",
+            "a draft weight must be positive")
     checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")

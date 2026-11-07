@@ -654,7 +654,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     const FLDDemoRankDefinition* RankDef=nullptr;
     const FLDDemoTargetDefinition* TargetDef=nullptr;
     int64 WindupMs=0;
-    if (!ActiveOf(Source,Rank,Ability,TargetDef,RankDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
+    if (!ActiveOf(Source,Rank,Record.Build.Level,Ability,TargetDef,RankDef,WindupMs)) { return Refuse(ELDCombatReject::SourceUnavailable); }
     const auto* Track=TrackFor(Record,Request.Entry);
     if (!Track) { Error=TEXT("A held active source has no persistent cooldown track."); return false; }
     FLDActiveGateInput Gate;
@@ -1005,7 +1005,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoTargetDefinition* TargetPtr=nullptr;
     int64 WindupMs=0;
     auto* Track=TrackFor(*Record,Action.Entry);
-    if (!ActiveOf(Source,Rank,Ability,TargetPtr,RankDef,WindupMs) || !Track)
+    if (!ActiveOf(Source,Rank,Record->Build.Level,Ability,TargetPtr,RankDef,WindupMs) || !Track)
     { Reject=ELDCombatReject::SourceUnavailable; return true; }
     const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).

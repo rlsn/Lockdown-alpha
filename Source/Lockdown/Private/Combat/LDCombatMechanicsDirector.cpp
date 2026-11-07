@@ -61,7 +61,7 @@ const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttribute
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
         if (!Content->FindAbility(Term.AbilityId,Ability,Ignored) || !Ability) { continue; }
-        const FLDDemoRankDefinition* Rank=Ability->Ranks.FindByPredicate([&Term](const FLDDemoRankDefinition& Row) { return Row.Rank==int32(Term.Rank); });
+        const FLDDemoRankDefinition* Rank=Content->FindRank(*Ability,Term.Rank,Term.Level);
         if (const FLDDemoEffectDefinition* Effect=Rank ? LDCombatMechanicsDetail::FindOp(*Rank,Op) : nullptr)
         {
             if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Learned; OutSource->DefinitionId=FName(*Term.AbilityId); }

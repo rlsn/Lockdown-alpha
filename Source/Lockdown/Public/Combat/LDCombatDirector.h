@@ -741,8 +741,9 @@ private:
     FLDCombatTrack* TrackFor(FLDCombatEntityRecord& Record, ELDCombatEntry Entry);
     bool ResolveEntry(const FLDCombatEntityRecord& Record, ELDCombatEntry Entry, FLDCombatSourceRef& OutSource,
         uint8& OutRank, const FLDDemoAbilityDefinition*& OutAbility) const;
-    // The executable active of a resolved entry: a learned rank or the innate dash; false without one.
-    bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, const FLDDemoAbilityDefinition* Ability,
+    // The executable active of a resolved entry: a learned rank grown for its owner's Level (#147), or the innate dash;
+    // false without one.
+    bool ActiveOf(const FLDCombatSourceRef& Source, uint8 Rank, uint8 Level, const FLDDemoAbilityDefinition* Ability,
         const FLDDemoTargetDefinition*& OutTarget, const FLDDemoRankDefinition*& OutRank, int64& OutWindupMs) const;
     // D19/D20 innate dash terms for the body's installed equipment passives (the persistent build without a body).
     bool InnateDashFor(const FLDCombatEntityRecord& Record, const FLDBodyCombatState* Body, FLDInnateDashTerms& Out,

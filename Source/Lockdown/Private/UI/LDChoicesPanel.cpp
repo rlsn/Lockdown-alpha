@@ -93,7 +93,7 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         CardViews.SetNum(Cards.Num());
         auto* Replace=WidgetTree->ConstructWidget<UVerticalBox>();
         ReplaceText=Text(TEXT(""),16);Replace->AddChildToVerticalBox(ReplaceText);
-        Replace->AddChildToVerticalBox(Text(TEXT("被替换的技能会被遗忘，旧投入不返还；新技能从旧技能的等级减一开始（至少 1 级）；冷却照常计时。"),14))->SetPadding(FMargin(0,6,0,0));
+        Replace->AddChildToVerticalBox(Text(TEXT("被替换的技能会被遗忘，旧投入不返还；新技能从初级开始；冷却照常计时。"),14))->SetPadding(FMargin(0,6,0,0));
         // The slot buttons carry only their key letter (the skills they hold are named in the prompt above, which wraps);
         // clicking one is the replacement's confirmation and submits it.
         auto* ReplaceActions=WidgetTree->ConstructWidget<UHorizontalBox>();Replace->AddChildToVerticalBox(ReplaceActions)->SetPadding(FMargin(0,10,0,0));
@@ -338,8 +338,8 @@ void ULDChoicesPanel::ConfirmChoice()
             for(uint8 SkillSlot=0;SkillSlot<2;++SkillSlot)
             {
                 const FLDLearnedSkillView* Skill=Latest.Skills.FindByPredicate([SkillSlot](const FLDLearnedSkillView& S){return S.bActive&&S.Slot==SkillSlot;});
-                Prompt+=FString::Printf(TEXT("\n%s：%s"),SkillSlot?TEXT("W"):TEXT("Q"),Skill?*FString::Printf(TEXT("%s %d 级 → 新技能 %d 级"),
-                    *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),Skill->Rank,LDProgression::ReplacementRank(Skill->Rank)):TEXT("空"));
+                Prompt+=FString::Printf(TEXT("\n%s：%s"),SkillSlot?TEXT("W"):TEXT("Q"),Skill?*FString::Printf(TEXT("%s（%s）→ 新技能初级"),
+                    *LDHUD::ContentName(LatestContent,Skill->DefinitionId.ToString()),*LDHUD::SkillRankName(Skill->Rank)):TEXT("空"));
             }
             ChoicesText(ReplaceText,Prompt);
             ChoicesText(Feedback,TEXT("点 Q 或 W 选择要遗忘的技能，或返回三卡。"));RefreshSelection();

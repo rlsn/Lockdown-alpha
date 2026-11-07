@@ -86,6 +86,10 @@ bool LDHUD::ContentText(const FLDDemoContentDefinitions* Content,const FString& 
     Out=Text;
     return true;
 }
+FString LDHUD::SkillRankName(int32 Rank)
+{
+    return Rank==1?FString(TEXT("初级")):Rank==2?FString(TEXT("高级")):FString::Printf(TEXT("%d 级"),Rank);
+}
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     FString Name;ContentText(Content,ContentId,false,Name);return Name;

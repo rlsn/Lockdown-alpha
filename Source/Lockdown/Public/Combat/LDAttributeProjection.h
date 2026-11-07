@@ -180,6 +180,8 @@ struct FLDLearnedTriggerTerm
 {
     FString AbilityId;
     uint8 Rank = 0;
+    // The owner's level when projected; Combat reads the rank grown for it (#147, a level-up reprojects the build).
+    uint8 Level = 0;
 };
 
 struct FLDAttributeProjection

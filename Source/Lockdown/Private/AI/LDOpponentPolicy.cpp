@@ -1360,8 +1360,8 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 FCandidate Replace = Candidate;
                 Replace.Tier = bGain && !bLoses ? 1 : 6;
                 Replace.Loses = bLoses ? 1 : 0;
-                // 112 §6: the new active keeps max(1, old rank - 1); only the lost ranks count as forgotten.
-                Replace.Forgotten = Active[Slot]->Rank - LDProgression::ReplacementRank(Active[Slot]->Rank);
+                // #147 D13: the new active starts at rank 1; only the lost ranks count as forgotten.
+                Replace.Forgotten = Active[Slot]->Rank - 1;
                 Replace.Slot = Slot;
                 Replace.Pick.bReplace = true;
                 Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;

@@ -33,7 +33,7 @@
         "STAT.HPRegen.Base", "STAT.HPRegen.PerLevel", "STAT.HPRegen.Min", "STAT.HPRegen.Max",
         "STAT.MPRegen.Base", "STAT.MPRegen.PerLevel", "STAT.MPRegen.Min", "STAT.MPRegen.Max",
         "STAT.BaseAttackSpeed", "STAT.AttackSpeedPerLevelRatio", "STAT.AttackSpeed.Min", "STAT.AttackSpeed.Max",
-        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.AbilityCritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max",
+        "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.AbilityCritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel",
         "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Min", "STAT.MoveSpeed.Max",
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
         "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm",
@@ -41,8 +41,7 @@
         "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
         "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec",
         "SHOP.StartingGold", "SHOP.SellRatio", "SHOP.UpgradeCost", "SHOP.UpgradeStatBonusRatio",
-        "CHOICE.UpgradeWeight", "CHOICE.NewActiveOpenSlotWeight", "CHOICE.NewActiveFullSlotWeight", "CHOICE.NewPassiveWeight",
-        "CHOICE.AffinityStep", "CHOICE.AffinityCap", "CHOICE.ThirdSlotAttributeChance", "CAMP.ResetArrivalRadiusCm",
+        "CHOICE.NewActiveFullSlotWeight", "CHOICE.FreeSlotAttributeChance", "CAMP.ResetArrivalRadiusCm",
         "CAMP.ReturnDeadEndPlans", "CAMP.ReturnDeadEndSec",
         "AIRDROP.FirstLandSec", "AIRDROP.IntervalSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
         "AIRDROP.RewardXP", "AIRDROP.RewardGold",
@@ -76,6 +75,7 @@
         "STAT.AttackSpeed.Min": {"$ref": "#/$defs/attack_rate"}, "STAT.AttackSpeed.Max": {"$ref": "#/$defs/attack_rate"},
         "STAT.CritChance.Base": {"$ref": "#/$defs/probability"}, "STAT.CritMultiplier": {"$ref": "#/$defs/multiplier"}, "STAT.AbilityCritMultiplier": {"$ref": "#/$defs/multiplier"},
         "STAT.CooldownHaste.Base": {"$ref": "#/$defs/points"}, "STAT.CooldownHaste.Max": {"$ref": "#/$defs/points"},
+        "SKILL.GrowthPerLevel": {"$ref": "#/$defs/probability"},
         "UNIT.MoveSpeedCmPerSec": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Min": {"$ref": "#/$defs/speed"}, "STAT.MoveSpeed.Max": {"$ref": "#/$defs/speed"},
         "UNIT.CollisionRadiusCm": {"$ref": "#/$defs/cm"}, "UNIT.BasicAttackRangeCm": {"$ref": "#/$defs/cm"},
         "STAT.AttackRange.Min": {"$ref": "#/$defs/cm"}, "STAT.AttackRange.Max": {"$ref": "#/$defs/cm"},
@@ -89,10 +89,7 @@
         "DORM.MaxHPRatioPerSec": {"$ref": "#/$defs/probability"}, "DORM.MaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
         "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"},
         "SHOP.UpgradeCost": {"$ref": "#/$defs/positive_count"}, "SHOP.UpgradeStatBonusRatio": {"$ref": "#/$defs/probability"},
-        "CHOICE.UpgradeWeight": {"$ref": "#/$defs/multiplier"}, "CHOICE.NewActiveOpenSlotWeight": {"$ref": "#/$defs/multiplier"},
-        "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/multiplier"}, "CHOICE.NewPassiveWeight": {"$ref": "#/$defs/multiplier"},
-        "CHOICE.AffinityStep": {"$ref": "#/$defs/multiplier"}, "CHOICE.AffinityCap": {"$ref": "#/$defs/multiplier"},
-        "CHOICE.ThirdSlotAttributeChance": {"$ref": "#/$defs/probability"},
+        "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/probability"}, "CHOICE.FreeSlotAttributeChance": {"$ref": "#/$defs/probability"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"},
         "CAMP.ReturnDeadEndPlans": {"$ref": "#/$defs/positive_count"}, "CAMP.ReturnDeadEndSec": {"$ref": "#/$defs/positive_sec"},
         "AIRDROP.FirstLandSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.IntervalSec": {"$ref": "#/$defs/positive_sec"},
@@ -573,17 +570,17 @@
     "ability": {
       "oneOf": [
         {
-          "type": "object", "additionalProperties": false, "required": ["id", "kind", "tags", "draftable", "target", "windup", "cooldown_family", "ranks"],
+          "type": "object", "additionalProperties": false, "required": ["id", "kind", "draftable", "target", "windup", "cooldown_family", "ranks"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "active"}, "tags": {"$ref": "#/$defs/tags"}, "draftable": {"type": "boolean"},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "active"}, "draftable": {"type": "boolean"},
             "target": {"$ref": "#/$defs/target"}, "windup": {"$ref": "#/$defs/sec"}, "cooldown_family": {"$ref": "#/$defs/id"},
             "ranks": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/active_rank"}}
           }
         },
         {
-          "type": "object", "additionalProperties": false, "required": ["id", "kind", "tags", "draftable", "target", "ranks"],
+          "type": "object", "additionalProperties": false, "required": ["id", "kind", "draftable", "target", "ranks"],
           "properties": {
-            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "passive"}, "tags": {"$ref": "#/$defs/tags"}, "draftable": {"type": "boolean"},
+            "id": {"$ref": "#/$defs/id"}, "kind": {"const": "passive"}, "draftable": {"type": "boolean"},
             "target": {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "Self"}}},
             "ranks": {
               "type": "array", "minItems": 3, "maxItems": 3,
@@ -597,9 +594,9 @@
       ]
     },
     "equipment": {
-      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "tags", "stats", "passive"],
+      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "stats", "passive"],
       "properties": {
-        "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "tags": {"$ref": "#/$defs/tags"}, "stats": {"$ref": "#/$defs/stat_bonus"},
+        "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "stats": {"$ref": "#/$defs/stat_bonus"},
         "passive": {
           "oneOf": [
             {"type": "null"},
@@ -616,10 +613,6 @@
           ]
         }
       }
-    },
-    "tags": {
-      "type": "array", "minItems": 1, "maxItems": 3,
-      "items": {"enum": ["BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach"]}
     },
     "monster": {
       "type": "object", "additionalProperties": false,

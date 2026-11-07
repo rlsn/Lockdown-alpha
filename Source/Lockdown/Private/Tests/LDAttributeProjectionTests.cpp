@@ -1345,8 +1345,9 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         && Projection.LowHPBonus->ThresholdBp == Cornered->RatioBp && Projection.LowHPBonus->Rank == 3
         && Projection.LowHPBonus->Stats.Num() == 1 && Projection.LowHPBonus->Stats[0].Stat == ELDDemoBonusStat::ADBonusRatio
         && Projection.LowHPBonus->Stats[0].Amount == Cornered->Stats[0].Amount);
-    bGood &= Test.TestTrue(TEXT("The ambush term carries its delay and damage terms"), Projection.Ambush.IsSet()
-        && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2
+    // #147: the fixed amount is grown for the owner's level 6 (G = 1.5); the delay and ratios are not.
+    bGood &= Test.TestTrue(TEXT("The ambush term carries its delay and level-grown damage terms"), Projection.Ambush.IsSet()
+        && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2 * 15000 / 10000
         && Projection.Ambush->ADRatioBp == Lurking->ADRatioBp && Projection.Ambush->APRatioBp == Lurking->APRatioBp
         && Projection.Ambush->DamageType == Lurking->DamageType);
     bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio"), Projection.ControlAmp.IsSet()

@@ -34,7 +34,7 @@ namespace LDDemoOpponentTelemetryDetail
 constexpr uint8 OpponentCount = 3;
 constexpr int64 CurveMs = 1000;
 constexpr int32 MaxMatches = 50;
-constexpr uint32 MatchSchema = 2;
+constexpr uint32 MatchSchema = 3;
 
 const TCHAR* KindName(ELDContenderKind Kind) { return Kind == ELDContenderKind::OpponentAI ? TEXT("OpponentAI") : TEXT("Human"); }
 
@@ -70,8 +70,6 @@ const TCHAR* OutcomeName(ELDRewardOutcome Outcome)
     default: return TEXT("Other");
     }
 }
-
-FString TagName(ELDDemoMechanicTag Tag) { return StaticEnum<ELDDemoMechanicTag>()->GetNameStringByValue(int64(Tag)); }
 
 TArray<TSharedPtr<FJsonValue>> Numbers(const TArray<int64>& Values)
 {
@@ -330,30 +328,6 @@ public:
         }
     }
 
-    // Mechanic tags of the final build: one count per learned skill and per held item carrying the tag.
-    TSharedRef<FJsonObject> BuildTags(const FLDTelemetryContender& Row) const
-    {
-        using namespace LDDemoOpponentTelemetryDetail;
-        TMap<FString, int32> Counts;
-        FString LookupError;
-        for (const FLDLearnedSkillView& Skill : Row.Final.Skills)
-        {
-            const FLDDemoAbilityDefinition* Ability = nullptr;
-            if (!Content || !Content->FindAbility(Skill.DefinitionId.ToString(), Ability, LookupError) || !Ability) { continue; }
-            for (const ELDDemoMechanicTag Tag : Ability->Tags) { ++Counts.FindOrAdd(TagName(Tag)); }
-        }
-        for (const TPair<FGuid, FName>& Item : Row.Held)
-        {
-            const FLDDemoEquipmentDefinition* Definition = nullptr;
-            if (!Content || !Content->FindEquipment(Item.Value.ToString(), Definition, LookupError) || !Definition) { continue; }
-            for (const ELDDemoMechanicTag Tag : Definition->Tags) { ++Counts.FindOrAdd(TagName(Tag)); }
-        }
-        Counts.KeySort(TLess<FString>());
-        auto Out = MakeShared<FJsonObject>();
-        for (const TPair<FString, int32>& Pair : Counts) { Out->SetNumberField(Pair.Key, Pair.Value); }
-        return Out;
-    }
-
     bool WriteMatch(const FLDResultView& Result)
     {
         using namespace LDDemoOpponentTelemetryDetail;
@@ -401,7 +375,7 @@ public:
             Value->SetNumberField(TEXT("assists"), double(Final->Assists));
             Value->SetNumberField(TEXT("capture_sprays"), Hold ? Hold->Sprays : 0);
             Value->SetNumberField(TEXT("capture_interrupted"), Hold ? Hold->Interrupted : 0);
-            // 112 §13 growth: first active, final skills, Lv3 count, rerolls earned/used, choices and replacements.
+            // 112 §13 growth: first active, final skills, top-rank count, rerolls earned/used, choices and replacements.
             const int32 MaxRank = Content ? Content->Get().Progression.MaxSkillRank : 0;
             int32 MaxedSkills = 0;
             TArray<TSharedPtr<FJsonValue>> Skills;
@@ -423,7 +397,6 @@ public:
             Value->SetNumberField(TEXT("rerolls_used"), FMath::Max(0, Earned - int32(Row.Final.RerollTokens)));
             Value->SetNumberField(TEXT("choices"), Row.Final.ConsumedThrough);
             Value->SetArrayField(TEXT("replacements"), Row.Replacements);
-            Value->SetObjectField(TEXT("tags"), BuildTags(Row));
             Value->SetNumberField(TEXT("capture_attempts"), Hold ? Hold->Attempts : 0);
             Value->SetNumberField(TEXT("capture_resumes"), Hold ? Hold->Resumes : 0);
             Value->SetNumberField(TEXT("capture_paused"), Hold ? Hold->Paused : 0);

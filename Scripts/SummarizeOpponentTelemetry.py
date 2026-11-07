@@ -3,7 +3,7 @@
 The Host writes Telemetry.json and one MatchNN.json per match (LDDemoOpponentTelemetry.cpp): the end reason and
 winner, the flagpole opening, the first kill, every kill with its assisters, every contender death with its killer and
 assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level, XP and gold curves,
-purchases, sales, spray attempts, and the growth record of #112 §13 (first active, final skills and Lv3 count, rerolls
+purchases, sales, spray attempts, and the growth record of #112 §13 (first active, final skills and top-rank count, rerolls
 earned and used, choices, active replacements with their level, mechanic tags of the final build). This aggregates them
 across matches. The numbers describe how
 these matches went; they are not balance targets and the summary judges nothing.
@@ -15,14 +15,13 @@ from pathlib import Path
 import re
 import statistics
 
-MATCH_SCHEMA = 2
-SUMMARY_SCHEMA = 2
+MATCH_SCHEMA = 3
+SUMMARY_SCHEMA = 3
 OPPONENTS = 3
 REASONS = ("GuardSucceeded", "HostEnded", "None")
 KINDS = ("Human", "OpponentAI")
 CAUSES = ("Contender", "CampLow", "CampHigh", "Unowned")
 OUTCOMES = ("Granted", "NoReward")
-TAGS = ("BasicAttack", "Mobility", "Control", "Shield", "Tank", "Breach")
 MATCH_FILE = re.compile(r"Match[0-9]{2}\.json")
 MINUTE_MS = 60000
 
@@ -141,7 +140,7 @@ def check_match(match, index):
             field(skill, "id", str)
             require(field(skill, "rank", int) >= 1, f"{where}: a learned skill below rank one")
             field(skill, "active", bool)
-        require(row["max_rank_skills"] <= len(skills), f"{where}: more Lv3 skills than skills")
+        require(row["max_rank_skills"] <= len(skills), f"{where}: more advanced skills than skills")
         require((row["first_active_ms"] >= 0) or not any(skill["active"] for skill in skills),
                 f"{where}: an active learned without a first-active time")
         for change in field(row, "replacements", list):
@@ -149,8 +148,6 @@ def check_match(match, index):
             require(field(change, "level", int) >= 1, f"{where}: replacement below level one")
             field(change, "replaced", str)
             require(field(change, "replaced_rank", int) >= 1, f"{where}: a replaced active below rank one")
-        for tag, count in field(row, "tags", dict).items():
-            require(tag in TAGS and isinstance(count, int) and count > 0, f"{where}: unknown or empty mechanic tag")
         for name in ("purchases", "sales"):
             for trade in field(row, name, list):
                 require(0 <= field(trade, "t_ms", int) <= duration, f"{where}: trade outside the match")
@@ -241,14 +238,6 @@ def summarize(matches):
     max_rank = {}
     for ai in ais:
         max_rank[str(ai["max_rank_skills"])] = max_rank.get(str(ai["max_rank_skills"]), 0) + 1
-    winner_tags = {}
-    winners = 0
-    for match in checked:
-        for row in match["contenders"]:
-            if row["winner"]:
-                winners += 1
-                for tag, count in row["tags"].items():
-                    winner_tags[tag] = winner_tags.get(tag, 0) + count
     return {
         "schema": SUMMARY_SCHEMA,
         "matches": len(checked),
@@ -298,8 +287,6 @@ def summarize(matches):
             "replacement_level": stats(change["level"] for change in replacements),
             "replaced_rank": stats(change["replaced_rank"] for change in replacements),
         },
-        # Mechanic tags of every winner's final build: one per learned skill and held item carrying the tag.
-        "winner_tags": {"winners": winners, "tags": dict(sorted(winner_tags.items()))},
         "ai": {
             "final_level": stats(ai["final_level"] for ai in ais),
             "kills": stats(ai["kills"] for ai in ais),
@@ -340,8 +327,7 @@ def describe(summary):
     deaths, growth = summary["deaths"], summary["growth"]
     lines.append(f"Deaths {deaths['count']} ({deaths['granted']} rewarded, {deaths['kills_with_assist']} with assists); "
                  f"AI rerolls {growth['rerolls_used']}/{growth['rerolls_earned']}, replacements {growth['replacements']} "
-                 f"of {growth['choices']} choices, Lv3 skills per AI {growth['max_rank_skills']}; "
-                 f"winner tags {summary['winner_tags']['tags']}")
+                 f"of {growth['choices']} choices, advanced skills per AI {growth['max_rank_skills']}")
     return lines
 
 
