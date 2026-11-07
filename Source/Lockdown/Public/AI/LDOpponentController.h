@@ -19,6 +19,8 @@ struct FLDOpponentRequestTally
 {
     uint32 Orders = 0;
     uint32 OrdersRefused = 0;
+    // Orders accepted on receipt that navigation then refused when it came to admit them (#160).
+    uint32 OrdersRejected = 0;
     uint32 Stops = 0;
     uint32 Actions = 0;
     uint32 ActionsRefused = 0;
@@ -179,6 +181,10 @@ private:
     bool bTallyReported = false;
     bool bWasInDorm = false;
     uint64 LastClaimedAirdrop = 0;
+    // #153 (v7 §2.1): drawn once per match from the core's server random stream: the moment after the countdown began at
+    // which the opening direction card is taken (1-4 s), and which of its three cards (uniform).
+    int64 OpeningPickAfterMs = 0;
+    uint8 OpeningPickIndex = 0;
     FLDOpponentRequestTally Tally;
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;

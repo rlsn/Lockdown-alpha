@@ -31,11 +31,13 @@ namespace LDDevGrowthFixture
     // The switch is present and World is the authority of a Demo room. Error explains every refusal.
     LOCKDOWN_API bool Admit(const UWorld* World, FString& Error);
     // Exactly three distinct definitions, each of them the definition of one option in Pool; the option kind and ranks
-    // follow that pool (unlearned -> Learn*, learned -> Upgrade*, attribute -> Attribute). Out keeps the given order.
-    LOCKDOWN_API bool ResolvePreset(const TArray<LDProgression::FLegalOption>& Pool, const TArray<FName>& DefinitionIds,
-        TArray<LDProgression::FLegalOption>& Out, FString& Error);
-    // The same check against the legal pool of Build.
-    LOCKDOWN_API bool ResolvePreset(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build,
+    // follow that pool (unlearned -> Learn*, learned -> Upgrade*, attribute -> Attribute). For opportunity 1 a preset may
+    // instead name six: three (opening card, hidden active) pairs of distinct approved opening cards hiding distinct new
+    // draftable actives of Pool (#153). Out keeps the given order.
+    LOCKDOWN_API bool ResolvePreset(const FLDDemoContentDefinitions& Content, const TArray<LDProgression::FLegalOption>& Pool,
+        uint8 Ordinal, const TArray<FName>& DefinitionIds, TArray<LDProgression::FLegalOption>& Out, FString& Error);
+    // The same check against the legal pool of Build for opportunity Ordinal.
+    LOCKDOWN_API bool ResolvePreset(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Build, uint8 Ordinal,
         const TArray<FName>& DefinitionIds, TArray<LDProgression::FLegalOption>& Out, FString& Error);
     // One head draw: the oldest queued preset is consumed and used when it still resolves against Pool (a preset is a
     // deterministic DEV override and may name any legal card, even for the opening offer); otherwise (no preset, or

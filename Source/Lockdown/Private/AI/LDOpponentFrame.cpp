@@ -28,6 +28,7 @@ bool OptionKind(ELDChoiceOptionKind Kind, ELDOpponentOptionKind& Out)
     case ELDChoiceOptionKind::LearnPassive: Out = ELDOpponentOptionKind::LearnPassive; return true;
     case ELDChoiceOptionKind::UpgradePassive: Out = ELDOpponentOptionKind::UpgradePassive; return true;
     case ELDChoiceOptionKind::Attribute: Out = ELDOpponentOptionKind::Attribute; return true;
+    case ELDChoiceOptionKind::Opening: Out = ELDOpponentOptionKind::Opening; return true;
     default: return false;
     }
 }
@@ -257,6 +258,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
     Out.RerollTokens = Progression.RerollTokens;
     FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards), MoveTemp(Equipped));
     Values.EquippedUpgraded = MoveTemp(Upgraded);
+    Values.OpeningCard = CanonicalId(Progression.OpeningCard);
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;

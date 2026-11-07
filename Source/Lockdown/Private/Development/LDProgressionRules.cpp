@@ -349,6 +349,34 @@ ELDGrowthReason LDProgression::NewSkillWeight(const FLDDemoContentDefinitions& C
     return ELDGrowthReason::None;
 }
 
+uint32 LDProgression::ActiveGrowthStats(const FLDDemoAbilityDefinition& Ability)
+{
+    const auto Bit = [](ELDDemoBonusStat Stat) { return 1u << uint32(Stat); };
+    uint32 Mask = 0;
+    for (const FLDDemoRankDefinition& Rank : Ability.Ranks)
+    {
+        for (const FLDDemoEffectDefinition& Effect : Rank.Effects)
+        {
+            Mask |= Effect.ADRatioBp > 0 ? Bit(ELDDemoBonusStat::ADFlat) : 0u;
+            Mask |= Effect.APRatioBp > 0 ? Bit(ELDDemoBonusStat::APFlat) : 0u;
+            Mask |= Effect.MaxHPRatioBp > 0 ? Bit(ELDDemoBonusStat::MaxHPFlat) : 0u;
+        }
+    }
+    return Mask;
+}
+
+int64 LDProgression::OpeningActiveWeight(const FLDDemoContentDefinitions& Content, const FLDDemoOpeningCardDefinition& Card,
+    const FLDDemoAbilityDefinition& Ability)
+{
+    uint32 CardStats = 0;
+    for (const FLDDemoStatBonus& Bonus : Card.Stats)
+    {
+        CardStats |= 1u << uint32(Bonus.Stat);
+    }
+    return (ActiveGrowthStats(Ability) & CardStats) != 0 ? Content.Progression.OpeningMatchedSkillWeight
+        : Content.Progression.OpeningOtherSkillWeight;
+}
+
 bool LDProgression::DrawFeasible(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build,
     const TArray<FLegalOption>& Pool, uint8 Ordinal)
 {
@@ -359,18 +387,14 @@ bool LDProgression::DrawFeasible(const FLDDemoContentDefinitions& Content, const
     }
     if (Ordinal == 1)
     {
-        int32 Actives = 0, Passives = 0;
+        // #153: three distinct opening cards, each hiding a distinct new draftable active of the pool.
+        int32 Actives = 0;
         for (const FLegalOption& Row : Pool)
         {
-            if (ProgressionDraftable(Content, Row))
-            {
-                Actives += Row.Kind == ELDChoiceOptionKind::LearnActive ? 1 : 0;
-                Passives += Row.Kind == ELDChoiceOptionKind::LearnPassive ? 1 : 0;
-            }
+            Actives += Row.Kind == ELDChoiceOptionKind::LearnActive && ProgressionDraftable(Content, Row) ? 1 : 0;
         }
-        return Progression.OpeningActiveCount >= 0 && Progression.OpeningPassiveCount >= 0
-            && Progression.OpeningActiveCount + Progression.OpeningPassiveCount == 3
-            && Actives >= Progression.OpeningActiveCount && Passives >= Progression.OpeningPassiveCount;
+        return Build.OpeningCard.IsNone() && Content.OpeningCards.Num() >= 3 && Actives >= 3
+            && Progression.OpeningMatchedSkillWeight >= 1 && Progression.OpeningOtherSkillWeight >= 1;
     }
     TArray<FLegalOption> Skills, Attributes;
     ProgressionSkillRows(Content, Pool, Skills, Attributes);
@@ -404,29 +428,44 @@ ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<F
     const auto Fail = [&Out](ELDGrowthReason Reason) { Out.Reset(); return Reason; };
     if (Input.Ordinal == 1)
     {
-        // The opening build is empty: every new skill of a group has the same weight.
-        TArray<FProgressionCandidate> Actives, Passives;
+        // #153: three distinct cards, each equally likely; then each card in order hides one distinct new draftable active.
+        TArray<FProgressionCandidate> Cards;
+        for (const FLDDemoOpeningCardDefinition& Card : Content.OpeningCards)
+        {
+            Cards.Add({{ELDChoiceOptionKind::Opening, FName(*Card.Id), 0, 1}, 1});
+        }
+        TArray<LDProgression::FLegalOption> Actives;
         for (const FLegalOption& Row : Pool)
         {
-            if (!ProgressionDraftable(Content, Row)) { continue; }
-            if (Row.Kind == ELDChoiceOptionKind::LearnActive) { Actives.Add({Row, 1}); }
-            if (Row.Kind == ELDChoiceOptionKind::LearnPassive) { Passives.Add({Row, 1}); }
+            if (Row.Kind == ELDChoiceOptionKind::LearnActive && ProgressionDraftable(Content, Row)) { Actives.Add(Row); }
         }
-        for (const auto& Group : {TPair<TArray<FProgressionCandidate>*, int32>(&Actives, Content.Progression.OpeningActiveCount),
-            {&Passives, Content.Progression.OpeningPassiveCount}})
+        for (int32 Pick = 0; Pick < 3; ++Pick)
         {
-            for (int32 Pick = 0; Pick < Group.Value; ++Pick)
+            FLegalOption& Card = Out.AddDefaulted_GetRef();
+            if (!ProgressionPick(Cards, Input.Avoid, State, Card))
             {
-                if (!ProgressionPick(*Group.Key, Input.Avoid, State, Out.AddDefaulted_GetRef()))
-                {
-                    return Fail(ELDGrowthReason::DataInvalid);
-                }
+                return Fail(ELDGrowthReason::DataInvalid);
             }
         }
-        // The card positions are shuffled, so the passive is not always the last card.
-        for (int32 Index = Out.Num() - 1; Index > 0; --Index)
+        for (FLegalOption& Card : Out)
         {
-            Out.Swap(Index, int32(ProgressionSplitMix64(State) % uint64(Index + 1)));
+            const FLDDemoOpeningCardDefinition* Definition = Content.OpeningCards.FindByPredicate(
+                [&Card](const FLDDemoOpeningCardDefinition& Row) { return FName(*Row.Id) == Card.DefinitionId; });
+            TArray<FProgressionCandidate> Weighted;
+            for (const FLegalOption& Active : Actives)
+            {
+                if (Out.ContainsByPredicate([&Active](const FLegalOption& Row) { return Row.HiddenActive == Active.DefinitionId; }))
+                {
+                    continue;
+                }
+                Weighted.Add({Active, OpeningActiveWeight(Content, *Definition, *ProgressionFindAbilityIn(Content, Active.DefinitionId))});
+            }
+            FLegalOption Hidden;
+            if (!ProgressionPick(Weighted, TArray<FLegalOption>(), State, Hidden))
+            {
+                return Fail(ELDGrowthReason::DataInvalid);
+            }
+            Card.HiddenActive = Hidden.DefinitionId;
         }
         return ELDGrowthReason::None;
     }
@@ -526,16 +565,20 @@ bool LDProgression::OptionStillLegal(const FLDDemoContentSnapshot& Catalog, cons
     case ELDChoiceOptionKind::Attribute:
         return ProgressionFindAttribute(Catalog, Option.DefinitionId) && ProgressionCardCount(Build, Option.DefinitionId) == Option.FromRank
             && Option.ToRank == Option.FromRank + 1;
+    case ELDChoiceOptionKind::Opening:
+        return Catalog.Get().OpeningCards.ContainsByPredicate([&Option](const FLDDemoOpeningCardDefinition& Row)
+            { return FName(*Row.Id) == Option.DefinitionId; })
+            && Build.OpeningCard.IsNone() && Option.FromRank == 0 && Option.ToRank == 1;
     default:
         return false;
     }
 }
 
 ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog, const FLDGrowthBuild& Current,
-    const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail)
+    const FLDChoiceOption& Option, const FReplacement* Replacement, FLDGrowthBuild& Out, FAppliedOption& Detail, FName HiddenActive)
 {
     Detail = FAppliedOption();
-    if (!OptionStillLegal(Catalog, Current, Option))
+    if (!OptionStillLegal(Catalog, Current, Option) || (Option.Kind == ELDChoiceOptionKind::Opening) == HiddenActive.IsNone())
     {
         return ELDGrowthReason::InvalidOption;
     }
@@ -553,6 +596,24 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
     Detail.NewRank = Option.ToRank;
     switch (Option.Kind)
     {
+    case ELDChoiceOptionKind::Opening:
+    {
+        // #153: the hidden active is a new draftable active learned into the first free slot (Q on the opening build).
+        const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Catalog, HiddenActive);
+        const int32 Q = Current.ActiveInSlot(0);
+        const int32 W = Current.ActiveInSlot(1);
+        if (!Ability || Ability->Kind != ELDDemoAbilityKind::Active || !Ability->Draftable || Current.FindSkill(HiddenActive)
+            || (Q != INDEX_NONE && W != INDEX_NONE))
+        {
+            return ELDGrowthReason::DataInvalid;
+        }
+        const uint8 Slot = Q == INDEX_NONE ? 0 : 1;
+        Out.OpeningCard = Option.DefinitionId;
+        Out.Skills.Add({HiddenActive, 1, true, Slot});
+        Detail.Slot = Slot;
+        Detail.OpeningActive = HiddenActive;
+        break;
+    }
     case ELDChoiceOptionKind::LearnActive:
     {
         const int32 Q = Current.ActiveInSlot(0);

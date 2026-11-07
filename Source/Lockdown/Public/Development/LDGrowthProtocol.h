@@ -20,8 +20,10 @@ enum class ELDReceiptOutcome : uint8 { None = 0, Applied = 1, Rejected = 2 };
 UENUM()
 enum class ELDReceiptLookup : uint8 { None = 0, Pending = 1, Final = 2, NotFound = 3, ReceiptExpired = 4, InvalidContext = 5 };
 
+// Opening (#153): an opening direction card (DefinitionId) that also teaches one hidden draftable active, revealed only
+// by the applied receipt; only ever opportunity 1.
 UENUM()
-enum class ELDChoiceOptionKind : uint8 { None = 0, LearnActive = 1, UpgradeActive = 2, LearnPassive = 3, UpgradePassive = 4, Attribute = 5 };
+enum class ELDChoiceOptionKind : uint8 { None = 0, LearnActive = 1, UpgradeActive = 2, LearnPassive = 3, UpgradePassive = 4, Attribute = 5, Opening = 6 };
 
 UENUM()
 enum class ELDShopOpenStatus : uint8 { None = 0, Pending = 1, Opened = 2, Rejected = 3 };
@@ -43,6 +45,8 @@ enum class ELDGrowthReason : uint16
     NoOffer = 40, UnknownOffer = 41, InvalidOption = 42, OfferAlreadyCommitted = 43, OfferGuardStale = 44,
     BuildStale = 45, ReplacementRequired = 46, ReplacementMismatch = 47, ReplacementNotAllowed = 48,
     NoReroll = 49, OfferAlreadyRerolled = 50,
+    // #153 D9: the opening direction offer is never rerolled, not even with a token earned at a reroll level.
+    OpeningNoReroll = 51,
     NoShopSession = 60, QuoteStale = 61, PriceChanged = 62, UnknownItem = 63, ItemNotOwned = 64, ItemStale = 65,
     EquipmentFull = 66, InsufficientGold = 67, InventoryStale = 68, AccountStale = 69,
     UnknownShop = 71, StaleWorld = 72, OutsideRange = 73, NotGrounded = 74, InvalidGround = 75, WrongSurface = 76,
@@ -200,6 +204,8 @@ struct LOCKDOWN_API FLDProgressionView
     UPROPERTY() FLDChoiceOfferView Offer;
     UPROPERTY() TArray<FLDLearnedSkillView> Skills;
     UPROPERTY() TArray<FLDAttributeCardView> AttributeCards;
+    // #153: the chosen opening direction card, a permanent stat source; None until the opening choice is taken.
+    UPROPERTY() FName OpeningCard;
     UPROPERTY() FLDDemoContentDigest CatalogDigest;
 };
 
@@ -245,6 +251,8 @@ struct LOCKDOWN_API FLDChoiceReceipt
     UPROPERTY() uint8 ReplacedSlot = 0;
     UPROPERTY() FName ReplacedSkillId;
     UPROPERTY() uint8 ReplacedRank = 0;
+    // #153: an applied opening choice reveals the active it taught (learned into Q at rank 1); None for every other receipt.
+    UPROPERTY() FName OpeningActiveId;
     UPROPERTY() bool bHasNextOffer = false;
     UPROPERTY() FGuid NextOfferId;
     // Applied reroll: NextOfferId replaced OfferId for the same opportunity.

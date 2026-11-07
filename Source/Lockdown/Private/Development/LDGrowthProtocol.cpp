@@ -142,6 +142,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::ReplacementNotAllowed: return TEXT("ReplacementNotAllowed");
     case ELDGrowthReason::NoReroll: return TEXT("NoReroll");
     case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("OfferAlreadyRerolled");
+    case ELDGrowthReason::OpeningNoReroll: return TEXT("OpeningNoReroll");
     case ELDGrowthReason::NoShopSession: return TEXT("NoShopSession");
     case ELDGrowthReason::QuoteStale: return TEXT("QuoteStale");
     case ELDGrowthReason::PriceChanged: return TEXT("PriceChanged");

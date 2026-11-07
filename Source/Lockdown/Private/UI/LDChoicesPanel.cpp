@@ -307,11 +307,14 @@ void ULDChoicesPanel::RefreshSelection()
 {
     for(int32 Index=0;Index<Cards.Num();++Index){ChoicesTint(Cards[Index].Button,Index==Selected?ChoicesSelected:ChoicesIdle);}
     const uint8 Tokens=Latest.RerollTokens;
-    const bool bCanReroll=Latest.bHasOffer&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
+    // #153 D9: the opening direction offer is never rerolled, whatever tokens are left.
+    const bool bOpening=Latest.bHasOffer&&LDHUD::IsOpeningOffer(Latest.Offer);
+    const bool bCanReroll=Latest.bHasOffer&&!bOpening&&!Latest.Offer.bRerolled&&Tokens>0&&!PendingRequest&&ShownOffer.IsValid()
         &&LDGrowthWire::IsChoicePhase(LatestPhase)&&!bReplacing;
     RerollButton->SetIsEnabled(bCanReroll);
     RerollButton->SetVisibility(ShownOffer.IsValid()?ESlateVisibility::Visible:ESlateVisibility::Collapsed);
-    ChoicesText(RerollCard.Summary,Latest.bHasOffer&&Latest.Offer.bRerolled?FString::Printf(TEXT("本组已重抽 · 剩 %d"),Tokens):FString::Printf(TEXT("剩 %d 次"),Tokens));
+    ChoicesText(RerollCard.Summary,bOpening?FString(LDTerms::OpeningNoReroll)
+        :Latest.bHasOffer&&Latest.Offer.bRerolled?FString::Printf(TEXT("本组已重抽 · 剩 %d"),Tokens):FString::Printf(TEXT("剩 %d 次"),Tokens));
 }
 bool ULDChoicesPanel::IsReplacementTarget(uint8 SkillSlot) const
 {
@@ -378,6 +381,7 @@ bool ULDChoicesPanel::Reroll()
 {
     if(PendingRequest){ChoicesText(Feedback,TEXT("上一次请求仍在处理中。"));return false;}
     if(!Latest.bHasOffer||Latest.Offer.OfferId!=ShownOffer||!LDGrowthWire::IsChoicePhase(LatestPhase)){ChoicesText(Feedback,TEXT("当前没有可以重抽的选择。"));return false;}
+    if(LDHUD::IsOpeningOffer(Latest.Offer)){ChoicesText(Feedback,FString(LDTerms::OpeningNoReroll)+TEXT("。"));return false;}
     if(Latest.Offer.bRerolled){ChoicesText(Feedback,TEXT("这一组已经重抽过一次。"));return false;}
     if(Latest.RerollTokens==0){ChoicesText(Feedback,TEXT("没有免费重抽次数；升到指定等级会获得。"));return false;}
     FLDChoiceCommand Command;
@@ -422,6 +426,13 @@ void ULDChoicesPanel::ShowFinal(const FLDChoiceReceipt& Receipt)
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&Receipt.bRerolled)
     {
         ChoicesText(Feedback,FString::Printf(TEXT("已重抽，这一组换成了新的三张卡（剩余重抽 %d 次）"),Receipt.RerollTokensLeft));
+        return;
+    }
+    if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied&&!Receipt.OpeningActiveId.IsNone())
+    {
+        // #153: the hidden active is revealed only by the applied receipt.
+        ChoicesText(Feedback,LDTerms::OpeningRevealed(LDHUD::ContentName(LatestContent,Receipt.OpeningActiveId.ToString())));
+        Selected=INDEX_NONE;ResetReplacement();
         return;
     }
     if(Receipt.Header.Outcome==ELDReceiptOutcome::Applied)

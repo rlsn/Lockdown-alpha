@@ -6,6 +6,7 @@
 #include "../Development/LDDemoContentMath.h"
 #include "Development/LDDemoContentText.h"
 #include "Framework/LDDemoEntry.h"
+#include "HAL/FileManager.h"
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 #include "Region/LDMapDefinition.h"
@@ -15,6 +16,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
+#include "Misc/ScopeExit.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
 #include "UObject/Package.h"
@@ -130,6 +132,25 @@ bool FixtureIndex(FAutomationTestBase& Test, FFixtures& Out)
         return false;
     }
     return Test.TestTrue(TEXT("Baseline fixture is explicit"), Out.Valid[0].Name == TEXT("base"));
+}
+
+// DemoContent.TypedProjection fully imports and asserts every valid case. DemoWorld.TypedProjection, later in the same
+// run, takes the catalog snapshot of the same fixture bytes from it instead of importing that content a second time; run
+// on its own it imports the content itself.
+TMap<FString, TSharedPtr<const FLDDemoContentSnapshot>>& SharedSnapshots()
+{
+    static TMap<FString, TSharedPtr<const FLDDemoContentSnapshot>> Snapshots;
+    return Snapshots;
+}
+
+FString SnapshotKey(const FString& Root, const FCase& Case)
+{
+    return FPaths::ConvertRelativePathToFull(Root) + TEXT("|") + Case.Digest.ToHex();
+}
+
+void ShareSnapshot(const FString& Root, const FCase& Case, const TSharedPtr<const FLDDemoContentSnapshot>& Snapshot)
+{
+    SharedSnapshots().Add(SnapshotKey(Root, Case), Snapshot);
 }
 
 bool FlatStruct(const UStruct* Type, const void* Data, const FString& Prefix, TMap<FString, FString>& Out, FAutomationTestBase& Test);
@@ -411,6 +432,7 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         }
         TMap<FString, FString> Actual;
         if (!AssertProjection(*this, *Snapshot, Root, Actual)) { return false; }
+        if (Case.MutatedQuantity.IsEmpty()) { ShareSnapshot(Root, Case, Snapshot); }
         if (Case.Name == TEXT("base"))
         {
             Baseline = Actual;
@@ -634,7 +656,24 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("A-prepare, B-commit, A-commit cannot roll the target back"), RaceAsset->CommitImport(Older, Base.Digest, Error));
     TestTrue(TEXT("Stale generation is reported"), Error.Contains(TEXT("stale import generation")));
     TestTrue(TEXT("B remains valid after stale A rejection"), RaceAsset->Validate(NewCase->Digest, Error));
-    if (!ULDDemoContentCatalog::PrepareImportFromFiles(*RaceAsset, BaseRoot, Base.Digest, Prepared, Error))
+    // The exported fixtures are reused read-only by later runs, so the source-change check edits a private copy.
+    const FString ScratchRoot = FPaths::CreateTempFilename(*FPaths::ProjectIntermediateDir(), TEXT("LDFixtureScratch"));
+    ON_SCOPE_EXIT { IFileManager::Get().DeleteDirectory(*ScratchRoot, false, true); };
+    TArray<FString> BaseFiles;
+    IFileManager::Get().FindFilesRecursive(BaseFiles, *BaseRoot, TEXT("*"), true, false);
+    FString BasePrefix = BaseRoot;
+    FPaths::NormalizeDirectoryName(BasePrefix);
+    BasePrefix += TEXT("/");
+    bool bCopied = !BaseFiles.IsEmpty();
+    for (const FString& File : BaseFiles)
+    {
+        FString Normal = File;
+        FPaths::NormalizeFilename(Normal);
+        bCopied &= Normal.StartsWith(BasePrefix, ESearchCase::CaseSensitive)
+            && IFileManager::Get().Copy(*FPaths::Combine(ScratchRoot, Normal.RightChop(BasePrefix.Len())), *File) == COPY_OK;
+    }
+    if (!TestTrue(TEXT("The base case is copied for the source-change check"), bCopied)) { return false; }
+    if (!ULDDemoContentCatalog::PrepareImportFromFiles(*RaceAsset, ScratchRoot, Base.Digest, Prepared, Error))
     {
         AddError(Error);
         return false;
@@ -643,7 +682,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Fresh import still checks the current independently expected root"), RaceAsset->CommitImport(Prepared, NewCase->Digest, Error));
     TestTrue(TEXT("Current-root change is reported"), Error.Contains(TEXT("current expected root changed")));
 
-    const FString SourceFile = FPaths::Combine(BaseRoot, TEXT("Content\\Lockdown\\Data\\Demo\\demo_content.json"));
+    const FString SourceFile = FPaths::Combine(ScratchRoot, TEXT("Content\\Lockdown\\Data\\Demo\\demo_content.json"));
     TArray<uint8> OriginalSource;
     if (!ReadFile(SourceFile, OriginalSource, Error))
     {
@@ -656,12 +695,12 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
     const bool CommittedChangedSource = WroteChange && RaceAsset->CommitImport(Prepared, Base.Digest, Error);
     const FString ChangedError = Error;
     const bool RestoredSource = FFileHelper::SaveArrayToFile(OriginalSource, *SourceFile);
-    TestTrue(TEXT("Only isolated fixture source is changed and restored"), WroteChange && RestoredSource);
+    TestTrue(TEXT("Only the private copy of the fixture source is changed and restored"), WroteChange && RestoredSource);
     TestFalse(TEXT("Changed source between prepare and commit rejects the token"), CommittedChangedSource);
     TestTrue(TEXT("Source-snapshot conflict is reported"), ChangedError.Contains(TEXT("source bytes changed")));
     if (!RestoredSource) { return false; }
     TestTrue(TEXT("B still survives a changed-file import"), RaceAsset->Validate(NewCase->Digest, Error));
-    if (!ULDDemoContentCatalog::PrepareImportFromFiles(*RaceAsset, BaseRoot, Base.Digest, Prepared, Error)
+    if (!ULDDemoContentCatalog::PrepareImportFromFiles(*RaceAsset, ScratchRoot, Base.Digest, Prepared, Error)
         || !RaceAsset->CommitImport(Prepared, Base.Digest, Error))
     {
         AddError(Error);
@@ -701,14 +740,21 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
             ++SharedBase;
             continue;
         }
-        auto* Content = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-        TUniquePtr<FLDDemoPreparedContent> Prepared;
-        TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+        TSharedPtr<const FLDDemoContentSnapshot> Catalog = SharedSnapshots().FindRef(SnapshotKey(Root, Case));
+        if (!Catalog)
+        {
+            auto* Content = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
+            TUniquePtr<FLDDemoPreparedContent> Prepared;
+            if (!ULDDemoContentCatalog::PrepareImport(*Content, Bundle, Case.Digest, Prepared, Error)
+                || !Content->CommitImport(Prepared, Case.Digest, Error) || !Content->Read(Case.Digest, Catalog, Error))
+            {
+                AddError(Case.Name + TEXT(": ") + Error);
+                return false;
+            }
+        }
         auto* World = NewObject<ULDMapDefinition>(GetTransientPackage());
         TSharedPtr<const FLDDemoWorldGeometry> Geometry;
-        if (!ULDDemoContentCatalog::PrepareImport(*Content, Bundle, Case.Digest, Prepared, Error)
-            || !Content->CommitImport(Prepared, Case.Digest, Error) || !Content->Read(Case.Digest, Catalog, Error)
-            || !World->Import(Bundle.World, *Catalog, Error) || !World->Read(*Catalog, Geometry, Error))
+        if (!World->Import(Bundle.World, *Catalog, Error) || !World->Read(*Catalog, Geometry, Error))
         {
             AddError(Case.Name + TEXT(": ") + Error);
             return false;
@@ -896,7 +942,7 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     // two #147 statuses (silence, burn).
     const int32 Statuses = 6 + 5 + 1 + 2;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.Equipment.Num()
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
@@ -1029,6 +1075,11 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Attribute"), Row.Id, [&](const FString& Id)
         { const FLDDemoAttributeDefinition* Out = nullptr; return Snapshot->FindAttribute(Id, Out, Error) ? Out : nullptr; });
     }
+    for (const FLDDemoOpeningCardDefinition& Row : Definitions.OpeningCards)
+    {
+        Expect(TEXT("Opening"), Row.Id, [&](const FString& Id)
+        { const FLDDemoOpeningCardDefinition* Out = nullptr; return Snapshot->FindOpeningCard(Id, Out, Error) ? Out : nullptr; });
+    }
     for (const FLDDemoEquipmentDefinition& Row : Definitions.Equipment)
     {
         Expect(TEXT("Equipment"), Row.Id, [&](const FString& Id)
@@ -1047,7 +1098,7 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
         !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.Equipment.IsEmpty()
         && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
-        + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        + Definitions.OpeningCards.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;

@@ -3,7 +3,7 @@
   "title": "Demo author contract; explicit reviewed inputs and no numeric defaults",
   "type": "object",
   "additionalProperties": false,
-  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "attributes", "equipment", "camps", "boss", "progression", "world", "display"],
+  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "attributes", "opening_cards", "equipment", "camps", "boss", "progression", "world", "display"],
   "properties": {
     "identity": {
       "type": "object", "additionalProperties": false,
@@ -174,6 +174,13 @@
         "properties": {"id": {"$ref": "#/$defs/id"}, "stats": {"$ref": "#/$defs/stat_bonus"}, "penalties": {"$ref": "#/$defs/stat_bonus"}}
       }
     },
+    "opening_cards": {
+      "type": "array", "minItems": 3, "maxItems": 6,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "stats"],
+        "properties": {"id": {"$ref": "#/$defs/id"}, "stats": {"$ref": "#/$defs/stat_bonus"}}
+      }
+    },
     "equipment": {"type": "array", "minItems": 1, "maxItems": 157, "items": {"$ref": "#/$defs/equipment"}},
     "camps": {
       "type": "object", "additionalProperties": false, "required": ["monsters", "placements"],
@@ -212,9 +219,9 @@
         "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
         "xp_thresholds": {"type": "array", "minItems": 10, "maxItems": 10, "items": {"$ref": "#/$defs/count"}},
         "opening_offer": {
-          "type": "object", "additionalProperties": false, "required": ["active_count", "passive_count"],
+          "type": "object", "additionalProperties": false, "required": ["matched_skill_weight", "other_skill_weight"],
           "properties": {
-            "active_count": {"type": "integer", "minimum": 0, "maximum": 3}, "passive_count": {"type": "integer", "minimum": 0, "maximum": 3}
+            "matched_skill_weight": {"type": "integer", "minimum": 1, "maximum": 100}, "other_skill_weight": {"type": "integer", "minimum": 1, "maximum": 100}
           }
         },
         "reroll_levels": {"type": "array", "minItems": 0, "maxItems": 10, "items": {"type": "integer", "minimum": 2, "maximum": 10}}

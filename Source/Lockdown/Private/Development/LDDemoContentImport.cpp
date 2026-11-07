@@ -1296,6 +1296,33 @@ bool Attribute(const FValue& Value, FLDDemoAttributeDefinition& Out, FCheck& Che
         && Check.Require(StatMask(Out.Penalties) == ExpectedPenalties, Path, TEXT("wrong attribute penalties"));
 }
 
+// #153 (v7 §2.2): each opening direction card's three permanent stats.
+bool OpeningCard(const FValue& Value, FLDDemoOpeningCardDefinition& Out, FCheck& Check, const FString& Path)
+{
+    FFields F(Check, Value, Path);
+    if (!F.Identifier(TEXT("id"), Out.Id) || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats")) || !F.Done())
+    {
+        return false;
+    }
+    using S = ELDDemoBonusStat;
+    static const TPair<const TCHAR*, uint32> Contracts[] =
+    {
+        {TEXT("opening_athlete"), Bit(S::ADFlat) | Bit(S::AttackSpeedBonusRatio) | Bit(S::MaxHPFlat)},
+        {TEXT("opening_grinder"), Bit(S::APFlat) | Bit(S::CooldownHasteFlat) | Bit(S::MaxMPFlat)},
+        {TEXT("opening_dorm_warden"), Bit(S::MaxHPFlat) | Bit(S::ArmorFlat) | Bit(S::MagicResistFlat)},
+        {TEXT("opening_rider"), Bit(S::MoveSpeedBonusRatio) | Bit(S::ADFlat) | Bit(S::AttackSpeedBonusRatio)},
+        {TEXT("opening_keyboard"), Bit(S::AttackRangeCmFlat) | Bit(S::AttackSpeedBonusRatio) | Bit(S::MoveSpeedBonusRatio)},
+        {TEXT("opening_hexagon"), Bit(S::ADFlat) | Bit(S::APFlat) | Bit(S::MaxHPFlat)},
+    };
+    const TPair<const TCHAR*, uint32>* Contract = nullptr;
+    for (const auto& Row : Contracts)
+    {
+        if (Out.Id.Equals(Row.Key, ESearchCase::CaseSensitive)) { Contract = &Row; }
+    }
+    return Check.Require(Contract != nullptr, Path, TEXT("unknown opening card"))
+        && Check.Require(StatMask(Out.Stats) == Contract->Value, Path, TEXT("wrong opening card stats"));
+}
+
 bool SameHandlers(const TArray<FLDDemoEffectDefinition>& Base, const TArray<FLDDemoEffectDefinition>& Upgraded)
 {
     if (Base.Num() != Upgraded.Num())
@@ -1551,8 +1578,8 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         }
     }
     FFields Opening(Check, F.Take(TEXT("opening_offer")), TEXT("content.progression.opening_offer"));
-    if (!Opening.SmallInt(TEXT("active_count"), Out.OpeningActiveCount, 0, 3)
-        || !Opening.SmallInt(TEXT("passive_count"), Out.OpeningPassiveCount, 0, 3) || !Opening.Done())
+    if (!Opening.SmallInt(TEXT("matched_skill_weight"), Out.OpeningMatchedSkillWeight, 1, 100)
+        || !Opening.SmallInt(TEXT("other_skill_weight"), Out.OpeningOtherSkillWeight, 1, 100) || !Opening.Done())
     {
         return false;
     }
@@ -1627,6 +1654,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Dash.Done() || !Character.Done()
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 30, Ability)
         || !Definitions(F.Take(TEXT("attributes")), Out.Attributes, Check, TEXT("content.attributes"), 3, 14, Attribute)
+        || !Definitions(F.Take(TEXT("opening_cards")), Out.OpeningCards, Check, TEXT("content.opening_cards"), 3, 6, OpeningCard)
         || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 13, Equipment)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
@@ -1717,6 +1745,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     DisplayIds.Add(Out.Character.Id);
     for (const auto& Row : Out.Abilities) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Attributes) { DisplayIds.Add(Row.Id); }
+    for (const auto& Row : Out.OpeningCards) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Equipment) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Monsters) { DisplayIds.Add(Row.Id); }
     for (const auto& Entry : NativeIds)

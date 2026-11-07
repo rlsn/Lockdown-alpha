@@ -188,6 +188,9 @@ public:
     FLDPublicMatchView ReadPublicMatch() const;
     FLDAIRegistrationResult RegisterAIContender(AController& Controller, uint8 RosterSlot, const FLDMatchContext& Match);
     FLDAISelfReadResult ReadAISelf(const FLDAIContenderBinding& Binding) const;
+    // Server-only opening intent: draws once while a registered opponent binds during match preparation.
+    // Seed records the stream state before these two draws, so the plan can be replayed without a new RNG.
+    bool DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed, FString& Error);
     // ---- Playtest log (Framework/LDGameModeTrace.cpp; docs/DEVELOPMENT.md, playtest troubleshooting) ----
     // After each authority advance: one LD_HEARTBEAT line per contender once per authority second (LogLDTrace only).
     void LogPlaytestHeartbeat();

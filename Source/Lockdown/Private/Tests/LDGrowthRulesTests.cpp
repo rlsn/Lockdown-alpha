@@ -6,6 +6,7 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Development/LDDemoContentText.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevTestProtocol.h"
 #include "Development/LDDevelopmentDirector.h"
@@ -27,6 +28,8 @@
 #include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "Serialization/JsonSerializer.h"
+#include "UI/LDHUDModel.h"
+#include "UI/LDTerms.h"
 #include "UObject/Class.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
@@ -1176,7 +1179,7 @@ bool GrowthTestSameOptions(const TArray<LDProgression::FLegalOption>& A, const T
     for (int32 Index = 0; Index < A.Num(); ++Index)
     {
         if (A[Index].Kind != B[Index].Kind || A[Index].DefinitionId != B[Index].DefinitionId || A[Index].FromRank != B[Index].FromRank
-            || A[Index].ToRank != B[Index].ToRank)
+            || A[Index].ToRank != B[Index].ToRank || A[Index].HiddenActive != B[Index].HiddenActive)
         {
             return false;
         }
@@ -1658,7 +1661,7 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
     FLDGrowthBuild Fresh;
     TArray<LDProgression::FLegalOption> Resolved;
     bGood &= Test.TestTrue(FString::Printf(TEXT("Three legal cards resolve in their given order with kinds from the build (%s)"), *Error),
-        LDDevGrowthFixture::ResolvePreset(*Catalog, Fresh, {Snark, LuckyStar, Protein}, Resolved, Error) && Resolved.Num() == 3
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Fresh, 2, {Snark, LuckyStar, Protein}, Resolved, Error) && Resolved.Num() == 3
         && Resolved[0].DefinitionId == Snark && Resolved[0].Kind == ELDChoiceOptionKind::LearnActive && Resolved[0].ToRank == 1
         && Resolved[1].DefinitionId == LuckyStar && Resolved[1].Kind == ELDChoiceOptionKind::LearnPassive
         && Resolved[2].DefinitionId == Protein && Resolved[2].Kind == ELDChoiceOptionKind::Attribute && Resolved[2].ToRank == 1);
@@ -1667,7 +1670,7 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
     Learned.Skills = {{Snark, 1, true, 0}, {NotMad, 2, true, 1}};
     Learned.Cards = {{Protein, 2}};
     bGood &= Test.TestTrue(FString::Printf(TEXT("A learned skill resolves to its next rank and a held card to one more (%s)"), *Error),
-        LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, {Snark, Protein, PantsDown}, Resolved, Error) && Resolved.Num() == 3
+        LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, 2, {Snark, Protein, PantsDown}, Resolved, Error) && Resolved.Num() == 3
         && Resolved[0].Kind == ELDChoiceOptionKind::UpgradeActive && Resolved[0].FromRank == 1 && Resolved[0].ToRank == 2
         && Resolved[1].Kind == ELDChoiceOptionKind::Attribute && Resolved[1].FromRank == 2 && Resolved[1].ToRank == 3
         && Resolved[2].Kind == ELDChoiceOptionKind::LearnActive);
@@ -1681,7 +1684,7 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
     for (const FGrowthTestPreset& Bad : BadPresets)
     {
         bGood &= Test.TestTrue(FString::Printf(TEXT("A preset with %s is refused with a reason and no cards"), Bad.What),
-            !LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, Bad.Cards, Resolved, Error) && Resolved.IsEmpty() && !Error.IsEmpty());
+            !LDDevGrowthFixture::ResolvePreset(*Catalog, Learned, 2, Bad.Cards, Resolved, Error) && Resolved.IsEmpty() && !Error.IsEmpty());
     }
 
     TArray<LDProgression::FLegalOption> Pool;
@@ -1831,7 +1834,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     TArray<LDProgression::FLegalOption> Pool;
     bool bGood = GrowthTestReason(Test, TEXT("The starting build's legal pool"), LDProgression::LegalPool(*Catalog, FLDGrowthBuild(), Pool),
         ELDGrowthReason::None);
-    const auto CheckOpening = [&Test, &Pool](const FLDProgressionView& View, uint32 Generation, const FString& Who)
+    const auto CheckOpening = [&Test, &Catalog](const FLDProgressionView& View, uint32 Generation, const FString& Who)
     {
         bool bOpening = Test.TestTrue(Who + TEXT(": level 1 at the opening XP holds exactly one unconsumed opportunity"),
             View.bValid && View.Generation == Generation && View.Level == 1 && View.CumulativeXP == 0 && View.EarnedThrough == 1
@@ -1844,7 +1847,8 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
         for (const FLDChoiceOption& Option : View.Offer.Options)
         {
             bOpening &= Test.TestTrue(FString::Printf(TEXT("%s: opening card %s is legal for the starting build"), *Who,
-                *Option.DefinitionId.ToString()), GrowthTestPoolHas(Pool, Option.Kind, Option.DefinitionId, Option.FromRank, Option.ToRank));
+                *Option.DefinitionId.ToString()), Option.Kind == ELDChoiceOptionKind::Opening
+                && LDProgression::OptionStillLegal(*Catalog, FLDGrowthBuild(), Option));
         }
         return bOpening;
     };
@@ -1891,8 +1895,7 @@ bool GrowthTestRunOpening(FAutomationTestBase& Test)
     return bGood;
 }
 
-// 112 §6: the kept opening offer holds OpeningActiveCount new draftable actives and OpeningPassiveCount new draftable
-// passives; a skill marked non-draftable never appears in any offer. A short group is refused, never filled.
+// #153: distinct direction cards hide distinct draftable actives; neither enters normal level-up offers.
 bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -1902,8 +1905,8 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     const FLDDemoProgressionDefinition& Progression = Content.Progression;
-    bool bGood = Test.TestTrue(TEXT("The approved opening offer is two new actives plus one new passive"),
-        Progression.OpeningActiveCount == 2 && Progression.OpeningPassiveCount == 1);
+    bool bGood = Test.TestTrue(TEXT("Six approved directions use the approved 2:1 hidden-active weights"),
+        Content.OpeningCards.Num() == 6 && Progression.OpeningMatchedSkillWeight == 2 && Progression.OpeningOtherSkillWeight == 1);
     // The draftable sets are read, not listed.
     TSet<FName> Actives, Passives;
     for (const FLDDemoAbilityDefinition& Ability : Content.Abilities)
@@ -1921,17 +1924,13 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     }
     const auto CheckComposition = [&](const FString& Who, const TArray<FName>& Ids, const TArray<ELDChoiceOptionKind>& Kinds)
     {
-        int32 ActiveCards = 0;
-        int32 PassiveCards = 0;
         bool bLegal = Ids.Num() == 3 && Kinds.Num() == 3 && Ids[0] != Ids[1] && Ids[0] != Ids[2] && Ids[1] != Ids[2];
         for (int32 Index = 0; bLegal && Index < 3; ++Index)
         {
-            if (Kinds[Index] == ELDChoiceOptionKind::LearnActive && Actives.Contains(Ids[Index])) { ++ActiveCards; }
-            else if (Kinds[Index] == ELDChoiceOptionKind::LearnPassive && Passives.Contains(Ids[Index])) { ++PassiveCards; }
-            else { bLegal = false; }
+            bLegal = Kinds[Index] == ELDChoiceOptionKind::Opening && Content.OpeningCards.ContainsByPredicate(
+                [&](const FLDDemoOpeningCardDefinition& Row) { return FName(*Row.Id) == Ids[Index]; });
         }
-        return Test.TestTrue(Who + TEXT(": three distinct new draftable skills, two actives and one passive"),
-            bLegal && ActiveCards == Progression.OpeningActiveCount && PassiveCards == Progression.OpeningPassiveCount);
+        return Test.TestTrue(Who + TEXT(": three distinct direction cards"), bLegal);
     };
     const FLDGrowthBuild Empty;
     LDProgression::FDrawInput Input;
@@ -1939,7 +1938,8 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     Input.Build = &Empty;
     Input.Ordinal = 1;
     TSet<FName> Reached;
-    int32 PassivePositions[3] = {0, 0, 0};
+    TSet<FName> HiddenReached;
+    TMap<FName, int32> DirectionCounts;
     for (uint64 Seed = 1; Seed <= 512; ++Seed)
     {
         TArray<LDProgression::FLegalOption> Drawn;
@@ -1952,18 +1952,25 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
             Ids.Add(Drawn[Index].DefinitionId);
             Kinds.Add(Drawn[Index].Kind);
             Reached.Add(Drawn[Index].DefinitionId);
-            PassivePositions[Index] += Drawn[Index].Kind == ELDChoiceOptionKind::LearnPassive ? 1 : 0;
-            bGood &= GrowthTestPoolHas(Pool, Drawn[Index].Kind, Drawn[Index].DefinitionId, Drawn[Index].FromRank, Drawn[Index].ToRank);
+            HiddenReached.Add(Drawn[Index].HiddenActive);
+            ++DirectionCounts.FindOrAdd(Drawn[Index].DefinitionId);
+            bGood &= GrowthTestPoolHas(Pool, ELDChoiceOptionKind::LearnActive, Drawn[Index].HiddenActive, 0, 1);
         }
         if (Reason != ELDGrowthReason::None || !CheckComposition(FString::Printf(TEXT("Opening seed %llu"), Seed), Ids, Kinds))
         {
             return false;
         }
+        bGood &= Test.TestTrue(TEXT("The three hidden actives are distinct"),
+            Drawn[0].HiddenActive != Drawn[1].HiddenActive && Drawn[0].HiddenActive != Drawn[2].HiddenActive
+            && Drawn[1].HiddenActive != Drawn[2].HiddenActive);
     }
-    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every draftable active and passive, nothing else"),
-        Reached.Num(), Actives.Num() + Passives.Num());
-    bGood &= Test.TestTrue(TEXT("The passive card appears in every position"),
-        PassivePositions[0] > 0 && PassivePositions[1] > 0 && PassivePositions[2] > 0);
+    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every direction"), Reached.Num(), Content.OpeningCards.Num());
+    bGood &= Test.TestEqual(TEXT("512 opening seeds reach every draftable active"), HiddenReached.Num(), Actives.Num());
+    for (const auto& Count : DirectionCounts)
+    {
+        bGood &= Test.TestTrue(TEXT("Direction frequency stays within 20 percent of the equal-weight expectation"),
+            FMath::Abs(Count.Value - 256) <= 52);
+    }
     TArray<LDProgression::FLegalOption> First, Again;
     Input.Seed = 77;
     bGood &= GrowthTestReason(Test, TEXT("An opening draw"), LDProgression::DrawOffer(Input, Pool, First), ELDGrowthReason::None);
@@ -1992,7 +1999,8 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
             GatedInput.Ordinal = Ordinal;
             GatedInput.Seed = Seed;
             bNeverGated &= LDProgression::DrawOffer(GatedInput, LevelPool, Drawn) == ELDGrowthReason::None
-                && !Drawn.ContainsByPredicate([Held](const LDProgression::FLegalOption& Row) { return Row.DefinitionId == Held; });
+                && !Drawn.ContainsByPredicate([Held](const LDProgression::FLegalOption& Row)
+                    { return Row.DefinitionId == Held || Row.HiddenActive == Held; });
         }
     }
     bGood &= Test.TestTrue(TEXT("A non-draftable active never appears in an opening or level-up offer"), bNeverGated);
@@ -2008,13 +2016,13 @@ bool GrowthTestRunOpeningPool(FAutomationTestBase& Test)
     }
     LDProgression::FDrawInput ShortInput = Input;
     ShortInput.Content = &Short;
-    bGood &= Test.TestFalse(TEXT("One draftable active cannot fill two active cards"), LDProgression::DrawFeasible(Short, Empty, Pool, 1));
+    bGood &= Test.TestFalse(TEXT("One draftable active cannot fill three hidden actives"), LDProgression::DrawFeasible(Short, Empty, Pool, 1));
     bGood &= GrowthTestReason(Test, TEXT("Drawing an opening with one draftable active"), LDProgression::DrawOffer(ShortInput, Pool, Refused),
         ELDGrowthReason::DataInvalid);
     FLDDemoContentDefinitions Four = Content;
-    Four.Progression.OpeningPassiveCount = 2;
+    Four.Progression.OpeningMatchedSkillWeight = 0;
     ShortInput.Content = &Four;
-    bGood &= GrowthTestReason(Test, TEXT("An opening of four cards"), LDProgression::DrawOffer(ShortInput, Pool, Refused),
+    bGood &= GrowthTestReason(Test, TEXT("An opening with an invalid weight"), LDProgression::DrawOffer(ShortInput, Pool, Refused),
         ELDGrowthReason::DataInvalid);
     ShortInput.Content = &Content;
     ShortInput.Ordinal = 0;
@@ -2089,7 +2097,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
          TEXT("ProgressionRevision"), TEXT("BuildRevision"), TEXT("EarnedThrough"), TEXT("ConsumedThrough"),
          TEXT("PendingChoiceCount"), TEXT("RerollTokens"), TEXT("bHasOffer"), TEXT("Offer"), TEXT("Skills"), TEXT("AttributeCards"),
-         TEXT("CatalogDigest")});
+         TEXT("OpeningCard"), TEXT("CatalogDigest")});
     bGood &= GrowthTestExactFields(Test, FLDChoiceOfferView::StaticStruct(),
         {TEXT("OfferId"), TEXT("OpportunityOrdinal"), TEXT("OfferRevision"), TEXT("GuardBuildRevision"), TEXT("bRerolled"), TEXT("Options")});
     bGood &= GrowthTestExactFields(Test, FLDChoiceOption::StaticStruct(),
@@ -3720,13 +3728,38 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
     Development->QueueChoice(Tester, Command);
     if (!RunTransactions()) { return false; }
     FLDChoiceReceiptQueryResult Result = Final(Command.RequestId);
-    TestTrue(TEXT("Without a token the reroll is refused with NoReroll and nothing changes"), Result.bHasReceipt
+    TestTrue(TEXT("The opening reroll is refused even before tokens exist"), Result.bHasReceipt
         && Result.Receipt.Header.Outcome == ELDReceiptOutcome::Rejected
-        && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::NoReroll
+        && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::OpeningNoReroll
         && Development->ReadProgression(Tester).Offer.OfferId == Command.OfferId);
 
-    // Level 4 earns one token: the opening offer is replaced by a new offer of the same opportunity.
+    for (const uint8 Level : {uint8(4), uint8(7)})
+    {
+        Development->Records.FindChecked(Tester).Build.Level = Level;
+        const FLDProgressionView Opening = Development->ReadProgression(Tester);
+        Command = MakeReroll();
+        Development->QueueChoice(Tester, Command);
+        if (!RunTransactions()) { return false; }
+        Result = Final(Command.RequestId);
+        TestTrue(TEXT("Level 4/7 tokens cannot reroll an unchosen opening offer"),
+            Result.bHasReceipt && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::OpeningNoReroll
+            && Development->ReadProgression(Tester).RerollTokens == Opening.RerollTokens
+            && Development->ReadProgression(Tester).Offer.OfferId == Opening.Offer.OfferId);
+    }
+    // Exercise the ordinary level-up reroll independently of the opening offer.
     Development->Records.FindChecked(Tester).Build.Level = 4;
+    auto& Record = Development->Records.FindChecked(Tester);
+    Record.Progression.ConsumedThrough = 1;
+    Record.Progression.EarnedThrough = 4;
+    TArray<LDProgression::FLegalOption> Pool, Picked;
+    LDProgression::LegalPool(*Catalog, Record.Build, Pool);
+    LDProgression::FDrawInput Draw;
+    Draw.Content = &Catalog->Get();
+    Draw.Build = &Record.Build;
+    Draw.Ordinal = 2;
+    Draw.Seed = 123;
+    if (LDProgression::DrawOffer(Draw, Pool, Picked) != ELDGrowthReason::None) { return false; }
+    Development->InstallHead(Tester, Record, 2, false, Picked);
     const FLDProgressionView Before = Development->ReadProgression(Tester);
     TestEqual(TEXT("Level 4 holds one reroll token"), Before.RerollTokens, uint8(1));
     Command = MakeReroll();
@@ -3747,7 +3780,7 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
         Repeated += Before.Offer.Options.ContainsByPredicate([&Option](const FLDChoiceOption& Old)
             { return Old.DefinitionId == Option.DefinitionId && Old.Kind == Option.Kind; }) ? 1 : 0;
     }
-    TestEqual(TEXT("The rerolled opening avoids the previous three cards"), Repeated, 0);
+    TestEqual(TEXT("The rerolled level-up avoids the previous three cards"), Repeated, 0);
     const FLDSubmitResult Replay = Development->QueueChoice(Tester, Command);
     TestTrue(TEXT("A replay answers the original receipt without a second reroll"), Replay.Status == ELDAdmissionStatus::Final
         && Replay.bHasChoiceReceipt && Replay.ChoiceReceipt.NextOfferId == After.Offer.OfferId
@@ -3770,6 +3803,179 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
     Result = Final(Stale.RequestId);
     TestTrue(TEXT("A reroll with a stale guard is refused"), Result.bHasReceipt
         && LDGrowthWire::Reason(Result.Receipt.Header.Reason) == ELDGrowthReason::OfferGuardStale);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthOpeningCardTest, "Lockdown.Rules.DemoGrowthOpeningCard",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoGrowthOpeningCardTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!GrowthTestReadFixture(*this, Catalog)) { return false; }
+    FString DisplayError;
+    if (!TestTrue(TEXT("The approved display table is registered for this standalone test"),
+        LDDemoContentText::Register(*Catalog, DisplayError)))
+    { AddError(DisplayError); return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    FLDGrowthBuild Empty;
+    TArray<LDProgression::FLegalOption> Pool, Picked;
+    LDProgression::LegalPool(*Catalog, Empty, Pool);
+    LDProgression::FDrawInput Draw;
+    Draw.Content = &Content;
+    Draw.Build = &Empty;
+    Draw.Ordinal = 1;
+    Draw.Seed = 153;
+    if (!TestTrue(TEXT("The opening draw succeeds"), LDProgression::DrawOffer(Draw, Pool, Picked) == ELDGrowthReason::None))
+    { return false; }
+    for (const auto& Direction : Content.OpeningCards)
+    {
+        for (const auto& Ability : Content.Abilities)
+        {
+            if (Ability.Kind != ELDDemoAbilityKind::Active) { continue; }
+            bool bIntersection = false;
+            for (const auto& Bonus : Direction.Stats)
+            {
+                for (const auto& Rank : Ability.Ranks)
+                {
+                    for (const auto& Effect : Rank.Effects)
+                    {
+                        bIntersection |= (Bonus.Stat == ELDDemoBonusStat::ADFlat && Effect.ADRatioBp > 0)
+                            || (Bonus.Stat == ELDDemoBonusStat::APFlat && Effect.APRatioBp > 0)
+                            || (Bonus.Stat == ELDDemoBonusStat::MaxHPFlat && Effect.MaxHPRatioBp > 0);
+                    }
+                }
+            }
+            TestEqual(TEXT("Weights use actual effect growth coefficients, never skill IDs"),
+                LDProgression::OpeningActiveWeight(Content, Direction, Ability), bIntersection ? int64(2) : int64(1));
+        }
+        FLDChoiceOption Option;
+        Option.Kind = ELDChoiceOptionKind::Opening;
+        Option.DefinitionId = FName(*Direction.Id);
+        Option.ToRank = 1;
+        FLDGrowthBuild Applied;
+        LDProgression::FAppliedOption Detail;
+        const FName Hidden = Picked[0].HiddenActive;
+        TestEqual(TEXT("An opening choice without the server-only active is refused"),
+            LDProgression::ApplyOption(*Catalog, Empty, Option, nullptr, Applied, Detail), ELDGrowthReason::InvalidOption);
+        if (!TestEqual(TEXT("The selected direction and its active apply atomically"),
+            LDProgression::ApplyOption(*Catalog, Empty, Option, nullptr, Applied, Detail, Hidden), ELDGrowthReason::None))
+        { return false; }
+        TestTrue(TEXT("The card is permanent; the active is initial rank in Q; this costs one choice"),
+            Applied.OpeningCard == Option.DefinitionId && Applied.Skills.Num() == 1 && Applied.Cards.IsEmpty()
+            && Applied.Skills[0].Id == Hidden && Applied.Skills[0].Rank == 1 && Applied.Skills[0].Slot == 0
+            && Detail.OpeningActive == Hidden && Applied.ChoicesInvested() == 1);
+        TestFalse(TEXT("A second opening cannot be applied"), LDProgression::OptionStillLegal(*Catalog, Applied, Option));
+        FLDAttributeBuildValues Values(1, {}, {}, {});
+        Values.OpeningCard = Direction.Id;
+        const auto Projection = LDAttributeProjection::Project(Values, *Catalog);
+        if (!TestTrue(TEXT("All six approved bundles project at level 1"), Projection.IsSuccess()))
+        { return false; }
+        const auto& P = Content.Parameters;
+        FLDProjectedAttributes Expected;
+        Expected.MaxHPP2 = P.MaxHP.BaseP2;
+        Expected.MaxMPP2 = P.MaxMP.BaseP2;
+        Expected.ADP2 = P.AD.BaseP2;
+        Expected.APP2 = P.AP.BaseP2;
+        Expected.ArmorP2 = P.Armor.BaseP2;
+        Expected.MagicResistP2 = P.MagicResist.BaseP2;
+        Expected.AttackSpeed = P.AttackSpeed.Base;
+        Expected.MoveSpeedCmPerSec = P.MoveSpeedCmPerSec.Base;
+        Expected.AttackRangeCm = P.AttackRangeCm.Base;
+        Expected.HPRegenPerSec = P.HPRegen.Base;
+        Expected.MPRegenPerSec = P.MPRegen.Base;
+        Expected.CritChanceBp = P.CritChanceBaseBp;
+        Expected.CooldownHasteP2 = P.CooldownHasteBaseP2;
+        for (const auto& Bonus : Direction.Stats)
+        {
+            switch (Bonus.Stat)
+            {
+            case ELDDemoBonusStat::ADFlat: Expected.ADP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::APFlat: Expected.APP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MaxHPFlat: Expected.MaxHPP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MaxMPFlat: Expected.MaxMPP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::ArmorFlat: Expected.ArmorP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::MagicResistFlat: Expected.MagicResistP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::CooldownHasteFlat: Expected.CooldownHasteP2 += Bonus.Amount; break;
+            case ELDDemoBonusStat::AttackSpeedBonusRatio:
+                Expected.AttackSpeed.Numerator *= 10000 + Bonus.Amount;
+                Expected.AttackSpeed.Denominator *= 10000;
+                break;
+            case ELDDemoBonusStat::MoveSpeedBonusRatio:
+                Expected.MoveSpeedCmPerSec.Numerator *= 10000 + Bonus.Amount;
+                Expected.MoveSpeedCmPerSec.Denominator *= 10000;
+                break;
+            case ELDDemoBonusStat::AttackRangeCmFlat:
+                Expected.AttackRangeCm.Numerator = Expected.AttackRangeCm.Numerator * Bonus.Cm.Denominator
+                    + Bonus.Cm.Numerator * Expected.AttackRangeCm.Denominator;
+                Expected.AttackRangeCm.Denominator *= Bonus.Cm.Denominator;
+                break;
+            default: AddError(TEXT("An opening bundle contains an unsupported expected stat")); return false;
+            }
+        }
+        const auto& Actual = Projection.Value->Final;
+        const FString Label = Direction.Id + TEXT(": ");
+        TestEqual(Label + TEXT("max HP"), Actual.MaxHPP2, Expected.MaxHPP2);
+        TestEqual(Label + TEXT("max MP"), Actual.MaxMPP2, Expected.MaxMPP2);
+        TestEqual(Label + TEXT("AD"), Actual.ADP2, Expected.ADP2);
+        TestEqual(Label + TEXT("AP"), Actual.APP2, Expected.APP2);
+        TestEqual(Label + TEXT("armor"), Actual.ArmorP2, Expected.ArmorP2);
+        TestEqual(Label + TEXT("magic resist"), Actual.MagicResistP2, Expected.MagicResistP2);
+        TestEqual(Label + TEXT("haste"), Actual.CooldownHasteP2, Expected.CooldownHasteP2);
+        TestEqual(Label + TEXT("crit"), Actual.CritChanceBp, Expected.CritChanceBp);
+        const auto EqualRate = [](const FLDDemoRational& A, const FLDDemoRational& B)
+            { return A.Numerator * B.Denominator == B.Numerator * A.Denominator; };
+        TestTrue(Label + TEXT("attack speed"), EqualRate(Actual.AttackSpeed, Expected.AttackSpeed));
+        TestTrue(Label + TEXT("move speed"), EqualRate(Actual.MoveSpeedCmPerSec, Expected.MoveSpeedCmPerSec));
+        TestTrue(Label + TEXT("attack range"), EqualRate(Actual.AttackRangeCm, Expected.AttackRangeCm));
+        TestTrue(Label + TEXT("HP regeneration"), EqualRate(Actual.HPRegenPerSec, Expected.HPRegenPerSec));
+        TestTrue(Label + TEXT("MP regeneration"), EqualRate(Actual.MPRegenPerSec, Expected.MPRegenPerSec));
+        FLDProgressionView View;
+        View.Level = 1;
+        View.Offer.Options = {Option};
+        const auto Card = LDHUD::ChoiceCard(Option, View, &Content, {});
+        TestTrue(TEXT("Direction, three typed stat lines and the mystery active are on the face"),
+            Card.Kind == LDTerms::OpeningCardKind && Card.SentencePlain.Contains(LDTerms::OpeningHiddenActive)
+            && !Card.bNeedsReplacement && LDHUD::IsOpeningOffer(View.Offer));
+        for (const auto& Stat : Direction.Stats)
+        {
+            TestTrue(TEXT("Every stat is visible without hovering"), Card.SentencePlain.Contains(LDHUD::StatLine(Stat)));
+        }
+        const FString HiddenName = LDHUD::ContentName(&Content, Hidden.ToString());
+        const FString FaceText = Card.Name + Card.Detail + Card.SentencePlain + Card.AdvancedPlain + FString::Join(Card.Lines, TEXT("\n"));
+        TestFalse(TEXT("The owner card model carries no hidden skill ID"), FaceText.Contains(Hidden.ToString()));
+        TestFalse(TEXT("The owner card model carries no hidden skill display name"), FaceText.Contains(HiddenName));
+        Draw.Build = &Applied;
+        Draw.Ordinal = 2;
+        LDProgression::LegalPool(*Catalog, Applied, Pool);
+        TestEqual(TEXT("The next opportunity uses the normal level-up draw"), LDProgression::DrawOffer(Draw, Pool, Picked),
+            ELDGrowthReason::None);
+        for (const auto& Row : Picked)
+        {
+            TestTrue(TEXT("Later draws contain neither opening cards nor hidden actives"),
+                Row.Kind != ELDChoiceOptionKind::Opening && Row.HiddenActive.IsNone());
+        }
+        Draw.Build = &Empty;
+        Draw.Ordinal = 1;
+        LDProgression::LegalPool(*Catalog, Empty, Pool);
+        LDProgression::DrawOffer(Draw, Pool, Picked);
+    }
+    // A synthetic active coefficient shows that weighting follows edited content rather than a memorized list.
+    FLDDemoAbilityDefinition Synthetic;
+    FLDDemoRankDefinition Rank;
+    FLDDemoEffectDefinition Effect;
+    Effect.APRatioBp = 1;
+    Rank.Effects.Add(Effect);
+    Synthetic.Ranks.Add(Rank);
+    FLDDemoOpeningCardDefinition Direction;
+    FLDDemoStatBonus Stat;
+    Stat.Stat = ELDDemoBonusStat::APFlat;
+    Direction.Stats.Add(Stat);
+    TestEqual(TEXT("A previously unknown active with AP growth matches AP directions"),
+        LDProgression::OpeningActiveWeight(Content, Direction, Synthetic), int64(2));
+    Synthetic.Ranks[0].Effects[0].APRatioBp = 0;
+    TestEqual(TEXT("Removing its coefficient removes the match"),
+        LDProgression::OpeningActiveWeight(Content, Direction, Synthetic), int64(1));
     return true;
 }
 

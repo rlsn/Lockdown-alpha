@@ -163,13 +163,14 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
         Error = TEXT("Growth requires exactly two active skill slots (Q/W).");
         return false;
     }
-    // 112 §6: the kept opening offer is drawn from its own composition; a short group refuses the match, never borrows cards.
+    // #153: the kept opening offer is three opening cards hiding three distinct new draftable actives; a short catalog
+    // refuses the match, never borrows cards.
     TArray<LDProgression::FLegalOption> FirstPool;
     if (LDProgression::LegalPool(*InContent, FLDGrowthBuild(), FirstPool) != ELDGrowthReason::None
         || !LDProgression::DrawFeasible(InContent->Get(), FLDGrowthBuild(), FirstPool, 1))
     {
-        Error = FString::Printf(TEXT("The approved catalog cannot fill the opening offer of %d new draftable actives and %d passives."),
-            Definitions.Progression.OpeningActiveCount, Definitions.Progression.OpeningPassiveCount);
+        Error = FString::Printf(TEXT("The approved catalog cannot fill the opening offer: %d opening cards need three, each hiding a distinct draftable active."),
+            Definitions.OpeningCards.Num());
         return false;
     }
     TMap<FGuid, FRecord> NewRecords;
@@ -266,6 +267,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         Row.DefinitionId = Card.Id;
         Row.Count = Card.Count;
     }
+    View.OpeningCard = Build.OpeningCard;
     View.CatalogDigest = Definitions.Identity.Root;
     return View;
 }
@@ -470,12 +472,15 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         GameMode->Economy->MarkDirty(ContenderId);
         return Receipt;
     }
-    const FLDChoiceOption* Option = Offer.Options.FindByPredicate(
+    const int32 OptionIndex = Offer.Options.IndexOfByPredicate(
         [&Command](const FLDChoiceOption& Row) { return Row.OptionId == Command.OptionId; });
-    if (!Option)
+    if (OptionIndex == INDEX_NONE)
     {
         return Reject(ELDGrowthReason::InvalidOption);
     }
+    const FLDChoiceOption* Option = &Offer.Options[OptionIndex];
+    // #153: the active an Opening card hides stays on the server until this option is applied.
+    const FName HiddenActive = Offer.HiddenActives.IsValidIndex(OptionIndex) ? Offer.HiddenActives[OptionIndex] : NAME_None;
     // The single offer is always the head of a non-empty opportunity queue.
     if (Offer.Ordinal != Progression.ConsumedThrough + 1 || Progression.ConsumedThrough >= Progression.EarnedThrough)
     {
@@ -499,7 +504,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     const FGuid OptionId = Option->OptionId;
     LDProgression::FAppliedOption AppliedOption;
     const ELDGrowthReason InstallReason = InstallOption(ContenderId, *Record, *Option,
-        Command.bReplace ? &Replacement : nullptr, Command.RequestId, Permit, AppliedOption);
+        Command.bReplace ? &Replacement : nullptr, HiddenActive, Command.RequestId, Permit, AppliedOption);
     if (InstallReason == ELDGrowthReason::AuthorityFault)
     {
         UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu: permit lost before apply"),
@@ -524,6 +529,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     Receipt.Kind = AppliedOption.Kind;
     Receipt.DefinitionId = AppliedOption.DefinitionId;
     Receipt.NewRank = AppliedOption.NewRank;
+    Receipt.OpeningActiveId = AppliedOption.OpeningActive;
     if (AppliedOption.bReplaced)
     {
         Receipt.bReplaced = true;
@@ -538,11 +544,13 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Receipt.Header.Revisions.bHasOffer = true;
         Receipt.Header.Revisions.OfferRevision = Record->Progression.Offer->Revision;
     }
-    UE_LOG(LogLDGrowth, Log, TEXT("LD_CHOICE t=%lld contender=%s ordinal=%u kind=%s card=%s rank=%u replaced=%s level=%u pending=%u"),
+    // The opening active is logged only now that the choice revealed it (#153).
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_CHOICE t=%lld contender=%s ordinal=%u kind=%s card=%s rank=%u replaced=%s level=%u pending=%u revealed=%s"),
         GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), *LDLog::EnumName(AppliedOption.Kind),
         *AppliedOption.DefinitionId.ToString(), uint32(AppliedOption.NewRank),
         AppliedOption.bReplaced ? *FString::Printf(TEXT("%s:%u"), *AppliedOption.ReplacedId.ToString(), uint32(AppliedOption.ReplacedRank)) : TEXT("-"),
-        uint32(Record->Build.Level), uint32(Record->Progression.PendingCount()));
+        uint32(Record->Build.Level), uint32(Record->Progression.PendingCount()),
+        AppliedOption.OpeningActive.IsNone() ? TEXT("-") : *AppliedOption.OpeningActive.ToString());
     Record->Choices.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
     GameMode->Economy->MarkDirty(ContenderId);
@@ -550,7 +558,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
 }
 
 ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, FRecord& Record, const FLDChoiceOption InOption,
-    const LDProgression::FReplacement* Replacement, uint64 RequestId, const FLDGameplayWritePermit& Permit,
+    const LDProgression::FReplacement* Replacement, FName HiddenActive, uint64 RequestId, const FLDGameplayWritePermit& Permit,
     LDProgression::FAppliedOption& OutApplied)
 {
     ALDGameMode* GameMode = Mode();
@@ -567,7 +575,8 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
         return ELDGrowthReason::DataInvalid;
     }
     FLDGrowthBuild NewBuild;
-    const ELDGrowthReason OptionReason = LDProgression::ApplyOption(*Content, Build, InOption, Replacement, NewBuild, OutApplied);
+    const ELDGrowthReason OptionReason = LDProgression::ApplyOption(*Content, Build, InOption, Replacement, NewBuild, OutApplied,
+        HiddenActive);
     if (OptionReason != ELDGrowthReason::None)
     {
         return OptionReason;
@@ -846,11 +855,12 @@ void ALDDevelopmentDirector::InstallHead(const FGuid& ContenderId, FRecord& Reco
         Option.DefinitionId = Legal.DefinitionId;
         Option.FromRank = Legal.FromRank;
         Option.ToRank = Legal.ToRank;
+        Offer.HiddenActives.Add(Legal.HiddenActive);
     }
     Offer.GeneratedBuildRevision = Record.Build.Revision;
     Offer.GuardBuildRevision = Record.Build.Revision;
     Offer.Revision = ++Progression.LastOfferRevision;
-    // Host playtest record of the three cards shown (docs/DEVELOPMENT.md).
+    // Host playtest record of the three cards shown (docs/DEVELOPMENT.md); an opening card's hidden active is never logged here.
     if (UE_LOG_ACTIVE(LogLDGrowth, Log))
     {
         FString Cards;
@@ -884,6 +894,11 @@ ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRe
     if (Current.bRerolled)
     {
         return ELDGrowthReason::OfferAlreadyRerolled;
+    }
+    // #153 D9: the opening direction offer is never rerolled, whatever tokens the level has earned since.
+    if (Current.Options.ContainsByPredicate([](const FLDChoiceOption& Option) { return Option.Kind == ELDChoiceOptionKind::Opening; }))
+    {
+        return ELDGrowthReason::OpeningNoReroll;
     }
     if (RerollTokens(Record) == 0)
     {
@@ -945,6 +960,7 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
     {
         Input.AttributeCards.Emplace(Card.Id.ToString().ToLower(), Card.Count);
     }
+    Input.OpeningCard = Build.OpeningCard.IsNone() ? FString() : Build.OpeningCard.ToString().ToLower();
     Input.Equipment = Equipment;
     Input.ResultBuildRevision = Build.Revision;
     Input.ResultInventoryRevision = ResultInventoryRevision;
@@ -1013,14 +1029,15 @@ bool ALDDevelopmentDirector::DevQueueOffer(const FGuid& ContenderId, const TArra
         Error = TEXT("The preset recipient is not a contender of this match.");
         return false;
     }
-    TArray<LDProgression::FLegalOption> Resolved;
-    if (!LDDevGrowthFixture::ResolvePreset(*Content, Record->Build, DefinitionIds, Resolved, Error))
-    {
-        return false;
-    }
     // Every opportunity up to MaxChoices draws one head; the current head, if any, is already drawn.
     const TArray<TArray<FName>>* Queued = DevOfferQueue.Find(ContenderId);
     const int32 Drawn = int32(Record->Progression.ConsumedThrough) + (Record->Progression.Offer.IsSet() ? 1 : 0);
+    TArray<LDProgression::FLegalOption> Resolved;
+    if (!LDDevGrowthFixture::ResolvePreset(*Content, Record->Build, uint8(FMath::Min(Drawn + (Queued ? Queued->Num() : 0) + 1, 255)),
+        DefinitionIds, Resolved, Error))
+    {
+        return false;
+    }
     if (Drawn + (Queued ? Queued->Num() : 0) >= Content->Get().Progression.MaxChoices)
     {
         Error = FString::Printf(TEXT("No offer is left to preset: %d drawn and %d queued of %d."), Drawn, Queued ? Queued->Num() : 0,
@@ -1085,8 +1102,8 @@ ELDGrowthReason ALDDevelopmentDirector::DevChooseOption(const FGuid& ContenderId
         Replacement.bConfirmed = true;
     }
     LDProgression::FAppliedOption Applied;
-    const ELDGrowthReason Reason = InstallOption(ContenderId, *Record, Option, ReplaceSlot != 0 ? &Replacement : nullptr, 0, Permit,
-        Applied);
+    const ELDGrowthReason Reason = InstallOption(ContenderId, *Record, Option, ReplaceSlot != 0 ? &Replacement : nullptr, NAME_None, 0,
+        Permit, Applied);
     if (Reason == ELDGrowthReason::None)
     {
         Detail = FString::Printf(TEXT("%s rank %u, opportunity %u consumed"), *Applied.DefinitionId.ToString(), uint32(Applied.NewRank),

@@ -242,6 +242,8 @@ struct FLDBuildProjectionInput
     uint8 Level=0;
     TArray<FLDLearnedPassiveValue> Passives;
     TArray<FLDAttributeCardValue> AttributeCards;
+    // #153: the chosen opening direction card (canonical id), empty before the opening choice.
+    FString OpeningCard;
     TArray<FLDLearnedActiveValue> Actives;
     TArray<FLDEquippedItemValue> Equipment;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and

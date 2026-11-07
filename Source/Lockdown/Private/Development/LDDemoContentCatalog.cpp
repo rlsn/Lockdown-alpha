@@ -193,6 +193,11 @@ bool FLDDemoContentSnapshot::FindAttribute(const FString& Id, const FLDDemoAttri
     return Find(Definitions.Attributes, Id, Out, Error);
 }
 
+bool FLDDemoContentSnapshot::FindOpeningCard(const FString& Id, const FLDDemoOpeningCardDefinition*& Out, FString& Error) const
+{
+    return Find(Definitions.OpeningCards, Id, Out, Error);
+}
+
 bool FLDDemoContentSnapshot::FindEquipment(const FString& Id, const FLDDemoEquipmentDefinition*& Out, FString& Error) const
 {
     return Find(Definitions.Equipment, Id, Out, Error);
