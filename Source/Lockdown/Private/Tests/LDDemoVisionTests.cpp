@@ -267,7 +267,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     FLDWorldView Read;
     int64 Bytes = 0;
     TestTrue(TEXT("Bounded full view round-trips"), Wire(Full, Read, &Bytes));
-    TestTrue(TEXT("Full view stays inside its derived capacity"), Bytes > LDObservation::CoverageBytes && Bytes < 8192);
+    TestTrue(TEXT("Full view stays inside its derived capacity"), Bytes > 0 && Bytes < 8192);
     AddInfo(FString::Printf(TEXT("Maximum observation frame: %lld bytes"), Bytes));
     TestEqual(TEXT("Units complete"), Read.Units.Num(), LDObservation::MaxUnits);
     TestEqual(TEXT("Terminations complete"), Read.RecentTerminations.Num(), LDObservation::MaxTerminations);
@@ -359,6 +359,7 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("The retired schema 1 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 1; })));
     TestFalse(TEXT("The retired schema 2 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 2; })));
     TestFalse(TEXT("The retired schema 3 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 3; })));
+    TestFalse(TEXT("The uncompressed schema 5 is refused"), Encodes(Mutated([](FLDWorldView& V) { V.Schema = 5; })));
     TestFalse(TEXT("Capacity is never truncated"), Encodes(Mutated([](FLDWorldView& V)
     { while (V.Units.Num() <= LDObservation::MaxUnits) { V.Units.Add(ContenderUnit()); } })));
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
@@ -407,6 +408,66 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     FLDWorldView Dead = ActiveFrame(7, 4, 42);
     Dead.Footprint = FLDObservedFootprint();
     TestTrue(TEXT("NoLivingBody is an explicit empty frame"), Encodes(Dead));
+
+    for (int32 Pattern = 0; Pattern < 4; ++Pattern)
+    {
+        FLDWorldView Coverage = ActiveFrame(7,3,50+Pattern);
+        for (int32 Index = 0; Index < LDObservation::CoverageBytes; ++Index)
+        {
+            Coverage.Footprint.CurrentBits[Index] = Pattern==0 ? 0 : Pattern==1 ? 255 : Pattern==2 ? uint8(Index) : 0;
+        }
+        if (Pattern==3)
+        {
+            for (int32 Y=0;Y<LDObservation::CoverageSide;++Y)
+            {
+                for (int32 X=0;X<LDObservation::CoverageSide;++X)
+                {
+                    if (FMath::Square(X-64)+FMath::Square(Y-64)<=14*14)
+                    { LDObservation::SetCoverageBit(Coverage.Footprint.CurrentBits,Y*LDObservation::CoverageSide+X); }
+                }
+            }
+            for (uint32 Index=1;Index<=5;++Index) { Coverage.Units.Add(ContenderUnit(Index)); }
+        }
+        FLDWorldView Decoded;
+        int64 CoverageSize=0;
+        TestTrue(TEXT("Empty, filled, incompressible and circular coverage round-trip exactly"),
+            Wire(Coverage,Decoded,&CoverageSize) && Decoded.Footprint.CurrentBits==Coverage.Footprint.CurrentBits);
+        TestTrue(TEXT("Incompressible coverage is bounded; ordinary six-player coverage fits below a packet payload"),
+            CoverageSize < (Pattern==2 ? LDObservation::CoverageBytes+128 : 1100));
+        AddInfo(FString::Printf(TEXT("Coverage pattern %d observation frame: %lld bytes"),Pattern,CoverageSize));
+    }
+
+    auto InvalidCoverage = [this](uint16 EncodedBytes, int32 Pairs, uint8 RunLength)
+    {
+        FNetBitWriter Writer(nullptr,1<<18);
+        uint32 Schema=LDObservation::Schema, Match=7, Life=1, Generation=3, Revision=60, Layout=1, Geometry=1;
+        uint8 Length=10, Source=uint8(ELDObservationSource::ActiveBody);
+        double Sampled=1;
+        ANSICHAR MapText[]="demo_world";
+        FVector_NetQuantize10 Feet(FVector(0,0,2));
+        bool bFeet=true;
+        float Radius=1400;
+        Writer << Schema << Match << Life << Generation << Revision << Length;
+        Writer.Serialize(MapText,Length);
+        Writer << Layout << Geometry << Sampled << Source;
+        Feet.NetSerialize(Writer,nullptr,bFeet);
+        Writer << Radius << EncodedBytes;
+        for (int32 Index=0;Index<Pairs;++Index) { uint8 Value=255; Writer << RunLength << Value; }
+        FNetBitReader Reader(nullptr,Writer.GetData(),Writer.GetNumBits());
+        FLDWorldView Decoded;
+        bool bAccepted=true;
+        Decoded.NetSerialize(Reader,nullptr,bAccepted);
+        TestFalse(TEXT("Malformed compressed coverage is a protocol error, never a partial-success frame"),bAccepted);
+        TestTrue(TEXT("Rejected compressed coverage marks the archive failed"),Reader.IsError());
+    };
+    InvalidCoverage(3,0,0);
+    InvalidCoverage(LDObservation::CoverageBytes,0,0);
+    InvalidCoverage(2,1,0);
+    InvalidCoverage(18,9,255);
+    TArray<uint8> TruncatedRuns, TruncatedBits;
+    TruncatedRuns.Init(255,14);
+    TestFalse(TEXT("A truncated coverage run list cannot fabricate the missing coverage"),
+        LDObservation::DecodeCoverageRuns(TruncatedRuns,TruncatedBits));
 
     FNetBitWriter Hostile(nullptr, 4096);
     uint32 Schema = LDObservation::Schema, Match = 7, Life = 1, Generation = 3, Revision = 9, Layout = 1, Geometry = 1;

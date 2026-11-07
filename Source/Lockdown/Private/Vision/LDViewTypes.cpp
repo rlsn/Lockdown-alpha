@@ -196,6 +196,53 @@ bool RejectObservationArchive(FArchive& Ar, bool& bSuccess)
     Ar.SetError();
     return false;
 }
+
+bool SerializeObservedCoverage(FArchive& Ar, TArray<uint8>& Bits)
+{
+    TArray<uint8> Runs;
+    uint16 EncodedBytes = 0;
+    if (Ar.IsSaving())
+    {
+        if (Bits.Num() != LDObservation::CoverageBytes) { return false; }
+        for (int32 Start = 0; Start < Bits.Num();)
+        {
+            int32 End = Start + 1;
+            while (End < Bits.Num() && End - Start < 256 && Bits[End] == Bits[Start]) { ++End; }
+            Runs.Add(uint8(End - Start - 1));
+            Runs.Add(Bits[Start]);
+            Start = End;
+        }
+        // Zero selects raw bytes; incompressible masks never grow beyond the original bitmap plus this header.
+        if (Runs.Num() < Bits.Num()) { EncodedBytes = uint16(Runs.Num()); }
+    }
+    Ar << EncodedBytes;
+    if (Ar.IsError() || EncodedBytes >= LDObservation::CoverageBytes || (EncodedBytes & 1) != 0) { return false; }
+    if (Ar.IsLoading()) { Bits.SetNumZeroed(LDObservation::CoverageBytes); }
+    if (EncodedBytes == 0)
+    {
+        Ar.Serialize(Bits.GetData(), LDObservation::CoverageBytes);
+        return !Ar.IsError();
+    }
+    if (Ar.IsSaving()) { Ar.Serialize(Runs.GetData(), EncodedBytes); return !Ar.IsError(); }
+    Runs.SetNumUninitialized(EncodedBytes);
+    Ar.Serialize(Runs.GetData(),EncodedBytes);
+    return !Ar.IsError() && LDObservation::DecodeCoverageRuns(Runs,Bits);
+}
+}
+
+bool LDObservation::DecodeCoverageRuns(TConstArrayView<uint8> Runs, TArray<uint8>& Bits)
+{
+    if (Runs.IsEmpty() || Runs.Num() >= CoverageBytes || (Runs.Num() & 1) != 0) { return false; }
+    Bits.SetNumZeroed(CoverageBytes);
+    int32 Written = 0;
+    for (int32 Index = 0; Index < Runs.Num(); Index += 2)
+    {
+        const int32 Count = int32(Runs[Index]) + 1;
+        if (Count > Bits.Num() - Written) { return false; }
+        FMemory::Memset(Bits.GetData() + Written, Runs[Index+1], Count);
+        Written += Count;
+    }
+    return Written == Bits.Num();
 }
 
 bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error)
@@ -374,9 +421,7 @@ bool FLDWorldView::NetSerialize(FArchive& Ar, UPackageMap* Map, bool& bSuccess)
         bool bFeet = true;
         Footprint.SourceFeetCm.NetSerialize(Ar, Map, bFeet);
         Ar << Footprint.RadiusCm;
-        if (Ar.IsLoading()) { Footprint.CurrentBits.SetNumZeroed(LDObservation::CoverageBytes); }
-        if (!bFeet || Footprint.CurrentBits.Num() != LDObservation::CoverageBytes) { return RejectObservationArchive(Ar, bSuccess); }
-        Ar.Serialize(Footprint.CurrentBits.GetData(), LDObservation::CoverageBytes);
+        if (!bFeet || !SerializeObservedCoverage(Ar, Footprint.CurrentBits)) { return RejectObservationArchive(Ar, bSuccess); }
     }
     uint8 UnitCount = uint8(FMath::Min(Units.Num(), 255));
     Ar << UnitCount;
