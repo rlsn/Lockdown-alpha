@@ -106,7 +106,9 @@ Unit 技能在指针下已有可见单位时、方向技能在指针下有地面
 
 **施法后自动攻击**（本地设置 `bAutoAttackAfterCast`，`ULDControlSettings::GetAutoAttackAfterCast`，默认开启，#167）：
 不带 Shift 的 `CastUnit/CastPoint` 订单发出时，`ULDNavigationComponent` 按 `LDOrderRules::CastFollowUpTarget`
-记下后续目标：对单位技能取其目标；对地面/方向技能取施法前仍在进行的本地 `AttackUnit` 目标，没有则不跟进。
+记下后续目标：对单位技能取其目标；对地面/方向技能取施法前服务器已激活的 `AttackUnit` 目标，没有则不跟进。
+客户端按订单身份保留已发送攻击的观察句柄，以 `ClientActive` 选取正在执行的目标；排队或被拒的请求不覆盖它，
+终止回执和新生命清理相应记录。跟进目标和自动攻击身份在发 RPC 前登记，以处理 Listen Host 的同步回执。
 该施放订单的回执经 `LDOrderRules::CastFollowUpStep` 判定：仍是最新的本地订单、`Completed` 且无失败、
 目标在 owner view 中仍可见时，客户端发出普通的 `AttackUnit` 订单，服务器照常校验；被拒、取消、
 被更新的订单或 S 取代、目标不可见时放弃，原地站立。Shift 排队的施放、Shift 入队步骤与新生命都清掉待跟进目标。
@@ -602,6 +604,7 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 | `Lockdown.Rules.DemoOrders.ChasePress` | 普攻追击不发呆：到点出手的普攻不再占住订单，射程内等节拍时目标走开即贴近。 |
 | `Lockdown.Rules.DemoControlFeel.AttackClick` | A 后左键点单位等同右键攻击该单位，点地面为攻击移动（2026-11-07）。 |
 | `Lockdown.Rules.DemoControlFeel.RefusedSkillKeepsOrder` | 未就绪的技能请求被立即拒绝而不动当前订单与队列；前摇只延后；被拒的技能步骤不清队列（2026-11-07）。 |
+| `Lockdown.Rules.DemoControlFeel.AutoAttackAfterCast` | 施法跟进目标和回执规则；排队、拒绝、S 和新生命下按已激活的攻击追踪目标；自动攻击拒绝不重复提示。 |
 | `Lockdown.Rules.ControlMappings` | 唯一动作注册表与绑定。 |
 | `Lockdown.Rules.Minimap.*`、`Lockdown.Rules.LocalSettingsMinimapOrientation` | 小地图朝向与设置。 |
 
@@ -610,8 +613,10 @@ hover、检查、右键攻击、普通确认与快速施法共用此入口（`AL
 `Scripts\RunDemoCombatCheck.ps1`（参数 `EngineRoot`、`PackageRoot`、`TimeoutSeconds`，
 可选 `NetEmulation` 传入引擎丢包/延迟模拟）启动一个参赛的 Listen Host 与一个独立拥有客户端。
 Host 必须报告检查组 Net、Start、ChaseGoal、AttackMove、Stop、Death、Respawn、Protection、Skills、
-Render、Feel、Pointer；Client1 报告 Net、Start、Settings、AttackMove、Stop、Death、DeathCamera、Respawn、
-Protection、Skills、Feel。Pointer 组验证悬停圈、地面标记与攻击标记，并保存
+CastFollowUp、Render、Feel、Pointer；Client1 报告 Net、Start、Settings、AttackMove、Stop、Death、DeathCamera、Respawn、
+Protection、Skills、CastFollowUp、Feel、Queue。CastFollowUp 组核对 Listen Host 的单位施法跟进与同步拒绝，
+以及真实拥有客户端在已激活攻击、排队的失效目标和被拒施法之后，方向施法恢复原攻击。
+Pointer 组验证悬停圈、地面标记与攻击标记，并保存
 `HostSees-MoveMarker.png`、`HostSees-Hover.png`、`HostSees-AttackMarker.png` 供人工审阅（不做像素比对）。
 输出写入忽略的 `Artifacts`。
 

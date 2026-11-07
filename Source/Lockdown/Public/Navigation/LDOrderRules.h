@@ -139,14 +139,13 @@ namespace LDOrderRules
         // The unit-target skill's own target.
         FGuid CastTarget;
         uint32 CastEpoch = 0;
-        // The unit the newest own order means to attack (an AttackUnit, or an earlier cast's pending follow-up), and
-        // whether that order is still the current own intent (pending or running).
+        // The target of the currently accepted AttackUnit, never a queued or refused request.
         bool bPriorAttackCurrent = false;
         FGuid PriorTarget;
         uint32 PriorEpoch = 0;
     };
     // Chosen when the cast order is sent: off or Shift-queued (the queue defines what follows) -> none; a unit skill ->
-    // its own target; a ground/direction skill -> the unit the current own attack intent names, otherwise none (stand).
+    // its own target; a ground/direction skill -> the unit the accepted attack names, otherwise none (stand).
     LOCKDOWN_API bool CastFollowUpTarget(const FCastFollowUpInput& Input, FGuid& OutTarget, uint32& OutEpoch);
     // What a receipt of the cast order does to its pending follow-up: Wait while it is queued or running, Attack once
     // the server completed it without failure while it is still the newest own order and the target is still visible,

@@ -1,6 +1,10 @@
 #include "Navigation/LDOrderRules.h"
+#include "Navigation/LDNavigationComponent.h"
 #include "Combat/LDCombatPreInput.h"
 #include "Framework/LDPlayerController.h"
+#include "UI/LDControlSettings.h"
+#include "Engine/Engine.h"
+#include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
 #include "Misc/ScopeExit.h"
 
@@ -275,6 +279,98 @@ bool FLDControlFeelAutoAttackAfterCastTest::RunTest(const FString& Parameters)
         TestTrue(TEXT("A completion carrying a failure is no successful cast"),
             CastFollowUpStep(ELDOrderStatus::Completed, Failure, true, true) == ECastFollowUp::Drop);
     }
+
+    const auto Values=UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
+        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
+    UWorld* World=UWorld::CreateWorld(EWorldType::Game,false,NAME_None,nullptr,true,ERHIFeatureLevel::Num,&Values);
+    if (!TestNotNull(TEXT("Follow-up receipt fixture world"),World)) { return false; }
+    ON_SCOPE_EXIT { World->DestroyWorld(false); };
+    auto* PC=World->SpawnActor<ALDPlayerController>();
+    if (!TestNotNull(TEXT("Follow-up receipt controller"),PC)) { return false; }
+    PC->Player=NewObject<ULocalPlayer>(GEngine);
+    PC->Controls=NewObject<ULDControlSettings>(PC);
+    PC->OwnerState.Match=1;
+    PC->OwnerState.Life=1;
+    if (!TestTrue(TEXT("Receipts are applied on the owning controller"),PC->IsLocalController() && PC->GetLocalPlayer())) { return false; }
+    ULDNavigationComponent& Nav=*PC->Navigation;
+    uint64 ReceiptSerial=0;
+    const auto Receive=[&](const FLDSpatialOrderRequest& Request, ELDOrderStatus Status, ELDOrderFailure Failure)
+    {
+        FLDOrderReceipt Receipt;
+        Receipt.Identity=Request.Identity;
+        Receipt.Kind=Request.Kind;
+        Receipt.Status=Status;
+        Receipt.Failure=Failure;
+        Receipt.ReceiptSerial=++ReceiptSerial;
+        Nav.ClientOrderReceipt_Implementation(Receipt);
+    };
+    const auto Remember=[&](const FLDSpatialOrderRequest& Request, const FGuid& FollowUp=FGuid(), uint32 FollowUpEpoch=0,
+        bool bAutomatic=false)
+    {
+        Nav.Local=Request.Identity;
+        Nav.RememberSentOrder(Request,FollowUp,FollowUpEpoch,bAutomatic);
+    };
+    FLDSpatialOrderRequest AttackA;
+    AttackA.Identity={1,1,1,1};
+    AttackA.Kind=ELDSpatialOrderKind::AttackUnit;
+    AttackA.Observed=SkillTarget;
+    AttackA.ObservationEpoch=7;
+    Remember(AttackA);
+    FLDCombatActionRequest PointCast;
+    const auto PreparePoint=[&]()
+    { Nav.PrepareCastFollowUp(ELDSpatialOrderKind::CastPoint,PointCast,false,Target,Epoch); };
+    PreparePoint();
+    TestFalse(TEXT("An attack without an activation receipt is not yet the current attack"),Target.IsValid());
+    Receive(AttackA,ELDOrderStatus::Activated,ELDOrderFailure::None);
+
+    FLDSpatialOrderRequest AttackB=AttackA;
+    AttackB.Identity.Order=2;
+    AttackB.Observed=Prior;
+    AttackB.ObservationEpoch=3;
+    AttackB.bQueue=true;
+    Remember(AttackB);
+    Receive(AttackB,ELDOrderStatus::Queued,ELDOrderFailure::None);
+    PreparePoint();
+    TestTrue(TEXT("A queued attack on B does not replace the accepted attack on A"),
+        Target==SkillTarget && Epoch==7);
+
+    FLDSpatialOrderRequest RefusedCast;
+    RefusedCast.Identity={1,1,3,1};
+    RefusedCast.Kind=ELDSpatialOrderKind::CastUnit;
+    Remember(RefusedCast,Prior,3);
+    Receive(RefusedCast,ELDOrderStatus::Rejected,ELDOrderFailure::CastRefused);
+    PreparePoint();
+    TestTrue(TEXT("A synchronous or remote cast refusal clears only that cast and retains the accepted attack on A"),
+        !Nav.CastFollowUp.Identity.Order && Nav.ClientActive==AttackA.Identity && Target==SkillTarget && Epoch==7);
+    Receive(AttackB,ELDOrderStatus::Rejected,ELDOrderFailure::QueueFull);
+    PreparePoint();
+    TestTrue(TEXT("A rejected queued attack cannot erase the accepted target"),Target==SkillTarget && Epoch==7);
+
+    AttackB.Identity.Order=4;
+    Remember(AttackB);
+    Receive(AttackB,ELDOrderStatus::Queued,ELDOrderFailure::None);
+    Receive(AttackA,ELDOrderStatus::Completed,ELDOrderFailure::TargetDied);
+    Receive(AttackB,ELDOrderStatus::Activated,ELDOrderFailure::None);
+    PreparePoint();
+    TestTrue(TEXT("Once the queued attack activates, B becomes the accepted target"),Target==Prior && Epoch==3);
+    Nav.Local={1,1,5,2};
+    Nav.bLocalStop=true;
+    PreparePoint();
+    TestFalse(TEXT("A newer Stop epoch cannot revive the previous accepted attack"),Target.IsValid());
+    Nav.ResetLife();
+    TestTrue(TEXT("A new life discards every remembered target and follow-up"),
+        Nav.SentAttackTargets.IsEmpty() && !Nav.CastFollowUp.Identity.Order && !Nav.AutoAttackIdentity.Order);
+
+    FLDSpatialOrderRequest AutoAttack=AttackA;
+    AutoAttack.Identity={1,1,6,2};
+    const uint32 NoticeBefore=PC->FeedbackSerial();
+    Remember(AutoAttack,FGuid(),0,true);
+    Receive(AutoAttack,ELDOrderStatus::Rejected,ELDOrderFailure::TargetUnavailable);
+    TestEqual(TEXT("An immediate automatic-attack refusal does not post an extra notice"),PC->FeedbackSerial(),NoticeBefore);
+    AutoAttack.Identity.Order=7;
+    Remember(AutoAttack);
+    Receive(AutoAttack,ELDOrderStatus::Rejected,ELDOrderFailure::TargetUnavailable);
+    TestEqual(TEXT("An ordinary attack refusal still posts its notice"),PC->FeedbackSerial(),NoticeBefore+1);
     return true;
 }
 
