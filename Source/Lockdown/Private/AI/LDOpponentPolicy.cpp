@@ -1341,6 +1341,19 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
             return Slot < Other.Slot;
         }
     };
+    // #153: the opening direction offer is taken uniformly, at the card this adapter drew; it is never rerolled (D9).
+    if (Self.Offer->Options.ContainsByPredicate([](const FLDOpponentOption& Option) { return Option.Kind == ELDOpponentOptionKind::Opening; }))
+    {
+        const auto& Options = Self.Offer->Options;
+        const int32 Index = int32(Self.OpeningPickIndex) % Options.Num();
+        if (Options[Index].Kind != ELDOpponentOptionKind::Opening)
+        {
+            Error = TEXT("The opening offer mixes opening cards with other kinds.");
+            return false;
+        }
+        Out.OptionId = Options[Index].OptionId;
+        return true;
+    }
     TOptional<FCandidate> Best;
     const auto Consider = [&Best](const FCandidate& Candidate)
     {
@@ -1572,10 +1585,25 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Out;
     };
     const bool bRunning = Frame.Public.Phase == ELDMatchPhase::Development || Frame.Public.Phase == ELDMatchPhase::CaptureOpen;
-    if (!Frame.Generation || !bRunning || !Self.ContenderId.IsValid()
+    // #153: the opening countdown admits only the opening choice, at this adapter's drawn moment; the body never moves.
+    const bool bCountdown = Frame.Public.Phase == ELDMatchPhase::Countdown;
+    if (!Frame.Generation || !(bRunning || bCountdown) || !Self.ContenderId.IsValid()
         || (Self.Phase != ELDLifePhase::Alive && Self.Phase != ELDLifePhase::Dead))
     {
         ForgetBody(State);
+        return Finish(EMode::Stopped, EReason::Stopped);
+    }
+    if (bCountdown)
+    {
+        ForgetBody(State);
+        FContext Countdown(Frame, Catalog, State);
+        const bool bOpening = Self.Offer.IsSet() && Self.Offer->Options.ContainsByPredicate(
+            [](const FLDOpponentOption& Option) { return Option.Kind == ELDOpponentOptionKind::Opening; });
+        if (Self.Phase == ELDLifePhase::Alive && bOpening && Frame.Public.NowMs >= Self.OpeningPickAtMs && Countdown.Initialize()
+            && DecideChoice(Countdown, Out.Build))
+        {
+            return Finish(EMode::Choose, EReason::ChooseOffer);
+        }
         return Finish(EMode::Stopped, EReason::Stopped);
     }
     FContext C(Frame, Catalog, State);

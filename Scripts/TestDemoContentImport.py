@@ -513,14 +513,20 @@ class DemoContentImport(unittest.TestCase):
 
     def test_opening_offer_and_out_of_combat_recovery_refuse_invalid_inputs(self):
         for mutation, code in (
-            (lambda data: data["progression"]["opening_offer"].update(active_count=3), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"].update(active_count=1), "OpeningOffer"),
-            (lambda data: data["progression"]["opening_offer"].update(active_count=0, passive_count=3), None),
-            (lambda data: data["progression"]["opening_offer"].update(attribute_count=1), "UnknownField"),
-            (lambda data: data["progression"]["opening_offer"].pop("passive_count"), "MissingField"),
-            # Only draftable skills fill the opening: one draftable active cannot fill two active cards.
-            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] != "active_snark_bolt"
-                           and row["kind"] == "active"], "OpeningOffer"),
+            (lambda data: data["progression"]["opening_offer"].update(matched_skill_weight=0), "NumericDomain"),
+            (lambda data: data["progression"]["opening_offer"].update(other_skill_weight=101), "NumericOverflow"),
+            (lambda data: data["progression"]["opening_offer"].update(matched_skill_weight=1, other_skill_weight=3), None),
+            (lambda data: data["progression"]["opening_offer"].update(active_count=1), "UnknownField"),
+            (lambda data: data["progression"]["opening_offer"].pop("other_skill_weight"), "MissingField"),
+            # #153: each opening card hides a distinct draftable active, so two draftable actives cannot fill the offer.
+            (lambda data: [row.update(draftable=False) for row in data["abilities"] if row["id"] == "active_snark_bolt"],
+             "OpeningOffer"),
+            (lambda data: data["opening_cards"].pop(), "ArrayLength|SchemaVariant"),
+            (lambda data: data["opening_cards"][0].update(id="opening_unknown"), "UnknownField"),
+            (lambda data: data["opening_cards"][0]["stats"].pop("MaxHPFlat"), "UnknownField"),
+            (lambda data: data["opening_cards"][0]["stats"]["ADFlat"].update(value=0), "IneffectiveChoice|NumericDomain"),
+            (lambda data: data["opening_cards"][0].update(id="attr_protein"), "DuplicateId"),
+            (lambda data: data["opening_cards"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}), "UnknownField"),
             (lambda data: data["progression"].update(reroll_levels=[7, 4]), "RerollLevels"),
             (lambda data: data["progression"].update(reroll_levels=[4, 4]), "RerollLevels"),
             (lambda data: data["progression"].update(reroll_levels=[11]), "NumericOverflow"),
@@ -536,7 +542,7 @@ class DemoContentImport(unittest.TestCase):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 if code is None:
-                    # Three draftable passives exist in the fixture, so an all-passive opening is a valid composition.
+                    # Any positive pair of weights is a valid opening draw.
                     changed = deepcopy(self.author)
                     mutation(changed)
                     (self.root / demo.CONTENT_SOURCE).write_bytes(encode(changed))

@@ -53,6 +53,9 @@ struct FLDAttributeBuildValues
     TArray<FString> EquippedItems;
     // 112 §7: empty (nothing upgraded) or one flag per EquippedItems entry; an upgraded entry projects its upgraded stats.
     TArray<bool> EquippedUpgraded;
+    // #153: the chosen opening direction card, empty before the opening choice; its stats are a permanent choice term and
+    // it counts as the opening choice in the choice budget.
+    FString OpeningCard;
     // DEV test layer (#78): one extra additive term per stat on top of base, growth, passives and equipment, reported
     // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
     // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value outside its catalog

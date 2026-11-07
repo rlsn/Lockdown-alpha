@@ -47,7 +47,8 @@ struct FLDOpponentSource
     int32 RangeCm = 0;
 };
 
-enum class ELDOpponentOptionKind : uint8 { LearnActive, UpgradeActive, LearnPassive, UpgradePassive, Attribute };
+// Opening (#153): an opening direction card; the active it hides is as unknown to the AI as to a player.
+enum class ELDOpponentOptionKind : uint8 { LearnActive, UpgradeActive, LearnPassive, UpgradePassive, Attribute, Opening };
 
 struct FLDOpponentOption
 {
@@ -99,6 +100,10 @@ struct FLDOpponentSelf
     uint8 RerollTokens = 0;
     TArray<FLDOpponentSource> Sources;
     TOptional<FLDOpponentOffer> Offer;
+    // #153: this adapter's own server-random opening plan (drawn once per match, never a hidden fact): the authority ms
+    // from which it takes the opening direction card at OpeningPickIndex (0..2) of its offer.
+    int64 OpeningPickAtMs = 0;
+    uint8 OpeningPickIndex = 0;
 };
 
 // Guarded: only the graffiti owner stands in the spray zone.

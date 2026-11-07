@@ -255,6 +255,15 @@ private:
             Cards.Add(Attribute);
             ConsumedChoices += Card.Count;
         }
+        // #153: the opening direction card is the opening choice (its active is unseen here).
+        if (!Build.OpeningCard.IsEmpty())
+        {
+            if (!Catalog.FindOpeningCard(Build.OpeningCard, Opening, LookupError))
+            {
+                return Refuse(EError::UnknownDefinition, TEXT("OpeningCard"), LookupError);
+            }
+            ConsumedChoices += 1;
+        }
         // Each passive rank and each card consumed one choice: the opening one plus one per level-up, so the level bounds
         // them; unseen active choices only tighten this bound.
         const int64 VisibleChoiceBound = FMath::Min<int64>(int64(Build.Level), Progression.MaxChoices);
@@ -431,6 +440,16 @@ private:
             }
         }
         const FExact One = Numbers.Value(1);
+        if (Opening)
+        {
+            for (const FLDDemoStatBonus& Bonus : Opening->Stats)
+            {
+                if (!AddBonus(Bonus, &FAttributeSum::Choices, One, TEXT("OpeningCard")))
+                {
+                    return false;
+                }
+            }
+        }
         for (int32 Index = 0; Index < PassiveRanks.Num(); ++Index)
         {
             const FString Field = FString::Printf(TEXT("LearnedPassives[%d]"), Index);
@@ -716,6 +735,7 @@ private:
     TArray<const FLDDemoAbilityDefinition*, TInlineAllocator<8>> Passives;
     TArray<const FLDDemoRankDefinition*, TInlineAllocator<8>> PassiveRanks;
     TArray<const FLDDemoAttributeDefinition*, TInlineAllocator<8>> Cards;
+    const FLDDemoOpeningCardDefinition* Opening = nullptr;
     TArray<const FLDDemoEquipmentDefinition*, TInlineAllocator<2>> Items;
     TArray<FLDEquipmentPassiveFamily> Families;
     TOptional<FLDLowHPBonusTerm> LowHP;

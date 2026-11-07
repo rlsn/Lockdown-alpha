@@ -137,6 +137,7 @@ namespace LDCombatSourcesDetail
         }
         FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
         Values.EquippedUpgraded=MoveTemp(Upgraded);
+        Values.OpeningCard=Build.OpeningCard;
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
     }
@@ -238,7 +239,8 @@ namespace LDCombatSourcesDetail
                 return false;
             }
         }
-        // Every active rank, passive rank and card consumed one choice: the opening one plus one per level-up.
+        // Every active rank, passive rank and card consumed one choice: the opening one plus one per level-up. The opening
+        // direction card (#153) shares its choice with the active it taught, so it adds none here.
         for (const FLDLearnedPassiveValue& Passive : Input.Passives) { ConsumedChoices+=Passive.Rank; }
         for (const FLDAttributeCardValue& Card : Input.AttributeCards) { ConsumedChoices+=Card.Count; }
         const int64 ChoiceBound=FMath::Min<int64>(int64(Input.Level),Progression.MaxChoices);

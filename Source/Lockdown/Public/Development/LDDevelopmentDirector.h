@@ -157,10 +157,11 @@ private:
     // Free rerolls left: one per reached reroll level, minus those spent; unused ones carry over.
     uint8 RerollTokens(const FRecord& Record) const;
     // Applies Option to the head opportunity of Record with every choice rule (ApplyOption, revisions, the next head's
-    // pool, the Combat projection) and installs it with the next head drawn. None when installed; a rejection reason when
+    // pool, the Combat projection) and installs it with the next head drawn. HiddenActive is the active an Opening option
+    // hides (None otherwise). None when installed; a rejection reason when
     // nothing changed; AuthorityFault when the domain or the permit was lost before the install.
     ELDGrowthReason InstallOption(const FGuid& ContenderId, FRecord& Record, const FLDChoiceOption Option,
-        const LDProgression::FReplacement* Replacement, uint64 RequestId, const FLDGameplayWritePermit& Permit,
+        const LDProgression::FReplacement* Replacement, FName HiddenActive, uint64 RequestId, const FLDGameplayWritePermit& Permit,
         LDProgression::FAppliedOption& OutApplied);
     ALDGameMode* Mode() const;
 

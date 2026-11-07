@@ -319,6 +319,7 @@ def expected_projection(compilation):
         } for row in data["abilities"]],
         "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"]),
                         "Penalties": stats(row.get("penalties", {}))} for row in data["attributes"]],
+        "OpeningCards": [{"Id": row["id"], "Stats": stats(row["stats"])} for row in data["opening_cards"]],
         "Equipment": [{
             "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
             "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
@@ -330,7 +331,7 @@ def expected_projection(compilation):
             ("active_slots", "ActiveSlots"), ("equipment_slots", "EquipmentSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
         )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
-            ("active_count", "OpeningActiveCount"), ("passive_count", "OpeningPassiveCount"),
+            ("matched_skill_weight", "OpeningMatchedSkillWeight"), ("other_skill_weight", "OpeningOtherSkillWeight"),
         )}, "RerollLevels": data["progression"]["reroll_levels"]},
         "World": {dest: data["world"][source] for source, dest in (
             ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_ids", "ShopIds"), ("capture_id", "CaptureId"),
@@ -675,7 +676,9 @@ def _export_cases(output, index, base, rank_mutations, valid):
     # Every attribute clamps to its bounds (#112 §4); a deduction only a wild card may name is refused instead.
     bad_content("tame_card_penalty", lambda d: d["attributes"][0].update({"penalties": {"MaxHPFlat": {"unit": "hp", "p2": 100}}}), "penalties")
     bad_content("bad_xp_derived", lambda d: d["progression"]["xp_to_next"].__setitem__(0, 1), "linear XP")
-    bad_content("bad_opening_counts", lambda d: d["progression"]["opening_offer"].update({"active_count": 3}), "opening offer")
+    bad_content("bad_opening_weight", lambda d: d["progression"]["opening_offer"].update({"matched_skill_weight": 0}), "integer outside")
+    bad_content("bad_opening_card_stats", lambda d: d["opening_cards"][0]["stats"].pop(next(iter(d["opening_cards"][0]["stats"]))),
+                "opening card stats")
     bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
     bad_content("missing_draftable", lambda d: d["abilities"][0].pop("draftable"), "missing")
     bad_content("bad_upgraded_stats", lambda d: next(iter(d["equipment"][0]["upgraded_stats"].values())).update(

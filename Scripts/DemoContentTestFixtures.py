@@ -152,6 +152,12 @@ def content_fixture():
         {"id": "attr_wild_frenzy", "stats": {"ADFlat": q("points", 3), "AttackSpeedBonusRatio": q("ratio", 0.04)},
          "penalties": {"MaxHPFlat": q("hp", 5)}},
     ]
+    opening_cards = [
+        {"id": "opening_athlete", "stats": {"ADFlat": q("points", 3), "AttackSpeedBonusRatio": q("ratio", 0.04), "MaxHPFlat": q("hp", 20)}},
+        {"id": "opening_grinder", "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 4), "MaxMPFlat": q("mp", 10)}},
+        {"id": "opening_keyboard", "stats": {"AttackRangeCmFlat": q("cm", 20), "AttackSpeedBonusRatio": q("ratio", 0.04),
+                                             "MoveSpeedBonusRatio": q("ratio", 0.02)}},
+    ]
     equipment = [
         {"id": "item_iron_plate", "buy_price": 51, "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)},
          "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": q("ratio", 0.1)}]}},
@@ -202,7 +208,7 @@ def content_fixture():
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, attributes, equipment, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, attributes, opening_cards, equipment, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -222,10 +228,10 @@ def content_fixture():
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "attributes": attributes, "equipment": equipment, "camps": camps, "boss": boss,
+        "abilities": abilities, "attributes": attributes, "opening_cards": opening_cards, "equipment": equipment, "camps": camps, "boss": boss,
         "progression": {"max_level": 10, "max_choices": 10, "max_skill_rank": 2, "active_slots": 2, "equipment_slots": 2, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810],
-                        "opening_offer": {"active_count": 2, "passive_count": 1}, "reroll_levels": [3, 6]},
+                        "opening_offer": {"matched_skill_weight": 2, "other_skill_weight": 1}, "reroll_levels": [3, 6]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "shop_ids": named["Shop"],
                   "capture_id": "capture"},
         "display": display,
