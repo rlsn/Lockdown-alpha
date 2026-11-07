@@ -70,6 +70,38 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 无头编辑器总数不超过 3 个，已有 2 个 UnrealBuildTool 构建进程（`dotnet ... UnrealBuildTool.dll`）时先等，
 否则内存不足会拖慢或打断所有人的构建和场景。
 
+### Copilot 游戏设计与 Unreal MCP
+
+仓库在 `.github\agents` 提供 `game-designer`，在 `.github\skills` 提供
+`balance-check` 和 `unreal-mcp`。它们分别适配 Claude Code Game Studios 的设计/平衡工作流
+与 Epic 的原生编辑器 MCP；来源版本和 MIT 许可见 `.github\LICENSE.agent-customizations`。
+不需要 Claude Code，不安装上游的 hooks、模型配置、文档树或团队编排。
+
+Copilot App 自动读取仓库 Agent、Skill 和 MCP 配置。新增文件后，在新会话里选择
+`game-designer`，或在提示中明确要求使用 `balance-check` / `unreal-mcp`；
+在 **Customize → Installed** 核对资源是否可用。现有会话需要重新加载相应资源时，
+使用 App 提供的重载/重连操作或开启新会话，不以磁盘上有文件冒充已经加载。
+设计 Agent 提出方案；平衡检查只读分析，不批准或自动应用新数值，也不把模型结果当成试玩验收。
+规格、内容与数值仍由现有文档和批准流程维护。
+
+Epic MCP 已由 `Lockdown.uproject` 的 `ModelContextProtocol`、`AllToolsets` 启用。
+`OpenEditor.ps1` 打开的编辑器按项目配置自动启动服务器；根目录 `.mcp.json`
+供 Copilot 使用，`.vscode\mcp.json` 与 `.cursor\mcp.json` 供对应客户端使用，
+默认均连接 `http://127.0.0.1:8000/mcp`。Standalone、打包版和多数场景 runner
+明确禁用这些编辑器插件，不能代替 MCP 编辑器。连接失败时先检查编辑器和启动日志，
+再在 Copilot 重连；工具发现后还要执行一次真实只读查询。
+
+默认端口只适用于同机一个 MCP 编辑器。多个工作区并行时，先核对端口监听进程及其
+项目命令行；有实例元数据时同时核对项目目录。每个工作区使用不同端口，
+在该工作区忽略的 `Saved\Config\WindowsEditor\EditorPerProjectUserSettings.ini`
+设置 `ServerPortNumber`，并让该检出的客户端 JSON 指向同一端口；
+不要把个人端口调整当成团队默认配置提交。身份无法确认时不执行写操作，不终止别人的编辑器。
+此配置直接使用 HTTP，不依赖安装版引擎未必包含的可选 Epic proxy；关闭编辑器后服务不可用。
+
+MCP 能直接执行编辑器代码并修改资产，回环地址不等于权限隔离。禁止向局域网或公网
+暴露端口；不关闭工具审批，不用 MCP 绕过 SourceData、Sync、导入和生成资产校验，
+不让多个 Agent 同时编辑同一二进制资产。
+
 ## 按任务读取系统手册
 
 | 工作 | 技术说明 |
