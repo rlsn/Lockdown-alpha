@@ -238,20 +238,6 @@ bool FLDHUDMatchTimerTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Without a published T=0 no time is shown"),LDHUD::MatchTimer(Public,true,62000).IsEmpty());
     return true;
 }
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDReplacePickInputTest,"Lockdown.Rules.HUDReplacePickInput",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
-bool FLDHUDReplacePickInputTest::RunTest(const FString& Parameters)
-{
-    TestEqual(TEXT("Skill1 under the default order picks the Q slot"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::Q,ELDCombatEntry::W),0);
-    TestEqual(TEXT("Skill2 under the default order picks the W slot"),LDHUD::ReplacePickSlot(TEXT("Skill2"),ELDCombatEntry::Q,ELDCombatEntry::W),1);
-    TestEqual(TEXT("A swapped slot order picks the slot the key fires"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::W,ELDCombatEntry::Q),1);
-    TestEqual(TEXT("A swapped slot order picks the slot the key fires (Skill2)"),LDHUD::ReplacePickSlot(TEXT("Skill2"),ELDCombatEntry::W,ELDCombatEntry::Q),0);
-    int32 Cancels=0;
-    for(const TCHAR* Other:{TEXT("Navigate"),TEXT("Select"),TEXT("Stop"),TEXT("AttackMove"),TEXT("Dash"),TEXT("Attributes"),TEXT("PanUp"),TEXT("Recenter"),TEXT("Mark"),TEXT("")})
-    {Cancels+=LDHUD::ReplacePickSlot(Other,ELDCombatEntry::Q,ELDCombatEntry::W)==INDEX_NONE?1:0;}
-    TestEqual(TEXT("Every other input answers nothing, so it cancels the pick"),Cancels,10);
-    TestEqual(TEXT("A key bound to no skill entry picks nothing"),LDHUD::ReplacePickSlot(TEXT("Skill1"),ELDCombatEntry::None,ELDCombatEntry::W),int32(INDEX_NONE));
-    return true;
-}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {

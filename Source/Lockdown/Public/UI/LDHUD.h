@@ -225,6 +225,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
     double FeedbackAt=0;
+    // The replacement pick's held prompt (RefreshReadModel): whether it showed last frame and since when.
+    bool bReplacePromptShown=false;
+    double ReplacePromptSince=0;
     // The toast shows controller intent feedback and local panel notices; SeenIntent tracks only the former.
     FString LastFeedback;
     FString SeenIntent;

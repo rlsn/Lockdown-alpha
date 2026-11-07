@@ -248,11 +248,6 @@ FString LDHUD::Clock(int64 RemainingMs)
     const int64 Seconds=RemainingMs>0?(RemainingMs+999)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
 }
-int32 LDHUD::ReplacePickSlot(FName Action,ELDCombatEntry AtKey1,ELDCombatEntry AtKey2)
-{
-    const ELDCombatEntry Fired=Action==TEXT("Skill1")?AtKey1:Action==TEXT("Skill2")?AtKey2:ELDCombatEntry::None;
-    return Fired==ELDCombatEntry::Q?0:Fired==ELDCombatEntry::W?1:INDEX_NONE;
-}
 FString LDHUD::MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
 {
     if(!bClock||Public.StartedAtMs<=0){return FString();}

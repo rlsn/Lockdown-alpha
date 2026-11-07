@@ -100,6 +100,8 @@ constexpr float HudBandScale=.75f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
+// The held toast of the #97 replacement pick.
+const TCHAR* const LDHUDReplacePrompt=TEXT("选择要替换的技能");
 // The own status grid under the 属性 button: LDHUD::SelfIconColumns squares fill the side column.
 constexpr float HudSelfIconSize=44.f;
 constexpr float HudSelfIconGap=5.f;
@@ -679,15 +681,6 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
     const FVector2D At=E.GetScreenSpacePosition();
     // Any press outside the open item menu closes it and still goes where it was aimed.
     if(ItemMenuIndex!=INDEX_NONE&&!(ItemMenu&&ItemMenu->GetCachedGeometry().IsUnderLocation(At))){CloseItemMenu();}
-    // #97: the replacement pick holds nothing. A press on the HUD other than on a Q/W slot (its answer) or on the choices
-    // panel itself (a card restarts from that card) cancels the pick and still goes where it was aimed.
-    if(ChoicesPanel&&ChoicesPanel->ChildConfirmationYields()&&!ChoicesPanel->IsPanelHit(At))
-    {
-        bool bOnSkillSlot=false;
-        for(int32 Index=0;Index<FMath::Min(2,ActionSlots.Num());++Index)
-        {if(ActionSlots[Index].Box&&ActionSlots[Index].Box->GetCachedGeometry().IsUnderLocation(At)){bOnSkillSlot=true;break;}}
-        if(!bOnSkillSlot){ChoicesPanel->CloseChildConfirmation();}
-    }
     // A left press on a filled Q/W or equipment slot may become a drag (UpdateDrag); the press still reaches the button.
     // The replacement pick takes Q/W clicks as its choice, so nothing drags meanwhile.
     if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible()&&!(ChoicesPanel&&ChoicesPanel->HasChildConfirmation()))
@@ -1321,7 +1314,13 @@ void ULDHUD::RefreshReadModel()
 
     // The toast fades on local presentation time.
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
-    HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
+    // The replacement pick holds its prompt until a slot is clicked or the pick ends; a notice that arrives meanwhile
+    // (a refused cast, say) shows for its usual time and then the prompt returns.
+    const bool bReplacePick=ChoicesPanel&&ChoicesPanel->HasChildConfirmation();
+    if(bReplacePick&&!bReplacePromptShown){ReplacePromptSince=UiNow;}
+    bReplacePromptShown=bReplacePick;
+    const bool bFreshToast=UiNow-FeedbackAt<5&&(!bReplacePick||FeedbackAt>=ReplacePromptSince);
+    HudSetText(Toast,bFreshToast?LastFeedback:bReplacePick?FString(LDHUDReplacePrompt):FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {

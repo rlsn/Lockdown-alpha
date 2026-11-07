@@ -378,7 +378,7 @@ Lockdown 是一款采用 MOBA 操作和俯视斜角镜头的自由混战游戏�
 
 ### 4.3 两个主动技能槽
 
-角色主动技能只使用 Q/W 两个槽。空槽时可以直接学习；两个槽已满时，学习新主动必须明确选择要替换的旧技能，并确认后才消耗本次选择机会。选择要替换的技能时不锁住操作：点 Q/W 槽或按 Q/W 键即选定；其他任何操作（移动、攻击、镜头等）都会撤销这次替换选择并照常生效（2026-11-07 用户决定，原话：“make it so that inputs other than choosing the replaced skill cancels the skill selection”）。
+角色主动技能只使用 Q/W 两个槽。空槽时可以直接学习；两个槽已满时，学习新主动必须明确选择要替换的旧技能，并确认后才消耗本次选择机会。选择要替换的技能时不锁住操作：点选新技能后提示“选择要替换的技能”并让 Q/W 上的旧技能亮红框，期间照常移动、攻击和用 Q/W 键放技能；点 HUD 上亮红的 Q/W 技能格即完成替换，提示随之消失；按 Back 撤销这次选择（2026-11-07 用户决定，取代同日“其他操作撤销选择”的做法，原话：“choose a new skill -> show "select a skill to switch" toast, old skills glow red -> control character, cast as usual -> select a skill (instead of having to click new skill again)-> replaced, "select a skill to switch" disappear”）。
 
 **被替换的主动技能会被遗忘**，不进入备用技能库、不返还米或已投入的选择。新学的主动从初级开始（#147 D13）。被遗忘的技能将来再次获得时，从初级重新学习。
 

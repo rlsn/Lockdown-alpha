@@ -439,9 +439,6 @@ namespace LDHUD
         TMap<FName,FSpan> Spans;
     };
     LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
-    // #97 replacement pick by key: the skill slot (0 Q, 1 W) that the Skill1/Skill2 key fires under the local slot order
-    // (AtKey1/AtKey2 = SkillAtKey), which is the slot the pick forgets; INDEX_NONE for any other input, which cancels it.
-    LOCKDOWN_API int32 ReplacePickSlot(FName Action,ELDCombatEntry AtKey1,ELDCombatEntry AtKey2);
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);

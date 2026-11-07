@@ -39,8 +39,8 @@ public:
     virtual bool ClosePanel() {return false;}
     virtual bool HasChildConfirmation() const {return false;}
     virtual bool CloseChildConfirmation() {return false;}
-    // A child confirmation that gives way instead of capturing input: Back still closes it first, but any other world
-    // input cancels it and then acts as usual (ULDUIRoot::YieldingConfirmation).
+    // A child confirmation that waits without capturing input: play goes on meanwhile and Back still closes it (after an
+    // armed skill) (ULDUIRoot::YieldingConfirmation).
     virtual bool ChildConfirmationYields() const {return false;}
     // Normal panels take pointer input only over their own area, so world clicks beside them still reach the world.
     bool IsPanelHit(FVector2D Absolute) const;
