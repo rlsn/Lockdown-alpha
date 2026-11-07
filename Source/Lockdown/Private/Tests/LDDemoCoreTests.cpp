@@ -567,8 +567,8 @@ bool FLDCaptureInsideStepTest::RunTest(const FString& Parameters)
     };
     ELDCommitReject StaleInterrupt=ELDCommitReject::None, EffectsInterrupt=ELDCommitReject::InvalidRequest;
 
-    // Step to 5 ms: the spray lands inside the step at 3 ms without ending the match; the owner walks out at 3.5 ms
-    // (his guard keeps running) and the rival entering at 4 ms sprays alone, pausing the guard at 1 of 3 ms.
+    // Step to 5 ms: the spray lands inside the step at 3 ms without ending the match; the owner walks out at 3.5 ms,
+    // pausing his guard at 1 of 3 ms, and the rival entering at 4 ms sprays alone, keeping it frozen there.
     const bool Sprayed=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,5)==ELDCommitReject::None
         && !Mode->CaptureCompletesInsideStep()
         && Phase(ELDCommitPhase::Motion,[&]
@@ -591,12 +591,14 @@ bool FLDCaptureInsideStepTest::RunTest(const FString& Parameters)
         && Mode->CaptureReducer.GetSoloSinceMs()==5 && Mode->CaptureReducer.GetGraffitiOwner()==Holder
         && Mode->CaptureReducer.GetGuardKeptMs()==1 && Mode->NextCaptureDueMs()==7);
 
-    // Step to 10 ms: the rival walks out at 5.5 ms, just before his spray, so the guard resumes and wins at 8 ms, inside
-    // the step; his re-entry at 8.5 ms cannot undo it. The later boundary instant's gameplay phases do not run.
+    // Step to 10 ms: the rival walks out at 5.5 ms, just before his spray, and the owner steps back in at 5.6 ms, so the
+    // guard resumes and wins at 8 ms, inside the step; the rival's re-entry at 8.5 ms cannot undo it. The later boundary
+    // instant's gameplay phases do not run.
     const bool Stepped=Mode->BeginAuthorityStep(*Driver,Mode->MatchContext,10)==ELDCommitReject::None
         && Phase(ELDCommitPhase::Motion,[&]
         {
             return Fact(ELDCaptureEventKind::Presence,RivalBody,.0055,ELDCommitPhase::Motion,false)
+                && Fact(ELDCaptureEventKind::Presence,HolderBody,.0056,ELDCommitPhase::Motion,true)
                 && Fact(ELDCaptureEventKind::Presence,RivalBody,.0085,ELDCommitPhase::Motion,true);
         });
     if (!TestTrue(FString::Printf(TEXT("Resume step motion: %s"),*Error),Stepped)) { return false; }

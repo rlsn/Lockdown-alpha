@@ -388,10 +388,17 @@ struct FContext
             return nullptr;
         }
         const FVector& Centre = Frame.Public.LeaderCircleCentreCm;
+        // An arrival without the leader in sight is remembered in the visit memory, so neither that place nor any other
+        // place reached recently is ordered again while the next one is walked to (no turnback, no repeated orders).
+        if (Frame.Order.Kind == ELDOpponentOrderKind::MoveGround && Frame.Order.Status == ELDOpponentOrderStatus::Completed)
+        {
+            const FLDOpponentPOI* Reached = Frame.POIs.FindByPredicate([this](const FLDOpponentPOI& P) { return P.Id == Frame.Order.POI; });
+            if (Reached && FVector::Dist2D(Reached->FootCm, Centre) <= LeaderRadiusCm) { RecordVisit(Reached->Id); }
+        }
         const FLDOpponentPOI* Best = nullptr;
         for (const auto& POI : Frame.POIs)
         {
-            if (POI.Kind == ELDOpponentPOIKind::Shop || !CanAttempt(PathKey(POI.Id))
+            if (POI.Kind == ELDOpponentPOIKind::Shop || RecentlyVisited(POI.Id) || !CanAttempt(PathKey(POI.Id))
                 || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
             const double Distance = FVector::Dist2D(POI.FootCm, Centre);
             if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)
@@ -1638,9 +1645,10 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         State.Failures.RecordFailure(CaptureKey, C.Print(ELDOpponentFailure::Engagement), C.Now, C.AI);
     }
     const bool bMayContest = C.CanAttempt(CaptureKey);
-    // 2026-11-07: a challenger beside the owner freezes the guard and the owner walking out under him resets it to zero,
-    // so a recovering owner keeps fighting in the zone until the stop-loss line, where his death would clear the graffiti.
-    const bool bOwnerStays = bOwner && (!State.bRecovering || (bContesting && !bStopLoss));
+    // 2026-11-07: the guard runs only while its owner stands alone in the zone; an empty zone pauses it, a challenger
+    // beside him freezes it and his walking out under that challenger resets it to zero. So the owner goes back to the
+    // zone and stays in it, recovering too, until the stop-loss line, where his death would clear the graffiti.
+    const bool bOwnerStays = bOwner && !bStopLoss;
     FLDOpponentBodyIntent Intent;
     if ((bHoldingSolo || (bHoldingPaused && !bStopLoss) || bOwnerStays
             || ((bUrgent || bContesting || bRivalGraffiti) && !bStopLoss && bMayContest))

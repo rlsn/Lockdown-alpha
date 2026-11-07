@@ -105,8 +105,9 @@ inline FString GraffitiOf(const FString& Owner){return FString(TEXT("旗杆上�
 inline FString GraffitiSprayed(const FString& Owner){return Owner+TEXT(" 在旗杆上喷上了涂鸦");}
 inline constexpr TCHAR GuardLeft[]=TEXT("再守");
 inline constexpr TCHAR GuardPaused[]=TEXT("有人进圈，守护冻结");
+inline constexpr TCHAR GuardAway[]=TEXT("守擂者不在圈内，守护暂停");
 inline constexpr TCHAR GuardReset[]=TEXT("守擂者离圈，守护清零");
-inline constexpr TCHAR GuardOwn[]=TEXT("守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）");
+inline constexpr TCHAR GuardOwn[]=TEXT("守住：站在旗杆圈里守护，离圈会暂停（寄了涂鸦就没了）");
 inline FString Besiege(const FString& Owner){return FString(TEXT("下一步：去围攻 "))+Owner+TEXT("，或者去旗杆改漆");}
 
 // 击杀与结算

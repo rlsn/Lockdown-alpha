@@ -826,18 +826,30 @@ bool RunPriorities(FAutomationTestBase& Test)
         Owned.Public.Phase = ELDMatchPhase::CaptureOpen;
         Owned.Public.Circle = ELDOpponentCircle::Empty;
         Owned.Public.Owner = Owned.Self.ContenderId;
-        Owned.Public.GuardDueAtMs = Owned.Public.NowMs + 15000;
+        // 2026-11-07: the owner away from an empty zone pauses his guard; it has no win instant until he is back alone.
+        Owned.Public.GuardDueAtMs = 0;
         const auto Guarding = LDOpponentPolicy::Decide(Owned, C, Guard);
         bGood &= Expect(Test, TEXT("The graffiti owner returns to guard the zone"), Guarding, EMode::DefendOrHold,
             EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Guard reason"), Guarding.Reason == ELDOpponentReason::GuardGraffiti);
+        {
+            // A recovering owner above the stop-loss line goes back to the empty zone too: away, his guard stays paused.
+            FLDOpponentPolicyState Weary;
+            auto Away = Owned;
+            Away.Self.HpP2 = Away.Self.MaxHpP2 / 2;
+            Weary.bRecovering = true;
+            const auto Back = LDOpponentPolicy::Decide(Away, C, Weary);
+            bGood &= Expect(Test, TEXT("A recovering owner above the stop-loss line returns to his paused guard"), Back,
+                EMode::DefendOrHold, EBody::MoveGround, TEXT("capture"))
+                && Test.TestTrue(TEXT("Paused guard reason"), Back.Reason == ELDOpponentReason::GuardGraffiti);
+        }
         Owned.Self.HpP2 = Owned.Self.MaxHpP2 / 5;
         Owned.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 600)};
         const auto Survive = LDOpponentPolicy::Decide(Owned, C, Guard);
         bGood &= Expect(Test, TEXT("A low owner escapes instead of dying, since his death clears the graffiti"), Survive,
             EMode::Disengage, EBody::MoveGround);
         {
-            // 2026-11-07: walking out under a challenger resets the frozen guard, so a recovering owner above the stop-loss
-            // line keeps fighting in the contested zone; below it he still escapes.
+            // 2026-11-07: walking out under a challenger resets the frozen guard and walking out of an empty zone pauses it,
+            // so a recovering owner above the stop-loss line keeps fighting in the zone; below it he still escapes.
             FLDOpponentPolicyState Held;
             auto Frozen = Owned;
             Frozen.Public.Circle = ELDOpponentCircle::Contested;
@@ -854,7 +866,11 @@ bool RunPriorities(FAutomationTestBase& Test)
             Frozen.Public.GuardDueAtMs = Frozen.Public.NowMs + 15000;
             Frozen.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 600)};
             const auto Rest = LDOpponentPolicy::Decide(Frozen, C, Held);
-            bGood &= Test.TestTrue(TEXT("Without a challenger in the zone a recovering owner may leave it"), Rest.Mode == EMode::Disengage);
+            bGood &= Test.TestTrue(TEXT("A recovering owner alone in the zone stays in it, since leaving would pause his guard"),
+                Rest.Mode == EMode::DefendOrHold && Rest.Reason == ELDOpponentReason::GuardGraffiti);
+            Frozen.Self.HpP2 = Frozen.Self.MaxHpP2 / 5;
+            const auto Spent = LDOpponentPolicy::Decide(Frozen, C, Held);
+            bGood &= Test.TestTrue(TEXT("Below the stop-loss line the owner leaves even a running guard"), Spent.Mode == EMode::Disengage);
         }
 
         FLDOpponentPolicyState Siege;
@@ -862,7 +878,7 @@ bool RunPriorities(FAutomationTestBase& Test)
         Rival.Public.Phase = ELDMatchPhase::CaptureOpen;
         Rival.Public.Circle = ELDOpponentCircle::Empty;
         Rival.Public.Owner = FGuid(0xE0, 0, 0, 5);
-        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 15000;
+        Rival.Public.GuardDueAtMs = 0;
         Rival.CapturePathCm = 3000.;
         Rival.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 300)};
         const auto Besiege = LDOpponentPolicy::Decide(Rival, C, Siege);
@@ -870,6 +886,12 @@ bool RunPriorities(FAutomationTestBase& Test)
             EBody::AttackUnit) && Test.TestTrue(TEXT("The owner is the target"), Besiege.Body.Handle == FGuid(0xD0, 0, 0, 5)
                 && Besiege.Reason == ELDOpponentReason::BesiegeOwner);
         Rival.Units.Reset();
+        const auto Unhurried = LDOpponentPolicy::Decide(Rival, C, Siege);
+        bGood &= Expect(Test, TEXT("2026-11-07: a paused guard has no win instant, so it is answered without urgency"), Unhurried,
+            EMode::Contest, EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Paused siege reason"),
+                Unhurried.Reason == ELDOpponentReason::BesiegeOwner);
+        Rival.Public.Circle = ELDOpponentCircle::Guarded;
+        Rival.Public.GuardDueAtMs = Rival.Public.NowMs + 15000;
         const auto Repaint = LDOpponentPolicy::Decide(Rival, C, Siege);
         bGood &= Expect(Test, TEXT("An unseen owner's graffiti is answered by walking in to repaint"), Repaint, EMode::Contest,
             EBody::MoveGround, TEXT("capture")) && Test.TestTrue(TEXT("Siege reason"), Repaint.Reason == ELDOpponentReason::BesiegeOwner);
@@ -2088,6 +2110,37 @@ bool RunHuntLeader(FAutomationTestBase& Test)
     bool bGood = Expect(Test, TEXT("D27: a strong healthy body walks to the public place nearest the leader's circle"), Hunt,
         EMode::Explore, EBody::MoveGround, TEXT("h1"))
         && Test.TestTrue(TEXT("Hunting the leader is its own reason"), IsHunt(Hunt));
+    Frame = Base;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("h1");
+    FLDOpponentPolicyState Arrived;
+    const auto Again = LDOpponentPolicy::Decide(Frame, C, Arrived);
+    bGood &= Test.TestFalse(TEXT("D27: a hunt place just reached is not ordered again at every decision"),
+        Again.Body.Kind == EBody::MoveGround && Again.Body.POI == FName(TEXT("h1")));
+    // A second public place inside the circle: after h1 the hunt walks on to it, and while that walk is pending or under
+    // way the place just reached is not ordered again (no turnback).
+    auto Wider = Base;
+    Wider.POIs.Add(POI(TEXT("s01"), ELDOpponentPOIKind::Spawn, 1400, 600));
+    Frame = Wider;
+    Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+    Frame.Order.Status = ELDOpponentOrderStatus::Completed;
+    Frame.Order.POI = TEXT("h1");
+    FLDOpponentPolicyState Onward;
+    const auto Next = LDOpponentPolicy::Decide(Frame, C, Onward);
+    bGood &= Expect(Test, TEXT("D27: after the nearest place the hunt walks on to the next one in the circle"), Next,
+        EMode::Explore, EBody::MoveGround, TEXT("s01"));
+    for (const ELDOpponentOrderStatus Walking : {ELDOpponentOrderStatus::Pending, ELDOpponentOrderStatus::Active})
+    {
+        Frame = Wider;
+        Frame.Public.NowMs += 250;
+        Frame.Order.Kind = ELDOpponentOrderKind::MoveGround;
+        Frame.Order.Status = Walking;
+        Frame.Order.POI = TEXT("s01");
+        const auto During = LDOpponentPolicy::Decide(Frame, C, Onward);
+        bGood &= Test.TestFalse(FString::Printf(TEXT("D27: the walk to the next place (status %u) is not turned back to the place just reached"),
+            uint8(Walking)), During.Body.Kind == EBody::MoveGround && During.Body.POI == FName(TEXT("h1")));
+    }
     Frame = Base;
     Frame.Self.Level = uint8(C.Get().Parameters.LeaderMinLevel - 1);
     FLDOpponentPolicyState Weak;
