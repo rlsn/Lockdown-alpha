@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param([string]$EngineRoot, [string]$PackageRoot, [ValidateRange(120,600)][int]$TimeoutSeconds=300,
     # The Host's rendered main view; the HUD and screenshots are reviewed at both supported sizes.
-    [ValidateSet('720p','1080p')][string]$Resolution='720p')
+    [ValidateSet('720p','1080p')][string]$Resolution='720p',
+    [ValidatePattern('^-Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+( -Pkt(Lag|LagVariance|Loss|Dup|Order)=\d+)*$')][string]$NetEmulation,
+    [switch]$RenderClient1)
 . (Join-Path $PSScriptRoot 'Common.ps1')
 . (Join-Path $PSScriptRoot 'DemoEntry.ps1')
 Assert-LDDemoInputs
@@ -31,8 +33,12 @@ function Start-VisionRole {
     $user = Join-Path $output "$Role-User"
     New-Item -ItemType Directory -Path $user | Out-Null
     # The Host is a participating Listen Host with a real RHI main view; owning clients need no renderer.
-    $render = if ($Role -eq 'Host') { "-windowed -RenderOffScreen $resolutionArguments -port=$port" } else { '-nullrhi' }
+    $render = if ($Role -eq 'Host' -or ($Role -eq 'Client1' -and $RenderClient1)) {
+        "-windowed -RenderOffScreen $resolutionArguments -LDDemoVisionRendered"
+    } else { '-nullrhi' }
+    if ($Role -eq 'Host') { $render += " -port=$port" }
     $arguments = '-unattended -nop4 -nosound -multihome=127.0.0.1 {0} -UserDir="{1}" -LDDemoVisionProbe -LDDemoVisionRole={2} -LDDemoVisionTimeout={3} -LDDemoVisionOutput="{4}" -abslog="{5}"' -f $render,$user,$Role,$TimeoutSeconds,$evidence,(Join-Path $output "$Role.log")
+    if ($NetEmulation) { $arguments += " $NetEmulation -LDDemoVisionNetEmulated" }
     $processes.Add((Start-Process -FilePath $launch.Binary -ArgumentList (Format-LDGameArguments -Launch $launch -Url $Url -Arguments $arguments) -WindowStyle Hidden -PassThru))
 }
 
@@ -80,6 +86,12 @@ try {
     $image = Join-Path $evidence 'HostSighted.png'
     if (-not (Test-Path -LiteralPath $image) -or (Get-Item -LiteralPath $image).Length -le 0) {
         throw "The participating Listen Host left no rendered main-view screenshot: $output"
+    }
+    if ($RenderClient1) {
+        $clientImage = Join-Path $evidence 'Client1Sighted.png'
+        if (-not (Test-Path -LiteralPath $clientImage) -or (Get-Item -LiteralPath $clientImage).Length -le 0) {
+            throw "The rendered owning client left no screenshot: $output"
+        }
     }
     Set-Content -LiteralPath (Join-Path $evidence 'FinishClients') -Value 'Disconnect owning clients'
     foreach ($process in @($processes)[1..2]) {

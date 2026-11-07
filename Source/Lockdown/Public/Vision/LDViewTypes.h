@@ -9,7 +9,7 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 5;
+    constexpr uint32 Schema = 6;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -233,6 +233,7 @@ struct FLDOwnerState
 
 namespace LDObservation
 {
+    LOCKDOWN_API bool DecodeCoverageRuns(TConstArrayView<uint8> Runs, TArray<uint8>& Bits);
     // Shared by NetSerialize and by local Listen Host delivery, which bypasses network serialization.
     LOCKDOWN_API bool ValidateUnit(const FLDObservedUnitView& Unit, FString& Error);
     LOCKDOWN_API bool ValidateProjectile(const FLDObservedProjectileView& Projectile, FString& Error);

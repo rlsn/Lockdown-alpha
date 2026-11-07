@@ -160,6 +160,14 @@ Host 建立监听世界，客户端通过 Host 的可达地址和端口连接。
 同一验证中使用相同产品构建、引擎和内容；连接失败要读取前端反馈和当前输出日志。
 不要把开发者全知实例当作普通远程拥有客户端。
 
+排查远程卡顿时先在设置“界面”打开网络诊断与 FPS：区分 RTT/抖动/丢包/未收包时长和本机长帧，
+遇到异常按 F9，并保留同一局客户端与房主日志。Tailscale 连接应另外检查
+`tailscale ping <房主的 Tailscale 地址>` 的 direct/relay 结果：中继与直连是不同网络路径，
+游戏日志不能单独证明哪条路径导致了延迟。不要通过放宽视野权限或关闭服务器校正掩盖丢包。
+`RunDemoVisionCheck.ps1 -NetEmulation "-PktLag=650 -PktLagVariance=30 -PktLoss=2" -RenderClient1`
+可在回环上验证高延迟、丢包、视野清除/恢复与真实拥有客户端镜头，保存 Host 与 Client1 的渲染截图；
+它不替代跨机器或 Tailscale 的链路实测，也不表示游戏能消除链路本身的 1300 ms RTT。
+
 ### DEV 测试模式
 
 Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`，或直接给可执行文件加 `-LDDevGrowthFixture`）启动，
