@@ -337,6 +337,7 @@ private:
     bool AdvanceCastPoint(ALDGameMode& Mode, ALDCharacter& Body, const FLDGameplayWritePermit& Permit, FString& Error);
     FVector AuthoritySteering(const ALDCharacter& Body);
     void TrackProgress(const ALDCharacter& Body, double Now, bool bMoving);
+    bool GroundArrived(const ALDCharacter& Body, const FActiveOrder& Order) const;
     void EndActive(ELDOrderStatus Outcome, ELDOrderFailure Failure, bool bHalt);
     // ---- Shift queue (LDNavigationOrders.cpp).
     // The end or refusal of one step: the next step follows, or the queue is dropped (LDOrderRules::QueueAfter).

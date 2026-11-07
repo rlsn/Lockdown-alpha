@@ -465,6 +465,9 @@ D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion sourc
 D 冲刺仍穿过身体（冲刺路径减速要命中路径上的敌人），只在冲刺自己的扫掠期间忽略身体（`ULDCharacterMovementComponent::IsDashing`）。
 远程客户端上，当前呈现的可见单位代理带同尺寸的仅查询胶囊，只阻挡本人预测的身体，让预测停在服务器会停的地方；
 Host 世界里已有权威身体，代理不加碰撞。迷雾中看不到的身体只在服务器上阻挡，预测撞上时由服务器纠正。
+点地移动的目标点已被别的身体占住时（2026-11-07 用户选择“Yes, stop quietly”），身体碰到占点的一群身体就算到达，安静停下，
+不推挤到 `PathBlocked`：离点太近、本人站不上去的身体占点，碰着占点身体的身体也算这一群
+（`LDPathSteering::BlockedAtHeldGoal`，规则测试 `Lockdown.Rules.DemoPathSteering.HeldGoal`）。
 
 ### 7.2 世界接口，操作层不得复制实现
 

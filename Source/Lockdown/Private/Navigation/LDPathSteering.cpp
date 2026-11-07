@@ -3,6 +3,8 @@
 #include "Region/LDMapRegistry.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "EngineUtils.h"
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavigationData.h"
@@ -63,6 +65,48 @@ namespace LDPathSteering
         return Movement->IsMovingOnGround() && Movement->CurrentFloor.IsWalkableFloor()
             && !Movement->HasRootMotionSources()
             && FVector::DistSquared2D(Body.GetNavAgentLocation(),Goal)<=FMath::Square(AcceptanceCm);
+    }
+
+    bool BlockedAtHeldGoal(const FVector2D& Foot, double Radius, const FVector2D& Goal, TConstArrayView<FBodyDisc> Others)
+    {
+        const auto Touch=[](const FVector2D& A, double RA, const FBodyDisc& B)
+        { return FVector2D::DistSquared(A,B.Foot)<=FMath::Square(RA+B.Radius+WaypointToleranceCm); };
+        TArray<bool> Holds;
+        Holds.Init(false,Others.Num());
+        TArray<int32> Open;
+        for (int32 I=0; I<Others.Num(); ++I)
+        {
+            if (FVector2D::DistSquared(Others[I].Foot,Goal)<FMath::Square(Others[I].Radius+Radius)) { Holds[I]=true; Open.Add(I); }
+        }
+        while (!Open.IsEmpty())
+        {
+            const int32 Holder=Open.Pop(EAllowShrinking::No);
+            if (Touch(Foot,Radius,Others[Holder])) { return true; }
+            for (int32 I=0; I<Others.Num(); ++I)
+            {
+                if (!Holds[I] && Touch(Others[Holder].Foot,Others[Holder].Radius,Others[I])) { Holds[I]=true; Open.Add(I); }
+            }
+        }
+        return false;
+    }
+
+    bool BlockedAtHeldGoal(const ACharacter& Body, const FVector& Goal)
+    {
+        const auto* Movement=Body.GetCharacterMovement();
+        const auto* World=Body.GetWorld();
+        if (!World || !Movement->IsMovingOnGround() || Movement->HasRootMotionSources()) { return false; }
+        TArray<FBodyDisc> Others;
+        for (TActorIterator<ACharacter> It(World); It; ++It)
+        {
+            const auto* Capsule=It->GetCapsuleComponent();
+            if (*It==&Body || !IsValid(*It) || !Capsule || !Capsule->IsCollisionEnabled()
+                || Capsule->GetCollisionResponseToChannel(ECC_Pawn)!=ECR_Block) { continue; }
+            const FVector Other=It->GetNavAgentLocation();
+            Others.Add({FVector2D(Other.X,Other.Y),Capsule->GetScaledCapsuleRadius()});
+        }
+        const FVector Foot=Body.GetNavAgentLocation();
+        return BlockedAtHeldGoal(FVector2D(Foot.X,Foot.Y),Body.GetCapsuleComponent()->GetScaledCapsuleRadius(),
+            FVector2D(Goal.X,Goal.Y),Others);
     }
 
     // #97: the registered terrain's standing height at an XY (ground, plateau or ramp), where a foot there rests.
