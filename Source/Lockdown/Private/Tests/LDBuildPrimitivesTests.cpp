@@ -29,9 +29,9 @@ struct FLDBuildPrimitivesAccess
     static bool ApplyHit(ALDCombatDirector& Driver, const FLDCombatHit& Hit, FString& Error) { return Driver.ApplyHit(Hit, Error); }
     static bool AdvanceBurns(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceBurns(NowMs, Error); }
     static bool ResolveWallChecks(ALDCombatDirector& Driver, FString& Error) { return Driver.ResolveWallChecks(Error); }
-    static bool ReleaseBasic(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
-        ELDCombatReject& Outcome, FString& Error)
-    { return Driver.ReleaseBasic(Actor, Body, Action, Outcome, Error); }
+    static bool LandBasic(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
+        FString& Error)
+    { return Driver.LandBasic(Actor, Body, Action, Error); }
     static bool ApplyCleanses(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, int64 NowMs)
     { return Driver.ApplyCleanses(Body, Rank, NowMs); }
     static bool BurstBrokenShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FGuid& Broken, int64 NowMs, FString& Error)
@@ -698,9 +698,9 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
         Action.Entry = ELDCombatEntry::Basic;
         Action.Source.Kind = ELDCombatSourceKind::Basic;
         Action.TargetBody = Camp;
-        ELDCombatReject Outcome = ELDCombatReject::None;
-        if (!TestTrue(FString::Printf(TEXT("Swing %d releases: %s"), Swing, *Error),
-            FAccess::ReleaseBasic(*F.Driver, F.Actor(Attacker), Body, Action, Outcome, Error) && Outcome == ELDCombatReject::None))
+        // The landing half only: release sight and observation need a Vision director this fixture does not build.
+        if (!TestTrue(FString::Printf(TEXT("Swing %d lands: %s"), Swing, *Error),
+            FAccess::LandBasic(*F.Driver, F.Actor(Attacker), Body, Action, Error)))
         { return false; }
         const TArray<FLDCombatHit>& Hits = FAccess::PendingHits(*F.Driver);
         const FLDCombatHit* Primary = Hits.FindByPredicate([](const FLDCombatHit& Row) { return Row.HitClass == ELDCombatHitClass::BasicPrimary; });

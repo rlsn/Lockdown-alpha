@@ -1258,16 +1258,8 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
         const bool bDied=Mode.Vision->FindObservedTermination(*PC,ActiveOrder->Target,ActiveOrder->TargetEpoch,Termination);
         if (Kind==ELDSpatialOrderKind::AttackUnit || Kind==ELDSpatialOrderKind::CastUnit || !bDied)
         {
-            // A basic windup already started at this target lands at its release even out of sight (2026-11-07 user
-            // decision), so the lock waits in place for that release instead of cancelling the swing with the order.
-            FLDCombatBodyRead Swing;
-            if (!bDied && Kind!=ELDSpatialOrderKind::CastUnit && Mode.Combat->ReadCombatBody(ActiveOrder->Body,Swing)
-                && Swing.bActionInProgress && Swing.ActionEntry==ELDCombatEntry::Basic)
-            {
-                ActiveOrder->bEngaged=true;
-                return true;
-            }
-            // Lost sight cancels the lock and stops this pursuit; it never walks to a last seen position or resumes.
+            // Lost sight cancels the lock and stops this pursuit; it never walks to a last seen position or resumes. A basic
+            // windup at this target is cancelled with the order: its release needs the target observed (2026-11-07).
             EndActive(bDied?ELDOrderStatus::Completed:ELDOrderStatus::Cancelled,
                 bDied?ELDOrderFailure::TargetDied:ELDOrderFailure::TargetUnavailable,true);
             return true;

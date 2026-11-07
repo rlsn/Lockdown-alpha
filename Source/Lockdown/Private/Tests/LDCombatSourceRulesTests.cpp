@@ -403,9 +403,9 @@ bool FLDOrderBookIsolationTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatCommittedBasicReleaseTest, "Lockdown.Rules.DemoCombatSources.CommittedBasicRelease",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
-// 2026-11-07 user decision: once a basic windup legally started, its release always lands on the committed target life,
-// however far it ran and whether or not it is still seen; only the target life ending or the attacker's own control
-// ends the swing.
+// 2026-11-07 user decisions: once a basic windup legally started, its release lands on the committed target life however
+// far it ran, as long as that life is still observed and in clear sight; the target life ending, losing it from sight or
+// the attacker's own control ends the swing.
 bool FLDCombatCommittedBasicReleaseTest::RunTest(const FString& Parameters)
 {
     FLDCombatBodyRef Target;
@@ -417,10 +417,20 @@ bool FLDCombatCommittedBasicReleaseTest::RunTest(const FString& Parameters)
     Gate.Committed = Target;
     Gate.Current = Target;
     Gate.bTargetPresent = true;
-    // The gate has no distance, visibility or sight input at all: a target that ran out of range, out of sight or behind
-    // a wall during the windup is the same standing life, and the swing lands on it.
-    TestTrue(TEXT("A started windup hits a target that ran out of range or out of sight"),
+    Gate.bObserved = true;
+    Gate.bClearSight = true;
+    // The gate has no distance input: a target that ran out of attack range during the windup is the same standing life,
+    // and the swing lands on it while it is still seen.
+    TestTrue(TEXT("A started windup hits a seen target that ran out of range"),
         LDCombatSourceRules::BasicReleaseGate(Gate) == ELDCombatReject::None);
+    FLDBasicReleaseInput Unseen = Gate;
+    Unseen.bObserved = false;
+    TestTrue(TEXT("A target lost from sight during the windup ends the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Unseen) == ELDCombatReject::TargetUnavailable);
+    FLDBasicReleaseInput Walled = Gate;
+    Walled.bClearSight = false;
+    TestTrue(TEXT("A target behind a wall at the release ends the swing"),
+        LDCombatSourceRules::BasicReleaseGate(Walled) == ELDCombatReject::Blocked);
     FLDBasicReleaseInput Camp = Gate;
     Camp.Committed.Victim.Kind = Camp.Current.Victim.Kind = ELDVictimKind::CampMember;
     TestTrue(TEXT("A camp member target lands the same way"), LDCombatSourceRules::BasicReleaseGate(Camp) == ELDCombatReject::None);

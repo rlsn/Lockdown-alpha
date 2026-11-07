@@ -543,6 +543,9 @@ private:
     bool ReleaseDue(const FLDGameplayWritePermit& Permit, FString& Error);
     bool ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Outcome, FString& Error);
+    // The landing half of ReleaseBasic, once BasicReleaseGate passed: builds and queues the swing's hits on its committed
+    // target and finishes the action.
+    bool LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action, FString& Error);
     bool ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Reject, FString& Error);
     // Terminal Finished/Rejected receipt of a released Direct request (abilities and camp basics).

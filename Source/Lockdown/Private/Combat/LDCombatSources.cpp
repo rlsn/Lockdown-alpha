@@ -402,9 +402,10 @@ ELDCombatReject LDCombatSourceRules::BasicReleaseGate(const FLDBasicReleaseInput
 {
     if (Input.bAttackBlocked) { return ELDCombatReject::ControlBlocked; }
     if (Input.bSelf || !Input.Committed.IsValid() || Input.Current!=Input.Committed || Input.bCurrentPendingDeath
-        || !Input.bTargetPresent)
+        || !Input.bTargetPresent || !Input.bObserved)
     { return ELDCombatReject::TargetUnavailable; }
     if (!Input.bTauntAllows) { return ELDCombatReject::ControlBlocked; }
+    if (!Input.bClearSight) { return ELDCombatReject::Blocked; }
     return ELDCombatReject::None;
 }
 
