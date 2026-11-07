@@ -429,6 +429,9 @@ def validate_payload(raw):
 
 def disc_inside(polygon, centre, radius):
     """The closed disc lies in the closed convex polygon."""
+    inner = min(float_offsets(polygon, centre))
+    if inner >= float(radius) + SCREEN_CM or inner < float(radius) - SCREEN_CM:
+        return inner >= float(radius)
     return all(cross(sub(b, a), sub(centre, a)) >= 0
                and bounded(cross(sub(b, a), sub(centre, a)) ** 2) >= bounded(radius * radius * dot(sub(b, a), sub(b, a)))
                for a, b in edges(polygon))
@@ -436,6 +439,11 @@ def disc_inside(polygon, centre, radius):
 
 def disc_overlaps(polygon, centre, radius):
     """The open disc meets the open interior of the convex polygon."""
+    inner, gap = min(float_offsets(polygon, centre)), float_boundary_distance(polygon, centre)
+    if inner > SCREEN_CM or gap < float(radius) - SCREEN_CM:
+        return True
+    if inner < -SCREEN_CM and gap > float(radius) + SCREEN_CM:
+        return False
     return inside(centre, polygon, strict=True) or any(
         segment_distance_squared(centre, a, b) < bounded(radius * radius) for a, b in edges(polygon))
 
@@ -444,6 +452,42 @@ def disc_overlaps(polygon, centre, radius):
 # an exact contact test only when plain floats put the shapes' bounds apart by more than SCREEN_CM, far beyond float error
 # at map scale; anything nearer still runs exactly, so no verdict changes.
 SCREEN_CM = 1.0
+
+
+_FLOAT_RINGS = {}
+
+
+def float_ring(polygon):
+    ring = _FLOAT_RINGS.get(polygon)
+    if ring is None:
+        ring = _FLOAT_RINGS[polygon] = tuple((float(vertex[0]), float(vertex[1])) for vertex in polygon)
+    return ring
+
+
+def float_offsets(polygon, centre):
+    """Float signed distances of centre inside each edge line of the counter-clockwise convex polygon (inside > 0)."""
+    x, y, ring = float(centre[0]), float(centre[1]), float_ring(polygon)
+    offsets = []
+    for (ax, ay), (bx, by) in zip(ring, ring[1:] + ring[:1]):
+        dx, dy = bx - ax, by - ay
+        offsets.append((dx * (y - ay) - dy * (x - ax)) / math.hypot(dx, dy))
+    return offsets
+
+
+def float_boundary_distance(polygon, centre):
+    """Float distance from centre to the polygon's boundary."""
+    x, y, ring = float(centre[0]), float(centre[1]), float_ring(polygon)
+    best = math.inf
+    for (ax, ay), (bx, by) in zip(ring, ring[1:] + ring[:1]):
+        dx, dy = bx - ax, by - ay
+        t = min(1.0, max(0.0, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy)))
+        best = min(best, math.hypot(x - ax - t * dx, y - ay - t * dy))
+    return best
+
+
+def float_polygon_distance(polygon, centre):
+    """Float distance from centre to the closed polygon (0 inside)."""
+    return 0.0 if min(float_offsets(polygon, centre)) >= 0 else float_boundary_distance(polygon, centre)
 
 
 def plan_box(polygon):
@@ -596,6 +640,9 @@ class Geometry:
                         for row in blockers if row["shape"] == "cylinder"}
         self.rows = {row["id"]: row for row in blockers}
         self.boxes = {identity: plan_box(polygon) for identity, polygon in self.polygons.items()}
+        # Float footprints for the screens: (x, y, radius, exact centre, exact radius).
+        self.float_circles = [(float(centre[0]), float(centre[1]), float(size), centre, size)
+                              for centre, size in self.circles.values()]
         self.terrain = Terrain(world["geometry"]["elevation"], self.minimum, self.maximum)
         # Level each blocker stands on; a blocker only blocks the sight of observers at or below its level.
         self.levels = {identity: self.terrain.ring_level(polygon) for identity, polygon in self.polygons.items()}
@@ -607,24 +654,36 @@ class Geometry:
         return None if level is None else self.terrain.height(level)
 
     def legal(self, p, radius=Fraction(0)):
-        reach = float(radius)
+        reach, x, y = float(radius), float(p[0]), float(p[1])
         return (p[2] == self.standing(p, radius)
                 and all(self.minimum[i] + radius <= p[i] <= self.maximum[i] - radius for i in (0, 1))
-                and all(apart(self.boxes[identity], p, radius)
-                        or (not inside(p, polygon, strict=True)
-                            and polygon_distance_squared(p, polygon) >= bounded(radius * radius))
+                and all(apart(self.boxes[identity], p, radius) or self._clear_of(p, radius, polygon)
                         for identity, polygon in self.polygons.items())
-                and all(math.hypot(float(p[0]) - float(centre[0]), float(p[1]) - float(centre[1]))
-                        > reach + float(size) + SCREEN_CM
+                and all(math.hypot(x - cx, y - cy) > reach + cr + SCREEN_CM
                         or squared_distance(p, centre) >= bounded((size + radius) ** 2)
-                        for centre, size in self.circles.values()))
+                        for cx, cy, cr, centre, size in self.float_circles))
+
+    def _clear_of(self, p, radius, polygon):
+        """p is not strictly inside polygon and at least radius from it; floats settle it unless within SCREEN_CM."""
+        inner, gap = min(float_offsets(polygon, p)), float_boundary_distance(polygon, p)
+        if inner > SCREEN_CM:
+            return False
+        if inner < -SCREEN_CM and abs(gap - float(radius)) > SCREEN_CM:
+            return gap > float(radius)
+        return not inside(p, polygon, strict=True) and polygon_distance_squared(p, polygon) >= bounded(radius * radius)
 
     def clearance(self, p):
         distances = [p[i] - self.minimum[i] for i in (0, 1)] + [self.maximum[i] - p[i] for i in (0, 1)]
+        x, y = float(p[0]), float(p[1])
+        # Floats rank every blocker; only those within SCREEN_CM of the nearest are measured exactly, so the reported
+        # clearance is the exact one.
+        rough = [(float_polygon_distance(polygon, p), polygon, None) for polygon in self.polygons.values()]
+        rough += [(math.hypot(x - cx, y - cy) - cr, centre, size) for cx, cy, cr, centre, size in self.float_circles]
+        nearest = min((value for value, _, _ in rough), default=math.inf)
         return min(*(float(value) for value in distances),
-                   *(math.sqrt(float(polygon_distance_squared(p, polygon))) for polygon in self.polygons.values()),
-                   *(math.sqrt(float(squared_distance(p, centre))) - float(size)
-                     for centre, size in self.circles.values()))
+                   *(math.sqrt(float(polygon_distance_squared(p, shape))) if size is None
+                     else math.sqrt(float(squared_distance(p, shape))) - float(size)
+                     for value, shape, size in rough if value <= nearest + SCREEN_CM))
 
     def sight_clear(self, start, end):
         """#97 tiered sight: nothing on a higher tier is seen; higher terrain between hides; an obstacle hides only from
