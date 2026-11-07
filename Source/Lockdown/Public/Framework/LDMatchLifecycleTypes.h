@@ -15,7 +15,8 @@ struct FLDMatchContext
 UENUM()
 enum class ELDMatchPhase : uint8
 {
-    Lobby, Starting, Development, CaptureOpen, Results, Resetting, Closing, Faulted
+    // Countdown (#153): every contender is spawned and frozen; only UI work and the opening choice are admitted until T=0.
+    Lobby, Starting, Countdown, Development, CaptureOpen, Results, Resetting, Closing, Faulted
 };
 
 UENUM()

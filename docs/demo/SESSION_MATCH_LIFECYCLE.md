@@ -69,7 +69,7 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 ### 3.1 一条权威阶段链
 
 目标枚举 `ELDMatchPhase` 归 GameMode：
-`Lobby / Starting / Development / CaptureOpen / Results / Resetting / Closing / Faulted`。
+`Lobby / Starting / Countdown / Development / CaptureOpen / Results / Resetting / Closing / Faulted`。
 `Faulted` 是明确停止玩法提交的工程故障状态，不是第二种胜负规则。
 本地的“连接中”“加入失败”属于 GameInstance/UI，不复制成第二套比赛状态。
 
@@ -81,7 +81,8 @@ Combat 的身体/命中时序、Navigation/CharacterMovement 的生命和取消�
 | `Lobby` / Host 改 AI 数 | 校验 Host 和范围，变更结构名单版本，清真人 Ready 后重新公布 | 空位不自动补角色。准备位变化不再递增结构名单版本，避免最后一人 Ready 使前面的人永远过期。 |
 | `Lobby` / 真人进出 | 原子预留/释放真人容量；变更结构名单版本并使旧 Ready 失效 | PreLogin 检查之外，在最终入房提交点重查容量和阶段，覆盖同时到达的两个连接。 |
 | `Lobby` / Host Start | 重查 Host、名单版本和所有真人 Ready，关闭准入，进入 `Starting`，冻结参赛快照 | 重复 Start 重放原结果；同 ID 改条款拒绝。连接离开若先提交则改变名单并拒绝旧 Start。 |
-| `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；全部可提交后统一开始 `Development` | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
+| `Starting` / 初始化 | 验证已批准内容、地图及各域依赖，预留出生/必要对象与初始记录；全部可提交后统一进入 `Countdown`（#153） | 缺输入/落地/初始化失败不得发布可玩成功；清理未发布对象并退休失败尝试的 Match，发布新一代 Lobby 和明确失败。开始提交前断线使该次启动失败并重准备；提交后按普通离局处理。 |
+| `Countdown` / T=0 | 全员冻结 `MATCH.CountdownSec`；只受理开局三选一、离局与界面操作，移动、普攻、技能、冲刺、买卖与 Shift 队列以 NotStarted 拒绝，营地与 AI 不行动；到达 T=0 的步闭合后进入 `Development` | 倒计时内的拒绝记入回执窗口，T=0 后不重新生效；房主结束本局以 WrongPhase 拒绝；未选的开局机会保留、不代选。所有对局计时从 T=0 起算 |
 | `Development` / 开放到期 | 使用服务器截止时刻进入 `CaptureOpen`，只在开放后开始计喷漆进度 | 仍可升级、购物、战斗；不能把发育期区内停留时间算入喷漆。 |
 | `CaptureOpen` / 守护完成提案 | 闭合真实事件边界、重新判定涂鸦主人与连续守护；GameMode 先锁结果和写闸，进入 `Results` | 多个提案不能互相覆盖；未闭合水位不是成功，旧局/旧生命/旧 CaptureEpoch 的提案拒绝。 |
 | 活跃阶段 / Host 结束 | 在权威边界提交 `HostEnded`，无胜者，进入 `Results` | 不借终止挑选最高分；与自然胜利的竞争按批次顺序裁定，不能先发布两个结果。 |
@@ -836,7 +837,8 @@ Host 连接消失是会话故障，不由客户端生成一份假的权威 HostE
 
 | 正式参数 / 政策键 | 类型、单位和消费者 | 接入与正反验收 |
 | --- | --- | --- |
-| `MATCH.DevelopmentSec` | 有界时长，作者秒；GameMode 阶段与喷漆归约/UI | 开始提交后建立开放截止；到期前不能喷漆或获胜，开放后不再关闭。旧 SourceData 发育值不能作缺值 fallback。 |
+| `MATCH.CountdownSec` | 正时长，作者秒；GameMode 阶段 | 开始提交后建立本局 T=0（出生时刻加倒计时）；倒计时不占发育期 |
+| `MATCH.DevelopmentSec` | 有界时长，作者秒；GameMode 阶段与喷漆归约/UI | 从 T=0 建立开放截止；到期前不能喷漆或获胜，开放后不再关闭。旧 SourceData 发育值不能作缺值 fallback。 |
 | `CAPTURE.SpraySec` | 有界时长，作者秒；GameMode 喷漆归约/UI/AI | 从独自喷漆开始（续计时回拨暂停值）建立喷上涂鸦的截止；争夺暂停所有人进度，离区/死亡/离局/硬控施加清零，普通伤害、减速、缴械不影响。 |
 | `CAPTURE.GuardSec` | 有界时长，作者秒；GameMode 守护归约/UI/AI | 喷上涂鸦起守护从 0 计；只有他人独自喷漆时暂停，改漆失败从暂停处续计；主人死亡/离局清除涂鸦；连续满时长即守护成功。 |
 | `LIFE.RespawnSec` | 有界时长，作者秒；生命域 | 当前内容为常量（D01 批准为试玩输入），不按等级/人数变化，不自行加入缩放公式。死亡事实建立期限一次，重复死亡不再延长或缩短。 |

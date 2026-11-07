@@ -91,6 +91,11 @@ namespace LDHUD
     // Death banner (APP_SPEC 7.1): waiting time only; build and property are kept, and the display never revives.
     LOCKDOWN_API FDeathView Death(const FLDOwnerState& Own,bool bClock,int64 NowMs);
     LOCKDOWN_API FString PhaseLine(ELDMatchPhase Phase);
+    // #153: the centre-screen opening countdown of the public match: whole seconds rounded up ("5" .. "1") while the
+    // authority time is before T=0 (StartedAtMs), then "开淫！" for GoShowMs from T=0. Empty otherwise or without a clock;
+    // reaching zero only waits for the authority's development phase.
+    inline constexpr int64 CountdownGoShowMs=1000;
+    LOCKDOWN_API FString OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
     struct FCircleView

@@ -562,6 +562,12 @@ bool RunPriorities(FAutomationTestBase& Test)
     auto Decision = Decide(Frame);
     bool bGood = Expect(Test, TEXT("Outside a running match nothing is proposed"), Decision, EMode::Stopped, EBody::None)
         && Test.TestTrue(TEXT("No build change outside a running match"), Decision.Build.Kind == ELDOpponentBuildKind::None);
+    // #153: an AI does not act during the opening countdown, not even on a choice.
+    Frame = Base;
+    Frame.Public.Phase = ELDMatchPhase::Countdown;
+    Decision = Decide(Frame);
+    bGood &= Expect(Test, TEXT("The opening countdown proposes no body intent"), Decision, EMode::Stopped, EBody::None)
+        && Test.TestTrue(TEXT("Nor a build change before T=0"), Decision.Build.Kind == ELDOpponentBuildKind::None);
 
     Frame = Base;
     Frame.Self.Phase = ELDLifePhase::Dead;

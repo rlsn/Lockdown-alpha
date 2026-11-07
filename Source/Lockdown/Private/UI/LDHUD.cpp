@@ -309,6 +309,11 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         for(UTextBlock* DeathLine:{DeathTitle.Get(),DeathCauseText.Get(),DeathCountdown.Get(),DeathNote.Get()})
         {DeathLine->SetJustification(ETextJustify::Center);DeathBox->AddChildToVerticalBox(DeathLine)->SetHorizontalAlignment(HAlign_Center);}
         DeathBanner=Panel(DeathBox,false);Place(DeathBanner,FAnchors(.5f,0),FVector2D(.5f,0),FVector2D(0,200));DeathBanner->SetVisibility(ESlateVisibility::Collapsed);
+        // #153: the opening countdown, large in the screen centre above the frozen bodies; it never takes pointer input.
+        OpeningCountdownText=LDWidgets::Text(WidgetTree,TEXT(""),96,TEXT("OpeningCountdownText"));OpeningCountdownText->SetAutoWrapText(false);
+        OpeningCountdownText->SetJustification(ETextJustify::Center);HudFace(OpeningCountdownText,true,4);
+        OpeningCountdownText->SetColorAndOpacity(LDHUDStyle::TextWarning);
+        Place(OpeningCountdownText,FAnchors(.5f,.5f),FVector2D(.5f,.5f),FVector2D(0,-120));OpeningCountdownText->SetVisibility(ESlateVisibility::Collapsed);
 
         // Centre: the one frozen result; it replaces the gameplay HUD instead of overlaying it.
         auto* ResultBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -809,7 +814,7 @@ void ULDHUD::RefreshReadModel()
     const FLDOwnerState& O=PC->OwnerState;const FLDLobbyView& Lobby=GS->DemoLobby;const FLDPublicMatchView& Public=GS->PublicMatch;
     // PublicMatch is the single public phase source; a projection from another generation is never this match.
     const bool bOwnMatch=Public.Generation!=0&&Public.Generation==O.Match;
-    const bool Playing=bOwnMatch&&(Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
+    const bool Playing=bOwnMatch&&(Public.Phase==ELDMatchPhase::Countdown||Public.Phase==ELDMatchPhase::Development||Public.Phase==ELDMatchPhase::CaptureOpen);
     const bool bResults=bOwnMatch&&Public.Phase==ELDMatchPhase::Results;
     // Cues follow every sample, including while a menu covers the HUD or the result is shown.
     ObserveAudio(*PC,*GS);
@@ -833,6 +838,7 @@ void ULDHUD::RefreshReadModel()
     if(!bShow)
     {
         for(UWidget* Hidden:{static_cast<UWidget*>(TargetCard.Get()),static_cast<UWidget*>(DeathBanner.Get()),static_cast<UWidget*>(ToastPanel.Get()),static_cast<UWidget*>(EventFeedPanel.Get()),
+            static_cast<UWidget*>(OpeningCountdownText.Get()),
             static_cast<UWidget*>(ScorePanel.Get()),ActionDetailSlot?ActionDetailSlot->Content.Get():nullptr}){HudSetShown(Hidden,false,ESlateVisibility::Visible);}
         CloseItemMenu();
         return;
@@ -880,6 +886,8 @@ void ULDHUD::RefreshReadModel()
     HudSetShown(NextStepText,!NextStepText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     RefreshEventFeed(*GS,O,Content,bClock,NowMs);
     RefreshScoreboard(*GS,O);
+    HudSetText(OpeningCountdownText,LDHUD::OpeningCountdown(Public,bClock,NowMs));
+    HudSetShown(OpeningCountdownText,!OpeningCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
     if(Death.bVisible)

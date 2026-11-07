@@ -26,12 +26,14 @@
 
 namespace LDPlayerInputDetail
 {
-    // PublicMatch is the single generation and phase source; DemoLobby only mirrors it for the roster.
+    // PublicMatch is the single generation and phase source; DemoLobby only mirrors it for the roster. The opening
+    // countdown counts: the camera, panels and commands work, and the server answers each world command with its refusal.
     bool InRunningMatch(const ALDPlayerController& PC)
     {
         const auto* Public=PC.GetWorld()->GetGameState<ALDGameState>();
         return Public && Public->PublicMatch.Generation!=0 && Public->PublicMatch.Generation==PC.OwnerState.Match
-            && (Public->PublicMatch.Phase==ELDMatchPhase::Development || Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
+            && (Public->PublicMatch.Phase==ELDMatchPhase::Countdown || Public->PublicMatch.Phase==ELDMatchPhase::Development
+                || Public->PublicMatch.Phase==ELDMatchPhase::CaptureOpen);
     }
 
     bool PhysicalDown(const ALDPlayerController* PC,FKey Key)

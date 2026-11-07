@@ -45,6 +45,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
+#include "World/LDCampDirector.h"
 
 // Owned-connection growth/shop scenario (PROGRESSION_EQUIPMENT_ECONOMY §8, §12). The owning client earns, chooses and
 // trades only through its own connection; the Host plays the victim and audits the ledger afterwards. The probe never
@@ -329,7 +330,8 @@ class FLDDemoGrowthProbe : public TSharedFromThis<FLDDemoGrowthProbe>
 public:
     enum class EStage : uint8
     {
-        Join, Lobby, Spawned, Victim,
+        // #153: Countdown runs between the normal start and the first playable instant (T=0) of the first match.
+        Join, Lobby, Countdown, Spawned, Victim,
         ToSite, KillSeek, KillWait, Choice, ChoiceQuery,
         ShopApproach, ShopOpen, Buy1, Buy2, BuyFull, Replay, Sell, WalkOut, Outside,
         // Q/W replacement and a choice while dead on the Host's preset offers: two more planned choices, Q's skill in
@@ -433,6 +435,14 @@ public:
         bool bSent = false;
     };
     FChoiceCall Planned;
+
+    // #153 opening countdown of the first match: its T=0, the frozen foot, and Client1's refused move, Shift step, Q and buy.
+    bool bCountdownSeen = false, bCountdownSent = false, bCountdownShiftSent = false, bCountdownRefused = false;
+    int64 CountdownStartedAtMs = 0;
+    FVector CountdownFoot = FVector::ZeroVector;
+    FLDMoveIdentity CountdownMove, CountdownShift;
+    uint32 CountdownCombatMark = 0;
+    TSharedPtr<FJsonObject> CountdownRow;
 
     // Client1: Q/W replacement. The forgotten skill's persistent track and deadline, and the rejected unconfirmed try.
     bool bUnconfirmedDone = false, bSkillSent = false, bSkillCooling = false;
@@ -697,6 +707,7 @@ public:
         {
         case EStage::Join: return TickJoin(*Current, *PC, Lobby, Driver);
         case EStage::Lobby: return TickLobby(Now, *PC, Lobby);
+        case EStage::Countdown: return TickCountdown(Now, *PC, *Public, *Registry);
         case EStage::Spawned: return TickSpawned(*PC, *Registry, Lobby);
         case EStage::Victim: return TickVictim(Now, *PC);
         case EStage::EndFirst: return TickEndFirst(Now, *PC, *Public);
@@ -751,7 +762,13 @@ public:
             SetStage(bSecond ? EStage::SecondSpawned : EStage::Spawned);
             return true;
         }
-        if (Lobby.Phase == ELDMatchPhase::Starting) { return true; }
+        // #153: the first match's countdown is checked from both roles before anyone acts.
+        if (!bSecond && Lobby.Phase == ELDMatchPhase::Countdown)
+        {
+            SetStage(EStage::Countdown);
+            return true;
+        }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(Id, TEXT("The room left the Lobby without opening play: ")
@@ -950,6 +967,151 @@ public:
         PC.Navigation->Navigate(KillSite);
         NavigateAttempts = 1;
         SetStage(EStage::ToSite);
+        return true;
+    }
+
+    // #153: the first match's opening countdown, seen from both roles. Every contender stands frozen while the opening
+    // three-choice is open; Client1, a real owning remote connection, has its move, Shift step, Q and buy refused by the
+    // server. T=0 then starts development with every match timer counted from it, and the untaken choice is kept.
+    bool TickCountdown(double Now, ALDPlayerController& PC, const ALDGameState& Public, const ULDMapRegistry& Registry)
+    {
+        const FLDPublicMatchView& View = Public.PublicMatch;
+        const FLDDemoContentParameters& Parameters = Catalog->Get().Parameters;
+        const ALDCharacter* Body = Cast<ALDCharacter>(PC.GetPawn());
+        const FLDProgressionView* ProgView = PC.ReadOwnProgression();
+        int64 NowMs = 0;
+        const bool bClock = PC.ReadDemoAuthorityTimeMs(NowMs);
+        if (Now - StageAt > Parameters.CountdownMs / 1000. + LDDemoGrowthScenario::GrowthProbeRequestSeconds)
+        {
+            return Fail(TEXT("Countdown"), TEXT("The opening countdown did not end with its checks complete"));
+        }
+        if (!bCountdownSeen)
+        {
+            if (View.Generation != PC.OwnerState.Match || !Body || PC.OwnerState.LifePhase != ELDLifePhase::Alive || !ProgView || !bClock)
+            {
+                return true;
+            }
+            if (View.Phase != ELDMatchPhase::Countdown)
+            {
+                return Fail(TEXT("Countdown"), TEXT("The match left the opening countdown before this role saw its spawned body"));
+            }
+            bCountdownSeen = true;
+            CountdownStartedAtMs = View.StartedAtMs;
+            CountdownFoot = Body->GetActorLocation();
+            Check(View.StartedAtMs > NowMs && View.StartedAtMs - NowMs <= Parameters.CountdownMs
+                && View.OpenAtMs == View.StartedAtMs + Parameters.DevelopmentMs && View.CircleState == ELDCircleState::NotOpen,
+                TEXT("Countdown"), TEXT("The match opens with the approved countdown before T=0; development is due a full phase after T=0"),
+                FString::Printf(TEXT("now=%lld started=%lld open=%lld"), NowMs, View.StartedAtMs, View.OpenAtMs));
+            Check(ProgView->bHasOffer && ProgView->bCanChoose && ProgView->ConsumedThrough == 0 && ProgView->PendingChoiceCount == 1,
+                TEXT("Countdown"), TEXT("The opening three-choice is open and choosable during the countdown"),
+                LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
+            Check(PC.CanWorldCommand(), TEXT("Countdown"), TEXT("Camera and commands stay usable; the server answers each world command"));
+            if (IsHost())
+            {
+                const ALDGameMode* Mode = PC.GetWorld()->GetAuthGameMode<ALDGameMode>();
+                Check(Mode && Mode->IsOpeningCountdown(Mode->GetMatchContext()) && Mode->ReadPublicMatch().StartedAtMs == View.StartedAtMs
+                    && Mode->GetAirdrop().Schedule.StartedAtMs == View.StartedAtMs
+                    && Mode->GetLeaderNotice().Rules.StartedAtMs == View.StartedAtMs
+                    && Mode->Camps && Mode->Camps->GetBoss().Rules.StartedAtMs == View.StartedAtMs,
+                    TEXT("Countdown"), TEXT("The authority counts the airdrop, the leader notice and the Boss from T=0"));
+            }
+            if (!Passed) { return Finish(); }
+            if (IsHost())
+            {
+                bCountdownRefused = true;
+                return true;
+            }
+            // Client1 sends everything at once, while T=0 is still well ahead.
+            const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
+            const FLDEquipmentView* EquipView = PC.ReadOwnEquipment();
+            const FLDDemoEquipmentDefinition* Item = Catalog->Get().Equipment.FindByPredicate(
+                [](const FLDDemoEquipmentDefinition& Row) { return Row.BuyPrice > 0; });
+            FLDShopCommand Buy;
+            Buy.Kind = ELDShopCommandKind::Buy;
+            Buy.SessionId = FGuid::NewGuid();
+            Buy.QuoteRevision = 1;
+            Buy.CatalogDigest = ProgView->CatalogDigest;
+            Buy.WorldLayoutRevision = Registry.Revision().LayoutRevision;
+            Buy.WorldGeometryRevision = Registry.Revision().GeometryRevision;
+            if (!Capture || !EquipView || !Item || !FLDDefinitionWire::Encode(Registry.Revision().MapId, Buy.WorldMapId)
+                || !FLDDefinitionWire::Encode(FName(*Item->Id), Buy.DefinitionId))
+            {
+                return Fail(TEXT("Countdown"), TEXT("The countdown requests could not be built from the public world and catalog"));
+            }
+            Buy.ExpectedAccountRevision = EquipView->AccountRevision;
+            Buy.ExpectedInventoryRevision = EquipView->InventoryRevision;
+            Buy.ExpectedBuildRevision = ProgView->BuildRevision;
+            Buy.BuyPrice = Item->BuyPrice;
+            PC.Navigation->NavigateGround(Capture->Position, Capture->Surface);
+            CountdownMove = PC.Navigation->LocalIdentity();
+            CountdownCombatMark = PC.CombatReceipts.Serial();
+            PC.ActivateCombatEntry(ELDCombatEntry::Q);
+            if (!SendShop(PC, TEXT("countdown-buy"), Buy)) { return Finish(); }
+            bCountdownSent = true;
+            return true;
+        }
+        if (!bCountdownRefused)
+        {
+            const FLDOrderReceipt& Order = PC.Navigation->LatestReceipt();
+            if (!bCountdownShiftSent)
+            {
+                if (Order.Identity != CountdownMove || Order.Status == ELDOrderStatus::Queued) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
+                    TEXT("The server refuses a move order before T=0"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
+                if (!bClock || NowMs >= CountdownStartedAtMs - 300)
+                {
+                    return Fail(TEXT("Countdown"), TEXT("T=0 arrived before the Shift step could be sent inside the countdown"));
+                }
+                const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
+                PC.Navigation->NavigateGround(Capture->Position, Capture->Surface, nullptr, true);
+                CountdownShift = PC.Navigation->LocalIdentity();
+                bCountdownShiftSent = true;
+                return true;
+            }
+            if (Order.Identity != CountdownShift || Order.Status == ELDOrderStatus::Queued) { return true; }
+            const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(CountdownCombatMark,
+                [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
+            if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
+            const FLDShopReceipt* Seen = nullptr;
+            FString Why;
+            const LDDemoGrowthScenario::EGrowthProbeWait Awaited = AwaitShop(Now, PC, Seen, Why);
+            if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Waiting) { return true; }
+            if (Awaited == LDDemoGrowthScenario::EGrowthProbeWait::Failed)
+            {
+                return Fail(TEXT("Countdown"), TEXT("The countdown buy got no final receipt: ") + Why);
+            }
+            Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
+                TEXT("The server refuses a Shift-queued step before T=0"),
+                FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
+            Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Countdown"), TEXT("The server refuses Q before T=0"),
+                StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
+            CheckRejected(PC, *Seen, ELDGrowthReason::MatchNotStarted, TEXT("Countdown"),
+                TEXT("The server refuses a trade before T=0 (还没开始呢，急什么) and the account is untouched"));
+            Check(!PC.Navigation->HasMoveOrder() && FVector::Dist2D(CountdownFoot, Body ? Body->GetActorLocation() : FVector::ZeroVector) < 5.,
+                TEXT("Countdown"), TEXT("The refused body stays frozen at its spawn"));
+            if (!Passed) { return Finish(); }
+            bCountdownRefused = true;
+            return true;
+        }
+        if (View.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (View.Phase != ELDMatchPhase::Development || !ProgView || !Body)
+        {
+            return Fail(TEXT("Countdown"), TEXT("The countdown did not end in the development phase"));
+        }
+        Check(View.StartedAtMs == CountdownStartedAtMs && View.ServerNowMs >= View.StartedAtMs
+            && View.OpenAtMs == View.StartedAtMs + Parameters.DevelopmentMs, TEXT("Countdown"),
+            TEXT("Development starts at T=0 and the flagpole opens a full development phase later"),
+            FString::Printf(TEXT("server=%lld started=%lld open=%lld"), View.ServerNowMs, View.StartedAtMs, View.OpenAtMs));
+        Check(ProgView->bHasOffer && ProgView->ConsumedThrough == 0 && ProgView->PendingChoiceCount == 1, TEXT("Countdown"),
+            TEXT("An opening choice not taken in the countdown is kept, never chosen for the player"),
+            LDDemoGrowthScenario::GrowthProbeProgressionText(*ProgView));
+        CountdownRow = MakeShared<FJsonObject>();
+        CountdownRow->SetNumberField(TEXT("started_at_ms"), double(View.StartedAtMs));
+        CountdownRow->SetNumberField(TEXT("open_at_ms"), double(View.OpenAtMs));
+        CountdownRow->SetBoolField(TEXT("refusals_checked"), !IsHost());
+        if (!Passed) { return Finish(); }
+        SetStage(EStage::Spawned);
         return true;
     }
 
@@ -3415,6 +3577,7 @@ public:
         Report->SetNumberField(TEXT("second_generation"), SecondGeneration);
         Report->SetObjectField(TEXT("match1"), FirstMatchRow.IsValid() ? FirstMatchRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("opening"), OpeningRow.IsValid() ? OpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
+        Report->SetObjectField(TEXT("countdown"), CountdownRow.IsValid() ? CountdownRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         Report->SetObjectField(TEXT("second_opening"),
             SecondOpeningRow.IsValid() ? SecondOpeningRow : TSharedPtr<FJsonObject>(MakeShared<FJsonObject>()));
         if (const ALDPlayerController* PC = Controller.Get())

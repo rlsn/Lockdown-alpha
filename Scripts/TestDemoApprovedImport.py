@@ -49,7 +49,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250 (1300-2400)", approval["decision"])
         self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
-                      "flagpole 180s, guard 30s, airdrop 80s.", approval["decision"])
+                      "flagpole 180s, guard 30s, airdrop 80s; camp loot -50%.", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (30, 14, 13, 2))
         self.assertEqual([row["id"] for row in self.data["abilities"]], [
@@ -90,7 +90,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1400"),
             ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
-            ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
+            ("MATCH.CountdownSec", "ms", "5"), ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
@@ -635,8 +635,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 40, 30, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1100, 4000, 65000, 160, 120, 1539),
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 15, 1250),
+            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1100, 4000, 65000, 80, 60, 1539),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))

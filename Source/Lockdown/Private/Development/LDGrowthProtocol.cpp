@@ -126,6 +126,7 @@ const TCHAR* LDGrowthWire::ReasonName(ELDGrowthReason Reason)
     case ELDGrowthReason::CatalogMismatch: return TEXT("CatalogMismatch");
     case ELDGrowthReason::NotAuthority: return TEXT("NotAuthority");
     case ELDGrowthReason::Dead: return TEXT("Dead");
+    case ELDGrowthReason::MatchNotStarted: return TEXT("MatchNotStarted");
     case ELDGrowthReason::RequestConflict: return TEXT("RequestConflict");
     case ELDGrowthReason::OutOfOrder: return TEXT("OutOfOrder");
     case ELDGrowthReason::ReceiptExpired: return TEXT("ReceiptExpired");
