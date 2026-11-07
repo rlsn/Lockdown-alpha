@@ -200,10 +200,11 @@ void ALDOpponentController::ReportTally()
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
         TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
-        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u"), *Binding.GetContender().ToString(),
+        TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
         Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
-        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks);
+        Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
+        Tally.OrdersRejected);
 }
 
 void ALDOpponentController::NoteContest(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision)
@@ -474,12 +475,19 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentS
         else if (Receipt.Status == ELDOrderStatus::Rejected)
         {
             // A refused replacement leaves the incumbent order running unchanged.
+            ++Tally.OrdersRejected;
             Learn(Candidate.Intent.Key, Settle, Self, NowMs);
+            LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, Receipt.Failure == ELDOrderFailure::InvalidGround
+                || Receipt.Failure == ELDOrderFailure::NoCompletePath, Self, NowMs, Content->Get().Parameters.AI);
             Candidate = FOrderTrack();
         }
         else
         {
             // Admitted, or cancelled together with the incumbent by a Stop or a life end: it replaced the incumbent.
+            if (Receipt.Status != ELDOrderStatus::Cancelled)
+            {
+                LDOpponentPolicy::RecordWalkAdmission(Policy, Candidate.Intent.Key, false, Self, NowMs, Content->Get().Parameters.AI);
+            }
             Incumbent = Candidate;
             Incumbent.Status = LDOpponentFrame::OrderStatus(Receipt.Status);
             Candidate = FOrderTrack();
