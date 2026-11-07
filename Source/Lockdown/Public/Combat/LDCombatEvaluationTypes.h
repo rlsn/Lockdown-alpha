@@ -44,8 +44,12 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
-    // Conditional multiplier of the raw amount before resistance: the product of every conditional amplification
-    // (passive_public_shame, rear strike, passive_eagle_eye distance, a critical reduction of the target); 10000 = none.
+    // #147 D21 damage bonus pool: every "damage +X%" of this hit (control/low-HP amplification, distance, execute, rear
+    // strike, vulnerability, negative kinds, affliction) summed into one factor (1 + pool) applied once to the raw amount
+    // before resistance. An ability critical adds STAT.AbilityCritMultiplier - 1 to this pool here; a basic critical
+    // multiplies by STAT.CritMultiplier before it.
+    int64 DamageBonusBp = 0;
+    // Remaining multiplier of the raw amount outside the pool (the target's critical damage reduction); 10000 = none.
     int64 AmplifyBp = 10000;
     // Damage reduction of the target applied after resistance and before the shield (active_porcelain_flop); 0 = none.
     int64 MitigateBp = 0;

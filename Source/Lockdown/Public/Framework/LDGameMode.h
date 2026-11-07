@@ -241,6 +241,7 @@ private:
     friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
+    friend struct FLDBuildPrimitivesAccess;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord

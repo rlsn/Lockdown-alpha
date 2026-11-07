@@ -6,11 +6,13 @@ struct FLDDemoPolicies;
 struct FLDDemoEffectDefinition;
 
 // Voluntary actions the control matrix judges; the same rule serves human, opponent AI and camp callers.
-enum class ELDCombatControlAction : uint8 { Move, Displacement, Basic, Cast };
+// Cast is any Q/W/D activation; Skill is a learned Q/W (#147 silence blocks it, the innate dash is no skill), so a Q/W
+// caller checks both.
+enum class ELDCombatControlAction : uint8 { Move, Displacement, Basic, Cast, Skill };
 
 // Every control or slow a body can receive; all of them are committed through ALDCombatDirector::CommitControl.
-// Hard controls (Root, Stun, Disarm, Taunt) diminish; Knockback and Slow never do.
-enum class ELDControlKind : uint8 { Root, Stun, Disarm, Taunt, Knockback, Slow };
+// Hard controls (Root, Stun, Disarm, Taunt, Silence) diminish; Knockback and Slow never do.
+enum class ELDControlKind : uint8 { Root, Stun, Disarm, Taunt, Knockback, Slow, Silence };
 
 // One control or slow about to be committed on a body life.
 struct FLDControlApplication
@@ -37,7 +39,7 @@ struct FLDHardControlChain
     int64 WindowEndMs = 0;
 };
 
-// The next basic attack's added hit, armed by one release and consumed by the first basic that lands.
+// The next basic attacks' added hit, armed by one release and consumed by the basics that land (Charges of them, #147).
 struct FLDCombatEmpower
 {
     FGuid EffectId;
@@ -49,6 +51,12 @@ struct FLDCombatEmpower
     int64 ExpiresAtMs = 0;
     // active_lunge Lv3: remaining-cooldown cut of the arming learned source when the empowered basic lands.
     int64 RefundMs = 0;
+    // #147: the landed basics this release empowers, and the cleave they carry (ratio and radius).
+    int32 Charges = 1;
+    int64 CleaveRatioBp = 0;
+    double CleaveRadiusCm = 0;
+    // The timed bonus (keyed by EffectId) held while charges remain; ended with the last charge.
+    bool bChargeBonus = false;
 };
 
 // The last reflection one thorns source of a body dealt to one attacker.
@@ -72,19 +80,22 @@ struct FLDThornsContact
 
 namespace LDCombatControl
 {
-    // Matrix: Root blocks the POLICY.RootBlocks actions (Move, Dash as Displacement); Disarm blocks Basic;
-    // Stun blocks every voluntary action. Expiry is half-open at ExpiresAtMs.
+    // Matrix: Root blocks the POLICY.RootBlocks actions (Move, Dash as Displacement); Disarm blocks Basic; Silence
+    // (#147) blocks Skill; Stun blocks every voluntary action. Expiry is half-open at ExpiresAtMs.
     // Disarm and stun instances reuse FLDCombatRoot: keyed by effect, carrying their source and expiry, so another rule
     // (for example a bonus against bodies this source controls) can read who applied them.
     LOCKDOWN_API bool Blocks(const TArray<FLDCombatRoot>& Roots, const TArray<FLDCombatRoot>& Disarms,
-        const TArray<FLDCombatRoot>& Stuns, int64 AtMs, const FLDDemoPolicies& Policies, ELDCombatControlAction Action);
+        const TArray<FLDCombatRoot>& Stuns, int64 AtMs, const FLDDemoPolicies& Policies, ELDCombatControlAction Action,
+        const TArray<FLDCombatRoot>* Silences = nullptr);
     // ELDCombatControlBlock bits of one status kind, for display only.
     LOCKDOWN_API uint8 DisarmBlockBits();
     LOCKDOWN_API uint8 StunBlockBits();
+    LOCKDOWN_API uint8 SilenceBlockBits();
     // Adds a new instance (never renews the same effect); returns whether it was added.
     LOCKDOWN_API bool Apply(TArray<FLDCombatRoot>& Instances, const FLDCombatRoot& Instance, int64 AtMs);
     // Drops expired disarm and stun instances; roots keep their LDTactical rule. Returns whether anything ended.
-    LOCKDOWN_API bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs);
+    LOCKDOWN_API bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs,
+        TArray<FLDCombatRoot>* Silences = nullptr);
 
     // Whether SourceFoot lies in the rear sector of a body standing at TargetFoot with authority facing TargetYawDeg:
     // the angle between the target's back direction and the planar direction to the source is at most RearArc/2.
@@ -92,7 +103,8 @@ namespace LDCombatControl
     LOCKDOWN_API bool IsBehind(const FVector& TargetFoot, double TargetYawDeg, const FVector& SourceFoot,
         const FLDDemoRational& RearArcDeg);
 
-    // Takes the armed empowerment when it is still active at AtMs; an expired one is dropped and nothing is taken.
+    // Takes one charge of the armed empowerment when it is still active at AtMs (the record ends with its last
+    // charge); an expired one is dropped and nothing is taken. The returned copy's Charges is what remains.
     LOCKDOWN_API TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs);
 
     // Whether this contact may trigger the thorns effect: positive damage, not itself a reflection, a primary basic

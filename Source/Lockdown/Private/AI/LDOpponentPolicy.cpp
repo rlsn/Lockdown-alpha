@@ -41,6 +41,7 @@ int32 CatalogIndex(const TArray<TDefinition>& Definitions, const FString& Id)
 bool PositiveStat(const FLDDemoStatBonus& Stat)
 {
     return Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat.Stat == ELDDemoBonusStat::HPRegenFlat
+        || Stat.Stat == ELDDemoBonusStat::MPRegenFlat
         ? Stat.Cm.Denominator > 0 && Stat.Cm.Numerator > 0
         : Stat.Amount > 0;
 }
@@ -86,6 +87,14 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::ZoneSlow:
     case ELDDemoEffectOp::ZoneRoot:
     case ELDDemoEffectOp::ZoneDamage:
+    // #147 build v7 keywords on enemies.
+    case ELDDemoEffectOp::Silence:
+    case ELDDemoEffectOp::Breach:
+    case ELDDemoEffectOp::Burn:
+    case ELDDemoEffectOp::Execute:
+    case ELDDemoEffectOp::Pierce:
+    case ELDDemoEffectOp::Echo:
+    case ELDDemoEffectOp::ZoneBurn:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
@@ -108,6 +117,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::TriggeredShield:
+    case ELDDemoEffectOp::TauntShield:
     case ELDDemoEffectOp::DamageGuard:
     case ELDDemoEffectOp::ZoneShield:
     case ELDDemoEffectOp::MobilityShield:
@@ -128,6 +138,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
+    case ELDDemoEffectOp::DispelDisarm:
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
@@ -173,6 +184,7 @@ struct FSourceShape
     bool bDamage = false;
     bool bRoot = false;
     // Hard controls that also interrupt a spray (APP_SPEC 2.2); a self taunt reaches contenders within its radius.
+    // bStun: a stun or (#147 D10) a silence.
     bool bStun = false;
     bool bTaunt = false;
     double TauntRadiusCm = 0;
@@ -189,7 +201,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         {
         case ELDDemoEffectOp::Damage: Out.bDamage = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
-        case ELDDemoEffectOp::Stun: Out.bStun = true; break;
+        case ELDDemoEffectOp::Stun:
+        case ELDDemoEffectOp::Silence: Out.bStun = true; break;
         case ELDDemoEffectOp::Taunt:
             Out.bTaunt = true;
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));

@@ -51,8 +51,10 @@ namespace LDTactical
     // anything else is a separate record.
     LOCKDOWN_API void ApplyBreach(TArray<FLDCombatBreach>& Breaches, const FLDCombatBreach& Breach, int64 AtMs);
     LOCKDOWN_API bool HasBreach(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
-    // The resistance a hit meets: flats first (per stack), then the summed ratio (capped at 100%), floored to P2, >= 0.
-    LOCKDOWN_API int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs);
+    // The resistance a hit meets: flats first (per stack, plus ExtraFlatP2 of the shared #147 breach), then the summed
+    // ratio (capped at 100%), floored to P2, >= 0.
+    LOCKDOWN_API int64 BreachedResistanceP2(const TArray<FLDCombatBreach>& Breaches, int64 ResistanceP2, bool bArmor, int64 AtMs,
+        int64 ExtraFlatP2 = 0);
     // Latest active breach deadline (the visible expiry), or 0.
     LOCKDOWN_API int64 BreachUntilMs(const TArray<FLDCombatBreach>& Breaches, int64 AtMs);
     // The same source refreshes its mark.

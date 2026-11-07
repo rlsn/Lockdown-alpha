@@ -232,7 +232,8 @@ bool FLDControlTauntRestoreTest::RunTest(const FString& Parameters)
 }
 
 // #112 §9 + §8: a real combat hit through ApplyHit -> CommitControl reaches the spray zone. Damage, slow and disarm leave the
-// sprayer's progress alone; a stun clears it at its instant, and the control alone (no damage) is its owner's assist contribution.
+// sprayer's progress alone; a stun (and #147 a silence) clears it at its instant, and the control alone (no damage) is its owner's
+// assist contribution.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureCombatInterruptTest, "Lockdown.Rules.DemoCapture.CombatHitInterrupt",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
@@ -362,6 +363,16 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
 
     TestTrue(TEXT("The tally counts exactly one interruption"), Holder && Holder->Interrupted == 1);
 
+    // #147 D10: a silence clears the spray at its instant like the other hard controls.
+    FLDCombatHit Silence = Hit(ControllerBody, 0);
+    Silence.SilenceDurationMs = 300;
+    if (!TestTrue(FString::Printf(TEXT("Silence step: %s"), *Error), Step(25, {Silence}))) { return false; }
+    TestTrue(TEXT("A silence from a real hit clears the spray at its instant"),
+        Mode->CaptureReducer.GetState() == ELDCircleState::Solo && Mode->CaptureReducer.GetSoloSinceMs() == 25
+        && Mode->CaptureReducer.GetDueAtMs() == 125 && Sprayer.Silences.Num() == 1);
+    Holder = Mode->CaptureReducer.DevTally().Holders.Find(Rival);
+    TestTrue(TEXT("The tally counts the silence"), Holder && Holder->Interrupted == 2);
+
     // A knockback commits through the same control path (its displacement needs the Demo map's movement; a push out of the
     // zone then reaches the reducer as an ordinary presence change, i.e. leaving the zone).
     World->Tick(LEVELTICK_TimeOnly, .025f);
@@ -381,7 +392,7 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
         && Mode->CaptureReducer.GetState() == ELDCircleState::Solo && Mode->CaptureReducer.GetSoloSinceMs() == 40
         && Mode->CaptureReducer.GetDueAtMs() == 140 && Sprayer.Knockbacks.Num() == 1 && Sprayer.Knockbacks[0].ExpiresAtMs == 240);
     Holder = Mode->CaptureReducer.DevTally().Holders.Find(Rival);
-    TestTrue(TEXT("The tally counts the second interruption"), Holder && Holder->Interrupted == 2);
+    TestTrue(TEXT("The tally counts the third interruption"), Holder && Holder->Interrupted == 3);
     // Pushed out of the zone: the leave clears the progress like any other exit.
     const auto Leave = [&]() { return Fact(ELDCaptureEventKind::Presence, RivalBody, .045, ELDCommitPhase::Motion, false); };
     if (!TestTrue(FString::Printf(TEXT("Leave step: %s"), *Error), Step(50, {}, nullptr, Leave))) { return false; }
@@ -536,7 +547,8 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         int32 End = INDEX_NONE;
         return Rest.FindChar(TEXT(' '), End) ? Rest.Left(End) : Rest;
     };
-    // A 300-point hit with full omnivamp (passive_cornered terms) while the source is below 90%.
+    // A 300-point hit with full omnivamp (passive_cornered terms) while the source is below 90%; #147 D22 caps every
+    // lifesteal of one hit at COMBAT.LifestealCap.
     const auto Strike = [&](int64& OutHPLost, int64& OutHealed, FString& OutVamp)
     {
         FLDCombatHit Hit;
@@ -568,15 +580,16 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
     FString Vamp;
     if (!Strike(HPLost, Healed, Vamp)) { return false; }
     TestTrue(TEXT("The hit took HP for the source's omnivamp"), HPLost > 0);
-    TestEqual(TEXT("The heal cut halves what the source regains"), Healed, LDCombatMechanics::ReduceByBp(HPLost, 5000));
+    const int64 CapBp = Catalog->Get().Parameters.LifestealCapBp;
+    TestEqual(TEXT("The heal cut halves what the capped lifesteal regains"), Healed, LDCombatMechanics::ReduceByBp(HPLost * CapBp / 10000, 5000));
     TestEqual(TEXT("vamp is the source's actual HP gain under a heal cut"), Vamp, LDLog::P2(Healed));
 
     // No cut, but the source is near full HP: the line records the clamped gain.
     Source.HealCuts.Reset();
-    Source.Resources.HpP2 = 80000;
+    Source.Resources.HpP2 = 89900;
     if (!Strike(HPLost, Healed, Vamp)) { return false; }
-    TestTrue(TEXT("This omnivamp would overfill the source"), HPLost > Source.Resources.MaxHpP2 - 80000);
-    TestTrue(TEXT("The source stops at its max HP"), Source.Resources.HpP2 == Source.Resources.MaxHpP2 && Healed == 20000);
+    TestTrue(TEXT("This omnivamp would overfill the source"), HPLost * CapBp / 10000 > Source.Resources.MaxHpP2 - 89900);
+    TestTrue(TEXT("The source stops at its max HP"), Source.Resources.HpP2 == Source.Resources.MaxHpP2 && Healed == 10100);
     TestEqual(TEXT("vamp is the source's actual HP gain at the max-HP clamp"), Vamp, LDLog::P2(Healed));
     return true;
 }
