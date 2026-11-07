@@ -529,7 +529,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             ItemMenuSlot=Canvas->AddChildToCanvas(ItemMenu);ItemMenuSlot->SetAutoSize(true);ItemMenuSlot->SetAlignment(FVector2D(.5f,1));ItemMenuSlot->SetZOrder(21);
         }
 
-        // The blind-box button sits right above the band's Q/W slots (#97) and the shop entry in the bottom-right corner.
+        // The blind-box button sits right above the band's left block (#97) and the shop entry in the bottom-right corner.
         // Each toggles its own panel, which docks right above it; neither has a hotkey. The blind-box button is the Choices
         // panel's only entry besides the opening's automatic open: greyed out and disabled while no choice is pending, and it
         // pulses when the count rises. The shop entry shows the own gold and pre-order count; buying and upgrading still
@@ -553,9 +553,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ShopFrame=Panel(ShopButton,true);ShopFrame->SetPadding(FMargin(4));
         Place(ShopFrame,FAnchors(1,1),FVector2D(1,1),FVector2D(-16,-16));
         ShopEntry=ShopFrame;
-        // RefreshReadModel keeps the blind-box button centred over the Q/W pair, right above the band.
+        // RefreshReadModel keeps the blind-box button at the left edge of the band, right above its left block.
         PromptFrame=Panel(PendingPrompt,true);PromptFrame->SetPadding(FMargin(4));
-        PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(.5f,1));PromptSlot->SetAlignment(FVector2D(.5f,1));PromptSlot->SetAutoSize(true);
+        PromptSlot=Canvas->AddChildToCanvas(PromptFrame);PromptSlot->SetAnchors(FAnchors(.5f,1));PromptSlot->SetAlignment(FVector2D(0,1));PromptSlot->SetAutoSize(true);
         {
             // The dragged slot's ghost follows the pointer; it takes no input.
             DragGhostGlyph=OneLine(TEXT(""),26,0);HudFace(DragGhostGlyph,true,2);DragGhostGlyph->SetJustification(ETextJustify::Center);
@@ -1016,20 +1016,22 @@ void ULDHUD::RefreshReadModel()
         const float Dock=FMath::RoundToFloat(16.f+float(ShopEntry->GetDesiredSize().Y)+8.f);
         if(AppliedPanelDock!=Dock){AppliedPanelDock=Dock;if(ShopPanel){ShopPanel->SetBottomDock(Dock);}}
     }
-    // #97: bottom up in the centre, the band, the blind-box button centred over the Q/W pair, then the three-choice panel
-    // over the button, so a card and the Q/W slot it may replace are a short move apart. Heights follow last frame's layout
+    // #97: right above the band's left block, the blind-box button at its left edge and the three-choice panel in the same
+    // row right of it, so a card and the Q/W slot it may replace are a short move apart. Sizes follow last frame's layout
     // (text size changes them); the root shows one main panel at a time.
     const float BandTop=12.f+float(Band->GetDesiredSize().Y)*HudBandScale;
-    const float PromptX=FMath::RoundToFloat((-HudCentreWidth*.5f+HudSlotWidth+HudSlotGap*.5f)*HudBandScale);
+    const float BandLeft=(-(HudSideWidth+HudBlockGap+1)*.5f-float(Band->GetDesiredSize().X)*.5f)*HudBandScale;
     const float PromptTop=BandTop+8.f+(PromptFrame?float(PromptFrame->GetDesiredSize().Y):0.f);
     if(PromptSlot)
     {
-        const FVector2D Place(PromptX,-FMath::RoundToFloat(BandTop+8.f));
+        const FVector2D Place(FMath::RoundToFloat(BandLeft),-FMath::RoundToFloat(BandTop+8.f));
         if(!PromptSlot->GetPosition().Equals(Place,.5f)){PromptSlot->SetPosition(Place);}
     }
+    if(ChoicesPanel&&PromptFrame)
     {
-        const float Dock=FMath::RoundToFloat(PromptTop+8.f);
-        if(ChoicesPanel&&AppliedChoicesDock!=Dock){AppliedChoicesDock=Dock;ChoicesPanel->SetBottomDock(Dock,PromptX);}
+        const float Left=FMath::RoundToFloat(float(GetCachedGeometry().GetLocalSize().X)*.5f+BandLeft+float(PromptFrame->GetDesiredSize().X)+8.f);
+        const float Dock=FMath::RoundToFloat(BandTop+8.f);
+        if(AppliedChoicesDock!=Dock||AppliedChoicesLeft!=Left){AppliedChoicesDock=Dock;AppliedChoicesLeft=Left;ChoicesPanel->SetBottomDock(Dock,Left);}
     }
     if(DevTestPanel)
     {
@@ -1043,7 +1045,7 @@ void ULDHUD::RefreshReadModel()
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
     const int32 Pending=Progression?int32(Progression->PendingChoiceCount):0;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
-    // The blind-box button stays over the Q/W slots: greyed out and disabled without a pending choice (an open panel with nothing
+    // The blind-box button stays above the left block: greyed out and disabled without a pending choice (an open panel with nothing
     // left closes itself), lit with the count otherwise; after the count rises it pulses at ~1 Hz for a few seconds.
     if(Pending>PromptCount){PromptPulseAt=UiNow;}
     PromptCount=Pending;

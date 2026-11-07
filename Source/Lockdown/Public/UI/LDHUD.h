@@ -194,12 +194,12 @@ private:
     void CloseItemMenu();
     void ChooseItemMenu();
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
-    // Blind-box button right above the band's Q/W slots (#97), under the three-choice panel it opens: disabled without a
-    // pending choice; it pulses for a few seconds after the count rises, then stays steady.
+    // Blind-box button right above the band's left block (#97), with the three-choice panel it opens in the same row:
+    // disabled without a pending choice; it pulses for a few seconds after the count rises, then stays steady.
     UPROPERTY() TObjectPtr<UBorder> PendingPrompt;
     UPROPERTY() TObjectPtr<UBorder> PromptFrame;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> PromptSlot;
-    float AppliedChoicesDock=-1;
+    float AppliedChoicesDock=-1,AppliedChoicesLeft=-1;
     UPROPERTY() TObjectPtr<ULDCommandButton> PromptButton;
     UPROPERTY() TObjectPtr<UTextBlock> PromptText;
     int32 PromptCount=0;

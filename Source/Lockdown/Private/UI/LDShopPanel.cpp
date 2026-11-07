@@ -9,6 +9,7 @@
 #include "Components/Border.h"
 #include "Components/ButtonSlot.h"
 #include "Components/CanvasPanel.h"
+#include "Components/ScaleBox.h"
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
@@ -122,9 +123,12 @@ TSharedRef<SWidget> ULDShopPanel::RebuildWidget()
         // around it takes no input. Back still closes it like every main panel.
         MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.86f));
         auto* WidthBox=WidgetTree->ConstructWidget<USizeBox>();WidthBox->SetWidthOverride(DockWidth);WidthBox->SetContent(MainPanel);
+        // #97: drawn at 80% (user: "shrink the choice list and shop panel size to 80%").
+        auto* ShopScale=WidgetTree->ConstructWidget<UScaleBox>();ShopScale->SetStretch(EStretch::UserSpecified);ShopScale->SetUserSpecifiedScale(.8f);
+        ShopScale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);ShopScale->SetContent(WidthBox);
         auto* FrameBorder=WidgetTree->ConstructWidget<UBorder>();FrameBorder->SetBrushColor(FLinearColor::Transparent);
         FrameBorder->SetHorizontalAlignment(HAlign_Right);FrameBorder->SetVerticalAlignment(VAlign_Bottom);
-        FrameBorder->SetPadding(FMargin(0,0,16,BottomDock));DockFrame=FrameBorder;FrameBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);FrameBorder->SetContent(WidthBox);
+        FrameBorder->SetPadding(FMargin(0,0,16,BottomDock));DockFrame=FrameBorder;FrameBorder->SetVisibility(ESlateVisibility::SelfHitTestInvisible);FrameBorder->SetContent(ShopScale);
         // The hovered or focused item's full description pops up left of the panel, level with its icon, the same way the
         // blind-box cards explain themselves: on its own canvas layer (so it never moves the grid and drops the hover),
         // wrapped at a fixed width, taking no pointer input.

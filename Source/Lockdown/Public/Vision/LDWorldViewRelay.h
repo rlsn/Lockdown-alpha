@@ -159,10 +159,15 @@ public:
     void PlayDeathFall() const;
     bool TracePresentedModel(const FVector& Start, const FVector& End, double& OutFraction) const;
     bool PresentedPickVolume(FVector& OutFoot, FVector& OutTop, double& OutRadiusCm) const;
+    // #97 remote clients only: a query-only body capsule that blocks the own predicted body, as the authority body does
+    // on the server, so prediction stops where the server will and is not corrected through the presented body.
+    void EnableBodyBlocking(float RadiusCm, float HalfHeightCm);
+    bool IsBodyBlocking() const;
     FGuid ObservedHandle;
     uint32 ObservedEpoch = 0;
 private:
     UPROPERTY() TObjectPtr<ULDHumanoidVisualComponent> Body;
+    UPROPERTY() TObjectPtr<class UCapsuleComponent> Blocker;
     // Parallel queues of received samples, oldest first, trimmed as the clock passes them.
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;
     TArray<LDObservedPresentation::FFacts, TInlineAllocator<8>> Facts;

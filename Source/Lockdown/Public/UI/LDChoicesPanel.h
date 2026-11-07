@@ -58,9 +58,9 @@ public:
     bool IsEngaged() const {return DetailCard!=INDEX_NONE||Selected!=INDEX_NONE||bReplacing||PendingRequest!=0;}
     // The card whose detail popup is showing, or INDEX_NONE.
     int32 GetDetailCard() const {return DetailCard;}
-    // Distance of the card row's bottom edge from the screen bottom, and its centre's offset from the screen centre: the
-    // HUD keeps it right above the blind-box button over its skill slots.
-    void SetBottomDock(float Bottom,float CentreX);
+    // Distance of the panel's bottom edge from the screen bottom and of its left edge from the screen left: the HUD keeps
+    // it in the blind-box button's row, right of the button (#97).
+    void SetBottomDock(float Bottom,float Left);
     // Distance of the panel's top edge from the screen bottom (last layout), so the HUD can stack the toast above it.
     float PanelTop() const;
 protected:
@@ -80,7 +80,7 @@ private:
     TArray<LDHUD::FChoiceCardView> CardViews;
     UPROPERTY() TObjectPtr<UBorder> MainPanel;
     UPROPERTY() TObjectPtr<UBorder> DockFrame;
-    float BottomDock=96.f,DockCentreX=0.f;
+    float BottomDock=96.f,DockLeft=16.f;
     // The detail popup lives on its own full-panel canvas layer, so its size never moves the card column.
     UPROPERTY() TObjectPtr<UCanvasPanel> DetailLayer;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> DetailSlot;

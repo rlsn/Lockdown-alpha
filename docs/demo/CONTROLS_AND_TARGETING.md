@@ -460,6 +460,11 @@ Direct 与 Nav 两种序号域互不比较。
 D 冲刺经 `ULDCharacterMovementComponent::StartDemoDash` 的 root-motion source，不逐帧传送，遇阻挡由原生 CMC 停在最远合法位置
 （`Lockdown.Rules.DemoMotionProbe.DashStopsAtWall`）；起步方向立即被静态几何挡住时 `CanStartDash` 拒绝；
 定身只停自愿转向，不停重力与已提交的 root motion。
+**身体互相阻挡（#97，用户原话：“right now characters walk through each other without collision, add collision”）：**
+参赛者、营地野怪与 Boss 的胶囊都阻挡彼此（`ECC_Pawn` 不再忽略），服务器运动停在别的身体前或沿其滑开；
+D 冲刺仍穿过身体（冲刺路径减速要命中路径上的敌人），只在冲刺自己的扫掠期间忽略身体（`ULDCharacterMovementComponent::IsDashing`）。
+远程客户端上，当前呈现的可见单位代理带同尺寸的仅查询胶囊，只阻挡本人预测的身体，让预测停在服务器会停的地方；
+Host 世界里已有权威身体，代理不加碰撞。迷雾中看不到的身体只在服务器上阻挡，预测撞上时由服务器纠正。
 
 ### 7.2 世界接口，操作层不得复制实现
 

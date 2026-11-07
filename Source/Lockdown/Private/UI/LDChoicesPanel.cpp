@@ -14,6 +14,7 @@
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Overlay.h"
+#include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
@@ -26,6 +27,7 @@ namespace
 const FLinearColor ChoicesIdle(.045f,.12f,.15f),ChoicesSelected(.26f,.2f,.05f);
 // Compact card geometry (1080p reference units): every card has the same one-name, one-summary layout, so the three share
 // one height and never scroll; larger text preferences grow all three alike.
+constexpr float ChoicesPanelScale=.8f;
 constexpr float ChoicesCardWidth=250.f,ChoicesCardHeight=64.f,ChoicesIconSize=44.f,ChoicesDetailWidth=300.f;
 void ChoicesTint(ULDCommandButton* Button,const FLinearColor& Color)
 {
@@ -98,9 +100,12 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
         Feedback=Text(TEXT(""),14);Feedback->SetAutoWrapText(false);Feedback->SetWrapTextAt(3*ChoicesCardWidth+16.f);Root->AddChildToVerticalBox(Feedback);
         // A see-through backing right above the HUD's skill slots (SetBottomDock), clear of the bottom band.
         MainPanel=LDWidgets::Panel(WidgetTree,Root,FMargin(14));MainPanel->SetBrushColor(FLinearColor(.025f,.045f,.07f,.72f));
-        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Center);Frame->SetVerticalAlignment(VAlign_Bottom);
-        Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(MainPanel);
-        DockFrame=Frame;SetBottomDock(BottomDock,DockCentreX);
+        auto* Frame=WidgetTree->ConstructWidget<UBorder>();Frame->SetBrushColor(FLinearColor::Transparent);Frame->SetHorizontalAlignment(HAlign_Left);Frame->SetVerticalAlignment(VAlign_Bottom);
+        // #97: drawn at 80% (user: "shrink the choice list and shop panel size to 80%").
+        auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::UserSpecified);Scale->SetUserSpecifiedScale(ChoicesPanelScale);
+        Scale->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Scale->SetContent(MainPanel);
+        Frame->SetVisibility(ESlateVisibility::SelfHitTestInvisible);Frame->SetContent(Scale);
+        DockFrame=Frame;SetBottomDock(BottomDock,DockLeft);
         // The full description of the hovered or focused card pops up above that card. It sits on its own canvas layer over
         // the whole panel, so its size never moves or squeezes the cards (which would drop the hover and flicker), and it
         // wraps at a fixed width so it measures the same from its first frame. It takes no pointer input, so the world
@@ -150,7 +155,7 @@ void ULDChoicesPanel::UpdateDetail()
         if(Next!=INDEX_NONE&&CardViews.IsValidIndex(Next))
         {
             const LDHUD::FChoiceCardView& View=CardViews[Next];
-            ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Summary);
+            ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Detail);
             FString Body=View.Description;for(const FString& Line:View.Lines){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n"))+Line;}
             if(View.bNeedsReplacement){Body+=(Body.IsEmpty()?TEXT(""):TEXT("\n\n"))+FString(TEXT("Q/W 已满：点选后再点 HUD 上要遗忘的 Q 或 W 技能槽。被替换的技能会被遗忘，旧投入不返还；新技能从旧技能的等级减一开始（至少 1 级）。"));}
             ChoicesText(DetailBody,Body);
@@ -170,15 +175,14 @@ void ULDChoicesPanel::UpdateDetail()
         if(!DetailSlot->GetPosition().Equals(Place,.5f)){DetailSlot->SetPosition(Place);}
     }
 }
-void ULDChoicesPanel::SetBottomDock(float Bottom,float CentreX)
+void ULDChoicesPanel::SetBottomDock(float Bottom,float Left)
 {
-    BottomDock=Bottom;DockCentreX=CentreX;
-    // The column is centred on the screen centre shifted by CentreX: padding twice the shift on one side moves the centre.
-    if(DockFrame){DockFrame->SetPadding(FMargin(FMath::Max(0.f,2*CentreX),0,FMath::Max(0.f,-2*CentreX),Bottom));}
+    BottomDock=Bottom;DockLeft=Left;
+    if(DockFrame){DockFrame->SetPadding(FMargin(FMath::Max(0.f,Left),0,0,Bottom));}
 }
 float ULDChoicesPanel::PanelTop() const
 {
-    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y):0.f);
+    return BottomDock+(MainPanel?float(MainPanel->GetDesiredSize().Y)*ChoicesPanelScale:0.f);
 }
 UWidget* ULDChoicesPanel::FocusScope() const{return MainPanel;}
 UWidget* ULDChoicesPanel::HitArea() const{return MainPanel;}

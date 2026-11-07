@@ -316,6 +316,28 @@ ALDObservedEntityProxy::ALDObservedEntityProxy()
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     Body = CreateDefaultSubobject<ULDHumanoidVisualComponent>(TEXT("ObservedBody"));
     Body->SetupAttachment(RootComponent);
+    Blocker = CreateDefaultSubobject<UCapsuleComponent>(TEXT("BodyBlocker"));
+    Blocker->SetupAttachment(RootComponent);
+    Blocker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Blocker->SetGenerateOverlapEvents(false);
+    Blocker->SetCanEverAffectNavigation(false);
+    Blocker->SetHiddenInGame(true);
+}
+
+void ALDObservedEntityProxy::EnableBodyBlocking(float RadiusCm, float HalfHeightCm)
+{
+    // The root sits at the body's capsule centre (feet + half height), so the capsule centres on it.
+    Blocker->SetCapsuleSize(RadiusCm, HalfHeightCm);
+    Blocker->SetCollisionObjectType(ECC_Pawn);
+    Blocker->SetCollisionResponseToAllChannels(ECR_Ignore);
+    Blocker->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+    Blocker->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    SetActorEnableCollision(true);
+}
+
+bool ALDObservedEntityProxy::IsBodyBlocking() const
+{
+    return Blocker && Blocker->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
 }
 
 void ALDObservedEntityProxy::Apply(const FLDObservedUnitView& Unit, double VisualHalfHeightCm, double SampledAtServerSec)
@@ -746,6 +768,17 @@ void ALDWorldViewRelay::SyncProxies()
                     FTransform(FVector(Unit.FeetCm) + FVector(0, 0, HalfHeight)), Params);
             }
             if (IsValid(Proxy)) { Proxy->Apply(Unit, HalfHeight, Snapshot.Frame->SampledAtServerSec); }
+            // #97: on a remote client the presented body blocks the own predicted body; every body shares the own body's
+            // approved capsule. The Host's world has the authority bodies themselves, so its proxies never collide.
+            if (IsValid(Proxy) && GetNetMode() == NM_Client && !Proxy->IsBodyBlocking())
+            {
+                const APlayerController* Local = GetWorld()->GetFirstPlayerController();
+                const auto* Own = Local ? Cast<ACharacter>(Local->GetPawn()) : nullptr;
+                if (Own && Own->GetCapsuleComponent())
+                {
+                    Proxy->EnableBodyBlocking(Own->GetCapsuleComponent()->GetUnscaledCapsuleRadius(), float(HalfHeight));
+                }
+            }
         }
     }
     for (auto It = Proxies.CreateIterator(); It; ++It)

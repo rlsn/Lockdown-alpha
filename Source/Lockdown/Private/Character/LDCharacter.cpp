@@ -25,7 +25,8 @@ ALDCharacter::ALDCharacter(const FObjectInitializer& ObjectInitializer)
     bAlwaysRelevant = false;
     bUseControllerRotationYaw = false;
     GetCapsuleComponent()->InitCapsuleSize(28,90);
-    GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+    // #97: bodies block each other (contenders, camp members and the Boss; user: "right now characters walk through each
+    // other without collision, add collision"). Only the dash passes through bodies (ULDCharacterMovementComponent).
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel1, ECR_Ignore);
     GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_GameTraceChannel2, ECR_Ignore);
