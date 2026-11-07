@@ -159,6 +159,14 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
         Out.Target.Direction = Planar;
         break;
     }
+    case ELDDemoTargetMode::GroundPoint:
+        if (Intent.Point.ContainsNaN())
+        {
+            return Fail(Error, TEXT("A ground activation needs a finite requested point."));
+        }
+        Out.Target.Kind = ELDCombatTargetKind::Point;
+        Out.Target.Point = Intent.Point;
+        break;
     default:
         return Fail(Error, TEXT("The activation has an unknown target mode."));
     }

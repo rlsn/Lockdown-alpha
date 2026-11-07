@@ -246,37 +246,37 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     using ESlot = ELDOpponentSkillSlot;
     const auto& C = *Catalog;
     bool bGood = Pick(Test, C, TEXT("Empty W: a self-protection active fills the missing role first"),
-        {Skill(TEXT("active_arc_bolt"), 1, ESlot::Q)},
-        {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
-         Option(3, EKind::LearnPassive, TEXT("passive_precision"))}, 2);
+        {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q)},
+        {Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
+         Option(3, EKind::LearnPassive, TEXT("passive_iced_americano"))}, 2);
     bGood &= Pick(Test, C, TEXT("Two engage actives: explicit replacement of the least invested one"),
-        {Skill(TEXT("active_arc_bolt"), 1, ESlot::Q), Skill(TEXT("active_binding_snare"), 2, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_guard_pulse")), Option(2, EKind::Attribute, TEXT("attr_vitality")),
-         Option(3, EKind::UpgradeActive, TEXT("active_arc_bolt"), 1, 2)}, 1, ESlot::Q, TEXT("active_arc_bolt"), 1);
+        {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q), Skill(TEXT("active_pants_down"), 2, ESlot::W)},
+        {Option(1, EKind::LearnActive, TEXT("active_not_mad")), Option(2, EKind::Attribute, TEXT("attr_canteen")),
+         Option(3, EKind::UpgradeActive, TEXT("active_snark_bolt"), 1, 2)}, 1, ESlot::Q, TEXT("active_snark_bolt"), 1);
     bGood &= Pick(Test, C, TEXT("Both roles covered: an upgrade beats a replacing active and an attribute"),
-        {Skill(TEXT("active_guard_pulse"), 1, ESlot::Q), Skill(TEXT("active_arc_bolt"), 1, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::UpgradeActive, TEXT("active_guard_pulse"), 1, 2),
-         Option(3, EKind::Attribute, TEXT("attr_might"))}, 2);
+        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W)},
+        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::UpgradeActive, TEXT("active_not_mad"), 1, 2),
+         Option(3, EKind::Attribute, TEXT("attr_protein"))}, 2);
     bGood &= Pick(Test, C, TEXT("Maxed actives: a new passive precedes attributes and replacements"),
-        {Skill(TEXT("active_guard_pulse"), 3, ESlot::Q), Skill(TEXT("active_arc_bolt"), 3, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnPassive, TEXT("passive_battle_rhythm")),
-         Option(3, EKind::Attribute, TEXT("attr_reach"))}, 2);
+        {Skill(TEXT("active_not_mad"), 2, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W)},
+        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnPassive, TEXT("passive_pressed")),
+         Option(3, EKind::Attribute, TEXT("attr_hand_out"))}, 2);
     bGood &= Pick(Test, C, TEXT("An attribute precedes a replacement that adds no missing role"),
-        {Skill(TEXT("active_guard_pulse"), 1, ESlot::Q), Skill(TEXT("active_arc_bolt"), 2, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::Attribute, TEXT("attr_might"))}, 2);
+        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W)},
+        {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::Attribute, TEXT("attr_protein"))}, 2);
     bGood &= Pick(Test, C, TEXT("A forced replacement keeps the unique self-protection"),
-        {Skill(TEXT("active_guard_pulse"), 1, ESlot::Q), Skill(TEXT("active_arc_bolt"), 1, ESlot::W)},
-        {Option(1, EKind::LearnActive, TEXT("active_binding_snare"))}, 1, ESlot::W, TEXT("active_arc_bolt"), 1);
-    bGood &= Pick(Test, C, TEXT("No actives: the first engage role in public catalog order"),
-        {}, {Option(1, EKind::LearnActive, TEXT("active_binding_snare")), Option(2, EKind::LearnActive, TEXT("active_guard_pulse")),
-             Option(3, EKind::LearnActive, TEXT("active_arc_bolt"))}, 3);
+        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W)},
+        {Option(1, EKind::LearnActive, TEXT("active_pants_down"))}, 1, ESlot::W, TEXT("active_snark_bolt"), 1);
+    bGood &= Pick(Test, C, TEXT("No actives: every role is missing, so the first in public (id) catalog order"),
+        {}, {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
+             Option(3, EKind::LearnActive, TEXT("active_snark_bolt"))}, 2);
     bGood &= Pick(Test, C, TEXT("A 112 opening offer (two new actives and a passive): an active fills the empty Q"),
-        {}, {Option(1, EKind::LearnActive, TEXT("active_guard_pulse")), Option(2, EKind::LearnPassive, TEXT("passive_second_wind")),
-             Option(3, EKind::LearnActive, TEXT("active_binding_snare"))}, 3);
+        {}, {Option(1, EKind::LearnActive, TEXT("active_not_mad")), Option(2, EKind::LearnPassive, TEXT("passive_thick_face")),
+             Option(3, EKind::LearnActive, TEXT("active_pants_down"))}, 1);
     const auto& Attributes = C.Get().Attributes;
     const FString* First = nullptr;
     uint32 FirstOption = 0;
-    const TCHAR* Ids[] = {TEXT("attr_resolve"), TEXT("attr_vitality"), TEXT("attr_focus")};
+    const TCHAR* Ids[] = {TEXT("attr_big_talk"), TEXT("attr_canteen"), TEXT("attr_all_nighter")};
     for (uint32 Index = 0; Index < 3; ++Index)
     {
         const int32 Order = Attributes.IndexOfByPredicate([&](const auto& A) { return A.Id == Ids[Index]; });
@@ -293,7 +293,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     FLDOpponentSelf Rolling;
     FLDOpponentOffer Plain;
     Plain.OfferId = FGuid(0xB0, 0, 0, 2);
-    Plain.Options = {Option(1, EKind::Attribute, TEXT("attr_might")), Option(2, EKind::Attribute, TEXT("attr_focus"))};
+    Plain.Options = {Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::Attribute, TEXT("attr_all_nighter"))};
     Rolling.Offer = Plain;
     Rolling.RerollTokens = 1;
     FLDOpponentChoicePick Rolled;
@@ -308,7 +308,7 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     bGood &= Test.TestTrue(TEXT("Without a token the attribute is taken"),
         LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll);
     Rolling.RerollTokens = 1;
-    Rolling.Offer->Options.Add(Option(3, EKind::LearnPassive, TEXT("passive_precision")));
+    Rolling.Offer->Options.Add(Option(3, EKind::LearnPassive, TEXT("passive_iced_americano")));
     bGood &= Test.TestTrue(TEXT("A good card is taken even with a token"),
         LDOpponentPolicy::SelectChoice(Rolling, C, Rolled, RollError) && !Rolled.bReroll && Rolled.OptionId == FGuid(0xA0, 0, 0, 3));
     FLDOpponentSelf Unknown;
@@ -574,8 +574,8 @@ bool RunPriorities(FAutomationTestBase& Test)
     FLDOpponentOffer Offer;
     Offer.OfferId = FGuid(0xB0, 0, 0, 2);
     Offer.OfferRevision = 3;
-    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_might")),
-        Option(2, ELDOpponentOptionKind::LearnActive, TEXT("active_arc_bolt"))};
+    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_protein")),
+        Option(2, ELDOpponentOptionKind::LearnActive, TEXT("active_snark_bolt"))};
     Frame.Self.Offer = Offer;
     Decision = Decide(Frame);
     bGood &= Expect(Test, TEXT("Dead: no body intent"), Decision, EMode::DeadWaiting, EBody::None)
@@ -697,10 +697,10 @@ bool RunPriorities(FAutomationTestBase& Test)
         Frame.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
         Frame.Self.HpP2 = Frame.Self.MaxHpP2 / 5;
         const auto Low = LDOpponentPolicy::Decide(Frame, C, Defence);
-        Frame.Self.Skills = {Skill(TEXT("active_guard_pulse"), 1, ELDOpponentSkillSlot::Q)};
+        Frame.Self.Skills = {Skill(TEXT("active_not_mad"), 1, ELDOpponentSkillSlot::Q)};
         FLDOpponentSource Guard;
         Guard.Slot = ELDOpponentSourceSlot::Q;
-        Guard.DefinitionId = TEXT("active_guard_pulse");
+        Guard.DefinitionId = TEXT("active_not_mad");
         Guard.bReady = true;
         Frame.Self.Sources = {Guard};
         const auto Shielded = LDOpponentPolicy::Decide(Frame, C, Defence);
@@ -913,10 +913,10 @@ bool RunPriorities(FAutomationTestBase& Test)
         Spray.Public.DueAtMs = Spray.Public.NowMs + 2000;
         Spray.Self.FootCm = FVector(0, 2750, 0);
         Spray.Units = {Unit(5, ELDOpponentUnitKind::Contender, 0, 2900)};
-        Spray.Self.Skills = {Skill(TEXT("active_come_here"), 1, ELDOpponentSkillSlot::Q)};
+        Spray.Self.Skills = {Skill(TEXT("active_stare_down"), 1, ELDOpponentSkillSlot::Q)};
         FLDOpponentSource Taunt;
         Taunt.Slot = ELDOpponentSourceSlot::Q;
-        Taunt.DefinitionId = TEXT("active_come_here");
+        Taunt.DefinitionId = TEXT("active_stare_down");
         Taunt.bReady = true;
         Spray.Self.Sources = {Taunt};
         const auto Interrupt = LDOpponentPolicy::Decide(Spray, C, Stop);
@@ -991,10 +991,10 @@ bool RunPriorities(FAutomationTestBase& Test)
         EBody::MoveGround, TEXT("l1"));
 
     Frame = Base;
-    Frame.Self.Skills = {Skill(TEXT("active_arc_bolt"), 1, ELDOpponentSkillSlot::Q)};
+    Frame.Self.Skills = {Skill(TEXT("active_snark_bolt"), 1, ELDOpponentSkillSlot::Q)};
     FLDOpponentSource Bolt;
     Bolt.Slot = ELDOpponentSourceSlot::Q;
-    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.DefinitionId = TEXT("active_snark_bolt");
     Bolt.bReady = true;
     Frame.Self.Sources = {Bolt};
     Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, 300, 0)};
@@ -1181,16 +1181,16 @@ bool RunProjections(FAutomationTestBase& Test)
     Progression.BuildRevision = 9;
     Progression.ConsumedThrough = 2;
     FLDLearnedSkillView Bolt;
-    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.DefinitionId = TEXT("active_snark_bolt");
     Bolt.bActive = true;
     Bolt.Rank = 1;
     Bolt.Slot = 0;
     FLDLearnedSkillView Rhythm;
-    Rhythm.DefinitionId = TEXT("passive_battle_rhythm");
+    Rhythm.DefinitionId = TEXT("passive_pressed");
     Rhythm.Rank = 1;
     Progression.Skills = {Bolt, Rhythm};
     FLDAttributeCardView Might;
-    Might.DefinitionId = TEXT("attr_might");
+    Might.DefinitionId = TEXT("attr_protein");
     Might.Count = 1;
     Progression.AttributeCards = {Might};
     Progression.bHasOffer = true;
@@ -1199,7 +1199,7 @@ bool RunProjections(FAutomationTestBase& Test)
     FLDChoiceOption Guard;
     Guard.OptionId = FGuid(0xF2, 0, 0, 2);
     Guard.Kind = ELDChoiceOptionKind::LearnActive;
-    Guard.DefinitionId = TEXT("active_guard_pulse");
+    Guard.DefinitionId = TEXT("active_not_mad");
     Guard.ToRank = 1;
     Progression.Offer.Options = {Guard};
     FLDEquipmentView Equipment;
@@ -1215,7 +1215,7 @@ bool RunProjections(FAutomationTestBase& Test)
     Equipment.Slots = {Blade, Empty};
     FLDOpponentSelf Self;
     const auto Expected = LDAttributeProjection::Project(FLDAttributeBuildValues(3,
-        {FLDLearnedPassiveValue(TEXT("passive_battle_rhythm"), 1)}, {FLDAttributeCardValue(TEXT("attr_might"), 1)},
+        {FLDLearnedPassiveValue(TEXT("passive_pressed"), 1)}, {FLDAttributeCardValue(TEXT("attr_protein"), 1)},
         {TEXT("item_edge_blade")}), C);
     bGood &= Test.TestTrue(TEXT("Own build maps through the shared attribute projection: ") + Error,
         Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Progression, Equipment, C, Self, Error)
@@ -1241,18 +1241,18 @@ bool RunProjections(FAutomationTestBase& Test)
         // this exercises the mapping back to the lowercase content ids that the policy compares as text.
         auto Cased = Progression;
         Cased.bCanChoose = true;
-        Cased.Skills[0].DefinitionId = TEXT("Active_Arc_Bolt");
-        Cased.Skills[1].DefinitionId = TEXT("PASSIVE_BATTLE_RHYTHM");
-        Cased.AttributeCards[0].DefinitionId = TEXT("Attr_Might");
-        Cased.Offer.Options[0].DefinitionId = TEXT("Active_Guard_Pulse");
+        Cased.Skills[0].DefinitionId = TEXT("Active_Snark_Bolt");
+        Cased.Skills[1].DefinitionId = TEXT("PASSIVE_PRESSED");
+        Cased.AttributeCards[0].DefinitionId = TEXT("Attr_Protein");
+        Cased.Offer.Options[0].DefinitionId = TEXT("Active_Not_Mad");
         auto CasedEquipment = Equipment;
         CasedEquipment.Slots[0].DefinitionId = TEXT("Item_Edge_Blade");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("Ids printed in another casing map to the lowercase content ids and the same build: ") + Error,
             Expected.IsSuccess() && LDOpponentFrame::ReadOwnBuild(Cased, CasedEquipment, C, CasedSelf, Error)
-            && CasedSelf.Skills.Num() == 2 && CasedSelf.Skills[0].DefinitionId == TEXT("active_arc_bolt")
-            && CasedSelf.Skills[1].DefinitionId == TEXT("passive_battle_rhythm") && CasedSelf.Equipment[0] == TEXT("item_edge_blade")
-            && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0].DefinitionId == TEXT("active_guard_pulse")
+            && CasedSelf.Skills.Num() == 2 && CasedSelf.Skills[0].DefinitionId == TEXT("active_snark_bolt")
+            && CasedSelf.Skills[1].DefinitionId == TEXT("passive_pressed") && CasedSelf.Equipment[0] == TEXT("item_edge_blade")
+            && CasedSelf.Offer.IsSet() && CasedSelf.Offer->Options[0].DefinitionId == TEXT("active_not_mad")
             && CasedSelf.Attributes.ADP2 == Expected.Value->Final.ADP2 && CasedSelf.Attributes.ArmorP2 == Expected.Value->Final.ArmorP2);
     }
     {
@@ -1318,8 +1318,8 @@ bool RunProjections(FAutomationTestBase& Test)
         Out.Unavailable = Why;
         return Out;
     };
-    Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_arc_bolt"), 9000, ELDCombatReject::None),
-        Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_guard_pulse"), 15000, ELDCombatReject::Cooldown),
+    Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"), 9000, ELDCombatReject::None),
+        Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_not_mad"), 15000, ELDCombatReject::Cooldown),
         Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), 0, ELDCombatReject::ControlBlocked)};
     Combat.Entries.Last().RangeCm = 450;
     bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness, the innate dash reach and Root: ") + Error,
@@ -1330,11 +1330,11 @@ bool RunProjections(FAutomationTestBase& Test)
         && Self.Sources[2].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[2].bReady && Self.Sources[2].RangeCm == 450);
     {
         auto Cased = Combat;
-        Cased.Entries[0].DefinitionId = TEXT("Active_Arc_Bolt");
+        Cased.Entries[0].DefinitionId = TEXT("Active_Snark_Bolt");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
             LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
-            && CasedSelf.Sources[0].DefinitionId == TEXT("active_arc_bolt"));
+            && CasedSelf.Sources[0].DefinitionId == TEXT("active_snark_bolt"));
     }
     Combat.Statuses.Reset();
     bGood &= Test.TestTrue(TEXT("Rooted without a timed status still blocks movement now"),
@@ -1404,10 +1404,10 @@ bool RunOutcomes(FAutomationTestBase& Test)
         Decision.Body.Kind == EBody::AttackUnit && Decision.Body.Handle == Second && State.TargetHandle == Second);
 
     Frame = Base;
-    Frame.Self.Skills = {Skill(TEXT("active_arc_bolt"), 1, ELDOpponentSkillSlot::Q)};
+    Frame.Self.Skills = {Skill(TEXT("active_snark_bolt"), 1, ELDOpponentSkillSlot::Q)};
     FLDOpponentSource Bolt;
     Bolt.Slot = ELDOpponentSourceSlot::Q;
-    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.DefinitionId = TEXT("active_snark_bolt");
     Bolt.bReady = true;
     Frame.Self.Sources = {Bolt};
     Frame.Units = {Unit(3, ELDOpponentUnitKind::Contender, 300, 0)};
@@ -1425,7 +1425,7 @@ bool RunOutcomes(FAutomationTestBase& Test)
     FLDOpponentOffer Offer;
     Offer.OfferId = FGuid(0xB0, 0, 0, 5);
     Offer.OfferRevision = 2;
-    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_might"))};
+    Offer.Options = {Option(1, ELDOpponentOptionKind::Attribute, TEXT("attr_protein"))};
     Frame.Self.Offer = Offer;
     State = FLDOpponentPolicyState();
     Decision = LDOpponentPolicy::Decide(Frame, C, State);
@@ -1546,6 +1546,14 @@ bool RunRequests(FAutomationTestBase& Test)
     bGood &= Test.TestFalse(TEXT("A vertical-only direction is refused"), LDOpponentRequests::BuildAction(Cast, 7, 1, 8, 11, Action, Error));
     Cast.Direction = FVector(1, 0, 0);
     bGood &= Test.TestFalse(TEXT("A direct sequence is required"), LDOpponentRequests::BuildAction(Cast, 7, 1, 0, 11, Action, Error));
+    // #147 active_quick_meeting: a ground zone names its requested point.
+    Cast.Source = ELDOpponentSourceSlot::Q;
+    Cast.TargetMode = ELDDemoTargetMode::GroundPoint;
+    Cast.Point = FVector(120, -340, 0);
+    bGood &= Test.TestTrue(TEXT("A ground activation sends the requested point: ") + Error,
+        LDOpponentRequests::BuildAction(Cast, 7, 1, 9, 11, Action, Error) && Action.Entry == ELDCombatEntry::Q
+        && Action.Target.Kind == ELDCombatTargetKind::Point && FVector(Action.Target.Point).Equals(Cast.Point, 1.)
+        && !Action.Target.Observed.IsValid());
 
     FLDProgressionView Progression;
     Progression.bValid = true;
@@ -1561,11 +1569,11 @@ bool RunRequests(FAutomationTestBase& Test)
     FLDChoiceOption Learn;
     Learn.OptionId = FGuid(0xF2, 0, 0, 2);
     Learn.Kind = ELDChoiceOptionKind::LearnActive;
-    Learn.DefinitionId = TEXT("active_guard_pulse");
+    Learn.DefinitionId = TEXT("active_not_mad");
     Learn.ToRank = 1;
     Progression.Offer.Options = {Learn};
     FLDLearnedSkillView Bolt;
-    Bolt.DefinitionId = TEXT("active_arc_bolt");
+    Bolt.DefinitionId = TEXT("active_snark_bolt");
     Bolt.bActive = true;
     Bolt.Rank = 2;
     Bolt.Slot = 1;
@@ -1584,12 +1592,12 @@ bool RunRequests(FAutomationTestBase& Test)
         && Command.ExpectedOldSkillId == FLDDefinitionWire() && !Command.bReplaceConfirmed);
     Choose.Choice.bReplace = true;
     Choose.Choice.ReplaceSlot = ELDOpponentSkillSlot::W;
-    Choose.Choice.ReplacedSkillId = TEXT("active_arc_bolt");
+    Choose.Choice.ReplacedSkillId = TEXT("active_snark_bolt");
     Choose.Choice.ReplacedRank = 2;
     FName Decoded;
     bGood &= Test.TestTrue(TEXT("A full-slot learn names the exact held victim"),
         LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error) && Command.bReplace && Command.ReplaceSlot == 1
-        && Command.ExpectedOldSkillId.Decode(Decoded) && Decoded == FName(TEXT("active_arc_bolt")) && Command.ExpectedOldRank == 2
+        && Command.ExpectedOldSkillId.Decode(Decoded) && Decoded == FName(TEXT("active_snark_bolt")) && Command.ExpectedOldRank == 2
         && Command.bReplaceConfirmed);
     Choose.Choice.ReplacedRank = 1;
     bGood &= Test.TestFalse(TEXT("A victim at another rank is stale"), LDOpponentRequests::BuildChoice(Choose, Progression, 3, Command, Error));
@@ -1863,6 +1871,115 @@ bool RunInnateDash(FAutomationTestBase& Test)
     FLDOpponentPolicyState Calm;
     bGood &= Test.TestFalse(TEXT("A capture trip that walking still makes keeps the dash"),
         IsDash(LDOpponentPolicy::Decide(Frame, C, Calm)));
+    return bGood;
+}
+
+// #147: the v7 actives the cast order did not cover yet. A self area (active_seethe) is cast with the target inside its
+// radius, a ground zone (active_quick_meeting) on the target's foot within range, an empowered basic without movement
+// (active_triple_combo) with the target inside attack range, and a learned dash (active_bail_out) chases with its own
+// reach. A source reads only its learned rank: active_not_mad cleanses a root only at its advanced rank.
+bool RunV7Activations(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!ReadApprovedFixture(Test, Catalog)) { return false; }
+    const auto& C = *Catalog;
+    using EMode = ELDOpponentMode;
+    using EBody = ELDOpponentBodyKind;
+    FLDOpponentDecisionFrame Base;
+    if (!BaseFrame(Test, C, Base)) { return false; }
+    const double Attack = double(Base.Self.Attributes.AttackRangeCm.Numerator) / double(Base.Self.Attributes.AttackRangeCm.Denominator);
+    const auto Read = [&C](const TCHAR* Id, ELDDemoEffectOp Op, double& Out)
+    {
+        const FLDDemoAbilityDefinition* Ability = nullptr;
+        FString Error;
+        if (!C.FindAbility(Id, Ability, Error) || !Ability) { return false; }
+        if (Op == ELDDemoEffectOp(0))
+        {
+            Out = double(Ability->Target.RangeCm.Numerator) / double(Ability->Target.RangeCm.Denominator);
+            return Out > 0;
+        }
+        const auto* Effect = Ability->Ranks[0].Effects.FindByPredicate([Op](const FLDDemoEffectDefinition& E) { return E.GetOp() == Op; });
+        if (!Effect) { return false; }
+        const FLDDemoRational& Value = Op == ELDDemoEffectOp::Dash ? Effect->DistanceCm : Effect->RadiusCm;
+        Out = double(Value.Numerator) / double(Value.Denominator);
+        return Out > 0;
+    };
+    double Area = 0, ZoneRange = 0, BailReach = 0;
+    if (!Test.TestTrue(TEXT("The v7 actives are approved"), Read(TEXT("active_seethe"), ELDDemoEffectOp::SelfArea, Area)
+        && Read(TEXT("active_quick_meeting"), ELDDemoEffectOp(0), ZoneRange) && Read(TEXT("active_bail_out"), ELDDemoEffectOp::Dash, BailReach)))
+    { return false; }
+    const auto With = [&Base](const TCHAR* Id, uint8 Rank)
+    {
+        auto Frame = Base;
+        Frame.Self.Skills = {Skill(Id, Rank, ELDOpponentSkillSlot::Q)};
+        FLDOpponentSource Source;
+        Source.Slot = ELDOpponentSourceSlot::Q;
+        Source.DefinitionId = Id;
+        Source.bReady = true;
+        Frame.Self.Sources = {Source};
+        return Frame;
+    };
+    const auto IsCast = [](const FLDOpponentDecision& Decision, ELDDemoTargetMode Mode)
+    { return Decision.Body.Kind == ELDOpponentBodyKind::Activate && Decision.Body.Source == ELDOpponentSourceSlot::Q
+        && Decision.Body.TargetMode == Mode; };
+    bool bGood = true;
+
+    auto Frame = With(TEXT("active_seethe"), 1);
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, FMath::Min(Area, Attack) - 10, 0)};
+    FLDOpponentPolicyState Seethe;
+    bGood &= Test.TestTrue(TEXT("A rival inside the self area is burned with a self cast"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Seethe), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(Area + 50, 0, 0);
+    bGood &= Test.TestFalse(TEXT("The engaged rival outside the self area is not"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Seethe), ELDDemoTargetMode::Self));
+
+    Frame = With(TEXT("active_quick_meeting"), 1);
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 120)};
+    FLDOpponentPolicyState Meeting;
+    const auto Zone = LDOpponentPolicy::Decide(Frame, C, Meeting);
+    bGood &= Test.TestTrue(TEXT("An engaged rival within range gets the zone on its foot"), IsCast(Zone, ELDDemoTargetMode::GroundPoint)
+        && Zone.Body.Point.Equals(Frame.Units[0].FootCm, 1.e-3));
+    Frame.Units[0].FootCm = FVector(ZoneRange + 50, 0, 0);
+    bGood &= Test.TestFalse(TEXT("and beyond the cast range it does not"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Meeting), ELDDemoTargetMode::GroundPoint));
+
+    Frame = With(TEXT("active_triple_combo"), 1);
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack - 10, 0)};
+    FLDOpponentPolicyState Combo;
+    bGood &= Test.TestTrue(TEXT("A rival inside attack range triggers the empowered basics"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Combo), ELDDemoTargetMode::Self));
+    Frame.Units[0].FootCm = FVector(Attack + 60, 0, 0);
+    bGood &= Test.TestFalse(TEXT("Out of attack range the empowerment waits"),
+        IsCast(LDOpponentPolicy::Decide(Frame, C, Combo), ELDDemoTargetMode::Self));
+
+    Frame = With(TEXT("active_bail_out"), 1);
+    Frame.Units = {Unit(2, ELDOpponentUnitKind::Contender, Attack + 10, 0)};
+    FLDOpponentPolicyState Bail;
+    bGood &= Expect(Test, TEXT("A rival within half a dash of attack range is attacked"), LDOpponentPolicy::Decide(Frame, C, Bail),
+        EMode::Engage, EBody::AttackUnit);
+    Frame.Units[0].FootCm = FVector(Attack + .75 * BailReach, 0, 0);
+    const auto Chase = LDOpponentPolicy::Decide(Frame, C, Bail);
+    bGood &= Test.TestTrue(TEXT("A learned dash chases with its own reach"), Chase.Mode == EMode::Engage
+        && IsCast(Chase, ELDDemoTargetMode::DirectionDash) && Chase.Body.Direction.Equals(FVector(1, 0, 0), 1.e-4));
+    Frame.Units[0].FootCm = FVector(Attack + BailReach + 50, 0, 0);
+    FLDOpponentPolicyState BailFar = Bail;
+    bGood &= Test.TestFalse(TEXT("but not beyond it"), IsCast(LDOpponentPolicy::Decide(Frame, C, BailFar), ELDDemoTargetMode::DirectionDash));
+
+    // Rooted on an urgent capture defence at full health: only the advanced rank's root cleanse is worth casting.
+    for (const uint8 Rank : {uint8(1), uint8(2)})
+    {
+        Frame = With(TEXT("active_not_mad"), Rank);
+        Frame.Public.Phase = ELDMatchPhase::CaptureOpen;
+        Frame.Public.Circle = ELDOpponentCircle::Solo;
+        Frame.Public.Occupier = FGuid(0xE0, 0, 0, 5);
+        Frame.Public.DueAtMs = Frame.Public.NowMs + 5000;
+        Frame.CapturePathCm = 3000.;
+        Frame.Self.MoveBlockedUntilMs = Frame.Public.NowMs + 1000;
+        FLDOpponentPolicyState Rooted;
+        const bool bCast = IsCast(LDOpponentPolicy::Decide(Frame, C, Rooted), ELDDemoTargetMode::Self);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("Rank %d not_mad cleanses the root: %s"), Rank, bCast ? TEXT("yes") : TEXT("no")),
+            bCast == (Rank == 2));
+    }
     return bGood;
 }
 
@@ -2271,6 +2388,10 @@ bool FLDDemoOpponentInnateDashTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunInnateDash(*this);
 }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentV7ActivationsTest, "Lockdown.Rules.DemoOpponentPolicy.V7Activations",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoOpponentV7ActivationsTest::RunTest(const FString& Parameters) { return LDOpponentPolicyTests::RunV7Activations(*this); }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentCampCostTest, "Lockdown.Rules.DemoOpponentPolicy.CampCost",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
