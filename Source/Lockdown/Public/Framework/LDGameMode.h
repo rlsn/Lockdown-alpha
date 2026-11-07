@@ -119,6 +119,9 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
+    // #153 opening countdown: the write gate is open (the clock runs, the opening choice and leaves commit), but no
+    // movement, attack, ability, dash or trade is admitted and camps stay idle until the match's T=0.
+    bool IsOpeningCountdown(const FLDMatchContext& Context) const;
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
     double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
     int64 GetAuthorityNowMs() const { return AuthorityNowMs; }
@@ -142,6 +145,8 @@ public:
     // --- Capture, result and match lifecycle (capture/endgame module) ---
     // Next integer boundary the authority driver must stop at; MAX_int64 when none.
     int64 NextCaptureDueMs() const;
+    // #153: the countdown's end (T=0) is an exact step boundary; MAX_int64 outside the countdown.
+    int64 NextCountdownDueMs() const;
     // D21 (#79): the public dorm disks of this match; empty outside a running match.
     const FLDDormZones& GetDormZones() const { return DormZones; }
     // D26 (#79): the current airdrop of this match; inactive outside a running match.
@@ -242,6 +247,7 @@ private:
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
     friend struct FLDBuildPrimitivesAccess;
+    friend class FLDDemoOpeningCountdownTest;
     friend class ALDCombatDirector;
     friend class ULDCharacterMovementComponent;
     struct FLDLifeRecord
@@ -393,6 +399,8 @@ private:
     bool bPublicMatchDirty = false;
     bool bLobbyDirty = false;
     uint64 PublicMatchRevision = 0;
+    // The match's T=0: the end of the opening countdown. Every match timer (development, airdrop, leader notice, Boss)
+    // and the public match clock count from here; authority time before it belongs to the countdown.
     int64 MatchStartedAtMs = 0;
     TArray<FGuid> LockedAISlots;
     bool InitializeCaptureMatch(FString& Error);

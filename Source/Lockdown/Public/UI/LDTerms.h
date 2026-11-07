@@ -93,6 +93,10 @@ inline FString LevelUp(int32 Level){return FString::Printf(TEXT("涨粉了！Lv%
 inline FString ChoicesEarned(int64 Count){return Count>1?FString::Printf(TEXT("获得 %lld 次%s机会"),Count,Choice):FString::Printf(TEXT("获得一次%s机会"),Choice);}
 
 // 阶段与旗杆（喷漆守护终局）
+// 开局倒计时（#153）：全员出生后冻结，屏幕中央倒数“5、4、3、2、1、开淫！”；倒计时内的动作和交易都被拒绝。
+inline constexpr TCHAR OpeningCountdown[]=TEXT("开局倒计时");
+inline constexpr TCHAR CountdownGo[]=TEXT("开淫！");
+inline constexpr TCHAR NotStartedYet[]=TEXT("还没开始呢，急什么");
 inline constexpr TCHAR Development[]=TEXT("猥琐发育中，别浪");
 inline constexpr TCHAR CaptureOpened[]=TEXT("旗杆开放了，冲！");
 inline constexpr TCHAR CaptureRule[]=TEXT("一个人在旗杆下喷上涂鸦，再守住它就赢");

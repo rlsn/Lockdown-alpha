@@ -116,9 +116,11 @@ FString LDHUD::EquipmentName(const FLDDemoContentDefinitions* Content,uint8 Equi
 FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,
     const FString& OwnerName)
 {
-    if(Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
+    if(Public.Phase!=ELDMatchPhase::Countdown&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
     if(bGrowth&&Progression->PendingChoiceCount>0){return FString::Printf(TEXT("下一步：%s ×%d（点右下角的%s按钮）"),LDTerms::Choice,int32(Progression->PendingChoiceCount),LDTerms::Choice);}
+    // #153: before T=0 only the opening choice can be acted on.
+    if(Public.Phase==ELDMatchPhase::Countdown){return FString();}
     if(Public.Phase==ELDMatchPhase::CaptureOpen)
     {
         if(Public.CircleState==ELDCircleState::Solo&&Self.IsValid()&&Public.Occupier==Self){return FString(TEXT("稳住：你"))+LDTerms::Holding;}
@@ -236,6 +238,7 @@ FString LDHUD::PhaseLine(ELDMatchPhase Phase)
     {
     case ELDMatchPhase::Lobby: return TEXT("房间等待中");
     case ELDMatchPhase::Starting: return TEXT("对局即将开始");
+    case ELDMatchPhase::Countdown: return LDTerms::OpeningCountdown;
     case ELDMatchPhase::Development: return FString(LDTerms::Development)+TEXT(" · ")+LDTerms::CapturePoint+TEXT("尚未开放");
     case ELDMatchPhase::CaptureOpen: return FString(LDTerms::CaptureOpened)+TEXT(" · ")+LDTerms::CaptureRule;
     case ELDMatchPhase::Results: return TEXT("对局结束");
@@ -249,6 +252,19 @@ FString LDHUD::Clock(int64 RemainingMs)
 {
     const int64 Seconds=RemainingMs>0?(RemainingMs+999)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
+}
+FString LDHUD::OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
+{
+    if(!bClock||Public.StartedAtMs<=0){return FString();}
+    if(Public.Phase==ELDMatchPhase::Countdown)
+    {
+        // The authority's T=0 boundary may land a frame after the local clock reaches it: hold "1" until it does.
+        const int64 Seconds=NowMs<Public.StartedAtMs?(Public.StartedAtMs-NowMs+999)/1000:1;
+        return FString::Printf(TEXT("%lld"),Seconds);
+    }
+    if(Public.Phase==ELDMatchPhase::Development&&NowMs>=Public.StartedAtMs&&NowMs-Public.StartedAtMs<CountdownGoShowMs)
+    { return LDTerms::CountdownGo; }
+    return FString();
 }
 LDHUD::FCircleView LDHUD::Circle(const FLDPublicMatchView& Public,const FString& SprayerName,const FString& OwnerName,bool bClock,int64 NowMs,
     int64 SprayMs,int64 GuardMs)
@@ -1184,6 +1200,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::CatalogMismatch: return TEXT("内容版本不一致");
     case ELDGrowthReason::NotAuthority: return TEXT("服务器不可用");
     case ELDGrowthReason::Dead: return FString(LDTerms::Dead)+TEXT("，不能交易");
+    case ELDGrowthReason::MatchNotStarted: return LDTerms::NotStartedYet;
     case ELDGrowthReason::RequestConflict: return TEXT("请求冲突，未执行");
     case ELDGrowthReason::OutOfOrder: return TEXT("请求顺序错误，未执行");
     case ELDGrowthReason::ReceiptExpired: return TEXT("回执已过期，请以当前状态为准");
@@ -1257,6 +1274,7 @@ FString LDHUD::CombatRejectText(ELDCombatReject Reject)
     case ELDCombatReject::MatchClosed: return TEXT("对局已结束");
     case ELDCombatReject::AuthorityDataUnavailable: return TEXT("服务器数据不可用");
     case ELDCombatReject::CapacityUnavailable: return TEXT("服务器容量不足");
+    case ELDCombatReject::NotStarted: return LDTerms::NotStartedYet;
     default: return FString::Printf(TEXT("未知原因 #%d"),int32(Reject));
     }
 }

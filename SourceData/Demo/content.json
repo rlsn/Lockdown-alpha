@@ -65,6 +65,7 @@
     "CAPTURE.SpraySec": {"unit": "s", "value": 3.5},
     "CAPTURE.GuardSec": {"unit": "s", "value": 30},
     "TIMING.DefendRouteBudgetSec": {"unit": "s", "value": 35},
+    "MATCH.CountdownSec": {"unit": "s", "value": 5},
     "MATCH.DevelopmentSec": {"unit": "s", "value": 180},
     "LIFE.RespawnSec": {"unit": "s", "value": 15},
     "LIFE.ProtectionSec": {"unit": "s", "value": 3},

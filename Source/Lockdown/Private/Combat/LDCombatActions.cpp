@@ -241,6 +241,13 @@ FLDCombatActionReceipt ALDCombatDirector::SubmitAction(const FLDCombatCaller& Ca
     default: break;
     }
     Record->DirectHighWater=FMath::Max(Record->DirectHighWater,Request.DirectSequence);
+    // #153: no attack, ability or dash before T=0. The refusal is kept, so a replay after T=0 cannot start it late.
+    if (Mode->IsOpeningCountdown(Caller.Match))
+    {
+        Refuse(ELDCombatReject::NotStarted);
+        StoreReceipt(*Record,Request,Receipt);
+        return Receipt;
+    }
     if (Request.DirectSequence<=Record->CancelledThrough)
     {
         Refuse(ELDCombatReject::Cancelled);

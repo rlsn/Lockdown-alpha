@@ -22,8 +22,8 @@ $processes = [Collections.Generic.List[Diagnostics.Process]]::new()
 $roles = @('Host','Client1')
 # Every role must report the check groups it owns (PROGRESSION_EQUIPMENT_ECONOMY §12 ids); a skipped stage cannot pass silently.
 $requiredChecks = @{
-    Host = @('Net','Start','Opening','Ledger','Fixture','A14','N03','Iso','DevTest')
-    Client1 = @('Net','Start','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A24','Iso','DevTest')
+    Host = @('Net','Start','Countdown','Opening','Ledger','Fixture','A14','N03','Iso','DevTest')
+    Client1 = @('Net','Start','Countdown','Opening','Fixture','N03','A01','A06','A10','A12','A14','A15','A16','A17','A24','Iso','DevTest')
 }
 
 function Start-GrowthRole {
@@ -106,6 +106,10 @@ try {
         if ($reports[$role].opening.offer -eq $reports[$role].second_opening.offer) { throw "$role's second match reused its opening offer: $output" }
     }
     if (-not $reports['Client1'].opening.staged_preset) { throw "The buyer's opening offer is not the Host's staged preset: $output" }
+    # #153: the remote owning connection had its move, Shift step, Q and buy refused during the opening countdown.
+    if (-not $reports['Client1'].countdown.refusals_checked -or [long]$reports['Client1'].countdown.started_at_ms -ne [long]$reports['Host'].countdown.started_at_ms) {
+        throw "The buyer's countdown refusals or the shared T=0 are missing from the reports: $output"
+    }
     $hostReport = $reports['Host']
     $buyer = $reports['Client1']
     if (-not $hostReport.growth_fixture -or $buyer.growth_fixture -or -not $hostReport.buyer_killed) {

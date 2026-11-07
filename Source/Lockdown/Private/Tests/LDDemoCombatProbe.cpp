@@ -477,7 +477,7 @@ public:
             SetStage(EStage::Spawned);
             return Passed ? true : Finish();
         }
-        if (Lobby.Phase == ELDMatchPhase::Starting) { return true; }
+        if (Lobby.Phase == ELDMatchPhase::Starting || Lobby.Phase == ELDMatchPhase::Countdown) { return true; }
         if (Lobby.Phase != ELDMatchPhase::Lobby)
         {
             return Fail(TEXT("Start"), TEXT("The room left the Lobby without opening play: ")
