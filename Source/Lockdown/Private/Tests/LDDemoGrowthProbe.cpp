@@ -45,6 +45,7 @@
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "World/LDCampDirector.h"
 
 // Owned-connection growth/shop scenario (PROGRESSION_EQUIPMENT_ECONOMY §8, §12). The owning client earns, chooses and
@@ -436,11 +437,13 @@ public:
     };
     FChoiceCall Planned;
 
-    // #153 opening countdown of the first match: its T=0, the frozen foot, and Client1's refused move, Shift step, Q and buy.
-    bool bCountdownSeen = false, bCountdownSent = false, bCountdownShiftSent = false, bCountdownRefused = false;
+    // #153 opening countdown of the first match: its T=0, and Client1's refused attack-move, Shift attack-move, Q and buy,
+    // then its admitted move (2026-11-07 user decision: movement and choices are allowed, attacks and trades are not).
+    bool bCountdownSeen = false, bCountdownRefused = false;
+    int32 CountdownStep = 0;
     int64 CountdownStartedAtMs = 0;
     FVector CountdownFoot = FVector::ZeroVector;
-    FLDMoveIdentity CountdownMove, CountdownShift;
+    FLDMoveIdentity CountdownAttack, CountdownShift, CountdownMove;
     uint32 CountdownCombatMark = 0;
     TSharedPtr<FJsonObject> CountdownRow;
 
@@ -970,9 +973,9 @@ public:
         return true;
     }
 
-    // #153: the first match's opening countdown, seen from both roles. Every contender stands frozen while the opening
-    // three-choice is open; Client1, a real owning remote connection, has its move, Shift step, Q and buy refused by the
-    // server. T=0 then starts development with every match timer counted from it, and the untaken choice is kept.
+    // #153: the first match's opening countdown, seen from both roles, while the opening three-choice is open. Client1, a
+    // real owning remote connection, has its attack-move, Shift attack-move, Q and buy refused by the server and its ground
+    // move admitted and walked. T=0 then starts development with every match timer counted from it; the untaken choice is kept.
     bool TickCountdown(double Now, ALDPlayerController& PC, const ALDGameState& Public, const ULDMapRegistry& Registry)
     {
         const FLDPublicMatchView& View = Public.PublicMatch;
@@ -1042,34 +1045,69 @@ public:
             Buy.ExpectedInventoryRevision = EquipView->InventoryRevision;
             Buy.ExpectedBuildRevision = ProgView->BuildRevision;
             Buy.BuyPrice = Item->BuyPrice;
-            PC.Navigation->NavigateGround(Capture->Position, Capture->Surface);
-            CountdownMove = PC.Navigation->LocalIdentity();
+            PC.Navigation->AttackMove(Capture->Position, Capture->Surface);
+            CountdownAttack = PC.Navigation->LocalIdentity();
             CountdownCombatMark = PC.CombatReceipts.Serial();
             PC.ActivateCombatEntry(ELDCombatEntry::Q);
             if (!SendShop(PC, TEXT("countdown-buy"), Buy)) { return Finish(); }
-            bCountdownSent = true;
+            CountdownStep = 1;
             return true;
         }
         if (!bCountdownRefused)
         {
             const FLDOrderReceipt& Order = PC.Navigation->LatestReceipt();
-            if (!bCountdownShiftSent)
+            const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
+            const auto Refused = [&Order](const FLDMoveIdentity& Sent)
+            { return Order.Identity == Sent && Order.Status != ELDOrderStatus::Queued; };
+            if (CountdownStep == 1)
             {
-                if (Order.Identity != CountdownMove || Order.Status == ELDOrderStatus::Queued) { return true; }
+                if (!Refused(CountdownAttack)) { return true; }
                 Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
-                    TEXT("The server refuses a move order before T=0"),
+                    TEXT("The server refuses an attack-move before T=0"),
                     FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
-                if (!bClock || NowMs >= CountdownStartedAtMs - 300)
-                {
-                    return Fail(TEXT("Countdown"), TEXT("T=0 arrived before the Shift step could be sent inside the countdown"));
-                }
-                const FLDMapBinding* Capture = Registry.Resolve(FName(*Catalog->Get().World.CaptureId), Registry.Generation);
-                PC.Navigation->NavigateGround(Capture->Position, Capture->Surface, nullptr, true);
+                PC.Navigation->AttackMove(Capture->Position, Capture->Surface, true);
                 CountdownShift = PC.Navigation->LocalIdentity();
-                bCountdownShiftSent = true;
+                CountdownStep = 2;
                 return true;
             }
-            if (Order.Identity != CountdownShift || Order.Status == ELDOrderStatus::Queued) { return true; }
+            if (CountdownStep == 2)
+            {
+                if (!Refused(CountdownShift)) { return true; }
+                // A freshly spawned body may still be settling; a ground order sent before it stands fails its local plan.
+                if (Body && Body->GetCharacterMovement() && !Body->GetCharacterMovement()->IsMovingOnGround()
+                    && View.Phase == ELDMatchPhase::Countdown) { return true; }
+                Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
+                    TEXT("The server refuses a Shift-queued attack-move before T=0"),
+                    FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
+                if (!bClock || NowMs >= CountdownStartedAtMs - 1500 || !Body)
+                {
+                    return Fail(TEXT("Countdown"), TEXT("T=0 was too close to walk inside the countdown"));
+                }
+                CountdownFoot = Body->GetActorLocation();
+                PC.Navigation->NavigateGround(Capture->Position, Capture->Surface);
+                CountdownMove = PC.Navigation->LocalIdentity();
+                CountdownStep = 3;
+                return true;
+            }
+            if (CountdownStep == 3)
+            {
+                if (Order.Identity == CountdownMove && Order.Status == ELDOrderStatus::Rejected)
+                {
+                    return Fail(TEXT("Countdown"), TEXT("The server refused a ground move during the countdown: failure ")
+                        + LexToString(uint32(Order.Failure)));
+                }
+                const double Walked = Body ? FVector::Dist2D(CountdownFoot, Body->GetActorLocation()) : 0.;
+                if (Walked < 100.)
+                {
+                    if (View.Phase == ELDMatchPhase::Countdown) { return true; }
+                    return Fail(TEXT("Countdown"), FString::Printf(TEXT("The countdown ended before the admitted move walked (%.0f cm)"), Walked));
+                }
+                Check(View.Phase == ELDMatchPhase::Countdown && bClock && NowMs < CountdownStartedAtMs, TEXT("Countdown"),
+                    TEXT("A ground move is admitted and walks before T=0"), FString::Printf(TEXT("walked=%.0f cm now=%lld"), Walked, NowMs));
+                PC.Navigation->Stop();
+                CountdownStep = 4;
+                return true;
+            }
             const FLDCombatActionReceipt* Action = PC.CombatReceipts.FindLatestSince(CountdownCombatMark,
                 [](const FLDCombatActionReceipt& Receipt) { return Receipt.Entry == ELDCombatEntry::Q; });
             if (!Action || Action->Phase != ELDCombatPhase::Rejected) { return true; }
@@ -1081,15 +1119,10 @@ public:
             {
                 return Fail(TEXT("Countdown"), TEXT("The countdown buy got no final receipt: ") + Why);
             }
-            Check(Order.Status == ELDOrderStatus::Rejected && Order.Failure == ELDOrderFailure::NotStarted, TEXT("Countdown"),
-                TEXT("The server refuses a Shift-queued step before T=0"),
-                FString::Printf(TEXT("status=%u failure=%u"), uint32(Order.Status), uint32(Order.Failure)));
             Check(Action->Reject == ELDCombatReject::NotStarted, TEXT("Countdown"), TEXT("The server refuses Q before T=0"),
                 StaticEnum<ELDCombatReject>()->GetNameStringByValue(int64(Action->Reject)));
             CheckRejected(PC, *Seen, ELDGrowthReason::MatchNotStarted, TEXT("Countdown"),
                 TEXT("The server refuses a trade before T=0 (还没开始呢，急什么) and the account is untouched"));
-            Check(!PC.Navigation->HasMoveOrder() && FVector::Dist2D(CountdownFoot, Body ? Body->GetActorLocation() : FVector::ZeroVector) < 5.,
-                TEXT("Countdown"), TEXT("The refused body stays frozen at its spawn"));
             if (!Passed) { return Finish(); }
             bCountdownRefused = true;
             return true;
