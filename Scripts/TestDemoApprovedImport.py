@@ -238,7 +238,7 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250 (1300-2400)", approval["decision"])
         self.assertIn("2026-11-07 movement -25%: player 300, floor 173, cap 675, camps 240/260, Boss 225; "
-                      "flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050.", approval["decision"])
+                      "flagpole 180s, guard 30s, airdrop 80s; loot -50%; vision/guardian leash 1050", approval["decision"])
         self.assertIn("#147 build v7 (2 ranks grown by level, slotted draft, 12+10+8)", approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
                           len(self.data["camps"]["monsters"])), (22, 8, 13, 2))
