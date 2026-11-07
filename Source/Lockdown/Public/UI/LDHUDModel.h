@@ -381,7 +381,7 @@ namespace LDHUD
     LOCKDOWN_API FActionInput EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
     // One square of the own status grid under the 属性 button: a temporary status, a learned passive or an equipment
     // passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
-    // and remainder (statuses) or rank (learned passives). The hover popup is built from it by SelfIconDetail.
+    // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
     enum class ESelfIconKind : uint8 { Control, Temporary, Passive };
     enum class ESelfIconSource : uint8 { Status, Learned, Equipment };
     struct FSelfIconView
@@ -418,9 +418,10 @@ namespace LDHUD
     LOCKDOWN_API FSelfIconsView SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
         const FLDDemoContentDefinitions* Content);
     // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
-    // "角色被动", "装备被动", upgraded when it is), then the full content description and, for passives, the current
-    // rank's or the equipment's passive effect lines. Built only for the hovered square.
-    LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FLDDemoContentDefinitions* Content);
+    // "角色被动", "装备被动", upgraded when it is), then the full content description: a status's or equipment's text
+    // (with the equipment's passive effect lines), or a learned passive's card lines rendered for Card (LearnedCardLines).
+    // Built only for the hovered square.
+    LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content);
     // The placeholder icon of a name: its first character, Latin letters upper-cased; "?" for an empty name.
     LOCKDOWN_API FString IconGlyph(const FString& Name);
     // Remaining-time rings of the timed own statuses. The view carries only the end instant, so the remaining time when

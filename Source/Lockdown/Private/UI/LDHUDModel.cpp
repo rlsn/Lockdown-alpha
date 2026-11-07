@@ -1318,7 +1318,7 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
         {
             if(Skill.bActive){continue;}
             FSelfIconView Icon;const FString Name=ContentName(Content,Skill.DefinitionId.ToString());
-            Icon.Glyph=IconGlyph(Name);Icon.Tip=FString::Printf(TEXT("%s %d级"),*Name,int32(Skill.Rank));
+            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name+TEXT("（")+SkillRankName(Skill.Rank)+TEXT("）");
             Icon.Source=ESelfIconSource::Learned;Icon.ContentId=Skill.DefinitionId.ToString();Icon.Rank=Skill.Rank;
             Icon.Key=FName(*(TEXT("Learned.")+Skill.DefinitionId.ToString()));
             Passives.Add(MoveTemp(Icon));
@@ -1346,13 +1346,15 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
     }
     return View;
 }
-LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const FLDDemoContentDefinitions* Content)
+LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content)
 {
     FActionDetailView Detail;
     Detail.Name=Icon.Tip;
     TArray<FString> Lines;
     FString Description;
-    if(!Icon.ContentId.IsEmpty()&&ContentText(Content,Icon.ContentId,true,Description)&&!Description.IsEmpty()){Lines.Add(Description);}
+    // A learned skill's description is its #147 card template; it is rendered with the owner's numbers below instead.
+    if(Icon.Source!=ESelfIconSource::Learned&&!Icon.ContentId.IsEmpty()&&ContentText(Content,Icon.ContentId,true,Description)&&!Description.IsEmpty())
+    {Lines.Add(Description);}
     switch(Icon.Source)
     {
     case ESelfIconSource::Status:
@@ -1363,8 +1365,10 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
         Detail.Summary=TEXT("角色被动");
         const FString& Id=Icon.ContentId;
         const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
-        const FLDDemoRankDefinition* Rank=Ability?Ability->Ranks.FindByPredicate([&Icon](const FLDDemoRankDefinition& R){return R.Rank==Icon.Rank;}):nullptr;
-        if(Rank){if(!Lines.IsEmpty()){Lines.Add(FString());}Lines.Append(RankLines(*Rank,false));}
+        const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+        const FLDDemoRankDefinition* Rank=Ability?Ability->Ranks.FindByPredicate([&Icon](const FLDDemoRankDefinition& R){return R.Rank==int32(Icon.Rank);}):nullptr;
+        // The same card sentence (and, once advanced, the "高级：" line) the attribute panel and the blind box show.
+        if(Rank&&Display){Lines.Append(LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Icon.Rank,Card,Content->Parameters.SkillGrowthPerLevelBp));}
         else if(Ability){Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),int32(Icon.Rank)));}
         else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
         break;

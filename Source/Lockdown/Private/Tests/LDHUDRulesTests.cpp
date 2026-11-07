@@ -514,11 +514,11 @@ bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
     Progression.Skills.SetNum(LDHUD::SelfIconMax-1);
     TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content).Overflow,0);
     // The hover popup names the square and its kind; the description and effect lines come from the content catalog.
-    const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],nullptr);
+    const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],LDHUD::FCardStats(),nullptr);
     TestTrue(TEXT("A control status popup heads with its line and kind"),RootDetail.Name==Full.Items[0].Tip&&RootDetail.Summary==TEXT("控制状态"));
-    TestEqualSensitive(TEXT("A learned passive popup says 角色被动"),LDHUD::SelfIconDetail(Full.Items[1],nullptr).Summary,FString(TEXT("角色被动")));
+    TestEqualSensitive(TEXT("A learned passive popup says 角色被动"),LDHUD::SelfIconDetail(Full.Items[1],LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("角色被动")));
     LDHUD::FSelfIconView Gear;Gear.Source=LDHUD::ESelfIconSource::Equipment;Gear.Tip=TEXT("铁板");Gear.bUpgraded=true;
-    TestEqualSensitive(TEXT("An upgraded equipment passive says so"),LDHUD::SelfIconDetail(Gear,nullptr).Summary,FString(TEXT("装备被动（已进阶）")));
+    TestEqualSensitive(TEXT("An upgraded equipment passive says so"),LDHUD::SelfIconDetail(Gear,LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("装备被动（已进阶）")));
     // Remaining-time rings: the first sight of an end instant is the full ring.
     LDHUD::FStatusRings Rings;const FName Key(TEXT("Status.1"));
     TestEqual(TEXT("A newly seen status starts with a full ring"),Rings.Fraction(Key,4000,1000),1.f);
@@ -562,7 +562,7 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     Combat.Statuses.Reset();Combat.EquipmentPassives={FName(TEXT("passive_siphon")),FName(TEXT("passive_siphon"))};
     Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
     TestEqualSensitive(TEXT("Learned passives keep their rank; an equipment passive appears once under its equipment"),
-        Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT(" 2级 | ")+HudName(TEXT("item_iron_plate")));
+        Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT("（")+LDHUD::SkillRankName(2)+TEXT("） | ")+HudName(TEXT("item_iron_plate")));
     TestTrue(TEXT("Passives carry no remaining time"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Passive&&Icons.Items[0].ExpiresAtMs==0);
     Progression.Skills={Active};Combat.EquipmentPassives.Reset();
     Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
