@@ -1,6 +1,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
 #include "Combat/LDCombatControlRules.h"
+#include "Combat/LDCombatMechanics.h"
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -38,6 +39,8 @@ struct FLDBuildPrimitivesAccess
     { return Driver.BurstBrokenShield(Body, Broken, NowMs, Error); }
     static void ExpireStatuses(ALDCombatDirector& Driver, int64 NowMs) { Driver.ExpireStatuses(NowMs); }
     static void CancelEntityEffects(ALDCombatDirector& Driver, const FGuid& Entity) { Driver.CancelEntityEffects(Entity); }
+    static FLDNegativeKinds NegativeKindsOf(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs)
+    { return Driver.NegativeKindsOf(Body, NowMs); }
     static void KeywordStatuses(const ALDCombatDirector& Driver, const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out)
     { Driver.AppendKeywordStatuses(Body, NowMs, Out); }
     static void Bind(ALDGameMode& Mode, ALDCombatDirector& Driver, const TSharedPtr<const FLDDemoContentSnapshot>& Catalog)
@@ -750,6 +753,92 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     }
     TestTrue(TEXT("Each landed basic cut both actives' remaining cooldown by 0.25 s"),
         Record.Tracks[0].ReadyAtMs == 6000 - 4 * 250 && Record.Tracks[1].ReadyAtMs == 6000 - 4 * 250);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildNegativeKindsTest, "Lockdown.Rules.DemoBuildPrimitives.NegativeKinds",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDBuildNegativeKindsTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Source = F.AddBody(), Target = F.AddBody();
+    FLDBodyCombatState& Body = F.Body(Target);
+    const auto Kinds = [&F, &Body](int64 NowMs) { return FAccess::NegativeKindsOf(*F.Driver, Body, NowMs); };
+    TestEqual(TEXT("A clean body has no negative kind"), LDCombatMechanics::CountNegativeKinds(Kinds(1000)), 0);
+    // The breach/damage-over-time kind (#112 Q4) also counts the #147 shared breach and burn records.
+    Body.SharedBreach.Stacks = 2;
+    Body.SharedBreach.ExpiresAtMs = 5000;
+    TestTrue(TEXT("A shared breach alone is the breach kind"), Kinds(1000).bBreach && LDCombatMechanics::CountNegativeKinds(Kinds(1000)) == 1);
+    TestFalse(TEXT("until it lapses"), Kinds(5000).bBreach);
+    Body.SharedBreach = FLDCombatSharedBreach();
+    TestTrue(TEXT("A burn"), LDCombatKeywords::ApplyBurn(Body.Burn, Layer(Source.Victim.EntityId, 0), 1, 1000, Terms()));
+    TestTrue(TEXT("alone is the breach kind"), Kinds(1500).bBreach && LDCombatMechanics::CountNegativeKinds(Kinds(1500)) == 1);
+    TestFalse(TEXT("until it ends"), Kinds(4001).bBreach);
+    Body.SharedBreach.Stacks = 1;
+    Body.SharedBreach.ExpiresAtMs = 5000;
+    Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000});
+    TestEqual(TEXT("Breach and burn together are still one kind, beside the slow"),
+        LDCombatMechanics::CountNegativeKinds(Kinds(1500)), 2);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildFullDebuffObservationTest, "Lockdown.Rules.DemoBuildPrimitives.FullDebuffObservation",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef Source = F.AddBody(), Target = F.AddBody();
+    FLDBodyCombatState& Body = F.Body(Target);
+    const FGuid From = Source.Victim.EntityId;
+    const auto Control = [&From](int64 Until) { return FLDCombatRoot{FGuid::NewGuid(), From, Until}; };
+    // Every public combat cue at once, the legacy shred under the shared breach.
+    Body.Roots.Add(Control(5000));
+    Body.Shield = FLDCombatShield{FGuid::NewGuid(), From, 5000};
+    Body.Resources.ShieldP2 = 1000;
+    Body.Slows.Add({FGuid::NewGuid(), From, 3000, 5000});
+    FLDCombatTimedBonus Boost;
+    Boost.ExpiresAtMs = 5000;
+    Body.TimedBonuses.Add(Boost);
+    FLDCombatBreach Shred;
+    Shred.SourceEntity = From;
+    Shred.ExpiresAtMs = 5000;
+    Body.Breaches.Add(Shred);
+    Body.SharedBreach.Stacks = 3;
+    Body.SharedBreach.ExpiresAtMs = 5000;
+    Body.Disarms.Add(Control(5000));
+    Body.Stuns.Add(Control(5000));
+    Body.Knockbacks.Add(Control(5000));
+    Body.HealCuts.Add({FGuid::NewGuid(), From, 4000, 5000});
+    Body.Silences.Add(Control(5000));
+    TestTrue(TEXT("Five burn layers"), LDCombatKeywords::ApplyBurn(Body.Burn, Layer(From, 0), 5, 1000, Terms()));
+    TArray<FLDObservedStatus> Statuses;
+    F.Driver->AppendObservedStatuses(F.Actor(Target), 1000, Statuses);
+    TestEqual(TEXT("Each public combat cue shows once"), Statuses.Num(), 11);
+    const FLDObservedStatus* Exposed = FFixture::FindStatus(Statuses, ELDDemoStatusId::Exposed);
+    const FLDObservedStatus* Burn = FFixture::FindStatus(Statuses, ELDDemoStatusId::Burn);
+    TestTrue(TEXT("with the breach and burn stacks"), Exposed && Exposed->Stacks == 3 && Burn && Burn->Stacks == 5
+        && FFixture::FindStatus(Statuses, ELDDemoStatusId::Silence));
+    // The observation adds respawn protection to a contender's cues; all of them stay inside the published bound.
+    Statuses.Add({uint8(ELDDemoStatusId::RespawnProtection), 1, 2000});
+    FLDObservedUnitView Unit;
+    Unit.Handle = FGuid::NewGuid();
+    Unit.ObservationEpoch = Unit.StateRevision = 1;
+    Unit.AuthorizedFieldMask = LDObservation::ContenderFields;
+    Unit.Kind = ELDObservedUnitKind::Contender;
+    Unit.ContenderId = FGuid::NewGuid();
+    Unit.Level = 1;
+    Unit.Health.CurrentP2 = Unit.Health.MaxP2 = 100000;
+    Unit.Mana.MaxP2 = 10000;
+    Unit.Statuses = Statuses;
+    FString Error;
+    TestTrue(TEXT("A fully debuffed contender is still a valid observation"), LDObservation::ValidateUnit(Unit, Error));
+    AddInfo(Error);
     return true;
 }
 

@@ -1,4 +1,5 @@
 #include "Combat/LDCombatDirector.h"
+#include "Combat/LDCombatKeywords.h"
 #include "Core/LDLog.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatSourceRules.h"
@@ -386,8 +387,10 @@ FLDNegativeKinds ALDCombatDirector::NegativeKindsOf(const FLDBodyCombatState& Bo
     Kinds.bDisarm=Active(Body.Disarms);
     Kinds.bStun=Active(Body.Stuns);
     Kinds.bTaunt=LDControl::IsTaunted(Body.Taunt,NowMs);
-    // Q4: any armor/MR breach or damage over time counts as one kind.
+    // Q4: any armor/MR breach or damage over time counts as one kind, including the shared breach and burn records.
     Kinds.bBreach=LDTactical::HasBreach(Body.Breaches,NowMs)
+        || LDCombatKeywords::BreachStacks(Body.SharedBreach,NowMs)>0
+        || LDCombatKeywords::BurnActive(Body.Burn,NowMs)
         || Body.Dots.ContainsByPredicate([NowMs](const FLDCombatDot& Dot) { return Dot.ExpiresAtMs>NowMs; });
     return Kinds;
 }

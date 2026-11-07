@@ -16,7 +16,9 @@ namespace LDObservation
     constexpr int32 CoverageBytes = CoverageCells / 8;
     // BeginMatch rejects a locked roster plus approved camp members that could exceed this.
     constexpr int32 MaxUnits = 16;
-    constexpr int32 MaxStatuses = 8;
+    // Every public status a unit can show at once: each definition appears at most once, a contender adds respawn
+    // protection and a camp member camp_returning to the eleven combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
+    constexpr int32 MaxStatuses = 12;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
     constexpr int32 MaxProjectiles = 16;
