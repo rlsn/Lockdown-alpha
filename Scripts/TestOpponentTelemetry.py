@@ -19,12 +19,12 @@ def contender(kind, slot, ident, level_curve, gold_curve, final_level, winner=Fa
             "final_level": final_level, "kills": 1, "deaths": 2, "capture_attempts": attempts, "capture_resumes": 1,
             "capture_paused": 1, "capture_lost": 0, "assists": 1, "capture_sprays": 1, "capture_interrupted": 0,
             "first_active_ms": 2000 if kind == "OpponentAI" else -1,
-            "skills": [{"id": "active_lunge", "rank": 3, "active": True}, {"id": "passive_lurking", "rank": 1, "active": False}]
+            "skills": [{"id": "active_bail_out", "rank": 2, "active": True}, {"id": "passive_stoke", "rank": 1, "active": False}]
             if kind == "OpponentAI" else [],
             "max_rank_skills": 1 if kind == "OpponentAI" else 0, "rerolls_earned": 2 if kind == "OpponentAI" else 0,
             "rerolls_used": 1 if kind == "OpponentAI" else 0, "choices": 4 if kind == "OpponentAI" else 1,
-            "replacements": [{"t_ms": 50000, "level": 5, "replaced": "active_arc_bolt", "replaced_rank": 2,
-                              "new": "active_lunge", "new_rank": 1}] if slot == 0 else [],
+            "replacements": [{"t_ms": 50000, "level": 5, "replaced": "active_snark_bolt", "replaced_rank": 2,
+                              "new": "active_bail_out", "new_rank": 1}] if slot == 0 else [],
             "purchases": [{"t_ms": t, "item": "item_edge_blade", "slot": 0, "price": 150, "gold_after": 50}
                           for t in purchases],
             "sales": [], "curve": {"t_ms": times, "level": level_curve, "xp": [0] * len(times), "gold": gold_curve}}

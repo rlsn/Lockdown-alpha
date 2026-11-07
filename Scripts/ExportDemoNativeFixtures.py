@@ -567,6 +567,31 @@ def _export(output, *, rank_mutations, jobs):
     return index
 
 
+# D2 (#147): the advanced rank keeps every coefficient and holds each growing base at 1.5x the basic rank's.
+COUPLED_RANK_FIELDS = ("base", "ad_ratio", "ap_ratio", "max_hp_ratio", "armor_ratio")
+
+
+def _rank_mutation(author, path):
+    """Change one rank quantity; a field D2 couples across ranks moves in both ranks so the case stays valid."""
+    changed = deepcopy(author)
+    quantity = _at(changed, path)
+    delta = Decimal("0.001") if quantity["unit"] == "s" else Decimal("0.01")
+    field = path[-1]
+    if len(path) == 7 and path[4] == "effects" and field in COUPLED_RANK_FIELDS:
+        ranks = _at(changed, path[:3])
+        op = _at(changed, path[:6])["op"]
+        basic = next((row for row in ranks[0]["effects"] if row["op"] == op), None)
+        advanced = next((row for row in ranks[-1]["effects"] if row["op"] == op), None)
+        if (ranks[0] is not ranks[-1] and basic is not None and advanced is not None and field in basic
+                and not (field == "base" and op == "mana_on_hit")):
+            step, scale = (delta * 2, Decimal(3) / 2) if field == "base" else (delta, Decimal(1))
+            basic[field]["value"] = float(Decimal(str(basic[field]["value"])) + step)
+            advanced[field]["value"] = float(Decimal(str(advanced[field]["value"])) + step * scale)
+            return changed
+    quantity["value"] = float(Decimal(str(quantity["value"])) + delta)
+    return changed
+
+
 def _export_cases(output, index, base, rank_mutations, valid):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
@@ -591,10 +616,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         author = fixtures.content_fixture()
         paths = [path for path, _ in _quantities(author) if "ranks" in path]
         for index_number, path in enumerate(paths):
-            changed = deepcopy(author)
-            quantity = _at(changed, path)
-            delta = Decimal("0.001") if quantity["unit"] == "s" else Decimal("0.01")
-            quantity["value"] = float(Decimal(str(quantity["value"])) + delta)
+            changed = _rank_mutation(author, path)
             source_path = "content" + "".join(f"[{key}]" if type(key) is int else "." + key for key in path) + ".value"
             native_quantity = base.catalog.field_projection[source_path][0].rsplit(".", 1)[0]
             valid(f"rank_field_{index_number:03d}", changed, mutated_quantity=native_quantity)
@@ -624,7 +646,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("string_integer", lambda d: d["parameters"].update({"SHOP.StartingGold": "10"}), "integer token")
     bad_content("retired_id", lambda d: d["abilities"][0].update({"native_id": 1}), "renumbered native ID")
     bad_content("unknown_id", lambda d: d["abilities"][0].update({"id": "active_missing"}), "unknown")
-    bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_arc_bolt"}), "canonical lowercase")
+    bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_not_mad"}), "canonical lowercase")
     bad_content("long_id", lambda d: d["abilities"][0].update({"id": "a" * 64}), "string length")
     bad_content("duplicate_ability", lambda d: d["abilities"].__setitem__(1, deepcopy(d["abilities"][0])), "duplicate")
     bad_content("missing_rank", lambda d: d["abilities"][0]["ranks"].pop(), "array length")
@@ -654,7 +676,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
     bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
     bad_content("missing_passive", lambda d: next(row for row in d["equipment"] if row["passive"] is not None).update({"passive": None}), "presence")
     bad_content("equipment_active_field", lambda d: d["equipment"][0].update({"active": None}), "unknown field")
-    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_battle_rhythm")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
+    bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_lucky_star")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}
     bad_content("unexpected_slow", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(slow)), "missing or extra effect")
@@ -759,7 +781,7 @@ def _export_cases(output, index, base, rank_mutations, valid):
         invalid(name, bundle, digest, error)
 
     ids = deepcopy(ids_data)
-    ids["abilities"]["active_arc_bolt"] = 63
+    ids["abilities"]["active_snark_bolt"] = 95
     bundle, digest = _tamper(base, ids=ids)
     invalid("renumbered_id_map", bundle, digest, "integer outside")
     for name, change, error in (
