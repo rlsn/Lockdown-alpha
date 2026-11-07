@@ -77,13 +77,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Root:
     case ELDDemoEffectOp::Slow:
     case ELDDemoEffectOp::PathSlow:
-    case ELDDemoEffectOp::ResistShred:
     case ELDDemoEffectOp::Knockback:
-    case ELDDemoEffectOp::Dot:
-    case ELDDemoEffectOp::MobilityPunish:
-    case ELDDemoEffectOp::Volley:
-    case ELDDemoEffectOp::ShieldShatter:
-    case ELDDemoEffectOp::Vulnerable:
     case ELDDemoEffectOp::ZoneSlow:
     case ELDDemoEffectOp::ZoneRoot:
     case ELDDemoEffectOp::ZoneDamage:
@@ -98,17 +92,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
-    case ELDDemoEffectOp::LongReach:
-    case ELDDemoEffectOp::DebuffAmp:
     case ELDDemoEffectOp::AfflictionAmp:
         Usage.bEngage = true;
         break;
-    case ELDDemoEffectOp::AmbushDamage:
-        Usage.bBasicGrowth = true;
-        break;
     case ELDDemoEffectOp::Disarm:
     case ELDDemoEffectOp::Stun:
-    case ELDDemoEffectOp::Backstab:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::Thorns:
@@ -118,22 +106,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         break;
     case ELDDemoEffectOp::TriggeredShield:
     case ELDDemoEffectOp::TauntShield:
-    case ELDDemoEffectOp::DamageGuard:
-    case ELDDemoEffectOp::ZoneShield:
-    case ELDDemoEffectOp::MobilityShield:
-    case ELDDemoEffectOp::ShieldPulse:
         Usage.bSelfProtect = true;
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::EmpowerBasic:
-    case ELDDemoEffectOp::BasicStacks:
     case ELDDemoEffectOp::NthBasicBonus:
-    case ELDDemoEffectOp::BasicRider:
-    case ELDDemoEffectOp::BreachStacks:
         Usage.bBasicGrowth = true;
-        break;
-    case ELDDemoEffectOp::Jump:
-        Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
@@ -142,13 +120,11 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
-    case ELDDemoEffectOp::OutOfCombatRegen:
     case ELDDemoEffectOp::Lifesteal:
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
-    case ELDDemoEffectOp::Momentum:
     case ELDDemoEffectOp::HitHaste:
         Usage.bMobility = true;
         break;
@@ -160,17 +136,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::LowHpStatBonus:
         for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
         break;
-    // Cooldown, crit, mana and release riders, and the taunt family, add no structural usage of their own.
-    case ELDDemoEffectOp::RefreshDebuffs:
-    case ELDDemoEffectOp::OnHit:
-    case ELDDemoEffectOp::DebuffHeal:
+    // Cooldown, crit, mana and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
-    case ELDDemoEffectOp::ShieldBurst:
     case ELDDemoEffectOp::CastFrenzy:
     case ELDDemoEffectOp::CooldownRefund:
     case ELDDemoEffectOp::AbilityCrit:
     case ELDDemoEffectOp::ManaOnHit:
-    case ELDDemoEffectOp::TauntRetaliate:
     default:
         break;
     }

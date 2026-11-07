@@ -81,6 +81,9 @@ namespace LDCombatKeywords
     LOCKDOWN_API bool ApplyBreach(FLDCombatSharedBreach& Breach, int32 Stacks, int64 AtMs, const FLDKeywordTerms& Terms);
     // Armor and magic resist the active stacks take away.
     LOCKDOWN_API int64 BreachFlatP2(const FLDCombatSharedBreach& Breach, int64 AtMs, const FLDKeywordTerms& Terms);
+    // The resistance a hit meets: ResistanceP2 less the active stacks' flat cut, never below zero.
+    LOCKDOWN_API int64 BreachedResistanceP2(int64 ResistanceP2, const FLDCombatSharedBreach& Breach, int64 AtMs,
+        const FLDKeywordTerms& Terms);
     // Clears a lapsed group (half-open at ExpiresAtMs); true when it ended.
     LOCKDOWN_API bool ExpireBreach(FLDCombatSharedBreach& Breach, int64 AtMs);
 

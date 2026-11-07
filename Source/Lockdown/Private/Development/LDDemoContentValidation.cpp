@@ -67,10 +67,8 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
                 && N.Mul64(Total, Effect.CriticalMultiplierBp, Critical, Path);
         }
         const ELDDemoEffectOp Op = Effect.GetOp();
-        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::AmbushDamage
-            || Op == ELDDemoEffectOp::Dot || Op == ELDDemoEffectOp::MobilityPunish || Op == ELDDemoEffectOp::ZoneDamage
-            || Op == ELDDemoEffectOp::ShieldPulse || Op == ELDDemoEffectOp::BreachStacks;
-        if (!bDamage && Op != ELDDemoEffectOp::Shield && Op != ELDDemoEffectOp::BasicRider && Op != ELDDemoEffectOp::ZoneShield)
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
+        if (!bDamage && Op != ELDDemoEffectOp::Shield)
         {
             return true;
         }

@@ -31,9 +31,8 @@ struct FLDBuildPrimitivesAccess
     static bool ReleaseBasic(ALDCombatDirector& Driver, ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDCombatAction& Action,
         ELDCombatReject& Outcome, FString& Error)
     { return Driver.ReleaseBasic(Actor, Body, Action, Outcome, Error); }
-    static bool ApplySelfEffect(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, int64 NowMs,
-        FString& Error)
-    { return Driver.ApplySelfEffect(Body, Effect, FGuid::NewGuid(), NowMs, Error); }
+    static bool ApplyCleanses(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank, int64 NowMs)
+    { return Driver.ApplyCleanses(Body, Rank, NowMs); }
     static bool BurstBrokenShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FGuid& Broken, int64 NowMs, FString& Error)
     { return Driver.BurstBrokenShield(Body, Broken, NowMs, Error); }
     static void ExpireStatuses(ALDCombatDirector& Driver, int64 NowMs) { Driver.ExpireStatuses(NowMs); }
@@ -252,10 +251,8 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A lapsed group takes nothing (half-open)"), BreachFlatP2(Breach, 7000, T), int64(0));
     TestTrue(TEXT("and ends"), ExpireBreach(Breach, 7000) && Breach.Stacks == 0);
     TestTrue(TEXT("A new stack after a lapse starts over"), ApplyBreach(Breach, 1, 8000, T) && Breach.Stacks == 1);
-    TArray<FLDCombatBreach> Legacy;
-    TestEqual(TEXT("The shared flat joins a legacy shred's flats and never drives a resistance below zero"),
-        LDTactical::BreachedResistanceP2(Legacy, 1000, true, 0, 1500), int64(0));
-    TestEqual(TEXT("and only takes its stacks"), LDTactical::BreachedResistanceP2(Legacy, 2000, false, 0, 600), int64(1400));
+    TestEqual(TEXT("A stack takes its flat off the resistance"), BreachedResistanceP2(2000, Breach, 8000, T), int64(1700));
+    TestEqual(TEXT("and never drives a resistance below zero"), BreachedResistanceP2(200, Breach, 8000, T), int64(0));
 
     // D11 burn: shared layers and timer; each layer keeps its applier and snapshot; the oldest gives way at the cap.
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
@@ -421,10 +418,10 @@ bool FLDBuildSilenceTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("ends with its leaving source"), Body.Silences.IsEmpty());
     // The disarm cleanse.
     Body.Disarms.Add({FGuid::NewGuid(), Caster.Victim.EntityId, 5000});
-    FLDDemoEffectDefinition Cleanse;
-    Cleanse.Opcode = uint8(ELDDemoEffectOp::DispelDisarm);
-    FString Error;
-    TestTrue(TEXT("A disarm cleanse removes every disarm"), FAccess::ApplySelfEffect(*F.Driver, Body, Cleanse, 1500, Error) && Body.Disarms.IsEmpty());
+    FLDDemoRankDefinition Cleanse;
+    Cleanse.Effects.AddDefaulted_GetRef().Opcode = uint8(ELDDemoEffectOp::DispelDisarm);
+    TestFalse(TEXT("A disarm cleanse changes no temporary term"), FAccess::ApplyCleanses(*F.Driver, Body, Cleanse, 1500));
+    TestTrue(TEXT("and removes every disarm"), Body.Disarms.IsEmpty());
     return true;
 }
 
@@ -467,13 +464,21 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     const FLDObservedStatus* Burning = FFixture::FindStatus(Statuses, ELDDemoStatusId::Burn);
     TestTrue(TEXT("Observers see breach x5 and burn x3"), Exposed && Exposed->Stacks == 5 && Burning && Burning->Stacks == 3
         && Burning->ExpiresAtServerMs == 4000);
+    // #147 decision 9: A's item_megaphone adds its dot ratio to A's own burn damage through the damage bonus pool.
+    FLDEquipmentPassiveFamily Megaphone;
+    Megaphone.Family = TEXT("passive_megaphone");
+    Megaphone.EquipmentId = TEXT("item_megaphone");
+    Megaphone.EquippedIndices = {0};
+    F.Body(A).AttributeProjection.EquipmentPassives.Add(Megaphone);
     F.Now(1500);
     TestTrue(FString::Printf(TEXT("The first tick: %s"), *Error), FAccess::AdvanceBurns(*F.Driver, 1500, Error));
     const TArray<FLDCombatHit>& Ticks = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("One magic tick per applier, never a crit or on-hit"), Ticks.Num() == 2 && Ticks[0].SourceEntity == A.Victim.EntityId
         && Ticks[0].BaseP2 == 300 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 300 && Ticks[0].bBurnTick
         && Ticks[0].bPeriodic && Ticks[0].OnHitScaleBp == 0 && Ticks[0].DamageType == ELDDemoDamageType::Magical);
-    TestTrue(TEXT("The ticks land"), F.Flush(Error) && Body.Resources.HpP2 == 89400 && Body.Burn.NextTickAtMs == 2000);
+    TestTrue(TEXT("Only the megaphone holder's burn takes its +25%"), Ticks[0].ExtraAmplifyBp == 12500 && Ticks[1].ExtraAmplifyBp == 10000);
+    TestTrue(TEXT("The ticks land, A's amplified in the pool"), F.Flush(Error) && Body.Resources.HpP2 == 89325 && Body.Burn.NextTickAtMs == 2000);
+    F.Body(A).AttributeProjection.EquipmentPassives.Reset();
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
     TestTrue(TEXT("A leaving applier's layers end; the shared breach stays"), Body.Burn.Layers.Num() == 1 && Body.SharedBreach.Stacks == 5);
     Hit.BurnStacks = 6;
@@ -506,7 +511,7 @@ bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
     {
         Body.Resources.HpP2 = StartHPP2;
         Body.Slows.Reset();
-        if (bSlowed) { Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 9000, 0, 8000}); }
+        if (bSlowed) { Body.Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 9000}); }
         if (!F.Apply(Hit, Error)) { AddError(Error); return int64(-1); }
         return StartHPP2 - Body.Resources.HpP2;
     };
@@ -531,10 +536,10 @@ bool FLDBuildPoolHitsTest::RunTest(const FString& Parameters)
     Basic.bCritical = true;
     Basic.ControlAmpBp = 1200;
     TestEqual(TEXT("A basic crit doubles before the pool"), Lost(Basic, 100000, true), int64(22400));
-    FLDCombatHit Rear = FFixture::Hit(Source, Target, 10000);
-    Rear.ExtraAmplifyBp = 12500;
-    Rear.ControlAmpBp = 1200;
-    TestEqual(TEXT("An affliction amplification joins the same pool"), Lost(Rear, 100000, true), int64(13700));
+    FLDCombatHit Amplified = FFixture::Hit(Source, Target, 10000);
+    Amplified.ExtraAmplifyBp = 12500;
+    Amplified.ControlAmpBp = 1200;
+    TestEqual(TEXT("An affliction amplification joins the same pool"), Lost(Amplified, 100000, true), int64(13700));
     return true;
 }
 
@@ -565,8 +570,9 @@ bool FLDBuildLifestealCapTest::RunTest(const FString& Parameters)
         && Healer.Resources.HpP2 == 56500);
     FLDCombatHit Tick = FFixture::Hit(Source, Target, 1000);
     Tick.bBurnTick = Tick.bPeriodic = true;
-    Tick.OmnivampBp = 5000;
-    Tick.OmnivampThresholdBp = 9000;
+    Tick.OnHitScaleBp = 10000;
+    Tick.bLifesteal = true;
+    Tick.LifestealRatioBp = 3000;
     TestTrue(TEXT("A burn tick never heals its applier"), F.Apply(Tick, Error) && Healer.Resources.HpP2 == 56500);
     return true;
 }
@@ -581,7 +587,7 @@ bool FLDBuildControlSwapWallTest::RunTest(const FString& Parameters)
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Source = F.AddBody(), Slowed = F.AddBody(), Plain = F.AddBody();
     FString Error;
-    F.Body(Slowed).Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000, 0, 4000});
+    F.Body(Slowed).Slows.Add({FGuid::NewGuid(), Source.Victim.EntityId, 3000, 5000});
     FLDCombatHit Hit = FFixture::Hit(Source, Slowed, 0);
     Hit.RootDurationMs = 1000;
     Hit.SlowedStunMs = 800;

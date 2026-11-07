@@ -54,7 +54,7 @@ def content_fixture():
         ("AI.LowCampReserveHPRatio", "ratio", 0.1), ("AI.CaptureReactionBudgetSec", "s", 2),
         ("AI.DecisionIntervalSec", "s", 0.125), ("AI.RetryPolicy.InitialBackoffSec", "s", 0.125),
         ("AI.RetryPolicy.MaxBackoffSec", "s", 0.375), ("AI.ExploreRevisitIntervalSec", "s", 12),
-        ("AI.EngagementBudgetSec", "s", 30), ("COMBAT.RearArcDeg", "deg", 90),
+        ("AI.EngagementBudgetSec", "s", 30),
         ("COMBAT.BreachPerStack", "points", 2), ("COMBAT.BreachSec", "s", 3),
         ("COMBAT.BurnPerSec", "points", 4), ("COMBAT.BurnAPRatioPerSec", "ratio", 0.05),
         ("COMBAT.BurnTickSec", "s", 0.25), ("COMBAT.BurnSec", "s", 2), ("COMBAT.LifestealCap", "ratio", 0.4),
@@ -97,9 +97,7 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 5 + rank), "cooldown": q("s", 3),
                 "effects": [{"op": "damage", "base": q("points", 8 * rank), "ad_ratio": q("ratio", 0),
-                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}]
-                + ([{"op": "resist_shred", "armor_ratio": q("ratio", 0.1), "magic_resist_ratio": q("ratio", 0), "duration": q("s", 1)}]
-                   if rank == 3 else []),
+                             "ap_ratio": q("ratio", 0.125 * rank), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}],
             } for rank in range(1, 4)],
         },
         {
@@ -108,8 +106,7 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 4 * rank), "cooldown": q("s", 7),
                 "effects": [{"op": "shield", "base": q("hp", 20 * rank), "ap_ratio": q("ratio", 0.2), "duration": q("s", 1.25)},
-                            {"op": "dispel_root"}, {"op": "dispel_slow"}]
-                + ([{"op": "cooldown_refund", "trigger": "Cleanse", "entries": "Self", "ratio": q("ratio", 0.25)}] if rank == 3 else []),
+                            {"op": "dispel_root"}, {"op": "dispel_slow"}],
             } for rank in range(1, 4)],
         },
         {
@@ -118,59 +115,21 @@ def content_fixture():
             "ranks": [{
                 "rank": rank, "mana_cost": q("mp", 6 + rank), "cooldown": q("s", 9),
                 "effects": [{"op": "damage", "base": q("points", 5 * rank), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"},
-                            {"op": "root", "duration": q("s", 0.25 * rank)}]
-                + ([{"op": "vulnerable", "ratio": q("ratio", 0.1)}] if rank == 3 else []),
+                            {"op": "root", "duration": q("s", 0.25 * rank)}],
             } for rank in range(1, 4)],
         },
         {
             "id": "passive_battle_rhythm", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": q("ratio", value)}},
-                                                 {"op": "basic_stacks", "stats": {"MoveSpeedBonusRatio": q("ratio", 0.01)},
-                                                  "duration": q("s", 1), "max_stacks": 2}]}
+            "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"AttackSpeedBonusRatio": q("ratio", value)}}]}
                       for rank, value in enumerate((0.02, 0.04, 0.06), 1)],
-        },
-        {
-            "id": "passive_second_wind", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "out_of_combat_regen", "delay": q("s", 2.5), "max_hp_ratio": q("ratio", 0.001 * rank)}]}
-                      for rank in range(1, 4)],
         },
         {
             "id": "passive_precision", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
             "ranks": [{"rank": rank, "effects": [{"op": "stat_bonus", "stats": {"CritChanceBonusRatio": q("ratio", value)}},
-                                                 {"op": "cooldown_refund", "trigger": "BasicCrit", "entries": "Actives", "cooldown": q("s", 0.5)}]
+                                                 {"op": "cooldown_refund", "trigger": "BasicHit", "entries": "Actives", "cooldown": q("s", 0.5)}]
                        + ([{"op": "ability_crit", "mode": "Chance", "ratio": q("ratio", 0.5), "abilities": ["active_binding_snare"]}]
                           if rank == 3 else [])}
                       for rank, value in enumerate((0.03, 0.06, 0.09), 1)],
-        },
-        {
-            "id": "active_expose_post", "kind": "active", "draftable": False, "cooldown_family": "cd_expose_post",
-            "target": {"mode": "Unit", "range": q("cm", 250)}, "windup": q("s", 0.125),
-            "ranks": [{
-                "rank": rank, "mana_cost": q("mp", 6), "cooldown": q("s", 5),
-                "effects": [{"op": "dot", "base": q("points", 3 * rank), "ad_ratio": q("ratio", 0.05), "ap_ratio": q("ratio", 0.05),
-                             "damage_type": "Magical", "interval": q("s", 0.5), "count": 3, "shred": q("points", 2)}]
-                + ([{"op": "mobility_punish", "base": q("points", 4), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1),
-                     "damage_type": "Magical"}] if rank == 3 else []),
-            } for rank in range(1, 4)],
-        },
-        {
-            "id": "active_table_flip", "kind": "active", "draftable": False, "cooldown_family": "cd_table_flip",
-            "target": {"mode": "Self"}, "windup": q("s", 0),
-            "ranks": [{
-                "rank": rank, "mana_cost": q("mp", 6), "cooldown": q("s", 6),
-                "effects": [{"op": "shield", "base": q("hp", 10 * rank), "ap_ratio": q("ratio", 0.1), "max_hp_ratio": q("ratio", 0.01), "duration": q("s", 1)},
-                            {"op": "self_area", "radius": q("cm", 80)},
-                            {"op": "shield_burst", "base": q("points", 5), "shield_ratio": q("ratio", 1.2), "cap": q("points", 60), "damage_type": "Physical"}]
-                + ([{"op": "knockback", "distance": q("cm", 40), "duration": q("s", 0.125)}] if rank == 3 else []),
-            } for rank in range(1, 4)],
-        },
-        {
-            "id": "passive_dox_master", "kind": "passive", "draftable": True, "target": {"mode": "Self"},
-            "ranks": [{"rank": rank, "effects": [{"op": "breach_stacks", "base": q("points", rank), "ad_ratio": q("ratio", 0.01),
-                                                  "ap_ratio": q("ratio", 0.01), "damage_type": "Magical", "interval": q("s", 0.5),
-                                                  "duration": q("s", 1.5), "max_stacks": 3, "shred": q("points", rank),
-                                                  "heal_cut": q("ratio", 0.2 if rank == 3 else 0)}]}
-                      for rank in range(1, 4)],
         },
     ]
     attributes = [

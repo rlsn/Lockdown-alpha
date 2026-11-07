@@ -44,15 +44,12 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
-    // #147 D21 damage bonus pool: every "damage +X%" of this hit (control/low-HP amplification, distance, execute, rear
-    // strike, vulnerability, negative kinds, affliction) summed into one factor (1 + pool) applied once to the raw amount
-    // before resistance. An ability critical adds STAT.AbilityCritMultiplier - 1 to this pool here; a basic critical
+    // #147 D21 damage bonus pool: every "damage +X%" of this hit (control/low-HP amplification, execute, the affliction
+    // amplification of burn) summed into one factor (1 + pool) applied once to the raw amount before resistance. An ability critical adds STAT.AbilityCritMultiplier - 1 to this pool here; a basic critical
     // multiplies by STAT.CritMultiplier before it.
     int64 DamageBonusBp = 0;
     // Remaining multiplier of the raw amount outside the pool (the target's critical damage reduction); 10000 = none.
     int64 AmplifyBp = 10000;
-    // Damage reduction of the target applied after resistance and before the shield (active_porcelain_flop); 0 = none.
-    int64 MitigateBp = 0;
 };
 
 struct FLDDamageEvaluation
@@ -64,8 +61,6 @@ struct FLDDamageEvaluation
     int64 OverkillP2 = 0;
     int64 RemainingHPP2 = 0;
     int64 RemainingShieldP2 = 0;
-    // The post-resistance amount before MitigateBp (what a damage guard counts toward its trigger).
-    int64 PreMitigationP2 = 0;
 };
 
 struct FLDDamageEvaluationResult
@@ -93,16 +88,12 @@ struct FLDCombatShield
 };
 
 // One slow instance (EFFECT.Slow) on one target life; the strongest active instance projects into move speed.
-// AttackRatioBp is an attack-speed cut carried by the same instance (passive_iron_crotch Lv3); the strongest one projects too.
 struct FLDCombatSlow
 {
     FGuid EffectId;
     FGuid SourceEntity;
     int64 RatioBp = 0;
     int64 ExpiresAtMs = 0;
-    int64 AttackRatioBp = 0;
-    // The authored duration, so a refresh by the same source (active_barrage_rant) restarts it whole.
-    int64 DurationMs = 0;
 };
 
 // One timed self bonus (EFFECT.TimedStatBonus); a recast of the same source definition replaces it.
@@ -112,33 +103,6 @@ struct FLDCombatTimedBonus
     FName SourceDefinition;
     TArray<FLDDemoStatBonus> Stats;
     int64 ExpiresAtMs = 0;
-};
-
-// One resistance shred (breach) on a target life. Flat terms count once per stack; ratio terms do not stack.
-// The same Key and source refresh it (adding Stacks up to MaxStacks); different keys or sources coexist.
-// Effective resistance = max(0, Resistance - sum of flats) x (1 - min(1, sum of ratios)).
-struct FLDCombatBreach
-{
-    FName Key;
-    FGuid SourceEntity;
-    int64 ArmorFlatP2 = 0;
-    int64 MagicResistFlatP2 = 0;
-    int64 ArmorRatioBp = 0;
-    int64 MagicResistRatioBp = 0;
-    int32 Stacks = 1;
-    int32 MaxStacks = 1;
-    int64 ExpiresAtMs = 0;
-};
-
-// A source's vamp against one target life while the slow that made it lasts (active_slipper_throw Lv3). The mark is
-// bound to that slow instance (SlowEffectId): it only counts while the slow is active, so a cleanse or removal of the
-// slow ends it, and a refresh of the slow carries ExpiresAtMs along.
-struct FLDCombatVampMark
-{
-    FGuid SourceEntity;
-    int64 RatioBp = 0;
-    int64 ExpiresAtMs = 0;
-    FGuid SlowEffectId;
 };
 
 struct FLDStatusExpiry

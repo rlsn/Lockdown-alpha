@@ -39,6 +39,11 @@ namespace LDCombatKeywords
         return int64(BreachStacks(Breach, AtMs)) * FMath::Max<int64>(Terms.BreachPerStackP2, 0);
     }
 
+    int64 BreachedResistanceP2(int64 ResistanceP2, const FLDCombatSharedBreach& Breach, int64 AtMs, const FLDKeywordTerms& Terms)
+    {
+        return FMath::Max<int64>(0, ResistanceP2 - FMath::Clamp<int64>(BreachFlatP2(Breach, AtMs, Terms), 0, MAX_int32));
+    }
+
     bool ExpireBreach(FLDCombatSharedBreach& Breach, int64 AtMs)
     {
         if (Breach.Stacks == 0 || Breach.ExpiresAtMs > AtMs) { return false; }

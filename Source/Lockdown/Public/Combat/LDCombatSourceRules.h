@@ -96,10 +96,10 @@ namespace LDCombatSourceRules
     // (ReadyAtMs <= NowMs) is unchanged and a non-positive amount changes nothing.
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
-    // Whether a rank displaces its caster (dash or jump): such a release is a dash for the root matrix and
-    // takes the item_phase_anchor skill boost.
+    // Whether a rank displaces its caster (a dash): such a release is a dash for the root matrix and takes the
+    // item_phase_anchor skill boost.
     LOCKDOWN_API bool DisplacesCaster(const FLDDemoRankDefinition& Rank);
-    // item_phase_anchor: the boost of every character active with a dash or jump, fixed at its release. Each held
+    // item_phase_anchor: the boost of every character active with a dash, fixed at its release. Each held
     // family with DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
     LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
         int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error);

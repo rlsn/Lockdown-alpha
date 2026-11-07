@@ -117,7 +117,6 @@
     "AI.RetryPolicy.MaxBackoffSec": {"unit": "s", "value": 0.50},
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
-    "COMBAT.RearArcDeg": {"unit": "deg", "value": 120},
     "COMBAT.BreachPerStack": {"unit": "points", "value": 3},
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachSec": {"unit": "s", "value": 4},
@@ -343,9 +342,9 @@
       "target": {"mode": "Self"},
       "ranks": [
         {"rank": 1,
-         "effects": [{"op": "thorns", "base": {"unit": "points", "value": 4}, "armor_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.008}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 1000}, "interval": {"unit": "s", "value": 0.001}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}]},
+         "effects": [{"op": "thorns", "base": {"unit": "points", "value": 4}, "armor_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.008}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 1000}, "interval": {"unit": "s", "value": 0.001}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic"}]},
         {"rank": 2,
-         "effects": [{"op": "thorns", "base": {"unit": "points", "value": 6}, "armor_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.008}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 1000}, "interval": {"unit": "s", "value": 0.001}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false, "slow": {"unit": "ratio", "value": 0.2}, "slow_duration": {"unit": "s", "value": 1}}]}
+         "effects": [{"op": "thorns", "base": {"unit": "points", "value": 6}, "armor_ratio": {"unit": "ratio", "value": 0}, "max_hp_ratio": {"unit": "ratio", "value": 0.008}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 1000}, "interval": {"unit": "s", "value": 0.001}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "slow": {"unit": "ratio", "value": 0.2}, "slow_duration": {"unit": "s", "value": 1}}]}
       ]
     },
     {
@@ -425,7 +424,7 @@
      "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.35}, "radius": {"unit": "cm", "value": 180}}], "upgraded": {"effects": [{"op": "cleave", "ratio": {"unit": "ratio", "value": 0.49}, "radius": {"unit": "cm", "value": 180}}]}}},
     {"id": "item_slingshot", "buy_price": 320, "stats": {"AttackRangeCmFlat": {"unit": "cm", "value": 120}, "AttackSpeedBonusRatio": {"unit": "ratio", "value": 0.12}}, "passive": null},
     {"id": "item_nail_uniform", "buy_price": 380, "stats": {"MaxHPFlat": {"unit": "hp", "value": 150}, "ArmorFlat": {"unit": "points", "value": 18}},
-     "passive": {"family": "passive_prickle", "effects": [{"op": "thorns", "base": {"unit": "points", "value": 20}, "armor_ratio": {"unit": "ratio", "value": 0.10}, "max_hp_ratio": {"unit": "ratio", "value": 0.01}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}], "upgraded": {"effects": [{"op": "thorns", "base": {"unit": "points", "value": 28}, "armor_ratio": {"unit": "ratio", "value": 0.14}, "max_hp_ratio": {"unit": "ratio", "value": 0.014}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic", "rear_exempt": false}]}}},
+     "passive": {"family": "passive_prickle", "effects": [{"op": "thorns", "base": {"unit": "points", "value": 20}, "armor_ratio": {"unit": "ratio", "value": 0.10}, "max_hp_ratio": {"unit": "ratio", "value": 0.01}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic"}], "upgraded": {"effects": [{"op": "thorns", "base": {"unit": "points", "value": 28}, "armor_ratio": {"unit": "ratio", "value": 0.14}, "max_hp_ratio": {"unit": "ratio", "value": 0.014}, "damage_type": "Magical", "radius": {"unit": "cm", "value": 300}, "interval": {"unit": "s", "value": 0.5}, "critical_multiplier": {"unit": "ratio", "value": 1}, "trigger": "Basic"}]}}},
     {"id": "item_megaphone", "buy_price": 360, "stats": {"APFlat": {"unit": "points", "value": 25}, "CooldownHasteFlat": {"unit": "points", "value": 10}},
      "passive": {"family": "passive_megaphone", "effects": [{"op": "affliction_amp", "dot_ratio": {"unit": "ratio", "value": 0.25}, "slow_scale": {"unit": "ratio", "value": 1.10}}], "upgraded": {"effects": [{"op": "affliction_amp", "dot_ratio": {"unit": "ratio", "value": 0.35}, "slow_scale": {"unit": "ratio", "value": 1.14}}]}}},
     {"id": "item_dossier", "buy_price": 400, "stats": {"APFlat": {"unit": "points", "value": 25}, "MaxHPFlat": {"unit": "hp", "value": 120}}, "passive": null},
@@ -528,9 +527,6 @@
     {"id": "item_privacy_screen", "namespace": "DemoContent", "name_key": "item_privacy_screen.name", "name_text": "防窥膜", "description_key": "item_privacy_screen.description", "description_text": "提高生命上限和法术强度；护盾被打破时，对打破者造成魔法伤害并使其减速。", "icon_id": "icon_item_privacy_screen"},
     {"id": "item_skateboard", "namespace": "DemoContent", "name_key": "item_skateboard.name", "name_text": "滑板鞋", "description_key": "item_skateboard.description", "description_text": "提高攻击力和移速；普攻打中人后短时间内移动更快。", "icon_id": "icon_item_skateboard"},
     {"id": "knockback", "namespace": "DemoContent", "name_key": "knockback.name", "name_text": "击退", "description_key": "knockback.description", "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、冲刺、普攻和放技能。", "icon_id": "icon_knockback"},
-    {"id": "heal_cut", "namespace": "DemoContent", "name_key": "heal_cut.name", "name_text": "重伤", "description_key": "heal_cut.description", "description_text": "黑料缠身：受到的治疗和护盾减少，同类效果只按最狠的算。", "icon_id": "icon_heal_cut"},
-    {"id": "damage_guard", "namespace": "DemoContent", "name_key": "damage_guard.name", "name_text": "减伤", "description_key": "damage_guard.description", "description_text": "躺在地上碰瓷：受到的伤害降低，挨的打够多就反震。", "icon_id": "icon_damage_guard"},
-    {"id": "vulnerable", "namespace": "DemoContent", "name_key": "vulnerable.name", "name_text": "易伤", "description_key": "vulnerable.description", "description_text": "定身期间更怕打：受到的持续伤害和普攻伤害提高。", "icon_id": "icon_vulnerable"},
     {"id": "silence", "namespace": "DemoContent", "name_key": "silence.name", "name_text": "沉默", "description_key": "silence.description", "description_text": "号被封了：不能放技能，但仍可以移动、冲刺和普攻；正在准备的技能会被打断。", "icon_id": "icon_silence"},
     {"id": "burn", "namespace": "DemoContent", "name_key": "burn.name", "name_text": "灼烧", "description_key": "burn.description", "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。", "icon_id": "icon_burn"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。", "icon_id": "icon_monster_scavenger"},
@@ -542,8 +538,6 @@
     {"id": "respawn_protection", "namespace": "DemoContent", "name_key": "respawn_protection.name", "name_text": "复活保护", "description_key": "respawn_protection.description", "description_text": "刚从出租屋回来，暂时不受伤害和控制；一出手就没了，失手也没了。复活保护期间不能争旗杆。", "icon_id": "icon_respawn_protection"},
     {"id": "slow", "namespace": "DemoContent", "name_key": "slow.name", "name_text": "减速", "description_key": "slow.description", "description_text": "移速暂时降低，到时间就恢复；同时中了好几次减速，只按最狠的那次算。", "icon_id": "icon_slow"},
     {"id": "stat_boost", "namespace": "DemoContent", "name_key": "stat_boost.name", "name_text": "增益", "description_key": "stat_boost.description", "description_text": "技能带来的属性提升，到时间就消失。", "icon_id": "icon_stat_boost"},
-    {"id": "enraged", "namespace": "DemoContent", "name_key": "enraged.name", "name_text": "狂暴", "description_key": "enraged.description", "description_text": "他急了生效中：生命过低，攻击力提高。", "icon_id": "icon_enraged"},
-    {"id": "ambush_ready", "namespace": "DemoContent", "name_key": "ambush_ready.name", "name_text": "伏击就绪", "description_key": "ambush_ready.description", "description_text": "潜水党已就绪：下一次普攻或伤害技能额外造成魔法伤害。", "icon_id": "icon_ambush_ready"},
     {"id": "exposed", "namespace": "DemoContent", "name_key": "exposed.name", "name_text": "破防", "description_key": "exposed.description", "description_text": "护甲或魔抗被削了：一段时间内受到的物理伤害或魔法伤害更高。", "icon_id": "icon_exposed"},
     {"id": "taunt", "namespace": "DemoContent", "name_key": "taunt.name", "name_text": "嘲讽", "description_key": "taunt.description", "description_text": "被激到了：只能追着冲你喊「你瞅啥」的人普攻，不能放技能、冲刺或自己下令；对方寄了、离开或不在视野里时立刻解除。", "icon_id": "icon_taunt"},
     {"id": "disarm", "namespace": "DemoContent", "name_key": "disarm.name", "name_text": "缴械", "description_key": "disarm.description", "description_text": "两只手忙着护裆：无法普攻，但仍可以移动、冲刺和放技能。", "icon_id": "icon_disarm"},

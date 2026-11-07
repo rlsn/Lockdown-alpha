@@ -44,26 +44,21 @@ NATIVE_ENUMS = {
     "effect_ops": "ELDDemoEffectOp",
 }
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
-                       "out_of_combat_regen", "lifesteal", "dash", "cleave", "dash_boost",
+                       "lifesteal", "dash", "cleave", "dash_boost",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
-                       "ambush_damage", "control_damage_amp", "taunt",
-                       "disarm", "stun", "empower_basic", "jump", "thorns", "backstab",
-                       "cooldown_refund", "ability_crit", "resist_shred", "momentum", "taunt_retaliate",
-                       "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
+                       "control_damage_amp", "taunt", "disarm", "stun", "empower_basic", "thorns",
+                       "cooldown_refund", "ability_crit", "triggered_shield", "crit_damage_reduction", "nth_basic_bonus",
                        "mana_on_hit", "dispel_slow", "path_slow",
-                       # #112 §5 mechanics and the new content's handlers.
-                       "knockback", "dot", "mobility_punish", "volley", "refresh_debuffs", "on_hit",
-                       "debuff_amp", "shield_shatter", "debuff_heal", "zone", "zone_shield", "zone_slow", "zone_root",
-                       "zone_damage", "damage_guard", "shield_burst", "vulnerable",
-                       "breach_stacks", "mobility_shield", "shield_pulse", "basic_rider",
+                       # #112 §5 mechanics still used by the catalog.
+                       "knockback", "zone", "zone_slow", "zone_root", "zone_damage",
                        "cast_frenzy", "affliction_amp", "shield_break_retort", "hit_haste",
                        # #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
                        "silence", "breach", "burn", "execute", "pierce", "echo", "taunt_shield", "dispel_disarm",
                        "zone_burn"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
-# Effects a self area delivers to the bodies it names (a release area, a jump landing or a damage guard's recoil).
-AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "shield_burst", "silence", "breach", "burn"))
+# Effects a self area delivers to the bodies it names.
+AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 # Every bonus stat name; a card placeholder may read one stat of its effect.
 STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
@@ -72,14 +67,6 @@ STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFla
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
-# Effects released with a jump resolve at its landing (centred on the landing foot), never at take-off: self effects,
-# and hit effects delivered to every legal body in the self_area around the landing foot.
-JUMP_LANDING_OPS = frozenset(("shield", "dispel_root", "dispel_slow", "self_area", "triggered_shield",
-                              *HOSTILE_OPS))
-# Passive effects Combat reads as triggers; they add no attribute term.
-TRIGGER_OPS = frozenset(("lifesteal", "cleave", "dash_boost", "thorns", "cooldown_refund", "ability_crit",
-                         "triggered_shield", "basic_stacks", "long_reach", "crit_damage_reduction", "nth_basic_bonus",
-                         "mana_on_hit"))
 # Display text shares one character contract with the native importer. Invisible, control,
 # bidirectional and astral characters are refused; braces are reserved by FText formatting.
 DISPLAY_TEXT_FORBIDDEN = re.compile(
@@ -225,7 +212,7 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
     "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "deg")),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s")),
 }
 
 
@@ -430,7 +417,11 @@ def validate_native_ids(root, value):
     keys(value, {"schema_version", "retired_ranges", *NATIVE_ENUMS}, IDS_SOURCE)
     integer(value["schema_version"], IDS_SOURCE, SCHEMA_VERSION, SCHEMA_VERSION)
     require(exact_equal(value["retired_ranges"], {"abilities": [[0, 91]], "attributes": [[0, 14]],
-                                                  "equipment": [[0, 98], [107, 107], [113, 114]]}),
+                                                  "equipment": [[0, 98], [107, 107], [113, 114]],
+                                                  "statuses": [[7, 8], [11, 11], [15, 19], [21, 24]],
+                                                  "effect_ops": [[6, 6], [9, 9], [16, 16], [19, 19], [23, 23], [25, 25],
+                                                                 [28, 30], [32, 33], [39, 39], [41, 49], [51, 51],
+                                                                 [55, 64]]}),
             "RetiredId", IDS_SOURCE, "occupied legacy ranges must remain reserved")
     for section, enum_name in NATIVE_ENUMS.items():
         mapping = value[section]
@@ -504,13 +495,8 @@ def _validate_thorns(effect, path):
 
 # Positive-magnitude fields of the #112 handlers: at least one of each group must be positive.
 _NEW_OP_MAGNITUDES = {
-    "dot": ("base", "ad_ratio", "ap_ratio"), "mobility_punish": ("base", "ad_ratio", "ap_ratio"),
-    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "zone_shield": ("base", "ap_ratio"),
-    "taunt_shield": ("base", "max_hp_ratio"), "execute": ("ratio",),
-    "shield_burst": ("base", "shield_ratio"), "debuff_amp": ("ratio",), "shield_shatter": ("ratio",),
-    "debuff_heal": ("max_hp_ratio",), "vulnerable": ("ratio",), "on_hit": ("scale",),
-    "knockback": ("distance",), "zone": ("radius",),
-    "damage_guard": ("ratio",), "zone_slow": ("ratio",),
+    "zone_damage": ("base", "ad_ratio", "ap_ratio"), "taunt_shield": ("base", "max_hp_ratio"), "execute": ("ratio",),
+    "knockback": ("distance",), "zone": ("radius",), "zone_slow": ("ratio",),
 }
 
 
@@ -526,19 +512,12 @@ def _validate_new_effect(effect, path):
     for pair in _PAIRED_FIELDS.get(effect["op"], ()):
         require(all(key in effect for key in pair) or not any(key in effect for key in pair), "ObjectShape", path,
                 f"{effect['op']} needs {' and '.join(pair)} together")
-    if effect["op"] == "thorns":
-        require("cripple_ratio" not in effect or "slow" not in effect, "ObjectShape", path, "a reflection cripples or slows")
-    if effect["op"] == "triggered_shield":
-        require((effect["trigger"] == "Damaged") <= ("interval" in effect), "ObjectShape", path,
-                "a damage-triggered shield rests for its interval")
-        require("burst_ratio" not in effect or effect["trigger"] == "Damaged", "ObjectShape", path,
-                "only a damage-triggered shield bursts")
     fields = _NEW_OP_MAGNITUDES.get(effect["op"])
     if fields is not None:
         require(any(quantity(effect[key]) > 0 for key in fields), "IneffectiveEffect", path,
                 f"{effect['op']} has neither magnitude nor scaling")
-    if effect["op"] in ("damage_guard", "zone_slow"):
-        require(quantity(effect["ratio"]) < 1, "NumericDomain", path, "a reduction or slow must keep something")
+    if effect["op"] == "zone_slow":
+        require(quantity(effect["ratio"]) < 1, "NumericDomain", path, "a slow must keep something")
     if effect["op"] == "zone":
         require(effect["delay"]["ms"] + effect["interval"]["ms"] * (effect["count"] - 1) <= effect["duration"]["ms"],
                 "InvalidTiming", path, "zone pulses must fall inside its duration")
@@ -550,19 +529,15 @@ def _validate_new_effect(effect, path):
 def _validate_action(target, ranks, path):
     mode = target["mode"]
     allowed = {
-        "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt",
-                           "cooldown_refund", "momentum", "taunt_retaliate", "damage_guard", "stun",
-                           "shield_burst", "knockback", *HOSTILE_OPS,
+        "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
+                           "knockback", *HOSTILE_OPS,
                            "silence", "breach", "burn", "execute", "echo", "taunt_shield", "dispel_disarm", "empower_basic")),
-        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "backstab", "cooldown_refund", "ability_crit", "dot",
-                           "mobility_punish", "debuff_amp", "shield_shatter", "debuff_heal", "vulnerable",
+        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun",
                            "silence", "breach", "burn", "execute", "knockback")),
-        "DirectionProjectile": frozenset(("damage", "slow", "resist_shred", "volley", "refresh_debuffs", "on_hit",
-                                          "silence", "breach", "burn", "execute", "pierce")),
-        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "cooldown_refund", "path_slow", "zone", "zone_damage",
-                                    "on_hit", *HOSTILE_OPS, "breach", "burn")),
-        "GroundPoint": frozenset(("jump", "zone", "zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"))
-        | JUMP_LANDING_OPS,
+        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "execute", "pierce")),
+        "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "path_slow", "zone", "zone_damage",
+                                    *HOSTILE_OPS, "breach", "burn")),
+        "GroundPoint": frozenset(("zone", "zone_slow", "zone_root", "zone_damage", "zone_burn")),
     }[mode]
     signature = None
     for rank in ranks:
@@ -573,18 +548,16 @@ def _validate_action(target, ranks, path):
         require(signature is None or rank["rank"] == len(ranks) or signature == ops, "RankShape", path,
                 "ranks must use the same handlers")
         signature = signature if signature is not None else ops
-        if mode in ("Self", "DirectionDash", "GroundPoint"):
+        if mode in ("Self", "DirectionDash"):
             require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
-                    "hit effects of a self, dash or jump action need exactly one self_area to name their targets")
+                    "hit effects of a self or dash action need exactly one self_area to name their targets")
         if mode == "DirectionProjectile":
             require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-        require("backstab" not in ops or "damage" in ops, "MissingHandler", path, "a rear strike amplifies a damage effect")
-        require(mode != "GroundPoint" or "jump" in ops or "zone" in ops, "MissingHandler", path,
-                "a ground point is consumed by a jump or a zone")
+        require(mode != "GroundPoint" or "zone" in ops, "MissingHandler", path, "a ground point is consumed by a zone")
         require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
-        require(not (ops & {"zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
+        require(not (ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
                 "MissingHandler", path, "zone payloads need their zone")
-        require("zone" not in ops or bool(ops & {"zone_shield", "zone_slow", "zone_root", "zone_damage", "zone_burn"}),
+        require("zone" not in ops or bool(ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}),
                 "IneffectiveEffect", path, "a zone needs a payload")
         # #147: an execute bonus and a second blast amplify or repeat a damage effect; a pierce rides on a projectile;
         # a per-taunt shield counts its own taunt's victims.
@@ -592,8 +565,6 @@ def _validate_action(target, ranks, path):
         require("echo" not in ops or {"damage", "self_area"} <= ops, "MissingHandler", path,
                 "a second blast repeats a self-area damage effect")
         require("taunt_shield" not in ops or "taunt" in ops, "MissingHandler", path, "a taunt shield needs its taunt")
-        require("shield_burst" not in ops or "shield" in ops, "MissingHandler", path, "a shield burst detonates its own shield")
-        require("mobility_punish" not in ops or "dot" in ops, "MissingHandler", path, "a mobility punishment rides on a dot")
         for effect in rank["effects"]:
             _validate_new_effect(effect, path)
             if effect["op"] == "empower_basic":
@@ -624,16 +595,6 @@ def _validate_action(target, ranks, path):
                         "IneffectiveEffect", path, "effect has neither magnitude nor scaling")
             if effect["op"] in ("slow", "path_slow"):
                 require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path, "slow must keep some move speed")
-            if effect["op"] == "cooldown_refund":
-                require(("cooldown" in effect) != ("ratio" in effect), "ObjectShape", path, "one refund magnitude")
-                require((effect["trigger"] == "BasicHit") == ("duration" in effect), "ObjectShape", path,
-                        "a basic-hit refund lasts a window; no other trigger has one")
-            if effect["op"] == "ability_crit":
-                require((effect["mode"] == "Chance") == ("abilities" in effect and "ratio" in effect), "ObjectShape", path,
-                        "a chance crit names its abilities and share")
-            if effect["op"] == "resist_shred":
-                require(quantity(effect["armor_ratio"]) > 0 or quantity(effect["magic_resist_ratio"]) > 0,
-                        "IneffectiveEffect", path, "a shred removes some resistance")
             if effect["op"] == "self_area":
                 require(quantity(effect["radius"]) > 0, "NumericDomain", path, "area radius must be positive")
             if effect["op"] == "timed_stat_bonus":
@@ -729,14 +690,8 @@ def validate_definitions(data, ids):
                         _validate_thorns(effect, identity)
                     elif operation == "control_damage_amp":
                         require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "amplification must be positive")
-                    elif operation == "triggered_shield":
-                        require(effect["trigger"] == "Damaged" and "interval" in effect, "NumericDomain",
-                                identity, "a damage-taken shield names its internal cooldown")
-                    elif operation == "cooldown_refund":
-                        require(effect["trigger"] == "BasicHit" and "duration" not in effect, "InvalidReference", identity,
-                                "a passive cooldown cut follows every primary basic hit")
                     elif operation == "ability_crit":
-                        require(effect["mode"] == "Chance" and set(effect["abilities"]) <= set(active_contracts),
+                        require(set(effect["abilities"]) <= set(active_contracts),
                                 "InvalidReference", identity, "a passive ability crit names approved actives")
                     elif operation in ("breach", "burn"):
                         require("stacks" in effect or "basic_stacks" in effect, "ObjectShape", identity,
@@ -967,8 +922,6 @@ def validate_numbers(data):
     for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
                 "AIRDROP.PickupRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
-    require(0 < p("COMBAT.RearArcDeg") < 360, "InvalidGeometry", "COMBAT.RearArcDeg",
-            "the rear arc must be a proper, non-empty sector")
     for name in ("ResistanceScale", "HasteScale"):
         require(quantity(data["formulas"][name]) > 0, "NumericDomain", name, "formula denominator scale must be positive")
     require(p("STAT.CritMultiplier") >= 1, "NumericDomain", "STAT.CritMultiplier", "critical multiplier must not reduce damage")
@@ -1080,11 +1033,10 @@ def _validate_build_envelope(data):
     max_hp = params["STAT.MaxHP.Max"]["p2"]
     for row in (*data["abilities"], *data["equipment"]):
         for effect in all_effects(row):
-            if effect["op"] in ("damage", "shield", "ambush_damage", "empower_basic", "dot", "mobility_punish", "zone_damage",
-                                "shield_pulse", "breach_stacks", "basic_rider", "zone_shield"):
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
                 numerator = checked_mul(effect["base"]["p2"], 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
-                if effect["op"] not in ("shield", "basic_rider", "zone_shield"):
+                if effect["op"] != "shield":
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])

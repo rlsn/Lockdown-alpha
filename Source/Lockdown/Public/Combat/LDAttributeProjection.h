@@ -79,7 +79,7 @@ struct FLDProjectedAttributes
     FLDDemoRational MoveSpeedCmPerSec;
     // Basic-attack footpoint XY centre distance; not an ability range or cleave radius.
     FLDDemoRational AttackRangeCm;
-    // Always-on rates; the conditional out-of-combat bonus is reported separately.
+    // Always-on rates.
     FLDDemoRational HPRegenPerSec;
     FLDDemoRational MPRegenPerSec;
     int64 CritChanceBp = 0;
@@ -114,20 +114,6 @@ struct FLDAttributeContributions
     bool bClamped = false;
 };
 
-struct FLDOutOfCombatRegenTerm
-{
-    FString AbilityId;
-    uint8 Rank = 0;
-    int64 DelayMs = 0;
-    // Share of the current max HP regenerated per second out of combat (basis points; a whole 0.001 share).
-    int64 MaxHPBpPerSec = 0;
-    // After an ability hit the always-on HP/MP rates are multiplied for SurgeMs; 0 = none.
-    int64 SurgeMs = 0;
-    int64 SurgeMultiplierBp = 0;
-    // Share of the out-of-combat rate kept during combat time; 0 = none.
-    int64 InCombatRatioBp = 0;
-};
-
 // Passive whose stats apply only while current HP is strictly below ThresholdBp of max HP.
 struct FLDLowHPBonusTerm
 {
@@ -135,27 +121,8 @@ struct FLDLowHPBonusTerm
     uint8 Rank = 0;
     int64 ThresholdBp = 0;
     TArray<FLDDemoStatBonus> Stats;
-    // Omnivamp of every damage hit the owner deals while the bonus is active; 0 = none.
-    int64 OmnivampBp = 0;
     // #147: primary basic lifesteal while the bonus is active; 0 = none.
     int64 BasicLifestealBp = 0;
-};
-
-// Passive extra damage of the first damaging action committed after DelayMs out of combat.
-struct FLDAmbushDamageTerm
-{
-    FString AbilityId;
-    uint8 Rank = 0;
-    int64 DelayMs = 0;
-    int64 BaseP2 = 0;
-    int64 ADRatioBp = 0;
-    int64 APRatioBp = 0;
-    ELDDemoDamageType DamageType = ELDDemoDamageType::Magical;
-    // Readiness credit of each dash or jump (D dash included); 0 = none.
-    int64 DashCreditMs = 0;
-    // Both resistances of the struck body shredded by this ratio for this long; 0 = none.
-    int64 ShredRatioBp = 0;
-    int64 ShredDurationMs = 0;
 };
 
 // Passive amplification of the owner's damage against a body under any control or slow (#147 D21: one term of the
@@ -178,8 +145,8 @@ struct FLDEquipmentPassiveFamily
     bool bUpgraded = false;
 };
 
-// A learned passive rank whose effects are combat triggers (thorns, cooldown refunds, crits, stacks, reach, mana,
-// shields) rather than attribute terms; Combat reads the rank's effects through ALDCombatDirector::CollectPassiveEffects.
+// A learned passive rank whose effects are combat triggers (thorns, cooldown refunds, crits, keyword stacks, shields)
+// rather than attribute terms; Combat reads the rank's effects through ALDCombatDirector::CollectPassiveEffects.
 struct FLDLearnedTriggerTerm
 {
     FString AbilityId;
@@ -193,10 +160,8 @@ struct FLDAttributeProjection
     FLDProjectedAttributes Final;
     // One row per ELDProjectedAttribute, in enum order.
     TArray<FLDAttributeContributions> Contributions;
-    TOptional<FLDOutOfCombatRegenTerm> OutOfCombatHPRegen;
     // Conditional passive terms; Combat applies them from body state, the build projection never adds them.
     TOptional<FLDLowHPBonusTerm> LowHPBonus;
-    TOptional<FLDAmbushDamageTerm> Ambush;
     TOptional<FLDControlDamageAmpTerm> ControlAmp;
     // One entry per family, sorted by family.
     TArray<FLDEquipmentPassiveFamily> EquipmentPassives;
@@ -213,14 +178,13 @@ struct FLDAttributeProjectionResult
 };
 
 // Temporary terms of one body at one instant: active timed bonuses, an active conditional passive and the strongest
-// slow (move and attack speed).
+// slow (move speed).
 struct FLDTemporaryAttributeTerms
 {
     TArray<FLDDemoStatBonus> Bonuses;
     int64 MoveSlowBp = 0;
-    int64 AttackSlowBp = 0;
 
-    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0 && AttackSlowBp == 0; }
+    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0; }
     bool operator==(const FLDTemporaryAttributeTerms& Other) const;
     bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };

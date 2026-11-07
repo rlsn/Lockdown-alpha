@@ -380,7 +380,6 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         && SameRational(L.HPRegenPerSec, R.HPRegenPerSec) && SameRational(L.MPRegenPerSec, R.MPRegenPerSec)
         && L.CritChanceBp == R.CritChanceBp && L.CooldownHasteP2 == R.CooldownHasteP2
         && A.Contributions.Num() == B.Contributions.Num()
-        && A.OutOfCombatHPRegen.IsSet() == B.OutOfCombatHPRegen.IsSet()
         && A.EquipmentPassives.Num() == B.EquipmentPassives.Num();
     for (int32 Index = 0; bSame && Index < A.Contributions.Num(); ++Index)
     {
@@ -395,14 +394,6 @@ bool SameAttributes(const FLDAttributeProjection& A, const FLDAttributeProjectio
         bSame = A.EquipmentPassives[Index].Family.Equals(B.EquipmentPassives[Index].Family, ESearchCase::CaseSensitive)
             && A.EquipmentPassives[Index].EquipmentId.Equals(B.EquipmentPassives[Index].EquipmentId, ESearchCase::CaseSensitive)
             && A.EquipmentPassives[Index].EquippedIndices.Num() == B.EquipmentPassives[Index].EquippedIndices.Num();
-    }
-    if (bSame && A.OutOfCombatHPRegen.IsSet())
-    {
-        const FLDOutOfCombatRegenTerm& X = A.OutOfCombatHPRegen.GetValue();
-        const FLDOutOfCombatRegenTerm& Y = B.OutOfCombatHPRegen.GetValue();
-        bSame = X.AbilityId.Equals(Y.AbilityId, ESearchCase::CaseSensitive) && X.Rank == Y.Rank
-            && X.DelayMs == Y.DelayMs && X.MaxHPBpPerSec == Y.MaxHPBpPerSec && X.SurgeMs == Y.SurgeMs
-            && X.SurgeMultiplierBp == Y.SurgeMultiplierBp && X.InCombatRatioBp == Y.InCombatRatioBp;
     }
     return bSame;
 }
@@ -447,9 +438,7 @@ bool RunApprovedLevels(FAutomationTestBase& Test)
         return false;
     }
     const TArray<FLDAttributeContributions>& Rows = Projection.Contributions;
-    bool bGood = Test.TestFalse(TEXT("No conditional regeneration without a learned passive"),
-        Projection.OutOfCombatHPRegen.IsSet());
-    bGood &= Test.TestEqual(TEXT("No equipment passive family without equipment"), Projection.EquipmentPassives.Num(), 0);
+    bool bGood = Test.TestEqual(TEXT("No equipment passive family without equipment"), Projection.EquipmentPassives.Num(), 0);
     bGood &= ExpectRational(Test, TEXT("Level 1 AD base"), Rows[int32(EAttribute::AD)].Base, MakeRational(70));
     bGood &= ExpectTerms(Test, TEXT("Level 1 has no AD growth"), Rows[int32(EAttribute::AD)].LevelGrowth,
         MakeRational(0), MakeRational(0));
@@ -742,8 +731,6 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
     const int64 RhythmRatioDenominators[] = {25, 5, 25};
     const int64 RhythmSpeedNumerators[] = {531, 567, 603};
     const int64 RhythmSpeedDenominators[] = {500, 500, 500};
-    // #112: passive_second_wind regenerates 0.8/1.2/1.6% of max HP per second out of combat.
-    const int64 SecondWindRates[] = {80, 120, 160};
     for (uint8 Rank = 1; Rank <= 3; ++Rank)
     {
         const int32 Slot = int32(Rank) - 1;
@@ -772,27 +759,6 @@ bool RunChoicesAndPassives(FAutomationTestBase& Test)
         bGood &= ExpectAttributes(Test, PrecisionLabel, Projection.Final, Precision);
         bGood &= ExpectTerms(Test, PrecisionLabel + TEXT(" adds probability points"),
             Projection.Contributions[int32(EAttribute::CritChance)].Passives, RankRatio, MakeRational(0));
-
-        const FString WindLabel = FString::Printf(TEXT("Second wind rank %d at level 4"), int32(Rank));
-        if (!ProjectBuild(Test, WindLabel, MakeBuild(4, {FLDLearnedPassiveValue(TEXT("passive_second_wind"), Rank)}),
-            *Catalog, Projection))
-        {
-            return false;
-        }
-        bGood &= ExpectAttributes(Test, WindLabel + TEXT(" keeps the always-on attributes"), Projection.Final, ApprovedLevel(4));
-        if (!Test.TestTrue(WindLabel + TEXT(" reports its conditional regeneration"), Projection.OutOfCombatHPRegen.IsSet()))
-        {
-            return false;
-        }
-        const FLDOutOfCombatRegenTerm& Wind = Projection.OutOfCombatHPRegen.GetValue();
-        bGood &= Test.TestEqual(WindLabel + TEXT(" source"), Wind.AbilityId, FString(TEXT("passive_second_wind")));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" rank"), int32(Wind.Rank), int32(Rank));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" delay"), Wind.DelayMs, int64(6000));
-        bGood &= Test.TestEqual(WindLabel + TEXT(" max-HP share per second"), Wind.MaxHPBpPerSec, SecondWindRates[Slot]);
-        bGood &= Test.TestTrue(WindLabel + TEXT(" surge after ability hits"), Wind.SurgeMs == 3000 && Wind.SurgeMultiplierBp == 20000);
-        bGood &= Test.TestEqual(WindLabel + TEXT(" in-combat share only at rank 3"), Wind.InCombatRatioBp, int64(Rank == 3 ? 5000 : 0));
-        bGood &= ExpectTerms(Test, WindLabel + TEXT(" is not folded into always-on regeneration"),
-            Projection.Contributions[int32(EAttribute::HPRegen)].Passives, MakeRational(0), MakeRational(0));
     }
 
     FExpectedAttributes AllPassives = ApprovedLevel(10);
@@ -907,13 +873,6 @@ bool RunEnvelope(FAutomationTestBase& Test)
         return false;
     }
     bGood &= Test.TestEqual(TEXT("Crit envelope is 0.20"), Projection.Final.CritChanceBp, int64(2000));
-    if (!Envelope(TEXT("Regeneration envelope"), MakeBuild(10, {FLDLearnedPassiveValue(TEXT("passive_second_wind"), 3)}))
-        || !Test.TestTrue(TEXT("Regeneration envelope has a conditional term"), Projection.OutOfCombatHPRegen.IsSet()))
-    {
-        return false;
-    }
-    // The out-of-combat share scales with the live max HP, so it is not part of the always-on regeneration bound.
-    bGood &= Test.TestEqual(TEXT("Regeneration envelope keeps its max-HP share"), Projection.OutOfCombatHPRegen->MaxHPBpPerSec, int64(160));
 
     TArray<FString> ItemIds;
     for (const FLDDemoEquipmentDefinition& Item : Catalog->Get().Equipment)
@@ -1324,18 +1283,17 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         return Found;
     };
     const FLDDemoEffectDefinition* Cornered = RankEffect(TEXT("passive_cornered"), 3, ELDDemoEffectOp::LowHpStatBonus);
-    const FLDDemoEffectDefinition* Lurking = RankEffect(TEXT("passive_lurking"), 2, ELDDemoEffectOp::AmbushDamage);
     const FLDDemoEffectDefinition* Shame = RankEffect(TEXT("passive_public_shame"), 1, ELDDemoEffectOp::ControlDamageAmp);
     const FLDDemoEffectDefinition* Eye = RankEffect(TEXT("passive_eagle_eye"), 3, ELDDemoEffectOp::StatBonus);
     if (!Test.TestTrue(TEXT("Approved expansion passives have one effect of their family per rank: ") + Error,
-        Cornered && Lurking && Shame && Eye))
+        Cornered && Shame && Eye))
     {
         return false;
     }
     FLDAttributeProjection Plain, Projection;
     if (!ProjectBuild(Test, TEXT("Level 6"), MakeBuild(6), *Catalog, Plain)
         || !ProjectBuild(Test, TEXT("Level 6 expansion passives"), MakeBuild(6, {FLDLearnedPassiveValue(TEXT("passive_cornered"), 3),
-            FLDLearnedPassiveValue(TEXT("passive_lurking"), 2), FLDLearnedPassiveValue(TEXT("passive_public_shame"), 1)}),
+            FLDLearnedPassiveValue(TEXT("passive_public_shame"), 1)}),
             *Catalog, Projection))
     {
         return false;
@@ -1345,15 +1303,10 @@ bool RunExpansionPassives(FAutomationTestBase& Test)
         && Projection.LowHPBonus->ThresholdBp == Cornered->RatioBp && Projection.LowHPBonus->Rank == 3
         && Projection.LowHPBonus->Stats.Num() == 1 && Projection.LowHPBonus->Stats[0].Stat == ELDDemoBonusStat::ADBonusRatio
         && Projection.LowHPBonus->Stats[0].Amount == Cornered->Stats[0].Amount);
-    // #147: the fixed amount is grown for the owner's level 6 (G = 1.5); the delay and ratios are not.
-    bGood &= Test.TestTrue(TEXT("The ambush term carries its delay and level-grown damage terms"), Projection.Ambush.IsSet()
-        && Projection.Ambush->DelayMs == Lurking->DelayMs && Projection.Ambush->BaseP2 == Lurking->BaseP2 * 15000 / 10000
-        && Projection.Ambush->ADRatioBp == Lurking->ADRatioBp && Projection.Ambush->APRatioBp == Lurking->APRatioBp
-        && Projection.Ambush->DamageType == Lurking->DamageType);
     bGood &= Test.TestTrue(TEXT("The control amplification term carries its ratio"), Projection.ControlAmp.IsSet()
         && Projection.ControlAmp->RatioBp == Shame->RatioBp);
     bGood &= Test.TestTrue(TEXT("A plain build carries no conditional terms"),
-        !Plain.LowHPBonus.IsSet() && !Plain.Ambush.IsSet() && !Plain.ControlAmp.IsSet());
+        !Plain.LowHPBonus.IsSet() && !Plain.ControlAmp.IsSet());
     FLDAttributeProjection Enraged;
     const FLDTemporaryAttributeTerms Low = LDTactical::TemporaryTerms({}, {}, Projection.LowHPBonus, 1, 100, 0);
     if (!Apply(Test, TEXT("Below the threshold"), Projection, Low, *Catalog, Enraged)) { return false; }

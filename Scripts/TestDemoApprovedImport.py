@@ -108,7 +108,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AI.LowCampReserveHPRatio", "ratio", ".15"), ("AI.CaptureReactionBudgetSec", "ms", "2"),
             ("AI.DecisionIntervalSec", "ms", ".25"), ("AI.RetryPolicy.InitialBackoffSec", "ms", ".25"),
             ("AI.RetryPolicy.MaxBackoffSec", "ms", ".50"), ("AI.ExploreRevisitIntervalSec", "ms", "20"),
-            ("AI.EngagementBudgetSec", "ms", "40"), ("COMBAT.RearArcDeg", "deg", "120"),
+            ("AI.EngagementBudgetSec", "ms", "40"),
             ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
             ("COMBAT.BurnPerSec", "points", "3"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
             ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"), ("COMBAT.LifestealCap", "ratio", ".35"),
@@ -152,23 +152,18 @@ class ApprovedDemoData(unittest.TestCase):
     def test_respawn_protection_is_display_metadata_not_an_effect_or_duration_change(self):
         ids = content.parse_json((content.ROOT / content.IDS_SOURCE).read_bytes(), "native IDs")
         self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
-                                           "slow": 5, "stat_boost": 6, "enraged": 7, "ambush_ready": 8, "exposed": 9,
+                                           "slow": 5, "stat_boost": 6, "exposed": 9,
                                            "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
-                                           "knockback": 20, "heal_cut": 22, "damage_guard": 23,
-                                           "vulnerable": 24, "silence": 25, "burn": 26})
+                                           "knockback": 20, "silence": 25, "burn": 26})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
-            "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "cleave": 10, "dash_boost": 11,
-            "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15, "ambush_damage": 16,
+            "lifesteal": 7, "dash": 8, "cleave": 10, "dash_boost": 11,
+            "slow": 12, "timed_stat_bonus": 13, "self_area": 14, "low_hp_stat_bonus": 15,
             "control_damage_amp": 17, "taunt": 18, "disarm": 20, "stun": 21, "empower_basic": 22,
-            "jump": 23, "thorns": 24, "backstab": 25, "cooldown_refund": 26, "ability_crit": 27, "resist_shred": 28,
-            "momentum": 29, "taunt_retaliate": 30, "triggered_shield": 31, "basic_stacks": 32, "long_reach": 33,
+            "thorns": 24, "cooldown_refund": 26, "ability_crit": 27, "triggered_shield": 31,
             "crit_damage_reduction": 34, "nth_basic_bonus": 35, "mana_on_hit": 36, "dispel_slow": 37, "path_slow": 38,
-            "knockback": 40, "dot": 42, "mobility_punish": 43, "volley": 44, "refresh_debuffs": 45,
-            "on_hit": 46, "debuff_amp": 47, "shield_shatter": 48, "debuff_heal": 49, "zone": 50, "zone_shield": 51,
-            "zone_slow": 52, "zone_root": 53, "zone_damage": 54, "damage_guard": 55, "shield_burst": 56,
-            "vulnerable": 57, "breach_stacks": 61,
-            "mobility_shield": 62, "shield_pulse": 63, "basic_rider": 64, "cast_frenzy": 65, "affliction_amp": 66,
+            "knockback": 40, "zone": 50, "zone_slow": 52, "zone_root": 53, "zone_damage": 54,
+            "cast_frenzy": 65, "affliction_amp": 66,
             "shield_break_retort": 67, "hit_haste": 68, "silence": 69, "breach": 70, "burn": 71, "execute": 72,
             "pierce": 73, "echo": 74, "taunt_shield": 75, "dispel_disarm": 76, "zone_burn": 77})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
@@ -203,7 +198,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_echo_maul": "自拍杆",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
-            "slow": "减速", "stat_boost": "增益", "enraged": "狂暴", "ambush_ready": "伏击就绪", "exposed": "破防",
+            "slow": "减速", "stat_boost": "增益", "exposed": "破防",
             "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "active_porcelain_flop": "碰瓷倒地", "active_expose_post": "挂人小作文",
             "active_barrage_rant": "键盘连喷", "active_cancel_blast": "实锤冲塔",
@@ -211,8 +206,7 @@ class ApprovedDemoData(unittest.TestCase):
             "passive_thick_skin": "社交牛逼症", "passive_mental_gymnastics": "精神胜利法",
             "passive_keyboard_warrior": "阴阳大师", "item_megaphone": "大喇叭", "item_dossier": "黑料小本本",
             "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
-            "knockback": "击退", "heal_cut": "重伤",
-            "damage_guard": "减伤", "vulnerable": "易伤",
+            "knockback": "击退",
             "silence": "沉默", "burn": "灼烧",
         })
         for row in self.data["display"]:
@@ -479,9 +473,9 @@ class ApprovedDemoData(unittest.TestCase):
         prickle = self.catalog.definition("item_nail_uniform")["passive"]
         self.assertEqual(prickle["family"], "passive_prickle")
         thorns = prickle["effects"][0]
-        self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], thorns["critical_multiplier"]["bp"], thorns["trigger"],
-                          thorns["rear_exempt"]), (2000, 1000, 10000, "Basic", False))
-        self.assertEqual(amount(self.catalog.parameter("COMBAT.RearArcDeg")), 120)
+        self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], thorns["critical_multiplier"]["bp"], thorns["trigger"]),
+                         (2000, 1000, 10000, "Basic"))
+        self.assertNotIn("rear_exempt", thorns)
 
     def test_cross_batch_entries_pending_proposal_values(self):
         # CONTENT_AND_BALANCE 15.9 values, approved on 2026-11-04: the jump/area/slow and taunt/timed-bonus assemblies.

@@ -1937,7 +1937,6 @@
                 "numerator": 1000,
                 "unit": "cm"
               },
-              "rear_exempt": false,
               "trigger": "Basic"
             }
           ],
@@ -1974,7 +1973,6 @@
                 "numerator": 1000,
                 "unit": "cm"
               },
-              "rear_exempt": false,
               "slow": {
                 "bp": 2000,
                 "unit": "ratio"
@@ -2599,15 +2597,6 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "ambush_ready.description",
-      "description_text": "潜水党已就绪：下一次普攻或伤害技能额外造成魔法伤害。",
-      "icon_id": "icon_ambush_ready",
-      "id": "ambush_ready",
-      "name_key": "ambush_ready.name",
-      "name_text": "伏击就绪",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "attr_all_nighter.description",
       "description_text": "永久属性加成，可以重复选择。",
       "icon_id": "icon_attr_all_nighter",
@@ -2708,15 +2697,6 @@
       "portrait_icon_id": "portrait_character_demo"
     },
     {
-      "description_key": "damage_guard.description",
-      "description_text": "躺在地上碰瓷：受到的伤害降低，挨的打够多就反震。",
-      "icon_id": "icon_damage_guard",
-      "id": "damage_guard",
-      "name_key": "damage_guard.name",
-      "name_text": "减伤",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "disarm.description",
       "description_text": "两只手忙着护裆：无法普攻，但仍可以移动、冲刺和放技能。",
       "icon_id": "icon_disarm",
@@ -2735,30 +2715,12 @@
       "namespace": "DemoContent"
     },
     {
-      "description_key": "enraged.description",
-      "description_text": "他急了生效中：生命过低，攻击力提高。",
-      "icon_id": "icon_enraged",
-      "id": "enraged",
-      "name_key": "enraged.name",
-      "name_text": "狂暴",
-      "namespace": "DemoContent"
-    },
-    {
       "description_key": "exposed.description",
       "description_text": "护甲或魔抗被削了：一段时间内受到的物理伤害或魔法伤害更高。",
       "icon_id": "icon_exposed",
       "id": "exposed",
       "name_key": "exposed.name",
       "name_text": "破防",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "heal_cut.description",
-      "description_text": "黑料缠身：受到的治疗和护盾减少，同类效果只按最狠的算。",
-      "icon_id": "icon_heal_cut",
-      "id": "heal_cut",
-      "name_key": "heal_cut.name",
-      "name_text": "重伤",
       "namespace": "DemoContent"
     },
     {
@@ -3095,15 +3057,6 @@
       "name_key": "taunt.name",
       "name_text": "嘲讽",
       "namespace": "DemoContent"
-    },
-    {
-      "description_key": "vulnerable.description",
-      "description_text": "定身期间更怕打：受到的持续伤害和普攻伤害提高。",
-      "icon_id": "icon_vulnerable",
-      "id": "vulnerable",
-      "name_key": "vulnerable.name",
-      "name_text": "易伤",
-      "namespace": "DemoContent"
     }
   ],
   "equipment": [
@@ -3424,7 +3377,6 @@
               "numerator": 300,
               "unit": "cm"
             },
-            "rear_exempt": false,
             "trigger": "Basic"
           }
         ],
@@ -3460,7 +3412,6 @@
                 "numerator": 300,
                 "unit": "cm"
               },
-              "rear_exempt": false,
               "trigger": "Basic"
             }
           ]
@@ -3982,11 +3933,6 @@
     "COMBAT.LifestealCap": {
       "bp": 3500,
       "unit": "ratio"
-    },
-    "COMBAT.RearArcDeg": {
-      "denominator": 1,
-      "numerator": 120,
-      "unit": "deg"
     },
     "DORM.MaxHPRatioPerSec": {
       "bp": 1000,

@@ -115,7 +115,7 @@ namespace LDCombatControlTestDetail
         return Policies;
     }
 
-    FLDDemoEffectDefinition Thorns(bool bAbility, bool bRearExempt)
+    FLDDemoEffectDefinition Thorns()
     {
         FLDDemoEffectDefinition Effect;
         Effect.Opcode = uint8(ELDDemoEffectOp::Thorns);
@@ -124,8 +124,6 @@ namespace LDCombatControlTestDetail
         Effect.RadiusCm = Rational(300);
         Effect.IntervalMs = 500;
         Effect.CriticalMultiplierBp = 20000;
-        Effect.bAbilityTrigger = bAbility;
-        Effect.bRearExempt = bRearExempt;
         Effect.DamageType = ELDDemoDamageType::Magical;
         return Effect;
     }
@@ -174,30 +172,6 @@ bool FLDCombatControlMatrixTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatRearArcTest, "Lockdown.Rules.DemoControl.RearArc",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDCombatRearArcTest::RunTest(const FString& Parameters)
-{
-    using namespace LDCombatControlTestDetail;
-    const FLDDemoRational Arc = Rational(120);
-    const FVector Target(100, 200, 0);
-    const auto At = [&Target](double Degrees) { return Target + FVector(FMath::Cos(FMath::DegreesToRadians(Degrees)), FMath::Sin(FMath::DegreesToRadians(Degrees)), 0) * 150.; };
-    // Facing +X (yaw 0): directly behind is 180 degrees; the 120-degree sector spans 120..240.
-    TestTrue(TEXT("Directly behind"), LDCombatControl::IsBehind(Target, 0, At(180), Arc));
-    TestTrue(TEXT("Inside the sector edge"), LDCombatControl::IsBehind(Target, 0, At(125), Arc));
-    TestTrue(TEXT("Exactly on the sector edge counts"), LDCombatControl::IsBehind(Target, 0, At(240), Arc));
-    TestFalse(TEXT("Just outside the sector"), LDCombatControl::IsBehind(Target, 0, At(115), Arc));
-    TestFalse(TEXT("In front is never behind"), LDCombatControl::IsBehind(Target, 0, At(0), Arc));
-    TestFalse(TEXT("A side is not behind"), LDCombatControl::IsBehind(Target, 0, At(90), Arc));
-    TestTrue(TEXT("The facing decides: yaw 90 puts the back at -90"), LDCombatControl::IsBehind(Target, 90, At(-90), Arc));
-    TestFalse(TEXT("The same point is in front after turning"), LDCombatControl::IsBehind(Target, -90, At(-90), Arc));
-    TestTrue(TEXT("Height does not matter"), LDCombatControl::IsBehind(Target, 0, At(180) + FVector(0, 0, 300), Arc));
-    TestFalse(TEXT("Coincident feet are never behind"), LDCombatControl::IsBehind(Target, 0, Target, Arc));
-    TestFalse(TEXT("An empty arc never matches"), LDCombatControl::IsBehind(Target, 0, At(180), Rational(0)));
-    return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEmpowerTest, "Lockdown.Rules.DemoControl.EmpowerOnce",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -226,10 +200,10 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatThornsTest, "Lockdown.Rules.DemoContro
 bool FLDCombatThornsTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatControlTestDetail;
-    const FLDDemoEffectDefinition Both = Thorns(true, true);
-    const FLDDemoEffectDefinition BasicOnly = Thorns(false, false);
+    const FLDDemoEffectDefinition Both = Thorns();
+    const FLDDemoEffectDefinition BasicOnly = Thorns();
     const FGuid Attacker = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    const FString Key(TEXT("passive_iron_crotch"));
+    const FString Key(TEXT("passive_thick_face"));
     TArray<FLDThornsMark> Marks;
     FLDThornsContact Basic;
     Basic.HitClass = ELDCombatHitClass::BasicPrimary;
@@ -238,12 +212,11 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A primary basic hit in reach triggers"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1000));
     FLDThornsContact Ability = Basic;
     Ability.HitClass = ELDCombatHitClass::Ability;
-    TestTrue(TEXT("An ability hit triggers the basic-or-ability form"), LDCombatControl::ThornsTriggers(Both, Ability, Marks, Key, Attacker, 1000));
-    TestFalse(TEXT("An ability hit never triggers the basic-only form"), LDCombatControl::ThornsTriggers(BasicOnly, Ability, Marks, Key, Attacker, 1000));
+    TestFalse(TEXT("An ability hit never triggers a reflection"), LDCombatControl::ThornsTriggers(BasicOnly, Ability, Marks, Key, Attacker, 1000));
     FLDThornsContact Secondary = Basic;
     Secondary.HitClass = ELDCombatHitClass::BasicSecondary;
     TestFalse(TEXT("A cleave secondary never triggers"), LDCombatControl::ThornsTriggers(Both, Secondary, Marks, Key, Attacker, 1000));
-    FLDThornsContact Reflected = Ability;
+    FLDThornsContact Reflected = Basic;
     Reflected.bReflected = true;
     TestFalse(TEXT("A reflection never triggers another reflection"), LDCombatControl::ThornsTriggers(Both, Reflected, Marks, Key, Attacker, 1000));
     FLDThornsContact Far = Basic;
@@ -251,10 +224,6 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Beyond reach does not trigger"), LDCombatControl::ThornsTriggers(Both, Far, Marks, Key, Attacker, 1000));
     Far.DistanceCm = 300;
     TestTrue(TEXT("Exactly at reach triggers"), LDCombatControl::ThornsTriggers(Both, Far, Marks, Key, Attacker, 1000));
-    FLDThornsContact Rear = Basic;
-    Rear.bFromBehind = true;
-    TestFalse(TEXT("A rear-exempt form ignores hits from behind"), LDCombatControl::ThornsTriggers(Both, Rear, Marks, Key, Attacker, 1000));
-    TestTrue(TEXT("A form without the exemption answers hits from behind"), LDCombatControl::ThornsTriggers(BasicOnly, Rear, Marks, Key, Attacker, 1000));
     FLDThornsContact Zero = Basic;
     Zero.DamageP2 = 0;
     TestFalse(TEXT("A hit that dealt nothing does not trigger"), LDCombatControl::ThornsTriggers(Both, Zero, Marks, Key, Attacker, 1000));
@@ -276,34 +245,12 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Armor and max-HP coefficients add (祖传铁裆 #112)"),
         LDCombatControl::ThornsBaseP2(Health, 4000, 100000, false, Amount, Error) && Amount == 1500 + 600 + 1500);
     TestTrue(TEXT("A multiplier of one leaves a critical reflection unchanged"),
-        LDCombatControl::ThornsBaseP2(Thorns(false, false), 0, 0, true, Amount, Error) && Amount == 1500 * 2);
+        LDCombatControl::ThornsBaseP2(Thorns(), 0, 0, true, Amount, Error) && Amount == 1500 * 2);
     FLDDemoEffectDefinition Plain = BasicOnly;
     Plain.CriticalMultiplierBp = 10000;
     TestTrue(TEXT("No critical doubling without a multiplier"), LDCombatControl::ThornsBaseP2(Plain, 0, 0, true, Amount, Error) && Amount == 1500);
     TestFalse(TEXT("Negative armor is refused"), LDCombatControl::ThornsBaseP2(Both, -1, 0, false, Amount, Error));
     TestFalse(TEXT("Negative max HP is refused"), LDCombatControl::ThornsBaseP2(Health, 0, -1, false, Amount, Error));
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatJumpPlanTest, "Lockdown.Rules.DemoControl.JumpPlan",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDCombatJumpPlanTest::RunTest(const FString& Parameters)
-{
-    FVector Direction;
-    double Distance = 0;
-    const FVector Foot(10, 20, 30);
-    TestTrue(TEXT("A point within reach is reached exactly"),
-        LDCombatControl::PlanJump(Foot, Foot + FVector(300, 0, 55), 400, Direction, Distance)
-        && FMath::IsNearlyEqual(Distance, 300.) && Direction.Equals(FVector(1, 0, 0)));
-    TestTrue(TEXT("A farther point is clamped to the reach along its direction"),
-        LDCombatControl::PlanJump(Foot, Foot + FVector(0, -900, 0), 400, Direction, Distance)
-        && FMath::IsNearlyEqual(Distance, 400.) && Direction.Equals(FVector(0, -1, 0)));
-    TestTrue(TEXT("The foot itself is a jump in place"),
-        LDCombatControl::PlanJump(Foot, Foot + FVector(0.2, 0.2, 80), 400, Direction, Distance) && Distance == 0 && Direction.IsZero());
-    TestFalse(TEXT("A non-finite point is refused"),
-        LDCombatControl::PlanJump(Foot, FVector(std::numeric_limits<double>::quiet_NaN(), 0, 0), 400, Direction, Distance));
-    TestFalse(TEXT("A jump without reach is refused"), LDCombatControl::PlanJump(Foot, Foot, 0, Direction, Distance));
     return true;
 }
 
@@ -317,30 +264,21 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     if (!ReadApprovedContent(*this, Content)) { return false; }
     FString Error;
     const FLDDemoAbilityDefinition* Peach = nullptr;
-    const FLDDemoAbilityDefinition* Poke = nullptr;
     const FLDDemoAbilityDefinition* Lunge = nullptr;
-    const FLDDemoAbilityDefinition* Crotch = nullptr;
+    const FLDDemoAbilityDefinition* ThickFace = nullptr;
     const FLDDemoEquipmentDefinition* Uniform = nullptr;
-    if (!Content->FindAbility(TEXT("active_monkey_peach"), Peach, Error) || !Content->FindAbility(TEXT("active_thousand_year"), Poke, Error)
-        || !Content->FindAbility(TEXT("active_lunge"), Lunge, Error) || !Content->FindAbility(TEXT("passive_iron_crotch"), Crotch, Error)
+    if (!Content->FindAbility(TEXT("active_monkey_peach"), Peach, Error)
+        || !Content->FindAbility(TEXT("active_lunge"), Lunge, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error)
         || !Content->FindEquipment(TEXT("item_nail_uniform"), Uniform, Error))
     {
         AddError(Error);
         return false;
     }
-    TestTrue(TEXT("Rear arc is a typed proper sector"), Content->Get().Parameters.RearArcDeg.Numerator > 0
-        && Content->Get().Parameters.RearArcDeg.Numerator < 360 * Content->Get().Parameters.RearArcDeg.Denominator);
     for (const FLDDemoRankDefinition& Rank : Peach->Ranks)
     {
         const FLDDemoEffectDefinition* Disarm = FindOp(Rank.Effects, ELDDemoEffectOp::Disarm);
         TestTrue(TEXT("Every peach rank damages and disarms a unit"), Peach->Target.Mode == ELDDemoTargetMode::Unit
             && FindOp(Rank.Effects, ELDDemoEffectOp::Damage) && Disarm && Disarm->DurationMs > 0);
-    }
-    for (const FLDDemoRankDefinition& Rank : Poke->Ranks)
-    {
-        const FLDDemoEffectDefinition* Rear = FindOp(Rank.Effects, ELDDemoEffectOp::Backstab);
-        TestTrue(TEXT("Every rear-strike rank amplifies its damage and stuns"), FindOp(Rank.Effects, ELDDemoEffectOp::Damage)
-            && Rear && Rear->RatioBp > 0 && Rear->DurationMs > 0);
     }
     for (const FLDDemoRankDefinition& Rank : Lunge->Ranks)
     {
@@ -349,14 +287,12 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
             && FindOp(Rank.Effects, ELDDemoEffectOp::Dash) && Empower && Empower->DurationMs > 0
             && (Empower->BaseP2 > 0 || Empower->ADRatioBp > 0));
     }
-    const FLDDemoEffectDefinition* CrotchThorns = FindOp(Crotch->Ranks[1].Effects, ELDDemoEffectOp::Thorns);
+    const FLDDemoEffectDefinition* FaceThorns = FindOp(ThickFace->Ranks.Last().Effects, ELDDemoEffectOp::Thorns);
     const FLDDemoEffectDefinition* UniformThorns = Uniform->HasPassive ? FindOp(Uniform->Passive.Effects, ELDDemoEffectOp::Thorns) : nullptr;
-    if (!TestTrue(TEXT("Both reflections import as typed thorns"), CrotchThorns && UniformThorns)) { return false; }
-    TestTrue(TEXT("Iron crotch answers basics and abilities but not hits from behind"), CrotchThorns->bAbilityTrigger && CrotchThorns->bRearExempt);
-    TestTrue(TEXT("The uniform answers basics only and from any side"), !UniformThorns->bAbilityTrigger && !UniformThorns->bRearExempt);
+    if (!TestTrue(TEXT("Both reflections import as typed thorns"), FaceThorns && UniformThorns)) { return false; }
 
     // A learned trigger passive projects as a rank-exact combat trigger, never an attribute term.
-    const FLDAttributeBuildValues Build(3, {FLDLearnedPassiveValue(TEXT("passive_iron_crotch"), 2)}, {}, {TEXT("item_nail_uniform")});
+    const FLDAttributeBuildValues Build(3, {FLDLearnedPassiveValue(TEXT("passive_thick_face"), 2)}, {}, {TEXT("item_nail_uniform")});
     const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(Build, *Content);
     if (!TestTrue(TEXT("The thorns build projects"), Projected.IsSuccess()))
     {
@@ -365,36 +301,12 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     }
     const FLDAttributeProjection& Projection = Projected.Value.GetValue();
     TestTrue(TEXT("The learned trigger keeps its rank"), Projection.LearnedTriggers.Num() == 1
-        && Projection.LearnedTriggers[0].AbilityId == TEXT("passive_iron_crotch") && Projection.LearnedTriggers[0].Rank == 2);
+        && Projection.LearnedTriggers[0].AbilityId == TEXT("passive_thick_face") && Projection.LearnedTriggers[0].Rank == 2);
     TestTrue(TEXT("The uniform's reflection is one equipment family"), Projection.EquipmentPassives.ContainsByPredicate(
         [](const FLDEquipmentPassiveFamily& Family) { return Family.Family == TEXT("passive_prickle"); }));
 
-    // The rear strike multiplies the raw amount before resistance with the catalog's own formula.
-    const FLDDemoEffectDefinition* Damage = FindOp(Poke->Ranks[0].Effects, ELDDemoEffectOp::Damage);
-    const FLDDemoEffectDefinition* Rear = FindOp(Poke->Ranks[0].Effects, ELDDemoEffectOp::Backstab);
-    FLDDamageEvaluationInput Input;
-    Input.Definition.Emplace(Damage->BaseP2, Damage->ADRatioBp, Damage->APRatioBp, Damage->DamageType);
-    Input.HitClass = ELDCombatHitClass::Ability;
-    Input.bCritical = false;
-    Input.SourceADP2 = Content->Get().Parameters.AD.BaseP2;
-    Input.SourceAPP2 = Content->Get().Parameters.AP.BaseP2;
-    Input.TargetResistanceP2 = 0;
-    Input.TargetHPP2 = MAX_int32;
-    Input.TargetShieldP2 = 0;
-    Input.bTargetProtected = false;
-    const FLDDamageEvaluationResult Front = LDTactical::EvaluateDamage(Input, *Content);
-    Input.AmplifyBp = 10000 + Rear->RatioBp;
-    const FLDDamageEvaluationResult Behind = LDTactical::EvaluateDamage(Input, *Content);
-    if (!TestTrue(TEXT("Both strikes evaluate"), Front.IsSuccess() && Behind.IsSuccess())) { return false; }
-    const int64 Raw = Damage->BaseP2 + Input.SourceADP2.GetValue() * Damage->ADRatioBp / 10000 + Input.SourceAPP2.GetValue() * Damage->APRatioBp / 10000;
-    TestTrue(TEXT("Front strike is the plain amount"), FMath::Abs(Front.Value->DamageP2 - Raw) <= 1);
-    TestTrue(TEXT("Rear strike is amplified by the authored ratio"),
-        FMath::Abs(Behind.Value->DamageP2 - Raw * (10000 + Rear->RatioBp) / 10000) <= 1);
-    Input.AmplifyBp = -1;
-    TestFalse(TEXT("A negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Content).IsSuccess());
-
     // Functional display: every new effect, target and status has explicit player text.
-    for (const FLDDemoAbilityDefinition* Ability : {Peach, Poke, Lunge, Crotch})
+    for (const FLDDemoAbilityDefinition* Ability : {Peach, Lunge, ThickFace})
     {
         for (const FLDDemoEffectDefinition& Effect : Ability->Ranks[0].Effects)
         {
@@ -407,10 +319,6 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     Point.Mode = ELDDemoTargetMode::GroundPoint;
     Point.RangeCm = Rational(400);
     TestFalse(TEXT("A ground point target has a display line"), LDHUD::TargetLine(Point).StartsWith(TEXT("未知")));
-    FLDDemoEffectDefinition Jump;
-    Jump.Opcode = uint8(ELDDemoEffectOp::Jump);
-    Jump.DurationMs = 400;
-    TestFalse(TEXT("A jump has a display line"), LDHUD::EffectLine(Jump).StartsWith(TEXT("未知")));
     for (const ELDDemoStatusId Status : {ELDDemoStatusId::Disarm, ELDDemoStatusId::Stun, ELDDemoStatusId::Empowered})
     {
         TestFalse(FString::Printf(TEXT("Status %u has a catalog name"), uint32(Status)),

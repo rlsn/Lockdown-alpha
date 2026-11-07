@@ -603,31 +603,6 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     return true;
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageMitigationTest, "Lockdown.Rules.DemoCombatEvaluation.Mitigation",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-// #112 §5 damage guard (active_porcelain_flop): the reduction acts after resistance and before the shield, and the
-// guard counts the amount before it.
-bool FLDDemoDamageMitigationTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
-    auto Input = PrimaryInput(*Catalog);
-    Input.MitigateBp = 4000;
-    if (!CheckDamage(*this, TEXT("40% off 59.32 after armor"), Input, *Catalog, {3559, 0, 3559, 0, 58441, 0})) { return false; }
-    const auto Plain = LDTactical::EvaluateDamage(Input, *Catalog);
-    TestEqual(TEXT("The guard counts the post-resistance amount before the reduction"), Plain.Value->PreMitigationP2, int64(5932));
-    Input.TargetShieldP2 = int64(2000);
-    if (!CheckDamage(*this, TEXT("The reduced amount meets the shield next"), Input, *Catalog, {3559, 2000, 1559, 0, 60441, 0})) { return false; }
-    Input.bTargetProtected = true;
-    const auto Protected = LDTactical::EvaluateDamage(Input, *Catalog);
-    TestTrue(TEXT("Protection zeroes both amounts"), Protected.IsSuccess() && Protected.Value->DamageP2 == 0 && Protected.Value->PreMitigationP2 == 0);
-    Input.bTargetProtected = false;
-    Input.MitigateBp = 10001;
-    CheckFailure(*this, TEXT("A reduction past 100% is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
-    return true;
-}
-
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageAbilityCritTest, "Lockdown.Rules.DemoCombatEvaluation.AbilityCrit",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 

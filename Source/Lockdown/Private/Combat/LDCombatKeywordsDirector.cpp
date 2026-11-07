@@ -149,12 +149,17 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
                 Tick.DamageType=ELDDemoDamageType::Magical;
                 Tick.bPeriodic=true;
                 Tick.bBurnTick=true;
-                // A burn takes its living applier's slowed-or-controlled amplification (v7 4.2); nothing else of it.
-                if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath
-                    && Applier->AttributeProjection.ControlAmp.IsSet())
+                // A burn takes its living applier's slowed-or-controlled amplification (v7 4.2) and its item_megaphone
+                // amplification of its own burns (#147 decision 9), both in the damage bonus pool; nothing else of it.
+                if (const FLDBodyCombatState* Applier=FindBody(Share.SourceBody); Applier && !Applier->bPendingDeath)
                 {
-                    Tick.ControlAmpBp=Applier->AttributeProjection.ControlAmp->RatioBp;
-                    Tick.ControlAmpBelowBp=Applier->AttributeProjection.ControlAmp->LowHPBelowBp;
+                    if (Applier->AttributeProjection.ControlAmp.IsSet())
+                    {
+                        Tick.ControlAmpBp=Applier->AttributeProjection.ControlAmp->RatioBp;
+                        Tick.ControlAmpBelowBp=Applier->AttributeProjection.ControlAmp->LowHPBelowBp;
+                    }
+                    if (const FLDDemoEffectDefinition* Amp=FindTrigger(Applier->AttributeProjection,ELDDemoEffectOp::AfflictionAmp))
+                    { Tick.ExtraAmplifyBp=10000+FMath::Max<int64>(Amp->RatioBp,0); }
                 }
             }
             if (Body.Burn.NextTickAtMs>MAX_int64-Terms.BurnTickMs) { Error=TEXT("A burn tick left the authority clock."); return false; }
@@ -185,7 +190,7 @@ bool ALDCombatDirector::OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString
     const int64 Amount=Effect.BaseP2
         +LDCombatKeywordsDetail::Share(Body.Resources.MaxHpP2,Effect.MaxHPRatioBp);
     const FGuid ShieldId=FGuid::NewGuid();
-    if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,false,NowMs,Error)) { return false; }
+    if (!GrantShieldTo(Body,Amount,Effect.DurationMs,ShieldId,Body.Victim.EntityId,NowMs,Error)) { return false; }
     // A weaker shield than the one held is not granted, and then the rest does not start.
     if (!Body.Shield.IsSet() || Body.Shield->EffectId!=ShieldId) { return true; }
     if (!LDMatchLifecycle::AddDurationMs(NowMs,Effect.IntervalMs,Body.DamagedShieldReadyAtMs,Error)) { return false; }
@@ -238,12 +243,9 @@ void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, in
 {
     if (const int64 SilencedUntil=LDTactical::ActiveRootUntilMs(Body.Silences,NowMs); SilencedUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Silence),1,SilencedUntil}); }
-    // The shared breach shows its stacks; a legacy shred still active extends the same cue's deadline.
+    // The shared breach shows its stacks.
     if (const int32 Stacks=LDCombatKeywords::BreachStacks(Body.SharedBreach,NowMs); Stacks>0)
-    {
-        const int64 Until=FMath::Max(Body.SharedBreach.ExpiresAtMs,LDTactical::BreachUntilMs(Body.Breaches,NowMs));
-        Out.Add({uint8(ELDDemoStatusId::Exposed),uint8(FMath::Clamp(Stacks,1,255)),Until});
-    }
+    { Out.Add({uint8(ELDDemoStatusId::Exposed),uint8(FMath::Clamp(Stacks,1,255)),Body.SharedBreach.ExpiresAtMs}); }
     if (LDCombatKeywords::BurnActive(Body.Burn,NowMs))
     { Out.Add({uint8(ELDDemoStatusId::Burn),uint8(FMath::Clamp(Body.Burn.Layers.Num(),1,255)),Body.Burn.ExpiresAtMs}); }
 }

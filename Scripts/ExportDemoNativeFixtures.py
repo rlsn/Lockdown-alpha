@@ -114,42 +114,32 @@ def target(value=None):
     }
 
 
-TRIGGERS = ("None", "Release", "EmpowerHit", "BasicHit", "BasicCrit", "Cleanse", "LandingHit", "LowHP", "AbilityHit", "Control",
-            "Damaged")
-COOLDOWN_ENTRIES = ("None", "Basic", "Self", "OtherActives", "Actives")
-CRIT_MODES = ("None", "Impaired", "Chance")
+TRIGGERS = ("None", "BasicHit", "AbilityHit", "Damaged")
+COOLDOWN_ENTRIES = ("None", "Actives")
+CRIT_MODES = ("None", "Chance")
 
 
 def effect(value):
-    op = value.get("op")
     result = {
         "Opcode": value["opcode"], "BaseP2": 0, "ADRatioBp": 0, "APRatioBp": 0, "MaxHPRatioBp": 0, "DamageType": 0,
         "DurationMs": 0, "DelayMs": 0, "RatioBp": 0,
         "DistanceCm": rational(), "RadiusCm": rational(), "CooldownRatioBp": 0, "DistanceBonusBp": 0, "Stats": [],
-        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0, "bAbilityTrigger": False, "bRearExempt": False,
-        "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0, "MagicResistRatioBp": 0, "VampRatioBp": 0,
-        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "bImpaired": False, "SkillCooldownRatioBp": 0,
-        "SkillDistanceBonusBp": 0, "AbilityIds": [], "PerCountP2": 0, "CapP2": 0, "CapBp": 0, "MaxHPPerSecBp": 0,
-        "ShredP2": 0, "ThresholdP2": 0, "SecondaryRatioBp": 0, "SecondaryDurationMs": 0, "CooldownCutMs": 0,
+        "ArmorRatioBp": 0, "IntervalMs": 0, "CriticalMultiplierBp": 0,
+        "Trigger": 0, "Entries": 0, "CritMode": 0, "AmountMs": 0,
+        "MultiplierBp": 0, "Count": 0, "BasicCount": 0, "SkillCooldownRatioBp": 0,
+        "SkillDistanceBonusBp": 0, "AbilityIds": [], "SecondaryRatioBp": 0, "SecondaryDurationMs": 0,
     }
     for source, dest in (
         ("base", "BaseP2"), ("ad_ratio", "ADRatioBp"), ("ap_ratio", "APRatioBp"), ("max_hp_ratio", "MaxHPRatioBp"),
         ("duration", "DurationMs"), ("delay", "DelayMs"), ("ratio", "RatioBp"), ("threshold", "RatioBp"),
         ("cooldown_ratio", "CooldownRatioBp"), ("distance_bonus", "DistanceBonusBp"),
         ("armor_ratio", "ArmorRatioBp"), ("interval", "IntervalMs"), ("critical_multiplier", "CriticalMultiplierBp"),
-        ("in_combat_ratio", "RatioBp"), ("shred_ratio", "RatioBp"), ("cripple_ratio", "RatioBp"),
-        ("windup_reduction", "RatioBp"), ("surge_duration", "DurationMs"), ("shred_duration", "DurationMs"),
-        ("cripple_duration", "DurationMs"), ("dash_credit", "AmountMs"), ("cooldown", "AmountMs"), ("window", "DelayMs"),
-        ("surge_multiplier", "MultiplierBp"), ("cleanse_multiplier", "MultiplierBp"), ("per_hit", "PerCountP2"),
-        ("magic_resist_ratio", "MagicResistRatioBp"), ("mana", "BaseP2"), ("vamp", "VampRatioBp"),
-        ("omnivamp", "VampRatioBp"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
+        ("cooldown", "AmountMs"), ("mana", "BaseP2"), ("skill_cooldown_ratio", "SkillCooldownRatioBp"),
         ("skill_distance_bonus", "SkillDistanceBonusBp"),
         # #112 handlers.
-        ("shred", "ShredP2"), ("trigger_damage", "ThresholdP2"), ("scale", "RatioBp"),
-        ("shield_ratio", "RatioBp"), ("bonus_ratio", "RatioBp"), ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
-        ("heal_cut", "SecondaryRatioBp"), ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
-        ("linger", "SecondaryDurationMs"), ("bonus_window", "SecondaryDurationMs"),
-        ("internal_cooldown", "IntervalMs"), ("cooldown_cut", "CooldownCutMs"),
+        ("dot_ratio", "RatioBp"), ("slow", "SecondaryRatioBp"),
+        ("slow_scale", "SecondaryRatioBp"), ("slow_duration", "SecondaryDurationMs"),
+        ("linger", "SecondaryDurationMs"), ("internal_cooldown", "IntervalMs"),
         # #147 build v7 terms.
         ("hp_below", "SecondaryRatioBp"), ("slowed_stun", "SecondaryDurationMs"), ("wall_stun", "SecondaryDurationMs"),
         ("cleave_ratio", "SecondaryRatioBp"), ("burst_ratio", "SecondaryRatioBp"), ("low_hp_multiplier", "MultiplierBp"),
@@ -157,42 +147,29 @@ def effect(value):
     ):
         if source in value:
             result[dest] = scalar(value[source])
-    if op == "out_of_combat_regen":
-        result["MaxHPRatioBp"] = 0
-        result["MaxHPPerSecBp"] = scalar(value["max_hp_ratio"])
-    if "cap" in value:
-        result["CapBp" if op == "long_reach" else "CapP2"] = scalar(value["cap"])
-    for source in ("count", "max_stacks", "max_hits", "stacks", "charges"):
+    for source in ("count", "stacks", "charges"):
         if source in value:
             result["Count"] = value[source]
     if "basic_stacks" in value:
         result["BasicCount"] = value["basic_stacks"]
     for source, dest in (("distance", "DistanceCm"), ("radius", "RadiusCm"),
-                         ("half_width", "RadiusCm"), ("cast_range", "DistanceCm"), ("wall_distance", "RadiusCm"),
+                         ("half_width", "RadiusCm"), ("wall_distance", "RadiusCm"),
                          ("cleave_radius", "RadiusCm"), ("burst_radius", "RadiusCm")):
         if source in value:
             result[dest] = rational(value[source])
-    for source in ("count", "max_stacks"):
-        if source in value:
-            result["Count"] = value[source]
     if "damage_type" in value:
         result["DamageType"] = ("Physical", "Magical").index(value["damage_type"])
     if "stats" in value:
         result["Stats"] = stats(value["stats"])
-    if "trigger" in value:
-        if op == "thorns":
-            result["bAbilityTrigger"] = ("Basic", "BasicOrAbility").index(value["trigger"]) == 1
-        else:
-            result["Trigger"] = TRIGGERS.index(value["trigger"])
+    # A reflection answers primary basics only; its trigger names no native selector.
+    if "trigger" in value and value.get("op") != "thorns":
+        result["Trigger"] = TRIGGERS.index(value["trigger"])
     if "entries" in value:
         result["Entries"] = COOLDOWN_ENTRIES.index(value["entries"])
     if "mode" in value:
         result["CritMode"] = CRIT_MODES.index(value["mode"])
     if "abilities" in value:
         result["AbilityIds"] = list(value["abilities"])
-    if "rear_exempt" in value:
-        result["bRearExempt"] = value["rear_exempt"]
-    result["bImpaired"] = value.get("impaired", False)
     return result
 
 
@@ -263,7 +240,7 @@ def parameter_projection(parameters):
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
         ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
-        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"), ("COMBAT.RearArcDeg", "RearArcDeg"),
+        ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
     ):

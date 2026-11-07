@@ -1357,7 +1357,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
             RangeCm=Source?float(Source->RangeCm):0.f;
             bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
             bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
-            // A ground point previews where the jump would land: the pointer, clamped to the reach.
+            // A ground point previews where the zone would sit: the pointer, clamped to the reach.
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}

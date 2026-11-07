@@ -423,6 +423,10 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["retired_ranges"].update(abilities=[[0, 60]]),
             lambda data: data["retired_ranges"].update(equipment=[[0, 98], [107, 107]]),
             lambda data: data["retired_ranges"].update(equipment=[0, 98]),
+            lambda data: data["retired_ranges"].update(effect_ops=[[6, 6]]),
+            lambda data: data["retired_ranges"].pop("statuses"),
+            lambda data: data["effect_ops"].update(dot=42),
+            lambda data: data["statuses"].update(enraged=7),
             lambda data: data["effect_ops"].pop("shield"),
         ):
             (self.root / demo.IDS_SOURCE).write_bytes(original)

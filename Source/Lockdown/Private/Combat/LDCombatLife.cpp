@@ -39,19 +39,14 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     int64 BoostUntil=0;
     for (const auto& Bonus : Body->TimedBonuses) { if (Bonus.ExpiresAtMs>NowMs) { BoostUntil=FMath::Max(BoostUntil,Bonus.ExpiresAtMs); } }
     if (BoostUntil>0) { Out.Add({uint8(ELDDemoStatusId::StatBoost),1,BoostUntil}); }
-    // A resistance shred (breach, status exposed) is public like the controls; the #147 shared breach shows its stacks
-    // (AppendKeywordStatuses) and takes the legacy shreds into its cue.
-    if (const int64 BreachUntil=LDTactical::BreachUntilMs(Body->Breaches,NowMs); BreachUntil>0
-        && LDCombatKeywords::BreachStacks(Body->SharedBreach,NowMs)==0)
-    { Out.Add({uint8(ELDDemoStatusId::Exposed),1,BreachUntil}); }
     // Disarm and stun are public control cues like Root (latest remaining deadline); the empowerment stays private.
     if (const int64 DisarmUntil=LDTactical::ActiveRootUntilMs(Body->Disarms,NowMs); DisarmUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Disarm),1,DisarmUntil}); }
     if (const int64 StunUntil=LDTactical::ActiveRootUntilMs(Body->Stuns,NowMs); StunUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Stun),1,StunUntil}); }
-    // #112: knockback, breach and heal cut are public cues too.
-    AppendMechanicsStatuses(*Body,NowMs,false,Out);
-    // #147: silence, breach x stacks and burn x stacks.
+    // #112: knockback is a public cue too.
+    AppendMechanicsStatuses(*Body,NowMs,Out);
+    // #147: silence, breach x stacks (status exposed) and burn x stacks.
     AppendKeywordStatuses(*Body,NowMs,Out);
 }
 
@@ -270,9 +265,7 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     // Leaving cancels every unsettled effect of the entity; already committed damage and receipts stay.
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
-    Landings.RemoveAll([&Entity](const FLDCombatLanding& Landing) { return Landing.Body.Victim.EntityId==Entity; });
     Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
-    VolleyShots.RemoveAll([&Entity](const FLDCombatVolleyShot& Shot) { return Shot.Body.Victim.EntityId==Entity; });
     DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
     Echoes.RemoveAll([&Entity](const FLDCombatEcho& Echo) { return Echo.Body.Victim.EntityId==Entity; });
     WallChecks.RemoveAll([&Entity](const FLDCombatWallCheck& Check) { return Check.SourceEntity==Entity; });
@@ -280,20 +273,10 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     {
         auto& Body=Pair.Value;
         const auto FromEntity=[&Entity](const FLDCombatRoot& Instance) { return Instance.SourceEntity==Entity; };
-        // The vulnerability its roots installed (binding snare Lv3) ends with them.
-        int32 Removed=Body.Vulnerabilities.RemoveAll([&Body,&Entity](const FLDCombatVulnerable& Row)
-        {
-            return Body.Roots.ContainsByPredicate([&Row,&Entity](const FLDCombatRoot& Root)
-            { return Root.SourceEntity==Entity && Root.EffectId==Row.EffectId; });
-        });
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
-        Removed+=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
+        int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
-            + Body.Breaches.RemoveAll([&Entity](const FLDCombatBreach& Breach) { return Breach.SourceEntity==Entity; })
-            + Body.VampMarks.RemoveAll([&Entity](const FLDCombatVampMark& Mark) { return Mark.SourceEntity==Entity; })
             + Body.Knockbacks.RemoveAll(FromEntity)
-            + Body.Dots.RemoveAll([&Entity](const FLDCombatDot& Dot) { return Dot.SourceEntity==Entity; })
-            + Body.HealCuts.RemoveAll([&Entity](const FLDCombatHealCut& Cut) { return Cut.SourceEntity==Entity; })
             // #147: its silences and its burn layers end; shared breach stacks stay (they are no damage).
             + Body.Silences.RemoveAll(FromEntity) + LDCombatKeywords::RemoveBurnSource(Body.Burn,Entity);
         if (Body.Taunt.IsSet() && Body.Taunt->SourceEntity==Entity)

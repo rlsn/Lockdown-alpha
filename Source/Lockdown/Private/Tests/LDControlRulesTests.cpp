@@ -400,90 +400,7 @@ bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
         Mode->CaptureReducer.GetState() == ELDCircleState::Empty && !Mode->CaptureReducer.GetOccupier().IsValid());
     return true;
 }
-// #112 review fixes: every flight of a volley is observed under its own identity while sharing its effect, and a
-// leaving source takes the vulnerability its roots installed with it.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoMechanicsEffectLifetimesTest, "Lockdown.Rules.DemoMechanics.EffectLifetimes",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDDemoMechanicsEffectLifetimesTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
-    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
-        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
-    if (!TestNotNull(TEXT("Fixture world"), World)) { return false; }
-    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
-    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
-    auto* Mode = World->SpawnActor<ALDGameMode>();
-    auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    auto* ShooterActor = World->SpawnActor<ALDCharacter>();
-    auto* VictimActor = World->SpawnActor<ALDCharacter>();
-    if (!Mode || !Driver || !ShooterActor || !VictimActor) { AddError(TEXT("Fixture actors")); return false; }
-    Mode->Combat = Driver;
-    Mode->DemoContent = Catalog;
-    World->CopyGameState(Mode, nullptr);
-    const FLDCombatBodyRef ShooterRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
-    const FLDCombatBodyRef VictimRef{{ELDVictimKind::Contender, FGuid::NewGuid(), 1}, FGuid::NewGuid()};
-    for (const auto& Pair : {TPair<ALDCharacter*, FLDCombatBodyRef>(ShooterActor, ShooterRef), TPair<ALDCharacter*, FLDCombatBodyRef>(VictimActor, VictimRef)})
-    {
-        FLDBodyCombatState State;
-        State.Identity = Pair.Value.BodyIdentity;
-        State.Victim = Pair.Value.Victim;
-        State.Resources.MaxHpP2 = State.Resources.HpP2 = 100000;
-        Driver->Bodies.Add(Pair.Key, MoveTemp(State));
-    }
-    FString Error;
-
-    // A three-shot volley 150 ms apart: the first flight is released, the later ones are scheduled from it.
-    FLDCombatSourceRef Source;
-    Source.Kind = ELDCombatSourceKind::Learned;
-    Source.DefinitionId = TEXT("active_barrage_rant");
-    const FGuid EffectId = FGuid::NewGuid();
-    FLDCombatProjectile First;
-    First.EffectId = EffectId;
-    First.FlightId = FGuid::NewGuid();
-    First.SourceBody = ShooterRef;
-    First.SourceEntity = First.CreditOwner = ShooterRef.Victim.EntityId;
-    First.Source = Source;
-    First.Direction = FVector(1, 0, 0);
-    First.SpeedCmPerSec = 2000;
-    First.RangeCm = 500;
-    Driver->Projectiles.Add(First);
-    FLDDemoRankDefinition Rank;
-    FLDDemoEffectDefinition& Volley = Rank.Effects.AddDefaulted_GetRef();
-    Volley.Opcode = uint8(ELDDemoEffectOp::Volley);
-    Volley.Count = 3;
-    Volley.IntervalMs = 150;
-    FLDBodyCombatState& Shooter = Driver->Bodies.FindChecked(ShooterActor);
-    if (!TestTrue(FString::Printf(TEXT("The volley is scheduled: %s"), *Error), Driver->ReleaseMechanics(*ShooterActor, Shooter, Source, Rank,
-        nullptr, FVector::ZeroVector, FVector::ZeroVector, EffectId, 1, Error))) { return false; }
-    Mode->AuthorityNowMs = 150;
-    if (!TestTrue(FString::Printf(TEXT("The second shot leaves: %s"), *Error), Driver->AdvanceMechanics(150, Error))) { return false; }
-    TArray<FLDObservedProjectileFact> Flights;
-    TestTrue(FString::Printf(TEXT("Two flights of one volley are observed at once: %s"), *Error),
-        Driver->ReadObservedProjectiles(Flights, Error) && Flights.Num() == 2 && Flights[0].Key != Flights[1].Key
-        && Flights[0].Key.IsValid() && Flights[1].Key.IsValid());
-    TestTrue(TEXT("Both flights keep the release's shared effect identity"), Driver->Projectiles.Num() == 2
-        && Driver->Projectiles[0].EffectId == EffectId && Driver->Projectiles[1].EffectId == EffectId);
-    TestTrue(TEXT("Every scheduled shot already holds its own fixed flight identity"), Driver->VolleyShots.Num() == 1
-        && Driver->VolleyShots[0].Template.FlightId.IsValid() && Driver->VolleyShots[0].Template.FlightId != Flights[0].Key
-        && Driver->VolleyShots[0].Template.FlightId != Flights[1].Key);
-
-    // active_binding_snare Lv3 from the shooter: when he leaves, his root and its vulnerability both end.
-    FLDBodyCombatState& Victim = Driver->Bodies.FindChecked(VictimActor);
-    const FGuid Snare = FGuid::NewGuid(), OtherRoot = FGuid::NewGuid(), Bystander = FGuid::NewGuid();
-    Victim.Roots.Add({Snare, ShooterRef.Victim.EntityId, 2000});
-    Victim.Vulnerabilities.Add({Snare, 1500, 2000});
-    Victim.Roots.Add({OtherRoot, Bystander, 2000});
-    Victim.Vulnerabilities.Add({OtherRoot, 1500, 2000});
-    Driver->CancelEntityEffects(ShooterRef.Victim.EntityId);
-    TestTrue(TEXT("The leaving source's root and its vulnerability are gone; another source's stay"),
-        Victim.Roots.Num() == 1 && Victim.Roots[0].EffectId == OtherRoot
-        && Victim.Vulnerabilities.Num() == 1 && Victim.Vulnerabilities[0].EffectId == OtherRoot);
-    TestTrue(TEXT("Its flights are cancelled too"), Driver->Projectiles.IsEmpty() && Driver->VolleyShots.IsEmpty());
-    return true;
-}
-// #134 review: the Host's LD_HIT line records the vamp the source actually regained, after its heal cut and the max-HP clamp.
+// #134 review: the Host's LD_HIT line records the vamp the source actually regained, after the lifesteal cap and the max-HP clamp.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPlaytestLogHitVampTest, "Lockdown.Rules.PlaytestLog.HitVamp",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
@@ -547,8 +464,7 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         int32 End = INDEX_NONE;
         return Rest.FindChar(TEXT(' '), End) ? Rest.Left(End) : Rest;
     };
-    // A 300-point hit with full omnivamp (passive_cornered terms) while the source is below 90%; #147 D22 caps every
-    // lifesteal of one hit at COMBAT.LifestealCap.
+    // A 300-point hit with a full on-hit lifesteal; #147 D22 caps every lifesteal of one hit at COMBAT.LifestealCap.
     const auto Strike = [&](int64& OutHPLost, int64& OutHealed, FString& OutVamp)
     {
         FLDCombatHit Hit;
@@ -558,8 +474,9 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         Hit.SourceEntity = Hit.CreditOwner = SourceRef.Victim.EntityId;
         Hit.HitClass = ELDCombatHitClass::Ability;
         Hit.BaseP2 = 30000;
-        Hit.OmnivampBp = 10000;
-        Hit.OmnivampThresholdBp = 9000;
+        Hit.OnHitScaleBp = 10000;
+        Hit.bLifesteal = true;
+        Hit.LifestealRatioBp = 10000;
         const int64 VictimBefore = Victim.Resources.HpP2, SourceBefore = Source.Resources.HpP2;
         const int32 Before = Capture.Lines.Num();
         FString Error;
@@ -573,22 +490,20 @@ bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
         return true;
     };
 
-    // Half heal cut on the source: the line records the halved heal, not the calculated omnivamp.
+    // Room to heal: the line records the capped lifesteal the source regained.
     Source.Resources.HpP2 = 50000;
-    Source.HealCuts.Add({FGuid::NewGuid(), FGuid::NewGuid(), 5000, 60000});
     int64 HPLost = 0, Healed = 0;
     FString Vamp;
     if (!Strike(HPLost, Healed, Vamp)) { return false; }
-    TestTrue(TEXT("The hit took HP for the source's omnivamp"), HPLost > 0);
+    TestTrue(TEXT("The hit took HP for the source's lifesteal"), HPLost > 0);
     const int64 CapBp = Catalog->Get().Parameters.LifestealCapBp;
-    TestEqual(TEXT("The heal cut halves what the capped lifesteal regains"), Healed, LDCombatMechanics::ReduceByBp(HPLost * CapBp / 10000, 5000));
-    TestEqual(TEXT("vamp is the source's actual HP gain under a heal cut"), Vamp, LDLog::P2(Healed));
+    TestEqual(TEXT("The source regains the capped lifesteal"), Healed, HPLost * CapBp / 10000);
+    TestEqual(TEXT("vamp is the source's actual HP gain"), Vamp, LDLog::P2(Healed));
 
-    // No cut, but the source is near full HP: the line records the clamped gain.
-    Source.HealCuts.Reset();
+    // The source is near full HP: the line records the clamped gain.
     Source.Resources.HpP2 = 89900;
     if (!Strike(HPLost, Healed, Vamp)) { return false; }
-    TestTrue(TEXT("This omnivamp would overfill the source"), HPLost * CapBp / 10000 > Source.Resources.MaxHpP2 - 89900);
+    TestTrue(TEXT("This lifesteal would overfill the source"), HPLost * CapBp / 10000 > Source.Resources.MaxHpP2 - 89900);
     TestTrue(TEXT("The source stops at its max HP"), Source.Resources.HpP2 == Source.Resources.MaxHpP2 && Healed == 10100);
     TestEqual(TEXT("vamp is the source's actual HP gain at the max-HP clamp"), Vamp, LDLog::P2(Healed));
     return true;
