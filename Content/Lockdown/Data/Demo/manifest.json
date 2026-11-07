@@ -1,8 +1,15 @@
 {
+<<<<<<< HEAD
   "author_schema_sha256": "8c44fcafbdab8542f9a68f160470795439934210db785460d7e163b09cd323c0",
   "content": {
     "file": "demo_content.json",
     "sha256": "b3e62a53d0132c2d3621ac31acb4809a828f3fd5d2ebc13d02c1fec6023dae0d"
+=======
+  "author_schema_sha256": "430df23a1326701db8ba447d29d43bdbda7f95e587724e891dfe6bd42897bf83",
+  "content": {
+    "file": "demo_content.json",
+    "sha256": "8c05f0e59606273f665d71fb8044ff29b2b1f854b9676886749fc1239fc9721d"
+>>>>>>> origin/main
   },
   "display_sha256": "cb12ed5648131b52661264d9542307e96fdd325705978eb88e1590a1e44f1900",
   "format": "lockdown-demo-content",

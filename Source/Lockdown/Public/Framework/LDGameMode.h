@@ -119,8 +119,8 @@ public:
     const FLDMatchContext& GetMatchContext() const { return MatchContext; }
     bool IsDemoRoom() const { return bDemoWorld && bEntryAccepted; }
     bool IsGameplayWriteOpen(const FLDMatchContext& Context) const;
-    // #153 opening countdown: the write gate is open (the clock runs, the opening choice and leaves commit), but no
-    // movement, attack, ability, dash or trade is admitted and camps stay idle until the match's T=0.
+    // #153 opening countdown: the write gate is open (the clock, movement, the dash, the opening choice and leaves commit),
+    // but no attack, Q/W or trade is admitted and camps stay idle until the match's T=0 (LDOrderRules::CountdownAdmits*).
     bool IsOpeningCountdown(const FLDMatchContext& Context) const;
     const FLDAuthorityStep& GetAuthorityStep() const { return AuthorityStep; }
     double GetAuthorityNowSeconds() const { return AuthorityNowSeconds; }
