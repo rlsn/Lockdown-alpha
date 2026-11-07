@@ -363,10 +363,10 @@ void ULDChoicesPanel::ConfirmChoice()
         {
             // #97 short path: the HUD's Q/W slots glow red (IsReplacementTarget) and a click on one is the choice of what to
             // forget, with no further confirmation and no default slot; another card restarts from that card, Back cancels.
+            // The pick holds no input (ChildConfirmationYields): play and Q/W casts go on until a slot is clicked.
             bReplacing=true;ReplaceBuildRevision=Latest.BuildRevision;
-            // The toast asks; the red slot rings show where; the selected card's popup keeps the rank rule.
+            // The HUD holds the prompt toast while the pick waits; the red slot rings show where; the card popup keeps the rank rule.
             ChoicesText(Feedback,TEXT(""));
-            if(Notify){Notify(TEXT("选择要替换的技能"));}
             RefreshSelection();
             return;
         }

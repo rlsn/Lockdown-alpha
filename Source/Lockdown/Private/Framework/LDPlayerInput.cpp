@@ -87,7 +87,8 @@ bool ALDPlayerController::IsWorldInputSuppressed() const
 bool ALDPlayerController::IsWorldInputCaptured() const
 {
     const ELDUIInputLayer Layer=RootUI?RootUI->TopInputLayer():ELDUIInputLayer::None;
-    return Layer==ELDUIInputLayer::TextEditing || Layer==ELDUIInputLayer::ChildConfirmation;
+    // A yielding confirmation (the replacement pick) holds nothing: play, Q/W casts included, goes on while it waits.
+    return Layer==ELDUIInputLayer::TextEditing || (Layer==ELDUIInputLayer::ChildConfirmation && !RootUI->YieldingConfirmation());
 }
 
 bool ALDPlayerController::IsAwaitingRespawn() const
@@ -199,6 +200,8 @@ void ALDPlayerController::V05Back()
     // UI_AND_SETTINGS 4: one layer per press — editing/child confirmation, then a local Armed preview,
     // then a normal main panel, then the menu. Cancelling Armed never stops an accepted order.
     if (!RootUI) { return; }
+    // Play goes on during a yielding confirmation, so a skill armed meanwhile is the nearer layer and is cancelled first.
+    if (RootUI->YieldingConfirmation() && CancelArmedCombat()) { return; }
     if (RootUI->CloseTopModal()) { return; }
     if (CancelArmedCombat()) { return; }
     if (RootUI->CloseTopPanel()) { return; }

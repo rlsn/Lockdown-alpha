@@ -39,6 +39,9 @@ public:
     virtual bool ClosePanel() {return false;}
     virtual bool HasChildConfirmation() const {return false;}
     virtual bool CloseChildConfirmation() {return false;}
+    // A child confirmation that waits without capturing input: play goes on meanwhile and Back still closes it (after an
+    // armed skill) (ULDUIRoot::YieldingConfirmation).
+    virtual bool ChildConfirmationYields() const {return false;}
     // Normal panels take pointer input only over their own area, so world clicks beside them still reach the world.
     bool IsPanelHit(FVector2D Absolute) const;
     // Local text-size preference (UI 3.3): rescales the built tree once per change; text built later uses ScaleNewText.

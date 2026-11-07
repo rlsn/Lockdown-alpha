@@ -100,6 +100,12 @@ constexpr float HudBandScale=.75f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
 constexpr float HudDragStartPx=8.f;
 constexpr float HudSideWidth=300.f;
+// The held toast of the #97 replacement pick.
+const TCHAR* const LDHUDReplacePrompt=TEXT("选择要替换的技能");
+// The own status grid under the 属性 button: LDHUD::SelfIconColumns squares fill the side column.
+constexpr float HudSelfIconSize=44.f;
+constexpr float HudSelfIconGap=5.f;
+static_assert(LDHUD::SelfIconColumns*HudSelfIconSize+(LDHUD::SelfIconColumns-1)*HudSelfIconGap<=HudSideWidth,"The status grid fits the side column.");
 constexpr float HudBandPadX=14.f;
 constexpr float HudBlockGap=16.f;
 // Square slots: the icon fills the face inside a 3u state ring; the key, rank and cost ride on its corners.
@@ -356,7 +362,13 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* MapBox=WidgetTree->ConstructWidget<UVerticalBox>();
         SightText=Text(TEXT(""),14);SightText->SetColorAndOpacity(LDHUDStyle::TextWarning);MapBox->AddChildToVerticalBox(SightText)->SetPadding(FMargin(0,0,0,4));
         Minimap=CreateWidget<ULDMinimap>(PC);MapFrame=WidgetTree->ConstructWidget<USizeBox>();MapFrame->SetWidthOverride(240);MapFrame->SetHeightOverride(240);MapFrame->SetContent(Minimap);
-        MapBox->AddChildToVerticalBox(MapFrame)->SetHorizontalAlignment(HAlign_Left);
+        // The match timer sits centred over the map frame itself, so a wide sight line above never shifts it.
+        auto* MapStack=WidgetTree->ConstructWidget<UVerticalBox>();
+        MatchTimerText=OneLine(TEXT(""),16,0);HudFace(MatchTimerText,true,1);MatchTimerText->SetJustification(ETextJustify::Center);
+        MatchTimerText->SetVisibility(ESlateVisibility::Collapsed);
+        MapStack->AddChildToVerticalBox(MatchTimerText)->SetHorizontalAlignment(HAlign_Center);
+        auto* FrameSlot=MapStack->AddChildToVerticalBox(MapFrame);FrameSlot->SetHorizontalAlignment(HAlign_Left);FrameSlot->SetPadding(FMargin(0,2,0,0));
+        MapBox->AddChildToVerticalBox(MapStack)->SetHorizontalAlignment(HAlign_Left);
         MapColumn=Panel(MapBox,true);
         // Bottom-left, right above the minimap column: the room's event feed (LDHUD::FEventFeed). The newest line is at the
         // bottom, next to the map, and older lines are pushed up; the stack grows upward from the column, so the map never
@@ -402,11 +414,36 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         PanelColumn->AddChildToVerticalBox(Sheet)->SetHorizontalAlignment(HAlign_Right);
         PanelColumn->AddChildToVerticalBox(Dev)->SetPadding(FMargin(0,4,0,0));
         auto* ColumnSlot=SelfHead->AddChildToHorizontalBox(PanelColumn);ColumnSlot->SetVerticalAlignment(VAlign_Center);ColumnSlot->SetPadding(FMargin(8,0,0,0));
-        // Temporary statuses and passives are separate lines, so a control status is never lost among passives. Lines that
-        // would only state a plain value (alive, no passive) are left out; all of them wrap inside the fixed column.
+        // The life line only when it says more than "alive"; it wraps inside the fixed column.
         LifeText=Text(TEXT(""),14);SelfBox->AddChildToVerticalBox(LifeText)->SetPadding(FMargin(0,8,0,0));
-        SelfStatusText=Text(TEXT(""),14);SelfStatusText->SetColorAndOpacity(LDHUDStyle::TextWarning);SelfBox->AddChildToVerticalBox(SelfStatusText)->SetPadding(FMargin(0,4,0,0));
-        PassiveText=Text(TEXT(""),14);PassiveText->SetColorAndOpacity(LDHUDStyle::TextSecondary);SelfBox->AddChildToVerticalBox(PassiveText)->SetPadding(FMargin(0,4,0,0));
+        // The own status grid: temporary statuses first (control before the rest), then passives, one placeholder square
+        // each (the name's first character; hover names it in full). A full grid ends in "…": the attribute panel lists all.
+        {
+            SelfIconSyncing=Text(TEXT("状态同步中"),14);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);SelfBox->AddChildToVerticalBox(SelfIconSyncing)->SetPadding(FMargin(0,6,0,0));
+            for(int32 Row=0;Row<LDHUD::SelfIconRows;++Row)
+            {
+                auto* RowBox=WidgetTree->ConstructWidget<UHorizontalBox>();RowBox->SetVisibility(ESlateVisibility::Collapsed);
+                for(int32 Col=0;Col<LDHUD::SelfIconColumns;++Col)
+                {
+                    UTextBlock* Glyph=OneLine(TEXT(""),18,0);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
+                    UTextBlock* Stacks=OneLine(TEXT(""),11,0);HudFace(Stacks,true,1);
+                    auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+                    auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
+                    auto* StackSlot=Face->AddChildToOverlay(Stacks);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);
+                    auto* Cell=WidgetTree->ConstructWidget<UBorder>();Cell->SetBrush(HudRound(5.f,LDHUDStyle::Rim,1.f));
+                    Cell->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));Cell->SetPadding(FMargin(2));Cell->SetContent(Face);
+                    Cell->SetVisibility(ESlateVisibility::Collapsed);
+                    auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudSelfIconSize);CellBox->SetHeightOverride(HudSelfIconSize);CellBox->SetContent(Cell);
+                    RowBox->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudSelfIconGap:0.f,0,0,0));
+                    SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconKinds.Add(-1);SelfIconRing.Add(-1.f);
+                }
+                SelfIconRowBoxes.Add(RowBox);SelfBox->AddChildToVerticalBox(RowBox)->SetPadding(FMargin(0,Row?HudSelfIconGap:6.f,0,0));
+            }
+            SelfIconMore=OneLine(TEXT("…"),16,0);HudFace(SelfIconMore,true,0);SelfIconMore->SetColorAndOpacity(LDHUDStyle::TextSecondary);
+            SelfIconMore->SetToolTipText(FText::FromString(TEXT("更多状态与被动见属性面板")));SelfIconMore->SetVisibility(ESlateVisibility::Collapsed);
+            SelfBox->AddChildToVerticalBox(SelfIconMore)->SetPadding(FMargin(0,2,0,0));
+        }
         auto* SelfWidth=WidgetTree->ConstructWidget<USizeBox>();SelfWidth->SetWidthOverride(HudSideWidth);SelfWidth->SetClipping(EWidgetClipping::ClipToBounds);SelfWidth->SetContent(SelfBox);
         Bottom->AddChildToHorizontalBox(SelfWidth)->SetVerticalAlignment(VAlign_Fill);
         {
@@ -888,6 +925,8 @@ void ULDHUD::RefreshReadModel()
     RefreshScoreboard(*GS,O);
     HudSetText(OpeningCountdownText,LDHUD::OpeningCountdown(Public,bClock,NowMs));
     HudSetShown(OpeningCountdownText,!OpeningCountdownText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
+    HudSetText(MatchTimerText,LDHUD::MatchTimer(Public,bClock,NowMs));
+    HudSetShown(MatchTimerText,!MatchTimerText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     const LDHUD::FDeathView Death=LDHUD::Death(O,bClock,NowMs);
     HudSetShown(DeathBanner,Death.bVisible,ESlateVisibility::HitTestInvisible);
     if(Death.bVisible)
@@ -940,12 +979,37 @@ void ULDHUD::RefreshReadModel()
     {const FString Tip=Level.Level+TEXT(" · ")+Level.Experience;if(LevelTip!=Tip){LevelTip=Tip;LevelBar->SetToolTipText(FText::FromString(Tip));}}
     const bool bLevelKnown=Progression&&Progression->Level>=1&&Progression->Level<=Progression->MaxLevel;
     HudSetText(LevelBadgeText,bLevelKnown?FString::FromInt(Progression->Level):FString(TEXT("—")));
-    HudSetText(SelfStatusText,OwnCombat?LDHUD::SelfStatusLine(*OwnCombat,bClock,NowMs,Content):FString());
-    HudSetShown(SelfStatusText,!SelfStatusText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
-    // A missing projection still reads as syncing; known projections without any passive leave the line out.
-    bool bPassive=!Progression||!OwnCombat||!OwnCombat->EquipmentPassives.IsEmpty();
-    if(Progression){for(const FLDLearnedSkillView& Skill:Progression->Skills){bPassive=bPassive||!Skill.bActive;}}
-    HudSetText(PassiveText,LDHUD::PassiveLine(Progression,OwnCombat,Content));HudSetShown(PassiveText,bPassive,ESlateVisibility::HitTestInvisible);
+    {
+        // A missing projection still reads as syncing, never as "no status".
+        const LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(Progression,OwnCombat,bClock,NowMs,Content);
+        SelfIconViews=Icons.Items;
+        HudSetShown(SelfIconSyncing,Icons.bSyncing,ESlateVisibility::HitTestInvisible);
+        TArray<FName> LiveRings;
+        for(int32 Index=0;Index<SelfIconCells.Num();++Index)
+        {
+            const LDHUD::FSelfIconView* Icon=Icons.Items.IsValidIndex(Index)?&Icons.Items[Index]:nullptr;
+            HudSetShown(SelfIconCells[Index],Icon!=nullptr,ESlateVisibility::Visible);
+            SelfIconRing[Index]=-1.f;
+            if(!Icon){continue;}
+            HudSetText(SelfIconGlyphs[Index],Icon->Glyph);
+            HudSetText(SelfIconStacks[Index],Icon->Stacks>1?FString::FromInt(Icon->Stacks):FString());
+            if(SelfIconKinds[Index]!=int32(Icon->Kind))
+            {
+                // Control statuses are edged red, other temporary statuses amber, passives in the quiet secondary colour.
+                SelfIconKinds[Index]=int32(Icon->Kind);
+                const FLinearColor Edge=Icon->Kind==LDHUD::ESelfIconKind::Control?LDHUDStyle::TextDanger
+                    :Icon->Kind==LDHUD::ESelfIconKind::Temporary?LDHUDStyle::TextWarning:LDHUDStyle::TextSecondary;
+                SelfIconCells[Index]->SetBrush(HudRound(5.f,Edge,1.f));SelfIconCells[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
+                HudSetColor(SelfIconGlyphs[Index],Edge);
+            }
+            // The ring needs the matching authority clock; without it the square shows no remaining time.
+            if(Icon->ExpiresAtMs>0&&bClock){SelfIconRing[Index]=SelfIconRings.Fraction(Icon->Key,Icon->ExpiresAtMs,NowMs);LiveRings.Add(Icon->Key);}
+        }
+        SelfIconRings.Retain(LiveRings);
+        for(int32 Row=0;Row<SelfIconRowBoxes.Num();++Row)
+        {HudSetShown(SelfIconRowBoxes[Row],Icons.Items.Num()>Row*LDHUD::SelfIconColumns,ESlateVisibility::SelfHitTestInvisible);}
+        HudSetShown(SelfIconMore,Icons.Overflow>0,ESlateVisibility::Visible);
+    }
 
     // New world commands follow Combat's input half (menu/Settings, child confirmation or text edit, held keys);
     // Combat itself refuses and cancels any armed preview while input is captured.
@@ -1179,16 +1243,27 @@ void ULDHUD::RefreshReadModel()
     {
         if(!ActionSlots.IsValidIndex(ItemMenuIndex)||ActionSlots[ItemMenuIndex].ItemInstance!=ItemMenuInstance){CloseItemMenu();}else{PlaceItemMenu();}
     }
+    // Without a slot under the pointer, a hovered status square (LDHUD::SelfIconDetail) uses the same popup.
+    const UWidget* DetailOver=DetailIndex!=INDEX_NONE?ActionSlots[DetailIndex].Box.Get():nullptr;
+    if(!DetailOver&&ItemMenuIndex==INDEX_NONE)
+    {
+        for(int32 Index=0;Index<FMath::Min(SelfIconCells.Num(),SelfIconViews.Num());++Index)
+        {
+            if(SelfIconCells[Index]->IsVisible()&&SelfIconCells[Index]->GetCachedGeometry().IsUnderLocation(Pointer))
+            {DetailOver=SelfIconCells[Index];DetailView=LDHUD::SelfIconDetail(SelfIconViews[Index],
+                LDHUD::CardStatsOf(Progression?Progression->Level:1,OwnCombat?OwnCombat->Attributes:TArray<FLDCombatAttributeRowView>()),Content);break;}
+        }
+    }
     if(UWidget* Popup=ActionDetailSlot?ActionDetailSlot->Content:nullptr)
     {
-        HudSetShown(Popup,DetailIndex!=INDEX_NONE,ESlateVisibility::HitTestInvisible);
-        if(DetailIndex!=INDEX_NONE)
+        HudSetShown(Popup,DetailOver!=nullptr,ESlateVisibility::HitTestInvisible);
+        if(DetailOver)
         {
             HudSetText(ActionDetailName,DetailView.Name);HudSetText(ActionDetailSummary,DetailView.Summary);
             HudSetText(ActionDetailBody,DetailView.Body);HudSetShown(ActionDetailBody,!DetailView.Body.IsEmpty(),ESlateVisibility::HitTestInvisible);
-            // Centred 8 units above the slot, read from last frame's layout; the slot never depends on the popup, so this
-            // never feeds back. The popup is only pushed sideways to stay on screen.
-            const FGeometry& Area=GetCachedGeometry();const FGeometry& Over=ActionSlots[DetailIndex].Box->GetCachedGeometry();
+            // Centred 8 units above the slot or square, read from last frame's layout; neither depends on the popup, so
+            // this never feeds back. The popup is only pushed sideways to stay on screen.
+            const FGeometry& Area=GetCachedGeometry();const FGeometry& Over=DetailOver->GetCachedGeometry();
             const FVector2D Top=Area.AbsoluteToLocal(Over.GetAbsolutePosition());
             const FVector2D Size=Area.AbsoluteToLocal(Over.GetAbsolutePosition()+Over.GetAbsoluteSize())-Top;
             const float Half=HudDetailWidth*.5f+8.f;const float Wide=float(Area.GetLocalSize().X);
@@ -1239,7 +1314,13 @@ void ULDHUD::RefreshReadModel()
 
     // The toast fades on local presentation time.
     if(SeenIntent!=PC->IntentFeedback||SeenFeedback!=PC->FeedbackSerial()){SeenIntent=PC->IntentFeedback;SeenFeedback=PC->FeedbackSerial();ShowToast(PC->IntentFeedback);}
-    HudSetText(Toast,UiNow-FeedbackAt<5?LastFeedback:FString());
+    // The replacement pick holds its prompt until a slot is clicked or the pick ends; a notice that arrives meanwhile
+    // (a refused cast, say) shows for its usual time and then the prompt returns.
+    const bool bReplacePick=ChoicesPanel&&ChoicesPanel->HasChildConfirmation();
+    if(bReplacePick&&!bReplacePromptShown){ReplacePromptSince=UiNow;}
+    bReplacePromptShown=bReplacePick;
+    const bool bFreshToast=UiNow-FeedbackAt<5&&(!bReplacePick||FeedbackAt>=ReplacePromptSince);
+    HudSetText(Toast,bFreshToast?LastFeedback:bReplacePick?FString(LDHUDReplacePrompt):FString());
     HudSetShown(ToastPanel,!Toast->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     if(ToastSlot)
     {
@@ -1410,7 +1491,33 @@ void ULDHUD::RefreshResult(ALDPlayerController& PC,const ALDGameState& Public)
 }
 int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRect& C,FSlateWindowElementList& E,int32 L,const FWidgetStyle& S,bool Enabled) const
 {
-    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());if(!PC->CanWorldCommand()||!Band){return Base;}
+    const int32 Base=Super::NativePaint(A,G,C,E,L,S,Enabled);const auto* PC=CastChecked<ALDPlayerController>(GetOwningPlayer());
+    // Remaining-time rings of the timed own statuses: a dim full track and a bright arc that shrinks clockwise back to
+    // twelve o'clock as the status runs out. Drawn whenever the band shows, also while world input is held.
+    if(Band&&Band->IsVisible())
+    {
+        for(int32 Index=0;Index<SelfIconCells.Num();++Index)
+        {
+            const UBorder* Cell=SelfIconCells[Index];
+            if(SelfIconRing[Index]<0.f||!Cell||!Cell->IsVisible()){continue;}
+            const FGeometry& CellGeometry=Cell->GetCachedGeometry();
+            const FVector2D TopLeft=G.AbsoluteToLocal(CellGeometry.LocalToAbsolute(FVector2D::ZeroVector));
+            const FVector2D BottomRight=G.AbsoluteToLocal(CellGeometry.LocalToAbsolute(CellGeometry.GetLocalSize()));
+            const FVector2D Centre=(TopLeft+BottomRight)*.5f;const float Radius=FMath::Min(BottomRight.X-TopLeft.X,BottomRight.Y-TopLeft.Y)*.5f-1.5f;
+            if(Radius<=2.f){continue;}
+            auto Arc=[&](float Fraction,const FLinearColor& Color,float Thickness)
+            {
+                const int32 Steps=FMath::Max(2,FMath::CeilToInt(48.f*Fraction));TArray<FVector2D> Points;Points.Reserve(Steps+1);
+                for(int32 Step=0;Step<=Steps;++Step)
+                {const float Angle=2.f*PI*Fraction*Step/Steps;Points.Add(Centre+FVector2D(FMath::Sin(Angle),-FMath::Cos(Angle))*Radius);}
+                FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);
+            };
+            const FLinearColor Edge=SelfIconKinds[Index]==int32(LDHUD::ESelfIconKind::Control)?LDHUDStyle::TextDanger:LDHUDStyle::TextWarning;
+            Arc(1.f,FLinearColor(1.f,1.f,1.f,.16f),3.f);
+            if(SelfIconRing[Index]>0.f){Arc(SelfIconRing[Index],Edge,3.f);}
+        }
+    }
+    if(!PC->CanWorldCommand()||!Band){return Base;}
     auto Lines=[&](TArray<FVector2D> Points,FLinearColor Color,float Thickness=2.f){FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);};
     auto Project=[&](FVector P,FVector2D& Out){FVector2D Screen;if(!PC->ProjectWorldLocationToScreen(P,Screen)){return false;}int32 W=0,H=0;PC->GetViewportSize(W,H);Out=Screen*G.GetLocalSize()/FVector2D(FMath::Max(1,W),FMath::Max(1,H));return true;};
     // The inspected unit is marked only by the selection ring under its feet; the HUD draws no bracket over it.

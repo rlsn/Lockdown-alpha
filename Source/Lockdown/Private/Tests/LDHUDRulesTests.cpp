@@ -222,6 +222,22 @@ bool FLDHUDActionViewTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A stale match or life context never sends"),!View.bCanSubmitIntent&&(View.ExecutionBlocks&LDHUD::ActionUnsynced));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDMatchTimerTest,"Lockdown.Rules.HUDMatchTimer",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDMatchTimerTest::RunTest(const FString& Parameters)
+{
+    FLDPublicMatchView Public;Public.Generation=4;Public.Phase=ELDMatchPhase::Countdown;Public.StartedAtMs=50000;
+    TestEqualSensitive(TEXT("The opening countdown reads 0:00: the match time starts at T=0"),LDHUD::MatchTimer(Public,true,46000),FString(TEXT("0:00")));
+    Public.Phase=ELDMatchPhase::Development;
+    TestEqualSensitive(TEXT("T=0 reads 0:00"),LDHUD::MatchTimer(Public,true,50000),FString(TEXT("0:00")));
+    TestEqualSensitive(TEXT("Elapsed seconds round down"),LDHUD::MatchTimer(Public,true,50999),FString(TEXT("0:00")));
+    TestEqualSensitive(TEXT("Minutes carry no leading zero"),LDHUD::MatchTimer(Public,true,62000),FString(TEXT("0:12")));
+    TestEqualSensitive(TEXT("Seconds keep two digits"),LDHUD::MatchTimer(Public,true,115000),FString(TEXT("1:05")));
+    TestEqualSensitive(TEXT("Ten minutes and more show their own digits"),LDHUD::MatchTimer(Public,true,50000+725000),FString(TEXT("12:05")));
+    TestTrue(TEXT("Without the authority clock no time is guessed"),LDHUD::MatchTimer(Public,false,62000).IsEmpty());
+    Public.StartedAtMs=0;
+    TestTrue(TEXT("Without a published T=0 no time is shown"),LDHUD::MatchTimer(Public,true,62000).IsEmpty());
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDPublicMatchTest,"Lockdown.Rules.HUDPublicMatch",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
 {
@@ -463,6 +479,43 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An empty combat entry is an explicit empty source with the server reason kept for display"),Empty.bProjected&&!Empty.bHasSource&&Empty.ServerBlock==TEXT("没有可用来源"));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDSelfIconsTest::RunTest(const FString& Parameters)
+{
+    TestEqualSensitive(TEXT("A Latin name's icon is its upper-cased first letter"),LDHUD::IconGlyph(TEXT(" bolt")),FString(TEXT("B")));
+    TestEqualSensitive(TEXT("A Chinese name's icon is its first character"),LDHUD::IconGlyph(TEXT("眩晕")),FString(TEXT("眩")));
+    TestEqualSensitive(TEXT("An empty name is never a blank square"),LDHUD::IconGlyph(TEXT("  ")),FString(TEXT("?")));
+    // More statuses and passives than the 6 x 2 grid: the first SelfIconMax show, the rest are counted for "…".
+    if(!HudRegisterFixtureTable(*this)){return false;}
+    ON_SCOPE_EXIT{FStringTableRegistry::Get().UnregisterStringTable(HudFixtureTable);};
+    const FLDDemoContentDefinitions Content=HudFixtureContent();
+    FLDProgressionView Progression;FLDCombatOwnerView Combat;
+    FLDCombatStatusView Root;Root.StatusId=uint8(ELDDemoStatusId::Root);Root.ExpiresAtMs=5000;Root.ControlBlocks=uint8(ELDCombatControlBlock::Move);
+    Combat.Statuses={Root};
+    FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_iced_americano");Rhythm.Rank=1;
+    Progression.Skills.Init(Rhythm,LDHUD::SelfIconMax+2);
+    const LDHUD::FSelfIconsView Full=LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content);
+    TestTrue(TEXT("A full grid keeps 12 squares and counts the rest"),LDHUD::SelfIconMax==12&&Full.Items.Num()==LDHUD::SelfIconMax&&Full.Overflow==3);
+    TestTrue(TEXT("A full grid never drops the temporary status"),Full.Items[0].Kind==LDHUD::ESelfIconKind::Control);
+    Progression.Skills.SetNum(LDHUD::SelfIconMax-1);
+    TestEqual(TEXT("Exactly 12 items need no \"…\""),LDHUD::SelfIcons(&Progression,&Combat,true,0,&Content).Overflow,0);
+    // The hover popup names the square and its kind; the description and effect lines come from the content catalog.
+    const LDHUD::FActionDetailView RootDetail=LDHUD::SelfIconDetail(Full.Items[0],LDHUD::FCardStats(),nullptr);
+    TestTrue(TEXT("A control status popup heads with its line and kind"),RootDetail.Name==Full.Items[0].Tip&&RootDetail.Summary==TEXT("控制状态"));
+    TestEqualSensitive(TEXT("A learned passive popup says 角色被动"),LDHUD::SelfIconDetail(Full.Items[1],LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("角色被动")));
+    LDHUD::FSelfIconView Gear;Gear.Source=LDHUD::ESelfIconSource::Equipment;Gear.Tip=TEXT("铁板");Gear.bUpgraded=true;
+    TestEqualSensitive(TEXT("An upgraded equipment passive says so"),LDHUD::SelfIconDetail(Gear,LDHUD::FCardStats(),nullptr).Summary,FString(TEXT("装备被动（已进阶）")));
+    // Remaining-time rings: the first sight of an end instant is the full ring.
+    LDHUD::FStatusRings Rings;const FName Key(TEXT("Status.1"));
+    TestEqual(TEXT("A newly seen status starts with a full ring"),Rings.Fraction(Key,4000,1000),1.f);
+    TestEqual(TEXT("Half the span left is half a ring"),Rings.Fraction(Key,4000,2500),.5f);
+    TestEqual(TEXT("A refresh (a later end) restarts the ring full"),Rings.Fraction(Key,8000,2500),1.f);
+    TestEqual(TEXT("An earlier end keeps the span and shortens the ring"),Rings.Fraction(Key,5250,2500),.5f);
+    TestEqual(TEXT("A passed end is an empty ring"),Rings.Fraction(Key,5250,9000),0.f);
+    Rings.Retain({});
+    TestEqual(TEXT("A status gone and re-applied starts a fresh full ring"),Rings.Fraction(Key,3000,2000),1.f);
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCombatOwnerViewTest,"Lockdown.Rules.HUDCombatOwnerView",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
 {
@@ -474,21 +527,32 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     FLDCombatStatusView Aura;Aura.StatusId=uint8(ELDDemoStatusId::Shield);Aura.bIsPassive=true;
     FLDCombatStatusView Protection;Protection.StatusId=uint8(ELDDemoStatusId::RespawnProtection);Protection.ExpiresAtMs=20000;
     FLDCombatStatusView Shield;Shield.StatusId=uint8(ELDDemoStatusId::Shield);Shield.AmountP2=8050;Shield.ExpiresAtMs=12000;
-    Combat.Statuses={Root,Aura,Protection,Shield};
-    TestEqualSensitive(TEXT("Temporary statuses round time and shield up; passive auras and protection stay off the line"),
-        LDHUD::SelfStatusLine(Combat,true,10000,&Content),HudName(TEXT("root"))+TEXT(" 1.3s · ")+HudName(TEXT("shield"))+TEXT(" 81 2.0s"));
-    TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),LDHUD::SelfStatusLine(Combat,false,0,&Content),HudName(TEXT("root"))+TEXT(" · ")+HudName(TEXT("shield"))+TEXT(" 81"));
-    TestEqualSensitive(TEXT("Missing projections read as syncing, never as none"),LDHUD::PassiveLine(nullptr,nullptr,&Content),FString(TEXT("被动：角色被动同步中、装备被动同步中")));
+    // The shield is listed before the root: the grid still puts the control status first.
+    Combat.Statuses={Shield,Aura,Protection,Root};
     FLDProgressionView Progression;
+    auto Tips=[](const LDHUD::FSelfIconsView& View){TArray<FString> Out;for(const LDHUD::FSelfIconView& Icon:View.Items){Out.Add(Icon.Tip);}return FString::Join(Out,TEXT(" | "));};
+    LDHUD::FSelfIconsView Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
+    TestEqualSensitive(TEXT("Control first; time and shield round up; passive auras and protection stay off the grid"),
+        Tips(Icons),HudName(TEXT("root"))+TEXT(" 1.3s | ")+HudName(TEXT("shield"))+TEXT(" 81 2.0s"));
+    TestTrue(TEXT("Timed statuses carry their end instant and kind"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Control
+        &&Icons.Items[0].ExpiresAtMs==11201&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==12000&&!Icons.bSyncing);
+    TestEqualSensitive(TEXT("The placeholder icon is the name's first character"),Icons.Items[0].Glyph,LDHUD::IconGlyph(HudName(TEXT("root"))));
+    TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),Tips(LDHUD::SelfIcons(&Progression,&Combat,false,0,&Content)),
+        HudName(TEXT("root"))+TEXT(" | ")+HudName(TEXT("shield"))+TEXT(" 81"));
+    const LDHUD::FSelfIconsView Missing=LDHUD::SelfIcons(nullptr,nullptr,true,0,&Content);
+    TestTrue(TEXT("Missing projections read as syncing, never as none"),Missing.bSyncing&&Missing.Items.IsEmpty());
     FLDLearnedSkillView Rhythm;Rhythm.DefinitionId=TEXT("passive_iced_americano");Rhythm.Rank=2;
     FLDLearnedSkillView Active;Active.DefinitionId=TEXT("active_not_mad");Active.bActive=true;Active.Rank=2;
     Progression.Skills={Rhythm,Active};
     Content.Equipment[0].HasPassive=true;Content.Equipment[0].Passive.Family=TEXT("passive_siphon");
-    Combat.EquipmentPassives={FName(TEXT("passive_siphon")),FName(TEXT("passive_siphon"))};
+    Combat.Statuses.Reset();Combat.EquipmentPassives={FName(TEXT("passive_siphon")),FName(TEXT("passive_siphon"))};
+    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
     TestEqualSensitive(TEXT("Learned passives keep their rank; an equipment passive appears once under its equipment"),
-        LDHUD::PassiveLine(&Progression,&Combat,&Content),TEXT("被动：")+HudName(TEXT("passive_iced_americano"))+TEXT(" 2级、")+HudName(TEXT("item_iron_plate")));
+        Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT("（")+LDHUD::SkillRankName(2)+TEXT("） | ")+HudName(TEXT("item_iron_plate")));
+    TestTrue(TEXT("Passives carry no remaining time"),Icons.Items.Num()==2&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Passive&&Icons.Items[0].ExpiresAtMs==0);
     Progression.Skills={Active};Combat.EquipmentPassives.Reset();
-    TestEqualSensitive(TEXT("Known projections without passives say so"),LDHUD::PassiveLine(&Progression,&Combat,&Content),FString(TEXT("被动：无")));
+    Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
+    TestTrue(TEXT("Known projections without statuses or passives show an empty grid"),Icons.Items.IsEmpty()&&!Icons.bSyncing&&Icons.Overflow==0);
     FLDCombatActionReceipt Receipt;Receipt.Origin=ELDCombatRequestOrigin::Direct;Receipt.Entry=ELDCombatEntry::W;
     Receipt.Phase=ELDCombatPhase::Rejected;Receipt.Reject=ELDCombatReject::Cooldown;Receipt.bProtectionRemoved=true;
     TestEqualSensitive(TEXT("A failed own request and the lost protection are separate facts"),LDHUD::CombatReceiptNotice(Receipt),TEXT("角色技能 2 未执行：冷却中 · ")+LDTerms::ProtectionRemoved());

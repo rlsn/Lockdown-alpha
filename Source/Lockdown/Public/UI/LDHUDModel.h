@@ -137,6 +137,9 @@ namespace LDHUD
     LOCKDOWN_API FString OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
+    // The match timer over the minimap: whole seconds elapsed since T=0 (StartedAtMs), rounded down, as m:ss with no
+    // leading zero on the minutes ("0:12", "12:05"). "0:00" through the opening countdown; empty without a clock or T=0.
+    LOCKDOWN_API FString MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     struct FCircleView
     {
         FString Line;
@@ -378,12 +381,65 @@ namespace LDHUD
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
     // Own equipment slot -> equipment slot input (projected once the own equipment view is known).
     LOCKDOWN_API FActionInput EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
-    // Own temporary statuses for the HUD band: passive auras and respawn protection (shown on the life line) are left
-    // out; shield points round up and a remainder needs the matching authority clock. Empty when none.
-    LOCKDOWN_API FString SelfStatusLine(const FLDCombatOwnerView& Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content);
-    // Own passives for the HUD band: learned passives with their rank, then each equipment passive once, named after
-    // the equipment granting it. A missing projection reads as syncing, never as "none".
-    LOCKDOWN_API FString PassiveLine(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content);
+    // One square of the own status grid under the 属性 button: a temporary status, a learned passive or an equipment
+    // passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
+    // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
+    enum class ESelfIconKind : uint8 { Control, Temporary, Passive };
+    enum class ESelfIconSource : uint8 { Status, Learned, Equipment };
+    struct FSelfIconView
+    {
+        ESelfIconKind Kind=ESelfIconKind::Passive;
+        ESelfIconSource Source=ESelfIconSource::Status;
+        FString Glyph;
+        FString Tip;
+        // The content entry the popup describes: the status, the learned passive or the equipment granting the passive.
+        FString ContentId;
+        uint8 Rank=0;
+        bool bUpgraded=false;
+        // Stable within one status or passive, so the HUD keeps its remaining-time ring across samples.
+        FName Key;
+        // Timed temporary statuses only: the authority instant it ends; 0 for conditional states and passives.
+        int64 ExpiresAtMs=0;
+        uint8 Stacks=1;
+    };
+    inline constexpr int32 SelfIconColumns=6;
+    inline constexpr int32 SelfIconRows=2;
+    inline constexpr int32 SelfIconMax=SelfIconColumns*SelfIconRows;
+    struct FSelfIconsView
+    {
+        // At most SelfIconMax: control statuses, other temporary statuses, then learned and equipment passives.
+        TArray<FSelfIconView> Items;
+        // Items beyond SelfIconMax; the grid shows "…" and the attribute panel lists them all.
+        int32 Overflow=0;
+        // A missing own projection: the grid says syncing instead of showing none.
+        bool bSyncing=false;
+    };
+    // Own temporary statuses (passive auras and respawn protection, which the life line shows, are left out; shield
+    // points round up and a remainder needs the matching authority clock) and own passives (learned passives with their
+    // rank, then each equipment passive once, named after the equipment granting it).
+    LOCKDOWN_API FSelfIconsView SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
+        const FLDDemoContentDefinitions* Content);
+    // The hover popup of one status square, laid out like the slot popup: the Tip line, the kind ("控制状态", "临时状态",
+    // "角色被动", "装备被动", upgraded when it is), then the full content description: a status's or equipment's text
+    // (with the equipment's passive effect lines), or a learned passive's card lines rendered for Card (LearnedCardLines).
+    // Built only for the hovered square.
+    LOCKDOWN_API FActionDetailView SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content);
+    // The placeholder icon of a name: its first character, Latin letters upper-cased; "?" for an empty name.
+    LOCKDOWN_API FString IconGlyph(const FString& Name);
+    // Remaining-time rings of the timed own statuses. The view carries only the end instant, so the remaining time when
+    // an end instant is first seen is the full ring, and a later end (a refresh) restarts it. Presentation only: a
+    // status first seen part-way (a reconnect) starts full.
+    class LOCKDOWN_API FStatusRings
+    {
+    public:
+        // Remaining fraction in [0,1] of Key's current span.
+        float Fraction(FName Key,int64 ExpiresAtMs,int64 NowMs);
+        // Forgets every span whose key is not live, so an expired and re-applied status starts a fresh ring.
+        void Retain(const TArray<FName>& Live);
+    private:
+        struct FSpan{int64 ExpiresAtMs=0;int64 SpanMs=0;};
+        TMap<FName,FSpan> Spans;
+    };
     LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
