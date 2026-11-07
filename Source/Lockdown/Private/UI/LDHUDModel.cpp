@@ -248,6 +248,12 @@ FString LDHUD::Clock(int64 RemainingMs)
     const int64 Seconds=RemainingMs>0?(RemainingMs+999)/1000:0;
     return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
 }
+FString LDHUD::MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
+{
+    if(!bClock||Public.StartedAtMs<=0){return FString();}
+    const int64 Seconds=NowMs>Public.StartedAtMs?(NowMs-Public.StartedAtMs)/1000:0;
+    return FString::Printf(TEXT("%lld:%02lld"),Seconds/60,Seconds%60);
+}
 FString LDHUD::OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs)
 {
     if(!bClock||Public.StartedAtMs<=0){return FString();}
@@ -1272,35 +1278,127 @@ FString HudPassiveSource(const FLDDemoContentDefinitions* Content,const FName& P
     return Item?Item->Id:Id;
 }
 }
-FString LDHUD::SelfStatusLine(const FLDCombatOwnerView& Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Content)
+FString LDHUD::IconGlyph(const FString& Name)
 {
-    TArray<FString> Parts;
-    for(const FLDCombatStatusView& Status:Combat.Statuses)
-    {
-        if(Status.bIsPassive||Status.StatusId==uint8(ELDDemoStatusId::RespawnProtection)){continue;}
-        FString Part=StatusName(Content,Status.StatusId);
-        if(Status.AmountP2>0){Part+=FString::Printf(TEXT(" %lld"),HudWholePoints(Status.AmountP2,true));}
-        if(Status.ExpiresAtMs>0&&bClock){Part+=TEXT(" ")+TenthsUp(Status.ExpiresAtMs-NowMs);}
-        Parts.Add(MoveTemp(Part));
-    }
-    return FString::Join(Parts,TEXT(" · "));
+    const FString Trimmed=Name.TrimStartAndEnd();
+    return Trimmed.IsEmpty()?FString(TEXT("?")):Trimmed.Left(1).ToUpper();
 }
-FString LDHUD::PassiveLine(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content)
+LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,
+    const FLDDemoContentDefinitions* Content)
 {
-    TArray<FString> Parts;
-    if(!Progression){Parts.Add(TEXT("角色被动同步中"));}
-    else{for(const FLDLearnedSkillView& Skill:Progression->Skills){if(!Skill.bActive){Parts.Add(FString::Printf(TEXT("%s %d级"),*ContentName(Content,Skill.DefinitionId.ToString()),int32(Skill.Rank)));}}}
-    if(!Combat){Parts.Add(TEXT("装备被动同步中"));}
-    else
+    FSelfIconsView View;
+    View.bSyncing=!Progression||!Combat;
+    TArray<FSelfIconView> Control,Temporary,Passives;
+    if(Combat)
+    {
+        for(const FLDCombatStatusView& Status:Combat->Statuses)
+        {
+            if(Status.bIsPassive||Status.StatusId==uint8(ELDDemoStatusId::RespawnProtection)){continue;}
+            FSelfIconView Icon;
+            const FString Name=StatusName(Content,Status.StatusId);
+            Icon.Kind=Status.ControlBlocks!=0?ESelfIconKind::Control:ESelfIconKind::Temporary;
+            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Source=ESelfIconSource::Status;
+            if(const TCHAR* Id=HudStatusContentId(Status.StatusId)){Icon.ContentId=Id;}
+            Icon.Key=FName(*FString::Printf(TEXT("Status.%d"),int32(Status.StatusId)));
+            Icon.ExpiresAtMs=FMath::Max<int64>(0,Status.ExpiresAtMs);Icon.Stacks=Status.Stacks;
+            if(Status.Stacks>1){Icon.Tip+=FString::Printf(TEXT(" ×%d"),int32(Status.Stacks));}
+            if(Status.AmountP2>0){Icon.Tip+=FString::Printf(TEXT(" %lld"),HudWholePoints(Status.AmountP2,true));}
+            if(Status.ExpiresAtMs>0&&bClock){Icon.Tip+=TEXT(" ")+TenthsUp(Status.ExpiresAtMs-NowMs);}
+            (Icon.Kind==ESelfIconKind::Control?Control:Temporary).Add(MoveTemp(Icon));
+        }
+    }
+    if(Progression)
+    {
+        for(const FLDLearnedSkillView& Skill:Progression->Skills)
+        {
+            if(Skill.bActive){continue;}
+            FSelfIconView Icon;const FString Name=ContentName(Content,Skill.DefinitionId.ToString());
+            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name+TEXT("（")+SkillRankName(Skill.Rank)+TEXT("）");
+            Icon.Source=ESelfIconSource::Learned;Icon.ContentId=Skill.DefinitionId.ToString();Icon.Rank=Skill.Rank;
+            Icon.Key=FName(*(TEXT("Learned.")+Skill.DefinitionId.ToString()));
+            Passives.Add(MoveTemp(Icon));
+        }
+    }
+    if(Combat)
     {
         TArray<FName> Seen;
         for(const FName& Passive:Combat->EquipmentPassives)
         {
             if(Seen.Contains(Passive)){continue;}
-            Seen.Add(Passive);Parts.Add(ContentName(Content,HudPassiveSource(Content,Passive)));
+            Seen.Add(Passive);
+            FSelfIconView Icon;const FString ItemId=HudPassiveSource(Content,Passive);const FString Name=ContentName(Content,ItemId);
+            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Key=FName(*(TEXT("Equipment.")+Passive.ToString()));
+            Icon.Source=ESelfIconSource::Equipment;Icon.ContentId=ItemId;Icon.bUpgraded=Combat->UpgradedEquipmentPassives.Contains(Passive);
+            Passives.Add(MoveTemp(Icon));
         }
     }
-    return Parts.IsEmpty()?FString(TEXT("被动：无")):TEXT("被动：")+FString::Join(Parts,TEXT("、"));
+    for(TArray<FSelfIconView>* Group:{&Control,&Temporary,&Passives})
+    {
+        for(FSelfIconView& Icon:*Group)
+        {
+            if(View.Items.Num()<SelfIconMax){View.Items.Add(MoveTemp(Icon));}else{++View.Overflow;}
+        }
+    }
+    return View;
+}
+LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const FCardStats& Card,const FLDDemoContentDefinitions* Content)
+{
+    FActionDetailView Detail;
+    Detail.Name=Icon.Tip;
+    TArray<FString> Lines;
+    FString Description;
+    // A learned skill's description is its #147 card template; it is rendered with the owner's numbers below instead.
+    if(Icon.Source!=ESelfIconSource::Learned&&!Icon.ContentId.IsEmpty()&&ContentText(Content,Icon.ContentId,true,Description)&&!Description.IsEmpty())
+    {Lines.Add(Description);}
+    switch(Icon.Source)
+    {
+    case ESelfIconSource::Status:
+        Detail.Summary=Icon.Kind==ESelfIconKind::Control?TEXT("控制状态"):TEXT("临时状态");
+        break;
+    case ESelfIconSource::Learned:
+    {
+        Detail.Summary=TEXT("角色被动");
+        const FString& Id=Icon.ContentId;
+        const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
+        const FLDDemoDisplayDefinition* Display=Content?Content->Display.FindByPredicate([&Id](const FLDDemoDisplayDefinition& D){return D.Id==Id;}):nullptr;
+        const FLDDemoRankDefinition* Rank=Ability?Ability->Ranks.FindByPredicate([&Icon](const FLDDemoRankDefinition& R){return R.Rank==int32(Icon.Rank);}):nullptr;
+        // The same card sentence (and, once advanced, the "高级：" line) the attribute panel and the blind box show.
+        if(Rank&&Display){Lines.Append(LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Icon.Rank,Card,Content->Parameters.SkillGrowthPerLevelBp));}
+        else if(Ability){Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),int32(Icon.Rank)));}
+        else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
+        break;
+    }
+    case ESelfIconSource::Equipment:
+    {
+        Detail.Summary=Icon.bUpgraded?TEXT("装备被动（已进阶）"):TEXT("装备被动");
+        const FString& Id=Icon.ContentId;
+        const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr;
+        const TArray<FLDDemoEffectDefinition>* Effects=Item?LDDemoEquipment::EffectivePassiveEffects(*Item,Icon.bUpgraded):nullptr;
+        if(Effects&&!Effects->IsEmpty())
+        {
+            if(!Lines.IsEmpty()){Lines.Add(FString());}
+            for(const FLDDemoEffectDefinition& Effect:*Effects){Lines.Add(TEXT("被动：")+EffectLine(Effect));}
+        }
+        else if(Content&&!Item){Lines.Add(TEXT("内容目录中找不到该装备"));}
+        break;
+    }
+    }
+    Detail.Body=FString::Join(Lines,TEXT("\n"));
+    return Detail;
+}
+float LDHUD::FStatusRings::Fraction(FName Key,int64 ExpiresAtMs,int64 NowMs)
+{
+    const int64 Remaining=FMath::Max<int64>(0,ExpiresAtMs-NowMs);
+    FSpan& Span=Spans.FindOrAdd(Key);
+    // A new or later end instant is a fresh application or a refresh: the ring restarts full from here. An earlier end
+    // (a stronger source ran out) keeps the span, so the ring jumps down instead of refilling.
+    if(ExpiresAtMs>Span.ExpiresAtMs){Span.SpanMs=Remaining;}
+    Span.ExpiresAtMs=ExpiresAtMs;
+    return Span.SpanMs>0?FMath::Clamp(float(double(Remaining)/double(Span.SpanMs)),0.f,1.f):0.f;
+}
+void LDHUD::FStatusRings::Retain(const TArray<FName>& Live)
+{
+    for(auto It=Spans.CreateIterator();It;++It){if(!Live.Contains(It.Key())){It.RemoveCurrent();}}
 }
 FString LDHUD::EntryLabel(ELDCombatEntry Entry)
 {

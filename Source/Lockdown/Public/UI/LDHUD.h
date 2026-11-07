@@ -7,6 +7,7 @@
 #include "UI/LDHUDModel.h"
 #include "LDHUD.generated.h"
 class UBorder;
+class UHorizontalBox;
 class UCanvasPanelSlot;
 class UTextBlock;
 class UProgressBar;
@@ -146,6 +147,8 @@ private:
     // Bottom offset applied to the shop and blind-box panels, which dock right above the shop entry.
     float AppliedPanelDock=-1;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
+    // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
+    UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
     UPROPERTY() TObjectPtr<UTextBlock> SightText;
     UPROPERTY() TObjectPtr<UBorder> Band;
     UPROPERTY() TObjectPtr<UBorder> Portrait;
@@ -153,8 +156,20 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> LevelBadgeText;
     UPROPERTY() TObjectPtr<UTextBlock> SelfName;
     UPROPERTY() TObjectPtr<UTextBlock> LifeText;
-    UPROPERTY() TObjectPtr<UTextBlock> SelfStatusText;
-    UPROPERTY() TObjectPtr<UTextBlock> PassiveText;
+    // The own status grid (LDHUD::SelfIcons) under the 属性 button: SelfIconMax prebuilt squares in SelfIconRows rows,
+    // "…" under a full grid, a syncing line while an own projection is missing. Timed statuses get a remaining-time
+    // ring (SelfIconRing, -1 for none) that NativePaint draws around the square.
+    UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> SelfIconRowBoxes;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> SelfIconCells;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconGlyphs;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconStacks;
+    UPROPERTY() TObjectPtr<UTextBlock> SelfIconMore;
+    UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;
+    // The squares' current views; the hovered one opens the slot popup (LDHUD::SelfIconDetail).
+    TArray<LDHUD::FSelfIconView> SelfIconViews;
+    TArray<int32> SelfIconKinds;
+    TArray<float> SelfIconRing;
+    LDHUD::FStatusRings SelfIconRings;
     UPROPERTY() TObjectPtr<UProgressBar> HealthBar;
     UPROPERTY() TObjectPtr<UTextBlock> HealthText;
     UPROPERTY() TObjectPtr<UProgressBar> ManaBar;
@@ -210,6 +225,9 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> Toast;
     UPROPERTY() TArray<TObjectPtr<UBorder>> HitPanels;
     double FeedbackAt=0;
+    // The replacement pick's held prompt (RefreshReadModel): whether it showed last frame and since when.
+    bool bReplacePromptShown=false;
+    double ReplacePromptSince=0;
     // The toast shows controller intent feedback and local panel notices; SeenIntent tracks only the former.
     FString LastFeedback;
     FString SeenIntent;

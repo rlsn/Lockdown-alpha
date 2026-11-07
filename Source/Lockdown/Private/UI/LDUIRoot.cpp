@@ -882,6 +882,13 @@ ELDUIInputLayer ULDUIRoot::TopInputLayer() const
     return Open||ActiveMainPanel()!=ELDUIMainPanel::None?ELDUIInputLayer::MainPanel:ELDUIInputLayer::None;
 }
 
+ULDPanel* ULDUIRoot::YieldingConfirmation() const
+{
+    if(TextEditingOwner()||Confirm!=ELDRootConfirm::None){return nullptr;}
+    ULDPanel* Open=OpenMainPanel();
+    return Open&&Open->HasChildConfirmation()&&Open->ChildConfirmationYields()?Open:nullptr;
+}
+
 bool ULDUIRoot::CloseTopModal()
 {
     if(EndTextEditing()){return true;}
