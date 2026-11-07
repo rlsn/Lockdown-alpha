@@ -137,6 +137,8 @@ struct FLDLowHPBonusTerm
     TArray<FLDDemoStatBonus> Stats;
     // Omnivamp of every damage hit the owner deals while the bonus is active; 0 = none.
     int64 OmnivampBp = 0;
+    // #147: primary basic lifesteal while the bonus is active; 0 = none.
+    int64 BasicLifestealBp = 0;
 };
 
 // Passive extra damage of the first damaging action committed after DelayMs out of combat.
@@ -156,12 +158,14 @@ struct FLDAmbushDamageTerm
     int64 ShredDurationMs = 0;
 };
 
-// Passive amplification of the owner's damage against a body under any control or slow.
+// Passive amplification of the owner's damage against a body under any control or slow (#147 D21: one term of the
+// damage bonus pool); LowHPBelowBp > 0 also counts a body below that HP share.
 struct FLDControlDamageAmpTerm
 {
     FString AbilityId;
     uint8 Rank = 0;
     int64 RatioBp = 0;
+    int64 LowHPBelowBp = 0;
 };
 
 struct FLDEquipmentPassiveFamily

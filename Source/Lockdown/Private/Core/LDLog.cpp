@@ -186,6 +186,8 @@ FString LDLog::StatusName(uint8 StatusId)
     case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
     case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
     case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
+    case ELDDemoStatusId::Silence: return TEXT("silence");
+    case ELDDemoStatusId::Burn: return TEXT("burn");
     default: return FString::FromInt(StatusId);
     }
 }

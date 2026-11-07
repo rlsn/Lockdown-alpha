@@ -111,6 +111,9 @@ class ApprovedDemoData(unittest.TestCase):
             ("AI.DecisionIntervalSec", "ms", ".25"), ("AI.RetryPolicy.InitialBackoffSec", "ms", ".25"),
             ("AI.RetryPolicy.MaxBackoffSec", "ms", ".50"), ("AI.ExploreRevisitIntervalSec", "ms", "20"),
             ("AI.EngagementBudgetSec", "ms", "40"), ("COMBAT.RearArcDeg", "deg", "120"),
+            ("COMBAT.BreachPerStack", "points", "3"), ("COMBAT.BreachSec", "ms", "4"),
+            ("COMBAT.BurnPerSec", "points", "3"), ("COMBAT.BurnAPRatioPerSec", "ratio", ".03"),
+            ("COMBAT.BurnTickSec", "ms", ".5"), ("COMBAT.BurnSec", "ms", "3"), ("COMBAT.LifestealCap", "ratio", ".35"),
         ):
             expected[key] = (unit, value)
         for key, value in (
@@ -119,6 +122,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
             ("CAMP.ReturnDeadEndPlans", 3), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
             ("LEADER.MinLevel", 3), ("LEADER.BountyGoldPerRefresh", 50), ("LEADER.BountyGoldMax", 250),
+            ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
         ):
             expected[key] = (None, value)
         self.assertEqual(set(self.data["parameters"]), set(expected))
@@ -153,7 +157,7 @@ class ApprovedDemoData(unittest.TestCase):
                                            "slow": 5, "stat_boost": 6, "enraged": 7, "ambush_ready": 8, "exposed": 9,
                                            "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
                                            "knockback": 20, "heal_cut": 22, "damage_guard": 23,
-                                           "vulnerable": 24})
+                                           "vulnerable": 24, "silence": 25, "burn": 26})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
             "out_of_combat_regen": 6, "lifesteal": 7, "dash": 8, "cleave": 10, "dash_boost": 11,
@@ -167,7 +171,8 @@ class ApprovedDemoData(unittest.TestCase):
             "zone_slow": 52, "zone_root": 53, "zone_damage": 54, "damage_guard": 55, "shield_burst": 56,
             "vulnerable": 57, "breach_stacks": 61,
             "mobility_shield": 62, "shield_pulse": 63, "basic_rider": 64, "cast_frenzy": 65, "affliction_amp": 66,
-            "shield_break_retort": 67, "hit_haste": 68})
+            "shield_break_retort": 67, "hit_haste": 68, "silence": 69, "breach": 70, "burn": 71, "execute": 72,
+            "pierce": 73, "echo": 74, "taunt_shield": 75, "dispel_disarm": 76, "zone_burn": 77})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -210,6 +215,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
             "knockback": "击退", "heal_cut": "重伤",
             "damage_guard": "减伤", "vulnerable": "易伤",
+            "silence": "沉默", "burn": "灼烧",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):

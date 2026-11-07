@@ -57,6 +57,9 @@ def content_fixture():
         ("AI.DecisionIntervalSec", "s", 0.125), ("AI.RetryPolicy.InitialBackoffSec", "s", 0.125),
         ("AI.RetryPolicy.MaxBackoffSec", "s", 0.375), ("AI.ExploreRevisitIntervalSec", "s", 12),
         ("AI.EngagementBudgetSec", "s", 30), ("COMBAT.RearArcDeg", "deg", 90),
+        ("COMBAT.BreachPerStack", "points", 2), ("COMBAT.BreachSec", "s", 3),
+        ("COMBAT.BurnPerSec", "points", 4), ("COMBAT.BurnAPRatioPerSec", "ratio", 0.05),
+        ("COMBAT.BurnTickSec", "s", 0.25), ("COMBAT.BurnSec", "s", 2), ("COMBAT.LifestealCap", "ratio", 0.4),
     ):
         parameters[key] = q(unit, value)
     parameters.update({
@@ -65,6 +68,7 @@ def content_fixture():
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
         "CAMP.ReturnDeadEndPlans": 2, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
         "LEADER.MinLevel": 2, "LEADER.BountyGoldPerRefresh": 40, "LEADER.BountyGoldMax": 200,
+        "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",

@@ -399,6 +399,7 @@ struct FLDCombatStatusView
     UPROPERTY() int64 AmountP2=0;                    // shield amount; 0 otherwise
     UPROPERTY() uint8 ControlBlocks=0;               // ELDCombatControlBlock bits
     UPROPERTY() bool bIsPassive=false;
+    UPROPERTY() uint8 Stacks=1;                      // #147 breach and burn layers; 1 otherwise
 };
 
 USTRUCT()

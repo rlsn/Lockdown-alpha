@@ -53,6 +53,9 @@ bool IsCombatTriggerOp(ELDDemoEffectOp Op)
     case ELDDemoEffectOp::BreachStacks: case ELDDemoEffectOp::MobilityShield: case ELDDemoEffectOp::ShieldPulse:
     case ELDDemoEffectOp::BasicRider: case ELDDemoEffectOp::CastFrenzy: case ELDDemoEffectOp::AfflictionAmp:
     case ELDDemoEffectOp::ShieldBreakRetort: case ELDDemoEffectOp::HitHaste:
+    // #147 v7: passive breach and burn stacks; an equipment control amplification joins the damage bonus pool (a learned
+    // one keeps its own conditional term below).
+    case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ControlDamageAmp:
         return true;
     default:
         return false;
@@ -78,6 +81,7 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
     case ELDDemoBonusStat::MoveSpeedBonusRatio: Attribute = EAttribute::MoveSpeed; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::ADBonusRatio: Attribute = EAttribute::AD; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::HPRegenFlat: Attribute = EAttribute::HPRegen; return true;
+    case ELDDemoBonusStat::MPRegenFlat: Attribute = EAttribute::MPRegen; return true;
     case ELDDemoBonusStat::APBonusRatio: Attribute = EAttribute::AP; bRatio = bBasisPoints = true; return true;
     case ELDDemoBonusStat::CritChanceBonusRatio:
         // Probability points add to the base chance; they are not a percentage of it.
@@ -93,7 +97,8 @@ bool StatTarget(ELDDemoBonusStat Stat, EAttribute& Attribute, bool& bRatio, bool
 // Stats whose amount is an exact rational in FLDDemoStatBonus::Cm (cm or hp/s) rather than a scaled integer.
 bool IsRationalStat(ELDDemoBonusStat Stat)
 {
-    return Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat == ELDDemoBonusStat::HPRegenFlat;
+    return Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat == ELDDemoBonusStat::HPRegenFlat
+        || Stat == ELDDemoBonusStat::MPRegenFlat;
 }
 
 struct FTermSum
@@ -480,6 +485,7 @@ private:
                     Term.ThresholdBp = Effect.RatioBp;
                     Term.Stats = Effect.Stats;
                     Term.OmnivampBp = Effect.VampRatioBp;
+                    Term.BasicLifestealBp = Effect.SecondaryRatioBp;
                 }
                 else if (Effect.GetOp() == ELDDemoEffectOp::AmbushDamage)
                 {
@@ -517,6 +523,7 @@ private:
                     Term.AbilityId = Passives[Index]->Id;
                     Term.Rank = Build.LearnedPassives[Index].Rank;
                     Term.RatioBp = Effect.RatioBp;
+                    Term.LowHPBelowBp = Effect.SecondaryRatioBp;
                 }
                 else if (IsCombatTriggerOp(Effect.GetOp()))
                 {

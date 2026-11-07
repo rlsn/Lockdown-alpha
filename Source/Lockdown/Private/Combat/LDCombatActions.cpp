@@ -671,7 +671,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
     Gate.ManaCostP2=RankDef->ManaCostP2;
     Gate.bDash=TargetDef->Mode==ELDDemoTargetMode::DirectionDash || TargetDef->Mode==ELDDemoTargetMode::GroundPoint;
     Gate.Roots=&Body->Roots;
-    Gate.bControlBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Cast);
+    Gate.bControlBlocked=IsCastBlocked(*Body,Source.Kind);
     Gate.bDisplacementBlocked=IsActionBlocked(*Body,ELDCombatControlAction::Displacement);
     Gate.bCheckBusy=true;
     Gate.bAbilityInProgress=Body->Action.IsSet() && Body->Action->Kind==ELDCombatActionKind::Ability;
@@ -883,6 +883,18 @@ bool ALDCombatDirector::ReleaseBasic(ALDCharacter& Actor, FLDBodyCombatState& Bo
     {
         Hit.BaseP2+=Bonus->BaseP2;
         Hit.ADRatioBp+=Bonus->ADRatioBp;
+        // #147: an empowered basic may carry a cleave of its own.
+        if (Bonus->CleaveRatioBp>0 && Bonus->CleaveRadiusCm>0)
+        {
+            Hit.bCleave=true;
+            Hit.CleaveRatioBp=FMath::Max(Hit.CleaveRatioBp,Bonus->CleaveRatioBp);
+            Hit.CleaveRadiusCm=FMath::Max(Hit.CleaveRadiusCm,Bonus->CleaveRadiusCm);
+        }
+        // The stats held while charges remain end with the last charge.
+        if (Bonus->Charges==0 && Bonus->bChargeBonus
+            && Body.TimedBonuses.RemoveAll([&Bonus](const FLDCombatTimedBonus& Row) { return Row.EffectId==Bonus->EffectId; })>0
+            && !RefreshTemporary(Body,&Actor,Now,Error))
+        { return false; }
     }
     if (Body.Momentum.IsSet() && Now>=Body.Momentum->AccumulateUntilMs && Now<Body.Momentum->ConsumeUntilMs)
     {
@@ -962,14 +974,16 @@ bool ALDCombatDirector::OnBasicLanded(FLDBodyCombatState& Body, const FLDCombatH
             }
         }
     }
-    // passive_precision: a critical basic cuts both learned actives.
-    if (Primary.bCritical)
+    // passive_precision: a critical basic cuts both learned actives; #147 a passive basic-hit refund cuts them on every
+    // landed basic.
     {
         TArray<FLDPassiveEffectRef> Refunds;
         if (!CollectPassiveEffects(Body.AttributeProjection,ELDDemoEffectOp::CooldownRefund,Refunds,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Refunds)
         {
-            if (Ref.Effect->Trigger!=ELDDemoEffectTrigger::BasicCrit) { continue; }
+            const bool bTrigger=Ref.Effect->Trigger==ELDDemoEffectTrigger::BasicHit
+                || (Ref.Effect->Trigger==ELDDemoEffectTrigger::BasicCrit && Primary.bCritical);
+            if (!bTrigger) { continue; }
             ReduceCooldown(Entity,ELDCombatEntry::Q,Ref.Effect->AmountMs);
             ReduceCooldown(Entity,ELDCombatEntry::W,Ref.Effect->AmountMs);
         }
@@ -1030,7 +1044,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     // Only an action that displaces its caster is a dash for the root matrix (a ground zone is not).
     Gate.bDash=LDCombatSourceRules::DisplacesCaster(*RankDef);
     Gate.Roots=&Body.Roots;
-    Gate.bControlBlocked=IsActionBlocked(Body,ELDCombatControlAction::Cast);
+    Gate.bControlBlocked=IsCastBlocked(Body,Source.Kind);
     Gate.bDisplacementBlocked=IsActionBlocked(Body,ELDCombatControlAction::Displacement);
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
@@ -1078,9 +1092,17 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* BackstabEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Backstab);
     const FLDDemoEffectDefinition* AreaEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::SelfArea);
     const FLDDemoEffectDefinition* BurstEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::ShieldBurst);
+    // #147 build v7 payload of the hits and the release.
+    const FLDDemoEffectDefinition* SilenceEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Silence);
+    const FLDDemoEffectDefinition* BreachEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Breach);
+    const FLDDemoEffectDefinition* BurnEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Burn);
+    const FLDDemoEffectDefinition* ExecuteEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Execute);
+    const FLDDemoEffectDefinition* EchoEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Echo);
+    const FLDDemoEffectDefinition* TauntShieldEffect=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::TauntShield);
     // A damage guard holds its slow/stun and shield for its recoil (active_porcelain_flop); nothing hits at release.
     const bool bGuard=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::DamageGuard)!=nullptr;
     const bool bHostile=!bGuard && (DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect || BurstEffect
+        || SilenceEffect || BreachEffect || BurnEffect
         || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Dot) || LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Knockback));
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash
         || TargetDef.Mode==ELDDemoTargetMode::GroundPoint;
@@ -1141,6 +1163,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
                 ++Body.StateRevision;
                 bTimedBonus=true;
             }
+            // #147: a disarm cleanse (a silenced or stunned body never reaches this release).
+            else if (Effect.GetOp()==ELDDemoEffectOp::DispelDisarm && !Body.Disarms.IsEmpty())
+            {
+                Body.Disarms.Reset();
+                ++Body.StateRevision;
+            }
         }
     }
     // Moving actives credit the ambush passive (passive_lurking), the innate dash included.
@@ -1153,7 +1181,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         {
             if (Effect.GetOp()==ELDDemoEffectOp::Damage) { bDealsDamage=true; }
             if (Effect.GetOp()==ELDDemoEffectOp::Shield || Effect.GetOp()==ELDDemoEffectOp::DispelRoot
-                || Effect.GetOp()==ELDDemoEffectOp::DispelSlow)
+                || Effect.GetOp()==ELDDemoEffectOp::DispelSlow || Effect.GetOp()==ELDDemoEffectOp::DispelDisarm)
             { Landing.Effects.Add(Effect); }
             if (Effect.GetOp()==ELDDemoEffectOp::TriggeredShield) { Landing.LandingShield=Effect; }
             continue;
@@ -1181,6 +1209,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             break;
         case ELDDemoEffectOp::DispelRoot:
         case ELDDemoEffectOp::DispelSlow:
+        case ELDDemoEffectOp::DispelDisarm:
             // Resolved before this loop.
             break;
         case ELDDemoEffectOp::Dash:
@@ -1219,6 +1248,22 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             // active_lunge Lv3: the landed empowered basic refunds part of this source's cooldown.
             if (const auto* Refund=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::CooldownRefund))
             { if (Refund->Trigger==ELDDemoEffectTrigger::EmpowerHit) { Armed.RefundMs=Refund->AmountMs; } }
+            // #147: several charges, the cleave they carry and the stats held while charges remain (they end with the
+            // last charge or the window).
+            Armed.Charges=FMath::Max(Effect.Count,1);
+            Armed.CleaveRatioBp=Effect.SecondaryRatioBp;
+            Armed.CleaveRadiusCm=LDCA::ToDouble(Effect.RadiusCm);
+            if (!Effect.Stats.IsEmpty())
+            {
+                FLDCombatTimedBonus Bonus;
+                Bonus.EffectId=EffectId;
+                Bonus.SourceDefinition=Source.DefinitionId;
+                Bonus.Stats=Effect.Stats;
+                Bonus.ExpiresAtMs=Armed.ExpiresAtMs;
+                LDTactical::ApplyTimedBonus(Body.TimedBonuses,Bonus);
+                Armed.bChargeBonus=true;
+                bTimedBonus=true;
+            }
             // A newer release replaces an unspent one; it never stacks.
             Body.Empower=Armed;
             break;
@@ -1313,7 +1358,30 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             // Carried by the hit payload below.
             break;
         case ELDDemoEffectOp::Taunt:
-            if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error)) { return false; }
+        {
+            int32 Taunted=0;
+            if (!ApplyTauntEffect(Actor,Body,Effect,EffectId,Error,&Taunted)) { return false; }
+            // #147: a shield sized by every contender this release taunted.
+            if (TauntShieldEffect && Taunted>0)
+            {
+                const int64 MaxHP=Body.Resources.MaxHpP2;
+                const int64 Each=LDCombatKeywords::GrowthScaledP2(TauntShieldEffect->BaseP2,GrowthLevelOf(Body))
+                    +MaxHP/10000*TauntShieldEffect->MaxHPRatioBp+MaxHP%10000*TauntShieldEffect->MaxHPRatioBp/10000;
+                if (Each>MAX_int64/Taunted) { Error=TEXT("Taunt shield overflowed."); return false; }
+                if (!GrantShieldTo(Body,Each*Taunted,TauntShieldEffect->DurationMs,EffectId,Body.Victim.EntityId,false,Now,Error)) { return false; }
+            }
+            break;
+        }
+        case ELDDemoEffectOp::TauntShield:
+            // Granted with its taunt above.
+            break;
+        case ELDDemoEffectOp::Silence:
+        case ELDDemoEffectOp::Breach:
+        case ELDDemoEffectOp::Burn:
+        case ELDDemoEffectOp::Execute:
+        case ELDDemoEffectOp::Pierce:
+        case ELDDemoEffectOp::Echo:
+            // Carried by the hit payload below (the echo is scheduled after its first blast).
             break;
         case ELDDemoEffectOp::Root:
         case ELDDemoEffectOp::Slow:
@@ -1373,6 +1441,22 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.BackstabStunMs=BackstabEffect ? BackstabEffect->DurationMs : 0;
         Template.bBackstabImpaired=BackstabEffect && BackstabEffect->bImpaired;
         Template.SlowVampBp=SlowEffect ? SlowEffect->VampRatioBp : 0;
+        // #147 keyword payload: silence, shared breach and burn stacks (the burn snapshotted now), execute, the root that
+        // becomes a stun on a slowed body, and a piercing flight.
+        Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
+        Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
+        Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
+        if (BurnEffect)
+        {
+            FLDCombatBurnLayer Layer;
+            if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
+            Template.BurnLevel=Layer.Level;
+            Template.BurnAPP2=Layer.SourceAPP2;
+        }
+        Template.ExecuteBp=ExecuteEffect ? ExecuteEffect->RatioBp : 0;
+        Template.ExecuteBelowBp=ExecuteEffect ? ExecuteEffect->SecondaryRatioBp : 0;
+        Template.SlowedStunMs=RootEffect ? RootEffect->SecondaryDurationMs : 0;
+        Template.bPierce=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::Pierce)!=nullptr;
         if (const auto* Shred=LDCA::FindEffect(*RankDef,ELDDemoEffectOp::ResistShred))
         {
             Template.ShredKey=Source.DefinitionId;
@@ -1456,7 +1540,19 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Projectiles.Add(Projectile);
         }
         else if (TargetDef.Mode==ELDDemoTargetMode::Unit) { Deliver(UnitTarget); }
-        else { for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); } }
+        else
+        {
+            for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }
+            // #147: a second blast later around the same living body, its damage scaled (other payload unchanged).
+            if (EchoEffect && AreaEffect && !JumpEffect)
+            {
+                FLDCombatEcho& Echo=Echoes.AddDefaulted_GetRef();
+                Echo.Body=SelfRef;
+                Echo.RadiusCm=LDCA::ToDouble(AreaEffect->RadiusCm);
+                Echo.Template=EchoHit(Template,EchoEffect->RatioBp);
+                if (!LDMatchLifecycle::AddDurationMs(Now,EchoEffect->DelayMs,Echo.AtMs,Error)) { return false; }
+            }
+        }
     }
     if (JumpEffect) { Landings.Add(MoveTemp(Landing)); }
     // A ground zone sits at the requested point, clamped to the authored reach.
@@ -1522,6 +1618,13 @@ bool ALDCombatDirector::ApplySelfEffect(FLDBodyCombatState& Body, const FLDDemoE
             ++Body.StateRevision;
         }
         return true;
+    case ELDDemoEffectOp::DispelDisarm:
+        if (!Body.Disarms.IsEmpty())
+        {
+            Body.Disarms.Reset();
+            ++Body.StateRevision;
+        }
+        return true;
     default:
         Error=FString::Printf(TEXT("Self effect opcode %u has no Combat handler."),Effect.Opcode);
         return false;
@@ -1570,7 +1673,7 @@ bool ALDCombatDirector::IsActionBlocked(const FLDBodyCombatState& Body, ELDComba
     if (!Mode || !Content) { return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
     // A knockback blocks every voluntary action while its displacement lasts (#112 R4).
-    return LDCombatControl::Blocks(Body.Roots,Body.Disarms,Body.Stuns,Now,Content->Get().Policies,Action)
+    return LDCombatControl::Blocks(Body.Roots,Body.Disarms,Body.Stuns,Now,Content->Get().Policies,Action,&Body.Silences)
         || LDControl::TauntBlocks(Body.Taunt,Now,Action)
         || Body.Knockbacks.ContainsByPredicate([Now](const FLDCombatRoot& Row) { return Row.ExpiresAtMs>Now; });
 }

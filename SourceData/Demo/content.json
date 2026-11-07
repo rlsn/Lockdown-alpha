@@ -121,7 +121,16 @@
     "AI.RetryPolicy.MaxBackoffSec": {"unit": "s", "value": 0.50},
     "AI.ExploreRevisitIntervalSec": {"unit": "s", "value": 20},
     "AI.EngagementBudgetSec": {"unit": "s", "value": 40},
-    "COMBAT.RearArcDeg": {"unit": "deg", "value": 120}
+    "COMBAT.RearArcDeg": {"unit": "deg", "value": 120},
+    "COMBAT.BreachPerStack": {"unit": "points", "value": 3},
+    "COMBAT.BreachMaxStacks": 5,
+    "COMBAT.BreachSec": {"unit": "s", "value": 4},
+    "COMBAT.BurnPerSec": {"unit": "points", "value": 3},
+    "COMBAT.BurnAPRatioPerSec": {"unit": "ratio", "value": 0.03},
+    "COMBAT.BurnTickSec": {"unit": "s", "value": 0.5},
+    "COMBAT.BurnSec": {"unit": "s", "value": 3},
+    "COMBAT.BurnMaxStacks": 5,
+    "COMBAT.LifestealCap": {"unit": "ratio", "value": 0.35}
   },
   "formulas": {
     "StatProjection": "AddFlatThenAdditivePercent",
@@ -638,6 +647,8 @@
     {"id": "heal_cut", "namespace": "DemoContent", "name_key": "heal_cut.name", "name_text": "重伤", "description_key": "heal_cut.description", "description_text": "黑料缠身：受到的治疗和护盾减少，同类效果只按最狠的算。", "icon_id": "icon_heal_cut"},
     {"id": "damage_guard", "namespace": "DemoContent", "name_key": "damage_guard.name", "name_text": "减伤", "description_key": "damage_guard.description", "description_text": "躺在地上碰瓷：受到的伤害降低，挨的打够多就反震。", "icon_id": "icon_damage_guard"},
     {"id": "vulnerable", "namespace": "DemoContent", "name_key": "vulnerable.name", "name_text": "易伤", "description_key": "vulnerable.description", "description_text": "定身期间更怕打：受到的持续伤害和普攻伤害提高。", "icon_id": "icon_vulnerable"},
+    {"id": "silence", "namespace": "DemoContent", "name_key": "silence.name", "name_text": "沉默", "description_key": "silence.description", "description_text": "号被封了：不能放技能，但仍可以移动、冲刺和普攻；正在准备的技能会被打断。", "icon_id": "icon_silence"},
+    {"id": "burn", "namespace": "DemoContent", "name_key": "burn.name", "name_text": "灼烧", "description_key": "burn.description", "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。", "icon_id": "icon_burn"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "追着办卡的私教", "description_key": "monster_guardian.description", "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_guardian"},
     {"id": "monster_dean", "namespace": "DemoContent", "name_key": "monster_dean.name", "name_text": "画饼老板", "description_key": "monster_dean.description", "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。", "icon_id": "icon_monster_dean"},

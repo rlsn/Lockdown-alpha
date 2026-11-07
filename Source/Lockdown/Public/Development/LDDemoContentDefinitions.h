@@ -165,6 +165,19 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 LeaderBountyGoldMax = 0;
     // COMBAT.RearArcDeg: full angle of the sector behind a body's authority facing that counts as "from behind".
     UPROPERTY() FLDDemoRational RearArcDeg;
+    // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
+    // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
+    // BurnAPRatio x the applier's AP per second per stack (snapshotted per stack), every BurnTickMs, up to BurnMaxStacks
+    // for BurnMs refreshed whole. Every lifesteal source of one hit adds up to at most LifestealCapBp.
+    UPROPERTY() int64 BreachPerStackP2 = 0;
+    UPROPERTY() int64 BreachMaxStacks = 0;
+    UPROPERTY() int64 BreachMs = 0;
+    UPROPERTY() int64 BurnPerSecP2 = 0;
+    UPROPERTY() int64 BurnAPRatioBp = 0;
+    UPROPERTY() int64 BurnTickMs = 0;
+    UPROPERTY() int64 BurnMs = 0;
+    UPROPERTY() int64 BurnMaxStacks = 0;
+    UPROPERTY() int64 LifestealCapBp = 0;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
@@ -258,11 +271,11 @@ struct FLDDemoPolicies
 UENUM()
 enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
 
-// When a triggered effect fires (cooldown_refund, triggered_shield, mana_on_hit).
+// When a triggered effect fires (cooldown_refund, triggered_shield, mana_on_hit). Damaged: the holder took positive damage.
 UENUM()
 enum class ELDDemoEffectTrigger : uint8
 {
-    None, Release, EmpowerHit, BasicHit, BasicCrit, Cleanse, LandingHit, LowHP, AbilityHit, Control
+    None, Release, EmpowerHit, BasicHit, BasicCrit, Cleanse, LandingHit, LowHP, AbilityHit, Control, Damaged
 };
 
 // Which cooldown tracks a cooldown_refund shortens: the basic cadence, the releasing source's own track,
@@ -298,7 +311,9 @@ enum class ELDDemoBonusStat : uint8
     // Always-on HP regeneration in hp/s (an exact rational, stored in FLDDemoStatBonus::Cm like the range).
     HPRegenFlat,
     // Percent of the projected AP; timed bonuses only (the D26 Boss approval buff), floored to P2 when applied.
-    APBonusRatio
+    APBonusRatio,
+    // Always-on MP regeneration in mp/s (an exact rational in FLDDemoStatBonus::Cm, like HPRegenFlat).
+    MPRegenFlat
 };
 
 USTRUCT()
@@ -374,6 +389,9 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 MultiplierBp = 0;
     // nth_basic_bonus: every Count-th landed basic; basic_stacks: maximum stacks.
     UPROPERTY() int32 Count = 0;
+    // #147 breach/burn: Count is the stacks one hit of an active applies, or a passive applies per Q/W hit;
+    // BasicCount the stacks a passive applies per primary basic hit.
+    UPROPERTY() int32 BasicCount = 0;
     // backstab: impaired targets (rooted, slowed, taunted, knocked back) count as struck from behind.
     UPROPERTY() bool bImpaired = false;
     // dash_boost: cooldown ratio and distance bonus of every learned dash or jump active at release.
@@ -394,6 +412,14 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
     UPROPERTY() int64 CooldownCutMs = 0;
+    // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
+    // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
+    // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;
+    // root SecondaryDurationMs (stun instead when the target is slowed); knockback RadiusCm+SecondaryDurationMs (wall
+    // travel threshold and stun); empower_basic Count (charges), Stats (while charged), SecondaryRatioBp+RadiusCm (cleave);
+    // triggered_shield Damaged IntervalMs, SecondaryRatioBp+RadiusCm (burst on break); thorns SecondaryRatioBp+
+    // SecondaryDurationMs (move-only slow); control_damage_amp SecondaryRatioBp (low-HP targets count too); lifesteal
+    // SecondaryRatioBp+MultiplierBp (multiplier against low-HP targets); low_hp_stat_bonus SecondaryRatioBp (basic lifesteal).
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };

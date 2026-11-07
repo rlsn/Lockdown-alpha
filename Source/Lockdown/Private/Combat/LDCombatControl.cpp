@@ -73,8 +73,9 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
 }
 
 bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-    const FGuid& EffectId, FString& Error)
+    const FGuid& EffectId, FString& Error, int32* OutTaunted)
 {
+    if (OutTaunted) { *OutTaunted=0; }
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A taunt requires the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
@@ -110,6 +111,7 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         bool bApplied=false;
         if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
         if (!bApplied) { continue; }
+        if (OutTaunted) { ++*OutTaunted; }
         UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt.IsSet() ? Victim.Taunt->ExpiresAtMs : 0);
     }
@@ -146,6 +148,13 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         bApplied=LDCombatControl::Apply(Victim.Stuns,Instance,NowMs);
         // A stun interrupts any unreleased windup; queued and later requests are refused while it lasts.
         if (bApplied) { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
+        break;
+    case ELDControlKind::Silence:
+        // #147 D10: a silence forbids Q/W only; a learned skill still winding up ends unpaid, a basic or the dash goes on.
+        bApplied=LDCombatControl::Apply(Victim.Silences,Instance,NowMs);
+        if (bApplied && Victim.Action.IsSet() && Victim.Action->Kind==ELDCombatActionKind::Ability
+            && Victim.Action->Source.Kind!=ELDCombatSourceKind::Innate)
+        { AbandonAction(Victim,ELDCombatReject::ControlBlocked); }
         break;
     case ELDControlKind::Taunt:
     {
@@ -193,9 +202,10 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     if (bHard) { Victim.HardControl=Chain; }
     ++Victim.StateRevision;
     MarkViewChanged(Victim.Victim.EntityId);
-    // Root, stun, taunt and knockback reset the victim's spray progress at the moment they land; disarm and slow do not.
+    // Root, stun, taunt, knockback and (#147 D10) silence reset the victim's spray progress at the moment they land;
+    // disarm and slow do not.
     if ((App.Kind==ELDControlKind::Root || App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Taunt
-        || App.Kind==ELDControlKind::Knockback) && !InterruptSpray(Victim,Error))
+        || App.Kind==ELDControlKind::Knockback || App.Kind==ELDControlKind::Silence) && !InterruptSpray(Victim,Error))
     { return false; }
     // Every committed control or slow is its owner's assist contribution on this life.
     RecordAssistContribution(Victim,App.CreditOwner,NowMs);
@@ -206,7 +216,14 @@ bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) 
 {
     return LDTactical::HasActiveRoot(Body.Roots,NowMs) || LDTactical::HasActiveRoot(Body.Stuns,NowMs)
         || LDTactical::HasActiveRoot(Body.Disarms,NowMs) || LDControl::IsTaunted(Body.Taunt,NowMs)
-        || LDTactical::HasActiveRoot(Body.Knockbacks,NowMs) || LDTactical::StrongestSlowBp(Body.Slows,NowMs)>0;
+        || LDTactical::HasActiveRoot(Body.Knockbacks,NowMs) || LDTactical::HasActiveRoot(Body.Silences,NowMs)
+        || LDTactical::StrongestSlowBp(Body.Slows,NowMs)>0;
+}
+
+bool ALDCombatDirector::IsCastBlocked(const FLDBodyCombatState& Body, ELDCombatSourceKind Kind) const
+{
+    return IsActionBlocked(Body,ELDCombatControlAction::Cast)
+        || (Kind!=ELDCombatSourceKind::Innate && IsActionBlocked(Body,ELDCombatControlAction::Skill));
 }
 
 bool ALDCombatDirector::ReduceCooldown(const FGuid& Entity, ELDCombatEntry Entry, int64 AmountMs)

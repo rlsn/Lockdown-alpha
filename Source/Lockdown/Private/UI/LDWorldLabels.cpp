@@ -51,6 +51,9 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::RespawnProtection: return FLinearColor(1.f,.92f,.62f);
     case ELDDemoStatusId::Disarm: return FLinearColor(1.f,.55f,.1f);
     case ELDDemoStatusId::Stun: return FLinearColor(1.f,.95f,.1f);
+    // #147: silence violet, burn ember orange.
+    case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
+    case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
     default: return WorldLabelStatusInk;
     }
 }

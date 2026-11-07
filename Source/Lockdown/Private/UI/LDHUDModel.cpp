@@ -55,6 +55,8 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::HealCut: return TEXT("heal_cut");
     case ELDDemoStatusId::DamageGuard: return TEXT("damage_guard");
     case ELDDemoStatusId::Vulnerable: return TEXT("vulnerable");
+    case ELDDemoStatusId::Silence: return TEXT("silence");
+    case ELDDemoStatusId::Burn: return TEXT("burn");
     default: return nullptr;
     }
 }
@@ -727,6 +729,7 @@ FString HudBonusStatName(ELDDemoBonusStat Stat)
     case ELDDemoBonusStat::ADBonusRatio: return LDTerms::AttackDamage;
     case ELDDemoBonusStat::HPRegenFlat: return LDTerms::HealthRegen();
     case ELDDemoBonusStat::APBonusRatio: return LDTerms::AbilityPower;
+    case ELDDemoBonusStat::MPRegenFlat: return LDTerms::ManaRegen();
     default: return FString();
     }
 }
@@ -750,7 +753,7 @@ FString LDHUD::StatLine(const FLDDemoStatBonus& Stat)
     switch(Stat.Stat)
     {
     case ELDDemoBonusStat::AttackRangeCmFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("cm");
-    case ELDDemoBonusStat::HPRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
+    case ELDDemoBonusStat::HPRegenFlat: case ELDDemoBonusStat::MPRegenFlat: return Name+TEXT(" +")+HudRational(Stat.Cm)+TEXT("/s");
     case ELDDemoBonusStat::AttackSpeedBonusRatio: case ELDDemoBonusStat::MoveSpeedBonusRatio: case ELDDemoBonusStat::CritChanceBonusRatio:
     case ELDDemoBonusStat::ADBonusRatio: case ELDDemoBonusStat::APBonusRatio:
         return Name+TEXT(" +")+HudPercent(Stat.Amount);
