@@ -587,6 +587,10 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString NameText;
     UPROPERTY() FString DescriptionKey;
     UPROPERTY() FString DescriptionText;
+    // #147 skills only: the advanced rank's one-line change ("高级：" is added by the card), empty elsewhere. Skill
+    // descriptions and advanced lines are card templates (LDDemoCardText).
+    UPROPERTY() FString AdvancedKey;
+    UPROPERTY() FString AdvancedText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };

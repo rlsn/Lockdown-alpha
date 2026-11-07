@@ -62,6 +62,10 @@ HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Effects a self area delivers to the bodies it names (a release area, a jump landing or a damage guard's recoil).
 AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "shield_burst"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
+# Every bonus stat name; a card placeholder may read one stat of its effect.
+STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
+                         "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio", "CritChanceBonusRatio",
+                         "ADBonusRatio", "HPRegenFlat", "APBonusRatio"))
 TEMPORARY_STATS = frozenset(("ADFlat", "APFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
                              "AttackRangeCmFlat", "AttackSpeedBonusRatio", "MoveSpeedBonusRatio",
                              "CritChanceBonusRatio", "ADBonusRatio", "APBonusRatio"))
@@ -836,9 +840,36 @@ def validate_definitions(data, ids):
             require("portrait_icon_id" not in row, "DisplayReference", identity, "portrait belongs only to character")
         for field in ("name_text", "description_text"):
             display_text(row[field], f"{identity}.{field}", field == "name_text")
+        ability = next((ability for ability in data["abilities"] if ability["id"] == identity), None)
+        require(("advanced_key" in row) == ("advanced_text" in row) and (ability is not None or "advanced_text" not in row),
+                "DisplayReference", identity, "only a skill has an advanced line, with its key")
+        if "advanced_text" in row:
+            require(row["advanced_key"] == identity + ".advanced", "DisplayReference", identity, "non-canonical advanced line reference")
+            display_text(row["advanced_text"], f"{identity}.advanced_text", False)
+        if ability is not None:
+            card_template(row["description_text"], ability["ranks"], f"{identity}.description_text")
+            card_template(row.get("advanced_text", ""), ability["ranks"][-1:], f"{identity}.advanced_text")
         require(row["name_text"] not in names, "DisplayText", identity, "duplicate display name")
         names.add(row["name_text"])
     return collections
+
+
+CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
+                         "secondary_ratio", "secondary_duration"))
+CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
+
+
+def card_template(text, ranks, path):
+    """#147: [op.field] placeholders of a skill's card text read an effect present in every rank it is shown for."""
+    require("[" not in CARD_PLACEHOLDER.sub("", text) and "]" not in CARD_PLACEHOLDER.sub("", text),
+            "CardTemplate", path, "a bracket outside a [op.field] placeholder")
+    for op, field in CARD_PLACEHOLDER.findall(text):
+        require(op in EFFECT_OPS and (field in CARD_FIELDS or field in STAT_FIELDS), "CardTemplate", path,
+                f"unknown placeholder [{op}.{field}]")
+        for rank in ranks:
+            effect = next((effect for effect in rank["effects"] if effect["op"] == op), None)
+            require(effect is not None and (field in CARD_FIELDS or field in effect.get("stats", {})), "CardTemplate", path,
+                    f"[{op}.{field}] names no effect of rank {rank['rank']}")
 
 
 def display_text(text, path, allow_digits):

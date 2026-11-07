@@ -17,6 +17,34 @@ struct FLDDemoRankDefinition;
 struct FLDLobbyView;
 namespace LDHUD
 {
+    // #147 card text: the owner's level grows a skill's fixed amounts (G(L)); its stats fill the coefficients.
+    struct FCardStats
+    {
+        uint8 Level=1;
+        int64 ADP2=0;
+        int64 APP2=0;
+        int64 MaxHPP2=0;
+        int64 ArmorP2=0;
+    };
+    // Level from the progression, stats from the owner's projected attributes; zero stats without a projection.
+    LOCKDOWN_API FCardStats CardStatsOf(uint8 Level,const TArray<FLDCombatAttributeRowView>& Attributes);
+    struct FCardText
+    {
+        FString Rich;
+        FString Plain;
+        // Keywords the text uses, in glossary order.
+        TArray<FString> Keywords;
+        // False when a placeholder reads nothing (never shown as a number).
+        bool bComplete=true;
+    };
+    // Renders a card template (LDDemoCardText) against Rank grown for Stats.Level; with From, every value that changes reads
+    // "A → B". The 13 glossary keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
+    LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoRankDefinition& Rank,const FLDDemoRankDefinition* From,
+        const FCardStats& Stats,int64 GrowthPerLevelBp);
+    // Characters a player reads: everything but spaces (v7 R1/R2: a sentence at most 26, an advanced line at most 18).
+    LOCKDOWN_API int32 CardLength(const FString& Plain);
+    // "<b>减速</>：…" for each keyword.
+    LOCKDOWN_API TArray<FString> KeywordLines(const TArray<FString>& Keywords);
     // Real local frame intervals over a window of at least WindowSeconds (a long frame is never cut; it closes its window
     // late). AddFrame is true when a window just closed; FPS, FrameMs and PeakMs then describe it, Frames counts its frames
     // and Hitches the frames of at least HitchSeconds (0 counts none). The HUD uses the half-second default; the playtest
@@ -198,6 +226,8 @@ namespace LDHUD
         int64 NowMs=0;
         bool bManaKnown=false;
         int64 ManaP2=0;
+        // #147: the owner's level and stats, so a skill's card text shows the numbers it has now.
+        FCardStats Card;
     };
     struct FActionView
     {
@@ -264,8 +294,8 @@ namespace LDHUD
     LOCKDOWN_API FString PenaltyLine(const FLDDemoStatBonus& Stat);
     LOCKDOWN_API FString EffectLine(const FLDDemoEffectDefinition& Effect);
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
-    // Effect lines of one rank; actives add their mana cost and cooldown.
-    LOCKDOWN_API TArray<FString> RankLines(const FLDDemoRankDefinition& Rank,bool bActive);
+    // The mana cost and cooldown line of an active rank.
+    LOCKDOWN_API FString CostLine(const FLDDemoRankDefinition& Rank);
     // Placeholder icon family of a card until real art lands (#93): each family has its own shape and colour, and the card's
     // kind line names it, so no card relies on colour alone.
     enum class EChoiceIcon : uint8 {Unknown,Active,Passive,Attribute};
@@ -276,7 +306,15 @@ namespace LDHUD
         FString RankText;
         // The compact card's single second line, "<kind> · <rank>".
         FString Summary;
-        FString Description;
+        // #147 card face: the one-sentence rule with this level's numbers ("A → B" on an upgrade) and the "高级：" line, as
+        // rich text with the keywords in <b>…</>; an attribute card's sentence is its stat line. Plain twins drop the markup.
+        FString Sentence;
+        FString SentencePlain;
+        FString Advanced;
+        FString AdvancedPlain;
+        // "<b>关键词</>：解释" for every keyword the face uses, in glossary order.
+        TArray<FString> Keywords;
+        // Details below the face: targeting and the active's mana and cooldown.
         TArray<FString> Lines;
         // Display-table icon reference (empty when the definition has no display row); the placeholder draws Icon + Glyph.
         FString IconId;
@@ -285,7 +323,9 @@ namespace LDHUD
         bool bNeedsReplacement=false;
     };
     // One of the three fixed options of the current offer; a learn-active card with both Q/W filled needs an explicit replacement.
-    LOCKDOWN_API FChoiceCardView ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content);
+    // Numbers are those of the owner's level and stats in Stats.
+    LOCKDOWN_API FChoiceCardView ChoiceCard(const FLDChoiceOption& Option,const FLDProgressionView& Progression,const FLDDemoContentDefinitions* Content,
+        const FCardStats& Stats);
     struct FShopItemView
     {
         FString Name;

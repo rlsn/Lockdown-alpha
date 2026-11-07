@@ -345,6 +345,7 @@ def expected_projection(compilation):
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
             "DescriptionKey": row["description_key"], "DescriptionText": row["description_text"],
+            "AdvancedKey": row.get("advanced_key", ""), "AdvancedText": row.get("advanced_text", ""),
             "IconId": row["icon_id"], "PortraitIconId": row.get("portrait_icon_id", ""),
         } for row in data["display"]],
     }

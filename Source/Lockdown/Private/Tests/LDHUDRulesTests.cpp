@@ -1,4 +1,5 @@
 #include "UI/LDHUDModel.h"
+#include "Development/LDDemoCardText.h"
 #include "UI/LDTerms.h"
 #include "UI/LDDevTestPanel.h"
 #include "Development/LDDevTestProtocol.h"
@@ -338,6 +339,50 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("The leader is told its place is public"),LDHUD::LeaderLine(Named,Me,TEXT("我")),LDTerms::LeaderSelf(100));
     return true;
 }
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDCardTextTest,"Lockdown.Rules.HUDCardText",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDCardTextTest::RunTest(const FString& Parameters)
+{
+    // #147 card templates: every number reads a typed field of the rank row the owner uses at its level.
+    FLDDemoEffectDefinition Root;Root.Opcode=uint8(ELDDemoEffectOp::Root);Root.DurationMs=1000;
+    FLDDemoEffectDefinition Damage;Damage.Opcode=uint8(ELDDemoEffectOp::Damage);Damage.BaseP2=6000;Damage.ADRatioBp=5000;
+    FLDDemoEffectDefinition Slow;Slow.Opcode=uint8(ELDDemoEffectOp::Slow);Slow.RatioBp=2500;Slow.DurationMs=1500;
+    FLDDemoEffectDefinition Timed;Timed.Opcode=uint8(ELDDemoEffectOp::TimedStatBonus);Timed.DurationMs=3000;
+    Timed.Stats={{ELDDemoBonusStat::ArmorFlat,1200,{}},{ELDDemoBonusStat::AttackSpeedBonusRatio,5000,{}}};
+    FLDDemoRankDefinition Basic;Basic.Rank=1;Basic.Effects={Root,Damage,Slow,Timed};
+    FLDDemoRankDefinition Advanced=Basic;Advanced.Rank=2;Advanced.Effects[0].DurationMs=1250;Advanced.Effects[1].BaseP2=9000;
+    LDHUD::FCardStats L1;L1.ADP2=7000;
+    const LDHUD::FCardText Face=LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Basic,nullptr,L1,1000);
+    TestEqualSensitive(TEXT("Level 1 numbers: base plus the coefficient times the owner's AD"),Face.Plain,FString(TEXT("定身目标 1 秒，造成 95 物理伤害。")));
+    TestEqualSensitive(TEXT("Keywords are bold"),Face.Rich,FString(TEXT("<b>定身</>目标 1 秒，造成 95 物理伤害。")));
+    TestTrue(TEXT("The keywords used are listed in glossary order"),Face.bComplete&&Face.Keywords==TArray<FString>{TEXT("定身")});
+    TestEqual(TEXT("The read length leaves out spaces"),LDHUD::CardLength(Face.Plain),16);
+    LDHUD::FCardStats L5=L1;L5.Level=5;
+    TestEqualSensitive(TEXT("Level 5 grows the base (60 x 1.4 + 35) but not the duration"),
+        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害。"),Basic,nullptr,L5,1000).Plain,FString(TEXT("定身目标 1 秒，造成 119 物理伤害。")));
+    TestEqualSensitive(TEXT("An upgrade card shows each changed value as A → B"),
+        LDHUD::CardText(TEXT("定身目标 [root.duration] 秒，造成 [damage.amount] 物理伤害，减速 [slow.ratio]%。"),Advanced,&Basic,L1,1000).Plain,
+        FString(TEXT("定身目标 1 → 1.25 秒，造成 95 → 125 物理伤害，减速 25%。")));
+    TestEqualSensitive(TEXT("Timed stats: points grow, ratios do not"),
+        LDHUD::CardText(TEXT("护甲 +[timed_stat_bonus.ArmorFlat]，攻速 +[timed_stat_bonus.AttackSpeedBonusRatio]%。"),Basic,nullptr,L5,1000).Plain,
+        FString(TEXT("护甲 +17，攻速 +50%。")));
+    const LDHUD::FCardText Both=LDHUD::CardText(TEXT("被减速或被控制的敌人。"),Basic,nullptr,L1,1000);
+    TestTrue(TEXT("Slow and control are separate keywords"),Both.Keywords==TArray<FString>({TEXT("减速"),TEXT("控制")})
+        &&Both.Rich==TEXT("被<b>减速</>或被<b>控制</>的敌人。"));
+    const LDHUD::FCardText Absent=LDHUD::CardText(TEXT("造成 [stun.duration] 秒。"),Basic,nullptr,L1,1000);
+    TestTrue(TEXT("A placeholder of an absent effect is never shown as a number"),!Absent.bComplete&&Absent.Plain.Contains(TEXT("?")));
+    TestFalse(TEXT("A broken template is refused"),LDHUD::CardText(TEXT("造成 [damage] 伤害。"),Basic,nullptr,L1,1000).bComplete);
+    TArray<LDDemoCardText::FToken> Tokens;FString Error;
+    TestFalse(TEXT("An unknown op is refused"),LDDemoCardText::Parse(TEXT("[teleport.amount]"),Tokens,Error));
+    TestFalse(TEXT("A stray bracket is refused"),LDDemoCardText::Parse(TEXT("造成 ] 伤害"),Tokens,Error));
+    TestTrue(TEXT("Keyword lines explain each keyword in bold"),LDHUD::KeywordLines({TEXT("定身")}).Num()==1
+        &&LDHUD::KeywordLines({TEXT("定身")})[0].StartsWith(TEXT("<b>定身</>：")));
+    for(const LDTerms::FCardKeyword& Keyword:LDTerms::CardKeywords)
+    {
+        const FString Explain=Keyword.Explain;
+        TestFalse(FString(Keyword.Name)+TEXT(" never mentions spray or guard"),Explain.Contains(TEXT("喷漆"))||Explain.Contains(TEXT("守护")));
+    }
+    return true;
+}
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDContentParametersTest,"Lockdown.Rules.HUDContentParameters",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
 {
@@ -354,31 +399,37 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     FLDDemoEffectDefinition Unknown;Unknown.Opcode=200;
     TestEqualSensitive(TEXT("An unknown effect is reported, never described"),LDHUD::EffectLine(Unknown),FString(TEXT("未知效果 #200")));
     FLDDemoRankDefinition Rank;Rank.Rank=1;Rank.ManaCostP2=4500;Rank.CooldownMs=6400;Rank.Effects.Add(Damage);
-    const TArray<FString> Lines=LDHUD::RankLines(Rank,true);
-    TestTrue(TEXT("Active rank lines carry the effect then mana and cooldown"),Lines.Num()==2&&Lines[1]==FString(LDTerms::Mana)+TEXT(" 45 · 冷却 6.4s"));
-    TestEqual(TEXT("Passive ranks have no cost line"),LDHUD::RankLines(Rank,false).Num(),1);
+    TestEqualSensitive(TEXT("An active's cost line carries mana and cooldown"),LDHUD::CostLine(Rank),FString(LDTerms::Mana)+TEXT(" 45 · 冷却 6.4s"));
     FLDDemoContentDefinitions Content;FLDDemoAbilityDefinition Bolt;Bolt.Id=TEXT("hud_rules_fixture_bolt");Bolt.Kind=ELDDemoAbilityKind::Active;
     Bolt.Target.Mode=ELDDemoTargetMode::DirectionProjectile;Bolt.Target.RangeCm.Numerator=650;Bolt.Target.RangeCm.Denominator=1;
-    FLDDemoRankDefinition Second=Rank;Second.Rank=2;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
+    FLDDemoRankDefinition Second=Rank;Second.Rank=2;Second.Effects[0].BaseP2=15000;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
+    Content.Parameters.SkillGrowthPerLevelBp=1000;
     FLDProgressionView Progression;
     for(uint8 Slot=0;Slot<2;++Slot){FLDLearnedSkillView Skill;Skill.DefinitionId=Slot?FName(TEXT("active_guard_pulse")):FName(TEXT("active_binding_snare"));Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);}
     FLDChoiceOption Learn;Learn.Kind=ELDChoiceOptionKind::LearnActive;Learn.DefinitionId=TEXT("hud_rules_fixture_bolt");Learn.ToRank=1;
+    LDHUD::FCardStats Stats;
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
-    const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content);
-    TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动技能")&&Card.RankText==TEXT("1 级"));
-    TestTrue(TEXT("The card shows the target form and the rank's typed parameters"),Card.Lines.Num()==3&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm"));
-    TestTrue(TEXT("The compact card line names the kind, rank and the replacement"),Card.Summary==TEXT("新主动技能 · 1 级 · 需替换"));
+    const LDHUD::FChoiceCardView Missing=LDHUD::ChoiceCard(Learn,Progression,&Content,Stats);
+    TestTrue(TEXT("A skill without its display row says so instead of inventing a face"),Missing.SentencePlain==TEXT("内容目录中找不到该技能"));
+    FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");
+    BoltDisplay.NameText=TEXT("测试飞弹");BoltDisplay.DescriptionText=TEXT("命中造成 [damage.amount] 魔法伤害。");BoltDisplay.AdvancedText=TEXT("穿透。");
+    Content.Display.Add(BoltDisplay);
+    const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content,Stats);
+    TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动")&&Card.RankText==TEXT("初级"));
+    TestTrue(TEXT("The card face is the sentence with this level's numbers and the advanced line"),
+        Card.SentencePlain==TEXT("命中造成 100 魔法伤害。")&&Card.AdvancedPlain==TEXT("高级：穿透。"));
+    TestTrue(TEXT("The details show the target form and the cost"),Card.Lines.Num()==2&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm")&&Card.Lines[1]==LDHUD::CostLine(Rank));
+    TestTrue(TEXT("The compact card line names the kind, rank and the replacement"),Card.Summary==TEXT("新主动 · 初级 · 需替换"));
     TestTrue(TEXT("An active card draws the active placeholder icon with the name's first character"),
-        Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId.IsEmpty());
+        Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
     FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
-    const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content);
-    TestTrue(TEXT("An upgrade states both ranks and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("1 → 2 级"));
+    const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats);
+    TestTrue(TEXT("An upgrade states both ranks, shows A → B and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("初级 → 高级")
+        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。"));
     FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
     FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;
-    TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content).Icon==LDHUD::EChoiceIcon::Passive
-        &&LDHUD::ChoiceCard(Attribute,Progression,&Content).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content).Summary==TEXT("属性提升 · 已选 0 次"));
-    FLDDemoDisplayDefinition BoltDisplay;BoltDisplay.Id=TEXT("hud_rules_fixture_bolt");BoltDisplay.IconId=TEXT("icon_hud_rules_fixture_bolt");Content.Display.Add(BoltDisplay);
-    TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
+    TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Passive
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("属性卡 · 已选 0 次"));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
     const LDHUD::FAttributeRowView Row=LDHUD::AttributeRow(Crit);

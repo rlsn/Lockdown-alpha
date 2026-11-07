@@ -187,6 +187,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDActionView",
         "Lockdown.Rules.HUDCombatOwnerView",
         "Lockdown.Rules.HUDContentParameters",
+        "Lockdown.Rules.HUDCardText",
         "Lockdown.Rules.HUDOwnResources",
         "Lockdown.Rules.HUDRegenDisplay",
         "Lockdown.Rules.DemoCombat.RegenRates",

@@ -232,6 +232,8 @@
           "name_text": {"type": "string", "minLength": 1, "maxLength": 32},
           "description_key": {"type": "string", "minLength": 1, "maxLength": 128},
           "description_text": {"type": "string", "minLength": 1, "maxLength": 160},
+          "advanced_key": {"type": "string", "minLength": 1, "maxLength": 128},
+          "advanced_text": {"type": "string", "minLength": 1, "maxLength": 80},
           "icon_id": {"$ref": "#/$defs/id"}, "portrait_icon_id": {"$ref": "#/$defs/id"}
         }
       }

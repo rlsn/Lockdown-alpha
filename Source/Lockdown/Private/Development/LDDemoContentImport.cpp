@@ -1,4 +1,5 @@
 #include "LDDemoContentJson.h"
+#include "Development/LDDemoCardText.h"
 
 namespace LDDemoContent
 {
@@ -1794,6 +1795,8 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
     return F.Done();
 }
 
+bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check);
+
 bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content"));
@@ -1961,6 +1964,16 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             return false;
         }
         DisplayNames.Add(D.NameText);
+        const bool bAbility = Out.Abilities.ContainsByPredicate([&D](const FLDDemoAbilityDefinition& Row) { return Row.Id == D.Id; });
+        if (Fields.Object.IsValid() && Fields.Object->HasField(TEXT("advanced_key"))
+            && (!C.Require(bAbility, Path, TEXT("only a skill has an advanced line"))
+                || !Fields.Text(TEXT("advanced_key"), D.AdvancedKey, 1, 128) || !Fields.Text(TEXT("advanced_text"), D.AdvancedText, 1, 80)
+                || !ValidateDisplayText(D.AdvancedText, false, C, Path + TEXT(".advanced_text"))
+                || !C.Require(D.AdvancedKey.Equals(D.Id + TEXT(".advanced"), ESearchCase::CaseSensitive), Path,
+                    TEXT("noncanonical advanced line reference"))))
+        {
+            return false;
+        }
         if (D.Id == Out.Character.Id
             && (!Fields.Identifier(TEXT("portrait_icon_id"), D.PortraitIconId)
                 || !C.Require(D.PortraitIconId == TEXT("portrait_") + D.Id, Path, TEXT("wrong portrait reference"))))
@@ -1972,8 +1985,44 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     TArray<uint8> DisplayBytes;
     FLDDemoContentDigest DisplayDigest;
     return Definitions(Display, Out.Display, Check, TEXT("content.display"), DisplayIds.Num(), DisplayIds.Num(), ParseDisplay)
+        && CardTemplates(Out, Check)
         && CanonicalBytes(Display, DisplayBytes, Check) && Hash(DisplayBytes, DisplayDigest, Check, TEXT("content.display"))
         && Check.Require(DisplayDigest == Out.Identity.Display, TEXT("content.display"), TEXT("display digest mismatch")) && F.Done();
+}
+
+// #147: every placeholder of a skill's main sentence reads an effect of each of its ranks; the advanced line's, of its top rank.
+bool CardTemplates(const FLDDemoContentDefinitions& Out, FCheck& Check)
+{
+    for (const FLDDemoAbilityDefinition& Ability : Out.Abilities)
+    {
+        const FLDDemoDisplayDefinition* Display = Out.Display.FindByPredicate([&Ability](const FLDDemoDisplayDefinition& Row) { return Row.Id == Ability.Id; });
+        const FString Path = TEXT("content.display.") + Ability.Id;
+        if (!Check.Require(Display && !Ability.Ranks.IsEmpty(), Path, TEXT("missing skill display")))
+        {
+            return false;
+        }
+        for (int32 Line = 0; Line < 2; ++Line)
+        {
+            TArray<LDDemoCardText::FToken> Tokens;
+            FString Error;
+            if (!Check.Require(LDDemoCardText::Parse(Line ? Display->AdvancedText : Display->DescriptionText, Tokens, Error), Path, Error))
+            {
+                return false;
+            }
+            for (const LDDemoCardText::FToken& Token : Tokens)
+            {
+                for (int32 Rank = Line ? Ability.Ranks.Num() - 1 : 0; Token.bValue && Rank < Ability.Ranks.Num(); ++Rank)
+                {
+                    if (!Check.Require(LDDemoCardText::FindEffect(Ability.Ranks[Rank], Token) != nullptr, Path,
+                        FString::Printf(TEXT("a card placeholder names no effect of rank %d"), Ability.Ranks[Rank].Rank)))
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+    }
+    return true;
 }
 
 bool ContractBytes(const FLDDemoContentBundle& Bundle, const FLDDemoContentIdentity& Identity, FCheck& Check)
@@ -2089,4 +2138,84 @@ bool Project(const FLDDemoContentBundle& Bundle, const FLDDemoContentDigest& Exp
     Out = MoveTemp(Candidate);
     return true;
 }
+}
+
+bool LDDemoCardText::Parse(const FString& Template, TArray<FToken>& Out, FString& Error)
+{
+    Out.Reset();
+    static const TPair<const TCHAR*, EField> Fields[] = {
+        {TEXT("amount"), EField::Amount}, {TEXT("duration"), EField::Duration}, {TEXT("ratio"), EField::Ratio},
+        {TEXT("count"), EField::Count}, {TEXT("radius"), EField::Radius}, {TEXT("distance"), EField::Distance},
+        {TEXT("interval"), EField::Interval}, {TEXT("delay"), EField::Delay}, {TEXT("secondary_ratio"), EField::SecondaryRatio},
+        {TEXT("secondary_duration"), EField::SecondaryDuration}};
+    int32 Index = 0;
+    while (Index < Template.Len())
+    {
+        const int32 Open = Template.Find(TEXT("["), ESearchCase::CaseSensitive, ESearchDir::FromStart, Index);
+        const int32 Stray = Template.Find(TEXT("]"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Index);
+        if (Stray != INDEX_NONE && (Open == INDEX_NONE || Stray < Open))
+        {
+            Error = TEXT("a closing bracket without its placeholder");
+            return false;
+        }
+        if (Open == INDEX_NONE)
+        {
+            Out.AddDefaulted_GetRef().Literal = Template.Mid(Index);
+            break;
+        }
+        if (Open > Index)
+        {
+            Out.AddDefaulted_GetRef().Literal = Template.Mid(Index, Open - Index);
+        }
+        const int32 Close = Template.Find(TEXT("]"), ESearchCase::CaseSensitive, ESearchDir::FromStart, Open);
+        FString Op, Field;
+        if (Close == INDEX_NONE || !Template.Mid(Open + 1, Close - Open - 1).Split(TEXT("."), &Op, &Field)
+            || Op.Contains(TEXT("[")) || Field.Contains(TEXT("[")))
+        {
+            Error = TEXT("a placeholder must read [op.field]");
+            return false;
+        }
+        FToken& Token = Out.AddDefaulted_GetRef();
+        Token.bValue = true;
+        bool bOp = false;
+        for (const LDDemoContent::FNativeId& Entry : LDDemoContent::NativeIds)
+        {
+            if (FCString::Strcmp(Entry.Category, TEXT("effect_ops")) == 0 && Op.Equals(Entry.Id, ESearchCase::CaseSensitive))
+            {
+                Token.Op = static_cast<ELDDemoEffectOp>(Entry.Number);
+                bOp = true;
+            }
+        }
+        bool bField = false;
+        for (const TPair<const TCHAR*, EField>& Pair : Fields)
+        {
+            if (Field.Equals(Pair.Key, ESearchCase::CaseSensitive)) { Token.Field = Pair.Value; bField = true; }
+        }
+        for (const LDDemoContent::FBonusField& Stat : LDDemoContent::BonusFields)
+        {
+            if (Field.Equals(Stat.Name, ESearchCase::CaseSensitive)) { Token.Field = EField::Stat; Token.Stat = Stat.Stat; bField = true; }
+        }
+        if (!bOp || !bField)
+        {
+            Error = FString::Printf(TEXT("unknown placeholder [%s.%s]"), *Op, *Field);
+            return false;
+        }
+        Index = Close + 1;
+    }
+    return true;
+}
+
+const FLDDemoEffectDefinition* LDDemoCardText::FindEffect(const FLDDemoRankDefinition& Rank, const FToken& Token)
+{
+    if (!Token.bValue)
+    {
+        return nullptr;
+    }
+    const FLDDemoEffectDefinition* Effect = Rank.Effects.FindByPredicate([&Token](const FLDDemoEffectDefinition& Row) { return Row.GetOp() == Token.Op; });
+    if (Effect && Token.Field == EField::Stat
+        && !Effect->Stats.ContainsByPredicate([&Token](const FLDDemoStatBonus& Stat) { return Stat.Stat == Token.Stat; }))
+    {
+        return nullptr;
+    }
+    return Effect;
 }
