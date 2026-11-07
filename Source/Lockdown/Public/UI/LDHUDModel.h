@@ -98,6 +98,9 @@ namespace LDHUD
     LOCKDOWN_API FString OpeningCountdown(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     // Whole seconds rounded up as m:ss, so a running countdown never shows 0:00 early.
     LOCKDOWN_API FString Clock(int64 RemainingMs);
+    // The match timer over the minimap: whole seconds elapsed since T=0 (StartedAtMs), rounded down, as m:ss with no
+    // leading zero on the minutes ("0:12", "12:05"). "0:00" through the opening countdown; empty without a clock or T=0.
+    LOCKDOWN_API FString MatchTimer(const FLDPublicMatchView& Public,bool bClock,int64 NowMs);
     struct FCircleView
     {
         FString Line;
@@ -334,6 +337,9 @@ namespace LDHUD
     // the equipment granting it. A missing projection reads as syncing, never as "none".
     LOCKDOWN_API FString PassiveLine(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content);
     LOCKDOWN_API FString EntryLabel(ELDCombatEntry Entry);
+    // #97 replacement pick by key: the skill slot (0 Q, 1 W) that the Skill1/Skill2 key fires under the local slot order
+    // (AtKey1/AtKey2 = SkillAtKey), which is the slot the pick forgets; INDEX_NONE for any other input, which cancels it.
+    LOCKDOWN_API int32 ReplacePickSlot(FName Action,ELDCombatEntry AtKey1,ELDCombatEntry AtKey2);
     // Combat receipt notice: an execution failure of the player's own request and the loss of respawn protection are
     // separate facts (UI 6.2); a cancel or a non-final phase says nothing. Empty when there is nothing to tell.
     LOCKDOWN_API FString CombatReceiptNotice(const FLDCombatActionReceipt& Receipt);

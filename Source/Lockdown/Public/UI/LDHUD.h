@@ -146,6 +146,8 @@ private:
     // Bottom offset applied to the shop and blind-box panels, which dock right above the shop entry.
     float AppliedPanelDock=-1;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
+    // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
+    UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
     UPROPERTY() TObjectPtr<UTextBlock> SightText;
     UPROPERTY() TObjectPtr<UBorder> Band;
     UPROPERTY() TObjectPtr<UBorder> Portrait;

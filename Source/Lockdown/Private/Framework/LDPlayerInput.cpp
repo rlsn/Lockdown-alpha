@@ -6,6 +6,7 @@
 #include "Character/LDModelPicking.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "UI/LDControlSettings.h"
+#include "UI/LDChoicesPanel.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDHUD.h"
 #include "UI/LDUIRoot.h"
@@ -87,7 +88,25 @@ bool ALDPlayerController::IsWorldInputSuppressed() const
 bool ALDPlayerController::IsWorldInputCaptured() const
 {
     const ELDUIInputLayer Layer=RootUI?RootUI->TopInputLayer():ELDUIInputLayer::None;
-    return Layer==ELDUIInputLayer::TextEditing || Layer==ELDUIInputLayer::ChildConfirmation;
+    // A yielding confirmation (the replacement pick) holds nothing: the next world input cancels it (V05Pressed).
+    return Layer==ELDUIInputLayer::TextEditing || (Layer==ELDUIInputLayer::ChildConfirmation && !RootUI->YieldingConfirmation());
+}
+
+bool ALDPlayerController::AnswerYieldingConfirmation(FName Action)
+{
+    ULDPanel* Yielding=RootUI?RootUI->YieldingConfirmation():nullptr;
+    if (!Yielding) { return false; }
+    // #97 replacement pick: Q/W pick the slot their key fires, as the HUD slot click does; it is the one answer.
+    auto* Choices=HUDUI?HUDUI->ChoicesPanel.Get():nullptr;
+    const int32 PickSlot=LDHUD::ReplacePickSlot(Action,SkillAtKey[0],SkillAtKey[1]);
+    if (Choices==Yielding && PickSlot!=INDEX_NONE)
+    {
+        Choices->ChooseReplacement(uint8(PickSlot));
+        return true;
+    }
+    // Any other input cancels the pick and then acts as usual; the selected card stays selected.
+    Yielding->CloseChildConfirmation();
+    return false;
 }
 
 bool ALDPlayerController::IsAwaitingRespawn() const
@@ -209,6 +228,9 @@ void ALDPlayerController::V05Pressed(FName Action)
 {
     if (Action==TEXT("Back")) { V05Back(); return; }
     if (bControlsSuppressed || bFreshInputRequired) { return; }
+    // A press over the UI is the UI's own (ULDHUD answers the replacement pick's slot clicks there).
+    const bool bPointerAction=Action==TEXT("Select") || Action==TEXT("Navigate");
+    if (!(bPointerAction && RootUI && RootUI->PointerOverUI()) && AnswerYieldingConfirmation(Action)) { return; }
     // Own panels also open while dead (UI_AND_SETTINGS 3.2); the root keeps one main panel at a time.
     if (Action==TEXT("Attributes")) { if (RootUI) { RootUI->ToggleMainPanel(ELDUIMainPanel::Attributes); } return; }
     // A child confirmation or a text edit owns every other key and click until it closes (UI 4).
@@ -267,6 +289,7 @@ void ALDPlayerController::V05Released(FName Action)
 
 void ALDPlayerController::V05Zoom(const FInputActionValue& Value)
 {
+    if (!(RootUI && RootUI->PointerOverUI())) { AnswerYieldingConfirmation(NAME_None); }
     if (!CanCameraCommand() || !Controls || (RootUI && RootUI->PointerOverUI())) { return; }
     if (auto* Body=Cast<ALDCharacter>(GetPawn()))
     {
