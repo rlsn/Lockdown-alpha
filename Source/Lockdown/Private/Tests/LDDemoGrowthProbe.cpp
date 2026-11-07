@@ -22,6 +22,8 @@
 #include "Framework/LDMatchProviders.h"
 #include "Framework/LDPlayerController.h"
 #include "Navigation/LDNavigationComponent.h"
+#include "Navigation/LDPathSteering.h"
+#include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 #include "UI/LDDevTestPanel.h"
 #include "UI/LDHUD.h"
@@ -36,6 +38,7 @@
 #include "Containers/Ticker.h"
 #include "UnrealClient.h"
 #include "Misc/App.h"
+#include "Misc/AutomationTest.h"
 #include "Dom/JsonObject.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
@@ -77,6 +80,38 @@ double GrowthProbeRational(const FLDDemoRational& Value)
 {
     return Value.Denominator > 0 ? double(Value.Numerator) / double(Value.Denominator) : -1.0;
 }
+
+struct FGrowthProbeKeepout
+{
+    FVector Centre;
+    double Radius = 0;
+};
+
+int32 GrowthProbeRouteKeepout(const TArray<FVector>& Path, const TArray<FGrowthProbeKeepout>& Keepouts)
+{
+    for (int32 I = 1; I < Path.Num(); ++I)
+    {
+        const FVector A(Path[I - 1].X, Path[I - 1].Y, 0), B(Path[I].X, Path[I].Y, 0);
+        const FVector Direction = (B - A).GetSafeNormal();
+        double FirstEntry = DBL_MAX;
+        int32 FirstZone = INDEX_NONE;
+        for (int32 Zone = 0; Zone < Keepouts.Num(); ++Zone)
+        {
+            const auto& Keepout = Keepouts[Zone];
+            const FVector Delta = FVector(Keepout.Centre.X, Keepout.Centre.Y, 0) - A;
+            if (FMath::PointDistToSegment(A + Delta, A, B) >= Keepout.Radius) { continue; }
+            const double Along = FVector::DotProduct(Delta, Direction);
+            const double AcrossSquared = FMath::Max(0., Delta.SizeSquared() - Along * Along);
+            const double Entry = FMath::Max(0., Along - FMath::Sqrt(FMath::Max(0., FMath::Square(Keepout.Radius) - AcrossSquared)));
+            if (Entry < FirstEntry) { FirstEntry = Entry; FirstZone = Zone; }
+        }
+        if (FirstZone != INDEX_NONE) { return FirstZone; }
+    }
+    return INDEX_NONE;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGrowthProbeDetourGeometryTest, "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 FString GrowthProbeGuid(const FGuid& Id)
 {
@@ -392,6 +427,13 @@ public:
     // Public anchors and approved radii: the duel happens beside the shop, outside its reach and the capture circle.
     FName ShopId;
     FVector ShopCentre = FVector::ZeroVector, KillSite = FVector::ZeroVector, HostSite = FVector::ZeroVector;
+    FVector WalkSite = FVector::ZeroVector;
+    TArray<LDDemoGrowthScenario::FGrowthProbeKeepout> WalkKeepouts;
+    TArray<FVector> WalkWaypoints;
+    uint32 WalkLife = 0;
+    uint32 WalkMatch = 0;
+    int32 WalkWaypoint = 0;
+    double WalkArrivalCm = 0;
     double ShopReach = 0, RespawnSeconds = 0;
     FGuid HostId, ClientId;
 
@@ -554,6 +596,7 @@ public:
     {
         Stage = Next;
         StageAt = FPlatformTime::Seconds();
+        if (Next != EStage::ToSite && Next != EStage::WalkOut) { WalkWaypoints.Reset(); }
     }
 
     bool Check(bool bValue, const TCHAR* Id, const FString& Name, const FString& Detail = FString())
@@ -996,8 +1039,7 @@ public:
             return true;
         }
         if (!PlanKills()) { return Finish(); }
-        PC.Navigation->Navigate(KillSite);
-        NavigateAttempts = 1;
+        if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
         SetStage(EStage::ToSite);
         return true;
     }
@@ -1241,28 +1283,194 @@ public:
         FCollisionShape Capsule;
         FString SiteError;
         const bool bCapsule = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
+        if (!PrepareWalkKeepouts(Registry, BodyRadius, SiteError))
+        { return Check(false, TEXT("Start"), TEXT("The fixture's authored camp and Boss walking exclusions exist"), SiteError); }
         bool bLegal = false;
-        for (const FVector& Direction : {Across, -Across, Outward, -Outward})
+        for (const double DistanceFactor : {2., 2.5, 3.})
         {
-            if (!bCapsule) { break; }
-            KillSite = ShopAnchor->Position + Direction * (2.0 * ShopReach);
-            HostSite = KillSite - Outward * AttackReach;
-            bool bPairLegal = true;
+            for (int32 Angle = 0; bCapsule && Angle < 16; ++Angle)
+            {
+                const double Radians = Angle * UE_TWO_PI / 16;
+                const FVector Direction = Outward * FMath::Cos(Radians) + Across * FMath::Sin(Radians);
+                KillSite = ShopAnchor->Position + Direction * (DistanceFactor * ShopReach);
+                HostSite = KillSite - Outward * AttackReach;
+                FVector KillNormal, HostNormal;
+                Registry.GetTerrain().Ground(FVector2D(KillSite), KillSite.Z, KillNormal);
+                Registry.GetTerrain().Ground(FVector2D(HostSite), HostSite.Z, HostNormal);
+                if (!FMath::IsNearlyEqual(KillSite.Z, HostSite.Z)
+                    || !KillNormal.Equals(FVector::UpVector, 1e-4) || !HostNormal.Equals(FVector::UpVector, 1e-4)) { continue; }
+                bool bPairLegal = true;
+                for (FVector* Site : {&KillSite, &HostSite})
+                {
+                    FLDLegalGround LegalSite, OnMesh;
+                    ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
+                    bool bWithin = true;
+                    if (!bPairLegal || !Registry.QueryGround(Registry.Revision(), *Site, Capsule, ShopAnchor->Surface,
+                        LegalSite, SiteFailure, SiteError)
+                        || !LDPathSteering::PlanStart(Registry, LegalSite, Capsule, OnMesh, SiteFailure, SiteError))
+                    { bPairLegal = false; break; }
+                    *Site = OnMesh.SurfaceCm;
+                    bPairLegal = Registry.QueryShopReach(Registry.Revision(), ShopId, *Site, bWithin, SiteFailure, SiteError) && !bWithin
+                        && FVector::Dist2D(*Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius
+                        && !WalkKeepouts.ContainsByPredicate([Site](const auto& Zone)
+                            { return FVector::Dist2D(*Site, Zone.Centre) < Zone.Radius; });
+                }
+                bPairLegal &= FMath::IsNearlyEqual(KillSite.Z, HostSite.Z);
+                if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
+            }
+            if (bLegal || !bCapsule) { break; }
+        }
+        if (!Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
+            FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError)))
+        { return false; }
+        for (const auto& Anchor : Registry.GetGeometry()->Anchors)
+        {
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Spawn) { continue; }
+            FVector Spawn;
+            if (!Anchor.PositionCm.ToVector(Spawn, SiteError))
+            { return Check(false, TEXT("N03"), TEXT("The authored spawn position is valid"), Anchor.Id + TEXT(": ") + SiteError); }
             for (const FVector& Site : {KillSite, HostSite})
             {
-                FLDLegalGround LegalSite;
-                ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
-                bool bWithin = true;
-                bPairLegal = bPairLegal
-                    && Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                    && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
-                    && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
+                if (!PlanDuelWalk(Registry, Spawn, Site, SiteError))
+                { return Check(false, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"),
+                    Anchor.Id + TEXT(": ") + SiteError); }
             }
-            if (bPairLegal) { bLegal = true; SiteError.Reset(); break; }
         }
-        bSitesReady = bLegal;
-        return Check(bLegal, TEXT("Start"), TEXT("Both duel sites are legal ground outside the shop reach and the capture circle"),
-            FString::Printf(TEXT("kill=%s host=%s %s"), *KillSite.ToCompactString(), *HostSite.ToCompactString(), *SiteError));
+        WalkWaypoints.Reset();
+        bSitesReady = true;
+        return Check(true, TEXT("N03"), TEXT("Every authored spawn has a legal camp/Boss-free fixture route to both duel sites"));
+    }
+
+    bool PrepareWalkKeepouts(const ULDMapRegistry& Registry, double BodyRadius, FString& WalkError)
+    {
+        const auto* Geometry = Registry.GetGeometry();
+        if (!Geometry) { WalkError = TEXT("The registered world geometry is missing."); return false; }
+        WalkKeepouts.Reset();
+        WalkArrivalCm = BodyRadius + LDPathSteering::WaypointToleranceCm;
+        const auto& Defs = Catalog->Get();
+        // Fixture routes use authored homes, not hidden runtime unit positions. Ordinary camps only block bodies;
+        // the Boss is hostile without being attacked, so its public patrol points also need an aggro margin.
+        for (const auto& Anchor : Geometry->Anchors)
+        {
+            if (Anchor.Kind != ELDDemoWorldAnchorKind::Camp && Anchor.Kind != ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+            FVector Centre;
+            if (!Anchor.PositionCm.ToVector(Centre, WalkError)) { return false; }
+            double Radius = BodyRadius + WalkArrivalCm;
+            if (Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint)
+            { Radius += LDDemoGrowthScenario::GrowthProbeRational(Defs.Boss.AggroRadiusCm); }
+            else
+            {
+                const auto* Placement = Defs.Camps.FindByPredicate([&](const auto& Row) { return Row.AnchorId == Anchor.Id; });
+                const FLDDemoMonsterDefinition* Monster = nullptr;
+                if (!Placement || !Catalog->FindMonster(Placement->MonsterId, Monster, WalkError))
+                { WalkError = TEXT("The authored camp has no approved monster: ") + Anchor.Id; return false; }
+                const double MonsterRadius = LDDemoGrowthScenario::GrowthProbeRational(Monster->CollisionRadiusCm);
+                if (MonsterRadius <= 0 || Anchor.Members.IsEmpty())
+                { WalkError = TEXT("The authored camp has invalid body homes or radius: ") + Anchor.Id; return false; }
+                Radius += MonsterRadius;
+                for (const auto& Member : Anchor.Members)
+                {
+                    FVector Home;
+                    if (!Member.PositionCm.ToVector(Home, WalkError)) { return false; }
+                    WalkKeepouts.Add({Home, Radius});
+                }
+                continue;
+            }
+            if (!FMath::IsFinite(Radius) || Radius <= 0)
+            { WalkError = TEXT("The fixture walking exclusion has an invalid radius."); return false; }
+            WalkKeepouts.Add({Centre, Radius});
+        }
+        return true;
+    }
+
+    bool PlanDuelWalk(const ULDMapRegistry& Registry, const FVector& Foot, const FVector& Site, FString& WalkError)
+    {
+        FCollisionShape Capsule;
+        FLDLegalGround From, Start, Goal;
+        ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
+        const auto* Geometry = Registry.GetGeometry();
+        if (!Geometry || Geometry->Surfaces.IsEmpty())
+        { WalkError = TEXT("The fixture's registered ground surface is missing."); return false; }
+        const FName Surface(*Geometry->Surfaces[0].Id);
+        if (!ULDMapRegistry::ContentCapsule(*Catalog, Capsule, WalkError)
+            || !Registry.QueryGround(Registry.Revision(), Foot, Capsule, Surface, From, Failure, WalkError)
+            || !LDPathSteering::PlanStart(Registry, From, Capsule, Start, Failure, WalkError)
+            || !Registry.QueryGround(Registry.Revision(), Site, Capsule, Surface, Goal, Failure, WalkError)) { return false; }
+        WalkWaypoints.Reset();
+        for (int32 Attempt = 0; Attempt <= WalkKeepouts.Num() * 2; ++Attempt)
+        {
+            FLDCompletePath Direct;
+            if (!Registry.QueryCompletePath(Registry.Revision(), Start, Goal, Capsule, Direct, Failure, WalkError)) { return false; }
+            const int32 Blocked = LDDemoGrowthScenario::GrowthProbeRouteKeepout(Direct.Points, WalkKeepouts);
+            if (Blocked == INDEX_NONE) { WalkWaypoints.Add(Site); return true; }
+            FLDLegalGround Best;
+            double BestCost = DBL_MAX;
+            bool bBestTailClear = false;
+            TArray<int32> PendingZones = {Blocked};
+            for (int32 Pending = 0; Pending < PendingZones.Num(); ++Pending)
+            {
+                const auto& Zone = WalkKeepouts[PendingZones[Pending]];
+                for (const double Scale : {1.5, 2., 3.})
+                {
+                    for (int32 Angle = 0; Angle < 16; ++Angle)
+                    {
+                        const double Radians = Angle * UE_TWO_PI / 16;
+                        FVector Point(Zone.Centre.X + Zone.Radius * Scale * FMath::Cos(Radians),
+                            Zone.Centre.Y + Zone.Radius * Scale * FMath::Sin(Radians), 0);
+                        FVector Normal;
+                        Registry.GetTerrain().Ground(FVector2D(Point), Point.Z, Normal);
+                        if (FVector::Dist2D(Point, Start.SurfaceCm) <= WalkArrivalCm
+                            || WalkWaypoints.ContainsByPredicate([&Point](const FVector& Previous)
+                                { return FVector::Dist2D(Previous, Point) <= LDPathSteering::WaypointToleranceCm; })) { continue; }
+                        FLDLegalGround Detour;
+                        FLDCompletePath First, Second;
+                        FString Why;
+                        if (!Registry.QueryGround(Registry.Revision(), Point, Capsule, Surface, Detour, Failure, Why)
+                            || !Registry.QueryCompletePath(Registry.Revision(), Start, Detour, Capsule, First, Failure, Why)) { continue; }
+                        const int32 Earlier = LDDemoGrowthScenario::GrowthProbeRouteKeepout(First.Points, WalkKeepouts);
+                        if (Earlier != INDEX_NONE) { PendingZones.AddUnique(Earlier); continue; }
+                        if (!Registry.QueryCompletePath(Registry.Revision(), Detour, Goal, Capsule, Second, Failure, Why)) { continue; }
+                        const double Cost = First.LengthCm + Second.LengthCm;
+                        const bool bTailClear = LDDemoGrowthScenario::GrowthProbeRouteKeepout(Second.Points, WalkKeepouts) == INDEX_NONE;
+                        if ((bTailClear && !bBestTailClear) || (bTailClear == bBestTailClear && Cost < BestCost))
+                        { BestCost = Cost; Best = Detour; bBestTailClear = bTailClear; }
+                    }
+                }
+            }
+            if (BestCost == DBL_MAX)
+            { WalkError = TEXT("No legal native fixture detour around camp/Boss exclusion at ")
+                + WalkKeepouts[Blocked].Centre.ToString(); return false; }
+            WalkWaypoints.Add(Best.SurfaceCm);
+            Start = Best;
+        }
+        WalkError = TEXT("The fixture's bounded camp/Boss detour search did not finish.");
+        return false;
+    }
+
+    bool NavigateDuelSite(ALDPlayerController& PC, const FVector& Site, const TCHAR* Id = TEXT("N03"))
+    {
+        const auto* Body = Cast<ALDCharacter>(PC.GetPawn());
+        const auto* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
+        FString WalkError;
+        if (!Body || !Registry) { return Fail(TEXT("N03"), TEXT("The fixture walking body or registered world is missing")); }
+        if (WalkMatch != PC.OwnerState.Match || WalkLife != PC.OwnerState.Life || !WalkSite.Equals(Site) || WalkWaypoints.IsEmpty())
+        {
+            if (!PlanDuelWalk(*Registry, Body->GetNavAgentLocation(), Site, WalkError)) { return Fail(Id, WalkError); }
+            WalkLife = PC.OwnerState.Life;
+            WalkMatch = PC.OwnerState.Match;
+            WalkSite = Site;
+            WalkWaypoint = NavigateAttempts = 0;
+            UE_LOG(LogLDNav, Display, TEXT("LD_GROWTH_WALK_FIXTURE life=%u site=%s waypoints=%d"),
+                WalkLife, *Site.ToString(), WalkWaypoints.Num());
+        }
+        while (WalkWaypoint < WalkWaypoints.Num() - 1
+            && FVector::Dist2D(Body->GetNavAgentLocation(), WalkWaypoints[WalkWaypoint]) <= WalkArrivalCm)
+        { ++WalkWaypoint; NavigateAttempts = 0; }
+        if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
+        { return Fail(Id, TEXT("The fixture could not reach its native walking waypoint: ") + PC.IntentFeedback); }
+        PC.Navigation->Navigate(WalkWaypoints[WalkWaypoint]);
+        ++NavigateAttempts;
+        return true;
     }
 
     bool PlanKills()
@@ -1367,12 +1575,7 @@ public:
             }
             if (!bAtSite && !PC.Navigation->HasMoveOrder() && Now >= NextCommandAt)
             {
-                if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-                {
-                    return Fail(TEXT("N03"), TEXT("The victim could not return to its duel site: ") + PC.IntentFeedback);
-                }
-                PC.Navigation->Navigate(HostSite);
-                ++NavigateAttempts;
+                if (!NavigateDuelSite(PC, HostSite)) { return Finish(); }
                 NextCommandAt = Now + 1.0;
             }
         }
@@ -2408,12 +2611,7 @@ public:
             return true;
         }
         if (Now - StageAt < 1.0) { return true; }
-        if (NavigateAttempts >= LDDemoGrowthScenario::GrowthProbeNavigateAttempts)
-        {
-            return Fail(Id, TEXT("The owned body could not reach its public duel site: ") + PC.IntentFeedback);
-        }
-        PC.Navigation->Navigate(Site);
-        ++NavigateAttempts;
+        if (!NavigateDuelSite(PC, Site, Id)) { return Finish(); }
         StageAt = Now;
         return true;
     }
@@ -3169,8 +3367,7 @@ public:
         RecordShop(PC, TEXT("Applied"), LDDemoGrowthScenario::GrowthProbeReason(Seen->Header.Reason), Seen);
         if (!Passed) { return Finish(); }
         Call = FShopCall();
-        PC.Navigation->Navigate(KillSite);
-        NavigateAttempts = 1;
+        if (!NavigateDuelSite(PC, KillSite)) { return Finish(); }
         SetStage(EStage::WalkOut);
         return true;
     }
@@ -3819,6 +4016,30 @@ public:
         return true;
     }
 };
+
+namespace LDDemoGrowthScenario
+{
+bool FLDGrowthProbeDetourGeometryTest::RunTest(const FString& Parameters)
+{
+    const TArray<FGrowthProbeKeepout> Keepouts = {{FVector(500, 0, 0), 80}, {FVector(200, 0, 0), 80}};
+    TestEqual(TEXT("The first encountered camp wins, not the first catalog row"),
+        GrowthProbeRouteKeepout({FVector(0, 0, 100), FVector(600, 0, 100)}, Keepouts), 1);
+    TestEqual(TEXT("A native route segment bypassing the camp bodies is accepted"),
+        GrowthProbeRouteKeepout({FVector(0, 100, 0), FVector(600, 100, 0)}, Keepouts), INDEX_NONE);
+    TestEqual(TEXT("Route segment order wins over proximity on a later segment"),
+        GrowthProbeRouteKeepout({FVector(600, 0, 0), FVector(400, 0, 0), FVector(0, 0, 0)}, Keepouts), 0);
+    FLDDemoGrowthProbe Probe;
+    Probe.WalkWaypoints.Add(FVector(200, 100, 0));
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::ToSite);
+    TestEqual(TEXT("Entering a walk retains its newly planned route"), Probe.WalkWaypoints.Num(), 1);
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::ShopOpen);
+    TestTrue(TEXT("A later walk from the shop cannot reuse the previous spawn's route"), Probe.WalkWaypoints.IsEmpty());
+    Probe.WalkWaypoints.Add(FVector(200, 100, 0));
+    Probe.SetStage(FLDDemoGrowthProbe::EStage::WalkOut);
+    TestEqual(TEXT("The return walk retains its newly planned route"), Probe.WalkWaypoints.Num(), 1);
+    return true;
+}
+}
 
 void LDDemoTests::StartGrowthProbe(ALDPlayerController& Controller)
 {

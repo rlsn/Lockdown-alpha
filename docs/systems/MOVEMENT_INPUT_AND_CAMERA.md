@@ -146,6 +146,9 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 服务器沿路线进展和重算在 `AdvanceAuthorityMotion/ProcessAuthorityOrders`，
 `TickComponent` 只承担拥有者预测、心跳和指针输入，镜头在本地相机求值前更新。当前真实 CMC `CurrentFloor` 必须对应注册地面；
 无有效支持面不借瞄准 SurfaceHint 向下补接地。服务器保留独立的命令身份和合法性校验；
+注册地面检查以胶囊的局部向下 sweep 核对真实支持点的作者高度与法线，最低只到脚点下一个原生
+`MAX_FLOOR_DIST` 间隙；坡道下沿允许胶囊由脚点旁的坡面支撑，不再把脚点正下方是平地误判为悬空。
+路线投影仍保留脚点的 XY 和该处作者地形高度，不移到胶囊的偏心接触点。
 原生 correction 不是可以跳过命令验证的理由。环境碰撞更新与路径重算的关系见
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
 `FindPublicApproach` 仅为已注册商店/旗杆喷漆区求合法范围内的完整路径，范围取同一内容定义；
