@@ -436,7 +436,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     Cell->SetVisibility(ESlateVisibility::Collapsed);
                     auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudSelfIconSize);CellBox->SetHeightOverride(HudSelfIconSize);CellBox->SetContent(Cell);
                     RowBox->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudSelfIconGap:0.f,0,0,0));
-                    SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconKinds.Add(-1);SelfIconRing.Add(-1.f);
+                    SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconTones.Add(-1);SelfIconRing.Add(-1.f);
                 }
                 SelfIconRowBoxes.Add(RowBox);SelfBox->AddChildToVerticalBox(RowBox)->SetPadding(FMargin(0,Row?HudSelfIconGap:6.f,0,0));
             }
@@ -993,12 +993,11 @@ void ULDHUD::RefreshReadModel()
             if(!Icon){continue;}
             HudSetText(SelfIconGlyphs[Index],Icon->Glyph);
             HudSetText(SelfIconStacks[Index],Icon->Stacks>1?FString::FromInt(Icon->Stacks):FString());
-            if(SelfIconKinds[Index]!=int32(Icon->Kind))
+            if(SelfIconTones[Index]!=int32(Icon->bPositive))
             {
-                // Control statuses are edged red, other temporary statuses amber, passives in the quiet secondary colour.
-                SelfIconKinds[Index]=int32(Icon->Kind);
-                const FLinearColor Edge=Icon->Kind==LDHUD::ESelfIconKind::Control?LDHUDStyle::TextDanger
-                    :Icon->Kind==LDHUD::ESelfIconKind::Temporary?LDHUDStyle::TextWarning:LDHUDStyle::TextSecondary;
+                // Positive statuses, recoveries and passives are edged green, negative statuses red; the popup names the tone too.
+                SelfIconTones[Index]=int32(Icon->bPositive);
+                const FLinearColor Edge=Icon->bPositive?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
                 SelfIconCells[Index]->SetBrush(HudRound(5.f,Edge,1.f));SelfIconCells[Index]->SetBrushColor(FLinearColor(.02f,.03f,.05f,.9f));
                 HudSetColor(SelfIconGlyphs[Index],Edge);
             }
@@ -1512,7 +1511,7 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
                 {const float Angle=2.f*PI*Fraction*Step/Steps;Points.Add(Centre+FVector2D(FMath::Sin(Angle),-FMath::Cos(Angle))*Radius);}
                 FSlateDrawElement::MakeLines(E,Base+1,G.ToPaintGeometry(),Points,ESlateDrawEffect::None,Color,true,Thickness);
             };
-            const FLinearColor Edge=SelfIconKinds[Index]==int32(LDHUD::ESelfIconKind::Control)?LDHUDStyle::TextDanger:LDHUDStyle::TextWarning;
+            const FLinearColor Edge=SelfIconTones[Index]==1?LDHUDStyle::StatusPositive:LDHUDStyle::StatusNegative;
             Arc(1.f,FLinearColor(1.f,1.f,1.f,.16f),3.f);
             if(SelfIconRing[Index]>0.f){Arc(SelfIconRing[Index],Edge,3.f);}
         }
