@@ -382,6 +382,8 @@ class ApprovedDemoData(unittest.TestCase):
             "passive_moral_victory": "精神胜利", "passive_iced_americano": "冰美式续命", "passive_lucky_star": "欧皇附体",
             "attr_protein": "吃了口蛋白粉", "attr_fast_hands": "单身手速", "attr_all_nighter": "熬夜冲浪", "attr_canteen": "食堂大锅饭",
             "attr_big_talk": "满嘴跑火车", "attr_morning_rush": "早八冲刺", "attr_hand_out": "伸手党", "attr_wild_frenzy": "彻底疯狂",
+            "opening_athlete": "体育生", "opening_grinder": "卷王", "opening_dorm_warden": "宿管大爷",
+            "opening_rider": "外卖骑手", "opening_keyboard": "键盘侠", "opening_hexagon": "六边形战士",
             "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
             "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
             "item_echo_maul": "自拍杆", "item_slingshot": "大号滋水枪", "item_nail_uniform": "扎心铆钉皮衣",
@@ -703,11 +705,25 @@ class ApprovedDemoData(unittest.TestCase):
         with self.assertRaisesRegex(content.ContentError, "InvalidReference"):
             content.validate_definitions(projected, ids)
 
+    def test_approved_opening_direction_bundles(self):
+        expected = {
+            "opening_athlete": {"ADFlat": 7, "AttackSpeedBonusRatio": Fraction(6, 100), "MaxHPFlat": 60},
+            "opening_grinder": {"APFlat": 35, "CooldownHasteFlat": 15, "MaxMPFlat": 80},
+            "opening_dorm_warden": {"MaxHPFlat": 150, "ArmorFlat": 8, "MagicResistFlat": 8},
+            "opening_rider": {"MoveSpeedBonusRatio": Fraction(8, 100), "ADFlat": 6, "AttackSpeedBonusRatio": Fraction(6, 100)},
+            "opening_keyboard": {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(10, 100),
+                                 "MoveSpeedBonusRatio": Fraction(3, 100)},
+            "opening_hexagon": {"ADFlat": 5, "APFlat": 12, "MaxHPFlat": 90},
+        }
+        self.assertEqual({row["id"] for row in self.data["opening_cards"]}, set(expected))
+        for identity, stats in expected.items():
+            self.assertEqual({key: amount(value) for key, value in self.catalog.definition(identity)["stats"].items()}, stats)
+
     def test_monster_and_progression_values(self):
         self.assertEqual(self.data["progression"]["xp_thresholds"], (0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440))
         self.assertEqual(self.data["progression"]["xp_to_next"], (80, 100, 120, 140, 160, 180, 200, 220, 240))
-        # 112 §6: the opening offer is two new actives and one new passive; level 4 and 7 each earn one reroll.
-        self.assertEqual(self.data["progression"]["opening_offer"], {"active_count": 2, "passive_count": 1})
+        # #153: directions hide distinct actives with 2:1 growth-intersection weights; level 4/7 each earn a reroll.
+        self.assertEqual(self.data["progression"]["opening_offer"], {"matched_skill_weight": 2, "other_skill_weight": 1})
         self.assertEqual(self.data["progression"]["reroll_levels"], (4, 7))
         # #147: two skill ranks (初级/高级).
         self.assertEqual(self.data["progression"]["max_skill_rank"], 2)

@@ -1345,10 +1345,11 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
     if (Self.Offer->Options.ContainsByPredicate([](const FLDOpponentOption& Option) { return Option.Kind == ELDOpponentOptionKind::Opening; }))
     {
         const auto& Options = Self.Offer->Options;
-        const int32 Index = int32(Self.OpeningPickIndex) % Options.Num();
-        if (Options[Index].Kind != ELDOpponentOptionKind::Opening)
+        const int32 Index = int32(Self.OpeningPickIndex);
+        if (Options.Num() != 3 || !Options.IsValidIndex(Index)
+            || Options.ContainsByPredicate([](const FLDOpponentOption& Option) { return Option.Kind != ELDOpponentOptionKind::Opening; }))
         {
-            Error = TEXT("The opening offer mixes opening cards with other kinds.");
+            Error = TEXT("The opening offer or planned card index is invalid.");
             return false;
         }
         Out.OptionId = Options[Index].OptionId;

@@ -305,6 +305,13 @@ AI 满局遥测不是验收：`RunDemoOpponentCheck.ps1 -Telemetry -MatchCount <
 
 ### 规则测试集合
 
+开局方向卡（#153）的新增测试为 `Lockdown.Rules.DemoGrowthOpeningCard`，同时更新
+`DemoGrowthOpeningPool`、`DemoGrowthPrivacySchema`、`DemoGrowthReroll` 和 `DemoOpponentPolicy.Priorities`。
+Growth 场景在真实拥有客户端上核对方向卡面与隐藏分配边界、倒计时后保留机会、
+升到重抽等级后恶意重抽被服务器拒绝，以及点卡后的揭晓、初级 Q 与冷却就绪；
+截图沿用 Opponent 的 `HostChoices.png` 审阅入口，避免在 Growth 的五秒限时请求内做 GPU 读回。Opponent 场景的开局检查已改为
+倒计时内选择且不移动，不再使用“开局后十秒内”作为代替门槛。
+
 `RunTests.ps1` 执行已有 `Lockdown.Rules` 套件，由 `CheckRuleReport.py` 核对明确的当前必需用例集合。
 缺报告、失败、未完成、缺用例或重复结果都不能通过；新增或迁移原生测试时同步维护此集合，
 并运行 `python -B -m unittest discover -s .\Scripts -p TestRuleReport.py` 核对源码注册与报告拒绝路径。

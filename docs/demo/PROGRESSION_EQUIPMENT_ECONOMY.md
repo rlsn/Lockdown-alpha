@@ -414,12 +414,12 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 
 ### 6.3 抽卡规则与重抽
 
-抽卡不按标签、流派或已有构筑加权，唯一的权重见下。技能有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
+升级抽卡不按标签、流派或已有构筑加权，唯一的权重见下。技能有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
 仍留在 `LegalPool`（DEV 学习与夹具预置可用）。
 
 | 机会 | 组成（`LDProgression::DrawOffer`） |
 | --- | --- |
-| 1 号（开局） | `progression.opening_offer`：`active_count`（2）个未学的可进卡池主动 + `passive_count`（1）个未学的可进卡池被动，组内等概率，卡位洗牌。 |
+| 1 号（开局） | #153：从 `OpeningCards` 等概率抽三个不同方向，各配一个不同的隐藏初级主动。`ActiveGrowthStats` 从主动实际效果读取成长属性，与方向交集对应 `OpeningMatchedSkillWeight`，否则 `OpeningOtherSkillWeight`，数值见内容 §4.7.1。 |
 | 2–10 号 | 三个固定卡位，从左到右：**升级位**从可进卡池的已学初级技能中等概率抽 1 个升为高级，没有时改抽一张新技能；**新技能位**从未学技能中按 `NewSkillWeight` 抽 1 个；**自由位**以 `CHOICE.FreeSlotAttributeChance`（0.4）从属性卡等概率抽，否则再抽一张新技能。没有技能可抽的卡位用属性卡补位。 |
 
 新技能权重（`LDProgression::NewSkillWeight`，基点）：一律 10000；Q/W 都满时未学主动为 `CHOICE.NewActiveFullSlotWeight`（0.5），
@@ -428,11 +428,16 @@ Offer 将**不可变内容**与**可更新保护版本**分开。
 
 重抽：`progression.reroll_levels`（4、7）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
 `bReroll` 命令走选择请求流（同一请求窗口、回执与去重、Match/Life/生命阶段/OfferRevision/BuildRevision 保护），在 Transactions 阶段提交：
-没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
+开局方向卡 `OpeningNoReroll`（即使后来获得令牌），没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
 上一组的三张卡在每个卡位都优先排除（池中没有别的卡时才允许重复），回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不花米、不消费机会、不改构筑修订。
 
-内容验证与 `DrawFeasible` 共同保证：开局组的可进卡池主动/被动数量足够（不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位）；
+内容验证与 `DrawFeasible` 共同保证：开局方向与可进卡池主动各不少于三个（不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位）；
 升级组按最坏情况（自由位抽到属性卡、无技能可抽的卡位改用属性卡、Q/W 满槽时最多 1 张新主动）计算，属性卡数量足以补齐三张。覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
+
+开局主动分配仅在 `FLDChoiceOfferState::HiddenActives` 中，不进入 `FLDChoiceOption` 或本人/对手视图，不在生成日志中记录。
+选定时 `ApplyOption` 同时记录 `Build.OpeningCard` 并学会初级主动、装 Q；原子投影按永久选择属性来源处理，
+通过主动的初级投入计一次选择，不另计属性包。`FLDChoiceReceipt::OpeningActiveId` 只在成功后揭晓。
+延迟选择、死亡或关闭页面都保留原 Offer；后续升级机会按正常卡位逐组生成。
 
 ## 7. 两装备、商店与来源冷却
 

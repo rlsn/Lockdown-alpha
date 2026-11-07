@@ -1030,11 +1030,11 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         Card.Summary=TEXT("开局");Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
         if(const FLDDemoOpeningCardDefinition* Definition=Content?Content->OpeningCards.FindByPredicate([&Id](const FLDDemoOpeningCardDefinition& D){return D.Id==Id;}):nullptr)
         {
-            Card.SentencePlain=Display?Display->DescriptionText:FString();Card.Sentence=CardEscape(Card.SentencePlain);
             TArray<FString> Parts;
             for(const FLDDemoStatBonus& Stat:Definition->Stats){Parts.Add(StatLine(Stat));}
-            Card.Lines.Add(FString::Join(Parts,TEXT(" · ")));
-            Card.Lines.Add(LDTerms::OpeningHiddenActive);
+            Card.SentencePlain=(Display?Display->DescriptionText:FString())+TEXT("\n")+FString::Join(Parts,TEXT("\n"))
+                +TEXT("\n")+LDTerms::OpeningHiddenActive;
+            Card.Sentence=CardEscape(Card.SentencePlain);
         }
         else if(Content){Card.SentencePlain=Card.Sentence=TEXT("内容目录中找不到该开局方向卡");}
         return Card;

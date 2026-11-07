@@ -739,6 +739,7 @@ def validate_definitions(data, ids):
         "opening_hexagon": {"ADFlat", "APFlat", "MaxHPFlat"},
     }
     openings = rows_by_id(data["opening_cards"], "opening_cards")
+    collections["opening_cards"] = data["opening_cards"]
     require(not all_ids.intersection(openings), "DuplicateId", "opening_cards", "definition appears in another category")
     all_ids.update(openings)
     for card in data["opening_cards"]:

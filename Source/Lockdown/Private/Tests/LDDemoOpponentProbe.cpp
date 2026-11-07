@@ -47,7 +47,6 @@ constexpr int64 RequestWindowMs = 30000;
 constexpr uint32 MaxBodyRequestsPerWindow = 40;
 constexpr int64 RespawnSlackMs = 2500;
 constexpr int64 ActAfterRespawnMs = 10000;
-constexpr int64 OpeningPickWithinMs = 10000;
 constexpr double MinTravelCm = 1000.;
 
 int32 CountKind(const FLDLobbyView& Lobby, ELDContenderKind Kind)
@@ -133,6 +132,7 @@ public:
     bool bPlaytestMarked = false;
     // #153: each AI body's foot when the countdown was first sampled, and the largest drift seen before T=0.
     TMap<TWeakObjectPtr<ALDOpponentController>, FVector> CountdownAIFeet;
+    TMap<FGuid, int64> CountdownPicks;
     double MaxCountdownAIDriftCm = 0;
     int32 CountdownSamples = 0;
     uint32 FirstGeneration = 0;
@@ -549,7 +549,8 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         DeathsSeen += Track.Deaths;
         QuietWhileDead &= Track.bQuietWhileDead;
         Bounded &= Track.MaxWindowRequests <= MaxBodyRequestsPerWindow && T.OrdersRefused <= T.Orders / 10 + 3;
-        OpeningPicks &= Track.OpeningPickMs >= 0 && Track.OpeningPickMs <= OpeningPickWithinMs;
+        const int64* OpeningAt = CountdownPicks.Find(Track.Contender);
+        OpeningPicks &= OpeningAt && *OpeningAt >= 1000 && *OpeningAt < Content->Get().Parameters.CountdownMs;
         // An early rival fight at level one can leave a body waiting on regeneration for most of development; that is
         // the approved pacing, not a stall. Without XP, at least half of development must have been dead or recovering.
         DevGrowth &= Track.DevXP > 0 || 2 * Track.DevRecoverOrDeadMs >= DevelopmentMs;
@@ -567,7 +568,9 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("level"), double(Track.MaxLevel));
         Value->SetNumberField(TEXT("xp"), double(Track.MaxXP));
         Value->SetNumberField(TEXT("choices"), double(Track.MaxConsumed));
-        Value->SetNumberField(TEXT("opening_pick_ms"), double(Track.OpeningPickMs));
+        Value->SetNumberField(TEXT("opening_pick_ms"),
+            double(OpeningAt ? *OpeningAt - Content->Get().Parameters.CountdownMs : Track.OpeningPickMs));
+        Value->SetNumberField(TEXT("opening_countdown_pick_ms"), double(OpeningAt ? *OpeningAt : -1));
         Value->SetNumberField(TEXT("dev_xp"), double(Track.DevXP));
         Value->SetNumberField(TEXT("dev_recover_or_dead_ms"), double(Track.DevRecoverOrDeadMs));
         Value->SetNumberField(TEXT("gold_max"), double(Track.MaxGold));
@@ -638,7 +641,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         : Acted ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
         TEXT("Every respawned AI sent a new body request within ten seconds"));
     Check(Bounded, TEXT("AI requests stay bounded: no request loop and few refusals"));
-    Check(OpeningPicks, TEXT("D10: every AI resolved its opening pick within ten seconds of the start"));
+    Check(OpeningPicks, TEXT("Every AI resolved its random opening direction during the countdown, never moving"));
     Check(DevGrowth, TEXT("Every AI gained experience before the circle opened, unless it spent at least half of development dead or recovering"));
     // D12: decisions are counted from each adapter's own frames; a released decision is a stop-loss exit.
     Record(!PausedHolds ? ELDOpponentProbeCheck::NotExercised
@@ -756,6 +759,12 @@ bool FLDDemoOpponentProbe::Tick()
                 if (const FVector* First = CountdownAIFeet.Find(*It))
                 { MaxCountdownAIDriftCm = FMath::Max(MaxCountdownAIDriftCm, FVector::Dist2D(*First, Foot)); }
                 else { CountdownAIFeet.Add(*It, Foot); }
+                const FLDProgressionView Growth = Mode->Development->ReadProgression(Mode->ContenderId(*It));
+                if (Growth.ConsumedThrough == 1 && !CountdownPicks.Contains(Mode->ContenderId(*It)))
+                {
+                    CountdownPicks.Add(Mode->ContenderId(*It),
+                        Mode->GetAuthorityNowMs() - View.StartedAtMs + Content->Get().Parameters.CountdownMs);
+                }
             }
             ++CountdownSamples;
             return true;

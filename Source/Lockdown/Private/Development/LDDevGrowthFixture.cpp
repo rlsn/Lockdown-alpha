@@ -179,8 +179,13 @@ bool LDDevGrowthFixture::StageOffer(const UWorld* World, const FGuid& Contender,
         return false;
     }
     const int32 Position = Staged.Add(DefinitionIds) + 1;
+    TArray<FName> VisibleIds;
+    for (int32 Index = 0; Index < DefinitionIds.Num(); Index += DefinitionIds.Num() == 6 ? 2 : 1)
+    {
+        VisibleIds.Add(DefinitionIds[Index]);
+    }
     UE_LOG(LogLDGrowth, Warning, TEXT("LD_DEV_FIXTURE_ACTIVE staged offer for the next match contender=%s position=%d cards=%s"),
-        *Contender.ToString(), Position, *FString::JoinBy(DefinitionIds, TEXT(","), [](const FName& Id) { return Id.ToString(); }));
+        *Contender.ToString(), Position, *FString::JoinBy(VisibleIds, TEXT(","), [](const FName& Id) { return Id.ToString(); }));
     return true;
 }
 

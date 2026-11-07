@@ -72,6 +72,11 @@
 
 ## 全量快照、隐藏与恢复
 
+开局方向卡（#153）的技能分配不属于任何复制视图。`FLDChoiceOption` 只带方向 ID 和选项身份，
+`ULDChoicesPanel` 的卡面完整显示方向、三项属性与“？随机主动（选了才揭晓）”；不从 UI 推算或提前读取技能。
+成功的选择回执才带 `OpeningActiveId`，面板显示“开出了：X！”并从新的本人构筑显示初级 Q。
+开局重抽按钮置灰并说明不能重抽，服务器仍独立拒绝绕过按钮的重抽请求。
+
 - `ClientFullView`（不可靠）发送完整帧；`ClientConceal`（可靠）的 `Removed` 为空时表示代次复位；`ClientTermination`（可靠）发送终结通知。
 - 三者共用一个游标（match, generation, revision），旧消息被拒绝。
 - 收到 full 帧时先应用其中的终结，再替换单位集合；不在新帧里的单位以 `FullSetRemoved` 清除。
