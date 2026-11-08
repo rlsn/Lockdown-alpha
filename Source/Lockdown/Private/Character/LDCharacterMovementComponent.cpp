@@ -146,12 +146,70 @@ void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
             return;
         }
         TGuardValue<bool> NativeScope(bNativeIntegrationActive,true);
-        Super::PerformMovement(DeltaSeconds);
+        const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
+        const bool CanSleep=bStationaryAuthorityInput && NativeBody.Victim.Kind==ELDVictimKind::CampMember && Registry
+            && StationaryWorld==Registry->Revision();
+        if (CanSleep && TryAdvanceStationaryMovement(DeltaSeconds)) { ++AuthorityStationarySteps; }
+        else
+        {
+            Super::PerformMovement(DeltaSeconds);
+            RememberStationarySupport();
+            if (Registry) { StationaryWorld=Registry->Revision(); }
+        }
         ++AuthorityIntegrationCount;
         AuthorityIntegratedSeconds+=DeltaSeconds;
         return;
     }
     Super::PerformMovement(DeltaSeconds);
+    RememberStationarySupport();
+}
+
+void ULDCharacterMovementComponent::RememberStationarySupport()
+{
+    StationaryFloor=CurrentFloor.HitResult.GetComponent();
+    if (StationaryFloor.IsValid()) { StationaryFloorTransform=StationaryFloor->GetComponentTransform(); }
+    if (CharacterOwner)
+    {
+        const auto* Capsule=CharacterOwner->GetCapsuleComponent();
+        StationaryCapsuleSize=FVector(Capsule->GetScaledCapsuleRadius(),Capsule->GetScaledCapsuleHalfHeight(),0);
+    }
+}
+
+bool ULDCharacterMovementComponent::TryAdvanceStationaryMovement(float DeltaSeconds)
+{
+    const auto* Floor=StationaryFloor.Get();
+    if (!HasValidData() || !Floor || MovementMode!=MOVE_Walking || !CurrentFloor.IsWalkableFloor()
+        || CurrentFloor.HitResult.GetComponent()!=Floor || CurrentFloor.HitResult.bStartPenetrating
+        || bForceNextFloorCheck || bJustTeleported || !Velocity.IsZero() || !Acceleration.IsZero()
+        || !LastUpdateVelocity.IsZero() || !PendingImpulseToApply.IsZero() || !PendingForceToApply.IsZero()
+        || !PendingLaunchVelocity.IsZero() || bHasRequestedVelocity || bForceMaxAccel
+        || HasRootMotionSources() || HasAnimRootMotion() || CharacterOwner->IsPlayingRootMotion()
+        || bWantsToCrouch || CharacterOwner->bIsCrouched || CharacterOwner->bPressedJump
+        || bOrientRotationToMovement || bUseControllerDesiredRotation
+        || CharacterOwner->OnCharacterMovementUpdated.IsBound()
+        || !UpdatedComponent->IsQueryCollisionEnabled() || UpdatedComponent->IsSimulatingPhysics()
+        || Floor->Mobility!=EComponentMobility::Static || !Floor->IsQueryCollisionEnabled()
+        || Floor->GetCollisionResponseToChannel(UpdatedComponent->GetCollisionObjectType())!=ECR_Block
+        || !Floor->GetComponentTransform().Equals(StationaryFloorTransform,0)
+        || UpdatedComponent->GetComponentLocation()!=LastUpdateLocation
+        || UpdatedComponent->GetComponentQuat()!=LastUpdateRotation)
+    { return false; }
+    const auto* Base=GetMovementBaseInterfaceData();
+    const auto* Capsule=CharacterOwner->GetCapsuleComponent();
+    const double FloorDistance=CurrentFloor.bLineTrace?CurrentFloor.LineDist:CurrentFloor.FloorDist;
+    if (!Base || !Base->IsValid() || MovementBaseUtility::IsDynamicBase(Base)
+        || Base->GetBodyInstanceOwner()!=Floor
+        || StationaryCapsuleSize!=FVector(Capsule->GetScaledCapsuleRadius(),Capsule->GetScaledCapsuleHalfHeight(),0)
+        || !FMath::IsFinite(FloorDistance) || FloorDistance<MIN_FLOOR_DIST || FloorDistance>MAX_FLOOR_DIST)
+    { return false; }
+    // ControlledCharacterMove already processed jump/input. Stable static support needs no physics or floor sweep.
+    bTeleportedSinceLastUpdate=false;
+    CharacterOwner->ClearJumpInput(DeltaSeconds);
+    NumJumpApexAttempts=0;
+    LastUpdateRequestedVelocity=FVector::ZeroVector;
+    OnMovementUpdated(DeltaSeconds,LastUpdateLocation,LastUpdateVelocity);
+    CallMovementUpdateDelegate(DeltaSeconds,LastUpdateLocation,LastUpdateVelocity);
+    return true;
 }
 // Demo speed is the sole Combat projection: the authority reads it for every registered body (contenders and
 // camp members), the owning client predicts from its own owner view; nothing else may move voluntarily.
@@ -313,6 +371,7 @@ bool ULDCharacterMovementComponent::AdvanceAuthorityMovement(const FLDAuthorityS
     if (AuthorityIntegrationCount==MAX_uint64)
     { Error=TEXT("Native integration counter exhausted."); return false; }
     TGuardValue<bool> Running(bAuthorityMovementRunning,true);
+    TGuardValue<bool> StationaryInput(bStationaryAuthorityInput,Input.IsZero());
     TGuardValue<const FLDGameplayWritePermit*> Scope(NativeWritePermit,&Permit);
     TGuardValue<FLDCombatBodyRef> Binding(NativeBody,Body);
     const uint64 Before=AuthorityIntegrationCount;

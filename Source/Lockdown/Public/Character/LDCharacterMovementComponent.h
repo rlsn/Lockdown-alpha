@@ -77,8 +77,10 @@ public:
     double MaxCorrectionCm=0;
     double LastCorrectionCm=0;
     uint64 AuthorityIntegrationCount=0, RejectedAuthorityMoves=0, NetworkBookkeepingMoves=0, SuppressedNetworkSimulationMoves=0;
+    uint64 AuthorityStationarySteps=0;
     double AuthorityIntegratedSeconds=0;
 protected:
+    bool TryAdvanceStationaryMovement(float DeltaSeconds);
     // The dash root motion itself (no authority or Demo-world gate): a planar override force covering DistanceCm in
     // DurationSeconds that stops against blocking geometry and ends with zero velocity. Only StartDemoDash and the
     // isolated native probes call it.
@@ -90,6 +92,11 @@ protected:
     bool EndIsolatedNativeMotionProbe(TSharedPtr<const FLDNativeMotionBatch>& Out, FString& Error);
 #endif
 private:
+    void RememberStationarySupport();
+    TWeakObjectPtr<UPrimitiveComponent> StationaryFloor;
+    FTransform StationaryFloorTransform;
+    FVector StationaryCapsuleSize=FVector::ZeroVector;
+    FLDWorldRevision StationaryWorld;
     struct FNativeCapture;
     TSharedPtr<FNativeCapture> NativeCapture;
     uint64 NativeRecordSequence=0;
@@ -98,6 +105,7 @@ private:
     bool FinishNativeMotionCapture(TSharedPtr<const FLDNativeMotionBatch>& Out, FString& Error);
     void CaptureNativeSupport() const;
     bool bAuthorityMovementRunning=false;
+    bool bStationaryAuthorityInput=false;
     bool bNativeIntegrationActive=false;
     const FLDGameplayWritePermit* NativeWritePermit=nullptr;
     FLDCombatBodyRef NativeBody;

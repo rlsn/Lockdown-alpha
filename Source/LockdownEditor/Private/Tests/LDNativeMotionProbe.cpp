@@ -96,6 +96,22 @@ bool ULDNativeMotionProbeMovement::TraceDash(const FVector& Direction, double Di
     return true;
 }
 
+void ULDNativeMotionProbeMovement::PerformMovement(float DeltaSeconds)
+{
+    SkippedStationary=CheckStationary && TryAdvanceStationaryMovement(DeltaSeconds);
+    if (!SkippedStationary) { Super::PerformMovement(DeltaSeconds); }
+}
+
+bool ULDNativeMotionProbeMovement::TraceStationary(const FVector& Input)
+{
+    Captured.Reset();
+    TGuardValue<bool> Guard(CheckStationary,true);
+    if (!BeginIsolatedNativeMotionProbe(.05f,CaptureError)) { return false; }
+    ControlledCharacterMove(Input,.05f);
+    EndIsolatedNativeMotionProbe(Captured,CaptureError);
+    return SkippedStationary;
+}
+
 void ULDNativeMotionProbeMovement::MoveAlongFloor(const FVector& InVelocity, float DeltaSeconds, FStepDownResult* OutStepDownResult)
 {
     const int32 Index=BeginTrace(TEXT("MoveAlongFloor"),DeltaSeconds);
@@ -336,6 +352,87 @@ namespace
         if (!Test.TestTrue(TEXT("Native CMC has real walkable support"),Movement->PrepareGround())) { return nullptr; }
         return Movement;
     }
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeStationaryProbe, "Lockdown.Rules.DemoMotionProbe.Stationary",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeStationaryProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)
+        || !TestNotNull(TEXT("Static floor"),Fixture.ConvexFloor())) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body(FVector::ZeroVector));
+    if (!Move) { return false; }
+    TestFalse(TEXT("Newly grounded body must first run native CMC"),Move->TraceStationary());
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    const auto Full=Move->Captured;
+    if (!TestNotNull(TEXT("Full idle batch"),Full.Get())) { return false; }
+    TestTrue(TEXT("Settled body skips native physics"),Move->TraceStationary());
+    const auto Idle=Move->Captured;
+    if (!TestNotNull(TEXT("Skipped idle batch"),Idle.Get())) { return false; }
+    TestTrue(TEXT("Full and skipped batches have identical stationary positions and support"),
+        Full->StartFootCm==Idle->StartFootCm && Full->EndFootCm==Idle->EndFootCm
+        && Full->InitialSupport.Grounded==Idle->InitialSupport.Grounded
+        && Full->FinalSupport.Grounded==Idle->FinalSupport.Grounded
+        && Full->FinalSupport.Floor==Idle->FinalSupport.Floor);
+    TestTrue(TEXT("Both paths submit no fabricated movement, adjustment or support transition"),
+        Full->Records.IsEmpty() && Idle->Records.IsEmpty() && Idle->PreviousSequence==Idle->ThroughSequence
+        && Idle->Step.EndServerSeconds>Idle->Step.StartServerSeconds && Move->CaptureError.IsEmpty());
+    TestFalse(TEXT("New steering wakes the body in the same step"),Move->TraceStationary({1,0,0}));
+    TestTrue(TEXT("Steering moved through native CMC"),Move->Velocity.X>0);
+    Move->StopMovementImmediately();
+    TestFalse(TEXT("Just stopped velocity still requires a native update"),Move->TraceStationary());
+    TestTrue(TEXT("Following settled step skips again"),Move->TraceStationary());
+    Move->bForceNextFloorCheck=true;
+    TestFalse(TEXT("Explicit floor invalidation wakes the body"),Move->TraceStationary());
+    TestTrue(TEXT("Revalidated floor sleeps again"),Move->TraceStationary());
+    Move->AddImpulse({100,0,0},true);
+    TestFalse(TEXT("Pending impulse cannot be skipped"),Move->TraceStationary());
+    Move->StopMovementImmediately();
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    Move->AddForce({100,0,0});
+    TestFalse(TEXT("Pending force cannot be skipped"),Move->TraceStationary());
+    Move->StopMovementImmediately();
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    FString Error;
+    TestTrue(TEXT("Committed displacement source"),Move->TraceDash({1,0,0},100,.2,0,0,Error));
+    TestFalse(TEXT("Pending root motion/knockback cannot be skipped"),Move->TraceStationary());
+    TestTrue(TEXT("Root motion produced a witnessed displacement"),
+        Move->Captured && Move->Captured->Records.ContainsByPredicate([](const auto& Record) { return Record.RootMotion; }));
+    Move->Launch({0,0,200});
+    TestFalse(TEXT("Pending launch cannot be skipped"),Move->TraceStationary());
+    Move->SetMovementMode(MOVE_None);
+    TestFalse(TEXT("Disabled/dead movement cannot be skipped"),Move->TraceStationary());
+    Move->StopMovementImmediately();
+    Move->UpdatedComponent->SetWorldLocation({0,0,92.15},false,nullptr,ETeleportType::TeleportPhysics);
+    TestTrue(TEXT("Respawn support prepared"),Move->PrepareGround());
+    TestFalse(TEXT("Repositioned respawn must run full CMC"),Move->TraceStationary());
+    TestTrue(TEXT("Respawn settles normally"),Move->TraceStationary());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeStationarySupportProbe, "Lockdown.Rules.DemoMotionProbe.StationarySupport",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDNativeStationarySupportProbe::RunTest(const FString& Parameters)
+{
+    FNativeWorld Fixture;
+    if (!TestNotNull(TEXT("Native physics world"),Fixture.World)) { return false; }
+    auto* Floor=Fixture.ConvexFloor(true);
+    if (!TestNotNull(TEXT("Ramp floor"),Floor)) { return false; }
+    auto* Move=Prepare(*this,Fixture.Body({100,0,100.*50./220.}));
+    if (!Move) { return false; }
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    TestTrue(TEXT("Static walkable slope can sleep"),Move->TraceStationary());
+    Floor->SetMobility(EComponentMobility::Movable);
+    TestFalse(TEXT("Moving base requires native based movement"),Move->TraceStationary());
+    Floor->SetMobility(EComponentMobility::Static);
+    Move->TraceWalking(FVector::ZeroVector,.05f);
+    Move->CurrentFloor.HitResult.bStartPenetrating=true;
+    TestFalse(TEXT("Pending floor penetration requires native resolution"),Move->TraceStationary());
+    Floor->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    TestFalse(TEXT("Disabled support cannot keep a stationary floor alive"),Move->TraceStationary());
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDNativeSlideProbe, "Lockdown.Rules.DemoMotionProbe.Slide",

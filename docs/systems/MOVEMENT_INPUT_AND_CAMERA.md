@@ -37,6 +37,14 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 不另做第二次权威积分；`ServerShouldUseAuthoritativePosition` 禁止以客户端位置覆盖服务器结果。
 这不是第二个位置积分器或 AI Controller 接管。
 
+营地成员在已完成原生落地、精确零速度/输入、walking 且静态支持面稳定时可跳过
+`PerformMovement` 的物理积分与 floor sweep。待处理外力、launch、root motion、跳跃、
+地面穿透、强制 floor 检查、身体/胶囊/支持面变化或世界修订变化均走完整 CMC；
+刚停下也须先完成一次原生更新。跳过仍进入相同 native capture、integration 计数和
+`CompleteNativeMotion`，同 step/body 恰好提交一次静止批次，不另建休眠运动流。
+参赛者不使用该分支：其 packed move 的 ACK/error 和 `ServerCheckClientError` 所依赖的
+原生预测簿记保持完整 CMC 更新。`AuthorityStationarySteps` 单独统计省略的营地积分次数。
+
 拥有者的校正仍立即修改 CMC 胶囊并重放合法 saved moves。`FLDOwnerCorrectionSmoothing`
 只保留重放前后显示位置的差，按原生 `NetworkSimulatedSmoothLocationTime` 衰减；
 偏移受原生平滑距离限制，超过 snap 距离直接跳到位。本人模型、脚下标记、头顶标签、
