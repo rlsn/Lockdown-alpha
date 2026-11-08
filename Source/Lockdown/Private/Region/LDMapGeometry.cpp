@@ -108,18 +108,38 @@ bool FTerrain::Build(const FLDDemoWorldGeometry& Geometry, FString& Error)
     }
     StepCm = Step;
     Regions = MoveTemp(Candidate);
+    for (int32 Index = 0; Index < Regions.Num(); ++Index)
+    {
+        FBox2D Bounds(ForceInit);
+        for (const FVector2D& Point : Regions[Index].Polygon) { Bounds += Point; }
+        if (!Bounds.bIsValid) { continue; }
+        RegionBounds += Bounds;
+        const int32 X0 = FMath::FloorToInt32(Bounds.Min.X / GridCellCm), X1 = FMath::FloorToInt32(Bounds.Max.X / GridCellCm);
+        const int32 Y0 = FMath::FloorToInt32(Bounds.Min.Y / GridCellCm), Y1 = FMath::FloorToInt32(Bounds.Max.Y / GridCellCm);
+        for (int32 Y = Y0; Y <= Y1; ++Y)
+        {
+            for (int32 X = X0; X <= X1; ++X) { RegionCells.FindOrAdd(FIntPoint(X, Y)).Add(Index); }
+        }
+    }
+    for (auto& Cell : RegionCells)
+    {
+        Cell.Value.Sort([this](int32 A, int32 B) { return Regions[A].Tier > Regions[B].Tier; });
+    }
     Error.Reset();
     return true;
 }
 
 int32 FTerrain::Tier(const FVector2D& Point) const
 {
-    int32 Best = 0;
-    for (const FRegion& Region : Regions)
+    if (!RegionBounds.bIsValid || !RegionBounds.IsInsideOrOn(Point)) { return 0; }
+    const auto* Candidates = RegionCells.Find(FIntPoint(FMath::FloorToInt32(Point.X / GridCellCm), FMath::FloorToInt32(Point.Y / GridCellCm)));
+    if (!Candidates) { return 0; }
+    for (const int32 Index : *Candidates)
     {
-        if (Region.Tier > Best && InsideConvex(Region.Polygon, Point)) { Best = Region.Tier; }
+        const FRegion& Region = Regions[Index];
+        if (Region.Tier > 0 && InsideConvex(Region.Polygon, Point)) { return Region.Tier; }
     }
-    return Best;
+    return 0;
 }
 
 void FTerrain::Ground(const FVector2D& Point, double& OutZ, FVector& OutNormal) const

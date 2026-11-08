@@ -85,7 +85,7 @@ public:
     FVector2D CellCentre(int32 Index) const;
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
 private:
-    bool SegmentBlocked(const FVector2D& From, const FVector2D& To) const;
+    bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
     // blockers of the cells its bounds touch (a blocker may be tested more than once, never skipped).
     void BuildGrid();
@@ -95,6 +95,8 @@ private:
     double MaxCircleRadius = 0;
     TArray<TArray<int32>> CellPolygons;
     TArray<TArray<int32>> CellCircles;
+    TArray<TArray<int32>> CellRegions;
+    TArray<int32> CoverageTiers;
     struct FCircle
     {
         FVector2D Centre = FVector2D::ZeroVector;
@@ -109,6 +111,19 @@ private:
     TArray<int32> BlockerLevels;
     TArray<FCircle> Circles;
     LDDemoWorld::FTerrain Terrain;
+};
+
+// Per-observer display memoization only; never used to authorize a unit or flight.
+class LOCKDOWN_API FLDObserverCoverage
+{
+public:
+    // Returns whether coverage was recomputed. Non-published/non-relay samples get a codec-valid zero bitmap.
+    bool Sample(const FLDSightGeometry& Sight, const FVector& Foot, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits);
+    void Reset() { *this = FLDObserverCoverage(); }
+private:
+    FLDWorldRevision World;
+    FVector SourceFeet = FVector::ZeroVector;
+    TArray<uint8> Bits;
 };
 
 namespace LDObservation
@@ -220,6 +235,7 @@ private:
         TWeakObjectPtr<ALDPlayerController> Controller;
         TWeakObjectPtr<ALDWorldViewRelay> Relay;
         FLDObserverLedger Ledger;
+        FLDObserverCoverage Coverage;
         FLDWorldView Latest;
         bool bHasLatest = false;
     };
