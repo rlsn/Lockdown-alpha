@@ -12,6 +12,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace
 {
@@ -238,7 +239,15 @@ void FLDSightGeometry::BuildGrid()
     GridHeight = FMath::Max(1, FMath::CeilToInt32((Max.Y - Min.Y) / GridCellCm));
     CellPolygons.SetNum(GridWidth * GridHeight);
     CellCircles.SetNum(GridWidth * GridHeight);
+    CellRegions.SetNum(GridWidth * GridHeight);
     int32 X0, Y0, X1, Y1;
+    for (int32 Index = 0; Index < Terrain.Regions.Num(); ++Index)
+    {
+        FBox2D Box(ForceInit);
+        for (const FVector2D& Point : Terrain.Regions[Index].Polygon) { Box += Point; }
+        CellRange(Box.Min, Box.Max, X0, Y0, X1, Y1);
+        for (int32 Y = Y0; Y <= Y1; ++Y) { for (int32 X = X0; X <= X1; ++X) { CellRegions[Y * GridWidth + X].Add(Index); } }
+    }
     for (int32 Index = 0; Index < Blockers.Num(); ++Index)
     {
         FBox2D Box(ForceInit);
@@ -252,6 +261,8 @@ void FLDSightGeometry::BuildGrid()
         CellRange(Circles[Index].Centre, Circles[Index].Centre, X0, Y0, X1, Y1);
         CellCircles[Y0 * GridWidth + X0].Add(Index);
     }
+    CoverageTiers.SetNumUninitialized(LDObservation::CoverageCells);
+    for (int32 Index = 0; Index < CoverageTiers.Num(); ++Index) { CoverageTiers[Index] = Terrain.Tier(CellCentre(Index)); }
 }
 
 bool FLDSightGeometry::InBounds(const FVector& FootCm) const
@@ -260,19 +271,28 @@ bool FLDSightGeometry::InBounds(const FVector& FootCm) const
         && FootCm.X >= Min.X && FootCm.X <= Max.X && FootCm.Y >= Min.Y && FootCm.Y <= Max.Y;
 }
 
-bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To) const
+bool FLDSightGeometry::SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 Observer, int32 TargetTier) const
 {
-    const int32 Observer = Terrain.Tier(From);
-    if (Terrain.Tier(To) > Observer) { return true; }
-    for (const auto& Region : Terrain.Regions)
-    {
-        if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
-    }
+    if (TargetTier > Observer) { return true; }
     const int32 Level = Observer / 2;
     const FVector2D Low(FMath::Min(From.X, To.X), FMath::Min(From.Y, To.Y)), High(FMath::Max(From.X, To.X), FMath::Max(From.Y, To.Y));
     int32 X0, Y0, X1, Y1;
     // Polygons are listed in every cell their bounds touch; circles only in their centre's cell, so widen by a radius.
     CellRange(Low, High, X0, Y0, X1, Y1);
+    TBitArray<TInlineAllocator<4>> TestedRegions(false, Terrain.Regions.Num());
+    for (int32 Y = Y0; Y <= Y1; ++Y)
+    {
+        for (int32 X = X0; X <= X1; ++X)
+        {
+            for (const int32 Index : CellRegions[Y * GridWidth + X])
+            {
+                if (TestedRegions[Index]) { continue; }
+                TestedRegions[Index] = true;
+                const auto& Region = Terrain.Regions[Index];
+                if (Region.Tier > Observer && SightSegmentEnters(From, To, Region.Polygon)) { return true; }
+            }
+        }
+    }
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
         for (int32 X = X0; X <= X1; ++X)
@@ -311,7 +331,7 @@ ELDSightResult FLDSightGeometry::Trace(const FVector& SourceFootCm, const FVecto
     if (!InBounds(SourceFootCm) || !InBounds(TargetFootCm)) { return ELDSightResult::InvalidPoint; }
     const FVector2D From(SourceFootCm.X, SourceFootCm.Y), To(TargetFootCm.X, TargetFootCm.Y);
     if (FVector2D::DistSquared(From, To) > RadiusCm * RadiusCm) { return ELDSightResult::OutOfRange; }
-    return SegmentBlocked(From, To) ? ELDSightResult::Blocked : ELDSightResult::Visible;
+    return SegmentBlocked(From, To, Terrain.Tier(From), Terrain.Tier(To)) ? ELDSightResult::Blocked : ELDSightResult::Visible;
 }
 
 FVector2D FLDSightGeometry::CellCentre(int32 Index) const
@@ -323,6 +343,7 @@ FVector2D FLDSightGeometry::CellCentre(int32 Index) const
 
 void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionCoverage);
     OutBits.Init(0, LDObservation::CoverageBytes);
     if (!IsValid() || !InBounds(SourceFootCm)) { return; }
     const int32 Side = LDObservation::CoverageSide;
@@ -331,17 +352,38 @@ void FLDSightGeometry::Coverage(const FVector& SourceFootCm, TArray<uint8>& OutB
     const int32 X1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.X + RadiusCm - Min.X) / CellX), 0, Side - 1);
     const int32 Y0 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y - RadiusCm - Min.Y) / CellY), 0, Side - 1);
     const int32 Y1 = FMath::Clamp(FMath::FloorToInt32((SourceFootCm.Y + RadiusCm - Min.Y) / CellY), 0, Side - 1);
+    const FVector2D From(SourceFootCm);
+    const int32 ObserverTier = Terrain.Tier(From);
     for (int32 Y = Y0; Y <= Y1; ++Y)
     {
         for (int32 X = X0; X <= X1; ++X)
         {
             const int32 Index = Y * Side + X;
             const FVector2D Centre = CellCentre(Index);
-            if (Trace(SourceFootCm, FVector(Centre.X, Centre.Y, SourceFootCm.Z)) == ELDSightResult::Visible)
+            if (FVector2D::DistSquared(From, Centre) <= RadiusCm * RadiusCm && !SegmentBlocked(From, Centre, ObserverTier, CoverageTiers[Index]))
             { LDObservation::SetCoverageBit(OutBits, Index); }
         }
     }
 }
+
+bool FLDObserverCoverage::Sample(const FLDSightGeometry& Sight, const FVector& Foot, bool bPublish, bool bHasRelay, TArray<uint8>& OutBits)
+{
+    if (!bPublish || !bHasRelay)
+    {
+        OutBits.Init(0, LDObservation::CoverageBytes);
+        return false;
+    }
+    const bool bRecompute = Bits.Num() != LDObservation::CoverageBytes || SourceFeet != Foot || World != Sight.Revision();
+    if (bRecompute)
+    {
+        Sight.Coverage(Foot, Bits);
+        SourceFeet = Foot;
+        World = Sight.Revision();
+    }
+    OutBits = Bits;
+    return bRecompute;
+}
+
 bool FLDObserverLedger::Begin(uint32 InMatchGeneration, FString& Error)
 {
     if (InMatchGeneration == 0)
@@ -998,6 +1040,7 @@ bool ALDVisionDirector::GatherTargets(TArray<FLDObservedTarget>& Out, FString& E
 bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObservedTarget>& Targets,
     const TArray<FLDObservedProjectileFact>& Flights, bool bPublish, FString& Error)
 {
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionSampleObserver);
     if (!Observer.Controller.IsValid())
     {
         Error = TEXT("An observer controller disappeared without leaving the observation registry.");
@@ -1008,6 +1051,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
     if (!ReadObserver(Observer, Life, Foot, Error)) { return false; }
     bool bReset = false;
     if (!Observer.Ledger.Bind(Life.Phase, Life.Life, bReset, Error)) { return false; }
+    if (bReset) { Observer.Coverage.Reset(); }
     ALDWorldViewRelay* Relay = Observer.Relay.Get();
     if (bReset && Relay)
     {
@@ -1072,7 +1116,7 @@ bool ALDVisionDirector::SampleObserver(FObserver& Observer, const TArray<FLDObse
         View.Footprint.SourceStatus = ELDObservationSource::ActiveBody;
         View.Footprint.SourceFeetCm = Foot;
         View.Footprint.RadiusCm = float(Sight.Radius());
-        Sight.Coverage(Foot, View.Footprint.CurrentBits);
+        Observer.Coverage.Sample(Sight, Foot, bPublish, Relay != nullptr, View.Footprint.CurrentBits);
         View.Units = MoveTemp(Units);
         View.Projectiles = MoveTemp(Projectiles);
         Observer.Ledger.RecentTerminations(View.RecentTerminations);
@@ -1104,6 +1148,7 @@ bool ALDVisionDirector::PublishAuthority(const FLDMatchContext& InMatch, FString
     NextSampleMs = LDObservation::NextSampleDue(NowMs, NextSampleMs, SamplePeriodMs, bSampled);
     if (bPublish) { NextPublishMs = LDObservation::NextSampleDue(NowMs, NextPublishMs, PublishPeriodMs, bSampled); }
     bSampled = true;
+    TRACE_CPUPROFILER_EVENT_SCOPE(LDVisionSample);
     TArray<FLDObservedTarget> Targets;
     if (!GatherTargets(Targets, Error)) { return false; }
     // Combat's flights after its last Effects advance; Vision only decides who may see them.

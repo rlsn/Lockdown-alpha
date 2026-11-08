@@ -974,6 +974,59 @@ bool FLDDemoVisionSightTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionCoveragePublicationTest, "Lockdown.Rules.DemoVision.CoveragePublication",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionCoveragePublicationTest::RunTest(const FString& Parameters)
+{
+    FString Error;
+    FLDSightGeometry Sight;
+    FLDWorldRevision World = DemoRevision();
+    if (!TestTrue(TEXT("Publication geometry builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    const FVector West(-1000, 0, 2), East(1000, 0, 2);
+    FLDObserverCoverage Human, AI;
+    TArray<uint8> Expected, Actual;
+    Sight.Coverage(West, Expected);
+    FLDWorldView View = ActiveFrame(7, 3, 1);
+    View.Units = {ContenderUnit(), CampUnit()};
+    const auto DarkValidFrame = [&]()
+    {
+        View.Footprint.CurrentBits = Actual;
+        return Actual.Num() == LDObservation::CoverageBytes
+            && !Actual.ContainsByPredicate([](uint8 Byte) { return Byte != 0; }) && LDObservation::ValidateView(View, Error);
+    };
+    TestFalse(TEXT("A human's non-publication sample performs no coverage"), Human.Sample(Sight, West, false, true, Actual));
+    TestTrue(TEXT("A non-publication frame remains codec-valid, with a zero bitmap"), DarkValidFrame());
+    TestFalse(TEXT("An AI never computes coverage, even at a publication boundary"), AI.Sample(Sight, East, true, false, Actual));
+    TestTrue(TEXT("An AI frame remains codec-valid, with its own units unchanged"), DarkValidFrame());
+    TestTrue(TEXT("The first human publication computes coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("The published human bitmap matches all 2048 reference bytes"), Actual == Expected);
+    TestFalse(TEXT("An unchanged foot and world reuse the prior coverage"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("Reused coverage is byte-identical"), Actual == Expected);
+    TestFalse(TEXT("Movement at a non-publication sample computes nothing"), Human.Sample(Sight, East, false, true, Actual));
+    TestTrue(TEXT("It does not copy an obsolete human bitmap into the internal frame"), DarkValidFrame());
+    TestFalse(TEXT("A non-publication sample did not replace the stationary cache"), Human.Sample(Sight, West, true, true, Actual));
+    TestTrue(TEXT("The next stationary publication still carries the authorized bitmap"), Actual == Expected);
+    TestTrue(TEXT("Sub-millimetre movement invalidates, without tolerance"), Human.Sample(Sight, West + FVector(.000001, 0, 0), true, true, Actual));
+    TestTrue(TEXT("A changed foot height also invalidates"), Human.Sample(Sight, West + FVector(.000001, 0, 1), true, true, Actual));
+    TestTrue(TEXT("A moved publication recomputes"), Human.Sample(Sight, East, true, true, Actual));
+    Sight.Coverage(East, Expected);
+    TestTrue(TEXT("Moved coverage matches that observer, not the other side of the wall"), Actual == Expected);
+    TestTrue(TEXT("A second observer cannot borrow the human's cached coverage"), AI.Sample(Sight, West, true, true, Actual));
+    Sight.Coverage(West, Expected);
+    TestTrue(TEXT("Its first eligible publication uses its own source"), Actual == Expected);
+    ++World.GeometryRevision;
+    if (!TestTrue(TEXT("A new world revision builds"), Sight.Build(TestGeometry(), World, Whole(1400), Error))) { return false; }
+    TestTrue(TEXT("A changed world revision invalidates stationary coverage"), AI.Sample(Sight, West, true, true, Actual));
+    AI.Reset();
+    TestTrue(TEXT("A life/generation reset invalidates even an identical source and world"), AI.Sample(Sight, West, true, true, Actual));
+    View.Footprint.CurrentBits = Actual;
+    FLDWorldView Read;
+    TestTrue(TEXT("Publication and AI-frame coverage selection never changes the unit fields"),
+        Wire(View, Read) && Read.Units.Num() == 2 && Read.Units[0].Handle == View.Units[0].Handle
+        && Read.Units[1].Handle == View.Units[1].Handle && Read.Footprint.CurrentBits == Actual);
+    return true;
+}
+
 // #97 tiers: a level-1 plateau east of the wall with a level-2 plateau on it, a ramp from the ground onto its west edge
 // and a tree standing on level 1.
 FLDDemoWorldGeometry TieredGeometry()

@@ -86,6 +86,10 @@ namespace LDDemoWorld
             double Base = 0, Rise = 0, Width = 1;
         };
         TArray<FRegion> Regions;
+    private:
+        static constexpr double GridCellCm = 400.;
+        FBox2D RegionBounds = FBox2D(ForceInit);
+        TMap<FIntPoint, TArray<int32>> RegionCells;
     };
     LOCKDOWN_API bool InsideConvex(const TArray<FVector2D>& Polygon, const FVector2D& Point);
 }
