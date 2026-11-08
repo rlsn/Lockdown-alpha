@@ -91,13 +91,16 @@ const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELD
 const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionE"),
     TEXT("HUDEquipment1"),TEXT("HUDEquipment2"),TEXT("HUDActionDash")};
 constexpr int32 HudActionCount=UE_ARRAY_COUNT(HudActionEntries);
+// The order the band shows the EActionSlot entries in: Q W E | dash | the two items. Bindings, drags and the item menu
+// keep the EActionSlot index; only the placement follows this order.
+const int32 HudActionShownOrder[]={0,1,2,5,3,4};
 // Status control bits that forbid each entry kind: character actives cast, the dash displaces.
 const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),
     uint8(ELDCombatControlBlock::Cast),0,0,uint8(ELDCombatControlBlock::Displacement)};
 static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
-    && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
+    && UE_ARRAY_COUNT(HudActionControl)==HudActionCount && UE_ARRAY_COUNT(HudActionShownOrder)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
-// centre block, the 2+2+1 action entries over the resources, sits on the screen centre directly under the character.
+// centre block, the 3+1+2 action entries over the resources, sits on the screen centre directly under the character.
 // #97: the whole band draws at HudBandScale of these sizes (user: "shrink them to about 75%").
 constexpr float HudBandScale=.75f;
 // A press on a slot becomes a drag once the pointer moves this far (screen units).
@@ -116,7 +119,7 @@ constexpr float HudSlotWidth=96.f;
 constexpr float HudSlotHeight=96.f;
 constexpr float HudSlotGap=8.f;
 constexpr float HudGroupGap=24.f;
-constexpr float HudCentreWidth=5*HudSlotWidth+2*HudSlotGap+2*HudGroupGap;
+constexpr float HudCentreWidth=6*HudSlotWidth+3*HudSlotGap+2*HudGroupGap;
 constexpr double HudNoticeSeconds=2.;
 constexpr float HudDetailWidth=300.f;
 constexpr double HudPulseSeconds=6.;
@@ -391,7 +394,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         Place(BottomLeft,FAnchors(0,1),FVector2D(0,1),FVector2D(16,-16));
         // Settings open from the Back menu (its 设置 entry); the HUD has no separate settings button.
 
-        // Bottom band: own identity | resources over the 2+2+1 action entries. The band stack is shifted so the centre block
+        // Bottom band: own identity | resources over the 3+1+2 action entries. The band stack is shifted so the centre block
         // stays on the screen centre, directly under the character, where the eyes are during a fight.
         auto* Bottom=WidgetTree->ConstructWidget<UHorizontalBox>();
         auto* SelfBox=WidgetTree->ConstructWidget<UVerticalBox>();
@@ -521,8 +524,12 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Button->SetContent(Stack);
             if(UButtonSlot* StackSlot=Cast<UButtonSlot>(Stack->Slot)){StackSlot->SetPadding(FMargin(0));StackSlot->SetHorizontalAlignment(HAlign_Fill);StackSlot->SetVerticalAlignment(VAlign_Fill);}
             Entry.Box=WidgetTree->ConstructWidget<USizeBox>();Entry.Box->SetWidthOverride(HudSlotWidth);Entry.Box->SetHeightOverride(HudSlotHeight);Entry.Box->SetContent(Entry.Button);
-            // Character actives (Q/W), the two equipment slots and the innate dash (D) are separate groups, never one merged bar.
-            Actions->AddChildToHorizontalBox(Entry.Box)->SetPadding(FMargin(Index==0?0.f:Index==2||Index==4?HudGroupGap:HudSlotGap,0,0,0));
+        }
+        // Character actives (Q/W/E), the innate dash (D) and the two equipment slots are separate groups, never one merged bar.
+        for(int32 Shown=0;Shown<HudActionCount;++Shown)
+        {
+            Actions->AddChildToHorizontalBox(ActionSlots[HudActionShownOrder[Shown]].Box)
+                ->SetPadding(FMargin(Shown==0?0.f:Shown==3||Shown==4?HudGroupGap:HudSlotGap,0,0,0));
         }
         // #97: the action entries on top, right under the blind-box button and the three-choice panel; health, mana and the
         // experience strip below them.

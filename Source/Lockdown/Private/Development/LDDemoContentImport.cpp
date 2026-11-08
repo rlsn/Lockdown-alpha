@@ -1727,7 +1727,7 @@ bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString
 bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.progression"));
-    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, 16, 16)
+    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, LDDemoProgression::MaxLevel, LDDemoProgression::MaxLevel)
         || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 16, 16)
         || !F.SmallInt(TEXT("max_skill_rank"), Out.MaxSkillRank, 2, 2)
         || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 3, 3)

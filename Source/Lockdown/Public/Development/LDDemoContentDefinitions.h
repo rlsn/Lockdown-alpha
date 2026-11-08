@@ -592,6 +592,13 @@ struct FLDDemoCampPlacement
     UPROPERTY() FString MonsterId;
 };
 
+// The approved level cap (#166). The importer accepts exactly this max_level, and every bound on a committed level
+// (result rows included) reads it here instead of repeating the number.
+namespace LDDemoProgression
+{
+    inline constexpr int32 MaxLevel = 16;
+}
+
 USTRUCT()
 struct FLDDemoProgressionDefinition
 {
