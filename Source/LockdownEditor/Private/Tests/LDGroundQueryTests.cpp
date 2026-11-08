@@ -131,12 +131,14 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
     Compare(Foot, Surface, FCollisionShape::MakeSphere(float(Radius)), false);
     Compare(FVector(std::numeric_limits<double>::infinity(), 0, 0), Surface, Capsule, true);
 
+    FVector CacheFoot = Foot;
+    FName CacheSurface = Surface;
     auto QueryBody = [&]()
     {
         FLDLegalGround Ground;
         ELDWorldQueryFailure Failure;
         FString Why;
-        return Registry->QueryBodyGround(Match, Body, Epoch, *Content, Foot, Surface, Ground, Failure, Why);
+        return Registry->QueryBodyGround(Match, Body, Epoch, *Content, CacheFoot, CacheSurface, Ground, Failure, Why);
     };
     QueryBody();
     auto MustMiss = [&](const TCHAR* Detail)
@@ -145,6 +147,14 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
         QueryBody();
         Passed &= TestEqual(Detail, Registry->GroundQueryCountForTests() - Before, uint64(1));
     };
+    CacheFoot.X += .00001;
+    MustMiss(TEXT("Even a sub-tolerance foot change invalidates"));
+    CacheFoot = Foot;
+    MustMiss(TEXT("Restoring the foot still runs a fresh query"));
+    CacheSurface = NAME_None;
+    MustMiss(TEXT("Surface change invalidates"));
+    CacheSurface = Surface;
+    MustMiss(TEXT("A cached surface rejection cannot poison a legal surface"));
     ++Epoch;
     MustMiss(TEXT("Completed camp reset epoch invalidates"));
     ++Body.Victim.Life;
