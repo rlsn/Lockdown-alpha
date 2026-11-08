@@ -273,7 +273,7 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   它们不证明实际听感或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
 - `RunDemoVisionCheck.ps1`（`Tests\LDDemoVisionProbe`）：参赛且渲染的 Listen Host 与两个拥有客户端经正常大厅开局，
-  三具身体走到公共旗杆锚点后，检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、
+  三具身体走到从公共旗杆附近有界选择、互不占点且相互可见的合法目标（保持 150 cm 到达阈值；三目标验证原生地面，每人实际路线与绕行点验证原生完整路径）。仅 Vision 在原有作者营地家位置/Boss waypoint 排除区外，追加同 surface、按 id 循环连接四个公开 Boss waypoint 的原生完整路径走廊；膨胀半径为 AggroRadius＋本人身体半径＋150 cm 到达盘＋12 cm waypoint 接触余量，目标与路线均避让，不读实时 Boss 状态，Growth 保持原行为。路线候选以 5 ms 预算逐帧推进准备，原生单次查询不可中断，结果分别记录 tick 工作耗时、最慢查询与路线墙钟时间；12×3 目标/路线选择另由 callback seam 确定性规则覆盖，不宣称规则或单次场景证明所有出生点的原生导航。到达后检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、
   单连接丢帧（引擎网络模拟，非 Shipping）后的超时清除与无 LastSeen，以及客户端断开后 Host 不再呈现离开者。
   正常开局门禁打开前它无法运行；未实际运行不算通过。
 - 必须观察真正受限的客户端及其可访问记录，包括 Listen Host 上非本地原生身体是否隐藏；不能只看服务器全知视图或一张截图。

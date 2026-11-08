@@ -19,6 +19,8 @@ REQUIRED_TESTS = frozenset(
     {
         "Lockdown.Rules.DemoVision.GeometryParity",
         "Lockdown.Rules.DemoVision.CoveragePublication",
+        "Lockdown.Rules.DemoVision.ArrivalRoutes",
+        "Lockdown.Rules.DemoVision.PatrolCorridor",
         "Lockdown.Rules.ArtCatalog",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
         "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
