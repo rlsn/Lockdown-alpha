@@ -1,5 +1,6 @@
 #include "Development/LDProgressionRules.h"
 
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Hash/CityHash.h"
 
@@ -316,16 +317,19 @@ ELDGrowthReason LDProgression::ContenderKillReward(const FLDDemoContentParameter
     return Out.XP >= 0 && Out.Gold >= 0 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
 }
 
-ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, FRewardAmounts& Out)
+ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
+    FRewardAmounts& Out)
 {
     Out = FRewardAmounts();
     const FLDDemoMonsterDefinition* Monster = Catalog.Get().Monsters.FindByPredicate(
         [&](const FLDDemoMonsterDefinition& Row) { return FName(*Row.Id) == MonsterId; });
-    if (!Monster || Monster->RewardXP < 0 || Monster->RewardGold < 0)
+    int64 XP = 0;
+    if (!Monster || Monster->RewardXP < 0 || Monster->RewardGold < 0 || (Monster->Tier == ELDDemoCampTier::Boss && Stage != 0)
+        || !LDCampGrowth::RewardXP(Catalog.Get().Parameters, *Monster, Stage, XP))
     {
         return ELDGrowthReason::DataInvalid;
     }
-    Out.XP = Monster->RewardXP;
+    Out.XP = XP;
     Out.Gold = Monster->RewardGold;
     return ELDGrowthReason::None;
 }

@@ -43,6 +43,8 @@ NATIVE_ENUMS = {
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
+# #97: three camp difficulty tiers, one monster definition each; the Boss is its own block.
+CAMP_TIERS = frozenset(("Low", "High", "Elite"))
 EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "lifesteal", "dash", "cleave", "dash_boost",
                        "slow", "timed_stat_bonus", "self_area", "low_hp_stat_bonus",
@@ -1061,8 +1063,16 @@ def validate_numbers(data):
     checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
-    require({monster["tier"] for monster in monsters.values()} == {"Low", "High"},
-            "CampTiers", "monsters", "both difficulty tiers are required")
+    require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),
+            "CampTiers", "monsters", "exactly one monster per camp tier (Low, High, Elite) is required")
+    # #97 camp growth: a camp life takes stage min(MaxStage, floor(spawn time / StageSec)) at spawn and keeps it; the
+    # native stage is one byte. Scaled values stay integral in their stored units (P2, bp) at the cap.
+    max_stage = params["CAMP.GrowthMaxStage"]
+    require(params["CAMP.GrowthStageSec"]["ms"] > 0 and 1 <= max_stage <= 255, "NumericDomain", "CAMP.Growth",
+            "camp growth needs a positive stage length and 1..255 stages")
+    for key in ("CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage", "CAMP.GrowthRewardXPRatioPerStage"):
+        checked_add(10000, checked_mul(params[key]["bp"], max_stage, key), key)
+    checked_mul(params["CAMP.GrowthResistPerStage"]["p2"], max_stage, "CAMP.GrowthResistPerStage")
     for monster in monsters.values():
         path = monster["id"]
         require(quantity(monster["hp"]) > 0 and quantity(monster["attack"]) > 0,
@@ -1102,8 +1112,8 @@ def validate_numbers(data):
     placements = rows_by_id(data["camps"]["placements"], "camps", "anchor_id")
     require(all(row["monster_id"] in monsters for row in placements.values()),
             "InvalidReference", "camps", "unknown monster reference")
-    require({monsters[row["monster_id"]]["tier"] for row in placements.values()} == {"Low", "High"},
-            "CampTiers", "camps", "both tiers must appear in the five camps")
+    require({monsters[row["monster_id"]]["tier"] for row in placements.values()} == CAMP_TIERS,
+            "CampTiers", "camps", "every camp tier must be placed")
     _validate_build_envelope(data)
 
 

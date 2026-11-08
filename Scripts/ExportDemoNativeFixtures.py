@@ -254,7 +254,9 @@ def parameter_projection(parameters):
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
         ("DORM.MaxHPRatioPerSec", "DormMaxHPRegenBp"), ("DORM.MaxMPRatioPerSec", "DormMaxMPRegenBp"),
-        ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"),
+        ("CAMP.ReturnDeadEndSec", "CampReturnDeadEndMs"), ("CAMP.GrowthStageSec", "CampGrowthStageMs"),
+        ("CAMP.GrowthHPRatioPerStage", "CampGrowthHPPerStageBp"), ("CAMP.GrowthAttackRatioPerStage", "CampGrowthAttackPerStageBp"),
+        ("CAMP.GrowthResistPerStage", "CampGrowthResistPerStageP2"), ("CAMP.GrowthRewardXPRatioPerStage", "CampGrowthRewardXPPerStageBp"),
         ("AIRDROP.FirstLandSec", "AirdropFirstLandMs"), ("AIRDROP.IntervalSec", "AirdropIntervalMs"),
         ("AIRDROP.AnnounceLeadSec", "AirdropAnnounceLeadMs"), ("LEADER.RefreshSec", "LeaderRefreshMs"),
         ("COMBAT.BreachPerStack", "BreachPerStackP2"), ("COMBAT.BreachSec", "BreachMs"),
@@ -275,7 +277,7 @@ def parameter_projection(parameters):
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
         ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
-        ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"),
+        ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
         ("AIRDROP.RewardXP", "AirdropRewardXP"), ("AIRDROP.RewardGold", "AirdropRewardGold"),
         ("LEADER.MinLevel", "LeaderMinLevel"), ("LEADER.BountyGoldPerRefresh", "LeaderBountyGoldPerRefresh"),
         ("LEADER.BountyGoldMax", "LeaderBountyGoldMax"),
@@ -375,7 +377,7 @@ def expected_projection(compilation):
         } for row in data["display"]],
     }
     for row in data["camps"]["monsters"]:
-        monster = {"Id": row["id"], "NativeId": row["native_id"], "Tier": ("Low", "High").index(row["tier"])}
+        monster = {"Id": row["id"], "NativeId": row["native_id"], "Tier": {"Low": 0, "High": 1, "Elite": 3}[row["tier"]]}
         for source, dest in (
             ("count_per_camp", "CountPerCamp"), ("attack_interval_ms", "AttackIntervalMs"), ("reward_xp", "RewardXP"), ("reward_gold", "RewardGold"),
         ):

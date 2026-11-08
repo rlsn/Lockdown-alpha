@@ -42,6 +42,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoCamp.Retaliation",
         "Lockdown.Rules.DemoCamp.ReturnReset",
         "Lockdown.Rules.DemoCamp.ReturnDeadEnd",
+        "Lockdown.Rules.DemoCamp.Growth",
         "Lockdown.Rules.DemoAirdrop.Rules",
         "Lockdown.Rules.DemoLeader.Rules",
         "Lockdown.Rules.DemoBoss.Rules",

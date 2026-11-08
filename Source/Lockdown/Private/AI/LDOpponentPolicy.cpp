@@ -1,5 +1,6 @@
 #include "AI/LDOpponentPolicy.h"
 #include "Combat/LDTacticalRules.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDProgressionRules.h"
 
@@ -960,7 +961,8 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
     bool bBestVisible = false;
     for (const auto& POI : C.Frame.POIs)
     {
-        if (POI.Kind != ELDOpponentPOIKind::Camp || (POI.Tier == ELDDemoCampTier::High && !bHighEntry)
+        // #97: the Elite tier takes the High tier's entry and reserve rules, with its own (higher) cost estimate.
+        if (POI.Kind != ELDOpponentPOIKind::Camp || (POI.Tier != ELDDemoCampTier::Low && !bHighEntry)
             || !C.CanAttempt(FContext::PathKey(POI.Id)) || C.Suppressed(FContext::EngagementKey(POI.Id, FGuid()))
             || C.RecentlyVisited(POI.Id)) { continue; }
         if (!Feasible.Contains(POI.MonsterId))
@@ -968,10 +970,14 @@ const FLDOpponentPOI* SelectCamp(const FContext& C)
             const FLDDemoMonsterDefinition* Monster = nullptr;
             FString Error;
             bool bOk = false;
-            if (C.Catalog.FindMonster(POI.MonsterId, Monster, Error) && Monster)
+            // #97: a living camp spawned no later than now, so the current public stage bounds its growth from above.
+            FLDDemoMonsterDefinition Grown;
+            if (C.Catalog.FindMonster(POI.MonsterId, Monster, Error) && Monster
+                && LDCampGrowth::ScaleBody(C.Catalog.Get().Parameters, *Monster,
+                    LDCampGrowth::Stage(C.Catalog.Get().Parameters, C.Now - C.Frame.Public.StartedAtMs), Grown, Error))
             {
-                const auto Estimate = LDOpponentPolicy::EstimateCampCost(Input, *Monster, C.Catalog);
-                const int64 Reserve = Monster->Tier == ELDDemoCampTier::High ? C.AI.HighCampReserveHPBp : C.AI.LowCampReserveHPBp;
+                const auto Estimate = LDOpponentPolicy::EstimateCampCost(Input, Grown, C.Catalog);
+                const int64 Reserve = Monster->Tier == ELDDemoCampTier::Low ? C.AI.LowCampReserveHPBp : C.AI.HighCampReserveHPBp;
                 bOk = Estimate.Status == ELDCampCostStatus::Ok && RatioAtLeast(Estimate.RemainingHpP2, Self.MaxHpP2, Reserve);
             }
             Feasible.Add(POI.MonsterId, bOk);

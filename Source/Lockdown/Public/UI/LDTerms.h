@@ -43,6 +43,7 @@ inline constexpr TCHAR Shop[]=TEXT("砍一刀小摊");
 inline constexpr TCHAR CapturePoint[]=TEXT("旗杆");
 inline constexpr TCHAR CampLow[]=TEXT("小野怪");
 inline constexpr TCHAR CampHigh[]=TEXT("大野怪");
+inline constexpr TCHAR CampElite[]=TEXT("精英野怪");
 
 // 地图事件（#79）
 inline constexpr TCHAR Dorm[]=TEXT("躺平角");

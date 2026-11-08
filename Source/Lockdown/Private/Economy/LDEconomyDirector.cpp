@@ -78,13 +78,14 @@ void EconomyDeathFactBytes(const FLDCommittedDeath& Death, TArray<uint8>& Out)
     FGuid SourceBody = Death.SourceBodyAtRelease.BodyIdentity;
     FString RewardDefinition = Death.RewardBasis.RewardDefinitionId.ToString();
     uint8 VictimLevel = Death.RewardBasis.VictimLevelAtDeath;
+    uint8 CampStage = Death.RewardBasis.CampStageAtDeath;
     uint64 VictimBuild = Death.RewardBasis.VictimBuildRevisionAtDeath;
     uint8 Eligible = Death.RewardBasis.bCreditOwnerEligibleAtDeath ? 1 : 0;
     uint8 NoRewardReason = uint8(Death.RewardBasis.NoRewardReason);
     uint8 Cause = uint8(Death.Cause);
     double OccurredAtSeconds = Death.OccurredAtSeconds;
     int64 OccurredAtMs = Death.OccurredAtMs;
-    Writer << SourceBody << RewardDefinition << VictimLevel << VictimBuild << Eligible << NoRewardReason << Cause
+    Writer << SourceBody << RewardDefinition << VictimLevel << CampStage << VictimBuild << Eligible << NoRewardReason << Cause
         << OccurredAtSeconds << OccurredAtMs;
     int32 AssisterCount = Death.Assisters.Num();
     Writer << AssisterCount;
@@ -410,7 +411,7 @@ FLDRewardReceipt ALDEconomyDirector::CommitDeathReward(const FLDCommittedDeath& 
     }
     else
     {
-        AmountReason = LDProgression::MonsterKillReward(*Content, Basis.RewardDefinitionId, Amounts);
+        AmountReason = LDProgression::MonsterKillReward(*Content, Basis.RewardDefinitionId, Basis.CampStageAtDeath, Amounts);
     }
     if (AmountReason != ELDGrowthReason::None)
     {

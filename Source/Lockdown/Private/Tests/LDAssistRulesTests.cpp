@@ -147,16 +147,16 @@ bool FLDDemoAssistKillFeedTest::RunTest(const FString& Parameters)
     { N.Assisters = {FGuid(1, 0, 0, 1), FGuid(1, 0, 0, 2), FGuid(1, 0, 0, 3), FGuid(1, 0, 0, 4), FGuid(1, 0, 0, 5)}; });
 
     const TArray<FString> Names = {TEXT("阿强"), TEXT("阿珍")};
-    TestEqual(TEXT("The kill line lists the assisters after it"), LDHUD::KillLine(Notice, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("老板"), Names),
+    TestEqual(TEXT("The kill line lists the assisters after it"), LDHUD::KillLine(Notice, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("精英"), TEXT("老板"), Names),
         LDTerms::KillLine(TEXT("小红"), TEXT("小明")) + TEXT("（助攻：阿强、阿珍）"));
     FLDKillNotice Plain = Notice;
     Plain.Assisters.Reset();
-    TestEqual(TEXT("A kill without assisters keeps the plain line"), LDHUD::KillLine(Plain, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("老板")),
+    TestEqual(TEXT("A kill without assisters keeps the plain line"), LDHUD::KillLine(Plain, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("精英"), TEXT("老板")),
         LDTerms::KillLine(TEXT("小红"), TEXT("小明")));
-    const LDHUD::FKillFeedLineView Own = LDHUD::KillFeedLine(Notice, A2, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("老板"), Names);
+    const LDHUD::FKillFeedLineView Own = LDHUD::KillFeedLine(Notice, A2, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("精英"), TEXT("老板"), Names);
     TestTrue(TEXT("The player's own assist says 你 and highlights the line"),
         Own.bSelf && Own.Text == LDTerms::KillLine(TEXT("小红"), TEXT("小明")) + TEXT("（助攻：阿强、你）"));
-    const LDHUD::FKillFeedLineView Other = LDHUD::KillFeedLine(Notice, Gone, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("老板"), Names);
+    const LDHUD::FKillFeedLineView Other = LDHUD::KillFeedLine(Notice, Gone, TEXT("小明"), TEXT("小红"), TEXT("低"), TEXT("高"), TEXT("精英"), TEXT("老板"), Names);
     TestFalse(TEXT("A bystander's feed line is not highlighted"), Other.bSelf);
 
     FLDResultRow Row;

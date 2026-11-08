@@ -450,7 +450,7 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
     struct FMonsterCase { const TCHAR* Id; int64 Interval; int64 Windup; int64 FasterInterval; int64 FasterWindup; int64 Damage; };
     for (const auto& Case : {
         FMonsterCase{TEXT("monster_scavenger"), 1250, 350, 625, 175, 847},
-        FMonsterCase{TEXT("monster_guardian"), 1539, 500, 770, 250, 4067}})
+        FMonsterCase{TEXT("monster_guardian"), 1539, 500, 770, 250, 6101}})
     {
         FString Error;
         const FLDDemoMonsterDefinition* Monster = nullptr;

@@ -1180,7 +1180,11 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         Basis.VictimBuildRevisionAtDeath=Record->Installed.BuildRevision;
         Basis.LeaderBountyGoldAtDeath=Mode->LeaderBountyFor(Body.Victim.EntityId);
     }
-    else { Basis.RewardDefinitionId=Body.MonsterId; }
+    else
+    {
+        Basis.RewardDefinitionId=Body.MonsterId;
+        Basis.CampStageAtDeath=Body.CampStage;
+    }
     // Credit eligibility is frozen at the fatal moment; a later leave or level-up never rewrites it.
     if (!Hit.CreditOwner.IsValid()) { Basis.NoRewardReason=ELDNoRewardReason::NoOwner; }
     else if (Hit.CreditOwner==Death.VictimContender) { Basis.NoRewardReason=ELDNoRewardReason::SelfInflicted; }

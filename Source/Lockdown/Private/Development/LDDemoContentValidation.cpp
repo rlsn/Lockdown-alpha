@@ -310,17 +310,43 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    if (!Check.Require(D.Monsters.Num() == 3 && D.Monsters[0].Tier != D.Monsters[1].Tier
-        && D.Monsters[0].Tier != ELDDemoCampTier::Boss && D.Monsters[1].Tier != ELDDemoCampTier::Boss
-        && D.Monsters[2].Tier == ELDDemoCampTier::Boss && D.Monsters[2].Id == D.Boss.Id, TEXT("camps"),
-        TEXT("both camp difficulty tiers and exactly one Boss row are required")))
+    // #97: one row per camp tier (Low, High, Elite) in any order, then the Boss row appended by the importer.
+    TSet<ELDDemoCampTier> CampTiers;
+    for (int32 Index = 0; Index < D.Monsters.Num() - 1; ++Index) { CampTiers.Add(D.Monsters[Index].Tier); }
+    if (!Check.Require(D.Monsters.Num() == 4 && CampTiers.Num() == 3 && !CampTiers.Contains(ELDDemoCampTier::Boss)
+        && D.Monsters[3].Tier == ELDDemoCampTier::Boss && D.Monsters[3].Id == D.Boss.Id, TEXT("camps"),
+        TEXT("the three camp difficulty tiers and exactly one Boss row are required")))
     {
         return false;
+    }
+    // #97 camp growth: a positive stage length, 1..255 stages (the stage is one byte), and every scaled value fits.
+    {
+        int64 Product = 0, Factor = 0;
+        bool bGrowth = P.CampGrowthStageMs > 0 && P.CampGrowthMaxStage >= 1 && P.CampGrowthMaxStage <= MAX_uint8
+            && P.CampGrowthResistPerStageP2 >= 0;
+        for (const int64 Bp : {P.CampGrowthHPPerStageBp, P.CampGrowthAttackPerStageBp, P.CampGrowthRewardXPPerStageBp})
+        {
+            bGrowth = bGrowth && Bp >= 0 && N.Mul64(Bp, P.CampGrowthMaxStage, Product, TEXT("CAMP.Growth"))
+                && N.Add64(10000, Product, Factor, TEXT("CAMP.Growth"));
+        }
+        for (int32 Index = 0; bGrowth && Index < 3; ++Index)
+        {
+            const FLDDemoMonsterDefinition& Monster = D.Monsters[Index];
+            bGrowth = N.Mul64(Monster.HPP2, 10000 + P.CampGrowthHPPerStageBp * P.CampGrowthMaxStage, Product, Monster.Id)
+                && N.Mul64(Monster.AttackP2, 10000 + P.CampGrowthAttackPerStageBp * P.CampGrowthMaxStage, Product, Monster.Id)
+                && N.Mul64(Monster.RewardXP, 10000 + P.CampGrowthRewardXPPerStageBp * P.CampGrowthMaxStage, Product, Monster.Id)
+                && N.Mul64(P.CampGrowthResistPerStageP2, P.CampGrowthMaxStage, Factor, Monster.Id)
+                && N.Add64(FMath::Max(Monster.ArmorP2, Monster.MagicResistP2), Factor, Product, Monster.Id);
+        }
+        if (!Check.Require(bGrowth, TEXT("CAMP.Growth"), TEXT("camp growth needs a positive stage, 1..255 stages and in-range scaled values")))
+        {
+            return false;
+        }
     }
     // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
     // interval, stays inside the move speed clamp, and its approval buff is positive temporary ratios only.
     {
-        const FLDDemoMonsterDefinition& Body = D.Monsters[2];
+        const FLDDemoMonsterDefinition& Body = D.Monsters[3];
         bool bApproval = !D.Boss.ApprovalStats.IsEmpty() && D.Boss.ApprovalDurationMs > 0;
         for (const FLDDemoStatBonus& Bonus : D.Boss.ApprovalStats)
         {
