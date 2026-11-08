@@ -1,11 +1,12 @@
-"""Export compiler-backed, TEST-ONLY inputs for Lockdown.Rules.DemoContent.
+"""Export compiler-backed, TEST-ONLY inputs for Lockdown.Rules.
 
 Nothing here is a production content source or an approval decision. All output
 must be a new directory under this worktree's ignored Artifacts directory.
 
 With --cache the export is kept under that directory, keyed by the hash of every input it reads (this script and the
 Scripts modules it imports, SourceData, the generated Demo data and the native id and contract headers), and reused
-while the key and every exported file's hash still match. Native tests only read the fixtures.
+while the key and every exported file's hash still match. The runtime profile writes only the four cases needed by
+rules outside the heavy data-import group; the full profile writes every valid mutation and refusal case.
 """
 import argparse
 from concurrent.futures import ProcessPoolExecutor
@@ -53,6 +54,7 @@ BUNDLE_PATHS = (
     demo.WORLD_CONTRACT, demo.SCHEMA_SOURCE, demo.IDS_SOURCE, demo.NATIVE_IDS,
     demo.WORLD_SOURCE, demo.WORLD_SCHEMA_SOURCE,
 )
+PROFILES = ("runtime", "full")
 
 
 def scalar(value):
@@ -546,18 +548,20 @@ class _InlinePool:
         return False
 
 
-def export(output, *, rank_mutations=True, jobs=None, written=None):
-    """Write every fixture case. Valid cases compile in up to `jobs` processes (default: CPU count); the written
+def export(output, *, profile="full", rank_mutations=True, jobs=None, written=None):
+    """Write the selected fixture profile. Valid cases compile in up to `jobs` processes (default: CPU count); the written
     bytes and index order do not depend on `jobs`. When `written` is a dict, each writer records there the hash of
     every file it wrote, keyed relative to `output`."""
     jobs = default_jobs() if jobs is None else jobs
     demo.require(type(jobs) is int and jobs >= 1, "FixtureJobs", output, "jobs must be a positive integer")
+    demo.require(profile in PROFILES, "FixtureProfile", output, f"profile must be one of {PROFILES}")
     # Most cases share the fixture world and its binding sections; validate each distinct pair once per process.
     with DemoWorld.reuse_binding_reports():
-        return _export(output, rank_mutations=rank_mutations, jobs=jobs, written={} if written is None else written)
+        return _export(output, profile=profile, rank_mutations=rank_mutations, jobs=jobs,
+                       written={} if written is None else written)
 
 
-def _export(output, *, rank_mutations, jobs, written):
+def _export(output, *, profile, rank_mutations, jobs, written):
     output = Path(output)
     resolved = output.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
@@ -579,7 +583,12 @@ def _export(output, *, rank_mutations, jobs, written):
             job = pool.submit(_valid_job, output, name, deepcopy(author), deepcopy(world), literal)
             pending.append((name, mutated_quantity, job))
 
-        _export_cases(output, index, base, rank_mutations, valid, written)
+        if profile == "runtime":
+            _export_exact_gold_case(valid)
+            _export_world_spawn_shift_case(valid)
+            _export_runtime_refusal(output, index, base, written)
+        else:
+            _export_cases(output, index, base, rank_mutations, valid, written)
         approved_digest, approved_files = approved.result()
         written.update(approved_files)
         index["valid"].append({"name": "approved_base", "catalog_sha256": approved_digest,
@@ -621,20 +630,43 @@ def _rank_mutation(author, path):
     return changed
 
 
+def _export_exact_gold_case(valid):
+    exact = fixtures.content_fixture()
+    exact["parameters"]["SHOP.StartingGold"] = 9007199254740993
+    valid("exact_gold", exact)
+
+
+def _export_world_spawn_shift_case(valid):
+    world = fixtures.world_source_fixture()
+    next(row for row in world["anchors"] if row["id"] == "s00")["position_cm"]["x"] += 1
+    valid("world_spawn_shift", world=world)
+
+
+def _add_invalid(output, index, written, name, bundle, digest, error):
+    root = output / name
+    for relative, raw in bundle.items():
+        _save(root / relative, raw)
+        written[(Path(name) / relative).as_posix()] = hashlib.sha256(raw).hexdigest()
+    index["invalid"].append({"name": name, "catalog_sha256": digest, "error_contains": error})
+
+
+def _export_runtime_refusal(output, index, base, written):
+    changed = json.loads(base.outputs[demo.CONTENT_OUTPUT])
+    changed["future_content"] = 1
+    bundle, digest = _tamper(base, content=changed)
+    _add_invalid(output, index, written, "unknown_root_field", bundle, digest, "unknown field")
+
+
 def _export_cases(output, index, base, rank_mutations, valid, written):
     exact = fixtures.content_fixture()
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
     valid("above_double_integer", exact, literal=b"9007199254740.993")
-    exact = fixtures.content_fixture()
-    exact["parameters"]["SHOP.StartingGold"] = 9007199254740993
-    valid("exact_gold", exact)
+    _export_exact_gold_case(valid)
     exact = fixtures.content_fixture()
     exact["parameters"]["STAT.MPRegen.PerLevel"]["value"] = "__exact_literal__"
     valid("exact_rational", exact, literal=b"0.000000000000000001")
-    world = fixtures.world_source_fixture()
-    next(row for row in world["anchors"] if row["id"] == "s00")["position_cm"]["x"] += 1
-    valid("world_spawn_shift", world=world)
+    _export_world_spawn_shift_case(valid)
     unicode_author = fixtures.content_fixture()
     unicode_author["identity"]["approval"]["decision"] = "TEST ONLY \u6d4b\u8bd5 \U0001f9ea"
     valid("unicode_metadata", unicode_author)
@@ -655,11 +687,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     ids_data = json.loads(base.inputs[demo.IDS_SOURCE])
 
     def invalid(name, bundle, digest, error):
-        root = output / name
-        for relative, raw in bundle.items():
-            _save(root / relative, raw)
-            written[(Path(name) / relative).as_posix()] = hashlib.sha256(raw).hexdigest()
-        index["invalid"].append({"name": name, "catalog_sha256": digest, "error_contains": error})
+        _add_invalid(output, index, written, name, bundle, digest, error)
 
     def bad_content(name, mutate, error):
         changed = deepcopy(data)
@@ -883,7 +911,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     invalid("stale_expected_root", _bundle(base), "0" * 64, "expected root")
 
 
-CACHE_FORMAT = "demo-native-fixture-cache-1"
+CACHE_FORMAT = "demo-native-fixture-cache-2"
 CACHE_MANIFEST = "cache.json"
 # Cache entries kept beside the current one, for the worktree state before the last input change.
 CACHE_KEEP = 1
@@ -903,9 +931,11 @@ def cache_inputs(root=None):
     return sorted(files)
 
 
-def cache_key(root=None):
+def cache_key(root=None, profile="full"):
     root = Path(root or demo.ROOT)
-    digest = hashlib.sha256(f"{CACHE_FORMAT}\0python {sys.version_info[0]}.{sys.version_info[1]}\0".encode())
+    demo.require(profile in PROFILES, "FixtureProfile", root, f"profile must be one of {PROFILES}")
+    digest = hashlib.sha256(
+        f"{CACHE_FORMAT}\0profile {profile}\0python {sys.version_info[0]}.{sys.version_info[1]}\0".encode())
     for relative in cache_inputs(root):
         raw = (root / relative).read_bytes()
         digest.update(f"{relative}\0{len(raw)}\0".encode())
@@ -919,12 +949,13 @@ def _file_hashes(folder):
             for p in sorted(folder.rglob("*")) if p.is_file() and p.name != CACHE_MANIFEST}
 
 
-def _cache_valid(entry, key):
+def _cache_valid(entry, key, profile):
     try:
         manifest = json.loads((entry / CACHE_MANIFEST).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
     return (isinstance(manifest, dict) and manifest.get("format") == CACHE_FORMAT and manifest.get("key") == key
+            and manifest.get("profile") == profile
             and manifest.get("files") == _file_hashes(entry))
 
 
@@ -940,16 +971,17 @@ def _prune(cache, current):
         shutil.rmtree(path, ignore_errors=True)
 
 
-def export_cached(cache, *, jobs=None, root=None):
+def export_cached(cache, *, profile="full", jobs=None, root=None):
     """Return (fixture directory, reused) for the current inputs, exporting only when no valid entry exists."""
     cache = Path(cache)
     resolved = cache.resolve()
     artifacts = (demo.ROOT / "Artifacts").resolve()
     demo.require(resolved.is_relative_to(artifacts) and resolved != artifacts, "FixturePath", cache,
                  "the fixture cache must be a directory below this worktree's Artifacts")
-    key = cache_key(root)
+    demo.require(profile in PROFILES, "FixtureProfile", cache, f"profile must be one of {PROFILES}")
+    key = cache_key(root, profile)
     entry = resolved / key
-    if _cache_valid(entry, key):
+    if _cache_valid(entry, key, profile):
         os.utime(entry / CACHE_MANIFEST)
         _prune(resolved, entry)
         return entry, True
@@ -960,21 +992,21 @@ def export_cached(cache, *, jobs=None, root=None):
     shutil.rmtree(staging, ignore_errors=True)
     written = {}
     try:
-        export(staging, jobs=jobs, written=written)
-        demo.require(cache_key(root) == key, "InputsChanged", cache, "fixture inputs changed during the export")
+        export(staging, profile=profile, jobs=jobs, written=written)
+        demo.require(cache_key(root, profile) == key, "InputsChanged", cache, "fixture inputs changed during the export")
         # The manifest is what the export wrote, not what is on disk afterwards; a file lost or added meanwhile refuses.
         demo.require(_file_hashes(staging) == written, "FixtureCache", staging, "staged fixtures differ from what the export wrote")
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
         raise
-    manifest = {"format": CACHE_FORMAT, "key": key, "files": written}
+    manifest = {"format": CACHE_FORMAT, "profile": profile, "key": key, "files": written}
     (staging / CACHE_MANIFEST).write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
     try:
         staging.rename(entry)
     except OSError:
         # A concurrent run published the same key first; use that entry if it is complete.
         shutil.rmtree(staging, ignore_errors=True)
-        demo.require(_cache_valid(entry, key), "FixtureCache", entry, "could not publish the exported fixtures")
+        demo.require(_cache_valid(entry, key, profile), "FixtureCache", entry, "could not publish the exported fixtures")
     _prune(resolved, entry)
     return entry, False
 
@@ -984,15 +1016,17 @@ def main():
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--output", type=Path, help="export into this new directory")
     target.add_argument("--cache", type=Path, help="reuse or refresh the input-keyed export below this directory")
+    parser.add_argument("--profile", choices=PROFILES, default="full",
+                        help="runtime writes only cases needed outside the import group; full writes every case")
     parser.add_argument("--jobs", type=int, default=None, help="worker processes for valid cases (default: CPU count)")
     args = parser.parse_args()
     try:
         if args.cache:
-            path, reused = export_cached(args.cache, jobs=args.jobs)
+            path, reused = export_cached(args.cache, profile=args.profile, jobs=args.jobs)
             print(f"TEST ONLY: {'reused native fixtures for unchanged inputs' if reused else 'exported native fixtures for changed inputs'}: {path}")
             print(f"FIXTURES={path}")
             return
-        index = export(args.output, jobs=args.jobs)
+        index = export(args.output, profile=args.profile, jobs=args.jobs)
     except (demo.ContentError, OSError) as error:
         parser.exit(1, f"Demo native fixture export failed: {error}\n")
     print(f"TEST ONLY: {len(index['valid'])} valid and {len(index['invalid'])} refusal cases: {args.output}")

@@ -108,7 +108,7 @@ jobs:
 
       - name: Rule tests
         if: steps.version.outputs.skip != 'true'
-        run: ./Scripts/RunTests.ps1
+        run: ./Scripts/RunTests.ps1 -ImportTests Run
 
       - name: Package Win64
         if: steps.version.outputs.skip != 'true'

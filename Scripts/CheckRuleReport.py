@@ -1,8 +1,9 @@
-"""Validate the complete set of currently supported native rule tests, or plan and check a narrower run.
+"""Validate the selected native rule tests, or plan a run.
 
 A full run must report exactly REQUIRED_TESTS. A run narrowed by path prefixes (--prefix) is a development aid and
 never a gate. A run that only leaves out IMPORT_TESTS (--skip-import) is a gate only where CIChangeScope.py found no
-change to their inputs.
+change to their inputs. Runs without IMPORT_TESTS use the small runtime fixture profile instead of generating every
+import mutation case.
 """
 
 import argparse
@@ -304,6 +305,11 @@ IMPORT_TESTS = frozenset(
 )
 assert IMPORT_TESTS <= REQUIRED_TESTS
 
+
+def fixture_profile(selected):
+    """Only the import tests need the complete valid/refusal fixture matrix."""
+    return "full" if frozenset(selected) & IMPORT_TESTS else "runtime"
+
 # UE keeps its whole command line in a fixed buffer (16384 characters); stay well inside it.
 MAX_FILTER_CHARS = 8000
 REGISTRATION = re.compile(r'IMPLEMENT_\w+_AUTOMATION_TEST\s*\(\s*\w+\s*,\s*"(Lockdown\.Rules\.[^"]+)"')
@@ -427,7 +433,8 @@ def main():
         if args.plan:
             print(json.dumps({"filter": automation_filter(expected), "count": len(expected),
                               "required": len(REQUIRED_TESTS), "partial": bool(args.prefix),
-                              "skipped_import": sorted(IMPORT_TESTS - expected) if args.skip_import else []}))
+                              "skipped_import": sorted(IMPORT_TESTS - expected) if args.skip_import else [],
+                              "fixture_profile": fixture_profile(expected)}))
             return
         with args.report.open(encoding="utf-8-sig") as stream:
             count = check_report(json.load(stream), expected)
