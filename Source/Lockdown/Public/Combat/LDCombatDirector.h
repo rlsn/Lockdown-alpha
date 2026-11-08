@@ -573,6 +573,7 @@ public:
 
 private:
     friend class ALDGameMode;
+    friend class FLDGroundBossBodyTest;
     friend class FLDDemoCoreTest;
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDPlaytestLogHitVampTest;

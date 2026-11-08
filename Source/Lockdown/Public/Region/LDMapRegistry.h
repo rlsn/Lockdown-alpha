@@ -52,6 +52,15 @@ public:
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+    // The caller resolves a living body first; this cache is geometry only, not a body/life authority.
+    bool QueryBodyGround(const FLDMatchContext& Match, const FLDCombatBodyRef& Body, uint64 ResetEpoch,
+        const FLDDemoContentSnapshot& BodyContent,
+        const FVector& FootCm, FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+#if WITH_DEV_AUTOMATION_TESTS
+    bool QueryGroundReference(const FVector& FootCm, const FCollisionShape& Capsule, FName SurfaceHint,
+        FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
+    uint64 GroundQueryCountForTests() const;
+#endif
     bool QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,
         const FCollisionShape& Capsule, FLDCompletePath& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
     bool FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
@@ -75,6 +84,8 @@ public:
 private:
     struct FSpawnState;
     TSharedPtr<FSpawnState> SpawnState;
+    struct FGroundState;
+    TSharedPtr<FGroundState> GroundState;
     TWeakObjectPtr<const ULDMapDefinition> Definition;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     TSharedPtr<const FLDDemoWorldGeometry> Geometry;

@@ -123,6 +123,17 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
 与两份 schema 保持同一范围。同尺寸的树共用一个树干 mesh（`SM_Demo_trunk_r<半径>_h<高度>`，放在各自圆心），
 墙、围栏、摊位与地形仍各有自己的精确凸 mesh。
+
+`ULDMapRegistry::Rebuild` 缓存每块地形的原生物理包围盒、批准胶囊、step height 和静态查询的 ignored actors；
+`QueryGround` 先做保守 AABB 预筛，仍由原有 sweep、静态 overlap 和候选 floor 的窄相位给出结果与拒绝文本。
+`QueryBodyGround` 只供已经解析为当前存活身体的调用者复用几何结果，键包含 match、完整身体引用、
+营地已完成的 reset epoch、精确脚点和 surface；身体胶囊按该局不可变内容计算一次，仍与注册胶囊核对。
+独立 Boss 必须同时通过 Boss 身体身份和核心存活注册检查；它没有营地 reset 周期，使用 epoch 0。
+死亡后的引用由核心解析拒绝，新生命、重开、reset 完成或 Rebuild（即使作者 revision 未变）不复用旧结果。
+Demo 的查询相关静态碰撞来自保存的世界，局中不生成、移除或移动；动态身体与观测代理是 Pawn 且忽略地面通道，
+空投、标记、尸体表现和装饰无碰撞，因此它们的变化不影响该缓存。未来若增加动态地面支持或可变 WorldStatic 几何，
+必须先接入失效边界或恢复实时查询，不能仅凭作者 world revision 复用结果。
+
 #97 悬崖不靠高度挡人：生成器沿每条朝向更低平地的高台边与每条坡道的两侧放置隐形的薄挡块（`cliff_*`，
 引擎立方体，2 cm 厚，高过最高层上整个胶囊），只阻挡 Pawn 与导航，对地面、视线、可见性和镜头通道都放行，
 所以高处仍能隔着悬崖看见低处。Validate 按同一规则重算挡块并逐个核对位置与通道，
