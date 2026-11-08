@@ -70,8 +70,7 @@ private:
     uint32 DragMatch=0,DragLife=0;
     // Local size of the last tick or pointer event; a gesture's view is built for it.
     FVector2D FrameSize=FVector2D::ZeroVector;
-    // Public static map resolved once per registered world revision and laid out once per view scale; it never holds
-    // observations.
+    // Public terrain raster and owner-local current coverage texture. Units are read from the authorized frame at paint.
     mutable TSharedPtr<FLDMinimapStatic> StaticMap;
     FVector2D Fraction(const FGeometry& Geometry,const FPointerEvent& Event) const;
 };

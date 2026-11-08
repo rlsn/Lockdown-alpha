@@ -65,6 +65,7 @@ public:
     const FLDCampMatchState& GetState() const { return State; }
 
 private:
+    friend class FLDGroundBossBodyTest;
     struct FMotion
     {
         TArray<FVector> Points;

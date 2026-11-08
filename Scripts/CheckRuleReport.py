@@ -17,8 +17,16 @@ SUITE = "Lockdown.Rules"
 
 REQUIRED_TESTS = frozenset(
     {
+        "Lockdown.Rules.DemoVision.GeometryParity",
+        "Lockdown.Rules.DemoVision.CoveragePublication",
+        "Lockdown.Rules.DemoVision.ArrivalRoutes",
+        "Lockdown.Rules.DemoVision.PatrolCorridor",
         "Lockdown.Rules.ArtCatalog",
+        "Lockdown.Rules.DemoGround.ParityAndCache",
+        "Lockdown.Rules.DemoGround.BossBodyAdmission",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
+        "Lockdown.Rules.DemoMotionProbe.Stationary",
+        "Lockdown.Rules.DemoMotionProbe.StationarySupport",
         "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
         "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
         "Lockdown.Rules.ArtCatalogAsset",
@@ -282,6 +290,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Minimap.RoundTrip",
         "Lockdown.Rules.Minimap.FitsFrame",
         "Lockdown.Rules.Minimap.WholeGround",
+        "Lockdown.Rules.Minimap.StaticInvalidation",
+        "Lockdown.Rules.Minimap.CoverageTexture",
         "Lockdown.Rules.ViewPrivacySchema",
         "Lockdown.Rules.WorldFeedback.Priming",
         "Lockdown.Rules.WorldFeedback.OwnDamageAndHeal",

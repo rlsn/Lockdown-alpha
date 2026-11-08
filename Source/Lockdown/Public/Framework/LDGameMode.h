@@ -235,6 +235,7 @@ public:
 #endif
 private:
     friend class FLDDemoSessionTest;
+    friend class FLDGroundBossBodyTest;
     friend class FLDOwnerViewTeardownTest;
     friend class FLDCaptureSessionTest;
     friend class FLDDemoCoreTest;
