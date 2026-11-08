@@ -156,9 +156,10 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         { return ArtFail(Error, FString::Printf(TEXT("Seat look %d must be seat %d with a catalog character, found seat %d '%s'."), Seat, Seat, Seats[Seat].Seat, *Seats[Seat].Character)); }
         Out.Seats[Seat] = Body;
     }
-    // The two camp tiers, then the D26 Boss (its own taller body, so it reads apart from the tier it resembles).
+    // The Low and High camp tiers, the D26 Boss (its own taller body, so it reads apart from the tier it resembles),
+    // then the #97 Elite tier (a taller body of its own).
     const uint8 Tiers[] = { uint8(ELDDemoMonsterId::MonsterScavenger), uint8(ELDDemoMonsterId::MonsterGuardian),
-        uint8(ELDDemoMonsterId::MonsterDean) };
+        uint8(ELDDemoMonsterId::MonsterDean), uint8(ELDDemoMonsterId::MonsterAdvisor) };
     if (Monsters.Num() != UE_ARRAY_COUNT(Tiers))
     { return ArtFail(Error, FString::Printf(TEXT("Expected %d monster looks, found %d."), int32(UE_ARRAY_COUNT(Tiers)), Monsters.Num())); }
     for (int32 Index = 0; Index < Monsters.Num(); ++Index)

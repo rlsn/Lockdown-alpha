@@ -80,6 +80,7 @@ const FNativeId NativeIds[] =
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
+    DEMO_ID("monsters", "monster_advisor", ELDDemoMonsterId, MonsterAdvisor),
     DEMO_ID("statuses", "root", ELDDemoStatusId, Root),
     DEMO_ID("statuses", "shield", ELDDemoStatusId, Shield),
     DEMO_ID("statuses", "camp_returning", ELDDemoStatusId, CampReturning),
@@ -322,6 +323,11 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("DORM.MaxHPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxHPRegenBp, 0, 10000},
         {TEXT("DORM.MaxMPRatioPerSec"), TEXT("ratio"), TEXT("bp"), &P.DormMaxMPRegenBp, 0, 10000},
         {TEXT("CAMP.ReturnDeadEndSec"), TEXT("ms"), TEXT("ms"), &P.CampReturnDeadEndMs, 1, MAX_int64},
+        {TEXT("CAMP.GrowthStageSec"), TEXT("ms"), TEXT("ms"), &P.CampGrowthStageMs, 1, MAX_int64},
+        {TEXT("CAMP.GrowthHPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthHPPerStageBp, 0, MAX_int64},
+        {TEXT("CAMP.GrowthAttackRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthAttackPerStageBp, 0, MAX_int64},
+        {TEXT("CAMP.GrowthResistPerStage"), TEXT("points"), TEXT("p2"), &P.CampGrowthResistPerStageP2, 0, MAX_int64},
+        {TEXT("CAMP.GrowthRewardXPRatioPerStage"), TEXT("ratio"), TEXT("bp"), &P.CampGrowthRewardXPPerStageBp, 0, MAX_int64},
         {TEXT("AIRDROP.FirstLandSec"), TEXT("ms"), TEXT("ms"), &P.AirdropFirstLandMs, 1, MAX_int64},
         {TEXT("AIRDROP.IntervalSec"), TEXT("ms"), TEXT("ms"), &P.AirdropIntervalMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
@@ -389,6 +395,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("REWARD.PlayerGold.Base"), &P.PlayerGoldBase, 0}, {TEXT("REWARD.PlayerGold.PerLevel"), &P.PlayerGoldPerLevel, 0},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
+        {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
         {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("AIRDROP.RewardGold"), &P.AirdropRewardGold, 1},
         {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1}, {TEXT("LEADER.BountyGoldPerRefresh"), &P.LeaderBountyGoldPerRefresh, 1},
         {TEXT("LEADER.BountyGoldMax"), &P.LeaderBountyGoldMax, 1},
@@ -1607,11 +1614,13 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
     FString Tier;
     if (!NativeIdentity(F, TEXT("monsters"), Out.Id, Out.NativeId) || !F.Text(TEXT("tier"), Tier)
         || !Check.Require(Tier.Equals(TEXT("Low"), ESearchCase::CaseSensitive)
-            || Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive), Path, TEXT("unknown camp tier")))
+            || Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) || Tier.Equals(TEXT("Elite"), ESearchCase::CaseSensitive),
+            Path, TEXT("unknown camp tier")))
     {
         return false;
     }
-    Out.Tier = Tier.Equals(TEXT("Low"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::Low : ELDDemoCampTier::High;
+    Out.Tier = Tier.Equals(TEXT("Low"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::Low
+        : Tier.Equals(TEXT("High"), ESearchCase::CaseSensitive) ? ELDDemoCampTier::High : ELDDemoCampTier::Elite;
     return F.Int(TEXT("count_per_camp"), Out.CountPerCamp, 1)
         && F.Fixed(TEXT("hp"), TEXT("hp"), TEXT("p2"), Out.HPP2, 1)
         && F.Fixed(TEXT("armor"), TEXT("points"), TEXT("p2"), Out.ArmorP2)
@@ -1718,7 +1727,7 @@ bool Ids(const FValue& Value, TArray<FString>& Out, FCheck& Check, const FString
 bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck& Check)
 {
     FFields F(Check, Value, TEXT("content.progression"));
-    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, 16, 16)
+    if (!F.SmallInt(TEXT("max_level"), Out.MaxLevel, LDDemoProgression::MaxLevel, LDDemoProgression::MaxLevel)
         || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 16, 16)
         || !F.SmallInt(TEXT("max_skill_rank"), Out.MaxSkillRank, 2, 2)
         || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 3, 3)
@@ -1830,7 +1839,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         return false;
     }
     FFields Camps(Check, F.Take(TEXT("camps")), TEXT("content.camps"));
-    if (!Definitions(Camps.Take(TEXT("monsters")), Out.Monsters, Check, TEXT("content.camps.monsters"), 2, 2, Monster))
+    if (!Definitions(Camps.Take(TEXT("monsters")), Out.Monsters, Check, TEXT("content.camps.monsters"), 3, 3, Monster))
     {
         return false;
     }

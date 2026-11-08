@@ -1,4 +1,5 @@
 #include "Framework/LDCaptureReducer.h"
+#include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDMatchProviders.h"
@@ -888,7 +889,19 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     BadResult([](FLDResultView& View) { View.Winner = FGuid::NewGuid(); }, TEXT("The winner must be a listed contender"));
     BadResult([](FLDResultView& View) { View.Rows[0].bLeft = true; }, TEXT("A contender who left cannot win"));
     BadResult([](FLDResultView& View) { View.DurationMs = 1; }, TEXT("Duration comes from the real boundaries"));
-    BadResult([](FLDResultView& View) { View.Rows[2].FinalLevel = 11; }, TEXT("Final level stays within the approved range"));
+    BadResult([](FLDResultView& View) { View.Rows[2].FinalLevel = uint8(LDDemoProgression::MaxLevel + 1); },
+        TEXT("Final level stays within the approved range"));
+    BadResult([](FLDResultView& View) { View.Rows[2].FinalLevel = 0; }, TEXT("A final level is at least 1"));
+    {
+        // #184: a guard win with contenders above the old level 10 locked a result its own validation refused.
+        FLDResultView Top = Result;
+        Top.Generation = 3;
+        Top.Rows[0].FinalLevel = uint8(LDDemoProgression::MaxLevel);
+        Top.Rows[2].FinalLevel = 11;
+        FLDResultView Scratch = LatestResult;
+        TestEqual(TEXT("A result with a winner at the approved level cap is accepted"),
+            LDCapture::AcceptResultView(Top, Scratch, Error), ELDLobbyProjectionResult::Accepted);
+    }
     FLDResultView HostEnded = Result;
     HostEnded.Generation = 3;
     HostEnded.Reason = ELDMatchEndReason::HostEnded;
@@ -1026,7 +1039,8 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     int32 Closed = 0, Resets = 0;
     FLDMatchReset LastReset;
     FLDMatchProviderHooks Progression;
-    Progression.ReadFinalLevel = [](const ALDGameMode&, const FGuid&, uint8& Level, FString&) { Level = 3; return true; };
+    // #184: every contender at the approved level cap, past the old level-10 bound that faulted the result lock.
+    Progression.ReadFinalLevel = [](const ALDGameMode&, const FGuid&, uint8& Level, FString&) { Level = uint8(LDDemoProgression::MaxLevel); return true; };
     Progression.MatchClosed = [&Closed](ALDGameMode&, const FLDMatchClosed& Info)
     { Closed += Info.Reason == ELDMatchEndReason::HostEnded && !Info.Winner.IsValid() ? 1 : 100; };
     Progression.MatchReset = [&Resets, &LastReset](ALDGameMode&, const FLDMatchReset& Reset, FString&)
@@ -1048,7 +1062,7 @@ bool FLDCaptureSessionTest::RunTest(const FString& Parameters)
     const FLDResultView& Result = Public->MatchResult;
     TestTrue(TEXT("A host-ended result has no winner and lists every contender"),
         Result.Generation == Generation && Result.Reason == ELDMatchEndReason::HostEnded && !Result.Winner.IsValid()
-        && Result.Rows.Num() == 2 && Result.Rows[0].FinalLevel == 3 && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs);
+        && Result.Rows.Num() == 2 && Result.Rows[0].FinalLevel == LDDemoProgression::MaxLevel && Result.DurationMs == Result.EndedAtMs - Result.StartedAtMs);
     TestTrue(TEXT("The public circle names the locked result"),
         Public->PublicMatch.Phase == ELDMatchPhase::Results && Public->PublicMatch.ResultId == Result.ResultId);
     Request.Key.RequestSequence = 2;

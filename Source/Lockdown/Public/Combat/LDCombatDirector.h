@@ -120,6 +120,7 @@ struct FLDBodyCombatState
     uint64 AttributeRevision=0;
     TOptional<FLDObservedPublicFacts> PublicFacts;
     FName MonsterId;                       // CampMember bodies only
+    uint8 CampStage=0;                     // #97 CampMember bodies only: growth stage fixed for this life
     uint64 StateRevision=1;                // statuses/action changes; resources use Resources.Revision
     TArray<FLDCombatRoot> Roots;
     TArray<FLDCombatSlow> Slows;
@@ -591,7 +592,8 @@ private:
     // ---- Body lifecycle (core-called, RespawnsAndWorld permit).
     bool PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
         const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const;
-    bool PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,
+    // #97: CampStage scales the monster's base values for this whole life (Development/LDCampGrowth.h); 0 = base.
+    bool PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,uint8 CampStage,
         const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const;
     bool InstallCombatBody(ALDCharacter& Body,FLDBodyCombatState&& Prepared,
         const FLDGameplayWritePermit& Permit,FLDCombatBodyRef& Out,FString& Error);

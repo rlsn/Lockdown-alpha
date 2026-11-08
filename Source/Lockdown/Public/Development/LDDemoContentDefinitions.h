@@ -154,6 +154,14 @@ struct FLDDemoContentParameters
     // while free to move, resets where it stands instead of retrying forever.
     UPROPERTY() int64 CampReturnDeadEndPlans = 0;
     UPROPERTY() int64 CampReturnDeadEndMs = 0;
+    // #97 camp growth (Development/LDCampGrowth.h): a camp life spawned t after T=0 takes stage
+    // min(CampGrowthMaxStage, floor(t / CampGrowthStageMs)); each stage adds these shares of the base values.
+    UPROPERTY() int64 CampGrowthStageMs = 0;
+    UPROPERTY() int64 CampGrowthMaxStage = 0;
+    UPROPERTY() int64 CampGrowthHPPerStageBp = 0;
+    UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
+    UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
+    UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
     // D26 (#79) airdrop: landings at FirstLand + n * Interval from the match start, each public AnnounceLead earlier.
     UPROPERTY() int64 AirdropFirstLandMs = 0;
     UPROPERTY() int64 AirdropIntervalMs = 0;
@@ -306,8 +314,9 @@ namespace LDDemoAttributeQuality
 }
 
 UENUM()
-// Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
-enum class ELDDemoCampTier : uint8 { Low, High, Boss };
+// Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp. Elite (#97) is the third camp tier,
+// appended after Boss so existing values keep their numbers.
+enum class ELDDemoCampTier : uint8 { Low, High, Boss, Elite };
 
 UENUM()
 enum class ELDDemoBonusStat : uint8
@@ -582,6 +591,13 @@ struct FLDDemoCampPlacement
     UPROPERTY() FString AnchorId;
     UPROPERTY() FString MonsterId;
 };
+
+// The approved level cap (#166). The importer accepts exactly this max_level, and every bound on a committed level
+// (result rows included) reads it here instead of repeating the number.
+namespace LDDemoProgression
+{
+    inline constexpr int32 MaxLevel = 16;
+}
 
 USTRUCT()
 struct FLDDemoProgressionDefinition

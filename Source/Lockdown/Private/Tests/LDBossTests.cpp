@@ -260,8 +260,11 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
         Rules.Id == TEXT("monster_dean") && Row && Row->Tier == ELDDemoCampTier::Boss);
     LDProgression::FRewardAmounts Amounts;
     bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP and 250 gold"),
-        LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), Amounts) == ELDGrowthReason::None
+        LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 0, Amounts) == ELDGrowthReason::None
         && Amounts.XP == 300 && Amounts.Gold == 250);
+    bGood &= TestTrue(TEXT("The Boss is not a camp and never takes a camp growth stage"),
+        LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 1, Amounts) == ELDGrowthReason::DataInvalid
+        && Amounts.XP == 0 && Amounts.Gold == 0);
     bGood &= TestTrue(TEXT("The approved buff is AD +25%, AP +25% and move speed +10% for 90 s"),
         Rules.ApprovalDurationMs == 90000 && Rules.ApprovalStats.Num() == 3
         && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::ADBonusRatio) == 2500

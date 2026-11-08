@@ -86,6 +86,7 @@ struct FLDCampMemberSpawn
     FGuid EntityId;
     ALDCharacter* Body=nullptr;
     FName MonsterId;
+    uint8 CampStage=0; // #97 growth stage of this life; the Boss is always 0
 };
 struct FLDContenderRecord
 {

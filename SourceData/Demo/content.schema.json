@@ -48,6 +48,8 @@
         "CHOICE.AttributeQuality.GoldChance", "CHOICE.AttributeQuality.GoldMultiplier",
         "CAMP.ResetArrivalRadiusCm",
         "CAMP.ReturnDeadEndPlans", "CAMP.ReturnDeadEndSec",
+        "CAMP.GrowthStageSec", "CAMP.GrowthMaxStage", "CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage",
+        "CAMP.GrowthResistPerStage", "CAMP.GrowthRewardXPRatioPerStage",
         "AIRDROP.FirstLandSec", "AIRDROP.IntervalSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
         "AIRDROP.RewardXP", "AIRDROP.RewardGold",
         "LEADER.MinLevel", "LEADER.RefreshSec", "LEADER.CircleRadiusCm", "LEADER.CircleMaxOffsetCm",
@@ -111,6 +113,9 @@
         "CHOICE.AttributeQuality.GoldMultiplier": {"$ref": "#/$defs/multiplier"},
         "CAMP.ResetArrivalRadiusCm": {"$ref": "#/$defs/cm"},
         "CAMP.ReturnDeadEndPlans": {"$ref": "#/$defs/positive_count"}, "CAMP.ReturnDeadEndSec": {"$ref": "#/$defs/positive_sec"},
+        "CAMP.GrowthStageSec": {"$ref": "#/$defs/positive_sec"}, "CAMP.GrowthMaxStage": {"$ref": "#/$defs/positive_count"},
+        "CAMP.GrowthHPRatioPerStage": {"$ref": "#/$defs/multiplier"}, "CAMP.GrowthAttackRatioPerStage": {"$ref": "#/$defs/multiplier"},
+        "CAMP.GrowthResistPerStage": {"$ref": "#/$defs/points"}, "CAMP.GrowthRewardXPRatioPerStage": {"$ref": "#/$defs/multiplier"},
         "AIRDROP.FirstLandSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.IntervalSec": {"$ref": "#/$defs/positive_sec"},
         "AIRDROP.AnnounceLeadSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.PickupRadiusCm": {"$ref": "#/$defs/cm"},
         "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"}, "AIRDROP.RewardGold": {"$ref": "#/$defs/positive_count"},
@@ -202,9 +207,9 @@
     "camps": {
       "type": "object", "additionalProperties": false, "required": ["monsters", "placements"],
       "properties": {
-        "monsters": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/monster"}},
+        "monsters": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"$ref": "#/$defs/monster"}},
         "placements": {
-          "type": "array", "minItems": 1, "maxItems": 32,
+          "type": "array", "minItems": 1, "maxItems": 48,
           "items": {
             "type": "object", "additionalProperties": false, "required": ["anchor_id", "monster_id"],
             "properties": {"anchor_id": {"$ref": "#/$defs/id"}, "monster_id": {"$ref": "#/$defs/id"}}
@@ -249,7 +254,7 @@
       "properties": {
         "map_id": {"$ref": "#/$defs/id"},
         "spawn_ids": {"type": "array", "minItems": 6, "maxItems": 32, "items": {"$ref": "#/$defs/id"}},
-        "camp_ids": {"type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/id"}},
+        "camp_ids": {"type": "array", "minItems": 1, "maxItems": 48, "items": {"$ref": "#/$defs/id"}},
         "shop_ids": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/id"}},
         "capture_id": {"$ref": "#/$defs/id"}
       }
@@ -632,7 +637,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "reward_gold", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"],
       "properties": {
-        "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
+        "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High", "Elite"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
         "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"}, "attack": {"$ref": "#/$defs/points"},
         "attack_speed": {"$ref": "#/$defs/attack_rate"}, "attack_windup": {"$ref": "#/$defs/positive_sec"},
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"}, "leash_radius": {"$ref": "#/$defs/cm"},

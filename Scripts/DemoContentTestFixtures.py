@@ -43,7 +43,9 @@ def content_fixture():
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
         ("DORM.MaxMPRatioPerSec", "ratio", 0.05),
         ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
-        ("CAMP.ReturnDeadEndSec", "s", 4),
+        ("CAMP.ReturnDeadEndSec", "s", 4), ("CAMP.GrowthStageSec", "s", 30),
+        ("CAMP.GrowthHPRatioPerStage", "ratio", 0.1), ("CAMP.GrowthAttackRatioPerStage", "ratio", 0.05),
+        ("CAMP.GrowthResistPerStage", "points", 1), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", 0.25),
         ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
@@ -70,7 +72,7 @@ def content_fixture():
         "SHOP.StartingGold": 10, "SHOP.UpgradeCost": 30, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
         "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
-        "CAMP.ReturnDeadEndPlans": 2, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
+        "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
         "LEADER.MinLevel": 2, "LEADER.BountyGoldPerRefresh": 40, "LEADER.BountyGoldMax": 200,
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
     })
@@ -186,6 +188,7 @@ def content_fixture():
     for identity, tier, count, hp, attack, armor, speed in (
         ("monster_scavenger", "Low", 2, 25, 3, 2, 1),
         ("monster_guardian", "High", 1, 80, 9, 4, 0.75),
+        ("monster_advisor", "Elite", 1, 160, 14, 6, 0.6),
     ):
         monsters.append({
             "id": identity, "tier": tier, "count_per_camp": count, "hp": q("hp", hp),
@@ -193,7 +196,7 @@ def content_fixture():
             "attack_speed": q("attacks/s", speed), "attack_windup": q("s", 0.125),
             "attack_range": q("cm", 80), "move_speed": q("cm/s", 250), "collision_radius": q("cm", 20),
             "leash_radius": q("cm", 300), "lose_target_grace": q("s", 1), "respawn": q("s", 10),
-            "reward_xp": 8 if tier == "Low" else 20, "reward_gold": 4 if tier == "Low" else 10,
+            "reward_xp": {"Low": 8, "High": 20, "Elite": 40}[tier], "reward_gold": {"Low": 4, "High": 10, "Elite": 20}[tier],
             "hp_regen": q("hp/s", 0), "max_mp": q("mp", 0), "mp_regen": q("mp/s", 0),
             "ap": q("points", 0), "crit_chance": q("ratio", 0),
         })
@@ -202,8 +205,9 @@ def content_fixture():
     named = {kind: sorted(row["id"] for row in world_anchors if row["kind"] == kind) for kind in ("Spawn", "Camp", "Shop")}
     camps = {
         "monsters": monsters,
-        "placements": [{"anchor_id": identity, "monster_id": "monster_guardian" if len(row_members(world_anchors, identity)) == 1
-                        else "monster_scavenger"} for identity in named["Camp"]],
+        # Two member homes hold the Low pair; single-member camps are Elite when their id says so (e01..), else High.
+        "placements": [{"anchor_id": identity, "monster_id": "monster_scavenger" if len(row_members(world_anchors, identity)) != 1
+                        else "monster_advisor" if identity.startswith("e") else "monster_guardian"} for identity in named["Camp"]],
     }
     boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),

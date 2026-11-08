@@ -5,6 +5,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Economy/LDEconomyLedger.h"
 #include "Framework/LDGameMode.h"
@@ -1159,15 +1160,19 @@ FLDCampResetPrepareResult ALDCombatDirector::PrepareCampReset(const FLDCampReset
         return LDCombatSourcesDetail::CampResetFailure(EPrepare::InvalidInput,
             TEXT("InvalidInput: the camp member foot is outside CAMP.ResetArrivalRadiusCm of its home."));
     }
-    const FLDDemoMonsterDefinition* Monster=nullptr;
+    const FLDDemoMonsterDefinition* BaseMonster=nullptr;
+    FLDDemoMonsterDefinition Grown;
+    const FLDDemoMonsterDefinition* Monster=&Grown;
     FString LookupError;
-    if (Body->MonsterId.IsNone() || !Content->FindMonster(Body->MonsterId.ToString(),Monster,LookupError) || !Monster
+    if (Body->MonsterId.IsNone() || !Content->FindMonster(Body->MonsterId.ToString(),BaseMonster,LookupError) || !BaseMonster
+        || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,Body->CampStage,Grown,LookupError)
         || Monster->HPP2<=0 || Monster->MaxMPP2<0)
     {
         return LDCombatSourcesDetail::CampResetFailure(EPrepare::Catalog,
             FString::Printf(TEXT("Catalog: monster %s has no executable maxima. %s"),*Body->MonsterId.ToString(),*LookupError));
     }
-    // Every temporary state is cleared, so the post-reset maxima are the monster's base maxima.
+    // Every temporary state is cleared, so the post-reset maxima are the monster's maxima at this life's growth stage
+    // (#97): a return reset never moves a grown life back to the base values.
     FLDPreparedCampReset Prepared;
     Prepared.Input=Input;
     Prepared.Match=Mode->GetMatchContext();

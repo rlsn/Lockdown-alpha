@@ -26,7 +26,7 @@ enum class ELDDemoEquipmentId : uint8
     ItemSlingshot=106, ItemNailUniform=108,
     ItemMegaphone=109, ItemDossier=110, ItemPrivacyScreen=111, ItemSkateboard=112
 };
-enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3 };
+enum class ELDDemoMonsterId : uint8 { MonsterScavenger=1, MonsterGuardian=2, MonsterDean=3, MonsterAdvisor=4 };
 // Public statuses travel in a 32-bit observation mask, so status ids stay below 32 (#112 C2 uses 20, #147 v7 25..26).
 // Retired status identities must never be reused: 7..8, 11, 15..19, 21..24 (native_ids.json retired_ranges).
 enum class ELDDemoStatusId : uint8 { Root=1, Shield=2, CampReturning=3, RespawnProtection=4,

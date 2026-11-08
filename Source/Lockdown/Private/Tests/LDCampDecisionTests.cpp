@@ -86,6 +86,19 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     if(!ReadApprovedFixture(*this,Catalog)){return false;}
     FString Error;
+    {
+        // BeginMatch refuses a roster whose observer could see more than the wire bound: the five other seats of the
+        // six-seat roster, every camp member and the Boss.
+        int64 Members=0;
+        for(const auto& Camp:Catalog->Get().Camps)
+        {
+            const FLDDemoMonsterDefinition* Monster=nullptr;
+            if(!Catalog->FindMonster(Camp.MonsterId,Monster,Error)||!Monster){AddError(Error);return false;}
+            Members+=Monster->CountPerCamp;
+        }
+        if(!TestTrue(FString::Printf(TEXT("A full roster, %lld approved camp members and the Boss fit the %d-unit observation bound"),
+            Members,LDObservation::MaxUnits),(LDObservation::MaxPresentations-1)+Members+1<=LDObservation::MaxUnits)){return false;}
+    }
     for(const auto& Camp:Catalog->Get().Camps)
     {
         const FName CampId(*Camp.AnchorId);const FLDDemoMonsterDefinition* Monster=nullptr;

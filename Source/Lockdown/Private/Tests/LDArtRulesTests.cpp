@@ -192,12 +192,15 @@ bool FLDArtCatalogAssetTest::RunTest(const FString& Parameters)
     const FLDArtCharacter* Monitor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterScavenger));
     const FLDArtCharacter* Teacher = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterGuardian));
     const FLDArtCharacter* Dean = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterDean));
-    TestTrue(TEXT("Every seat, both camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
-        && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(4));
-    TestTrue(TEXT("The teacher is the tallest camp body"), Contender && Monitor && Teacher && Teacher->HeightCm > Contender->HeightCm
-        && Teacher->HeightCm > Monitor->HeightCm);
-    TestTrue(TEXT("D26: the Boss is its own body, taller than every other"), Dean && Teacher && Dean != Teacher
-        && Dean->HeightCm > Teacher->HeightCm);
+    const FLDArtCharacter* Advisor = Art.ForMonster(uint8(ELDDemoMonsterId::MonsterAdvisor));
+    TestTrue(TEXT("Every seat, the three camp tiers, the Boss and nothing else resolve"), Contender && Monitor && Teacher && Dean
+        && Advisor && !Art.ForSeat(LDArt::SeatCount) && !Art.ForMonster(0) && !Art.ForMonster(5));
+    TestTrue(TEXT("The teacher stands taller than the Low tier and every contender"), Contender && Monitor && Teacher
+        && Teacher->HeightCm > Contender->HeightCm && Teacher->HeightCm > Monitor->HeightCm);
+    TestTrue(TEXT("#97: the Elite advisor is its own body and the tallest camp body"), Advisor && Teacher && Monitor
+        && Advisor != Teacher && Advisor != Monitor && Advisor->HeightCm > Teacher->HeightCm);
+    TestTrue(TEXT("D26: the Boss is its own body, taller than every other"), Dean && Teacher && Advisor && Dean != Teacher
+        && Dean != Advisor && Dean->HeightCm > Advisor->HeightCm);
     const float HalfHeight = GetDefault<ALDCharacter>()->GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
     for (const FLDArtCharacter& Body : Catalog->Characters)
     {

@@ -143,8 +143,10 @@ namespace LDProgression
     // REWARD.PlayerXP/PlayerGold at the frozen victim level.
     LOCKDOWN_API ELDGrowthReason ContenderKillReward(const FLDDemoContentParameters& Parameters, uint8 MaxLevel,
         uint8 VictimLevel, FRewardAmounts& Out);
-    // CAMP.<tier>.RewardXP/RewardGold of the monster definition, once per member life.
-    LOCKDOWN_API ELDGrowthReason MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, FRewardAmounts& Out);
+    // CAMP.<tier>.RewardXP/RewardGold of the monster definition, once per member life. #97: the XP grows with the
+    // stage that life spawned with (Development/LDCampGrowth.h); gold does not. The Boss only takes stage 0.
+    LOCKDOWN_API ELDGrowthReason MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
+        FRewardAmounts& Out);
 
     // Every legal semantic option for Build, sorted by (DefinitionId, Kind). Unlearned skills offer rank 1,
     // learned skills below MaxSkillRank offer the next rank, and every attribute card is always legal.

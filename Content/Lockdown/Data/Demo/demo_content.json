@@ -3349,7 +3349,7 @@
       "unit": "points"
     },
     "attack": {
-      "p2": 7000,
+      "p2": 21000,
       "unit": "points"
     },
     "attack_interval": {
@@ -3375,7 +3375,7 @@
       "unit": "cm"
     },
     "hp": {
-      "p2": 150000,
+      "p2": 450000,
       "unit": "hp"
     },
     "id": "monster_dean",
@@ -3400,11 +3400,100 @@
           "unit": "points"
         },
         "armor": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "attack": {
+          "p2": 9000,
+          "unit": "points"
+        },
+        "attack_interval_ms": 1667,
+        "attack_range": {
+          "denominator": 1,
+          "numerator": 175,
+          "unit": "cm"
+        },
+        "attack_speed": {
+          "denominator": 5,
+          "numerator": 3,
+          "unit": "attacks/s"
+        },
+        "attack_windup": {
+          "ms": 500,
+          "unit": "ms"
+        },
+        "collision_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "count_per_camp": 1,
+        "crit_chance": {
+          "bp": 0,
+          "unit": "ratio"
+        },
+        "hp": {
+          "p2": 135000,
+          "unit": "hp"
+        },
+        "hp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "hp/s"
+        },
+        "id": "monster_advisor",
+        "leash_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "lose_target_grace": {
+          "ms": 4000,
+          "unit": "ms"
+        },
+        "magic_resist": {
+          "p2": 3000,
+          "unit": "points"
+        },
+        "max_mp": {
+          "p2": 0,
+          "unit": "mp"
+        },
+        "move_speed": {
+          "denominator": 1,
+          "numerator": 260,
+          "unit": "cm/s"
+        },
+        "mp_regen": {
+          "denominator": 1,
+          "numerator": 0,
+          "unit": "mp/s"
+        },
+        "native_id": 4,
+        "perception_radius": {
+          "denominator": 1,
+          "numerator": 1050,
+          "unit": "cm"
+        },
+        "respawn": {
+          "ms": 90000,
+          "unit": "ms"
+        },
+        "reward_gold": 135,
+        "reward_xp": 180,
+        "tier": "Elite"
+      },
+      {
+        "ap": {
+          "p2": 0,
+          "unit": "points"
+        },
+        "armor": {
           "p2": 2000,
           "unit": "points"
         },
         "attack": {
-          "p2": 4800,
+          "p2": 7200,
           "unit": "points"
         },
         "attack_interval_ms": 1539,
@@ -3433,7 +3522,7 @@
           "unit": "ratio"
         },
         "hp": {
-          "p2": 42000,
+          "p2": 63000,
           "unit": "hp"
         },
         "hp_regen": {
@@ -3575,6 +3664,22 @@
     ],
     "placements": [
       {
+        "anchor_id": "e01",
+        "monster_id": "monster_advisor"
+      },
+      {
+        "anchor_id": "e02",
+        "monster_id": "monster_advisor"
+      },
+      {
+        "anchor_id": "e03",
+        "monster_id": "monster_advisor"
+      },
+      {
+        "anchor_id": "e04",
+        "monster_id": "monster_advisor"
+      },
+      {
         "anchor_id": "h01",
         "monster_id": "monster_guardian"
       },
@@ -3604,6 +3709,22 @@
       },
       {
         "anchor_id": "h08",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h09",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h10",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h11",
+        "monster_id": "monster_guardian"
+      },
+      {
+        "anchor_id": "h12",
         "monster_id": "monster_guardian"
       },
       {
@@ -4225,6 +4346,15 @@
       "id": "knockback",
       "name_key": "knockback.name",
       "name_text": "击退",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "monster_advisor.description",
+      "description_text": "守在外圈高台的最强野怪，血厚手重：不会主动出手，被打后反击；追得太远就回位。",
+      "icon_id": "icon_monster_advisor",
+      "id": "monster_advisor",
+      "name_key": "monster_advisor.name",
+      "name_text": "催毕设的导师",
       "namespace": "DemoContent"
     },
     {
@@ -5299,7 +5429,7 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning. Equipment excluded. playtest input, not a balance test.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded. playtest input, not a balance test.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -5476,6 +5606,27 @@
     },
     "AIRDROP.RewardGold": 150,
     "AIRDROP.RewardXP": 200,
+    "CAMP.GrowthAttackRatioPerStage": {
+      "bp": 800,
+      "unit": "ratio"
+    },
+    "CAMP.GrowthHPRatioPerStage": {
+      "bp": 1200,
+      "unit": "ratio"
+    },
+    "CAMP.GrowthMaxStage": 10,
+    "CAMP.GrowthResistPerStage": {
+      "p2": 200,
+      "unit": "points"
+    },
+    "CAMP.GrowthRewardXPRatioPerStage": {
+      "bp": 1000,
+      "unit": "ratio"
+    },
+    "CAMP.GrowthStageSec": {
+      "ms": 60000,
+      "unit": "ms"
+    },
     "CAMP.ResetArrivalRadiusCm": {
       "denominator": 1,
       "numerator": 100,
@@ -5977,6 +6128,10 @@
   },
   "world": {
     "camp_ids": [
+      "e01",
+      "e02",
+      "e03",
+      "e04",
       "h01",
       "h02",
       "h03",
@@ -5985,6 +6140,10 @@
       "h06",
       "h07",
       "h08",
+      "h09",
+      "h10",
+      "h11",
+      "h12",
       "l03",
       "l04",
       "l05",

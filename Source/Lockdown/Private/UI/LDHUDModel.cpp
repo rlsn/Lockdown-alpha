@@ -407,7 +407,7 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
                 if(In.bClock&&In.NowMs-Notice->OccurredAtMs>StaleKillMs){continue;}
                 TArray<FString> Assisters;
                 for(const FGuid& Assister:Notice->Assisters){Assisters.Add(Name(Assister));}
-                const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.BossName,Assisters);
+                const FKillFeedLineView Line=KillFeedLine(*Notice,In.Self,Name(Notice->Victim),Name(Notice->Killer),In.LowCampName,In.HighCampName,In.EliteCampName,In.BossName,Assisters);
                 Add(Line.Text,Line.bSelf);
             }
         }
@@ -458,7 +458,7 @@ FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FS
     if(Self.IsValid()&&Notice.Leader==Self){return LDTerms::LeaderSelf(Notice.BountyGold);}
     return LDTerms::LeaderNamed(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName,Notice.BountyGold);
 }
-FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName,const TArray<FString>& AssisterNames)
+FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
     const FString Victim=VictimName.IsEmpty()?FString(TEXT("未列名参赛者")):VictimName;
     switch(Notice.Cause)
@@ -471,12 +471,13 @@ FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,co
     }
     case ELDKillCause::CampLow: return LDTerms::KilledByLine(Victim,LowCampName);
     case ELDKillCause::CampHigh: return LDTerms::KilledByLine(Victim,HighCampName);
+    case ELDKillCause::CampElite: return LDTerms::KilledByLine(Victim,EliteCampName);
     case ELDKillCause::Boss: return LDTerms::KilledByLine(Victim,BossName);
     case ELDKillCause::Unowned: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（无参赛者击杀）");
     default: return Victim+TEXT(" ")+LDTerms::Dead+TEXT("（死因未知）");
     }
 }
-LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& BossName,const TArray<FString>& AssisterNames)
+LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const FGuid& Self,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
     FKillFeedLineView Line;
     const bool bVictim=Self.IsValid()&&Notice.Victim==Self;
@@ -486,10 +487,10 @@ LDHUD::FKillFeedLineView LDHUD::KillFeedLine(const FLDKillNotice& Notice,const F
     for(int32 Index=0;Index<Assisters.Num()&&Index<Notice.Assisters.Num();++Index)
     {if(Self.IsValid()&&Notice.Assisters[Index]==Self){Assisters[Index]=TEXT("你");bAssister=true;}}
     Line.bSelf=bVictim||bKiller||bAssister;
-    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName,BossName,Assisters);
+    Line.Text=KillLine(Notice,bVictim?FString(TEXT("你")):VictimName,bKiller?FString(TEXT("你")):KillerName,LowCampName,HighCampName,EliteCampName,BossName,Assisters);
     return Line;
 }
-FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName,const FString& BossName)
+FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FGuid& Self,int64 NotBeforeMs,const FLDLobbyView& Lobby,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName)
 {
     if(Generation==0||Feed.Generation!=Generation||!Self.IsValid()){return FString();}
     const FLDKillNotice* Latest=nullptr;
@@ -505,6 +506,7 @@ FString LDHUD::DeathCause(const FLDKillFeedView& Feed,uint32 Generation,const FG
     }
     case ELDKillCause::CampLow: return LDTerms::KilledBy(LowCampName);
     case ELDKillCause::CampHigh: return LDTerms::KilledBy(HighCampName);
+    case ELDKillCause::CampElite: return LDTerms::KilledBy(EliteCampName);
     case ELDKillCause::Boss: return LDTerms::KilledBy(BossName);
     case ELDKillCause::Unowned: return TEXT("无参赛者击杀");
     default: return TEXT("死因未知");
@@ -899,6 +901,19 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
     case ELDDemoEffectOp::PathSlow:
         return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    // #184: the equipment passives of the #166 catalog (大喇叭, 防窥膜, 滑板鞋).
+    case ELDDemoEffectOp::AfflictionAmp:
+        return TEXT("自己造成的")+FString(LDTerms::Burn)+TEXT("伤害 +")+HudPercent(Effect.RatioBp)+TEXT("；自己施加的")+LDTerms::Slow
+            +TEXT("比例 ×")+HudDecimal(double(Effect.SecondaryRatioBp)/10000.)+TEXT("（不超过 99.99%）");
+    case ELDDemoEffectOp::ShieldBreakRetort:
+    {
+        FString Text=FString(LDTerms::Shield)+TEXT("被打破时，对打破者造成该")+LDTerms::Shield+TEXT("获得量 ")+HudPercent(Effect.RatioBp)
+            +TEXT(" 的")+LDTerms::MagicalDamage;
+        if(Effect.SecondaryRatioBp>0){Text+=TEXT("并")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.SecondaryRatioBp)+TEXT("，持续 ")+HudSeconds(Effect.SecondaryDurationMs);}
+        return Text+TEXT("；内置冷却 ")+HudSeconds(Effect.IntervalMs);
+    }
+    case ELDDemoEffectOp::HitHaste:
+        return FString(LDTerms::BasicAttack)+TEXT("命中后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内")+LDTerms::MoveSpeed+TEXT(" +")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }

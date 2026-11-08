@@ -1791,7 +1791,7 @@ public:
             return true;
         }
         LDProgression::FRewardAmounts Monster;
-        const ELDGrowthReason MonsterReason = LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), Monster);
+        const ELDGrowthReason MonsterReason = LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), 0, Monster);
         if (!Check(MonsterReason == ELDGrowthReason::None && Monster.XP > 0 && Monster.Gold > 0, TEXT("N03"),
             TEXT("The low camp's scavenger has a positive approved reward"), LDGrowthWire::ReasonName(MonsterReason)))
         {

@@ -17,7 +17,8 @@ enum class ELDMatchEndReason : uint8 { None, GuardSucceeded, HostEnded };
 // Public cause class of a contender death. Never names the fatal skill, item or build.
 UENUM()
 // Boss (#79 D26) is appended so earlier causes keep their wire values.
-enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss };
+// CampElite (#97) is appended so existing values keep their numbers.
+enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss, CampElite };
 
 // D26 (#79): the public phase of the current airdrop.
 UENUM()

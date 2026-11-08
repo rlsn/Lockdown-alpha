@@ -5,7 +5,7 @@
     "projection_revision": 3,
     "approval": {
       "status": "approved",
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning. Equipment excluded. playtest input, not a balance test."
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded. playtest input, not a balance test."
     }
   },
   "parameters": {
@@ -95,6 +95,12 @@
     "CAMP.ResetArrivalRadiusCm": {"unit": "cm", "value": 100},
     "CAMP.ReturnDeadEndPlans": 3,
     "CAMP.ReturnDeadEndSec": {"unit": "s", "value": 6},
+    "CAMP.GrowthStageSec": {"unit": "s", "value": 60},
+    "CAMP.GrowthMaxStage": 10,
+    "CAMP.GrowthHPRatioPerStage": {"unit": "ratio", "value": 0.12},
+    "CAMP.GrowthAttackRatioPerStage": {"unit": "ratio", "value": 0.08},
+    "CAMP.GrowthResistPerStage": {"unit": "points", "value": 2},
+    "CAMP.GrowthRewardXPRatioPerStage": {"unit": "ratio", "value": 0.10},
     "AIRDROP.FirstLandSec": {"unit": "s", "value": 45},
     "AIRDROP.IntervalSec": {"unit": "s", "value": 80},
     "AIRDROP.AnnounceLeadSec": {"unit": "s", "value": 15},
@@ -569,14 +575,26 @@
       },
       {
         "id": "monster_guardian", "tier": "High", "count_per_camp": 1,
-        "hp": {"unit": "hp", "value": 420}, "armor": {"unit": "points", "value": 20}, "magic_resist": {"unit": "points", "value": 20}, "attack": {"unit": "points", "value": 48},
+        "hp": {"unit": "hp", "value": 630}, "armor": {"unit": "points", "value": 20}, "magic_resist": {"unit": "points", "value": 20}, "attack": {"unit": "points", "value": 72},
         "attack_speed": {"unit": "attacks/s", "value": 0.65}, "attack_windup": {"unit": "s", "value": 0.500}, "attack_range": {"unit": "cm", "value": 175},
         "move_speed": {"unit": "cm/s", "value": 260}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1050},
         "lose_target_grace": {"unit": "s", "value": 4}, "respawn": {"unit": "s", "value": 65}, "reward_xp": 80, "reward_gold": 60,
         "hp_regen": {"unit": "hp/s", "value": 0}, "max_mp": {"unit": "mp", "value": 0}, "mp_regen": {"unit": "mp/s", "value": 0}, "ap": {"unit": "points", "value": 0}, "crit_chance": {"unit": "ratio", "value": 0}
+      },
+      {
+        "id": "monster_advisor", "tier": "Elite", "count_per_camp": 1,
+        "hp": {"unit": "hp", "value": 1350}, "armor": {"unit": "points", "value": 30}, "magic_resist": {"unit": "points", "value": 30}, "attack": {"unit": "points", "value": 90},
+        "attack_speed": {"unit": "attacks/s", "value": 0.60}, "attack_windup": {"unit": "s", "value": 0.500}, "attack_range": {"unit": "cm", "value": 175},
+        "move_speed": {"unit": "cm/s", "value": 260}, "collision_radius": {"unit": "cm", "value": 40}, "leash_radius": {"unit": "cm", "value": 1050},
+        "lose_target_grace": {"unit": "s", "value": 4}, "respawn": {"unit": "s", "value": 90}, "reward_xp": 180, "reward_gold": 135,
+        "hp_regen": {"unit": "hp/s", "value": 0}, "max_mp": {"unit": "mp", "value": 0}, "mp_regen": {"unit": "mp/s", "value": 0}, "ap": {"unit": "points", "value": 0}, "crit_chance": {"unit": "ratio", "value": 0}
       }
     ],
     "placements": [
+      {"anchor_id": "e01", "monster_id": "monster_advisor"},
+      {"anchor_id": "e02", "monster_id": "monster_advisor"},
+      {"anchor_id": "e03", "monster_id": "monster_advisor"},
+      {"anchor_id": "e04", "monster_id": "monster_advisor"},
       {"anchor_id": "h01", "monster_id": "monster_guardian"},
       {"anchor_id": "h02", "monster_id": "monster_guardian"},
       {"anchor_id": "h03", "monster_id": "monster_guardian"},
@@ -585,6 +603,10 @@
       {"anchor_id": "h06", "monster_id": "monster_guardian"},
       {"anchor_id": "h07", "monster_id": "monster_guardian"},
       {"anchor_id": "h08", "monster_id": "monster_guardian"},
+      {"anchor_id": "h09", "monster_id": "monster_guardian"},
+      {"anchor_id": "h10", "monster_id": "monster_guardian"},
+      {"anchor_id": "h11", "monster_id": "monster_guardian"},
+      {"anchor_id": "h12", "monster_id": "monster_guardian"},
       {"anchor_id": "l03", "monster_id": "monster_scavenger"},
       {"anchor_id": "l04", "monster_id": "monster_scavenger"},
       {"anchor_id": "l05", "monster_id": "monster_scavenger"},
@@ -607,7 +629,7 @@
   },
   "boss": {
     "id": "monster_dean",
-    "hp": {"unit": "hp", "value": 1500}, "armor": {"unit": "points", "value": 30}, "magic_resist": {"unit": "points", "value": 30}, "attack": {"unit": "points", "value": 70},
+    "hp": {"unit": "hp", "value": 4500}, "armor": {"unit": "points", "value": 30}, "magic_resist": {"unit": "points", "value": 30}, "attack": {"unit": "points", "value": 210},
     "attack_interval": {"unit": "s", "value": 1.5}, "attack_windup": {"unit": "s", "value": 0.5}, "attack_range": {"unit": "cm", "value": 250},
     "move_speed": {"unit": "cm/s", "value": 225}, "collision_radius": {"unit": "cm", "value": 40}, "aggro_radius": {"unit": "cm", "value": 400},
     "attacker_memory": {"unit": "s", "value": 5}, "appear_at": {"unit": "s", "value": 60}, "reward_xp": 300, "reward_gold": 250,
@@ -622,7 +644,7 @@
   "world": {
     "map_id": "demo_world",
     "spawn_ids": ["s00", "s01", "s02", "s03", "s04", "s05", "s06", "s07", "s08", "s09", "s10", "s11"],
-    "camp_ids": ["h01", "h02", "h03", "h04", "h05", "h06", "h07", "h08", "l03", "l04", "l05", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22"],
+    "camp_ids": ["e01", "e02", "e03", "e04", "h01", "h02", "h03", "h04", "h05", "h06", "h07", "h08", "h09", "h10", "h11", "h12", "l03", "l04", "l05", "l08", "l09", "l10", "l11", "l12", "l13", "l14", "l15", "l16", "l17", "l18", "l19", "l20", "l21", "l22"],
     "shop_ids": ["shop_n", "shop_s"],
     "capture_id": "capture"
   },
@@ -701,6 +723,7 @@
     {"id": "burn", "namespace": "DemoContent", "name_key": "burn.name", "name_text": "灼烧", "description_key": "burn.description", "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。", "icon_id": "icon_burn"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "追着办卡的私教", "description_key": "monster_guardian.description", "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_guardian"},
+    {"id": "monster_advisor", "namespace": "DemoContent", "name_key": "monster_advisor.name", "name_text": "催毕设的导师", "description_key": "monster_advisor.description", "description_text": "守在外圈高台的最强野怪，血厚手重：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_advisor"},
     {"id": "monster_dean", "namespace": "DemoContent", "name_key": "monster_dean.name", "name_text": "画饼老板", "description_key": "monster_dean.description", "description_text": "开局一分钟后出现，沿四个公开巡逻点巡逻。谁打它就追谁，否则打身边最近的人。全场只有一次，最后一击的人“吃到大饼”。", "icon_id": "icon_monster_dean"},
     {"id": "root", "namespace": "DemoContent", "name_key": "root.name", "name_text": "定身", "description_key": "root.description", "description_text": "裤子被扒了，忙着提：不能移动和冲刺，但仍可以普攻和放技能。", "icon_id": "icon_root"},
     {"id": "shield", "namespace": "DemoContent", "name_key": "shield.name", "name_text": "护盾", "description_key": "shield.description", "description_text": "先替你挡下伤害，被打穿或到时间就没了。", "icon_id": "icon_shield"},

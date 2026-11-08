@@ -29,7 +29,7 @@ ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWayp
 MAX_ANCHORS = 128
 # #97: forests of body-sized trunks need well over a thousand blockers.
 MAX_BLOCKERS = 2048
-ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 32), "Shop": (1, 8), "Capture": (1, 1), "Dorm": (1, 8),
+ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Shop": (1, 8), "Capture": (1, 1), "Dorm": (1, 8),
                  "Airdrop": (1, 16), "BossWaypoint": (4, 4)}
 # A blocker is a convex polygon prism (walls, stalls) or an upright cylinder (trees); each carries its own height and
 # movement/sight classification.

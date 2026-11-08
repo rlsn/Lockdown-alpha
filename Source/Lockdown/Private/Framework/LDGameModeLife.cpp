@@ -209,6 +209,7 @@ bool ALDGameMode::KillCauseOf(const FLDCommittedDeath& Fact, ELDKillCause& OutCa
             return false;
         }
         OutCause = Monster->Tier == ELDDemoCampTier::Boss ? ELDKillCause::Boss
+            : Monster->Tier == ELDDemoCampTier::Elite ? ELDKillCause::CampElite
             : Monster->Tier == ELDDemoCampTier::High ? ELDKillCause::CampHigh : ELDKillCause::CampLow;
     }
     Error.Reset();
@@ -859,7 +860,7 @@ bool ALDGameMode::SpawnCampMembers(const TArray<FLDCampMemberSpawn>& Spawns, con
             return false;
         }
         const FLDVictimKey Victim{ELDVictimKind::CampMember, Spawn.EntityId, (Life ? Life->Life : 0) + 1};
-        if (!Combat->PrepareCampMemberBody(*Body, Victim, Spawn.MonsterId, Permit, Prepared.Emplace_GetRef(), Error))
+        if (!Combat->PrepareCampMemberBody(*Body, Victim, Spawn.MonsterId, Spawn.CampStage, Permit, Prepared.Emplace_GetRef(), Error))
         {
             return false;
         }

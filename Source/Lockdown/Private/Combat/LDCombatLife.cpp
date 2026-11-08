@@ -4,6 +4,7 @@
 #include "Combat/LDTacticalRules.h"
 #include "Character/LDCharacter.h"
 #include "Character/LDCharacterMovementComponent.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Framework/LDGameMode.h"
@@ -135,7 +136,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     return true;
 }
 
-bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,
+bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictimKey& Victim,FName MonsterId,uint8 CampStage,
     const FLDGameplayWritePermit& Permit,FLDBodyCombatState& Out,FString& Error) const
 {
     Out={};
@@ -153,8 +154,17 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
         if (Pair.Value.Victim.EntityId==Victim.EntityId)
         { Error=TEXT("This camp member already has a registered Combat body."); return false; }
     }
-    const FLDDemoMonsterDefinition* Monster=nullptr;
-    if (!Content->FindMonster(MonsterId.ToString(),Monster,Error)) { return false; }
+    const FLDDemoMonsterDefinition* BaseMonster=nullptr;
+    if (!Content->FindMonster(MonsterId.ToString(),BaseMonster,Error)) { return false; }
+    // #97: this life's stats at its spawn stage; the Boss is not a camp and only ever takes stage 0.
+    FLDDemoMonsterDefinition Grown;
+    if ((BaseMonster->Tier==ELDDemoCampTier::Boss && CampStage!=0)
+        || !LDCampGrowth::ScaleBody(Content->Get().Parameters,*BaseMonster,CampStage,Grown,Error))
+    {
+        if (Error.IsEmpty()) { Error=TEXT("The Boss does not take camp growth."); }
+        return false;
+    }
+    const FLDDemoMonsterDefinition* Monster=&Grown;
     if (Monster->HPP2<=0 || Monster->MaxMPP2<0 || Monster->AttackWindupMs<=0 || Monster->AttackIntervalMs<=Monster->AttackWindupMs)
     {
         Error=TEXT("The approved monster definition has no executable body values.");
@@ -164,6 +174,7 @@ bool ALDCombatDirector::PrepareCampMemberBody(ALDCharacter& Body,const FLDVictim
     State.Identity=FGuid::NewGuid();
     State.Victim=Victim;
     State.MonsterId=MonsterId;
+    State.CampStage=CampStage;
     auto& Final=State.AttributeProjection.Final;
     Final.MaxHPP2=Monster->HPP2;
     Final.MaxMPP2=Monster->MaxMPP2;

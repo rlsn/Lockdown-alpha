@@ -57,7 +57,7 @@ namespace LDDemoWorld
     constexpr int32 MaxLevel = 2;
     // #97 anchor counts follow the authored world within these bounds (at least one spawn per match seat, one
     // capture, exactly four Boss waypoints).
-    constexpr int32 MaxAnchors = 128, MinSpawns = 6, MaxSpawns = 32, MaxCamps = 32, MaxShops = 8, MaxDorms = 8,
+    constexpr int32 MaxAnchors = 128, MinSpawns = 6, MaxSpawns = 32, MaxCamps = 48, MaxShops = 8, MaxDorms = 8,
         MaxAirdrops = 16, BossWaypoints = 4, MaxBlockers = 2048;
     // Actor tag of every generated plateau and ramp floor piece; the base ground keeps its surface id tag.
     inline const FName TerrainTag(TEXT("LDDemoTerrain"));
