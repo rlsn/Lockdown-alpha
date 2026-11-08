@@ -1,15 +1,21 @@
 #include "Region/LDMapRegistry.h"
 #include "Framework/LDDemoEntry.h"
 #include "Character/LDCharacter.h"
+#include "Combat/LDCombatDirector.h"
+#include "Framework/LDGameMode.h"
+#include "World/LDCampDirector.h"
+#include "World/LDCampMember.h"
 #include "AssetCompilingManager.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "FileHelpers.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/PackageName.h"
 #include "Misc/ScopeExit.h"
+#include "UObject/UnrealType.h"
 #include <limits>
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundQueryParity, "Lockdown.Rules.DemoGround.ParityAndCache",
@@ -229,5 +235,102 @@ bool FLDGroundQueryParity::RunTest(const FString& Parameters)
         ELDWorldQueryFailure::NotGrounded, ELDWorldQueryFailure::WrongSurface, ELDWorldQueryFailure::InvalidSurface,
         ELDWorldQueryFailure::InvalidCapsule, ELDWorldQueryFailure::InvalidPosition})
     { Passed &= TestTrue(TEXT("Corpus actually exercises rejection/success ") + FString::FromInt(int32(Required)), Seen.Contains(Required)); }
+    return Passed;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDGroundBossBodyTest, "Lockdown.Rules.DemoGround.BossBodyAdmission",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDGroundBossBodyTest::RunTest(const FString& Parameters)
+{
+    UWorld* World = UEditorLoadingAndSavingUtils::LoadMap(
+        FPackageName::LongPackageNameToFilename(LDDemoEntry::WorldMap, FPackageName::GetMapPackageExtension()));
+    if (!TestNotNull(TEXT("Saved Demo world"), World)) { return false; }
+    FlushAsyncLoading();
+    FAssetCompilingManager::Get().FinishAllCompilation();
+    auto* Registry = World->GetSubsystem<ULDMapRegistry>();
+    FString Error;
+    if (!Registry || !TestTrue(TEXT("Native ground binding"), Registry->Rebuild(Error))) { return false; }
+    auto* Mode = World->SpawnActor<ALDGameMode>();
+    auto* Driver = World->SpawnActor<ALDCombatDirector>();
+    auto* Camps = World->SpawnActor<ALDCampDirector>();
+    if (!Mode || !Driver || !Camps) { AddError(TEXT("Body-admission fixture actors did not spawn.")); return false; }
+    auto* Authority = FindFProperty<FObjectPropertyBase>(UWorld::StaticClass(), TEXT("AuthorityGameMode"));
+    if (!TestNotNull(TEXT("Engine authority binding"), Authority)) { return false; }
+    UObject* PreviousMode = Authority->GetObjectPropertyValue_InContainer(World);
+    Authority->SetObjectPropertyValue_InContainer(World, Mode);
+    ON_SCOPE_EXIT
+    {
+        Camps->EndMatch();
+        Mode->Camps = nullptr;
+        Authority->SetObjectPropertyValue_InContainer(World, PreviousMode);
+        Camps->Destroy();
+        Driver->Destroy();
+        Mode->Destroy();
+    };
+    Mode->MatchContext = {1, FGuid::NewGuid()};
+    Mode->Camps = Camps;
+    Mode->Combat = Driver;
+    if (!TestTrue(TEXT("Real camp and separate Boss state initialization"),
+        Camps->BeginMatch(Mode->GetMatchContext(), 0, Error))) { return false; }
+    const FLDCombatBodyRef Ref{{ELDVictimKind::CampMember, Camps->Boss.EntityId, 1}, FGuid::NewGuid()};
+    if (!TestTrue(TEXT("Boss is alive in its separate state"),
+        Camps->Boss.Spawned(Ref, Camps->Boss.Rules.AppearAtMs))) { return false; }
+    const auto& Site = Registry->Sites()[0];
+    FCollisionShape Capsule;
+    if (!ULDMapRegistry::ContentCapsule(*Camps->Content, Capsule, Error)) { AddError(Error); return false; }
+    FActorSpawnParameters Spawn;
+    Spawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+    auto* Body = World->SpawnActor<ALDCampMemberCharacter>(ALDCampMemberCharacter::StaticClass(),
+        Site.Position + FVector(0, 0, Capsule.GetCapsuleHalfHeight() + 2.15), FRotator::ZeroRotator, Spawn);
+    if (!TestNotNull(TEXT("Native Boss body"), Body)
+        || !TestTrue(TEXT("Approved body dimensions"), Body->ConfigureDemoMovement(*Camps->Content, Error))) { return false; }
+    Camps->Bodies.Add(Ref.Victim.EntityId, Body);
+    FLDBodyCombatState CombatBody;
+    CombatBody.Identity = Ref.BodyIdentity;
+    CombatBody.Victim = Ref.Victim;
+    Driver->Bodies.Add(Body, MoveTemp(CombatBody));
+    auto& Life = Mode->Lives.Add(Ref.Victim.EntityId);
+    Life.Kind = ELDVictimKind::CampMember;
+    Life.Phase = ELDLifePhase::Alive;
+    Life.Life = Ref.Victim.Life;
+    Life.Body = Ref;
+    Life.Actor = Body;
+    auto* Movement = Body->GetCharacterMovement();
+    Movement->SetUpdatedComponent(Body->GetCapsuleComponent());
+    Movement->SetMovementMode(MOVE_Walking);
+    Movement->FindFloor(Body->GetActorLocation(), Movement->CurrentFloor, false);
+    if (!TestTrue(FString::Printf(TEXT("Real walkable native support: valid=%d query=%d location=%s hit=%s"),
+        Movement->HasValidData(), Body->GetCapsuleComponent()->IsQueryCollisionEnabled(), *Body->GetActorLocation().ToString(),
+        *Movement->CurrentFloor.HitResult.ToString()), Movement->CurrentFloor.IsWalkableFloor())) { return false; }
+    ALDCharacter* Resolved = nullptr;
+    bool Passed = TestTrue(TEXT("Core resolves the Boss, despite its absence from the camp roster"),
+        Mode->ResolveBody(Mode->GetMatchContext(), Ref, Resolved) == ELDCommitReject::None
+        && Resolved == Body && !Camps->State.FindLiving(Ref) && Camps->Boss.IsBody(Ref));
+    for (int32 Repeat = 0; Repeat < 2; ++Repeat)
+    {
+        ALDCampDirector::FMemberRead Read;
+        const uint64 Before = Registry->GroundQueryCountForTests();
+        const bool Readable = Camps->ReadBody(Site.Surface, Ref, Read, Error);
+        Passed &= TestTrue(TEXT("ReadBody accepts the registered Boss: ") + Error,
+            Readable && Error.IsEmpty() && Read.Body == Body && Read.bGrounded
+            && Read.SurfaceId == Site.Surface && Read.FootCm == Movement->GetActorFeetLocation());
+        Passed &= TestEqual(TEXT("The Boss without a home-reset cycle still reuses stationary ground"),
+            Registry->GroundQueryCountForTests() - Before, uint64(Repeat == 0 ? 1 : 0));
+    }
+    Life.Phase = ELDLifePhase::Dead;
+    ALDCampDirector::FMemberRead Read;
+    Passed &= TestFalse(TEXT("A dead Boss cannot use its cached result"), Camps->ReadBody(Site.Surface, Ref, Read, Error));
+    Life.Phase = ELDLifePhase::Alive;
+    FLDCombatBodyRef Stale = Ref;
+    Stale.BodyIdentity = FGuid::NewGuid();
+    Passed &= TestFalse(TEXT("A stale Boss body identity is still rejected"), Camps->ReadBody(Site.Surface, Stale, Read, Error));
+    Camps->Boss.Phase = ELDBossPhase::Down;
+    Passed &= TestFalse(TEXT("Core registration alone cannot admit a body missing from both world-owner states"),
+        Camps->ReadBody(Site.Surface, Ref, Read, Error));
+    Camps->Boss.Phase = ELDBossPhase::Alive;
+    Mode->Lives.Remove(Ref.Victim.EntityId);
+    Passed &= TestFalse(TEXT("A world-owner body without core registration is rejected"),
+        Camps->ReadBody(Site.Surface, Ref, Read, Error));
     return Passed;
 }

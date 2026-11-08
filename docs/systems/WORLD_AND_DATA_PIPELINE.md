@@ -128,6 +128,7 @@ Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、
 `QueryGround` 先做保守 AABB 预筛，仍由原有 sweep、静态 overlap 和候选 floor 的窄相位给出结果与拒绝文本。
 `QueryBodyGround` 只供已经解析为当前存活身体的调用者复用几何结果，键包含 match、完整身体引用、
 营地已完成的 reset epoch、精确脚点和 surface；身体胶囊按该局不可变内容计算一次，仍与注册胶囊核对。
+独立 Boss 必须同时通过 Boss 身体身份和核心存活注册检查；它没有营地 reset 周期，使用 epoch 0。
 死亡后的引用由核心解析拒绝，新生命、重开、reset 完成或 Rebuild（即使作者 revision 未变）不复用旧结果。
 Demo 的查询相关静态碰撞来自保存的世界，局中不生成、移除或移动；动态身体与观测代理是 Pawn 且忽略地面通道，
 空投、标记、尸体表现和装饰无碰撞，因此它们的变化不影响该缓存。未来若增加动态地面支持或可变 WorldStatic 几何，

@@ -19,6 +19,7 @@ REQUIRED_TESTS = frozenset(
     {
         "Lockdown.Rules.ArtCatalog",
         "Lockdown.Rules.DemoGround.ParityAndCache",
+        "Lockdown.Rules.DemoGround.BossBodyAdmission",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
         "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
         "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",

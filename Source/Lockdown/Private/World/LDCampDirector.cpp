@@ -174,7 +174,8 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     ALDCharacter* Resolved = nullptr;
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
     const FLDCampMemberState* Member = State.FindLiving(Ref);
-    if (!Mode || !Body || !Registry || !Member || Mode->ResolveBody(State.GetMatch(), Ref, Resolved) != ELDCommitReject::None
+    if (!Mode || !Body || !Registry || (!Member && !Boss.IsBody(Ref))
+        || Mode->ResolveBody(State.GetMatch(), Ref, Resolved) != ELDCommitReject::None
         || Resolved != Body)
     {
         if (Error.IsEmpty()) { Error = TEXT("A living camp member is not the core's current registered body."); }
@@ -191,7 +192,7 @@ bool ALDCampDirector::ReadBody(FName SurfaceId, const FLDCombatBodyRef& Ref, FMe
     FLDLegalGround Ground;
     ELDWorldQueryFailure Failure = ELDWorldQueryFailure::None;
     FString GroundError;
-    if (Registry->QueryBodyGround(State.GetMatch(), Ref, Member->ResetThroughEpoch, *Content,
+    if (Registry->QueryBodyGround(State.GetMatch(), Ref, Member ? Member->ResetThroughEpoch : 0, *Content,
         Out.FootCm, SurfaceId, Ground, Failure, GroundError))
     {
         Out.bGrounded = Registry->IsTerrainFloor(Movement->CurrentFloor.HitResult.GetComponent());
