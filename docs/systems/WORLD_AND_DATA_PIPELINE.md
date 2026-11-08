@@ -212,9 +212,13 @@ ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、�
 共享 `FNumbers` 按符号和正幅值比较，避开锁定 UE 负数关系运算的错误/递归，不修改共享引擎。
 几何负坐标、正负分数和 int64 边界由原生专用规则覆盖。
 
-`RunTests.ps1` 调用 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache`：
+`RunTests.ps1` 调用
+`ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache --profile <runtime|full>`：
 按导出所读全部输入的哈希取缓存目录，逐个文件核对哈希后复用，输入或文件有任何变化就导出到新的临时目录，与导出实际写出的文件清单一致后再发布；
 `--output <全新 Artifacts 子目录>` 仍可一次性导出。
+普通规则使用 `runtime`，只写 `base`、`approved_base`、`exact_gold`、`world_spawn_shift`
+和一个用于保持拒绝索引形状的轻量用例；
+只有 5 个数据导入测试使用 `full` 的完整有效变异与拒绝矩阵。
 只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content；原生测试只读夹具，
 需要改源文件的往返检查先把 base 用例复制到 `Intermediate` 下的临时目录。
 向原生自动化传 `-LDDemoContentFixtures="<该目录>"`，执行

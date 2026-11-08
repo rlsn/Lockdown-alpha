@@ -52,8 +52,8 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 
 | 目的 | 命令 |
 | --- | --- |
-| 原生规则测试（必需集合见 `Scripts\CheckRuleReport.py`） | `.\Scripts\RunTests.ps1` |
-| 开发中只跑相关规则测试（部分运行，不算门禁；节奏见[开发指南](docs/DEVELOPMENT.md#开发循环与验证节奏)） | `.\Scripts\RunTests.ps1 -Filter <测试路径前缀>…`；`-ImportTests Auto` 在数据导入输入未改动时跳过 5 个数据导入测试 |
+| 原生规则测试（默认按改动决定是否跳过 5 个重导入测试） | `.\Scripts\RunTests.ps1`；完整导入门禁显式用 `-ImportTests Run` |
+| 开发中只跑相关规则测试（部分运行，不算门禁；节奏见[开发指南](docs/DEVELOPMENT.md#开发循环与验证节奏)） | `.\Scripts\RunTests.ps1 -Filter <测试路径前缀>…` |
 | 内容与世界生成器检查 | `python -B .\Scripts\SyncDemoWorldData.py --check`，`python -B .\Scripts\SyncDemoContentData.py --check` |
 | Python 测试 | `python -B -m unittest discover -s .\Scripts -p "Test*.py"` |
 | 试玩日志整理（房主与客户端日志合并成每局时间线） | `python -B .\Scripts\SummarizePlaytestLog.py <日志或目录>…`，见[开发指南](docs/DEVELOPMENT.md#试玩问题排查) |

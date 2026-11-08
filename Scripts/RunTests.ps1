@@ -1,13 +1,13 @@
 # Runs the Lockdown.Rules automation tests in a headless editor and checks the report against CheckRuleReport.py.
-#   .\Scripts\RunTests.ps1                                  # the gate: every required test
+#   .\Scripts\RunTests.ps1                                  # change-scoped gate; heavy imports only when needed
 #   .\Scripts\RunTests.ps1 -Filter Lockdown.Rules.DemoGrowth # development only: tests under these path prefixes
-#   .\Scripts\RunTests.ps1 -ImportTests Auto                # leave out the data-import group unless its inputs changed
+#   .\Scripts\RunTests.ps1 -ImportTests Run                  # explicit complete gate, including data imports
 # A -Filter run is partial and never a gate. -ImportTests Skip/Auto decide only the data-import group (CheckRuleReport
 # IMPORT_TESTS); Auto asks CIChangeScope.py whether this worktree changed any of its inputs since its merge base with
 # -Base, the same decision the PR check makes.
 [CmdletBinding()]
 param([string]$EngineRoot, [ValidateSet('Lockdown.Rules')][string]$Suite='Lockdown.Rules', [ValidateRange(30,1800)][int]$TimeoutSeconds=900,
-    [string[]]$Filter, [ValidateSet('Run','Skip','Auto')][string]$ImportTests='Run', [string]$Base='origin/main')
+    [string[]]$Filter, [ValidateSet('Run','Skip','Auto')][string]$ImportTests='Auto', [string]$Base='origin/main')
 . (Join-Path $PSScriptRoot 'Common.ps1')
 $engine = Resolve-LDEngine $EngineRoot
 Assert-LDEditorModules
@@ -28,10 +28,11 @@ if ($LASTEXITCODE -ne 0) { throw 'CheckRuleReport.py could not plan the selected
 $plan = $planText | ConvertFrom-Json
 if ($plan.partial) { Write-Host "PARTIAL RUN, NOT A GATE: $($plan.count) of $($plan.required) required rule tests ($($Filter -join ', '))." }
 if (@($plan.skipped_import).Count) { Write-Host "Leaving out the data-import group: $($plan.skipped_import -join ', ')." }
+Write-Host "Native fixture profile: $($plan.fixture_profile)."
 $output = New-LDArtifactDirectory 'Automation'
 $reportPath = Join-Path $output 'Report'
-# Fixtures are reused from the cache while every input they are built from is unchanged; tests only read them.
-$export = @(& python -B (Join-Path $PSScriptRoot 'ExportDemoNativeFixtures.py') --cache (Join-Path (Get-LDProjectRoot) 'Artifacts/DemoContentFixtureCache'))
+# Runtime rules export only base/approved/dev-reload cases; import tests request the complete mutation matrix.
+$export = @(& python -B (Join-Path $PSScriptRoot 'ExportDemoNativeFixtures.py') --cache (Join-Path (Get-LDProjectRoot) 'Artifacts/DemoContentFixtureCache') --profile $plan.fixture_profile)
 if ($LASTEXITCODE -ne 0) { throw "Native Demo content fixtures failed to export: $($export -join ' ')" }
 $export | Where-Object { $_ -notmatch '^FIXTURES=' } | Out-Host
 $fixtureLine = @($export | Where-Object { $_ -match '^FIXTURES=' })

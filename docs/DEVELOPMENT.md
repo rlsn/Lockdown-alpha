@@ -285,36 +285,42 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 
 验证按阶段分层，避免每次小改动都跑整套（#160）：
 
-- **开发中**：增量 `BuildEditor.ps1`，加上只跑相关测试的 `RunTests.ps1 -Filter <测试路径前缀>`
-  （可给多个，例如 `-Filter Lockdown.Rules.DemoGrowth,Lockdown.Rules.HUDScoreboard`）。
-  带 `-Filter` 的运行会明确报告“PARTIAL RUN, NOT A GATE”，只用于开发，不能当作 PR 的验证结果。
-- **交付前**（PR 转为 ready 前）：跑一次 `BuildEditor.ps1 -FullUnity` 和不带参数的完整 `RunTests.ps1`。
-- **场景**：只跑改动涉及领域的 `RunDemo*Check.ps1`（对照上表），每个 PR 在 ready 前跑一次；
-  不涉及场景覆盖的系统时不跑。
+- **开发中**：先完成一批连贯改动，再跑一次增量 `BuildEditor.ps1`；行为稳定后只跑相关测试的
+  `RunTests.ps1 -Filter <测试路径前缀>`（可给多个，例如
+  `-Filter Lockdown.Rules.DemoGrowth,Lockdown.Rules.HUDScoreboard`）。不要在每次小编辑后重复构建或测试。
+  带 `-Filter` 的运行会明确报告“PARTIAL RUN, NOT A GATE”；它是 PR 的受影响测试证据，但不代替 CI 门禁。
+- **PR 转 Ready 前**：本地只补齐一次增量 `BuildEditor.ps1` 和受影响的规则前缀；保持 Draft 直到改动稳定，
+  避免每次推送都占用自托管 runner。CI 在 Ready 后负责更宽的规则门禁。本地不再重复跑 `-FullUnity`
+  或完整规则套件。
+- **场景**：只有网络、交易、成长、胜负等必须证明真实拥有连接的改动，或 Issue 明确要求的专项，
+  才在 PR 前跑对应 `RunDemo*Check.ps1`；同一行为通过后，纯文案、注释或无冲突同步不重跑。
+  其余场景集中到里程碑/发布验收。
 - **合并 main 之后**：无冲突地 merge main 后，不必在本地重跑整套验证，由 PR 检查的 CI 跑构建和规则测试。
   有冲突，或冲突涉及生成文件（`Content/Lockdown/Data`、生成资产、`*Contract.h`）时，才重跑相关检查；
   生成文件按[数据修改](#数据修改)沿 Sync 入口重新生成，不手工拼接。
 - **共用机器**：同一台机器上最多 2 个会话同时做重验证（构建、完整规则测试、场景），场景运行彼此错开；
   另见上文[多人共用一台机器](#多人共用一台机器)的编辑器与构建进程上限。
 
-`RunTests.ps1` 中有 5 个数据导入测试（`CheckRuleReport.py` 的 `IMPORT_TESTS`：
+`RunTests.ps1` 默认使用 `-ImportTests Auto`。其中有 5 个数据导入测试（`CheckRuleReport.py` 的 `IMPORT_TESTS`：
 `DemoContent.TypedProjection/StrictRefusal/AtomicAssetRoundTrip` 与 `DemoWorld.TypedProjection/AtomicAssetRoundTrip`），
 它们把全部导出夹具经原生导入器逐个导入，占一次完整运行的大半时间。
 它们只读 SourceData、生成的 Demo 数据、夹具导出脚本及其 import、导入器原生源码（由 `CIChangeScope.py`
 从导入器文件按 `#include` 闭包算出；闭包只按改动后的代码计算，所以删除或改名掉的原生源文件一律算作输入）、规则测试 runner 与构建配置。`RunTests.ps1 -ImportTests Auto`
 用 `CIChangeScope.py --worktree` 比较当前工作区（含未提交与未跟踪文件）与 `origin/main` 的合并基点，
-这些输入都没变时跳过该组，其余必需测试照常全部运行；`-ImportTests Skip` 直接跳过，`Run`（默认）照常运行。
+这些输入都没变时跳过该组，其余必需测试照常全部运行；`-ImportTests Skip` 直接跳过，
+`-ImportTests Run` 显式运行完整导入门禁。没有运行导入组时，runner 只生成 `base`、`approved_base`、
+`exact_gold`、`world_spawn_shift` 四个运行规则所需有效夹具和一个轻量拒绝夹具，不再生成全部 rank 变异和拒绝用例。
 PR 检查用同一判定，改到这些输入的 PR 一定会跑该组。
 
 ### 合并前与里程碑检查
 
 每个 PR 至少要跑过 `BuildEditor.ps1` 和受影响的规则测试，并写明新增的测试名。
-改动较大的 PR，以及每个里程碑交付前，跑一轮下面的检查：
+每个里程碑交付、每日包/发布或明确要求的专项验证前，跑一轮下面的检查：
 
 ```powershell
 .\Scripts\BuildEditor.ps1 -FullUnity
 .\Scripts\BuildGame.ps1 -FullUnity
-.\Scripts\RunTests.ps1
+.\Scripts\RunTests.ps1 -ImportTests Run
 python -B -m unittest discover -s .\Scripts -p "Test*.py"
 .\Scripts\BootstrapAssets.ps1
 .\Scripts\RunDemoVisionCheck.ps1     # 截图：HUD、身份色、装饰与环境
@@ -350,10 +356,12 @@ Growth 场景在真实拥有客户端上核对方向卡面与隐藏分配边界�
 并运行 `python -B -m unittest discover -s .\Scripts -p TestRuleReport.py` 核对源码注册与报告拒绝路径。
 带 `-Filter` 或跳过数据导入组时，`CheckRuleReport.py --plan` 先核对源码注册与必需集合完全一致，
 再把所选用例换算成 `Automation RunTests` 的锚定过滤（`^前缀.`、`^完整名$`），报告必须恰好包含所选用例。
-原生测试夹具由 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache` 提供：
+原生测试夹具由 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache --profile <runtime|full>` 提供：
 按它读取的全部输入（自身及 `Scripts` 内的 import、`SourceData`、生成的 Demo 数据、原生 ID 与 contract 头文件）的哈希建目录。
 清单记录导出过程实际写出的每个文件及其哈希，发布前与暂存目录逐一比对；每次使用前再逐个核对，输入不变时直接复用，任何输入或文件变化都会重新导出。
 保留当前和上一份；别的运行正在写的暂存目录（`*.tmp`）不清理，超过 6 小时才视为遗留并删除。
+`runtime` 只写普通规则与 `DemoContent.DevReload` 需要的四个有效用例和一个轻量拒绝用例；选中任一 `IMPORT_TESTS` 时自动改用 `full`，
+生成完整有效变异与拒绝矩阵。
 原生测试只读这些夹具（需要改源文件的检查先复制到 `Intermediate` 下的临时目录）。
 需要更具体的选择、网络条件或打包路径时，先查看相关脚本参数，不把所有昂贵场景作为每次文档改动的门槛。
 Core、Combat、Camp、Growth、Capture、Vision、Opponent 和 SessionFault 这 8 个 `RunDemo*Check.ps1`

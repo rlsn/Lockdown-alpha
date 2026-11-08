@@ -40,6 +40,7 @@ foreach($script in @('Preflight','BuildEditor','BuildGame','BootstrapAssets','Ru
     $arguments=@{EngineRoot=$engine}
     if($script -eq 'BootstrapAssets'){$arguments.Mode='Validate'}
     if($script -in @('BuildEditor','BuildGame')){$arguments.MaxParallelActions=$MaxParallelActions}
+    if($script -eq 'RunTests'){$arguments.ImportTests='Run'}
     & (Join-Path $checkout "Scripts/$script.ps1") @arguments
 }
 if((& git -C $checkout status --porcelain)){throw 'Verification modified tracked checkout files'}

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from CheckRuleReport import (IMPORT_TESTS, MAX_FILTER_CHARS, REQUIRED_TESTS, automation_filter, check_registrations,
-                             check_report, select_tests)
+                             check_report, fixture_profile, select_tests)
 
 
 class RuleReportTests(unittest.TestCase):
@@ -140,6 +140,8 @@ class NarrowedRunTests(unittest.TestCase):
         self.assertIn("Lockdown.Rules.DemoContent.DevReload", selected)
         self.assertEqual(select_tests(["Lockdown.Rules.DemoContent"], skip_import=True),
                          {name for name in REQUIRED_TESTS if name.startswith("Lockdown.Rules.DemoContent.")} - IMPORT_TESTS)
+        self.assertEqual(fixture_profile(selected), "runtime")
+        self.assertEqual(fixture_profile(REQUIRED_TESTS), "full")
 
     def test_every_prefix_selection_runs_exactly_its_tests(self):
         groups = {".".join(name.split(".")[:3]) for name in REQUIRED_TESTS}

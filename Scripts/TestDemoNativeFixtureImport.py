@@ -203,6 +203,19 @@ class DemoNativeFixturesTest(unittest.TestCase):
 
 
 class DemoNativeFixtureParallelismTest(unittest.TestCase):
+    def test_runtime_profile_exports_only_runtime_rule_cases(self):
+        artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
+        artifacts.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="export-runtime-test-", dir=artifacts) as temp:
+            root = Path(temp) / "runtime"
+            index = native.export(root, profile="runtime")
+            self.assertEqual([case["name"] for case in index["valid"]],
+                             ["base", "approved_base", "exact_gold", "world_spawn_shift"])
+            self.assertEqual([case["name"] for case in index["invalid"]], ["unknown_root_field"])
+            self.assertEqual(native._file_hashes(root),
+                             {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+                              for path in root.rglob("*") if path.is_file()})
+
     def test_parallel_export_writes_the_same_bytes_as_inline_export(self):
         artifacts = demo.ROOT / "Artifacts" / "DemoNativeCatalog"
         artifacts.mkdir(parents=True, exist_ok=True)
@@ -237,7 +250,7 @@ class DemoNativeFixtureCacheTest(unittest.TestCase):
         self.exports = []
         self.lose_file = False
 
-    def fake_export(self, output, *, jobs=None, written=None):
+    def fake_export(self, output, *, profile="full", jobs=None, written=None):
         output = Path(output)
         self.assertFalse(output.exists())
         (output / "base").mkdir(parents=True)
@@ -249,9 +262,10 @@ class DemoNativeFixtureCacheTest(unittest.TestCase):
             (output / "base" / "native_expected.json").unlink()
         self.exports.append(output)
 
-    def cached(self, key):
-        with mock.patch.object(native, "export", self.fake_export), mock.patch.object(native, "cache_key", lambda root=None: key):
-            return native.export_cached(self.temp / "cache")
+    def cached(self, key, profile="full"):
+        with mock.patch.object(native, "export", self.fake_export), \
+                mock.patch.object(native, "cache_key", lambda root=None, profile="full": key):
+            return native.export_cached(self.temp / "cache", profile=profile)
 
     def test_unchanged_inputs_reuse_the_export(self):
         first, reused = self.cached("a" * 64)
@@ -322,6 +336,7 @@ class DemoNativeFixtureCacheTest(unittest.TestCase):
             self.assertIn(required, inputs)
         base = native.cache_key(root)
         self.assertEqual(native.cache_key(root), base)
+        self.assertNotEqual(native.cache_key(root, "runtime"), base)
         (root / "docs").mkdir()
         (root / "docs" / "note.md").write_text("not an input", encoding="utf-8")
         self.assertEqual(native.cache_key(root), base)
