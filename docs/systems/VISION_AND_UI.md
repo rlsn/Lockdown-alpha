@@ -156,6 +156,16 @@ Final/过期回执）解除等待。
 高级行在已学高级时写“高级（已生效）：”）与属性面板的被动行使用同一渲染；
 属性卡显示服务器给出的绿/蓝/紫/金品质、对应颜色和缩放后的正向属性，负面代价保持蓝色基准值。
 `LDHUDModel`、`LDHUD`、`LDMinimap`、`LDUIRoot` 及各 Panel 是主要 UMG/Slate 入口。
+
+小地图的地面底色/当前覆盖与静态地形分开合成，保持“底色 → 覆盖 → 半透明区域填充 → 轮廓”的层次。
+`LDMinimap` 在 tick 中将静态填充与轮廓用原来的 Slate 扫描线、实线/虚线及抗锯齿栅格化为透明 render target；
+仅世界身份/布局/几何 revision、地面边界、view scale、控件尺寸或显示 DPI 变化时重建，固定缩放下转向不重建。
+纹理按显示 DPI 生成并留出轮廓抗锯齿边缘，经现有 north-up `Plane` 几何旋转后只提交一个 box；
+使用与 Slate retainer 相同的 gamma-space、premultiplied-alpha 合成，避免半透明填充重复乘 alpha 或改变颜色。
+视野覆盖使用独立 128×128 最近邻纹理，逐格保留授权 `CurrentBits`，以接收端观察 serial 与本人 Match/Life 去重上传；
+paint 再次检查当前帧状态及 Match/Life，死亡、过期或他局帧立即不画旧纹理，不保留探索层。
+固定地点图标保持直立；自身、可见单位、镜头框及公开事件标记仍逐帧经同一 view 绘制。
+`Lockdown.Rules.Minimap.StaticInvalidation/CoverageTexture` 覆盖静态失效键、覆盖逐格颜色/位序、上传去重键与权限清除。
 属性、三选一、砍一刀小摊三个普通主面板由 `LDHUD` 创建并停靠在自身画布上（命中测试只算面板本体），
 并向 `ULDUIRoot::RegisterMainPanel` 登记；同一时刻只开一个，权威事件用 `ShowMainPanel` 打开，
 不会顶掉玩家随后打开的菜单或设置。
