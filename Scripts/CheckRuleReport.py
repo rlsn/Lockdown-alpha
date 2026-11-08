@@ -289,6 +289,8 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.Minimap.RoundTrip",
         "Lockdown.Rules.Minimap.FitsFrame",
         "Lockdown.Rules.Minimap.WholeGround",
+        "Lockdown.Rules.Minimap.StaticInvalidation",
+        "Lockdown.Rules.Minimap.CoverageTexture",
         "Lockdown.Rules.ViewPrivacySchema",
         "Lockdown.Rules.WorldFeedback.Priming",
         "Lockdown.Rules.WorldFeedback.OwnDamageAndHeal",

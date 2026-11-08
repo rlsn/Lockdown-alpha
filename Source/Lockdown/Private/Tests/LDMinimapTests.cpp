@@ -1,4 +1,5 @@
 #include "UI/LDMinimap.h"
+#include "../UI/LDMinimapRaster.h"
 #include "Misc/AutomationTest.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
@@ -216,6 +217,64 @@ bool FLDMinimapWholeGroundTest::RunTest(const FString& Parameters)
     for(const FVector2D Corner:{FVector2D(2.,2.),FVector2D(Frame.X-2.,2.),FVector2D(2.,Frame.Y-2.),FVector2D(Frame.X-2.,Frame.Y-2.)})
     {TestFalse(TEXT("A frame corner beside the diamond is not ground, so a press there reaches the world"),LDMinimap::OnGround(View,Corner,Ground));}
     TestFalse(TEXT("An invalid view shows no ground"),LDMinimap::OnGround(LDMinimap::FView(),Frame*.5,Ground));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapStaticInvalidationTest,"Lockdown.Rules.Minimap.StaticInvalidation",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDMinimapStaticInvalidationTest::RunTest(const FString& Parameters)
+{
+    LDMinimapRaster::FStaticKey Key;
+    Key.Ground=MinimapFixtureFit;Key.FrameSize=MinimapFixtureFrame;Key.Scale=.025;Key.PixelScale=1.5f;
+    Key.World.MapId=TEXT("minimap");Key.World.LayoutRevision=3;Key.World.GeometryRevision=7;
+    TestTrue(TEXT("An unchanged world and layout reuse the texture"),Key.Matches(Key));
+    TestFalse(TEXT("An unbuilt texture key cannot match"),LDMinimapRaster::FStaticKey().Matches(Key));
+    auto Changed=Key;Changed.Ground.Min.X-=1.;TestFalse(TEXT("Ground origin invalidates"),Key.Matches(Changed));
+    Changed=Key;Changed.Ground.Max.Y+=1.;TestFalse(TEXT("Ground extent invalidates"),Key.Matches(Changed));
+    Changed=Key;Changed.Scale*=1.01;TestFalse(TEXT("View scale invalidates"),Key.Matches(Changed));
+    Changed=Key;Changed.FrameSize.X+=1.;TestFalse(TEXT("Widget size invalidates"),Key.Matches(Changed));
+    Changed=Key;Changed.PixelScale=2.f;TestFalse(TEXT("Display DPI invalidates"),Key.Matches(Changed));
+    Changed=Key;++Changed.World.LayoutRevision;TestFalse(TEXT("World layout revision invalidates"),Key.Matches(Changed));
+    Changed=Key;++Changed.World.GeometryRevision;TestFalse(TEXT("World geometry revision invalidates"),Key.Matches(Changed));
+    Changed=Key;Changed.World.MapId=TEXT("other");TestFalse(TEXT("World identity invalidates"),Key.Matches(Changed));
+    for(const double Yaw:MinimapFixtureYaws)
+    {
+        Changed=Key;
+        Changed.Scale=LDMinimap::MakeView(ELDMinimapOrientation::Facing,Key.Ground,Key.FrameSize,-45.,true,Yaw).Scale;
+        auto Reference=Changed;
+        Reference.Scale=LDMinimap::MakeView(ELDMinimapOrientation::Facing,Key.Ground,Key.FrameSize,-45.,true,0.).Scale;
+        TestTrue(TEXT("Turning at constant scale reuses the north-up raster"),Changed.Matches(Reference));
+    }
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDMinimapCoverageTextureTest,"Lockdown.Rules.Minimap.CoverageTexture",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDMinimapCoverageTextureTest::RunTest(const FString& Parameters)
+{
+    TArray<uint8> Bits;Bits.Init(0,LDObservation::CoverageBytes);
+    TArray<FColor> Pixels;
+    for(int32 I=0;I<LDObservation::CoverageCells;++I){if((I%128)%2==(I/128)%2){LDObservation::SetCoverageBit(Bits,I);}}
+    TestTrue(TEXT("Exact 2048 byte coverage builds 128 squared pixels"),LDMinimapRaster::CoveragePixels(Bits,Pixels)&&Pixels.Num()==16384);
+    const FColor Visible=LDMinimapRaster::CoverageColor().ToFColorSRGB(),Hidden=LDMinimapRaster::GroundColor().ToFColorSRGB();
+    for(int32 I=0;I<Pixels.Num();++I)
+    {if(!TestTrue(TEXT("Low-bit-first row-major cells retain exact colors and opaque alpha"),Pixels[I]==(LDObservation::CoverageBit(Bits,I)?Visible:Hidden))){return false;}}
+    Bits.Init(0,LDObservation::CoverageBytes);
+    TestTrue(TEXT("A new empty coverage replaces every old cell"),LDMinimapRaster::CoveragePixels(Bits,Pixels));
+    for(const FColor& Pixel:Pixels){if(!TestTrue(TEXT("No remembered coverage"),Pixel==Hidden)){return false;}}
+    Bits.SetNum(LDObservation::CoverageBytes-1);
+    TestFalse(TEXT("Malformed coverage is rejected, never success-shaped"),LDMinimapRaster::CoveragePixels(Bits,Pixels));
+    TestTrue(TEXT("Malformed coverage clears the output"),Pixels.IsEmpty());
+    const LDMinimapRaster::FCoverageKey Key{12,4,9};
+    TestTrue(TEXT("An unchanged authorized frame does not upload again"),Key.Matches(12,4,9));
+    TestFalse(TEXT("A new observation serial uploads"),Key.Matches(13,4,9));
+    TestFalse(TEXT("A new match cannot reuse coverage"),Key.Matches(12,5,9));
+    TestFalse(TEXT("A new life cannot reuse coverage"),Key.Matches(12,4,10));
+    TestFalse(TEXT("Cleared coverage cannot reuse an old upload"),LDMinimapRaster::FCoverageKey().Matches(12,4,9));
+    FLDWorldView Frame;Frame.MatchGeneration=4;Frame.ObserverLife=9;
+    FLDObservedFrameRead Read;Read.Frame=&Frame;Read.Status=ELDObservedViewStatus::Current;
+    TestTrue(TEXT("Only current authorized living coverage is readable"),LDMinimapRaster::AuthorizedFrame(true,4,9,Read)==&Frame);
+    TestNull(TEXT("Death hides uploaded coverage immediately"),LDMinimapRaster::AuthorizedFrame(false,4,9,Read));
+    TestNull(TEXT("Another match is hidden"),LDMinimapRaster::AuthorizedFrame(true,5,9,Read));
+    TestNull(TEXT("Another life is hidden"),LDMinimapRaster::AuthorizedFrame(true,4,10,Read));
+    Read.Status=ELDObservedViewStatus::Stale;
+    TestNull(TEXT("Expired coverage is hidden"),LDMinimapRaster::AuthorizedFrame(true,4,9,Read));
     return true;
 }
 #endif
