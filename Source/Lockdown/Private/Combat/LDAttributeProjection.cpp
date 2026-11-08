@@ -246,14 +246,14 @@ private:
             {
                 return Refuse(EError::UnknownDefinition, Field, LookupError);
             }
-            const FString SourceKey = FString::Printf(TEXT("%s:%u"), *Card.AttributeId, uint8(Card.Quality));
+            if (Card.Count < 1 || !LDDemoAttributeQuality::IsValid(Card.Quality))
+            {
+                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry needs a valid quality and at least one card"));
+            }
+            const FString SourceKey = FString::Printf(TEXT("%s:%u"), *Attribute->Id, uint8(Card.Quality));
             if (CardSources.Contains(SourceKey))
             {
                 return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" and quality are listed more than once"));
-            }
-            if (Card.Count < 1 || Card.Quality == ELDAttributeQuality::None)
-            {
-                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry needs a quality and at least one card"));
             }
             CardSources.Add(SourceKey);
             Cards.Add(Attribute);
@@ -427,14 +427,18 @@ private:
         for (int32 Index = 0; Index < Cards.Num(); ++Index)
         {
             const FLDAttributeCardValue& Card = Build.AttributeCards[Index];
-            const int64 MultiplierBp = Card.Quality == ELDAttributeQuality::Green ? P.Choice.AttributeGreenMultiplierBp
-                : Card.Quality == ELDAttributeQuality::Blue ? P.Choice.AttributeBlueMultiplierBp
-                : Card.Quality == ELDAttributeQuality::Purple ? P.Choice.AttributePurpleMultiplierBp
-                : Card.Quality == ELDAttributeQuality::Gold ? P.Choice.AttributeGoldMultiplierBp
-                : 0;
+            const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
+            int64 MultiplierBp = 0;
+            switch (Card.Quality)
+            {
+            case ELDAttributeQuality::Green: MultiplierBp = P.Choice.AttributeGreenMultiplierBp; break;
+            case ELDAttributeQuality::Blue: MultiplierBp = P.Choice.AttributeBlueMultiplierBp; break;
+            case ELDAttributeQuality::Purple: MultiplierBp = P.Choice.AttributePurpleMultiplierBp; break;
+            case ELDAttributeQuality::Gold: MultiplierBp = P.Choice.AttributeGoldMultiplierBp; break;
+            default: return Refuse(EError::InputDomain, Field, TEXT("An attribute card has an undefined quality"));
+            }
             const FExact Count = Numbers.Value(Card.Count);
             const FExact ScaledCount = Numbers.Mul(Count, Numbers.Value(MultiplierBp, 10000));
-            const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
             for (const FLDDemoStatBonus& Bonus : Cards[Index]->Stats)
             {
                 if (!AddBonus(Bonus, &FAttributeSum::Choices, ScaledCount, Field))

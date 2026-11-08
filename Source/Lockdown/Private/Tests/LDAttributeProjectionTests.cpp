@@ -999,8 +999,18 @@ bool RunRefusals(FAutomationTestBase& Test)
         EError::UnknownDefinition, TEXT("AttributeCards[0]"));
     bGood &= Refused(TEXT("Duplicate attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 1),
         Cards(TEXT("attr_protein"), 1)}), EError::DuplicateSource, TEXT("AttributeCards[1]"));
+    bGood &= Refused(TEXT("Case-folded IDs cannot duplicate the same attribute and quality"),
+        MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 1), Cards(TEXT("Attr_Protein"), 1)}),
+        EError::DuplicateSource, TEXT("AttributeCards[1]"));
     bGood &= Refused(TEXT("Zero-count attribute card entry"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 0)}),
         EError::InputDomain, TEXT("AttributeCards[0]"));
+    for (const uint8 Quality : {uint8(0), uint8(5), uint8(255)})
+    {
+        const FString Label = FString::Printf(TEXT("Undefined attribute quality %u"), Quality);
+        bGood &= Refused(*Label, MakeBuild(10, {}, {
+            FLDAttributeCardValue(TEXT("attr_protein"), 1, static_cast<ELDAttributeQuality>(Quality))}),
+            EError::InputDomain, TEXT("AttributeCards[0]"));
+    }
     bGood &= Refused(TEXT("Level 1 holds only its opening choice: two cards exceed it"), MakeBuild(1, {}, {Cards(TEXT("attr_protein"), 2)}),
         EError::InputDomain, TEXT("ChoiceBudget"));
     bGood &= Refused(TEXT("Eleven cards exceed ten choices"), MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 11)}),
@@ -1012,6 +1022,16 @@ bool RunRefusals(FAutomationTestBase& Test)
     bGood &= Refused(TEXT("Twenty-one AD cards are refused before any attribute bound"),
         MakeBuild(10, {}, {Cards(TEXT("attr_protein"), 21)}), EError::InputDomain, TEXT("ChoiceBudget"));
     FLDAttributeProjection Projection;
+    for (const ELDAttributeQuality Quality : {ELDAttributeQuality::Green, ELDAttributeQuality::Blue,
+        ELDAttributeQuality::Purple, ELDAttributeQuality::Gold})
+    {
+        const FString Label = FString::Printf(TEXT("Defined attribute quality %u"), uint8(Quality));
+        bGood &= ProjectBuild(Test, Label, MakeBuild(1, {}, {
+            FLDAttributeCardValue(TEXT("attr_protein"), 1, Quality)}), *Catalog, Projection);
+    }
+    bGood &= ProjectBuild(Test, TEXT("One attribute family may have distinct qualities, even with case-folded IDs"),
+        MakeBuild(2, {}, {FLDAttributeCardValue(TEXT("attr_protein"), 1, ELDAttributeQuality::Green),
+            FLDAttributeCardValue(TEXT("Attr_Protein"), 1, ELDAttributeQuality::Gold)}), *Catalog, Projection);
     bGood &= ProjectBuild(Test, TEXT("A level-1 build with its opening card"),
         MakeBuild(1, {}, {Cards(TEXT("attr_protein"), 1)}), *Catalog, Projection);
     bGood &= ProjectBuild(Test, TEXT("A build exactly at the visible choice bound"),

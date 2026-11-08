@@ -79,7 +79,7 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 | 十点等概率、允许重复的开局与复活抽样 | 不按危险、视野或距离筛点；只处理合法落地与防重叠 |
 | 等级 1 至 16；开局一次、每次升级一次，最多 16 次三选一 | 设计 XP 曲线与卡位规则（§4.7）；不额外赠送选择，免费重抽只在 5、11 级各给一次 |
 | Q/W/E 最多 3 个角色主动；每个角色技能只有初级、高级两档 | 新主动满槽时明确替换，旧技能及等级遗忘；新主动与重新获取的技能都从初级开始 |
-| 被动没有独立槽位上限 | 只能受十次选择与技能等级约束，不以 UI 或实现数组容量添加产品上限 |
+| 被动没有独立槽位上限 | 只能受十六次选择与技能等级约束，不以 UI 或实现数组容量添加产品上限 |
 | 最多 2 件装备、没有背包；装备没有主动技能 | 满槽先卖再买，不能自动替换 |
 | 野怪最后一击独得经验与金币；参赛者击杀另有助攻（#112）；每条生命的击杀与助攻奖励一起只发一次 | 不加附近分摊、按伤害比例分成或回位奖励 |
 | 死亡保留等级、XP、金币、技能、装备及待选机会 | 冷却继续经过服务器时间；死亡只损失等待与位置 |
@@ -290,7 +290,7 @@ Ready比较用原始时间或安全的floor当前毫秒，不能用ceil当前桶
 ## 4. 技能、状态和属性目录
 
 **2026-11-07 用户批准 [#147](https://github.com/rlsn/Lockdown-alpha/issues/147) 的 v7 构筑重做，并由 #166 调整成长与现有条目数值，未经平衡测试。**
-D1–D9、D11–D15、D17–D23 采用推荐项；D10 沉默只禁止 Q/W、计入硬控递减，并打断喷漆；D16 名字采用主表左列。
+D1–D9、D11–D15、D17–D23 采用推荐项；D10 沉默只禁止 Q/W/E（#166 增加 E 槽）、计入硬控递减，并打断喷漆；D16 名字采用主表左列。
 当前已批准目录为18个主动、16个被动、12个属性家族；各条目的目标、两档数值和规则以本节为准。
 设计依据、离线模型与风险见 #147 的 v7 方案，离线样例摘要见 §7.1。运行输入是 `content.json`，本节与其一致。
 
@@ -459,7 +459,7 @@ v7 §2 的开局 5 秒倒计时与开局卡不在本目录的运行输入中；�
 
 尺度词：“身边”= 以自己为圆心 300cm，只用于自身周围的范围效果；指向单位的技能一律写“目标”；“一段冲刺”= 350cm。
 
-**沉默（D10）**：只禁止施放 Q/W；不禁止移动、普攻、D 冲刺、买卖和三选一。前摇中被沉默则取消，不扣法力和冷却；
+**沉默（D10）**：只禁止施放 Q/W/E；不禁止移动、普攻、D 冲刺、买卖和三选一。前摇中被沉默则取消，不扣法力和冷却；
 排队的技能轮到时按当时状态判定，被拒绝则跳过。沉默计入硬控递减，并在施加瞬间清零喷漆进度。
 我没急不能解除沉默。头顶显示“沉默”图标，技能栏变灰并显示锁。
 
@@ -719,24 +719,24 @@ Root（定身）在施加瞬间清零被定身者的喷漆进度；若他仍独�
 
 ### 6.1 经验与击杀
 
-`XP.Start=0`，`XP.MaxLevel=10`、`CHOICE.MaxCount=10` 是 Spec 固定值
-（`content.json` 的 `progression.xp_start / max_level / max_choices`，另有 `max_skill_rank=2`、`active_slots=2`、`equipment_slots=2`）。
+`XP.Start=0`，`XP.MaxLevel=16`、`CHOICE.MaxCount=16` 是 Spec 固定值
+（`content.json` 的 `progression.xp_start / max_level / max_choices`，另有 `max_skill_rank=2`、`active_slots=3`、`equipment_slots=2`）。
 XP 保留为累计整数；没有“当前级经验归零后丢掉溢出”的第二账。
 
-| 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `XP.Threshold[L]` | 0 | 80 | 180 | 300 | 440 | 600 | 780 | 980 | 1200 | 1440 |
-| 该级到下级 XP | 80 | 100 | 120 | 140 | 160 | 180 | 200 | 220 | 240 | 不再升级 |
+| 达到等级 L | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `XP.Threshold[L]` | 0 | 80 | 180 | 300 | 440 | 600 | 780 | 980 | 1200 | 1440 | 1700 | 1980 | 2280 | 2600 | 2940 | 3300 |
+| 该级到下级 XP | 80 | 100 | 120 | 140 | 160 | 180 | 200 | 220 | 240 | 260 | 280 | 300 | 320 | 340 | 360 | 不再升级 |
 
 阈值保存在 `progression.xp_thresholds`，并须与参数 `XP.BaseToNext=80`、`XP.IncreasePerLevel=20`（`FORMULA.XPToNext`）一致。
 比赛开始时（成长 `BeginMatch`，即 Progression 提供者 Prepare，早于发育期开放）每名参赛者（真人与 AI）获得 1 号机会并固定其首张三选一；
-之后每达到 k 级授予 k 号机会，已获机会数恒等于等级，最高十次；复活不再授予，新局重建。真人的开局面板在本局首次显示该 Offer 时自动打开一次，不代选。
+之后每达到 k 级授予 k 号机会，已获机会数恒等于等级，最高十六次；复活不再授予，新局重建。真人的开局面板在本局首次显示该 Offer 时自动打开一次，不代选。
 1 号机会（开局）按 §4.7.1 的方向卡规则抽取（#153，2026-11-07 用户批准）；方向与可进卡池主动各不少于三个，
 不足时 `BeginMatch` 明确拒绝，不借用其他类别补足。之后各次机会按 §4.7 的卡位规则抽取（`LDProgression::DrawOffer`）。
 DEV 成长夹具可预置三组（方向卡、隐藏主动）对，但可见报价及日志仍只列方向；不把 DEV 预置当作随机分布证据。
-`reroll_levels` 严格递增且在 2–10 级之间，开局方向永远不接受重抽。
-升十级以后继续记录合法奖励的累计XP，但不能生成第十一次选择。
-累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和、不转金币；UI十级显示MAX而非暗示11级。
+`reroll_levels` 为 5、11 级，开局方向永远不接受重抽。
+升十六级以后继续记录合法奖励的累计XP，但不能生成第十七次选择。
+累计存储有界int64，溢出在整个奖励计划提交前明确拒绝，不静默饱和、不转金币；UI十六级显示MAX而非暗示17级。
 野怪奖励全部归最后一击，表中“每人平均”只能用于供给估计，不是实现经验分摊。
 参赛者之间的击杀按 App Spec §4.1 的助攻规则（#112，参考 LoL）在同一笔死亡奖励中结算：击杀者拿全额 `REWARD.PlayerGold`；
 另生成 $\lfloor PlayerGold \times REWARD.AssistGoldRatio\rfloor$ 的助攻金币，由 $n$ 名助攻者平分并各自向下取整；
@@ -875,6 +875,8 @@ D17 采用的首轮节奏目标带：同级裸身吃完整一套（2 技能 + 3 
 
 ### 7.2 普攻开荒与战力样例
 
+本节是此前目录和营地布局下的离线示例，不代表 #166 目录或当前世界的实测结果。
+
 下表是**固定等级、最后命中后而奖励成长投影前**的成本夹具，不是把整场游戏等级冻结。
 离散模型使用精确有理数、毫秒向上周期、每次伤害向下.01、回复余数；
 玩家先于第一个伤害前的满血回复不存银行。假设所有攻击者已在合法互攻距离内、无走位、
@@ -904,6 +906,8 @@ L7折叠椅（摔跤同款）+防弹秋裤对L3裸角色为7.493s/9次；反向�
 
 ### 7.3 发育期供给：不能把孤狼模型当六人保证
 
+本节供给估算基于下列旧营地数量与假设，不是当前世界和 #166 目录的重新复算。
+
 用上表L1清营时间构造可复算**固定服务时间情景**：五营地分别在刷新就绪后立即开打，每组反复使用
 “清空时间+刷新等待”；逐只死亡即时发奖。没有路程、缺血休整、击杀争夺或错过刷新。
 因此下表不是玩家真实收益，也不是全员均分规则；后续成长/群攻可以加快清营，前两行不是全局供给上限。
@@ -923,8 +927,8 @@ L7折叠椅（摔跤同款）+防弹秋裤对L3裸角色为7.493s/9次；反向�
 开局320金币可直接买防弹秋裤或折叠椅（摔跤同款）；首个低营后有380金币，可改买360金币商品；
 连续三个低营合计500金币。一级每个高营比低营额外花约4.4s并承担明显更多耗血。
 
-1440累计XP达到十级；三级以后每次所需只线性增加20，避免把九次升级选择藏在过长尾部。
-但资源供给不是保证经验到账；完整多人对局时长、首购分位数、十次选择体验仍须真实玩法测试。
+1440累计XP达到十级，3300达到十六级；每级所需从80起线性增加20。
+但资源供给不是保证经验到账；完整多人对局时长、首购分位数、十六次选择体验仍须真实玩法测试。
 
 ### 7.4 取整、资源与冷却反例
 
@@ -1000,7 +1004,7 @@ $T(D)=\min(D,450)/2250+\max(0,D-450)/372$；冲刺冷却9s，返场途中只用�
 | E01 | `SourceData\Demo\content.json`、`content.schema.json`、`native_ids.json` | 唯一作者输入：1角色、18主动、16被动、12属性卡、13装备、2野怪与1个Boss、成长/奖励/商店参数与政策；没有第二作者源 |
 | E02 | `Scripts\DemoContent.py`、`Scripts\SyncDemoContentData.py`、`Scripts\CatalogTools.py` | reader 以 `Decimal`/整数解析数值并拒绝 NaN/Infinity、bool 冒充整数与超精度，再转规范定点树交 `CatalogTools.encode`；Sync 生成载荷、manifest 与原生契约并可 `--check` |
 | E03 | `Public\Development\LDDemoContentCatalog.h`、`LDDemoContentDefinitions.h`、`LDDemoContentIds.h`；`Private\Development\LDDemoContentImport.cpp`、`LDDemoContentValidation.cpp`、`LDDemoContentContract.h` | `ULDDemoContentCatalog`（DataAsset）加载不可变 `FLDDemoContentSnapshot` 并按根摘要核验；原生 ID 只追加（技能 92–113、属性卡 15–22、装备 99–106 与 108–112），退役的技能 0–91、属性卡 0–14、物品 0–98 与装备 107、113–114 不复用 |
-| E04 | `Public\Development\LDProgressionRules.h`、`LDDevelopmentDirector.h`、`LDGrowthProtocol.h` | `FLDGrowthBuild`（等级、Q/W 主动、被动 rank、属性卡计数）、XP→等级、合法池/三选一抽样、替换遗忘；定义 ID 线格式为 63 字节 `FLDDefinitionWire` |
+| E04 | `Public\Development\LDProgressionRules.h`、`LDDevelopmentDirector.h`、`LDGrowthProtocol.h` | `FLDGrowthBuild`（等级、Q/W/E 主动、被动 rank、属性卡计数）、XP→等级、合法池/三选一抽样、替换遗忘；定义 ID 线格式为 63 字节 `FLDDefinitionWire` |
 | E05 | `Public\Combat\LDAttributeProjection.h`、`Public\Combat\LDTacticalRules.h` | 单一属性投影（含 AP/暴击/Haste/射程）与伤害、普攻节拍、冷却时长、Root/屏障/回复规则；伤害结果分离 `DamageP2 / ShieldAbsorbedP2 / HPLostP2` |
 | E06 | `Private\Combat\LDCombatActions.cpp`、`LDCombatEffects.cpp`、`LDCombatSources.cpp`、`LDCombatLife.cpp` | 按批准 effect op（`ELDDemoEffectOp`）执行主动/被动；来源冷却轨道 `FLDCombatTrack` 与构筑安装 `PrepareBuildChange/ApplyBuildChange` |
 | E07 | `Public\Economy\LDEconomyLedger.h`、`LDEconomyDirector.h` | int64 账本、精确条款与预期修订、原子 Prepare/Apply、审计前缀压缩/复算；死亡奖励按 DeathKey 一次结算，无全局有限奖励池 |
@@ -1034,7 +1038,7 @@ $T(D)=\min(D,450)/2250+\max(0,D-450)/372$；冲刺冷却9s，返场途中只用�
 | --- | --- | --- |
 | `character`、`UNIT.*`、`STAT.*`、`FORMULA.*` | 基值、成长、完整量纲、边界、普攻、回复/伤害/冷却公式 ID | `FLDGrowthBuild` 输入 Combat 的单一属性投影（`LDAttributeProjection`），UI/AI 只读 |
 | `abilities`、`ABILITY.*` | 每项显式两份完整 rank（初级/高级）；target、windup、费用/CD、各 typed effect、来源/生命周期；固定数值按 `SKILL.GrowthPerLevel` 随等级成长 | 统一技能目录投影和所选原生 handler，不只映射一个 RankKey |
-| `attributes`、`CHOICE.*`、`XP.*`、`progression` | 正确整数阈值、卡位概率、永久增量、最多十次机会（含开局一次） | `ALDDevelopmentDirector` 的服务器 Offer 与 `LDProgressionRules`；客户端不能上传任意 Build |
+| `attributes`、`CHOICE.*`、`XP.*`、`progression` | 正确整数阈值、卡位概率、永久增量、最多十六次机会（含开局一次） | `ALDDevelopmentDirector` 的服务器 Offer 与 `LDProgressionRules`；客户端不能上传任意 Build |
 | `equipment`、`ITEM.*`、`SHOP.*` | 价格、预算卖价、属性、被动、重复/堆叠 | `ALDVendorDirector`/`LDEconomy::FLedger` 的两件真实实例与 Combat 来源，不建立影子背包 |
 | `camps`、`CAMP.Low.*`、`CAMP.High.*`、`REWARD.*` | 构成/战斗/每生命收益/清空刷新/回位，五个锚点引用 | 营地域与 Combat 产生致死事实，`ALDEconomyDirector::CommitDeathReward` 单一奖励提交 |
 | `timing`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` | 秒制作者参数及公式；不混入地图坐标或当前 deadline | 现有对局时钟、生命与喷漆/守护域，不创建第二时钟 |
@@ -1080,7 +1084,7 @@ Generation/参赛生命代次Life仍为uint32，原生身体/效果GUID等不同
 | 记录 | 建议完整身份/责任 |
 | --- | --- |
 | 当前可用来源 `AbilitySourceKey` | 角色：match + contender + learned definition |
-| 入口映射 | Q/W 只映射到上述当前来源；不是独立能力或冷却 |
+| 入口映射 | Q/W/E 只映射到上述当前来源；不是独立能力或冷却 |
 | 角色冷却债务 | match + contender + learned definition；保存绝对 ReadyAt，与 Pawn、槽位和遗忘/重学解耦 |
 | 通用冲刺冷却 | match + contender 唯一一条 `Innate` 轨道，开局即签发且就绪；不随构筑变化绑定/解绑，换装不改写已提交 ReadyAt |
 | 已释放效果 `EffectContext` | match、施放者 contender/source life、cast/effect ID、定义/rank/handler revision、源属性快照、目标 life、伤害实际归属与 tick ordinal |
@@ -1191,7 +1195,7 @@ DeathTax/掉物/有限奖励等旧死亡与奖励政策、旧启动/打包依赖
 | `ABILITY.*` 的 MP/时间/族 → cost/timing/source 投影 | `LDCombatActions`（释放扣费）、`LDCombatSources`（`FLDCombatTrack` 冷却轨道） | 负费用、毫秒不可精确表示、零重复周期、非法来源/族、分配失败 | 拒绝不扣；release一次扣MP/CD；改技能ManaCost确实改变MP；换槽/重学不能重置 |
 | 被动/`EFFECT.*`/`POLICY.*` → typed trigger/stack/life 规则 | `LDCombatEffects`、`LDCombatSources`、`LDTacticalRules`（Root/屏障/回复） | 未支持事件、递归、模糊source、未知状态/stack族 | 第二件同名被动不重复；吸血只用hp_lost；Root只禁指定操作；回位/死亡正确清状态 |
 | `ITEM.*.BuyPrice`、`SHOP.*` → economic terms | `ALDVendorDirector`（会话/报价/Buy/Sell/回执）与 `LDEconomy::FLedger`；`SHOP.StartingGold` 由 `FLedger::Initialize` 写入 | 错金额类型、无套利失败、旧报价、满容量、死亡/越界、重复消费 | 实际余额/实例/能力同步增减；0/1/2件与同款两件正确；第三件拒绝；失败无半步 |
-| `XP.*`、`REWARD.*`、`CHOICE.*`、`progression` → progression/reward/offer 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（机会/Offer/选择）、`ALDEconomyDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；击杀者与助攻者的XP与金币一起一次提交；10机会/10级边界/替换/死亡候选保留 |
+| `XP.*`、`REWARD.*`、`CHOICE.*`、`progression` → progression/reward/offer 投影 | `LDProgressionRules`、`ALDDevelopmentDirector`（机会/Offer/选择）、`ALDEconomyDirector::CommitDeathReward` | 阈值数量/顺序错、非法候选、旧offer、重放death、溢出 | 开局一次机会+逐阈值真实等级/机会；击杀者与助攻者的XP与金币一起一次提交；16机会/16级边界/替换/死亡候选保留 |
 | `CAMP.*`、`MATCH.*`、`LIFE.*`、`CAPTURE.*` → 内容定义与现有时钟事件 | `ALDCampDirector`/`LDCampLifecycle`/`LDCampDecision`、GameMode 生命与喷漆/守护（`LDGameModeLife`、`LDGameModeCapture`） | 非5组/2档、空组/未知锚点、错距离、旧life、溢出 | 最后成员死亡才起刷新；回位不发奖；超过旧轮数仍工作；同刻事件后再重查喷漆与守护完成 |
 | 定义/handler/family/schema ID → 不可变索引/来源键 | `LDDemoContentIds.h` 原生编号、`FLDDefinitionWire`、`FLDCombatSourceRef` | 重号/复用退役号、大小写别名、超63 bytes、旧digest、伪造实例/来源 | wire身份往返一致、退役请求拒绝、同ID异terms不执行、重学仍读应有债务 |
 | 名称/说明/图标/目标预览 → 本人或获准的表现投影 | `LDDemoContentText`（`DemoContent` 字符串表）、HUD/Panel/观察代理；不能从全量 Build 补敌人 Tooltip | 缺少必需资源、unknown key、越权字段 | 射程/弹宽/护盾期限与真实效果一致；隐藏时清代理/附属特效 |
@@ -1228,7 +1232,7 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 | --- | --- |
 | CB-T01 | 严格输入和每字段 typed投影/行为变异；NaN/Infinity/bool整数/精度损失/unknown op/retired ID拒绝且产物不变 |
 | CB-T02 | 基础角色正常低营首次升级/首购；技能两档、八张属性卡、13 件装备均通过真实效果链，不靠授予演示完整循环 |
-| CB-T03 | 实际目录候选枚举、满Q/W替换、全部rank边界、连升级、关闭/死亡/重发同组；服务器不能接受任意Build草稿 |
+| CB-T03 | 实际目录候选枚举、满Q/W/E替换、全部rank边界、连升级、关闭/死亡/重发同组；服务器不能接受任意Build草稿 |
 | CB-T04 | 同款两实例、基础属性叠加、同名被动一次；源伪造、换槽、重学、死亡/新局的CD，出售/重买的回执 |
 | CB-T05 | 伤害分量、0.01精度、屏障顺序、主击hp_lost吸血、无副击递归/暴击重抽、回复余数、MaxHP/MP同比/零上限/下溢拒绝与往返无收益 |
 | CB-T06 | 每成员last-hit一次XP+Gold、同刻互杀/多来源、来源先死后命中、无owner、断线非击杀、回位非死亡、旧life不可再命中 |
@@ -1282,7 +1286,7 @@ UI 只能按同步服务器时间展示，不能因本地显示到零自行解�
 UI不能硬编码一套伤害或CD公式；最终 `STAT.MoveSpeedCmPerSec`、`STAT.AttackRangeCm`、
 当前资源和来源剩余CD从同一只读投影提供。
 
-可见对手按用户确认显示名称/等级/HP/MP/公开临时状态/装备**定义**，以及 Q/W 两个主动技能的定义与等级（#112 §10；等级为初级或高级）；
+可见对手按用户确认显示名称/等级/HP/MP/公开临时状态/装备**定义**，以及 Q/W/E 三个主动技能的定义与等级（#112 §10；等级为初级或高级）；
 不发送私有物品实例、IssuedCooldownId、被动列表、技能 CD、其他属性贡献或金币。
 永久学习被动不能伪装成“公开状态”泄露技能构筑。失视野清检查目标/锁定并停止该追击订单，
 不保留地图LastSeen单位标记；地图地形/固定地点仍可见。

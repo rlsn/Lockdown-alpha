@@ -279,7 +279,7 @@ enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, Directio
 UENUM()
 enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
 
-// Which cooldown tracks a cooldown_refund shortens: both learned actives (Q/W).
+// Which cooldown tracks a cooldown_refund shortens: all learned actives (Q/W/E).
 UENUM()
 enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
@@ -295,6 +295,15 @@ enum class ELDDemoAbilityKind : uint8 { Active, Passive };
 
 UENUM()
 enum class ELDAttributeQuality : uint8 { None = 0, Green = 1, Blue = 2, Purple = 3, Gold = 4 };
+
+namespace LDDemoAttributeQuality
+{
+    inline bool IsValid(ELDAttributeQuality Quality)
+    {
+        return Quality == ELDAttributeQuality::Green || Quality == ELDAttributeQuality::Blue
+            || Quality == ELDAttributeQuality::Purple || Quality == ELDAttributeQuality::Gold;
+    }
+}
 
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.

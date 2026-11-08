@@ -751,7 +751,7 @@ UI的读取口为 `ALDWorldViewRelay::ReadObservedFrame() const`：
 | 单位字段 | 正式形状/单位与来源 | 禁止混入 |
 | --- | --- | --- |
 | `PublicIdentity` | Contender用公开ContenderId关联Roster名称；Camp用公开CreatureDefinitionId关联catalog名称，不传canonical BodyIdentity | 隐藏身体、技能来源、任意Actor指针 |
-| `Level` | 参赛者为`uint8`且1..10；无等级定义的NPC为显式NotApplicable | 用Camp档位冒充成长等级、用缺值默认1 |
+| `Level` | 参赛者为`uint8`且1..16；无等级定义的NPC为显式NotApplicable | 用Camp档位冒充成长等级、用缺值默认1 |
 | `Resources.Health` | `Applicability + int64 CurrentP2/MaxP2`，直接复用Combat投影，P2=百分之一点 | 重新计算HP、浮点往返/重复取整 |
 | `Resources.Mana` | 同一P2配对；角色读取MP/MaxMP，无此资源定义的NPC为NotApplicable | 把缺失MP写0以伪装已定义/已同步 |
 | `Statuses` | 有界公开StatusDefinitionId/cue、适用堆叠；可见计时状态的期限为服务器毫秒，统一显示控制/保护等实际状态 | 技能表、能力/物品CD、内部被动触发计时、私有来源引用、最终属性/修正器表 |
@@ -777,7 +777,7 @@ Vision在当前授权的同一发布阶段才调用Inventory内部
 从Ledger活实例占位派生仅公开定义；该函数不向客户端或AI策略开放任意目标查询。
 序列化前绑定仍须属于同一Match/目标生命/观察epoch并合法可见；
 交易提交后的可见装备在后续合法视图更新，失视野期间不因私有账本变化继续推送。
-UI和AI均只消费同一record；Q/W与自身属性面板的所有者始终是本人。
+UI和AI均只消费同一record；Q/W/E与自身属性面板的所有者始终是本人。
 对操作域另提供同一观察路径内的有界 `FLDObservedUnitTermination`：
 `Handle + ObservationEpoch + Generation + TerminationSequence + OccurredAtServerMs + Kind=ObservedDeath`。
 只有该观察者在死亡发生时获准观察该目标，且绑定仍对应当时生命，才能产生此终止事实；

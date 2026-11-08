@@ -18,8 +18,8 @@ namespace LDObservation
     // approved content: one observer sees at most the five other contenders (3 humans + 3 AI), the 44 camp members of
     // the 26 camps (8 high x 1, 18 low x 2) and the Boss, 50 units; the wire counts are uint8.
     constexpr int32 MaxUnits = 50;
-    // Every public status a unit can show at once: each definition appears at most once, a contender adds respawn
-    // protection and a camp member camp_returning to the ten combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
+    // Every public status a unit can show at once: each definition appears at most once, and each kind adds its marker
+    // to the combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
     constexpr int32 MaxStatuses = 14;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
@@ -30,7 +30,7 @@ namespace LDObservation
     enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32, Actives = 64 };
     constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
-    // Highest public rank of a Q/W active (APP_SPEC: every character skill tops out at 3); a full rank is the Lv3 mark.
+    // Highest public rank of a Q/W/E active: initial or advanced.
     constexpr uint8 MaxActiveRank = 2;  // #147: 初级 and 高级
 }
 

@@ -241,6 +241,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.LocalSettingsDiagnostics",
         "Lockdown.Rules.LocalSettingsMarkMigration",
         "Lockdown.Rules.LocalSettingsItemKeysMigration",
+        "Lockdown.Rules.LocalSettingsSkillEMigration",
         "Lockdown.Rules.PlaytestLog.Format",
         "Lockdown.Rules.PlaytestLog.RateLimit",
         "Lockdown.Rules.PlaytestLog.PeriodicGate",

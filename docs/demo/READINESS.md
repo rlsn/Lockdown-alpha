@@ -56,7 +56,7 @@
 | D06 | CC0 音效包与主音量设置 | 已实现，17 个音效（含本人普攻出手，[#86](https://github.com/rlsn/Lockdown-alpha/issues/86)）；未做人工试听 |
 | D07 | 小地图朝向设置：跟随镜头（默认）、跟随角色朝向、固定正北 | 已实现 |
 | D08 | CC0 骨骼角色与校园装饰道具，道具只做装饰 | 已实现；旗杆遮挡时淡化 |
-| D10 | 开局三选一：开局一次，每次升级一次，整局最多 10 次 | 已实现，AI 同样处理 |
+| D10 | 开局三选一：开局一次，每次升级一次，原为整局最多 10 次 | 已实现，AI 同样处理；次数上限已由 D35 改为 16 次 |
 | D12 | 旗杆争夺暂停原占领者进度，恢复独占后续计 | 由 D33 的喷漆与守护取代（争夺暂停所有人的喷漆进度，恢复独自喷漆后续计） |
 | D15 | 保持 MOBA 点击操作并打磨手感：点击与悬停标记、按住右键持续移动、施法预输入、可选快速施法（默认关闭） | 已实现 |
 | D16 | 施法那一刻显示技能或装备名称，不显示等级与冷却 | 已实现 |
@@ -86,7 +86,7 @@
 | D33 | #112 构筑与终局重做：构筑不分流派，只用六个机制标签做有上限的抽卡亲和；30 技能（18 主动 + 12 被动）各带 Lv3 质变、13 件装备、14 张复合属性卡；开局 2 主动 + 1 被动，升级三选一按权重抽、每组最多 1 张属性卡，4、7 级各得一次免费重抽；满槽替换新主动从 max(1, 旧等级 − 1) 级开始；每人每局一次装备进阶；参赛者击杀有助攻（15 秒窗口，助攻者平分 50% 基础击杀金币，经验平分）；硬控递减、击退、技能暴击与命中特效不递归等战斗原语；终局改为喷漆 3.5 秒、守护 20 秒，硬控与离区打断喷漆，主人死亡或离局清除涂鸦；可见对手显示 Q/W 主动与等级；AI 满局遥测加入 #112 §13 度量 | 已进入运行输入，数值作为试玩输入，未做平衡测试（[#112](https://github.com/rlsn/Lockdown-alpha/issues/112)）；取代 D12、D22 的占领时长、D24、D28。其中构筑部分（机制标签亲和、30 技能与 Lv3、14 张复合属性卡、按权重抽卡、替换降级）已由 #147 v7 目录取代；装备进阶、助攻、战斗原语、终局与遥测仍在运行输入中。原话（2026-11-05）：“我也认为我们目前深度不够，流派/技能/装备都可以再加一些”；“我其实不想把流派搞得太固定，仿佛一个流派就只有一个最佳玩法一样……你的设计要考虑到灵活搭配，权重可以有但不要太多。而且设计过程中可以稍微模糊一下流派边界，一看就知道是什么流派不太好”；“复合属性卡需要更多你不认为吗”；“最终胜利改为喷漆吧，喷漆需要时间，喷完需要守护一段时间，期间可以打但不打断，只计算连续喷漆存在的时间”；“不考虑延期的问题 - 都做的完”；“助攻算法参考LOL”；“喷漆逻辑不变，要的就是围攻主人”；“主动技能调整降一级，不搞完整继承和反钱”；“连续硬控效果递减可以接受，减速不递减”；“其他问题里提到的都要修” |
 | #147 v7 | 构筑 v7 重做（2026-11-07 用户批准；v7 的 D1–D9、D11–D15、D17–D23 采用推荐项，D10 沉默只禁 Q/W、计入硬控递减并打断喷漆，D16 名字用主表左列）：12 个主动、10 个被动、8 张属性卡；技能两档（初级、高级），固定数值随拥有者等级乘 G(L) = 1 + 0.10 (L − 1)，装备不成长；升级三选一为升级位、新技能位、自由位（40% 属性卡），Q/W 满时新主动权重 ×0.5；满槽替换的新主动从初级开始；卡面主句与“高级：”行由模板按当前等级填数，13 个关键词加粗并可查看解释；沉默、共享破防与灼烧、伤害加成池与吸血上限等战斗原语；机制标签、亲和权重与目录不用的状态和机制删除 | 已实现并进入运行输入（[内容报告 §4](CONTENT_AND_BALANCE.md#4-技能状态和属性目录)），未经平衡测试；对手 AI 会施放全部新主动（`DemoOpponentPolicy.V7Activations`），卡面由 `HUDCardText`、`HUDCardSelfCheck` 覆盖，成长由 `DemoGrowthSkillGrowth` 覆盖。Combat、Growth 场景已改用新条目，尚未在新目录上运行；打包版验收待重新运行 |
 | D34 | 装备全部取消主动，1/2 键移除；充电宝与黑料小本本改为被动 | 实施中（[#147](https://github.com/rlsn/Lockdown-alpha/issues/147)）：装备只提供固定属性与被动；充电宝与黑料小本本的被动等待批准的数值方案，目前只有固定属性。原话（2026-11-07）：“装备全部取消主动（1/2 键移除）；隐身、诱饵、红牛刷新等代码真实删除，充电宝/黑料小本本改成被动” |
-| D35 | #166：16级、16次选择、Q/W/E、分段成长、报价与品质；18主动/16被动/12属性家族，含实际路径冲撞 | 已实现并进入运行输入；132项内容导入/拒绝测试、278项原生门禁、FullUnity、Bootstrap Validate及Growth/Combat/Opponent拥有连接场景通过。Combat由真实客户端验证臭袜飞行、命中与攻速降低；Growth验证Q/W/E填满、拒绝无确认替换、确认替换、遗忘重学与冷却债；AI规则逐项覆盖六个新增主动。装备系统明确排除且13件定义未变。真人平衡与打包版验收仍未运行。 |
+| D35 | #166：16级、16次选择、Q/W/E、分段成长、报价与品质；18主动/16被动/12属性家族，含实际路径冲撞 | 已实现并进入运行输入；当前版本的279项原生门禁（含内容导入）、FullUnity、Bootstrap Validate及Growth拥有连接场景通过。Growth验证Q/W/E填满、拒绝无确认替换、确认替换、遗忘重学与冷却债；AI规则逐项覆盖六个新增主动。Combat和Opponent拥有连接场景在审查修复前的实现版本通过，未在修复后复跑。装备系统明确排除且13件定义未变。真人平衡与打包版验收仍未运行。 |
 
 ## 已确认的实施方向
 
@@ -106,7 +106,7 @@
 | --- | --- | --- | --- |
 | E01 | [LDUIRoot.cpp](../../Source/Lockdown/Private/UI/LDUIRoot.cpp)，`ULDUIRoot::Host`；[LDDemoEntry.cpp](../../Source/Lockdown/Private/Framework/LDDemoEntry.cpp) | Host 只请求 Demo Listen 世界；本地及原生入口拒绝旧 profile/map/GameMode 与缺失/不匹配载荷 | 拒绝路径和前端可用就表示完整 Demo 可以开局 |
 | E02 | [LDGameMode.h](../../Source/Lockdown/Public/Framework/LDGameMode.h)，[LDGameModeSession.cpp](../../Source/Lockdown/Private/Framework/LDGameModeSession.cpp)，[LDGameModeLife.cpp](../../Source/Lockdown/Private/Framework/LDGameModeLife.cpp) | 同一私有记录提供 Match 双身份、三真人准入、Host/Ready/AI 名额和有界会话回执；死亡、复活与成长经 Combat/Development 提供者接入同一记录 | AI 名额配置本身就是自主 AI，或旧死亡/安全出生方法可直接用于 Demo |
-| E03 | [LDProgressionRules.h](../../Source/Lockdown/Public/Development/LDProgressionRules.h)，[LDGrowthProtocol.h](../../Source/Lockdown/Public/Development/LDGrowthProtocol.h)，[LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp) | 等级/经验、持久三选一机会队列、Q/W 与被动构筑、两装备来源与来源失效已实现，经同一账本与回执提交 | 纯值规则或回执通过就等于拥有连接下的成长与商店完成（真实连接见 `RunDemoGrowthCheck.ps1`） |
+| E03 | [LDProgressionRules.h](../../Source/Lockdown/Public/Development/LDProgressionRules.h)，[LDGrowthProtocol.h](../../Source/Lockdown/Public/Development/LDGrowthProtocol.h)，[LDCombatSources.cpp](../../Source/Lockdown/Private/Combat/LDCombatSources.cpp) | 等级/经验、持久三选一机会队列、Q/W/E 与被动构筑、两装备来源与来源失效已实现，经同一账本与回执提交 | 纯值规则或回执通过就等于拥有连接下的成长与商店完成（真实连接见 `RunDemoGrowthCheck.ps1`） |
 | E04 | [LDOrderTypes.h](../../Source/Lockdown/Public/Navigation/LDOrderTypes.h)，[LDNavigationComponent.h](../../Source/Lockdown/Public/Navigation/LDNavigationComponent.h) | `FLDMoveIdentity` 的 Match/Life/Order/Epoch、移动/攻击单位/攻击移动/商店接近订单、导航确认/停止、镜头接口存在 | 订单类型存在就等于拥有连接下的端到端行为（真实连接见 `RunDemoCombatCheck.ps1`） |
 | E05 | [LDCombatTypes.h](../../Source/Lockdown/Public/Combat/LDCombatTypes.h)，[LDCombatActions.cpp](../../Source/Lockdown/Private/Combat/LDCombatActions.cpp)，[LDCombatDriver.cpp](../../Source/Lockdown/Private/Combat/LDCombatDriver.cpp) | 来源/目标/版本请求、动作受理与同一到期边界的命中/死亡提交链 | 公式已批准就等于每个效果的实际命中结果正确（见 `Lockdown.Rules.DemoCombatEvaluation` 与 `RunDemoCombatCheck.ps1`） |
 | E06 | [LDCaptureReducer.h](../../Source/Lockdown/Public/Framework/LDCaptureReducer.h)，[LDGameModeCapture.cpp](../../Source/Lockdown/Private/Framework/LDGameModeCapture.cpp) | 喷漆与守护归约（独自喷漆、争夺暂停、硬控打断、涂鸦覆盖与清除、守护暂停（主人不在区内，2026-11-07 用户决定）、冻结、续计与主人离区清零）、完成提案与唯一结果锁定已实现；旧独占计时与工作/Claim/路线/deadline 目标规则已删除 | 纯归约测试通过就等于拥有连接下的喷漆、守护与终局（真实连接见 `RunDemoCaptureCheck.ps1`） |
@@ -139,10 +139,10 @@
 | 营地反击与回位 | 场景 Camp：未受击不先手、整组反击、拴绳回营只重置一次且不发奖、清营后按批准时长整组刷新，另存回位与刷新截图。规则：`DemoCamp.*`、`CampDecision` | 回营途中的受伤与控制没有拥有连接场景 |
 | 从零发育 | 场景：Camp 中两次低档营地最后一击按批准值发放并升到 2 级；Growth 只靠真实击杀获得经验与金币，完成选择并购买；Opponent 中 AI 从零发育、购物并获胜 | — |
 | 普攻成长 | 场景 Combat：学到伸手党（增加普攻距离）后，右键追击在超出基础射程处命中（待在 #147 v7 目录上重新运行）。规则：`DemoAttributeProjection.*` 覆盖射程加成与群攻被动的来源归属 | 群攻（自拍杆横扫）只有规则层覆盖 |
-| 三选一与重抽 | 规则：`DemoGrowthDraft`（升级位、新技能位、自由位与满槽新主动权重、每组最多 1 张新主动、开局 2 主动 + 1 被动、重抽避开上一组、替换的新主动从初级开始）、`DemoGrowthReroll`（令牌、每组一次、回执重放）。场景：Opponent 的 `HostChoices.png` 截图审阅重抽按钮（开局 0 次时置灰）；Opponent 遥测记录 AI 重抽与替换 | 真人点重抽没有拥有连接场景；遥测中 AI 有令牌时也未用过重抽 |
-| 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 10 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
+| 三选一与重抽 | 规则：`DemoGrowthDraft`（升级位、新技能位、自由位与满槽新主动权重、每组最多 1 张新主动、三张开局方向卡、重抽避开上一组、替换的新主动从初级开始）、`DemoGrowthReroll`（令牌、每组一次、回执重放）。此前的 Opponent 场景审阅过 `HostChoices.png` 重抽按钮；遥测记录 AI 重抽与替换 | 真人点重抽没有拥有连接场景；遥测中 AI 有令牌时也未用过重抽 |
+| 成长边界 | 规则：`DemoGrowthOpening`（开局一次、升级各一次、最多 16 次、新局重抽）与 `DemoGrowth*`（等级与机会、死亡期间确认、替换与重放）。场景 Growth：开局 Offer、死亡等待中确认选择且不复活不治疗；Opponent：每个 AI 开局十秒内处理开局三选一 | 连升多级与满级只在规则层 |
 | 上限变化 | 场景 Growth：死亡期间选择生命上限属性，只在下一条命生效并满血复活。规则：`DemoAttributeProjection.ResourceMaxChange` | 存活时的百分比保持只在规则层 |
-| 技能替换 | 场景 Growth：Q/W 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从初级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*`、`DemoGrowthDraft`（新主动从初级开始） | Growth 场景在 #147 v7 目录上尚未重新运行 |
+| 技能替换 | 场景 Growth：Q/W/E 满槽未确认替换被拒且不消耗机会；确认替换后旧技能及等级遗忘、再学从初级开始，重学沿用原冷却截止时间。规则：`DemoGrowth*`、`DemoGrowthDraft`（新主动从初级开始） | 已在 #166 目录的拥有连接场景验证；真人平衡与打包版未运行 |
 | 装备边界 | 场景 Growth：两槽、同款两件、第三件被拒（EquipmentFull）。规则：`DemoAttributeProjection.DuplicateEquipment` | D 键冲刺与《润学指南》加成没有拥有连接场景 |
 | 装备进阶 | 规则：`DemoGrowthUpgrade`（账本、一次性、生效定义与属性投影、卖出失去）、`DemoCombatSources.InnateDash`（《润学指南》进阶值）。场景 Growth：`Client1ShopUpgrade.png` 截图保存满两件时的商店页面 | 进阶没有拥有连接场景；“再买同款即进阶”与装备格预售（2026-11-06）尚无场景或截图审阅 |
 | 奖励与死亡 | 场景：Growth 一次击杀恰好一次奖励，Listen Host 作为击杀者在本人视图、HUD 与“+X 米 / +X 流量”飘字中看到精确奖励，账本由 `CheckEconomyEvidence.py` 独立复算；Camp 每只每生命一次；Combat 击杀播报。规则：`DemoGrowthLedger` | 死亡后独立效果的存续没有拥有连接场景；真人击杀对手 AI 没有场景（[#89](https://github.com/rlsn/Lockdown-alpha/issues/89)）；助攻分配由规则 `DemoAssist.*` 覆盖，满员局 `HostKillAssist.png` 只截到播报，助攻奖励只在遥测与规则层 |

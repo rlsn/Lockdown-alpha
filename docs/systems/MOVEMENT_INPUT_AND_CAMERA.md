@@ -242,7 +242,7 @@ Pawn 复制暂时缺失（包括本地仍显示 Alive）时保留最后渲染的
 
 `ULDGameInstance::GetLocalControlSettings()` 持有应用中的本地偏好，Controller 引用同一对象。
 按键只有 `ULDControlSettings::Definitions()` 这一份 Demo 注册表：`Select`、`Navigate`、`AttackMove`、
-`Skill1`/`Skill2`（Q/W 角色主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
+`Skill1`/`Skill2`/`SkillE`（Q/W/E 角色主动）、`Dash`（D 通用冲刺）、`Stop`、`Attributes`、`Scoreboard`（按住 Tab 看排行榜）、
 `Mark`（F9 试玩标记，见[开发指南](../DEVELOPMENT.md#试玩问题排查)）、
 `PanUp/PanDown/PanLeft/PanRight`、`Recenter`、`Follow`、`Zoom` 与保留给 Esc 的 `Back`。
 默认键取自 App Spec §3.1 与 [操作与目标选择报告](../demo/CONTROLS_AND_TARGETING.md) §2/§3.2，不是新批准的镜头或玩法数值；
@@ -257,12 +257,12 @@ Pawn 复制暂时缺失（包括本地仍显示 Alive）时保留最后渲染的
 已退役动作名得到无效键并被拒绝，草稿或文件中的此类绑定会被逐名指出。
 
 本地文件使用 `ULDControlSettings` 内的有限字段序列化，而非反射遍历：
-schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS` 和绑定是完整正向清单。
-当前文件 schema 是 17，与产品/网络版本无关；schema 5–16 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
+schema、edge/follow、文字比例、zoom、`PlayerName`、`MasterVolume`、`CameraPanCmPerSec`、`MinimapOrientation`、`bQuickCast`、`bShowNetworkDiagnostics`、`bShowFPS`、`bAutoAttackAfterCast` 和绑定是完整正向清单。
+当前文件 schema 是 19，与产品/网络版本无关；schema 5–18 显式迁移，旧通用 SaveGame 格式及不支持的 schema 不静默覆盖。
 schema 14 迁移保留全部有效偏好及绑定，两个诊断开关默认关闭；加载本身不改写旧文件。
-schema 15 字段与当前相同，只是按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
+schema 15 的按键表早于试玩标记：schema 5–15 迁移时若缺 `Mark` 且默认键 F9 未被其他动作占用，
 补上默认 F9 并在提示中说明；F9 已被占用时按 `Corrupt` 走恢复；当前 schema 缺它不补。
-schema 16 字段与当前相同，只是按键表仍有已退役的装备主动键 `Item1`/`Item2`：schema 5–16 迁移时只删除这两项并在提示中说明，
+schema 16 的按键表仍有已退役的装备主动键 `Item1`/`Item2`：schema 5–16 迁移时只删除这两项并在提示中说明，
 其余绑定原样保留；当前 schema 的文件含有它们时按未知动作走恢复。
 `MasterVolume` 是无量纲 0..1 的主音量，默认 1（不衰减），越界或非有限值使文件按 `Corrupt` 处理；
 设置页滑条经 `ULDGameInstance::SetAppliedMasterVolume` 直接改写已应用对象并请求延迟保存，
@@ -292,14 +292,16 @@ schema 6 是含名称但不含主音量的同一清单，同样显式迁移：�
 schema 7 是不含镜头平移速度的同一清单，显式迁移时平移速度取默认 1800；schema 5、6 迁移同样取 1800。
 schema 8 是不含小地图朝向的同一清单，显式迁移时朝向取跟随镜头；schema 5–7 迁移同样取跟随镜头。
 schema 9 是不含快速施法的同一清单，显式迁移时快速施法取默认关闭；schema 5–8 迁移同样关闭。
-schema 17 是不含施法后自动攻击的同一清单，显式迁移时该开关取默认开启；schema 5–16 迁移同样开启。
-schema 10 字段与当前相同，只是按键表早于 D 冲刺：schema 5–10 迁移时若缺 `Dash` 且默认键 D 未被其他动作占用，
+schema 17 不含施法后自动攻击，显式迁移时该开关取默认开启；schema 5–16 迁移同样开启。
+schema 18 保留已存的施法后自动攻击偏好。schema 5–18 迁移时若缺 `SkillE`，先移除已退役装备键，再在 E 未被其他动作占用时补默认 E；
+E 已被占用时不抢占原绑定，按 `Corrupt` 走恢复。已有 `SkillE` 绑定保持原样，当前 schema 缺它不补。
+schema 10 的按键表早于 D 冲刺：schema 5–10 迁移时若缺 `Dash` 且默认键 D 未被其他动作占用，
 补上默认 D 并在迁移提示中说明；D 已被占用时不改键、不挪键，缺动作的文件按 `Corrupt` 走恢复。
-schema 11、12 已有全部绑定和偏好，显式迁移到 13 时不补 Dash。schema 5–11 必须先按旧 1100–1700 cm、
+schema 11、12 已有 Dash，迁移时不补该键，但仍按上述规则补入后来新增的动作。schema 5–11 必须先按旧 1100–1700 cm、
 schema 12 按旧 1100–1900 cm 范围校验 Zoom；在当前 1300–2400 cm 内原样保留（包括旧默认 1400、1850），
 低于 1300 cm 的调整为 1300 cm 并在提示中说明；超出各自旧范围的值仍按损坏拒绝，不因新范围扩大而变合法。
 迁移提示说明保留或调整后的距离及“采用推荐镜头”入口；加载不写盘，下次核验保存写成当前 schema。
-schema 13 字段与范围都与当前相同，只是按键表早于排行榜：schema 5–13 迁移时若缺 `Scoreboard` 且默认键 Tab 未被其他动作占用，
+schema 13 已使用当前镜头范围，但按键表早于排行榜：schema 5–13 迁移时若缺 `Scoreboard` 且默认键 Tab 未被其他动作占用，
 补上默认 Tab 并在提示中说明（schema 13 不再附镜头距离说明）；Tab 已被占用时按 `Corrupt` 走恢复；schema 14 缺它不补。
 schema 5–13 中的损坏、非法偏好或注册表外动作
 仍按当前 schema 的 `Corrupt` 与恢复流程处理，不返回 `Migrated`。

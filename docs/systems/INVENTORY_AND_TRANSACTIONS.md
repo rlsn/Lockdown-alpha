@@ -10,7 +10,7 @@ Demo 只有两件装备与一个地图商店，范围见 [App Spec](../APP_SPEC.
 | --- | --- |
 | `Economy\LDEconomyLedger` | 纯权威账本：每参赛者一份 Gold、两槽装备实例、独立提交/发行序号、审计前缀与有界尾部 |
 | `Economy\LDEconomyDirector` | 成长/商店域枢纽：唯一账本、死亡奖励汇点、Transactions 分派、账户退休与拥有者发布 |
-| `Development\LDDevelopmentDirector` | 等级/XP、机会队列与唯一持久三选一、Q/W 与被动、属性卡 |
+| `Development\LDDevelopmentDirector` | 等级/XP、机会队列与唯一持久三选一、Q/W/E 与被动、属性卡 |
 | `Inventory\LDInventoryDirector` | 从账本读取自身两槽装备与可见对手装备外观；不持有第二份库存 |
 | `Inventory\LDVendorDirector` | 商店会话、报价、单件 Buy/Sell/Upgrade 复合事务与回执 |
 | `Development\LDGrowthProtocol.h` | 命令、回执、查询、提交结果与三类本人视图的线协议 |
@@ -167,12 +167,12 @@ DEV 测试命令（`Development\LDDevTestProtocol.*`，客户端入口 `Framewor
 面板的纯格式化（目录行、已有等级、替换条件、属性行、结果行）与输入解析由 `Lockdown.Rules.HUDDevTestPanel` 覆盖。
 刷新营地只在规则测试中验证到截止提前，场景只验证受理与回执，未在场景中观察营地实际重生。
 `RunDemoGrowthCheck.ps1` 是 DEV 拥有连接场景：渲染的参赛 Listen Host 作受害者并带 `-LDDevGrowthFixture`，
-在 Lobby 按 Start 前为买方暂存全部六组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
+在 Lobby 按 Start 前为买方暂存全部七组 Offer（先拒绝一组重复卡的预置），第一组即买方的开局 Offer；
 双方在每局首帧都只有恰好一次待选的开局机会（1 号、未消费、三张互异卡），死亡复活后机会数仍等于等级，
 不重发开局机会；一个真实拥有客户端
 经自身连接真实击杀得奖励、完成一次选择与回执查询，再经 `ApproachShop`→`OnShopArrived` 开店，
 买两件最便宜的同款（`item_iron_plate`）、满槽 `EquipmentFull`、同号重放，出售其中一件，最后离店 `OutsideRange`。之后买方把 Q 的技能升到 2 级、
-在 W 学第二个主动并使用 Q；Q/W 已满时只点新主动不确认替换被 `ReplacementRequired` 拒绝且不消费，
+在 W 和 E 分别学习第二、第三个主动并使用 Q；Q/W/E 已满时只点新主动不确认替换被 `ReplacementRequired` 拒绝且不消费，
 确认替换 Q 后旧技能及等级从构筑消失、新技能 1 级绑定自己的就绪轨道，被遗忘的技能只以 1 级学习卡返回，
 重学到 W 后绑定原 `IssuedCooldownId` 与原截止时间。随后 Host 经夹具给自己发同等级 XP 与金币（账本 `DevFixture`），
 用自己的攻击命令击杀买方；买方死亡等待中确认一次选择：按 Dead 阶段受理并应用，仍为同一 Life 与复活时间、

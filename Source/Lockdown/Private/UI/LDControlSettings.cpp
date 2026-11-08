@@ -42,8 +42,9 @@ namespace
     constexpr uint32 MarklessSchema = 15;
     // Schema 16 has the current layout; its key list still holds the retired equipment-active keys Item1 and Item2.
     constexpr uint32 ItemKeysSchema = 16;
-    // Schema 17 predates both the third character active bound to E and the auto attack after cast preference.
-    constexpr uint32 SkillEAutoAttacklessSchema = 17;
+    // Schema 17 predates auto attack after cast; schema 18 stores that preference but predates the E binding.
+    constexpr uint32 AutoAttacklessSchema = 17;
+    constexpr uint32 SkillElessSchema = 18;
     constexpr float LegacyMinZoom = 1100.f;
     constexpr float LegacyMaxZoom = 1700.f;
     constexpr float NearZoomMax = 1900.f;
@@ -526,7 +527,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             || SavedSchema == OrientationlessSchema || SavedSchema == QuickCastlessSchema || SavedSchema == DashlessSchema
             || SavedSchema == PreviousZoomSchema || SavedSchema == NearZoomSchema || SavedSchema == ScoreboardlessSchema
             || SavedSchema == DiagnosticslessSchema || SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema
-            || SavedSchema == SkillEAutoAttacklessSchema);
+            || SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema);
     if (Magic == LegacySaveGameMagic || (Magic == LocalSettingsMagic && SavedSchema != CurrentSchema && !RetiredRegistry && !Migrating))
     { return { ELDLocalSettingsLoadStatus::UnsupportedSchema, nullptr, nullptr, TEXT("不支持此本地设置格式。请在设置中使用恢复操作明确替换。") }; }
     if (Magic != LocalSettingsMagic || Checksum != FCrc::MemCrc32(Bytes.GetData() + 12, Bytes.Num() - 12))
@@ -549,7 +550,7 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     if (SavedSchema >= QuickCastlessSchema) { Reader << Orientation; }
     if (SavedSchema >= DashlessSchema) { Reader << Quick; }
     if (SavedSchema > DiagnosticslessSchema) { Reader << Network << FPS; }
-    if (SavedSchema > SkillEAutoAttacklessSchema) { Reader << AutoAttack; }
+    if (SavedSchema > AutoAttacklessSchema) { Reader << AutoAttack; }
     Reader << Count;
     if (Reader.IsError() || Edge > 1 || Follow > 1 || Quick > 1 || Network > 1 || FPS > 1 || AutoAttack > 1 || Count < 0 || Count > MaxBindingCount)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, TEXT("本地设置内容格式错误。文件未被替换。") }; }
@@ -601,31 +602,29 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating && !LegacyZoomValid)
     { return { ELDLocalSettingsLoadStatus::Corrupt, nullptr, nullptr, FString::Printf(TEXT("旧版本镜头缩放超出原有 %.0f–%.0f cm 范围，无法迁移。文件未被替换。"), LegacyMinZoom, LegacyZoomMax) }; }
-    // Layouts before schema 11 predate the D dash, layouts before schema 14 the hold-Tab scoreboard and layouts before
-    // schema 16 the playtest mark key: such a missing binding takes its default key when no other action holds it;
-    // otherwise it stays missing and the file is refused below like any other incomplete key list.
-    FString DashDefault;
+    FString MigrationNotes;
+    // Retired bindings no longer reserve keys when defaults for new actions are considered.
+    if (Migrating && SavedSchema <= ItemKeysSchema)
+    {
+        int32 Dropped = 0;
+        for (const FName& Retired : RetiredItemActions) { Dropped += Settings->Bindings.Remove(Retired); }
+        if (Dropped > 0) { MigrationNotes += TEXT("装备不再有主动，已移除装备主动 1/2 的按键。"); }
+    }
+    // Missing actions take their default keys only when no remaining action holds them; otherwise the incomplete
+    // key list is refused below without changing the player's existing bindings.
     struct FAddedAction { FName Action; uint32 LastWithout; const TCHAR* Name; };
     for (const FAddedAction& Added : { FAddedAction{DashAction, DashlessSchema, LDTerms::Dash},
         FAddedAction{ScoreboardAction, ScoreboardlessSchema, LDTerms::Scoreboard},
         FAddedAction{MarkAction, MarklessSchema, TEXT("标记")},
-        FAddedAction{SkillEAction, SkillEAutoAttacklessSchema, TEXT("角色主动 E")} })
+        FAddedAction{SkillEAction, SkillElessSchema, TEXT("角色主动 E")} })
     {
         if (!Migrating || SavedSchema > Added.LastWithout || Settings->Bindings.Contains(Added.Action)) { continue; }
         const FLDControlBinding* Default = Definitions().FindByPredicate([&Added](const FLDControlBinding& B) { return B.Action == Added.Action; });
         if (Default && !Settings->Bindings.FindKey(Default->Key))
         {
             Settings->Bindings.Add(Added.Action, Default->Key);
-            DashDefault += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
+            MigrationNotes += FString(TEXT("新增的“")) + Added.Name + TEXT("”键使用默认值 ") + Default->Key.GetDisplayName().ToString() + TEXT("。");
         }
-    }
-    // Every layout up to schema 16 stored the equipment-active keys 1/2; equipment has no active any more, so exactly
-    // those two retired actions are dropped and reported, and their keys become free.
-    if (Migrating && SavedSchema <= ItemKeysSchema)
-    {
-        int32 Dropped = 0;
-        for (const FName& Retired : RetiredItemActions) { Dropped += Settings->Bindings.Remove(Retired); }
-        if (Dropped > 0) { DashDefault += TEXT("装备不再有主动，已移除装备主动 1/2 的按键。"); }
     }
     const FString Origin = Migrating ? TEXT("旧版本设置无法迁移：") : TEXT("");
     if (!Settings->ValidatePreferences(Error))
@@ -638,14 +637,17 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
     }
     if (Migrating)
     {
-        // Explicit schema 5–17 migration: the validated values and the defaults of the missing preferences apply now and
+        // Explicit schema 5–18 migration: the validated values and the defaults of the missing preferences apply now and
         // stay dirty until a verified current-schema save; loading never rewrites the old file.
         Settings->Phase = ELDLocalSettingsPhase::ConfirmedApplied;
-        DashDefault += TEXT("施法后自动攻击默认开启。");
-        if (SavedSchema == SkillEAutoAttacklessSchema)
+        if (SavedSchema <= AutoAttacklessSchema) { MigrationNotes += TEXT("施法后自动攻击默认开启。"); }
+        if (SavedSchema == AutoAttacklessSchema || SavedSchema == SkillElessSchema)
         {
+            const FString Preserved = SavedSchema == SkillElessSchema
+                ? TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法、诊断与施法后自动攻击偏好已保留，下次保存时写入新格式。")
+                : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。");
             return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr,
-                TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量、快速施法与诊断偏好已保留，下次保存时写入新格式。") + DashDefault };
+                Preserved + MigrationNotes };
         }
         const FString OrientationDefault = TEXT("小地图朝向使用默认值“") + MinimapOrientationLabel(Settings->MinimapOrientation) + TEXT("”，快速施法默认关闭");
         const FString PanDefault = FString::Printf(TEXT("镜头平移速度使用默认值 %.0f cm/s，"), Settings->CameraPanCmPerSec) + OrientationDefault;
@@ -663,15 +665,15 @@ FLDLocalSettingsLoadResult ULDControlSettings::LoadLocalSettings(const FLDLocalS
             ? TEXT("已从旧版本设置迁移：名称、按键、镜头（含平移速度与小地图朝向）、文字与主音量偏好已保留，快速施法默认关闭，下次保存时写入新格式。")
             : TEXT("已从旧版本设置迁移：名称、按键、镜头、文字、主音量与快速施法偏好已保留，下次保存时写入新格式。");
         if (SavedSchema == MarklessSchema || SavedSchema == ItemKeysSchema)
-        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + MigrationNotes }; }
         if (SavedSchema == DiagnosticslessSchema)
-        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") + DashDefault }; }
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + TEXT("网络诊断和 FPS 显示默认关闭。") + MigrationNotes }; }
         if (SavedSchema == ScoreboardlessSchema)
-        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault }; }
+        { return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + MigrationNotes }; }
         const FString ZoomNote = ZoomRaised
             ? FString::Printf(TEXT("旧镜头距离 %.0f cm 低于当前最小值，已调整为 %.0f cm"), StoredZoom, Settings->Zoom)
             : FString::Printf(TEXT("旧镜头距离 %.0f cm 原样保留"), Settings->Zoom);
-        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + DashDefault + ZoomNote
+        return { ELDLocalSettingsLoadStatus::Migrated, Settings, nullptr, Message + MigrationNotes + ZoomNote
             + FString::Printf(TEXT("；如需 %.0f cm，请在设置中选择“采用推荐镜头”，只修改距离。"), LDCamera::DefaultArmLength) };
     }
     Settings->Phase = ELDLocalSettingsPhase::PersistenceVerified;

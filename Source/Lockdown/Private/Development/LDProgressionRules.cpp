@@ -147,12 +147,6 @@ ELDAttributeQuality ProgressionDrawQuality(const FLDDemoChoiceWeights& Choice, u
     return Roll < uint64(Through) ? ELDAttributeQuality::Purple : ELDAttributeQuality::Gold;
 }
 
-bool ProgressionValidQuality(ELDAttributeQuality Quality)
-{
-    return Quality == ELDAttributeQuality::Green || Quality == ELDAttributeQuality::Blue
-        || Quality == ELDAttributeQuality::Purple || Quality == ELDAttributeQuality::Gold;
-}
-
 bool ProgressionSameCard(const LDProgression::FLegalOption& A, const LDProgression::FLegalOption& B)
 {
     return A.Kind == B.Kind && A.DefinitionId == B.DefinitionId;
@@ -626,7 +620,7 @@ bool LDProgression::OptionStillLegal(const FLDDemoContentSnapshot& Catalog, cons
     }
     case ELDChoiceOptionKind::Attribute:
         return ProgressionFindAttribute(Catalog, Option.DefinitionId) && ProgressionCardCount(Build, Option.DefinitionId) == Option.FromRank
-            && Option.ToRank == Option.FromRank + 1 && ProgressionValidQuality(Option.AttributeQuality);
+            && Option.ToRank == Option.FromRank + 1 && LDDemoAttributeQuality::IsValid(Option.AttributeQuality);
     case ELDChoiceOptionKind::Opening:
         return Catalog.Get().OpeningCards.ContainsByPredicate([&Option](const FLDDemoOpeningCardDefinition& Row)
             { return FName(*Row.Id) == Option.DefinitionId; })

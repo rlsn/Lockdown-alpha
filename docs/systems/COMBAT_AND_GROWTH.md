@@ -17,7 +17,7 @@
 | `Framework\LDGameModeLife.cpp` | 阶段顺序与许可分派、生命结束/十点复活/保护、出生落地与营地整组生命提交 |
 | `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
 | `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
-| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、持久三选一队列与 Q/W 替换的权威成长记录；构筑变更经 Combat 准备与安装 |
+| `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、持久三选一队列与 Q/W/E 替换的权威成长记录；构筑变更经 Combat 准备与安装 |
 | `Economy\LDEconomyDirector`、`Inventory\LDVendorDirector` | 死亡奖励复合提交、Transactions 分派、本人发布与两槽装备买卖，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md) |
 
 这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
@@ -52,7 +52,7 @@ Root 按效果实例保存、同实例不续期、禁止 `POLICY.RootBlocks` 所
 不继承旧上限或严格大于判定；回复按 CarrySubP2Remainder 积分。
 嘲讽：`taunt` 效果在释放时让施放者周围半径内（脚点平面距离，含边界）存活、无复活保护、
 且此刻能观察到施放者的其他参赛者进入被嘲讽（野怪不受嘲讽）；同一身体只保留最新一次嘲讽；嘲讽落地是一次控制（`LDControl::TauntVictim`）。被嘲讽期间
-Q/W 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
+Q/W/E 与 D 冲刺在准入、释放与 HUD 可用性中都经 `ActiveGate`（`bTaunted`）以 `ControlBlocked` 拒绝，普攻只能以嘲讽者的那条生命为目标；
 已在前摇、被嘲讽所禁止的动作当场放弃。每个 Actions 阶段开头 `RefreshTaunts` 结束过期、嘲讽者死亡/离局、
 或被嘲讽者已观察不到嘲讽者（视线或距离）的嘲讽；离局另由 `CancelEntityEffects` 清除。
 订单方面由 Navigation 强制（见 [移动、输入与镜头](MOVEMENT_INPUT_AND_CAMERA.md)）。
@@ -113,7 +113,7 @@ HP/MP/盾只在 `Combat.Bodies.Resources` 中以 P2 整数保存，Owner 的点�
 动作提示由 `LDCombatCues::Select` 按 Cast > Hit > Attack 选出（普攻中被打的身体仍显示受击），
 `AppendObservedAction` 给出提示及其开始时刻，本人身体按同一规则与公开时钟取提示与年龄。
 提示为 Cast 时，`ObservedCastSource` 由前摇中的动作或最近释放的动作（`ReleasedSource`）给出施法技能的原生 id，
-写入公开事实的 `ActionAbility`（Q/W），其他提示为 0；
+写入公开事实的 `ActionAbility`（Q/W/E），其他提示为 0；
 D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作，不飘名称）；
 来源没有批准定义时 `ReadObservedPublicFacts` 失败，不发布 0。观察者据此只显示施法名，不显示等级、冷却或技能列表。
 身体表现只按 cue 字节、动作年龄和状态位绘制（`ULDHumanoidVisualComponent`，时间轴为纯函数 `LDBodyMotion`）。
@@ -151,7 +151,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 
 纯规则在 `Combat\LDCombatControlRules`（`LDCombatControl`），Combat 的准入、释放、命中与读模型都只经它判断：
 
-- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺）；缴械禁普攻；沉默禁 Q/W；眩晕禁移动、位移、普攻与
+- **动作禁止矩阵**（`Blocks`）：定身按 `POLICY.RootBlocks` 禁移动与位移（冲刺）；缴械禁普攻；沉默禁 Q/W/E；眩晕禁移动、位移、普攻与
   技能。缴械/眩晕实例与定身同形（`FLDCombatRoot`：效果、来源、半开到期），存于身体的 `Disarms`/`Stuns`，
   同一效果不续期，换命即消失，营地回位与离局清除。命中时眩晕放弃任何未出手的动作、缴械放弃未出手的普攻（回执 `ControlBlocked`，
   不付费也不退节拍）；受控期间的 Direct 请求（真人、AI、营地同一入口）在准入时被拒，`ReadCombatBody` 的
@@ -209,7 +209,7 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
 - **护盾入口**：所有护盾（技能、受伤触发护盾、按嘲讽人数的护盾）只经 `GrantShieldTo` 以 `ReplaceIfNotWeaker` 安装；
   `ShieldGrantedP2` 记录当前记录的获得量。被伤害打空（`LDCombatMechanics::ShieldBroken`，到期或被消耗不算）时触发防窥膜反击
   `OnShieldBroken`（内置冷却 `RetortReadyAtMs`）与精神胜利高级的爆炸 `BurstBrokenShield`；这些命中带 `bFromShieldTrigger`，
-  不算 Q/W 命中。
+  不算 Q/W/E 命中。
 - **治疗入口**：一次性治疗（吸血）经 `HealBody`；自然与脱战回复不经过它。没有治疗削减。
 - **区域**（`zone`，临时开个短会）：目标 `GroundPoint` 的请求带服务器验证的地面点（`ELDCombatTargetKind::Point`），释放时夹到目标射程，
   `ReleaseMechanics` 在该点登记 `FLDCombatZone`（载荷在释放时快照）。`zone_damage` 按 `NextPulseAtMs` 的定次脉冲结算伤害；
@@ -231,12 +231,12 @@ Combat 身体记录上的应用在 `LDCombatMechanicsDirector.cpp`；使用它�
 
 纯规则在 `Combat\LDCombatKeywords`（共享破防与灼烧、吸血上限、撞墙判定、穿透顺序），
 Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参数是内容参数 `COMBAT.Breach*`、`COMBAT.Burn*`、`COMBAT.LifestealCap`
-与 `SKILL.GrowthPerLevel`（`FLDKeywordTerms::From`）。当前目录（12 主动、10 被动）只用这些原语与上文的共用原语；字段用法见
+与 `SKILL.GrowthPerLevel`、`SKILL.GrowthPerLevelAfter10`（`FLDKeywordTerms::From`）。当前目录有 18 个主动和 16 个被动，字段用法见
 `FLDDemoEffectDefinition` 的注释。效果触发 `ELDDemoEffectTrigger` 只有 `None`、`BasicHit`、`AbilityHit`、`Damaged` 四种
 （反伤的 `trigger` 是它自己的字段，只接受 `Basic`）。
 
 - **沉默**（`silence`，`ELDControlKind::Silence`，状态 `silence`）：实例形同缴械/眩晕，存于 `Silences`；矩阵动作 `ELDCombatControlAction::Skill`
-  只被沉默与眩晕禁止。Q/W 的准入、释放与 `EntryView` 都经 `IsCastBlocked(Body, SourceKind)`（Cast 对所有入口，Skill 只对 Learned），
+  只被沉默与眩晕禁止。Q/W/E 的准入、释放与 `EntryView` 都经 `IsCastBlocked(Body, SourceKind)`（Cast 对所有入口，Skill 只对 Learned），
   D 冲刺不受影响。`CommitControl` 中它是硬控（递减），落地时放弃前摇中的 Learned 技能（不付费），并清零喷漆（D10）。
   本人视图状态带 `SilenceBlockBits()`（Cast），观察者看到公开状态；对手 AI 在沉默期间把 Learned 来源视为未就绪，并把带沉默的技能当作可打断喷漆的控制。
 - **共享破防**（`breach`）：`FLDBodyCombatState::SharedBreach`，所有来源同一组，每层固定 `COMBAT.BreachPerStack`，最多
@@ -249,7 +249,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   G(L) 取 `LDSkillGrowth::FactorBp`（施加者等级由 `GrowthLevelOf` 给出，营地身体按 1 级）。大喇叭的 `affliction_amp` 让持有者
   的灼烧 tick 带 `ExtraAmplifyBp`，进入统一加成池。
 - **施加途径**：主动 rank 的 `breach`/`burn` `stacks` 随命中载荷（灼烧在释放时快照）；被动 `breach`/`burn` 的 `basic_stacks`（普攻主击）与
-  `stacks`（Learned Q/W 命中，`Token≠0`）在 `ApplyKeywordStacks` 中按存活施加者结算；周期、反伤、附加伤害与护盾触发的命中不算；
+  `stacks`（Learned Q/W/E 命中，`Token≠0`）在 `ApplyKeywordStacks` 中按存活施加者结算；周期、反伤、附加伤害与护盾触发的命中不算；
   `zone_burn` 让区域每 `interval` 给区内敌人加层。
 - **斩杀与条件增伤**：`execute`（`ratio` + `hp_below`）按命中前生命判定并入加成池；`control_damage_amp` 的 `hp_below` 让低血目标也算；
   装备的 `control_damage_amp` 也进同一池项。
@@ -274,6 +274,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 成长构筑由 `ALDDevelopmentDirector` 持有（`FLDGrowthBuild`：等级、技能 Id/Rank/Q-W-E 主动槽、
 按家族与品质分组的属性卡与 Revision）。
 构筑可带的选择数为 min(等级, 最大选择次数)：开局即有一次三选一，1 级构筑可带一张卡（D10）。
+属性投影按目录解析后的规范家族 ID 与品质去重；同一家族可以持有不同品质，但重复的家族/品质行和未定义品质均明确拒绝。
 
 开局方向卡（#153）是 `ELDChoiceOptionKind::Opening`：`FLDGrowthBuild::OpeningCard` 记录永久三属性包，
 `MakeProjectionInput` 把它交给 `FLDBuildProjectionInput::OpeningCard`，`LDAttributeProjection` 加入 `PermanentChoices`。
@@ -286,7 +287,7 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 AI 的开局时刻/卡位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定时从现有服务器 `SpawnRandom` 流抽取，
 不是每个 AI 新建 GUID 种子。`LD_AI_OPENING_PLAN` 记录抽取前的流状态 `seed`，可用同状态重放这两次抽取；
 该状态只在服务器日志中，纯策略只收到计划的时刻和卡位，不收到隐藏技能分配。
-选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W 主动、
+选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W/E 主动、
 两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
 同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
 DEV 测试会话的测试属性层（`FLDBuildProjectionInput::DevBonuses`）也只由 Combat 持有：成长域输入不带它，
