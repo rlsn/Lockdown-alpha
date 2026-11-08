@@ -293,13 +293,13 @@ bool FLDHUDPublicMatchTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("A running guard never claims a winner"),LDHUD::Circle(Guarded,FString(),TEXT("玩家乙"),true,125000,3500,20000).Line.Contains(LDTerms::Winner));
     }
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;
-    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),LDTerms::KillLine(TEXT("甲"),TEXT("乙")));
+    TestEqualSensitive(TEXT("A contender kill names both public roster names"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss),LDTerms::KillLine(TEXT("甲"),TEXT("乙")));
     Notice.Cause=ELDKillCause::CampHigh;
-    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),LDTerms::KilledByLine(TEXT("乙"),LDTerms::CampHigh));
+    TestEqualSensitive(TEXT("A camp death names the tier creature, not a hidden attacker"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss),LDTerms::KilledByLine(TEXT("乙"),LDTerms::CampHigh));
     Notice.Cause=ELDKillCause::Unowned;
-    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),FString(TEXT("乙 "))+LDTerms::Dead+TEXT("（无参赛者击杀）"));
+    TestEqualSensitive(TEXT("A death without a contender owner says so"),LDHUD::KillLine(Notice,TEXT("乙"),FString(),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss),FString(TEXT("乙 "))+LDTerms::Dead+TEXT("（无参赛者击杀）"));
     Notice.Cause=ELDKillCause::Boss;
-    TestEqualSensitive(TEXT("A Boss death names the 画饼老板"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss),
+    TestEqualSensitive(TEXT("A Boss death names the 画饼老板"),LDHUD::KillLine(Notice,TEXT("乙"),TEXT("甲"),LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss),
         LDTerms::KilledByLine(TEXT("乙"),LDTerms::Boss));
     FLDResultView Result;Result.Reason=ELDMatchEndReason::GuardSucceeded;Result.Winner=FGuid::NewGuid();
     TestEqualSensitive(TEXT("A guard win names its end reason and crowns the one winner"),LDHUD::ResultHeadline(Result,TEXT("甲")),FString(TEXT("守护成功 · "))+LDTerms::Crowned(TEXT("甲")));
@@ -721,14 +721,14 @@ bool FLDHUDDeathCauseTest::RunTest(const FString& Parameters)
     FLDKillFeedView Feed;Feed.Generation=7;
     auto AddNotice=[&Feed](uint64 Serial,const FGuid& Victim,const FGuid& By,ELDKillCause Kind,int64 AtMs)
     {FLDKillNotice Entry;Entry.Serial=Serial;Entry.Victim=Victim;Entry.Killer=By;Entry.Cause=Kind;Entry.OccurredAtMs=AtMs;Feed.Notices.Add(Entry);};
-    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss);};
+    auto CauseAt=[&Feed,&Lobby,&Self](uint32 Generation,int64 NotBeforeMs){return LDHUD::DeathCause(Feed,Generation,Self,NotBeforeMs,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss);};
     AddNotice(1,Self,FGuid(),ELDKillCause::CampHigh,10000);
     AddNotice(2,Other,Rival,ELDKillCause::Contender,30000);
     AddNotice(3,Self,Rival,ELDKillCause::Contender,50000);
     TestEqualSensitive(TEXT("The newest own death names its killer from the public roster"),CauseAt(7,40000),LDTerms::KilledBy(TEXT("玩家甲")));
     TestTrue(TEXT("A feed of another generation is not this match"),CauseAt(8,0).IsEmpty()&&CauseAt(0,0).IsEmpty());
     TestTrue(TEXT("Before this life's notice arrives an older death never stands in"),CauseAt(7,60000).IsEmpty());
-    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss).IsEmpty());
+    TestTrue(TEXT("Without an own identity there is no cause"),LDHUD::DeathCause(Feed,7,FGuid(),0,Lobby,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss).IsEmpty());
     Feed.Notices.RemoveAt(2);
     TestEqualSensitive(TEXT("A camp death names the approved creature of its tier"),CauseAt(7,0),LDTerms::KilledBy(LDTerms::CampHigh));
     TestTrue(TEXT("Another contender's death is never the player's cause"),CauseAt(7,20000).IsEmpty());
@@ -749,7 +749,7 @@ bool FLDHUDKillFeedSelfTest::RunTest(const FString& Parameters)
 {
     const FGuid Self=FGuid::NewGuid(),Rival=FGuid::NewGuid(),Other=FGuid::NewGuid();
     auto Line=[](const FLDKillNotice& Source,const FGuid& Viewer,const TCHAR* VictimName,const TCHAR* KillerName)
-    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::Boss);};
+    {return LDHUD::KillFeedLine(Source,Viewer,VictimName,KillerName,LDTerms::CampLow,LDTerms::CampHigh,LDTerms::CampElite,LDTerms::Boss);};
     FLDKillNotice Notice;Notice.Cause=ELDKillCause::Contender;Notice.Victim=Rival;Notice.Killer=Self;
     LDHUD::FKillFeedLineView Shown=Line(Notice,Self,TEXT("乙"),TEXT("我"));
     TestTrue(TEXT("The player's own kill says 你 and is highlighted"),Shown.bSelf&&Shown.Text==LDTerms::KillLine(TEXT("你"),TEXT("乙")));
@@ -833,7 +833,7 @@ bool FLDHUDEventFeedTest::RunTest(const FString& Parameters)
     FLDKillFeedView Kills;Kills.Generation=3;
     FLDKillNotice Old;Old.Serial=1;Old.Cause=ELDKillCause::Contender;Old.Victim=Rival;Old.Killer=Self;Old.OccurredAtMs=1000;Kills.Notices.Add(Old);
     LDHUD::FEventFeedInput In;In.Public=&Public;In.Kills=&Kills;In.Lobby=&Lobby;In.Self=Self;In.bClock=true;In.NowMs=20000;In.LocalSeconds=100;
-    In.LowCampName=LDTerms::CampLow;In.HighCampName=LDTerms::CampHigh;In.BossName=LDTerms::Boss;
+    In.LowCampName=LDTerms::CampLow;In.HighCampName=LDTerms::CampHigh;In.EliteCampName=LDTerms::CampElite;In.BossName=LDTerms::Boss;
     LDHUD::FEventFeed Feed;
     auto Texts=[&Feed](){TArray<FString> Out;for(const LDHUD::FEventLine& Line:Feed.Lines()){Out.Add(Line.Text);}return Out;};
     Feed.Observe(In);

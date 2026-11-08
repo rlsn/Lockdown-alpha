@@ -190,11 +190,12 @@ FLinearColor HudIconColor(EHudIconKind Kind,LDHUD::EActionLook Look)
     }
 }
 // Camp tiers are named after their approved creature, never a guessed or hidden attacker.
-void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High,FString& Boss)
+void HudCampNames(const FLDDemoContentDefinitions* Content,FString& Low,FString& High,FString& Elite,FString& Boss)
 {
-    Low=LDTerms::CampLow;High=LDTerms::CampHigh;Boss=LDTerms::Boss;
+    Low=LDTerms::CampLow;High=LDTerms::CampHigh;Elite=LDTerms::CampElite;Boss=LDTerms::Boss;
     if(Content){for(const FLDDemoMonsterDefinition& Monster:Content->Monsters)
-    {(Monster.Tier==ELDDemoCampTier::Low?Low:Monster.Tier==ELDDemoCampTier::High?High:Boss)=LDHUD::ContentName(Content,Monster.Id);}}
+    {(Monster.Tier==ELDDemoCampTier::Low?Low:Monster.Tier==ELDDemoCampTier::High?High:Monster.Tier==ELDDemoCampTier::Elite?Elite:Boss)
+        =LDHUD::ContentName(Content,Monster.Id);}}
 }
 }
 
@@ -920,7 +921,7 @@ void ULDHUD::RefreshReadModel()
     HudSetText(LeaderText,LDHUD::LeaderLine(Public.Leader,O.ContenderId,LDHUD::RosterName(Lobby,Public.Leader.Leader)));
     HudSetShown(LeaderText,!LeaderText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     {
-        FString Low,High,Dean;HudCampNames(Content,Low,High,Dean);
+        FString Low,High,Elite,Dean;HudCampNames(Content,Low,High,Elite,Dean);
         HudSetText(BossText,LDHUD::BossLine(Public.Boss,Dean,bClock,NowMs));
         HudSetShown(BossText,!BossText->GetText().IsEmpty(),ESlateVisibility::HitTestInvisible);
     }
@@ -937,9 +938,9 @@ void ULDHUD::RefreshReadModel()
     if(Death.bVisible)
     {
         HudSetText(DeathTitle,Death.Title);HudSetText(DeathCountdown,Death.Countdown);HudSetText(DeathNote,Death.Note);
-        FString Low,High,Dean;HudCampNames(Content,Low,High,Dean);
+        FString Low,High,Elite,Dean;HudCampNames(Content,Low,High,Elite,Dean);
         const int64 NotBeforeMs=LifeSeenMatch==O.Match&&LifeSeenLife==O.Life?LifeSeenAliveMs:0;
-        const FString Cause=LDHUD::DeathCause(GS->KillFeed,Public.Generation,O.ContenderId,NotBeforeMs,Lobby,Low,High,Dean);
+        const FString Cause=LDHUD::DeathCause(GS->KillFeed,Public.Generation,O.ContenderId,NotBeforeMs,Lobby,Low,High,Elite,Dean);
         HudSetText(DeathCauseText,Cause);HudSetShown(DeathCauseText,!Cause.IsEmpty(),ESlateVisibility::HitTestInvisible);
     }
 
@@ -1441,7 +1442,7 @@ void ULDHUD::RefreshEventFeed(const ALDGameState& Public,const FLDOwnerState& Ow
     // The own claim only counts within this match; a previous match's serial never names this drop.
     Input.OwnAirdropClaimSerial=Own.Match==Public.PublicMatch.Generation?Own.Growth.AirdropClaimedSerial:0;
     Input.bClock=bClock;Input.NowMs=NowMs;Input.LocalSeconds=GetWorld()->GetRealTimeSeconds();
-    HudCampNames(Content,Input.LowCampName,Input.HighCampName,Input.BossName);
+    HudCampNames(Content,Input.LowCampName,Input.HighCampName,Input.EliteCampName,Input.BossName);
     EventFeed.Observe(Input);
     const TArray<LDHUD::FEventLine>& Lines=EventFeed.Lines();
     // One row per line, so the lines about the player (said with 你) stand out; each fades out over its last half second.

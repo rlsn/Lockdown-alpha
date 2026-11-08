@@ -9,6 +9,7 @@
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
@@ -39,17 +40,31 @@
 namespace LDDemoCampScenario
 {
 const TCHAR* const CampRoles[] = {TEXT("Host"), TEXT("Client1"), TEXT("Client2")};
-// Approved world points (WORLD_CAMPS_AND_VISION §2.5): a legal melee approach to L1 and H1, and an outer-ring
-// flee goal more than the High leash away from H1.
-const FVector CampLowApproachCm(2616, 849, 0);
-const FVector CampHighApproachCm(0, 2800, 0);
-const FVector CampFleeGoalCm(1360, 4185, 0);
+// Basin points of the #97 layout, checked offline on the approved world: an open, reachable melee approach beside
+// Low camp l09 and High camp h05 (no other camp of the same creature within the target search), and a flee goal on
+// open basin ground 14.7 m from h05, beyond the High leash and away from the Boss patrol and the flagpole.
+const FVector CampLowApproachCm(1452, -2386, 0);
+const FVector CampHighApproachCm(1723, 818, 0);
+const FVector CampFleeGoalCm(2100, -850, 0);
 constexpr double CampApproachArrivalCm = 150.0;
 constexpr double CampTargetSearchCm = 600.0;
 // Local placement offsets reach 100.344 cm from a member home.
 constexpr double CampHomePlacementCm = 101.0;
-const FName CampLowId(TEXT("l1"));
-const FName CampHighId(TEXT("h1"));
+const FName CampLowId(TEXT("l09"));
+const FName CampHighId(TEXT("h05"));
+
+// The approved reward of clearing one low camp: every member's stage-0 XP and gold (the first lives spawn before T=0).
+bool CampLowClearReward(int64& OutXP, int64& OutGold)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Content;
+    FString Error;
+    const FLDDemoMonsterDefinition* Monster = nullptr;
+    if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || !Content->FindMonster(TEXT("monster_scavenger"), Monster, Error)
+        || !Monster) { return false; }
+    OutXP = Monster->RewardXP * Monster->CountPerCamp;
+    OutGold = Monster->RewardGold * Monster->CountPerCamp;
+    return OutXP > 0;
+}
 
 // The owner's current authorized frame, or null while it is unavailable or stale.
 const FLDWorldView* CampCurrentFrame(const ALDPlayerController& Owner)
@@ -374,11 +389,13 @@ public:
             const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
             // The clear marker can arrive before the last reward's owner projection; allow it 5 s to replicate.
             if (WatchSince == 0) { WatchSince = Now; }
-            if (XP < 80 && Now - WatchSince < 5) { return true; }
+            int64 WantXP = 0, WantGold = 0;
+            if (!CampLowClearReward(WantXP, WantGold)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
+            if (XP < WantXP && Now - WatchSince < 5) { return true; }
             Check(bAttacking && bTookDamage, TEXT("#C4"), TEXT("The attacked camp retaliated against this contender"));
-            Check(XP == 80 && Gold == 60 && Owner.OwnerState.Growth.Progression.Level == 2, TEXT("#C5"), FString::Printf(
-                TEXT("Two last hits on the low camp paid exactly 2 x 40 XP / 30 gold to this contender (XP +%lld, gold +%lld, level %u)"),
-                XP, Gold, Owner.OwnerState.Growth.Progression.Level));
+            Check(XP == WantXP && Gold == WantGold, TEXT("#C5"), FString::Printf(
+                TEXT("The last hits on the low camp paid exactly its approved reward to this contender (XP +%lld of %lld, gold +%lld of %lld)"),
+                XP, WantXP, Gold, WantGold));
             bRewarded = true;
             WatchSince = 0;
         }
@@ -402,7 +419,7 @@ public:
         return true;
     }
 
-    // Client2 leashes H1's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
+    // Client2 leashes h05's guardian and, as the only rendered owner, keeps two presentation screenshots (no pixel
     // checks): the returning guardian with its name and cue, then the refreshed low pair with their names. Adjacent low
     // and high camps stand about 3057 cm apart, wider than any frame of the fixed camera, so each tier has its own shot.
     bool TickHighCamp(double Now, ALDPlayerController& Owner)
@@ -537,7 +554,7 @@ public:
         if (!State || !State->IsActive() || !Roster || !Mode.Combat)
         { return Fail(TEXT("#C2"), TEXT("A started match has no active camp director")); }
         const int32 Low = Roster->FindCamp(CampLowId), High = Roster->FindCamp(CampHighId);
-        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks L1 or H1")); }
+        if (Low == INDEX_NONE || High == INDEX_NONE) { return Fail(TEXT("#C2"), TEXT("The approved roster lacks l09 or h05")); }
         if (!bCampsReady)
         {
             int32 Alive = 0, Placed = 0, Idle = 0;
@@ -556,9 +573,11 @@ public:
                         && FVector::Dist2D(Foot, Roster->Camps[Camp].Members[Slot].HomeCm) <= CampHomePlacementCm ? 1 : 0;
                 }
             }
-            if (!Check(bFirstGeneration && Alive == 8 && Placed == 8 && Idle == 8, TEXT("#C2"), FString::Printf(
-                TEXT("Normal start spawned five camps once with eight idle first lives at their homes (alive %d, placed %d, idle %d)"),
-                Alive, Placed, Idle))) { return Finish(); }
+            int32 Members = 0;
+            for (const auto& Camp : Roster->Camps) { Members += Camp.Members.Num(); }
+            if (!Check(bFirstGeneration && Members > 0 && Alive == Members && Placed == Members && Idle == Members, TEXT("#C2"), FString::Printf(
+                TEXT("Normal start spawned every approved camp once with idle first lives at their homes (alive %d, placed %d, idle %d of %d)"),
+                Alive, Placed, Idle, Members))) { return Finish(); }
             if (!Mark(TEXT("CampsReady.json"))) { return Finish(); }
             bCampsReady = true;
         }

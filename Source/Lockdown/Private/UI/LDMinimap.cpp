@@ -28,7 +28,7 @@ struct FLDMinimapStatic
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight. #97: Level1/Level2 plateaus and the
     // ramps between levels lie under every other area.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone, Level1, Level2, Ramp };
-    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint };
+    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
@@ -209,7 +209,8 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
             const FLDDemoCampPlacement* Camp=Approved.Camps.FindByPredicate([&Anchor](const FLDDemoCampPlacement& Placement){return Placement.AnchorId.Equals(Anchor.Id,ESearchCase::CaseSensitive);});
             const FLDDemoMonsterDefinition* Monster=Camp?Approved.Monsters.FindByPredicate([Camp](const FLDDemoMonsterDefinition& Definition){return Definition.Id.Equals(Camp->MonsterId,ESearchCase::CaseSensitive);}):nullptr;
             if(!Monster){Error=Anchor.Id+TEXT(": camp has no approved placement or monster tier.");return false;}
-            Site.Kind=Monster->Tier==ELDDemoCampTier::High?FLDMinimapStatic::ESite::HighCamp:FLDMinimapStatic::ESite::LowCamp;
+            Site.Kind=Monster->Tier==ELDDemoCampTier::Elite?FLDMinimapStatic::ESite::EliteCamp
+                :Monster->Tier==ELDDemoCampTier::High?FLDMinimapStatic::ESite::HighCamp:FLDMinimapStatic::ESite::LowCamp;
         }
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Dorm)
         {
@@ -423,6 +424,8 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 case FLDMinimapStatic::ESite::Capture:Box(5,At+FVector2f(-.75f,-9.f),FVector2f(1.5f,9.5f),FLinearColor(.94f,.94f,.90f));Box(6,At+FVector2f(.75f,-9.f),FVector2f(6.f,4.f),FLinearColor(.92f,.20f,.16f));break;
                 case FLDMinimapStatic::ESite::LowCamp:Diamond(5,At,6.5f,Ink);Diamond(6,At,4.5f,FLinearColor(.96f,.66f,.30f));break;
                 case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,12.f,FLinearColor(1.f,.93f,.76f));Diamond(6,At,9.f,FLinearColor(.80f,.22f,.17f));Diamond(7,At,3.5f,Ink);break;
+                // #97 Elite camp: the largest diamond, violet with a pale core, so it reads apart from the red High camp.
+                case FLDMinimapStatic::ESite::EliteCamp:Diamond(5,At,14.f,Ink);Diamond(6,At,11.f,FLinearColor(.55f,.20f,.85f));Diamond(7,At,4.5f,FLinearColor(1.f,.93f,.76f));break;
                 // Dorm: a small bed, a white pillow on a blue frame.
                 case FLDMinimapStatic::ESite::Dorm:Box(5,At-FVector2f(6.f,4.f),FVector2f(12.f,8.f),Ink);Box(6,At-FVector2f(5.f,3.f),FVector2f(10.f,6.f),FLinearColor(.25f,.62f,1.f));Box(7,At-FVector2f(5.f,3.f),FVector2f(3.f,6.f),FLinearColor(.95f,.96f,.98f));break;
                 // Boss patrol point: a gold dot on an ink disc.

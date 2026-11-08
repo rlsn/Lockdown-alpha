@@ -5,6 +5,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatTypes.h"
+#include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -139,6 +140,7 @@ bool ALDCampDirector::BeginMatch(const FLDMatchContext& Match, int64 StartedAtMs
         return false;
     }
     Content = Loaded;
+    MatchStartedAtMs = StartedAtMs;
     Error.Reset();
     return true;
 }
@@ -937,10 +939,12 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         if (Body) { Spawned.Add(Body); }
         if (!bCreated) { return false; }
     }
+    // #97: the whole group takes the growth stage of this spawn moment and keeps it for these lives.
+    const uint8 Stage = LDCampGrowth::Stage(Content->Get().Parameters, Mode->GetAuthorityNowMs() - MatchStartedAtMs);
     TArray<FLDCampMemberSpawn> Requests;
     for (int32 Slot = 0; Slot < Spawned.Num(); ++Slot)
     {
-        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Spec.MonsterId});
+        Requests.Add({State.FindCamp(Camp)->Members[Slot].EntityId, Spawned[Slot], Spec.MonsterId, Stage});
     }
     TArray<FLDCombatBodyRef> Refs;
     if (!Mode->SpawnCampMembers(Requests, Permit, Refs, Error)) { return false; }
@@ -957,8 +961,9 @@ bool ALDCampDirector::SpawnGroup(int32 Camp, const FLDGameplayWritePermit& Permi
         Spawned[Slot]->SetActorHiddenInGame(false);
         Spawned[Slot]->SetActorTickEnabled(true);
     }
-    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u at=%.3f"),
-        *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, Mode->GetAuthorityNowSeconds());
+    UE_LOG(LogLDWorld, Display, TEXT("LD_CAMP_SPAWN camp=%s generation=%u members=%d life=%u stage=%u at=%.3f"),
+        *Spec.CampId.ToString(), State.FindCamp(Camp)->Generation, Spawned.Num(), Refs[0].Victim.Life, uint32(Stage),
+        Mode->GetAuthorityNowSeconds());
     Error.Reset();
     return true;
 }

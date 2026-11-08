@@ -55,6 +55,7 @@ const TCHAR* CauseName(ELDKillCause Cause)
     case ELDKillCause::Contender: return TEXT("Contender");
     case ELDKillCause::CampLow: return TEXT("CampLow");
     case ELDKillCause::CampHigh: return TEXT("CampHigh");
+    case ELDKillCause::CampElite: return TEXT("CampElite");
     default: return TEXT("Unowned");
     }
 }

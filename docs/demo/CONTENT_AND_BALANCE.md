@@ -48,6 +48,17 @@ now that there are more, reduce 50% exp and money output”。外圈新增 10 �
 离出生点至少 7 m、离其他营地至少 9 m，清掉其 3 m 净空内的树和地被；离旗杆最近的四个低档营地（原 `l01`、`l02`、`l06`、`l07`）
 改为高档营地 `h05`–`h08`，营地共 26 个（高档 8、低档 18）。野怪每只收益减半：低档 20XP/15 金币，高档 80XP/60 金币。
 下文 §7 的供给情景仍按旧的五营地、旧收益计算，只是历史记录；这次调整只供试玩，不是平衡测试。
+**2026-11-08 用户决定野怪随时间变强、加第三档精英营地（#97）：** 原话：“make camp stronger overtime to match player strength.
+add a 3rd tier camp, put them in the outer rim”。用户批准成长曲线（每 60 s 一阶、上限 10 阶，每阶生命 +12%、攻击 +8%、双抗 +2、
+经验 +10%，金币不变，见 §6.2.1）和精英怪 `monster_advisor`（催毕设的导师）的属性（见 §6.2）。布置上用户的原话是：
+“add 4 new t3 rim camps and 4 new t2 rim ramps, clear the trees, then add 4 level-2 elevations bridging the 4 corner level-3
+elevations directly towards central basin, so there are more pathways from rim (especially dorm!) to the center. adjust camp
+position if needed”。其中 “t2 rim ramps” 按 “t2 rim camps” 实施：外圈每个角两侧各加一组精英 `e01`–`e04` 与一组高档 `h09`–`h12`
+（每角一精英一高档，旋转对称；离出生点至少 7 m、离其他营地至少 9 m）；四个角的高台各接一块中层台地（`shelf_ne/nw/se/sw`）和上下两段坡道，
+东南角的出口正对 `hill_se`，另加坡道 `ramp_hill_se_c` 上山再接原有坡道；`l21`、`l22` 原位置落在新台地上，移到台地旁的盆地；
+清掉台地、坡道、通道和新营地净空内的树与地被。营地共 34 个（低档 18、高档 12、精英 4）。离线寻路格点复算（25 cm 格、40 cm 身体）：
+东北/西南躺平角到旗杆约 81/85 m → 67/69 m，西北角 `l11` 82 → 64 m，东南角 `l12` 90 → 61 m。只供试玩，不是平衡测试。
+**2026-11-08 试玩后用户调整（#97）：** 精英营地离躺平角太近，移到四条边中点的空地（`e01` 北、`e02` 西、`e03` 南、`e04` 东，各在原边中点出生点向中心 4–4.5 m，清掉营地净空内的树与地被）；原来四个边中点出生点 `s01`/`s04`/`s07`/`s10` 移到精英原来的角落位置。精英仍能被 1 级角色单挑打过，用户要求高档与精英加强 50%：生命与攻击各 ×1.5（高档 420/48 → 630/72，精英 900/60 → 1350/90），双抗、攻速、射程、移速、刷新与收益不变。用户认为画饼老板太弱，要求加强 200%：生命与攻击各 ×3（1500/70 → 4500/210），其余不变。“加强 N%”按生命与攻击各乘 (1+N%) 实施，双抗不动。只供试玩，不是平衡测试。
 **2026-11-06 用户决定删除回防路线验证预算（#97）：** `TIMING.DefendRouteBudgetSec` 与世界离线路线模型一并删除，
 世界与内容校验不再限制任何路线长度（用户原话：“that rule is absurdly unnecessary as our map is currently mostly plain
 ground with no obstacle. remove that rule”，随后选择“Drop it entirely”）。上文涉及该预算的调整只是历史记录。
@@ -100,7 +111,7 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 | `VISION.RadiusCm`、`SHOP.InteractRadiusCm` | 内容模块定半径；世界与视野模块验证遮挡、权限和交互可达 |
 | `CAPTURE.RadiusCm`、`CAPTURE.SpraySec`、`CAPTURE.GuardSec`、`MATCH.CountdownSec`、`MATCH.DevelopmentSec` | 内容模块定尺度与节奏；比赛模块实现 Spec 的同刻结算和唯一胜者 |
 | `LIFE.RespawnSec`、`LIFE.ProtectionSec` | 内容模块定时长；生命与权威模块维持时间、免疫、保留和重开隔离 |
-| `CAMP.Low.*`、`CAMP.High.*` | 内容模块定构成、强度、收益、刷新、追击与重置；世界模块配置五个稳定营地锚点 |
+| `CAMP.Low.*`、`CAMP.High.*`、`CAMP.Elite.*`、`CAMP.Growth*` | 内容模块定构成、强度、收益、刷新、追击、重置与随时间成长；世界模块配置稳定营地锚点（#97 起数量随世界） |
 
 所有世界距离建议统一为单层地面脚点的 XY 厘米距离。普攻距离是攻击者中心至目标中心；
 商店交互距离是角色中心至固定交互锚点；两者都不再加减双方碰撞半径。
@@ -130,7 +141,7 @@ diameter the same as characters”）。锚点坐标以 `SourceData/World/demo_w
 
 ## 2. 首轮方案与决策状态
 
-当前目录为 **1 基础角色、18 角色主动、16 角色被动、12 属性卡、13 装备、2 野怪定义与 1 个 Boss**（技能与属性卡见 §4；装备见 §5）。
+当前目录为 **1 基础角色、18 角色主动、16 角色被动、12 属性卡、13 装备、3 野怪定义与 1 个 Boss**（技能与属性卡见 §4；装备见 §5）。
 属性卡提供不依赖技能/装备的持续增益，其中伸手党落实用户确认的普攻射程成长；
 装备覆盖物攻、物防、法强/冷却、吸血、位移、资源、普攻群攻、反伤与射程。
 目录没有合成、消耗品、免死、地表反应或额外职业。
@@ -616,8 +627,8 @@ AI 在倒计时第 1–4 秒间的服务器随机时刻等概率选三张之一�
 **画饼老板 Boss（D26，#79）**：`content.json` 的 `boss` 块（`monster_dean`，显示名“画饼老板”）。开局后 `appear_at=60` 秒
 出现在 `boss_patrol_1`，以 `move_speed=225` cm/s（2026-11-07 随移速整体减慢25%由300改为225） 沿 `boss_patrol_1..4` 循环巡逻；#97 地图把四个巡逻点放在旗杆盆地内、
 围着旗杆一圈（用户：“boss patrols around the flag pole in the center”），是 `SourceData/World/demo_world.json` 的
-`BossWaypoint` 锚点。生命 `hp=1500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
-`attack=70` 物理伤害（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
+`BossWaypoint` 锚点。生命 `hp=4500`，护甲/魔抗 30，每 `attack_interval=1.5` 秒一次
+`attack=210` 物理伤害（2026-11-08 #97 由 1500/70 各 ×3）（前摇 `attack_windup=0.5` 秒，与高级营地守卫相同），攻击距离 `attack_range=250` cm，
 碰撞半径与参赛者相同（40 cm）。目标：`attacker_memory=5` 秒内打过它的参赛者（取最近者），否则 `aggro_radius=400` cm
 内最近的可见参赛者；距离相同按参赛者编号。每局一次，不复活。最后一击得 `reward_xp=300` 流量 + `reward_gold=250` 米
 （走 `DeathReward` 结算），并“吃到大饼”（技术标识 `approval`）：`approval.duration=90` 秒内 `ADBonusRatio` +25%、`APBonusRatio` +25%、
@@ -751,39 +762,44 @@ DEV 成长夹具可预置三组（方向卡、隐藏主动）对，但可见报�
 | `REWARD.AssistGoldRatio` | 比例/R4，0.5 | 助攻金币=受害者基础击杀金币的50%（不含额外赏金），助攻者平分向下取整（#112 票中给定） |
 | `CAMP.Low.RewardXP/RewardGold`（怪物 `reward_xp/reward_gold`） | 每只20XP/15金币（2026-11-07 减半） | 整组40XP/30金币，首次升级（80XP）要两个完整低营 |
 | `CAMP.High.RewardXP/RewardGold` | 每只80XP/60金币（2026-11-07 减半） | 整组是低营两倍收益，但开荒耗血与接敌时间显著更高 |
+| `CAMP.Elite.RewardXP/RewardGold` | 每只180XP/135金币（2026-11-08 批准） | 高营的 2.25 倍；1 级只有普攻的角色单挑打不过（§6.2.1）。金币随 #144 删除 |
+
+以上经验是 0 阶的基础值；每条野怪生命按生成时的成长阶段多给经验（§6.2.1），金币不随阶段变化。
 
 不保留旧 PvP 配对冷却、总XP上限、固定击杀次数池。合法新生命可继续产生奖励；
 同一生命重复致死/回包不能产生第二份。人为送人头仍是自由混战的行为风险，不能未经产品授权
 添加死亡扣钱或无提示的递减奖励来修正。断线不是击杀，不产生本表奖励。
 
-### 6.2 五组两档定义
+### 6.2 三档营地定义
 
-稳定怪物 ID：`monster_scavenger`（已读不回的 HR，低档）、`monster_guardian`（追着办卡的私教，高档）。
-五组锚点由世界报告提供；内容引用三组 Low、两组 High，不另定义坐标。
-下表路径为 `CAMP.Low.<字段>` / `CAMP.High.<字段>`；数值不随参赛人数或怪物轮次变动。
+稳定怪物 ID：`monster_scavenger`（已读不回的 HR，低档）、`monster_guardian`（追着办卡的私教，高档）、
+`monster_advisor`（催毕设的导师，精英，#97 2026-11-08 加入，原生编号 4，追加在 `monster_dean` 之后不改旧编号）。
+营地锚点由世界输入提供（当前 18 组 Low、12 组 High、4 组 Elite），不另定义坐标。
+下表路径为 `CAMP.Low.<字段>` / `CAMP.High.<字段>` / `CAMP.Elite.<字段>`；数值不随参赛人数变动，
+随对局时间按 §6.2.1 成长。
 共同政策 `CAMP.AggroTrigger=ConfirmedCombatHit`、`CAMP.GroupRetaliation=true`：
 Idle不因接近或看见参赛者先手，不保留AggroRadius自动警戒字段/别名。
 确认的合法攻击命中触发同营受击事件，即使被击成员当次死亡，其他存活成员仍可共同反击；
 物理碰撞、仅预览、挥空、被拒绝命令不触发。组内传的是受击事件/仇恨身份，
 不是隐藏实时坐标或共享视野；每成员必须用自己合法观察重新定位目标。
 
-| 字段 | 类型/单位 | Low：3组、每组2只 | High：2组、每组1只 | 意义/校验 |
-| --- | --- | --- | --- | --- |
-| `CountPerCamp` | Count | 2 | 1 | 每成员独立 life/奖励，不用组总奖励再次发放 |
-| `HP` | P2/HP | 90 | 420 | 每次新生命满HP；组内成员不是共享血条 |
-| `Armor/MagicResist` | P2/抗性点 | 8 / 8 | 20 / 20 | 使用同一抗性公式 |
-| `Attack` | P2/物攻点 | 10 | 48 | 单体近战 Physical，1.0 AD，无暴击/技能 |
-| `AttackSpeed` | Rate/次每秒 | .80 | .65 | 周期分别ceil(1250)=1250ms、ceil(1538.462)=1539ms |
-| `AttackWindupSec` | Sec | .350 | .500 | 移动接近/攻击原语复用，不能以帧率增加攻击次数 |
-| `AttackRangeCm` | Cm | 150 | 175 | 中心距；两种40cm身体可以不重叠地互相普攻 |
-| `MoveSpeedCmPerSec` | Rate/cm每秒 | 240 | 260 | 2026-11-05 随角色基速先按480/520缩放为384/416，同日再按400/480缩放为320/347；2026-11-07 随基速再整体减慢25%（“移速还是太快,再整体减慢25%”）：低营精确240、高营260.25取整260；慢于基础角色；追击/回位都经合法路径 |
-| `CollisionRadiusCm` | Cm | 40 | 40 | 低组两个初始落点不得重叠；净空不扩张射程 |
-| `LeashRadiusCm` | Cm | 900 | 1050 | 相对本组锚点；超界进入返回，不永久追出营地。高档由 1100 改为 1050（2026-11-07 用户选择“Guardian leash 1050”）：感知等于拴绳，不能超出提供候选的视野半径 `VISION.RadiusCm`（内容校验拒绝） |
-| `PerceptionRadiusCm` | 派生/Cm | =LeashRadiusCm | =LeashRadiusCm | 当前怪物脚点观测范围；不是允许读取墙后真实目标 |
-| `LoseTargetGraceSec` | Sec | 3 | 4 | 丢失观察立即取消锁定/停止追击；原地等待重新合法观测，到时回营，不向最后位置盲追 |
-| `RespawnSec` | Sec | 25 | 65 | 从该组最后成员死亡/清空时刻开始；低营 2026-11-04 由40s缩短（D23） |
-| `HPRegen/MaxMP/MPRegen/AP/CritChance` | 各自点/速率/概率 | 全部0 | 全部0 | 仅回位成功重置回血；怪物没有蓝耗、隐含技能或成长 |
-| `ResetPolicy` | enum | ReturnThenReset | ReturnThenReset | 下列同一状态机；不新增奖励生命 |
+| 字段 | 类型/单位 | Low：每组2只 | High：每组1只 | Elite：每组1只 | 意义/校验 |
+| --- | --- | --- | --- | --- | --- |
+| `CountPerCamp` | Count | 2 | 1 | 1 | 每成员独立 life/奖励，不用组总奖励再次发放 |
+| `HP` | P2/HP | 90 | 630 | 1350 | 0 阶基础值；每次新生命按其阶段满HP；组内成员不是共享血条。高档、精英 2026-11-08 由 420/900 ×1.5 |
+| `Armor/MagicResist` | P2/抗性点 | 8 / 8 | 20 / 20 | 30 / 30 | 0 阶基础值；使用同一抗性公式 |
+| `Attack` | P2/物攻点 | 10 | 72 | 90 | 0 阶基础值；单体近战 Physical，1.0 AD，无暴击/技能。高档、精英 2026-11-08 由 48/60 ×1.5 |
+| `AttackSpeed` | Rate/次每秒 | .80 | .65 | .60 | 周期分别ceil(1250)=1250ms、ceil(1538.462)=1539ms、ceil(1666.667)=1667ms |
+| `AttackWindupSec` | Sec | .350 | .500 | .500 | 移动接近/攻击原语复用，不能以帧率增加攻击次数 |
+| `AttackRangeCm` | Cm | 150 | 175 | 175 | 中心距；40cm身体可以不重叠地互相普攻 |
+| `MoveSpeedCmPerSec` | Rate/cm每秒 | 240 | 260 | 260 | 精英与高营同速；2026-11-05 随角色基速先按480/520缩放为384/416，同日再按400/480缩放为320/347；2026-11-07 随基速再整体减慢25%（“移速还是太快,再整体减慢25%”）：低营精确240、高营260.25取整260；慢于基础角色；追击/回位都经合法路径 |
+| `CollisionRadiusCm` | Cm | 40 | 40 | 40 | 低组两个初始落点不得重叠；净空不扩张射程 |
+| `LeashRadiusCm` | Cm | 900 | 1050 | 1050 | 相对本组锚点；超界进入返回，不永久追出营地。高档由 1100 改为 1050（2026-11-07 用户选择“Guardian leash 1050”）：感知等于拴绳，不能超出提供候选的视野半径 `VISION.RadiusCm`（内容校验拒绝） |
+| `PerceptionRadiusCm` | 派生/Cm | =LeashRadiusCm | =LeashRadiusCm | =LeashRadiusCm | 当前怪物脚点观测范围；不是允许读取墙后真实目标 |
+| `LoseTargetGraceSec` | Sec | 3 | 4 | 4 | 丢失观察立即取消锁定/停止追击；原地等待重新合法观测，到时回营，不向最后位置盲追 |
+| `RespawnSec` | Sec | 25 | 65 | 90 | 从该组最后成员死亡/清空时刻开始；低营 2026-11-04 由40s缩短（D23） |
+| `HPRegen/MaxMP/MPRegen/AP/CritChance` | 各自点/速率/概率 | 全部0 | 全部0 | 全部0 | 仅回位成功重置回血；怪物没有蓝耗或隐含技能，只按 §6.2.1 随时间成长 |
+| `ResetPolicy` | enum | ReturnThenReset | ReturnThenReset | ReturnThenReset | 下列同一状态机；不新增奖励生命 |
 
 共同政策键 `CAMP.ReturningDamageable=true`、`CAMP.ReturningControllable=true`。
 回位一旦开始，不攻击、不新开目标、不因为受击取消返回，但仍可被合法伤害/控制，也可能被击杀；
@@ -816,6 +832,39 @@ Root 只会暂时禁止运动，不把返回订单变成追击。沿合法路径
 例如一组低怪先死一只，发40XP/30金币；另一只回位只回血，奖励仍未发、原 life 不变。
 之后它在t=10s死亡，整组从t=10开始25s等待，于t=35生成两个全新生命。
 旧弹体/命中持有旧 target life，不能伤害这次刷新。
+
+### 6.2.1 随对局时间成长（#97）
+
+2026-11-08 用户批准（原话见本文开头）。每组野怪生成时（开局整组生成与每次清空后刷新）取成长阶段
+$k=\min(	ext{CAMP.GrowthMaxStage},\lfloor (t_{生成}-T_0)/	ext{CAMP.GrowthStageSec}floor)$，开局倒计时内为 0；
+整组同阶，整条生命保持该阶段，回位重置（含原地重置）恢复到该阶段的满值，不退回基础值；只有下一次刷新才取新的阶段。
+画饼老板不是营地，固定 0 阶。
+
+| 参数 ID（`content.json`） | 值 | 作用（各自按存储单位向下取整） |
+| --- | --- | --- |
+| `CAMP.GrowthStageSec` | 60 s | 每满 60 s 升一阶 |
+| `CAMP.GrowthMaxStage` | 10 | T=10:00 起不再升阶 |
+| `CAMP.GrowthHPRatioPerStage` | .12 | 生命 = 基础 × (1 + .12k)，上限时 2.2 倍 |
+| `CAMP.GrowthAttackRatioPerStage` | .08 | 攻击 = 基础 × (1 + .08k)，上限时 1.8 倍 |
+| `CAMP.GrowthResistPerStage` | 2 点 | 护甲、魔抗各 + 2k，上限时 +20 |
+| `CAMP.GrowthRewardXPRatioPerStage` | .10 | 每只经验 = 基础 × (1 + .1k)，上限时 2 倍；金币不变（随 #144 删除） |
+
+攻速、前摇、射程、移速、拴绳、刷新时间都不随阶段变化。对手 AI 估计营地代价时按当前公开时间的阶段计算
+（活着的野怪不会高于这个阶段），精英营地沿用高营的入场与保底血量门槛。
+
+提案依据（离线估算，不是试玩或平衡测试）：只有等级、没有技能与属性卡的角色按每分钟约 1.3 级成长
+（$L=1+1.3k$）时，各档单挑的击杀时间与掉血比例在整局大致不变：
+
+| 阶段 k | 假设等级 | 低营（两只）| 高营 | 精英 |
+| --- | --- | --- | --- | --- |
+| 0 | 1 | 3.1 s / 5% | 约 12.0 s / 77% | 打不过（约需 2.05 倍生命） |
+| 3 | 5 | 3.5 s / 5% | 约 13.4 s / 72% | 打不过（约 1.94 倍） |
+| 6 | 9 | 3.7 s / 5% | 约 14.4 s / 68% | 打不过（约 1.82 倍） |
+| 10 | 14 | 4.0 s / 4% | 约 15.3 s / 65% | 打不过（约 1.73 倍） |
+
+表中为击杀时间 / 掉血占最大生命比例，不计技能、属性卡、回复与出手时机；技能和属性卡会让实际掉血更少。
+高档与精英的列由 2026-11-08 加强前的同一模型近似换算：生命 ×1.5 使击杀时间 ×1.5，攻击也 ×1.5，掉血约 ×2.25。
+加强后只靠普攻在任何阶段都单挑不过精英，需要技能、属性卡、装备或多人。
 
 ### 6.3 AI 只读决策参数
 

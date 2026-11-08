@@ -344,6 +344,7 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     Frame.POIs = POIs;
     Frame.Public.Phase = Public.Phase;
     Frame.Public.NowMs = NowMs;
+    Frame.Public.StartedAtMs = Public.StartedAtMs;
     Frame.Public.Circle = CircleOf(Public.CircleState);
     Frame.Public.Occupier = Public.CircleState == ELDCircleState::Solo || Public.CircleState == ELDCircleState::Contested
         ? Public.Occupier : FGuid();

@@ -308,9 +308,9 @@ namespace
         const TArray<TSharedPtr<FJsonValue>>* Seats = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Monsters = nullptr;
         if (!Json->TryGetArrayField(TEXT("seats"), Seats) || Seats->Num() != LDArt::SeatCount
-            || !Json->TryGetArrayField(TEXT("monsters"), Monsters) || Monsters->Num() != 3)
+            || !Json->TryGetArrayField(TEXT("monsters"), Monsters) || Monsters->Num() != 4)
         {
-            return ArtFail(Error, TEXT("art_assets.json needs six seats, the two camp tiers and the Boss."));
+            return ArtFail(Error, TEXT("art_assets.json needs six seats, the Low and High camp tiers, the Boss and the Elite tier."));
         }
         for (const TSharedPtr<FJsonValue>& Seat : *Seats)
         {
@@ -320,7 +320,7 @@ namespace
         }
         const TPair<const TCHAR*, ELDDemoMonsterId> Tiers[] = {
             {TEXT("monster_scavenger"), ELDDemoMonsterId::MonsterScavenger}, {TEXT("monster_guardian"), ELDDemoMonsterId::MonsterGuardian},
-            {TEXT("monster_dean"), ELDDemoMonsterId::MonsterDean} };
+            {TEXT("monster_dean"), ELDDemoMonsterId::MonsterDean}, {TEXT("monster_advisor"), ELDDemoMonsterId::MonsterAdvisor} };
         for (int32 Index = 0; Index < Monsters->Num(); ++Index)
         {
             const TSharedPtr<FJsonObject>* Look = nullptr;

@@ -115,6 +115,8 @@ private:
     TSet<FGuid> Stranded;
     TSet<int32> BlockedRefresh;
     FLDBossState Boss;
+    // #97: the match's T=0 in authority ms; a camp life's growth stage counts from here.
+    int64 MatchStartedAtMs = 0;
     bool bBossBlockedLogged = false;
     uint64 BossSequence = 0;
 };

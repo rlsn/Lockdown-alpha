@@ -150,15 +150,15 @@ bool RunCampCost(FAutomationTestBase& Test)
     // CONTENT_AND_BALANCE §7.2 timings; damage is the regen-free conservative sum of its listed retaliations.
     bGood &= CheckCamp(Test, TEXT("L1 low camp: 4 hits, first-hit retaliation, 4 x 8.47"),
         LDOpponentPolicy::EstimateCampCost(Input, *Low, *Catalog), ELDCampCostStatus::Ok, 3586, 4, 4, 3388, 58612);
-    bGood &= CheckCamp(Test, TEXT("L1 high camp: 8 hits, 5 x 40.67"),
-        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 8034, 8, 5, 20335, 41665);
+    bGood &= CheckCamp(Test, TEXT("L1 high camp: 11 hits, 7 x 61.01"),
+        LDOpponentPolicy::EstimateCampCost(Input, *High, *Catalog), ELDCampCostStatus::Ok, 11370, 11, 7, 42707, 19293);
     FLDCampCostInput Ten = Input;
     Ten.CurrentHpP2 = Ten.MaxHpP2 = L10.MaxHPP2;
     Ten.Attributes = L10;
     bGood &= CheckCamp(Test, TEXT("L10 low camp uses projected attack speed and windup"),
         LDOpponentPolicy::EstimateCampCost(Ten, *Low, *Catalog), ELDCampCostStatus::Ok, 1154, 2, 1, 735, L10.MaxHPP2 - 735);
     bGood &= CheckCamp(Test, TEXT("L10 high camp"),
-        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 4922, 6, 3, 10587, L10.MaxHPP2 - 10587);
+        LDOpponentPolicy::EstimateCampCost(Ten, *High, *Catalog), ELDCampCostStatus::Ok, 6806, 8, 4, 21176, L10.MaxHPP2 - 21176);
 
     bGood &= Test.TestEqual(TEXT("A retaliation landing exactly at the death time counts"),
         LDOpponentPolicy::RetaliationHits(0, 350, 1250, 350), int64(1));
@@ -1132,13 +1132,14 @@ bool RunProjections(FAutomationTestBase& Test)
     {
         World.Anchors.Add(Anchor(*Refs.ShopIds[Index], ELDDemoWorldAnchorKind::Shop, -3000, 400 * Index));
     }
-    FString HighId, LowId;
+    FString HighId, LowId, EliteId;
     for (int32 Index = 0; Index < C.Get().Camps.Num(); ++Index)
     {
         const FLDDemoCampPlacement& Camp = C.Get().Camps[Index];
-        const bool bHigh = Camp.MonsterId == TEXT("monster_guardian");
-        (bHigh ? HighId : LowId) = (bHigh ? HighId : LowId).IsEmpty() ? Camp.AnchorId : (bHigh ? HighId : LowId);
-        World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bHigh ? 1 : 2));
+        const bool bLow = Camp.MonsterId == TEXT("monster_scavenger");
+        FString& Seen = bLow ? LowId : Camp.MonsterId == TEXT("monster_advisor") ? EliteId : HighId;
+        if (Seen.IsEmpty()) { Seen = Camp.AnchorId; }
+        World.Anchors.Add(Anchor(*Camp.AnchorId, ELDDemoWorldAnchorKind::Camp, 300 * Index, -2000, bLow ? 2 : 1));
     }
     const int32 Places = World.Anchors.Num() - 1;
     TArray<FLDOpponentPOI> POIs;
@@ -1152,10 +1153,12 @@ bool RunProjections(FAutomationTestBase& Test)
         DormPOI && DormPOI->Kind == ELDOpponentPOIKind::Dorm && DormPOI->FootCm.Equals(FVector(4400, -4400, 0)));
     const auto* High = POIs.FindByPredicate([&HighId](const FLDOpponentPOI& P) { return P.Id == FName(*HighId); });
     const auto* Low = POIs.FindByPredicate([&LowId](const FLDOpponentPOI& P) { return P.Id == FName(*LowId); });
+    const auto* Elite = POIs.FindByPredicate([&EliteId](const FLDOpponentPOI& P) { return P.Id == FName(*EliteId); });
     const auto* Spawn = POIs.FindByPredicate([&Refs](const FLDOpponentPOI& P) { return P.Id == FName(*Refs.SpawnIds[0]); });
     bGood &= Test.TestTrue(TEXT("Camp tier and creature come from the public catalog"),
         High && High->Kind == ELDOpponentPOIKind::Camp && High->Tier == ELDDemoCampTier::High && High->MonsterId == TEXT("monster_guardian")
         && Low && Low->Tier == ELDDemoCampTier::Low && Low->MonsterId == TEXT("monster_scavenger")
+        && Elite && Elite->Tier == ELDDemoCampTier::Elite && Elite->MonsterId == TEXT("monster_advisor")
         && Spawn && Spawn->Kind == ELDOpponentPOIKind::Spawn && Spawn->FootCm.Equals(FVector(10, 20, 0)) && Spawn->SurfaceId == TEXT("ground"));
     const auto Without = [&World](ELDDemoWorldAnchorKind Kind, int32 Count)
     {

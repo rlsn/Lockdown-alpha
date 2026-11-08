@@ -310,10 +310,10 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250", approval["decision"])
         for text in ("2026-11-07 movement -25%", "flagpole 180s", "vision/leash 1050", "#147 build v7",
-                     "2026-11-08 #166 level 16/QWE", "Equipment excluded"):
+                     "2026-11-08 #166 level 16/QWE", "#97 camp growth stages, Elite camp tier", "Equipment excluded"):
             self.assertIn(text, approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (34, 12, 13, 2))
+                          len(self.data["camps"]["monsters"])), (34, 12, 13, 3))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(RANK_EFFECTS))
         # #147: mechanic tags are gone from skills and equipment.
         self.assertFalse(any("tags" in row for row in (*self.data["abilities"], *self.data["equipment"])))
@@ -354,7 +354,9 @@ class ApprovedDemoData(unittest.TestCase):
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
             ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
-            ("CAMP.ReturnDeadEndSec", "ms", "6"),
+            ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "60"),
+            ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
+            ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
             ("AIRDROP.FirstLandSec", "ms", "45"), ("AIRDROP.IntervalSec", "ms", "80"),
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
@@ -382,7 +384,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("SHOP.StartingGold", 320), ("SHOP.UpgradeCost", 240), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
             ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
             ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
-            ("CAMP.ReturnDeadEndPlans", 3), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
+            ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
             ("LEADER.MinLevel", 3), ("LEADER.BountyGoldPerRefresh", 50), ("LEADER.BountyGoldMax", 250),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
         ):
@@ -466,6 +468,7 @@ class ApprovedDemoData(unittest.TestCase):
             "item_echo_maul": "自拍杆", "item_slingshot": "大号滋水枪", "item_nail_uniform": "扎心铆钉皮衣",
             "item_megaphone": "大喇叭", "item_dossier": "黑料小本本", "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
+            "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
             "slow": "减速", "stat_boost": "增益", "exposed": "破防",
             "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
@@ -850,7 +853,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["max_skill_rank"], 2)
         for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
             ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 15, 1250),
-            ("monster_guardian", "High", 1, 420, 20, 48, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 60, 1539),
+            ("monster_guardian", "High", 1, 630, 20, 72, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 60, 1539),
+            ("monster_advisor", "Elite", 1, 1350, 30, 90, ".60", 500, 175, 260, 1050, 4000, 90000, 180, 135, 1667),
         ):
             row = self.catalog.definition(identity)
             self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
@@ -866,7 +870,7 @@ class ApprovedDemoData(unittest.TestCase):
         # D26 (#79), user-approved 2026-11-04 ("Approve as proposed (Recommended)") and 2026-11-05 (windup, waypoints).
         boss = self.data["boss"]
         self.assertEqual(boss["id"], "monster_dean")
-        for key, expected in (("hp", 1500), ("armor", 30), ("magic_resist", 30), ("attack", 70), ("attack_range", 250),
+        for key, expected in (("hp", 4500), ("armor", 30), ("magic_resist", 30), ("attack", 210), ("attack_range", 250),
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],

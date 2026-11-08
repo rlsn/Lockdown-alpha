@@ -117,6 +117,8 @@ struct FLDOpponentPublicMatch
 {
     ELDMatchPhase Phase = ELDMatchPhase::Faulted;
     int64 NowMs = 0;
+    // The public T=0 of the match (FLDPublicMatchView::StartedAtMs); #97 camp growth stages count from here.
+    int64 StartedAtMs = 0;
     ELDOpponentCircle Circle = ELDOpponentCircle::Empty;
     // The contender holding spray progress: the sole sprayer, or the holder a contest only paused.
     // Invalid when nobody holds progress.

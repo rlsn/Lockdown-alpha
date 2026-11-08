@@ -152,7 +152,7 @@
       "pack": "quaternius-ultimate-modular-women",
       "pack_path": "Ultimate Modular Women - April 2022/Individual Characters/glTF/Suit.gltf",
       "sha256": "937d5c8d08fb5570f6a4e1dd79a3878335444d175aae3b0e9e2babdac36a17f7",
-      "purpose": "Low camp tier body: discipline committee member in a suit (suit tinted per tier)"
+      "purpose": "Low camp tier body: discipline committee member in a suit (suit tinted per tier); also the Elite tier thesis advisor, displayed taller"
     },
     {
       "path": "Kenney/CoasterKit/tree.glb",
@@ -733,6 +733,63 @@
           "substitute": "No appear clip in the pack; a wave greets the field on arrival."
         }
       ]
+    },
+    {
+      "id": "advisor",
+      "source": "Quaternius/UltimateModularWomen/Suit.gltf",
+      "height_cm": 220,
+      "run_speed_cm_per_sec": 287.9,
+      "hand_bone": "Wrist_R",
+      "foot_bone": "Foot_L",
+      "forward_bones": [
+        "PT_L",
+        "PT_R"
+      ],
+      "tint_slots": [
+        "Black"
+      ],
+      "animations": [
+        {
+          "state": "Idle",
+          "clip": "Idle",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Run",
+          "clip": "Run",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Attack",
+          "clip": "Punch_Right",
+          "play_rate": 1.0,
+          "impact_sec": 0.707,
+          "substitute": "No forehead-flick clip in the pack; the right punch stands in for the basic attack."
+        },
+        {
+          "state": "Cast",
+          "clip": "Interact",
+          "play_rate": 1.0,
+          "impact_sec": 0.792,
+          "substitute": "No spell clip in the pack; the forward right-arm reach of Interact reads as throwing or pointing."
+        },
+        {
+          "state": "Hit",
+          "clip": "HitRecieve",
+          "play_rate": 2.4
+        },
+        {
+          "state": "Death",
+          "clip": "Death",
+          "play_rate": 1.0
+        },
+        {
+          "state": "Spawn",
+          "clip": "Wave",
+          "play_rate": 1.0,
+          "substitute": "No appear clip in the pack; a wave greets the field on arrival."
+        }
+      ]
     }
   ],
   "seats": [
@@ -755,6 +812,10 @@
     {
       "creature": "monster_dean",
       "character": "dean"
+    },
+    {
+      "creature": "monster_advisor",
+      "character": "advisor"
     }
   ],
   "props": [
@@ -3400,24 +3461,6 @@
     {
       "prop": "grass_short",
       "zone": "ground",
-      "x": 2530.2,
-      "y": -2559.1,
-      "z": 0,
-      "yaw": 168,
-      "scale": 0.889
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": 2628.5,
-      "y": -2565.6,
-      "z": 0,
-      "yaw": 146,
-      "scale": 0.962
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
       "x": -957.7,
       "y": -3760.3,
       "z": 50,
@@ -3432,24 +3475,6 @@
       "z": 0,
       "yaw": 267,
       "scale": 0.914
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -4051.5,
-      "y": 3708.7,
-      "z": 100,
-      "yaw": 111,
-      "scale": 1.021
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -2172.2,
-      "y": 2370.7,
-      "z": 50,
-      "yaw": 229,
-      "scale": 1.039
     },
     {
       "prop": "grass_short",
@@ -3596,15 +3621,6 @@
       "scale": 1.082
     },
     {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 4105.0,
-      "y": -3227.0,
-      "z": 100,
-      "yaw": 293,
-      "scale": 1.142
-    },
-    {
       "prop": "grass_wispy",
       "zone": "ground",
       "x": 3946.1,
@@ -3648,15 +3664,6 @@
       "z": 0,
       "yaw": 147,
       "scale": 0.891
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -4246.2,
-      "y": 3284.7,
-      "z": 100,
-      "yaw": 94,
-      "scale": 1.116
     },
     {
       "prop": "clover",
@@ -3812,15 +3819,6 @@
       "scale": 0.863
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -4669.1,
-      "y": -3096.4,
-      "z": 100,
-      "yaw": 285,
-      "scale": 1.159
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": -2638.6,
@@ -3837,33 +3835,6 @@
       "z": 0,
       "yaw": 49,
       "scale": 0.837
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 4121.8,
-      "y": -3443.7,
-      "z": 100,
-      "yaw": 110,
-      "scale": 0.916
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -1821.3,
-      "y": 1760.9,
-      "z": 50,
-      "yaw": 358,
-      "scale": 1.085
-    },
-    {
-      "prop": "leafy_plant",
-      "zone": "ground",
-      "x": -1992.3,
-      "y": 1860.5,
-      "z": 50,
-      "yaw": 270,
-      "scale": 0.952
     },
     {
       "prop": "grass_short",
@@ -3929,15 +3900,6 @@
       "scale": 0.944
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -4059.7,
-      "y": -9.3,
-      "z": 100,
-      "yaw": 231,
-      "scale": 0.956
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": -448.4,
@@ -3945,24 +3907,6 @@
       "z": 0,
       "yaw": 39,
       "scale": 1.121
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -2194.2,
-      "y": 2512.4,
-      "z": 50,
-      "yaw": 284,
-      "scale": 0.943
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -2328.8,
-      "y": 2432.2,
-      "z": 50,
-      "yaw": 265,
-      "scale": 1.175
     },
     {
       "prop": "flowers_white",
@@ -4084,15 +4028,6 @@
     {
       "prop": "mushroom",
       "zone": "ground",
-      "x": 3874.1,
-      "y": 3584.4,
-      "z": 100,
-      "yaw": 0,
-      "scale": 1.162
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
       "x": 2238.1,
       "y": 473.5,
       "z": 0,
@@ -4116,42 +4051,6 @@
       "z": 100,
       "yaw": 343,
       "scale": 0.92
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 2311.9,
-      "y": 2662.2,
-      "z": 0,
-      "yaw": 354,
-      "scale": 1.183
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 2274.3,
-      "y": 2543.8,
-      "z": 0,
-      "yaw": 102,
-      "scale": 0.99
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 2324.8,
-      "y": 2465.8,
-      "z": 0,
-      "yaw": 62,
-      "scale": 0.805
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": 2306.7,
-      "y": -2200.4,
-      "z": 50,
-      "yaw": 55,
-      "scale": 1.143
     },
     {
       "prop": "flowers_purple",
@@ -4237,15 +4136,6 @@
     {
       "prop": "grass_short",
       "zone": "ground",
-      "x": -3054.3,
-      "y": -2186.4,
-      "z": 0,
-      "yaw": 76,
-      "scale": 0.948
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
       "x": -2838.3,
       "y": -2094.2,
       "z": 0,
@@ -4314,15 +4204,6 @@
       "z": 0,
       "yaw": 20,
       "scale": 0.962
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3399.6,
-      "y": 4791.6,
-      "z": 100,
-      "yaw": 242,
-      "scale": 1.011
     },
     {
       "prop": "mushroom",
@@ -4550,15 +4431,6 @@
       "scale": 1.11
     },
     {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -4705.6,
-      "y": 3459.6,
-      "z": 100,
-      "yaw": 220,
-      "scale": 0.861
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": 1299.6,
@@ -4746,24 +4618,6 @@
       "z": 100,
       "yaw": 298,
       "scale": 1.094
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -4675.4,
-      "y": -3133.2,
-      "z": 100,
-      "yaw": 281,
-      "scale": 0.95
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -2003.6,
-      "y": 2337.3,
-      "z": 50,
-      "yaw": 338,
-      "scale": 0.815
     },
     {
       "prop": "flowers_purple",
@@ -5000,15 +4854,6 @@
       "scale": 0.845
     },
     {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 3003.1,
-      "y": -4328.8,
-      "z": 100,
-      "yaw": 192,
-      "scale": 0.905
-    },
-    {
       "prop": "mushroom",
       "zone": "ground",
       "x": -3605.2,
@@ -5016,15 +4861,6 @@
       "z": 50,
       "yaw": 244,
       "scale": 0.938
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 2571.9,
-      "y": -3073.8,
-      "z": 0,
-      "yaw": 43,
-      "scale": 1.011
     },
     {
       "prop": "grass_short",
@@ -5090,15 +4926,6 @@
       "scale": 0.989
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": 4463.9,
-      "y": -3569.4,
-      "z": 100,
-      "yaw": 191,
-      "scale": 0.821
-    },
-    {
       "prop": "grass_short",
       "zone": "ground",
       "x": -3406.5,
@@ -5162,15 +4989,6 @@
       "scale": 0.875
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3471.7,
-      "y": -4353.3,
-      "z": 100,
-      "yaw": 267,
-      "scale": 1.002
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": -610.7,
@@ -5214,24 +5032,6 @@
       "z": 100,
       "yaw": 312,
       "scale": 1.089
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": 2312.3,
-      "y": -1958.2,
-      "z": 50,
-      "yaw": 15,
-      "scale": 1.114
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": 2384.3,
-      "y": -2210.1,
-      "z": 50,
-      "yaw": 52,
-      "scale": 1.185
     },
     {
       "prop": "flowers_white",
@@ -5281,15 +5081,6 @@
     {
       "prop": "flowers_white",
       "zone": "ground",
-      "x": 2420.1,
-      "y": 2599.1,
-      "z": 0,
-      "yaw": 76,
-      "scale": 0.889
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
       "x": 2285.7,
       "y": 2735.3,
       "z": 0,
@@ -5304,24 +5095,6 @@
       "z": 0,
       "yaw": 276,
       "scale": 0.9
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 3345.3,
-      "y": 2261.1,
-      "z": 0,
-      "yaw": 172,
-      "scale": 1.037
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -1844.5,
-      "y": -2184.8,
-      "z": 0,
-      "yaw": 350,
-      "scale": 1.184
     },
     {
       "prop": "grass_wispy",
@@ -5567,60 +5340,6 @@
       "scale": 1.065
     },
     {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -3353.2,
-      "y": 3694.8,
-      "z": 0,
-      "yaw": 290,
-      "scale": 1.012
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -3150.6,
-      "y": 3739.1,
-      "z": 0,
-      "yaw": 279,
-      "scale": 0.918
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2692.6,
-      "y": -2459.2,
-      "z": 0,
-      "yaw": 310,
-      "scale": 0.99
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2594.9,
-      "y": -2367.8,
-      "z": 0,
-      "yaw": 266,
-      "scale": 1.074
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2574.9,
-      "y": -2472.5,
-      "z": 0,
-      "yaw": 236,
-      "scale": 1.019
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -2729.0,
-      "y": -2393.8,
-      "z": 0,
-      "yaw": 76,
-      "scale": 0.947
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": 2914.8,
@@ -5718,15 +5437,6 @@
       "z": 0,
       "yaw": 220,
       "scale": 1.011
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -4116.9,
-      "y": -86.5,
-      "z": 100,
-      "yaw": 80,
-      "scale": 0.943
     },
     {
       "prop": "flowers_white",
@@ -6089,42 +5799,6 @@
       "scale": 0.937
     },
     {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": 2988.6,
-      "y": -4641.7,
-      "z": 100,
-      "yaw": 155,
-      "scale": 1.139
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 3268.2,
-      "y": -4780.8,
-      "z": 100,
-      "yaw": 46,
-      "scale": 1.126
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -2952.8,
-      "y": -2271.9,
-      "z": 0,
-      "yaw": 297,
-      "scale": 0.829
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -3151.5,
-      "y": -4756.9,
-      "z": 100,
-      "yaw": 272,
-      "scale": 1.128
-    },
-    {
       "prop": "mushroom",
       "zone": "ground",
       "x": -3298.3,
@@ -6150,15 +5824,6 @@
       "z": 0,
       "yaw": 128,
       "scale": 0.989
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3509.4,
-      "y": 2459.2,
-      "z": 0,
-      "yaw": 102,
-      "scale": 1.159
     },
     {
       "prop": "flowers_purple",
@@ -6240,15 +5905,6 @@
       "z": 100,
       "yaw": 105,
       "scale": 0.926
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -4282.5,
-      "y": 3416.2,
-      "z": 100,
-      "yaw": 264,
-      "scale": 0.927
     },
     {
       "prop": "grass_short",
@@ -6368,15 +6024,6 @@
       "scale": 0.968
     },
     {
-      "prop": "clover",
-      "zone": "ground",
-      "x": 3456.0,
-      "y": 2318.0,
-      "z": 0,
-      "yaw": 316,
-      "scale": 1.182
-    },
-    {
       "prop": "pebble",
       "zone": "ground",
       "x": 2633.1,
@@ -6442,29 +6089,11 @@
     {
       "prop": "grass_short",
       "zone": "ground",
-      "x": 3652.8,
-      "y": -3895.1,
-      "z": 100,
-      "yaw": 344,
-      "scale": 1.094
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
       "x": 3466.1,
       "y": -3949.2,
       "z": 100,
       "yaw": 301,
       "scale": 1.093
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 3486.5,
-      "y": -3867.3,
-      "z": 100,
-      "yaw": 286,
-      "scale": 1.102
     },
     {
       "prop": "flowers_white",
@@ -6474,33 +6103,6 @@
       "z": 100,
       "yaw": 119,
       "scale": 1.124
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -3095.4,
-      "y": -2138.0,
-      "z": 0,
-      "yaw": 131,
-      "scale": 1.02
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -3157.5,
-      "y": -2123.9,
-      "z": 0,
-      "yaw": 230,
-      "scale": 1.095
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 604.5,
-      "y": -3734.1,
-      "z": 0,
-      "yaw": 131,
-      "scale": 0.824
     },
     {
       "prop": "clover",
@@ -6575,15 +6177,6 @@
       "scale": 1.14
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2318.0,
-      "y": -2295.6,
-      "z": 0,
-      "yaw": 343,
-      "scale": 1.107
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": -3849.9,
@@ -6611,33 +6204,6 @@
       "scale": 1.057
     },
     {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -3143.7,
-      "y": -4286.6,
-      "z": 100,
-      "yaw": 247,
-      "scale": 0.967
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -1918.8,
-      "y": -2236.0,
-      "z": 0,
-      "yaw": 223,
-      "scale": 1.038
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2311.7,
-      "y": -1957.2,
-      "z": 50,
-      "yaw": 244,
-      "scale": 1.125
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": -2343.4,
@@ -6663,33 +6229,6 @@
       "z": 100,
       "yaw": 276,
       "scale": 0.825
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -3500.9,
-      "y": -2453.5,
-      "z": 0,
-      "yaw": 12,
-      "scale": 0.835
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3148.6,
-      "y": -2477.6,
-      "z": 0,
-      "yaw": 224,
-      "scale": 1.135
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3438.9,
-      "y": -2344.6,
-      "z": 0,
-      "yaw": 77,
-      "scale": 1.06
     },
     {
       "prop": "leafy_plant",
@@ -6726,15 +6265,6 @@
       "z": 100,
       "yaw": 17,
       "scale": 1.028
-    },
-    {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 2678.5,
-      "y": -2862.9,
-      "z": 0,
-      "yaw": 278,
-      "scale": 1.167
     },
     {
       "prop": "grass_short",
@@ -6789,24 +6319,6 @@
       "z": 0,
       "yaw": 209,
       "scale": 1.128
-    },
-    {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -3541.5,
-      "y": -4353.6,
-      "z": 100,
-      "yaw": 359,
-      "scale": 0.83
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -3586.6,
-      "y": -4520.7,
-      "z": 100,
-      "yaw": 223,
-      "scale": 0.988
     },
     {
       "prop": "leafy_plant",
@@ -7034,15 +6546,6 @@
       "scale": 1.133
     },
     {
-      "prop": "pebble",
-      "zone": "ground",
-      "x": -4649.7,
-      "y": -2997.0,
-      "z": 100,
-      "yaw": 304,
-      "scale": 0.895
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": -4614.7,
@@ -7133,15 +6636,6 @@
       "scale": 0.929
     },
     {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 3504.0,
-      "y": -4796.2,
-      "z": 100,
-      "yaw": 335,
-      "scale": 0.908
-    },
-    {
       "prop": "flowers_purple",
       "zone": "ground",
       "x": -554.3,
@@ -7176,24 +6670,6 @@
       "z": 0,
       "yaw": 195,
       "scale": 1.033
-    },
-    {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 2688.3,
-      "y": -2646.2,
-      "z": 0,
-      "yaw": 170,
-      "scale": 1.092
-    },
-    {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 2523.2,
-      "y": -2915.1,
-      "z": 0,
-      "yaw": 103,
-      "scale": 1.062
     },
     {
       "prop": "grass_wispy",
@@ -7313,15 +6789,6 @@
       "scale": 1.165
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -4585.6,
-      "y": 3485.5,
-      "z": 100,
-      "yaw": 289,
-      "scale": 0.915
-    },
-    {
       "prop": "grass_wispy",
       "zone": "ground",
       "x": -4812.4,
@@ -7329,15 +6796,6 @@
       "z": 100,
       "yaw": 153,
       "scale": 1.041
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -4673.2,
-      "y": 3561.1,
-      "z": 100,
-      "yaw": 86,
-      "scale": 0.945
     },
     {
       "prop": "clover",
@@ -7419,15 +6877,6 @@
       "z": 0,
       "yaw": 44,
       "scale": 0.915
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -85.0,
-      "y": -4041.4,
-      "z": 100,
-      "yaw": 73,
-      "scale": 0.802
     },
     {
       "prop": "clover",
@@ -7529,33 +6978,6 @@
       "scale": 0.952
     },
     {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": 4670.6,
-      "y": -3050.6,
-      "z": 100,
-      "yaw": 130,
-      "scale": 0.943
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -4277.5,
-      "y": 3126.9,
-      "z": 100,
-      "yaw": 40,
-      "scale": 0.908
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -4282.7,
-      "y": 3067.8,
-      "z": 100,
-      "yaw": 20,
-      "scale": 1.119
-    },
-    {
       "prop": "mushroom",
       "zone": "ground",
       "x": -3551.6,
@@ -7563,33 +6985,6 @@
       "z": 50,
       "yaw": 270,
       "scale": 0.814
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3966.5,
-      "y": 3774.2,
-      "z": 100,
-      "yaw": 344,
-      "scale": 1.09
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3871.4,
-      "y": 3849.7,
-      "z": 100,
-      "yaw": 251,
-      "scale": 1.153
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -4020.3,
-      "y": 3698.6,
-      "z": 100,
-      "yaw": 321,
-      "scale": 1.17
     },
     {
       "prop": "grass_short",
@@ -7781,24 +7176,6 @@
       "scale": 0.924
     },
     {
-      "prop": "leafy_plant",
-      "zone": "ground",
-      "x": -4330.6,
-      "y": 3252.7,
-      "z": 100,
-      "yaw": 73,
-      "scale": 0.975
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -4403.2,
-      "y": 3475.6,
-      "z": 100,
-      "yaw": 55,
-      "scale": 1.159
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": -2800.9,
@@ -7833,15 +7210,6 @@
       "z": 50,
       "yaw": 199,
       "scale": 1.167
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 2518.6,
-      "y": 2334.0,
-      "z": 0,
-      "yaw": 127,
-      "scale": 0.932
     },
     {
       "prop": "flowers_white",
@@ -7907,15 +7275,6 @@
       "scale": 0.833
     },
     {
-      "prop": "clover",
-      "zone": "ground",
-      "x": 3056.7,
-      "y": -4600.0,
-      "z": 100,
-      "yaw": 142,
-      "scale": 0.879
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": -2896.9,
@@ -7941,15 +7300,6 @@
       "z": 0,
       "yaw": 18,
       "scale": 0.932
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": -3332.5,
-      "y": 3791.2,
-      "z": 0,
-      "yaw": 92,
-      "scale": 0.903
     },
     {
       "prop": "grass_wispy",
@@ -8251,15 +7601,6 @@
     {
       "prop": "flowers_white",
       "zone": "ground",
-      "x": -3820.1,
-      "y": 3700.0,
-      "z": 100,
-      "yaw": 11,
-      "scale": 1.08
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
       "x": 36.7,
       "y": 2947.4,
       "z": 0,
@@ -8519,42 +7860,6 @@
       "scale": 0.93
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": 4754.9,
-      "y": 3514.4,
-      "z": 100,
-      "yaw": 191,
-      "scale": 1.013
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -3062.2,
-      "y": -2228.6,
-      "z": 0,
-      "yaw": 168,
-      "scale": 0.817
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": -3223.0,
-      "y": -2181.7,
-      "z": 0,
-      "yaw": 347,
-      "scale": 1.038
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -3747.0,
-      "y": -3559.4,
-      "z": 100,
-      "yaw": 359,
-      "scale": 0.896
-    },
-    {
       "prop": "grass_wispy",
       "zone": "ground",
       "x": -4087.6,
@@ -8645,15 +7950,6 @@
       "scale": 1.135
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 4738.0,
-      "y": 3060.9,
-      "z": 100,
-      "yaw": 266,
-      "scale": 1.163
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": 4363.4,
@@ -8661,15 +7957,6 @@
       "z": 100,
       "yaw": 62,
       "scale": 0.954
-    },
-    {
-      "prop": "bush_flowering",
-      "zone": "ground",
-      "x": 4566.6,
-      "y": -3623.9,
-      "z": 100,
-      "yaw": 240,
-      "scale": 0.925
     },
     {
       "prop": "leafy_plant",
@@ -8951,15 +8238,6 @@
       "scale": 0.981
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -4365.7,
-      "y": 3196.9,
-      "z": 100,
-      "yaw": 358,
-      "scale": 0.851
-    },
-    {
       "prop": "flowers_white",
       "zone": "ground",
       "x": -2371.5,
@@ -8967,15 +8245,6 @@
       "z": 0,
       "yaw": 154,
       "scale": 0.987
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": 3862.3,
-      "y": 3502.5,
-      "z": 100,
-      "yaw": 34,
-      "scale": 1.101
     },
     {
       "prop": "clover",
@@ -9003,15 +8272,6 @@
       "z": 0,
       "yaw": 276,
       "scale": 1.09
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": 2963.1,
-      "y": 2349.5,
-      "z": 0,
-      "yaw": 2,
-      "scale": 1.029
     },
     {
       "prop": "flowers_white",
@@ -9129,15 +8389,6 @@
       "z": 100,
       "yaw": 310,
       "scale": 0.901
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3694.2,
-      "y": 3943.3,
-      "z": 100,
-      "yaw": 111,
-      "scale": 0.999
     },
     {
       "prop": "grass_wispy",
@@ -9302,24 +8553,6 @@
       "scale": 0.926
     },
     {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 2157.5,
-      "y": -2236.2,
-      "z": 50,
-      "yaw": 338,
-      "scale": 1.118
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": 2049.0,
-      "y": -2175.0,
-      "z": 50,
-      "yaw": 147,
-      "scale": 0.865
-    },
-    {
       "prop": "grass_wispy",
       "zone": "ground",
       "x": 2621.2,
@@ -9464,24 +8697,6 @@
       "scale": 0.866
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -3377.4,
-      "y": -2419.5,
-      "z": 0,
-      "yaw": 198,
-      "scale": 0.945
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -3467.1,
-      "y": -2395.1,
-      "z": 0,
-      "yaw": 123,
-      "scale": 1.076
-    },
-    {
       "prop": "leafy_plant",
       "zone": "ground",
       "x": 2338.8,
@@ -9489,42 +8704,6 @@
       "z": 100,
       "yaw": 46,
       "scale": 1.063
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 3662.8,
-      "y": -4060.7,
-      "z": 100,
-      "yaw": 15,
-      "scale": 0.97
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3714.1,
-      "y": -4022.0,
-      "z": 100,
-      "yaw": 334,
-      "scale": 1.173
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3530.0,
-      "y": -3937.9,
-      "z": 100,
-      "yaw": 242,
-      "scale": 0.826
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": 3571.7,
-      "y": -3890.8,
-      "z": 100,
-      "yaw": 205,
-      "scale": 0.888
     },
     {
       "prop": "grass_wispy",
@@ -9869,24 +9048,6 @@
       "scale": 1.148
     },
     {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -2527.9,
-      "y": -2298.5,
-      "z": 0,
-      "yaw": 33,
-      "scale": 0.852
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -2660.4,
-      "y": -2391.7,
-      "z": 0,
-      "yaw": 276,
-      "scale": 0.842
-    },
-    {
       "prop": "clover",
       "zone": "ground",
       "x": 190.0,
@@ -9941,15 +9102,6 @@
       "scale": 1.174
     },
     {
-      "prop": "pebble",
-      "zone": "ground",
-      "x": -2957.9,
-      "y": -2535.8,
-      "z": 0,
-      "yaw": 97,
-      "scale": 1.104
-    },
-    {
       "prop": "grass_short",
       "zone": "ground",
       "x": -3365.4,
@@ -9993,15 +9145,6 @@
       "z": 50,
       "yaw": 0,
       "scale": 1.055
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
-      "x": -3254.0,
-      "y": -1917.6,
-      "z": 0,
-      "yaw": 86,
-      "scale": 0.916
     },
     {
       "prop": "grass_wispy",
@@ -10141,29 +9284,11 @@
     {
       "prop": "flowers_purple",
       "zone": "ground",
-      "x": -3430.4,
-      "y": -2436.7,
-      "z": 0,
-      "yaw": 267,
-      "scale": 1.042
-    },
-    {
-      "prop": "flowers_purple",
-      "zone": "ground",
       "x": -3847.1,
       "y": -2399.7,
       "z": 100,
       "yaw": 100,
       "scale": 0.999
-    },
-    {
-      "prop": "flowers_white",
-      "zone": "ground",
-      "x": -3475.7,
-      "y": -2272.7,
-      "z": 0,
-      "yaw": 32,
-      "scale": 1.031
     },
     {
       "prop": "leafy_plant",
@@ -10202,15 +9327,6 @@
       "scale": 0.808
     },
     {
-      "prop": "pebble",
-      "zone": "ground",
-      "x": 1658.3,
-      "y": -2020.0,
-      "z": 50,
-      "yaw": 255,
-      "scale": 1.083
-    },
-    {
       "prop": "bush_flowering",
       "zone": "ground",
       "x": -4796.7,
@@ -10218,15 +9334,6 @@
       "z": 100,
       "yaw": 266,
       "scale": 1.016
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 2774.2,
-      "y": -2904.3,
-      "z": 0,
-      "yaw": 305,
-      "scale": 0.863
     },
     {
       "prop": "leafy_plant",
@@ -10263,15 +9370,6 @@
       "z": 0,
       "yaw": 122,
       "scale": 1.113
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3821.3,
-      "y": -3799.7,
-      "z": 100,
-      "yaw": 4,
-      "scale": 0.927
     },
     {
       "prop": "flowers_white",
@@ -10463,33 +9561,6 @@
       "scale": 0.896
     },
     {
-      "prop": "clover",
-      "zone": "ground",
-      "x": -2357.6,
-      "y": 2124.6,
-      "z": 50,
-      "yaw": 343,
-      "scale": 0.81
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2094.8,
-      "y": 2091.7,
-      "z": 50,
-      "yaw": 113,
-      "scale": 0.972
-    },
-    {
-      "prop": "grass_short",
-      "zone": "ground",
-      "x": -2351.3,
-      "y": 1988.0,
-      "z": 50,
-      "yaw": 317,
-      "scale": 0.835
-    },
-    {
       "prop": "grass_wispy",
       "zone": "ground",
       "x": -2329.2,
@@ -10654,15 +9725,6 @@
     {
       "prop": "grass_wispy",
       "zone": "ground",
-      "x": -3659.9,
-      "y": 4041.9,
-      "z": 100,
-      "yaw": 345,
-      "scale": 1.006
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
       "x": 1579.7,
       "y": -1916.0,
       "z": 50,
@@ -10731,15 +9793,6 @@
       "z": 100,
       "yaw": 221,
       "scale": 1.132
-    },
-    {
-      "prop": "pebble",
-      "zone": "ground",
-      "x": -3641.7,
-      "y": 3666.3,
-      "z": 100,
-      "yaw": 332,
-      "scale": 0.869
     },
     {
       "prop": "clover",
@@ -10895,33 +9948,6 @@
       "scale": 0.938
     },
     {
-      "prop": "leafy_plant",
-      "zone": "ground",
-      "x": 2143.8,
-      "y": 2416.6,
-      "z": 0,
-      "yaw": 249,
-      "scale": 1.078
-    },
-    {
-      "prop": "pebble",
-      "zone": "ground",
-      "x": 2265.4,
-      "y": 2448.0,
-      "z": 0,
-      "yaw": 337,
-      "scale": 0.896
-    },
-    {
-      "prop": "grass_wispy",
-      "zone": "ground",
-      "x": 3736.1,
-      "y": 3767.9,
-      "z": 100,
-      "yaw": 309,
-      "scale": 0.988
-    },
-    {
       "prop": "clover",
       "zone": "ground",
       "x": -3095.0,
@@ -11046,15 +10072,6 @@
       "z": 0,
       "yaw": 29,
       "scale": 0.897
-    },
-    {
-      "prop": "mushroom",
-      "zone": "ground",
-      "x": 2558.6,
-      "y": -2622.2,
-      "z": 0,
-      "yaw": 245,
-      "scale": 0.961
     },
     {
       "prop": "leafy_plant",

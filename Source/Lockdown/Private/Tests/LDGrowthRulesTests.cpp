@@ -1341,15 +1341,31 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
             Reward.XP == 0 && Reward.Gold == 0);
     }
     bGood &= GrowthTestReason(Test, TEXT("A monster_scavenger kill"),
-        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), Reward), ELDGrowthReason::None);
+        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(20));
     bGood &= Test.TestEqual(TEXT("monster_scavenger gold"), Reward.Gold, int64(15));
     bGood &= GrowthTestReason(Test, TEXT("A monster_guardian kill"),
-        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), Reward), ELDGrowthReason::None);
+        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(80));
     bGood &= Test.TestEqual(TEXT("monster_guardian gold"), Reward.Gold, int64(60));
+    bGood &= GrowthTestReason(Test, TEXT("A monster_advisor kill"),
+        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_advisor")), 0, Reward), ELDGrowthReason::None);
+    bGood &= Test.TestEqual(TEXT("monster_advisor XP"), Reward.XP, int64(180));
+    bGood &= Test.TestEqual(TEXT("monster_advisor gold"), Reward.Gold, int64(135));
+    // #97 camp growth: +10% of the base XP per stage that life spawned with, floored; gold stays at its base.
+    for (const auto& [Monster, Stage, XP, Gold] : TArray<TTuple<const TCHAR*, uint8, int64, int64>>{
+        {TEXT("monster_scavenger"), 3, 26, 15}, {TEXT("monster_guardian"), 5, 120, 60},
+        {TEXT("monster_advisor"), 10, 360, 135}, {TEXT("monster_scavenger"), 10, 40, 15}})
+    {
+        bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A stage %u %s kill"), Stage, Monster),
+            LDProgression::MonsterKillReward(*Catalog, FName(Monster), Stage, Reward), ELDGrowthReason::None);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("Stage %u %s pays %lld XP and %lld gold"), Stage, Monster, XP, Gold),
+            Reward.XP == XP && Reward.Gold == Gold);
+    }
+    bGood &= GrowthTestReason(Test, TEXT("A camp kill past the growth cap"),
+        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 11, Reward), ELDGrowthReason::DataInvalid);
     bGood &= GrowthTestReason(Test, TEXT("An unknown monster kill"),
-        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_unknown")), Reward), ELDGrowthReason::DataInvalid);
+        LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_unknown")), 0, Reward), ELDGrowthReason::DataInvalid);
 
     FLDGrowthBuild EmptyBuild;
     TArray<LDProgression::FLegalOption> Pool;
