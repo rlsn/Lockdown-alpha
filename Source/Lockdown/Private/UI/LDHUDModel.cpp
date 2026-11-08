@@ -899,6 +899,19 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
     case ELDDemoEffectOp::PathSlow:
         return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
+    // #184: the equipment passives of the #166 catalog (大喇叭, 防窥膜, 滑板鞋).
+    case ELDDemoEffectOp::AfflictionAmp:
+        return TEXT("自己造成的")+FString(LDTerms::Burn)+TEXT("伤害 +")+HudPercent(Effect.RatioBp)+TEXT("；自己施加的")+LDTerms::Slow
+            +TEXT("比例 ×")+HudDecimal(double(Effect.SecondaryRatioBp)/10000.)+TEXT("（不超过 99.99%）");
+    case ELDDemoEffectOp::ShieldBreakRetort:
+    {
+        FString Text=FString(LDTerms::Shield)+TEXT("被打破时，对打破者造成该")+LDTerms::Shield+TEXT("获得量 ")+HudPercent(Effect.RatioBp)
+            +TEXT(" 的")+LDTerms::MagicalDamage;
+        if(Effect.SecondaryRatioBp>0){Text+=TEXT("并")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.SecondaryRatioBp)+TEXT("，持续 ")+HudSeconds(Effect.SecondaryDurationMs);}
+        return Text+TEXT("；内置冷却 ")+HudSeconds(Effect.IntervalMs);
+    }
+    case ELDDemoEffectOp::HitHaste:
+        return FString(LDTerms::BasicAttack)+TEXT("命中后 ")+HudSeconds(Effect.DurationMs)+TEXT(" 内")+LDTerms::MoveSpeed+TEXT(" +")+HudPercent(Effect.RatioBp);
     default: return FString::Printf(TEXT("未知效果 #%d"),Effect.Opcode);
     }
 }

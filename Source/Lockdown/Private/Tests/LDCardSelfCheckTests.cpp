@@ -292,6 +292,22 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
         CheckFace(Attribute.Id, Card);
         TestTrue(Attribute.Id + TEXT(" shows each of its stat lines"), Card.SentencePlain.Len() > 0 && !Card.Name.IsEmpty());
     }
+    // #184: every approved equipment passive, plain and upgraded, has a player line (the item, shop and attribute
+    // panels list them as "被动：..."), never the "未知效果 #n" fallback.
+    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
+    {
+        for (const bool bUpgraded : {false, true})
+        {
+            const TArray<FLDDemoEffectDefinition>* Effects = Item.HasPassive ? LDDemoEquipment::EffectivePassiveEffects(Item, bUpgraded) : nullptr;
+            if (!Effects) { continue; }
+            for (const FLDDemoEffectDefinition& Effect : *Effects)
+            {
+                const FString Line = LDHUD::EffectLine(Effect);
+                TestFalse(FString::Printf(TEXT("%s%s passive op %u has a display line: %s"), *Item.Id, bUpgraded ? TEXT(" (upgraded)") : TEXT(""),
+                    uint32(Effect.Opcode), *Line), Line.IsEmpty() || Line.StartsWith(TEXT("未知")));
+            }
+        }
+    }
     return true;
 }
 
