@@ -424,6 +424,12 @@ bool FLDNativeStationarySupportProbe::RunTest(const FString& Parameters)
     Move->TraceWalking(FVector::ZeroVector,.05f);
     Move->TraceWalking(FVector::ZeroVector,.05f);
     TestTrue(TEXT("Static walkable slope can sleep"),Move->TraceStationary());
+    const FVector Position=Move->UpdatedComponent->GetComponentLocation();
+    auto* Intruder=Fixture.Box(Position+FVector(35,0,0),{10,10,10},false);
+    if (!TestNotNull(TEXT("New blocking penetration"),Intruder)) { return false; }
+    TestFalse(TEXT("Actual penetration wakes CMC even with cached clean floor flags"),Move->TraceStationary());
+    Intruder->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Move->TraceWalking(FVector::ZeroVector,.05f);
     Floor->SetMobility(EComponentMobility::Movable);
     TestFalse(TEXT("Moving base requires native based movement"),Move->TraceStationary());
     Floor->SetMobility(EComponentMobility::Static);

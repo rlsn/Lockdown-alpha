@@ -97,6 +97,7 @@ private:
     FTransform StationaryFloorTransform;
     FVector StationaryCapsuleSize=FVector::ZeroVector;
     FLDWorldRevision StationaryWorld;
+    FLDCombatBodyRef StationaryBody;
     struct FNativeCapture;
     TSharedPtr<FNativeCapture> NativeCapture;
     uint64 NativeRecordSequence=0;

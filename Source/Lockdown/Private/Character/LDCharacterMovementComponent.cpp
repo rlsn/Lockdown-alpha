@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
 #include "Region/LDMapRegistry.h"
+#include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace LDCharacterMovementDetail
 {
@@ -148,13 +149,14 @@ void ULDCharacterMovementComponent::PerformMovement(float DeltaSeconds)
         TGuardValue<bool> NativeScope(bNativeIntegrationActive,true);
         const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
         const bool CanSleep=bStationaryAuthorityInput && NativeBody.Victim.Kind==ELDVictimKind::CampMember && Registry
-            && StationaryWorld==Registry->Revision();
+            && StationaryWorld==Registry->Revision() && StationaryBody==NativeBody;
         if (CanSleep && TryAdvanceStationaryMovement(DeltaSeconds)) { ++AuthorityStationarySteps; }
         else
         {
             Super::PerformMovement(DeltaSeconds);
             RememberStationarySupport();
             if (Registry) { StationaryWorld=Registry->Revision(); }
+            StationaryBody=NativeBody;
         }
         ++AuthorityIntegrationCount;
         AuthorityIntegratedSeconds+=DeltaSeconds;
@@ -178,7 +180,7 @@ void ULDCharacterMovementComponent::RememberStationarySupport()
 bool ULDCharacterMovementComponent::TryAdvanceStationaryMovement(float DeltaSeconds)
 {
     const auto* Floor=StationaryFloor.Get();
-    if (!HasValidData() || !Floor || MovementMode!=MOVE_Walking || !CurrentFloor.IsWalkableFloor()
+    if (!HasValidData() || !UpdatedPrimitive || !Floor || MovementMode!=MOVE_Walking || !CurrentFloor.IsWalkableFloor()
         || CurrentFloor.HitResult.GetComponent()!=Floor || CurrentFloor.HitResult.bStartPenetrating
         || bForceNextFloorCheck || bJustTeleported || !Velocity.IsZero() || !Acceleration.IsZero()
         || !LastUpdateVelocity.IsZero() || !PendingImpulseToApply.IsZero() || !PendingForceToApply.IsZero()
@@ -202,6 +204,16 @@ bool ULDCharacterMovementComponent::TryAdvanceStationaryMovement(float DeltaSeco
         || StationaryCapsuleSize!=FVector(Capsule->GetScaledCapsuleRadius(),Capsule->GetScaledCapsuleHalfHeight(),0)
         || !FMath::IsFinite(FloorDistance) || FloorDistance<MIN_FLOOR_DIST || FloorDistance>MAX_FLOOR_DIST)
     { return false; }
+    // Another body can finish a dash inside this capsule without setting this CMC's floor/teleport flags.
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(LDStationaryPenetration),false,CharacterOwner);
+    FCollisionResponseParams Response;
+    UpdatedPrimitive->InitSweepCollisionParams(Query,Response);
+    {
+        TRACE_CPUPROFILER_EVENT_SCOPE(LDStationaryPenetration);
+        if (GetWorld()->OverlapBlockingTestByChannel(LastUpdateLocation,LastUpdateRotation,
+            UpdatedPrimitive->GetCollisionObjectType(),UpdatedPrimitive->GetCollisionShape(),Query,Response))
+        { return false; }
+    }
     // ControlledCharacterMove already processed jump/input. Stable static support needs no physics or floor sweep.
     bTeleportedSinceLastUpdate=false;
     CharacterOwner->ClearJumpInput(DeltaSeconds);

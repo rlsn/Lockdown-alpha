@@ -39,7 +39,9 @@ Demo 权威身体关闭 CMC 自身 component tick，由现有 Combat driver 发�
 
 营地成员在已完成原生落地、精确零速度/输入、walking 且静态支持面稳定时可跳过
 `PerformMovement` 的物理积分与 floor sweep。待处理外力、launch、root motion、跳跃、
-地面穿透、强制 floor 检查、身体/胶囊/支持面变化或世界修订变化均走完整 CMC；
+地面穿透、强制 floor 检查、身体生命/胶囊/支持面变化或世界修订变化均走完整 CMC；
+跳过前还用当前胶囊的 blocking overlap 排除外部身体（如刚结束冲刺）新造成的穿透，
+不能只相信本 CMC 的缓存 floor 标志；
 刚停下也须先完成一次原生更新。跳过仍进入相同 native capture、integration 计数和
 `CompleteNativeMotion`，同 step/body 恰好提交一次静止批次，不另建休眠运动流。
 参赛者不使用该分支：其 packed move 的 ACK/error 和 `ServerCheckClientError` 所依赖的
