@@ -405,11 +405,13 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
             for (const FLDLearnedSkillView& Skill : Progression->Skills)
             {
                 Skills += FString::Printf(TEXT("%s%s@%u%s"), Skills.IsEmpty() ? TEXT("") : TEXT(","), *Skill.DefinitionId.ToString(),
-                    uint32(Skill.Rank), Skill.bActive ? (Skill.Slot == 0 ? TEXT("/Q") : TEXT("/W")) : TEXT(""));
+                    uint32(Skill.Rank), Skill.bActive
+                        ? (Skill.Slot == 0 ? TEXT("/Q") : Skill.Slot == 1 ? TEXT("/W") : TEXT("/E")) : TEXT(""));
             }
             for (const FLDAttributeCardView& Card : Progression->AttributeCards)
             {
-                Cards += FString::Printf(TEXT("%s%s*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *Card.DefinitionId.ToString(), uint32(Card.Count));
+                Cards += FString::Printf(TEXT("%s%s@%u*%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","),
+                    *Card.DefinitionId.ToString(), uint32(Card.Quality), uint32(Card.Count));
             }
             UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_BUILD t=%lld level=%u xp=%lld pending=%u skills=%s cards=%s"), NowMs, uint32(Progression->Level),
                 Progression->CumulativeXP, uint32(Progression->PendingChoiceCount), Skills.IsEmpty() ? TEXT("-") : *Skills,

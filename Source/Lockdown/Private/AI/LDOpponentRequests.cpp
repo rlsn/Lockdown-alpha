@@ -26,6 +26,7 @@ ELDCombatEntry EntryOf(ELDOpponentSourceSlot Source)
     {
     case ELDOpponentSourceSlot::Q: return ELDCombatEntry::Q;
     case ELDOpponentSourceSlot::W: return ELDCombatEntry::W;
+    case ELDOpponentSourceSlot::E: return ELDCombatEntry::E;
     case ELDOpponentSourceSlot::Dash: return ELDCombatEntry::Dash;
     default: return ELDCombatEntry::None;
     }
@@ -151,6 +152,7 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
         Out.Target.ObservationEpoch = Intent.Epoch;
         break;
     case ELDDemoTargetMode::DirectionProjectile:
+    case ELDDemoTargetMode::DirectionCone:
     case ELDDemoTargetMode::DirectionDash:
     {
         const FVector Planar = FVector(Intent.Direction.X, Intent.Direction.Y, 0).GetSafeNormal();
@@ -222,7 +224,8 @@ bool BuildChoice(const FLDOpponentBuildIntent& Intent, const FLDProgressionView&
         {
             return Fail(Error, TEXT("Only an active slot can be replaced."));
         }
-        const uint8 ActiveSlot = Pick.ReplaceSlot == ELDOpponentSkillSlot::Q ? 0 : 1;
+        const uint8 ActiveSlot = Pick.ReplaceSlot == ELDOpponentSkillSlot::Q ? 0
+            : Pick.ReplaceSlot == ELDOpponentSkillSlot::W ? 1 : 2;
         const FName Victim(*Pick.ReplacedSkillId);
         const bool bHeld = Progression.Skills.ContainsByPredicate([&Pick, ActiveSlot, Victim](const FLDLearnedSkillView& Skill)
         {

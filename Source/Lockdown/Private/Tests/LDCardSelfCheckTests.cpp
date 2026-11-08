@@ -283,8 +283,8 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
             if (bActive) { TestEqual(At + TEXT(": an active card lists targeting and cost"), LearnCard.Lines.Num(), 2); }
         }
     }
-    TestTrue(FString::Printf(TEXT("12 actives and 10 passives (%d, %d)"), Actives, Passives), Actives == 12 && Passives == 10);
-    TestEqual(TEXT("8 attribute cards"), Content.Attributes.Num(), 8);
+    TestTrue(FString::Printf(TEXT("18 actives and 16 passives (%d, %d)"), Actives, Passives), Actives == 18 && Passives == 16);
+    TestEqual(TEXT("12 attribute cards"), Content.Attributes.Num(), 12);
     for (const FLDDemoAttributeDefinition& Attribute : Content.Attributes)
     {
         const LDHUD::FChoiceCardView Card = LDHUD::ChoiceCard(Option(ELDChoiceOptionKind::Attribute, Attribute.Id, 0, 0),

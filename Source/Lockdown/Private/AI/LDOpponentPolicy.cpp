@@ -89,10 +89,17 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Pierce:
     case ELDDemoEffectOp::Echo:
     case ELDDemoEffectOp::ZoneBurn:
+    case ELDDemoEffectOp::AttackSlow:
+    case ELDDemoEffectOp::ChannelCone:
+    case ELDDemoEffectOp::GroundImpact:
+    case ELDDemoEffectOp::ContactTrap:
+    case ELDDemoEffectOp::DashContact:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
     case ELDDemoEffectOp::AfflictionAmp:
+    case ELDDemoEffectOp::ArgumentChain:
+    case ELDDemoEffectOp::DashContactDamage:
         Usage.bEngage = true;
         break;
     case ELDDemoEffectOp::Disarm:
@@ -102,6 +109,9 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Thorns:
     case ELDDemoEffectOp::CritDamageReduction:
     case ELDDemoEffectOp::ShieldBreakRetort:
+    case ELDDemoEffectOp::PrimaryGuard:
+    case ELDDemoEffectOp::SpellSustain:
+    case ELDDemoEffectOp::DashContactGuard:
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::TriggeredShield:
@@ -117,6 +127,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
     case ELDDemoEffectOp::DispelDisarm:
+    case ELDDemoEffectOp::Cower:
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
@@ -126,6 +137,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
     case ELDDemoEffectOp::HitHaste:
+    case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Cleave:
@@ -160,6 +172,7 @@ struct FSourceShape
     bool bTaunt = false;
     double TauntRadiusCm = 0;
     bool bShield = false;
+    bool bGuard = false;
     bool bDispelRoot = false;
     bool bDash = false;
     // #147: a self cast that hits bodies around the caster (SelfArea), a ground zone, and an empowered next basic.
@@ -180,6 +193,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::ZoneBurn: Out.bDamage = true; break;
         case ELDDemoEffectOp::SelfArea: Out.AreaRadiusCm = FMath::Max(Out.AreaRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::GroundImpact:
+        case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
@@ -189,6 +204,7 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
         case ELDDemoEffectOp::Shield: Out.bShield = true; break;
+        case ELDDemoEffectOp::Cower: Out.bGuard = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
@@ -397,11 +413,13 @@ struct FContext
         return Best;
     }
     bool Rooted() const { return Self.MoveBlockedUntilMs > Now; }
-    // The learned rank of the active bound to a Q/W source slot; 0 when unknown (the innate dash has no skill).
+    // The learned rank of the active bound to a Q/W/E source slot; 0 when unknown (the innate dash has no skill).
     uint8 RankOf(ELDOpponentSourceSlot Slot) const
     {
         const ELDOpponentSkillSlot Skill = Slot == ELDOpponentSourceSlot::Q ? ELDOpponentSkillSlot::Q
-            : Slot == ELDOpponentSourceSlot::W ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::Passive;
+            : Slot == ELDOpponentSourceSlot::W ? ELDOpponentSkillSlot::W
+            : Slot == ELDOpponentSourceSlot::E ? ELDOpponentSkillSlot::E
+            : ELDOpponentSkillSlot::Passive;
         if (Skill == ELDOpponentSkillSlot::Passive) { return 0; }
         const auto* Found = Self.Skills.FindByPredicate([Skill](const FLDOpponentSkill& S) { return S.Slot == Skill; });
         return Found ? Found->Rank : 0;
@@ -568,7 +586,9 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
-    static constexpr ELDOpponentSourceSlot Slots[] = {ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::Dash};
+    if (C.Self.bChanneling || C.Self.bCowering) { return {}; }
+    static constexpr ELDOpponentSourceSlot Slots[] = {
+        ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
     for (int32 Tier = 0; Tier < 4; ++Tier)
     {
         for (const ELDOpponentSourceSlot Slot : Slots)
@@ -589,13 +609,20 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             {
             case 0:
                 bUse = Shape.Mode == ELDDemoTargetMode::Self
-                    && ((Shape.bShield && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
+                    && (((Shape.bShield || Shape.bGuard) && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
                 break;
             case 1:
                 if (Shape.Mode == ELDDemoTargetMode::DirectionDash && Shape.bDash)
                 {
-                    const TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
+                    TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
                         : Need.bChase && Need.Target ? ChaseDirection(C, *Need.Target, Shape.RangeCm) : TOptional<FVector>();
+                    const bool bContactBuild = C.Self.Skills.ContainsByPredicate([](const FLDOpponentSkill& Skill)
+                    { return Skill.DefinitionId == TEXT("passive_dash_contact_damage"); });
+                    if (!Direction.IsSet() && Need.bAllowDamage && bTargetInRange && (Shape.bDamage || bContactBuild))
+                    {
+                        const FVector Toward=(Need.Target->FootCm-C.Self.FootCm).GetSafeNormal2D();
+                        if (!Toward.IsNearlyZero()) { Direction=Toward; }
+                    }
                     bUse = Direction.IsSet();
                     if (bUse) { Body.Direction = Direction.GetValue(); }
                 }
@@ -619,7 +646,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Body.Epoch = Need.Target->Epoch;
                         Key.Target = Need.Target->Handle;
                     }
-                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile)
+                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone)
                     {
                         const FVector Direction = (Need.Target->FootCm - C.Self.FootCm).GetSafeNormal2D();
                         bUse = !Direction.IsNearlyZero();
@@ -1317,26 +1344,32 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         return false;
     }
     const auto& Content = Catalog.Get();
-    const FLDOpponentSkill* Active[2] = {nullptr, nullptr};
+    const FLDOpponentSkill* Active[3] = {nullptr, nullptr, nullptr};
     for (const auto& Skill : Self.Skills)
     {
-        if (Skill.Slot != ELDOpponentSkillSlot::Passive) { Active[Skill.Slot == ELDOpponentSkillSlot::Q ? 0 : 1] = &Skill; }
+        if (Skill.Slot != ELDOpponentSkillSlot::Passive)
+        {
+            const int32 Slot = Skill.Slot == ELDOpponentSkillSlot::Q ? 0
+                : Skill.Slot == ELDOpponentSkillSlot::W ? 1 : 2;
+            Active[Slot] = &Skill;
+        }
     }
-    FLDOpponentUsage SlotUsage[2];
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    FLDOpponentUsage SlotUsage[3];
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         const FLDDemoAbilityDefinition* Ability = nullptr;
         if (Active[Slot] && (!Catalog.FindAbility(Active[Slot]->DefinitionId, Ability, Error) || !Ability)) { return false; }
         if (Ability) { SlotUsage[Slot] = AbilityUsage(*Ability); }
     }
-    const bool bEngageCovered = SlotUsage[0].bEngage || SlotUsage[1].bEngage;
-    const bool bProtectCovered = SlotUsage[0].bSelfProtect || SlotUsage[1].bSelfProtect;
+    const bool bEngageCovered = SlotUsage[0].bEngage || SlotUsage[1].bEngage || SlotUsage[2].bEngage;
+    const bool bProtectCovered = SlotUsage[0].bSelfProtect || SlotUsage[1].bSelfProtect || SlotUsage[2].bSelfProtect;
     struct FCandidate
     {
         int32 Tier = 0;
         // Replacements that keep every currently unique role usage come first within a tier.
         int32 Loses = 0;
         int32 Forgotten = 0;
+        int32 Quality = 0;
         int32 Order = 0;
         int32 Slot = 0;
         FLDOpponentChoicePick Pick;
@@ -1345,6 +1378,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
             if (Tier != Other.Tier) { return Tier < Other.Tier; }
             if (Loses != Other.Loses) { return Loses < Other.Loses; }
             if (Forgotten != Other.Forgotten) { return Forgotten < Other.Forgotten; }
+            if (Quality != Other.Quality) { return Quality > Other.Quality; }
             if (Order != Other.Order) { return Order < Other.Order; }
             return Slot < Other.Slot;
         }
@@ -1381,6 +1415,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 return false;
             }
             Candidate.Tier = 5;
+            Candidate.Quality = int32(Option.AttributeQuality);
             Consider(Candidate);
             continue;
         }
@@ -1402,7 +1437,7 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         {
             const auto Usage = AbilityUsage(*Ability);
             const bool bGain = (Usage.bEngage && !bEngageCovered) || (Usage.bSelfProtect && !bProtectCovered);
-            const int32 Empty = !Active[0] ? 0 : !Active[1] ? 1 : INDEX_NONE;
+            const int32 Empty = !Active[0] ? 0 : !Active[1] ? 1 : !Active[2] ? 2 : INDEX_NONE;
             if (Empty != INDEX_NONE)
             {
                 Candidate.Tier = bGain ? 1 : 3;
@@ -1410,11 +1445,18 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 Consider(Candidate);
                 break;
             }
-            for (int32 Slot = 0; Slot < 2; ++Slot)
+            for (int32 Slot = 0; Slot < 3; ++Slot)
             {
-                const auto& Kept = SlotUsage[1 - Slot];
-                const bool bLoses = (bEngageCovered && !Kept.bEngage && !Usage.bEngage)
-                    || (bProtectCovered && !Kept.bSelfProtect && !Usage.bSelfProtect);
+                bool bKeptEngage = false;
+                bool bKeptProtect = false;
+                for (int32 Other = 0; Other < 3; ++Other)
+                {
+                    if (Other == Slot) { continue; }
+                    bKeptEngage |= SlotUsage[Other].bEngage;
+                    bKeptProtect |= SlotUsage[Other].bSelfProtect;
+                }
+                const bool bLoses = (bEngageCovered && !bKeptEngage && !Usage.bEngage)
+                    || (bProtectCovered && !bKeptProtect && !Usage.bSelfProtect);
                 FCandidate Replace = Candidate;
                 Replace.Tier = bGain && !bLoses ? 1 : 6;
                 Replace.Loses = bLoses ? 1 : 0;
@@ -1422,7 +1464,8 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
                 Replace.Forgotten = Active[Slot]->Rank - 1;
                 Replace.Slot = Slot;
                 Replace.Pick.bReplace = true;
-                Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;
+                Replace.Pick.ReplaceSlot = Slot == 0 ? ELDOpponentSkillSlot::Q
+                    : Slot == 1 ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::E;
                 Replace.Pick.ReplacedSkillId = Active[Slot]->DefinitionId;
                 Replace.Pick.ReplacedRank = Active[Slot]->Rank;
                 Consider(Replace);
@@ -1634,7 +1677,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Finish(EMode::DeadWaiting, bChose ? EReason::ChooseOffer : EReason::DeadWaiting);
     }
     // While an accepted action owns the body, nothing new is sent that could cancel its windup.
-    const bool bActionLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action;
+    const bool bActionLive = Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action);
 
     const bool bWasRecovering = State.bRecovering;
     // D21: a recovering body that reached a dorm stays until full instead of leaving at the resume line.
@@ -1659,10 +1702,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == State.RetreatPOI;
     }
     if (!State.bRecovering && !State.bEscapingBoss) { State.RetreatPOI = NAME_None; }
-    const auto Body = [&Out, bActionLive](const FLDOpponentBodyIntent& Intent)
+    const auto Body = [&Out, &Self, bActionLive](const FLDOpponentBodyIntent& Intent)
     {
         Out.Body = Intent;
-        if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
+        if (bActionLive || (Self.bCowering && (Intent.Kind == EBody::AttackUnit || Intent.Kind == EBody::Activate)))
+        { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
 
     // A contest only pauses the spray holder's progress and leaving, dying or a hard control clears it, so a paused holder

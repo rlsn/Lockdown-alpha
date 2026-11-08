@@ -87,7 +87,7 @@ bool ALDPlayerController::IsWorldInputSuppressed() const
 bool ALDPlayerController::IsWorldInputCaptured() const
 {
     const ELDUIInputLayer Layer=RootUI?RootUI->TopInputLayer():ELDUIInputLayer::None;
-    // A yielding confirmation (the replacement pick) holds nothing: play, Q/W casts included, goes on while it waits.
+    // A yielding confirmation (the replacement pick) holds nothing: play, Q/W/E casts included, goes on while it waits.
     return Layer==ELDUIInputLayer::TextEditing || (Layer==ELDUIInputLayer::ChildConfirmation && !RootUI->YieldingConfirmation());
 }
 
@@ -262,6 +262,7 @@ void ALDPlayerController::V05Pressed(FName Action)
     // The skill keys follow the local slot order the HUD shows (#97 drag to swap).
     else if (Action==TEXT("Skill1")) { ActivateCombatEntry(SkillAtKey[0]); }
     else if (Action==TEXT("Skill2")) { ActivateCombatEntry(SkillAtKey[1]); }
+    else if (Action==TEXT("SkillE")) { ActivateCombatEntry(SkillAtKey[2]); }
     else if (Action==TEXT("Dash")) { ActivateCombatEntry(ELDCombatEntry::Dash); }
 }
 

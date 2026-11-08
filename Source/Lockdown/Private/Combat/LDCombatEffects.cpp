@@ -132,7 +132,7 @@ namespace LDCombatEffectsDetail
 bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
 {
     // Cleave appends to PendingHits; keep this hit stable even when the caller passed one of its elements.
-    const FLDCombatHit Hit=InHit;
+    FLDCombatHit Hit=InHit;
     ALDGameMode* Mode=Core();
     const FLDDemoContentSnapshot* Content=Catalog();
     if (!Mode || !Content)
@@ -153,6 +153,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     ALDCharacter* SourceActor=nullptr;
     FLDBodyCombatState* Source=FindBody(Hit.SourceBody,&SourceActor);
     if (Source && (Source==Body || Source->bPendingDeath)) { Source=nullptr; SourceActor=nullptr; }
+    if ((Hit.bDashContactHit || Hit.bChannelHit) && !Source) { return true; }
     const FLDProjectedAttributes& Defence=Body->AttributeProjection.Final;
     FLDKeywordTerms Keywords;
     if (!KeywordTerms(Keywords,Error)) { return false; }
@@ -162,10 +163,17 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     const auto BelowShare=[Body](int64 ThresholdBp)
     { return ThresholdBp>0 && LDTactical::BelowHPThreshold(Body->Resources.HpP2,Body->Resources.MaxHpP2,ThresholdBp); };
     bool bCritical=Hit.bCritical;
+    const bool bSharedRoll=Hit.CastLedger && Hit.CastLedger->bUniqueSkillHits && Hit.AbilityCritChanceBp>0 && !Hit.bAddedDamage;
+    const TPair<FLDCombatBodyRef,bool>* PriorRoll=bSharedRoll
+        ? Hit.CastLedger->CritRolls.FindByPredicate([&Hit](const auto& Row) { return Row.Key==Hit.Target; }) : nullptr;
     // An ability critical is decided once per hit (one per target per cast); reflections and added damage never crit.
-    if (!bCritical && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bReflect && !Hit.bAddedDamage
+    if (PriorRoll) { bCritical=PriorRoll->Value; }
+    else if (!bCritical && Hit.HitClass==ELDCombatHitClass::Ability && !Hit.bReflect && !Hit.bAddedDamage
         && Hit.AbilityCritChanceBp>0 && CritRandom.RandRange(0,9999)<Hit.AbilityCritChanceBp)
-    { bCritical=true; }
+    {
+        bCritical=true;
+    }
+    if (bSharedRoll && !PriorRoll) { Hit.CastLedger->CritRolls.Emplace(Hit.Target,bCritical); }
     FLDDamageEvaluationInput Evaluation;
     Evaluation.Definition.Emplace(Hit.BaseP2,Hit.ADRatioBp,Hit.APRatioBp,Hit.DamageType,Hit.MaxHPRatioBp);
     Evaluation.HitClass=Hit.HitClass;
@@ -199,6 +207,16 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     Evaluation.AmplifyBp=AmplifyBp;
     Evaluation.DamageBonusBp=PoolBp;
+    Evaluation.DeliveryScaleBp=Hit.DeliveryScaleBp;
+    Evaluation.GuardMultiplierBp=(Body->CowerUntilMs>NowMs ? 10000-Body->CowerReductionBp : 10000)
+        *(Body->ContactGuardUntilMs>NowMs ? 10000-Body->ContactGuardBp : 10000)/10000;
+    const FLDDemoEffectDefinition* PrimaryGuard=Hit.HitClass==ELDCombatHitClass::BasicPrimary
+        ? FindTrigger(Body->AttributeProjection,ELDDemoEffectOp::PrimaryGuard) : nullptr;
+    if (PrimaryGuard)
+    {
+        Evaluation.PrimaryGuardP2=PrimaryGuard->BaseP2;
+        Evaluation.PrimaryGuardCapBp=PrimaryGuard->RatioBp;
+    }
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
     {
@@ -287,6 +305,20 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (bControllable)
     {
         bool bApplied=false;
+        if (Hit.AttackSlowBp>0 && Hit.AttackSlowMs>0)
+        {
+            FLDCombatSlow Slow;
+            Slow.EffectId=Hit.EffectId;
+            Slow.SourceEntity=Hit.SourceEntity;
+            Slow.RatioBp=Hit.AttackSlowBp;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.AttackSlowMs,Slow.ExpiresAtMs,Error)) { return false; }
+            if (LDTactical::ApplySlow(Body->AttackSlows,Slow,NowMs))
+            {
+                bControlled=true;
+                ++Body->StateRevision;
+                RecordAssistContribution(*Body,Hit.CreditOwner,NowMs);
+            }
+        }
         // #147: a root that meets an already slowed body stuns it instead (the slow judged before this hit's own).
         const bool bRootToStun=Hit.RootDurationMs>0 && Hit.SlowedStunMs>0 && bSlowedBefore;
         if (bRootToStun && !Control(ELDControlKind::Stun,Hit.SlowedStunMs,0,bApplied)) { return false; }
@@ -329,7 +361,18 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         }
     }
     // #147: the shared breach and burn this hit (or its source's passives) adds.
+    if (!bProtected && Hit.CastLedger && Hit.CastLedger->bUniqueSkillHits)
+    {
+        Hit.bSuppressSkillTriggers=Hit.CastLedger->KeywordTargets.Contains(Hit.Target);
+        if (!Hit.bSuppressSkillTriggers) { Hit.CastLedger->KeywordTargets.Add(Hit.Target); }
+    }
     if (bControllable && !ApplyKeywordStacks(*Body,Hit,Source,NowMs,Error)) { return false; }
+    if (PrimaryGuard && Damage.DamageP2>0 && PrimaryGuard->SecondaryRatioBp>0)
+    {
+        if (!LDMatchLifecycle::AddDurationMs(NowMs,PrimaryGuard->DurationMs,Body->SlowResistanceUntilMs,Error)) { return false; }
+        Body->SlowResistanceBp=PrimaryGuard->SecondaryRatioBp;
+        ++Body->StateRevision;
+    }
     // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
     if (Damage.DamageP2>0 || bControlled)
     {
@@ -380,6 +423,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     }
     if (Source)
     {
+        if (!bProtected && !ApplySkillPassives(*Source,Hit,Damage,NowMs,Error)) { return false; }
         // Mana grant, at most once per release: item_runic_focus for an ability hit.
         for (const FLDPassiveEffectRef& Grant : ManaGrants)
         {
@@ -387,16 +431,18 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
             if (Effect.Trigger==ELDDemoEffectTrigger::AbilityHit && !bProtected && !Hit.bReflect
                 && Hit.HitClass==ELDCombatHitClass::Ability && Hit.Token!=0
                 && (Hit.Source.Kind==ELDCombatSourceKind::Learned || Hit.Source.Kind==ELDCombatSourceKind::Gear)
-                && Source->LastAbilityManaEffect!=Hit.EffectId)
+                && Source->LastAbilityManaEffect!=Hit.EffectId
+                && (!Hit.CastLedger || !Hit.CastLedger->bManaGrantPaid))
             {
                 Source->LastAbilityManaEffect=Hit.EffectId;
+                if (Hit.CastLedger) { Hit.CastLedger->bManaGrantPaid=true; }
                 GrantMana(*Source,Effect.BaseP2);
             }
         }
     }
     if (bShieldBroken && !OnShieldBroken(*Body,Hit,ShieldGrantedP2,NowMs,Error)) { return false; }
     // #147: a broken damage-triggered shield bursts; positive damage taken from another body may grant the next one.
-    if (bShieldBroken && !BurstBrokenShield(*Body,ShieldBefore,NowMs,Error)) { return false; }
+    if (bShieldBroken && !BurstBrokenShield(*Body,ShieldBefore,Hit.SourceBody,NowMs,Error)) { return false; }
     if (Damage.DamageP2>0 && Body->Resources.HpP2>0 && Hit.SourceEntity!=Body->Victim.EntityId && !OnDamaged(*Body,NowMs,Error))
     { return false; }
     if (!OnHitLanded(*Body,Hit,Damage.DamageP2,NowMs,Error)) { return false; }
@@ -765,6 +811,11 @@ bool ALDCombatDirector::AdvanceProjectiles(FString& Error)
                 FLDCombatHit Contact=Projectile.Payload;
                 Contact.HitId=FGuid::NewGuid();
                 Contact.Target=Targets[TargetIndex].Body;
+                if (!Projectile.Struck.IsEmpty())
+                {
+                    Contact.SlowBp=0;
+                    Contact.SlowDurationMs=0;
+                }
                 PendingHits.Add(Contact);
                 Projectile.Struck.Add(Contact.Target);
             }
@@ -907,8 +958,16 @@ bool ALDCombatDirector::RefreshTemporary(FLDBodyCombatState& Body, ALDCharacter*
         Error=TEXT("Temporary attributes require the approved Demo content.");
         return false;
     }
-    const FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
+    FLDTemporaryAttributeTerms Terms=LDTactical::TemporaryTerms(Body.TimedBonuses,Body.Slows,
         Body.BuildProjection.LowHPBonus,Body.Resources.HpP2,Body.Resources.MaxHpP2,NowMs);
+    Terms.AttackSlowBp=LDTactical::StrongestSlowBp(Body.AttackSlows,NowMs);
+    if (Body.SlowResistanceUntilMs>NowMs) { Terms.MoveSlowBp=Terms.MoveSlowBp*(10000-Body.SlowResistanceBp)/10000; }
+    if (Body.CowerUntilMs>NowMs && Body.CowerMoveBp>0)
+    {
+        FLDDemoStatBonus& Bonus=Terms.Bonuses.AddDefaulted_GetRef();
+        Bonus.Stat=ELDDemoBonusStat::MoveSpeedBonusRatio;
+        Bonus.Amount=Body.CowerMoveBp;
+    }
     if (Terms==Body.AppliedTemporary) { return true; }
     const FLDAttributeProjectionResult Applied=LDAttributeProjection::ApplyTemporary(Body.BuildProjection,Terms,*Content);
     if (!Applied.IsSuccess())

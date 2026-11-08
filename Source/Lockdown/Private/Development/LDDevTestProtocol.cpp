@@ -80,7 +80,7 @@ ELDGrowthReason LDDevTest::ValidateShape(const FLDDevTestCommand& Command)
     {
         return ELDGrowthReason::InvalidRequest;
     }
-    const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnOption || Command.Op == ELDDevTestOp::SellItem ? 2 : 0;
+    const uint8 MaxSlot = Command.Op == ELDDevTestOp::LearnOption ? 3 : Command.Op == ELDDevTestOp::SellItem ? 2 : 0;
     const uint8 MinSlot = Command.Op == ELDDevTestOp::SellItem ? 1 : 0;
     if (Command.Slot < MinSlot || Command.Slot > MaxSlot)
     {

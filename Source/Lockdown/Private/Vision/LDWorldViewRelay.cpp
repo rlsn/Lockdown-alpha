@@ -77,7 +77,7 @@ bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error
         Error = TEXT("Observed cast source is not an approved public definition.");
         return false;
     }
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         if (Unit.Actives.Abilities[Slot] != 0
             && (!ActiveAbilities.Contains(Unit.Actives.Abilities[Slot]) || Unit.Actives.Ranks[Slot] > MaxSkillRank))
@@ -493,6 +493,9 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     SetActorEnableCollision(false);
     RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
     static ConstructorHelpers::FObjectFinder<UStaticMesh> Cylinder(TEXT("/Engine/BasicShapes/Cylinder"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> Box(TEXT("/Engine/BasicShapes/Cube"));
+    BoxMesh=Box.Object;
+    CylinderMesh=Cylinder.Object;
     Chalk = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ObservedChalk"));
     Chalk->SetupAttachment(RootComponent);
     Chalk->SetStaticMesh(Cylinder.Object);
@@ -501,6 +504,12 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     // An exaggerated chalk stub lying along the flight direction (+X), readable from the gameplay camera at 720p.
     Chalk->SetRelativeRotation(FRotator(90, 0, 0));
     Chalk->SetRelativeScale3D(FVector(.22, .22, .5));
+    Accent=CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ObservedSkillAccent"));
+    Accent->SetupAttachment(RootComponent);
+    Accent->SetStaticMesh(Box.Object);
+    Accent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    Accent->SetCanEverAffectNavigation(false);
+    Accent->SetVisibility(false);
     // Chalk dust strung out behind the flight from the chalk's tail (its 50 cm stub is centred on the root); the proxy
     // faces +X along its heading.
     Trail = CreateDefaultSubobject<ULDFlightTrailComponent>(TEXT("Trail"));
@@ -508,12 +517,89 @@ ALDObservedProjectileProxy::ALDObservedProjectileProxy()
     Trail->SetRelativeLocation(FVector(-25, 0, 0));
 }
 
+void ALDObservedProjectileProxy::ApplyLook(const FLDObservedProjectileView& Effect)
+{
+    const bool bFlight=Effect.Look==ELDObservedProjectileLook::Chalk || Effect.Look==ELDObservedProjectileLook::Sock;
+    const bool bCone=Effect.Look==ELDObservedProjectileLook::SpeechCone;
+    const bool bBook=Effect.Look==ELDObservedProjectileLook::BookShadow;
+    const FLinearColor Color=Effect.Look==ELDObservedProjectileLook::Chalk ? FLinearColor(.95f,.95f,.9f)
+        : Effect.Look==ELDObservedProjectileLook::Sock ? FLinearColor(.55f,.85f,.25f)
+        : Effect.Look==ELDObservedProjectileLook::FlyerArming ? FLinearColor(.9f,.65f,.2f)
+        : FLinearColor(1.f,.38f,.16f);
+    ShownLook=Effect.Look;
+    ShownRadius=Effect.RadiusCm; ShownInnerRadius=Effect.InnerRadiusCm; ShownAngle=Effect.AngleDegrees;
+    if (EffectTint) { EffectTint->SetVectorParameterValue(TEXT("Tint"),Color); }
+    Chalk->SetStaticMesh(bFlight ? CylinderMesh : BoxMesh);
+    Chalk->SetRelativeLocation(FVector::ZeroVector);
+    Chalk->SetRelativeRotation(bFlight ? FRotator(90,0,0) : FRotator::ZeroRotator);
+    Chalk->SetRelativeScale3D(bFlight ? FVector(.22,.22,.5)
+        : bCone ? FVector(.4,.75,.04) : bBook ? FVector(1.7,1.3,.16) : FVector(1.1,.85,.025));
+    if (bBook) { Chalk->SetRelativeLocation(FVector(0,0,95)); }
+    if (bCone) { Chalk->SetRelativeLocation(FVector(Effect.RadiusCm*.35,0,100)); }
+    Accent->SetVisibility(Effect.Look!=ELDObservedProjectileLook::Chalk);
+    Accent->SetRelativeRotation(FRotator::ZeroRotator);
+    Accent->SetRelativeLocation(bFlight ? FVector(20,0,-12) : bCone ? FVector(Effect.RadiusCm*.65,0,110)
+        : bBook ? FVector(0,0,105) : FVector(0,0,3));
+    Accent->SetRelativeScale3D(bFlight ? FVector(.3,.2,.16) : bCone ? FVector(.5,.95,.04)
+        : bBook ? FVector(1.5,1.15,.06) : FVector(.8,.12,.02));
+    Trail->SetVisibility(bFlight,true);
+    for (const auto& Segment : ShapeLines) { Segment->SetVisibility(false); }
+    if (bFlight) { return; }
+    int32 Used=0;
+    const auto Line=[&](const FVector& A,const FVector& B)
+    {
+        UStaticMeshComponent* Segment=nullptr;
+        if (Used==ShapeLines.Num())
+        {
+            Segment=NewObject<UStaticMeshComponent>(this);
+            Segment->SetStaticMesh(BoxMesh);
+            Segment->SetupAttachment(RootComponent);
+            Segment->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+            Segment->SetCanEverAffectNavigation(false);
+            if (EffectTint) { Segment->SetMaterial(0,EffectTint); }
+            Segment->RegisterComponent();
+            ShapeLines.Add(Segment);
+        }
+        else { Segment=ShapeLines[Used]; }
+        ++Used;
+        const FVector Delta=B-A;
+        Segment->SetRelativeLocation((A+B)*.5);
+        Segment->SetRelativeRotation(Delta.Rotation());
+        Segment->SetRelativeScale3D(FVector(Delta.Size()/100.,.04,.02));
+        Segment->SetVisibility(true);
+    };
+    constexpr int32 Segments=16;
+    const auto Arc=[&](double Radius,double Begin,double Span)
+    {
+        FVector Previous(Radius*FMath::Cos(Begin),Radius*FMath::Sin(Begin),2);
+        for (int32 Index=1; Index<=Segments; ++Index)
+        {
+            const double Angle=Begin+Span*Index/Segments;
+            const FVector Next(Radius*FMath::Cos(Angle),Radius*FMath::Sin(Angle),2);
+            Line(Previous,Next);
+            Previous=Next;
+        }
+    };
+    if (bCone)
+    {
+        const double Half=FMath::DegreesToRadians(double(Effect.AngleDegrees)*.5);
+        Arc(Effect.RadiusCm,-Half,Half*2);
+        Line(FVector(0,0,2),FVector(Effect.RadiusCm*FMath::Cos(Half),Effect.RadiusCm*FMath::Sin(Half),2));
+        Line(FVector(0,0,2),FVector(Effect.RadiusCm*FMath::Cos(Half),-Effect.RadiusCm*FMath::Sin(Half),2));
+    }
+    else
+    {
+        Arc(Effect.RadiusCm,0,2.*PI);
+        Arc(Effect.InnerRadiusCm,0,2.*PI);
+    }
+}
+
 void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projectile, double SampledAtServerSec)
 {
-    // The flight is drawn at chest height over its authorized ground point.
+    const bool bFlight=Projectile.Look==ELDObservedProjectileLook::Chalk || Projectile.Look==ELDObservedProjectileLook::Sock;
     LDObservedPresentation::FPoint Point;
     Point.At = SampledAtServerSec;
-    Point.Location = FVector(Projectile.PositionCm) + FVector(0, 0, 100);
+    Point.Location = FVector(Projectile.PositionCm) + FVector(0, 0, bFlight ? 100 : 4);
     Point.Yaw = float(Projectile.Heading) / 65536.f * 360.f;
     if (!bPlaced || ObservedHandle != Projectile.Handle)
     {
@@ -522,13 +608,17 @@ void ALDObservedProjectileProxy::Apply(const FLDObservedProjectileView& Projecti
         bPlaced = true;
         if (UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Lockdown/Generated/Materials/M_Character.M_Character")))
         {
-            UMaterialInstanceDynamic* Tint = UMaterialInstanceDynamic::Create(Material, this);
-            Tint->SetVectorParameterValue(TEXT("Tint"), FLinearColor(.95f, .95f, .9f));
-            Chalk->SetMaterial(0, Tint);
+            EffectTint = UMaterialInstanceDynamic::Create(Material, this);
+            Chalk->SetMaterial(0, EffectTint);
+            UMaterialInstanceDynamic* Paper = UMaterialInstanceDynamic::Create(Material, this);
+            Paper->SetVectorParameterValue(TEXT("Tint"),FLinearColor(.95f,.95f,.9f));
+            Accent->SetMaterial(0,Paper);
         }
         else { ensureMsgf(false, TEXT("Character material missing; rerun asset bootstrap")); }
     }
     else if (!Points.IsEmpty() && SampledAtServerSec <= Points.Last().At) { return; }
+    if (ShownRadius<0 || ShownLook!=Projectile.Look || ShownRadius!=Projectile.RadiusCm
+        || ShownInnerRadius!=Projectile.InnerRadiusCm || ShownAngle!=Projectile.AngleDegrees) { ApplyLook(Projectile); }
     ObservedHandle = Projectile.Handle;
     EndedAt = -1;
     Point.bSnap = Points.IsEmpty();
@@ -547,11 +637,13 @@ void ALDObservedProjectileProxy::Present(double AtServerSec)
 void ALDObservedProjectileProxy::End(double LocalSeconds)
 {
     if (EndedAt < 0) { EndedAt = LocalSeconds; }
+    if (ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock) { SetActorHiddenInGame(true); }
 }
 
 bool ALDObservedProjectileProxy::IsFinished(double AtServerSec, double LocalSeconds) const
 {
-    return EndedAt >= 0 && (Points.IsEmpty() || AtServerSec >= Points.Last().At || LocalSeconds - EndedAt >= EndSeconds);
+    return EndedAt >= 0 && ((ShownLook!=ELDObservedProjectileLook::Chalk && ShownLook!=ELDObservedProjectileLook::Sock)
+        || Points.IsEmpty() || AtServerSec >= Points.Last().At || LocalSeconds - EndedAt >= EndSeconds);
 }
 
 ALDWorldViewRelay::ALDWorldViewRelay()

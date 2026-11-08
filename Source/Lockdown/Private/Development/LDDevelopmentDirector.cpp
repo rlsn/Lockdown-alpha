@@ -30,7 +30,7 @@ bool DevelopmentChoiceShapeValid(const FLDChoiceCommand& Command, int32 MaxSkill
             && !Command.bReplaceConfirmed;
     }
     FName OldSkillId;
-    return Command.ReplaceSlot <= 1 && Command.ExpectedOldSkillId.Decode(OldSkillId) && Command.ExpectedOldRank >= 1
+    return Command.ReplaceSlot <= 2 && Command.ExpectedOldSkillId.Decode(OldSkillId) && Command.ExpectedOldRank >= 1
         && int32(Command.ExpectedOldRank) <= MaxSkillRank && Command.bReplaceConfirmed;
 }
 
@@ -158,9 +158,9 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
             LDGrowthWire::ReasonName(LevelReason));
         return false;
     }
-    if (Definitions.Progression.ActiveSlots != 2)
+    if (Definitions.Progression.ActiveSlots != 3)
     {
-        Error = TEXT("Growth requires exactly two active skill slots (Q/W).");
+        Error = TEXT("Growth requires exactly three active skill slots (Q/W/E).");
         return false;
     }
     // #153: the kept opening offer is three opening cards hiding three distinct new draftable actives; a short catalog
@@ -266,6 +266,7 @@ FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& Contende
         FLDAttributeCardView& Row = View.AttributeCards.AddDefaulted_GetRef();
         Row.DefinitionId = Card.Id;
         Row.Count = Card.Count;
+        Row.Quality = Card.Quality;
     }
     View.OpeningCard = Build.OpeningCard;
     View.CatalogDigest = Definitions.Identity.Root;
@@ -529,6 +530,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     Receipt.Kind = AppliedOption.Kind;
     Receipt.DefinitionId = AppliedOption.DefinitionId;
     Receipt.NewRank = AppliedOption.NewRank;
+    Receipt.AttributeQuality = AppliedOption.AttributeQuality;
     Receipt.OpeningActiveId = AppliedOption.OpeningActive;
     if (AppliedOption.bReplaced)
     {
@@ -545,12 +547,13 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Receipt.Header.Revisions.OfferRevision = Record->Progression.Offer->Revision;
     }
     // The opening active is logged only now that the choice revealed it (#153).
-    UE_LOG(LogLDGrowth, Log, TEXT("LD_CHOICE t=%lld contender=%s ordinal=%u kind=%s card=%s rank=%u replaced=%s level=%u pending=%u revealed=%s"),
+    UE_LOG(LogLDGrowth, Log, TEXT("LD_CHOICE t=%lld contender=%s ordinal=%u kind=%s card=%s rank=%u replaced=%s level=%u pending=%u revealed=%s quality=%u"),
         GameMode->GetAuthorityNowMs(), *LDLog::Id(ContenderId), uint32(Ordinal), *LDLog::EnumName(AppliedOption.Kind),
         *AppliedOption.DefinitionId.ToString(), uint32(AppliedOption.NewRank),
         AppliedOption.bReplaced ? *FString::Printf(TEXT("%s:%u"), *AppliedOption.ReplacedId.ToString(), uint32(AppliedOption.ReplacedRank)) : TEXT("-"),
         uint32(Record->Build.Level), uint32(Record->Progression.PendingCount()),
-        AppliedOption.OpeningActive.IsNone() ? TEXT("-") : *AppliedOption.OpeningActive.ToString());
+        AppliedOption.OpeningActive.IsNone() ? TEXT("-") : *AppliedOption.OpeningActive.ToString(),
+        uint32(AppliedOption.AttributeQuality));
     Record->Choices.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
     GameMode->Economy->MarkDirty(ContenderId);
@@ -855,6 +858,7 @@ void ALDDevelopmentDirector::InstallHead(const FGuid& ContenderId, FRecord& Reco
         Option.DefinitionId = Legal.DefinitionId;
         Option.FromRank = Legal.FromRank;
         Option.ToRank = Legal.ToRank;
+        Option.AttributeQuality = Legal.AttributeQuality;
         Offer.HiddenActives.Add(Legal.HiddenActive);
     }
     Offer.GeneratedBuildRevision = Record.Build.Revision;
@@ -866,8 +870,8 @@ void ALDDevelopmentDirector::InstallHead(const FGuid& ContenderId, FRecord& Reco
         FString Cards;
         for (const FLDChoiceOption& Option : Offer.Options)
         {
-            Cards += FString::Printf(TEXT("%s%s:%s:%u>%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *LDLog::EnumName(Option.Kind),
-                *Option.DefinitionId.ToString(), uint32(Option.FromRank), uint32(Option.ToRank));
+            Cards += FString::Printf(TEXT("%s%s:%s:%u>%u:q%u"), Cards.IsEmpty() ? TEXT("") : TEXT(","), *LDLog::EnumName(Option.Kind),
+                *Option.DefinitionId.ToString(), uint32(Option.FromRank), uint32(Option.ToRank), uint32(Option.AttributeQuality));
         }
         const ALDGameMode* GameMode = Mode();
         UE_LOG(LogLDGrowth, Log, TEXT("LD_OFFER t=%lld contender=%s ordinal=%u rerolled=%d level=%u cards=%s"),
@@ -954,11 +958,14 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
         Active.AbilityId = Skill.Id;
         Active.Rank = Skill.Rank;
         // An out-of-range slot stays None so Combat rejects the input instead of guessing a key.
-        Active.Entry = Skill.Slot == 0 ? ELDCombatEntry::Q : (Skill.Slot == 1 ? ELDCombatEntry::W : ELDCombatEntry::None);
+        Active.Entry = Skill.Slot == 0 ? ELDCombatEntry::Q
+            : Skill.Slot == 1 ? ELDCombatEntry::W
+            : Skill.Slot == 2 ? ELDCombatEntry::E
+            : ELDCombatEntry::None;
     }
     for (const FLDAttributeCardCount& Card : Build.Cards)
     {
-        Input.AttributeCards.Emplace(Card.Id.ToString().ToLower(), Card.Count);
+        Input.AttributeCards.Emplace(Card.Id.ToString().ToLower(), Card.Count, Card.Quality);
     }
     Input.OpeningCard = Build.OpeningCard.IsNone() ? FString() : Build.OpeningCard.ToString().ToLower();
     Input.Equipment = Equipment;
@@ -1087,13 +1094,15 @@ ELDGrowthReason ALDDevelopmentDirector::DevChooseOption(const FGuid& ContenderId
     Option.DefinitionId = Legal->DefinitionId;
     Option.FromRank = Legal->FromRank;
     Option.ToRank = Legal->ToRank;
+    Option.AttributeQuality = Legal->Kind == ELDChoiceOptionKind::Attribute ? ELDAttributeQuality::Blue : ELDAttributeQuality::None;
     LDProgression::FReplacement Replacement;
     if (ReplaceSlot != 0)
     {
         const int32 Index = Record->Build.ActiveInSlot(uint8(ReplaceSlot - 1));
         if (Index == INDEX_NONE)
         {
-            Detail = FString::Printf(TEXT("Slot %s holds no learned active skill to replace."), ReplaceSlot == 1 ? TEXT("Q") : TEXT("W"));
+            const TCHAR* SlotName = ReplaceSlot == 1 ? TEXT("Q") : ReplaceSlot == 2 ? TEXT("W") : TEXT("E");
+            Detail = FString::Printf(TEXT("Slot %s holds no learned active skill to replace."), SlotName);
             return ELDGrowthReason::ReplacementMismatch;
         }
         Replacement.Slot = uint8(ReplaceSlot - 1);

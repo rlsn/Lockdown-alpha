@@ -20,8 +20,9 @@ struct LOCKDOWN_API FLDKeywordTerms
     int64 BurnMs = 0;
     int32 BurnMaxStacks = 0;
     int64 LifestealCapBp = 0;
-    // SKILL.GrowthPerLevel: the burn's fixed part grows with its applier's level like every skill amount (#147).
+    // The burn's fixed part uses the same segmented skill growth as learned abilities.
     int64 SkillGrowthPerLevelBp = 0;
+    int64 SkillGrowthPerLevelAfter10Bp = 0;
 
     static FLDKeywordTerms From(const FLDDemoContentParameters& Parameters);
 };
@@ -113,4 +114,6 @@ namespace LDCombatKeywords
     LOCKDOWN_API int64 CapLifestealBp(int64 SumBp, const FLDKeywordTerms& Terms);
     // A knockback met a wall when its body travelled (planar) less than ThresholdCm.
     LOCKDOWN_API bool KnockbackHitWall(const FVector& StartFootCm, const FVector& EndFootCm, double ThresholdCm);
+    // #166 passive_moral_victory: the breaker takes RatioBp of the granted shield; another nearby enemy takes half.
+    LOCKDOWN_API int64 ShieldBurstShareP2(int64 GrantedP2, int64 RatioBp, bool bNearbyEnemy);
 }

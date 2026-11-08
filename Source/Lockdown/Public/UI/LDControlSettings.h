@@ -124,7 +124,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 18;
+    static constexpr int32 CurrentSchema = 19;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;

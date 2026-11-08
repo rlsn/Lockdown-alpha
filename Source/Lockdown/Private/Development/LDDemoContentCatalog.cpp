@@ -156,7 +156,8 @@ FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) :
                 FLDDemoRankDefinition& Row = Grown.AddDefaulted_GetRef();
                 // Content validation proves every grown amount fits; a row that does not is left without a rank so
                 // FindRank refuses it instead of guessing.
-                if (!LDSkillGrowth::GrowRank(Rank, Definitions.Parameters.SkillGrowthPerLevelBp, uint8(Level), Row))
+                if (!LDSkillGrowth::GrowRank(Rank, Definitions.Parameters.SkillGrowthPerLevelBp,
+                    Definitions.Parameters.SkillGrowthPerLevelAfter10Bp, uint8(Level), Row))
                 {
                     Row = FLDDemoRankDefinition();
                 }

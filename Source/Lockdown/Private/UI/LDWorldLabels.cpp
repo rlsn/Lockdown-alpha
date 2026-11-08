@@ -54,6 +54,9 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     // #147: silence violet, burn ember orange.
     case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
     case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
+    case ELDDemoStatusId::AttackSlowed: return FLinearColor(.65f,.4f,.9f);
+    case ELDDemoStatusId::Cowering: return FLinearColor(.95f,.8f,.3f);
+    case ELDDemoStatusId::ContactGuard: return FLinearColor(.3f,.9f,.8f);
     default: return WorldLabelStatusInk;
     }
 }
@@ -127,7 +130,7 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
     // labels nothing, and no unit outlives the frame that lists it (no LastSeen).
     const ALDWorldViewRelay* Relay=Own.LifePhase==ELDLifePhase::Alive?PC->LocalView():nullptr;
     const FLDObservedFrameRead Read=Relay?Relay->ReadObservedFrame():FLDObservedFrameRead();
-    const FLDWorldView* Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life&&!Read.Frame->Units.IsEmpty()?Read.Frame:nullptr;
+    const FLDWorldView* Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;
     // The own bars read only this controller's own projections of the current match and life, anchored on its own pawn,
     // so they show even while no other unit is in sight.
     const LDWorldLabels::FOwnBars SelfBars=LDWorldLabels::OwnBars(Own,Public->PublicMatch.Generation,PC->CombatView);
@@ -155,6 +158,35 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
         FSlateDrawElement::MakeText(E,Base+4,G.ToPaintGeometry(Extent,FSlateLayoutTransform(At)),Text,Font,ESlateDrawEffect::None,Ink);
         Bottom=At.Y;
     };
+    if (Frame && Content)
+    {
+        for (const auto& Effect : Frame->Projectiles)
+        {
+            const TCHAR* Id=Effect.Look==ELDObservedProjectileLook::SpeechCone ? TEXT("active_open_mic")
+                : Effect.Look==ELDObservedProjectileLook::BookShadow ? TEXT("active_calculus_drop")
+                : Effect.Look==ELDObservedProjectileLook::FlyerArmed || Effect.Look==ELDObservedProjectileLook::FlyerArming
+                    ? TEXT("active_flyer_trap") : nullptr;
+            if (!Id) { continue; }
+            const auto* Display=Content->Display.FindByPredicate([Id](const auto& Row) { return Row.Id==Id; });
+            if (!Display) { continue; }
+            FVector Point=FVector(Effect.PositionCm)+FVector(0,0,35);
+            const bool Speech=Effect.Look==ELDObservedProjectileLook::SpeechCone;
+            if (Speech)
+            {
+                const double Angle=double(Effect.Heading)/65536.*2.*PI;
+                Point+=FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*Effect.RadiusCm*.5;
+                Point.Z+=70;
+            }
+            FVector2D Screen;
+            if (!PC->ProjectWorldLocationToScreen(Point,Screen)) { continue; }
+            const float X=float(Screen.X)*ToLocalX;
+            float Bottom=float(Screen.Y)*ToLocalY;
+            if (Culled(X,Bottom)) { continue; }
+            Line(Speech ? Display->NameText.Right(2)+TEXT("！") : Display->NameText,
+                WorldLabelFont(TEXT("Bold"),Speech ? 24 : 15,TextScale),
+                FLinearColor(1.f,.72f,.28f),X,Bottom);
+        }
+    }
     TArray<FSlateRect> Placed;
     FVector2D OwnScreen;
     if(IsValid(OwnBody)&&PC->ProjectWorldLocationToScreen(OwnBody->PresentedLocation()+FVector(0,0,OwnBarsHeadroomCm),OwnScreen))

@@ -249,23 +249,26 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
         {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q)},
         {Option(1, EKind::Attribute, TEXT("attr_protein")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
          Option(3, EKind::LearnPassive, TEXT("passive_iced_americano"))}, 2);
-    bGood &= Pick(Test, C, TEXT("Two engage actives: explicit replacement of the least invested one"),
+    bGood &= Pick(Test, C, TEXT("Two engage actives leave E free for self-protection"),
         {Skill(TEXT("active_snark_bolt"), 1, ESlot::Q), Skill(TEXT("active_pants_down"), 2, ESlot::W)},
         {Option(1, EKind::LearnActive, TEXT("active_not_mad")), Option(2, EKind::Attribute, TEXT("attr_canteen")),
-         Option(3, EKind::UpgradeActive, TEXT("active_snark_bolt"), 1, 2)}, 1, ESlot::Q, TEXT("active_snark_bolt"), 1);
+         Option(3, EKind::UpgradeActive, TEXT("active_snark_bolt"), 1, 2)}, 1);
     bGood &= Pick(Test, C, TEXT("Both roles covered: an upgrade beats a replacing active and an attribute"),
         {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W)},
         {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::UpgradeActive, TEXT("active_not_mad"), 1, 2),
          Option(3, EKind::Attribute, TEXT("attr_protein"))}, 2);
     bGood &= Pick(Test, C, TEXT("Maxed actives: a new passive precedes attributes and replacements"),
-        {Skill(TEXT("active_not_mad"), 2, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W)},
+        {Skill(TEXT("active_not_mad"), 2, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W),
+         Skill(TEXT("active_pants_down"), 2, ESlot::E)},
         {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnPassive, TEXT("passive_pressed")),
          Option(3, EKind::Attribute, TEXT("attr_hand_out"))}, 2);
     bGood &= Pick(Test, C, TEXT("An attribute precedes a replacement that adds no missing role"),
-        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W)},
+        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 2, ESlot::W),
+         Skill(TEXT("active_elbow"), 1, ESlot::E)},
         {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::Attribute, TEXT("attr_protein"))}, 2);
     bGood &= Pick(Test, C, TEXT("A forced replacement keeps the unique self-protection"),
-        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W)},
+        {Skill(TEXT("active_not_mad"), 1, ESlot::Q), Skill(TEXT("active_snark_bolt"), 1, ESlot::W),
+         Skill(TEXT("active_elbow"), 1, ESlot::E)},
         {Option(1, EKind::LearnActive, TEXT("active_pants_down"))}, 1, ESlot::W, TEXT("active_snark_bolt"), 1);
     bGood &= Pick(Test, C, TEXT("No actives: every role is missing, so the first in public (id) catalog order"),
         {}, {Option(1, EKind::LearnActive, TEXT("active_pants_down")), Option(2, EKind::LearnActive, TEXT("active_not_mad")),
@@ -1232,6 +1235,7 @@ bool RunProjections(FAutomationTestBase& Test)
     FLDAttributeCardView Might;
     Might.DefinitionId = TEXT("attr_protein");
     Might.Count = 1;
+    Might.Quality = ELDAttributeQuality::Blue;
     Progression.AttributeCards = {Might};
     Progression.bHasOffer = true;
     Progression.Offer.OfferId = FGuid(0xF2, 0, 0, 1);
@@ -1360,20 +1364,22 @@ bool RunProjections(FAutomationTestBase& Test)
     };
     Combat.Entries = {Entry(ELDCombatEntry::Q, ELDCombatSourceKind::Learned, TEXT("active_snark_bolt"), 9000, ELDCombatReject::None),
         Entry(ELDCombatEntry::W, ELDCombatSourceKind::Learned, TEXT("active_not_mad"), 15000, ELDCombatReject::Cooldown),
+        Entry(ELDCombatEntry::E, ELDCombatSourceKind::Learned, TEXT("active_elbow"), 9000, ELDCombatReject::None),
         Entry(ELDCombatEntry::Dash, ELDCombatSourceKind::Innate, TEXT("innate_dash"), 0, ELDCombatReject::ControlBlocked)};
     Combat.Entries.Last().RangeCm = 450;
     bGood &= Test.TestTrue(TEXT("Own combat view maps resources, readiness, the innate dash reach and Root: ") + Error,
         LDOpponentFrame::ReadOwnCombat(Combat, 10000, Self, Error) && Self.HpP2 == 30000 && Self.MaxMpP2 == 28000
-        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 3
+        && Self.BasicReadyAtMs == 12345 && Self.MoveBlockedUntilMs == 10700 && Self.Sources.Num() == 4
         && Self.Sources[0].Slot == ELDOpponentSourceSlot::Q && Self.Sources[0].bReady
         && Self.Sources[1].Slot == ELDOpponentSourceSlot::W && !Self.Sources[1].bReady
-        && Self.Sources[2].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[2].bReady && Self.Sources[2].RangeCm == 450);
+        && Self.Sources[2].Slot == ELDOpponentSourceSlot::E && Self.Sources[2].bReady
+        && Self.Sources[3].Slot == ELDOpponentSourceSlot::Dash && !Self.Sources[3].bReady && Self.Sources[3].RangeCm == 450);
     {
         auto Cased = Combat;
         Cased.Entries[0].DefinitionId = TEXT("Active_Snark_Bolt");
         FLDOpponentSelf CasedSelf;
         bGood &= Test.TestTrue(TEXT("A source id printed in another casing maps to its lowercase content id"),
-            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 3
+            LDOpponentFrame::ReadOwnCombat(Cased, 10000, CasedSelf, Error) && CasedSelf.Sources.Num() == 4
             && CasedSelf.Sources[0].DefinitionId == TEXT("active_snark_bolt"));
     }
     Combat.Statuses.Reset();
@@ -2004,6 +2010,43 @@ bool RunV7Activations(FAutomationTestBase& Test)
     Frame.Units[0].FootCm = FVector(Attack + BailReach + 50, 0, 0);
     FLDOpponentPolicyState BailFar = Bail;
     bGood &= Test.TestFalse(TEXT("but not beyond it"), IsCast(LDOpponentPolicy::Decide(Frame, C, BailFar), ELDDemoTargetMode::DirectionDash));
+
+    for (const auto& Case : {
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
+    {
+        Frame=With(Case.Key,1);
+        Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack-10,80)};
+        FLDOpponentPolicyState Expanded;
+        const auto Cast=LDOpponentPolicy::Decide(Frame,C,Expanded);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s uses its approved target form"),Case.Key),
+            IsCast(Cast,Case.Value)
+            && (Case.Value!=ELDDemoTargetMode::DirectionCone && Case.Value!=ELDDemoTargetMode::DirectionProjectile
+                || Cast.Body.Direction.Equals(Frame.Units[0].FootCm.GetSafeNormal2D(),1.e-4))
+            && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
+    }
+
+    Frame=With(TEXT("active_apology_slide"),1);
+    Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack+20,0)};
+    FLDOpponentPolicyState Slide;
+    const auto Sliding=LDOpponentPolicy::Decide(Frame,C,Slide);
+    bGood &= Test.TestTrue(TEXT("The mixed dash hits a rival just beyond basic range through its contact path"),
+        IsCast(Sliding,ELDDemoTargetMode::DirectionDash) && Sliding.Body.Direction.Equals(FVector(1,0,0),1.e-4));
+
+    Frame=With(TEXT("active_cower"),1);
+    Frame.Public.Phase=ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle=ELDOpponentCircle::Solo;
+    Frame.Public.Occupier=FGuid(0xE0,0,0,5);
+    Frame.Public.DueAtMs=Frame.Public.NowMs+5000;
+    Frame.CapturePathCm=3000.;
+    Frame.Units={Unit(5,ELDOpponentUnitKind::Contender,0,2900)};
+    Frame.Self.HpP2=Frame.Self.MaxHpP2/5;
+    FLDOpponentPolicyState Cower;
+    const auto Cowering=LDOpponentPolicy::Decide(Frame,C,Cower);
+    bGood &= Test.TestTrue(TEXT("A low urgent defender cowers before it answers the capture"),
+        IsCast(Cowering,ELDDemoTargetMode::Self));
 
     // Rooted on an urgent capture defence at full health: only the advanced rank's root cleanse is worth casting.
     for (const uint8 Rank : {uint8(1), uint8(2)})

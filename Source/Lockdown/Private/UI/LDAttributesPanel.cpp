@@ -77,7 +77,8 @@ FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionVi
         // #147: the passive's card sentence with this level's numbers and, once advanced, the change that rank adds.
         const LDHUD::FCardStats Stats=LDHUD::CardStatsOf(Progression->Level,Combat?Combat->Attributes:TArray<FLDCombatAttributeRowView>());
         for(const FString& Line:LDHUD::LearnedCardLines(Display->DescriptionText,Display->AdvancedText,*Ability,Skill.Rank,Stats,
-            Definitions->Parameters.SkillGrowthPerLevelBp)){Lines.Add(TEXT("  ")+Line);}
+            Definitions->Parameters.SkillGrowthPerLevelBp,Definitions->Parameters.SkillGrowthPerLevelAfter10Bp))
+        {Lines.Add(TEXT("  ")+Line);}
     }
     return AttrPanelLines(Lines);
 }

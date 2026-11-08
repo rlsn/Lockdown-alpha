@@ -64,8 +64,15 @@ const FLDDemoAttributeDefinition* ProgressionFindAttribute(const FLDDemoContentS
 
 uint8 ProgressionCardCount(const FLDGrowthBuild& Build, FName Id)
 {
-    const FLDAttributeCardCount* Card = Build.Cards.FindByPredicate([&](const FLDAttributeCardCount& Row) { return Row.Id == Id; });
-    return Card ? Card->Count : 0;
+    int32 Total = 0;
+    for (const FLDAttributeCardCount& Card : Build.Cards)
+    {
+        if (Card.Id == Id)
+        {
+            Total += Card.Count;
+        }
+    }
+    return Total <= MAX_uint8 ? uint8(Total) : MAX_uint8;
 }
 
 bool ProgressionIdLess(FName A, FName B)
@@ -76,7 +83,10 @@ bool ProgressionIdLess(FName A, FName B)
 void ProgressionSortBuild(FLDGrowthBuild& Build)
 {
     Build.Skills.Sort([](const FLDLearnedSkill& A, const FLDLearnedSkill& B) { return ProgressionIdLess(A.Id, B.Id); });
-    Build.Cards.Sort([](const FLDAttributeCardCount& A, const FLDAttributeCardCount& B) { return ProgressionIdLess(A.Id, B.Id); });
+    Build.Cards.Sort([](const FLDAttributeCardCount& A, const FLDAttributeCardCount& B)
+    {
+        return A.Id != B.Id ? ProgressionIdLess(A.Id, B.Id) : uint8(A.Quality) < uint8(B.Quality);
+    });
 }
 
 const FLDDemoAbilityDefinition* ProgressionFindAbilityIn(const FLDDemoContentDefinitions& Content, FName Id)
@@ -101,9 +111,40 @@ bool ProgressionDraftable(const FLDDemoContentDefinitions& Content, const LDProg
     return Ability && Ability->Draftable;
 }
 
-bool ProgressionQWFull(const FLDGrowthBuild& Build)
+int32 ProgressionActiveCount(const FLDGrowthBuild& Build)
 {
-    return Build.ActiveInSlot(0) != INDEX_NONE && Build.ActiveInSlot(1) != INDEX_NONE;
+    int32 Count = 0;
+    for (const FLDLearnedSkill& Skill : Build.Skills)
+    {
+        Count += Skill.bActive ? 1 : 0;
+    }
+    return Count;
+}
+
+bool ProgressionActivesFull(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build)
+{
+    return ProgressionActiveCount(Build) >= Content.Progression.ActiveSlots;
+}
+
+bool ProgressionQualityParameters(const FLDDemoChoiceWeights& Choice)
+{
+    return Choice.AttributeGreenChanceBp >= 0 && Choice.AttributeBlueChanceBp >= 0
+        && Choice.AttributePurpleChanceBp >= 0 && Choice.AttributeGoldChanceBp >= 0
+        && Choice.AttributeGreenChanceBp + Choice.AttributeBlueChanceBp + Choice.AttributePurpleChanceBp
+            + Choice.AttributeGoldChanceBp == 10000
+        && Choice.AttributeGreenMultiplierBp > 0 && Choice.AttributeBlueMultiplierBp > 0
+        && Choice.AttributePurpleMultiplierBp > 0 && Choice.AttributeGoldMultiplierBp > 0;
+}
+
+ELDAttributeQuality ProgressionDrawQuality(const FLDDemoChoiceWeights& Choice, uint64& State)
+{
+    const uint64 Roll = ProgressionSplitMix64(State) % 10000;
+    int64 Through = Choice.AttributeGreenChanceBp;
+    if (Roll < uint64(Through)) { return ELDAttributeQuality::Green; }
+    Through += Choice.AttributeBlueChanceBp;
+    if (Roll < uint64(Through)) { return ELDAttributeQuality::Blue; }
+    Through += Choice.AttributePurpleChanceBp;
+    return Roll < uint64(Through) ? ELDAttributeQuality::Purple : ELDAttributeQuality::Gold;
 }
 
 bool ProgressionSameCard(const LDProgression::FLegalOption& A, const LDProgression::FLegalOption& B)
@@ -339,13 +380,16 @@ ELDGrowthReason LDProgression::NewSkillWeight(const FLDDemoContentDefinitions& C
     const FLegalOption& Option, int64& OutWeight)
 {
     OutWeight = 0;
-    const int64 FullSlot = Content.Parameters.Choice.NewActiveFullSlotWeightBp;
+    const FLDDemoChoiceWeights& Choice = Content.Parameters.Choice;
     if ((Option.Kind != ELDChoiceOptionKind::LearnActive && Option.Kind != ELDChoiceOptionKind::LearnPassive)
-        || !ProgressionFindAbilityIn(Content, Option.DefinitionId) || FullSlot <= 0 || FullSlot > 10000)
+        || !ProgressionFindAbilityIn(Content, Option.DefinitionId)
+        || Choice.NewActiveFreeSlotWeightBp <= 0 || Choice.NewActiveFreeSlotWeightBp > 10000
+        || Choice.NewActiveFullSlotWeightBp <= 0 || Choice.NewActiveFullSlotWeightBp > 10000)
     {
         return ELDGrowthReason::DataInvalid;
     }
-    OutWeight = Option.Kind == ELDChoiceOptionKind::LearnActive && ProgressionQWFull(Build) ? FullSlot : 10000;
+    OutWeight = Option.Kind != ELDChoiceOptionKind::LearnActive ? 10000
+        : ProgressionActivesFull(Content, Build) ? Choice.NewActiveFullSlotWeightBp : Choice.NewActiveFreeSlotWeightBp;
     return ELDGrowthReason::None;
 }
 
@@ -405,14 +449,14 @@ bool LDProgression::DrawFeasible(const FLDDemoContentDefinitions& Content, const
         NewActives += Row.Kind == ELDChoiceOptionKind::LearnActive ? 1 : 0;
         NewPassives += Row.Kind == ELDChoiceOptionKind::LearnPassive ? 1 : 0;
     }
-    // With Q/W full only one new active can ever be picked into an offer.
-    int32 NewSkills = NewPassives + (ProgressionQWFull(Build) ? FMath::Min(NewActives, 1) : NewActives);
-    // Worst case: the free slot rolls an attribute card; a skill slot with nothing left falls back to one too.
-    int32 SkillCards = 0;
-    if (Upgrades > 0) { ++SkillCards; }
-    else if (NewSkills > 0) { ++SkillCards; --NewSkills; }
-    if (NewSkills > 0) { ++SkillCards; }
-    return Attributes.Num() >= 3 - SkillCards;
+    const int32 NewSkills = NewPassives + FMath::Min(NewActives, 1);
+    const bool bFirstCanConsumeAttribute = Attributes.Num() > 0
+        && (Upgrades == 0 || Content.Parameters.Choice.FirstSlotUpgradeBp < 10000);
+    const int32 LaterPoolNeeded = bFirstCanConsumeAttribute ? 3 : 2;
+    return Upgrades + Attributes.Num() >= 1
+        && NewSkills + Attributes.Num() >= LaterPoolNeeded
+        && Upgrades + NewSkills + Attributes.Num() >= 3
+        && ProgressionQualityParameters(Content.Parameters.Choice);
 }
 
 ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<FLegalOption>& Pool, TArray<FLegalOption>& Out)
@@ -490,29 +534,40 @@ ELDGrowthReason LDProgression::DrawOffer(const FDrawInput& Input, const TArray<F
     {
         Attributes.Add({Row, 1});
     }
-    const bool bFull = ProgressionQWFull(Build);
     const auto PickNew = [&](FLegalOption& Picked)
     {
         if (!ProgressionPick(NewSkills, Input.Avoid, State, Picked))
         {
             return false;
         }
-        if (bFull && Picked.Kind == ELDChoiceOptionKind::LearnActive)
+        if (Picked.Kind == ELDChoiceOptionKind::LearnActive)
         {
             NewSkills.RemoveAll([](const FProgressionCandidate& Row) { return Row.Option.Kind == ELDChoiceOptionKind::LearnActive; });
         }
         return true;
     };
-    const auto PickAttribute = [&](FLegalOption& Picked) { return ProgressionPick(Attributes, Input.Avoid, State, Picked); };
+    const auto PickAttribute = [&](FLegalOption& Picked)
+    {
+        if (!ProgressionPick(Attributes, Input.Avoid, State, Picked))
+        {
+            return false;
+        }
+        Picked.AttributeQuality = ProgressionDrawQuality(Content.Parameters.Choice, State);
+        return true;
+    };
+    // The roll is always taken, so category fallback does not shift the rest of the stream.
+    const bool bFirstUpgrade = ProgressionSplitMix64(State) % 10000 < uint64(Content.Parameters.Choice.FirstSlotUpgradeBp);
     FLegalOption& Upgrade = Out.AddDefaulted_GetRef();
-    const bool bUpgrade = !Upgrades.IsEmpty() ? ProgressionPick(Upgrades, Input.Avoid, State, Upgrade)
-        : !NewSkills.IsEmpty() ? PickNew(Upgrade) : PickAttribute(Upgrade);
+    const bool bUpgrade = bFirstUpgrade
+        ? (!Upgrades.IsEmpty() ? ProgressionPick(Upgrades, Input.Avoid, State, Upgrade) : PickAttribute(Upgrade))
+        : (!Attributes.IsEmpty() ? PickAttribute(Upgrade) : ProgressionPick(Upgrades, Input.Avoid, State, Upgrade));
     FLegalOption& Fresh = Out.AddDefaulted_GetRef();
     const bool bFresh = !NewSkills.IsEmpty() ? PickNew(Fresh) : PickAttribute(Fresh);
-    // The roll is always taken, so the free slot's source does not shift the rest of the stream.
     const bool bAttribute = ProgressionSplitMix64(State) % 10000 < uint64(Content.Parameters.Choice.FreeSlotAttributeBp);
     FLegalOption& Free = Out.AddDefaulted_GetRef();
-    const bool bFree = bAttribute || NewSkills.IsEmpty() ? PickAttribute(Free) : PickNew(Free);
+    const bool bFree = bAttribute
+        ? (!Attributes.IsEmpty() ? PickAttribute(Free) : PickNew(Free))
+        : (!NewSkills.IsEmpty() ? PickNew(Free) : PickAttribute(Free));
     return bUpgrade && bFresh && bFree ? ELDGrowthReason::None : Fail(ELDGrowthReason::DataInvalid);
 }
 uint64 LDProgression::OfferSeed(const FGuid& MatchSecret, const FGuid& Contender, uint8 Ordinal)
@@ -551,7 +606,7 @@ bool LDProgression::OptionStillLegal(const FLDDemoContentSnapshot& Catalog, cons
         const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Catalog, Option.DefinitionId);
         const bool bActive = Option.Kind == ELDChoiceOptionKind::LearnActive;
         return Ability && (Ability->Kind == ELDDemoAbilityKind::Active) == bActive && !Build.FindSkill(Option.DefinitionId)
-            && Option.FromRank == 0 && Option.ToRank == 1;
+            && Option.FromRank == 0 && Option.ToRank == 1 && Option.AttributeQuality == ELDAttributeQuality::None;
     }
     case ELDChoiceOptionKind::UpgradeActive:
     case ELDChoiceOptionKind::UpgradePassive:
@@ -560,15 +615,17 @@ bool LDProgression::OptionStillLegal(const FLDDemoContentSnapshot& Catalog, cons
         const FLDLearnedSkill* Learned = Build.FindSkill(Option.DefinitionId);
         const bool bActive = Option.Kind == ELDChoiceOptionKind::UpgradeActive;
         return Ability && Learned && (Ability->Kind == ELDDemoAbilityKind::Active) == bActive && Learned->bActive == bActive
-            && Learned->Rank == Option.FromRank && Option.ToRank == Option.FromRank + 1 && Option.ToRank <= MaxRank;
+            && Learned->Rank == Option.FromRank && Option.ToRank == Option.FromRank + 1 && Option.ToRank <= MaxRank
+            && Option.AttributeQuality == ELDAttributeQuality::None;
     }
     case ELDChoiceOptionKind::Attribute:
         return ProgressionFindAttribute(Catalog, Option.DefinitionId) && ProgressionCardCount(Build, Option.DefinitionId) == Option.FromRank
-            && Option.ToRank == Option.FromRank + 1;
+            && Option.ToRank == Option.FromRank + 1 && LDDemoAttributeQuality::IsValid(Option.AttributeQuality);
     case ELDChoiceOptionKind::Opening:
         return Catalog.Get().OpeningCards.ContainsByPredicate([&Option](const FLDDemoOpeningCardDefinition& Row)
             { return FName(*Row.Id) == Option.DefinitionId; })
-            && Build.OpeningCard.IsNone() && Option.FromRank == 0 && Option.ToRank == 1;
+            && Build.OpeningCard.IsNone() && Option.FromRank == 0 && Option.ToRank == 1
+            && Option.AttributeQuality == ELDAttributeQuality::None;
     default:
         return false;
     }
@@ -582,7 +639,8 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
     {
         return ELDGrowthReason::InvalidOption;
     }
-    if (Catalog.Get().Progression.ActiveSlots != 2)
+    const int32 ActiveSlots = Catalog.Get().Progression.ActiveSlots;
+    if (ActiveSlots != 3)
     {
         return ELDGrowthReason::DataInvalid;
     }
@@ -600,14 +658,13 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
     {
         // #153: the hidden active is a new draftable active learned into the first free slot (Q on the opening build).
         const FLDDemoAbilityDefinition* Ability = ProgressionFindAbility(Catalog, HiddenActive);
-        const int32 Q = Current.ActiveInSlot(0);
-        const int32 W = Current.ActiveInSlot(1);
         if (!Ability || Ability->Kind != ELDDemoAbilityKind::Active || !Ability->Draftable || Current.FindSkill(HiddenActive)
-            || (Q != INDEX_NONE && W != INDEX_NONE))
+            || ProgressionActiveCount(Current) >= ActiveSlots)
         {
             return ELDGrowthReason::DataInvalid;
         }
-        const uint8 Slot = Q == INDEX_NONE ? 0 : 1;
+        uint8 Slot = 0;
+        while (Slot < ActiveSlots && Current.ActiveInSlot(Slot) != INDEX_NONE) { ++Slot; }
         Out.OpeningCard = Option.DefinitionId;
         Out.Skills.Add({HiddenActive, 1, true, Slot});
         Detail.Slot = Slot;
@@ -616,15 +673,14 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
     }
     case ELDChoiceOptionKind::LearnActive:
     {
-        const int32 Q = Current.ActiveInSlot(0);
-        const int32 W = Current.ActiveInSlot(1);
-        if (Q == INDEX_NONE || W == INDEX_NONE)
+        if (ProgressionActiveCount(Current) < ActiveSlots)
         {
             if (Replacement)
             {
                 return ELDGrowthReason::ReplacementNotAllowed;
             }
-            const uint8 Slot = Q == INDEX_NONE ? 0 : 1;
+            uint8 Slot = 0;
+            while (Slot < ActiveSlots && Current.ActiveInSlot(Slot) != INDEX_NONE) { ++Slot; }
             Out.Skills.Add({Option.DefinitionId, 1, true, Slot});
             Detail.Slot = Slot;
             break;
@@ -633,11 +689,16 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
         {
             return ELDGrowthReason::ReplacementRequired;
         }
-        if (Replacement->Slot > 1)
+        if (Replacement->Slot >= ActiveSlots)
         {
             return ELDGrowthReason::ReplacementMismatch;
         }
-        const FLDLearnedSkill& Old = Current.Skills[Replacement->Slot == 0 ? Q : W];
+        const int32 OldIndex = Current.ActiveInSlot(Replacement->Slot);
+        if (OldIndex == INDEX_NONE)
+        {
+            return ELDGrowthReason::ReplacementMismatch;
+        }
+        const FLDLearnedSkill& Old = Current.Skills[OldIndex];
         if (Old.Id != Replacement->OldSkillId || Old.Rank != Replacement->OldRank)
         {
             return ELDGrowthReason::ReplacementMismatch;
@@ -665,12 +726,18 @@ ELDGrowthReason LDProgression::ApplyOption(const FLDDemoContentSnapshot& Catalog
     }
     case ELDChoiceOptionKind::Attribute:
     {
-        FLDAttributeCardCount* Card = Out.Cards.FindByPredicate([&](const FLDAttributeCardCount& Row) { return Row.Id == Option.DefinitionId; });
+        FLDAttributeCardCount* Card = Out.Cards.FindByPredicate([&](const FLDAttributeCardCount& Row)
+            { return Row.Id == Option.DefinitionId && Row.Quality == Option.AttributeQuality; });
         if (!Card)
         {
-            Card = &Out.Cards.Add_GetRef({Option.DefinitionId, 0});
+            Card = &Out.Cards.Add_GetRef({Option.DefinitionId, 0, Option.AttributeQuality});
         }
-        Card->Count = Option.ToRank;
+        if (Card->Count == MAX_uint8)
+        {
+            return ELDGrowthReason::ArithmeticOverflow;
+        }
+        ++Card->Count;
+        Detail.AttributeQuality = Option.AttributeQuality;
         break;
     }
     default:

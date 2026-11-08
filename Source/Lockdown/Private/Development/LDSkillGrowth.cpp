@@ -2,13 +2,15 @@
 
 #include "Development/LDDemoContentDefinitions.h"
 
-int64 LDSkillGrowth::FactorBp(int64 PerLevelBp, uint8 Level)
+int64 LDSkillGrowth::FactorBp(int64 ThroughTenBp, int64 AfterTenBp, uint8 Level)
 {
-    if (Level < 1 || PerLevelBp < 0 || PerLevelBp > MAX_int32)
+    if (Level < 1 || ThroughTenBp < 0 || ThroughTenBp > MAX_int32 || AfterTenBp < 0 || AfterTenBp > MAX_int32)
     {
         return 0;
     }
-    return 10000 + PerLevelBp * int64(Level - 1);
+    const int64 ThroughTenSteps = FMath::Min<int64>(Level - 1, 9);
+    const int64 AfterTenSteps = FMath::Max<int64>(Level - 10, 0);
+    return 10000 + ThroughTenBp * ThroughTenSteps + AfterTenBp * AfterTenSteps;
 }
 
 bool LDSkillGrowth::GrowP2(int64 AmountP2, int64 Factor, int64& Out)
@@ -44,10 +46,11 @@ bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Fa
     return true;
 }
 
-bool LDSkillGrowth::GrowRank(const FLDDemoRankDefinition& Authored, int64 PerLevelBp, uint8 Level, FLDDemoRankDefinition& Out)
+bool LDSkillGrowth::GrowRank(const FLDDemoRankDefinition& Authored, int64 ThroughTenBp, int64 AfterTenBp,
+    uint8 Level, FLDDemoRankDefinition& Out)
 {
     Out = Authored;
-    const int64 Factor = FactorBp(PerLevelBp, Level);
+    const int64 Factor = FactorBp(ThroughTenBp, AfterTenBp, Level);
     if (Factor <= 0)
     {
         return false;

@@ -18,7 +18,7 @@ namespace LDDemoCardText
         // seconds (AmountMs); Amount x SecondaryRatioBp (a shield's burst).
         BasicCount, CooldownCut, Refund, Burst,
         // One stat of the effect's Stats.
-        Stat
+        Stat, Limit
     };
 
     struct FToken

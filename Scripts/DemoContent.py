@@ -54,7 +54,9 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "cast_frenzy", "affliction_amp", "shield_break_retort", "hit_haste",
                        # #147 build v7 keyword primitives (docs/systems/COMBAT_AND_GROWTH.md).
                        "silence", "breach", "burn", "execute", "pierce", "echo", "taunt_shield", "dispel_disarm",
-                       "zone_burn"))
+                       "zone_burn", "channel_cone", "ground_impact", "attack_slow", "contact_trap", "dash_contact",
+                       "cower", "argument_chain", "spell_sustain", "primary_guard",
+                       "dash_contact_damage", "dash_contact_refund", "dash_contact_guard"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
 # Effects a self area delivers to the bodies it names.
@@ -212,7 +214,7 @@ SCHEMA_KEYS = frozenset(("$schema", "$defs", "$ref", "title", "description", "ty
                          "minimum", "maximum", "exclusiveMinimum", "minProperties", "x-quantity"))
 QUANTITY_UNITS = {
     "P2": frozenset(("hp", "mp", "points")), "R4": frozenset(("ratio",)), "Sec": frozenset(("s",)),
-    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s")),
+    "Rational": frozenset(("cm", "cm/s", "attacks/s", "hp/s", "mp/s", "degrees")),
 }
 
 
@@ -505,6 +507,11 @@ _PAIRED_FIELDS = {
     "lifesteal": (("hp_below", "low_hp_multiplier"),), "thorns": (("slow", "slow_duration"),),
     "triggered_shield": (("burst_ratio", "burst_radius"),), "knockback": (("wall_distance", "wall_stun"),),
     "empower_basic": (("cleave_ratio", "cleave_radius"),),
+    "channel_cone": (("slow", "slow_duration"),),
+    "dash_contact_damage": (("slow", "slow_duration"),),
+    "spell_sustain": (("mana_ratio", "mana_cap"),),
+    "dash_contact_refund": (("mana_ratio", "mana_cap"),),
+    "primary_guard": (("slow_resistance", "duration"),),
 }
 
 
@@ -524,6 +531,29 @@ def _validate_new_effect(effect, path):
     if effect["op"] == "cast_frenzy":
         require(set(effect["stats"]) <= TEMPORARY_STATS, "UnknownField", path, "timed bonuses cannot change resource maxima")
         _positive_stats(effect["stats"], path)
+    if effect["op"] in ("attack_slow", "cower", "primary_guard", "dash_contact_guard", "spell_sustain"):
+        require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
+                "reduction or recovery ratio must be strictly between zero and one")
+    if effect["op"] in ("ground_impact", "contact_trap"):
+        inner = "inner_radius" if effect["op"] == "ground_impact" else "trigger_radius"
+        require(0 < quantity(effect[inner]) <= quantity(effect["radius"]), "InvalidGeometry", path,
+                "inner/trigger radius must be positive and fit the effect radius")
+    if effect["op"] == "ground_impact":
+        require(0 < quantity(effect["outer_ratio"]) < 1, "NumericDomain", path,
+                "outer damage must be a positive fraction of central damage")
+    if effect["op"] == "channel_cone":
+        checked_mul(effect["interval"]["ms"], effect["count"] - 1, path)
+    if effect["op"] in ("argument_chain", "dash_contact_damage"):
+        require(any(quantity(effect[key]) > 0 for key in ("base", "ad_ratio", "ap_ratio")),
+                "IneffectiveEffect", path, "additional damage needs magnitude or scaling")
+    for field in ("slow", "slow_resistance", "move_bonus", "mana_ratio"):
+        if field in effect and effect["op"] in (
+                "channel_cone", "dash_contact_damage", "primary_guard", "cower", "spell_sustain", "dash_contact_refund"):
+            require(0 < quantity(effect[field]) < 1, "NumericDomain", path, f"{field} must be a positive fraction")
+    if effect["op"] in ("spell_sustain", "primary_guard"):
+        require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
+    if effect["op"] in ("spell_sustain", "dash_contact_refund") and "mana_cap" in effect:
+        require(quantity(effect["mana_cap"]) > 0, "IneffectiveEffect", path, "mana cap must be positive")
 
 
 def _validate_action(target, ranks, path):
@@ -531,13 +561,15 @@ def _validate_action(target, ranks, path):
     allowed = {
         "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
                            "knockback", *HOSTILE_OPS,
-                           "silence", "breach", "burn", "execute", "echo", "taunt_shield", "dispel_disarm", "empower_basic")),
+                           "silence", "breach", "burn", "execute", "echo", "taunt_shield", "dispel_disarm", "empower_basic", "cower")),
         "Unit": frozenset(("damage", "root", "slow", "disarm", "stun",
                            "silence", "breach", "burn", "execute", "knockback")),
-        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "execute", "pierce")),
+        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "execute", "pierce", "attack_slow")),
         "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "path_slow", "zone", "zone_damage",
-                                    *HOSTILE_OPS, "breach", "burn")),
-        "GroundPoint": frozenset(("zone", "zone_slow", "zone_root", "zone_damage", "zone_burn")),
+                                    *HOSTILE_OPS, "breach", "burn", "dash_contact")),
+        "GroundPoint": frozenset(("zone", "zone_slow", "zone_root", "zone_damage", "zone_burn",
+                                  "ground_impact", "contact_trap", "damage", "root", "slow")),
+        "DirectionCone": frozenset(("channel_cone", "damage")),
     }[mode]
     signature = None
     for rank in ranks:
@@ -548,12 +580,19 @@ def _validate_action(target, ranks, path):
         require(signature is None or rank["rank"] == len(ranks) or signature == ops, "RankShape", path,
                 "ranks must use the same handlers")
         signature = signature if signature is not None else ops
-        if mode in ("Self", "DirectionDash"):
+        if mode in ("Self", "DirectionDash") and "dash_contact" not in ops:
             require(("self_area" in ops) == bool(ops & AREA_HIT_OPS), "TargetEffectMismatch", path,
                     "hit effects of a self or dash action need exactly one self_area to name their targets")
         if mode == "DirectionProjectile":
             require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
-        require(mode != "GroundPoint" or "zone" in ops, "MissingHandler", path, "a ground point is consumed by a zone")
+        require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
+                "MissingHandler", path, "a ground point needs exactly one delivery handler")
+        require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
+                "MissingHandler", path, "a cone needs its channel and damage")
+        require("dash_contact" not in ops or ("damage" in ops and "self_area" not in ops),
+                "TargetEffectMismatch", path, "contact damage must use the actual dash, not a release area")
+        require(not ops.intersection({"ground_impact", "contact_trap"}) or "damage" in ops,
+                "MissingHandler", path, "a delayed impact or trap needs damage")
         require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
         require(not (ops & {"zone_slow", "zone_root", "zone_damage", "zone_burn"}) or "zone" in ops,
                 "MissingHandler", path, "zone payloads need their zone")
@@ -603,7 +642,7 @@ def _validate_action(target, ranks, path):
                 _positive_stats(effect["stats"], path)
             if effect["op"] == "taunt":
                 require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
-    if mode in ("Unit", "DirectionProjectile", "GroundPoint"):
+    if mode in ("Unit", "DirectionProjectile", "GroundPoint", "DirectionCone"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
         require(quantity(target["projectile_radius"]) > 0, "NumericDomain", path, "projectile radius must be positive")
@@ -637,6 +676,12 @@ def validate_definitions(data, ids):
         "active_account_banned": ("Unit", {"damage", "silence"}, {"damage", "silence", "breach"}),
         "active_unplug": ("Unit", {"damage", "disarm"}, {"damage", "disarm", "slow"}),
         "active_triple_combo": ("Self", {"empower_basic"}, {"empower_basic"}),
+        "active_open_mic": ("DirectionCone", {"channel_cone", "damage"}, {"channel_cone", "damage"}),
+        "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}, {"ground_impact", "damage", "root"}),
+        "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow"}, {"damage", "attack_slow", "slow"}),
+        "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage"}, {"contact_trap", "damage", "slow"}),
+        "active_apology_slide": ("DirectionDash", {"dash", "dash_contact", "damage"}, {"dash", "dash_contact", "damage", "slow"}),
+        "active_cower": ("Self", {"cower"}, {"cower"}),
     }
     timed_stats = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
     # Passives: (basic-rank handlers, advanced-rank handlers, stats of a stat-bearing handler or None).
@@ -651,6 +696,12 @@ def validate_definitions(data, ids):
         "passive_moral_victory": ({"triggered_shield"}, {"triggered_shield"}, None),
         "passive_iced_americano": ({"stat_bonus"}, {"stat_bonus", "cooldown_refund"}, {"CooldownHasteFlat", "MPRegenFlat"}),
         "passive_lucky_star": ({"stat_bonus"}, {"stat_bonus", "ability_crit"}, {"CritChanceBonusRatio"}),
+        "passive_argument_chain": ({"argument_chain"}, {"argument_chain"}, None),
+        "passive_snack_cast": ({"spell_sustain"}, {"spell_sustain"}, None),
+        "passive_pressure_veteran": ({"primary_guard"}, {"primary_guard"}, None),
+        "passive_dash_contact_damage": ({"dash_contact_damage"}, {"dash_contact_damage"}, None),
+        "passive_dash_contact_refund": ({"dash_contact_refund"}, {"dash_contact_refund"}, None),
+        "passive_dash_contact_guard": ({"dash_contact_guard"}, {"dash_contact_guard"}, None),
     }
     top_rank = data["progression"]["max_skill_rank"]
     for ability in data["abilities"]:
@@ -706,7 +757,8 @@ def validate_definitions(data, ids):
                 if field in effect:
                     require(exact_equal(effect[field], twin.get(field)), "AdvancedRank", identity,
                             f"{effect['op']}.{field} changes between ranks")
-            if "base" in effect and effect["op"] != "mana_on_hit":
+            if "base" in effect and effect["op"] != "mana_on_hit" and not (
+                    identity == "active_triple_combo" and effect["op"] == "empower_basic"):
                 require(quantity(twin["base"]) == quantity(effect["base"]) * Fraction(3, 2), "AdvancedRank", identity,
                         f"{effect['op']}.base must be 1.5x in the advanced rank")
     attribute_stats = {
@@ -715,9 +767,14 @@ def validate_definitions(data, ids):
         "attr_big_talk": {"APFlat", "MaxHPFlat"}, "attr_morning_rush": {"MoveSpeedBonusRatio", "MaxHPFlat"},
         "attr_hand_out": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
         "attr_wild_frenzy": {"ADFlat", "AttackSpeedBonusRatio"},
+        "attr_padded_thesis": {"APFlat", "MaxMPFlat"},
+        "attr_deadline_miracle": {"CooldownHasteFlat", "MaxMPFlat"},
+        "attr_running_defense": {"APFlat", "MoveSpeedBonusRatio"},
+        "attr_pe_essay": {"ADFlat", "APFlat"},
     }
     # Wild cards name their deductions explicitly (positive magnitudes the projection subtracts).
-    attribute_penalties = {"attr_wild_frenzy": {"MaxHPFlat"}}
+    attribute_penalties = {"attr_wild_frenzy": {"MaxHPFlat"}, "attr_deadline_miracle": {"MaxHPFlat"},
+                           "attr_running_defense": {"MaxHPFlat"}, "attr_pe_essay": {"MaxMPFlat"}}
     for attribute in data["attributes"]:
         require(attribute["id"] in attribute_stats
                 and set(attribute["stats"]) == attribute_stats[attribute["id"]],
@@ -858,7 +915,7 @@ def validate_definitions(data, ids):
 
 
 CARD_FIELDS = frozenset(("amount", "duration", "ratio", "count", "radius", "distance", "interval", "delay",
-                         "secondary_ratio", "secondary_duration", "basic_count", "cooldown_cut", "refund", "burst"))
+                         "secondary_ratio", "secondary_duration", "basic_count", "cooldown_cut", "refund", "burst", "limit"))
 CARD_PLACEHOLDER = re.compile(r"\[([a-z_]+)\.([A-Za-z_]+)\]")
 
 
@@ -914,14 +971,15 @@ def upgraded_stats(stats, ratio_bp, path):
 def validate_numbers(data):
     params = data["parameters"]
     p = lambda key: quantity(params[key])
+    level_steps = data["progression"]["max_level"] - 1
     for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
         key = "STAT." + stat
         minimum, maximum = p(key + ".Min"), p(key + ".Max")
         base, growth = p(key + ".Base"), p(key + ".PerLevel")
-        require(minimum <= base <= base + 9 * growth <= maximum,
+        require(minimum <= base <= base + level_steps * growth <= maximum,
                 "StatBounds", key, "base/level growth is outside the declared projection bounds")
         if stat not in ("HPRegen", "MPRegen"):
-            checked_add(params[key + ".Base"]["p2"], checked_mul(9, params[key + ".PerLevel"]["p2"], key), key)
+            checked_add(params[key + ".Base"]["p2"], checked_mul(level_steps, params[key + ".PerLevel"]["p2"], key), key)
     require(p("STAT.MaxHP.Min") > 0 and p("STAT.MaxHP.Base") > 0,
             "NumericDomain", "STAT.MaxHP", "alive characters require positive HP")
     require(p("STAT.AD.Base") > 0, "NumericDomain", "STAT.AD.Base", "initial basic attack requires positive damage")
@@ -973,7 +1031,7 @@ def validate_numbers(data):
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
 
     thresholds = [0]
-    for level in range(1, 10):
+    for level in range(1, data["progression"]["max_level"]):
         increment = checked_add(params["XP.BaseToNext"],
                                 checked_mul(level - 1, params["XP.IncreasePerLevel"], "XP"), "XP")
         thresholds.append(checked_add(thresholds[-1], increment, "XP"))
@@ -981,7 +1039,7 @@ def validate_numbers(data):
             "XPThresholds", "progression", "thresholds do not match the explicit linear XP parameters")
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
     for reward in ("REWARD.PlayerXP", "REWARD.PlayerGold"):
-        checked_add(params[reward + ".Base"], checked_mul(9, params[reward + ".PerLevel"], reward), reward)
+        checked_add(params[reward + ".Base"], checked_mul(level_steps, params[reward + ".PerLevel"], reward), reward)
 
     for item in data["equipment"]:
         price = item["buy_price"]
@@ -990,8 +1048,16 @@ def validate_numbers(data):
         require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
         checked_add(params["SHOP.StartingGold"], price, item["id"])
         item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
-    require(params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0, "NumericDomain", "CHOICE.NewActiveFullSlotWeight",
-            "a draft weight must be positive")
+    require(params["CHOICE.NewActiveFreeSlotWeight"]["bp"] > 0
+            and params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0,
+            "NumericDomain", "CHOICE", "active draft weights must be positive")
+    quality_chances = [params[f"CHOICE.AttributeQuality.{name}Chance"]["bp"]
+                       for name in ("Green", "Blue", "Purple", "Gold")]
+    quality_multipliers = [params[f"CHOICE.AttributeQuality.{name}Multiplier"]["bp"]
+                           for name in ("Green", "Blue", "Purple", "Gold")]
+    require(sum(quality_chances) == 10000 and all(value > 0 for value in quality_multipliers),
+            "InvalidPolicy", "CHOICE.AttributeQuality",
+            "attribute quality chances must sum to one and multipliers must be positive")
     checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
@@ -1049,10 +1115,14 @@ def _validate_build_envelope(data):
     max_ap = params["STAT.AP.Max"]["p2"]
     max_armor = params["STAT.Armor.Max"]["p2"]
     max_hp = params["STAT.MaxHP.Max"]["p2"]
-    # #147: a skill's fixed amounts grow with its owner's level, G(L) = 1 + SKILL.GrowthPerLevel x (L - 1), so a skill's
-    # envelope is checked with its bases grown for the top level (equipment never grows); the burn base grows likewise.
-    factor = checked_add(10000, checked_mul(max(data["progression"]["max_level"] - 1, 0),
-                                            params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"), "SKILL.GrowthPerLevel")
+    # #166: levels 2..10 grow by the first step, levels 11..16 by the second.
+    top_level = data["progression"]["max_level"]
+    first_steps = min(max(top_level - 1, 0), 9)
+    later_steps = max(top_level - 10, 0)
+    factor = checked_add(10000, checked_mul(first_steps, params["SKILL.GrowthPerLevel"]["bp"], "SKILL.GrowthPerLevel"),
+                         "SKILL.GrowthPerLevel")
+    factor = checked_add(factor, checked_mul(later_steps, params["SKILL.GrowthPerLevelAfter10"]["bp"],
+                                            "SKILL.GrowthPerLevelAfter10"), "SKILL.GrowthPerLevelAfter10")
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
@@ -1068,7 +1138,7 @@ def _validate_build_envelope(data):
                     for storage in ("p2", "bp"):
                         if storage in stat:
                             grow(stat[storage], row["id"])
-            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage"):
+            if effect["op"] in ("damage", "shield", "empower_basic", "zone_damage", "argument_chain", "dash_contact_damage"):
                 numerator = checked_mul(base, 10000, row["id"])
                 numerator = checked_add(numerator, checked_mul(max_ap, effect["ap_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] != "shield":

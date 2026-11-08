@@ -33,6 +33,9 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Knockback:
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
+    case ELDDemoStatusId::AttackSlowed:
+    case ELDDemoStatusId::Cowering:
+    case ELDDemoStatusId::ContactGuard:
         return true;
     default:
         return false;
@@ -164,7 +167,9 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     if (Mask & LDObservation::Equipment) { Ar << Unit.Equipment.Slots[0] << Unit.Equipment.Slots[1]; }
     if (Mask & LDObservation::Actives)
     {
-        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0] << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1];
+        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
+            << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1]
+            << Unit.Actives.Abilities[2] << Unit.Actives.Ranks[2];
     }
     return !Ar.IsError();
 }
@@ -185,7 +190,7 @@ bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProj
     Ar << Projectile.Handle;
     bool bPosition = true;
     Projectile.PositionCm.NetSerialize(Ar, Map, bPosition);
-    Ar << Projectile.Heading << Look;
+    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees;
     if (Ar.IsLoading()) { Projectile.Look = static_cast<ELDObservedProjectileLook>(Look); }
     return bPosition && !Ar.IsError();
 }
@@ -288,14 +293,17 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     { return FailObservation(Error, TEXT("Observed equipment must be two public equipment definitions or empty slots.")); }
     const FLDObservedActivesView& Actives = Unit.Actives;
     bool bActives = true;
-    for (int32 Slot = 0; Slot < 2; ++Slot)
+    for (int32 Slot = 0; Slot < 3; ++Slot)
     {
         bActives &= Contender
             ? (Actives.Abilities[Slot] == 0) == (Actives.Ranks[Slot] == 0) && Actives.Ranks[Slot] <= MaxActiveRank
             : Actives.Abilities[Slot] == 0 && Actives.Ranks[Slot] == 0;
     }
-    if (!bActives || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1]))
-    { return FailObservation(Error, TEXT("Observed Q/W actives must be two distinct ranked abilities or empty slots, contenders only.")); }
+    const bool bDuplicate = (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1])
+        || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[2])
+        || (Actives.Abilities[1] != 0 && Actives.Abilities[1] == Actives.Abilities[2]);
+    if (!bActives || bDuplicate)
+    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct ranked abilities or empty slots, contenders only.")); }
     Error.Reset();
     return true;
 }
@@ -304,7 +312,30 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
 {
     if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
-    if (Projectile.Look != ELDObservedProjectileLook::Chalk) { return FailObservation(Error, TEXT("Unknown observed projectile look.")); }
+    if (!FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
+        || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
+        || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
+        || Projectile.AngleDegrees < 0 || Projectile.AngleDegrees > 180)
+    { return FailObservation(Error, TEXT("Observed skill geometry is outside its finite public domain.")); }
+    switch (Projectile.Look)
+    {
+    case ELDObservedProjectileLook::Chalk:
+    case ELDObservedProjectileLook::Sock:
+        if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0)
+        { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }
+        break;
+    case ELDObservedProjectileLook::BookShadow:
+    case ELDObservedProjectileLook::FlyerArming:
+    case ELDObservedProjectileLook::FlyerArmed:
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm <= 0 || Projectile.AngleDegrees != 0)
+        { return FailObservation(Error, TEXT("A ground effect needs its two public radii.")); }
+        break;
+    case ELDObservedProjectileLook::SpeechCone:
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees <= 0)
+        { return FailObservation(Error, TEXT("A cone needs public reach and angle.")); }
+        break;
+    default: return FailObservation(Error, TEXT("Unknown observed skill effect look."));
+    }
     Error.Reset();
     return true;
 }

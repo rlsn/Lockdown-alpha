@@ -85,12 +85,15 @@ void HudBarStyle(UProgressBar* Bar,const FLinearColor& Fill)
     Bar->SetWidgetStyle(Style);Bar->SetFillColorAndOpacity(Fill);
 }
 // The band's slots in LDHUD::EActionSlot order. The two equipment slots show the held items: no key, no combat entry.
-const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),NAME_None,NAME_None,TEXT("Dash")};
-const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::None,ELDCombatEntry::None,ELDCombatEntry::Dash};
-const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDEquipment1"),TEXT("HUDEquipment2"),TEXT("HUDActionDash")};
+const FName HudActionBindings[]={TEXT("Skill1"),TEXT("Skill2"),TEXT("SkillE"),NAME_None,NAME_None,TEXT("Dash")};
+const ELDCombatEntry HudActionEntries[]={ELDCombatEntry::Q,ELDCombatEntry::W,ELDCombatEntry::E,
+    ELDCombatEntry::None,ELDCombatEntry::None,ELDCombatEntry::Dash};
+const FName HudActionNames[]={TEXT("HUDActionQ"),TEXT("HUDActionW"),TEXT("HUDActionE"),
+    TEXT("HUDEquipment1"),TEXT("HUDEquipment2"),TEXT("HUDActionDash")};
 constexpr int32 HudActionCount=UE_ARRAY_COUNT(HudActionEntries);
 // Status control bits that forbid each entry kind: character actives cast, the dash displaces.
-const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),0,0,uint8(ELDCombatControlBlock::Displacement)};
+const uint8 HudActionControl[]={uint8(ELDCombatControlBlock::Cast),uint8(ELDCombatControlBlock::Cast),
+    uint8(ELDCombatControlBlock::Cast),0,0,uint8(ELDCombatControlBlock::Displacement)};
 static_assert(UE_ARRAY_COUNT(HudActionBindings)==HudActionCount && UE_ARRAY_COUNT(HudActionNames)==HudActionCount
     && UE_ARRAY_COUNT(HudActionControl)==HudActionCount,"Every HUD action entry has a binding, a name and a control bit.");
 // Band geometry in Slate units at the 1080p reference (720p draws the same layout at ~0.667). The band is placed so its
@@ -261,9 +264,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         TargetStatuses=Text(TEXT(""),14);TargetBox->AddChildToVerticalBox(TargetStatuses)->SetPadding(FMargin(0,4,0,0));
         TargetEquipment=Text(TEXT(""),14);TargetEquipment->SetColorAndOpacity(LDHUDStyle::TextSecondary);TargetBox->AddChildToVerticalBox(TargetEquipment)->SetPadding(FMargin(0,2,0,0));
         {
-            // Two Q/W tiles of a visible contender: the name on top, the rank (with the Lv3 mark) below; no cooldown is ever drawn.
+            // Three Q/W/E tiles of a visible contender: the name on top and the rank below; no cooldown is ever drawn.
             auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
-            for(int32 Index=0;Index<2;++Index)
+            for(int32 Index=0;Index<3;++Index)
             {
                 auto* Lines=WidgetTree->ConstructWidget<UVerticalBox>();
                 UTextBlock* Name=OneLine(TEXT(""),14,0);HudFace(Name,true,1);Name->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Lines->AddChildToVerticalBox(Name);
@@ -501,13 +504,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             Entry.Flash=WidgetTree->ConstructWidget<UBorder>();Entry.Flash->SetVisibility(ESlateVisibility::Collapsed);FillLayer(Stack->AddChildToOverlay(Entry.Flash));
             // The icon sends exactly what its hotkey sends; Combat decides Self casts and the armed target forms.
             const ELDCombatEntry Activated=HudActionEntries[Index];
-            // A Q/W slot fires the entry the local slot order puts there; during the replacement pick it is the choice of
+            // A Q/W/E slot fires the entry the local slot order puts there; during the replacement pick it is the choice of
             // the skill to forget instead (#97); a press that became a drag fires nothing.
             Entry.Button=LDWidgets::Button(WidgetTree,TEXT(""),[this,PC,Activated,Index]()
             {
                 if(bDragging&&DragFrom==Index){return;}
-                const ELDCombatEntry Fired=Index<2?PC->SkillAtKey[Index]:Activated;
-                if(Index<2&&ChoicesPanel&&ChoicesPanel->HasChildConfirmation()){ChoicesPanel->ChooseReplacement(Fired==ELDCombatEntry::W?1:0);return;}
+                const ELDCombatEntry Fired=Index<3?PC->SkillAtKey[Index]:Activated;
+                const uint8 ReplaceSlot=Fired==ELDCombatEntry::Q?0:Fired==ELDCombatEntry::W?1:2;
+                if(Index<3&&ChoicesPanel&&ChoicesPanel->HasChildConfirmation()){ChoicesPanel->ChooseReplacement(ReplaceSlot);return;}
                 if(Fired!=ELDCombatEntry::None){PC->ActivateCombatEntry(Fired);}
             },true,HudActionNames[Index]);
             // The face draws every state itself, so the button keeps no chrome of its own.
@@ -681,12 +685,12 @@ FReply ULDHUD::NativeOnPreviewMouseButtonDown(const FGeometry& G,const FPointerE
     const FVector2D At=E.GetScreenSpacePosition();
     // Any press outside the open item menu closes it and still goes where it was aimed.
     if(ItemMenuIndex!=INDEX_NONE&&!(ItemMenu&&ItemMenu->GetCachedGeometry().IsUnderLocation(At))){CloseItemMenu();}
-    // A left press on a filled Q/W or equipment slot may become a drag (UpdateDrag); the press still reaches the button.
-    // The replacement pick takes Q/W clicks as its choice, so nothing drags meanwhile.
+    // A left press on a filled Q/W/E or equipment slot may become a drag (UpdateDrag); the press still reaches the button.
+    // The replacement pick takes Q/W/E clicks as its choice, so nothing drags meanwhile.
     if(E.GetEffectingButton()==EKeys::LeftMouseButton&&Band&&Band->IsVisible()&&!(ChoicesPanel&&ChoicesPanel->HasChildConfirmation()))
     {
         DragFrom=INDEX_NONE;bDragging=false;
-        for(int32 Index=0;Index<FMath::Min(4,ActionSlots.Num());++Index)
+        for(int32 Index=0;Index<FMath::Min(5,ActionSlots.Num());++Index)
         {
             const FLDHUDActionSlot& Entry=ActionSlots[Index];
             if(Entry.bHasSource&&Entry.Box&&Entry.Box->GetCachedGeometry().IsUnderLocation(At)){DragFrom=Index;DragStart=At;break;}
@@ -732,10 +736,11 @@ void ULDHUD::UpdateDrag()
     if(bDragging)
     {
         // Dropped on the other slot of the same group (skills with skills, equipment with equipment): the two trade places.
-        for(int32 To=0;To<FMath::Min(4,ActionSlots.Num());++To)
+        for(int32 To=0;To<FMath::Min(5,ActionSlots.Num());++To)
         {
-            if(To==DragFrom||(To<2)!=(DragFrom<2)||!ActionSlots[To].Box->GetCachedGeometry().IsUnderLocation(At)){continue;}
-            if(To<2){Swap(PC->SkillAtKey[0],PC->SkillAtKey[1]);}else{Swap(PC->EquipmentAtPosition[0],PC->EquipmentAtPosition[1]);}
+            if(To==DragFrom||(To<3)!=(DragFrom<3)||!ActionSlots[To].Box->GetCachedGeometry().IsUnderLocation(At)){continue;}
+            if(To<3){Swap(PC->SkillAtKey[DragFrom],PC->SkillAtKey[To]);}
+            else{Swap(PC->EquipmentAtPosition[DragFrom-3],PC->EquipmentAtPosition[To-3]);}
             for(FLDHUDActionSlot& Changed:ActionSlots){Changed.AppliedLook=-1;Changed.bCooling=false;}
             break;
         }
@@ -1149,7 +1154,7 @@ void ULDHUD::RefreshReadModel()
             // The pressed slot's ring turns red for a moment where the player is looking; the toast says why.
             const bool bSlotRefused=!LDHUD::CombatReceiptSlotNotice(Receipt).IsEmpty();
             for(int32 Pressed=0;Pressed<ActionSlots.Num()&&bSlotRefused;++Pressed)
-            {if((Pressed<2?PC->SkillAtKey[Pressed]:HudActionEntries[Pressed])==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
+            {if((Pressed<3?PC->SkillAtKey[Pressed]:HudActionEntries[Pressed])==Receipt.Entry){ActionSlots[Pressed].RejectedAt=UiNow;}}
         }
     }
     uint8 ControlBits=0;
@@ -1160,8 +1165,8 @@ void ULDHUD::RefreshReadModel()
     for(int32 Index=0;Index<ActionSlots.Num();++Index)
     {
         const LDHUD::EActionSlot SlotKind=static_cast<LDHUD::EActionSlot>(Index);
-        // Q/W positions show the entries the local slot order puts there (#97 drag to swap).
-        const ELDCombatEntry Wanted=Index<2?PC->SkillAtKey[Index]:HudActionEntries[Index];
+        // Q/W/E positions show the entries the local slot order puts there (#97 drag to swap).
+        const ELDCombatEntry Wanted=Index<3?PC->SkillAtKey[Index]:HudActionEntries[Index];
         LDHUD::FActionInput Input;Input.Slot=SlotKind;
         FGuid HeldItem;
         if(LDHUD::IsEquipmentSlot(SlotKind))
@@ -1196,9 +1201,10 @@ void ULDHUD::RefreshReadModel()
             :SlotKind==LDHUD::EActionSlot::Dash?EHudIconKind::Dash:EHudIconKind::Active;
         const bool bHover=Entry.Button->IsHovered();
         const bool bRejected=Entry.RejectedAt>=0&&UiNow-Entry.RejectedAt<HudNoticeSeconds;
-        // #97 replacement pick: a filled Q/W slot glows red on its edge; clicking it forgets that skill.
-        const bool bReplacePick=Index<2&&ChoicesPanel&&ChoicesPanel->IsReplacementTarget(Wanted==ELDCombatEntry::W?1:0);
-        Entry.bHasSource=Index<4&&Input.bHasSource;
+        // #97 replacement pick: a filled Q/W/E slot glows red on its edge; clicking it forgets that skill.
+        const uint8 ReplaceSlot=Wanted==ELDCombatEntry::Q?0:Wanted==ELDCombatEntry::W?1:2;
+        const bool bReplacePick=Index<3&&ChoicesPanel&&ChoicesPanel->IsReplacementTarget(ReplaceSlot);
+        Entry.bHasSource=Index<5&&Input.bHasSource;
         const int32 LookKey=(((int32(Look)*4+int32(IconKind))*2+(bHover?1:0))*2+(bRejected?1:0))*2+(bReplacePick?1:0);
         if(Entry.AppliedLook!=LookKey)
         {
@@ -1546,15 +1552,23 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
     {
-        float RangeCm=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
+        float RangeCm=0, ConeDegrees=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
         if(bArmedEntry)
         {
             const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
             RangeCm=Source?float(Source->RangeCm):0.f;
-            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
+            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)
+                ||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone));
             bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
             // A ground point previews where the zone would sit: the pointer, clamped to the reach.
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
+            if (Source && Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone) && DisplayContent)
+            {
+                const auto* Ability=DisplayContent->Get().Abilities.FindByPredicate([Source](const auto& Row)
+                { return Row.Id==Source->DefinitionId.ToString(); });
+                if (Ability && Ability->Target.AngleDegrees.Denominator>0)
+                { ConeDegrees=float(double(Ability->Target.AngleDegrees.Numerator)/Ability->Target.AngleDegrees.Denominator); }
+            }
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
         const FVector AuthorityFeet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
@@ -1585,6 +1599,25 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
                 const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
                 FVector2D From,To;
                 if(Project(Feet,From)&&Project(End,To)){Lines({From,To},Preview,3.f);}
+                if (ConeDegrees>0 && RangeCm>0)
+                {
+                    TArray<FVector2D> Fan;
+                    FVector2D Start;
+                    if (Project(Feet,Start))
+                    {
+                        Fan.Add(Start);
+                        const double Heading=FMath::Atan2(Planar.Y,Planar.X);
+                        const double Half=FMath::DegreesToRadians(double(ConeDegrees)*.5);
+                        for (int32 Step=0;Step<=24;++Step)
+                        {
+                            const double Angle=Heading-Half+2.*Half*Step/24.;
+                            FVector2D Edge;
+                            if (Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Edge)) { Fan.Add(Edge); }
+                        }
+                        Fan.Add(Start);
+                        Lines(Fan,Preview,2.f);
+                    }
+                }
             }
         }
     }

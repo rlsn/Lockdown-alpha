@@ -65,7 +65,12 @@ bool LDDevGrowthFixture::ResolvePreset(const FLDDemoContentDefinitions& Content,
                 Out.Reset();
                 return false;
             }
-            Out.Add({ELDChoiceOptionKind::Opening, Card, 0, 1, Active});
+            LDProgression::FLegalOption& Option = Out.AddDefaulted_GetRef();
+            Option.Kind = ELDChoiceOptionKind::Opening;
+            Option.DefinitionId = Card;
+            Option.FromRank = 0;
+            Option.ToRank = 1;
+            Option.HiddenActive = Active;
         }
         return true;
     }
@@ -94,7 +99,12 @@ bool LDDevGrowthFixture::ResolvePreset(const FLDDemoContentDefinitions& Content,
             Out.Reset();
             return false;
         }
-        Out.Add(*Legal);
+        LDProgression::FLegalOption Option = *Legal;
+        if (Option.Kind == ELDChoiceOptionKind::Attribute)
+        {
+            Option.AttributeQuality = ELDAttributeQuality::Blue;
+        }
+        Out.Add(MoveTemp(Option));
     }
     return true;
 }

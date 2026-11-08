@@ -177,7 +177,7 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 - 资源与重复试验：输入数量“加流量”（经验）、“加米”（金币）；“补满生命与法力”、重置冷却、重置到开局；
 - 测试属性：十一项属性各一个输入框，旁边显示服务器提交后的最终值与来源（含“测试”这一项）；清除全部测试属性；
 - 装备：两个槽位当前装备与出售；运行目录里全部装备按目录价格购买；
-- 技能与属性卡：运行目录里全部技能与属性卡，显示已有等级或张数，“学习”作为当前这次选择的结果；Q/W 都满时另有“替换 Q/W”；
+- 技能与属性卡：运行目录里全部技能与属性卡，显示已有等级或张数，“学习”作为当前这次选择的结果；Q/W/E 都满时另有“替换 Q/W/E”；
 - 整局（只有房主看得到）：刷新已清空营地、提前开圈。
 
 面板只把输入换成同一组 DEV 测试命令，结果由服务器按下表规则提交；数量或数值格式不对时在本地拒绝、不发送，
@@ -190,7 +190,7 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 | `ld.Dev.Refill` | 活着时补满生命与法力 |
 | `ld.Dev.ResetCooldowns` | 自己的技能与 D 冲刺冷却全部就绪 |
 | `ld.Dev.List` | 列出运行目录里全部技能、属性卡与装备的 id |
-| `ld.Dev.Learn <id> [Q\|W]` | 把任意合法的技能或属性卡当作当前这次三选一的结果；Q/W 都满时用 Q 或 W 确认替换 |
+| `ld.Dev.Learn <id> [Q\|W\|E]` | 把任意合法的技能或属性卡当作当前这次三选一的结果；Q/W/E 都满时用 Q、W 或 E 确认替换 |
 | `ld.Dev.Buy <id>` / `ld.Dev.Sell <1\|2>` | 不去商店，按目录价格买入到空槽或卖出该槽装备 |
 | `ld.Dev.Attr <属性> <数值>` | 在自己的构筑之上叠加一层测试属性（`MaxHP`、`MaxMP`、`AD`、`AP`、`Armor`、`MR`、`Haste` 为点数，`Range` 为整厘米，`AttackSpeed`、`MoveSpeed` 为基础值的百分比，`Crit` 为百分点；最多两位小数，0 去掉该项） |
 | `ld.Dev.ClearAttr` | 去掉自己的全部测试属性，构筑本身不变 |
@@ -198,7 +198,7 @@ Host 用 `OpenStandalone.ps1 -DevTest`（打包版 `OpenPackaged.ps1 -DevTest`�
 | `ld.Dev.OpenCapture` | 只限房主、只在发育期：旗杆在本边界提前开放，喷漆、守护时长和全部规则不变 |
 | `ld.Dev.Reset` | 自己回到开局：1 级、0 经验、没有技能、属性卡、装备和测试属性，开局金币，重新给一组开局三选一，冷却全部就绪，活着时补满 |
 
-学习仍受真实规则约束：要有一次未用的选择机会（没有时先用 `ld.Dev.XP` 升级）、等级上限、Q/W 两槽与选择数上限；
+学习仍受真实规则约束：要有一次未用的选择机会（没有时先用 `ld.Dev.XP` 升级）、等级上限、Q/W/E 三槽与选择数上限；
 买卖照样付钱和退钱、两槽满时拒绝。测试属性在属性面板里单独显示为“测试”，跨死亡保留到本局结束，
 最终值超出目录上下限时整条命令被拒绝而不是截断。刷新营地与提前开圈改变整局，只接受房主自己的连接，
 其他客户端发送时回 `NotAuthority`；其余命令只作用于发送者自己，经服务器在 Transactions 阶段提交，
@@ -266,7 +266,7 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 | Demo 纯值战斗 / 时间许可 | `Lockdown.Rules.DemoCombatEvaluation`、`Lockdown.Rules.DemoCore`；伤害/时长使用当前 producer 的 `approved_base`，合成 `base` 保留供导入拒绝和变异测试；纯值成功不等于实际命中提交 |
 | 营地纯决策 | `Lockdown.Rules.CampDecision` 使用同一 `approved_base` 内容夹具，覆盖授权读取完成、身份/世界/时间拒绝、只在已攻击本营的参赛者中稳定选敌、从当前脚点量的感知半径、只约束成员自身的活动范围和成员回位；不创建 Actor 或执行移动/攻击/重置，不代替 N03 真实接线 |
 | 营地 / 拥有连接 | `Lockdown.Rules.DemoCamp` 覆盖名册、每生命死亡记账与清营计时、整组反击来源、回营重置键和观察事实；`RunDemoCampCheck.ps1` 在全部提供者接入、普通 Start 门禁打开后，以实际 Listen Host 加两个拥有客户端经正常大厅开局，覆盖五营落点、不先手、整组反击、最后一击每生命一次收益、清空后按内容计时整组刷新、拴绳回营的公开提示与不发奖重置；唯一渲染的 Client2 另存 `CampGuardianReturning.png`（回位的高档野怪、名字与回位标记）和 `CampLowPair.png`（刷新后的低档两只与名字）供表现审阅，不做像素比对。相邻高低营锚点相距约 3057cm，超出固定镜头画面，两档分两张；不代替 3+3、AI、SpawnBlocked/动态占位或网络异常 |
-| 对手 AI / 拥有连接 | `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、至少一个 AI 到店购买、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 开局十秒内处理开局三选一（D10）、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野或购物，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；可加 `-PackageRoot` 对打包版运行。每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 #112 的 `HostChoices.png`（开局三选一与重抽按钮）、`HostOpponentCard.png`（可见 AI 的 Q/W 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。“每个 AI 都到店购买”（开局的米已够买最便宜的装备）与“至少一个 AI 实际完成 D 冲刺”（D19；报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，待 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 多局验证后再定是否升为硬门槛；不代替隐藏状态非干扰、字段白名单、真人离开或网络异常 |
+| 对手 AI / 拥有连接 | `Lockdown.Rules.DemoOpponentPolicy` 覆盖纯策略、帧投影、请求构造与回执结算；`RunDemoOpponentCheck.ps1` 在普通 Start 门禁打开后，以实际 Listen Host、两个拥有客户端和三个 AI 的满员房间经正常大厅开局，真人不参与。它核对每个 AI 独立绑定且不补位、自主移动，获胜 AI 升级并确认选择、至少一个 AI 到店购买、死亡期间不发身体请求、死亡后按时复活并继续行动、每 30 秒的身体请求与受理时被拒订单有界（准入时被拒的订单逐个 AI 报告为 `orders_rejected`，不计入）、每个 AI 开局十秒内处理开局三选一（D10）、旗杆开放前取得经验（发育期至少一半时间死亡或回血恢复的除外）、争夺暂停下喷漆进度持有者留在喷漆区迎战且区内争夺者不离开去刷野或购物，最终由 AI 以 `GuardSucceeded` 守护成功获胜且它是公开涂鸦主人，回到新 Lobby 后 AI 全部退役；可加 `-PackageRoot` 对打包版运行。每个角色在开局一分钟时按一次试玩标记，供 `SummarizePlaytestLog.py` 核对标记前后的事件（不是检查项）。本局没有 AI 死亡、复活或相应争夺时，相应项报告为未覆盖（NotExercised），单独列出，不计为通过；渲染的 Host 另存供人工审阅的截图（不是检查）：`HostMatch*.png`，以及 #112 的 `HostChoices.png`（开局三选一与重抽按钮）、`HostOpponentCard.png`（可见 AI 的 Q/W/E 卡）、`HostKillAssist.png`（带助攻者的击杀播报，本局出现时）、`HostSpray.png`/`HostGuard.png`（镜头移到旗杆的喷漆与守护 HUD、涂鸦板）、`HostResults.png`（含助攻列的结算）。“每个 AI 都到店购买”（开局的米已够买最便宜的装备）与“至少一个 AI 实际完成 D 冲刺”（D19；报告逐个 AI 记录 `dashes` 与 `dashes_landed`）只作报告项：未出现时记为 NotExercised，不卡门槛，待 [#117](https://github.com/rlsn/Lockdown-alpha/issues/117) 多局验证后再定是否升为硬门槛；不代替隐藏状态非干扰、字段白名单、真人离开或网络异常 |
 | Demo 属性 / 原生记录 | `Lockdown.Rules.DemoAttributeProjection` 覆盖批准属性、双装备、条件被动和资源比例；`Lockdown.Rules.DemoMotionProbe` 用隔离原生物理验证时间分数、回滚、接地转换和缺失记录拒绝；真实拥有身体夹具显式审计保留前缀，不代替最终提供者 Fence |
 | 原生代码 / 反射 | Editor/Game 构建、Bootstrap Validate、相关原生规则 |
 | 入口 / 房间 | `TestDemoEntry.ps1`、`Lockdown.Rules.DemoEntryContract/DemoInputByteIntegrity/DemoMatchIdentity/DemoSessionReceipts/DemoLobbyAuthority` |
@@ -276,7 +276,7 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 | 输入 / 导航 / HUD | `Lockdown.Rules.ControlMappings/IssuedCommandLiveness`、`Lockdown.Rules.LocalSettings*/LocalDisplay*/LocalControlRegistryIsolation`、`Lockdown.Rules.HUD*`；拥有连接下的订单与输入路由见 `RunDemoCombatCheck.ps1`，HUD 观测投影见 `RunDemoVisionCheck.ps1` |
 | 音效 / 音量 | `ImportDemoAudio.ps1 -Mode Validate`（Bootstrap Validate 也执行）；`Lockdown.Rules.Audio*` 与 `LocalSettingsMasterVolume`。`-nosound` 场景只证明无错误日志，实际听感、设备输出与音量需在有声卡的可视运行中确认 |
 | 美术 / 装饰 | `ImportDemoArt.ps1 -Mode Validate`（Bootstrap Validate 也执行，含标题/房间背景图的清单、哈希、尺寸与 UI 纹理设置）；`Lockdown.Rules.ArtCatalog/ArtCatalogAsset/ArtDecorations`；`CaptureDemoArt.ps1` 在 Demo 地图大厅渲染全部身体、各动画姿势与装饰后的场地截图，并核对装饰无碰撞、不挡视线追踪、不改 navmesh。不代替身体接线、战斗或联机验收 |
-| 战斗 / 观测复制 | `RunDemoCombatCheck.ps1` 为 DEV 拥有连接的战斗与订单场景：经普通大厅 Start，收缩边外脚点作为点选地面被拒、作为追击终点可规划，已接受行走上打开设置超过订单租约（订单与心跳继续、关闭后不重放）、远程攻击移动与 S、右键击杀与击杀播报、死亡静态镜头随小地图平移、十点随机复活的精确保护及空 Q 解除保护；随后 Host 用 DEV 成长夹具（仅 Host 带 `-LDDevGrowthFixture`，证据目录写 `DevFixture.json`）预置选项并发放经验，双方经普通选择学会技能（Host：伸手党与扒裤子；Client1：我没急升到高级与阴阳怪气），实战覆盖扒裤子定身被观察者看到、高级我没急的护盾与解除定身、Client1 的阴阳怪气投射物命中 Host 和伸手党增加的普攻距离；Host 离屏渲染主视图，在到达对决点、对决点旁地面右键的落点标记、本人受击、右键击杀前的悬停环、右键后的攻击标记、定身、护盾、阴阳怪气飞行中段（须已画出粉尘拖尾）和本人挥击时各存一张截图（`HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/ChalkFlight/OwnStrike.png`，地面与击杀右键经 DEV 指针走普通 `ClickMove`）供人工审画面，不做像素比对；双方报告的 `feel` 与成功行给出操作手感实测（下单到起动及其间帧数与最长帧、到全速、S 到停住与滑行距离、S 到 Stopped 回执；首次下单等本进程开局帧稳定后发出），只报告不设门槛（不含营地/AI/终局）；`RunDemoVisionCheck.ps1`（可加 `-PackageRoot`）是观测场景：参赛渲染的 Listen Host 与两个拥有客户端经普通大厅开局，核对拓扑、受限注册表、Host 只经自身投影呈现他人、单连接丢帧后的超时清除与断开后不再呈现（检查组 `#1/#9/#15/#15H/#23/#28`），并截取 HUD、身份色、装饰与环境画面供人工审阅。不含 AI、战斗数值或完整对局验收 |
+| 战斗 / 观测复制 | `RunDemoCombatCheck.ps1` 为 DEV 拥有连接的战斗与订单场景：经普通大厅 Start，收缩边外脚点作为点选地面被拒、作为追击终点可规划，已接受行走上打开设置超过订单租约（订单与心跳继续、关闭后不重放）、远程攻击移动与 S、右键击杀与击杀播报、死亡静态镜头随小地图平移、随机复活的精确保护及空 Q 解除保护；随后 Host 用 DEV 成长夹具预置选项并发放经验，双方经普通选择学会技能（Host：伸手党与扒裤子；Client1：我没急升到高级与臭袜突袭），实战覆盖定身被观察者看到、高级我没急的护盾与解除定身、臭袜的 `Sock` 飞行表现/命中/攻速降低公开状态和伸手党增加的普攻距离；Host 离屏渲染主视图并保存 `HostSees-DuelSite/MoveMarker/OwnHit/Hover/AttackMarker/Root/Shield/SockFlight/OwnStrike.png` 供人工审画面，不做像素比对；双方报告操作手感实测，只报告不设门槛（不含营地/AI/终局）。`RunDemoVisionCheck.ps1` 是观测场景，覆盖拓扑、受限注册表、拥有连接与权限清除，不含AI、战斗数值或完整对局验收 |
 | 库存 / 账本 | `RunTests.ps1` 中的 `DemoGrowth*` 规则；`python -B -m unittest discover -s .\Scripts -p TestEconomyEvidence.py`；原生账本证据经 `CheckEconomyEvidence.py` 独立复算；`RunDemoGrowthCheck.ps1` 为 DEV 拥有连接的击杀奖励/选择/买卖/账本场景，Host 带 DEV 成长夹具预置买方 Offer，先在第一局开局倒计时内核对拥有客户端的攻击与交易被拒、移动可行（`Countdown`），覆盖 Q/W 满槽替换与重学沿用原冷却截止、死亡等待中确认选择不复活不治疗，Listen Host 作为击杀者（击杀买方与低档营地野怪）在本人视图、HUD 与渲染的“+X 米 / +X 经验”飘字中看到精确奖励，并结束本局后开第二局核对新局隔离（不含 AI/喷漆守护）；买方客户端离屏渲染，买满两件后另存 `Client1ShopUpgrade.png`（满两件时的商店页面，供人工审阅） |
 | 网络异常 / 拥有连接 | `RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分七段：Leave 中一名客户端经局内菜单离开，其余两人继续，Host 结束后结果表记其离局且无击杀/死亡；HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；HostLeave 中 Host 经局内菜单离开，房间在 Host 换图前向成员发出关闭，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败；HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗口相同，引擎走 PreExit 拆除世界而不是换图），Host 须以 0 退出且日志无 `LD_DEMO_AUTHORITY_FAULT`，客户端回到主菜单并显示“会话中断”，不出现结果表。全部在同机回环上运行，不代表跨机器局域网或公网直连 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |

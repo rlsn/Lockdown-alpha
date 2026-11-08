@@ -316,7 +316,8 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
     { return Refuse(ELDCombatReject::InvalidRequest); }
     auto* Mode=AuthorityMode();
-    if (Mode->IsOpeningCountdown(Caller.Match) && !LDOrderRules::CountdownAdmitsAction(Request.Entry))
+    if (Mode->IsOpeningCountdown(Caller.Match)
+        && (!LDOrderRules::CountdownAdmitsAction(Request.Entry) || Mode->Combat->IsAggressiveEntry(Caller.Body,Request.Entry)))
     { return Refuse(ELDCombatReject::NotStarted); }
     auto* PC=Controller();
     FLDCombatCaller CombatCaller;
@@ -347,7 +348,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     Step.NotBeforeMs=NotBefore;
     Step.Serial=++QueueStepSerial;
     // Every Q/W attempt is an aggressive intent (the D dash is movement, APP_SPEC 7.1).
-    if (Request.Entry!=ELDCombatEntry::Dash && !QueueOwedAggression)
+    if (Mode->Combat->IsAggressiveEntry(Caller.Body,Request.Entry) && !QueueOwedAggression)
     {
         FLDAggressiveIntent Intent;
         Intent.Kind=ELDAggressiveIntentKind::ActivateCharacter;
@@ -439,7 +440,7 @@ bool ULDNavigationComponent::RefuseUnreadyDirect(const FLDCombatActionRequest& R
     }
     if (bQueuedHere) { return true; }
     // Every Q/W attempt is an aggressive intent, refused or not (the D dash is movement, APP_SPEC 7.1).
-    if (Request.Entry!=ELDCombatEntry::Dash && !QueueOwedAggression)
+    if (Mode->Combat->IsAggressiveEntry(Caller.Body,Request.Entry) && !QueueOwedAggression)
     {
         FLDAggressiveIntent Intent;
         Intent.Kind=ELDAggressiveIntentKind::ActivateCharacter;
@@ -1524,7 +1525,8 @@ bool ULDNavigationComponent::CastReady(ALDGameMode& Mode, const FLDCombatActionR
     const ELDDemoTargetMode TargetMode=ELDDemoTargetMode(Entry.TargetMode);
     const bool bModeFits=bUnit ? TargetMode==ELDDemoTargetMode::Unit
         : (TargetMode==ELDDemoTargetMode::GroundPoint && Cast.Target.Kind==ELDCombatTargetKind::Point)
-            || (TargetMode==ELDDemoTargetMode::DirectionProjectile && Cast.Target.Kind==ELDCombatTargetKind::Direction);
+            || ((TargetMode==ELDDemoTargetMode::DirectionProjectile || TargetMode==ELDDemoTargetMode::DirectionCone)
+                && Cast.Target.Kind==ELDCombatTargetKind::Direction);
     ELDCombatReject Refused=LDOrderRules::SkillRequestReady(Entry.Unavailable) ? ELDCombatReject::None : Entry.Unavailable;
     if (Refused==ELDCombatReject::None && (Entry.DefinitionId.IsNone() || Entry.RangeCm<=0 || !bModeFits))
     { Refused=ELDCombatReject::SourceUnavailable; }

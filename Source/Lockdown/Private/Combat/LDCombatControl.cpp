@@ -198,6 +198,9 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         return false;
     }
     if (!bApplied) { return true; }
+    if ((App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Silence
+        || App.Kind==ELDControlKind::Taunt || App.Kind==ELDControlKind::Knockback)
+        && !CancelSkillPosture(Victim,false,NowMs,Error)) { return false; }
     if (bHard) { Victim.HardControl=Chain; }
     ++Victim.StateRevision;
     MarkViewChanged(Victim.Victim.EntityId);

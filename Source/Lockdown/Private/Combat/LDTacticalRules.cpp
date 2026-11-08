@@ -170,7 +170,10 @@ namespace LDTactical
         {
             Damage = Numbers.Mul(Damage, Numbers.Value(Parameters.CritMultiplierBp, 10000));
         }
-        if (Input.AmplifyBp < 0 || Input.DamageBonusBp < 0)
+        if (Input.AmplifyBp < 0 || Input.DamageBonusBp < 0
+            || Input.DeliveryScaleBp < 0 || Input.DeliveryScaleBp > 10000
+            || Input.GuardMultiplierBp < 0 || Input.GuardMultiplierBp > 10000
+            || Input.PrimaryGuardP2 < 0 || Input.PrimaryGuardCapBp < 0 || Input.PrimaryGuardCapBp >= 10000)
         {
             return Fail(EError::Domain, TEXT("AmplifyBp"), TEXT("A damage amplification cannot be negative"));
         }
@@ -191,6 +194,14 @@ namespace LDTactical
             return Fail(EError::Overflow, TEXT("TargetResistanceP2"), MathError);
         }
         Damage = Numbers.Mul(Damage, Numbers.Value(Formulas.ResistanceScaleP2, ResistanceDenominatorP2));
+        Damage = Numbers.Mul(Damage, Numbers.Value(Input.DeliveryScaleBp, 10000));
+        Damage = Numbers.Mul(Damage, Numbers.Value(Input.GuardMultiplierBp, 10000));
+        if (Input.HitClass == ELDCombatHitClass::BasicPrimary && Input.PrimaryGuardP2 > 0)
+        {
+            const auto Flat = Numbers.Value(Input.PrimaryGuardP2);
+            const auto Cap = Numbers.Mul(Damage, Numbers.Value(Input.PrimaryGuardCapBp, 10000));
+            Damage = Numbers.Sub(Damage, Numbers.LE(Flat, Cap) ? Flat : Cap);
+        }
         FLDDamageEvaluation Value;
         if (!QuantizeEvaluation(Damage, false, Value.DamageP2, Check, TEXT("DamageP2")))
         {

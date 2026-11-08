@@ -27,8 +27,8 @@ enum class ELDOpponentReason : uint8
     AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
-enum class ELDOpponentSkillSlot : uint8 { Q, W, Passive };
-enum class ELDOpponentSourceSlot : uint8 { Q, W, Dash };
+enum class ELDOpponentSkillSlot : uint8 { Q, W, E, Passive };
+enum class ELDOpponentSourceSlot : uint8 { Q, W, E, Dash };
 
 struct FLDOpponentSkill
 {
@@ -57,6 +57,7 @@ struct FLDOpponentOption
     FString DefinitionId;
     uint8 FromRank = 0;
     uint8 ToRank = 0;
+    ELDAttributeQuality AttributeQuality = ELDAttributeQuality::None;
 };
 
 // The head offer of the persistent queue; its cards never change until it is consumed.
@@ -85,6 +86,8 @@ struct FLDOpponentSelf
     int64 BasicReadyAtMs = 0;
     // Authority ms until which authorized control blocks voluntary movement; at or before now when free.
     int64 MoveBlockedUntilMs = 0;
+    bool bChanneling = false;
+    bool bCowering = false;
     int64 Gold = 0;
     uint64 BuildRevision = 0;
     uint8 Level = 1;

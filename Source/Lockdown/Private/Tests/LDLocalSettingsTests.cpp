@@ -71,6 +71,8 @@ constexpr uint32 NearZoomFixtureSchema = 12;
     constexpr uint32 ItemKeysFixtureSchema = 16;
     // Schema 17 writes every current preference except the auto attack after a cast.
     constexpr uint32 AutoAttacklessFixtureSchema = 17;
+    // Schema 18 stores auto attack after a cast but predates the third active binding.
+    constexpr uint32 SkillElessFixtureSchema = 18;
 
     TArray<uint8> FixtureBytes(const ULDControlSettings& Values, uint32 Schema = ULDControlSettings::CurrentSchema, uint8 Edge = 1, bool Extra = false)
     {
@@ -969,7 +971,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalControlRegistryTest, "Lockdown.Rules.Lo
 bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
 {
     const TCHAR* const Expected[] = { TEXT("Select"), TEXT("Navigate"), TEXT("AttackMove"), TEXT("Skill1"), TEXT("Skill2"),
-        TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
+        TEXT("SkillE"), TEXT("Dash"), TEXT("Stop"), TEXT("Attributes"), TEXT("Scoreboard"), TEXT("Mark"), TEXT("PanUp"), TEXT("PanDown"), TEXT("PanLeft"),
         TEXT("PanRight"), TEXT("Recenter"), TEXT("Follow"), TEXT("Zoom"), TEXT("Back") };
     const auto& Registry = ULDControlSettings::Definitions();
     if (!TestEqual(TEXT("One Demo registry holds exactly the Spec action set"), Registry.Num(), int32(UE_ARRAY_COUNT(Expected)))) { return false; }
@@ -985,8 +987,9 @@ bool FLDLocalControlRegistryTest::RunTest(const FString& Parameters)
     }
     auto* Settings = ULDControlSettings::CreateSessionSettings(FLDLocalSettingsStorage::Automation(FGuid::NewGuid()));
     TestTrue(TEXT("Default registry is complete and conflict free"), Settings->Valid());
-    TestTrue(TEXT("Spec defaults: Q/W abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
+    TestTrue(TEXT("Spec defaults: Q/W/E abilities, D dash, A attack-move, P attributes, S stop, Esc back"),
         Settings->Key(TEXT("Skill1")) == EKeys::Q && Settings->Key(TEXT("Skill2")) == EKeys::W
+        && Settings->Key(TEXT("SkillE")) == EKeys::E
         && Settings->Key(TEXT("Dash")) == EKeys::D
         && Settings->Key(TEXT("AttackMove")) == EKeys::A && Settings->Key(TEXT("Attributes")) == EKeys::P
         && Settings->Key(TEXT("Stop")) == EKeys::S && Settings->Key(TEXT("Back")) == EKeys::Escape
@@ -1450,13 +1453,15 @@ bool FLDLocalSettingsAutoAttackAfterCastTest::RunTest(const FString& Parameters)
     Values->PlayerName = TEXT("王小明");
     Values->bQuickCast = true;
     Values->bAutoAttackAfterCast = false;
+    Values->Bindings.Remove(TEXT("SkillE"));
     const auto Before = FixtureBytes(*Values, AutoAttacklessFixtureSchema, 0);
     Write(Before);
     const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
     TestTrue(TEXT("A schema 17 file migrates with the auto attack on and its other preferences kept"),
         Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->GetAutoAttackAfterCast()
         && Migrated.Settings->GetQuickCast() && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
-        && Migrated.Settings->IsDirty() && Migrated.Message.Contains(TEXT("施法后自动攻击默认开启")));
+        && Migrated.Settings->Key(TEXT("SkillE")) == EKeys::E && Migrated.Settings->IsDirty()
+        && Migrated.Message.Contains(TEXT("施法后自动攻击默认开启")));
     TArray<uint8> After;
     TestTrue(TEXT("Loading a schema 17 file does not rewrite it"),
         FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
@@ -1663,6 +1668,89 @@ bool FLDLocalSettingsItemKeysMigrationTest::RunTest(const FString& Parameters)
     return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsSkillEMigrationTest, "Lockdown.Rules.LocalSettingsSkillEMigration",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDLocalSettingsSkillEMigrationTest::RunTest(const FString& Parameters)
+{
+    FLocalSettingsFixture Fixture(*this);
+    auto Write = [&](const TArray<uint8>& Bytes)
+    { return TestTrue(TEXT("Write explicit third-active fixture"), FFileHelper::SaveArrayToFile(Bytes, *Fixture.Storage.Filename())); };
+    auto* Values = NewObject<ULDControlSettings>();
+    Values->ResetBindings();
+    Values->Bindings.Remove(TEXT("SkillE"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Values->PlayerName = TEXT("王小明");
+    Values->bQuickCast = true;
+    Values->bAutoAttackAfterCast = false;
+    Values->bShowFPS = true;
+
+    const TArray<uint8> Before = FixtureBytes(*Values, SkillElessFixtureSchema, 0);
+    if (!Write(Before)) { return false; }
+    const auto Migrated = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    if (!TestTrue(TEXT("Schema 18 adds E without losing saved bindings or the disabled auto attack preference"),
+        Migrated.Status == ELDLocalSettingsLoadStatus::Migrated && Migrated.Settings && Migrated.Settings->Valid()
+        && Migrated.Settings->Key(TEXT("SkillE")) == EKeys::E && Migrated.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && !Migrated.Settings->GetAutoAttackAfterCast() && Migrated.Settings->GetQuickCast() && Migrated.Settings->bShowFPS
+        && Migrated.Settings->PlayerName.Equals(TEXT("王小明"), ESearchCase::CaseSensitive)
+        && Migrated.Settings->IsDirty() && Migrated.Message.Contains(TEXT("“角色主动 E”键使用默认值"))
+        && !Migrated.Message.Contains(TEXT("施法后自动攻击默认开启")))) { return false; }
+    TArray<uint8> After;
+    TestTrue(TEXT("Loading schema 18 does not rewrite it"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
+    TestTrue(TEXT("The migrated settings save with verification"), Migrated.Settings->SaveLocalSettings().IsSaved());
+    uint32 SavedSchema = 0;
+    TestTrue(TEXT("The verified file declares schema 19"),
+        FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 19);
+    const auto Saved = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The saved settings restore E, the custom binding and the disabled auto attack"),
+        Saved.Status == ELDLocalSettingsLoadStatus::Loaded && Saved.Settings
+        && Saved.Settings->Key(TEXT("SkillE")) == EKeys::E && Saved.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && !Saved.Settings->GetAutoAttackAfterCast());
+
+    Values->Bindings.Add(TEXT("SkillE"), EKeys::F7);
+    Write(FixtureBytes(*Values, SkillElessFixtureSchema, 0));
+    const auto AlreadyBound = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("An existing schema 18 third-active binding is preserved"),
+        AlreadyBound.Status == ELDLocalSettingsLoadStatus::Migrated && AlreadyBound.Settings
+        && AlreadyBound.Settings->Key(TEXT("SkillE")) == EKeys::F7 && !AlreadyBound.Settings->GetAutoAttackAfterCast());
+
+    Values->Bindings.Remove(TEXT("SkillE"));
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::E);
+    const TArray<uint8> TakenBefore = FixtureBytes(*Values, SkillElessFixtureSchema, 0);
+    Write(TakenBefore);
+    const auto Taken = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A schema 18 binding already using E is refused without stealing it"),
+        Taken.Status == ELDLocalSettingsLoadStatus::Corrupt && !Taken.Settings && Taken.RecoverablePreferences
+        && !Taken.RecoverablePreferences->GetAutoAttackAfterCast() && Taken.Message.Contains(TEXT("SkillE")));
+    After.Reset();
+    TestTrue(TEXT("A conflicting old file stays unchanged"),
+        FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && After == TakenBefore);
+
+    Values->Bindings.Add(TEXT("Skill1"), EKeys::F6);
+    Write(FixtureBytes(*Values, AutoAttacklessFixtureSchema, 0));
+    const auto Older = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("Schema 17 adds E and defaults its absent auto attack preference on"),
+        Older.Status == ELDLocalSettingsLoadStatus::Migrated && Older.Settings
+        && Older.Settings->Key(TEXT("SkillE")) == EKeys::E && Older.Settings->GetAutoAttackAfterCast());
+
+    Values->Bindings.Add(TEXT("Item1"), EKeys::E);
+    Values->Bindings.Add(TEXT("Item2"), EKeys::Two);
+    Write(FixtureBytes(*Values, ItemKeysFixtureSchema, 0));
+    const auto RetiredKey = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("A retired binding releases E before the third-active default is added"),
+        RetiredKey.Status == ELDLocalSettingsLoadStatus::Migrated && RetiredKey.Settings
+        && RetiredKey.Settings->Key(TEXT("SkillE")) == EKeys::E && RetiredKey.Settings->Key(TEXT("Skill1")) == EKeys::F6
+        && !RetiredKey.Settings->Bindings.Contains(TEXT("Item1")) && !RetiredKey.Settings->Bindings.Contains(TEXT("Item2")));
+
+    Values->Bindings.Remove(TEXT("Item1"));
+    Values->Bindings.Remove(TEXT("Item2"));
+    Write(FixtureBytes(*Values));
+    const auto Current = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
+    TestTrue(TEXT("The current schema never repairs a missing third-active binding"),
+        Current.Status == ELDLocalSettingsLoadStatus::Corrupt && !Current.Settings && Current.RecoverablePreferences);
+    return true;
+}
+
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDLocalSettingsCameraZoomTest, "Lockdown.Rules.LocalSettingsCameraZoom",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
@@ -1670,7 +1758,7 @@ bool FLDLocalSettingsCameraZoomTest::RunTest(const FString& Parameters)
     FLocalSettingsFixture Fixture(*this);
     auto* Applied = ULDControlSettings::CreateSessionSettings(Fixture.Storage);
     const auto* Character = GetDefault<ALDCharacter>();
-    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 18);
+    TestEqual(TEXT("The current local settings schema is explicit"), ULDControlSettings::CurrentSchema, 19);
     TestEqual(TEXT("A new player starts at the approved 2250 cm"), Applied->Zoom, 2250.f);
     TestEqual(TEXT("The native body uses the same default arm"), Character->CameraArm->TargetArmLength, Applied->Zoom);
     TestEqual(TEXT("The FOV remains 55 degrees"), Character->Camera->FieldOfView, 55.f);
@@ -1782,8 +1870,8 @@ bool FLDLocalSettingsZoomMigrationTest::RunTest(const FString& Parameters)
                 FFileHelper::LoadFileToArray(After, *Fixture.Storage.Filename()) && Before == After);
             TestTrue(TEXT("The current schema can save the preserved zoom"), Migrated.Settings->SaveLocalSettings().IsSaved());
             uint32 SavedSchema = 0;
-            TestTrue(TEXT("The verified replacement explicitly declares schema 18"),
-                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 18);
+            TestTrue(TEXT("The verified replacement explicitly declares schema 19"),
+                FixtureFileSchema(Fixture.Storage.Filename(), SavedSchema) && SavedSchema == 19);
             const auto Loaded = ULDControlSettings::LoadLocalSettings(Fixture.Storage);
             TestTrue(TEXT("Migration preserves the exact zoom and custom binding after restart"),
                 Loaded.Status == ELDLocalSettingsLoadStatus::Loaded && Loaded.Settings && Loaded.Settings->Zoom == Zoom

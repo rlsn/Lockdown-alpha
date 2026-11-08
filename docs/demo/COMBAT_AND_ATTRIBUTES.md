@@ -21,7 +21,7 @@
 | 范围 | 已确认规则 |
 | --- | --- |
 | 基础与成长 | 所有人初始只有近战单体物理普攻；装备或属性可以增加攻击距离、提供普攻群攻，不能把整局锁死为短距单体。AP 不自动进入普攻。 |
-| 入口 | 角色主动 Q/W 与 D 冲刺进入同一 Combat；装备只提供属性与被动，没有主动入口。 |
+| 入口 | 角色主动 Q/W/E 与 D 冲刺进入同一 Combat；装备只提供属性与被动，没有主动入口。 |
 | 重复装备 | 允许同时两件同款；普通基础属性相加，同名被动只生效一次。 |
 | 冷却 | 换槽、升级、卖买、遗忘重学和死亡不能清洗未完成冷却；来源丢失期间继续计时，重新持有沿用原结束时间。 |
 | 资源与死亡 | 最大 HP/MP 变更保持原生命/法力百分比；一次最终投影只换算一次。死亡保留构筑、财产、经验和候选；等待时可确认选择，但不治疗或复活。正常复活满新上限，旧临时控制清除，冷却继续。 |
@@ -29,9 +29,9 @@
 | 效果 | 已成功释放的独立效果在来源死亡、出售或遗忘后继续到原结束；未释放动作取消。持续来源贡献随维持条件失效停止。离局立即移除身体、取消未结效果；不追溯回滚此前事实。 |
 | 致死 | 野怪由最后一击的实际参赛者所有者独占全部金币和 XP；参赛者之间的击杀另按助攻规则分配（App Spec §4.1，#112）；无近邻分摊，无主不继承历史攻击者也没有助攻，自杀、离局和回位不奖励。已死亡但仍在局的所有者可因有效效果击杀别人获奖或得助攻。助攻贡献只在唯一的伤害/状态施加路径上经 `RecordAssistContribution` 记录。 |
 | 营地 | 野怪未受攻击不主动攻击；同营地受击共同反击但不共享隐藏坐标。Returning 仍可受伤/控制/被杀，不回头追击；存活成员成功到家才满血蓝、清临时状态/仇恨、技能就绪，不复活死成员、不发奖。 |
-| 视野 | 失视野取消锁定并停止该追击订单，不留 LastSeen 标记。可见对手可展示名称、等级、HP、MP、状态、装备展示内容及 Q/W 两个主动技能与其等级（#112 §10），不展示被动列表、CD、完整属性、金币或装备私有身份。唯一例外是可见施法者的施法提示可带该次施法的技能名称，只在 Cast 提示期间（§10）。 |
+| 视野 | 失视野取消锁定并停止该追击订单，不留 LastSeen 标记。可见对手可展示名称、等级、HP、MP、状态、装备展示内容及 Q/W/E 三个主动技能与其等级（#112 §10），不展示被动列表、CD、完整属性、金币或装备私有身份。唯一例外是可见施法者的施法提示可带该次施法的技能名称，只在 Cast 提示期间（§10）。 |
 | 选择预算 | 开局三选与每次升级各给一次选择；已消费的主动/被动等级与属性卡总数不超过 min(等级, 本局选择上限)，1 级构筑可带一张卡。上限值见内容报告。 |
-| 施法节奏 | 能力前摇中按 Q/W 由拥有客户端预输入、前摇结束后再发送；本地「快速施法」设置开启时，指针已指明目标即直接确认（§6.5）。服务器规则不因此改变。 |
+| 施法节奏 | 能力前摇中按 Q/W/E 由拥有客户端预输入、前摇结束后再发送；本地「快速施法」设置开启时，指针已指明目标即直接确认（§6.5）。服务器规则不因此改变。 |
 | 喷漆、守护与结束 | 普通伤害、减速和缴械不清零喷漆；定身、眩晕、嘲讽（及击退）提交时由 `ALDCombatDirector::InterruptSpray` 经 `ALDGameMode::PublishCaptureInterrupt` 在施加瞬间清零被控参赛者的喷漆进度；涂鸦主人受伤、受控不影响守护。真实离区、死亡或资格变化交生命周期/喷漆与守护域。完成同刻不能跳过到期致死与控制。先锁唯一结果、关闭领域写闸，再清理。 |
 
 “同名被动一次”不授权不同强度来源一律取最强；首版等价同款来源可稳定选代表。
@@ -110,7 +110,7 @@ Owner/Receipt/Action revision 为 `uint64`；身体、参赛者、实例、`Issu
 | `FLDMatchContext` | `uint32 Generation; FGuid LedgerMatch` | GameMode 每局建立同一映射；网络只声明 Generation，服务器解析账本 GUID，不能强转或各域独立生成局身份。 |
 | `FLDVictimKey` | `Kind; FGuid EntityId; uint32 Life` | EntityId 为稳定逻辑主体；参赛者映射 Contender，野怪由 CampId/MemberId 映射。不是 Actor 地址、观察句柄或物品。 |
 | `FLDCombatBodyRef` | `Victim; FGuid BodyIdentity` | 同一逻辑生命只允许一条当前身体绑定；重复 Register/换 Pawn 不发新血量或第二死亡权。新生命由生命域显式换代。 |
-| `FLDCombatSourceRef` | `Kind`（None/Basic/Learned/Innate）、`DefinitionId` | 所有者、Rank、当前绑定由服务器解析。Q/W/D 只是入口；新学习不能获得旧请求执行权。 |
+| `FLDCombatSourceRef` | `Kind`（None/Basic/Learned/Innate）、`DefinitionId` | 所有者、Rank、当前绑定由服务器解析。Q/W/E/D 只是入口；新学习不能获得旧请求执行权。 |
 | `FLDCombatRequestKey` | Direct：Generation/Entity/Life/DirectSequence；Nav：Generation/Entity/Life/完整 MoveIdentity/AttackCycle | 两种固定判别形状（`Origin`），不按裸整数混比。Nav 形状仅由服务器当前订单产生，不让客户端伪装。 |
 | `CombatToken` | 完整准入时，Combat 为该稳定请求发行的 `uint64` 权威动作序号 | 对同 Caller 本局单调且跨身体保留；重复请求返回同 Token。API 的 ActionId、内容 AttackId 指该 Token 在 Match/Caller 下的同一身份，不另存攻击序列。 |
 | `EffectId / HitId` | `FLDCombatHit` 带 `HitId`、`EffectId`、`Token`、目标 `FLDCombatBodyRef` 与源身体/所有者 | Effect 不是技能定义；Hit 去重不是死亡去重。裸 `Life=1` 在不同单位间不能误合并。 |
@@ -416,7 +416,7 @@ Queued 不停旧路；实际动作准入失败不替换旧单，但不回滚已�
 AS 仅影响下一次新 AttackStart。伤害源属性到成功 Release 再快照。
 参赛者节拍跨死亡按时间继续，不能因新 Body 默认零而洗掉；怪物新生命按营地初始化。
 
-一个身体同时只有一个未释放动作。普攻前摇中新的 Q/W 被接受时打断该普攻
+一个身体同时只有一个未释放动作。普攻前摇中新的 Q/W/E 被接受时打断该普攻
 （`AbandonAction`，已承诺节拍不退回）；能力前摇中再提交能力返回 `Busy`（`LDCombatActions.cpp`）。
 
 普攻 Release（`ReleaseBasic`）只经纯函数 `LDCombatSourceRules::BasicReleaseGate` 判定（2026-11-07 用户决定：
@@ -441,7 +441,7 @@ Nav 普攻的取消经 `CancelNavAttack`，订单只更新自身或登记下一�
 
 已批准首版内容（D01）使用 Root、屏障及 Root 净化；不是保留旧状态全集的授权。
 
-| 状态 | 移动/追击推进 | 原地合法普攻 | 非位移 Q/W | 位移主动 | 被动/自然回复 |
+| 状态 | 移动/追击推进 | 原地合法普攻 | 非位移 Q/W/E | 位移主动 | 被动/自然回复 |
 | --- | --- | --- | --- | --- | --- |
 | 正常 | 允许 | 允许 | 允许 | 合法路径/落点下允许 | 按内容条件 |
 | Root | 禁止 | 允许 | 允许，包括自身盾+净化 Root | 禁止 | 不因 Root 一律关闭 |
@@ -478,8 +478,8 @@ InvalidDirection/OutOfRange/Blocked、Dead/MatchClosed、AuthorityDataUnavailabl
 两者都只在拥有客户端（`ALDPlayerController`，`Framework\LDPlayerOrders.cpp`）改变发送时机，
 服务器准入规则不变，也不绕过失保。
 
-- **预输入**（`LDCombatPreInput`）：本人视图显示自己的 Q/W 能力仍在前摇
-  （`ActionPhase==Accepted` 且未到 `ActionReleaseAtMs`）时，新的 Q/W 按键不发送，而在客户端保留一格
+- **预输入**（`LDCombatPreInput`）：本人视图显示自己的 Q/W/E 能力仍在前摇
+  （`ActionPhase==Accepted` 且未到 `ActionReleaseAtMs`）时，新的 Q/W/E 按键不发送，而在客户端保留一格
   （新按键连同其瞄准替换旧按键）；前摇结束后以新的 Direct 序号和当前来源修订作为普通请求发送。
   按 S、新生命或新局、输入被抑制时丢弃；保留超过 `LDCombatPreInput::HoldSeconds` 时丢弃并提示玩家。
   普攻不需要缓冲：攻击订单本就在服务器等待身体空闲。
@@ -687,12 +687,12 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 | --- | --- |
 | 资源 | `HPP2/MaxHPP2/MPP2/MaxMPP2/ShieldP2`；UI 只格式化，AI 只读自身。 |
 | `FLDCombatAttributeRowView` | Attribute、Base、Level、Choices、Passives、Equipment、PercentBonus、Final、bClamped；另有 MoveSpeedCmPerSec、AttackRangeCm、EquipmentPassives（每 family 一次）与 bOutOfCombatRegenActive。解释结果来自同一投影，不在 UI 重算。 |
-| `FLDCombatEntryView` | Q/W/Dash 各一行：SourceKind、DefinitionId、Rank、TargetMode、RangeCm、ManaCostP2、IssuedCooldownId、ReadyAtMs、CooldownMs、Unavailable（仅显示）。 |
+| `FLDCombatEntryView` | Q/W/E/Dash 各一行：SourceKind、DefinitionId、Rank、TargetMode、RangeCm、ManaCostP2、IssuedCooldownId、ReadyAtMs、CooldownMs、Unavailable（仅显示）。 |
 | `FLDCombatStatusView` 与动作 | StatusId、ExpiresAtMs、AmountP2、ControlBlocks、bIsPassive；bRooted、NextAttackAtMs、ActionEntry/ActionPhase/ActionToken/ActionReleaseAtMs、本人动作提示 `Cues`；Alive/ProtectedUntil/LifeRevision 来自生命域 OwnerState。 |
 | 回执 | `FLDCombatActionReceipt`：Generation/Life/Origin/DirectSequence/Entry、CombatToken、ReceiptRevision、Phase、Reject、bProtectionRemoved、LifeRevision；无效动作也可已有合法失保。 |
 
 自己受到的状态可解释类型/时限，不借状态来源字段泄露隐藏施加者的位置或构筑。
-对手投影只由 Vision 的 observer DTO（`FLDObservedUnitView`）维护：当前合法可见时的名称/等级/HP/MP/状态/装备定义与槽位，以及 Q/W 主动的原生 ID 与等级（`FLDObservedActivesView`，
+对手投影只由 Vision 的 observer DTO（`FLDObservedUnitView`）维护：当前合法可见时的名称/等级/HP/MP/状态/装备定义与槽位，以及 Q/W/E 主动的原生 ID 与等级（`FLDObservedActivesView`，
 由 `ALDCombatDirector::PublicActivesOf` 在构筑安装与身体准备时写入公开事实），
 没有 ItemInstance、IssuedCooldownId、来源修订、被动列表、CD、完整属性或金币。
 “状态”只取 `AppendObservedStatuses` 输出的 Root/Shield 与生命域派生的保护，不复用 owner 的来源解释或已学被动名单。
@@ -705,10 +705,10 @@ UI 同步时钟只作倒计时，不提交释放/复活/胜利。
 致死后为 None；拥有者用同一规则从本人视图 `Cues` 选择自身提示。
 
 **施法名称。** `FLDObservedPublicFacts`/`FLDObservedUnitView` 的 `ActionAbility` 只在
-`ActionCue==Cast` 时携带该次施法的技能原生 ID（Q/W 技能，含位移），其余时刻为零；
+`ActionCue==Cast` 时携带该次施法的技能原生 ID（Q/W/E 技能，含位移），其余时刻为零；
 不携带等级、CD 或已学列表。`ALDCombatDirector::ObservedCastSource` 取前摇中的能力（当其为最近者）
 或该生命最后一次释放的来源 `FLDBodyCombatState::ReleasedSource`。施法来源找不到已批准定义时，
-`AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板只经 `Actives` 显示 Q/W 与等级，不显示被动列表或 CD。
+`AppendObservedAction` 返回 false，`ReadObservedPublicFacts` 失败，不以零填充隐藏。目标检查面板只经 `Actives` 显示 Q/W/E 与等级，不显示被动列表或 CD。
 
 **弹体。** `ReadObservedProjectiles` 把仍在飞行的弹体按当前位置与平面朝向交给观察所有者采样；
 唯一获准外观为粉笔（`ELDObservedProjectileLook::Chalk`，用于唯一的弹道技能阴阳怪气 `active_snark_bolt`），其他来源没有外观则整体失败。

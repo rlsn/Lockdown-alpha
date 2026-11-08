@@ -79,11 +79,13 @@ bool FLDControlFeelPreInputTest::RunTest(const FString& Parameters)
     View.ActionEntry = ELDCombatEntry::W;
     View.bHasBody = false;
     TestFalse(TEXT("No body holds nothing"), IsWindingUp(View, 1000));
-    TestTrue(TEXT("Q, W and the innate D dash are Direct entries"),
-        IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W) && IsDirectEntry(ELDCombatEntry::Dash)
+    TestTrue(TEXT("Q, W, E and the innate D dash are Direct entries"),
+        IsDirectEntry(ELDCombatEntry::Q) && IsDirectEntry(ELDCombatEntry::W)
+        && IsDirectEntry(ELDCombatEntry::E) && IsDirectEntry(ELDCombatEntry::Dash)
         && !IsDirectEntry(ELDCombatEntry::Basic) && !IsDirectEntry(ELDCombatEntry::None));
-    TestTrue(TEXT("The D dash fires toward the pointer on the press; Q/W still arm"),
+    TestTrue(TEXT("The D dash fires toward the pointer on the press; Q/W/E still arm"),
         FiresOnPress(ELDCombatEntry::Dash) && !FiresOnPress(ELDCombatEntry::Q) && !FiresOnPress(ELDCombatEntry::W)
+        && !FiresOnPress(ELDCombatEntry::E)
         && !FiresOnPress(ELDCombatEntry::Basic));
     TestTrue(TEXT("A held press lives at most a second"), HoldSeconds == 1.0);
     return true;

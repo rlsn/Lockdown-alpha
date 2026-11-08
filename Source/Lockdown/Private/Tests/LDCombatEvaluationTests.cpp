@@ -445,7 +445,7 @@ bool FLDDemoBasicTimingTest::RunTest(const FString& Parameters)
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Min;
     if (!CheckTiming(*this, TEXT("AS lower bound"), Input, *Catalog, 3334, 750)) { return false; }
     Input.CurrentAttackSpeed = Catalog->Get().Parameters.AttackSpeed.Max;
-    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 400, 90)) { return false; }
+    if (!CheckTiming(*this, TEXT("AS upper bound"), Input, *Catalog, 435, 98)) { return false; }
 
     struct FMonsterCase { const TCHAR* Id; int64 Interval; int64 Windup; int64 FasterInterval; int64 FasterWindup; int64 Damage; };
     for (const auto& Case : {

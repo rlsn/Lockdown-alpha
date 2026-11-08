@@ -28,7 +28,19 @@
     "passive_special_forces": 110,
     "passive_moral_victory": 111,
     "passive_iced_americano": 112,
-    "passive_lucky_star": 113
+    "passive_lucky_star": 113,
+    "active_open_mic": 114,
+    "active_calculus_drop": 115,
+    "active_sock_shot": 116,
+    "active_flyer_trap": 117,
+    "active_apology_slide": 118,
+    "active_cower": 119,
+    "passive_argument_chain": 120,
+    "passive_snack_cast": 121,
+    "passive_pressure_veteran": 122,
+    "passive_dash_contact_damage": 123,
+    "passive_dash_contact_refund": 124,
+    "passive_dash_contact_guard": 125
   },
   "attributes": {
     "attr_protein": 15,
@@ -38,7 +50,11 @@
     "attr_big_talk": 19,
     "attr_morning_rush": 20,
     "attr_hand_out": 21,
-    "attr_wild_frenzy": 22
+    "attr_wild_frenzy": 22,
+    "attr_padded_thesis": 23,
+    "attr_deadline_miracle": 24,
+    "attr_running_defense": 25,
+    "attr_pe_essay": 26
   },
   "equipment": {
     "item_iron_plate": 99,
@@ -74,7 +90,10 @@
     "empowered": 14,
     "knockback": 20,
     "silence": 25,
-    "burn": 26
+    "burn": 26,
+    "attack_slowed": 27,
+    "cowering": 28,
+    "contact_guard": 29
   },
   "effect_ops": {
     "damage": 1,
@@ -121,6 +140,18 @@
     "echo": 74,
     "taunt_shield": 75,
     "dispel_disarm": 76,
-    "zone_burn": 77
+    "zone_burn": 77,
+    "channel_cone": 78,
+    "ground_impact": 79,
+    "attack_slow": 80,
+    "contact_trap": 81,
+    "dash_contact": 82,
+    "cower": 83,
+    "argument_chain": 84,
+    "spell_sustain": 85,
+    "primary_guard": 86,
+    "dash_contact_damage": 87,
+    "dash_contact_refund": 88,
+    "dash_contact_guard": 89
   }
 }

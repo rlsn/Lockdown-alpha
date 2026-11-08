@@ -170,9 +170,9 @@ bool FLDDemoOpeningCountdownTest::RunTest(const FString& Parameters)
         TestFalse(TEXT("An attack or cast order is refused before T=0"), LDOrderRules::CountdownAdmitsOrder(Attack));
     }
     TestTrue(TEXT("The D dash is movement and is admitted"), LDOrderRules::CountdownAdmitsAction(ELDCombatEntry::Dash));
-    for (const ELDCombatEntry Entry : {ELDCombatEntry::Basic, ELDCombatEntry::Q, ELDCombatEntry::W})
+    for (const ELDCombatEntry Entry : {ELDCombatEntry::Basic, ELDCombatEntry::Q, ELDCombatEntry::W, ELDCombatEntry::E})
     {
-        TestFalse(TEXT("A basic attack or Q/W is refused before T=0"), LDOrderRules::CountdownAdmitsAction(Entry));
+        TestFalse(TEXT("A basic attack or Q/W/E is refused before T=0"), LDOrderRules::CountdownAdmitsAction(Entry));
     }
 
     // An AI request refused by the countdown teaches the failure memory nothing.

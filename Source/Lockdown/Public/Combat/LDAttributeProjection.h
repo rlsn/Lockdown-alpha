@@ -30,11 +30,12 @@ struct FLDLearnedPassiveValue
 
 struct FLDAttributeCardValue
 {
-    FLDAttributeCardValue(FString InAttributeId, uint8 InCount)
-        : AttributeId(MoveTemp(InAttributeId)), Count(InCount) {}
+    FLDAttributeCardValue(FString InAttributeId, uint8 InCount, ELDAttributeQuality InQuality = ELDAttributeQuality::Blue)
+        : AttributeId(MoveTemp(InAttributeId)), Count(InCount), Quality(InQuality) {}
 
     FString AttributeId;
     uint8 Count;
+    ELDAttributeQuality Quality;
 };
 
 struct FLDAttributeBuildValues
@@ -186,8 +187,9 @@ struct FLDTemporaryAttributeTerms
 {
     TArray<FLDDemoStatBonus> Bonuses;
     int64 MoveSlowBp = 0;
+    int64 AttackSlowBp = 0;
 
-    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0; }
+    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0 && AttackSlowBp == 0; }
     bool operator==(const FLDTemporaryAttributeTerms& Other) const;
     bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };

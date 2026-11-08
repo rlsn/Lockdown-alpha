@@ -5,6 +5,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
+#include "Framework/LDGameMode.h"
 
 // Read-only projections of Combat state for the observation owner: action cues and projectiles in flight.
 FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
@@ -15,6 +16,12 @@ FLDCombatCueFacts ALDCombatDirector::CueFactsOf(const FLDBodyCombatState& Body)
         Facts.bActing=true;
         Facts.bActingBasic=Body.Action->Kind==ELDCombatActionKind::Basic;
         Facts.ActingStartedAtMs=Body.Action->StartedAtMs;
+    }
+    else if (Body.ChannelEffectId.IsValid())
+    {
+        Facts.bActing=true;
+        Facts.bActingBasic=false;
+        Facts.ActingStartedAtMs=Body.ChannelStartedAtMs;
     }
     Facts.DashUntilMs=Body.DashUntilMs;
     return Facts;
@@ -78,10 +85,8 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         const FVector2D Heading=FVector2D(Projectile.Direction.X,Projectile.Direction.Y).GetSafeNormal();
         const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
-        // The chalk flight is the only approved projectile look; active_snark_bolt (阴阳怪气) is the only projectile skill.
-        // Any other source has no look and is not invented one.
         if (!Content->FindAbility(Projectile.Source.DefinitionId.ToString(),Ability,LookupError)
-            || Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt)
+            || (Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Ability->NativeId!=uint8(ELDDemoAbilityId::ActiveSockShot))
             || Heading.IsNearlyZero())
         {
             Out.Reset();
@@ -94,7 +99,35 @@ bool ALDCombatDirector::ReadObservedProjectiles(TArray<FLDObservedProjectileFact
         Fact.Key=Projectile.FlightId;
         Fact.PositionCm=Projectile.OriginCm+FVector(Heading.X,Heading.Y,0)*Projectile.TravelledCm;
         Fact.Heading=Heading;
-        Fact.Look=ELDObservedProjectileLook::Chalk;
+        Fact.Look=Ability->NativeId==uint8(ELDDemoAbilityId::ActiveSockShot)
+            ? ELDObservedProjectileLook::Sock : ELDObservedProjectileLook::Chalk;
+    }
+    const auto* Mode=Core();
+    if (!Mode) { Error=TEXT("Observed skill effects require the current match."); return false; }
+    const int64 NowMs=Mode->GetAuthorityNowMs();
+    for (const auto& Ground : GroundEffects)
+    {
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Ground.Payload.EffectId;
+        Fact.PositionCm=Ground.CentreCm;
+        Fact.Heading=FVector2D(1,0);
+        Fact.Look=!Ground.bTrap ? ELDObservedProjectileLook::BookShadow
+            : NowMs<Ground.ReadyAtMs ? ELDObservedProjectileLook::FlyerArming : ELDObservedProjectileLook::FlyerArmed;
+        Fact.RadiusCm=float(Ground.RadiusCm);
+        Fact.InnerRadiusCm=float(Ground.InnerRadiusCm);
+    }
+    for (const auto& Channel : Channels)
+    {
+        ALDCharacter* Actor=nullptr;
+        const auto* Body=FindBody(Channel.Payload.SourceBody,&Actor);
+        if (!Body || !Actor || Body->bPendingDeath || Body->ChannelEffectId!=Channel.Payload.EffectId) { continue; }
+        FLDObservedProjectileFact& Fact=Out.AddDefaulted_GetRef();
+        Fact.Key=Channel.Payload.EffectId;
+        Fact.PositionCm=FootOf(*Actor);
+        Fact.Heading=FVector2D(Channel.Direction.X,Channel.Direction.Y);
+        Fact.Look=ELDObservedProjectileLook::SpeechCone;
+        Fact.RadiusCm=float(Channel.RangeCm);
+        Fact.AngleDegrees=float(Channel.AngleDegrees);
     }
     Error.Reset();
     return true;

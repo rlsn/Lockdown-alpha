@@ -77,17 +77,24 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
-// #147 slotted level-up offer (upgrade, new skill, free slot), basis points of a ratio (10000 = 1.0). Every other new skill
-// and attribute card weighs 1; nothing is weighted by the build.
+// #166 level-up offer and attribute quality parameters, in basis points (10000 = 1.0).
 USTRUCT()
 struct FLDDemoChoiceWeights
 {
     GENERATED_BODY()
 
-    // Weight of an unlearned active while Q and W are both occupied.
+    UPROPERTY() int64 NewActiveFreeSlotWeightBp = 0;
     UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
-    // Chance that the free (third) slot holds an attribute card instead of another new skill.
+    UPROPERTY() int64 FirstSlotUpgradeBp = 0;
     UPROPERTY() int64 FreeSlotAttributeBp = 0;
+    UPROPERTY() int64 AttributeGreenChanceBp = 0;
+    UPROPERTY() int64 AttributeGreenMultiplierBp = 0;
+    UPROPERTY() int64 AttributeBlueChanceBp = 0;
+    UPROPERTY() int64 AttributeBlueMultiplierBp = 0;
+    UPROPERTY() int64 AttributePurpleChanceBp = 0;
+    UPROPERTY() int64 AttributePurpleMultiplierBp = 0;
+    UPROPERTY() int64 AttributeGoldChanceBp = 0;
+    UPROPERTY() int64 AttributeGoldMultiplierBp = 0;
 };
 
 USTRUCT()
@@ -110,8 +117,9 @@ struct FLDDemoContentParameters
     // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (passive_lucky_star Lv2).
     UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
-    // #147 SKILL.GrowthPerLevel: a learned skill's fixed amounts grow by this share of the base per owner level above 1.
+    // #166: levels 2..10 use SkillGrowthPerLevelBp, levels 11..16 use SkillGrowthPerLevelAfter10Bp.
     UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
+    UPROPERTY() int64 SkillGrowthPerLevelAfter10Bp = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
     UPROPERTY() FLDDemoRationalBounds MoveSpeedCmPerSec;
     UPROPERTY() FLDDemoRational CollisionRadiusCm;
@@ -264,14 +272,14 @@ struct FLDDemoPolicies
 };
 
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone };
 
 // When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
 // (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
 UENUM()
 enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
 
-// Which cooldown tracks a cooldown_refund shortens: both learned actives (Q/W).
+// Which cooldown tracks a cooldown_refund shortens: all learned actives (Q/W/E).
 UENUM()
 enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
@@ -284,6 +292,18 @@ enum class ELDDemoDamageType : uint8 { Physical, Magical };
 
 UENUM()
 enum class ELDDemoAbilityKind : uint8 { Active, Passive };
+
+UENUM()
+enum class ELDAttributeQuality : uint8 { None = 0, Green = 1, Blue = 2, Purple = 3, Gold = 4 };
+
+namespace LDDemoAttributeQuality
+{
+    inline bool IsValid(ELDAttributeQuality Quality)
+    {
+        return Quality == ELDAttributeQuality::Green || Quality == ELDAttributeQuality::Blue
+            || Quality == ELDAttributeQuality::Purple || Quality == ELDAttributeQuality::Gold;
+    }
+}
 
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp.
@@ -325,6 +345,7 @@ struct FLDDemoTargetDefinition
     UPROPERTY() FLDDemoRational RangeCm;
     UPROPERTY() FLDDemoRational ProjectileRadiusCm;
     UPROPERTY() FLDDemoRational ProjectileSpeedCmPerSec;
+    UPROPERTY() FLDDemoRational AngleDegrees;
     // Share of the caster's extra basic-attack range (current minus base) added to this cast range, up to
     // AttackRangeBonusCapCm; 0 = none.
     UPROPERTY() int64 AttackRangeRatioBp = 0;
@@ -382,6 +403,9 @@ struct FLDDemoEffectDefinition
     // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow or linger).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
+    // #166: spell_sustain/dash_contact_refund cap actual mana grants; this cap never grows with level.
+    UPROPERTY() int64 LimitP2 = 0;
+    UPROPERTY() bool bCleanseSlow = false;
     // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
     // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;

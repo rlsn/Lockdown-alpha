@@ -71,8 +71,8 @@ bool FLDHUDMaskTest::RunTest(const FString& Parameters)
     FLDObservedStatus Protection;Protection.StatusId=uint8(ELDDemoStatusId::RespawnProtection);Protection.ExpiresAtServerMs=11500;Rival.Statuses.Add(Protection);
     const FString Shown=LDHUD::ObservedUnit(Rival,TEXT("玩家甲"),&Content,10.);
     auto Has=[](const FString& Text,const TCHAR* Label){return Text.Contains(Label,ESearchCase::CaseSensitive);};
-    TestEqualSensitive(TEXT("Observed card renders exactly the SC-07 whitelist (with the #112 Q/W actives) with approved display names"),Shown,
-        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 120/200\n状态：%s 2.5s · %s 1.5s\n装备：%s · 空槽\n技能：Q 空槽 · W 空槽"),LDTerms::Health,LDTerms::Mana,
+    TestEqualSensitive(TEXT("Observed card renders exactly the SC-07 whitelist with Q/W/E and approved display names"),Shown,
+        FString::Printf(TEXT("玩家甲 · 等级 3\n%s 451/600 · %s 120/200\n状态：%s 2.5s · %s 1.5s\n装备：%s · 空槽\n技能：Q 空槽 · W 空槽 · E 空槽"),LDTerms::Health,LDTerms::Mana,
             *HudName(TEXT("root")),*HudName(TEXT("respawn_protection")),*HudName(TEXT("item_iron_plate"))));
     for(const TCHAR* Private:{LDTerms::Gold,LDTerms::Experience,TEXT("冷却"),TEXT("被动"),LDTerms::AttackDamage,LDTerms::Armor,TEXT("属性"),TEXT("98765")})
     {TestFalse(FString::Printf(TEXT("Observed card has no private category: %s"),Private),Has(Shown,Private));}
@@ -441,7 +441,13 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     FLDDemoRankDefinition Second=Rank;Second.Rank=2;Second.Effects[0].BaseP2=15000;Bolt.Ranks={Rank,Second};Content.Abilities.Add(Bolt);
     Content.Parameters.SkillGrowthPerLevelBp=1000;
     FLDProgressionView Progression;
-    for(uint8 Slot=0;Slot<2;++Slot){FLDLearnedSkillView Skill;Skill.DefinitionId=Slot?FName(TEXT("active_not_mad")):FName(TEXT("active_pants_down"));Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);}
+    Content.Progression.ActiveSlots=3;
+    for(uint8 Slot=0;Slot<3;++Slot)
+    {
+        FLDLearnedSkillView Skill;
+        Skill.DefinitionId=Slot==0?FName(TEXT("active_pants_down")):Slot==1?FName(TEXT("active_not_mad")):FName(TEXT("active_elbow"));
+        Skill.bActive=true;Skill.Rank=1;Skill.Slot=Slot;Progression.Skills.Add(Skill);
+    }
     FLDChoiceOption Learn;Learn.Kind=ELDChoiceOptionKind::LearnActive;Learn.DefinitionId=TEXT("hud_rules_fixture_bolt");Learn.ToRank=1;
     LDHUD::FCardStats Stats;
     AddExpectedMessage(TEXT("LD_HUD_DISPLAY_TEXT_MISSING hud_rules_fixture_bolt"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,0,false);
@@ -451,7 +457,8 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     BoltDisplay.NameText=TEXT("测试飞弹");BoltDisplay.DescriptionText=TEXT("命中造成 [damage.amount] 魔法伤害。");BoltDisplay.AdvancedText=TEXT("穿透。");
     Content.Display.Add(BoltDisplay);
     const LDHUD::FChoiceCardView Card=LDHUD::ChoiceCard(Learn,Progression,&Content,Stats);
-    TestTrue(TEXT("Learning a third active with Q/W full requires an explicit replacement"),Card.bNeedsReplacement&&Card.Kind==TEXT("新主动")&&Card.RankText==TEXT("初级"));
+    TestTrue(TEXT("Learning a fourth active with Q/W/E full requires an explicit replacement"),
+        Card.bNeedsReplacement&&Card.Kind==TEXT("新主动")&&Card.RankText==TEXT("初级"));
     TestTrue(TEXT("The card face is the sentence with this level's numbers and the advanced line"),
         Card.SentencePlain==TEXT("命中造成 100 魔法伤害。")&&Card.AdvancedPlain==TEXT("高级：穿透。"));
     TestTrue(TEXT("The details show the target form and the cost"),Card.Lines.Num()==2&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm")&&Card.Lines[1]==LDHUD::CostLine(Rank));
@@ -463,9 +470,10 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("An upgrade states both ranks, shows A → B and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("初级 → 高级")
         &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。")&&Up.Summary==TEXT("初→高"));
     FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
-    FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;
+    FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;Attribute.AttributeQuality=ELDAttributeQuality::Blue;
     TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Passive
-        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute&&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("已选 0 次"));
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute
+        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("蓝色 · 已选 0 次"));
     TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;Crit.Equipment.Denominator=1;
@@ -1002,7 +1010,9 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
         &&LDDevPanel::HeldText(Rows[1])==TEXT("未拥有")&&LDDevPanel::HeldText(Rows[2])==TEXT("已有 3 张"));
     TestFalse(TEXT("One held active does not need a replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
     Learned.Slot=1;Learned.DefinitionId=TEXT("other_active");Progression.Skills.Add(Learned);
-    TestTrue(TEXT("Q and W both held offer the confirmed replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
+    TestFalse(TEXT("Q and W leave E free"),LDDevPanel::BothActiveSlotsHeld(&Progression));
+    Learned.Slot=2;Learned.DefinitionId=TEXT("third_active");Progression.Skills.Add(Learned);
+    TestTrue(TEXT("Q, W and E held offer the confirmed replacement"),LDDevPanel::BothActiveSlotsHeld(&Progression));
     TestFalse(TEXT("An unprojected progression offers nothing"),LDDevPanel::BothActiveSlotsHeld(nullptr));
     const TArray<LDDevPanel::FItemRow> Items=LDDevPanel::ItemRows(Content);
     TestTrue(TEXT("Items list their catalog price"),Items.Num()==1&&Items[0].Name==HudName(TEXT("item_iron_plate"))&&Items[0].Price==300);

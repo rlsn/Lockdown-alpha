@@ -114,7 +114,9 @@ bool SameObservedPresentation(const FLDObservedUnitView& A, const FLDObservedUni
         && A.Mana.CurrentP2 == B.Mana.CurrentP2 && A.Mana.MaxP2 == B.Mana.MaxP2
         && A.Equipment.Slots[0] == B.Equipment.Slots[0] && A.Equipment.Slots[1] == B.Equipment.Slots[1]
         && A.Actives.Abilities[0] == B.Actives.Abilities[0] && A.Actives.Abilities[1] == B.Actives.Abilities[1]
+        && A.Actives.Abilities[2] == B.Actives.Abilities[2]
         && A.Actives.Ranks[0] == B.Actives.Ranks[0] && A.Actives.Ranks[1] == B.Actives.Ranks[1]
+        && A.Actives.Ranks[2] == B.Actives.Ranks[2]
         && SameObservedStatuses(A.Statuses, B.Statuses);
 }
 }
@@ -524,6 +526,9 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         View.PositionCm = Fact->PositionCm;
         View.Heading = QuantizeObservedYaw(FMath::RadiansToDegrees(FMath::Atan2(Fact->Heading.Y, Fact->Heading.X)));
         View.Look = Fact->Look;
+        View.RadiusCm = Fact->RadiusCm;
+        View.InnerRadiusCm = Fact->InnerRadiusCm;
+        View.AngleDegrees = Fact->AngleDegrees;
         if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
     }
     for (int32 Index = 0; Index < ProjectileBindings.Num();)
@@ -1329,4 +1334,3 @@ bool ALDVisionDirector::FindObservedHandle(const ALDPlayerController& Caller, co
     const FObserver* Observer = FindObserver(Caller);
     return bActive && Observer && Observer->Ledger.FindHandle(Body, OutHandle, OutEpoch);
 }
-

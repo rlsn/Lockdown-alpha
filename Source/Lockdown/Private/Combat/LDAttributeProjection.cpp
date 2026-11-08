@@ -55,6 +55,8 @@ bool IsCombatTriggerOp(ELDDemoEffectOp Op)
     // #147 v7: passive breach and burn stacks; an equipment control amplification joins the damage bonus pool (a learned
     // one keeps its own conditional term below).
     case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ControlDamageAmp:
+    case ELDDemoEffectOp::ArgumentChain: case ELDDemoEffectOp::SpellSustain: case ELDDemoEffectOp::PrimaryGuard:
+    case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::DashContactRefund: case ELDDemoEffectOp::DashContactGuard:
         return true;
     default:
         return false;
@@ -244,14 +246,16 @@ private:
             {
                 return Refuse(EError::UnknownDefinition, Field, LookupError);
             }
-            if (Cards.Contains(Attribute))
+            if (Card.Count < 1 || !LDDemoAttributeQuality::IsValid(Card.Quality))
             {
-                return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" is listed more than once"));
+                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry needs a valid quality and at least one card"));
             }
-            if (Card.Count < 1)
+            const FString SourceKey = FString::Printf(TEXT("%s:%u"), *Attribute->Id, uint8(Card.Quality));
+            if (CardSources.Contains(SourceKey))
             {
-                return Refuse(EError::InputDomain, Field, TEXT("An attribute card entry must hold at least one card"));
+                return Refuse(EError::DuplicateSource, Field, Card.AttributeId + TEXT(" and quality are listed more than once"));
             }
+            CardSources.Add(SourceKey);
             Cards.Add(Attribute);
             ConsumedChoices += Card.Count;
         }
@@ -422,11 +426,22 @@ private:
         }
         for (int32 Index = 0; Index < Cards.Num(); ++Index)
         {
-            const FExact Count = Numbers.Value(Build.AttributeCards[Index].Count);
+            const FLDAttributeCardValue& Card = Build.AttributeCards[Index];
             const FString Field = FString::Printf(TEXT("AttributeCards[%d]"), Index);
+            int64 MultiplierBp = 0;
+            switch (Card.Quality)
+            {
+            case ELDAttributeQuality::Green: MultiplierBp = P.Choice.AttributeGreenMultiplierBp; break;
+            case ELDAttributeQuality::Blue: MultiplierBp = P.Choice.AttributeBlueMultiplierBp; break;
+            case ELDAttributeQuality::Purple: MultiplierBp = P.Choice.AttributePurpleMultiplierBp; break;
+            case ELDAttributeQuality::Gold: MultiplierBp = P.Choice.AttributeGoldMultiplierBp; break;
+            default: return Refuse(EError::InputDomain, Field, TEXT("An attribute card has an undefined quality"));
+            }
+            const FExact Count = Numbers.Value(Card.Count);
+            const FExact ScaledCount = Numbers.Mul(Count, Numbers.Value(MultiplierBp, 10000));
             for (const FLDDemoStatBonus& Bonus : Cards[Index]->Stats)
             {
-                if (!AddBonus(Bonus, &FAttributeSum::Choices, Count, Field))
+                if (!AddBonus(Bonus, &FAttributeSum::Choices, ScaledCount, Field))
                 {
                     return false;
                 }
@@ -735,6 +750,7 @@ private:
     TArray<const FLDDemoAbilityDefinition*, TInlineAllocator<8>> Passives;
     TArray<const FLDDemoRankDefinition*, TInlineAllocator<8>> PassiveRanks;
     TArray<const FLDDemoAttributeDefinition*, TInlineAllocator<8>> Cards;
+    TSet<FString> CardSources;
     const FLDDemoOpeningCardDefinition* Opening = nullptr;
     TArray<const FLDDemoEquipmentDefinition*, TInlineAllocator<2>> Items;
     TArray<FLDEquipmentPassiveFamily> Families;
@@ -834,7 +850,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         Result.Value.Emplace(MoveTemp(Out));
         return Result;
     }
-    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000)
+    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000 || Terms.AttackSlowBp < 0 || Terms.AttackSlowBp >= 10000)
     {
         return Fail(EError::InputDomain, TEXT("MoveSlowBp"), TEXT("A slow must keep some move speed"));
     }
@@ -875,6 +891,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
     }
     const FLDDemoContentParameters& P = Catalog.Get().Parameters;
     const FExact One = N.Value(1);
+    if (Terms.AttackSlowBp > 0) { Touched[int32(EAttribute::AttackSpeed)] = true; }
     for (int32 Index = 0; Index < AttributeCount; ++Index)
     {
         if (!Touched[Index]) { continue; }
@@ -914,6 +931,14 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
             bStored = FloorScaled(Value, 100, 0, P.CooldownHasteMaxP2, Final.CooldownHasteP2, bClamped, N); break;
         case EAttribute::CritChance: bStored = FloorScaled(Value, 10000, 0, 10000, Final.CritChanceBp, bClamped, N); break;
         case EAttribute::AttackSpeed:
+            if (Terms.AttackSlowBp > 0)
+            {
+                Value = N.Max(N.Value(P.AttackSpeed.Min), Value);
+                if (N.LT(N.Value(P.AttackSpeed.Max), Value)) { Value = N.Value(P.AttackSpeed.Max); bClamped = true; }
+                const FExact Before = Value;
+                Value = N.Mul(Value, N.Value(10000 - Terms.AttackSlowBp, 10000));
+                Temporary[Index].Flat = N.Add(Temporary[Index].Flat, N.Sub(Value, Before));
+            }
             bStored = ClampRational(Value, P.AttackSpeed.Min, P.AttackSpeed.Max, Final.AttackSpeed, bClamped, N); break;
         case EAttribute::MoveSpeed:
             bStored = ClampRational(Value, P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max, Final.MoveSpeedCmPerSec, bClamped, N); break;
@@ -1021,7 +1046,7 @@ FLDResourceMaxChangeResult ResourceMaxChange(const FLDResourceMaxChangeInput& In
 
 bool FLDTemporaryAttributeTerms::operator==(const FLDTemporaryAttributeTerms& Other) const
 {
-    if (MoveSlowBp != Other.MoveSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
+    if (MoveSlowBp != Other.MoveSlowBp || AttackSlowBp != Other.AttackSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
     for (int32 Index = 0; Index < Bonuses.Num(); ++Index)
     {
         const FLDDemoStatBonus& A = Bonuses[Index];

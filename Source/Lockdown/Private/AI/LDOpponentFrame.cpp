@@ -39,6 +39,7 @@ bool SourceSlot(ELDCombatEntry Entry, ELDOpponentSourceSlot& Out)
     {
     case ELDCombatEntry::Q: Out = ELDOpponentSourceSlot::Q; return true;
     case ELDCombatEntry::W: Out = ELDOpponentSourceSlot::W; return true;
+    case ELDCombatEntry::E: Out = ELDOpponentSourceSlot::E; return true;
     case ELDCombatEntry::Dash: Out = ELDOpponentSourceSlot::Dash; return true;
     default: return false;
     }
@@ -207,8 +208,9 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         Mapped.Rank = Skill.Rank;
         if (Skill.bActive)
         {
-            if (Skill.Slot > 1) { return Fail(Error, TEXT("An own active skill is outside the Q/W slots.")); }
-            Mapped.Slot = Skill.Slot == 0 ? ELDOpponentSkillSlot::Q : ELDOpponentSkillSlot::W;
+            if (Skill.Slot > 2) { return Fail(Error, TEXT("An own active skill is outside the Q/W/E slots.")); }
+            Mapped.Slot = Skill.Slot == 0 ? ELDOpponentSkillSlot::Q
+                : Skill.Slot == 1 ? ELDOpponentSkillSlot::W : ELDOpponentSkillSlot::E;
         }
         else
         {
@@ -218,7 +220,8 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         Out.Skills.Add(MoveTemp(Mapped));
     }
     TArray<FLDAttributeCardValue> Cards;
-    for (const auto& Card : Progression.AttributeCards) { Cards.Emplace(CanonicalId(Card.DefinitionId), Card.Count); }
+    for (const auto& Card : Progression.AttributeCards)
+    { Cards.Emplace(CanonicalId(Card.DefinitionId), Card.Count, Card.Quality); }
     if (Progression.bHasOffer && Progression.bCanChoose)
     {
         FLDOpponentOffer Offer;
@@ -233,6 +236,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
             Mapped.DefinitionId = CanonicalId(Option.DefinitionId);
             Mapped.FromRank = Option.FromRank;
             Mapped.ToRank = Option.ToRank;
+            Mapped.AttributeQuality = Option.AttributeQuality;
             Offer.Options.Add(MoveTemp(Mapped));
         }
         Out.Offer = MoveTemp(Offer);
@@ -284,9 +288,12 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.MaxMpP2 = Combat.MaxMPP2;
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
+    Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
+    Out.bCowering = false;
     int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {
+        if (Status.StatusId == uint8(ELDDemoStatusId::Cowering) && Status.ExpiresAtMs > NowMs) { Out.bCowering = true; }
         // Root and Stun both hold the body in place; the policy plans no movement until they end.
         if (Status.StatusId == uint8(ELDDemoStatusId::Root) || Status.StatusId == uint8(ELDDemoStatusId::Stun))
         { Out.MoveBlockedUntilMs = FMath::Max(Out.MoveBlockedUntilMs, Status.ExpiresAtMs); }

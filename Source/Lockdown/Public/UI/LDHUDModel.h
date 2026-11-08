@@ -43,13 +43,13 @@ namespace LDHUD
     // Renders a card template (LDDemoCardText) against Rank grown for Stats.Level; with From, every value that changes reads
     // "A → B". The 13 glossary keywords (LDTerms::CardKeywords) are wrapped in <b>…</> in Rich.
     LOCKDOWN_API FCardText CardText(const FString& Template,const FLDDemoRankDefinition& Rank,const FLDDemoRankDefinition* From,
-        const FCardStats& Stats,int64 GrowthPerLevelBp);
+        const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
     // Characters a player reads: everything but spaces (v7 R1/R2: a sentence at most 26, an advanced line at most 18).
     LOCKDOWN_API int32 CardLength(const FString& Plain);
     // A learned skill's effect lines: its card sentence at Rank for Stats, then, at its top (advanced) rank, the "高级：" line
     // with the change that rank adds. Empty when Ability has no such rank.
     LOCKDOWN_API TArray<FString> LearnedCardLines(const FString& Sentence,const FString& Advanced,const FLDDemoAbilityDefinition& Ability,
-        uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp);
+        uint8 Rank,const FCardStats& Stats,int64 GrowthPerLevelBp,int64 GrowthPerLevelAfter10Bp=0);
     // "<b>减速</>：…" for each keyword.
     LOCKDOWN_API TArray<FString> KeywordLines(const TArray<FString>& Keywords);
     // Real local frame intervals over a window of at least WindowSeconds (a long frame is never cut; it closes its window
@@ -207,8 +207,8 @@ namespace LDHUD
     // room roster; a contender no longer in it is shown as having left. Empty for another match's feed.
     LOCKDOWN_API TArray<FScoreLine> Scoreboard(const FLDKillFeedView& Feed,uint32 Generation,const FLDLobbyView& Lobby,const FGuid& Self);
 
-    // The band's five slots: the Q/W actives, the two equipment slots (shown, never activated) and the D dash.
-    enum class EActionSlot : uint8 { Q, W, Equipment1, Equipment2, Dash };
+    // The band's six slots: the Q/W/E actives, the two equipment slots (shown, never activated) and the D dash.
+    enum class EActionSlot : uint8 { Q, W, E, Equipment1, Equipment2, Dash };
     // ActionPassive: an occupied equipment slot, whose stats and passive apply without any activation.
     enum EActionBlock : uint32
     {
@@ -298,7 +298,7 @@ namespace LDHUD
             bool bMaxRank=false;
         };
         bool bActives=false;
-        FActiveChip Actives[2];
+        FActiveChip Actives[3];
     };
     // SC-07 whitelist only: name, level, HP, MP, public statuses, two equipment definitions and the two Q/W actives with ranks.
     LOCKDOWN_API FObservedCard ObservedCard(const FLDObservedUnitView& Unit,const FString& ContenderName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
@@ -339,6 +339,7 @@ namespace LDHUD
         FString IconId;
         EChoiceIcon Icon=EChoiceIcon::Unknown;
         FString Glyph;
+        ELDAttributeQuality AttributeQuality=ELDAttributeQuality::None;
         bool bNeedsReplacement=false;
     };
     // One of the three fixed options of the current offer; a learn-active card with both Q/W filled needs an explicit replacement.
