@@ -305,11 +305,13 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
         const FName Id=ShownLearn[Index].Id;
         Line->AddChildToHorizontalBox(MakeButton(TEXT("学习"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id);},FString::Printf(TEXT("DevTestLearn%d"),Index)))
             ->SetPadding(FMargin(8,0,0,0));
-        // Replacing is a confirmed choice of its own; it is offered only while both active slots are held.
+        // Replacing is a confirmed choice of its own; it is offered only while Q/W/E are all held.
         auto* Replace=WidgetTree->ConstructWidget<UHorizontalBox>();
         Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 Q"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,1);},FString::Printf(TEXT("DevTestLearnQ%d"),Index)))
             ->SetPadding(FMargin(6,0,0,0));
         Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 W"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,2);},FString::Printf(TEXT("DevTestLearnW%d"),Index)))
+            ->SetPadding(FMargin(6,0,0,0));
+        Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 E"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,3);},FString::Printf(TEXT("DevTestLearnE%d"),Index)))
             ->SetPadding(FMargin(6,0,0,0));
         Replace->SetVisibility(ESlateVisibility::Collapsed);
         Line->AddChildToHorizontalBox(Replace);

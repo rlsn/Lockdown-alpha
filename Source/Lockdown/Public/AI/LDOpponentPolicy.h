@@ -86,6 +86,8 @@ struct FLDOpponentSelf
     int64 BasicReadyAtMs = 0;
     // Authority ms until which authorized control blocks voluntary movement; at or before now when free.
     int64 MoveBlockedUntilMs = 0;
+    bool bChanneling = false;
+    bool bCowering = false;
     int64 Gold = 0;
     uint64 BuildRevision = 0;
     uint8 Level = 1;

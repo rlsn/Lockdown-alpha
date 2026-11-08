@@ -44,7 +44,8 @@ def author_units(value):
 # #147 build v7 (CONTENT_AND_BALANCE): the twelve actives in authored order.
 ACTIVE_IDS = ("active_pants_down", "active_crotch_grab", "active_snark_bolt", "active_seethe", "active_bail_out", "active_elbow",
               "active_not_mad", "active_stare_down", "active_quick_meeting", "active_account_banned", "active_unplug",
-              "active_triple_combo")
+              "active_triple_combo", "active_open_mic", "active_calculus_drop", "active_sock_shot",
+              "active_flyer_trap", "active_apology_slide", "active_cower")
 # Active frames shared by both ranks: (target mode, range cm or None, windup s, mana, cooldown s).
 ACTIVE_FRAMES = {
     "active_pants_down": ("Unit", 450, r(".2"), 60, 12),
@@ -59,6 +60,12 @@ ACTIVE_FRAMES = {
     "active_account_banned": ("Unit", 600, r(".2"), 60, 13),
     "active_unplug": ("Unit", 250, r(".15"), 50, 13),
     "active_triple_combo": ("Self", None, 0, 40, 12),
+    "active_open_mic": ("DirectionCone", 450, r(".2"), 45, 10),
+    "active_calculus_drop": ("GroundPoint", 650, r(".25"), 65, 12),
+    "active_sock_shot": ("DirectionProjectile", 650, r(".15"), 50, 11),
+    "active_flyer_trap": ("GroundPoint", 550, r(".15"), 55, 12),
+    "active_apology_slide": ("DirectionDash", None, r(".15"), 50, 12),
+    "active_cower": ("Self", None, r(".1"), 45, 16),
 }
 # Every skill's effects per rank (初级, 高级) in authored order and author units; "base" grows with the owner's level at runtime.
 RANK_EFFECTS = {
@@ -202,7 +209,71 @@ RANK_EFFECTS = {
 }
 # The advanced rank's one gameplay change (#147 "高级 = 数值 + 一条玩法变化"): its new effects, or new fields of an effect
 # both ranks carry.
+RANK_EFFECTS.update({
+    "active_open_mic": (
+        [("channel_cone", {"interval": r(".3"), "count": 3}),
+         ("damage", {"base": 40, "ad_ratio": 0, "ap_ratio": r(".3"), "max_hp_ratio": 0, "damage_type": "Magical"})],
+        [("channel_cone", {"interval": r(".3"), "count": 3, "slow": r(".35"), "slow_duration": r("1.2")}),
+         ("damage", {"base": 60, "ad_ratio": 0, "ap_ratio": r(".3"), "max_hp_ratio": 0, "damage_type": "Magical"})]),
+    "active_calculus_drop": (
+        [("ground_impact", {"radius": 180, "inner_radius": 80, "outer_ratio": r(".6"), "delay": r(".55")}),
+         ("damage", {"base": 100, "ad_ratio": 0, "ap_ratio": 1, "max_hp_ratio": 0, "damage_type": "Magical"})],
+        [("ground_impact", {"radius": 180, "inner_radius": 80, "outer_ratio": r(".6"), "delay": r(".55")}),
+         ("damage", {"base": 150, "ad_ratio": 0, "ap_ratio": 1, "max_hp_ratio": 0, "damage_type": "Magical"}),
+         ("root", {"duration": r(".8")})]),
+    "active_sock_shot": (
+        [("damage", {"base": 70, "ad_ratio": 0, "ap_ratio": r(".65"), "max_hp_ratio": 0, "damage_type": "Magical"}),
+         ("attack_slow", {"ratio": r(".2"), "duration": 2})],
+        [("damage", {"base": 105, "ad_ratio": 0, "ap_ratio": r(".65"), "max_hp_ratio": 0, "damage_type": "Magical"}),
+         ("attack_slow", {"ratio": r(".25"), "duration": 2}), ("slow", {"ratio": r(".2"), "duration": 2})]),
+    "active_flyer_trap": (
+        [("contact_trap", {"radius": 180, "trigger_radius": 100, "delay": r(".45"), "duration": 6}),
+         ("damage", {"base": 100, "ad_ratio": 0, "ap_ratio": r(".8"), "max_hp_ratio": 0, "damage_type": "Magical"})],
+        [("contact_trap", {"radius": 180, "trigger_radius": 100, "delay": r(".45"), "duration": 6}),
+         ("damage", {"base": 150, "ad_ratio": 0, "ap_ratio": r(".8"), "max_hp_ratio": 0, "damage_type": "Magical"}),
+         ("slow", {"ratio": r(".3"), "duration": r("1.5")})]),
+    "active_apology_slide": (
+        [("dash", {"distance": 300, "duration": r(".25")}), ("dash_contact", {"count": 1}),
+         ("damage", {"base": 50, "ad_ratio": r(".6"), "ap_ratio": r(".4"), "max_hp_ratio": 0, "damage_type": "Physical"})],
+        [("dash", {"distance": 300, "duration": r(".25")}), ("dash_contact", {"count": 1}),
+         ("damage", {"base": 75, "ad_ratio": r(".6"), "ap_ratio": r(".4"), "max_hp_ratio": 0, "damage_type": "Physical"}),
+         ("slow", {"ratio": r(".3"), "duration": r("1.5")})]),
+    "active_cower": (
+        [("cower", {"ratio": r(".3"), "duration": 2})],
+        [("cower", {"ratio": r(".4"), "duration": 2, "move_bonus": r(".15")})]),
+    "passive_argument_chain": (
+        [("argument_chain", {"base": 20, "ad_ratio": 0, "ap_ratio": r(".15"), "damage_type": "Magical", "duration": 3, "interval": 6})],
+        [("argument_chain", {"base": 30, "ad_ratio": 0, "ap_ratio": r(".15"), "damage_type": "Magical", "duration": 3, "interval": 6, "stacks": 1})]),
+    "passive_snack_cast": (
+        [("spell_sustain", {"base": 15, "ratio": r(".06")})],
+        [("spell_sustain", {"base": r("22.5"), "ratio": r(".09"), "mana_ratio": r(".3"), "mana_cap": 5})]),
+    "passive_pressure_veteran": (
+        [("primary_guard", {"base": 8, "ratio": r(".15")})],
+        [("primary_guard", {"base": 12, "ratio": r(".2"), "slow_resistance": r(".2"), "duration": r("1.5")})]),
+    "passive_dash_contact_damage": (
+        [("dash_contact_damage", {"base": 30, "ad_ratio": r(".3"), "ap_ratio": r(".3"), "damage_type": "Physical"})],
+        [("dash_contact_damage", {"base": 45, "ad_ratio": r(".3"), "ap_ratio": r(".3"), "damage_type": "Physical", "slow": r(".2"), "slow_duration": 1})]),
+    "passive_dash_contact_refund": (
+        [("dash_contact_refund", {"cooldown": 1, "interval": 4})],
+        [("dash_contact_refund", {"cooldown": r("1.5"), "interval": 4, "mana_ratio": r(".2"), "mana_cap": 10})]),
+    "passive_dash_contact_guard": (
+        [("dash_contact_guard", {"ratio": r(".15"), "duration": 1})],
+        [("dash_contact_guard", {"ratio": r(".2"), "duration": 1, "cleanse_slow": True})]),
+})
+
 ADVANCED_CHANGES = {
+    "active_open_mic": {"channel_cone.slow", "channel_cone.slow_duration"},
+    "active_calculus_drop": {"root"},
+    "active_sock_shot": {"slow"},
+    "active_flyer_trap": {"slow"},
+    "active_apology_slide": {"slow"},
+    "active_cower": {"cower.move_bonus"},
+    "passive_argument_chain": {"argument_chain.stacks"},
+    "passive_snack_cast": {"spell_sustain.mana_ratio", "spell_sustain.mana_cap"},
+    "passive_pressure_veteran": {"primary_guard.slow_resistance", "primary_guard.duration"},
+    "passive_dash_contact_damage": {"dash_contact_damage.slow", "dash_contact_damage.slow_duration"},
+    "passive_dash_contact_refund": {"dash_contact_refund.mana_ratio", "dash_contact_refund.mana_cap"},
+    "passive_dash_contact_guard": {"dash_contact_guard.cleanse_slow"},
     "active_pants_down": {"root.slowed_stun"}, "active_crotch_grab": {"execute"}, "active_snark_bolt": {"pierce"},
     "active_seethe": {"echo"}, "active_bail_out": {"path_slow"},
     "active_elbow": {"knockback.wall_distance", "knockback.wall_stun"}, "active_not_mad": {"dispel_root", "dispel_disarm"},
@@ -242,13 +313,8 @@ class ApprovedDemoData(unittest.TestCase):
                      "2026-11-08 #166 level 16/QWE", "Equipment excluded"):
             self.assertIn(text, approval["decision"])
         self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (22, 8, 13, 2))
-        self.assertEqual([row["id"] for row in self.data["abilities"]], [
-            "active_account_banned", "active_bail_out", "active_crotch_grab", "active_elbow", "active_not_mad",
-            "active_pants_down", "active_quick_meeting", "active_seethe", "active_snark_bolt", "active_stare_down",
-            "active_triple_combo", "active_unplug",
-            "passive_freeloader", "passive_iced_americano", "passive_kick_down", "passive_lucky_star", "passive_moral_victory",
-            "passive_pressed", "passive_special_forces", "passive_stoke", "passive_thick_face", "passive_tilted"])
+                          len(self.data["camps"]["monsters"])), (34, 12, 13, 2))
+        self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(RANK_EFFECTS))
         # #147: mechanic tags are gone from skills and equipment.
         self.assertFalse(any("tags" in row for row in (*self.data["abilities"], *self.data["equipment"])))
         self.assertEqual(self.data["identity"]["projection_revision"], 3)
@@ -352,7 +418,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(ids["statuses"], {"root": 1, "shield": 2, "camp_returning": 3, "respawn_protection": 4,
                                            "slow": 5, "stat_boost": 6, "exposed": 9,
                                            "taunt": 10, "disarm": 12, "stun": 13, "empowered": 14,
-                                           "knockback": 20, "silence": 25, "burn": 26})
+                                           "knockback": 20, "silence": 25, "burn": 26,
+                                           "attack_slowed": 27, "cowering": 28, "contact_guard": 29})
         self.assertEqual(ids["effect_ops"], {
             "damage": 1, "shield": 2, "dispel_root": 3, "root": 4, "stat_bonus": 5,
             "lifesteal": 7, "dash": 8, "cleave": 10, "dash_boost": 11,
@@ -363,7 +430,10 @@ class ApprovedDemoData(unittest.TestCase):
             "knockback": 40, "zone": 50, "zone_slow": 52, "zone_root": 53, "zone_damage": 54,
             "cast_frenzy": 65, "affliction_amp": 66,
             "shield_break_retort": 67, "hit_haste": 68, "silence": 69, "breach": 70, "burn": 71, "execute": 72,
-            "pierce": 73, "echo": 74, "taunt_shield": 75, "dispel_disarm": 76, "zone_burn": 77})
+            "pierce": 73, "echo": 74, "taunt_shield": 75, "dispel_disarm": 76, "zone_burn": 77,
+            "channel_cone": 78, "ground_impact": 79, "attack_slow": 80, "contact_trap": 81, "dash_contact": 82,
+            "cower": 83, "argument_chain": 84, "spell_sustain": 85, "primary_guard": 86,
+            "dash_contact_damage": 87, "dash_contact_refund": 88, "dash_contact_guard": 89})
         entries = [row for row in self.data["display"] if row["id"] == "respawn_protection"]
         self.assertEqual(len(entries), 1)
         self.assertEqual({key: value for key, value in entries[0].items() if not key.endswith("_text")}, {
@@ -401,6 +471,12 @@ class ApprovedDemoData(unittest.TestCase):
             "taunt": "嘲讽", "disarm": "缴械", "stun": "眩晕", "empowered": "强化普攻",
             "knockback": "击退",
             "silence": "沉默", "burn": "灼烧",
+            "active_open_mic": "贴脸开麦", "active_calculus_drop": "高数糊脸", "active_sock_shot": "臭袜突袭",
+            "active_flyer_trap": "乱贴小广告", "active_apology_slide": "滑铲道歉", "active_cower": "抱头装怂",
+            "passive_argument_chain": "抬杠到底", "passive_snack_cast": "电子榨菜", "passive_pressure_veteran": "抗压老哥",
+            "passive_dash_contact_damage": "借过一下", "passive_dash_contact_refund": "没撞够", "passive_dash_contact_guard": "碰瓷体质",
+            "attr_padded_thesis": "论文注水", "attr_deadline_miracle": "DDL奇迹", "attr_running_defense": "边跑边答辩",
+            "attr_pe_essay": "体育课写论文", "attack_slowed": "攻速降低", "cowering": "装怂", "contact_guard": "碰瓷防护",
         })
         for row in self.data["display"]:
             with self.subTest(identity=row["id"]):
@@ -582,7 +658,7 @@ class ApprovedDemoData(unittest.TestCase):
     def test_passives_attributes_and_build_bounds(self):
         passives = tuple(sorted(identity for identity in RANK_EFFECTS if identity.startswith("passive_")))
         self.assertEqual(tuple(row["id"] for row in self.data["abilities"] if row["kind"] == "passive"), passives)
-        self.assertEqual(len(passives), 10)
+        self.assertEqual(len(passives), 16)
         for identity in passives:
             row = self.catalog.definition(identity)
             self.assertEqual((row["target"]["mode"], row["draftable"]), ("Self", True))
@@ -599,6 +675,10 @@ class ApprovedDemoData(unittest.TestCase):
             "attr_morning_rush": ({"MoveSpeedBonusRatio": r(".04"), "MaxHPFlat": 70}, None),
             "attr_hand_out": ({"AttackRangeCmFlat": 50, "AttackSpeedBonusRatio": r(".05")}, None),
             "attr_wild_frenzy": ({"ADFlat": 9, "AttackSpeedBonusRatio": r(".07")}, {"MaxHPFlat": 100}),
+            "attr_padded_thesis": ({"APFlat": 16, "MaxMPFlat": 100}, None),
+            "attr_deadline_miracle": ({"CooldownHasteFlat": 16, "MaxMPFlat": 60}, {"MaxHPFlat": 60}),
+            "attr_running_defense": ({"APFlat": 10, "MoveSpeedBonusRatio": r(".06")}, {"MaxHPFlat": 40}),
+            "attr_pe_essay": ({"ADFlat": 8, "APFlat": 12}, {"MaxMPFlat": 30}),
         }
         self.assertEqual({row["id"] for row in self.data["attributes"]}, set(expected))
         for identity, (stats, penalties) in expected.items():
@@ -606,6 +686,39 @@ class ApprovedDemoData(unittest.TestCase):
             self.assertEqual({key: amount(value) for key, value in row["stats"].items()}, stats)
             self.assertEqual(None if "penalties" not in row else {key: amount(value) for key, value in row["penalties"].items()},
                              penalties)
+
+    def test_expanded_skill_geometry_and_recovery_refusals(self):
+        author, schema, ids = self.approved_projection_inputs()
+        cases = (
+            ("active_open_mic", "channel_cone", "slow_duration", None, 1, "ObjectShape"),
+            ("active_calculus_drop", "ground_impact", "inner_radius", {"unit": "cm", "numerator": 181, "denominator": 1}, 0, "InvalidGeometry"),
+            ("active_calculus_drop", "ground_impact", "outer_ratio", {"unit": "ratio", "bp": 10000}, 0, "NumericDomain"),
+            ("active_flyer_trap", "contact_trap", "trigger_radius", {"unit": "cm", "numerator": 0, "denominator": 1}, 0, "InvalidGeometry"),
+            ("active_sock_shot", "attack_slow", "ratio", {"unit": "ratio", "bp": 10000}, 0, "NumericDomain"),
+            ("active_cower", "cower", "ratio", {"unit": "ratio", "bp": 10000}, 0, "NumericDomain"),
+            ("passive_snack_cast", "spell_sustain", "mana_cap", None, 1, "ObjectShape"),
+            ("passive_dash_contact_damage", "dash_contact_damage", "slow_duration", None, 1, "ObjectShape"),
+            ("passive_dash_contact_refund", "dash_contact_refund", "mana_ratio", None, 1, "ObjectShape"),
+            ("passive_pressure_veteran", "primary_guard", "duration", None, 1, "ObjectShape"),
+        )
+        for identity, op, field, value, rank, error in cases:
+            projected = schema.project(author)
+            row = next(item for item in projected["abilities"] if item["id"] == identity)
+            effect = next(item for item in row["ranks"][rank]["effects"] if item["op"] == op)
+            if value is None:
+                del effect[field]
+            else:
+                effect[field] = value
+            with self.subTest(identity=identity, field=field), self.assertRaisesRegex(content.ContentError, error):
+                content.validate_definitions(projected, ids)
+
+    def test_expanded_geometry_and_non_growing_mana_caps(self):
+        cone = self.catalog.definition("active_open_mic")
+        self.assertEqual(amount(cone["target"]["angle"]), 70)
+        sock = self.catalog.definition("active_sock_shot")
+        self.assertEqual((amount(sock["target"]["projectile_radius"]), amount(sock["target"]["projectile_speed"])), (40, 1300))
+        for identity, cap in (("passive_snack_cast", 5), ("passive_dash_contact_refund", 10)):
+            self.assertEqual(amount(self.catalog.definition(identity)["ranks"][1]["effects"][0]["mana_cap"]), cap)
 
     def test_every_equipment_price_stat_and_effect(self):
         expected = {

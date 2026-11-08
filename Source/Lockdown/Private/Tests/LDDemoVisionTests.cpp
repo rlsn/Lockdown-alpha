@@ -539,7 +539,8 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
         TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
-    Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look")});
+    Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
+        TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
     Exact(FLDObservedEquipmentView::StaticStruct(), {TEXT("Slots")});
@@ -1184,12 +1185,36 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
         bSame = Got.Handle == Sent.Handle && Got.Heading == Sent.Heading && Got.Look == Sent.Look && Got.PositionCm.Equals(Sent.PositionCm, PositionToleranceCm);
     }
     TestTrue(TEXT("Every flight keeps its handle, heading, look and quantized position"), bSame);
+    for (const auto Look : {ELDObservedProjectileLook::Sock, ELDObservedProjectileLook::BookShadow,
+        ELDObservedProjectileLook::FlyerArming, ELDObservedProjectileLook::FlyerArmed, ELDObservedProjectileLook::SpeechCone})
+    {
+        FLDWorldView Effects=ActiveFrame(7,3,42);
+        auto Effect=Flight(FVector(20,30,2));
+        Effect.Look=Look;
+        if (Look!=ELDObservedProjectileLook::Sock)
+        {
+            Effect.RadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 450.f : 180.f;
+            Effect.InnerRadiusCm=Look==ELDObservedProjectileLook::SpeechCone ? 0.f : 80.f;
+            Effect.AngleDegrees=Look==ELDObservedProjectileLook::SpeechCone ? 70.f : 0.f;
+        }
+        Effects.Projectiles.Add(Effect);
+        FLDWorldView RoundTrip;
+        TestTrue(TEXT("Approved skill geometry round-trips without private caster or build fields"),
+            Wire(Effects,RoundTrip) && RoundTrip.Projectiles.Num()==1
+            && RoundTrip.Projectiles[0].Look==Look && RoundTrip.Projectiles[0].RadiusCm==Effect.RadiusCm
+            && RoundTrip.Projectiles[0].InnerRadiusCm==Effect.InnerRadiusCm
+            && RoundTrip.Projectiles[0].AngleDegrees==Effect.AngleDegrees);
+    }
     auto With = [&Full](TFunction<void(FLDWorldView&)> Change) { FLDWorldView View = Full; Change(View); return View; };
     TestFalse(TEXT("Flights beyond the bound refused"), Encodes(With([&Flight](FLDWorldView& V) { V.Projectiles.Add(Flight(FVector(0, 0, 2))); })));
     TestFalse(TEXT("A flight cannot reuse a unit handle"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Handle = V.Units[0].Handle; })));
     TestFalse(TEXT("Flights have unique handles"), Encodes(With([](FLDWorldView& V) { V.Projectiles[1].Handle = V.Projectiles[0].Handle; })));
     TestFalse(TEXT("A flight requires a handle"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Handle.Invalidate(); })));
-    TestFalse(TEXT("Unknown flight look refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look = static_cast<ELDObservedProjectileLook>(2); })));
+    TestFalse(TEXT("Unknown flight look refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look = static_cast<ELDObservedProjectileLook>(255); })));
+    TestFalse(TEXT("A flight cannot smuggle another effect's geometry"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].RadiusCm=180; })));
+    TestFalse(TEXT("A trap must declare its visible radii"),
+        Encodes(With([](FLDWorldView& V) { V.Projectiles[0].Look=ELDObservedProjectileLook::FlyerArmed; })));
     TestFalse(TEXT("Flights beyond the finite range refused"), Encodes(With([](FLDWorldView& V) { V.Projectiles[0].PositionCm = FVector(1000001, 0, 2); })));
     TestFalse(TEXT("A frame without a living source carries no flight"), Encodes(With([](FLDWorldView& V)
     { V.Footprint = FLDObservedFootprint(); V.Units.Reset(); })));

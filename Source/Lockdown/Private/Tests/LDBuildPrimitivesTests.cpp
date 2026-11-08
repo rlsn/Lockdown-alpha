@@ -3,6 +3,8 @@
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDTacticalRules.h"
+#include "Combat/LDDashContactRules.h"
+#include "Combat/LDCombatSourceRules.h"
 #include "Character/LDCharacter.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Framework/LDGameMode.h"
@@ -47,6 +49,14 @@ struct FLDBuildPrimitivesAccess
         Mode.DemoContent = Catalog;
     }
     static void SetNow(ALDGameMode& Mode, int64 NowMs) { Mode.AuthorityNowMs = NowMs; }
+    static bool DashContact(ALDCombatDirector& Driver, FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 Now, FString& Error)
+    { return Driver.OnDashContact(Body, Dash, Now, Error); }
+    static bool Posture(ALDCombatDirector& Driver, FLDBodyCombatState& Body, bool Cower, int64 Now, FString& Error)
+    { return Driver.CancelSkillPosture(Body, Cower, Now, Error); }
+    static bool Delivery(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank,
+        const FLDDemoTargetDefinition& Target, const FLDCombatAction& Action, FLDCombatHit& Hit, int64 Now, bool& Handled, FString& Error)
+    { return Driver.StartSkillDelivery(Body, Rank, Target, Action, Hit, Now, Handled, Error); }
+    static TArray<FLDCombatGroundEffect>& Ground(ALDCombatDirector& Driver) { return Driver.GroundEffects; }
 };
 
 namespace LDBuildPrimitivesTests
@@ -784,6 +794,272 @@ bool FLDBuildFullDebuffObservationTest::RunTest(const FString& Parameters)
     FString Error;
     TestTrue(TEXT("A fully debuffed contender is still a valid observation"), LDObservation::ValidateUnit(Unit, Error));
     AddInfo(Error);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedDashCapsulesTest, "Lockdown.Rules.DemoSkillExpansion.DashCapsuleContact",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedDashCapsulesTest::RunTest(const FString& Parameters)
+{
+    TOptional<double> Contact;
+    FString Error;
+    const FVector A(0,0,88), B(300,0,88), Target(150,0,88);
+    TestTrue(TEXT("Swept capsules contact before their centres coincide"),
+        LDDashContactRules::FirstContact(A,B,Target,Target,80,96,Contact,Error)
+        && Contact.IsSet() && FMath::IsNearlyEqual(Contact.GetValue(),70./300.,.000001));
+    TestTrue(TEXT("Two moving bodies can cross between step endpoints"),
+        LDDashContactRules::FirstContact(A,B,FVector(150,-200,88),FVector(150,200,88),80,96,Contact,Error) && Contact.IsSet());
+    TestTrue(TEXT("Vertical separation is not a planar false hit"),
+        LDDashContactRules::FirstContact(A,B,Target+FVector(0,0,300),Target+FVector(0,0,300),80,96,Contact,Error) && !Contact.IsSet());
+    TestTrue(TEXT("Leaving an initial overlap is not a new collision"),
+        LDDashContactRules::FirstContact(A,FVector(-300,0,88),FVector(70,0,88),FVector(70,0,88),80,96,Contact,Error) && !Contact.IsSet());
+    TestTrue(TEXT("Entering from initial contact is a collision"),
+        LDDashContactRules::FirstContact(A,B,FVector(80,0,88),FVector(80,0,88),80,96,Contact,Error)
+        && Contact.IsSet() && Contact.GetValue()==0.);
+    TestTrue(TEXT("A dash blocked without displacement cannot farm contacts"),
+        LDDashContactRules::FirstContact(A,A,Target,A,80,96,Contact,Error) && !Contact.IsSet());
+    TestFalse(TEXT("Invalid geometry is an explicit error"),
+        LDDashContactRules::FirstContact(A,B,Target,Target,0,96,Contact,Error));
+    TestFalse(TEXT("Invalid geometry has a diagnostic"),Error.IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedMitigationTest, "Lockdown.Rules.DemoSkillExpansion.MitigationAndAttackSlow",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDControlRulesTests::ReadApprovedFixture(*this,Catalog)) { return false; }
+    FLDDamageEvaluationInput Hit;
+    Hit.Definition.Emplace(10000,0,0,ELDDemoDamageType::Physical);
+    Hit.HitClass=ELDCombatHitClass::BasicPrimary;
+    Hit.bCritical=false;
+    Hit.TargetResistanceP2=0;
+    Hit.TargetHPP2=100000;
+    Hit.TargetShieldP2=2000;
+    Hit.bTargetProtected=false;
+    Hit.GuardMultiplierBp=4800;
+    Hit.PrimaryGuardP2=1200;
+    Hit.PrimaryGuardCapBp=2000;
+    const auto Result=LDTactical::EvaluateDamage(Hit,*Catalog);
+    if (!TestTrue(TEXT("Exact mitigation evaluates"),Result.IsSuccess())) { return false; }
+    TestEqual(TEXT("Primary cap follows global mitigation"),Result.Value->DamageP2,int64(3840));
+    TestEqual(TEXT("Shield absorbs only after mitigation"),Result.Value->HPLostP2,int64(1840));
+    Hit.HitClass=ELDCombatHitClass::Ability;
+    const auto Ability=LDTactical::EvaluateDamage(Hit,*Catalog);
+    TestTrue(TEXT("Primary guard does not reduce a separate ability hit"),
+        Ability.IsSuccess() && Ability.Value->DamageP2==4800);
+    Hit.GuardMultiplierBp=-1;
+    TestFalse(TEXT("Negative mitigation is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
+
+    FLDAttributeBuildValues Values(16,{}, {FLDAttributeCardValue(TEXT("attr_fast_hands"),15)}, {});
+    Values.OpeningCard=TEXT("opening_athlete");
+    const auto Build=LDAttributeProjection::Project(Values,*Catalog);
+    if (!TestTrue(TEXT("Sixteen legal choices project"),Build.IsSuccess())) { return false; }
+    FLDTemporaryAttributeTerms Terms;
+    FLDDemoStatBonus Speed;
+    Speed.Stat=ELDDemoBonusStat::AttackSpeedBonusRatio;
+    Speed.Amount=3000;
+    Terms.Bonuses.Add(Speed);
+    Terms.AttackSlowBp=2500;
+    const auto Slowed=LDAttributeProjection::ApplyTemporary(Build.Value.GetValue(),Terms,*Catalog);
+    TestTrue(TEXT("Sock slows the capped attack speed, not the pre-cap sum"),
+        Slowed.IsSuccess() && Slowed.Value->Final.AttackSpeed.Numerator==69 && Slowed.Value->Final.AttackSpeed.Denominator==40);
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedSustainTest, "Lockdown.Rules.DemoSkillExpansion.CastSustainBudget",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedSustainTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody(), A=F.AddBody(), B=F.AddBody();
+    F.LearnPassive(Source,TEXT("passive_snack_cast"),2);
+    F.Body(Source).Resources.HpP2=10000;
+    F.Body(Source).Resources.MaxMpP2=10000;
+    auto Hit=FFixture::Hit(Source,A,10000);
+    Hit.Source.Kind=ELDCombatSourceKind::Learned;
+    Hit.Source.DefinitionId=TEXT("active_open_mic");
+    Hit.Token=1;
+    Hit.bDirectAbilityDamage=true;
+    Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+    FString Error;
+    TestTrue(TEXT("First direct hit heals"),F.Apply(Hit,Error));
+    Hit.HitId=FGuid::NewGuid(); Hit.Target=B;
+    TestTrue(TEXT("Second target shares the cast budget"),F.Apply(Hit,Error));
+    Hit.HitId=FGuid::NewGuid(); Hit.Target=A;
+    TestTrue(TEXT("Third wave shares the same budget"),F.Apply(Hit,Error));
+    TestEqual(TEXT("Total healing is capped once per cast"),F.Body(Source).Resources.HpP2,int64(12250));
+    TestEqual(TEXT("Healing that was not overflow pays no mana"),F.Body(Source).Resources.MpP2,int64(0));
+    F.Body(Source).Resources.HpP2=F.Body(Source).Resources.MaxHpP2;
+    TestTrue(TEXT("Exhausted cast cannot turn later waves into mana"),F.Apply(Hit,Error));
+    TestEqual(TEXT("No second budget"),F.Body(Source).Resources.MpP2,int64(0));
+    Hit.EffectId=FGuid::NewGuid();
+    Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+    TestTrue(TEXT("A new full-health cast can convert overflow"),F.Apply(Hit,Error));
+    Hit.Target=B;
+    TestTrue(TEXT("Another target cannot exceed the cast mana cap"),F.Apply(Hit,Error));
+    TestEqual(TEXT("Overflow mana is capped at five"),F.Body(Source).Resources.MpP2,int64(500));
+    F.Body(Source).Resources.MpP2=0;
+    ++F.Body(Source).Victim.Life;
+    Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+    TestTrue(TEXT("An independently released old-life hit still resolves"),F.Apply(Hit,Error));
+    TestEqual(TEXT("It cannot heal or refill the new life"),F.Body(Source).Resources.MpP2,int64(0));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedProcTest, "Lockdown.Rules.DemoSkillExpansion.UniqueHitAndArgumentChain",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedProcTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody(), Target=F.AddBody();
+    F.LearnPassive(Source,TEXT("passive_stoke"),2);
+    F.LearnPassive(Source,TEXT("passive_argument_chain"),2);
+    auto A=FFixture::Hit(Source,Target,1000);
+    A.Source.Kind=ELDCombatSourceKind::Learned;
+    A.Source.DefinitionId=TEXT("active_open_mic");
+    A.Token=1;
+    A.bDirectAbilityDamage=true;
+    A.CastLedger=MakeShared<FLDCombatCastLedger>();
+    A.CastLedger->bUniqueSkillHits=true;
+    FString Error;
+    TestTrue(TEXT("First wave lands"),F.Apply(A,Error));
+    const int32 FirstLayers=F.Body(Target).Burn.Layers.Num();
+    A.HitId=FGuid::NewGuid();
+    TestTrue(TEXT("Second wave still damages"),F.Apply(A,Error));
+    TestEqual(TEXT("It does not add another batch of burn"),F.Body(Target).Burn.Layers.Num(),FirstLayers);
+    auto B=FFixture::Hit(Source,Target,1000);
+    B.Source.Kind=ELDCombatSourceKind::Learned;
+    B.Source.DefinitionId=TEXT("active_sock_shot");
+    B.Token=2;
+    B.bDirectAbilityDamage=true;
+    B.CastLedger=MakeShared<FLDCombatCastLedger>();
+    TestTrue(TEXT("Different active triggers the chain"),F.Apply(B,Error));
+    TestEqual(TEXT("Only one bonus is enqueued"),FAccess::PendingHits(*F.Driver).Num(),1);
+    TestTrue(TEXT("Chain damage carries its post-damage breach and no recursive trigger"),
+        FAccess::PendingHits(*F.Driver)[0].bAddedDamage && FAccess::PendingHits(*F.Driver)[0].BreachStacks==1);
+    TestTrue(TEXT("Bonus flushes through ordinary combat"),F.Flush(Error));
+    TestTrue(TEXT("A later wave of the first cast cannot re-enter the chain"),F.Apply(A,Error));
+    TestTrue(TEXT("No repeated chain bonus"),FAccess::PendingHits(*F.Driver).IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedRefundTest, "Lockdown.Rules.DemoSkillExpansion.DashRefundIdentity",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedRefundTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody();
+    F.LearnPassive(Source,TEXT("passive_dash_contact_refund"),2);
+    auto& Body=F.Body(Source);
+    Body.Resources.MaxMpP2=10000;
+    FLDCombatDashContact Dash;
+    Dash.Body=Source;
+    Dash.EffectId=FGuid::NewGuid();
+    Dash.Source.Kind=ELDCombatSourceKind::Learned;
+    Dash.Source.DefinitionId=TEXT("active_bail_out");
+    Dash.PaidManaP2=4000;
+    Dash.bCanRefund=true;
+    auto& Tracks=FAccess::Records(*F.Driver).FindChecked(Source.Victim.EntityId).Tracks;
+    FLDCombatTrack Track;
+    Track.Kind=Dash.Source.Kind; Track.DefinitionId=Dash.Source.DefinitionId;
+    Track.IssuedCooldownId=FGuid::NewGuid(); Track.LastEffectId=Dash.EffectId; Track.ReadyAtMs=10000;
+    Tracks.Add(Track);
+    FString Error;
+    TestTrue(TEXT("Paid dash contact refunds its own track"),FAccess::DashContact(*F.Driver,Body,Dash,1000,Error));
+    TestEqual(TEXT("One remaining cooldown cut"),Tracks[0].ReadyAtMs,int64(8500));
+    TestEqual(TEXT("Refund is twenty percent of actual payment"),Body.Resources.MpP2,int64(800));
+    TestTrue(TEXT("Another enemy on the same dash does not refund again"),FAccess::DashContact(*F.Driver,Body,Dash,1000,Error));
+    TestEqual(TEXT("Multi-target cannot duplicate mana"),Body.Resources.MpP2,int64(800));
+
+    FLDCombatDashContact D=Dash;
+    D.EffectId=FGuid::NewGuid(); D.bRefunded=false; D.PaidManaP2=0;
+    D.Source.Kind=ELDCombatSourceKind::Innate; D.Source.DefinitionId=LDCombatSourceRules::InnateDashId();
+    Track.Kind=D.Source.Kind; Track.DefinitionId=D.Source.DefinitionId; Track.LastEffectId=D.EffectId; Track.ReadyAtMs=19000;
+    Tracks.Add(Track);
+    TestTrue(TEXT("A second source shares the four-second gate"),FAccess::DashContact(*F.Driver,Body,D,2000,Error));
+    TestEqual(TEXT("Shared gate leaves D untouched"),Tracks[1].ReadyAtMs,int64(19000));
+    Body.ContactRefundReadyAtMs=0;
+    TestTrue(TEXT("An independently ready D refund succeeds"),FAccess::DashContact(*F.Driver,Body,D,2000,Error));
+    TestEqual(TEXT("A free dash grants no mana"),Body.Resources.MpP2,int64(800));
+    TestEqual(TEXT("D still receives its cooldown refund"),Tracks[1].ReadyAtMs,int64(17500));
+    auto Stale=Dash; Stale.bRefunded=false; ++Stale.Body.Victim.Life;
+    TestFalse(TEXT("A foreign life cannot use the old receipt"),FAccess::DashContact(*F.Driver,Body,Stale,7000,Error));
+    TestEqual(TEXT("Rejected life leaves mana untouched"),Body.Resources.MpP2,int64(800));
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedDeliveryTest, "Lockdown.Rules.DemoSkillExpansion.PostureAndPublicEffects",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedDeliveryTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const auto Source=F.AddBody();
+    auto& Body=F.Body(Source);
+    FString Error;
+    for (const TCHAR* Id : {TEXT("active_open_mic"),TEXT("active_calculus_drop"),TEXT("active_flyer_trap")})
+    {
+        const FLDDemoAbilityDefinition* Ability=nullptr;
+        if (!TestTrue(TEXT("Approved delivery exists"),F.Catalog->FindAbility(Id,Ability,Error))) { return false; }
+        auto Hit=FFixture::Hit(Source,Source,10000);
+        Hit.Source.Kind=ELDCombatSourceKind::Learned; Hit.Source.DefinitionId=Id;
+        Hit.CastLedger=MakeShared<FLDCombatCastLedger>();
+        Hit.bDirectAbilityDamage=true;
+        FLDCombatAction Action;
+        Action.Direction=FVector(1,0,0); Action.TargetPoint=FVector(2000,0,0); Action.Key.DirectSequence=1;
+        bool Handled=false;
+        TestTrue(TEXT("Delivery is registered instead of immediate area damage"),
+            FAccess::Delivery(*F.Driver,Body,Ability->Ranks[1],Ability->Target,Action,Hit,1000,Handled,Error) && Handled);
+    }
+    TestTrue(TEXT("Channel is an ongoing action cue"),ALDCombatDirector::CueFactsOf(Body).bActing);
+    TArray<FLDObservedProjectileFact> Facts;
+    TestTrue(TEXT("Telegraphs and channel export public geometry"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    TestEqual(TEXT("Three distinct visible effects"),Facts.Num(),3);
+    TestTrue(TEXT("Book telegraph exposes outer and centre radii"),
+        Facts.ContainsByPredicate([](const auto& Fact) { return Fact.Look==ELDObservedProjectileLook::BookShadow
+            && Fact.RadiusCm==180 && Fact.InnerRadiusCm==80 && Fact.PositionCm.X==650; }));
+    Body.CowerUntilMs=3000; Body.CowerReductionBp=4000;
+    TestTrue(TEXT("Non-aggressive movement can end the channel without ending cower"),
+        FAccess::Posture(*F.Driver,Body,false,1000,Error) && !Body.ChannelEffectId.IsValid() && Body.CowerUntilMs==3000);
+    TestTrue(TEXT("Accepted aggression ends cower"),FAccess::Posture(*F.Driver,Body,true,1000,Error) && Body.CowerUntilMs==0);
+    Body.bPendingDeath=true;
+    Facts.Reset();
+    TestTrue(TEXT("Released ground effects survive normal source death"),F.Driver->ReadObservedProjectiles(Facts,Error));
+    TestEqual(TEXT("Only the two independent ground effects remain visible"),Facts.Num(),2);
+    FAccess::CancelEntityEffects(*F.Driver,Source.Victim.EntityId);
+    TestTrue(TEXT("Departure cancels those independent effects"),FAccess::Ground(*F.Driver).IsEmpty());
+    return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedCatalogTest, "Lockdown.Rules.DemoSkillExpansion.CatalogGrowthBounds",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDControlRulesTests::ReadApprovedFixture(*this,Catalog)) { return false; }
+    for (const uint8 Level : {uint8(1),uint8(5),uint8(10),uint8(13),uint8(16)})
+    {
+        for (const auto& Ability : Catalog->Get().Abilities)
+        {
+            for (const uint8 Rank : {uint8(1),uint8(2)})
+            { TestNotNull(TEXT("Every approved skill has a grown rank"),Catalog->FindRank(Ability,Rank,Level)); }
+        }
+        const FLDDemoAbilityDefinition* Snack=nullptr;
+        FString Error;
+        if (!Catalog->FindAbility(TEXT("passive_snack_cast"),Snack,Error)) { AddError(Error); return false; }
+        const auto* Rank=Catalog->FindRank(*Snack,2,Level);
+        TestTrue(TEXT("Mana cap never receives G while healing cap does"),
+            Rank && Rank->Effects[0].LimitP2==500 && Rank->Effects[0].BaseP2>=2250);
+    }
     return true;
 }
 

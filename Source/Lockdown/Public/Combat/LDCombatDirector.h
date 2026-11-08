@@ -26,6 +26,27 @@ struct FLDDemoRankDefinition;
 namespace LDTactical { struct FOutOfCombatRecovery; }
 struct FLDDemoTargetDefinition;
 struct FLDInnateDashTerms;
+struct FLDNativeMotionBatch;
+struct FLDCombatDashContact;
+
+struct FLDCombatCastLedger
+{
+    TArray<TPair<FLDCombatBodyRef, bool>> CritRolls;
+    TArray<FLDCombatBodyRef> KeywordTargets;
+    TArray<FLDCombatBodyRef> ArgumentTargets;
+    int64 HealSpentP2=0;
+    int64 ManaReturnedP2=0;
+    bool bUniqueSkillHits=false;
+    bool bManaGrantPaid=false;
+};
+
+struct FLDCombatArgumentMark
+{
+    FLDCombatBodyRef Target;
+    FName Ability;
+    FGuid EffectId;
+    int64 AtMs=0;
+};
 
 enum class ELDCombatActionKind : uint8 { Basic, Ability };
 
@@ -147,6 +168,17 @@ struct FLDBodyCombatState
     FLDCombatBurn Burn;
     int64 DamagedShieldReadyAtMs=0;
     TOptional<FLDCombatShieldBurst> ShieldBurst;
+    TArray<FLDCombatSlow> AttackSlows;
+    FGuid ChannelEffectId;
+    uint64 ChannelDirectSequence=0;
+    int64 ChannelStartedAtMs=0;
+    FGuid CowerEffectId;
+    int64 CowerUntilMs=0, CowerReductionBp=0, CowerMoveBp=0;
+    int64 ContactGuardUntilMs=0, ContactGuardBp=0;
+    int64 SlowResistanceUntilMs=0, SlowResistanceBp=0;
+    int64 ContactRefundReadyAtMs=0, ArgumentReadyAtMs=0;
+    TArray<FLDCombatArgumentMark> ArgumentMarks;
+    TSharedPtr<FLDCombatDashContact> DashContact;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -157,6 +189,7 @@ struct FLDCombatTrack
     FName DefinitionId;
     int64 ReadyAtMs=0;
     int64 LastDurationMs=0;
+    FGuid LastEffectId;
 };
 
 struct FLDCombatDirectEntry
@@ -255,6 +288,52 @@ struct FLDCombatHit
     int64 LifestealLowHPBelowBp=0;
     int64 LowHPBasicLifestealBp=0;   // the source's primary-basic lifesteal while it is below SourceLowHPBelowBp
     int64 SourceLowHPBelowBp=0;      // the source's low-HP passive threshold (passive_pressed)
+    int64 AttackSlowBp=0, AttackSlowMs=0;
+    // Delivery scaling is separate from the additive damage bonus pool (impact outer ring, for example).
+    int64 DeliveryScaleBp=10000;
+    bool bDirectAbilityDamage=false;
+    bool bDashContactHit=false;
+    bool bChannelHit=false;
+    bool bSuppressSkillTriggers=false;
+    TSharedPtr<FLDCombatCastLedger> CastLedger;
+};
+
+struct FLDCombatDashContact
+{
+    FGuid EffectId;
+    FLDCombatBodyRef Body;
+    FLDCombatSourceRef Source;
+    int64 StartMs=0, EndMs=0, PaidManaP2=0;
+    TArray<FLDCombatBodyRef> Struck;
+    TOptional<FLDCombatHit> NativeHit;
+    int32 NativeHitsRemaining=0;
+    bool bRefunded=false, bGuarded=false;
+    bool bCanDamage=false, bCanRefund=false, bCanGuard=false;
+};
+
+struct FLDCombatContactMotion
+{
+    TSharedPtr<const FLDNativeMotionBatch> Batch;
+    TSharedPtr<FLDCombatDashContact> Dash;
+};
+
+struct FLDCombatChannel
+{
+    FLDCombatHit Payload;
+    FVector Direction=FVector::ZeroVector;
+    double RangeCm=0, AngleDegrees=0;
+    int64 NextPulseMs=0, IntervalMs=0;
+    int32 Remaining=0;
+    int64 FinalSlowBp=0, FinalSlowMs=0;
+};
+
+struct FLDCombatGroundEffect
+{
+    FLDCombatHit Payload;
+    FVector CentreCm=FVector::ZeroVector;
+    double RadiusCm=0, InnerRadiusCm=0;
+    int64 ReadyAtMs=0, ExpiresAtMs=0, OuterRatioBp=10000;
+    bool bTrap=false;
 };
 
 // Released straight, non-homing projectile: first legal hostile body or blocking terrain ends it.
@@ -310,6 +389,7 @@ struct FLDCombatZone
     int32 BurnStacks=0;
     int32 BurnLevel=1;
     int64 BurnIntervalMs=0, NextBurnAtMs=0, BurnAPP2=0;
+    TSharedPtr<FLDCombatCastLedger> CastLedger;
 };
 
 // #147 echo: a self-area release blasts again at AtMs around the same living body's foot with its scaled payload.
@@ -350,6 +430,9 @@ public:
     void ReadLivingContenderFeet(TArray<LDAirdrop::FCandidate>& Out) const;
     // The sole authority driver: advances native steps and runs every commit phase in order.
     bool AdvanceAuthority(const FLDMatchContext& Match,int64 ThroughMs,FString& Error);
+    // Only the core's validated native-motion commit calls this; resolution remains in Effects.
+    void CaptureSkillMotion(TSharedPtr<const FLDNativeMotionBatch> Batch);
+    bool IsAggressiveEntry(const FLDCombatBodyRef& Body, ELDCombatEntry Entry) const;
 
     // ---- Commands shared by human RPCs, the opponent AI and registered camp members.
     bool ResolveControllerCaller(const AController& Controller, FLDCombatCaller& Out, FString& Error) const;
@@ -669,9 +752,19 @@ private:
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).
     bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoRankDefinition& Rank,
-        const FVector& OriginFoot, const FVector& TargetPoint, FString& Error);
+        const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
+        TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error);
     // Hit extras of a #112 rank (knockback).
     void FillMechanicsTemplate(const FLDDemoRankDefinition& Rank, const FVector& OriginFoot, FLDCombatHit& Template) const;
+    bool AdvanceSkillContent(int64 NowMs, FString& Error);
+    bool ResolveDashContacts(int64 NowMs, FString& Error);
+    bool OnDashContact(FLDBodyCombatState& Body, FLDCombatDashContact& Dash, int64 NowMs, FString& Error);
+    bool ApplySkillPassives(FLDBodyCombatState& Source, const FLDCombatHit& Hit,
+        const FLDDamageEvaluation& Damage, int64 NowMs, FString& Error);
+    bool CancelSkillPosture(FLDBodyCombatState& Body, bool bCancelCower, int64 NowMs, FString& Error, bool bCancelChannel=true);
+    bool StartSkillDelivery(FLDBodyCombatState& Body, const FLDDemoRankDefinition& Rank,
+        const FLDDemoTargetDefinition& Target, const FLDCombatAction& Action, FLDCombatHit& Payload,
+        int64 NowMs, bool& bHandled, FString& Error);
 
     // ---- Sources (LDCombatSources.cpp).
     bool ProjectBuild(const FLDBuildProjectionInput& Build, FLDAttributeProjection& Out, FString& Error) const;
@@ -705,6 +798,9 @@ private:
     TArray<FLDCombatDashSweep> DashSweeps;
     TArray<FLDCombatEcho> Echoes;
     TArray<FLDCombatWallCheck> WallChecks;
+    TArray<FLDCombatContactMotion> ContactMotion;
+    TArray<FLDCombatChannel> Channels;
+    TArray<FLDCombatGroundEffect> GroundEffects;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;

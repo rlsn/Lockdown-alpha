@@ -198,7 +198,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
                 return;
             }
             const FLDDemoContentDefinitions& Definitions = Catalog->Get();
-            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W], buy with ld.Dev.Buy <id>"),
+            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W|E], buy with ld.Dev.Buy <id>"),
                 Definitions.Progression.MaxSkillRank);
             for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
             {

@@ -55,6 +55,8 @@ bool IsCombatTriggerOp(ELDDemoEffectOp Op)
     // #147 v7: passive breach and burn stacks; an equipment control amplification joins the damage bonus pool (a learned
     // one keeps its own conditional term below).
     case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ControlDamageAmp:
+    case ELDDemoEffectOp::ArgumentChain: case ELDDemoEffectOp::SpellSustain: case ELDDemoEffectOp::PrimaryGuard:
+    case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::DashContactRefund: case ELDDemoEffectOp::DashContactGuard:
         return true;
     default:
         return false;
@@ -844,7 +846,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         Result.Value.Emplace(MoveTemp(Out));
         return Result;
     }
-    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000)
+    if (Terms.MoveSlowBp < 0 || Terms.MoveSlowBp >= 10000 || Terms.AttackSlowBp < 0 || Terms.AttackSlowBp >= 10000)
     {
         return Fail(EError::InputDomain, TEXT("MoveSlowBp"), TEXT("A slow must keep some move speed"));
     }
@@ -885,6 +887,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
     }
     const FLDDemoContentParameters& P = Catalog.Get().Parameters;
     const FExact One = N.Value(1);
+    if (Terms.AttackSlowBp > 0) { Touched[int32(EAttribute::AttackSpeed)] = true; }
     for (int32 Index = 0; Index < AttributeCount; ++Index)
     {
         if (!Touched[Index]) { continue; }
@@ -924,6 +927,14 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
             bStored = FloorScaled(Value, 100, 0, P.CooldownHasteMaxP2, Final.CooldownHasteP2, bClamped, N); break;
         case EAttribute::CritChance: bStored = FloorScaled(Value, 10000, 0, 10000, Final.CritChanceBp, bClamped, N); break;
         case EAttribute::AttackSpeed:
+            if (Terms.AttackSlowBp > 0)
+            {
+                Value = N.Max(N.Value(P.AttackSpeed.Min), Value);
+                if (N.LT(N.Value(P.AttackSpeed.Max), Value)) { Value = N.Value(P.AttackSpeed.Max); bClamped = true; }
+                const FExact Before = Value;
+                Value = N.Mul(Value, N.Value(10000 - Terms.AttackSlowBp, 10000));
+                Temporary[Index].Flat = N.Add(Temporary[Index].Flat, N.Sub(Value, Before));
+            }
             bStored = ClampRational(Value, P.AttackSpeed.Min, P.AttackSpeed.Max, Final.AttackSpeed, bClamped, N); break;
         case EAttribute::MoveSpeed:
             bStored = ClampRational(Value, P.MoveSpeedCmPerSec.Min, P.MoveSpeedCmPerSec.Max, Final.MoveSpeedCmPerSec, bClamped, N); break;
@@ -1031,7 +1042,7 @@ FLDResourceMaxChangeResult ResourceMaxChange(const FLDResourceMaxChangeInput& In
 
 bool FLDTemporaryAttributeTerms::operator==(const FLDTemporaryAttributeTerms& Other) const
 {
-    if (MoveSlowBp != Other.MoveSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
+    if (MoveSlowBp != Other.MoveSlowBp || AttackSlowBp != Other.AttackSlowBp || Bonuses.Num() != Other.Bonuses.Num()) { return false; }
     for (int32 Index = 0; Index < Bonuses.Num(); ++Index)
     {
         const FLDDemoStatBonus& A = Bonuses[Index];

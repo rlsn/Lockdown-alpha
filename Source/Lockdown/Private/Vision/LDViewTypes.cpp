@@ -33,6 +33,9 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Knockback:
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
+    case ELDDemoStatusId::AttackSlowed:
+    case ELDDemoStatusId::Cowering:
+    case ELDDemoStatusId::ContactGuard:
         return true;
     default:
         return false;
@@ -187,7 +190,7 @@ bool SerializeObservedProjectile(FArchive& Ar, UPackageMap* Map, FLDObservedProj
     Ar << Projectile.Handle;
     bool bPosition = true;
     Projectile.PositionCm.NetSerialize(Ar, Map, bPosition);
-    Ar << Projectile.Heading << Look;
+    Ar << Projectile.Heading << Look << Projectile.RadiusCm << Projectile.InnerRadiusCm << Projectile.AngleDegrees;
     if (Ar.IsLoading()) { Projectile.Look = static_cast<ELDObservedProjectileLook>(Look); }
     return bPosition && !Ar.IsError();
 }
@@ -309,7 +312,30 @@ bool LDObservation::ValidateProjectile(const FLDObservedProjectileView& Projecti
 {
     if (!Projectile.Handle.IsValid()) { return FailObservation(Error, TEXT("An observed projectile requires an opaque handle.")); }
     if (!IsFiniteObservedPoint(Projectile.PositionCm)) { return FailObservation(Error, TEXT("An observed projectile position is outside the finite world range.")); }
-    if (Projectile.Look != ELDObservedProjectileLook::Chalk) { return FailObservation(Error, TEXT("Unknown observed projectile look.")); }
+    if (!FMath::IsFinite(Projectile.RadiusCm) || !FMath::IsFinite(Projectile.InnerRadiusCm)
+        || !FMath::IsFinite(Projectile.AngleDegrees) || Projectile.RadiusCm < 0 || Projectile.RadiusCm > MaxObservedCoordinateCm
+        || Projectile.InnerRadiusCm < 0 || Projectile.InnerRadiusCm > Projectile.RadiusCm
+        || Projectile.AngleDegrees < 0 || Projectile.AngleDegrees > 180)
+    { return FailObservation(Error, TEXT("Observed skill geometry is outside its finite public domain.")); }
+    switch (Projectile.Look)
+    {
+    case ELDObservedProjectileLook::Chalk:
+    case ELDObservedProjectileLook::Sock:
+        if (Projectile.RadiusCm != 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees != 0)
+        { return FailObservation(Error, TEXT("A flight cannot carry a ground-effect shape.")); }
+        break;
+    case ELDObservedProjectileLook::BookShadow:
+    case ELDObservedProjectileLook::FlyerArming:
+    case ELDObservedProjectileLook::FlyerArmed:
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm <= 0 || Projectile.AngleDegrees != 0)
+        { return FailObservation(Error, TEXT("A ground effect needs its two public radii.")); }
+        break;
+    case ELDObservedProjectileLook::SpeechCone:
+        if (Projectile.RadiusCm <= 0 || Projectile.InnerRadiusCm != 0 || Projectile.AngleDegrees <= 0)
+        { return FailObservation(Error, TEXT("A cone needs public reach and angle.")); }
+        break;
+    default: return FailObservation(Error, TEXT("Unknown observed skill effect look."));
+    }
     Error.Reset();
     return true;
 }

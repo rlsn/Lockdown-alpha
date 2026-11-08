@@ -940,7 +940,7 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
     // Statuses 1..6, 9, 10 and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed) and the
     // two #147 statuses (silence, burn).
-    const int32 Statuses = 6 + 5 + 1 + 2;
+    const int32 Statuses = 6 + 5 + 1 + 2 + 3;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
         1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num() + Definitions.Equipment.Num()
         + Definitions.Monsters.Num() + Statuses);

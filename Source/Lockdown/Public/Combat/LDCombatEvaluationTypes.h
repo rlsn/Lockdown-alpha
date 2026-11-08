@@ -50,6 +50,10 @@ struct FLDDamageEvaluationInput
     int64 DamageBonusBp = 0;
     // Remaining multiplier of the raw amount outside the pool (the target's critical damage reduction); 10000 = none.
     int64 AmplifyBp = 10000;
+    int64 DeliveryScaleBp = 10000;
+    int64 GuardMultiplierBp = 10000;
+    int64 PrimaryGuardP2 = 0;
+    int64 PrimaryGuardCapBp = 0;
 };
 
 struct FLDDamageEvaluation

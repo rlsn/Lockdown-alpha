@@ -526,6 +526,9 @@ bool FLDObserverLedger::SampleProjectiles(const TArray<const FLDObservedProjecti
         View.PositionCm = Fact->PositionCm;
         View.Heading = QuantizeObservedYaw(FMath::RadiansToDegrees(FMath::Atan2(Fact->Heading.Y, Fact->Heading.X)));
         View.Look = Fact->Look;
+        View.RadiusCm = Fact->RadiusCm;
+        View.InnerRadiusCm = Fact->InnerRadiusCm;
+        View.AngleDegrees = Fact->AngleDegrees;
         if (!LDObservation::ValidateProjectile(View, Error)) { return false; }
     }
     for (int32 Index = 0; Index < ProjectileBindings.Num();)

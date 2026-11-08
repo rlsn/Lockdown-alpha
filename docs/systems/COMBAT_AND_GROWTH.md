@@ -40,7 +40,8 @@ UI 只能准备或发送动作，不直接扣蓝、改 HP、增加效果或确�
 写入该来源的持久冷却轨道（每个来源独立，失源、换槽、死亡都不刷新）。
 冷却、蓝量与定身对位移的禁止由纯函数 `LDCombatSourceRules::ActiveGate` 判定，准入、释放和 owner view 共用同一顺序。
 D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEntry` 给出 `LDCombatSourceRules::InnateDashId`，
-`ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`；它不是进攻意图，不解除保护。
+`ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`。普通D不是进攻意图，不解除保护；
+持有 `passive_dash_contact_damage`（借过一下）时，D会沿真实移动轨迹产生撞伤，准入前按进攻意图解除保护。
 每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
 释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）与已学被动的触发项
 （`LearnedTriggers`，按其 rank 与等级取定义；目前是特种兵 `passive_special_forces` 高级的“冲刺（D）冷却 −30%”）计算距离与冷却：

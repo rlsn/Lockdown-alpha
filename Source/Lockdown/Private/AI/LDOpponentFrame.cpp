@@ -288,9 +288,12 @@ bool ReadOwnCombat(const FLDCombatOwnerView& Combat, int64 NowMs, FLDOpponentSel
     Out.MaxMpP2 = Combat.MaxMPP2;
     Out.BasicReadyAtMs = Combat.NextAttackAtMs;
     Out.MoveBlockedUntilMs = 0;
+    Out.bChanneling = Combat.Cues.bActing && !Combat.Cues.bActingBasic && Combat.ActionPhase == ELDCombatPhase::Finished;
+    Out.bCowering = false;
     int64 SilencedUntilMs = 0;
     for (const auto& Status : Combat.Statuses)
     {
+        if (Status.StatusId == uint8(ELDDemoStatusId::Cowering) && Status.ExpiresAtMs > NowMs) { Out.bCowering = true; }
         // Root and Stun both hold the body in place; the policy plans no movement until they end.
         if (Status.StatusId == uint8(ELDDemoStatusId::Root) || Status.StatusId == uint8(ELDDemoStatusId::Stun))
         { Out.MoveBlockedUntilMs = FMath::Max(Out.MoveBlockedUntilMs, Status.ExpiresAtMs); }

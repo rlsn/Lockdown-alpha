@@ -54,6 +54,9 @@ const TCHAR* HudStatusContentId(uint8 Id)
     case ELDDemoStatusId::Knockback: return TEXT("knockback");
     case ELDDemoStatusId::Silence: return TEXT("silence");
     case ELDDemoStatusId::Burn: return TEXT("burn");
+    case ELDDemoStatusId::AttackSlowed: return TEXT("attack_slowed");
+    case ELDDemoStatusId::Cowering: return TEXT("cowering");
+    case ELDDemoStatusId::ContactGuard: return TEXT("contact_guard");
     default: return nullptr;
     }
 }
@@ -906,6 +909,7 @@ FString LDHUD::TargetLine(const FLDDemoTargetDefinition& Target)
     case ELDDemoTargetMode::Self: return TEXT("对自身释放");
     case ELDDemoTargetMode::Unit: return TEXT("指向单位 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
     case ELDDemoTargetMode::DirectionProjectile: return TEXT("方向弹道 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm");
+    case ELDDemoTargetMode::DirectionCone: return TEXT("方向扇形 · 射程 ")+HudRational(Target.RangeCm)+TEXT("cm · ")+HudRational(Target.AngleDegrees)+TEXT("°");
     case ELDDemoTargetMode::DirectionDash: return TEXT("方向冲刺");
     case ELDDemoTargetMode::GroundPoint: return TEXT("指定地点 · 最远 ")+HudRational(Target.RangeCm)+TEXT("cm");
     default: return TEXT("未知目标方式");
@@ -949,6 +953,7 @@ bool CardValue(const LDDemoCardText::FToken& Token,const FLDDemoRankDefinition& 
     case EField::BasicCount: Out=FString::FromInt(Effect->BasicCount);return true;
     case EField::CooldownCut: Out=HudDecimal(double(10000-Effect->CooldownRatioBp)/100.);return true;
     case EField::Refund: Out=HudDecimal(double(Effect->AmountMs)/1000.);return true;
+    case EField::Limit: Out=HudDecimal(double(Effect->LimitP2)/100.);return true;
     case EField::Duration: Out=HudDecimal(double(Effect->DurationMs)/1000.);return true;
     case EField::Ratio: Out=HudDecimal(double(Effect->RatioBp)/100.);return true;
     case EField::Count: Out=FString::FromInt(Effect->Count);return true;
@@ -1359,6 +1364,8 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::Empowered:
     case ELDDemoStatusId::RespawnProtection:
     case ELDDemoStatusId::CampReturning:
+    case ELDDemoStatusId::Cowering:
+    case ELDDemoStatusId::ContactGuard:
         return true;
     case ELDDemoStatusId::Root:
     case ELDDemoStatusId::Slow:
@@ -1369,6 +1376,7 @@ bool LDHUD::StatusIsPositive(uint8 StatusId)
     case ELDDemoStatusId::Knockback:
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
+    case ELDDemoStatusId::AttackSlowed:
         return false;
     }
     return false;

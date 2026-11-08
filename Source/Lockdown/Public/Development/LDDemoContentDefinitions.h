@@ -272,7 +272,7 @@ struct FLDDemoPolicies
 };
 
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone };
 
 // When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
 // (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
@@ -336,6 +336,7 @@ struct FLDDemoTargetDefinition
     UPROPERTY() FLDDemoRational RangeCm;
     UPROPERTY() FLDDemoRational ProjectileRadiusCm;
     UPROPERTY() FLDDemoRational ProjectileSpeedCmPerSec;
+    UPROPERTY() FLDDemoRational AngleDegrees;
     // Share of the caster's extra basic-attack range (current minus base) added to this cast range, up to
     // AttackRangeBonusCapCm; 0 = none.
     UPROPERTY() int64 AttackRangeRatioBp = 0;
@@ -393,6 +394,9 @@ struct FLDDemoEffectDefinition
     // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow or linger).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
+    // #166: spell_sustain/dash_contact_refund cap actual mana grants; this cap never grows with level.
+    UPROPERTY() int64 LimitP2 = 0;
+    UPROPERTY() bool bCleanseSlow = false;
     // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
     // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;

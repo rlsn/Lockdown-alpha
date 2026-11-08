@@ -1552,15 +1552,23 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
     }
     if(Self&&(bArmedEntry||PC->IsAttackMoveArmed()))
     {
-        float RangeCm=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
+        float RangeCm=0, ConeDegrees=0;bool bDirection=false,bUnitTarget=false,bPoint=false;
         if(bArmedEntry)
         {
             const FLDCombatEntryView* Source=PC->CombatView.Entries.FindByPredicate([Armed](const FLDCombatEntryView& Candidate){return Candidate.Entry==Armed;});
             RangeCm=Source?float(Source->RangeCm):0.f;
-            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash));
+            bDirection=Source&&(Source->TargetMode==uint8(ELDDemoTargetMode::DirectionProjectile)
+                ||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionDash)||Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone));
             bUnitTarget=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::Unit);
             // A ground point previews where the zone would sit: the pointer, clamped to the reach.
             bPoint=Source&&Source->TargetMode==uint8(ELDDemoTargetMode::GroundPoint);bDirection|=bPoint;
+            if (Source && Source->TargetMode==uint8(ELDDemoTargetMode::DirectionCone) && DisplayContent)
+            {
+                const auto* Ability=DisplayContent->Get().Abilities.FindByPredicate([Source](const auto& Row)
+                { return Row.Id==Source->DefinitionId.ToString(); });
+                if (Ability && Ability->Target.AngleDegrees.Denominator>0)
+                { ConeDegrees=float(double(Ability->Target.AngleDegrees.Numerator)/Ability->Target.AngleDegrees.Denominator); }
+            }
         }
         else{RangeCm=PC->CombatView.AttackRangeCm;bUnitTarget=true;}
         const FVector AuthorityFeet=Self->GetActorLocation()-FVector(0,0,Self->GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
@@ -1591,6 +1599,25 @@ int32 ULDHUD::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlateRec
                 const FVector End=Feet+(RangeCm>0?Planar.GetSafeNormal()*(bPoint?FMath::Min(double(RangeCm),Planar.Size()):double(RangeCm)):Planar);
                 FVector2D From,To;
                 if(Project(Feet,From)&&Project(End,To)){Lines({From,To},Preview,3.f);}
+                if (ConeDegrees>0 && RangeCm>0)
+                {
+                    TArray<FVector2D> Fan;
+                    FVector2D Start;
+                    if (Project(Feet,Start))
+                    {
+                        Fan.Add(Start);
+                        const double Heading=FMath::Atan2(Planar.Y,Planar.X);
+                        const double Half=FMath::DegreesToRadians(double(ConeDegrees)*.5);
+                        for (int32 Step=0;Step<=24;++Step)
+                        {
+                            const double Angle=Heading-Half+2.*Half*Step/24.;
+                            FVector2D Edge;
+                            if (Project(Feet+FVector(FMath::Cos(Angle)*RangeCm,FMath::Sin(Angle)*RangeCm,0),Edge)) { Fan.Add(Edge); }
+                        }
+                        Fan.Add(Start);
+                        Lines(Fan,Preview,2.f);
+                    }
+                }
             }
         }
     }

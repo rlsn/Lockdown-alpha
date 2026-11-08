@@ -2011,6 +2011,43 @@ bool RunV7Activations(FAutomationTestBase& Test)
     FLDOpponentPolicyState BailFar = Bail;
     bGood &= Test.TestFalse(TEXT("but not beyond it"), IsCast(LDOpponentPolicy::Decide(Frame, C, BailFar), ELDDemoTargetMode::DirectionDash));
 
+    for (const auto& Case : {
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
+    {
+        Frame=With(Case.Key,1);
+        Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack-10,80)};
+        FLDOpponentPolicyState Expanded;
+        const auto Cast=LDOpponentPolicy::Decide(Frame,C,Expanded);
+        bGood &= Test.TestTrue(FString::Printf(TEXT("%s uses its approved target form"),Case.Key),
+            IsCast(Cast,Case.Value)
+            && (Case.Value!=ELDDemoTargetMode::DirectionCone && Case.Value!=ELDDemoTargetMode::DirectionProjectile
+                || Cast.Body.Direction.Equals(Frame.Units[0].FootCm.GetSafeNormal2D(),1.e-4))
+            && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
+    }
+
+    Frame=With(TEXT("active_apology_slide"),1);
+    Frame.Units={Unit(2,ELDOpponentUnitKind::Contender,Attack+20,0)};
+    FLDOpponentPolicyState Slide;
+    const auto Sliding=LDOpponentPolicy::Decide(Frame,C,Slide);
+    bGood &= Test.TestTrue(TEXT("The mixed dash hits a rival just beyond basic range through its contact path"),
+        IsCast(Sliding,ELDDemoTargetMode::DirectionDash) && Sliding.Body.Direction.Equals(FVector(1,0,0),1.e-4));
+
+    Frame=With(TEXT("active_cower"),1);
+    Frame.Public.Phase=ELDMatchPhase::CaptureOpen;
+    Frame.Public.Circle=ELDOpponentCircle::Solo;
+    Frame.Public.Occupier=FGuid(0xE0,0,0,5);
+    Frame.Public.DueAtMs=Frame.Public.NowMs+5000;
+    Frame.CapturePathCm=3000.;
+    Frame.Units={Unit(5,ELDOpponentUnitKind::Contender,0,2900)};
+    Frame.Self.HpP2=Frame.Self.MaxHpP2/5;
+    FLDOpponentPolicyState Cower;
+    const auto Cowering=LDOpponentPolicy::Decide(Frame,C,Cower);
+    bGood &= Test.TestTrue(TEXT("A low urgent defender cowers before it answers the capture"),
+        IsCast(Cowering,ELDDemoTargetMode::Self));
+
     // Rooted on an urgent capture defence at full health: only the advanced rank's root cleanse is worth casting.
     for (const uint8 Rank : {uint8(1), uint8(2)})
     {

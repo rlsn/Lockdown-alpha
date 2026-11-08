@@ -93,7 +93,7 @@ constexpr double CombatProbeChaseResolutionCm = 0.5;
 // Skills: Client1 waits this far from the Host's site on the open duel line: inside the snare's range (active_pants_down,
 // 450 cm) and beyond the reach-carded basic range (220 + attr_hand_out 60 cm) even when both bodies stop at the far edge of
 // Navigation's 40 cm goal acceptance, so the reach card's chase must close in before its hit lands. Client1 throws its
-// snark bolt from its farther duel site, so the flight spans several 100 ms observation publications the Host can render.
+// sock shot from its farther duel site, so the flight spans several 100 ms observation publications the Host can render.
 constexpr double CombatProbeSkillGapCm = 365.0;
 // A finished ground order stands within Navigation's 40 cm goal acceptance of its point; this adds slack.
 constexpr double CombatProbeSkillArrivalCm = 60.0;
@@ -107,7 +107,7 @@ constexpr double CombatProbeQueuePassCm = 90.0;
 constexpr double CombatProbeQueueWalkSeconds = 40.0;
 // Root, shield, bolt and basic-hit facts each arrive within this window of their cause.
 constexpr double CombatProbeSkillSeconds = 3.0;
-// The chalk capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
+// The sock capture waits until the drawn flight is this far from Client1's feet, clear of its cast orb.
 constexpr double CombatProbeFlightClearCm = 120.0;
 // Control feel: the body has moved once it left its order's starting point by this much; the Host cruises this long
 // at full speed and needs this much walk left before its measured S.
@@ -127,7 +127,7 @@ constexpr double CombatProbeBesideCm = 250.0;
 TArray<FName> CombatProbeSkillPlan(bool bHost)
 {
     return bHost ? TArray<FName>{FName(TEXT("attr_hand_out")), FName(TEXT("active_pants_down"))}
-        : TArray<FName>{FName(TEXT("active_not_mad")), FName(TEXT("active_not_mad")), FName(TEXT("active_snark_bolt"))};
+        : TArray<FName>{FName(TEXT("active_not_mad")), FName(TEXT("active_not_mad")), FName(TEXT("active_sock_shot"))};
 }
 
 TArray<FName> CombatProbePreset(FName Card)
@@ -1509,7 +1509,7 @@ public:
         return true;
     }
 
-    // Exercise a retained accepted target across the owning connection before the snark bolt is aimed at the Host.
+    // Exercise a retained accepted target across the owning connection before the sock shot is aimed at the Host.
     bool TickThrow(double Now, ALDPlayerController& PC)
     {
         ULDNavigationComponent& Nav = *PC.Navigation;
@@ -1517,12 +1517,12 @@ public:
         {
             if (const FLDCombatActionReceipt* Refused = Refusal(PC))
             {
-                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The sock shot was refused (reject=%d)"), int32(Refused->Reject)));
             }
             if (!Exists(TEXT("HostBoltLanded.json")))
             {
                 if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
-                return Fail(TEXT("Skills"), TEXT("The Host did not observe the snark bolt landing"));
+                return Fail(TEXT("Skills"), TEXT("The Host did not observe the sock shot landing"));
             }
             bool bArrived = false;
             if (!Walk(Now, PC, ClientSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
@@ -1539,7 +1539,7 @@ public:
         {
             if (const FLDCombatActionReceipt* Refused = Refusal(PC))
             {
-                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The sock shot was refused (reject=%d)"), int32(Refused->Reject)));
             }
             if (Latest.Identity == FollowUpCast && (Latest.Status == ELDOrderStatus::Rejected || Latest.Status == ELDOrderStatus::Cancelled))
             {
@@ -1580,7 +1580,7 @@ public:
             if (!Target || !Row || Row->Unavailable != ELDCombatReject::None || !Own)
             {
                 if (Now - StageAt <= LDDemoCombatScenario::CombatProbeSkillSeconds) { return true; }
-                return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt never became castable at a visible Host (unavailable=%d)"),
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("The sock shot never became castable at a visible Host (unavailable=%d)"),
                     Row ? int32(Row->Unavailable) : -1));
             }
             if (!Check(PC.Controls && PC.Controls->GetAutoAttackAfterCast(), TEXT("CastFollowUp"),
@@ -1665,7 +1665,7 @@ public:
     {
         if (const FLDCombatActionReceipt* Refused = Refusal(PC))
         {
-            return Fail(TEXT("Skills"), FString::Printf(TEXT("The snark bolt was refused (reject=%d)"), int32(Refused->Reject)));
+            return Fail(TEXT("Skills"), FString::Printf(TEXT("The sock shot was refused (reject=%d)"), int32(Refused->Reject)));
         }
         if (!Exists(TEXT("HostSkillsDone.json")))
         {
@@ -1892,7 +1892,7 @@ public:
         return true;
     }
 
-    // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's snark bolt and the reach card. ----
+    // ---- Host: skills from the fixture's presets, the snare, the observed shield, Client1's sock shot and the reach card. ----
 
     // The fixture's XP grants raise each role one level past its planned cards (the opening offer took the first), as before
     // the opening choice, so level-dependent checks keep their values; that last opportunity stays unchosen.
@@ -2084,14 +2084,14 @@ public:
             bool bArrived = false;
             if (!Walk(Now, PC, HostSite, LDDemoCombatScenario::CombatProbeSkillArrivalCm, bArrived)) { return false; }
             if (!bArrived) { return true; }
-            // Client1's bolt targets the Host: its own authority body is the baseline, and the flight is sampled and
+            // Client1's sock targets the Host: its own authority body is the baseline, and the flight is sampled and
             // captured on every frame until it lands.
             const FLDBodyCombatState* Own = AuthorityState(Mode, &PC);
             if (!Own) { return Fail(TEXT("Skills"), TEXT("The Host lost its authority body before Client1's bolt")); }
             HitBeforeMs = Own->Cues.LastHitAtMs;
             PoolBeforeP2 = Own->Resources.HpP2 + Own->Resources.ShieldP2;
             FlightFromMs = Mode.GetAuthorityNowMs();
-            BeginShot(TEXT("HostSees-ChalkFlight.png"), [this](FString& Facts) { return ShowsFlight(Facts); },
+            BeginShot(TEXT("HostSees-SockFlight.png"), [this](FString& Facts) { return ShowsFlight(Facts); },
                 LDDemoCombatScenario::CombatProbeStepSeconds);
             if (!Mark(TEXT("HostSawShield.json"))) { return Finish(); }
             SetStage(EStage::BoltFlight);
@@ -2131,7 +2131,7 @@ public:
             ? (ALDCombatDirector::FootOf(*Own) - ALDCombatDirector::FootOf(*Other)).GetSafeNormal2D() : FVector::ZeroVector;
         for (const FLDObservedProjectileFact& Fact : Flying)
         {
-            if (Fact.Look != ELDObservedProjectileLook::Chalk) { continue; }
+            if (Fact.Look != ELDObservedProjectileLook::Sock) { continue; }
             ++ProjectileSamples;
             BoltKey = Fact.Key;
             bBoltHeading &= !Toward.IsNearlyZero() && FVector2D::DotProduct(Fact.Heading, FVector2D(Toward)) > 0.99;
@@ -2152,7 +2152,7 @@ public:
             if (!Own || Own->Cues.LastHitAtMs <= HitBeforeMs)
             {
                 if (Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds) { return true; }
-                return Fail(TEXT("Skills"), FString::Printf(TEXT("Client1's snark bolt never hit the Host (projectile samples=%d)"),
+                return Fail(TEXT("Skills"), FString::Printf(TEXT("Client1's sock shot never hit the Host (projectile samples=%d)"),
                     ProjectileSamples));
             }
             TArray<FLDObservedProjectileFact> Flying;
@@ -2162,6 +2162,8 @@ public:
             FString StruckError;
             const bool bStruck = Mode.ReadObservedPublicFacts(Mode.GetMatchContext(), PC.OwnerState.BodyRef, Struck, StruckError);
             const int64 PoolP2 = Own->Resources.HpP2 + Own->Resources.ShieldP2;
+            const FLDCombatStatusView* AttackSlow=LDDemoCombatScenario::CombatProbeOwnStatus(
+                PC.CombatView,ELDDemoStatusId::AttackSlowed);
             const int64 HitAgeMs=Mode.GetAuthorityNowMs()-Own->Cues.LastHitAtMs;
             // A synchronous screenshot readback may span the entire cue window. Damage remains committed,
             // but the public cue must expire normally rather than being held alive for this probe.
@@ -2172,9 +2174,10 @@ public:
                 ProjectileSamples, int32(bBoltHeading), PoolBeforeP2, PoolP2, int32(bCastCueSeen), int32(Struck.ActionCue),
                 Own->Cues.LastHitAtMs, Struck.ActionCueAtMs, HitAgeMs, *FlyingError, *StruckError);
             Check(ProjectileSamples > 0 && bBoltHeading, TEXT("Skills"),
-                TEXT("Client1's snark bolt (active_snark_bolt) flies as a Chalk projectile fact from Client1 toward the Host"), Detail);
-            Check(bRead && PoolP2 < PoolBeforeP2 && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
-                TEXT("Skills"), TEXT("The snark bolt hits the Host, takes its shield or health and ends its flight"), Detail);
+                TEXT("Client1's sock shot (active_sock_shot) flies as a Sock projectile fact from Client1 toward the Host"), Detail);
+            Check(bRead && PoolP2 < PoolBeforeP2 && AttackSlow && AttackSlow->ExpiresAtMs>Mode.GetAuthorityNowMs()
+                && !Flying.ContainsByPredicate([this](const FLDObservedProjectileFact& Fact) { return Fact.Key == BoltKey; }),
+                TEXT("Skills"), TEXT("The sock shot hits the Host, lowers its attack speed and ends its flight"), Detail);
             Check(bCastCueSeen && bStruck && bHitCueCorrect,
                 TEXT("Skills"), TEXT("Public facts show Client1's Cast cue and the Host's exact landing Hit cue or its on-time expiry"), Detail);
             if (!Passed) { return Finish(); }
@@ -2186,7 +2189,7 @@ public:
         if (Shot)
         {
             if (ShotPending()) { return true; }
-            if (!ShotSaved(TEXT("Client1's chalk in flight on its own observation frame"))) { return Finish(); }
+            if (!ShotSaved(TEXT("Client1's sock in flight on its own observation frame"))) { return Finish(); }
         }
         if (!Exists(TEXT("Client1FollowUpDone.json")))
         {
@@ -2251,7 +2254,7 @@ public:
         return true;
     }
 
-    // A chalk drawn mid-flight on the Host's screen: a shown projectile proxy that has left Client1's hand. The drawn
+    // A sock drawn mid-flight on the Host's screen: a shown projectile proxy that has left Client1's hand. The drawn
     // proxy, not the frame, decides, so presentation smoothing cannot capture a flight that is not on screen.
     bool ShowsFlight(FString& Facts) const
     {
@@ -2265,10 +2268,10 @@ public:
             const FVector Drawn = It->GetActorLocation();
             const double ClearCm = FVector::Dist2D(Drawn, FVector(Unit->FeetCm));
             if (It->IsHidden() || ClearCm < LDDemoCombatScenario::CombatProbeFlightClearCm) { continue; }
-            // The chalk-dust trail is drawn behind the flight in the same frame (issue #57).
+            // The flight trail is drawn behind the sock in the same frame.
             const ULDFlightTrailComponent* Trail = It->GetTrail();
             if (!Trail || Trail->ShownPuffs() == 0) { continue; }
-            Facts = FString::Printf(TEXT("flights=%d chalk_drawn_at=%s chalk_clear_of_client1_cm=%.0f trail_puffs=%d trail_cm=%.0f "),
+            Facts = FString::Printf(TEXT("flights=%d sock_drawn_at=%s sock_clear_of_client1_cm=%.0f trail_puffs=%d trail_cm=%.0f "),
                 Frame->Projectiles.Num(), *Drawn.ToCompactString(), ClearCm, Trail->ShownPuffs(), Trail->LengthCm()) + SeenFacts(*Unit);
             return true;
         }
@@ -2735,8 +2738,8 @@ public:
         Report->SetBoolField(TEXT("dev_probe"), true);
         Report->SetBoolField(TEXT("normal_start"), true);
         Report->SetStringField(TEXT("scope"), IsHost()
-            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_reach and active_binding_snare by ordinary choices, roots Client1, observes its shield, is hit by Client1's snark bolt and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and chalk flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
-            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_not_mad (raised to advanced) and active_snark_bolt from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the snark bolt at the Host. Not camps, AI, capture or full-match acceptance."));
+            ? TEXT("DEV-only owned-connection combat/orders scenario, target and killer role: a participating Listen Host that is attacked, audits the hits, kills with a right-click order and audits the respawn; then, through its DEV growth fixture's preset offers and XP grants, learns attr_hand_out and active_pants_down by ordinary choices, roots Client1, observes its shield, is hit and attack-slowed by Client1's sock shot and lands a reach-carded basic hit. It renders its main view and keeps captures of the observed root, shield and sock flight for presentation review (not compared by pixels). Not camps, AI, capture or full-match acceptance.")
+            : TEXT("DEV-only owned-connection combat/orders scenario, attacker and victim role: attack-move, S, death, the random protected respawn and an empty Q through the owning connection; then learns active_not_mad (raised to advanced) and active_sock_shot from fixture-preset offers by ordinary choices, shields itself and dispels the Host's root, and throws the sock at the Host. Not camps, AI, capture or full-match acceptance."));
         Report->SetBoolField(TEXT("growth_fixture"), LDDevGrowthFixture::IsSwitchPresent());
         Report->SetNumberField(TEXT("skills_learned"), SkillsLearned);
         Report->SetStringField(TEXT("catalog_sha256"), CatalogDigest);

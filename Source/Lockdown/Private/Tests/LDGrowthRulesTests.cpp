@@ -3183,8 +3183,8 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Out.Slot = Slot;
         return Out;
     };
-    FLDDevTestCommand BadSlot = Learn(1, TEXT("attr_protein"), 3);
-    GrowthTestReason(*this, TEXT("A learn names slot 0..2"), LDDevTest::ValidateShape(BadSlot), ELDGrowthReason::InvalidRequest);
+    FLDDevTestCommand BadSlot = Learn(1, TEXT("attr_protein"), 4);
+    GrowthTestReason(*this, TEXT("A learn names slot 0..3"), LDDevTest::ValidateShape(BadSlot), ELDGrowthReason::InvalidRequest);
     FLDDevTestCommand NoDefinition = Command(Gen, 1, 1, ELDDevTestOp::LearnOption, 0);
     GrowthTestReason(*this, TEXT("A learn names a definition"), LDDevTest::ValidateShape(NoDefinition), ELDGrowthReason::InvalidRequest);
     FLDDevTestCommand SellNamed = Command(Gen, 1, 1, ELDDevTestOp::SellItem, 0);

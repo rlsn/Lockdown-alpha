@@ -187,8 +187,9 @@ struct FLDTemporaryAttributeTerms
 {
     TArray<FLDDemoStatBonus> Bonuses;
     int64 MoveSlowBp = 0;
+    int64 AttackSlowBp = 0;
 
-    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0; }
+    bool IsEmpty() const { return Bonuses.IsEmpty() && MoveSlowBp == 0 && AttackSlowBp == 0; }
     bool operator==(const FLDTemporaryAttributeTerms& Other) const;
     bool operator!=(const FLDTemporaryAttributeTerms& Other) const { return !(*this == Other); }
 };

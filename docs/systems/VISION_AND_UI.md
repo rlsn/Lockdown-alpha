@@ -11,7 +11,7 @@
 | `Vision\LDViewTypes` | 冻结的 `FLDWorldView` 观测帧、隐藏通知与终结通知的线缆格式和校验；保存与加载都会校验 |
 | `Vision\LDWorldViewRelay` | 每个拥有连接一个 relay：接收游标、超时清除、代理与迷雾表现 |
 | `ALDObservedEntityProxy` | 客户端非复制的人形表现，无碰撞，不参与权威战斗或资源所有权；参赛者按名册座位着色，营地 NPC 用独立外观；动作与状态经共用的 cue 字节呈现，动作年龄取样本自带年龄加上呈现时钟越过该样本的时间；授权的观察死亡（`ObservedDeath`）先留下 Combat 的客户端倒地副本 `ALDBodyPuppet::SpawnFall` 再移除代理，离开视野、超时与复位只移除 |
-| `ALDObservedProjectileProxy` | 客户端非复制的可见飞行物（阴阳怪气 `active_snark_bolt`，美术是现有粉笔；+X 朝飞行方向，带 Combat 的 `ULDFlightTrailComponent` 粉笔灰拖尾：从粉笔尾端起 14 个白色粉团由约 20 cm 渐细到 8 cm，间距随近期速度、最多 11 cm，1600 cm/s 时约 1.5 m 长、前半段连成一条实线，静止时不显示；布局为纯函数 `LDFlightTrail::Layout`，由 `Lockdown.Rules.DemoVision.FlightTrail` 覆盖，`RunDemoCombatCheck.ps1` 的 `HostSees-ChalkFlight.png` 只在拖尾已绘制时截取），无碰撞、不可选为目标；帧不再列出后只按呈现时钟走完已收到的最后样本（最多 0.4 s）再销毁，stale、复位或他局视图立即销毁 |
+| `ALDObservedProjectileProxy` | 客户端非复制的公开技能表现：粉笔、臭袜飞行物，以及高数书影、小广告武装/已武装圈、开麦扇形。只传不含施法者/等级/冷却的公开位置、朝向、look与半径/角度；无碰撞、不可选为目标。飞行物带 `ULDFlightTrailComponent` 并按呈现时钟走完最后样本（最多0.4s）；地面/扇形效果从授权帧消失时立即隐藏销毁；stale、复位或他局视图立即销毁 |
 | `LDPropFade`（relay 内） | 客户端每帧检查带 `LDFadeable` 组件标签的道具（美术目录 `fadeable`：旗杆，以及 #97 的两种树、集装箱与废车）是否挡在镜头与本人存活身体或当前呈现代理的胸口/头部之间，或因装饰无碰撞而穿过站在其中或紧贴它的身体（水平距包围盒 ≤ `PierceRadiusCm` 45 cm 且在其高度内）；挡住时把材质参数 `LDFade` 在约 1/6 s 内调到 1，不挡回到 0。relay 给每个淡化材质设 `LDFadeStrength` = `FadedStrength`（1），所以完全淡化时旗杆消失，而不是留下一条抖动网点柱；淡化期间关闭投影。只影响显示，不改碰撞、视线或导航；材质缺该参数时退回遮挡期间隐藏并记录 `LD_FADEABLE_PARAMETER_MISSING`。只测已授权呈现的单位，不因隐藏单位而淡化。#97：实例化道具（每种道具一个 ISM，带一个每实例自定义浮点）逐实例判断与淡化，只淡化挡住的那一棵树或那一个集装箱；`LDFadeStrength` 设为 `InstanceFadedStrength`（0.6），完全淡化时仍留约四成像素，身体透出而方块仍可辨认；逐实例淡化不关投影 |
 | `ALDOwnBodyMarker` | 只在本机生成、挂在本机存活身体脚下的光圈，用于一眼认出自己；死亡或无身体时隐藏 |
 
@@ -101,7 +101,7 @@
   因此出手、飞行物到达与受击在同一时间轴上。单位的隐藏、死亡和超时仍立即销毁代理，不按延迟时钟保留。
 - 迷雾是覆盖在注册地面边界上的 128² 纹理（双线性采样）：当前覆盖亮（255），其余调暗到 `LDFogHidden`（190，#97 由 64 调亮到 140 再到 190，用户原话：“war fog color is too dark, make it lighter”，随后“further lighten fog of war color”）以便看清静态地形；没有探索层。
   每收到新的覆盖，各格在约 0.1 s 内从屏幕上的当前值过渡到新覆盖，只在两次已授权覆盖之间过渡。
-- 观察 schema 6（联机 wire 12）在传输时对覆盖位图做有界字节游程编码；解码后仍是精确的 2048 字节，
+- 观察 schema 7（联机 wire 13）新增上述公开技能几何；覆盖位图仍做有界字节游程编码，解码后仍是精确的2048字节，
   不缩小覆盖、不增加探索层、不依赖上一帧。不可压缩时发送原始位图；错误长度、越界、未填满或截断直接拒绝。
   这减少普通覆盖快照的拆包与带宽开销，不把不可靠快照改成会积压的可靠队列，也不延长 0.25 s 的权限清除窗口。
 - 采样节奏和帧格式在代码中维护，不在这里设定 Demo 平衡值。

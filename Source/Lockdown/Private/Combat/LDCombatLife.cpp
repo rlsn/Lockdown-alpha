@@ -269,6 +269,9 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
     Echoes.RemoveAll([&Entity](const FLDCombatEcho& Echo) { return Echo.Body.Victim.EntityId==Entity; });
     WallChecks.RemoveAll([&Entity](const FLDCombatWallCheck& Check) { return Check.SourceEntity==Entity; });
+    Channels.RemoveAll([&Entity](const auto& Channel) { return Channel.Payload.SourceEntity==Entity; });
+    GroundEffects.RemoveAll([&Entity](const auto& Ground) { return Ground.Payload.SourceEntity==Entity; });
+    ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
         auto& Body=Pair.Value;
@@ -276,6 +279,7 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
         // A leaving source's controls and marks end with it; the next refresh restores the projected speed.
         int32 Removed=Body.Roots.RemoveAll(FromEntity)+Body.Disarms.RemoveAll(FromEntity)+Body.Stuns.RemoveAll(FromEntity)
             + Body.Slows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
+            + Body.AttackSlows.RemoveAll([&Entity](const FLDCombatSlow& Slow) { return Slow.SourceEntity==Entity; })
             + Body.Knockbacks.RemoveAll(FromEntity)
             // #147: its silences and its burn layers end; shared breach stacks stay (they are no damage).
             + Body.Silences.RemoveAll(FromEntity) + LDCombatKeywords::RemoveBurnSource(Body.Burn,Entity);

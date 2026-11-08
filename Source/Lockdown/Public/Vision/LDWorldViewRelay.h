@@ -7,6 +7,7 @@
 class ULDHumanoidVisualComponent;
 class ULDFlightTrailComponent;
 class UStaticMeshComponent;
+class UStaticMesh;
 class UPrimitiveComponent;
 class ALDPlayerController;
 class UTexture2D;
@@ -212,7 +213,15 @@ public:
     const ULDFlightTrailComponent* GetTrail() const { return Trail; }
 private:
     UPROPERTY() TObjectPtr<UStaticMeshComponent> Chalk;
+    UPROPERTY() TObjectPtr<UStaticMeshComponent> Accent;
+    UPROPERTY() TObjectPtr<UStaticMesh> BoxMesh;
+    UPROPERTY() TObjectPtr<UStaticMesh> CylinderMesh;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> EffectTint;
+    UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ShapeLines;
     UPROPERTY() TObjectPtr<ULDFlightTrailComponent> Trail;
+    void ApplyLook(const FLDObservedProjectileView& Effect);
+    ELDObservedProjectileLook ShownLook=ELDObservedProjectileLook::Chalk;
+    float ShownRadius=-1, ShownInnerRadius=-1, ShownAngle=-1;
     TArray<LDObservedPresentation::FPoint, TInlineAllocator<8>> Points;
     double EndedAt = -1;
     bool bPlaced = false;

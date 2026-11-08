@@ -155,6 +155,7 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     App.DurationMs=Hit.KnockbackMs;
     if (!CommitControl(Body,App,NowMs,bApplied,Error)) { return false; }
     if (!bApplied) { return true; }
+    Body.DashContact.Reset();
     // The same native root motion as a dash: integrated by the authority steps along the ground, stopped by blocking
     // geometry at the last legal position, never a teleport.
     if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
@@ -189,7 +190,16 @@ bool ALDCombatDirector::OnHitLanded(FLDBodyCombatState& Target, const FLDCombatH
 
 bool ALDCombatDirector::ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs)
 {
-    return Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
+    bool Changed=Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
+    Changed|=Body.AttackSlows.RemoveAll([NowMs](const FLDCombatSlow& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
+    if (Body.CowerUntilMs>0 && Body.CowerUntilMs<=NowMs)
+    { Body.CowerUntilMs=Body.CowerReductionBp=Body.CowerMoveBp=0; Body.CowerEffectId.Invalidate(); Changed=true; }
+    if (Body.ContactGuardUntilMs>0 && Body.ContactGuardUntilMs<=NowMs)
+    { Body.ContactGuardUntilMs=Body.ContactGuardBp=0; Changed=true; }
+    if (Body.SlowResistanceUntilMs>0 && Body.SlowResistanceUntilMs<=NowMs)
+    { Body.SlowResistanceUntilMs=Body.SlowResistanceBp=0; Changed=true; }
+    if (Body.DashContact && Body.DashContact->EndMs<=NowMs) { Body.DashContact.Reset(); }
+    return Changed;
 }
 
 int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
@@ -201,6 +211,11 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
         const FLDBodyCombatState& Body=Pair.Value;
         if (Body.bPendingDeath) { continue; }
         for (const auto& Row : Body.Knockbacks) { Consider(Row.ExpiresAtMs); }
+        for (const auto& Row : Body.AttackSlows) { Consider(Row.ExpiresAtMs); }
+        Consider(Body.CowerUntilMs);
+        Consider(Body.ContactGuardUntilMs);
+        Consider(Body.SlowResistanceUntilMs);
+        if (Body.DashContact) { Consider(Body.DashContact->EndMs); }
     }
     for (const FLDCombatZone& Zone : Zones)
     {
@@ -209,6 +224,8 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
         if (Zone.BurnStacks>0 && Zone.NextBurnAtMs<Zone.EndMs) { Consider(Zone.NextBurnAtMs); }
         Consider(Zone.EndMs);
     }
+    for (const auto& Channel : Channels) { Consider(Channel.NextPulseMs); }
+    for (const auto& Ground : GroundEffects) { Consider(Ground.ReadyAtMs); if (Ground.bTrap) { Consider(Ground.ExpiresAtMs); } }
     return Due;
 }
 
@@ -234,6 +251,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
             Hit.HitClass=ELDCombatHitClass::Ability;
             Hit.SourceADP2=Zone.SourceADP2;
             Hit.SourceAPP2=Zone.SourceAPP2;
+            Hit.CastLedger=Zone.CastLedger;
             return Hit;
         };
         while (Zone.Pulsed<Zone.Count && Zone.StartMs+Zone.DelayMs+Zone.IntervalMs*Zone.Pulsed<=NowMs)
@@ -251,6 +269,7 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.APRatioBp=Zone.APRatioBp;
                     Hit.DamageType=Zone.DamageType;
                     Hit.bPeriodic=true;
+                    Hit.bDirectAbilityDamage=Zone.Count==1;
                 }
             }
         }
@@ -315,10 +334,13 @@ void ALDCombatDirector::FillMechanicsTemplate(const FLDDemoRankDefinition& Rank,
         Template.WallCheckCm=Cm(Push->RadiusCm);
         Template.WallStunMs=Push->SecondaryDurationMs;
     }
+    if (const auto* Slow=FindOp(Rank,ELDDemoEffectOp::AttackSlow))
+    { Template.AttackSlowBp=Slow->RatioBp; Template.AttackSlowMs=Slow->DurationMs; }
 }
 
 bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoRankDefinition& Rank,
-    const FVector& OriginFoot, const FVector& TargetPoint, FString& Error)
+    const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
+    TSharedPtr<FLDCombatCastLedger> CastLedger, FString& Error)
 {
     using namespace LDCombatMechanicsDetail;
     ALDGameMode* Mode=Core();
@@ -327,7 +349,8 @@ bool ALDCombatDirector::ReleaseMechanics(FLDBodyCombatState& Body, const FLDComb
     if (const FLDDemoEffectDefinition* ZoneDef=FindOp(Rank,ELDDemoEffectOp::Zone))
     {
         FLDCombatZone Zone;
-        Zone.EffectId=FGuid::NewGuid();
+        Zone.EffectId=EffectId;
+        Zone.CastLedger=MoveTemp(CastLedger);
         Zone.SourceBody={Body.Victim,Body.Identity};
         Zone.SourceEntity=Body.Victim.EntityId;
         Zone.CreditOwner=Body.Victim.Kind==ELDVictimKind::Contender ? Body.Victim.EntityId : FGuid();
@@ -380,6 +403,11 @@ void ALDCombatDirector::AppendMechanicsStatuses(const FLDBodyCombatState& Body, 
 {
     if (const int64 KnockUntil=LDTactical::ActiveRootUntilMs(Body.Knockbacks,NowMs); KnockUntil>0)
     { Out.Add({uint8(ELDDemoStatusId::Knockback),1,KnockUntil}); }
+    int64 AttackSlowUntil=0;
+    for (const auto& Slow : Body.AttackSlows) { if (Slow.ExpiresAtMs>NowMs) { AttackSlowUntil=FMath::Max(AttackSlowUntil,Slow.ExpiresAtMs); } }
+    if (AttackSlowUntil>0) { Out.Add({uint8(ELDDemoStatusId::AttackSlowed),1,AttackSlowUntil}); }
+    if (Body.CowerUntilMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::Cowering),1,Body.CowerUntilMs}); }
+    if (Body.ContactGuardUntilMs>NowMs) { Out.Add({uint8(ELDDemoStatusId::ContactGuard),1,Body.ContactGuardUntilMs}); }
 }
 uint64 ALDCombatDirector::ReadKnockbackSerial(const FLDCombatBodyRef& Ref) const
 {

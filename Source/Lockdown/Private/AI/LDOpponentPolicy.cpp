@@ -89,10 +89,17 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Pierce:
     case ELDDemoEffectOp::Echo:
     case ELDDemoEffectOp::ZoneBurn:
+    case ELDDemoEffectOp::AttackSlow:
+    case ELDDemoEffectOp::ChannelCone:
+    case ELDDemoEffectOp::GroundImpact:
+    case ELDDemoEffectOp::ContactTrap:
+    case ELDDemoEffectOp::DashContact:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
     case ELDDemoEffectOp::AfflictionAmp:
+    case ELDDemoEffectOp::ArgumentChain:
+    case ELDDemoEffectOp::DashContactDamage:
         Usage.bEngage = true;
         break;
     case ELDDemoEffectOp::Disarm:
@@ -102,6 +109,9 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Thorns:
     case ELDDemoEffectOp::CritDamageReduction:
     case ELDDemoEffectOp::ShieldBreakRetort:
+    case ELDDemoEffectOp::PrimaryGuard:
+    case ELDDemoEffectOp::SpellSustain:
+    case ELDDemoEffectOp::DashContactGuard:
         Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::TriggeredShield:
@@ -117,6 +127,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
     case ELDDemoEffectOp::DispelDisarm:
+    case ELDDemoEffectOp::Cower:
         Usage.bSelfProtect |= bSelfTarget;
         Usage.bSurvival |= bSelfTarget;
         break;
@@ -126,6 +137,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
     case ELDDemoEffectOp::HitHaste:
+    case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
     case ELDDemoEffectOp::Cleave:
@@ -160,6 +172,7 @@ struct FSourceShape
     bool bTaunt = false;
     double TauntRadiusCm = 0;
     bool bShield = false;
+    bool bGuard = false;
     bool bDispelRoot = false;
     bool bDash = false;
     // #147: a self cast that hits bodies around the caster (SelfArea), a ground zone, and an empowered next basic.
@@ -180,6 +193,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
         case ELDDemoEffectOp::ZoneBurn: Out.bDamage = true; break;
         case ELDDemoEffectOp::SelfArea: Out.AreaRadiusCm = FMath::Max(Out.AreaRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::Zone: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
+        case ELDDemoEffectOp::GroundImpact:
+        case ELDDemoEffectOp::ContactTrap: Out.ZoneRadiusCm = FMath::Max(Out.ZoneRadiusCm, ToDouble(Effect.RadiusCm)); break;
         case ELDDemoEffectOp::EmpowerBasic: Out.bEmpowerBasic = true; break;
         case ELDDemoEffectOp::Root: Out.bRoot = true; break;
         case ELDDemoEffectOp::Stun:
@@ -189,6 +204,7 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
         case ELDDemoEffectOp::Shield: Out.bShield = true; break;
+        case ELDDemoEffectOp::Cower: Out.bGuard = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
@@ -570,6 +586,7 @@ TOptional<FVector> ChaseDirection(const FContext& C, const FLDOpponentUnit& Targ
 // §6.3 fixed order: self-protection, mobility, control, damage; basic attacks stay with the order.
 TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActivationNeed& Need)
 {
+    if (C.Self.bChanneling || C.Self.bCowering) { return {}; }
     static constexpr ELDOpponentSourceSlot Slots[] = {
         ELDOpponentSourceSlot::Q, ELDOpponentSourceSlot::W, ELDOpponentSourceSlot::E, ELDOpponentSourceSlot::Dash};
     for (int32 Tier = 0; Tier < 4; ++Tier)
@@ -592,13 +609,20 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
             {
             case 0:
                 bUse = Shape.Mode == ELDDemoTargetMode::Self
-                    && ((Shape.bShield && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
+                    && (((Shape.bShield || Shape.bGuard) && Need.bProtect) || (Shape.bDispelRoot && Need.bCleanseRoot));
                 break;
             case 1:
                 if (Shape.Mode == ELDDemoTargetMode::DirectionDash && Shape.bDash)
                 {
-                    const TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
+                    TOptional<FVector> Direction = Need.DashDirection.IsSet() ? Need.DashDirection
                         : Need.bChase && Need.Target ? ChaseDirection(C, *Need.Target, Shape.RangeCm) : TOptional<FVector>();
+                    const bool bContactBuild = C.Self.Skills.ContainsByPredicate([](const FLDOpponentSkill& Skill)
+                    { return Skill.DefinitionId == TEXT("passive_dash_contact_damage"); });
+                    if (!Direction.IsSet() && Need.bAllowDamage && bTargetInRange && (Shape.bDamage || bContactBuild))
+                    {
+                        const FVector Toward=(Need.Target->FootCm-C.Self.FootCm).GetSafeNormal2D();
+                        if (!Toward.IsNearlyZero()) { Direction=Toward; }
+                    }
                     bUse = Direction.IsSet();
                     if (bUse) { Body.Direction = Direction.GetValue(); }
                 }
@@ -622,7 +646,7 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Body.Epoch = Need.Target->Epoch;
                         Key.Target = Need.Target->Handle;
                     }
-                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile)
+                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone)
                     {
                         const FVector Direction = (Need.Target->FootCm - C.Self.FootCm).GetSafeNormal2D();
                         bUse = !Direction.IsNearlyZero();
@@ -1653,7 +1677,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         return Finish(EMode::DeadWaiting, bChose ? EReason::ChooseOffer : EReason::DeadWaiting);
     }
     // While an accepted action owns the body, nothing new is sent that could cancel its windup.
-    const bool bActionLive = Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action;
+    const bool bActionLive = Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action);
 
     const bool bWasRecovering = State.bRecovering;
     // D21: a recovering body that reached a dorm stays until full instead of leaving at the resume line.
@@ -1678,10 +1702,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == State.RetreatPOI;
     }
     if (!State.bRecovering && !State.bEscapingBoss) { State.RetreatPOI = NAME_None; }
-    const auto Body = [&Out, bActionLive](const FLDOpponentBodyIntent& Intent)
+    const auto Body = [&Out, &Self, bActionLive](const FLDOpponentBodyIntent& Intent)
     {
         Out.Body = Intent;
-        if (bActionLive) { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
+        if (bActionLive || (Self.bCowering && (Intent.Kind == EBody::AttackUnit || Intent.Kind == EBody::Activate)))
+        { Out.Body = FLDOpponentBodyIntent(); Out.Body.Kind = EBody::Keep; }
     };
 
     // A contest only pauses the spray holder's progress and leaving, dying or a hard control clears it, so a paused holder

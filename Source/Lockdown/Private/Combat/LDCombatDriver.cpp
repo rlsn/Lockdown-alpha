@@ -128,6 +128,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         Bodies.GetKeys(CurrentBodies);
         CurrentBodies.Sort([&](const auto& Left,const auto& Right)
         { return Bodies.FindChecked(Left).Victim.EntityId<Bodies.FindChecked(Right).Victim.EntityId; });
+        ContactMotion.Reset();
         if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Motion,[&](const FLDGameplayWritePermit& Permit)
         {
             for (const auto& Weak : CurrentBodies)
@@ -293,7 +294,7 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
     // Zones and burns due now join this boundary's hits and projectiles.
-    if (!AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveEchoes(Error)
+    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !ResolveEchoes(Error)
         || !ResolveWallChecks(Error) || !ResolveDashSweeps(Error) || !AdvanceProjectiles(Error)) { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {

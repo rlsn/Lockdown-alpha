@@ -859,6 +859,19 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         return;
     }
     Record->Build=Prepared.Input;
+    if (Body && Body->ChannelEffectId.IsValid())
+    {
+        const auto* Channel=Channels.FindByPredicate([Body](const auto& Row) { return Row.Payload.EffectId==Body->ChannelEffectId; });
+        if (Channel && !Record->Build.Actives.ContainsByPredicate([Channel](const auto& Active)
+            { return Active.AbilityId==Channel->Payload.Source.DefinitionId; }))
+        {
+            const FGuid Cancelled=Body->ChannelEffectId;
+            Body->ChannelEffectId.Invalidate();
+            Body->ChannelDirectSequence=0;
+            Channels.RemoveAll([&Cancelled](const auto& Row) { return Row.Payload.EffectId==Cancelled; });
+            ++Body->StateRevision;
+        }
+    }
     Record->Installed.BuildRevision=Prepared.Input.ResultBuildRevision;
     Record->Installed.InventoryRevision=Prepared.Input.ResultInventoryRevision;
     Record->Projection=Prepared.Projection;
@@ -1187,6 +1200,7 @@ void ALDCombatDirector::ApplyCampReset(FLDPreparedCampReset&& Prepared, const FL
     }
     LDTactical::DispelRoots(Body->Roots);
     Body->Slows.Reset();
+    Body->AttackSlows.Reset();
     Body->TimedBonuses.Reset();
     Body->Disarms.Reset();
     Body->Stuns.Reset();

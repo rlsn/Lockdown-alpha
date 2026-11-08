@@ -9,7 +9,7 @@
 // controller, canonical body identity, life key or private build/economy/cooldown field.
 namespace LDObservation
 {
-    constexpr uint32 Schema = 6;
+    constexpr uint32 Schema = 7;
     // Display coverage over the registered ground surface bounds: index = y * Side + x, low bit first.
     constexpr int32 CoverageSide = 128;
     constexpr int32 CoverageCells = CoverageSide * CoverageSide;
@@ -20,10 +20,10 @@ namespace LDObservation
     constexpr int32 MaxUnits = 50;
     // Every public status a unit can show at once: each definition appears at most once, a contender adds respawn
     // protection and a camp member camp_returning to the ten combat cues (Lockdown.Rules.DemoVision.FullStatusBound).
-    constexpr int32 MaxStatuses = 11;
+    constexpr int32 MaxStatuses = 14;
     constexpr int32 MaxTerminations = 16;
     // Visible flights per frame; the nearest are kept when more are in sight.
-    constexpr int32 MaxProjectiles = 16;
+    constexpr int32 MaxProjectiles = 32;
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
@@ -38,7 +38,8 @@ UENUM() enum class ELDObservedUnitKind : uint8 { Contender = 1, CampMember = 2 }
 // Combat owns visible action cues; adding one is a schema change.
 UENUM() enum class ELDObservedActionCue : uint8 { None = 0, Attack = 1, Cast = 2, Hit = 3 };
 // Declared before the wire projectile record that carries it; Combat maps each projectile source to one look.
-UENUM() enum class ELDObservedProjectileLook : uint8 { Chalk = 1 };
+UENUM() enum class ELDObservedProjectileLook : uint8
+{ Chalk = 1, Sock = 2, BookShadow = 3, FlyerArming = 4, FlyerArmed = 5, SpeechCone = 6 };
 UENUM() enum class ELDObservationSource : uint8 { NoLivingBody = 0, ActiveBody = 1 };
 UENUM() enum class ELDObservedTerminationKind : uint8 { ObservedDeath = 1 };
 
@@ -114,7 +115,7 @@ struct FLDObservedUnitTermination
     UPROPERTY() ELDObservedTerminationKind Kind = ELDObservedTerminationKind::ObservedDeath;
 };
 
-// One visible flight. It names no caster, effect or source and is never a target: only where it is now and how it looks.
+// One visible flight or placed skill effect. Only public geometry/look, never its caster, rank, cooldown or target.
 USTRUCT()
 struct FLDObservedProjectileView
 {
@@ -123,6 +124,9 @@ struct FLDObservedProjectileView
     UPROPERTY() FVector_NetQuantize10 PositionCm = FVector::ZeroVector; // ground point under the flight
     UPROPERTY() uint16 Heading = 0;
     UPROPERTY() ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
+    UPROPERTY() float RadiusCm = 0;
+    UPROPERTY() float InnerRadiusCm = 0;
+    UPROPERTY() float AngleDegrees = 0;
 };
 
 USTRUCT()
@@ -204,6 +208,9 @@ struct FLDObservedProjectileFact
     FVector PositionCm = FVector::ZeroVector;    // current centre; Z is the releasing foot height
     FVector2D Heading = FVector2D::ZeroVector;   // planar unit direction
     ELDObservedProjectileLook Look = ELDObservedProjectileLook::Chalk;
+    float RadiusCm = 0;
+    float InnerRadiusCm = 0;
+    float AngleDegrees = 0;
 };
 
 USTRUCT()

@@ -20,7 +20,7 @@ namespace LDPlayerOrdersDetail
     bool IsArmedMode(ELDDemoTargetMode Mode)
     {
         return Mode==ELDDemoTargetMode::Unit || Mode==ELDDemoTargetMode::DirectionProjectile
-            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint;
+            || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::GroundPoint || Mode==ELDDemoTargetMode::DirectionCone;
     }
 }
 
@@ -135,7 +135,7 @@ bool ALDPlayerController::ConfirmArmedCombat()
             Aim.ObservationEpoch=Epoch;
         }
     }
-    else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash)
+    else if (Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionDash || Mode==ELDDemoTargetMode::DirectionCone)
     {
         FHitResult GroundHit;
         const auto* Body=Cast<ALDCharacter>(GetPawn());
@@ -235,7 +235,8 @@ void ALDPlayerController::SendCombatAction(ELDCombatEntry Entry, const FLDCombat
         const ELDDemoTargetMode Mode=View?ELDDemoTargetMode(View->TargetMode):ELDDemoTargetMode::Self;
         const FVector Point=Aim.Kind==ELDCombatTargetKind::Point?FVector(Aim.Point):AimCm?*AimCm:FVector::ZeroVector;
         const bool bPointCast=(Mode==ELDDemoTargetMode::GroundPoint && Aim.Kind==ELDCombatTargetKind::Point)
-            || (Mode==ELDDemoTargetMode::DirectionProjectile && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
+            || ((Mode==ELDDemoTargetMode::DirectionProjectile || Mode==ELDDemoTargetMode::DirectionCone)
+                && Aim.Kind==ELDCombatTargetKind::Direction && AimCm);
         if (bPointCast)
         {
             QueuedCombat={};

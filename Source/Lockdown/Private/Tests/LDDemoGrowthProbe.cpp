@@ -247,10 +247,10 @@ TArray<TSharedPtr<FJsonValue>> GrowthProbeItems(const FLDEquipmentView& View)
     return Rows;
 }
 
-// The buyer's first six opportunities in order, staged by the Host in the Lobby through the DEV growth fixture
+// The buyer's first seven opportunities in order, staged by the Host in the Lobby through the DEV growth fixture
 // (-LDDevGrowthFixture); the first is the match's opening offer. The buyer takes Cards[0] every time: not_mad into Q
-// (the A10 choice), not_mad to rank 2 (advanced), snark_bolt into W, pants_down over Q's cooling rank-2 not_mad, not_mad
-// again over W, then attr_canteen while dead. Later opportunities draw ordinary offers and stay unchosen.
+// (the A10 choice), not_mad to rank 2 (advanced), snark_bolt into W, pants_down into the free E slot, seethe over Q's
+// cooling rank-2 not_mad, not_mad again over W, then attr_canteen while dead. Later opportunities draw ordinary offers.
 struct FGrowthProbeOffer
 {
     const TCHAR* Cards[3];
@@ -261,6 +261,7 @@ const FGrowthProbeOffer GrowthProbePlan[] = {
     {{TEXT("active_not_mad"), TEXT("attr_hand_out"), TEXT("attr_big_talk")}},
     {{TEXT("active_snark_bolt"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
     {{TEXT("active_pants_down"), TEXT("attr_hand_out"), TEXT("attr_big_talk")}},
+    {{TEXT("active_seethe"), TEXT("attr_hand_out"), TEXT("attr_big_talk")}},
     {{TEXT("active_not_mad"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
     {{TEXT("attr_canteen"), TEXT("attr_protein"), TEXT("attr_all_nighter")}},
 };
@@ -389,7 +390,7 @@ FString GrowthProbeSkillsText(const FLDProgressionView& View)
     for (const FLDLearnedSkillView& SkillRow : View.Skills)
     {
         Text += FString::Printf(TEXT("%s%s r%u%s"), Text.IsEmpty() ? TEXT("") : TEXT(", "), *SkillRow.DefinitionId.ToString(),
-            uint32(SkillRow.Rank), SkillRow.bActive ? (SkillRow.Slot == 0 ? TEXT(" Q") : TEXT(" W")) : TEXT(""));
+            uint32(SkillRow.Rank), SkillRow.bActive ? (SkillRow.Slot == 0 ? TEXT(" Q") : SkillRow.Slot == 1 ? TEXT(" W") : TEXT(" E")) : TEXT(""));
     }
     return Text.IsEmpty() ? FString(TEXT("none")) : Text;
 }
@@ -3588,7 +3589,7 @@ public:
             ? LDDemoGrowthScenario::GrowthProbeEntry(Own, Wanted) : nullptr;
     }
 
-    // Offers 2 and 3: not_mad in Q rises to rank 2, then snark_bolt takes the free W slot.
+    // Offers 2–4: not_mad in Q rises to rank 2, then snark_bolt and pants_down fill W and E.
     bool TickAdvance(double Now, ALDPlayerController& PC)
     {
         if (!Planned.bSent)
@@ -3599,7 +3600,8 @@ public:
                 if (Now - StageAt <= LDDemoGrowthScenario::GrowthProbeRequestSeconds) { return true; }
                 return Fail(TEXT("A12"), TEXT("The next preset offer never became choosable"));
             }
-            return SendPlanned(PC, View->ConsumedThrough == 1 ? TEXT("upgrade-q") : TEXT("learn-w"), -1) ? true : Finish();
+            return SendPlanned(PC, View->ConsumedThrough == 1 ? TEXT("upgrade-q")
+                : View->ConsumedThrough == 2 ? TEXT("learn-w") : TEXT("learn-e"), -1) ? true : Finish();
         }
         const FLDChoiceReceipt* Final = nullptr;
         FString Why;
@@ -3612,6 +3614,7 @@ public:
         const FLDProgressionView* View = PC.ReadOwnProgression();
         const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
         const FLDLearnedSkillView* W = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) : nullptr;
+        const FLDLearnedSkillView* E = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2) : nullptr;
         const FString Detail = View ? LDDemoGrowthScenario::GrowthProbeSkillsText(*View) : FString(TEXT("no progression view"));
         const bool bApplied = Final->Header.Outcome == ELDReceiptOutcome::Applied && !Final->bReplaced && Final->DefinitionId == Planned.Picked.DefinitionId;
         if (Planned.Step == TEXT("upgrade-q"))
@@ -3624,10 +3627,18 @@ public:
             StageAt = Now;
             return true;
         }
-        Check(bApplied && Final->Kind == ELDChoiceOptionKind::LearnActive && Final->NewRank == 1 && Q && Q->Rank == 2 && W
-            && W->DefinitionId == Planned.Picked.DefinitionId && W->Rank == 1, TEXT("A12"),
-            TEXT("A second active takes the free W slot, so Q and W are both held"), Detail);
+        const bool bW=Planned.Step==TEXT("learn-w");
+        Check(bApplied && Final->Kind == ELDChoiceOptionKind::LearnActive && Final->NewRank == 1 && Q && Q->Rank == 2
+            && (bW ? W && W->DefinitionId==Planned.Picked.DefinitionId && W->Rank==1 && !E
+                : W && W->Rank==1 && E && E->DefinitionId==Planned.Picked.DefinitionId && E->Rank==1), TEXT("A12"),
+            bW ? TEXT("A second active takes the free W slot") : TEXT("A third active takes the free E slot, so Q/W/E are full"), Detail);
         if (!Passed) { return Finish(); }
+        if (bW)
+        {
+            Planned=FChoiceCall();
+            StageAt=Now;
+            return true;
+        }
         Planned = FChoiceCall();
         bSkillSent = false;
         SetStage(EStage::UseSkill);
@@ -3678,7 +3689,7 @@ public:
         return true;
     }
 
-    // Offer 4: a third active while Q and W are held. Picking it without a confirmed replacement is refused and
+    // Offer 5: a fourth active while Q/W/E are held. Picking it without a confirmed replacement is refused and
     // consumes nothing; the confirmed replacement of Q forgets the cooling skill with its rank and installs the new one.
     bool TickReplace(double Now, ALDPlayerController& PC)
     {
@@ -3703,7 +3714,7 @@ public:
                 && View->Offer.OfferId == Planned.Before.Offer.OfferId && View->ConsumedThrough == Planned.Before.ConsumedThrough
                 && View->PendingChoiceCount == Planned.Before.PendingChoiceCount && View->BuildRevision == Planned.Before.BuildRevision
                 && LDDemoGrowthScenario::GrowthProbeSkillsText(*View) == LDDemoGrowthScenario::GrowthProbeSkillsText(Planned.Before), TEXT("A12"),
-                TEXT("Picking a new active while Q and W are held, without a confirmed replacement, is refused and consumes nothing"),
+                TEXT("Picking a new active while Q/W/E are held, without a confirmed replacement, is refused and consumes nothing"),
                 FString::Printf(TEXT("reason=%s %s"), *LDDemoGrowthScenario::GrowthProbeReason(Final->Header.Reason),
                     View ? *LDDemoGrowthScenario::GrowthProbeProgressionText(*View) : TEXT("no progression view")));
             if (!Passed) { return Finish(); }
@@ -3714,6 +3725,7 @@ public:
         }
         const FLDLearnedSkillView* Q = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 0) : nullptr;
         const FLDLearnedSkillView* W = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 1) : nullptr;
+        const FLDLearnedSkillView* E = View ? LDDemoGrowthScenario::GrowthProbeActiveIn(*View, 2) : nullptr;
         const FString Detail = View ? LDDemoGrowthScenario::GrowthProbeSkillsText(*View) : FString(TEXT("no progression view"));
         Check(Final->Header.Outcome == ELDReceiptOutcome::Applied && Final->Kind == ELDChoiceOptionKind::LearnActive
             && Final->DefinitionId == Planned.Picked.DefinitionId && Final->NewRank == 1 && Final->bReplaced && Final->ReplacedSlot == 0
@@ -3721,7 +3733,7 @@ public:
             TEXT("The confirmed replacement of Q applies once and names the forgotten skill and its rank"),
             FString::Printf(TEXT("replaced %s r%u in slot %u by %s r%u"), *Final->ReplacedSkillId.ToString(), uint32(Final->ReplacedRank),
                 uint32(Final->ReplacedSlot), *Final->DefinitionId.ToString(), uint32(Final->NewRank)));
-        Check(View && Q && Q->DefinitionId == Planned.Picked.DefinitionId && Q->Rank == 1 && W && W->Rank == 1
+        Check(View && Q && Q->DefinitionId == Planned.Picked.DefinitionId && Q->Rank == 1 && W && W->Rank == 1 && E && E->Rank==1
             && !LDDemoGrowthScenario::GrowthProbeSkill(*View, ForgottenId), TEXT("A12"),
             TEXT("Q now holds the new skill at rank 1; the forgotten skill and its rank are gone from the build"), Detail);
         const FLDChoiceOption* Again = View && View->bHasOffer ? View->Offer.Options.FindByPredicate([this](const FLDChoiceOption& Card)
@@ -3738,7 +3750,7 @@ public:
         return true;
     }
 
-    // Combat binds Q's new skill to its own ready track. Offer 5 relearns the forgotten skill over W: it must bind the
+    // Combat binds Q's new skill to its own ready track. Offer 6 relearns the forgotten skill over W: it must bind the
     // old persistent track with its original deadline, so forgetting did not wash the cooldown.
     bool TickRelearn(double Now, ALDPlayerController& PC)
     {

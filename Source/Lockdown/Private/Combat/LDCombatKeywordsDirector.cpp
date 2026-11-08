@@ -98,7 +98,7 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
     const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && Hit.Source.Kind==ELDCombatSourceKind::Learned && Hit.Token!=0;
     if (Source && !Source->bPendingDeath && (bBasic || bSkill) && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bFromShieldTrigger)
+        && !Hit.bFromShieldTrigger && !Hit.bSuppressSkillTriggers)
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Breach,Passives,Error)) { return false; }

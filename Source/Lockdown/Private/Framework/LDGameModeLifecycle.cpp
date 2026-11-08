@@ -349,6 +349,7 @@ ELDCommitReject ALDGameMode::CompleteNativeMotion(const FLDAuthorityStep& Step, 
     Life.MotionLastFoot=Batch->EndFootCm;
     Life.MotionGrounded=Batch->FinalSupport.Grounded;
     Life.MotionFloor=Batch->FinalSupport.Floor;
+    if (Combat) { Combat->CaptureSkillMotion(Batch); }
     Life.NativeMotion.Add(MoveTemp(Batch));
     Life.CompletedMotionStep = Step.StepSerial;
     return ELDCommitReject::None;

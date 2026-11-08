@@ -28,7 +28,7 @@ namespace LDDevPanel
     };
     // Catalog order: skills, then attribute cards.
     LOCKDOWN_API TArray<FLearnRow> LearnRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression);
-    // Q and W both hold an active, so a new active needs a confirmed replacement; the server checks it again.
+    // Q/W/E all hold an active, so a new active needs a confirmed replacement; the server checks it again.
     LOCKDOWN_API bool BothActiveSlotsHeld(const FLDProgressionView* Progression);
     LOCKDOWN_API FString HeldText(const FLearnRow& Row);
     struct FItemRow
