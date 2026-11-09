@@ -79,19 +79,21 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 Student t 的 95% 区间与平均差非零的种子数及其 95% Wilson 区间。某指标所需 arm 的任一侧缺失或无效时，
 整个种子不进入该项分母；不同 arm 的单独均值可有不同的有效种子数。搜索集和确认集种子碰撞时计划被拒绝。
 各独立种子的差值完全相同时区间“退化”，报告不给区间、也不拿它和阈值比较（离散的 `duel_score` 常见这种情况）。
-`decision` 另给各侧平均后每个选项的平均后悔值、最佳占比和有选项差异的种子占比；`factorial_2x2` 给参考替换交互
+`decision` 对明确标注 `higher_better` 或 `lower_better` 的指标另给各侧平均后每个选项的平均后悔值、最佳占比和有选项差异的种子占比；
+`descriptive` 指标保留均值、删失计数和成对差，不定义最佳选项或后悔值。`factorial_2x2` 给参考替换交互
 `V(A,B) − V(A,b0) − V(a0,B) + V(a0,b0)`。`time_to_event` 指标的删失 Case 按时限计入（受限均值）并计数。
 只有确认集的主指标产生结论：没有批准阈值时是 `NoTarget`（只报告效应与区间）；有阈值时区间整体超出为
 `BalanceConcern`，整体落在 ±阈值内为 `NoCounterexampleInCoveredSet`，区间退化或跨越阈值为 `InsufficientEvidence`。
 搜索集只作探索。每条结论附差距最大的种子的全部相关 Case（包括两侧）作为最小复现。
 报告与 `metrics.json` 分别标记录制 Adapter 和当前判读 Adapter；`cases.jsonl` 记下每个已判读 Case 的证据判读版本。
-证据合同违规随 Case 记在 `cases.jsonl`，重新分析也会再次报告。
+已完成 Case 的判读版本与当前 Adapter 不同时，普通分析会拒绝复用旧事实，必须显式加 `--rejudge` 以同 ID 的 Adapter 从原生结果与轨迹重新判读；
+重判后可以普通分析，但原能力表和录制版本不变。证据合同违规随 Case 记在 `cases.jsonl`，重新分析也会再次报告。
 Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接受的 Case 上限（Lockdown 为原生驱动的 500），超出在计划时拒绝。
 
 `RuleViolation` 来自：运行身份与计划不符（内容摘要、固定步长、种子派生版本、运行前后程序摘要）、证据合同被违反（如 `LD_HIT` 的
 `hp_lost` 与扣血前后不符）、同一决策块分支的前缀不一致、换种子随机结果不变、运行日志出现错误或权威故障、重放分歧。
 
-## Lockdown Adapter v2（v0.10 Demo）
+## Lockdown Adapter v3（v0.10 Demo）
 
 能力表来自运行目录 `Content\Lockdown\Data\Demo`：内容摘要是 `manifest.json` 的 SHA-256（即原生目录根），
 每个技能、属性卡与开局卡都是 `Supported`（原生导入器拒绝没有处理器的定义），技能另记 `draftable`。
@@ -119,7 +121,10 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 击杀者不是另一名对决者（`ExternalKill`）、画像未被采用或种子身份未进入名单（`Setup`）。
 双方每个计划序号都必须有初始 `LD_OFFER`、可核对的重抽记录和最终 `LD_CHOICE`；验证候选、所选卡与计划规则、
 等级品质、剩余重抽及终局开局卡。缺失、空白、行数不符、格式损坏或不一致的轨迹判为 `TraceIncomplete`，不能进入统计。
-多 arm 的分支点是主体规则首次不同的序号；此前共同的显式选择和重抽均保留在前缀中，前缀不一致的种子不参与决策推断。
+多 arm 的分支点是主体规则首次不同的序号；可比较的前缀保留此前每次初始 Offer、重抽和提交选择的时间、等级、
+完整有序候选（种类、定义、起始/目标等级和品质）、所选种类/定义/等级/品质、替换、待选数与揭示技能；
+分支点只纳入决定之前的初始 Offer。缺少选择元数据的轨迹判为 `TraceIncomplete`，前缀不一致的种子不参与决策推断。
+报告用的简短 Offer 与选择标签不作为配对证据。
 
 | 指标 | 含义 |
 | --- | --- |
@@ -166,7 +171,7 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 比较终态的构筑、HP/MP 等字段和双方心跳资源，以及到 Case 结束为止的
 `LD_OFFER/CHOICE/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；位置按 `-SpatialToleranceCm`（默认 0）比较。
 报告保留首个分歧。空轨迹、缺失必要证据、运行失败或身份不符都不能标为 `Replayed`。
-旧运行可用 `--rejudge` 重新判读，但旧版能力表与 v2 不同，不能当作 v2 原生重放的同版本证据。
+旧运行可用 `--rejudge` 重新判读，但旧版能力表与 v3 不同，不能当作 v3 原生重放的同版本证据。
 程序摘要只覆盖编辑器可执行文件和项目模块，不证明其他引擎 DLL 或插件的逐字节一致；`source_dirty=unknown`
 也不证明工作区无修改。跨平台、换构建或未记录摘要的旧运行不承诺一致。
 

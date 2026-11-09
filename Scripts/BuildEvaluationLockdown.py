@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 2
+ADAPTER_VERSION = 3
 # LDBuildEvaluation::MaxCases of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused before any run.
 NATIVE_MAX_CASES = 500
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
@@ -357,6 +357,9 @@ def selection_problems(events, ids, plan, contenders, reroll_levels, t_out):
                 item[f"{key}_time"] = int(fields["t"])
                 item[f"{key}_level"] = int(fields["level"])
         else:
+            if (not fields.get("replaced") or not fields.get("pending", "").isdigit()
+                    or not fields.get("revealed")):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has incomplete choice metadata")
             if item["initial"] is None or item["choice"] is not None:
                 problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a duplicate choice or no initial offer")
             else:
@@ -606,6 +609,8 @@ def facts(case, manifest, result, events, ids):
     offers = {role: {} for role in ROLES}
     rerolled = {role: {} for role in ROLES}
     chosen = {role: {} for role in ROLES}
+    offer_details = {role: {} for role in ROLES}
+    choice_details = {role: {} for role in ROLES}
     roles = {contender: role for role, contender in ids.items()}
     spawn = {}
     for tag, fields, _ in events:
@@ -618,20 +623,27 @@ def facts(case, manifest, result, events, ids):
             cards = [card.split(":")[1] for card in fields.get("cards", "").split(",") if card.count(":") >= 2]
             target = rerolled if fields.get("rerolled") == "1" else offers
             target[role].setdefault(fields["ordinal"], cards)
+            kind = "reroll" if fields.get("rerolled") == "1" else "offer"
+            offer_details[role].setdefault(fields["ordinal"], {}).setdefault(
+                kind, {"t": fields.get("t"), "level": fields.get("level"), "cards": fields.get("cards", "").split(",")})
         elif tag == "LD_CHOICE" and fields.get("ordinal", "").isdigit() and fields.get("card"):
             # An opening card reveals the active it taught only once chosen (#153); the label names both.
             revealed = fields.get("revealed", "-")
             chosen[role][fields["ordinal"]] = fields.get("card") + (f"→{revealed}" if revealed not in ("", "-") else "")
+            choice_details[role][fields["ordinal"]] = {
+                key: fields.get(key) for key in ("t", "kind", "card", "rank", "replaced", "level", "pending", "revealed", "quality")}
     point = branch_ordinal(manifest["design"])
     label = chosen["subject"].get(str(point), "") if point else ""
     prefix = None
     if point:
-        earlier = []
-        for ordinal in range(1, point):
-            key = str(ordinal)
-            reroll = f"~{rerolled['subject'][key]}" if key in rerolled["subject"] else ""
-            earlier.append(f"{ordinal}:{offers['subject'].get(key)}{reroll}>{chosen['subject'].get(key)}")
-        prefix = "|".join(earlier + [f"{point}:{offers['subject'].get(str(point))}"])
+        subject_offers = offer_details["subject"]
+        history = [{"ordinal": ordinal, "offer": subject_offers.get(str(ordinal), {}).get("offer"),
+                    "reroll": subject_offers.get(str(ordinal), {}).get("reroll"),
+                    "choice": choice_details["subject"].get(str(ordinal))}
+                   for ordinal in range(1, point)]
+        prefix = json.dumps({"history": history,
+                             "branch": {"ordinal": point, "offer": subject_offers.get(str(point), {}).get("offer")}},
+                            sort_keys=True, ensure_ascii=False, separators=(",", ":"))
     fingerprint = hashlib.sha256(json.dumps([offers["subject"].get("1"), offers["opponent"].get("1"), spawn],
                                             sort_keys=True).encode("utf-8")).hexdigest()[:16]
     first_hit = next(({"role": roles[fields["src"]], "t_ms": int(fields["t"]) - int(result.get("started_at_ms", 0))}

@@ -493,6 +493,8 @@ def paired(clusters, treatment, reference, metric, sides, blocked=()):
 
 
 def decision_analysis(clusters, arms, metric, direction, threshold, sides, blocked=()):
+    if direction not in ("higher_better", "lower_better"):
+        raise ValueError(f"decision analysis requires a favourable direction, not {direction!r}")
     sign = -1.0 if direction == "lower_better" else 1.0
     regret = {arm: [] for arm in arms}
     best_share = {arm: 0.0 for arm in arms}
@@ -572,6 +574,20 @@ def analyze(run_dir, rejudge=False):
     caps = read_json(run_dir / "capabilities.json")
     adapter = load_adapter(manifest["adapter"]["module"])
     cases = read_cases(run_dir)
+    evidence_adapter = {"id": adapter.ADAPTER_ID, "version": adapter.ADAPTER_VERSION}
+    recorded_adapter = caps.get("adapter")
+    if (not isinstance(recorded_adapter, dict) or recorded_adapter.get("id") != adapter.ADAPTER_ID
+            or manifest["adapter"]["id"] != adapter.ADAPTER_ID):
+        raise PlanError("the recorded evidence belongs to another adapter; --rejudge only accepts the same adapter id")
+
+    def same_adapter_version(record):
+        return isinstance(record, dict) and all(record.get(key) == value for key, value in evidence_adapter.items())
+
+    if not rejudge:
+        stale = any(case["status"] == "Completed" and not same_adapter_version(case.get("evidence_adapter")) for case in cases)
+        unjudged = any(case["status"] == "NotRun" for case in cases) and not same_adapter_version(recorded_adapter)
+        if stale or unjudged:
+            raise PlanError("the adapter changed since this evidence was recorded or judged; use --rejudge to re-evaluate it")
     if rejudge:
         # Judge the recorded native evidence again (an updated adapter); admission refusals stay as planned.
         for case in cases:
@@ -611,7 +627,7 @@ def analyze(run_dir, rejudge=False):
         # Evidence-contract violations stay with their Case, so a later analysis reports them again.
         case.update(status=evidence["status"], reason=evidence.get("reason", ""), metrics=evidence.get("metrics", {}),
                     facts=evidence.get("facts", {}), violations=list(evidence.get("violations", [])),
-                    evidence_adapter={"id": adapter.ADAPTER_ID, "version": adapter.ADAPTER_VERSION})
+                    evidence_adapter=evidence_adapter)
     violations = [{"case": case["case_id"], "detail": item} for case in cases for item in case.get("violations", [])]
     write_cases(run_dir, cases)
     write_json(run_dir / "coverage.json", coverage(manifest, cases))
@@ -664,8 +680,9 @@ def compute_metrics(manifest, caps, cases):
             elif design["kind"] == "decision":
                 metric["contrasts"] = [paired(clusters, b, a, name, sides, blocked)
                                        for i, a in enumerate(arms) for b in arms[i + 1:]]
-                metric["decision"] = decision_analysis(clusters, arms, name, spec["direction"],
-                                                       threshold if name == manifest["metrics"]["primary"] else None, sides, blocked)
+                if spec["direction"] in ("higher_better", "lower_better"):
+                    metric["decision"] = decision_analysis(clusters, arms, name, spec["direction"],
+                                                           threshold if name == manifest["metrics"]["primary"] else None, sides, blocked)
             else:
                 cells = {(arm["levels"]["first"], arm["levels"]["second"]): arm["id"] for arm in design["arms"]}
                 metric["interaction"] = interaction(clusters, cells, name, sides)
@@ -727,7 +744,7 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
             add("InsufficientEvidence", "主指标不受场景支持，不能产生统计结论", detail=metric["reason"])
         return {"schema": "build_evaluation.findings", "schema_version": SCHEMA_VERSION, "findings": findings}
     direction = metric["direction"]
-    sign = -1.0 if direction == "lower_better" else 1.0
+    sign = {"higher_better": 1.0, "lower_better": -1.0}.get(direction)
     estimates = []
     if "interaction" in metric:
         estimates.append(("interaction", metric["interaction"], metric["interaction"].get("terms", {})))

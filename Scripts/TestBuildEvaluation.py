@@ -381,6 +381,35 @@ class AnalyzeTest(CoreCase):
         metrics, _ = core.analyze(run_dir)
         self.assertEqual(metrics["splits"]["confirm"]["metrics"]["score"]["contrasts"][0]["n"], 0)
 
+    def test_descriptive_decision_metrics_keep_differences_without_ranking(self):
+        arms = [{"id": f"o{index}", "plan": {"cards": ["card_a"]}} for index in range(2)]
+        value = manifest(design="decision", arms=arms, splits=(0, 2))
+        value["metrics"] = {"primary": "time", "secondary": ["score"], "material_difference": None}
+        run_dir, _, _ = self.plan(value)
+        self.native(run_dir, lambda case: (0, 45000 if case["arm"] == "o0" else 1000, case["arm"] == "o0"),
+                    facts=lambda case: {"prefix": case["block"]})
+        metrics, findings = core.analyze(run_dir)
+        time = metrics["splits"]["confirm"]["metrics"]["time"]
+        self.assertEqual(time["arms"]["o0"]["mean"], 45000)
+        self.assertEqual(time["arms"]["o0"]["censored"], 2)
+        self.assertEqual(time["arms"]["o1"]["censored"], 0)
+        self.assertEqual(time["contrasts"][0]["mean"], -44000)
+        self.assertNotIn("decision", time)
+        self.assertNotIn("decision", core.read_json(run_dir / "metrics.json")["splits"]["confirm"]["metrics"]["time"])
+        self.assertIn("decision", metrics["splits"]["confirm"]["metrics"]["score"])
+        self.assertIsNone(next(item for item in findings["findings"] if item.get("metric") == "time")["favourable_sign"])
+        report = (run_dir / "report.md").read_text(encoding="utf-8")
+        time_section = report.split("### `time`", 1)[1].split("### `score`", 1)[0]
+        self.assertNotIn("后悔", time_section)
+        self.assertNotIn("最佳", time_section)
+        caps = core.read_json(run_dir / "capabilities.json")
+        caps["metrics"]["time"]["direction"] = "lower_better"
+        directed = core.compute_metrics(value, caps, core.read_cases(run_dir))["splits"]["confirm"]["metrics"]["time"]
+        self.assertEqual(directed["decision"]["best_share"], {"o0": 0.0, "o1": 1.0})
+        self.assertEqual(directed["decision"]["mean_regret"], {"o0": 44000.0, "o1": 0.0})
+        with self.assertRaisesRegex(ValueError, "direction"):
+            core.decision_analysis({}, arms, "time", "descriptive", None, 1)
+
     def test_decision_and_interaction_also_use_seed_means(self):
         arms = [{"id": f"o{index}", "plan": {"cards": ["card_a"]}} for index in range(3)]
         run_dir, _, _ = self.plan(manifest(design="decision", arms=arms, splits=(0, 2), sides=2), "decision")
@@ -464,6 +493,38 @@ class AnalyzeTest(CoreCase):
         _, findings = core.analyze(run_dir)
         self.assertTrue(all(case["status"] == "Invalid" for case in core.read_cases(run_dir)))
         self.assertTrue(any("changed" in str(finding.get("detail")) for finding in findings["findings"]))
+
+    def test_old_evidence_must_be_rejudged_after_an_adapter_version_change(self):
+        run_dir, _, _ = self.plan(manifest())
+        self.native(run_dir, lambda case: (1, 1000, False))
+        core.analyze(run_dir)
+        sys.modules["FakeEvalAdapter"].ADAPTER_VERSION = 2
+        with self.assertRaisesRegex(core.PlanError, "--rejudge"):
+            core.analyze(run_dir)
+        metrics, _ = core.analyze(run_dir, rejudge=True)
+        self.assertEqual(metrics["analysis"]["completed_evidence_versions"], ["2"])
+        core.analyze(run_dir)
+
+    def test_unjudged_old_capabilities_require_explicit_rejudge(self):
+        run_dir, _, _ = self.plan(manifest())
+        self.native(run_dir, lambda case: (1, 1000, False))
+        sys.modules["FakeEvalAdapter"].ADAPTER_VERSION = 2
+        with self.assertRaisesRegex(core.PlanError, "--rejudge"):
+            core.analyze(run_dir)
+        core.analyze(run_dir, rejudge=True)
+
+    def test_adapter_identity_allows_extra_metadata_but_rejects_another_adapter(self):
+        module = sys.modules["FakeEvalAdapter"]
+        describe = module.describe
+        module.describe = lambda root: {**describe(root), "adapter": {"id": module.ADAPTER_ID,
+                                                                    "version": module.ADAPTER_VERSION, "extra": "metadata"}}
+        run_dir, _, _ = self.plan(manifest())
+        self.native(run_dir, lambda case: (1, 1000, False))
+        core.analyze(run_dir)
+        module.ADAPTER_ID = "another-adapter"
+        for rejudge in (False, True):
+            with self.subTest(rejudge=rejudge), self.assertRaisesRegex(core.PlanError, "another adapter"):
+                core.analyze(run_dir, rejudge=rejudge)
 
     def test_a_seed_that_changes_nothing_is_a_rule_violation(self):
         run_dir, _, _ = self.plan(manifest())

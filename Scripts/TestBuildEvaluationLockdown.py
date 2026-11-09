@@ -312,6 +312,15 @@ class EvidenceTest(AdapterCase):
         plan = manifest(subject={"choices": ["ai_select", {"rule": "definition", "definition": "passive_pressed"}, "ai_select"]})
         self.assertIn("planned definition", self.evidence(plan_manifest=plan)["reason"])
 
+    def test_choice_metadata_required_for_prefix_cannot_be_missing(self):
+        choice = "card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=1"
+        for field in ("replaced=- ", "pending=1 ", "revealed=- "):
+            with self.subTest(field=field):
+                out = self.evidence(text=trace().replace(choice, choice.replace(field, ""), 1))
+                self.assertEqual(out["status"], "Invalid")
+                self.assertIn("TraceIncomplete", out["reason"])
+                self.assertIn("incomplete choice metadata", out["reason"])
+
     def test_reroll_evidence_matches_the_final_offer_and_remaining_tokens(self):
         caps = copy.deepcopy(self.caps)
         caps["scenarios"]["duel_site"]["parameters"]["reroll_levels"] = [3]
@@ -364,7 +373,12 @@ class EvidenceTest(AdapterCase):
         subject = {"choices": ["ai_select", {"rule": "option_index", "index": 0}, "ai_select"]}
         out = self.evidence(plan_manifest=manifest(subject=subject))
         self.assertEqual(out["facts"]["label"], "attr_protein")
-        self.assertEqual(out["facts"]["prefix"].split("|")[-1], "2:['attr_protein', 'passive_pressed', 'attr_canteen']")
+        prefix = json.loads(out["facts"]["prefix"])
+        self.assertEqual(prefix["branch"]["ordinal"], 2)
+        self.assertEqual(prefix["branch"]["offer"]["cards"],
+                         ["Attribute:attr_protein:0>1:q1", "LearnPassive:passive_pressed:0>1:q0",
+                          "Attribute:attr_canteen:0>1:q1"])
+        self.assertEqual(prefix["history"][0]["choice"]["revealed"], "active_elbow")
         self.assertTrue(out["facts"]["random_fingerprint"])
         # The arm keeping the production choice is compared at the design's decision point, on the same prefix.
         reference = self.evidence(plan_manifest=manifest(subject=subject),
@@ -380,10 +394,90 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(lockdown.branch_ordinal(plan["design"]), 2)
         out = self.evidence(plan_manifest=plan)
         self.assertEqual(out["facts"]["label"], "attr_protein")
-        self.assertIn("1:['opening_athlete'", out["facts"]["prefix"])
-        self.assertIn(">opening_athlete→active_elbow|2:", out["facts"]["prefix"])
+        prefix = json.loads(out["facts"]["prefix"])
+        self.assertEqual(prefix["history"][0]["offer"]["cards"][0], "Opening:opening_athlete:0>1:q0")
+        self.assertEqual(prefix["history"][0]["choice"]["card"], "opening_athlete")
+        self.assertEqual(prefix["history"][0]["choice"]["revealed"], "active_elbow")
+        self.assertEqual(prefix["branch"]["ordinal"], 2)
         plan["design"]["arms"][0]["plan"]["subject"]["choices"][1] = {"rule": "option_index", "index": 0}
         self.assertIsNone(lockdown.branch_ordinal(plan["design"]), "ai_select spellings normalize to one rule")
+
+    def test_quality_mismatch_blocks_pairing_even_when_definition_ids_match(self):
+        subject = {"choices": ["ai_select", {"rule": "option_index", "index": 0}, "ai_select"]}
+        plan = manifest(subject=subject, design="decision")
+        plan["design"].pop("reference")
+        plan["blocks"]["sides"] = 1
+        initial = (f"LD_OFFER t=5016 contender={S} ordinal=2 rerolled=0 level=3 "
+                   "cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_pressed:0>1:q0,Attribute:attr_canteen:0>1:q1")
+
+        def case(arm, text):
+            case_id = f"c000a-{arm}"
+            row = {"case_id": case_id, "seed": "7", "arm": arm, "block": "c000a",
+                   "split": "confirm", "index": 0, "side": 0}
+            text = text.replace("LD_EVAL_CASE_BEGIN case=c000a-t", f"LD_EVAL_CASE_BEGIN case={case_id}")
+            evidence = self.evidence(result(case_id=case_id), text, plan, row)
+            self.assertEqual(evidence["status"], "Completed", evidence["reason"])
+            return {**row, **evidence}
+
+        reference = case("ref", trace())
+        same = case("t", trace())
+        changed = case("t", trace().replace(initial, initial[:-1] + "2"))
+        self.assertEqual(reference["facts"]["offers"], changed["facts"]["offers"])
+        self.assertEqual(reference["facts"]["prefix"], same["facts"]["prefix"])
+        self.assertNotEqual(reference["facts"]["prefix"], changed["facts"]["prefix"])
+        for treatment, expected in ((same, 1), (changed, 0)):
+            metrics = core.compute_metrics(plan, self.caps, [reference, treatment])
+            score = metrics["splits"]["confirm"]["metrics"]["duel_score"]
+            self.assertEqual(score["contrasts"][0]["n"], expected)
+            self.assertEqual(score["decision"]["blocks"], expected)
+        findings = core.compute_findings(plan, self.caps, [reference, changed], metrics, [], [], None, {})
+        self.assertTrue(any(finding["conclusion"] == "RuleViolation" for finding in findings["findings"]))
+
+    def test_prefix_preserves_prior_rerolls_and_choice_metadata(self):
+        plan = manifest(subject={"choices": ["ai_select", "ai_select", {"rule": "option_index", "index": 0}]})
+        value = result()
+        ids = {"subject": S, "opponent": O}
+        base = trace()
+        offer = (f"LD_OFFER t=5016 contender={S} ordinal=2 rerolled=0 level=3 "
+                 "cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_pressed:0>1:q0,Attribute:attr_canteen:0>1:q1")
+        reroll = (f"LD_OFFER t=5020 contender={S} ordinal=2 rerolled=1 level=3 "
+                  "cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_special_forces:0>1:q0,Attribute:attr_hand_out:0>1:q2")
+        with_reroll = base.replace(offer, offer + "\n" + reroll)
+        prefix = json.loads(lockdown.facts({}, plan, value, lockdown.parse_trace(with_reroll), ids)["prefix"])
+        prior = prefix["history"][1]
+        self.assertEqual(prior["reroll"]["cards"][-1], "Attribute:attr_hand_out:0>1:q2")
+        self.assertEqual(prior["choice"]["kind"], "Attribute")
+        self.assertEqual(prior["choice"]["rank"], "1")
+        self.assertEqual(prior["choice"]["quality"], "1")
+        self.assertEqual(prior["choice"]["replaced"], "-")
+        self.assertEqual(prior["choice"]["level"], "3")
+        for original, replacement in (("q2", "q1"),
+                                      ("card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=1",
+                                       "card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=2"),
+                                      ("replaced=- level=3 pending=1", "replaced=active_old:1 level=3 pending=1"),
+                                      ("rerolled=1 level=3", "rerolled=1 level=2")):
+            changed = with_reroll.replace(original, replacement, 1)
+            different = lockdown.facts({}, plan, value, lockdown.parse_trace(changed), ids)["prefix"]
+            self.assertNotEqual(json.dumps(prefix, sort_keys=True, ensure_ascii=False),
+                                json.dumps(json.loads(different), sort_keys=True, ensure_ascii=False))
+
+    def test_branch_prefix_preserves_candidate_kind_rank_level_and_time(self):
+        plan = manifest(subject={"choices": ["ai_select", {"rule": "option_index", "index": 0}, "ai_select"]})
+        value = result()
+        ids = {"subject": S, "opponent": O}
+        base = trace()
+        prefix = lockdown.facts({}, plan, value, lockdown.parse_trace(base), ids)["prefix"]
+        variations = (
+            ("Attribute:attr_canteen:0>1:q1", "LearnPassive:attr_canteen:0>1:q1"),
+            ("Attribute:attr_canteen:0>1:q1", "Attribute:attr_canteen:1>2:q1"),
+            (f"LD_OFFER t=5016 contender={S} ordinal=2", f"LD_OFFER t=5017 contender={S} ordinal=2"),
+            ("rerolled=0 level=3 cards=Attribute:attr_protein", "rerolled=0 level=2 cards=Attribute:attr_protein"),
+        )
+        for original, replacement in variations:
+            with self.subTest(original=original, replacement=replacement):
+                changed = base.replace(original, replacement, 1)
+                self.assertNotEqual(changed, base)
+                self.assertNotEqual(prefix, lockdown.facts({}, plan, value, lockdown.parse_trace(changed), ids)["prefix"])
 
     def test_the_native_case_limit_is_the_drivers(self):
         header = (ROOT / "Source/Lockdown/Private/Tests/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
