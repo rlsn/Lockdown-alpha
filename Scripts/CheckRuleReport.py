@@ -18,6 +18,7 @@ SUITE = "Lockdown.Rules"
 REQUIRED_TESTS = frozenset(
     {
         "Lockdown.Rules.ArtCatalog",
+        "Lockdown.Rules.BasketballMotionAssets",
         "Lockdown.Rules.DemoMotionProbe.RampSeamSupport",
         "Lockdown.Rules.DemoGrowthProbe.CampDetourGeometry",
         "Lockdown.Rules.DemoGrowthProbe.HudRewardBinding",
