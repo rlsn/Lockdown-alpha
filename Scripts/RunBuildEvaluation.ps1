@@ -38,10 +38,16 @@ if ($PlanOnly) {
     Write-Host "Plan only: Cases, coverage and native input are in $run. Nothing native was started."
     return
 }
-$runner = [ordered]@{ fixed_fps = $FixedFps; exit_code = $null; timed_out = $false; detail = ''; log_errors = @() }
+$runner = [ordered]@{ fixed_fps = $FixedFps; exit_code = $null; timed_out = $false; detail = ''; log_errors = @()
+    binary_digests = $null; binary_digests_after = $null }
 if ($planned -eq 0) {
     $launch = Get-LDGameLaunch -EngineRoot $EngineRoot -Output $run
     if ($launch.Packaged) { throw 'Build evaluation runs on the editor build.' }
+    $module = Join-Path (Get-LDProjectRoot) 'Binaries\Win64\UnrealEditor-Lockdown.dll'
+    $runner.binary_digests = [ordered]@{
+        editor_sha256 = (Get-FileHash -LiteralPath $launch.Binary -Algorithm SHA256).Hash.ToLowerInvariant()
+        module_sha256 = (Get-FileHash -LiteralPath $module -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
     $native = Join-Path $run 'native'
     $user = Join-Path $run 'Host-User'
     New-Item -ItemType Directory -Force -Path $native, $user | Out-Null
@@ -61,8 +67,16 @@ if ($planned -eq 0) {
     }
     $process.Refresh()
     $runner.exit_code = $process.ExitCode
+    $runner.binary_digests_after = [ordered]@{
+        editor_sha256 = (Get-FileHash -LiteralPath $launch.Binary -Algorithm SHA256).Hash.ToLowerInvariant()
+        module_sha256 = (Get-FileHash -LiteralPath $module -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    if ($runner.binary_digests.editor_sha256 -ne $runner.binary_digests_after.editor_sha256 -or
+        $runner.binary_digests.module_sha256 -ne $runner.binary_digests_after.module_sha256) {
+        $runner.log_errors += 'The evaluation binary changed during the native run.'
+    }
     if (Test-Path -LiteralPath $log) {
-        $runner.log_errors = @(Select-String -LiteralPath $log -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT' |
+        $runner.log_errors += @(Select-String -LiteralPath $log -Pattern 'Fatal error|Assertion failed|Log(Temp|LD\w+): Error:|LogNet: Error:|LD_DEMO_AUTHORITY_FAULT' |
             Select-Object -First 20 | ForEach-Object { $_.Line })
     }
 } else {

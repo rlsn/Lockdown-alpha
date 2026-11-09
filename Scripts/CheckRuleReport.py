@@ -36,6 +36,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.AudioCueOwn",
         "Lockdown.Rules.AudioCueBasicAttack",
         "Lockdown.Rules.AudioCuePublic",
+        "Lockdown.Rules.BuildEvaluation.Horizon",
         "Lockdown.Rules.BuildEvaluation.Input",
         "Lockdown.Rules.BuildEvaluation.Policy",
         "Lockdown.Rules.BuildEvaluation.Seeds",

@@ -7,6 +7,7 @@ RunBuildEvaluation.ps1.
 
 import hashlib
 import json
+import copy
 import sys
 import tempfile
 import unittest
@@ -18,6 +19,7 @@ import BuildEvaluationLockdown as lockdown  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 S, O, H, CAMP = "1" * 32, "2" * 32, "3" * 32, "4" * 32
+CONTENT_ROOT = hashlib.sha256((ROOT / "Content/Lockdown/Data/Demo/manifest.json").read_bytes()).hexdigest()
 
 
 def manifest(subject=None, opponent=None, sample="legal_search", supply=180, design="paired_arms"):
@@ -49,10 +51,10 @@ def contender(role, slot, contender_id, hp=31000, body=True, **rest):
 
 def result(kind="kill", victim="opponent", killer="subject", status="Completed", **rest):
     out = {"schema": lockdown.NATIVE_RESULT_SCHEMA, "schema_version": 1, "run_id": "r", "case_id": "c000a-t", "seed": "7",
-           "status": status, "reason": "", "generation": 2, "content_root": "x", "started_at_ms": 5000, "ended_at_ms": 20000,
+           "status": status, "reason": "", "generation": 2, "content_root": CONTENT_ROOT, "started_at_ms": 5000, "ended_at_ms": 20000,
            "outcome": {"kind": kind, "victim": victim if kind == "kill" else "", "killer": killer if kind == "kill" else "",
                        "t_ms": 15000 if kind == "kill" else -1},
-           "contenders": [contender("subject", 0, S), contender("opponent", 1, O, hp=0, body=False)],
+           "contenders": [contender("subject", 0, S), contender("opponent", 1, O, hp=0, body=False, opening_card="opening_rider")],
            "trace": "traces/c000a-t.log", "trace_lines": 10}
     out.update(rest)
     return out
@@ -67,24 +69,32 @@ def hit(t, src, victim, dmg, absorbed, lost, before, after, monster="-"):
 
 def trace(*extra, drop=()):
     lines = [
-        "LD_MATCH_STARTED generation=2 contenders=3 open_at_ms=185000 countdown_ms=5000 started_at_ms=5000",
-        f"LD_OFFER t=0 contender={S} ordinal=1 rerolled=0 level=1 cards=Opening:opening_athlete:0>1:q0,Opening:opening_rider:0>1:q0,Opening:opening_grinder:0>1:q0",
-        f"LD_OFFER t=0 contender={O} ordinal=1 rerolled=0 level=1 cards=Opening:opening_rider:0>1:q0,Opening:opening_keyboard:0>1:q0,Opening:opening_grinder:0>1:q0",
-        f"LD_CHOICE t=33 contender={S} ordinal=1 kind=Opening card=opening_athlete rank=1 replaced=- level=1 pending=0 revealed=active_elbow quality=0",
-        f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=180 xp_after=180 level=1->3 ",
-        f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=180 xp_after=180 level=1->3 ",
-        f"LD_OFFER t=5016 contender={S} ordinal=2 rerolled=0 level=3 cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_pressed:0>1:q0,Attribute:attr_canteen:0>1:q1",
-        f"LD_CHOICE t=5033 contender={S} ordinal=2 kind=Attribute card=attr_protein rank=0 replaced=- level=3 pending=1 revealed=- quality=1",
-        f"LD_HEARTBEAT t=6000 contender={S} phase=Alive life=1 pos=100,0,0 hp=620.00/620.00",
-        f"LD_HEARTBEAT t=6000 contender={O} phase=Alive life=1 pos=-100,5,0 hp=620.00/620.00",
-        hit(10000, S, O, "100.00", "0.00", "100.00", "620.00", "520.00"),
-        hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00"),
-        hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00"),
-        f"LD_DEATH_RECEIPT contender={O} life=1 respawn_at_ms=35000 t=20000 killer={S} cause=Contender fatal=basic fatal_body={S} assisters=- no_reward=None victim_level=3",
-        f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=320 level=3->4 victim={O} victim_life=1 victim_kind=contender",
-        f"LD_HEARTBEAT t=21000 contender={S} phase=Alive life=1 pos=101,0,0 hp=580.00/620.00",
+        ("begin", f"LD_EVAL_CASE_BEGIN case=c000a-t index=0 seed=7 subject={S} opponent={O}"),
+        ("start", "LD_MATCH_STARTED generation=2 contenders=3 open_at_ms=185000 countdown_ms=5000 started_at_ms=5000"),
+        ("s_offer1", f"LD_OFFER t=0 contender={S} ordinal=1 rerolled=0 level=1 cards=Opening:opening_athlete:0>1:q0,Opening:opening_rider:0>1:q0,Opening:opening_grinder:0>1:q0"),
+        ("o_offer1", f"LD_OFFER t=0 contender={O} ordinal=1 rerolled=0 level=1 cards=Opening:opening_rider:0>1:q0,Opening:opening_keyboard:0>1:q0,Opening:opening_grinder:0>1:q0"),
+        ("s_choice1", f"LD_CHOICE t=33 contender={S} ordinal=1 kind=Opening card=opening_athlete rank=1 replaced=- level=1 pending=0 revealed=active_elbow quality=0"),
+        ("o_choice1", f"LD_CHOICE t=33 contender={O} ordinal=1 kind=Opening card=opening_rider rank=1 replaced=- level=1 pending=0 revealed=active_cower quality=0"),
+        ("s_reward", f"LD_REWARD t=5016 contender={S} cause=dev_fixture role=recipient xp=180 xp_after=180 level=1->3 "),
+        ("o_reward", f"LD_REWARD t=5016 contender={O} cause=dev_fixture role=recipient xp=180 xp_after=180 level=1->3 "),
+        ("s_offer2", f"LD_OFFER t=5016 contender={S} ordinal=2 rerolled=0 level=3 cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_pressed:0>1:q0,Attribute:attr_canteen:0>1:q1"),
+        ("o_offer2", f"LD_OFFER t=5016 contender={O} ordinal=2 rerolled=0 level=3 cards=Attribute:attr_canteen:0>1:q1,LearnPassive:passive_pressed:0>1:q0,Attribute:attr_protein:0>1:q1"),
+        ("s_choice2", f"LD_CHOICE t=5033 contender={S} ordinal=2 kind=Attribute card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=1"),
+        ("o_choice2", f"LD_CHOICE t=5033 contender={O} ordinal=2 kind=Attribute card=attr_canteen rank=1 replaced=- level=3 pending=1 revealed=- quality=1"),
+        ("s_offer3", f"LD_OFFER t=5033 contender={S} ordinal=3 rerolled=0 level=3 cards=LearnPassive:passive_special_forces:0>1:q0,Attribute:attr_canteen:0>1:q1,Attribute:attr_protein:1>2:q2"),
+        ("o_offer3", f"LD_OFFER t=5033 contender={O} ordinal=3 rerolled=0 level=3 cards=LearnPassive:passive_special_forces:0>1:q0,Attribute:attr_canteen:1>2:q1,Attribute:attr_protein:0>1:q2"),
+        ("s_choice3", f"LD_CHOICE t=5283 contender={S} ordinal=3 kind=LearnPassive card=passive_special_forces rank=1 replaced=- level=3 pending=0 revealed=- quality=0"),
+        ("o_choice3", f"LD_CHOICE t=5283 contender={O} ordinal=3 kind=LearnPassive card=passive_special_forces rank=1 replaced=- level=3 pending=0 revealed=- quality=0"),
+        ("s_heartbeat", f"LD_HEARTBEAT t=6000 contender={S} phase=Alive life=1 pos=100,0,0 hp=620.00/620.00 mp=280.00/280.00 shield=0.00"),
+        ("o_heartbeat", f"LD_HEARTBEAT t=6000 contender={O} phase=Alive life=1 pos=-100,5,0 hp=620.00/620.00 mp=280.00/280.00 shield=0.00"),
+        ("hit1", hit(10000, S, O, "100.00", "0.00", "100.00", "620.00", "520.00")),
+        ("hit2", hit(11000, O, S, "50.00", "10.00", "40.00", "620.00", "580.00")),
+        ("lethal", hit(20000, S, O, "600.00", "0.00", "520.00", "520.00", "0.00")),
+        ("death", f"LD_DEATH_RECEIPT contender={O} life=1 respawn_at_ms=35000 t=20000 killer={S} cause=Contender fatal=basic fatal_body={S} assisters=- no_reward=None victim_level=3"),
+        ("death_reward", f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=320 level=3->4 victim={O} victim_life=1 victim_kind=contender"),
+        ("late_heartbeat", f"LD_HEARTBEAT t=21000 contender={S} phase=Alive life=1 pos=101,0,0 hp=580.00/620.00 mp=280.00/280.00 shield=0.00"),
     ]
-    lines = [line for index, line in enumerate(lines) if index not in drop]
+    lines = [line for key, line in lines if key not in drop]
     return "\n".join(lines + list(extra)) + "\n"
 
 
@@ -94,9 +104,13 @@ class AdapterCase(unittest.TestCase):
         cls.caps = lockdown.describe(ROOT)
         cls.content = json.loads((ROOT / "Content/Lockdown/Data/Demo/demo_content.json").read_text(encoding="utf-8"))
 
-    def evidence(self, value=None, text=None, plan_manifest=None, case=None):
+    def evidence(self, value=None, text=None, plan_manifest=None, case=None, count_lines=True):
         case = case or {"case_id": "c000a-t", "seed": "7", "arm": "t", "block": "c000a", "side": 0}
-        return lockdown.case_evidence(case, plan_manifest or manifest(), self.caps, value or result(), text if text is not None else trace())
+        text = text if text is not None else trace()
+        value = dict(value or result())
+        if count_lines:
+            value["trace_lines"] = len(text.splitlines())
+        return lockdown.case_evidence(case, plan_manifest or manifest(), self.caps, value, text)
 
 
 class CapabilitiesTest(AdapterCase):
@@ -137,6 +151,23 @@ class PlanTest(AdapterCase):
             self.requirements({"choices": ["best_card", "ai_select", "ai_select"]})
         with self.assertRaises(ValueError):
             self.requirements({"choices": [{"rule": "option_index", "index": 3}, "ai_select", "ai_select"]})
+        for invalid in (True, False, 1.0):
+            with self.subTest(index=invalid), self.assertRaisesRegex(ValueError, "integer index"):
+                self.requirements({"choices": [{"rule": "option_index", "index": invalid}, "ai_select", "ai_select"]})
+        with self.assertRaisesRegex(ValueError, "three distinct definition ids"):
+            self.requirements({"choices": ["ai_select"] * 3, "presets": [["attr_protein", [], "attr_canteen"]]})
+
+    def test_boolean_option_indices_are_unsupported_before_native_execution(self):
+        for index in (True, False):
+            with self.subTest(index=index), tempfile.TemporaryDirectory() as temp:
+                subject = {"choices": [{"rule": "option_index", "index": index}, "ai_select", "ai_select"]}
+                path = Path(temp) / "m.json"
+                path.write_text(json.dumps(manifest(subject=subject)), encoding="utf-8")
+                run = Path(temp) / "run"
+                _, cases = core.plan(path, run, ROOT)
+                self.assertTrue(all(case["status"] == "Unsupported" for case in cases))
+                self.assertTrue(any("integer index" in case["reason"] for case in cases))
+                self.assertFalse((run / "native_input.json").exists())
 
     def test_an_uncatalogued_candidate_card_is_unsupported_end_to_end(self):
         subject = {"choices": ["ai_select", {"rule": "definition", "definition": "passive_debt_collector"}, "ai_select"]}
@@ -188,11 +219,13 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(metrics["decision_time_ms"], {"value": 15000, "censored": False})
         self.assertEqual(out["facts"]["offers"]["subject"]["2"], ["attr_protein", "passive_pressed", "attr_canteen"])
         self.assertEqual(out["facts"]["choices"]["subject"]["2"], "attr_protein")
+        self.assertEqual(out["facts"]["choices"]["subject"]["1"], "opening_athlete→active_elbow",
+                         "an opening choice names the active it revealed")
 
     def test_an_undecided_duel_is_censored_not_lost(self):
         value = result(kind="timeout", ended_at_ms=50000)
-        value["contenders"][1] = contender("opponent", 1, O, hp=10000)
-        out = self.evidence(value, trace(drop=(12, 13, 14)))
+        value["contenders"][1] = contender("opponent", 1, O, hp=10000, opening_card="opening_rider")
+        out = self.evidence(value, trace(drop=("lethal", "death", "death_reward")))
         self.assertEqual(out["status"], "Completed", out["reason"])
         self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": True})
         self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 45000, "censored": True})
@@ -201,8 +234,8 @@ class EvidenceTest(AdapterCase):
         cases = {
             "ExternalInteraction": trace(hit(12000, CAMP, S, "30.00", "0.00", "30.00", "580.00", "550.00", "monster_scavenger")),
             "UncontrolledXP": trace(f"LD_REWARD t=12000 contender={S} cause=death role=killer xp=40 xp_after=220 level=3->3 "),
-            "SupplyMismatch": trace(drop=(5,)),
-            "TraceIncomplete": trace(drop=(13,)),
+            "SupplyMismatch": trace(drop=("o_reward",)),
+            "TraceIncomplete": trace(drop=("death",)),
         }
         for reason, text in cases.items():
             out = self.evidence(text=text)
@@ -218,6 +251,96 @@ class EvidenceTest(AdapterCase):
         self.assertEqual((self.evidence(native)["status"], self.evidence(native)["reason"]),
                          ("BudgetExceeded", "the Case exceeded its wall-clock budget"))
         self.assertIn("another Case", self.evidence(result(seed="8"))["reason"])
+
+    def test_malformed_events_and_terminal_values_are_rejected_without_crashing(self):
+        traces = (
+            trace().replace("LD_DEATH_RECEIPT contender=", "LD_DEATH_RECEIPT missing=", 1).replace("t=20000 killer=", "t=bad killer=", 1),
+            trace().replace("LD_HIT t=10000", "LD_HIT t=missing", 1),
+            trace().replace("cause=dev_fixture role=recipient xp=180", "cause=dev_fixture role=recipient xp=bad", 1),
+        )
+        for text in traces:
+            with self.subTest(trace=text[:60]):
+                out = self.evidence(text=text)
+                self.assertEqual(out["status"], "Invalid")
+                self.assertIn("TraceIncomplete", out["reason"])
+        for key, invalid in (("slot", False), ("hp_p2", None), ("skills", [None])):
+            value = result()
+            value["contenders"][0][key] = invalid
+            with self.subTest(field=key):
+                out = self.evidence(value)
+                self.assertEqual(out["status"], "Invalid")
+                self.assertIn("TraceIncomplete", out["reason"])
+        premature = result(kind="timeout", ended_at_ms=49999)
+        self.assertIn("ended before the duel horizon",
+                      self.evidence(premature, trace(drop=("lethal", "death", "death_reward")))["reason"])
+
+    def test_every_planned_offer_and_choice_is_required_for_both_sides(self):
+        for key in ("begin", "start", "s_offer1", "o_offer1", "s_choice1", "o_choice1",
+                    "s_offer2", "o_offer2", "s_choice2", "o_choice2", "s_offer3", "o_offer3",
+                    "s_choice3", "o_choice3"):
+            with self.subTest(missing=key):
+                out = self.evidence(text=trace(drop=(key,)))
+                self.assertEqual(out["status"], "Invalid", out["reason"])
+                self.assertIn("TraceIncomplete", out["reason"])
+        out = self.evidence(text="")
+        self.assertEqual(out["status"], "Invalid")
+        self.assertIn("TraceIncomplete", out["reason"])
+        zero_xp = manifest(supply=0)
+        for arm in zero_xp["design"]["arms"]:
+            for role in lockdown.ROLES:
+                arm["plan"][role]["choices"] = ["ai_select"]
+        value = result(kind="timeout")
+        for row in value["contenders"]:
+            row.update(level=1, xp=0, choices=1, planned_choices=1, supply_xp=0, supply_status="NotRequested")
+        self.assertIn("TraceIncomplete", self.evidence(value, "", zero_xp)["reason"])
+        self.assertIn("line count", self.evidence(result(), trace(), count_lines=False)["reason"])
+
+    def test_committed_choice_must_match_its_final_offer_and_plan(self):
+        bad_choice = trace().replace("card=attr_protein rank=1", "card=attr_unknown rank=1")
+        self.assertIn("choice is not in its final offer", self.evidence(text=bad_choice)["reason"])
+        bad_quality = trace().replace("card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=1",
+                                      "card=attr_protein rank=1 replaced=- level=3 pending=1 revealed=- quality=2")
+        self.assertIn("rank or quality", self.evidence(text=bad_quality)["reason"])
+        early_choice = trace().replace(f"LD_CHOICE t=5033 contender={S} ordinal=2",
+                                       f"LD_CHOICE t=5000 contender={S} ordinal=2")
+        self.assertIn("inconsistent offer or choice times", self.evidence(text=early_choice)["reason"])
+        bad_level = trace().replace(f"LD_CHOICE t=5033 contender={S} ordinal=2 kind=Attribute card=attr_protein rank=1 replaced=- level=3",
+                                    f"LD_CHOICE t=5033 contender={S} ordinal=2 kind=Attribute card=attr_protein rank=1 replaced=- level=0")
+        self.assertIn("invalid level", self.evidence(text=bad_level)["reason"])
+        plan = manifest(subject={"choices": ["ai_select", {"rule": "option_index", "index": 1}, "ai_select"]})
+        self.assertIn("planned option index", self.evidence(plan_manifest=plan)["reason"])
+        plan = manifest(subject={"choices": ["ai_select", {"rule": "definition", "definition": "passive_pressed"}, "ai_select"]})
+        self.assertIn("planned definition", self.evidence(plan_manifest=plan)["reason"])
+
+    def test_reroll_evidence_matches_the_final_offer_and_remaining_tokens(self):
+        caps = copy.deepcopy(self.caps)
+        caps["scenarios"]["duel_site"]["parameters"]["reroll_levels"] = [3]
+        value = result()
+        value["contenders"][1]["rerolls_left"] = 1
+        initial = next(line for line in trace().splitlines() if line.startswith(f"LD_OFFER t=5016 contender={S} ordinal=2"))
+        reroll = (f"LD_OFFER t=5020 contender={S} ordinal=2 rerolled=1 level=3 "
+                  "cards=Attribute:attr_protein:0>1:q1,LearnPassive:passive_special_forces:0>1:q0,Attribute:attr_hand_out:0>1:q1")
+        rerolled = trace().replace(initial, initial + "\n" + reroll)
+        case = {"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}
+        value["trace_lines"] = len(rerolled.splitlines())
+        out = lockdown.case_evidence(case, manifest(), caps, value, rerolled)
+        self.assertEqual(out["status"], "Completed", out["reason"])
+        self.assertEqual(out["facts"]["rerolled_offers"]["subject"]["2"][0], "attr_protein")
+        value["trace_lines"] = len(trace().splitlines())
+        out = lockdown.case_evidence(case, manifest(), caps, value, trace())
+        self.assertIn("reroll records do not match", out["reason"],
+                      "a missing reroll is detected even if the same card was in the initial offer")
+        out = lockdown.case_evidence(case, manifest(), caps, value, trace().replace(initial, reroll))
+        self.assertIn("out-of-order", out["reason"])
+
+    def test_a_post_horizon_kill_in_old_evidence_is_not_a_valid_result(self):
+        value = result()
+        value["outcome"]["t_ms"] = 45001
+        late = trace().replace("t=20000", "t=50001")
+        value["ended_at_ms"] = 50016
+        out = self.evidence(value, late)
+        self.assertEqual(out["status"], "Invalid")
+        self.assertIn("after the duel horizon", out["reason"])
 
     def test_a_hit_line_that_contradicts_itself_is_an_evidence_violation(self):
         broken = trace().replace("hp_lost=40.00 hp=620.00->580.00", "hp_lost=40.00 hp=620.00->590.00")
@@ -249,6 +372,19 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(reference["facts"]["prefix"], out["facts"]["prefix"])
         self.assertEqual(reference["facts"]["label"], "attr_protein")
 
+    def test_branch_point_follows_the_first_differing_normalized_rule(self):
+        common = {"rule": "definition", "definition": "opening_athlete"}
+        plan = manifest(subject={"choices": [common, {"rule": "option_index", "index": 0}, "ai_select"]})
+        plan["design"]["arms"][0]["plan"]["subject"]["choices"] = [
+            common, {"rule": "option_index", "index": 1}, {"rule": "ai_select"}]
+        self.assertEqual(lockdown.branch_ordinal(plan["design"]), 2)
+        out = self.evidence(plan_manifest=plan)
+        self.assertEqual(out["facts"]["label"], "attr_protein")
+        self.assertIn("1:['opening_athlete'", out["facts"]["prefix"])
+        self.assertIn(">opening_athlete→active_elbow|2:", out["facts"]["prefix"])
+        plan["design"]["arms"][0]["plan"]["subject"]["choices"][1] = {"rule": "option_index", "index": 0}
+        self.assertIsNone(lockdown.branch_ordinal(plan["design"]), "ai_select spellings normalize to one rule")
+
     def test_the_native_case_limit_is_the_drivers(self):
         header = (ROOT / "Source/Lockdown/Private/Tests/LDBuildEvaluationProbe.h").read_text(encoding="utf-8")
         self.assertIn(f"inline constexpr int32 MaxCases = {lockdown.NATIVE_MAX_CASES};", header)
@@ -263,6 +399,31 @@ class ReplayAndIdentityTest(AdapterCase):
         self.assertFalse(any("t=25000" in line for line in events), "events after the Case's end are not compared")
         self.assertEqual(spatial["opponent@6000"], (-100.0, 5.0, 0.0))
         self.assertNotIn("subject@21000", spatial)
+
+    def test_replay_evidence_contains_terminal_build_and_heartbeat_resources(self):
+        run = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": 1, "content_root": CONTENT_ROOT, "run_id": "r",
+               "passed": True, "fixed_time_step": True, "seed_derivation": 1, "fixed_delta_seconds": 1 / 60,
+               "product_version": "0.10.0", "engine_version": "5.8.4", "source_commit": "abc", "source_dirty": "false"}
+        frozen = manifest()
+        frozen["resolved"] = {"run_id": "r"}
+        case = {"case_id": "c000a-t", "seed": "7", "arm": "t", "side": 0}
+        binary = {"editor_sha256": "a" * 64, "module_sha256": "b" * 64}
+        runner = {"binary_digests": binary, "binary_digests_after": dict(binary), "exit_code": 0, "timed_out": False}
+        snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), trace())
+        self.assertEqual(snapshot["problems"], [])
+        self.assertEqual(snapshot["terminal"]["contenders"]["subject"]["hp_p2"], 31000)
+        self.assertEqual(snapshot["terminal"]["contenders"]["subject"]["opening_card"], "opening_athlete")
+        self.assertEqual(snapshot["resources"][0]["mp"], "280.00/280.00")
+        malformed = trace().replace("mp=280.00/280.00 shield=0.00", "shield=0.00", 1)
+        snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), malformed)
+        self.assertTrue(any("lacks resource" in problem for problem in snapshot["problems"]))
+        snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(), "")
+        self.assertTrue(any("both duelists" in problem for problem in snapshot["problems"]))
+        snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, runner, result(status="BudgetExceeded"), trace())
+        self.assertTrue(any("not the completed" in problem for problem in snapshot["problems"]))
+        changed = dict(runner, binary_digests_after={"editor_sha256": "a" * 64, "module_sha256": "c" * 64})
+        snapshot = lockdown.replay_evidence(case, frozen, self.caps, run, changed, result(), trace())
+        self.assertTrue(any("binary identity" in problem for problem in snapshot["problems"]))
 
     def test_run_identity(self):
         good = {"schema": lockdown.NATIVE_RUN_SCHEMA, "schema_version": 1, "content_root": self.caps["content"]["digest"].upper(),

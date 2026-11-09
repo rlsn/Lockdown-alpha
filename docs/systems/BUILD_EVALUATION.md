@@ -43,7 +43,7 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 | `native_input.json` | Adapter 写给原生驱动的输入（只含可运行 Case） |
 | `native\native_run.json`、`native\results\<case>.json`、`native\traces\<case>.log` | 原生运行身份、每个 Case 的结果、该局的权威 `LD_*` 日志行 |
 | `metrics.json`、`findings.json`、`report.md` | 统计、发现与报告；重放运行另有 `replay.json` |
-| `Host.log`、`runner.json` | Host 完整日志；退出码、超时与日志错误 |
+| `Host.log`、`runner.json` | Host 完整日志；退出码、超时、日志错误，以及运行前后编辑器可执行文件和游戏模块的 SHA-256 |
 
 ## 实验清单
 
@@ -75,23 +75,28 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 只有 `Completed` 进入统计分母；其余状态在报告与 `coverage.json` 中逐条列出原因。超时是删失，不是输；
 预算耗尽、原生故障、缺结果都不是胜负。
 
-统计：每个块内成对比较（处理 − 参考，或决策的所有两两差），均值与 Student t 的 95% 区间，以及差值非零的块数与其 95% Wilson 区间；
-所有块的差值完全相同时区间“退化”，报告不给区间、也不拿它和阈值比较（离散的 `duel_score` 常见这种情况）。
-`decision` 另给每个选项的平均后悔值、最佳占比和“选择造成差异”的块占比；`factorial_2x2` 给参考替换交互
+统计的独立单位是**种子**，不是执行侧：同一世界种子的两侧先平均，再计算 arm 均值、成对差、
+Student t 的 95% 区间与平均差非零的种子数及其 95% Wilson 区间。某指标所需 arm 的任一侧缺失或无效时，
+整个种子不进入该项分母；不同 arm 的单独均值可有不同的有效种子数。搜索集和确认集种子碰撞时计划被拒绝。
+各独立种子的差值完全相同时区间“退化”，报告不给区间、也不拿它和阈值比较（离散的 `duel_score` 常见这种情况）。
+`decision` 另给各侧平均后每个选项的平均后悔值、最佳占比和有选项差异的种子占比；`factorial_2x2` 给参考替换交互
 `V(A,B) − V(A,b0) − V(a0,B) + V(a0,b0)`。`time_to_event` 指标的删失 Case 按时限计入（受限均值）并计数。
 只有确认集的主指标产生结论：没有批准阈值时是 `NoTarget`（只报告效应与区间）；有阈值时区间整体超出为
 `BalanceConcern`，整体落在 ±阈值内为 `NoCounterexampleInCoveredSet`，区间退化或跨越阈值为 `InsufficientEvidence`。
-搜索集只作探索。每条结论附差距最大的块的 Case 作为最小复现。证据合同违规随 Case 记在 `cases.jsonl`，重新分析也会再次报告。
+搜索集只作探索。每条结论附差距最大的种子的全部相关 Case（包括两侧）作为最小复现。
+报告与 `metrics.json` 分别标记录制 Adapter 和当前判读 Adapter；`cases.jsonl` 记下每个已判读 Case 的证据判读版本。
+证据合同违规随 Case 记在 `cases.jsonl`，重新分析也会再次报告。
 Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接受的 Case 上限（Lockdown 为原生驱动的 500），超出在计划时拒绝。
 
-`RuleViolation` 来自：运行身份与计划不符（内容摘要、固定步长、种子派生版本）、证据合同被违反（如 `LD_HIT` 的
+`RuleViolation` 来自：运行身份与计划不符（内容摘要、固定步长、种子派生版本、运行前后程序摘要）、证据合同被违反（如 `LD_HIT` 的
 `hp_lost` 与扣血前后不符）、同一决策块分支的前缀不一致、换种子随机结果不变、运行日志出现错误或权威故障、重放分歧。
 
-## Lockdown Adapter（v0.10 Demo）
+## Lockdown Adapter v2（v0.10 Demo）
 
 能力表来自运行目录 `Content\Lockdown\Data\Demo`：内容摘要是 `manifest.json` 的 SHA-256（即原生目录根），
 每个技能、属性卡与开局卡都是 `Supported`（原生导入器拒绝没有处理器的定义），技能另记 `draftable`。
-不在运行目录里的标识（例如 v0.11 候选卡）不是 Supported，相关 arm 不运行。
+不在运行目录里的标识（例如 v0.11 候选卡）不是 Supported，相关 arm 不运行。能力表还记录获得重抽的等级。
+判读旧版能力表时，只有本地目录根及其内容载荷哈希均与录制时一致，才从该目录恢复缺少的重抽等级；否则拒绝判读。
 
 场景 `duel_site`（证据级别 `NativeSpatial`）：
 
@@ -112,12 +117,15 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 结果前获得供给以外的经验（`UncontrolledXP`）、供给数额不符（`SupplyMismatch`/`SupplyMissing`）、计划选择未完成
 （`PlanNotReached`）、预置候选不是实际抽到的 Offer（`PresetNotApplied`）、死亡缺致死命中或死亡回执（`TraceIncomplete`）、
 击杀者不是另一名对决者（`ExternalKill`）、画像未被采用或种子身份未进入名单（`Setup`）。
+双方每个计划序号都必须有初始 `LD_OFFER`、可核对的重抽记录和最终 `LD_CHOICE`；验证候选、所选卡与计划规则、
+等级品质、剩余重抽及终局开局卡。缺失、空白、行数不符、格式损坏或不一致的轨迹判为 `TraceIncomplete`，不能进入统计。
+多 arm 的分支点是主体规则首次不同的序号；此前共同的显式选择和重抽均保留在前缀中，前缀不一致的种子不参与决策推断。
 
 | 指标 | 含义 |
 | --- | --- |
 | `duel_score` | +1 主体击杀对手，−1 主体先死，0 到时未分胜负（删失） |
 | `damage_dealt_hp` / `damage_taken_hp` | 结果前主体对对手、对手对主体已提交命中的实际掉血（不含护盾吸收） |
-| `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0） |
+| `subject_hp_end_bp` | Case 结束时主体生命比例（死亡为 0）；时限可能落在两帧之间，终态是探针结束时的帧状态，不是精确时限快照 |
 | `decision_time_ms` | T=0 到第一名对决者死亡，到时删失 |
 
 事实（`cases.jsonl`）：双方每个序号的实际 Offer 与选择、重抽 Offer、终局构筑、分支标签（分支点所选卡）、
@@ -148,12 +156,19 @@ Frame、命令、回执与失败记忆仍是该适配器的，生产决策不变
 `LDBuildEvaluation::ParseInput` 严格解析（`Lockdown.Rules.BuildEvaluation.Input`），输入与输出都必须在 `Artifacts` 下。
 轨迹是该局期间 `LogLDCombat/Growth/Match/AI/Trace/Test` 的 `LD_*` 行，沿用[运行日志合同](ARCHITECTURE_AND_NETWORKING.md#运行日志与试玩记录)，
 Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
+发生在 `StartedAtMs + DuelTimeoutMs` 及之前的击杀计入；更晚的通知忽略，按精确时限判为删失。结果前命中指标按该时限截断，
+但终态 HP/MP 与重放终态仍记录探针实际结束帧。
 
 ## 重放
 
-`-ReplayRun` 以原 Case 的身份、种子与方案新开进程重跑，比较两份轨迹中到 Case 结束为止的 `LD_OFFER/CHOICE/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`
-（身份换成角色名），首个不同即报告其序号与两行；`LD_HEARTBEAT` 的位置按 `-SpatialToleranceCm`（默认 0）比较。
-同一二进制、平台与 Case 才承诺一致；跨平台或换构建的一致性不是默认承诺。
+`-ReplayRun` 以原 Case 的身份、种子与方案新开进程重跑。只有两次都成功完成，计划、Case、能力表、原生运行身份、
+编辑器可执行文件和游戏模块的运行前后摘要均可核对且一致，双方选择证据与心跳资源/位置完整，才进行成功判定。
+比较终态的构筑、HP/MP 等字段和双方心跳资源，以及到 Case 结束为止的
+`LD_OFFER/CHOICE/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；位置按 `-SpatialToleranceCm`（默认 0）比较。
+报告保留首个分歧。空轨迹、缺失必要证据、运行失败或身份不符都不能标为 `Replayed`。
+旧运行可用 `--rejudge` 重新判读，但旧版能力表与 v2 不同，不能当作 v2 原生重放的同版本证据。
+程序摘要只覆盖编辑器可执行文件和项目模块，不证明其他引擎 DLL 或插件的逐字节一致；`source_dirty=unknown`
+也不证明工作区无修改。跨平台、换构建或未记录摘要的旧运行不承诺一致。
 
 ## 测试
 
@@ -162,6 +177,7 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 | `Lockdown.Rules.BuildEvaluation.Seeds` | 派生确定性与金值、流相互独立、无开关时拒绝武装且身份仍为新 GUID |
 | `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺卡与替换未指定的拒绝、倒计时选择、计划完成前不动、只攻击指定对手、不撤退、走向与到达、失败后停止 |
 | `Lockdown.Rules.BuildEvaluation.Input` | 原生输入的严格解析与各类拒绝 |
+| `Lockdown.Rules.BuildEvaluation.Horizon` | 非帧对齐时限之前、恰在时限和之后的击杀边界 |
 | `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |
 | `TestBuildEvaluationLockdown.py` | 能力表即运行目录、计划期非法方案、未入目录的候选卡不支持、预置只限 diagnostic、原生输入与换边、合成轨迹的指标与各 `Invalid` 原因、证据合同、重放事件、运行身份 |
 

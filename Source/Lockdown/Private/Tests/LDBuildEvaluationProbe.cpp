@@ -751,6 +751,7 @@ public:
         {
             if (Notice.Serial <= LastKillSerial) { continue; }
             LastKillSerial = Notice.Serial;
+            if (!LDBuildEvaluation::KillAtOrBeforeHorizon(StartedAtMs, Row.DuelTimeoutMs, Notice.OccurredAtMs)) { continue; }
             for (int32 Index = 0; Index < LDBuildEvaluation::DuelAISlots; ++Index)
             {
                 if (Notice.Victim != Sides[Index].Contender) { continue; }
@@ -765,7 +766,7 @@ public:
         if (Mode.GetAuthorityNowMs() - StartedAtMs >= Row.DuelTimeoutMs)
         {
             OutcomeKind = TEXT("timeout");
-            OutcomeAtMs = Mode.GetAuthorityNowMs();
+            OutcomeAtMs = StartedAtMs + Row.DuelTimeoutMs;
             EndCase(Mode, World, TEXT("Completed"), TEXT("undecided at the duel timeout (censored)"));
         }
         return true;

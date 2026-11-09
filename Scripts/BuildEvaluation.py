@@ -9,7 +9,7 @@ Subcommands (all write only inside the run directory):
   plan         validate a manifest, admit it against the adapter's capabilities, expand Cases, write the native input
   analyze      read native evidence, judge every Case, compute paired statistics, write metrics, findings and report
   replay-plan  a new run of one recorded Case with the same identity, seed and plan
-  compare      compare a replayed Case with its source on canonical discrete events and a spatial tolerance
+  compare      compare complete replay evidence, terminal state, resources, events and spatial tolerance
 """
 
 import argparse
@@ -36,7 +36,7 @@ METRIC_KINDS = ("score", "continuous", "time_to_event")
 DIRECTIONS = ("higher_better", "lower_better", "descriptive")
 SPLITS = ("search", "confirm")
 ADAPTER_CONTRACT = ("ADAPTER_ID", "ADAPTER_VERSION", "describe", "requirements", "scenario_problems", "native_input",
-                    "case_evidence", "canonical_events", "identity_problems", "limitations", "replay_hint")
+                    "case_evidence", "canonical_events", "replay_evidence", "identity_problems", "limitations", "replay_hint")
 
 IDENTIFIER = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]{0,79}$")
 MODULE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -242,9 +242,13 @@ def block_seed(root_seed, split, index):
 
 def expand_blocks(blocks):
     out = []
+    seen_seeds = set()
     for split in SPLITS:
         for index in range(blocks["splits"][split]):
             seed = block_seed(blocks["root_seed"], split, index)
+            if seed in seen_seeds:
+                raise PlanError("block seeds collide; choose another root_seed")
+            seen_seeds.add(seed)
             for side in range(blocks["sides"]):
                 out.append({"block": f"{split[0]}{index:03d}{'ab'[side]}", "split": split, "index": index,
                             "side": side, "seed": str(seed)})
@@ -260,7 +264,7 @@ def admit_arm(caps, scenario_caps, manifest, arm, adapter):
     scenario = manifest["scenario"]
     try:
         needs = adapter.requirements(scenario, arm["plan"], caps)
-    except Exception as error:  # an adapter refusing a malformed plan is a plan refusal of this arm, never a crash
+    except ValueError as error:
         return [f"IllegalPlan: {error}"]
     reasons = list(needs.get("problems", []))
     for mechanic in sorted(set(needs.get("mechanics", []))):
@@ -350,7 +354,8 @@ def coverage(manifest, cases, admission=None):
         if admission is not None:
             arms[arm["id"]]["admission"] = admission[arm["id"]] or ["Supported"]
     return {"requested": len(cases), "by_status": by_status, "arms": arms,
-            "denominator_note": "Completed Cases are the only denominator of any statistic; every other status is listed, never counted as a result."}
+            "denominator_note": ("Only Completed Cases enter statistics. Inference uses independent seeds, averaging the "
+                                 "requested sides within each complete seed; incomplete seeds are excluded.") }
 
 
 # ---------------------------------------------------------------- statistics
@@ -420,29 +425,65 @@ def blocks_of(cases, split):
     return out
 
 
-def arm_summaries(cases, arms, metric, kind):
+def clusters_of(cases, split):
+    """Keep side-specific execution blocks together under their shared independent seed."""
+    out = {}
+    for case in cases:
+        if case["split"] != split:
+            continue
+        key = f"{split[0]}{case['index']:03d}"
+        cluster = out.setdefault(key, {"seed": case["seed"], "sides": {}})
+        if cluster["seed"] != case["seed"]:
+            raise PlanError(f"seed cluster {key} contains different seeds")
+        row = cluster["sides"].setdefault(case["side"], {})
+        if case["arm"] in row:
+            raise PlanError(f"seed cluster {key} repeats side {case['side']} arm {case['arm']}")
+        row[case["arm"]] = case
+    return out
+
+
+def cluster_values(cluster, arms, metric, sides):
+    """An estimate uses the same complete set of sides and arms, or excludes the entire seed."""
+    values = {arm: [] for arm in arms}
+    for side in range(sides):
+        row = cluster["sides"].get(side, {})
+        for arm in arms:
+            value = metric_value(row[arm], metric) if arm in row else None
+            if value is None:
+                return None
+            values[arm].append(value)
+    return {arm: sum(items) / sides for arm, items in values.items()}
+
+
+def arm_summaries(clusters, arms, metric, kind, sides):
     out = {}
     for arm in arms:
-        rows = [case for case in cases if case["arm"] == arm]
-        values = [value for value in (metric_value(case, metric) for case in rows) if value is not None]
+        values, included, excluded = [], [], []
+        for key, cluster in sorted(clusters.items()):
+            value = cluster_values(cluster, [arm], metric, sides)
+            if value is None:
+                excluded.append(key)
+                continue
+            values.append(value[arm])
+            included.extend(cluster["sides"][side][arm] for side in range(sides))
         summary = summarize(values)
-        summary["censored"] = sum(1 for case in rows if case["status"] == "Completed"
-                                  and case.get("metrics", {}).get(metric, {}).get("censored"))
+        summary["censored"] = sum(1 for case in included if case.get("metrics", {}).get(metric, {}).get("censored"))
+        summary["cases"] = len(included)
+        summary["excluded_blocks"] = excluded
         if kind == "time_to_event":
-            summary["note"] = "restricted mean: a censored Case counts at its horizon"
+            summary["note"] = "restricted mean: a censored Case counts at its horizon before averaging sides"
         out[arm] = summary
     return out
 
 
-def paired(cases_by_block, treatment, reference, metric):
+def paired(clusters, treatment, reference, metric, sides, blocked=()):
     diffs, used, excluded = [], [], []
-    for block, row in sorted(cases_by_block.items()):
-        a = metric_value(row[treatment], metric) if treatment in row else None
-        b = metric_value(row[reference], metric) if reference in row else None
-        if a is None or b is None:
+    for block, cluster in sorted(clusters.items()):
+        values = cluster_values(cluster, [treatment, reference], metric, sides)
+        if values is None or block in blocked:
             excluded.append(block)
             continue
-        diffs.append(a - b)
+        diffs.append(values[treatment] - values[reference])
         used.append(block)
     out = summarize(diffs)
     nonzero = sum(1 for diff in diffs if diff != 0)
@@ -451,14 +492,14 @@ def paired(cases_by_block, treatment, reference, metric):
     return out
 
 
-def decision_analysis(cases_by_block, arms, metric, direction, threshold):
+def decision_analysis(clusters, arms, metric, direction, threshold, sides, blocked=()):
     sign = -1.0 if direction == "lower_better" else 1.0
     regret = {arm: [] for arm in arms}
     best_share = {arm: 0.0 for arm in arms}
     spreads, rows = [], []
-    for block, row in sorted(cases_by_block.items()):
-        values = {arm: metric_value(row[arm], metric) for arm in arms if arm in row}
-        if len(values) != len(arms) or any(value is None for value in values.values()):
+    for block, cluster in sorted(clusters.items()):
+        values = cluster_values(cluster, arms, metric, sides)
+        if values is None or block in blocked:
             continue
         scored = {arm: sign * value for arm, value in values.items()}
         top = max(scored.values())
@@ -469,8 +510,12 @@ def decision_analysis(cases_by_block, arms, metric, direction, threshold):
                 best_share[arm] += 1.0 / len(winners)
         spread = top - min(scored.values())
         spreads.append(spread)
-        rows.append({"block": block, "values": values, "best": winners, "spread": spread,
-                     "labels": {arm: row[arm].get("facts", {}).get("label") for arm in arms}})
+        labels = {}
+        for arm in arms:
+            side_labels = [cluster["sides"][side][arm].get("facts", {}).get("label") or "" for side in range(sides)]
+            labels[arm] = (side_labels[0] if sides == 1 else
+                           " / ".join(f"{'ab'[side]}:{label}" for side, label in enumerate(side_labels)))
+        rows.append({"block": block, "values": values, "best": winners, "spread": spread, "labels": labels})
     n = len(rows)
     out = {"blocks": n, "rows": rows,
            "mean_regret": {arm: (sum(values) / n if n else None) for arm, values in regret.items()},
@@ -482,16 +527,16 @@ def decision_analysis(cases_by_block, arms, metric, direction, threshold):
     return out
 
 
-def interaction(cases_by_block, arms_by_cell, metric):
+def interaction(clusters, arms_by_cell, metric, sides):
     tt, tr, rt, rr = (arms_by_cell[cell] for cell in (("treatment", "treatment"), ("treatment", "reference"),
                                                       ("reference", "treatment"), ("reference", "reference")))
     terms, used, excluded = [], [], []
-    for block, row in sorted(cases_by_block.items()):
-        values = [metric_value(row[arm], metric) if arm in row else None for arm in (tt, tr, rt, rr)]
-        if any(value is None for value in values):
+    for block, cluster in sorted(clusters.items()):
+        values = cluster_values(cluster, [tt, tr, rt, rr], metric, sides)
+        if values is None:
             excluded.append(block)
             continue
-        terms.append(values[0] - values[1] - values[2] + values[3])
+        terms.append(values[tt] - values[tr] - values[rt] + values[rr])
         used.append(block)
     out = summarize(terms)
     nonzero = sum(1 for term in terms if term != 0)
@@ -532,11 +577,21 @@ def analyze(run_dir, rejudge=False):
         for case in cases:
             if case["status"] != "Unsupported":
                 case.update(status="NotRun", reason="", metrics={}, facts={}, violations=[])
+                case.pop("evidence_adapter", None)
     native_dir = run_dir / "native"
     run_record = read_json(native_dir / "native_run.json") if (native_dir / "native_run.json").exists() else None
     runner = read_json(run_dir / "runner.json") if (run_dir / "runner.json").exists() else {}
     identity_problems = adapter.identity_problems(run_record, caps) if run_record else []
+    if not run_record and any((native_dir / "results" / f"{case['case_id']}.json").exists()
+                              for case in cases if case["status"] != "Unsupported"):
+        identity_problems.append("the native run identity is missing")
+    if run_record and ("binary_digests" in runner or "binary_digests_after" in runner):
+        if not runner.get("binary_digests") or runner["binary_digests"] != runner.get("binary_digests_after"):
+            identity_problems.append("the recorded binaries are missing or changed during the native run")
     for case in cases:
+        if identity_problems and case["status"] != "Unsupported":
+            case.update(status="Invalid", reason="; ".join(identity_problems), metrics={}, facts={})
+            continue
         if case["status"] != "NotRun":
             continue
         result_path = native_dir / "results" / f"{case['case_id']}.json"
@@ -555,11 +610,16 @@ def analyze(run_dir, rejudge=False):
             raise PlanError(f"adapter returned status {evidence.get('status')} for {case['case_id']}")
         # Evidence-contract violations stay with their Case, so a later analysis reports them again.
         case.update(status=evidence["status"], reason=evidence.get("reason", ""), metrics=evidence.get("metrics", {}),
-                    facts=evidence.get("facts", {}), violations=list(evidence.get("violations", [])))
+                    facts=evidence.get("facts", {}), violations=list(evidence.get("violations", [])),
+                    evidence_adapter={"id": adapter.ADAPTER_ID, "version": adapter.ADAPTER_VERSION})
     violations = [{"case": case["case_id"], "detail": item} for case in cases for item in case.get("violations", [])]
     write_cases(run_dir, cases)
     write_json(run_dir / "coverage.json", coverage(manifest, cases))
     metrics = compute_metrics(manifest, caps, cases)
+    evidence_versions = sorted({str(case.get("evidence_adapter", {}).get("version", "unknown"))
+                                for case in cases if case["status"] == "Completed"})
+    metrics["analysis"] = {"adapter": {"id": adapter.ADAPTER_ID, "version": adapter.ADAPTER_VERSION},
+                           "completed_evidence_versions": evidence_versions}
     findings = compute_findings(manifest, caps, cases, metrics, violations, identity_problems, run_record, runner)
     write_json(run_dir / "metrics.json", metrics)
     write_json(run_dir / "findings.json", findings)
@@ -572,28 +632,44 @@ def compute_metrics(manifest, caps, cases):
     arms = [arm["id"] for arm in design["arms"]]
     names = [manifest["metrics"]["primary"]] + manifest["metrics"]["secondary"]
     threshold = manifest["metrics"]["material_difference"]
+    sides = manifest["blocks"]["sides"]
+    scenario = caps["scenarios"].get(manifest["scenario"]["kind"], {})
     out = {"schema": "build_evaluation.metrics", "schema_version": SCHEMA_VERSION, "design": design["kind"],
-           "primary": manifest["metrics"]["primary"], "material_difference": threshold, "splits": {}}
+           "primary": manifest["metrics"]["primary"], "material_difference": threshold,
+           "inference_unit": "seed_mean_over_complete_sides", "splits": {}}
     for split in SPLITS:
         rows = [case for case in cases if case["split"] == split]
         if not rows:
             continue
         by_block = blocks_of(rows, split)
-        entry = {"blocks": len(by_block), "metrics": {}}
+        clusters = clusters_of(rows, split)
+        blocked = set()
+        if design["kind"] == "decision":
+            for cluster_id, cluster in clusters.items():
+                for row in cluster["sides"].values():
+                    prefixes = {case["facts"].get("prefix") for case in row.values() if case["status"] == "Completed"}
+                    if len(prefixes) > 1:
+                        blocked.add(cluster_id)
+        entry = {"blocks": len(clusters), "execution_blocks": len(by_block), "sides_per_seed": sides, "metrics": {}}
         for name in names:
-            spec = caps["metrics"][name]
-            metric = {"unit": spec.get("unit"), "kind": spec["kind"], "direction": spec["direction"],
-                      "arms": arm_summaries(rows, arms, name, spec["kind"])}
+            spec = caps["metrics"].get(name)
+            if not spec or name not in scenario.get("metrics", []):
+                entry["metrics"][name] = {"supported": False, "reason": f"UnsupportedMetric: {name}"}
+                continue
+            metric = {"supported": True, "unit": spec.get("unit"), "kind": spec["kind"], "direction": spec["direction"],
+                      "arms": arm_summaries(clusters, arms, name, spec["kind"], sides)}
             if design["kind"] == "paired_arms":
-                metric["contrasts"] = [paired(by_block, arm, design["reference"], name) for arm in arms if arm != design["reference"]]
+                metric["contrasts"] = [paired(clusters, arm, design["reference"], name, sides)
+                                       for arm in arms if arm != design["reference"]]
             elif design["kind"] == "decision":
-                metric["contrasts"] = [paired(by_block, b, a, name) for i, a in enumerate(arms) for b in arms[i + 1:]]
-                metric["decision"] = decision_analysis(by_block, arms, name, spec["direction"],
-                                                       threshold if name == manifest["metrics"]["primary"] else None)
+                metric["contrasts"] = [paired(clusters, b, a, name, sides, blocked)
+                                       for i, a in enumerate(arms) for b in arms[i + 1:]]
+                metric["decision"] = decision_analysis(clusters, arms, name, spec["direction"],
+                                                       threshold if name == manifest["metrics"]["primary"] else None, sides, blocked)
             else:
                 cells = {(arm["levels"]["first"], arm["levels"]["second"]): arm["id"] for arm in design["arms"]}
-                metric["interaction"] = interaction(by_block, cells, name)
-                metric["contrasts"] = [paired(by_block, cells[("treatment", second)], cells[("reference", second)], name)
+                metric["interaction"] = interaction(clusters, cells, name, sides)
+                metric["contrasts"] = [paired(clusters, cells[("treatment", second)], cells[("reference", second)], name, sides)
                                        for second in ("reference", "treatment")]
             entry["metrics"][name] = metric
         out["splits"][split] = entry
@@ -604,7 +680,6 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
     findings = []
     primary = manifest["metrics"]["primary"]
     threshold = manifest["metrics"]["material_difference"]
-    direction = caps["metrics"][primary]["direction"]
     scope = "在本次覆盖的构筑、策略、场景与预算内"
 
     def add(conclusion, title, **rest):
@@ -626,9 +701,10 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
     fingerprints = {}
     for case in cases:
         if case["status"] == "Completed" and case["facts"].get("random_fingerprint"):
-            fingerprints.setdefault(case["arm"], {})[case["block"]] = case["facts"]["random_fingerprint"]
+            fingerprints.setdefault(case["arm"], {}).setdefault(case["seed"], []).append(
+                (case["side"], case["facts"]["random_fingerprint"]))
     for arm, seen in fingerprints.items():
-        if len(seen) > 1 and len(set(seen.values())) == 1:
+        if len(seen) > 1 and len({tuple(sorted(values)) for values in seen.values()}) == 1:
             add("RuleViolation", f"更换种子没有改变 {arm} 的随机结果", evidence=sorted(seen))
     not_completed = [case for case in cases if case["status"] not in ("Completed", "Unsupported")]
     if not_completed:
@@ -646,6 +722,11 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
             add("InsufficientEvidence", "没有确认集：搜索集结果只作探索，不构成结论")
         return {"schema": "build_evaluation.findings", "schema_version": SCHEMA_VERSION, "findings": findings}
     metric = confirm["metrics"][primary]
+    if not metric.get("supported"):
+        if not unsupported:
+            add("InsufficientEvidence", "主指标不受场景支持，不能产生统计结论", detail=metric["reason"])
+        return {"schema": "build_evaluation.findings", "schema_version": SCHEMA_VERSION, "findings": findings}
+    direction = metric["direction"]
     sign = -1.0 if direction == "lower_better" else 1.0
     estimates = []
     if "interaction" in metric:
@@ -657,7 +738,7 @@ def compute_findings(manifest, caps, cases, metrics, violations, identity_proble
         reproduce = []
         if per_block:
             block = max(per_block, key=lambda key: abs(per_block[key]))
-            reproduce = sorted(case["case_id"] for case in cases if case["block"] == block and case["split"] == "confirm"
+            reproduce = sorted(case["case_id"] for case in cases if f"c{case['index']:03d}" == block and case["split"] == "confirm"
                                and case["status"] == "Completed")
         add(conclusion, f"确认集 {primary}: {label}", metric=primary, estimate=estimate["mean"], ci95=estimate["ci95"],
             degenerate=estimate.get("degenerate", False), nonzero_blocks=estimate.get("nonzero_blocks"),
@@ -677,7 +758,7 @@ def _number(value, digits=3):
 
 def _interval(ci, degenerate=False):
     if degenerate:
-        return "退化（各块相同，不构成区间）"
+        return "退化（各种子相同，不构成区间）"
     return "—" if not ci else f"[{_number(ci[0])}, {_number(ci[1])}]"
 
 
@@ -695,14 +776,16 @@ def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, ru
              "", f"假设：{manifest['experiment']['hypothesis']}", "", "## 身份与输入", "",
              "| 项 | 值 |", "| --- | --- |",
              f"| 运行 | `{resolved['run_id']}` |",
-             f"| Adapter | `{resolved['adapter']['id']}` v{resolved['adapter'].get('version')} |",
+             f"| 录制 Adapter | `{resolved['adapter']['id']}` v{resolved['adapter'].get('version')} |",
+             f"| 判读 Adapter | 当前 v{metrics['analysis']['adapter']['version']}；完成 Case 的证据判读版本 "
+             f"{', '.join(metrics['analysis']['completed_evidence_versions']) or '无'} |",
              f"| 内容 | {resolved['content'].get('id')} {resolved['content'].get('version', '')} `{resolved['content'].get('digest', '')}` |",
              f"| 能力表 | `{resolved['capabilities_sha256']}` |",
              f"| 场景 / 证据级别 | `{manifest['scenario']['kind']}` / {resolved['evidence_level']} |",
              f"| 样本类别 | {manifest['sample_class']} |",
              f"| 设计 | {manifest['design']['kind']}，{len(manifest['design']['arms'])} 个 arm |",
-             f"| 种子 | root `{manifest['blocks']['root_seed']}`；搜索 {manifest['blocks']['splits']['search']} 块，确认 {manifest['blocks']['splits']['confirm']} 块，sides {manifest['blocks']['sides']} |",
-             f"| 主指标 / 实质差异阈值 | `{manifest['metrics']['primary']}` / {_number(manifest['metrics']['material_difference']) if manifest['metrics']['material_difference'] is not None else '未批准（判定为 NoTarget）'} |",
+             f"| 种子 | root `{manifest['blocks']['root_seed']}`；搜索 {manifest['blocks']['splits']['search']} 个，确认 {manifest['blocks']['splits']['confirm']} 个；每个种子 {manifest['blocks']['sides']} 侧 |",
+             f"| 主指标 / 实质差异阈值 | `{manifest['metrics']['primary']}` / {_number(manifest['metrics']['material_difference']) if manifest['metrics']['material_difference'] is not None else '未批准（证据足够时为 NoTarget）'} |",
              f"| 预算 | 最多 {manifest['budget']['max_cases']} 个 Case；单 Case {manifest['budget']['case_wall_timeout_s']} s；整次 {manifest['budget']['run_wall_timeout_s']} s |"]
     if run_record:
         lines += [f"| 原生运行 | 源码 `{run_record.get('source_commit')}`（dirty {run_record.get('source_dirty')}），产品 {run_record.get('product_version')}，"
@@ -724,28 +807,32 @@ def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, ru
     lines += [""]
     for split, entry in metrics["splits"].items():
         tag = "确认集" if split == "confirm" else "搜索集（探索，不构成结论）"
-        lines += [f"## {tag}：{entry['blocks']} 个块", ""]
+        lines += [f"## {tag}：{entry['blocks']} 个独立种子，{entry['execution_blocks']} 个执行侧", "",
+                  "同一种子的各侧先取平均再统计；缺任一所需侧的种子不进入该项分母。"]
         for name, metric in entry["metrics"].items():
+            if not metric.get("supported"):
+                lines += ["", f"### `{name}`", "", f"未支持：{metric['reason']}，没有统计。", ""]
+                continue
             lines += [f"### `{name}`（{metric['unit']}，{metric['kind']}，{metric['direction']}）", "",
-                      "| arm | n | 均值 | 95% 区间 | 删失 |", "| --- | --- | --- | --- | --- |"]
+                      "| arm | 独立种子 n | 均值 | 95% 区间 | 删失 Case |", "| --- | --- | --- | --- | --- |"]
             for arm, summary in metric["arms"].items():
                 lines.append(f"| `{arm}` | {summary['n']} | {_number(summary['mean'])} | {_interval(summary['ci95'], summary.get('degenerate'))} | {summary['censored']} |")
             if metric["kind"] == "time_to_event":
                 lines.append("")
                 lines.append("删失 Case 按其时限计入（受限均值），不是事件时间。")
             if metric.get("contrasts"):
-                lines += ["", "| 成对比较 | 块 | 平均差 | 95% 区间 | 差值非零的块（95% Wilson 区间） | 排除的块 |",
+                lines += ["", "| 成对比较 | 种子 | 平均差 | 95% 区间 | 平均差非零的种子（95% Wilson 区间） | 排除的种子 |",
                           "| --- | --- | --- | --- | --- | --- |"]
                 for contrast in metric["contrasts"]:
                     lines.append(f"| `{contrast['treatment']}` − `{contrast['reference']}` | {contrast['n']} | {_number(contrast['mean'])} | "
                                  f"{_interval(contrast['ci95'], contrast.get('degenerate'))} | {_share(contrast)} | {len(contrast['excluded_blocks'])} |")
             if metric.get("interaction"):
                 term = metric["interaction"]
-                lines += ["", f"交互 `{term['formula']}`：{term['n']} 块，均值 {_number(term['mean'])}，"
+                lines += ["", f"交互 `{term['formula']}`：{term['n']} 个种子，均值 {_number(term['mean'])}，"
                           f"95% 区间 {_interval(term['ci95'], term.get('degenerate'))}，非零 {_share(term)}。"]
             if metric.get("decision"):
                 decision = metric["decision"]
-                lines += ["", f"决策：{decision['blocks']} 个完整块；选项造成差异的块占比 {_number(decision['share_blocks_choice_matters'])}；"
+                lines += ["", f"决策：{decision['blocks']} 个完整种子；各侧平均后选项有差异的种子占比 {_number(decision['share_blocks_choice_matters'])}；"
                           f"差距均值 {_number(decision['spread']['mean'])}。", "",
                           "| arm | 平均后悔值 | 最佳占比 |", "| --- | --- | --- |"]
                 for arm in decision["mean_regret"]:
@@ -764,7 +851,7 @@ def render_report(run_dir, manifest, caps, cases, metrics, findings, adapter, ru
         lines.append(f"- **{finding['id']} {finding['conclusion']}**：{finding['title']}")
         if "estimate" in finding:
             lines.append(f"  - 估计 {_number(finding['estimate'])}，95% 区间 {_interval(finding['ci95'], finding.get('degenerate'))}，"
-                         f"n={finding['n']}，差值非零的块 {finding.get('nonzero_blocks')}（95% Wilson 区间 {_interval(finding.get('nonzero_share_ci95'))}）")
+                         f"n={finding['n']} 个种子，平均差非零的种子 {finding.get('nonzero_blocks')}（95% Wilson 区间 {_interval(finding.get('nonzero_share_ci95'))}）")
         if finding.get("detail"):
             lines.append(f"  - 详情：{finding['detail']}")
         if finding.get("evidence"):
@@ -810,20 +897,95 @@ def _project_root():
     return Path(__file__).resolve().parents[1]
 
 
+def first_difference(source, replay, path="$"):
+    if isinstance(source, dict) and isinstance(replay, dict):
+        for key in sorted(set(source) | set(replay)):
+            if key not in source or key not in replay:
+                return {"path": f"{path}.{key}", "source": source.get(key), "replay": replay.get(key)}
+            difference = first_difference(source[key], replay[key], f"{path}.{key}")
+            if difference:
+                return difference
+    elif isinstance(source, list) and isinstance(replay, list):
+        for index in range(max(len(source), len(replay))):
+            if index >= len(source) or index >= len(replay):
+                return {"path": f"{path}[{index}]", "source": source[index] if index < len(source) else None,
+                        "replay": replay[index] if index < len(replay) else None}
+            difference = first_difference(source[index], replay[index], f"{path}[{index}]")
+            if difference:
+                return difference
+    elif type(source) is not type(replay) or source != replay:
+        return {"path": path, "source": source, "replay": replay}
+    return None
+
+
 def compare(source_dir, replay_dir, case_id, spatial_tolerance_cm):
     source_dir, replay_dir = Path(source_dir), Path(replay_dir)
+    if not math.isfinite(spatial_tolerance_cm) or spatial_tolerance_cm < 0:
+        raise PlanError("spatial tolerance must be a finite non-negative number")
     manifest = read_json(source_dir / "manifest.json")
     adapter = load_adapter(manifest["adapter"]["module"])
 
     def load(run_dir):
+        frozen = read_json(run_dir / "manifest.json")
+        caps = read_json(run_dir / "capabilities.json")
+        matches = [case for case in read_cases(run_dir) if case["case_id"] == case_id]
+        if len(matches) != 1:
+            raise PlanError(f"{run_dir} must contain exactly one planned Case {case_id}")
+        case = matches[0]
+        problems = []
+        if digest_json(caps) != frozen["resolved"]["capabilities_sha256"]:
+            problems.append("the capability document does not match the recorded digest")
+        recorded_adapter = caps.get("adapter", {})
+        if (recorded_adapter != frozen["resolved"].get("adapter") or recorded_adapter.get("id") != adapter.ADAPTER_ID
+                or recorded_adapter.get("version") != adapter.ADAPTER_VERSION):
+            problems.append("the adapter identity or version differs from the recorded capabilities")
         result_path = run_dir / "native" / "results" / f"{case_id}.json"
         if not result_path.exists():
             raise PlanError(f"{run_dir} has no native result for {case_id}")
+        native_run_path = run_dir / "native" / "native_run.json"
+        if not native_run_path.exists():
+            raise PlanError(f"{run_dir} has no native run identity")
+        native_run = read_json(native_run_path)
+        runner_path = run_dir / "runner.json"
+        runner = read_json(runner_path) if runner_path.exists() else {}
         result = read_json(result_path)
-        trace = (run_dir / "native" / result["trace"]).read_text(encoding="utf-8")
-        return adapter.canonical_events(trace, result)
+        trace_path = run_dir / "native" / result.get("trace", f"traces/{case_id}.log")
+        trace = trace_path.read_text(encoding="utf-8") if trace_path.exists() else ""
+        if not trace.strip():
+            problems.append("the native trace is missing or empty")
+        judged = adapter.case_evidence(case, frozen, caps, result, trace)
+        if judged.get("status") != "Completed":
+            problems.append(f"the Case is {judged.get('status')}: {judged.get('reason', '')}")
+        if judged.get("violations"):
+            problems.extend(f"evidence violation: {item}" for item in judged["violations"])
+        snapshot = adapter.replay_evidence(case, frozen, caps, native_run, runner, result, trace)
+        if not isinstance(snapshot, dict) or not {"identity", "terminal", "resources", "problems"} <= snapshot.keys():
+            raise PlanError("the adapter did not provide the replay evidence contract")
+        problems.extend(snapshot["problems"])
+        events, spatial = adapter.canonical_events(trace, result) if not problems else ([], {})
+        if not problems and not events:
+            problems.append("the canonical trace has no discrete events")
+        return {"manifest": frozen, "caps": caps, "case": case, "snapshot": snapshot,
+                "events": events, "spatial": spatial, "problems": problems}
 
-    (events_a, spatial_a), (events_b, spatial_b) = load(source_dir), load(replay_dir)
+    a, b = load(source_dir), load(replay_dir)
+    problems = [f"source: {item}" for item in a["problems"]] + [f"replay: {item}" for item in b["problems"]]
+    original_plan = {key: value for key, value in a["manifest"].items() if key != "resolved"}
+    replay_plan_value = {key: value for key, value in b["manifest"].items() if key != "resolved"}
+    case_keys = ("case_id", "block", "split", "index", "side", "seed", "arm")
+    case_a = {key: a["case"].get(key) for key in case_keys}
+    case_b = {key: b["case"].get(key) for key in case_keys}
+    if original_plan != replay_plan_value or case_a != case_b or a["caps"] != b["caps"]:
+        problems.append("the replay plan, Case identity or capabilities differ from the source")
+    replay_of = b["manifest"]["resolved"].get("replay_of", {})
+    if (replay_of.get("case") != case_id or not replay_of.get("run")
+            or Path(replay_of["run"]).resolve() != source_dir.resolve()):
+        problems.append("the replay manifest does not identify this source Case")
+    identity_difference = first_difference(a["snapshot"]["identity"], b["snapshot"]["identity"])
+    terminal_difference = first_difference(a["snapshot"]["terminal"], b["snapshot"]["terminal"])
+    resource_difference = first_difference(a["snapshot"]["resources"], b["snapshot"]["resources"])
+    events_a, events_b = a["events"], b["events"]
+    spatial_a, spatial_b = a["spatial"], b["spatial"]
     first = None
     for index in range(max(len(events_a), len(events_b))):
         a = events_a[index] if index < len(events_a) else None
@@ -835,21 +997,33 @@ def compare(source_dir, replay_dir, case_id, spatial_tolerance_cm):
     spatial_missing = sorted(set(spatial_a) ^ set(spatial_b))
     for key in set(spatial_a) & set(spatial_b):
         worst = max(worst, math.dist(spatial_a[key], spatial_b[key]))
-    identical = first is None
-    spatial_ok = not spatial_missing and worst <= spatial_tolerance_cm
+    identical = first is None and not problems
+    spatial_ok = not spatial_missing and worst <= spatial_tolerance_cm and not problems
+    identity_ok = identity_difference is None and not problems
+    terminal_ok = terminal_difference is None and not problems
+    resources_ok = resource_difference is None and not problems
     out = {"schema": "build_evaluation.replay", "schema_version": SCHEMA_VERSION, "case": case_id,
            "source": str(source_dir), "replay": str(replay_dir), "discrete_events": len(events_a),
            "discrete_identical": identical, "first_divergence": first, "spatial_samples": len(set(spatial_a) & set(spatial_b)),
            "spatial_missing": spatial_missing[:20], "spatial_max_deviation_cm": worst,
            "spatial_tolerance_cm": spatial_tolerance_cm, "spatial_within_tolerance": spatial_ok,
-           "conclusion": "Replayed" if identical and spatial_ok else "RuleViolation"}
+           "identity_identical": identity_ok, "identity_divergence": identity_difference,
+           "terminal_identical": terminal_ok, "terminal_divergence": terminal_difference,
+           "resources_identical": resources_ok, "resources_divergence": resource_difference,
+           "evidence_problems": problems,
+           "conclusion": "Replayed" if identical and spatial_ok and identity_ok and terminal_ok and resources_ok else "RuleViolation"}
     write_json(replay_dir / "replay.json", out)
     report = replay_dir / "report.md"
     if report.exists():
         text = report.read_text(encoding="utf-8")
         text += (f"\n## 重放比对\n\n源 Case `{case_id}`（{source_dir}）：离散事件 {len(events_a)} 条，"
-                 f"{'完全一致' if identical else '首个分歧在第 ' + str(first['index']) + ' 条'}；空间样本 {out['spatial_samples']} 个，"
+                 f"{'完全一致' if identical else '未通过'}；空间样本 {out['spatial_samples']} 个，"
                  f"最大偏差 {worst:.3f} cm（容差 {spatial_tolerance_cm} cm）。结论：{out['conclusion']}。\n")
+        for label, difference in (("身份", identity_difference), ("终态", terminal_difference), ("资源", resource_difference)):
+            if difference:
+                text += f"\n- {label}首个分歧：`{difference}`\n"
+        for problem in problems:
+            text += f"\n- 证据问题：{problem}\n"
         if first:
             text += f"\n- 源：`{first['source']}`\n- 重放：`{first['replay']}`\n"
         write_text(report, text)

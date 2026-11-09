@@ -57,6 +57,10 @@ namespace LDBuildEvaluation
     inline constexpr int32 MaxChoices = 16;
     // The duel needs exactly two AI slots; the evaluation Host is the only human and never fights.
     inline constexpr int32 DuelAISlots = 2;
+    inline bool KillAtOrBeforeHorizon(int64 StartedAtMs, int64 DuelTimeoutMs, int64 OccurredAtMs)
+    {
+        return OccurredAtMs <= StartedAtMs + DuelTimeoutMs;
+    }
     // Strict: unknown or missing fields, out-of-range numbers and malformed rules are refused with the field named.
     bool ParseInput(const FString& Json, FLDEvalRunInput& Out, FString& Error);
 }

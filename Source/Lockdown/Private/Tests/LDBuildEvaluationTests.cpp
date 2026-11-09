@@ -360,6 +360,20 @@ bool RunInput(FAutomationTestBase& Test)
         Input(CaseJson(Subject, Opponent)).Replace(*FString::ChrN(64, TEXT('a')), TEXT("abc")), TEXT("content_root"));
     return bGood;
 }
+
+bool RunHorizon(FAutomationTestBase& Test)
+{
+    using LDBuildEvaluation::KillAtOrBeforeHorizon;
+    bool bGood = Test.TestTrue(TEXT("A kill before the non-frame-aligned horizon counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 50000));
+    bGood &= Test.TestTrue(TEXT("A kill exactly at the horizon counts"),
+        KillAtOrBeforeHorizon(5000, 45001, 50001));
+    bGood &= Test.TestFalse(TEXT("A kill one millisecond after the horizon is censored"),
+        KillAtOrBeforeHorizon(5000, 45001, 50002));
+    bGood &= Test.TestFalse(TEXT("A kill after a frame-aligned horizon is censored"),
+        KillAtOrBeforeHorizon(5000, 45000, 50001));
+    return bGood;
+}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationSeedsTest, "Lockdown.Rules.BuildEvaluation.Seeds",
@@ -373,4 +387,8 @@ bool FLDBuildEvaluationPolicyTest::RunTest(const FString& Parameters) { return L
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationInputTest, "Lockdown.Rules.BuildEvaluation.Input",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDBuildEvaluationInputTest::RunTest(const FString& Parameters) { return LDBuildEvaluationTests::RunInput(*this); }
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildEvaluationHorizonTest, "Lockdown.Rules.BuildEvaluation.Horizon",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDBuildEvaluationHorizonTest::RunTest(const FString& Parameters) { return LDBuildEvaluationTests::RunHorizon(*this); }
 #endif
