@@ -3,6 +3,7 @@
 #include "UI/LDHUDModel.h"
 #include "UI/LDHUDStyle.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIIcons.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Blueprint/WidgetTree.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
@@ -12,6 +13,7 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/ScaleBox.h"
 #include "Components/OverlaySlot.h"
@@ -38,19 +40,14 @@ void ChoicesText(UTextBlock* Text,const FString& Value)
 {
     if(Text&&!Text->GetText().ToString().Equals(Value,ESearchCase::CaseSensitive)){Text->SetText(FText::FromString(Value));}
 }
-// Placeholder icons until real art lands (#93): actives are rounded squares, passives circles, attribute cards diamonds,
-// each in its own colour with the name's first character; the summary line names the kind as well.
-void ChoicesIcon(USizeBox* Size,UBorder* Shape,LDHUD::EChoiceIcon Icon)
+constexpr float ChoicesIconRadius=7.f;
+// The square behind a card's first character, shown only while its icon texture is missing (#85: the icons no longer
+// differ by shape; the summary line names the card type), and the reroll card's slate circle.
+void ChoicesPlaceholder(USizeBox* Size,UBorder* Shape,bool bRound,const FLinearColor& Fill)
 {
-    using LDHUD::EChoiceIcon;
-    const bool bDiamond=Icon==EChoiceIcon::Attribute;
-    const float Side=bDiamond?ChoicesIconSize*.7f:ChoicesIconSize;
-    const float Radius=Icon==EChoiceIcon::Passive?Side*.5f:(bDiamond?3.f:7.f);
-    const FLinearColor Fill=Icon==EChoiceIcon::Active?FLinearColor(.62f,.22f,.04f):Icon==EChoiceIcon::Passive?FLinearColor(.26f,.10f,.58f)
-        :Icon==EChoiceIcon::Attribute?FLinearColor(.06f,.40f,.14f):FLinearColor(.12f,.13f,.15f);
-    Size->SetWidthOverride(Side);Size->SetHeightOverride(Side);
-    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,Radius,FLinearColor(1,1,1,.55f),1.5f));Shape->SetBrushColor(Fill);
-    Shape->SetRenderTransformPivot(FVector2D(.5f,.5f));Shape->SetRenderTransformAngle(bDiamond?45.f:0.f);
+    Size->SetWidthOverride(ChoicesIconSize);Size->SetHeightOverride(ChoicesIconSize);
+    Shape->SetBrush(FSlateRoundedBoxBrush(FLinearColor::White,bRound?ChoicesIconSize*.5f:ChoicesIconRadius,FLinearColor(1,1,1,.55f),1.5f));
+    Shape->SetBrushColor(Fill);
 }
 FLinearColor AttributeQualityColor(ELDAttributeQuality Quality)
 {
@@ -60,7 +57,7 @@ FLinearColor AttributeQualityColor(ELDAttributeQuality Quality)
     case ELDAttributeQuality::Blue:return FLinearColor(.12f,.38f,.84f);
     case ELDAttributeQuality::Purple:return FLinearColor(.58f,.18f,.82f);
     case ELDAttributeQuality::Gold:return FLinearColor(.90f,.62f,.08f);
-    default:return LDHUDStyle::TextAccent;
+    default:return LDHUDStyle::TextPrimary;
     }
 }
 }
@@ -86,6 +83,9 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             Card.IconShape=WidgetTree->ConstructWidget<UBorder>();Card.IconShape->SetVisibility(ESlateVisibility::HitTestInvisible);
             Card.IconSize=WidgetTree->ConstructWidget<USizeBox>();Card.IconSize->SetContent(Card.IconShape);
             auto* ShapeSlot=IconBox->AddChildToOverlay(Card.IconSize);ShapeSlot->SetHorizontalAlignment(HAlign_Center);ShapeSlot->SetVerticalAlignment(VAlign_Center);
+            ChoicesPlaceholder(Card.IconSize,Card.IconShape,bReroll,bReroll?FLinearColor(.20f,.26f,.32f):FLinearColor(.12f,.13f,.15f));
+            Card.Picture=WidgetTree->ConstructWidget<UImage>();Card.Picture->SetVisibility(ESlateVisibility::Collapsed);
+            auto* PictureSlot=IconBox->AddChildToOverlay(Card.Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
             Card.Glyph=Text(TEXT(""),18);Card.Glyph->SetAutoWrapText(false);Card.Glyph->SetJustification(ETextJustify::Center);
             auto* GlyphSlot=IconBox->AddChildToOverlay(Card.Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
             auto* IconFrame=WidgetTree->ConstructWidget<USizeBox>();IconFrame->SetWidthOverride(ChoicesIconSize);IconFrame->SetHeightOverride(ChoicesIconSize);IconFrame->SetContent(IconBox);
@@ -107,13 +107,13 @@ TSharedRef<SWidget> ULDChoicesPanel::RebuildWidget()
             if(UButtonSlot* FaceSlot=Cast<UButtonSlot>(Card.Button->GetContentSlot())){FaceSlot->SetHorizontalAlignment(HAlign_Fill);FaceSlot->SetVerticalAlignment(VAlign_Center);}
             auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(ChoicesCardWidth);Size->SetMinDesiredHeight(ChoicesCardHeight);Size->SetContent(Card.Button);
             Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(Index?8.f:0.f,0,0,0));
-            CardWidgets.Add(Card.Button);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
+            CardWidgets.Add(Card.Button);CardWidgets.Add(Card.Picture);CardWidgets.Add(Card.IconSize);CardWidgets.Add(Card.IconShape);CardWidgets.Add(Card.Glyph);
+            CardWidgets.Add(Card.Name);CardWidgets.Add(Card.Summary);
             CardWidgets.Add(Card.Sentence);
         }
         CardViews.SetNum(Cards.Num());
         // The reroll card: a slate circle with a turn arrow; its lines say what it does and how many rerolls are left.
         RerollButton=RerollCard.Button;
-        ChoicesIcon(RerollCard.IconSize,RerollCard.IconShape,LDHUD::EChoiceIcon::Passive);RerollCard.IconShape->SetBrushColor(FLinearColor(.20f,.26f,.32f));
         ChoicesText(RerollCard.Glyph,TEXT("↻"));ChoicesText(RerollCard.Name,TEXT("免费重抽"));
         // Only a result or a refusal shows under the cards (no standing instructions); it collapses while empty and wraps
         // at the row's width, so a long notice never widens the panel.
@@ -184,6 +184,7 @@ void ULDChoicesPanel::UpdateDetail()
         {
             const LDHUD::FChoiceCardView& View=CardViews[Next];
             ChoicesText(DetailName,View.Name);ChoicesText(DetailSummary,View.Detail);
+            DetailName->SetColorAndOpacity(AttributeQualityColor(View.AttributeQuality));
             // The sentence is on the card; the detail adds the advanced line, the details, then what each bold keyword means
             // (#147 v7 §4.1; user 2026-11-07).
             TArray<FString> Blocks;
@@ -295,10 +296,11 @@ void ULDChoicesPanel::Present(const FLDProgressionView& View,uint32 Match,uint32
             CardViews[Index]=Shown;
             ChoicesText(Card.Name,Shown.Name);ChoicesText(Card.Summary,Shown.Summary);ChoicesText(Card.Glyph,Shown.Glyph);
             Card.Sentence->SetText(FText::FromString(Shown.Sentence));
-            ChoicesIcon(Card.IconSize,Card.IconShape,Shown.Icon);
-            const FLinearColor Quality=AttributeQualityColor(Shown.AttributeQuality);
-            Card.Summary->SetColorAndOpacity(Quality);
-            if(Shown.AttributeQuality!=ELDAttributeQuality::None){Card.IconShape->SetBrushColor(Quality);}
+            const bool bPicture=LDUIIcons::Apply(Card.Picture,Shown.IconId,ChoicesIconRadius);
+            Card.IconSize->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            Card.Glyph->SetVisibility(bPicture?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);
+            // #85: an attribute card's quality is the colour of its name (the detail still names it); other names stay white.
+            Card.Name->SetColorAndOpacity(AttributeQualityColor(Shown.AttributeQuality));
         }
         if(!bOffer&&!PendingRequest){ChoicesText(Feedback,bUsable?FString::Printf(TEXT("暂无可以%s的机会。升级后会获得新的选择机会。"),LDTerms::Choice):FString(TEXT("等待成长数据同步。")));}
     }

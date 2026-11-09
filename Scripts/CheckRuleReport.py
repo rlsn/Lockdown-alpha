@@ -221,6 +221,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.HUDActionView",
         "Lockdown.Rules.HUDCombatOwnerView",
         "Lockdown.Rules.HUDSelfIcons",
+        "Lockdown.Rules.HUDIcons",
         "Lockdown.Rules.HUDContentParameters",
         "Lockdown.Rules.HUDCardText",
         "Lockdown.Rules.HUDCardSelfCheck",
