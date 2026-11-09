@@ -913,6 +913,7 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     Feed.Generation = 2;
     Feed.Notices.Add({1, Result.Rows[1].ContenderId, Open.Occupier, ELDKillCause::Contender, 1000});
     Feed.Notices.Add({2, Open.Occupier, FGuid(), ELDKillCause::CampHigh, 2000});
+    Feed.Notices.Add({3, Open.Occupier, FGuid(), ELDKillCause::CampElite, 3000});
     FLDKillFeedView LatestFeed;
     TestEqual(TEXT("Public kill notices are accepted"), LDCapture::AcceptKillFeed(Feed, LatestFeed, Error),
         ELDLobbyProjectionResult::Accepted);
@@ -930,6 +931,8 @@ bool FLDCaptureViewsTest::RunTest(const FString& Parameters)
     BadFeed([](FLDKillFeedView& View) { View.Notices[0].Killer.Invalidate(); }, TEXT("A contender kill names its killer"));
     BadFeed([](FLDKillFeedView& View) { View.Notices[1].Serial = 1; }, TEXT("Notice serials strictly increase"));
     BadFeed([](FLDKillFeedView& View) { View.Notices[0].Killer = View.Notices[0].Victim; }, TEXT("A suicide names no killer"));
+    BadFeed([](FLDKillFeedView& View) { View.Notices[1].Cause = ELDKillCause(uint8(LDCapture::LastKillCause) + 1); },
+        TEXT("A kill cause past the last wire value is rejected"));
     FLDKillFeedView Scored = Feed;
     Scored.Generation = 4;
     Scored.Scores = {{Open.Occupier, 1, 1, 0}, {Result.Rows[1].ContenderId, 0, 1, 0}};

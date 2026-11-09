@@ -204,6 +204,8 @@ struct FLDCaptureEligibilityEvent
 namespace LDCapture
 {
     inline constexpr int32 MaxKillNotices = 8;
+    // Highest ELDKillCause wire value; causes are appended, so range checks compare against this.
+    inline constexpr ELDKillCause LastKillCause = ELDKillCause::CampElite;
     // A match has at most this many contenders, so the scoreboard at most this many rows.
     inline constexpr int32 MaxScoreRows = 6;
     LOCKDOWN_API bool ValidatePublicMatchView(const FLDPublicMatchView& View, FString& Error);
