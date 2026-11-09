@@ -22,6 +22,8 @@ namespace
 {
     const TCHAR* const AudioMasterPackage = TEXT("/Game/Lockdown/Audio/SC_DemoMaster");
     const TCHAR* const AudioMixPackage = TEXT("/Game/Lockdown/Audio/SMix_DemoUser");
+    const TCHAR* const AudioMusicClassPackage = TEXT("/Game/Lockdown/Audio/SC_DemoMusic");
+    const TCHAR* const AudioMusicPackageRoot = TEXT("/Game/Lockdown/Audio/Music/SW_");
     const TCHAR* const AudioCatalogPackage = TEXT("/Game/Lockdown/Audio/DA_DemoAudio");
     const TCHAR* const AudioCuePackageRoot = TEXT("/Game/Lockdown/Audio/Cues/SW_");
 
@@ -31,6 +33,13 @@ namespace
         FString Source;
         // Loudness-normalized playback volume measured by Scripts/MeasureDemoAudioLoudness.py; the source bytes stay unchanged.
         float Volume = 1.f;
+    };
+
+    // An owner-supplied original music track (#94): no third-party pack, so no CC0 license file; its provenance is recorded.
+    struct FAudioManifestTrack
+    {
+        ELDMusicTrack Track = ELDMusicTrack::None;
+        FString Source;
     };
 
     bool AudioFail(FString& Error, const FString& Message) { Error = Message; return false; }
@@ -51,10 +60,12 @@ namespace
     }
 
     // The manifest is the only audio source list: CC0 packs proven by their own license text, one hashed file per cue (a cue
-    // may reuse another cue's file at its own volume; each cue still imports its own SoundWave).
-    bool AudioLoadManifest(TArray<FAudioManifestCue>& Out, FString& Error)
+    // may reuse another cue's file at its own volume; each cue still imports its own SoundWave), and one hashed original
+    // file per music track with its recorded provenance.
+    bool AudioLoadManifest(TArray<FAudioManifestCue>& Out, TArray<FAudioManifestTrack>& OutTracks, FString& Error)
     {
         Out.Reset();
+        OutTracks.Reset();
         const FString Root = AudioSourceRoot();
         FString Text;
         if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(Root, TEXT("audio_cues.json"))))
@@ -65,9 +76,10 @@ namespace
         int32 Schema = 0;
         const TArray<TSharedPtr<FJsonValue>>* Packs = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Cues = nullptr;
-        if (!Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 1 || !Json->TryGetArrayField(TEXT("packs"), Packs)
-            || !Json->TryGetArrayField(TEXT("cues"), Cues) || Packs->IsEmpty())
-        { return AudioFail(Error, TEXT("audio_cues.json needs schema 1, packs and cues.")); }
+        const TArray<TSharedPtr<FJsonValue>>* Music = nullptr;
+        if (!Json->TryGetNumberField(TEXT("schema"), Schema) || Schema != 2 || !Json->TryGetArrayField(TEXT("packs"), Packs)
+            || !Json->TryGetArrayField(TEXT("cues"), Cues) || !Json->TryGetArrayField(TEXT("music"), Music) || Packs->IsEmpty())
+        { return AudioFail(Error, TEXT("audio_cues.json needs schema 2, packs, cues and music.")); }
         TSet<FString> Listed, PackIds, LicenseFiles;
         for (const TSharedPtr<FJsonValue>& Value : *Packs)
         {
@@ -109,6 +121,30 @@ namespace
             Listed.Add(Cue.Source);
             Out.Add(MoveTemp(Cue));
         }
+        if (Music->Num() != LDAudio::MusicTrackCount)
+        { return AudioFail(Error, FString::Printf(TEXT("audio_cues.json lists %d music tracks; the catalog needs %d."), Music->Num(), LDAudio::MusicTrackCount)); }
+        for (int32 Index = 0; Index < Music->Num(); ++Index)
+        {
+            const TSharedPtr<FJsonObject>* Entry = nullptr;
+            FAudioManifestTrack Track;
+            FString Id, Hash, Provenance;
+            bool bLoop = false;
+            const ELDMusicTrack Expected = ELDMusicTrack(Index + 1);
+            if (!(*Music)[Index]->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("track"), Id)
+                || !LDAudio::ParseMusicTrackId(Id, Track.Track) || Track.Track != Expected
+                || !(*Entry)->TryGetStringField(TEXT("source"), Track.Source) || !(*Entry)->TryGetStringField(TEXT("sha256"), Hash)
+                || !(*Entry)->TryGetBoolField(TEXT("loop"), bLoop) || bLoop != LDAudio::MusicTrackLoops(Expected)
+                || !(*Entry)->TryGetStringField(TEXT("provenance"), Provenance) || Provenance.TrimStartAndEnd().IsEmpty()
+                || !AudioSafeRelative(Track.Source) || !Track.Source.StartsWith(TEXT("Music/")) || Listed.Contains(Track.Source)
+                || !(Track.Source.EndsWith(TEXT(".mp3")) || Track.Source.EndsWith(TEXT(".ogg")) || Track.Source.EndsWith(TEXT(".wav"))))
+            {
+                return AudioFail(Error, FString::Printf(TEXT("Music entry %d must be %s with a Music/ .mp3/.ogg/.wav source of its own, its sha256, loop %s and a provenance."),
+                    Index, *LDAudio::MusicTrackId(Expected), LDAudio::MusicTrackLoops(Expected) ? TEXT("true") : TEXT("false")));
+            }
+            if (!AudioCheckHash(Track.Source, Hash, Error)) { return false; }
+            Listed.Add(Track.Source);
+            OutTracks.Add(MoveTemp(Track));
+        }
         // Only selected files ship: anything else under SourceData\Audio is an unlisted third-party file.
         TArray<FString> Files;
         IFileManager::Get().FindFilesRecursive(Files, *Root, TEXT("*"), true, false);
@@ -141,6 +177,20 @@ namespace
         return UPackage::SavePackage(Asset.GetOutermost(), &Asset, *File, Args) || AudioFail(Error, TEXT("Audio asset could not be saved: ") + File);
     }
 
+    // Imports (or re-imports in place) one SoundWave from a manifest source.
+    USoundWave* AudioImportWave(USoundFactory& Factory, const FString& PackageName, const FString& Source)
+    {
+        UPackage* Package = CreatePackage(*PackageName);
+        Package->FullyLoad();
+        Factory.bAutoCreateCue = false;
+        // Re-imports keep the existing asset and replace its audio without an overwrite prompt.
+        Factory.SuppressImportDialogs();
+        bool bCancelled = false;
+        UObject* Imported = UFactory::StaticImportObject(USoundWave::StaticClass(), Package, FName(*FPackageName::GetShortName(PackageName)),
+            RF_Public | RF_Standalone, bCancelled, *FPaths::Combine(AudioSourceRoot(), Source), nullptr, &Factory);
+        return bCancelled ? nullptr : Cast<USoundWave>(Imported);
+    }
+
     bool AudioImportedFromCurrentBytes(const USoundWave& Wave, const FString& Source, FString& Error)
     {
         const FString Absolute = FPaths::Combine(AudioSourceRoot(), Source);
@@ -159,11 +209,19 @@ namespace
 bool LDDemoAudioImport::Import(FString& Error)
 {
     TArray<FAudioManifestCue> Cues;
-    if (!AudioLoadManifest(Cues, Error)) { return false; }
+    TArray<FAudioManifestTrack> Tracks;
+    if (!AudioLoadManifest(Cues, Tracks, Error)) { return false; }
     auto* Master = AudioLoadOrCreate<USoundClass>(AudioMasterPackage, true);
+    auto* MusicClass = AudioLoadOrCreate<USoundClass>(AudioMusicClassPackage, true);
     auto* Mix = AudioLoadOrCreate<USoundMix>(AudioMixPackage, true);
     auto* Catalog = AudioLoadOrCreate<ULDAudioCatalog>(AudioCatalogPackage, true);
-    if (!Master || !Mix || !Catalog) { return AudioFail(Error, TEXT("An existing audio master class, user mix or catalog cannot be loaded.")); }
+    if (!Master || !MusicClass || !Mix || !Catalog)
+    { return AudioFail(Error, TEXT("An existing audio master class, music class, user mix or catalog cannot be loaded.")); }
+    // Music is the master class's only child: the master override reaches it, the music override scales it alone.
+    MusicClass->SetParentClass(Master);
+    Master->ChildClasses.Reset();
+    Master->ChildClasses.Add(MusicClass);
+    MusicClass->ChildClasses.Reset();
     // The user volume is applied at runtime as a class override; the asset itself carries no adjuster or EQ.
     Mix->bApplyEQ = false;
     Mix->SoundClassEffects.Reset();
@@ -172,26 +230,20 @@ bool LDDemoAudioImport::Import(FString& Error)
     Mix->FadeOutTime = 0.f;
     Mix->Duration = -1.f;
     Master->MarkPackageDirty();
+    MusicClass->MarkPackageDirty();
     Mix->MarkPackageDirty();
     auto* Factory = NewObject<USoundFactory>(GetTransientPackage());
     Factory->AddToRoot();
     Catalog->MasterClass = Master;
+    Catalog->MusicClass = MusicClass;
     Catalog->UserMix = Mix;
     Catalog->Cues.Reset();
-    TArray<UObject*> Assets = { Master, Mix };
+    Catalog->Music.Reset();
+    TArray<UObject*> Assets = { Master, MusicClass, Mix };
     for (const FAudioManifestCue& Cue : Cues)
     {
-        const FString Name = TEXT("SW_") + LDAudio::CueId(Cue.Cue);
-        UPackage* Package = CreatePackage(*(FString(AudioCuePackageRoot) + LDAudio::CueId(Cue.Cue)));
-        Package->FullyLoad();
-        Factory->bAutoCreateCue = false;
-        // Re-imports keep the existing asset and replace its audio without an overwrite prompt.
-        Factory->SuppressImportDialogs();
-        bool bCancelled = false;
-        UObject* Imported = UFactory::StaticImportObject(USoundWave::StaticClass(), Package, FName(*Name), RF_Public | RF_Standalone,
-            bCancelled, *FPaths::Combine(AudioSourceRoot(), Cue.Source), nullptr, Factory);
-        auto* Wave = Cast<USoundWave>(Imported);
-        if (!Wave || bCancelled)
+        auto* Wave = AudioImportWave(*Factory, FString(AudioCuePackageRoot) + LDAudio::CueId(Cue.Cue), Cue.Source);
+        if (!Wave)
         {
             Factory->RemoveFromRoot();
             return AudioFail(Error, TEXT("Sound import failed: ") + Cue.Source);
@@ -206,9 +258,28 @@ bool LDDemoAudioImport::Import(FString& Error)
         Entry.Sound = Wave;
         Assets.Add(Wave);
     }
+    for (const FAudioManifestTrack& Track : Tracks)
+    {
+        auto* Wave = AudioImportWave(*Factory, FString(AudioMusicPackageRoot) + LDAudio::MusicTrackId(Track.Track), Track.Source);
+        if (!Wave)
+        {
+            Factory->RemoveFromRoot();
+            return AudioFail(Error, TEXT("Music import failed: ") + Track.Source);
+        }
+        // Played at the source level; the player's music volume is the only gain.
+        Wave->SoundClassObject = MusicClass;
+        Wave->bLooping = LDAudio::MusicTrackLoops(Track.Track);
+        Wave->AttenuationSettings = nullptr;
+        Wave->Volume = 1.f;
+        Wave->MarkPackageDirty();
+        FLDMusicTrackEntry& Entry = Catalog->Music.AddDefaulted_GetRef();
+        Entry.Track = Track.Track;
+        Entry.Sound = Wave;
+        Assets.Add(Wave);
+    }
     Factory->RemoveFromRoot();
-    TArray<USoundWave*> Resolved;
-    if (!Catalog->Resolve(Resolved, Error)) { return AudioFail(Error, TEXT("Imported audio catalog is invalid: ") + Error); }
+    TArray<USoundWave*> Resolved, ResolvedMusic;
+    if (!Catalog->Resolve(Resolved, ResolvedMusic, Error)) { return AudioFail(Error, TEXT("Imported audio catalog is invalid: ") + Error); }
     Catalog->MarkPackageDirty();
     Assets.Add(Catalog);
     for (UObject* Asset : Assets) { if (!AudioSaveAsset(*Asset, Error)) { return false; } }
@@ -219,13 +290,27 @@ bool LDDemoAudioImport::Import(FString& Error)
 bool LDDemoAudioImport::Validate(FString& Error)
 {
     TArray<FAudioManifestCue> Cues;
-    if (!AudioLoadManifest(Cues, Error)) { return false; }
+    TArray<FAudioManifestTrack> Tracks;
+    if (!AudioLoadManifest(Cues, Tracks, Error)) { return false; }
     const auto* Catalog = AudioLoadOrCreate<ULDAudioCatalog>(AudioCatalogPackage, false);
     if (!Catalog) { return AudioFail(Error, TEXT("Audio catalog DA_DemoAudio is missing; run ImportDemoAudio.ps1 -Mode Import.")); }
-    TArray<USoundWave*> Resolved;
-    if (!Catalog->Resolve(Resolved, Error)) { return AudioFail(Error, TEXT("Audio catalog is invalid: ") + Error); }
-    if (Catalog->MasterClass->GetPathName() != ULDAudioCatalog::MasterClassPath || Catalog->UserMix->GetPathName() != ULDAudioCatalog::UserMixPath)
-    { return AudioFail(Error, TEXT("Audio catalog does not use the single SC_DemoMaster / SMix_DemoUser chain.")); }
+    TArray<USoundWave*> Resolved, ResolvedMusic;
+    if (!Catalog->Resolve(Resolved, ResolvedMusic, Error)) { return AudioFail(Error, TEXT("Audio catalog is invalid: ") + Error); }
+    if (Catalog->MasterClass->GetPathName() != ULDAudioCatalog::MasterClassPath || Catalog->UserMix->GetPathName() != ULDAudioCatalog::UserMixPath
+        || Catalog->MusicClass->GetPathName() != ULDAudioCatalog::MusicClassPath)
+    { return AudioFail(Error, TEXT("Audio catalog does not use the single SC_DemoMaster / SC_DemoMusic / SMix_DemoUser chain.")); }
+    if (Catalog->MasterClass->ChildClasses.Num() != 1 || !Catalog->MusicClass->ChildClasses.IsEmpty())
+    { return AudioFail(Error, TEXT("SC_DemoMaster must have SC_DemoMusic as its only child, and SC_DemoMusic no children; run ImportDemoAudio.ps1 -Mode Import.")); }
+    for (const FAudioManifestTrack& Track : Tracks)
+    {
+        const USoundWave* Wave = ResolvedMusic[int32(Track.Track)];
+        const FString Expected = FString(AudioMusicPackageRoot) + LDAudio::MusicTrackId(Track.Track);
+        if (Wave->GetOutermost()->GetName() != Expected)
+        { return AudioFail(Error, FString::Printf(TEXT("Music track %s uses %s instead of %s."), *LDAudio::MusicTrackId(Track.Track), *Wave->GetPathName(), *Expected)); }
+        if (!AudioImportedFromCurrentBytes(*Wave, Track.Source, Error)) { return false; }
+        if (!FMath::IsNearlyEqual(Wave->Volume, 1.f, 1e-4f))
+        { return AudioFail(Error, FString::Printf(TEXT("Music track %s plays at volume %.3f instead of its source level; run ImportDemoAudio.ps1 -Mode Import."), *LDAudio::MusicTrackId(Track.Track), Wave->Volume)); }
+    }
     for (const FAudioManifestCue& Cue : Cues)
     {
         const USoundWave* Wave = Resolved[int32(Cue.Cue)];

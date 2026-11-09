@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "packs": [
     {
       "id": "kenney-music-jingles",
@@ -217,6 +217,32 @@
       "loudness_lufs": -16.67,
       "level_db": -6.0,
       "volume": 0.541
+    }
+  ],
+  "music": [
+    {
+      "track": "Menu",
+      "source": "Music/menu.mp3",
+      "sha256": "e763df5cff01b1851e32262f1f882f60fe2953f298fdab0b2a2ab2a74ab24655",
+      "loop": true,
+      "purpose": "Main menu and room lobby loop; keeps playing across the travel between them",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
+    },
+    {
+      "track": "Farm",
+      "source": "Music/farm.mp3",
+      "sha256": "42416ce99bbcfa5d6262ca5056dff10d97a80156171fa3f6b7df8ae3ebbfe1f1",
+      "loop": false,
+      "purpose": "Development phase, played once from T=0; about 3 minutes, matching MATCH.DevelopmentSec until the flagpole opens",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
+    },
+    {
+      "track": "Escalation",
+      "source": "Music/escalation.mp3",
+      "sha256": "613ff5063ef4ed9f2075309c718443d2b3bb4401f4964d9f6543e7934d929054",
+      "loop": true,
+      "purpose": "From the flagpole opening until the match ends, looping",
+      "provenance": "Original track made for Lockdown, supplied by the project owner in the 2026-11-09 BGM request (#94); project-owned, not a third-party pack."
     }
   ]
 }

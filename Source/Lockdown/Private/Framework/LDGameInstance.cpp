@@ -292,6 +292,7 @@ ULDControlSettings* ULDGameInstance::GetLocalControlSettings()
             LocalControlSettings->Zoom = Loaded.RecoverablePreferences->Zoom;
             LocalControlSettings->PlayerName = Loaded.RecoverablePreferences->PlayerName;
             LocalControlSettings->MasterVolume = Loaded.RecoverablePreferences->MasterVolume;
+            LocalControlSettings->MusicVolume = Loaded.RecoverablePreferences->MusicVolume;
             LocalControlSettings->CameraPanCmPerSec = Loaded.RecoverablePreferences->CameraPanCmPerSec;
             LocalControlSettings->MinimapOrientation = Loaded.RecoverablePreferences->MinimapOrientation;
             LocalControlSettings->bQuickCast = Loaded.RecoverablePreferences->bQuickCast;
@@ -333,7 +334,11 @@ void ULDGameInstance::ApplyControlPreferences()
 void ULDGameInstance::ApplyAudioPreferences()
 {
     if (auto* AudioOutput = GetSubsystem<ULDAudioSubsystem>())
-    { AudioOutput->ApplyMasterVolume(LocalControlSettings ? LocalControlSettings->MasterVolume : 1.f); }
+    {
+        const auto* Defaults = GetDefault<ULDControlSettings>();
+        AudioOutput->ApplyMasterVolume(LocalControlSettings ? LocalControlSettings->MasterVolume : Defaults->MasterVolume);
+        AudioOutput->ApplyMusicVolume(LocalControlSettings ? LocalControlSettings->MusicVolume : Defaults->MusicVolume);
+    }
 }
 
 FLDLocalSettingsSaveResult ULDGameInstance::ApplyLocalSettings(const ULDControlSettings& Draft)
@@ -364,6 +369,24 @@ FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMasterVolume(float Linear)
     LocalSettingsMessage = LocalControlSettings->NeedsRecovery()
         ? FString::Printf(TEXT("主音量 %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Percent)
         : FString::Printf(TEXT("主音量 %d%% 已应用，稍后自动保存。"), Percent);
+    return { ELDLocalSettingsSaveStatus::NoChanges, LocalSettingsMessage };
+}
+
+FLDLocalSettingsSaveResult ULDGameInstance::SetAppliedMusicVolume(float Linear)
+{
+    FString Error;
+    if (!LocalControlSettings || !LocalControlSettings->SetAppliedMusicVolume(Linear, Error))
+    {
+        LocalSettingsMessage = Error.IsEmpty() ? TEXT("本地设置不可用。") : Error;
+        return { ELDLocalSettingsSaveStatus::Invalid, LocalSettingsMessage };
+    }
+    ApplyAudioPreferences();
+    RequestLocalSettingsFlush();
+    // Nothing is written yet; a recovery-gated file is not replaced by the coming flush either.
+    const int32 Percent = FMath::RoundToInt(100 * LocalControlSettings->MusicVolume);
+    LocalSettingsMessage = LocalControlSettings->NeedsRecovery()
+        ? FString::Printf(TEXT("音乐音量 %d%% 已在本次运行中应用；原设置文件保持不变，请先在设置中确认替换再保存。"), Percent)
+        : FString::Printf(TEXT("音乐音量 %d%% 已应用，稍后自动保存。"), Percent);
     return { ELDLocalSettingsSaveStatus::NoChanges, LocalSettingsMessage };
 }
 

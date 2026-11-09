@@ -25,6 +25,30 @@ namespace
     static_assert(AudioRetiredIds() == LDAudio::RetiredCueCount, "RetiredCueCount must match the retired holes.");
 
     const TCHAR* AudioCueIdAt(int32 Index) { return Index >= 0 && Index < int32(ELDAudioCue::Count) ? AudioCueIds[Index] : nullptr; }
+
+    constexpr const TCHAR* MusicTrackIds[] = { TEXT("None"), TEXT("Menu"), TEXT("Farm"), TEXT("Escalation") };
+    static_assert(UE_ARRAY_COUNT(MusicTrackIds) == int32(ELDMusicTrack::Count), "Every music track needs exactly one stable id.");
+}
+
+FString LDAudio::MusicTrackId(ELDMusicTrack Track)
+{
+    const int32 Index = int32(Track);
+    return Index >= 0 && Index < int32(ELDMusicTrack::Count) ? FString(MusicTrackIds[Index]) : FString::Printf(TEXT("Track%d"), Index);
+}
+
+bool LDAudio::ParseMusicTrackId(const FString& Id, ELDMusicTrack& Out)
+{
+    for (int32 Index = 1; Index < int32(ELDMusicTrack::Count); ++Index)
+    {
+        if (Id.Equals(MusicTrackIds[Index], ESearchCase::CaseSensitive)) { Out = ELDMusicTrack(Index); return true; }
+    }
+    Out = ELDMusicTrack::None;
+    return false;
+}
+
+bool LDAudio::MusicTrackLoops(ELDMusicTrack Track)
+{
+    return Track == ELDMusicTrack::Menu || Track == ELDMusicTrack::Escalation;
 }
 
 bool LDAudio::IsPlayableCue(ELDAudioCue Cue)
@@ -58,13 +82,21 @@ bool LDAudio::ParseCueId(const FString& Id, ELDAudioCue& Out)
     return false;
 }
 
-bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, FString& Error) const
+bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, TArray<USoundWave*>& OutMusic, FString& Error) const
 {
     OutSounds.Reset();
     OutSounds.SetNumZeroed(int32(ELDAudioCue::Count));
-    if (!MasterClass || !UserMix)
+    OutMusic.Reset();
+    OutMusic.SetNumZeroed(int32(ELDMusicTrack::Count));
+    if (!MasterClass || !UserMix || !MusicClass)
     {
-        Error = TEXT("The master SoundClass or the user SoundMix is missing.");
+        Error = TEXT("The master SoundClass, the music SoundClass or the user SoundMix is missing.");
+        return false;
+    }
+    // The music volume multiplies the master volume only while music is a child of the master class.
+    if (MusicClass == MasterClass || MusicClass->ParentClass != MasterClass || !MasterClass->ChildClasses.Contains(MusicClass))
+    {
+        Error = TEXT("The music SoundClass is not a child of the master SoundClass.");
         return false;
     }
     if (Cues.Num() != LDAudio::CueCount)
@@ -89,6 +121,33 @@ bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, FString& Error) co
         if (!(Sound->Duration > 0.f) || Sound->Duration > 30.f)
         { Error = FString::Printf(TEXT("Cue %s (%s) has no short finite audio duration (%.3f s)."), *Id, *Sound->GetPathName(), Sound->Duration); return false; }
         OutSounds[int32(Expected)] = const_cast<USoundWave*>(Sound);
+    }
+    if (Music.Num() != LDAudio::MusicTrackCount)
+    {
+        Error = FString::Printf(TEXT("Expected %d music tracks, found %d."), LDAudio::MusicTrackCount, Music.Num());
+        return false;
+    }
+    for (int32 Index = 0; Index < Music.Num(); ++Index)
+    {
+        const FLDMusicTrackEntry& Entry = Music[Index];
+        const ELDMusicTrack Expected = ELDMusicTrack(Index + 1);
+        const FString Id = LDAudio::MusicTrackId(Expected);
+        if (Entry.Track != Expected)
+        { Error = FString::Printf(TEXT("Music entry %d is %s, expected %s."), Index, *LDAudio::MusicTrackId(Entry.Track), *Id); return false; }
+        const USoundWave* Sound = Entry.Sound;
+        if (!Sound) { Error = FString::Printf(TEXT("Music track %s has no sound."), *Id); return false; }
+        if (Sound->SoundClassObject != MusicClass)
+        { Error = FString::Printf(TEXT("Music track %s (%s) is not routed to the music SoundClass."), *Id, *Sound->GetPathName()); return false; }
+        if (Sound->bLooping != LDAudio::MusicTrackLoops(Expected) || Sound->AttenuationSettings)
+        {
+            Error = FString::Printf(TEXT("Music track %s (%s) must be a non-spatial %s sound."), *Id, *Sound->GetPathName(),
+                LDAudio::MusicTrackLoops(Expected) ? TEXT("looping") : TEXT("one-shot"));
+            return false;
+        }
+        // The wave's own length, not the looping play duration; a track is minutes long, never hours.
+        if (!(Sound->Duration > 0.f) || Sound->Duration > 3600.f)
+        { Error = FString::Printf(TEXT("Music track %s (%s) has no finite audio duration (%.3f s)."), *Id, *Sound->GetPathName(), Sound->Duration); return false; }
+        OutMusic[int32(Expected)] = const_cast<USoundWave*>(Sound);
     }
     Error.Reset();
     return true;
