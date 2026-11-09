@@ -96,8 +96,6 @@ struct LOCKDOWN_API FLDArtResolved
     TMap<uint8, const FLDArtCharacter*> Monsters;
     TArray<const FLDArtProp*> DecorationProps;
     TArray<FTransform> DecorationTransforms;
-    // World bounds (cm) of every shop-zone decoration: the shop is clicked on its model, not on the ground around it.
-    TArray<FBox> ShopModelBounds;
     // World blockers whose generated block is hidden because art draws them: every Blocker-zone decoration's blocker
     // and the catalog's HiddenBlockers. Hiding is display only; the block keeps its collision and sight response.
     TSet<FString> HiddenBlockers;

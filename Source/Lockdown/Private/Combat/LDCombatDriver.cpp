@@ -4,7 +4,7 @@
 #include "Character/LDCharacterMovementComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Framework/LDGameMode.h"
 #include "World/LDCampDirector.h"
 #include "Framework/LDPlayerController.h"
@@ -157,7 +157,7 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
         const bool bWorldRan=bCaptureInside
             ? Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
             {
-                if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+                if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
                 return RunRewardRetries(Permit,Error);
             },Error)
             : (Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Session,[&](const FLDGameplayWritePermit& Permit)
@@ -176,8 +176,8 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             },Error)
             && Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Transactions,[&](const FLDGameplayWritePermit& Permit)
             {
-                if (!Mode->Economy) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
-                return Mode->ClaimAirdrop(Permit,Error) && Mode->Economy->ProcessTransactions(Permit,Error);
+                if (!Mode->Growth) { Error=TEXT("Transactions require the growth domain of this match."); return false; }
+                return Mode->ClaimAirdrop(Permit,Error) && Mode->Growth->ProcessTransactions(Permit,Error);
             },Error));
         if (!bWorldRan
             || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Capture,[&](const FLDGameplayWritePermit& Permit)
@@ -187,10 +187,10 @@ bool ALDCombatDirector::AdvanceAuthority(const FLDMatchContext& Match,int64 Thro
             { return Mode->ExecuteClosePhase(Permit,Error); },Error)
             || !Mode->FinishAuthorityStep(*this,Error)
             // Publish has no permit: growth receipts and owner projections, then the capture outcome.
-            || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+            || !Mode->Growth || !Mode->Growth->PublishGrowth(Mode->AuthorityBoundary,Error)
             || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
         {
-            if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+            if (Error.IsEmpty() && !Mode->Growth) { Error=TEXT("Growth publication requires the growth domain of this match."); }
             return false;
         }
     }
@@ -220,16 +220,16 @@ bool ALDCombatDirector::RunSettlementStep(const FLDMatchContext& Match, FString&
     }
     if (!Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::DeathsAndRewards,[&](const FLDGameplayWritePermit& Permit)
         {
-            if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+            if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
             return RunRewardRetries(Permit,Error);
         },Error)
         || !Mode->ExecuteAuthorityPhase(*this,ELDCommitPhase::Close,[&](const FLDGameplayWritePermit& Permit)
         { return Mode->ExecuteClosePhase(Permit,Error); },Error)
         || !Mode->FinishAuthorityStep(*this,Error)
-        || !Mode->Economy || !Mode->Economy->PublishGrowth(Mode->AuthorityBoundary,Error)
+        || !Mode->Growth || !Mode->Growth->PublishGrowth(Mode->AuthorityBoundary,Error)
         || !Mode->ExecuteCapturePublish(Mode->AuthorityBoundary,Error))
     {
-        if (Error.IsEmpty() && !Mode->Economy) { Error=TEXT("Growth publication requires the growth domain of this match."); }
+        if (Error.IsEmpty() && !Mode->Growth) { Error=TEXT("Growth publication requires the growth domain of this match."); }
         return false;
     }
     return true;
@@ -320,7 +320,7 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     auto* Mode=Core();
     if (!Mode || Mode->ValidateWritePermit(Permit,ELDCommitPhase::DeathsAndRewards)!=ELDCommitReject::None)
     { Error=TEXT("Deaths require the current DeathsAndRewards permit."); return false; }
-    if (!Mode->Economy) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
+    if (!Mode->Growth) { Error=TEXT("Death rewards require the growth domain of this match."); return false; }
     if (!RunRewardRetries(Permit,Error)) { return false; }
     if (PendingDeaths.IsEmpty()) { return true; }
     // Every fact of this Effects set was locked before any of them is consumed.
@@ -351,13 +351,6 @@ bool ALDCombatDirector::RunDeaths(const FLDGameplayWritePermit& Permit, FString&
     return true;
 }
 
-bool ALDCombatDirector::OwesRewardTo(const FGuid& Recipient) const
-{
-    const auto Owed=[&Recipient](const FLDCommittedDeath& Fact)
-    { return Fact.CreditOwner==Recipient || Fact.Assisters.Contains(Recipient); };
-    return Recipient.IsValid() && (RetryRewards.ContainsByPredicate(Owed) || PendingDeaths.ContainsByPredicate(Owed));
-}
-
 bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     auto* Mode=Core();
@@ -375,7 +368,7 @@ bool ALDCombatDirector::RunRewardRetries(const FLDGameplayWritePermit& Permit, F
 
 bool ALDCombatDirector::CommitReward(const FLDCommittedDeath& Fact, bool bRetry, const FLDGameplayWritePermit& Permit, FString& Error)
 {
-    const FLDRewardReceipt Receipt=Core()->Economy->CommitDeathReward(Fact,Permit);
+    const FLDRewardReceipt Receipt=Core()->Growth->CommitDeathReward(Fact,Permit);
     if (Receipt.Outcome==ELDRewardOutcome::Granted || Receipt.Outcome==ELDRewardOutcome::NoReward) { return true; }
     if (Receipt.Outcome==ELDRewardOutcome::RetryableNotCommitted && !bRetry)
     {

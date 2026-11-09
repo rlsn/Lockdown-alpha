@@ -96,7 +96,7 @@ namespace
             FAudioManifestCue Cue;
             FString Id, Pack, Hash;
             double Volume = 0;
-            const ELDAudioCue Expected = ELDAudioCue(Index + 1);
+            const ELDAudioCue Expected = LDAudio::PlayableCue(Index);
             if (!(*Cues)[Index]->TryGetObject(Entry) || !(*Entry)->TryGetStringField(TEXT("cue"), Id) || !LDAudio::ParseCueId(Id, Cue.Cue)
                 || Cue.Cue != Expected || !(*Entry)->TryGetStringField(TEXT("pack"), Pack) || !PackIds.Contains(Pack)
                 || !(*Entry)->TryGetStringField(TEXT("source"), Cue.Source) || !(*Entry)->TryGetStringField(TEXT("sha256"), Hash)

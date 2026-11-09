@@ -68,21 +68,6 @@ const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttribute
             return Effect;
         }
     }
-    // POLICY.DuplicateEquipmentPassive=OncePerFamily: one family answers once.
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
-    {
-        const FLDDemoEquipmentDefinition* Equipment=nullptr;
-        if (!Content->FindEquipment(Family.EquipmentId,Equipment,Ignored) || !Equipment || !Equipment->HasPassive) { continue; }
-        // An upgraded copy answers with its upgraded terms (#112 §7).
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
-        if (!Effects) { continue; }
-        for (const FLDDemoEffectDefinition& Effect : *Effects)
-        {
-            if (Effect.GetOp()!=Op) { continue; }
-            if (OutSource) { OutSource->Kind=ELDCombatSourceKind::Gear; OutSource->DefinitionId=FName(*Family.EquipmentId); }
-            return &Effect;
-        }
-    }
     return nullptr;
 }
 

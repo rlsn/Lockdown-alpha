@@ -234,22 +234,7 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
                 {3000, 0, 3000, 0, 59000, 0})) { return false; }
         }
     }
-    const FLDDemoEquipmentDefinition* Maul = nullptr;
-    if (!Catalog->FindEquipment(TEXT("item_echo_maul"), Maul, Error))
-    {
-        AddError(Error);
-        return false;
-    }
-    const auto* Cleave = Maul->Passive.Effects.FindByPredicate(
-        [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Cleave; });
-    if (!TestNotNull(TEXT("Compiled maul supplies the secondary coefficient"), Cleave)) { return false; }
-    Input = PrimaryInput(*Catalog);
-    Input.Definition.Emplace(0, Cleave->RatioBp, 0, ELDDemoDamageType::Physical);
-    Input.HitClass = ELDCombatHitClass::BasicSecondary;
-    Input.SourceADP2 = int64(8000);
-    Input.TargetResistanceP2 = int64(800);
-    Input.TargetHPP2 = int64(9000);
-    return CheckDamage(*this, TEXT("80 AD cleave against low-camp armor"), Input, *Catalog, {2592, 0, 2592, 0, 6408, 0});
+    return true;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageDomainTest, "Lockdown.Rules.DemoCombatEvaluation.DamageDomains",
@@ -628,7 +613,7 @@ bool FLDDemoDamageAbilityCritTest::RunTest(const FString& Parameters)
     {
         return false;
     }
-    // item_iron_plate: a critical reduction rides the pre-resistance amplification once.
+    // A critical reduction (the crit_damage_reduction op) rides the pre-resistance amplification once.
     Input.AmplifyBp = 8500;
     const int64 Guarded = int64(10000) * Content.Parameters.AbilityCritMultiplierBp * 8500 * Scale / ((Scale + Resist) * 10000 * 10000);
     CheckDamage(*this, TEXT("A critical reduction multiplies the critical amount before resistance"), Input, *Catalog,

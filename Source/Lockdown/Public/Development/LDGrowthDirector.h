@@ -7,8 +7,7 @@
 #include "Development/LDGrowthRequests.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDProgressionRules.h"
-#include "Economy/LDEconomyLedger.h"
-#include "LDEconomyDirector.generated.h"
+#include "LDGrowthDirector.generated.h"
 
 class ALDGameMode;
 class FLDDemoContentSnapshot;
@@ -16,48 +15,45 @@ class FLDGameplayWritePermit;
 struct FActorSpawnParameters;
 struct FLDCommittedDeath;
 
-// Growth/shop domain hub (N03 rewards, N04, N05): owns the single ledger, the death-reward sink, the
-// Transactions dispatch and the owner publication. Every gold/XP/item change is one composite commit.
+// Growth domain hub (N03 rewards, N04): the death-reward and map-event-reward sinks, the Transactions dispatch and the
+// owner publication. Every XP grant is one composite commit with its levels, opportunities and Combat projection.
 UCLASS()
-class LOCKDOWN_API ALDEconomyDirector : public AActor
+class LOCKDOWN_API ALDGrowthDirector : public AActor
 {
     GENERATED_BODY()
 
 public:
-    ALDEconomyDirector();
+    ALDGrowthDirector();
 
-    // Core authority initialization: spawns Economy, Development, Inventory and Vendor onto Mode.
-    // A failure leaves no growth director behind.
+    // Core authority initialization: spawns Growth and Development onto Mode. A failure leaves no growth director behind.
     static bool SpawnDomain(ALDGameMode& Mode, const FActorSpawnParameters& Spawn, FString& Error);
     static void RetireDomain(ALDGameMode& Mode);
-    // Starting: one ledger account and growth record per locked roster contender (humans and AI slots).
+    // Starting: one growth record per locked roster contender (humans and AI slots).
     bool BeginMatch(ALDGameMode& Mode, const FLDMatchContext& InMatch, const TArray<FGuid>& InRoster, FString& Error);
 
     // DeathsAndRewards: called once per committed death after its Effects set locked every RewardBasis.
     FLDRewardReceipt CommitDeathReward(const FLDCommittedDeath& Death, const FLDGameplayWritePermit& Permit);
-    // D26 (#79): one map event payout (Event + Serial is its business identity, so a repeat is refused by the ledger)
-    // through the same reward composite as a death reward, with ledger cause MapEventReward. Needs the Transactions or
+    // D26 (#79): one map event payout through the same reward composite as a death reward. Event + Serial is its
+    // business identity: the match pays each event once, so any second claim is refused. Needs the Transactions or
     // DeathsAndRewards permit, where growth applies.
-    ELDRewardOutcome CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP, int64 Gold,
+    ELDRewardOutcome CommitEventReward(const FGuid& Recipient, FName Event, uint64 Serial, int64 XP,
         const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason);
-    // Transactions: shop openings, choices and shop commands in server arrival order, then account retirement
-    // of contenders that left and ledger maintenance. Single rejections are receipts; false only on a fault.
+    // Transactions: choices (and DEV test commands) in server arrival order. Single rejections are receipts; false only
+    // on a fault.
     bool ProcessTransactions(const FLDGameplayWritePermit& Permit, FString& Error);
     // Publish (after Close, no permit exists): refreshes changed owner projections through SyncOwner and delivers
     // final receipts to owning connections. Writes no gameplay state; false only for a boundary of another match.
     bool PublishGrowth(const FLDAuthorityBoundary& Boundary, FString& Error);
 
-    // Owner projection read by ALDGameMode::SyncOwner; one consistent view of gold, items, level and offer.
+    // Owner projection read by ALDGameMode::SyncOwner; one consistent view of level, XP, skills, cards and offer.
     FLDGrowthOwnerView ReadOwnerView(const FGuid& ContenderId) const;
     // Committed level for the frozen result rows; contenders that left keep their record until the match ends.
     bool ReadFinalLevel(const FGuid& ContenderId, uint8& Level, FString& Error) const;
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV scenarios: this match's ledger evidence for Scripts\CheckEconomyEvidence.py (LDEconomy::ExportEvidence).
-    bool ExportLedgerEvidence(FString& OutJson, FString& Error) const;
-    // DEV growth fixture (LDDevGrowthFixture.h): queues an XP/gold grant that the next Transactions phase commits through
-    // the reward composite with ledger cause DevFixture and no death fact. Returns a ticket for DevGrantStatus, or 0
-    // with Error when the fixture, match, contender or amounts refuse it.
-    uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, int64 Gold, FString& Error);
+    // DEV growth fixture (LDDevGrowthFixture.h): queues an XP grant that the next Transactions phase commits through the
+    // reward composite without a death fact. Returns a ticket for DevGrantStatus, or 0 with Error when the fixture,
+    // match, contender or amount refuse it.
+    uint64 DevGrantReward(const FGuid& ContenderId, int64 XP, FString& Error);
     ELDDevGrantStatus DevGrantStatus(uint64 Ticket, FString& Detail) const;
     // DEV test command (LDDevTestProtocol.h) of ContenderId's own owning connection: refused unless the fixture admits
     // this authority, then admitted into that contender's DEV request stream. The pending command commits in the
@@ -67,48 +63,38 @@ public:
 #endif
 
     // ---- Module internals ----
-    const LDEconomy::FLedger& GetLedger() const { return Ledger; }
-    LDEconomy::FLedger& MutableLedger() { return Ledger; }
     const FLDMatchContext& GetMatch() const { return Match; }
     const FLDDemoContentSnapshot* GetContent() const { return Content.Get(); }
     uint64 NextArrival() { return ++ArrivalCounter; }
     void MarkDirty(const FGuid& ContenderId) { Dirty.Add(ContenderId); }
-    // Stable 16-byte business key and SHA-256 terms of a canonical byte record.
-    static FGuid BusinessKey(const TArray<uint8>& Canonical);
+    // SHA-256 of a canonical byte record.
     static void Terms(const TArray<uint8>& Canonical, uint8 (&Out)[32]);
 
     // DEV telemetry reads the bounded window of recent reward receipts; nothing else depends on it.
     const TArray<FLDRewardReceipt>& DevRecentRewards() const { return RecentRewards; }
 
 private:
-    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDDemoAssistSettlementTest;
     friend class FLDDemoGrowthRerollTest;
-    // Retires the ledger accounts of contenders that left; M is the authority core of this match.
-    bool RetireLeftAccounts(ALDGameMode& M, const FLDGameplayWritePermit& Permit, FString& Error);
-    bool CompactLedger(FString& Error);
     void RecordReward(const FLDRewardReceipt& Receipt);
-    // The reward composite (PEE §4.2): a ledger mint when Gold > 0, the XP with its levels and opportunities and the
-    // Combat projection, all prepared before any is installed. Death rewards and the DEV growth fixture share it.
-    ELDRewardOutcome CommitRewardParts(const FGuid& Recipient, const LDProgression::FRewardAmounts& Amounts,
-        LDEconomy::ECause Cause, const TArray<uint8>& KeyBytes, const uint8 (&TransactionTerms)[32],
-        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason,
-        const FString& LogDetail = FString());
-    // One recipient's part of a composite reward; KeyBytes is the canonical business key of its ledger mint.
+    // One recipient's part of a composite reward.
     struct FRewardShare
     {
         FGuid Recipient;
         LDProgression::FRewardAmounts Amounts;
-        TArray<uint8> KeyBytes;
     };
-    // The same composite for several distinct recipients (a contender kill with its assisters): every part of every
-    // recipient is prepared before any is installed, so the whole reward commits once or not at all. Shares[0] fills the
-    // receipt's own fields, the rest fill Receipt.Assists in order. Every installed part writes its LD_REWARD line (and an
-    // LD_LEVEL_UP line when it raised the level); LogDetail names what paid it (the victim, the map event).
-    ELDRewardOutcome CommitRewardShares(const TArray<FRewardShare>& Shares, LDEconomy::ECause Cause,
-        const uint8 (&TransactionTerms)[32], const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt,
-        ELDGrowthReason& Reason, const FString& LogDetail = FString());
+    // The reward composite (PROGRESSION_AND_REWARDS): the XP of every share with its levels, opportunities and Combat
+    // projection, all prepared before any is installed, so the whole reward commits once or not at all (a contender kill
+    // with its assisters, a camp kill, a map event or a DEV grant). Shares[0] fills the receipt's own fields, the rest fill
+    // Receipt.Assists in order. Every installed part writes its LD_REWARD line (and an LD_LEVEL_UP line when it raised
+    // the level); Cause and LogDetail name what paid it.
+    ELDRewardOutcome CommitRewardShares(const TArray<FRewardShare>& Shares, const TCHAR* Cause,
+        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason,
+        const FString& LogDetail = FString());
+    ELDRewardOutcome CommitRewardParts(const FGuid& Recipient, int64 XP, const TCHAR* Cause,
+        const FLDGameplayWritePermit& Permit, FLDRewardReceipt& Receipt, ELDGrowthReason& Reason,
+        const FString& LogDetail = FString());
     ALDGameMode* Mode() const;
 #if WITH_DEV_AUTOMATION_TESTS
     // Commits every pending DEV grant in ticket order; false only on an authority fault.
@@ -119,7 +105,6 @@ private:
         uint64 Ticket = 0;
         FGuid Contender;
         int64 XP = 0;
-        int64 Gold = 0;
         ELDDevGrantStatus Status = ELDDevGrantStatus::Pending;
         FString Detail;
     };
@@ -131,12 +116,9 @@ private:
     // Commits or rejects this contender's pending DEV test command; false only on an authority fault. A retryable
     // reward refusal leaves the command pending for the next Transactions phase.
     bool CommitPendingDevTest(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Error);
-    // ResetToMatchStart as one composite: DevReset ledger entries (each held item consumed without a refund, then one gold
-    // change back to the starting gold) rehearsed on a copy of the ledger, Growth's DevPrepareReset and Combat's
-    // DevPrepareReset prepared against those results, then everything installed. Nothing changes on a refusal; bRetry
-    // when the journal tail is full (the command stays pending); AuthorityFault when the install lost its domain.
-    ELDGrowthReason CommitDevReset(const FGuid& ContenderId, const FLDDevTestCommand& Command, const FLDGameplayWritePermit& Permit,
-        FString& Detail, bool& bRetry);
+    // ResetToMatchStart as one composite: Growth's DevPrepareReset and Combat's DevPrepareReset prepared against each
+    // other, then both installed. Nothing changes on a refusal; AuthorityFault when the install lost its domain.
+    ELDGrowthReason CommitDevReset(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit, FString& Detail);
     struct FDevTestRecord
     {
         TLDGrowthRequestStream<FLDDevTestCommand, FLDDevTestReceipt> Stream;
@@ -148,13 +130,13 @@ private:
 
     FLDMatchContext Match;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    LDEconomy::FLedger Ledger;
     TArray<FGuid> Roster;
     uint64 ArrivalCounter = 0;
     TSet<FGuid> Dirty;
-    TSet<FGuid> Retired;
     TMap<FGuid, uint64> PublishRevisions;
     // Highest resolved victim life per (kind, entity) and a bounded replay window of reward receipts.
     TMap<TPair<uint8, FGuid>, uint32> ResolvedLifeThrough;
     TArray<FLDRewardReceipt> RecentRewards;
+    // Every map event (Event, Serial) this match has paid; a second claim of the same event is refused.
+    TSet<TPair<FName, uint64>> PaidEvents;
 };

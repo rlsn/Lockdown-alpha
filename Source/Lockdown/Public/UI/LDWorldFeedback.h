@@ -5,7 +5,6 @@
 #include "LDWorldFeedback.generated.h"
 struct FLDCombatOwnerView;
 struct FLDProgressionView;
-struct FLDEquipmentView;
 struct FLDKillFeedView;
 struct FLDWorldView;
 struct FLDDemoContentDefinitions;
@@ -18,11 +17,11 @@ class ALDGameState;
 // never predicts, extrapolates or changes a gameplay value.
 namespace LDWorldFeedback
 {
-    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Gold, Experience, LevelUp, Kill, UnitCast };
+    enum class EKind : uint8 { DamageTaken, Heal, ShieldGain, ShieldAbsorbed, UnitDamage, UnitHeal, Experience, LevelUp, Kill, UnitCast };
     struct FEvent
     {
         EKind Kind=EKind::DamageTaken;
-        int64 Amount=0;            // whole points (half-up from P2), gold or XP; LevelUp: three-choices newly earned; Kill: 1
+        int64 Amount=0;            // whole points (half-up from P2) or XP; LevelUp: three-choices newly earned; Kill: 1
         bool bOwn=true;            // anchored to the own body, otherwise to the visible unit Handle/Epoch
         FGuid Handle;
         uint32 Epoch=0;
@@ -41,7 +40,6 @@ namespace LDWorldFeedback
         FGuid Self;
         const FLDCombatOwnerView* OwnCombat=nullptr;
         const FLDProgressionView* Progression=nullptr;
-        const FLDEquipmentView* Equipment=nullptr;
         const FLDKillFeedView* KillFeed=nullptr;
         uint32 PublicGeneration=0;
         // Authority clock sample, used only for the kill-feed freshness rule.
@@ -60,8 +58,7 @@ namespace LDWorldFeedback
         const FLDDemoContentDefinitions* Content, FSample& Out);
     // Turns consecutive samples into events. The first sample of a match only primes (and so does the first body view
     // of a life, the first frame of an observation generation and the first valid growth view after a missing one);
-    // older or foreign generations never produce events. Gold and XP float only for a reward, which an XP gain
-    // identifies: buying and selling change gold alone and stay silent.
+    // older or foreign generations never produce events. XP floats for every reward that grants it.
     class LOCKDOWN_API FTracker
     {
     public:
@@ -103,8 +100,6 @@ namespace LDWorldFeedback
         uint8 Level=0;
         uint8 Earned=0;
         int64 XP=0;
-        bool bGold=false;
-        int64 Gold=0;
         bool bKills=false;
         uint64 KillSerial=0;
         bool bFrame=false;
@@ -112,7 +107,7 @@ namespace LDWorldFeedback
         uint32 FrameRevision=0;
         TArray<FUnit> Units;
     };
-    // "-37", "+12", then the LDTerms lines: shield gained/absorbed, gold, experience, level-up and kill (an unlisted victim reads
+    // "-37", "+12", then the LDTerms lines: shield gained/absorbed, experience, level-up and kill (an unlisted victim reads
     // LDTerms::UnknownVictim),
     LOCKDOWN_API FString Text(const FEvent& Event);
     // Smaller second line of a level-up banner (LDTerms::ChoicesEarned); empty for every other event.
@@ -159,7 +154,7 @@ class LOCKDOWN_API ULDWorldFeedback : public UUserWidget
     GENERATED_BODY()
 public:
 #if WITH_DEV_AUTOMATION_TESTS
-    // DEV scenarios: every own reward line ("+45 <LDTerms::Gold>", "+60 <LDTerms::Experience>") this widget presented in the current match, in order.
+    // DEV scenarios: every own reward line ("+60 <LDTerms::Experience>") this widget presented in the current match, in order.
     const TArray<FString>& DevPresentedRewards() const { return DevRewards; }
 #endif
 protected:

@@ -9,12 +9,10 @@ struct FLDAssistContribution
     int64 LastAtMs=0;
 };
 
-// Kill reward amounts after the assist split of one contender death.
+// Kill XP after the assist split of one contender death.
 struct FLDAssistRewardShares
 {
-    int64 KillerGold=0;
     int64 KillerXP=0;
-    int64 AssisterGold=0;   // each assister
     int64 AssisterXP=0;     // each assister
 };
 
@@ -30,9 +28,6 @@ namespace LDAssist
     LOCKDOWN_API void SelectAssisters(const TArray<FLDAssistContribution>& Contributions, const FGuid& Killer,
         const FGuid& Victim, int64 DeathAtMs, int64 WindowMs, TFunctionRef<bool(const FGuid&)> IsPresent, TArray<FGuid>& Out);
 
-    // Splits the victim's base kill reward: the killer keeps all of BaseGold; floor(BaseGold * AssistGoldBp / 10000)
-    // is split evenly (floored) among the assisters; BaseXP is split evenly (floored) among the killer and assisters.
-    // False on a negative input, an out-of-range ratio or overflow.
-    LOCKDOWN_API bool SplitKillReward(int64 BaseGold, int64 BaseXP, int32 AssisterCount, int64 AssistGoldBp,
-        FLDAssistRewardShares& Out);
+    // Splits the victim's base kill XP evenly (floored) among the killer and the assisters. False on a negative input.
+    LOCKDOWN_API bool SplitKillReward(int64 BaseXP, int32 AssisterCount, FLDAssistRewardShares& Out);
 }

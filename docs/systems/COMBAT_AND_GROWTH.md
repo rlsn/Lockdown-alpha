@@ -18,7 +18,7 @@
 | `World\LDCampDecision` | 仅参数化营地决策；不读 Actor、不提交移动/攻击/奖励 |
 | `World\LDCampLifecycle`、`World\LDCampDirector` | 营地名册与每局记账；服务器营地 Director 经 Combat 驱动阶段入口生成野怪、推进运动、提交普攻、消费受击/死亡事实并做回营重置与整组刷新，奖励只由成长 sink 支付 |
 | `Development\LDDevelopmentDirector`、`LDProgressionRules` | 经验/等级、持久三选一队列与 Q/W/E 替换的权威成长记录；构筑变更经 Combat 准备与安装 |
-| `Economy\LDEconomyDirector`、`Inventory\LDVendorDirector` | 死亡奖励复合提交、Transactions 分派、本人发布与两槽装备买卖，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md) |
+| `Development\LDGrowthDirector` | 死亡与地图事件奖励的复合提交、Transactions 分派与本人发布，见 [成长事务](GROWTH_TRANSACTIONS.md) |
 
 这些入口位于 `Source\Lockdown\Public`/`Private`。Demo 运行输入沿
 `SourceData\Demo`、`SyncDemoWorldData` / `SyncDemoContentData` 和原生不可变目录生成链读取。
@@ -43,7 +43,7 @@ D 冲刺（`ELDCombatEntry::Dash`）是参赛者的 `Innate` 来源：`ResolveEn
 `ActiveOf` 取导入时投影成单级 DirectionDash 主动的 `Character.Dash`。普通D不是进攻意图，不解除保护；
 持有 `passive_dash_contact_damage`（借过一下）时，D会沿真实移动轨迹产生撞伤，准入前按进攻意图解除保护。
 每名参赛者在 Combat 记录创建时签发唯一一条 `Innate` 轨道（开局就绪），构筑变更既不规划也不解绑它。
-释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的装备被动族（同名一次）与已学被动的触发项
+释放时 `LDCombatSourceRules::InnateDashTerms` 按身体当前投影的已学被动触发项
 （`LearnedTriggers`，按其 rank 与等级取定义；目前是特种兵 `passive_special_forces` 高级的“冲刺（D）冷却 −30%”）计算距离与冷却：
 每个带 `dash_boost` 的来源乘冷却比例、加距离比例，时长不变，冷却不吃技能急速；结束时刻写成绝对 ReadyAt，之后换装或学习不改写。
 已接受但未释放的 Direct 动作因死亡、取消、打断或营地回位而结束时，回执落为 Rejected 并带原因。
@@ -135,7 +135,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 `ApplyTauntEffect` 对每个被嘲讽者调用一次；新增的控制与减益在其施加成功处调用同一入口，不另建记录。
 `LockDeath` 只在击杀者合格时以 `LDAssist::SelectAssisters`（`REWARD.AssistWindowSec` 窗口含边界，排除击杀者、受害者与已离局者）
 把排序后的助攻者冻结进 `FLDCommittedDeath::Assisters`，之后不随离局或升级改写。
-护盾、普通抗性和条件修正应走统一伤害路径，不能由某个装备在末尾再加一层未经约束的减伤。
+护盾、普通抗性和条件修正应走统一伤害路径，不能由某个被动在末尾再加一层未经约束的减伤。
 
 临时属性只有一条投影：身体保存构筑投影（`BuildProjection`）与当前生效投影（`AttributeProjection`），
 `LDAttributeProjection::ApplyTemporary` 用同一公式在构筑项上叠加限时增益、急了（`passive_pressed`）的低血条件增益与最强一个减速
@@ -160,7 +160,7 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
   观察者看到公开的缴械、眩晕。
 - **强化普攻**（`empower_basic`）：释放时武装一次（同来源替换不叠加），由接下来已提交命中的普攻逐次消费（`ConsumeEmpower`，
   `Charges` 次），额外伤害在暴击采样前并入该次 `BasicPrimary`（吃暴击、吸血、横扫与命中特效）；到期在 Effects 阶段移除。
-- **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（记录 rank 与拥有者等级，不产生属性项），装备被动按同名家族一次。
+- **反伤**（`thorns`）：学会的被动由属性投影列为 `LearnedTriggers`（记录 rank 与拥有者等级，不产生属性项）。
   命中后持有者仍存活、伤害为正、命中是主普攻、距离不超过半径，且该来源对同一攻击者已过 `IntervalMs` 时（`ThornsTriggers`），
   生成一个 `bReflect` 的技能类命中，伤害=基础+护甲×比例+生命上限×比例
   （`LDCombatControl::ThornsBaseP2`，被暴击时乘 `CriticalMultiplierBp`；学会被动的基础值按等级成长），可附只减移速的减速（`slow`/`slow_duration`），
@@ -191,8 +191,9 @@ D 冲刺是人人都有的移动，`ActionAbility` 为 0（只显示施法动作
 - **位移强化**：`LDCombatSourceRules::DisplacesCaster` 判定条目是否位移施放者（冲刺，目前是润了润了）；
   `SkillDisplacementBoost` 在释放时给出这类条目的基础冷却比例（技能急速之前）与距离加成（《润学指南》）；
   `CastRangeCm` 统一给出技能施法距离：目标定义的射程，加上目标定义 `AttackRangeRatioBp` 允许的额外普攻距离份额（有上限；当前目录没有条目使用）。
-- **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动与装备被动（同名家族一次）的唯一读取口；
-  装备效果后续经 `LDDemoEquipment::Effective*` 取当前生效定义。
+- **被动效果查找**：`CollectPassiveEffects(Projection, Op, Out, Error)` 是学会被动效果的唯一读取口。
+  #144 删除装备后，原只由装备被动携带的效果（`cleave`、`nth_basic_bonus`、`mana_on_hit`、`hit_haste`、`crit_damage_reduction`、
+  `affliction_amp`、`shield_break_retort`）的处理器保留给 #145 的被动词条；在已批准内容使用它们之前，这些效果不会出现在对局里。
 - **路径减速**（`path_slow`，润了润了高级）：冲刺释放时登记 `FLDCombatDashSweep`，冲刺结束时 `ResolveDashSweeps` 对走过线段
   半宽内的敌人施加减速；与延迟第二爆、撞墙判定一样在 `NextDueMs` 中登记截止时刻。
 
@@ -252,14 +253,13 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
   `stacks`（Learned Q/W/E 命中，`Token≠0`）在 `ApplyKeywordStacks` 中按存活施加者结算；周期、反伤、附加伤害与护盾触发的命中不算；
   `zone_burn` 让区域每 `interval` 给区内敌人加层。
 - **斩杀与条件增伤**：`execute`（`ratio` + `hp_below`）按命中前生命判定并入加成池；`control_damage_amp` 的 `hp_below` 让低血目标也算；
-  装备的 `control_damage_amp` 也进同一池项。
 - **吸血**：`lifesteal` 的 `hp_below` + `low_hp_multiplier` 对低血目标加倍（计入上限）；`low_hp_stat_bonus` 的 `lifesteal` 是低血期间的普攻吸血。
 - **多次强化普攻**：`empower_basic` 的 `charges`（`FLDCombatEmpower::Charges`，`ConsumeEmpower` 每次取一层）、`stats`（期间的限时属性，
   随最后一层或窗口结束）与 `cleave_ratio`/`cleave_radius`（被强化的普攻带横扫）。
 - **施放后限时属性**：`cast_frenzy`（特种兵：Learned 技能释放后的限时移速）。
 - **受伤触发护盾**：`triggered_shield` 的 `Damaged` 触发（`OnDamaged`）：承受他人正伤害后给护盾（按等级成长的 base + 生命上限比例），
   只有真正替换成功才开始 `interval` 冷却；`burst_ratio`/`burst_radius` 记在 `ShieldBurst`，该护盾被打破时 `BurstBrokenShield` 以获得量的比例对周围敌人造成魔法伤害。
-- **反伤**：学会被动的 `thorns` 基础值随拥有者等级成长（装备不成长）；`slow`/`slow_duration` 是只减移速的减速（城墙脸皮高级）。
+- **反伤**：学会被动的 `thorns` 基础值随拥有者等级成长；`slow`/`slow_duration` 是只减移速的减速（城墙脸皮高级）。
 - **条件切换控制**：`root` 的 `slowed_stun`：命中前目标在减速中则改为眩晕。
 - **弹体穿透**：`pierce` 让弹体按 `LDCombatKeywords::PierceContacts` 依次命中路径上的每个身体，每条生命一次（`FLDCombatProjectile::Struck`），地形与射程仍结束飞行。
 - **撞墙判定**：`knockback` 的 `wall_distance` + `wall_stun`：击退窗口结束时（`FLDCombatWallCheck`、`ResolveWallChecks`）实际平面位移小于阈值即经 `CommitControl` 眩晕。
@@ -287,14 +287,12 @@ Combat 身体记录上的应用在 `LDCombatKeywordsDirector.cpp`。关键词参
 AI 的开局时刻/卡位由 `ALDGameMode::DrawOpponentOpeningPlan` 在绑定时从现有服务器 `SpawnRandom` 流抽取，
 不是每个 AI 新建 GUID 种子。`LD_AI_OPENING_PLAN` 记录抽取前的流状态 `seed`，可用同状态重放这两次抽取；
 该状态只在服务器日志中，纯策略只收到计划的时刻和卡位，不收到隐藏技能分配。
-选择、升级或买卖都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W/E 主动、
-两槽装备实例与修订），携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
-同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时钱、物、经验与构筑都不变。
+选择或升级都先组成变更后的完整 `FLDBuildProjectionInput`（等级、被动、属性卡、Q/W/E 主动与构筑修订），
+携带 Combat 上次安装的 `FLDExpectedBuildVersions` 交给纯函数 `PrepareBuildChange`；
+同一许可内整笔成长提交全部可行后才 `ApplyBuildChange`，失败时经验与构筑都不变。
 DEV 测试会话的测试属性层（`FLDBuildProjectionInput::DevBonuses`）也只由 Combat 持有：成长域输入不带它，
-Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 `Dev` 来源行；见[库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
-已进阶装备（`FLDEquippedItemValue.bUpgraded`）的固定属性与被动效果只经 `LDDemoEquipment::EffectiveStats/EffectivePassiveEffects`
-取得，属性投影、来源与效果处理器不另写进阶分支；同款双持时同名被动取有进阶的一件。
-来源冷却轨道与回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，重学回绑原结束时间，进阶不刷新冷却。
+Combat 把已安装的层带进每次构筑变更，投影把它作为独立的 `Dev` 来源行；见[成长事务](GROWTH_TRANSACTIONS.md)。
+来源冷却轨道与回绑只由 Combat 持有：替换遗忘 rank 但不清洗冷却，重学回绑原结束时间。
 Q/W/E 都满时学新主动替换的那一槽，新主动从 rank 1（初级）开始；技能最高 rank 为 `progression.max_skill_rank`（2，高级）。
 等级、技能学习和 cooldown 是参赛状态，不应随 UI 或 Pawn 重建而免费重置。
 
@@ -306,7 +304,6 @@ Q/W/E 都满时学新主动替换的那一槽，新主动从 rank 1（初级）�
 
 - **成长范围**（`LDSkillGrowth::GrowEffect`）：效果的基础量（伤害、护盾、反伤、强化普攻与周期伤害；法力授予除外）与限时属性
   的点数（攻击力、法强、护甲、魔抗）。法力、比例、持续时间、冷却、射程与层数不成长；属性系数在两档间不变。
-  装备的被动与属性永不经过这里（D15）。
 - **预计算**：`FLDDemoContentSnapshot` 构造时对每个技能的每个 rank、每个等级 1..`MaxLevel` 用 `LDSkillGrowth::GrowRank` 生成一行；
   `FindRank(Ability, Rank, Level)` 返回该行，等级越界或某行算术溢出（内容验证已证明不会发生）时返回空并由调用方明确失败。
 - **读取**：主动经 `ActiveOf(Source, Rank, Level, …)` 在准入与释放时取成长后的 rank，命中载荷在释放时快照；
@@ -325,10 +322,10 @@ Q/W/E 都满时学新主动替换的那一槽，新主动从 rank 1（初级）�
 `DemoGrowthSkillGrowth` 覆盖 G(L)、成长取整与按等级成长的 rank；`DemoCombatCues.*` 覆盖动作提示的选取与优先级，
 `DemoBodyMotion.*` 覆盖身体表现时间轴（前冲、聚能球、火花、闪色、片段定位、出现、倒地与同一动作的重启判定），
 `DemoBuildPrimitives.*`（#147）覆盖关键词纯规则、伤害加成池、沉默、共享破防与灼烧、命中中的加成池、吸血上限、条件切换与撞墙、被动触发与受伤护盾、多次强化普攻，
-`DemoAssist.*` 覆盖助攻贡献记录与窗口、奖励分配、多账户链式账本、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
+`DemoAssist.*` 覆盖助攻贡献记录与窗口、经验平分、击杀通知/结算行，以及击杀者与助攻者的死亡奖励一次结清，
 `DemoControlFeel.*` 覆盖按住右键的重发节流与预输入判定；`DemoControl.*`（`LDControlRulesTests`）覆盖嘲讽的选取、
-强制目标与恢复；成长与商店的纯规则是
-`DemoGrowth*`，见 [库存与事务](INVENTORY_AND_TRANSACTIONS.md)。
+强制目标与恢复；成长的纯规则是
+`DemoGrowth*`，见 [成长事务](GROWTH_TRANSACTIONS.md)。
 `RunDemoCoreCheck.ps1` 用真实 Host 和两个 owning clients 运行明确标记的 DEV 初生/运动接缝，
 `RunDemoCombatCheck.ps1` 经普通大厅 Start 用参与的 Listen Host 与一个 owning client 运行 DEV 战斗与订单场景：
 Host 站点附近按固定方位确定的收缩边外合法脚点作为点选地面仍被拒、作为被追击身体的终点可完整规划，
@@ -354,7 +351,7 @@ Host 以 `-RenderOffScreen` 渲染主视图，在到达对决点（首个读回�
 Client1 的下单到 Activated 回执时间，Host 全速行走中按 S 到停住的时间与滑行距离及随后再次右键的起动时间，
 Client1 的 S 到服务器 Stopped 回执时间，以及当时的 CharacterMovement 参数；
 营地/AI 战斗不在其内。夹具不代表正常升级或完整对局。
-这些规则测试不代替新成长、商店或真实拥有连接的运行验证。
+这些规则测试不代替新成长或真实拥有连接的运行验证。
 
 数据编辑先运行对应 Sync `--check` 与输入测试。测试用的授予、传送或改时钟要明确是夹具，
 不能当作正常升级、打野收益或完整对局已经成立。

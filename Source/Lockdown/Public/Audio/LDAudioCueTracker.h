@@ -40,12 +40,9 @@ public:
 
     void Observe(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out);
     void ObserveCombatReceipt(const FLDCombatActionReceipt& Receipt, uint32 OwnMatch, uint32 OwnLife, TArray<ELDAudioCue>& Out);
-    void ObserveShopSubmit(const FLDSubmitResult& Result, uint32 OwnMatch, TArray<ELDAudioCue>& Out);
-    void ObserveShopReceipt(const FLDShopReceiptQueryResult& Result, uint32 OwnMatch, TArray<ELDAudioCue>& Out);
 private:
     void ObservePublic(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out);
     void ObserveOwn(const FLDAudioFrame& Frame, TArray<ELDAudioCue>& Out);
-    void FinishShop(uint32 Generation, uint64 RequestId, ELDReceiptOutcome Outcome, TArray<ELDAudioCue>& Out);
 
     uint32 PublicGeneration = 0;
     bool bOpenSeen = false;
@@ -75,8 +72,6 @@ private:
     uint32 CastMatch = 0;
     uint32 CastLife = 0;
     TArray<uint64, TInlineAllocator<16>> CastKeys;
-    uint32 ShopMatch = 0;
-    uint64 ShopFinalThrough = 0;
 };
 
 namespace LDAudio

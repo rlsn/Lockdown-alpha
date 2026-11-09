@@ -4,7 +4,7 @@
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDPlayerController.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Region/LDMapRegistry.h"
 #include "Tests/LDDemoEntryProbe.h"
 #include "Vision/LDVisionDirector.h"
@@ -484,8 +484,8 @@ void ALDGameMode::SyncOwner(ALDPlayerController* PC)
             return;
         }
         State->Match=MatchContext.Generation;
-        // Growth/Shop: the owner's gold, equipment, level, offer and shop session in the same publication.
-        State->Growth=Economy?Economy->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
+        // Growth: the owner's level, XP and offer in the same publication.
+        State->Growth=Growth?Growth->ReadOwnerView(State->ContenderId):FLDGrowthOwnerView();
         ++State->Revision;
         PC->OwnerState=*State;
         if (PC->IsLocalController()) { PC->OnRep_OwnerState(); }

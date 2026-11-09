@@ -10,7 +10,7 @@ namespace LDCursor
 {
     // A confirmed attack-move (A) waits for its left click: red glow.
     inline constexpr EMouseCursor::Type AttackAim=EMouseCursor::Crosshairs;
-    // A confirmed active skill or equipment active waits for its target: blue glow.
+    // A confirmed active skill waits for its target: blue glow.
     inline constexpr EMouseCursor::Type CastAim=EMouseCursor::EyeDropper;
     // Maps every cursor type of this viewport to the arrows; call once per game viewport.
     LOCKDOWN_API void Install(UGameViewportClient& Viewport);

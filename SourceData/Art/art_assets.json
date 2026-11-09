@@ -225,13 +225,6 @@
       "purpose": "Playground bleachers behind the south wall"
     },
     {
-      "path": "Kenney/CoasterKit/stall-food.glb",
-      "pack": "kenney-coaster-kit",
-      "pack_path": "Models/GLB format/stall-food.glb",
-      "sha256": "c2598eaec07802394740e77b1248066522caf678e8306cf7ab7c53e7b22e4e43",
-      "purpose": "Snack kiosk dressing the campus shop, kept below 150 cm so it never hides a body"
-    },
-    {
       "path": "Kenney/CityKitCommercial/building-k.glb",
       "pack": "kenney-city-kit-commercial",
       "pack_path": "Models/GLB format/building-k.glb",
@@ -873,11 +866,6 @@
       "scale": 4.5
     },
     {
-      "id": "snack_stall",
-      "source": "Kenney/CoasterKit/stall-food.glb",
-      "scale": 0.95
-    },
-    {
       "id": "building_shops",
       "source": "Kenney/CityKitCommercial/building-k.glb",
       "scale": 7.5
@@ -973,20 +961,6 @@
       "x": 0,
       "y": 0,
       "yaw": 0
-    },
-    {
-      "prop": "snack_stall",
-      "zone": "shop",
-      "x": 769,
-      "y": 2475,
-      "yaw": 180
-    },
-    {
-      "prop": "snack_stall",
-      "zone": "shop",
-      "x": -525,
-      "y": -2536,
-      "yaw": 180
     },
     {
       "prop": "building_block",

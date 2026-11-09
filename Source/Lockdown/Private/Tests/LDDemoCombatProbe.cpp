@@ -11,7 +11,7 @@
 #include "Development/LDDemoContentIds.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevelopmentDirector.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Framework/LDCommandLiveness.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
@@ -205,7 +205,7 @@ public:
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
     TArray<TSharedPtr<FJsonValue>> Checks;
 
-    // Deterministic public duel sites beside the shop, outside its reach and the capture circle.
+    // Deterministic public duel sites beside the capture circle, outside its reach.
     FVector HostSite = FVector::ZeroVector, ClientSite = FVector::ZeroVector;
     double RespawnSeconds = 0;
     FGuid HostId, ClientId;
@@ -645,38 +645,39 @@ public:
     {
         if (bSitesReady) { return true; }
         const FLDDemoContentDefinitions& Defs = Catalog->Get();
-        const FName ShopId = Defs.World.ShopIds.IsEmpty() ? FName() : FName(*Defs.World.ShopIds[0]);
-        const FLDMapBinding* ShopAnchor = Registry.Resolve(ShopId, Registry.Generation);
         const FLDMapBinding* CaptureAnchor = Registry.Resolve(FName(*Defs.World.CaptureId), Registry.Generation);
-        const double ShopReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.ShopInteractRadiusCm);
         const double CaptureReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.CaptureRadiusCm);
         const double BodyRadius = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.CollisionRadiusCm);
         const double AttackReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.AttackRangeCm.Base);
         const double SightReach = LDDemoCombatScenario::CombatProbeRational(Defs.Parameters.VisionRadiusCm);
         const double Gap = LDDemoCombatScenario::CombatProbeGapCm;
         RespawnSeconds = double(Defs.Parameters.RespawnMs) / 1000.0;
-        if (!ShopAnchor || !CaptureAnchor || ShopReach <= 0 || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
+        if (!CaptureAnchor || CaptureReach <= 0 || BodyRadius <= 0 || AttackReach <= 0
             || RespawnSeconds <= 0 || Defs.Parameters.ProtectionMs <= 0
             || Gap <= AttackReach + 2.0 * BodyRadius || Gap >= SightReach - 2.0 * BodyRadius)
         {
             return Check(false, TEXT("Start"), TEXT("The public anchors and approved radii admit an out-of-range, in-sight duel"));
         }
-        const FVector Outward = (ShopAnchor->Position - CaptureAnchor->Position).GetSafeNormal2D();
-        const FVector Across(Outward.Y, -Outward.X, 0.0);
-        HostSite = ShopAnchor->Position + Across * (2.0 * ShopReach);
         FCollisionShape Capsule;
         FString SiteError;
         const auto Legal = [&](const FVector& Site, FLDLegalGround& LegalSite)
         {
             ELDWorldQueryFailure SiteFailure = ELDWorldQueryFailure::None;
-            bool bWithin = true;
-            return Registry.QueryGround(Registry.Revision(), Site, Capsule, ShopAnchor->Surface, LegalSite, SiteFailure, SiteError)
-                && Registry.QueryShopReach(Registry.Revision(), ShopId, Site, bWithin, SiteFailure, SiteError) && !bWithin
+            return Registry.QueryGround(Registry.Revision(), Site, Capsule, CaptureAnchor->Surface, LegalSite, SiteFailure, SiteError)
                 && FVector::Dist2D(Site, CaptureAnchor->Position) > CaptureReach + 2.0 * BodyRadius;
         };
+        // The Host's site: the first of eight bearings around the flagpole, one duel gap outside its circle, on legal ground.
         FLDLegalGround HostGround;
-        const bool bHostLegal = !Outward.IsNearlyZero() && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError)
-            && Legal(HostSite, HostGround);
+        FVector Across = FVector::ZeroVector;
+        bool bHostLegal = false;
+        const bool bCapsule = ULDMapRegistry::ContentCapsule(*Catalog, Capsule, SiteError);
+        for (int32 Bearing = 0; bCapsule && !bHostLegal && Bearing < 8; ++Bearing)
+        {
+            const FVector Outward = FVector(1, 0, 0).RotateAngleAxis(45.0 * Bearing, FVector::UpVector);
+            Across = FVector(Outward.Y, -Outward.X, 0.0);
+            HostSite = CaptureAnchor->Position + Outward * (CaptureReach + 2.0 * BodyRadius + Gap);
+            bHostLegal = Legal(HostSite, HostGround);
+        }
         // Only Client1 walks to its own site: eight fixed bearings around the Host's site, the first with legal ground
         // and a near-straight complete route from the Host's site (open ground in sight) wins. Its skill site lies on
         // that open line, nearer the Host, and must be legal too.
@@ -695,7 +696,7 @@ public:
         }
         bSitesReady = bHostLegal && bClientLegal;
         return Check(bSitesReady, TEXT("Start"),
-            TEXT("The duel sites are legal ground outside the shop reach and the capture circle, joined by an open complete route"),
+            TEXT("The duel sites are legal ground outside the capture circle, joined by an open complete route"),
             FString::Printf(TEXT("host=%s client=%s skill=%s %s"), *HostSite.ToCompactString(), *ClientSite.ToCompactString(),
                 *SkillSite.ToCompactString(), *SiteError));
     }
@@ -1898,7 +1899,7 @@ public:
     // the opening choice, so level-dependent checks keep their values; that last opportunity stays unchosen.
     bool TickGrant(double Now, ALDPlayerController& PC, ALDGameMode& Mode)
     {
-        if (!Mode.Economy) { return Fail(TEXT("Skills"), TEXT("The Listen Host has no Economy owner for the fixture's grants")); }
+        if (!Mode.Growth) { return Fail(TEXT("Skills"), TEXT("The Listen Host has no growth owner for the fixture's grants")); }
         if (HostGrant == 0)
         {
             const ALDPlayerController* Remote = Mode.FindContenderController(ClientId);
@@ -1913,8 +1914,8 @@ public:
                 return Fail(TEXT("Skills"), TEXT("Both roles' progression is readable and below the levels of their planned cards"));
             }
             FString HostError, ClientError;
-            HostGrant = Mode.Economy->DevGrantReward(HostId, Thresholds[HostLevel - 1] - Own->CumulativeXP, 0, HostError);
-            ClientGrant = Mode.Economy->DevGrantReward(ClientId, Thresholds[ClientLevel - 1] - Other->CumulativeXP, 0, ClientError);
+            HostGrant = Mode.Growth->DevGrantReward(HostId, Thresholds[HostLevel - 1] - Own->CumulativeXP, HostError);
+            ClientGrant = Mode.Growth->DevGrantReward(ClientId, Thresholds[ClientLevel - 1] - Other->CumulativeXP, ClientError);
             if (!Check(HostGrant != 0 && ClientGrant != 0, TEXT("Skills"), TEXT("The DEV growth fixture queues an XP grant for each role"),
                 HostError + ClientError))
             {
@@ -1923,8 +1924,8 @@ public:
             return true;
         }
         FString HostDetail, ClientDetail;
-        const ELDDevGrantStatus HostStatus = Mode.Economy->DevGrantStatus(HostGrant, HostDetail);
-        const ELDDevGrantStatus ClientStatus = Mode.Economy->DevGrantStatus(ClientGrant, ClientDetail);
+        const ELDDevGrantStatus HostStatus = Mode.Growth->DevGrantStatus(HostGrant, HostDetail);
+        const ELDDevGrantStatus ClientStatus = Mode.Growth->DevGrantStatus(ClientGrant, ClientDetail);
         if ((HostStatus == ELDDevGrantStatus::Pending || ClientStatus == ELDDevGrantStatus::Pending)
             && Now - StageAt <= LDDemoCombatScenario::CombatProbeStepSeconds)
         {
@@ -2326,7 +2327,7 @@ public:
         return true;
     }
 
-    // Legal open ground a short walk from Site, outside the shop's reach, on screen above the HUD's bottom bar.
+    // Legal open ground a short walk from Site, on screen above the HUD's bottom bar.
     bool PickBeside(const ALDPlayerController& PC, const FVector& Site, FVector& Out, FVector2D& Screen) const
     {
         const ULDMapRegistry* Registry = PC.GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -2345,9 +2346,7 @@ public:
                 * LDDemoCombatScenario::CombatProbeBesideCm;
             FLDLegalGround To;
             FLDCompletePath Route;
-            bool bWithin = true;
             if (Registry->QueryGround(Registry->Revision(), Point, Capsule, Surface, To, Failure, Problem)
-                && Registry->QueryShopReach(Registry->Revision(), Registry->NearestShop(Point), Point, bWithin, Failure, Problem) && !bWithin
                 && Registry->QueryCompletePath(Registry->Revision(), From, To, Capsule, Route, Failure, Problem)
                 && Route.LengthCm <= 1.3 * LDDemoCombatScenario::CombatProbeBesideCm
                 && PC.ProjectWorldLocationToScreen(To.SurfaceCm, Screen)

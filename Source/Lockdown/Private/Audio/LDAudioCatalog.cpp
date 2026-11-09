@@ -6,27 +6,53 @@
 namespace
 {
     // Literal ids instead of reflected enum names: non-editor builds do not preserve FName casing.
-    const TCHAR* const AudioCueIds[] =
+    // Indexed by cue number; a retired number is a null hole.
+    constexpr const TCHAR* AudioCueIds[] =
     {
         TEXT("None"), TEXT("KillNotice"), TEXT("CaptureOpened"), TEXT("CaptureStarted"), TEXT("CaptureContested"),
         TEXT("MatchVictory"), TEXT("MatchDefeat"), TEXT("MatchEndedNoWinner"), TEXT("SelfHit"), TEXT("SelfCast"),
-        TEXT("PurchaseSucceeded"), TEXT("TradeRejected"), TEXT("LevelUp"), TEXT("SelfDeath"), TEXT("SelfRespawn"),
-        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack"), TEXT("ShopMarked"), TEXT("ShopUnmarked")
+        nullptr, nullptr, TEXT("LevelUp"), TEXT("SelfDeath"), TEXT("SelfRespawn"),
+        TEXT("UIClick"), TEXT("SelfShieldHit"), TEXT("SelfAttack")
     };
-    static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue needs exactly one stable id.");
+    static_assert(UE_ARRAY_COUNT(AudioCueIds) == int32(ELDAudioCue::Count), "Every cue number needs exactly one stable id or a retired hole.");
+
+    constexpr int32 AudioRetiredIds()
+    {
+        int32 Holes = 0;
+        for (const TCHAR* Id : AudioCueIds) { Holes += Id == nullptr; }
+        return Holes;
+    }
+    static_assert(AudioRetiredIds() == LDAudio::RetiredCueCount, "RetiredCueCount must match the retired holes.");
+
+    const TCHAR* AudioCueIdAt(int32 Index) { return Index >= 0 && Index < int32(ELDAudioCue::Count) ? AudioCueIds[Index] : nullptr; }
+}
+
+bool LDAudio::IsPlayableCue(ELDAudioCue Cue)
+{
+    return Cue > ELDAudioCue::None && AudioCueIdAt(int32(Cue)) != nullptr;
+}
+
+ELDAudioCue LDAudio::PlayableCue(int32 Index)
+{
+    for (int32 Value = 1; Index >= 0 && Value < int32(ELDAudioCue::Count); ++Value)
+    {
+        if (AudioCueIds[Value] && Index-- == 0) { return ELDAudioCue(Value); }
+    }
+    return ELDAudioCue::None;
 }
 
 FString LDAudio::CueId(ELDAudioCue Cue)
 {
     const int32 Index = int32(Cue);
-    return Index >= 0 && Index < int32(ELDAudioCue::Count) ? FString(AudioCueIds[Index]) : FString::Printf(TEXT("Cue%d"), Index);
+    const TCHAR* Id = AudioCueIdAt(Index);
+    return Id ? FString(Id) : FString::Printf(TEXT("Cue%d"), Index);
 }
 
 bool LDAudio::ParseCueId(const FString& Id, ELDAudioCue& Out)
 {
     for (int32 Index = 1; Index < int32(ELDAudioCue::Count); ++Index)
     {
-        if (Id.Equals(AudioCueIds[Index], ESearchCase::CaseSensitive)) { Out = ELDAudioCue(Index); return true; }
+        if (AudioCueIds[Index] && Id.Equals(AudioCueIds[Index], ESearchCase::CaseSensitive)) { Out = ELDAudioCue(Index); return true; }
     }
     Out = ELDAudioCue::None;
     return false;
@@ -49,7 +75,7 @@ bool ULDAudioCatalog::Resolve(TArray<USoundWave*>& OutSounds, FString& Error) co
     for (int32 Index = 0; Index < Cues.Num(); ++Index)
     {
         const FLDAudioCueEntry& Entry = Cues[Index];
-        const ELDAudioCue Expected = ELDAudioCue(Index + 1);
+        const ELDAudioCue Expected = LDAudio::PlayableCue(Index);
         const FString Id = LDAudio::CueId(Expected);
         if (Entry.Cue != Expected)
         { Error = FString::Printf(TEXT("Entry %d is %s, expected %s."), Index, *LDAudio::CueId(Entry.Cue), *Id); return false; }

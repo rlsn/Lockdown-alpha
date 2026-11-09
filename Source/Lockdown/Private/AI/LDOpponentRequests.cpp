@@ -3,7 +3,6 @@
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDDemoContentIds.h"
 #include "Navigation/LDOrderTypes.h"
-#include "World/LDWorldQueryTypes.h"
 
 namespace LDOpponentRequests
 {
@@ -111,16 +110,8 @@ bool BuildOrder(const FLDOpponentBodyIntent& Intent, const TArray<FLDOpponentPOI
         Out.Observed = Intent.Handle;
         Out.ObservationEpoch = Intent.Epoch;
         break;
-    case ELDOpponentBodyKind::ApproachShop:
-    {
-        const FLDOpponentPOI* Place = FindPlace(POIs, Intent.POI);
-        if (!Place || Place->Kind != ELDOpponentPOIKind::Shop) { return Fail(Error, TEXT("ApproachShop needs the public shop.")); }
-        Out.Kind = ELDSpatialOrderKind::ApproachShop;
-        Out.ShopId = Place->Id;
-        break;
-    }
     default:
-        return Fail(Error, TEXT("Only MoveGround, AttackUnit and ApproachShop intents become spatial orders."));
+        return Fail(Error, TEXT("Only MoveGround and AttackUnit intents become spatial orders."));
     }
     if (!Out.HasValidShape()) { return Fail(Error, TEXT("The spatial order has no valid shape for its identity.")); }
     return true;
@@ -254,119 +245,6 @@ bool BuildChoice(const FLDOpponentBuildIntent& Intent, const FLDProgressionView&
     return true;
 }
 
-bool BuildShopOpen(FName ShopId, uint32 Generation, uint32 Life, const FLDWorldRevision& World,
-    FLDShopOpenCommand& Out, FString& Error)
-{
-    using namespace Detail;
-    Out = FLDShopOpenCommand();
-    if (Generation == 0 || Life == 0 || !World.IsValid())
-    {
-        return Fail(Error, TEXT("Opening the shop needs the current match, the current life and a registered world revision."));
-    }
-    // Each refusal names the printed id, because an FName's printed casing is not stable across build types.
-    if (!FLDDefinitionWire::Encode(ShopId, Out.ShopId))
-    {
-        Out = FLDShopOpenCommand();
-        Error = FString::Printf(TEXT("The shop id '%s' is not a wire definition id."), *ShopId.ToString());
-        return false;
-    }
-    if (!FLDDefinitionWire::Encode(World.MapId, Out.WorldMapId))
-    {
-        Out = FLDShopOpenCommand();
-        Error = FString::Printf(TEXT("The world map id '%s' is not a wire definition id."), *World.MapId.ToString());
-        return false;
-    }
-    Out.Generation = Generation;
-    Out.Life = Life;
-    Out.WorldLayoutRevision = World.LayoutRevision;
-    Out.WorldGeometryRevision = World.GeometryRevision;
-    return true;
-}
-
-bool BuildTrade(const FLDOpponentBuildIntent& Intent, const FLDShopOpenResult& Shop, const FLDEquipmentView& Equipment,
-    const FLDProgressionView& Progression, uint64 RequestId, FLDShopCommand& Out, FString& Error)
-{
-    using namespace Detail;
-    Out = FLDShopCommand();
-    const FLDShopView& View = Shop.View;
-    if (RequestId == 0 || Shop.OpenStatus != ELDShopOpenStatus::Opened || !Shop.bHasView || !Progression.bValid
-        || !Equipment.bValid || Progression.LifePhase != ELDLifePhase::Alive || Shop.Generation != Progression.Generation
-        || Equipment.Generation != Progression.Generation || View.Life != Progression.Life)
-    {
-        return Fail(Error, TEXT("Trading needs an opened shop session of this live body and current owner views."));
-    }
-    if (!View.SessionId.IsValid() || View.QuoteRevision == 0 || View.WorldLayoutRevision == 0
-        || View.WorldGeometryRevision == 0 || Equipment.AccountRevision == 0 || Equipment.InventoryRevision == 0
-        || Progression.BuildRevision == 0 || !FLDDefinitionWire::Encode(View.WorldMapId, Out.WorldMapId))
-    {
-        Out = FLDShopCommand();
-        return Fail(Error, TEXT("The shop quote or the owner revisions are not established."));
-    }
-    Out.Generation = Progression.Generation;
-    Out.Life = Progression.Life;
-    Out.RequestId = RequestId;
-    Out.SessionId = View.SessionId;
-    Out.QuoteRevision = View.QuoteRevision;
-    Out.CatalogDigest = View.CatalogDigest;
-    Out.WorldLayoutRevision = View.WorldLayoutRevision;
-    Out.WorldGeometryRevision = View.WorldGeometryRevision;
-    Out.ExpectedAccountRevision = Equipment.AccountRevision;
-    Out.ExpectedInventoryRevision = Equipment.InventoryRevision;
-    Out.ExpectedBuildRevision = Progression.BuildRevision;
-    if (Intent.Kind == ELDOpponentBuildKind::Buy)
-    {
-        const FName Wanted(*Intent.BuyItemId);
-        const FLDShopItemView* Quote = Intent.BuyItemId.IsEmpty() ? nullptr
-            : View.Items.FindByPredicate([Wanted](const FLDShopItemView& Item) { return Item.DefinitionId == Wanted; });
-        if (!Quote || Quote->BuyPrice <= 0 || !FLDDefinitionWire::Encode(Wanted, Out.DefinitionId))
-        {
-            Out = FLDShopCommand();
-            return Fail(Error, TEXT("The planned item is not in the shown quote."));
-        }
-        Out.Kind = ELDShopCommandKind::Buy;
-        Out.BuyPrice = Quote->BuyPrice;
-        return true;
-    }
-    if (Intent.Kind == ELDOpponentBuildKind::Sell)
-    {
-        const int32 SellSlot = Intent.SellSlot;
-        const FLDShopSellView* Offer = View.Sellable.FindByPredicate([SellSlot](const FLDShopSellView& Sell)
-        {
-            return int32(Sell.SlotIndex) == SellSlot;
-        });
-        if (!Offer || !Offer->Instance.IsValid() || Offer->ItemRevision == 0 || Offer->SellPrice < 0)
-        {
-            Out = FLDShopCommand();
-            return Fail(Error, TEXT("The planned slot has no sellable instance in the shown quote."));
-        }
-        Out.Kind = ELDShopCommandKind::Sell;
-        Out.Instance = Offer->Instance;
-        Out.ExpectedItemRevision = Offer->ItemRevision;
-        Out.SellPrice = Offer->SellPrice;
-        return true;
-    }
-    if (Intent.Kind == ELDOpponentBuildKind::Upgrade)
-    {
-        const int32 UpgradeSlot = Intent.UpgradeSlot;
-        const FLDShopSellView* Held = View.Sellable.FindByPredicate([UpgradeSlot](const FLDShopSellView& Row)
-        {
-            return int32(Row.SlotIndex) == UpgradeSlot;
-        });
-        if (!Held || !Held->bCanUpgrade || !Held->Instance.IsValid() || Held->ItemRevision == 0 || View.UpgradePrice <= 0)
-        {
-            Out = FLDShopCommand();
-            return Fail(Error, TEXT("The planned slot has no upgradable instance in the shown quote."));
-        }
-        Out.Kind = ELDShopCommandKind::Upgrade;
-        Out.Instance = Held->Instance;
-        Out.ExpectedItemRevision = Held->ItemRevision;
-        Out.UpgradePrice = View.UpgradePrice;
-        return true;
-    }
-    Out = FLDShopCommand();
-    return Fail(Error, TEXT("Only Buy, Sell and Upgrade intents become shop commands."));
-}
-
 bool BodyIntentsHeld(const FLDCombatOwnerView& Combat, int64 NowMs)
 {
     return Combat.bHasBody && Combat.Statuses.ContainsByPredicate([NowMs](const FLDCombatStatusView& Status)
@@ -403,7 +281,7 @@ ELDOpponentSettle SettleOrder(const FLDOrderReceipt& Receipt)
     // An enemy's taunt interrupted the order: nothing about the intent itself failed.
     case ELDOrderFailure::Taunted:
     case ELDOrderFailure::KnockedBack: return ELDOpponentSettle::Dropped;
-    // Unusable ground, no complete path, blocked progress, a refused shop and malformed or stale requests.
+    // Unusable ground, no complete path, blocked progress and malformed or stale requests.
     default: return ELDOpponentSettle::Failed;
     }
 }
@@ -442,11 +320,10 @@ ELDOpponentSettle SettleGrowthRejection(ELDGrowthReason Reason)
     case ELDGrowthReason::LifePhaseChanged:
     case ELDGrowthReason::LeftMatch:
     case ELDGrowthReason::MatchClosed:
-    case ELDGrowthReason::MatchNotStarted:
     case ELDGrowthReason::Dead:
     case ELDGrowthReason::StaleContext:
     case ELDGrowthReason::OfferAlreadyCommitted: return ELDOpponentSettle::Dropped;
-    // Stale guards and quotes, gold, slots, reach, grounding and authority faults never loop unbounded.
+    // Stale guards, offers, replacements and authority faults never loop unbounded.
     default: return ELDOpponentSettle::Failed;
     }
 }
@@ -459,7 +336,6 @@ ELDOpponentSettle SettleSubmit(const FLDSubmitResult& Result)
     case ELDAdmissionStatus::AcceptedPending: return ELDOpponentSettle::InFlight;
     case ELDAdmissionStatus::Final:
         if (Result.Family == ELDGrowthFamily::Choice && Result.bHasChoiceReceipt) { return SettleHeader(Result.ChoiceReceipt.Header); }
-        if (Result.Family == ELDGrowthFamily::Shop && Result.bHasShopReceipt) { return SettleHeader(Result.ShopReceipt.Header); }
         return ELDOpponentSettle::Failed;
     case ELDAdmissionStatus::AdmissionRejected: return SettleGrowthRejection(LDGrowthWire::Reason(Result.Reason));
     default: return ELDOpponentSettle::Failed;
@@ -469,21 +345,5 @@ ELDOpponentSettle SettleSubmit(const FLDSubmitResult& Result)
 ELDOpponentSettle SettleChoiceQuery(const FLDChoiceReceiptQueryResult& Result)
 {
     return Detail::SettleLookup(Result.Lookup, Result.bHasReceipt, Result.Receipt.Header);
-}
-
-ELDOpponentSettle SettleShopQuery(const FLDShopReceiptQueryResult& Result)
-{
-    return Detail::SettleLookup(Result.Lookup, Result.bHasReceipt, Result.Receipt.Header);
-}
-
-ELDOpponentSettle SettleShopOpen(const FLDShopOpenResult& Result)
-{
-    switch (Result.OpenStatus)
-    {
-    case ELDShopOpenStatus::Pending: return ELDOpponentSettle::InFlight;
-    case ELDShopOpenStatus::Opened: return Result.bHasView ? ELDOpponentSettle::Succeeded : ELDOpponentSettle::Failed;
-    case ELDShopOpenStatus::Rejected: return SettleGrowthRejection(LDGrowthWire::Reason(Result.Reason));
-    default: return ELDOpponentSettle::Dropped;
-    }
 }
 }

@@ -699,22 +699,11 @@ UMaterial* BuildFenceMaterial(FString& Error)
     return FinishMaterial(*Material, ColorNode(*Material, FLinearColor(.36f, .22f, .11f)), .8f, .3f, FenceMaterialPath, Error);
 }
 
-// A blocker's generated surface: trunks are trees, sight blockers walls, the low non-sight polygon holding the shop
-// anchor its stall (wall paint), and every other non-sight polygon a fence.
-const TCHAR* BlockerMaterialPath(const FLDDemoWorldGeometry& Geometry, const FLDDemoWorldBlocker& Blocker)
+// A blocker's generated surface: trunks are trees, sight blockers walls, and every non-sight polygon a fence.
+const TCHAR* BlockerMaterialPath(const FLDDemoWorldBlocker& Blocker)
 {
     if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder) { return TreeMaterialPath; }
-    if (Blocker.BlocksSight) { return WallMaterialPath; }
-    TArray<FVector2D> Footprint;
-    FString Ignored;
-    if (!LDDemoWorld::Footprint(Blocker, Footprint, Ignored)) { return WallMaterialPath; }
-    for (const auto& Anchor : Geometry.Anchors)
-    {
-        FVector Shop;
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Shop && Anchor.PositionCm.ToVector(Shop, Ignored)
-            && LDDemoWorld::InsideConvex(Footprint, FVector2D(Shop.X, Shop.Y))) { return WallMaterialPath; }
-    }
-    return FenceMaterialPath;
+    return Blocker.BlocksSight ? WallMaterialPath : FenceMaterialPath;
 }
 
 // Raised ground: mottled grass on plateau tops, ramps and cliff faces alike (#97: the darker rock faces now take the
@@ -1030,7 +1019,7 @@ bool LDDemoWorldBuilder::Generate(ULDMapDefinition& Definition, const FLDDemoCon
         if (!Mesh) { return false; }
         FVector Position = FVector::ZeroVector;
         if (Blocker.Shape == ELDDemoWorldBlockerShape::Cylinder && !Blocker.CenterCm.ToVector(Position, Error)) { return false; }
-        const TCHAR* Path = BlockerMaterialPath(*Geometry, Blocker);
+        const TCHAR* Path = BlockerMaterialPath(Blocker);
         UMaterial* Surface = Path == TreeMaterialPath ? TreeMaterial : Path == FenceMaterialPath ? FenceMaterial : StoneMaterial;
         if (!Place(*World, Blocker.Id, Mesh, Surface, Position, FVector::OneVector,
             false, Blocker.BlocksMovement, Blocker.BlocksSight, Error)) { return false; }
@@ -1180,7 +1169,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         TEXT("Exact native anchor, navigation and static-geometry counts"));
     Check(Steppable == 0, TEXT("No generated geometry lets a body step up onto it"));
     Check(!Faced.IsEmpty() && InsideOut.IsEmpty(),
-        TEXT("Every generated terrain, wall, fence, stall and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
+        TEXT("Every generated terrain, wall, fence and trunk face points out of its prism: ") + FString::Join(InsideOut, TEXT(", ")));
     Check(Suns == 1 && Skies == 1 && SkyLights == 1 && Fogs == 1 && Grades == 1,
         TEXT("The playground is lit by one shadowing atmosphere sun, one sky, one real-time sky light, one height fog and one unbound grade"));
     const auto* Navigation = Cast<ULDDemoNavigationSystem>(World.GetNavigationSystem());
@@ -1252,7 +1241,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             && CollisionChannelsMatch(*Component, false, Blocker.BlocksSight),
             TEXT("Blocker transform/movement/sight classification: ") + Blocker.Id);
         const UMaterialInterface* Wall = Component->GetMaterial(0);
-        Check(Wall && Wall->GetPathName() == ObjectPath(BlockerMaterialPath(*Geometry, Blocker)), TEXT("Blocker uses its generated wall, fence or tree surface: ") + Blocker.Id);
+        Check(Wall && Wall->GetPathName() == ObjectPath(BlockerMaterialPath(Blocker)), TEXT("Blocker uses its generated wall, fence or tree surface: ") + Blocker.Id);
         TArray<FVector> Vertices;
         if (!(bTrunk ? TrunkVertices(Blocker, Vertices, Error) : BlockerVertices(Blocker, Vertices, Error))) { return false; }
         const FString Expected = MeshPath(bTrunk ? TrunkId(Blocker) : Blocker.Id);
@@ -1267,7 +1256,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
     const bool Bound = Registry && Registry->Rebuild(BindingError);
     Check(Bound, TEXT("Native world registry binds every approved anchor and one exact start per spawn: ") + BindingError);
     // Function, not layout: every authored anchor stands on legal ground, each kind of element does what its flags say
-    // (walls, fences and stalls against movement and sight, trees, ramps, cliffs), and the registry refuses bad queries.
+    // (walls and fences against movement and sight, trees, ramps, cliffs), and the registry refuses bad queries.
     // No check names a coordinate or a route of this particular map.
     int32 PlacementChecks = 0, RampChecks = 0;
     if (Bound)
@@ -1286,7 +1275,7 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
             FVector Foot;
             if (!Anchor.PositionCm.ToVector(Foot, Error)) { return false; }
             FLDLegalGround Legal;
-            if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop && GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
+            if (GroundAt(Foot, Anchor.Id, Legal)) { Standing = Foot; }
             if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
             {
                 for (const auto& Offset : Geometry->SpawnOffsetsCm)
@@ -1388,8 +1377,8 @@ bool LDDemoWorldBuilder::Validate(UWorld& World, const ULDMapDefinition& Definit
         ++CliffChecks;
     }, Error)) { return false; }
     // Every blocker, on a line through it across its thinnest side: its own collision stops the capsule, and it
-    // spans the eye-height sight line exactly when it is declared to block sight (walls and trees do; fences and the
-    // shop stall stay under the sight sample). Channel responses are checked per blocker above.
+    // spans the eye-height sight line exactly when it is declared to block sight (walls and trees do; fences stay under
+    // the sight sample). Channel responses are checked per blocker above.
     const double Eye = double(Geometry->SightSampleHeightCm.Numerator) / double(Geometry->SightSampleHeightCm.Denominator);
     for (const auto& Blocker : Geometry->Blockers)
     {

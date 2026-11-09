@@ -34,11 +34,11 @@ FORMULAS = (
     "None", "AddFlatThenAdditivePercent", "PointsOverScalePlusPoints", "OncePerPrimaryAttack",
     "FloorP2ThenShieldThenHP", "BaseTimesAdditiveRatio", "BasePlusFlat", "CeilReciprocalMs",
     "CeilBaseWindupTimesBaseOverCurrentAS", "CeilBaseTimesScaleOverScalePlusHaste",
-    "CarrySubP2Remainder", "FloorFinalRatioRejectAliveUnderflow", "FloorPurchasePriceTimesSellRatio",
+    "CarrySubP2Remainder", "FloorFinalRatioRejectAliveUnderflow",
     "LinearIncrement", "MinVisionTwiceAttackRange",
 )
 POLICIES = (
-    "None", "AddFlatThenAdditivePercent", "Allowed", "OncePerFamily",
+    "None", "AddFlatThenAdditivePercent", "Allowed",
     "ContinueServerTime", "PreserveRatio", "ContinueForRemainingContender", "CancelUnsettledNoRefund",
     "BreakOnAggressiveIntent", "OncePerAttackId", "PrimaryBasicAttackHPLost", "Disabled",
     "CarrySubP2Remainder", "ReplaceIfNotWeaker", "ConfirmedCombatHit", "ReturnThenReset", "NotApplicable",
@@ -93,7 +93,7 @@ def expected_world_projection(compilation):
         "SpawnValidationRadiusCm": rational(world["placement"]["spawn_validation_radius_cm"]),
         "ParameterRefs": world["parameter_refs"],
         "Anchors": [{
-            "Id": row["id"], "Kind": ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
+            "Id": row["id"], "Kind": ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint").index(row["kind"]),
             "SurfaceId": row["surface_id"], "PositionCm": point(row["position_cm"]),
             "Members": [{"Id": member["id"], "PositionCm": point(member["position_cm"])}
                         for member in row.get("members", [])],
@@ -213,17 +213,6 @@ def dash_definition(value):
     }
 
 
-
-
-def passive(value):
-    return {
-        "Family": value["family"] if value else "",
-        "Effects": [effect(item) for item in value["effects"]] if value else [],
-        "HasUpgraded": bool(value) and "upgraded" in value,
-        "UpgradedEffects": [effect(item) for item in value["upgraded"]["effects"]] if value and "upgraded" in value else [],
-    }
-
-
 def parameter_projection(parameters):
     result = {}
     for stat in ("MaxHP", "MaxMP", "AD", "AP", "Armor", "MagicResist", "HPRegen", "MPRegen"):
@@ -246,10 +235,7 @@ def parameter_projection(parameters):
         ("SKILL.GrowthPerLevelAfter10", "SkillGrowthPerLevelAfter10Bp"), ("UNIT.BasicAttackWindupSec", "BasicAttackWindupMs"),
         ("CAPTURE.SpraySec", "CaptureSprayMs"), ("CAPTURE.GuardSec", "CaptureGuardMs"),
         ("MATCH.CountdownSec", "CountdownMs"), ("MATCH.DevelopmentSec", "DevelopmentMs"), ("LIFE.RespawnSec", "RespawnMs"), ("LIFE.ProtectionSec", "ProtectionMs"),
-        ("SHOP.SellRatio", "SellRatioBp"), ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
-        ("REWARD.AssistWindowSec", "AssistWindowMs"), ("REWARD.AssistGoldRatio", "AssistGoldBp"),
-        ("SHOP.SellRatio", "SellRatioBp"), ("SHOP.UpgradeStatBonusRatio", "UpgradeStatBonusBp"),
-        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"),
+        ("REGEN.OutOfCombatDelaySec", "OutOfCombatRegenDelayMs"), ("REWARD.AssistWindowSec", "AssistWindowMs"),
         ("REGEN.OutOfCombatMaxHPRatioPerSec", "OutOfCombatMaxHPRegenBp"),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "OutOfCombatMaxMPRegenBp"),
         ("DORM.OutOfCombatDelaySec", "DormRegenDelayMs"),
@@ -266,21 +252,17 @@ def parameter_projection(parameters):
         result[dest] = scalar(parameters[source])
     for source, dest in (
         ("UNIT.CollisionRadiusCm", "CollisionRadiusCm"), ("VISION.RadiusCm", "VisionRadiusCm"),
-        ("SHOP.InteractRadiusCm", "ShopInteractRadiusCm"), ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
+        ("CAPTURE.RadiusCm", "CaptureRadiusCm"),
         ("CAMP.ResetArrivalRadiusCm", "CampResetArrivalRadiusCm"),
         ("DORM.RadiusCm", "DormRadiusCm"), ("AIRDROP.PickupRadiusCm", "AirdropPickupRadiusCm"),
         ("LEADER.CircleRadiusCm", "LeaderCircleRadiusCm"), ("LEADER.CircleMaxOffsetCm", "LeaderCircleMaxOffsetCm"),
     ):
         result[dest] = rational(parameters[source])
     for source, dest in (
-        ("SHOP.StartingGold", "StartingGold"), ("SHOP.UpgradeCost", "UpgradeCost"),
         ("XP.BaseToNext", "XPBaseToNext"), ("XP.IncreasePerLevel", "XPIncreasePerLevel"),
         ("REWARD.PlayerXP.Base", "PlayerXPBase"), ("REWARD.PlayerXP.PerLevel", "PlayerXPPerLevel"),
-        ("REWARD.PlayerGold.Base", "PlayerGoldBase"), ("REWARD.PlayerGold.PerLevel", "PlayerGoldPerLevel"),
         ("CAMP.ReturnDeadEndPlans", "CampReturnDeadEndPlans"), ("CAMP.GrowthMaxStage", "CampGrowthMaxStage"),
-        ("AIRDROP.RewardXP", "AirdropRewardXP"), ("AIRDROP.RewardGold", "AirdropRewardGold"),
-        ("LEADER.MinLevel", "LeaderMinLevel"), ("LEADER.BountyGoldPerRefresh", "LeaderBountyGoldPerRefresh"),
-        ("LEADER.BountyGoldMax", "LeaderBountyGoldMax"),
+        ("AIRDROP.RewardXP", "AirdropRewardXP"), ("LEADER.MinLevel", "LeaderMinLevel"),
         ("COMBAT.BreachMaxStacks", "BreachMaxStacks"), ("COMBAT.BurnMaxStacks", "BurnMaxStacks"),
     ):
         result[dest] = parameters[source]
@@ -353,21 +335,16 @@ def expected_projection(compilation):
         "Attributes": [{"Id": row["id"], "NativeId": row["native_id"], "Stats": stats(row["stats"]),
                         "Penalties": stats(row.get("penalties", {}))} for row in data["attributes"]],
         "OpeningCards": [{"Id": row["id"], "Stats": stats(row["stats"])} for row in data["opening_cards"]],
-        "Equipment": [{
-            "Id": row["id"], "NativeId": row["native_id"], "BuyPrice": row["buy_price"], "SellGold": row["sell_gold"],
-            "Stats": stats(row["stats"]), "UpgradedStats": stats(row["upgraded_stats"]),
-            "HasPassive": row["passive"] is not None, "Passive": passive(row["passive"]),
-        } for row in data["equipment"]],
         "Monsters": [], "Camps": [{"AnchorId": row["anchor_id"], "MonsterId": row["monster_id"]} for row in data["camps"]["placements"]],
         "Progression": {**{dest: data["progression"][source] for source, dest in (
             ("max_level", "MaxLevel"), ("max_choices", "MaxChoices"), ("max_skill_rank", "MaxSkillRank"),
-            ("active_slots", "ActiveSlots"), ("equipment_slots", "EquipmentSlots"), ("xp_start", "XPStart"),
+            ("active_slots", "ActiveSlots"), ("xp_start", "XPStart"),
             ("xp_thresholds", "XPThresholds"), ("xp_to_next", "XPToNext"),
         )}, **{dest: data["progression"]["opening_offer"][source] for source, dest in (
             ("matched_skill_weight", "OpeningMatchedSkillWeight"), ("other_skill_weight", "OpeningOtherSkillWeight"),
         )}, "RerollLevels": data["progression"]["reroll_levels"]},
         "World": {dest: data["world"][source] for source, dest in (
-            ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("shop_ids", "ShopIds"), ("capture_id", "CaptureId"),
+            ("map_id", "MapId"), ("spawn_ids", "SpawnIds"), ("camp_ids", "CampIds"), ("capture_id", "CaptureId"),
         )},
         "Display": [{
             "Id": row["id"], "Namespace": row["namespace"], "NameKey": row["name_key"], "NameText": row["name_text"],
@@ -379,7 +356,7 @@ def expected_projection(compilation):
     for row in data["camps"]["monsters"]:
         monster = {"Id": row["id"], "NativeId": row["native_id"], "Tier": {"Low": 0, "High": 1, "Elite": 3}[row["tier"]]}
         for source, dest in (
-            ("count_per_camp", "CountPerCamp"), ("attack_interval_ms", "AttackIntervalMs"), ("reward_xp", "RewardXP"), ("reward_gold", "RewardGold"),
+            ("count_per_camp", "CountPerCamp"), ("attack_interval_ms", "AttackIntervalMs"), ("reward_xp", "RewardXP"),
         ):
             monster[dest] = row[source]
         for source, dest in (
@@ -404,7 +381,7 @@ def expected_projection(compilation):
                       "ApprovalDurationMs": scalar(boss["approval"]["duration"]), "ApprovalStats": stats(boss["approval"]["stats"])}
     result["Monsters"].append({
         "Id": boss["id"], "NativeId": boss["native_id"], "Tier": 2, "CountPerCamp": 1, "AttackIntervalMs": interval,
-        "RewardXP": boss["reward_xp"], "RewardGold": boss["reward_gold"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),
+        "RewardXP": boss["reward_xp"], "HPP2": scalar(boss["hp"]), "ArmorP2": scalar(boss["armor"]),
         "MagicResistP2": scalar(boss["magic_resist"]), "AttackP2": scalar(boss["attack"]), "AttackWindupMs": scalar(boss["attack_windup"]),
         "LoseTargetGraceMs": scalar(boss["attacker_memory"]), "RespawnMs": 0, "MaxMPP2": 0, "APP2": 0, "CritChanceBp": 0,
         "AttackSpeed": {"Numerator": 1000 // divisor, "Denominator": interval // divisor}, "AttackRangeCm": rational(boss["attack_range"]),
@@ -606,7 +583,7 @@ def _export(output, *, profile, rank_mutations, jobs, written):
             pending.append((name, mutated_quantity, job))
 
         if profile == "runtime":
-            _export_exact_gold_case(valid)
+            _export_exact_integer_case(valid)
             _export_world_spawn_shift_case(valid)
             _export_runtime_refusal(output, index, base, written)
         else:
@@ -652,10 +629,10 @@ def _rank_mutation(author, path):
     return changed
 
 
-def _export_exact_gold_case(valid):
+def _export_exact_integer_case(valid):
     exact = fixtures.content_fixture()
-    exact["parameters"]["SHOP.StartingGold"] = 9007199254740993
-    valid("exact_gold", exact)
+    exact["parameters"]["AIRDROP.RewardXP"] = 9007199254740993
+    valid("exact_integer", exact)
 
 
 def _export_world_spawn_shift_case(valid):
@@ -684,7 +661,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     exact["parameters"]["LIFE.RespawnSec"]["value"] = "__exact_literal__"
     valid("int64_max_ms", exact, literal=b"9223372036854775.807")
     valid("above_double_integer", exact, literal=b"9007199254740.993")
-    _export_exact_gold_case(valid)
+    _export_exact_integer_case(valid)
     exact = fixtures.content_fixture()
     exact["parameters"]["STAT.MPRegen.PerLevel"]["value"] = "__exact_literal__"
     valid("exact_rational", exact, literal=b"0.000000000000000001")
@@ -722,8 +699,8 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("missing_parameter", lambda d: d["parameters"].pop("STAT.AD.Base"), "missing")
     bad_content("bad_unit", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"unit": "mp"}), "unsupported constant")
     bad_content("bad_storage", lambda d: d["parameters"]["STAT.MaxHP.Base"].update({"bp": 10}), "unknown field")
-    bad_content("bool_integer", lambda d: d["parameters"].update({"SHOP.StartingGold": True}), "integer token")
-    bad_content("string_integer", lambda d: d["parameters"].update({"SHOP.StartingGold": "10"}), "integer token")
+    bad_content("bool_integer", lambda d: d["parameters"].update({"AIRDROP.RewardXP": True}), "integer token")
+    bad_content("string_integer", lambda d: d["parameters"].update({"AIRDROP.RewardXP": "10"}), "integer token")
     bad_content("retired_id", lambda d: d["abilities"][0].update({"native_id": 1}), "renumbered native ID")
     bad_content("unknown_id", lambda d: d["abilities"][0].update({"id": "active_missing"}), "unknown")
     bad_content("alias_id", lambda d: d["abilities"][0].update({"id": "Active_not_mad"}), "canonical lowercase")
@@ -732,7 +709,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("missing_rank", lambda d: d["abilities"][0]["ranks"].pop(), "array length")
     bad_content("wrong_rank", lambda d: d["abilities"][0]["ranks"][1].update({"rank": 3}), "integer outside")
     bad_content("wrong_opcode", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"opcode": 255}), "opcode")
-    bad_content("unknown_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"op": "grant_gold"}), "opcode")
+    bad_content("unknown_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"op": "unknown_op"}), "opcode")
     bad_content("duplicate_effect", lambda d: d["abilities"][0]["ranks"][0]["effects"].append(deepcopy(d["abilities"][0]["ranks"][0]["effects"][0])), "duplicate effect")
     bad_content("unknown_effect_field", lambda d: d["abilities"][0]["ranks"][0]["effects"][0].update({"unexpected": 1}), "unknown field")
     # The bolt's first effect is damage and it does not target Self (the payload sorts abilities by id).
@@ -756,13 +733,8 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
                 "opening card stats")
     bad_content("unsorted_reroll_levels", lambda d: d["progression"].update({"reroll_levels": [7, 4]}), "reroll levels")
     bad_content("missing_draftable", lambda d: d["abilities"][0].pop("draftable"), "missing")
-    bad_content("bad_upgraded_stats", lambda d: next(iter(d["equipment"][0]["upgraded_stats"].values())).update(
-        {"p2": 1} if "p2" in next(iter(d["equipment"][0]["upgraded_stats"].values())) else {"bp": 1}), "upgraded stats")
     bad_content("inexact_recovery_ratio", lambda d: d["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update({"bp": 155}), "recovery")
     bad_content("bad_interval", lambda d: d["character"]["basic_attack"].update({"interval_ms": 1}), "interval")
-    bad_content("bad_sell_projection", lambda d: d["equipment"][0].update({"sell_gold": d["equipment"][0]["buy_price"]}), "sell gold")
-    bad_content("missing_passive", lambda d: next(row for row in d["equipment"] if row["passive"] is not None).update({"passive": None}), "presence")
-    bad_content("equipment_active_field", lambda d: d["equipment"][0].update({"active": None}), "unknown field")
     bad_content("bad_passive_stat", lambda d: next(row for row in d["abilities"] if row["id"] == "passive_lucky_star")["ranks"][0]["effects"][0]["stats"].update({"ADFlat": {"unit": "points", "p2": 1}}), "passive stat")
     slow = {"op": "slow", "opcode": ids_data["effect_ops"]["slow"], "ratio": {"unit": "ratio", "bp": 2500},
             "duration": {"unit": "ms", "ms": 1500}}
@@ -776,7 +748,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("zero_denominator", lambda d: d["parameters"]["UNIT.MoveSpeedCmPerSec"].update({"denominator": 0}), "integer outside")
     bad_content("wrong_monster", lambda d: d["camps"]["placements"][0].update({"monster_id": "monster_missing"}), "camp/monster")
     bad_content("bad_perception", lambda d: d["camps"]["monsters"][0]["perception_radius"].update({"numerator": 301}), "perception")
-    bad_content("bad_world_ref", lambda d: d["world"].update({"shop_ids": ["shop_missing"]}), "anchor reference")
+    bad_content("bad_world_ref", lambda d: d["world"]["camp_ids"].__setitem__(-1, "z_missing"), "anchor reference")
     bad_content("duplicate_world_ref", lambda d: d["world"]["spawn_ids"].__setitem__(1, d["world"]["spawn_ids"][0]), "duplicate")
     bad_content("bad_display_key", lambda d: d["display"][0].update({"name_key": "wrong.name"}), "display reference")
     bad_content("missing_display", lambda d: d["display"].pop(), "array length")
@@ -794,8 +766,8 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("display_description_wide_digit", lambda d: d["display"][1].update({"description_text": "\u9020\u6210\uff17\uff10"}), "contains digits")
     bad_content("duplicate_display_name", lambda d: d["display"][2].update({"name_text": d["display"][1]["name_text"]}), "duplicate display name")
     bad_content("unapproved_metadata", lambda d: d["identity"]["approval"].update({"status": "candidate"}), "approval metadata")
-    bad_content("bad_policy", lambda d: d["policies"].update({"DuplicateEquipment": "Disallowed"}), "unsupported constant")
-    bad_content("bad_boolean_policy", lambda d: d["policies"].update({"ShopRequiresLineOfSight": True}), "boolean policy")
+    bad_content("bad_policy", lambda d: d["policies"].update({"MissingSourceCooldown": "Disallowed"}), "unsupported constant")
+    bad_content("bad_boolean_policy", lambda d: d["policies"].update({"CampGroupRetaliation": False}), "boolean policy")
     bad_content("bad_formula", lambda d: d["formulas"].update({"Damage": "RoundInstead"}), "unsupported constant")
     bad_content("bad_revision", lambda d: d["identity"].update({"projection_revision": 1}), "integer outside")
     bad_content("missing_acquisition_formula", lambda d: d["formulas"].pop("AttackMoveAcquireRadius"), "missing")
@@ -805,7 +777,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     bad_content("aliased_target", lambda d: d["abilities"][0]["target"].update({"mode": "directionprojectile"}), "unsupported target")
     bad_content("aliased_damage_type", lambda d: next(a for a in d["abilities"] if a["id"] == "active_snark_bolt")["ranks"][0]["effects"][0]
         .update({"damage_type": "magical"}), "unknown damage type")
-    bad_content("aliased_policy", lambda d: d["policies"].update({"DuplicateEquipment": "allowed"}), "unsupported constant")
+    bad_content("aliased_policy", lambda d: d["policies"].update({"DeadChoiceCommit": "allowed"}), "unsupported constant")
     bad_content("aliased_approval", lambda d: d["identity"]["approval"].update({"status": "APPROVED"}), "approval metadata")
     bad_content("aliased_display_namespace", lambda d: d["display"][0].update({"namespace": "democontent"}), "display reference")
     bad_content("aliased_formula", lambda d: d["formulas"].update({"Damage": "floorP2ThenShieldThenHP"}), "unsupported constant")
@@ -817,7 +789,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
         ("nonfinite_integer", b"1e309", "int64 token"),
     ):
         changed = deepcopy(data)
-        changed["parameters"]["SHOP.StartingGold"] = "__invalid_literal__"
+        changed["parameters"]["AIRDROP.RewardXP"] = "__invalid_literal__"
         raw = encode(demo.canonical(changed)).replace(b'"__invalid_literal__"', literal)
         bundle, digest = _tamper(base, content_raw=raw)
         invalid(name, bundle, digest, error)

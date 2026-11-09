@@ -7,7 +7,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Development/LDCampGrowth.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyLedger.h"
 #include "Framework/LDGameMode.h"
 
 namespace LDCombatSourcesDetail
@@ -23,9 +22,6 @@ namespace LDCombatSourcesDetail
         return LearnedSlot(Entry)==INDEX_NONE ? nullptr
             : Build.Actives.FindByPredicate([Entry](const FLDLearnedActiveValue& Candidate) { return Candidate.Entry==Entry; });
     }
-
-    const FLDEquippedItemValue* FindEquipped(const FLDBuildProjectionInput& Build, uint8 Slot)
-    { return Build.Equipment.FindByPredicate([Slot](const FLDEquippedItemValue& Candidate) { return Candidate.Slot==Slot; }); }
 
     const FLDDemoRankDefinition* FindRankRow(const FLDDemoAbilityDefinition& Ability, uint8 Rank)
     { return Ability.Ranks.FindByPredicate([Rank](const FLDDemoRankDefinition& Candidate) { return Candidate.Rank==int32(Rank); }); }
@@ -115,29 +111,9 @@ namespace LDCombatSourcesDetail
         }
     }
 
-    // Equipment is projected in slot order; items outside the approved slots are refused.
     FLDAttributeProjectionResult ProjectInput(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content)
     {
-        TArray<FString> Equipped;
-        TArray<bool> Upgraded;
-        for (uint8 Slot=0; Slot<LDEconomy::EquipmentSlots; ++Slot)
-        {
-            if (const FLDEquippedItemValue* Item=FindEquipped(Build,Slot))
-            {
-                Equipped.Add(Item->DefinitionId.ToString());
-                Upgraded.Add(Item->bUpgraded);
-            }
-        }
-        if (Equipped.Num()!=Build.Equipment.Num())
-        {
-            FLDAttributeProjectionResult Refused;
-            Refused.Error.Code=ELDAttributeProjectionError::InputDomain;
-            Refused.Error.Field=TEXT("Equipment");
-            Refused.Error.Message=TEXT("Equipment must occupy distinct equipment slots");
-            return Refused;
-        }
-        FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards,MoveTemp(Equipped));
-        Values.EquippedUpgraded=MoveTemp(Upgraded);
+        FLDAttributeBuildValues Values(Build.Level,Build.Passives,Build.AttributeCards);
         Values.OpeningCard=Build.OpeningCard;
         Values.DevBonuses=Build.DevBonuses;
         return LDAttributeProjection::Project(Values,Content);
@@ -163,21 +139,6 @@ namespace LDCombatSourcesDetail
         return true;
     }
 
-    bool PublicEquipment(const FLDBuildProjectionInput& Build, const FLDDemoContentSnapshot& Content, FLDObservedEquipmentView& Out)
-    {
-        Out=FLDObservedEquipmentView();
-        for (uint8 Slot=0; Slot<LDEconomy::EquipmentSlots; ++Slot)
-        {
-            const FLDEquippedItemValue* Item=FindEquipped(Build,Slot);
-            if (!Item) { continue; }
-            const FLDDemoEquipmentDefinition* Definition=nullptr;
-            FString LookupError;
-            if (!Content.FindEquipment(Item->DefinitionId.ToString(),Definition,LookupError) || !Definition) { return false; }
-            Out.Slots[Slot]=Definition->NativeId;
-        }
-        return true;
-    }
-
     // Shape of the complete post-change build; passives and cards are checked by the attribute projection.
     bool ValidateBuildInput(const FLDBuildProjectionInput& Input, const FLDExpectedBuildVersions& Installed,
         const FLDDemoContentSnapshot& Content, FString& Error)
@@ -188,14 +149,14 @@ namespace LDCombatSourcesDetail
             Error=FString::Printf(TEXT("InvalidInput: level %d is outside 1..%d."),int32(Input.Level),Progression.MaxLevel);
             return false;
         }
-        if (Input.ResultBuildRevision<=Installed.BuildRevision || Input.ResultInventoryRevision<Installed.InventoryRevision)
+        if (Input.ResultBuildRevision<=Installed.BuildRevision)
         {
-            Error=TEXT("InvalidInput: the build revision must advance and the inventory revision must not regress.");
+            Error=TEXT("InvalidInput: the build revision must advance.");
             return false;
         }
-        if (Input.Actives.Num()>Progression.ActiveSlots || Input.Equipment.Num()>Progression.EquipmentSlots)
+        if (Input.Actives.Num()>Progression.ActiveSlots)
         {
-            Error=TEXT("InvalidInput: more held sources than the approved active or equipment slots.");
+            Error=TEXT("InvalidInput: more held actives than the approved active slots.");
             return false;
         }
         FString LookupError;
@@ -220,25 +181,6 @@ namespace LDCombatSourcesDetail
                 return false;
             }
             ConsumedChoices+=Learned.Rank;
-        }
-        for (int32 Index=0; Index<Input.Equipment.Num(); ++Index)
-        {
-            const FLDEquippedItemValue& Item=Input.Equipment[Index];
-            const FLDDemoEquipmentDefinition* Definition=nullptr;
-            const bool bKnown=!Item.DefinitionId.IsNone() && Content.FindEquipment(Item.DefinitionId.ToString(),Definition,LookupError)
-                && Definition;
-            bool bDuplicate=false;
-            for (int32 Earlier=0; Earlier<Index; ++Earlier)
-            {
-                if (Input.Equipment[Earlier].Slot==Item.Slot || Input.Equipment[Earlier].Instance==Item.Instance) { bDuplicate=true; }
-            }
-            if (int32(Item.Slot)>=Progression.EquipmentSlots || int32(Item.Slot)>=LDEconomy::EquipmentSlots || !Item.Instance.IsValid()
-                || !bKnown || bDuplicate)
-            {
-                Error=FString::Printf(TEXT("InvalidInput: equipment %d (%s) has an unknown, duplicate or out-of-slot entry or instance."),
-                    Index,*Item.DefinitionId.ToString());
-                return false;
-            }
         }
         // Every active rank, passive rank and card consumed one choice: the opening one plus one per level-up. The opening
         // direction card (#153) shares its choice with the active it taught, so it adds none here.
@@ -300,7 +242,7 @@ const FName& LDCombatSourceRules::InnateDashId()
     return Id;
 }
 
-bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
+bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
     const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error)
 {
     Out=FLDInnateDashTerms();
@@ -337,24 +279,7 @@ bool LDCombatSourceRules::InnateDashTerms(const FLDDemoContentSnapshot& Content,
         }
         return true;
     };
-    for (const FLDEquipmentPassiveFamily& Family : Passives)
-    {
-        const FLDDemoEquipmentDefinition* Item=nullptr;
-        FString LookupError;
-        if (!Content.FindEquipment(Family.EquipmentId,Item,LookupError) || !Item || !Item->HasPassive)
-        {
-            Error=FString::Printf(TEXT("Catalog: equipment passive %s has no approved definition. %s"),*Family.Family,*LookupError);
-            return false;
-        }
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,Family.bUpgraded);
-        if (!Effects)
-        {
-            Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
-            return false;
-        }
-        if (!Boost(*Effects,Item->Id)) { return false; }
-    }
-    // A learned passive rank with a dash boost (passive_special_forces advanced) applies like an equipment family.
+    // A learned passive rank with a dash boost (passive_special_forces advanced) applies once.
     for (const FLDLearnedTriggerTerm& Term : Learned)
     {
         const FLDDemoAbilityDefinition* Ability=nullptr;
@@ -427,31 +352,28 @@ bool LDCombatSourceRules::DisplacesCaster(const FLDDemoRankDefinition& Rank)
 }
 
 bool LDCombatSourceRules::SkillDisplacementBoost(const FLDDemoContentSnapshot& Content,
-    const TArray<FLDEquipmentPassiveFamily>& Passives, int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error)
+    const TArray<FLDLearnedTriggerTerm>& Learned, int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error)
 {
     OutCooldownRatioBp=10000;
     OutDistanceBonusBp=0;
-    for (const FLDEquipmentPassiveFamily& Family : Passives)
+    for (const FLDLearnedTriggerTerm& Term : Learned)
     {
-        const FLDDemoEquipmentDefinition* Item=nullptr;
+        const FLDDemoAbilityDefinition* Ability=nullptr;
         FString LookupError;
-        if (!Content.FindEquipment(Family.EquipmentId,Item,LookupError) || !Item || !Item->HasPassive)
+        const FLDDemoRankDefinition* Rank=Content.FindAbility(Term.AbilityId,Ability,LookupError) && Ability
+            ? Content.FindRank(*Ability,Term.Rank,Term.Level) : nullptr;
+        if (!Rank)
         {
-            Error=FString::Printf(TEXT("Catalog: equipment passive %s has no approved definition. %s"),*Family.Family,*LookupError);
+            Error=FString::Printf(TEXT("Catalog: learned passive %s rank %d has no approved terms. %s"),*Term.AbilityId,
+                int32(Term.Rank),*LookupError);
             return false;
         }
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,Family.bUpgraded);
-        if (!Effects)
-        {
-            Error=FString::Printf(TEXT("Catalog: upgraded equipment passive %s has no approved terms."),*Family.Family);
-            return false;
-        }
-        for (const FLDDemoEffectDefinition& Effect : *Effects)
+        for (const FLDDemoEffectDefinition& Effect : Rank->Effects)
         {
             if (Effect.GetOp()!=ELDDemoEffectOp::DashBoost) { continue; }
             if (Effect.SkillCooldownRatioBp<0 || Effect.SkillCooldownRatioBp>10000 || Effect.SkillDistanceBonusBp<0)
             {
-                Error=FString::Printf(TEXT("NumericDomain: skill dash boost of %s is outside the checked domain."),*Item->Id);
+                Error=FString::Printf(TEXT("NumericDomain: skill dash boost of %s is outside the checked domain."),*Term.AbilityId);
                 return false;
             }
             // Absent terms (0) are not approved yet and change nothing.
@@ -569,7 +491,7 @@ bool ALDCombatDirector::InnateDashFor(const FLDCombatEntityRecord& Record, const
     }
     // A body uses its installed projection; a dead contender explains the persistent build of the next life.
     const FLDAttributeProjection& Projection=Body ? Body->AttributeProjection : Record.Projection;
-    return LDCombatSourceRules::InnateDashTerms(*Content,Projection.EquipmentPassives,Projection.LearnedTriggers,Out,Error);
+    return LDCombatSourceRules::InnateDashTerms(*Content,Projection.LearnedTriggers,Out,Error);
 }
 
 bool ALDCombatDirector::PlanBindings(const FLDCombatEntityRecord& Record, const FLDBuildProjectionInput& Input, int64 NowMs,
@@ -624,14 +546,14 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
         ? RankRow->Effects.FindByPredicate([](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp()==ELDDemoEffectOp::Dash; })
         : nullptr;
     View.RangeCm=LDCombatSourcesDetail::DisplayCm(Dash ? Dash->DistanceCm : Target->RangeCm);
-    // The owner sees the reach this body has right now (a share of its extra attack range, item_phase_anchor on a dash).
+    // The owner sees the reach this body has right now (a share of its extra attack range, a passive dash boost on a dash).
     if (Body && Source.Kind!=ELDCombatSourceKind::Innate)
     {
         FString RangeError;
         double RangeCm=0;
         int64 CooldownRatioBp=10000, DistanceBonusBp=0;
         if (!Dash && CastRangeCm(*Body,*Target,RangeCm,RangeError)) { View.RangeCm=int32(FMath::RoundToDouble(RangeCm)); }
-        else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.EquipmentPassives,
+        else if (Dash && Catalog() && LDCombatSourceRules::SkillDisplacementBoost(*Catalog(),Body->AttributeProjection.LearnedTriggers,
             CooldownRatioBp,DistanceBonusBp,RangeError))
         { View.RangeCm=int32(FMath::RoundToDouble(LDCombatSourcesDetail::RationalValue(Dash->DistanceCm)*double(10000+DistanceBonusBp)/10000.)); }
     }
@@ -639,7 +561,7 @@ FLDCombatEntryView ALDCombatDirector::EntryView(const FLDCombatEntityRecord& Rec
     FString TermsError;
     if (Source.Kind==ELDCombatSourceKind::Innate)
     {
-        // The owner sees the reach this body's held equipment gives the dash right now.
+        // The owner sees the reach this body's learned passives give the dash right now.
         if (!InnateDashFor(Record,Body,Innate,TermsError))
         {
             View.Unavailable=ELDCombatReject::AuthorityDataUnavailable;
@@ -692,11 +614,10 @@ FLDCombatPrepareResult ALDCombatDirector::PrepareBuildChange(const FLDCombatCall
     const FLDCombatEntityRecord* Record=Caller.Kind==ELDVictimKind::Contender ? FindRecord(Caller.EntityId) : nullptr;
     if (!Record || Record->Kind!=ELDVictimKind::Contender)
     { return LDCombatSourcesDetail::PrepareFailure(EPrepare::UnknownContender,TEXT("UnknownContender: no persistent Combat record.")); }
-    if (Expected.BuildRevision!=Record->Installed.BuildRevision || Expected.InventoryRevision!=Record->Installed.InventoryRevision)
+    if (Expected.BuildRevision!=Record->Installed.BuildRevision)
     {
         return LDCombatSourcesDetail::PrepareFailure(EPrepare::StaleBuild,FString::Printf(
-            TEXT("StaleBuild: expected %llu/%llu but Combat installed %llu/%llu."),Expected.BuildRevision,
-            Expected.InventoryRevision,Record->Installed.BuildRevision,Record->Installed.InventoryRevision));
+            TEXT("StaleBuild: expected %llu but Combat installed %llu."),Expected.BuildRevision,Record->Installed.BuildRevision));
     }
     // Growth never names the DEV test layer; the installed one rides along with every build change.
     if (!Input.DevBonuses.IsEmpty())
@@ -820,7 +741,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
     bool bValid=bGrowthPhase && Mode->ValidateWritePermit(Permit,Phase)==ELDCommitReject::None && Content!=nullptr
         && Prepared.Match==Mode->GetMatchContext() && Record && Record->Kind==ELDVictimKind::Contender
         && Record->Installed.BuildRevision==Prepared.Expected.BuildRevision
-        && Record->Installed.InventoryRevision==Prepared.Expected.InventoryRevision
         && Record->SourceRevision==Prepared.ExpectedSourceRevision
         && (Prepared.bAlive
             ? Body && Actor && Actor->GetCharacterMovement() && !Body->bPendingDeath
@@ -839,7 +759,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         PlannedIds.Add(Row.IssuedCooldownId);
     }
     FLDBasicTiming Timing;
-    FLDObservedEquipmentView PublicSlots;
     FLDObservedActivesView PublicActives;
     float WalkSpeed=0;
     if (bValid && Body)
@@ -848,7 +767,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         FString Reason;
         bValid=LDCombatSourcesDetail::ProjectedBasicTiming(Prepared.Projection,*Content,Timing,Code,Reason)
             && LDCombatSourcesDetail::NativeWalkSpeed(Prepared.Projection.Final.MoveSpeedCmPerSec,WalkSpeed)
-            && LDCombatSourcesDetail::PublicEquipment(Prepared.Input,*Content,PublicSlots)
             && PublicActivesOf(Prepared.Input,*Content,PublicActives)
             && Prepared.NewMaxHPP2==Prepared.Projection.Final.MaxHPP2 && Prepared.NewMaxMPP2==Prepared.Projection.Final.MaxMPP2;
     }
@@ -874,7 +792,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         }
     }
     Record->Installed.BuildRevision=Prepared.Input.ResultBuildRevision;
-    Record->Installed.InventoryRevision=Prepared.Input.ResultInventoryRevision;
     Record->Projection=Prepared.Projection;
     for (const FLDCombatBindingPlan& Row : Prepared.BindingPlan)
     {
@@ -902,7 +819,6 @@ void ALDCombatDirector::ApplyBuildChange(FLDPreparedCombatProjection&& Prepared,
         ++Body->Resources.Revision;
         if (!Body->PublicFacts.IsSet()) { Body->PublicFacts.Emplace(); }
         Body->PublicFacts->Level=Prepared.Input.Level;
-        Body->PublicFacts->Equipment=PublicSlots;
         Body->PublicFacts->Actives=PublicActives;
         Actor->GetCharacterMovement()->MaxWalkSpeed=WalkSpeed;
         // The new build keeps this life's slows, timed bonuses and HP condition on top of it.
@@ -1087,7 +1003,6 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Level=Row.LevelGrowth.Flat;
         RowView.Choices=Row.PermanentChoices.Flat;
         RowView.Passives=Row.Passives.Flat;
-        RowView.Equipment=Row.Equipment.Flat;
         RowView.Dev=Row.Dev.Flat;
         RowView.DevPercent=Row.Dev.AdditiveRatio;
         RowView.Temporary=Row.Temporary.Flat;
@@ -1097,19 +1012,13 @@ bool ALDCombatDirector::BuildOwnerView(const FLDCombatCaller& Caller, FLDCombatO
         RowView.Final=Row.Final;
         RowView.bClamped=Row.bClamped;
         if (!LDCombatSourcesDetail::AddRatios(Row.LevelGrowth.AdditiveRatio,Row.PermanentChoices.AdditiveRatio,RowView.PercentBonus)
-            || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Passives.AdditiveRatio,RowView.PercentBonus)
-            || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Equipment.AdditiveRatio,RowView.PercentBonus))
+            || !LDCombatSourcesDetail::AddRatios(RowView.PercentBonus,Row.Passives.AdditiveRatio,RowView.PercentBonus))
         {
             UE_LOG(LogLDCombat,Error,TEXT("LD_COMBAT_OWNER_VIEW_RATIO contender=%s attribute=%u"),
                 *Caller.EntityId.ToString(),uint32(Row.Attribute));
             Out=FLDCombatOwnerView();
             return false;
         }
-    }
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
-    {
-        Out.EquipmentPassives.Add(FName(*Family.Family));
-        if (Family.bUpgraded) { Out.UpgradedEquipmentPassives.Add(FName(*Family.Family)); }
     }
     return true;
 }

@@ -38,11 +38,11 @@ struct FLDAirdropView
     UPROPERTY() FName PointId;
     UPROPERTY() FVector PositionCm = FVector::ZeroVector;
     UPROPERTY() int64 LandAtMs = 0;
-    // Claimed says only that the drop is gone: neither who took it nor when (App Spec §6.3).
+    // Claimed says only that the drop is gone: neither who took it nor when (App Spec §5.3).
 };
 
-// D27 (#79) 上热搜: the current leader notice, public to every connection: who, a fuzzy circle that contains the
-// leader's foot at the refresh, and the bounty on top of the normal kill reward. Empty when nobody is named.
+// D27 (#79) 上热搜: the current leader notice, public to every connection: who and a fuzzy circle that contains the
+// leader's foot at the refresh. Empty when nobody is named.
 USTRUCT()
 struct FLDLeaderView
 {
@@ -50,7 +50,6 @@ struct FLDLeaderView
     UPROPERTY() FGuid Leader;
     UPROPERTY() FVector CircleCentreCm = FVector::ZeroVector;
     UPROPERTY() int64 RefreshedAtMs = 0;
-    UPROPERTY() int64 BountyGold = 0;
 };
 
 // D26 (#79) 画饼老板 Boss, public to every connection: when it appears and who landed the last hit. Its body is seen only

@@ -997,7 +997,7 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoTargetDefinition& TargetDef=*TargetPtr;
     // The caster's foot before any displacement of this release (areas, zones and pushes centre here).
     const FVector ReleaseFoot=FootOf(Actor);
-    // The innate dash takes its distance and cooldown from the equipment passives held at this release (D20).
+    // The innate dash takes its distance and cooldown from the learned passives held at this release (D20).
     const bool bInnate=Source.Kind==ELDCombatSourceKind::Innate;
     FLDInnateDashTerms Innate;
     if (bInnate && !InnateDashFor(*Record,&Body,Innate,Error)) { return false; }
@@ -1087,11 +1087,11 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     if (bHostile && bAreaMode && AreaEffect
         && !CollectAreaTargets(FootOf(Actor),LDCA::ToDouble(AreaEffect->RadiusCm),&Body,Body.Victim.EntityId,AreaTargets,Error))
     { return false; }
-    // item_phase_anchor: a character active with a dash takes the skill boost held at this release (base
-    // cooldown x ratio before haste, distance x (1 + bonus)); the innate dash has its own terms.
+    // A character active with a dash takes the passive skill boost held at this release (base cooldown x ratio
+    // before haste, distance x (1 + bonus)); the innate dash has its own terms.
     int64 SkillCooldownRatioBp=10000, SkillDistanceBonusBp=0;
     if (!bInnate && LDCombatSourceRules::DisplacesCaster(*RankDef) && !LDCombatSourceRules::SkillDisplacementBoost(*Content,
-        Body.AttributeProjection.EquipmentPassives,SkillCooldownRatioBp,SkillDistanceBonusBp,Error))
+        Body.AttributeProjection.LearnedTriggers,SkillCooldownRatioBp,SkillDistanceBonusBp,Error))
     { return false; }
     const int64 BaseCooldownMs=bInnate ? 0 : (RankDef->CooldownMs/10000*SkillCooldownRatioBp
         +(RankDef->CooldownMs%10000*SkillCooldownRatioBp+9999)/10000);

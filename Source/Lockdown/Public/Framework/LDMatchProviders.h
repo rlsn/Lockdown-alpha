@@ -8,7 +8,7 @@ class ALDGameMode;
 
 // Gameplay providers that a normal Demo match needs. A provider registers once from its own
 // translation unit (LDMatchProviders::FRegistrar); GameMode never includes provider headers.
-enum class ELDMatchProvider : uint8 { Combat, Progression, Shop, Camps, Vision, OpponentAI, Count };
+enum class ELDMatchProvider : uint8 { Combat, Progression, Camps, Vision, OpponentAI, Count };
 
 struct FLDMatchStartContext
 {

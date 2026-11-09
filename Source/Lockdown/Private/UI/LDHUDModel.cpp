@@ -106,13 +106,7 @@ FString LDHUD::CreatureName(const FLDDemoContentDefinitions* Content,uint8 Creat
     if(Content){if(const auto* Monster=Content->Monsters.FindByPredicate([CreatureId](const FLDDemoMonsterDefinition& M){return M.NativeId==CreatureId;})){return ContentName(Content,Monster->Id);}}
     return FString::Printf(TEXT("未知野怪 #%d"),CreatureId);
 }
-FString LDHUD::EquipmentName(const FLDDemoContentDefinitions* Content,uint8 EquipmentId)
-{
-    if(Content){if(const auto* Item=Content->Equipment.FindByPredicate([EquipmentId](const FLDDemoEquipmentDefinition& E){return E.NativeId==EquipmentId;})){return ContentName(Content,Item->Id);}}
-    return FString::Printf(TEXT("未知装备 #%d"),EquipmentId);
-}
-FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,
-    const FString& OwnerName)
+FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const FLDProgressionView* Progression,const FString& OwnerName)
 {
     if(Public.Phase!=ELDMatchPhase::Countdown&&Public.Phase!=ELDMatchPhase::Development&&Public.Phase!=ELDMatchPhase::CaptureOpen){return FString();}
     const bool bGrowth=Progression&&Progression->bValid&&Progression->Generation==Public.Generation;
@@ -126,15 +120,7 @@ FString LDHUD::NextStep(const FLDPublicMatchView& Public,const FGuid& Self,const
         if(Public.GraffitiOwner.IsValid()){return LDTerms::Besiege(OwnerName.IsEmpty()?FString(TEXT("未列名参赛者")):OwnerName);}
         return FString(TEXT("下一步："))+LDTerms::CaptureOpened+LDTerms::CaptureGo;
     }
-    const bool bWallet=Equipment&&Equipment->bValid&&Equipment->Generation==Public.Generation;
-    if(bWallet&&Content&&Equipment->Slots.ContainsByPredicate([](const FLDEquipmentSlotView& Slot){return !Slot.bOccupied;}))
-    {
-        const FLDDemoEquipmentDefinition* Best=nullptr;
-        for(const FLDDemoEquipmentDefinition& Item:Content->Equipment)
-        {if(Item.BuyPrice>0&&Item.BuyPrice<=Equipment->Gold&&(!Best||Item.BuyPrice>Best->BuyPrice)){Best=&Item;}}
-        if(Best){return FString(TEXT("下一步："))+LDTerms::Gold+TEXT("够买「")+ContentName(Content,Best->Id)+TEXT("」了，去")+LDTerms::Shop;}
-    }
-    if(bGrowth&&Progression->Level<=1){return FString::Printf(TEXT("下一步：去打附近的野怪搞%s、涨%s（右键攻击）"),LDTerms::Gold,LDTerms::Experience);}
+    if(bGrowth&&Progression->Level<=1){return FString::Printf(TEXT("下一步：去打附近的野怪涨%s（右键攻击）"),LDTerms::Experience);}
     return FString();
 }
 FString LDHUD::AbilityName(const FLDDemoContentDefinitions* Content,uint8 AbilityId)
@@ -185,10 +171,6 @@ LDHUD::FLevelView LDHUD::Level(int32 InLevel,int32 MaxLevel,int64 CumulativeXp,i
     View.Fraction=float(double(Progress)/double(Span));
     View.Experience=FString::Printf(TEXT("%s %lld/%lld"),LDTerms::Experience,Progress,Span);
     return View;
-}
-FString LDHUD::Gold(int64 Gold)
-{
-    return FString::Printf(TEXT("%s %lld"),LDTerms::Gold,Gold);
 }
 
 FString LDHUD::TenthsUp(int64 RemainingMs)
@@ -455,8 +437,8 @@ void LDHUD::FEventFeed::Observe(const FEventFeedInput& In)
 FString LDHUD::LeaderLine(const FLDLeaderView& Notice,const FGuid& Self,const FString& LeaderName)
 {
     if(!Notice.Leader.IsValid()){return FString();}
-    if(Self.IsValid()&&Notice.Leader==Self){return LDTerms::LeaderSelf(Notice.BountyGold);}
-    return LDTerms::LeaderNamed(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName,Notice.BountyGold);
+    if(Self.IsValid()&&Notice.Leader==Self){return LDTerms::LeaderSelf();}
+    return LDTerms::LeaderNamed(LeaderName.IsEmpty()?FString(TEXT("未列名参赛者")):LeaderName);
 }
 FString LDHUD::KillLine(const FLDKillNotice& Notice,const FString& VictimName,const FString& KillerName,const FString& LowCampName,const FString& HighCampName,const FString& EliteCampName,const FString& BossName,const TArray<FString>& AssisterNames)
 {
@@ -554,28 +536,23 @@ LDHUD::FResultRowView LDHUD::ResultRow(const FLDResultRow& Row,const FGuid& Winn
     return View;
 }
 
-bool LDHUD::IsEquipmentSlot(EActionSlot Slot) { return Slot==EActionSlot::Equipment1||Slot==EActionSlot::Equipment2; }
 LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext& Context)
 {
     FActionView View;
     View.Slot=Input.Slot;View.Key=Context.KeyLabel;
     const bool bLearned=Input.Slot==EActionSlot::Q||Input.Slot==EActionSlot::W||Input.Slot==EActionSlot::E;
-    const bool bDash=Input.Slot==EActionSlot::Dash;
-    const bool bEquipment=IsEquipmentSlot(Input.Slot);
-    View.Kind=bLearned?TEXT("角色主动"):bDash?TEXT("通用冲刺"):TEXT("装备");
-    View.Name=!Input.bHasSource?(bLearned?FString(TEXT("空槽")):bDash?FString(LDTerms::Dash)+TEXT("不可用"):FString(TEXT("无装备")))
+    View.Kind=bLearned?TEXT("角色主动"):TEXT("通用冲刺");
+    View.Name=!Input.bHasSource?(bLearned?FString(TEXT("空槽")):FString(LDTerms::Dash)+TEXT("不可用"))
         :bLearned&&Input.Rank>0?FString::Printf(TEXT("%s %d级"),*Input.Name,Input.Rank):Input.Name;
-    // Only a current own context may send; a predicted execution failure never suppresses the intent itself. An equipment
-    // slot is never activated.
-    View.bCanSubmitIntent=!bEquipment&&Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
+    // Only a current own context may send; a predicted execution failure never suppresses the intent itself.
+    View.bCanSubmitIntent=Context.bOwnContext&&Input.bProjected&&Context.bPlaying&&Context.bAlive&&!Context.bInputCaptured;
     FString State;
     auto Block=[&View,&State](uint32 Flag,const FString& Text){View.ExecutionBlocks|=Flag;if(State.IsEmpty()){State=Text;}};
     if(!Context.bOwnContext||!Input.bProjected){Block(ActionUnsynced,TEXT("未同步"));}
     if(!Context.bPlaying){Block(ActionNotPlaying,TEXT("对局未进行"));}
     else if(!Context.bAlive){Block(ActionDead,LDTerms::Dead);}
-    if(Input.bProjected&&!Input.bHasSource){Block(ActionEmpty,bLearned?TEXT("空槽"):TEXT("无装备"));}
-    else if(Input.bProjected&&bEquipment){Block(ActionPassive,TEXT("已装备"));}
-    const bool bActive=Input.bProjected&&Input.bHasSource&&!bEquipment;
+    if(Input.bProjected&&!Input.bHasSource){Block(ActionEmpty,bLearned?TEXT("空槽"):FString(LDTerms::Dash)+TEXT("不可用"));}
+    const bool bActive=Input.bProjected&&Input.bHasSource;
     if(bActive&&Input.ReadyAtMs>0)
     {
         if(!Context.bClock){Block(ActionUnsynced,TEXT("冷却时间同步中"));}
@@ -606,12 +583,8 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
     const bool bDash=Input.Slot==EActionSlot::Dash;
     TArray<FString> Lines;
     const FString Id=Input.DefinitionId.ToString();
-    if(Input.bHasSource&&!bDash&&!bLearned&&!Input.DefinitionId.IsNone())
-    {
-        FString Description;if(ContentText(Content,Id,true,Description)&&!Description.IsEmpty()){Lines.Add(Description);Lines.Add(FString());}
-    }
     if(bDash&&Input.bHasSource)
-    {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s；释放后的冷却不因换装改变"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
+    {Lines.Add(FString::Printf(TEXT("朝方向%s出 %dcm，碰到阻挡就停下；%s时不能%s"),LDTerms::Dash,Input.RangeCm,LDTerms::Root,LDTerms::Dash));}
     else if(bLearned&&Input.bHasSource)
     {
         const FLDDemoAbilityDefinition* Ability=Content?Content->Abilities.FindByPredicate([&Id](const FLDDemoAbilityDefinition& D){return D.Id==Id;}):nullptr;
@@ -638,17 +611,6 @@ LDHUD::FActionDetailView LDHUD::ActionDetail(const FActionView& View,const FActi
         }
         else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
     }
-    else if(Input.bHasSource)
-    {
-        if(const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr)
-        {
-            if(Input.bUpgraded){Detail.Name+=TEXT("（已进阶）");}
-            for(const FLDDemoStatBonus& Stat:LDDemoEquipment::EffectiveStats(*Item,Input.bUpgraded)){Lines.Add(StatLine(Stat));}
-            if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(*Item,Input.bUpgraded))
-            {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-        }
-        else if(Content){Lines.Add(TEXT("内容目录中找不到该装备"));}
-    }
     if(Context.bInputCaptured){Lines.Add(TEXT("当前输入暂不可用：界面占用或按键尚未松开"));}
     Detail.Body=FString::Join(Lines,TEXT("\n"));
     return Detail;
@@ -657,7 +619,7 @@ LDHUD::EActionLook LDHUD::ActionLook(const FActionView& View,bool bArmed)
 {
     const uint32 Blocks=View.ExecutionBlocks;
     if(Blocks&(ActionUnsynced|ActionNotPlaying|ActionDead)){return EActionLook::Blocked;}
-    if(Blocks&(ActionEmpty|ActionPassive)){return EActionLook::Empty;}
+    if(Blocks&ActionEmpty){return EActionLook::Empty;}
     if(bArmed){return EActionLook::Armed;}
     if(Blocks&ActionControlled){return EActionLook::Controlled;}
     if(Blocks&ActionCooldown){return EActionLook::Cooling;}
@@ -683,12 +645,6 @@ LDHUD::FObservedCard LDHUD::ObservedCard(const FLDObservedUnitView& Unit,const F
         if(Status.ExpiresAtServerMs>0){Statuses+=TEXT(" ")+TenthsUp(int64(FMath::RoundToDouble(double(Status.ExpiresAtServerMs)-SampledAtServerSec*1000.)));}
     }
     Card.Statuses=TEXT("状态：")+(Statuses.IsEmpty()?FString(TEXT("无公开状态")):Statuses);
-    Card.bEquipment=bContender;
-    if(bContender)
-    {
-        auto Slot=[Content](uint8 Id){return Id?EquipmentName(Content,Id):FString(TEXT("空槽"));};
-        Card.Equipment=FString::Printf(TEXT("装备：%s · %s"),*Slot(Unit.Equipment.Slots[0]),*Slot(Unit.Equipment.Slots[1]));
-    }
     Card.bActives=bContender&&(Unit.AuthorizedFieldMask&LDObservation::Actives)!=0;
     const int32 MaxRank=Content&&Content->Progression.MaxSkillRank>0?Content->Progression.MaxSkillRank:int32(LDObservation::MaxActiveRank);
     for(int32 Index=0;Card.bActives&&Index<3;++Index)
@@ -710,7 +666,6 @@ FString LDHUD::ObservedUnit(const FLDObservedUnitView& Unit,const FString& Conte
     FString Text=Card.Title+TEXT("\n")+Card.Health.Text;
     if(Card.bMana){Text+=TEXT(" · ")+Card.Mana.Text;}
     Text+=TEXT("\n")+Card.Statuses;
-    if(Card.bEquipment){Text+=TEXT("\n")+Card.Equipment;}
     if(Card.bActives)
     {
         Text+=TEXT("\n技能：");
@@ -901,7 +856,7 @@ FString LDHUD::EffectLine(const FLDDemoEffectDefinition& Effect)
     case ELDDemoEffectOp::DispelSlow: return FString(TEXT("解除自身全部"))+LDTerms::Slow;
     case ELDDemoEffectOp::PathSlow:
         return TEXT("冲刺路径上的敌人")+FString(LDTerms::Slow)+TEXT(" ")+HudPercent(Effect.RatioBp)+TEXT("，持续 ")+HudSeconds(Effect.DurationMs);
-    // #184: the equipment passives of the #166 catalog (大喇叭, 防窥膜, 滑板鞋).
+    // #184: affliction amplification, the shield-break retort and on-hit haste.
     case ELDDemoEffectOp::AfflictionAmp:
         return TEXT("自己造成的")+FString(LDTerms::Burn)+TEXT("伤害 +")+HudPercent(Effect.RatioBp)+TEXT("；自己施加的")+LDTerms::Slow
             +TEXT("比例 ×")+HudDecimal(double(Effect.SecondaryRatioBp)/10000.)+TEXT("（不超过 99.99%）");
@@ -1155,56 +1110,6 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
     Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
     return Card;
 }
-TArray<FString> LDHUD::UpgradeLines(const FLDDemoEquipmentDefinition& Item)
-{
-    TArray<FString> Lines;
-    for(const FLDDemoStatBonus& Stat:Item.UpgradedStats){Lines.Add(StatLine(Stat));}
-    if(const TArray<FLDDemoEffectDefinition>* Passive=LDDemoEquipment::EffectivePassiveEffects(Item,true))
-    {for(const FLDDemoEffectDefinition& Effect:*Passive){Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-    return Lines;
-}
-TArray<FLDShopItemView> LDHUD::CatalogItems(const FLDDemoContentDefinitions* Content)
-{
-    TArray<FLDShopItemView> Items;
-    if(!Content){return Items;}
-    for(const FLDDemoEquipmentDefinition& Definition:Content->Equipment)
-    {
-        FLDShopItemView& Row=Items.AddDefaulted_GetRef();
-        Row.DefinitionId=FName(*Definition.Id);Row.BuyPrice=Definition.BuyPrice;Row.SellGold=Definition.SellGold;
-    }
-    return Items;
-}
-int32 LDHUD::NextPreorder(const TArray<FName>& Queue,const TArray<FLDShopItemView>& Listing,int64 Gold,int32 FreeSlots,const TArray<FName>& Upgradable,int64 UpgradePrice)
-{
-    for(int32 Index=0;Index<Queue.Num();++Index)
-    {
-        const FName Wanted=Queue[Index];
-        if(Upgradable.Contains(Wanted))
-        {
-            if(UpgradePrice>0&&UpgradePrice<=Gold){return Index;}
-            continue;
-        }
-        if(FreeSlots<=0){continue;}
-        const FLDShopItemView* Row=Listing.FindByPredicate([Wanted](const FLDShopItemView& Item){return Item.DefinitionId==Wanted;});
-        if(Row&&Row->BuyPrice>0&&Row->BuyPrice<=Gold){return Index;}
-    }
-    return INDEX_NONE;
-}
-LDHUD::FShopItemView LDHUD::ShopItem(const FLDShopItemView& Item,int64 Gold,const FLDDemoContentDefinitions* Content)
-{
-    FShopItemView View;
-    const FString Id=Item.DefinitionId.ToString();
-    View.Name=ContentName(Content,Id);
-    View.Price=FString::Printf(TEXT("买价 %lld · 卖价 %lld"),Item.BuyPrice,Item.SellGold);
-    View.bAffordable=Gold>=Item.BuyPrice;
-    if(const FLDDemoEquipmentDefinition* Definition=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr)
-    {
-        for(const FLDDemoStatBonus& Stat:Definition->Stats){View.Lines.Add(StatLine(Stat));}
-        if(Definition->HasPassive){for(const FLDDemoEffectDefinition& Effect:Definition->Passive.Effects){View.Lines.Add(TEXT("被动：")+EffectLine(Effect));}}
-    }
-    else if(Content){View.Lines.Add(TEXT("内容目录中找不到该装备"));}
-    return View;
-}
 LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Row)
 {
     static const FString Names[]={LDTerms::MaxHealth(),LDTerms::MaxMana(),LDTerms::AttackDamage,LDTerms::AbilityPower,LDTerms::Armor,LDTerms::MagicResist,
@@ -1216,8 +1121,7 @@ LDHUD::FAttributeRowView LDHUD::AttributeRow(const FLDCombatAttributeRowView& Ro
     const bool bRatio=static_cast<ELDProjectedAttribute>(Row.Attribute)==ELDProjectedAttribute::CritChance;
     auto Value=[bRatio](const FLDDemoRational& V){if(V.Denominator<=0){return FString(TEXT("?"));}const double D=double(V.Numerator)/double(V.Denominator);return bRatio?HudDecimal(D*100.)+TEXT("%"):HudDecimal(D);};
     View.Final=Value(Row.Final)+Units[Row.Attribute]+(Row.bClamped?TEXT("（已达上下限）"):TEXT(""));
-    View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 三选一 ")+Value(Row.Choices)+TEXT(" · 被动 ")+Value(Row.Passives)
-        +TEXT(" · 装备 ")+Value(Row.Equipment);
+    View.Breakdown=TEXT("基础 ")+Value(Row.Base)+TEXT(" · 等级 ")+Value(Row.Level)+TEXT(" · 三选一 ")+Value(Row.Choices)+TEXT(" · 被动 ")+Value(Row.Passives);
     if(Row.PercentBonus.Denominator>0&&Row.PercentBonus.Numerator!=0)
     {View.Breakdown+=TEXT(" · 百分比 +")+HudDecimal(100.*double(Row.PercentBonus.Numerator)/double(Row.PercentBonus.Denominator))+TEXT("%");}
     if(Row.Penalty.Denominator>0&&Row.Penalty.Numerator!=0){View.Breakdown+=TEXT(" · 代价 -")+Value(Row.Penalty);}
@@ -1248,8 +1152,7 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NotContender: return TEXT("不是本局参赛者");
     case ELDGrowthReason::CatalogMismatch: return TEXT("内容版本不一致");
     case ELDGrowthReason::NotAuthority: return TEXT("服务器不可用");
-    case ELDGrowthReason::Dead: return FString(LDTerms::Dead)+TEXT("，不能交易");
-    case ELDGrowthReason::MatchNotStarted: return LDTerms::NotStartedYet;
+    case ELDGrowthReason::Dead: return FString(LDTerms::Dead)+TEXT("，暂时不能操作");
     case ELDGrowthReason::RequestConflict: return TEXT("请求冲突，未执行");
     case ELDGrowthReason::OutOfOrder: return TEXT("请求顺序错误，未执行");
     case ELDGrowthReason::ReceiptExpired: return TEXT("回执已过期，请以当前状态为准");
@@ -1266,26 +1169,8 @@ FString LDHUD::GrowthReasonText(ELDGrowthReason Reason)
     case ELDGrowthReason::NoReroll: return TEXT("没有免费重抽次数");
     case ELDGrowthReason::OfferAlreadyRerolled: return TEXT("这一组已经重抽过一次");
     case ELDGrowthReason::OpeningNoReroll: return LDTerms::OpeningNoReroll;
-    case ELDGrowthReason::NoShopSession: return FString(LDTerms::Shop)+TEXT("尚未打开");
-    case ELDGrowthReason::QuoteStale: return TEXT("报价已更新，请重新确认");
-    case ELDGrowthReason::PriceChanged: return TEXT("价格已变化，请重新确认");
-    case ELDGrowthReason::UnknownItem: return TEXT("未知商品");
-    case ELDGrowthReason::ItemNotOwned: return TEXT("你没有这件装备");
-    case ELDGrowthReason::ItemStale: return TEXT("装备已变化，请重新确认");
-    case ELDGrowthReason::EquipmentFull: return TEXT("装备槽已满，请先卖出一件");
-    case ELDGrowthReason::InsufficientGold: return LDTerms::NotEnoughGold();
-    case ELDGrowthReason::InventoryStale: return TEXT("装备已变化，请重新确认");
-    case ELDGrowthReason::AccountStale: return FString(LDTerms::Gold)+TEXT("已变化，请重新确认");
-    case ELDGrowthReason::UnknownShop: return FString(TEXT("未知的"))+LDTerms::Shop;
-    case ELDGrowthReason::StaleWorld: return TEXT("世界版本不一致");
-    case ELDGrowthReason::OutsideRange: case ELDGrowthReason::InvalidApproachRegion: return FString(TEXT("不在"))+LDTerms::Shop+TEXT("交互范围内");
-    case ELDGrowthReason::NotGrounded: return TEXT("需要站在地面上");
-    case ELDGrowthReason::InvalidGround: case ELDGrowthReason::WrongSurface: return TEXT("当前位置不能交易");
     case ELDGrowthReason::DataNotReady: return TEXT("数据尚未就绪");
     case ELDGrowthReason::StaleContext: return TEXT("状态已变化，请重新确认");
-    case ELDGrowthReason::UpgradeUsed: return TEXT("本局的装备进阶已经用过了");
-    case ELDGrowthReason::UpgradeUnavailable: return TEXT("这件装备暂时不能进阶");
-    case ELDGrowthReason::AlreadyUpgraded: return TEXT("这件装备已经进阶");
     case ELDGrowthReason::NumericUnderflow: return TEXT("数值越界，本次没有提交");
     case ELDGrowthReason::NumericDomain: return TEXT("数值非法，本次没有提交");
     case ELDGrowthReason::ArithmeticOverflow: return TEXT("数值溢出，本次没有提交");
@@ -1341,29 +1226,6 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.ReadyAtMs=Entry.ReadyAtMs;Input.CooldownMs=Entry.CooldownMs;
     Input.ServerBlock=CombatRejectText(Entry.Unavailable);
     return Input;
-}
-LDHUD::FActionInput LDHUD::EquipmentInput(const FLDEquipmentSlotView& Held,EActionSlot Slot,const FLDDemoContentDefinitions* Content)
-{
-    FActionInput Input;
-    Input.Slot=Slot;Input.bProjected=true;
-    Input.bHasSource=Held.bOccupied&&!Held.DefinitionId.IsNone();
-    if(Input.bHasSource)
-    {
-        Input.DefinitionId=Held.DefinitionId;
-        Input.Name=ContentName(Content,Held.DefinitionId.ToString());
-        Input.bUpgraded=Held.bUpgraded;
-    }
-    return Input;
-}
-namespace
-{
-// Combat lists each equipment passive once by its family; the player sees the equipment that grants it.
-FString HudPassiveSource(const FLDDemoContentDefinitions* Content,const FName& Passive)
-{
-    const FString Id=Passive.ToString();
-    const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&(D.Id==Id||D.Passive.Family==Id);}):nullptr;
-    return Item?Item->Id:Id;
-}
 }
 FString LDHUD::IconGlyph(const FString& Name)
 {
@@ -1442,19 +1304,6 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             Passives.Add(MoveTemp(Icon));
         }
     }
-    if(Combat)
-    {
-        TArray<FName> Seen;
-        for(const FName& Passive:Combat->EquipmentPassives)
-        {
-            if(Seen.Contains(Passive)){continue;}
-            Seen.Add(Passive);
-            FSelfIconView Icon;const FString ItemId=HudPassiveSource(Content,Passive);const FString Name=ContentName(Content,ItemId);
-            Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Key=FName(*(TEXT("Equipment.")+Passive.ToString()));
-            Icon.Source=ESelfIconSource::Equipment;Icon.ContentId=ItemId;Icon.bUpgraded=Combat->UpgradedEquipmentPassives.Contains(Passive);
-            Passives.Add(MoveTemp(Icon));
-        }
-    }
     for(TArray<FSelfIconView>* Group:{&Control,&Temporary,&Passives})
     {
         for(FSelfIconView& Icon:*Group)
@@ -1507,20 +1356,6 @@ LDHUD::FActionDetailView LDHUD::SelfIconDetail(const FSelfIconView& Icon,const F
             Content->Parameters.SkillGrowthPerLevelBp,Content->Parameters.SkillGrowthPerLevelAfter10Bp));}
         else if(Ability){Lines.Add(FString::Printf(TEXT("缺少 %d 级定义"),int32(Icon.Rank)));}
         else if(Content){Lines.Add(TEXT("内容目录中找不到该技能"));}
-        break;
-    }
-    case ESelfIconSource::Equipment:
-    {
-        Detail.Summary=Icon.bUpgraded?TEXT("装备被动（已进阶）"):TEXT("装备被动");
-        const FString& Id=Icon.ContentId;
-        const FLDDemoEquipmentDefinition* Item=Content?Content->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.Id==Id;}):nullptr;
-        const TArray<FLDDemoEffectDefinition>* Effects=Item?LDDemoEquipment::EffectivePassiveEffects(*Item,Icon.bUpgraded):nullptr;
-        if(Effects&&!Effects->IsEmpty())
-        {
-            if(!Lines.IsEmpty()){Lines.Add(FString());}
-            for(const FLDDemoEffectDefinition& Effect:*Effects){Lines.Add(TEXT("被动：")+EffectLine(Effect));}
-        }
-        else if(Content&&!Item){Lines.Add(TEXT("内容目录中找不到该装备"));}
         break;
     }
     }

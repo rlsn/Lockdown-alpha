@@ -95,11 +95,6 @@ const FLDDemoAbilityDefinition* ProgressionFindAbilityIn(const FLDDemoContentDef
     return Content.Abilities.FindByPredicate([&](const FLDDemoAbilityDefinition& Row) { return FName(*Row.Id) == Id; });
 }
 
-const FLDDemoEquipmentDefinition* ProgressionFindEquipment(const FLDDemoContentDefinitions& Content, FName Id)
-{
-    return Content.Equipment.FindByPredicate([&](const FLDDemoEquipmentDefinition& Row) { return FName(*Row.Id) == Id; });
-}
-
 bool ProgressionIsSkill(ELDChoiceOptionKind Kind)
 {
     return Kind == ELDChoiceOptionKind::LearnActive || Kind == ELDChoiceOptionKind::UpgradeActive
@@ -307,14 +302,12 @@ ELDGrowthReason LDProgression::ContenderKillReward(const FLDDemoContentParameter
     }
     const int64 Steps = VictimLevel - 1;
     int64 XPStep = 0;
-    int64 GoldStep = 0;
     if (!ProgressionCheckedMul(Parameters.PlayerXPPerLevel, Steps, XPStep)
-        || !ProgressionCheckedMul(Parameters.PlayerGoldPerLevel, Steps, GoldStep)
-        || !ProgressionCheckedAdd(Parameters.PlayerXPBase, XPStep, Out.XP) || !ProgressionCheckedAdd(Parameters.PlayerGoldBase, GoldStep, Out.Gold))
+        || !ProgressionCheckedAdd(Parameters.PlayerXPBase, XPStep, Out.XP))
     {
         return ELDGrowthReason::ArithmeticOverflow;
     }
-    return Out.XP >= 0 && Out.Gold >= 0 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
+    return Out.XP >= 0 ? ELDGrowthReason::None : ELDGrowthReason::DataInvalid;
 }
 
 ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
@@ -324,13 +317,12 @@ ELDGrowthReason LDProgression::MonsterKillReward(const FLDDemoContentSnapshot& C
     const FLDDemoMonsterDefinition* Monster = Catalog.Get().Monsters.FindByPredicate(
         [&](const FLDDemoMonsterDefinition& Row) { return FName(*Row.Id) == MonsterId; });
     int64 XP = 0;
-    if (!Monster || Monster->RewardXP < 0 || Monster->RewardGold < 0 || (Monster->Tier == ELDDemoCampTier::Boss && Stage != 0)
+    if (!Monster || Monster->RewardXP < 0 || (Monster->Tier == ELDDemoCampTier::Boss && Stage != 0)
         || !LDCampGrowth::RewardXP(Catalog.Get().Parameters, *Monster, Stage, XP))
     {
         return ELDGrowthReason::DataInvalid;
     }
     Out.XP = XP;
-    Out.Gold = Monster->RewardGold;
     return ELDGrowthReason::None;
 }
 

@@ -256,9 +256,9 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
 
     // Placement zones against the saved Demo world.
     const int32 WallBase = ArtFindDecoration(*Catalog, ELDArtZone::WallBase), Outside = ArtFindDecoration(*Catalog, ELDArtZone::Outside);
-    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture), Shop = ArtFindDecoration(*Catalog, ELDArtZone::Shop);
-    if (TestTrue(TEXT("The catalog has wall-base, outside, capture and shop decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
-        && Capture != INDEX_NONE && Shop != INDEX_NONE))
+    const int32 Capture = ArtFindDecoration(*Catalog, ELDArtZone::Capture);
+    if (TestTrue(TEXT("The catalog has wall-base, outside and capture decorations"), WallBase != INDEX_NONE && Outside != INDEX_NONE
+        && Capture != INDEX_NONE))
     {
         ULDArtCatalog* Copy = ArtCopy(*Catalog);
         Copy->Decorations[WallBase].Transform.SetLocation(FVector(0, -400, 0));
@@ -283,9 +283,6 @@ bool FLDArtDecorationTest::RunTest(const FString& Parameters)
         Copy = ArtCopy(*Catalog);
         Copy->Decorations[Capture].Transform.AddToTranslation(FVector(250, 0, 0));
         ArtExpectMisplaced(*this, *Copy, TEXT("An off-centre capture landmark is rejected"), TEXT("centred"));
-        Copy = ArtCopy(*Catalog);
-        Copy->Decorations[Shop].Transform.SetScale3D(Copy->Decorations[Shop].Transform.GetScale3D() * FVector(1, 1, 2));
-        ArtExpectMisplaced(*this, *Copy, TEXT("A shop landmark tall enough to hide bodies is rejected"), TEXT("hide bodies"));
     }
 
     // #97: collision follows the art. A blocker's prop is its block's footprint and height; a tree's prop stands on it.

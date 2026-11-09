@@ -144,9 +144,9 @@ try {
     if ($errors.Count) { throw "Opponent scenario logged an error: $($errors[0].Line). Evidence: $output" }
     Assert-LDNetEmulationApplied -Output $output -Roles @('Host','Client1','Client2') -NetEmulation $NetEmulation
     foreach ($ai in $first.opponents) {
-        Write-Host ('AI slot {0}: level {1}, choices {2}, items {3} [{4}], deaths {5}, respawns {6}, kills {7}, orders {8} (refused {9}, refused at admission {14}), actions {10}, trades {11}, max 30 s body requests {12}{13}' -f
-            $ai.slot,$ai.level,$ai.choices,$ai.items_max,$ai.gear,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
-            $ai.actions,$ai.trades,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }),$ai.orders_rejected)
+        Write-Host ('AI slot {0}: level {1}, choices {2}, deaths {3}, respawns {4}, kills {5}, orders {6} (refused {7}, refused at admission {11}), actions {8}, max 30 s body requests {9}{10}' -f
+            $ai.slot,$ai.level,$ai.choices,$ai.deaths,$ai.respawns,$ai.kills,$ai.orders,$ai.orders_refused,
+            $ai.actions,$ai.max_body_requests_30s,$(if ($ai.winner) { ', winner' } else { '' }),$ai.orders_rejected)
     }
     $notExercised = @($reports | ForEach-Object { @($_.checks) } | Where-Object { $_.status -eq 'not_exercised' } |
         ForEach-Object { [string]$_.name } | Sort-Object -Unique)

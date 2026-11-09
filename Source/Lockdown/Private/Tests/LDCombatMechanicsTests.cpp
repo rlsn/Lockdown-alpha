@@ -10,7 +10,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoMechanicsShieldEventsTest, "Lockdown.Rul
 
 bool FLDDemoMechanicsShieldEventsTest::RunTest(const FString& Parameters)
 {
-    // A break (item_privacy_screen's retort, the damage-triggered shield's burst) needs damage to empty a positive shield.
+    // A break (a shield-break retort, the damage-triggered shield's burst) needs damage to empty a positive shield.
     TestTrue(TEXT("Damage emptying a positive shield breaks it"), LDCombatMechanics::ShieldBroken(5000, 0, 5000));
     TestFalse(TEXT("Damage leaving some shield is no break"), LDCombatMechanics::ShieldBroken(5000, 1, 4999));
     TestFalse(TEXT("A consumed or lapsed shield (no absorption) is no break"), LDCombatMechanics::ShieldBroken(5000, 0, 0));

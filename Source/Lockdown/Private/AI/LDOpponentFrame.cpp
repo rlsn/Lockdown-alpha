@@ -66,7 +66,7 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         POI.Tier = Camp.Tier;
         Out.Add(MoveTemp(POI));
     }
-    int32 Shops = 0, Captures = 0, Dorms = 0, Airdrops = 0;
+    int32 Captures = 0, Dorms = 0, Airdrops = 0;
     for (const auto& Anchor : World.Anchors)
     {
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Camp)
@@ -89,11 +89,6 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         case ELDDemoWorldAnchorKind::Spawn:
             POI.Kind = ELDOpponentPOIKind::Spawn;
             bApproved = References.SpawnIds.Contains(Anchor.Id);
-            break;
-        case ELDDemoWorldAnchorKind::Shop:
-            POI.Kind = ELDOpponentPOIKind::Shop;
-            bApproved = References.ShopIds.Contains(Anchor.Id);
-            ++Shops;
             break;
         case ELDDemoWorldAnchorKind::Capture:
             POI.Kind = ELDOpponentPOIKind::Capture;
@@ -128,10 +123,10 @@ bool ReadPublicPOIs(const FLDDemoWorldGeometry& World, const FLDDemoContentSnaps
         }
         Out.Add(MoveTemp(POI));
     }
-    if (Shops != References.ShopIds.Num() || Captures != 1 || Dorms < 1 || Airdrops < 1)
+    if (Captures != 1 || Dorms < 1 || Airdrops < 1)
     {
         Out.Reset();
-        return Fail(Error, TEXT("The public world must expose every approved shop, one capture place, and at least one dorm and airdrop point."));
+        return Fail(Error, TEXT("The public world must expose one capture place, and at least one dorm and airdrop point."));
     }
     Error.Reset();
     return true;
@@ -189,14 +184,13 @@ bool ReadObservedUnits(const FLDWorldView& View, uint32 MatchGeneration, const F
     return true;
 }
 
-bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView& Equipment,
-    const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out, FString& Error)
+bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSnapshot& Catalog, FLDOpponentSelf& Out,
+    FString& Error)
 {
     using namespace Detail;
-    if (!Progression.bValid || !Equipment.bValid || Progression.Generation != Equipment.Generation
-        || Equipment.Slots.Num() != 2 || Progression.Level == 0)
+    if (!Progression.bValid || Progression.Level == 0)
     {
-        return Fail(Error, TEXT("Own progression and equipment views must be one valid publication of this match."));
+        return Fail(Error, TEXT("The own progression view must be a valid publication of this match."));
     }
     Out.Skills.Reset();
     Out.Offer.Reset();
@@ -241,32 +235,12 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDEquipmentView&
         }
         Out.Offer = MoveTemp(Offer);
     }
-    TArray<FString> Equipped;
-    TArray<bool> Upgraded;
-    for (int32 Slot = 0; Slot < 2; ++Slot)
-    {
-        const auto& View = Equipment.Slots[Slot];
-        if (View.SlotIndex != Slot || (View.bOccupied && View.DefinitionId.IsNone()))
-        {
-            return Fail(Error, TEXT("Own equipment slots must be the two ordered positions."));
-        }
-        Out.Equipment[Slot] = View.bOccupied ? CanonicalId(View.DefinitionId) : FString();
-        Out.EquipmentUpgraded[Slot] = View.bOccupied && View.bUpgraded;
-        if (View.bOccupied)
-        {
-            Equipped.Add(Out.Equipment[Slot]);
-            Upgraded.Add(View.bUpgraded);
-        }
-    }
-    Out.bUpgradeUsed = Equipment.bUpgradeUsed;
     Out.RerollTokens = Progression.RerollTokens;
-    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards), MoveTemp(Equipped));
-    Values.EquippedUpgraded = MoveTemp(Upgraded);
+    FLDAttributeBuildValues Values(Progression.Level, MoveTemp(Passives), MoveTemp(Cards));
     Values.OpeningCard = CanonicalId(Progression.OpeningCard);
     const auto Projection = LDAttributeProjection::Project(Values, Catalog);
     if (!Projection.IsSuccess()) { return Fail(Error, Projection.Error.Message); }
     Out.Attributes = Projection.Value->Final;
-    Out.Gold = Equipment.Gold;
     Out.BuildRevision = Progression.BuildRevision;
     Out.Level = Progression.Level;
     Out.ChoicesConsumed = Progression.ConsumedThrough;

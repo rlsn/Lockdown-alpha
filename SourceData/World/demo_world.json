@@ -95,16 +95,6 @@
         "height_cm": 100, "blocks_movement": true, "blocks_sight": false
       },
       {
-        "id": "shop_n_stall", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": 805, "y": 2552, "z": 0}, {"x": 692, "y": 2511, "z": 0}, {"x": 733, "y": 2398, "z": 0}, {"x": 846, "y": 2439, "z": 0}],
-        "height_cm": 80, "blocks_movement": true, "blocks_sight": false
-      },
-      {
-        "id": "shop_s_stall", "shape": "polygon", "surface_id": "demo_ground",
-        "polygon_cm": [{"x": -554, "y": -2456, "z": 0}, {"x": -605, "y": -2565, "z": 0}, {"x": -496, "y": -2616, "z": 0}, {"x": -445, "y": -2507, "z": 0}],
-        "height_cm": 80, "blocks_movement": true, "blocks_sight": false
-      },
-      {
         "id": "tree_001", "shape": "cylinder", "surface_id": "demo_ground",
         "center_cm": {"x": -4617, "y": 4215, "z": 100}, "radius_cm": 40,
         "height_cm": 260, "blocks_movement": true, "blocks_sight": true
@@ -4976,7 +4966,7 @@
     "spawn_validation_radius_cm": 200
   },
   "parameter_refs": [
-    "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
+    "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
     "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"
   ],
   "anchors": [
@@ -5184,12 +5174,6 @@
     },
     {
       "id": "s11", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": 4558, "y": -2571, "z": 100}
-    },
-    {
-      "id": "shop_n", "kind": "Shop", "surface_id": "demo_ground", "position_cm": {"x": 769, "y": 2475, "z": 0}
-    },
-    {
-      "id": "shop_s", "kind": "Shop", "surface_id": "demo_ground", "position_cm": {"x": -525, "y": -2536, "z": 0}
     }
   ]
 }

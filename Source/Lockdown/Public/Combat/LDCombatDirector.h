@@ -21,7 +21,6 @@ class ALDPlayerController;
 class FLDDemoContentSnapshot;
 enum class ELDGrowthReason : uint16;
 struct FLDDemoAbilityDefinition;
-struct FLDDemoEquipmentDefinition;
 struct FLDDemoRankDefinition;
 namespace LDTactical { struct FOutOfCombatRecovery; }
 struct FLDDemoTargetDefinition;
@@ -500,14 +499,12 @@ public:
         FLDObservedActivesView& Out);
 
     // ---- Growth compound commits.
-    // A locked death crediting this contender (killer or assister) still awaits its reward (this boundary's set or its one retry).
-    bool OwesRewardTo(const FGuid& Recipient) const;
     FLDCombatPrepareResult PrepareBuildChange(const FLDCombatCaller& Caller, const FLDBuildProjectionInput& Input,
         const FLDExpectedBuildVersions& Expected) const;
     void ApplyBuildChange(FLDPreparedCombatProjection&& Prepared, const FLDGameplayWritePermit& Permit);
 
 #if WITH_DEV_AUTOMATION_TESTS
-    // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDEconomyDirector inside the Transactions permit.
+    // ---- DEV test commands (LDDevTestProtocol.h), committed by ALDGrowthDirector inside the Transactions permit.
     // The contender's current Alive body to its committed HP/MP maxima (the shield is untouched). False with Detail when
     // the permit, the contender record or a living body is missing; nothing changes then.
     bool DevRefillResources(const FGuid& Contender, const FLDGameplayWritePermit& Permit, FString& Detail);
@@ -521,7 +518,7 @@ public:
     // The DEV test layer of the installed build (FLDBuildProjectionInput::DevBonuses): bClearAll empties it, otherwise
     // Stat's term becomes Amount in its unit (0 removes it). The installed build is reprojected and installed through
     // PrepareProjected/ApplyBuildChange (resource maxima keep their ratio, a living body keeps its temporary terms)
-    // without a build or inventory revision, so Growth's in-flight requests stay valid; a dead contender changes only
+    // without a build revision, so Growth's in-flight requests stay valid; a dead contender changes only
     // the persistent build of its next life. NumericDomain with Detail when the projection refuses (a final value
     // outside its catalog bound), nothing changes then.
     ELDGrowthReason DevSetAttribute(const FGuid& Contender, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount,
@@ -529,8 +526,8 @@ public:
     // Pure part: whether Bonuses changed. Terms stay sorted by stat.
     static bool DevApplyAttribute(TArray<FLDDemoStatBonus>& Bonuses, bool bClearAll, ELDDemoBonusStat Stat, int64 Amount);
     // DEV test reset to the match start, part 1 (pure, inside the reset composite): the empty level-1 build without a
-    // DEV layer at Growth's and the ledger's result revisions, through PrepareProjected like any build change.
-    FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision, uint64 ResultInventoryRevision) const;
+    // DEV layer at Growth's result build revision, through PrepareProjected like any build change.
+    FLDCombatPrepareResult DevPrepareReset(const FGuid& Contender, uint64 ResultBuildRevision) const;
     // Part 2, right after ApplyBuildChange of part 1: every learned cooldown track is dropped (a later learn issues a
     // new one, as at the match start), the innate dash track is ready at NowMs and a living body's HP/MP
     // are full. Returns the number of dropped tracks.
@@ -579,7 +576,6 @@ private:
     friend class FLDCaptureCombatInterruptTest;
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDRewardSettlementTest;
-    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDCombatOrderRulesTest;
     friend class FLDCombatRecoveryTest;
     friend class FLDCombatDormRecoveryTest;

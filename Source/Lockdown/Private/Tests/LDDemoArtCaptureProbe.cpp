@@ -357,7 +357,7 @@ namespace
                     }
                 }
             }
-            // Bodies standing on routes next to every kind of prop: the five gates, around the flagpole and the shop,
+            // Bodies standing on routes next to every kind of prop: the five gates, around the flagpole and the north-east car,
             // and in front of wall-base benches. The one behind the flagpole (south-east of it) shows the listed occluder.
             const FVector Routes[] = {
                 {1979., 643., 0.}, {0., 2081., 0.}, {-1979., 643., 0.}, {-1223., -1684., 0.}, {1223., -1684., 0.},
@@ -374,7 +374,7 @@ namespace
                 {TEXT("Characters-States"), States + Down * 260.f, 1300.f},
                 {TEXT("Characters-GameZoom"), Identity, LDCamera::DefaultArmLength},
                 {TEXT("Route-Capture"), FVector(0., 0., 0.), LDCamera::DefaultArmLength},
-                {TEXT("Route-Shop"), FVector(778., 778., 0.), LDCamera::DefaultArmLength},
+                {TEXT("Route-NorthEastCar"), FVector(778., 778., 0.), LDCamera::DefaultArmLength},
                 {TEXT("Route-GateNorth"), FVector(0., 2081., 0.), LDCamera::DefaultArmLength},
                 {TEXT("Route-EastBenches"), FVector(4400., 2800., 0.), LDCamera::DefaultArmLength},
                 {TEXT("Field-Overview"), FVector(0., 0., 0.), 9000.f},

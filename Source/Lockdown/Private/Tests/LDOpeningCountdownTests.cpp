@@ -148,17 +148,14 @@ bool FLDDemoOpeningCountdownTest::RunTest(const FString& Parameters)
     Shown.Phase = ELDMatchPhase::CaptureOpen;
     TestTrue(TEXT("No countdown once the flagpole is open"), LDHUD::OpeningCountdown(Shown, true, CountdownMs).IsEmpty());
     TestEqual(TEXT("The phase line names the countdown"), LDHUD::PhaseLine(ELDMatchPhase::Countdown), FString(LDTerms::OpeningCountdown));
-    TestEqual(TEXT("A refused trade says it has not started"), LDHUD::GrowthReasonText(ELDGrowthReason::MatchNotStarted),
-        FString(LDTerms::NotStartedYet));
-    TestEqual(TEXT("So does a refused attack, ability or dash"), LDHUD::CombatRejectText(ELDCombatReject::NotStarted),
+    TestEqual(TEXT("A refused attack, ability or dash says it has not started"), LDHUD::CombatRejectText(ELDCombatReject::NotStarted),
         FString(LDTerms::NotStartedYet));
 
     // 2026-11-07 user decision: "开局五秒允许移动和选技能,但不允许攻击和购买".
-    for (const ELDSpatialOrderKind Kind : {ELDSpatialOrderKind::MoveGround, ELDSpatialOrderKind::ApproachShop})
     {
         FLDSpatialOrderRequest Move;
-        Move.Kind = Kind;
-        TestTrue(TEXT("A ground move or the walk to the shop is admitted before T=0"), LDOrderRules::CountdownAdmitsOrder(Move));
+        Move.Kind = ELDSpatialOrderKind::MoveGround;
+        TestTrue(TEXT("A ground move is admitted before T=0"), LDOrderRules::CountdownAdmitsOrder(Move));
         Move.bQueue = true;
         TestTrue(TEXT("Also as a Shift step"), LDOrderRules::CountdownAdmitsOrder(Move));
     }
@@ -184,8 +181,7 @@ bool FLDDemoOpeningCountdownTest::RunTest(const FString& Parameters)
     Action.Reject = ELDCombatReject::NotStarted;
     TestTrue(TEXT("Countdown refusals are dropped, not failed"),
         LDOpponentRequests::SettleOrder(Order) == ELDOpponentSettle::Dropped
-        && LDOpponentRequests::SettleAction(Action) == ELDOpponentSettle::Dropped
-        && LDOpponentRequests::SettleGrowthRejection(ELDGrowthReason::MatchNotStarted) == ELDOpponentSettle::Dropped);
+        && LDOpponentRequests::SettleAction(Action) == ELDOpponentSettle::Dropped);
     return true;
 }
 #endif

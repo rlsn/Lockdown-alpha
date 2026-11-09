@@ -35,9 +35,7 @@ struct FLDOpponentRequestTally
     uint32 LeaderHunts = 0;
     // D26 evidence: times this adapter's decisions turned to stepping away from the Boss.
     uint32 BossAvoids = 0;
-    uint32 ShopOpens = 0;
     uint32 Choices = 0;
-    uint32 Trades = 0;
     uint32 BuildsRefused = 0;
     // Spray evidence from this adapter's own frames and decisions: decisions taken while it held spray progress a contest
     // paused, and while it stood inside a contest against a rival's paused progress. Kept means it stayed in the fight;
@@ -108,17 +106,7 @@ private:
         uint64 DirectSequence = 0;
         int64 SentAtMs = 0;
     };
-    // Starts when a shop approach completes and ends with any newer body request or life change.
-    struct FShopVisit
-    {
-        bool bActive = false;
-        bool bOpenSent = false;
-        bool bOpened = false;
-        FName ShopId;
-        FLDOpponentRetryKey Key;
-        int64 OpenSentAtMs = 0;
-    };
-    // The one choice or trade awaiting its final receipt; a second build change is never sent meanwhile.
+    // The one choice awaiting its final receipt; a second build change is never sent meanwhile.
     struct FBuildTrack
     {
         bool bHas = false;
@@ -133,7 +121,6 @@ private:
         bool bCombat = false;
         FLDCombatCaller CombatCaller;
         FLDCombatOwnerView Combat;
-        FLDShopOpenResult Shop;
         // D26: serial of the public airdrop this contender holds as claimed, zero when none.
         uint64 ClaimedAirdrop = 0;
     };
@@ -143,9 +130,8 @@ private:
     void SettleOrders(const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void FinishIncumbent(ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs);
     void SettleDirectAction(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
-    void SettleShop(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
     void SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem);
-    void ComposeFrame(FLDOpponentDecisionFrame& Frame, const FReads& Reads) const;
+    void ComposeFrame(FLDOpponentDecisionFrame& Frame) const;
     void DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
         const FLDOpponentBodyIntent& Intent, int64 NowMs, FString& Problem);
     void DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
@@ -165,16 +151,14 @@ private:
     FOrderTrack Candidate;
     FStopTrack StopTrack;
     FActionTrack Action;
-    FShopVisit Visit;
     FBuildTrack Build;
     FLDMoveIdentity LastIdentity;
     // Life whose body-scoped requests are tracked; a change drops them without teaching the policy.
     uint32 BodyLife = 0;
     // Match-wide: Combat keeps one direct high-water mark per contender across lives.
     uint64 DirectSequence = 0;
-    // Per growth family, from 1, consumed only when the domain reserved the sequence.
+    // Choice request ids from 1, consumed only when the domain reserved the sequence.
     uint64 ChoiceRequestId = 1;
-    uint64 ShopRequestId = 1;
     int64 NextDecisionAtMs = 0;
     bool bClosed = false;
     bool bRetiring = false;

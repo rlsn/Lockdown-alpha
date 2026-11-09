@@ -162,8 +162,6 @@ public:
     // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
     bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
     int64 NextLeaderDueMs() const;
-    // The bounty a kill of Victim earns now (zero unless Victim is the shown leader); Combat locks it at the fatal moment.
-    int64 LeaderBountyFor(const FGuid& Victim) const;
     const FLDLeaderState& GetLeaderNotice() const { return LeaderNotice; }
     // A world owner (the camp director's Boss) changed what the public match view shows.
     void MarkPublicMatchDirty() { bPublicMatchDirty = true; }
@@ -200,12 +198,10 @@ public:
     void LogPlaytestMark(ALDPlayerController& Controller, uint32 Match, uint32 Sequence, int64 ClientAuthorityMs);
     UPROPERTY() TObjectPtr<ALDVisionDirector> Vision;
     UPROPERTY() TObjectPtr<ALDCombatDirector> Combat;
-    // ---- Growth/Shop domain directors (spawned and retired by ALDEconomyDirector) ----
-    UPROPERTY() TObjectPtr<class ALDInventoryDirector> Inventory;
-    UPROPERTY() TObjectPtr<class ALDEconomyDirector> Economy;
+    // ---- Growth domain directors (spawned and retired by ALDGrowthDirector) ----
+    UPROPERTY() TObjectPtr<class ALDGrowthDirector> Growth;
     UPROPERTY() TObjectPtr<class ALDDevelopmentDirector> Development;
-    UPROPERTY() TObjectPtr<class ALDVendorDirector> Vendor;
-    // ---- end Growth/Shop ----
+    // ---- end Growth ----
     // ---- Combat and life (combat-orders module, Framework/LDGameModeLife.cpp) ----
     // The only protection-removal entry: an admitted aggressive intent removes protection before
     // the action itself is checked; a later action rejection never restores it.
@@ -246,7 +242,6 @@ private:
     friend class FLDDemoMechanicsEffectLifetimesTest;
     friend class FLDPlaytestLogHitVampTest;
     friend class FLDCombatCommitControlTest;
-    friend class FLDAccountRetireAwaitsRewardTest;
     friend class FLDDemoDevTestCommandsTest;
     friend class FLDBossRewardTest;
     friend class FLDDemoAssistSettlementTest;

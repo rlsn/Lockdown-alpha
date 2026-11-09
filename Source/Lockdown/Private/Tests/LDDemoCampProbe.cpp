@@ -33,7 +33,7 @@
 #include "UnrealClient.h"
 #include "UObject/Package.h"
 
-// Owned-connection camp checks (App Spec §6.2/§11, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
+// Owned-connection camp checks (App Spec §5.2/§10, WORLD_CAMPS_AND_VISION §8.1): no first strike, whole-camp
 // retaliation, last-hit reward once per life, clear-then-refresh timing, leash return with the public cue and an
 // unrewarded home reset. Bookkeeping invariants stay in Lockdown.Rules.DemoCamp.*. Named, not anonymous: unity
 // builds merge files.
@@ -53,8 +53,8 @@ constexpr double CampHomePlacementCm = 101.0;
 const FName CampLowId(TEXT("l09"));
 const FName CampHighId(TEXT("h05"));
 
-// The approved reward of clearing one low camp: every member's stage-0 XP and gold (the first lives spawn before T=0).
-bool CampLowClearReward(int64& OutXP, int64& OutGold)
+// The approved reward of clearing one low camp: every member's stage-0 XP (the first lives spawn before T=0).
+bool CampLowClearReward(int64& OutXP)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     FString Error;
@@ -62,7 +62,6 @@ bool CampLowClearReward(int64& OutXP, int64& OutGold)
     if (!LDDemoEntry::LoadRuntimeContent(Content, Error) || !Content || !Content->FindMonster(TEXT("monster_scavenger"), Monster, Error)
         || !Monster) { return false; }
     OutXP = Monster->RewardXP * Monster->CountPerCamp;
-    OutGold = Monster->RewardGold * Monster->CountPerCamp;
     return OutXP > 0;
 }
 
@@ -103,7 +102,7 @@ public:
     bool Passed = true, Written = false, bJoined = false, bLobbyConfigured = false;
     TArray<TSharedPtr<FJsonValue>> Checks;
     // Owning-client state.
-    int64 StartXP = -1, StartGold = -1;
+    int64 StartXP = -1;
     bool bArrived = false, bIdleConfirmed = false, bAttacking = false, bTookDamage = false, bRewarded = false;
     bool bSawReturningCue = false, bCueShapeValid = true;
     TSet<FGuid> SeenScavengers;
@@ -270,10 +269,9 @@ public:
         return true;
     }
 
-    void SnapshotEconomy(const ALDPlayerController& Owner)
+    void SnapshotGrowth(const ALDPlayerController& Owner)
     {
         StartXP = Owner.OwnerState.Growth.Progression.CumulativeXP;
-        StartGold = Owner.OwnerState.Growth.Equipment.Gold;
     }
 
     // A new destination supersedes the current move order at once; Navigate() then only retries or arrives.
@@ -346,7 +344,7 @@ public:
         {
             if (!Navigate(Now, Owner, CampLowApproachCm, TEXT("#C3"))) { return false; }
             if (!bArrived) { return true; }
-            SnapshotEconomy(Owner);
+            SnapshotGrowth(Owner);
             if (!Mark(TEXT("Client1AtLow.json"))) { return Finish(); }
         }
         if (!bIdleConfirmed)
@@ -386,16 +384,15 @@ public:
         if (!bRewarded)
         {
             const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
-            const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
             // The clear marker can arrive before the last reward's owner projection; allow it 5 s to replicate.
             if (WatchSince == 0) { WatchSince = Now; }
-            int64 WantXP = 0, WantGold = 0;
-            if (!CampLowClearReward(WantXP, WantGold)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
+            int64 WantXP = 0;
+            if (!CampLowClearReward(WantXP)) { return Fail(TEXT("#C5"), TEXT("The approved low-camp reward is unavailable")); }
             if (XP < WantXP && Now - WatchSince < 5) { return true; }
             Check(bAttacking && bTookDamage, TEXT("#C4"), TEXT("The attacked camp retaliated against this contender"));
-            Check(XP == WantXP && Gold == WantGold, TEXT("#C5"), FString::Printf(
-                TEXT("The last hits on the low camp paid exactly its approved reward to this contender (XP +%lld of %lld, gold +%lld of %lld)"),
-                XP, WantXP, Gold, WantGold));
+            Check(XP == WantXP, TEXT("#C5"), FString::Printf(
+                TEXT("The last hits on the low camp paid exactly its approved reward to this contender (XP +%lld of %lld)"),
+                XP, WantXP));
             bRewarded = true;
             WatchSince = 0;
         }
@@ -439,7 +436,7 @@ public:
         case EHighStep::Approach:
             if (!Navigate(Now, Owner, CampHighApproachCm, TEXT("#C6"))) { return false; }
             if (!bArrived) { return true; }
-            SnapshotEconomy(Owner);
+            SnapshotGrowth(Owner);
             HighStep = EHighStep::Attack;
             return true;
         case EHighStep::Attack:
@@ -477,11 +474,10 @@ public:
             if (!bGuardianShot)
             { return Fail(TEXT("#C9"), TEXT("The returning guardian never stood in this owner's rendered view before its reset")); }
             const int64 XP = Owner.OwnerState.Growth.Progression.CumulativeXP - StartXP;
-            const int64 Gold = Owner.OwnerState.Growth.Equipment.Gold - StartGold;
             Check(bSawReturningCue && bCueShapeValid, TEXT("#C6"),
                 TEXT("The visible returning guardian carried only the single-stack untimed camp_returning cue"));
-            Check(XP == 0 && Gold == 0, TEXT("#C6"), FString::Printf(
-                TEXT("A leashed return and home reset paid nothing (XP +%lld, gold +%lld)"), XP, Gold));
+            Check(XP == 0, TEXT("#C6"), FString::Printf(
+                TEXT("A leashed return and home reset paid nothing (XP +%lld)"), XP));
             IssueMove(Now, Owner, CampLowApproachCm);
             HighStep = EHighStep::ToLowCamp;
             return true;

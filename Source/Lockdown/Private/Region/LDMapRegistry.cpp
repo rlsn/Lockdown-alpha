@@ -278,32 +278,12 @@ bool ULDMapRegistry::Rebuild(FString& Error)
         Binding.Id = FName(*Anchor.Id);
         Binding.Surface = FName(*Anchor.SurfaceId);
         if (!Anchor.PositionCm.ToVector(Binding.Position, Error)) { return false; }
-        if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop)
-        {
-            FLDLegalGround Legal;
-            ELDWorldQueryFailure Failure;
-            if (!Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, CandidateGround->Floors,
-                CandidateGround->Query, CandidateGround->Step, Capsule, Binding.Position,
-                Capsule, Binding.Surface, Legal, Failure, Error)) { return false; }
-            Binding.Floor = Legal.Floor;
-        }
-        else
-        {
-            // A shop anchor stands in its stall; its floor is the terrain piece under the stall.
-            // The stall itself may answer the floor channel, so only the floor pieces are traced.
-            const FVector Above = Binding.Position + FVector(0, 0, 50), Below = Binding.Position - FVector(0, 0, 50);
-            for (UPrimitiveComponent* Piece : Floors)
-            {
-                FHitResult Hit;
-                if (Piece->LineTraceComponent(Hit, Above, Below, FCollisionQueryParams(SCENE_QUERY_STAT(DemoShopFloor), false))
-                    && FMath::Abs(Hit.ImpactPoint.Z - Binding.Position.Z) <= UE_KINDA_SMALL_NUMBER) { Binding.Floor = Piece; }
-            }
-            if (!Binding.Floor.IsValid())
-            {
-                Error = TEXT("Shop anchor has no registered floor beneath it: ") + Anchor.Id;
-                return false;
-            }
-        }
+        FLDLegalGround Legal;
+        ELDWorldQueryFailure Failure;
+        if (!Ground(*GetWorld(), *CandidateGeometry, CandidateTerrain, CandidateRevision, CandidateGround->Floors,
+            CandidateGround->Query, CandidateGround->Step, Capsule, Binding.Position,
+            Capsule, Binding.Surface, Legal, Failure, Error)) { return false; }
+        Binding.Floor = Legal.Floor;
         if (Anchor.Kind == ELDDemoWorldAnchorKind::Spawn)
         {
             const auto* Found = Starts.FindByPredicate([&](const APlayerStart* Start) { return Start->PlayerStartTag == Binding.Id; });
@@ -507,78 +487,6 @@ bool ULDMapRegistry::QueryCompletePath(const FLDWorldRevision& Expected, const F
         return Reject(ELDWorldQueryFailure::IncompletePath, TEXT("IncompletePath: native path length is invalid."), Failure, Error);
     }
     Out = MoveTemp(Candidate);
-    Failure = ELDWorldQueryFailure::None;
-    Error.Reset();
-    return true;
-}
-
-bool ULDMapRegistry::FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
-    const FCollisionShape& Capsule, FLDLegalGround& OutGround, FLDCompletePath& OutPath,
-    ELDWorldQueryFailure& Failure, FString& Error) const
-{
-    FLDLegalGround Origin;
-    if (From.World != Expected)
-    {
-        return Reject(ELDWorldQueryFailure::StaleWorld, TEXT("StaleWorld: approach origin belongs to another world."), Failure, Error);
-    }
-    if (!QueryGround(Expected, From.FootCm, Capsule, From.SurfaceId, Origin, Failure, Error)) { return false; }
-    const FString Id = PublicAnchor.ToString();
-    const auto* Target = Geometry->Anchors.FindByPredicate([&](const auto& A) { return A.Id == Id; });
-    if (!Target || (Target->Kind != ELDDemoWorldAnchorKind::Shop && Target->Kind != ELDDemoWorldAnchorKind::Capture))
-    {
-        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: public approach requires the registered shop or capture anchor."), Failure, Error);
-    }
-    const auto& Quantity = Target->Kind == ELDDemoWorldAnchorKind::Shop
-        ? Content->Get().Parameters.ShopInteractRadiusCm : Content->Get().Parameters.CaptureRadiusCm;
-    const double Range = double(Quantity.Numerator) / double(Quantity.Denominator);
-    FVector Centre;
-    if (!Target->PositionCm.ToVector(Centre, Error))
-    {
-        Failure = ELDWorldQueryFailure::InvalidPosition;
-        return false;
-    }
-    const FName Surface(*Target->SurfaceId);
-    if (FVector::DistSquared2D(Origin.FootCm, Centre) <= Range * Range)
-    {
-        FLDCompletePath Stationary;
-        if (!QueryCompletePath(Expected, Origin, Origin, Capsule, Stationary, Failure, Error)) { return false; }
-        OutGround = Origin;
-        OutPath = MoveTemp(Stationary);
-        return true;
-    }
-    FLDLegalGround BestGround;
-    FLDCompletePath BestPath;
-    bool Found = false;
-    const FVector Direct = (Origin.FootCm - Centre).GetSafeNormal2D();
-    for (int32 I = -1; I < 64; ++I)
-    {
-        const double Angle = double(I) * 2 * UE_PI / 64;
-        const FVector Direction = I < 0 ? Direct : FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0);
-        FVector Candidate = Centre + Direction * Range;
-        FVector Normal;
-        Terrain.Ground(FVector2D(Candidate.X, Candidate.Y), Candidate.Z, Normal);
-        if (FVector::DistSquared2D(Candidate, Centre) > Range * Range) { continue; }
-        FLDLegalGround CandidateGround;
-        FLDCompletePath Path;
-        if (!QueryGround(Expected, Candidate, Capsule, Surface, CandidateGround, Failure, Error)) { continue; }
-        if (!QueryCompletePath(Expected, Origin, CandidateGround, Capsule, Path, Failure, Error))
-        {
-            if (Failure == ELDWorldQueryFailure::MissingNavigation) { return false; }
-            continue;
-        }
-        if (!Found || Path.LengthCm < BestPath.LengthCm)
-        {
-            BestGround = CandidateGround;
-            BestPath = MoveTemp(Path);
-            Found = true;
-        }
-    }
-    if (!Found)
-    {
-        return Reject(ELDWorldQueryFailure::Unreachable, TEXT("Unreachable: no complete path reaches the public anchor's legal range."), Failure, Error);
-    }
-    OutGround = BestGround;
-    OutPath = MoveTemp(BestPath);
     Failure = ELDWorldQueryFailure::None;
     Error.Reset();
     return true;

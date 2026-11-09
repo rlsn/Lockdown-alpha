@@ -52,8 +52,7 @@ bool IsCombatTriggerOp(ELDDemoEffectOp Op)
     // #112 C2 triggers (LDCombatMechanicsDirector.cpp).
     case ELDDemoEffectOp::CastFrenzy: case ELDDemoEffectOp::AfflictionAmp:
     case ELDDemoEffectOp::ShieldBreakRetort: case ELDDemoEffectOp::HitHaste:
-    // #147 v7: passive breach and burn stacks; an equipment control amplification joins the damage bonus pool (a learned
-    // one keeps its own conditional term below).
+    // #147 v7: passive breach and burn stacks; a learned control amplification keeps its own conditional term below.
     case ELDDemoEffectOp::Breach: case ELDDemoEffectOp::Burn: case ELDDemoEffectOp::ControlDamageAmp:
     case ELDDemoEffectOp::ArgumentChain: case ELDDemoEffectOp::SpellSustain: case ELDDemoEffectOp::PrimaryGuard:
     case ELDDemoEffectOp::DashContactDamage: case ELDDemoEffectOp::DashContactRefund: case ELDDemoEffectOp::DashContactGuard:
@@ -114,7 +113,6 @@ struct FAttributeSum
     FTermSum Level;
     FTermSum Choices;
     FTermSum Passives;
-    FTermSum Equipment;
     FTermSum Dev;
     // Explicit wild-card deductions (positive magnitudes), subtracted from the flat and ratio sums.
     FTermSum Penalties;
@@ -131,7 +129,7 @@ public:
 
     bool Run(FLDAttributeProjection& Out)
     {
-        return ValidateCatalog() && ResolveInputs() && RegisterEquipmentPassives() && Accumulate() && Finish(Out);
+        return ValidateCatalog() && ResolveInputs() && Accumulate() && Finish(Out);
     }
 
     FLDAttributeProjectionFailure Failure;
@@ -162,10 +160,8 @@ private:
             && Formulas.AttackSpeed == ELDDemoFormula::BaseTimesAdditiveRatio
             && Formulas.MoveSpeed == ELDDemoFormula::BaseTimesAdditiveRatio
             && Formulas.AttackRange == ELDDemoFormula::BasePlusFlat
-            && Policies.DuplicateEquipment == ELDDemoPolicy::Allowed
-            && Policies.DuplicateEquipmentPassive == ELDDemoPolicy::OncePerFamily
             && Progression.MaxLevel >= 1 && Progression.MaxSkillRank >= 1
-            && Progression.MaxChoices >= 0 && Progression.EquipmentSlots >= 0
+            && Progression.MaxChoices >= 0
             && P.AttackSpeedPerLevelBp >= 0 && P.CritChanceBaseBp >= 0
             && P.CooldownHasteBaseP2 >= 0 && P.CooldownHasteMaxP2 >= 0;
         for (const FLDDemoP2Bounds* Bounds : {&P.MaxHP, &P.MaxMP, &P.AD, &P.AP, &P.Armor, &P.MagicResist})
@@ -183,7 +179,7 @@ private:
                 && NonnegativeRational(Bounds->Max);
         }
         return bSupported || Refuse(EError::Catalog, TEXT("Catalog"),
-            TEXT("Unsupported attribute projection, stacking, duplicate-equipment or parameter contract"));
+            TEXT("Unsupported attribute projection, stacking or parameter contract"));
     }
 
     bool ResolveInputs()
@@ -193,15 +189,6 @@ private:
         {
             return Refuse(EError::InputDomain, TEXT("Level"),
                 FString::Printf(TEXT("Level %d is outside 1..%d"), int32(Build.Level), Progression.MaxLevel));
-        }
-        if (Build.EquippedItems.Num() > Progression.EquipmentSlots)
-        {
-            return Refuse(EError::InputDomain, TEXT("EquippedItems"), FString::Printf(
-                TEXT("%d equipped items exceed %d equipment slots"), Build.EquippedItems.Num(), Progression.EquipmentSlots));
-        }
-        if (!Build.EquippedUpgraded.IsEmpty() && Build.EquippedUpgraded.Num() != Build.EquippedItems.Num())
-        {
-            return Refuse(EError::InputDomain, TEXT("EquippedUpgraded"), TEXT("Upgrade flags must match the equipped items"));
         }
         FString LookupError;
         int64 ConsumedChoices = 0;
@@ -277,20 +264,6 @@ private:
                 TEXT("Passive ranks and attribute cards use %lld choices; level %d allows at most %lld"),
                 ConsumedChoices, int32(Build.Level), VisibleChoiceBound));
         }
-        for (int32 Index = 0; Index < Build.EquippedItems.Num(); ++Index)
-        {
-            const FLDDemoEquipmentDefinition* Item = nullptr;
-            if (!Catalog.FindEquipment(Build.EquippedItems[Index], Item, LookupError))
-            {
-                return Refuse(EError::UnknownDefinition, FString::Printf(TEXT("EquippedItems[%d]"), Index), LookupError);
-            }
-            if (IsUpgraded(Index) && !LDDemoEquipment::Upgradable(*Item))
-            {
-                return Refuse(EError::Catalog, FString::Printf(TEXT("EquippedItems[%d]"), Index),
-                    Item->Id + TEXT(" is upgraded but has no approved upgraded terms"));
-            }
-            Items.Add(Item);
-        }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
             const FLDDemoStatBonus& Bonus = Build.DevBonuses[Index];
@@ -315,57 +288,6 @@ private:
                 }
             }
         }
-        return true;
-    }
-
-    bool IsUpgraded(int32 Index) const
-    {
-        return Build.EquippedUpgraded.IsValidIndex(Index) && Build.EquippedUpgraded[Index];
-    }
-
-    bool RegisterEquipmentPassives()
-    {
-        for (int32 Index = 0; Index < Items.Num(); ++Index)
-        {
-            const FLDDemoEquipmentDefinition& Item = *Items[Index];
-            if (!Item.HasPassive)
-            {
-                continue;
-            }
-            const FString Field = FString::Printf(TEXT("EquippedItems[%d]"), Index);
-            FLDEquipmentPassiveFamily* Family = Families.FindByPredicate(
-                [&Item](const FLDEquipmentPassiveFamily& Existing)
-                {
-                    return Existing.Family.Equals(Item.Passive.Family, ESearchCase::CaseSensitive);
-                });
-            if (Family == nullptr)
-            {
-                for (const FLDDemoEffectDefinition& Effect : *LDDemoEquipment::EffectivePassiveEffects(Item, IsUpgraded(Index)))
-                {
-                    // Approved equipment passives are combat triggers or innate-dash terms and contribute no attribute terms.
-                    if (!IsCombatTriggerOp(Effect.GetOp()))
-                    {
-                        return Refuse(EError::Catalog, Field,
-                            Item.Id + TEXT(" has an equipment passive effect without an attribute projection rule"));
-                    }
-                }
-                Family = &Families.AddDefaulted_GetRef();
-                Family->Family = Item.Passive.Family;
-                Family->EquipmentId = Item.Id;
-            }
-            else if (!Family->EquipmentId.Equals(Item.Id, ESearchCase::CaseSensitive))
-            {
-                return Refuse(EError::Aggregation, Field, FString::Printf(
-                    TEXT("%s and %s share passive family %s without an approved aggregation rule"),
-                    *Family->EquipmentId, *Item.Id, *Family->Family));
-            }
-            Family->EquippedIndices.Add(Index);
-            Family->bUpgraded |= IsUpgraded(Index);
-        }
-        Families.Sort([](const FLDEquipmentPassiveFamily& A, const FLDEquipmentPassiveFamily& B)
-        {
-            return A.Family.Compare(B.Family, ESearchCase::CaseSensitive) < 0;
-        });
         return true;
     }
 
@@ -531,17 +453,6 @@ private:
                 }
             }
         }
-        for (int32 Index = 0; Index < Items.Num(); ++Index)
-        {
-            const FString Field = FString::Printf(TEXT("EquippedItems[%d]"), Index);
-            for (const FLDDemoStatBonus& Bonus : LDDemoEquipment::EffectiveStats(*Items[Index], IsUpgraded(Index)))
-            {
-                if (!AddBonus(Bonus, &FAttributeSum::Equipment, One, Field))
-                {
-                    return false;
-                }
-            }
-        }
         for (int32 Index = 0; Index < Build.DevBonuses.Num(); ++Index)
         {
             if (!AddBonus(Build.DevBonuses[Index], &FAttributeSum::Dev, One, FString::Printf(TEXT("DevBonuses[%d]"), Index)))
@@ -677,9 +588,9 @@ private:
             const FString Field = AttributeName(Attribute);
             const FAttributeSum& Sum = Sums[Index];
             const FExact Flat = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Flat, Sum.Choices.Flat),
-                Numbers.Add(Sum.Passives.Flat, Sum.Equipment.Flat)), Sum.Dev.Flat), Sum.Penalties.Flat);
+                Sum.Passives.Flat), Sum.Dev.Flat), Sum.Penalties.Flat);
             const FExact Ratio = Numbers.Sub(Numbers.Add(Numbers.Add(Numbers.Add(Sum.Level.Ratio, Sum.Choices.Ratio),
-                Numbers.Add(Sum.Passives.Ratio, Sum.Equipment.Ratio)), Sum.Dev.Ratio), Sum.Penalties.Ratio);
+                Sum.Passives.Ratio), Sum.Dev.Ratio), Sum.Penalties.Ratio);
             FExact Value = Numbers.Mul(Numbers.Add(Sum.Base, Flat), Numbers.Add(One, Ratio));
             // Every attribute clamps last to its catalog bounds (#112 §4): repeatable cards may push a sum past a cap,
             // and a wild card's explicit deduction stops at the floor (max HP 1, move speed 300, attack range 80).
@@ -720,8 +631,6 @@ private:
                 && ToRational(Sum.Choices.Ratio, Row.PermanentChoices.AdditiveRatio, Field)
                 && ToRational(Sum.Passives.Flat, Row.Passives.Flat, Field)
                 && ToRational(Sum.Passives.Ratio, Row.Passives.AdditiveRatio, Field)
-                && ToRational(Sum.Equipment.Flat, Row.Equipment.Flat, Field)
-                && ToRational(Sum.Equipment.Ratio, Row.Equipment.AdditiveRatio, Field)
                 && ToRational(Sum.Dev.Flat, Row.Dev.Flat, Field)
                 && ToRational(Sum.Dev.Ratio, Row.Dev.AdditiveRatio, Field)
                 && ToRational(Sum.Penalties.Flat, Row.Penalties.Flat, Field)
@@ -734,7 +643,6 @@ private:
         }
         Out.LowHPBonus = LowHP;
         Out.ControlAmp = ControlAmp;
-        Out.EquipmentPassives = MoveTemp(Families);
         LearnedTriggers.Sort([](const FLDLearnedTriggerTerm& A, const FLDLearnedTriggerTerm& B) { return A.AbilityId < B.AbilityId; });
         Out.LearnedTriggers = MoveTemp(LearnedTriggers);
         return true;
@@ -752,8 +660,6 @@ private:
     TArray<const FLDDemoAttributeDefinition*, TInlineAllocator<8>> Cards;
     TSet<FString> CardSources;
     const FLDDemoOpeningCardDefinition* Opening = nullptr;
-    TArray<const FLDDemoEquipmentDefinition*, TInlineAllocator<2>> Items;
-    TArray<FLDEquipmentPassiveFamily> Families;
     TOptional<FLDLowHPBonusTerm> LowHP;
     TOptional<FLDControlDamageAmpTerm> ControlAmp;
     TArray<FLDLearnedTriggerTerm> LearnedTriggers;
@@ -902,7 +808,7 @@ FLDAttributeProjectionResult ApplyTemporary(const FLDAttributeProjection& Build,
         {
             const FLDAttributeContributions& Row = Build.Contributions[Index];
             Base = N.Value(Row.Base);
-            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Equipment, &Row.Dev})
+            for (const FLDAttributeTerms* Terms2 : {&Row.LevelGrowth, &Row.PermanentChoices, &Row.Passives, &Row.Dev})
             {
                 Flat = N.Add(Flat, N.Value(Terms2->Flat));
                 Ratio = N.Add(Ratio, N.Value(Terms2->AdditiveRatio));

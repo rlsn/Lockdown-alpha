@@ -199,11 +199,6 @@ bool FLDDemoContentSnapshot::FindOpeningCard(const FString& Id, const FLDDemoOpe
     return Find(Definitions.OpeningCards, Id, Out, Error);
 }
 
-bool FLDDemoContentSnapshot::FindEquipment(const FString& Id, const FLDDemoEquipmentDefinition*& Out, FString& Error) const
-{
-    return Find(Definitions.Equipment, Id, Out, Error);
-}
-
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const
 {
     return Find(Definitions.Monsters, Id, Out, Error);

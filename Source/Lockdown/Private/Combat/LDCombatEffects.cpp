@@ -424,13 +424,13 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     if (Source)
     {
         if (!bProtected && !ApplySkillPassives(*Source,Hit,Damage,NowMs,Error)) { return false; }
-        // Mana grant, at most once per release: item_runic_focus for an ability hit.
+        // Mana grant (mana_on_hit), at most once per release for an ability hit.
         for (const FLDPassiveEffectRef& Grant : ManaGrants)
         {
             const FLDDemoEffectDefinition& Effect=*Grant.Effect;
             if (Effect.Trigger==ELDDemoEffectTrigger::AbilityHit && !bProtected && !Hit.bReflect
                 && Hit.HitClass==ELDCombatHitClass::Ability && Hit.Token!=0
-                && (Hit.Source.Kind==ELDCombatSourceKind::Learned || Hit.Source.Kind==ELDCombatSourceKind::Gear)
+                && Hit.Source.Kind==ELDCombatSourceKind::Learned
                 && Source->LastAbilityManaEffect!=Hit.EffectId
                 && (!Hit.CastLedger || !Hit.CastLedger->bManaGrantPaid))
             {
@@ -509,28 +509,6 @@ bool ALDCombatDirector::CollectPassiveEffects(const FLDAttributeProjection& Proj
             Ref.Effect=&Effect;
         }
     }
-    // POLICY.DuplicateEquipmentPassive=OncePerFamily: two copies still apply once per family.
-    for (const FLDEquipmentPassiveFamily& Family : Projection.EquipmentPassives)
-    {
-        const FLDDemoEquipmentDefinition* Equipment=nullptr;
-        if (!Content->FindEquipment(Family.EquipmentId,Equipment,Error)) { return false; }
-        // The upgraded copy's terms replace the base ones (#112 equipment upgrade).
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Equipment,Family.bUpgraded);
-        if (!Effects)
-        {
-            Error=FString::Printf(TEXT("Upgraded equipment passive %s has no approved terms."),*Family.Family);
-            return false;
-        }
-        for (const FLDDemoEffectDefinition& Effect : *Effects)
-        {
-            if (Effect.GetOp()!=Op) { continue; }
-            FLDPassiveEffectRef& Ref=Out.AddDefaulted_GetRef();
-            Ref.Key=Family.Family;
-            Ref.Source.Kind=ELDCombatSourceKind::Gear;
-            Ref.Source.DefinitionId=FName(*Family.EquipmentId);
-            Ref.Effect=&Effect;
-        }
-    }
     Error.Reset();
     return true;
 }
@@ -573,15 +551,6 @@ bool ALDCombatDirector::StampSourceTerms(const FLDBodyCombatState& Source, FLDCo
     const FLDAttributeProjection& Projection=Source.AttributeProjection;
     InOut.ControlAmpBp=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->RatioBp : 0;
     InOut.ControlAmpBelowBp=Projection.ControlAmp.IsSet() ? Projection.ControlAmp->LowHPBelowBp : 0;
-    // #147 D21: an equipment amplification against slowed or controlled bodies joins the same pool term.
-    TArray<FLDPassiveEffectRef> GearAmps;
-    if (!CollectPassiveEffects(Projection,ELDDemoEffectOp::ControlDamageAmp,GearAmps,Error)) { return false; }
-    for (const FLDPassiveEffectRef& Ref : GearAmps)
-    {
-        if (Ref.Source.Kind!=ELDCombatSourceKind::Gear) { continue; }
-        InOut.ControlAmpBp+=Ref.Effect->RatioBp;
-        InOut.ControlAmpBelowBp=FMath::Max(InOut.ControlAmpBelowBp,Ref.Effect->SecondaryRatioBp);
-    }
     InOut.SourceLowHPBelowBp=Projection.LowHPBonus.IsSet() ? Projection.LowHPBonus->ThresholdBp : 0;
     InOut.LowHPBasicLifestealBp=Projection.LowHPBonus.IsSet() && InOut.HitClass==ELDCombatHitClass::BasicPrimary
         ? Projection.LowHPBonus->BasicLifestealBp : 0;
@@ -697,7 +666,7 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
     const ALDGameMode* Mode=Core();
     if (!Content || !Mode) { Error=TEXT("Thorns require the current core and the approved Demo content."); return false; }
     const FLDAttributeProjection& Projection=Body.AttributeProjection;
-    if (Projection.LearnedTriggers.IsEmpty() && Projection.EquipmentPassives.IsEmpty()) { return true; }
+    if (Projection.LearnedTriggers.IsEmpty()) { return true; }
     ALDCharacter* Attacker=nullptr;
     const FLDBodyCombatState* AttackerBody=FindBody(Hit.SourceBody,&Attacker);
     // Only the exact attacking life can be answered; a dead, replaced or self source is not.
@@ -719,7 +688,7 @@ bool ALDCombatDirector::QueueThorns(const FLDCombatHit& Hit, ALDCharacter& Holde
         if (!LDCombatControl::ThornsTriggers(*Source.Effect,Contact,Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs)) { continue; }
         int64 BaseP2=0;
         // Armor and max-HP coefficients of the holder now; a learned passive's fixed part already arrives grown for the
-        // holder's level (#147, CollectPassiveEffects), equipment never grows.
+        // holder's level (#147, CollectPassiveEffects).
         if (!LDCombatControl::ThornsBaseP2(*Source.Effect,Projection.Final.ArmorP2,Body.Resources.MaxHpP2,bCritical,BaseP2,Error)) { return false; }
         LDCombatControl::MarkThorns(Body.ThornsMarks,Source.Key,Hit.SourceBody.Victim.EntityId,NowMs,Source.Effect->IntervalMs);
         // The same hit, damage, ownership, death and reward path as any other hit; it is flagged so it never crits,
@@ -1178,7 +1147,6 @@ bool ALDCombatDirector::LockDeath(ALDCharacter& /*Actor*/, FLDBodyCombatState& B
         Basis.RewardDefinitionId=FName(*Content->Get().Character.Id);
         Basis.VictimLevelAtDeath=Record->Build.Level;
         Basis.VictimBuildRevisionAtDeath=Record->Installed.BuildRevision;
-        Basis.LeaderBountyGoldAtDeath=Mode->LeaderBountyFor(Body.Victim.EntityId);
     }
     else
     {

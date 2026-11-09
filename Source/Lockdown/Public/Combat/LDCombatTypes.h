@@ -12,9 +12,9 @@ class AController;
 // ---------------------------------------------------------------- sources and entries
 
 // Innate: the D dash every contender has (D19); it is no learned source and is never forgotten.
-// Gear credits the hits of an equipment passive; equipment has no action entries or cooldown tracks.
+// 3 was the retired equipment (Gear) source (#144); Innate keeps its number.
 UENUM()
-enum class ELDCombatSourceKind : uint8 { None, Basic, Learned, Gear, Innate };
+enum class ELDCombatSourceKind : uint8 { None = 0, Basic = 1, Learned = 2, Innate = 4 };
 
 // Activation entry label only; never a source or cooldown identity. Basic comes only from
 // Navigation-derived contender attacks and from registered camp members. Dash is the innate D dash.
@@ -185,7 +185,6 @@ struct FLDRewardBasis
     uint64 VictimBuildRevisionAtDeath=0;      // contender branch only (last build revision Combat installed)
     bool bCreditOwnerEligibleAtDeath=false;   // another contender, still in the match at the fatal time
     ELDNoRewardReason NoRewardReason=ELDNoRewardReason::NoOwner; // None iff eligible
-    int64 LeaderBountyGoldAtDeath=0;          // D27 contender branch only: the shown leader's bounty at the fatal moment
     uint8 CampStageAtDeath=0;                 // #97 camp member branch only: the growth stage this life spawned with
 };
 
@@ -227,16 +226,6 @@ struct FLDLearnedActiveValue
     ELDCombatEntry Entry=ELDCombatEntry::None;   // Q, W or E
 };
 
-struct FLDEquippedItemValue
-{
-    uint8 Slot=0;                                // 0 or 1 (slot order)
-    FGuid Instance;
-    FName DefinitionId;
-    uint64 ItemRevision=0;
-    // 112 §7: read stats and passive terms through LDDemoEquipment::Effective*.
-    bool bUpgraded=false;
-};
-
 // Complete post-change build. Empty arrays mean "none held"; nothing is merged with the previous build.
 struct FLDBuildProjectionInput
 {
@@ -246,19 +235,16 @@ struct FLDBuildProjectionInput
     // #153: the chosen opening direction card (canonical id), empty before the opening choice.
     FString OpeningCard;
     TArray<FLDLearnedActiveValue> Actives;
-    TArray<FLDEquippedItemValue> Equipment;
     // DEV test layer (FLDAttributeBuildValues::DevBonuses). Combat owns it: a Growth build change never names it and
     // keeps the installed one; only ALDCombatDirector::DevSetAttribute changes it, without a build revision.
     TArray<FLDDemoStatBonus> DevBonuses;
     uint64 ResultBuildRevision=0;      // strictly increasing
-    uint64 ResultInventoryRevision=0;  // strictly increasing or unchanged
 };
 
-// Revisions Combat last installed for this contender (match start: 0/0 = the empty level-1 build).
+// The build revision Combat last installed for this contender (match start: 0 = the empty level-1 build).
 struct FLDExpectedBuildVersions
 {
     uint64 BuildRevision=0;
-    uint64 InventoryRevision=0;
 };
 
 enum class ELDCombatPrepareError : uint8
@@ -414,7 +400,6 @@ struct FLDCombatAttributeRowView
     UPROPERTY() FLDDemoRational Level;
     UPROPERTY() FLDDemoRational Choices;
     UPROPERTY() FLDDemoRational Passives;
-    UPROPERTY() FLDDemoRational Equipment;
     UPROPERTY() FLDDemoRational PercentBonus;        // summed additive ratio terms of the build, the DEV layer excluded
     UPROPERTY() FLDDemoRational Dev;                 // DEV test layer flat term; zero outside a DEV test session
     UPROPERTY() FLDDemoRational DevPercent;          // DEV test layer ratio term
@@ -473,8 +458,6 @@ struct FLDCombatOwnerView
     UPROPERTY() float MoveSpeedCmPerSec=0;
     UPROPERTY() float AttackRangeCm=0;
     UPROPERTY() TArray<FLDCombatAttributeRowView> Attributes;
-    UPROPERTY() TArray<FName> EquipmentPassives;     // once per family
-    UPROPERTY() TArray<FName> UpgradedEquipmentPassives; // 112 §7: families applying their upgraded terms
     UPROPERTY() bool bOutOfCombatRegenActive=false;
     // D21 (#79): the own body stands in a dorm, and the dorm's fast recovery is running.
     UPROPERTY() bool bInDorm=false;

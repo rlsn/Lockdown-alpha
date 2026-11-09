@@ -8,7 +8,6 @@
 #include "Engine/World.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
-#include "Inventory/LDVendorDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
@@ -106,7 +105,6 @@ ELDOpponentOrderKind OrderKindOf(ELDOpponentBodyKind Kind)
     {
     case ELDOpponentBodyKind::MoveGround: return ELDOpponentOrderKind::MoveGround;
     case ELDOpponentBodyKind::AttackUnit: return ELDOpponentOrderKind::AttackUnit;
-    case ELDOpponentBodyKind::ApproachShop: return ELDOpponentOrderKind::ApproachShop;
     default: return ELDOpponentOrderKind::None;
     }
 }
@@ -161,7 +159,6 @@ void ALDOpponentController::ForgetBodyWork()
     Candidate = FOrderTrack();
     StopTrack = FStopTrack();
     Action = FActionTrack();
-    Visit = FShopVisit();
     bWasInDorm = false;
 }
 
@@ -203,10 +200,10 @@ void ALDOpponentController::ReportTally()
     if (bTallyReported || !Binding.IsValid()) { return; }
     bTallyReported = true;
     UE_LOG(LogLDAI, Display, TEXT("LD_AI_SUMMARY contender=%s gen=%u orders=%u orders_refused=%u stops=%u actions=%u ")
-        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u shop_opens=%u choices=%u trades=%u builds_refused=%u paused_holds=%u/%u/%u ")
+        TEXT("actions_refused=%u dashes=%u/%u dorm_entries=%u airdrops=%u leader_hunts=%u boss_avoids=%u choices=%u builds_refused=%u paused_holds=%u/%u/%u ")
         TEXT("challenges=%u/%u/%u holder_attacks=%u owner_attacks=%u orders_rejected=%u"), *Binding.GetContender().ToString(),
         Binding.GetMatch().Generation, Tally.Orders, Tally.OrdersRefused, Tally.Stops, Tally.Actions, Tally.ActionsRefused,
-        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.ShopOpens, Tally.Choices, Tally.Trades, Tally.BuildsRefused, Tally.PausedHolds,
+        Tally.Dashes, Tally.DashesLanded, Tally.DormEntries, Tally.AirdropClaims, Tally.LeaderHunts, Tally.BossAvoids, Tally.Choices, Tally.BuildsRefused, Tally.PausedHolds,
         Tally.PausedHoldsKept, Tally.PausedHoldsReleased, Tally.Challenges, Tally.ChallengesKept, Tally.ChallengesReleased, Tally.HolderAttacks, Tally.OwnerAttacks,
         Tally.OrdersRejected);
 }
@@ -300,9 +297,8 @@ void ALDOpponentController::Tick(float DeltaSeconds)
         LastClaimedAirdrop = Reads.ClaimedAirdrop;
         ++Tally.AirdropClaims;
     }
-    SettleShop(*Mode, Reads, Frame.Self, NowMs, Problem);
     SettleBuild(*Mode, Frame.Self, NowMs, Problem);
-    ComposeFrame(Frame, Reads);
+    ComposeFrame(Frame);
     const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Frame, *Content, Policy);
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
@@ -321,10 +317,10 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         Error = SelfRead.Error.IsEmpty() ? TEXT("The core has no owner projection for this opponent.") : SelfRead.Error;
         return false;
     }
-    if (!Mode.Combat || !Mode.Vision || !Mode.Development || !Mode.Vendor)
+    if (!Mode.Combat || !Mode.Vision || !Mode.Development)
     {
         // A missing domain is an explicit stop; tracked requests stay pending until it answers.
-        Error = TEXT("A combat, observation, progression or shop domain of this match is unavailable.");
+        Error = TEXT("A combat, observation or progression domain of this match is unavailable.");
         return false;
     }
     Reads.Owner = MoveTemp(SelfRead.Self);
@@ -368,15 +364,13 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
     if (Own.LifePhase != ELDLifePhase::Alive && Own.LifePhase != ELDLifePhase::Dead) { return true; }
     const FLDGrowthOwnerView& Growth = Own.Growth;
     if (Growth.Generation != Generation
-        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, Growth.Equipment, *Content, Me, Error))
+        || !LDOpponentFrame::ReadOwnBuild(Growth.Progression, *Content, Me, Error))
     {
         if (Error.IsEmpty()) { Error = TEXT("The own growth publication is not of this match."); }
         return false;
     }
     Me.OpeningPickAtMs = Public.StartedAtMs - Content->Get().Parameters.CountdownMs + OpeningPickAfterMs;
     Me.OpeningPickIndex = OpeningPickIndex;
-    // Live own read: unlike the publication it also shows an open still queued for the next Transactions phase.
-    Reads.Shop = Mode.Vendor->ReadShop(Own.ContenderId);
     if (Own.LifePhase == ELDLifePhase::Dead) { return true; }
     if (!Mode.Combat->ResolveControllerCaller(*this, Reads.CombatCaller, Error)
         || !Mode.Combat->BuildOwnerView(Reads.CombatCaller, Reads.Combat))
@@ -518,15 +512,6 @@ void ALDOpponentController::SettleOrders(const FReads& Reads, const FLDOpponentS
 void ALDOpponentController::FinishIncumbent(ELDOpponentSettle Settle, const FLDOpponentSelf& Self, int64 NowMs)
 {
     Incumbent.bFinal = true;
-    if (Incumbent.Intent.Kind == ELDOpponentBodyKind::ApproachShop && Settle == ELDOpponentSettle::Succeeded)
-    {
-        // Arrival is not yet a successful visit: the open and the trades settle the shop key.
-        Visit = FShopVisit();
-        Visit.bActive = true;
-        Visit.ShopId = Incumbent.Request.ShopId;
-        Visit.Key = Incumbent.Intent.Key;
-        return;
-    }
     Learn(Incumbent.Intent.Key, Settle, Self, NowMs);
 }
 
@@ -557,74 +542,11 @@ void ALDOpponentController::SettleDirectAction(ALDGameMode& Mode, const FReads& 
     Learn(Action.Intent.Key, Settle, Self, NowMs);
 }
 
-void ALDOpponentController::SettleShop(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentSelf& Self, int64 NowMs,
-    FString& Problem)
-{
-    if (!Visit.bActive || Visit.bOpened) { return; }
-    if (Reads.Owner.LifePhase != ELDLifePhase::Alive)
-    {
-        Visit = FShopVisit();
-        return;
-    }
-    const FLDShopOpenResult& Shop = Reads.Shop;
-    const bool bThisLife = Shop.Generation == Reads.Owner.Match && Shop.Life == Reads.Owner.Life;
-    ELDOpponentSettle Settle = ELDOpponentSettle::InFlight;
-    if (!Visit.bOpenSent)
-    {
-        // A session opened earlier in this life stays executable; a new reach only reopens a missing one.
-        if (bThisLife && Shop.OpenStatus == ELDShopOpenStatus::Opened && Shop.bHasView)
-        {
-            Visit.bOpened = true;
-            return;
-        }
-        const ULDMapRegistry* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
-        FLDShopOpenCommand Command;
-        FString Error;
-        Visit.bOpenSent = true;
-        Visit.OpenSentAtMs = NowMs;
-        if (!Registry || !LDOpponentRequests::BuildShopOpen(Visit.ShopId, Reads.Owner.Match, Reads.Owner.Life,
-            Registry->Revision(), Command, Error))
-        {
-            // Nothing was sent: the reason reaches the decision log, not only the failure memory.
-            Problem = Error.IsEmpty() ? FString(TEXT("The map registry is unavailable to open the shop.")) : Error;
-            Settle = ELDOpponentSettle::Failed;
-        }
-        else
-        {
-            ++Tally.ShopOpens;
-            const FLDShopOpenResult Result = Mode.Vendor->QueueShopOpen(Reads.Owner.ContenderId, Command);
-            Settle = LDOpponentRequests::SettleShopOpen(Result);
-            if (Settle == ELDOpponentSettle::Failed) { Problem = FString::Printf(TEXT("shop open refused reason=%u"), uint32(Result.Reason)); }
-        }
-    }
-    else
-    {
-        Settle = bThisLife ? LDOpponentRequests::SettleShopOpen(Shop) : ELDOpponentSettle::Dropped;
-        // The open is answered at the next Transactions phase; an overdue one is a failed attempt.
-        if (Settle == ELDOpponentSettle::InFlight && NowMs > Visit.OpenSentAtMs + Content->Get().Parameters.AI.RetryMaxBackoffMs)
-        {
-            Problem = TEXT("shop open overdue");
-            Settle = ELDOpponentSettle::Failed;
-        }
-        else if (Settle == ELDOpponentSettle::Failed) { Problem = FString::Printf(TEXT("shop open refused reason=%u"), uint32(Shop.Reason)); }
-    }
-    if (Settle == ELDOpponentSettle::InFlight) { return; }
-    if (Settle == ELDOpponentSettle::Succeeded)
-    {
-        Visit.bOpened = true;
-        return;
-    }
-    Learn(Visit.Key, Settle, Self, NowMs);
-    Visit = FShopVisit();
-}
-
 void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf& Self, int64 NowMs, FString& Problem)
 {
-    if (!Build.bHas || !Mode.Development || !Mode.Vendor) { return; }
-    const FGuid& Contender = Binding.GetContender();
-    const ELDOpponentSettle Settle = Build.Query.Family == ELDGrowthFamily::Choice
-        ? LDOpponentRequests::SettleChoiceQuery(Mode.Development->QueryChoiceReceipt(Contender, Build.Query))
-        : LDOpponentRequests::SettleShopQuery(Mode.Vendor->QueryShopReceipt(Contender, Build.Query));
+    if (!Build.bHas || !Mode.Development) { return; }
+    const ELDOpponentSettle Settle = LDOpponentRequests::SettleChoiceQuery(
+        Mode.Development->QueryChoiceReceipt(Binding.GetContender(), Build.Query));
     if (Settle == ELDOpponentSettle::InFlight)
     {
         // Growth commits at the next Transactions phase. A late receipt is reported; the request is never
@@ -633,12 +555,10 @@ void ALDOpponentController::SettleBuild(ALDGameMode& Mode, const FLDOpponentSelf
         return;
     }
     Learn(Build.Key, Settle, Self, NowMs);
-    // A refused trade (reach, gold, quote) ends the visit; the next one re-approaches and re-reads.
-    if (Build.Query.Family == ELDGrowthFamily::Shop && Settle == ELDOpponentSettle::Failed) { Visit = FShopVisit(); }
     Build = FBuildTrack();
 }
 
-void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame, const FReads& Reads) const
+void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame) const
 {
     using namespace LDOpponentControllerDetail;
     FLDOpponentOrder& Current = Frame.Order;
@@ -657,13 +577,6 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame, const 
         Current.Handle = Candidate.Intent.Handle;
         Current.Epoch = Candidate.Intent.Epoch;
     }
-    else if (Visit.bActive && !Visit.bOpened)
-    {
-        // Approach and open are one shop visit: the policy keeps it while the open is pending.
-        Current.Kind = ELDOpponentOrderKind::ApproachShop;
-        Current.Status = ELDOpponentOrderStatus::Active;
-        Current.POI = Visit.ShopId;
-    }
     else if (Incumbent.bHas)
     {
         Current.Kind = OrderKindOf(Incumbent.Intent.Kind);
@@ -673,9 +586,6 @@ void ALDOpponentController::ComposeFrame(FLDOpponentDecisionFrame& Frame, const 
         Current.Epoch = Incumbent.Intent.Epoch;
     }
     Frame.bBuildChangeInFlight = Build.bHas;
-    const FLDShopOpenResult& Shop = Reads.Shop;
-    Frame.bShopOpen = Visit.bActive && Visit.bOpened && Shop.OpenStatus == ELDShopOpenStatus::Opened && Shop.bHasView
-        && Shop.Generation == Reads.Owner.Match && Shop.Life == Reads.Owner.Life;
 }
 
 void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
@@ -690,10 +600,8 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
         Problem = TEXT("A body intent arrived without a current living body.");
         return;
     }
-    // Taunted: Navigation chases the taunter and Combat refuses abilities and items; wait instead of retrying.
+    // Taunted: Navigation chases the taunter and Combat refuses abilities; wait instead of retrying.
     if (LDOpponentRequests::BodyIntentsHeld(Reads.Combat, NowMs)) { return; }
-    // Any newer body request leaves the shop; a later trade needs a fresh approach.
-    Visit = FShopVisit();
     if (Intent.Kind == ELDOpponentBodyKind::Stop)
     {
         // One stop covers the incumbent and a queued candidate. A refused stop is retried a bounded number of
@@ -782,49 +690,28 @@ void ALDOpponentController::DispatchBody(ALDGameMode& Mode, const FReads& Reads,
 void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads, const FLDOpponentDecisionFrame& Frame,
     const FLDOpponentBuildIntent& Intent, int64 NowMs, FString& Problem)
 {
-    if (Intent.Kind == ELDOpponentBuildKind::None || Build.bHas) { return; }
+    if (Intent.Kind != ELDOpponentBuildKind::Choose || Build.bHas) { return; }
     const FLDOpponentSelf& Self = Frame.Self;
-    const FLDGrowthOwnerView& Growth = Reads.Owner.Growth;
-    const FGuid& Contender = Binding.GetContender();
-    const bool bChoice = Intent.Kind == ELDOpponentBuildKind::Choose;
-    uint64& Cursor = bChoice ? ChoiceRequestId : ShopRequestId;
     FString Error;
-    FLDSubmitResult Result;
-    if (bChoice)
+    FLDChoiceCommand Command;
+    if (!Mode.Development || !LDOpponentRequests::BuildChoice(Intent, Reads.Owner.Growth.Progression, ChoiceRequestId,
+        Command, Error))
     {
-        FLDChoiceCommand Command;
-        if (!Mode.Development || !LDOpponentRequests::BuildChoice(Intent, Growth.Progression, Cursor, Command, Error))
-        {
-            Problem = Error.IsEmpty() ? FString(TEXT("The progression domain is unavailable.")) : Error;
-            Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
-            return;
-        }
-        ++Tally.Choices;
-        Result = Mode.Development->QueueChoice(Contender, Command);
+        Problem = Error.IsEmpty() ? FString(TEXT("The progression domain is unavailable.")) : Error;
+        Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
+        return;
     }
-    else
-    {
-        FLDShopCommand Command;
-        if (!Mode.Vendor || !LDOpponentRequests::BuildTrade(Intent, Reads.Shop, Growth.Equipment, Growth.Progression, Cursor,
-            Command, Error))
-        {
-            Problem = Error.IsEmpty() ? FString(TEXT("The shop domain is unavailable.")) : Error;
-            Learn(Intent.Key, ELDOpponentSettle::Failed, Self, NowMs);
-            Visit = FShopVisit();
-            return;
-        }
-        ++Tally.Trades;
-        Result = Mode.Vendor->QueueShopCommand(Contender, Command);
-    }
-    const uint64 RequestId = Cursor;
+    ++Tally.Choices;
+    const FLDSubmitResult Result = Mode.Development->QueueChoice(Binding.GetContender(), Command);
+    const uint64 RequestId = ChoiceRequestId;
     // Only a reserved sequence is consumed; an unreserved admission refusal leaves the id to the next request.
-    if (Result.bSequenceReserved) { ++Cursor; }
+    if (Result.bSequenceReserved) { ++ChoiceRequestId; }
     const ELDOpponentSettle Settle = LDOpponentRequests::SettleSubmit(Result);
     if (Settle == ELDOpponentSettle::InFlight)
     {
         Build.bHas = true;
         Build.Query.Generation = Binding.GetMatch().Generation;
-        Build.Query.Family = bChoice ? ELDGrowthFamily::Choice : ELDGrowthFamily::Shop;
+        Build.Query.Family = ELDGrowthFamily::Choice;
         Build.Query.RequestId = RequestId;
         Build.Key = Intent.Key;
         Build.SentAtMs = NowMs;
@@ -836,7 +723,6 @@ void ALDOpponentController::DispatchBuild(ALDGameMode& Mode, const FReads& Reads
         Problem = FString::Printf(TEXT("build request refused status=%u reason=%u"), uint8(Result.Status), uint32(Result.Reason));
     }
     Learn(Intent.Key, Settle, Self, NowMs);
-    if (!bChoice && Settle == ELDOpponentSettle::Failed) { Visit = FShopVisit(); }
 }
 
 void ALDOpponentController::Report(const FLDOpponentDecisionFrame& Frame, const FLDOpponentDecision& Decision,

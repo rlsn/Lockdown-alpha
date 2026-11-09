@@ -196,7 +196,7 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
     const FGuid Random = FGuid::NewGuid();
     S.Seed = LDAirdrop::Mix((uint64(Random.A) << 32 | Random.B) ^ LDAirdrop::Mix(uint64(Random.C) << 32 | Random.D));
     S.Seed = S.Seed ? S.Seed : 1;
-    if (P.AirdropRewardXP <= 0 || P.AirdropRewardGold <= 0 || !S.IsValid())
+    if (P.AirdropRewardXP <= 0 || !S.IsValid())
     {
         Error = TEXT("The approved airdrop parameters or compiled airdrop points are invalid.");
         return false;

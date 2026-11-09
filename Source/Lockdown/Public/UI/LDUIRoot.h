@@ -21,7 +21,7 @@ class ALDGameState;
 
 // Local navigation only (UI_AND_SETTINGS 3.1/4): one main panel at a time, each with at most one child confirmation.
 UENUM()
-enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Attributes, Choices, Shop, DevTest };
+enum class ELDUIMainPanel : uint8 { None, Menu, Settings, Attributes, Choices, DevTest };
 enum class ELDUIInputLayer : uint8 { None, TextEditing, ChildConfirmation, MainPanel };
 enum class ELDFrontendAttempt : uint8 { None, Host, Join };
 enum class ELDRootConfirm : uint8 { None, Exit, LeaveRoom, LeaveMatch, EndMatch };
@@ -58,10 +58,10 @@ public:
     ELDUIMainPanel ActiveMainPanel() const;
     // One main panel at a time: closes the others first and toggles the active one closed.
     void ToggleMainPanel(ELDUIMainPanel Panel);
-    // Opens a registered panel without toggling (an authoritative event such as the shop's Opened result).
+    // Opens a registered panel without toggling (such as the opening three-choice's automatic open).
     // False when it is not registered, the root confirmation is up, or another panel keeps itself open.
     bool ShowMainPanel(ELDUIMainPanel Panel);
-    // HUD-created Attributes/Choices/Shop panels, held weakly; nullptr unregisters.
+    // HUD-created Attributes/Choices/DevTest panels, held weakly; nullptr unregisters.
     void RegisterMainPanel(ELDUIMainPanel Panel, ULDPanel* Widget);
     // The single leave path (lobby, in-match menu and the HUD result screen): back to the frontend.
     void LeaveRoom();
@@ -116,7 +116,7 @@ private:
     UPROPERTY() TArray<TObjectPtr<UWidget>> ConfirmRows;
     UPROPERTY() TArray<TObjectPtr<UWidget>> ConfirmCancels;
     UPROPERTY() TArray<TObjectPtr<USizeBox>> Pages;
-    TWeakObjectPtr<ULDPanel> MainPanels[4];
+    TWeakObjectPtr<ULDPanel> MainPanels[3];
     ELDRootConfirm Confirm = ELDRootConfirm::None;
     ELDFrontendAttempt AppliedAttempt = ELDFrontendAttempt::None;
     bool bMenuOpen = false;

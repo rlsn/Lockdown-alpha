@@ -210,7 +210,7 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
     FName Table;
     if (!RegisterDisplayNames(*this, Content, Table)) { return false; }
     ON_SCOPE_EXIT { if (!Table.IsNone()) { FStringTableRegistry::Get().UnregisterStringTable(Table); } };
-    const auto Base = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, {}), *Catalog);
+    const auto Base = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}), *Catalog);
     if (!TestTrue(TEXT("The bare level-1 build projects"), Base.IsSuccess())) { return false; }
     LDHUD::FCardStats L1;
     L1.ADP2 = Base.Value->Final.ADP2;
@@ -291,22 +291,6 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
             Progression, &Content, L1);
         CheckFace(Attribute.Id, Card);
         TestTrue(Attribute.Id + TEXT(" shows each of its stat lines"), Card.SentencePlain.Len() > 0 && !Card.Name.IsEmpty());
-    }
-    // #184: every approved equipment passive, plain and upgraded, has a player line (the item, shop and attribute
-    // panels list them as "被动：..."), never the "未知效果 #n" fallback.
-    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
-    {
-        for (const bool bUpgraded : {false, true})
-        {
-            const TArray<FLDDemoEffectDefinition>* Effects = Item.HasPassive ? LDDemoEquipment::EffectivePassiveEffects(Item, bUpgraded) : nullptr;
-            if (!Effects) { continue; }
-            for (const FLDDemoEffectDefinition& Effect : *Effects)
-            {
-                const FString Line = LDHUD::EffectLine(Effect);
-                TestFalse(FString::Printf(TEXT("%s%s passive op %u has a display line: %s"), *Item.Id, bUpgraded ? TEXT(" (upgraded)") : TEXT(""),
-                    uint32(Effect.Opcode), *Line), Line.IsEmpty() || Line.StartsWith(TEXT("未知")));
-            }
-        }
     }
     return true;
 }

@@ -42,22 +42,17 @@ struct FLDAttributeBuildValues
 {
     // Every part is explicit; an empty array states that no such source is held.
     FLDAttributeBuildValues(uint8 InLevel, TArray<FLDLearnedPassiveValue> InLearnedPassives,
-        TArray<FLDAttributeCardValue> InAttributeCards, TArray<FString> InEquippedItems)
-        : Level(InLevel), LearnedPassives(MoveTemp(InLearnedPassives)),
-          AttributeCards(MoveTemp(InAttributeCards)), EquippedItems(MoveTemp(InEquippedItems)) {}
+        TArray<FLDAttributeCardValue> InAttributeCards)
+        : Level(InLevel), LearnedPassives(MoveTemp(InLearnedPassives)), AttributeCards(MoveTemp(InAttributeCards)) {}
 
     uint8 Level;
     // Passive definitions only, each listed once; learned actives carry no attributes.
     TArray<FLDLearnedPassiveValue> LearnedPassives;
     TArray<FLDAttributeCardValue> AttributeCards;
-    // Occupied equipment slots in slot order; the same definition may appear twice.
-    TArray<FString> EquippedItems;
-    // 112 §7: empty (nothing upgraded) or one flag per EquippedItems entry; an upgraded entry projects its upgraded stats.
-    TArray<bool> EquippedUpgraded;
     // #153: the chosen opening direction card, empty before the opening choice; its stats are a permanent choice term and
     // it counts as the opening choice in the choice budget.
     FString OpeningCard;
-    // DEV test layer (#78): one extra additive term per stat on top of base, growth, passives and equipment, reported
+    // DEV test layer (#78): one extra additive term per stat on top of base, growth, choices and passives, reported
     // as its own contribution row. Empty outside a DEV test session. Each stat at most once, nonnegative, never
     // ADBonusRatio; points in P2, ratios in basis points, range in Cm (Amount 0). A final value outside its catalog
     // bound refuses the projection exactly like any other source.
@@ -104,7 +99,6 @@ struct FLDAttributeContributions
     FLDAttributeTerms LevelGrowth;
     FLDAttributeTerms PermanentChoices;
     FLDAttributeTerms Passives;
-    FLDAttributeTerms Equipment;
     // The DEV test layer (FLDAttributeBuildValues::DevBonuses); zero outside a DEV test session.
     FLDAttributeTerms Dev;
     // Explicit wild-card deductions (positive magnitudes, #112 §4): (Base + Flats - Penalties.Flat) x (1 + Ratios -
@@ -139,16 +133,6 @@ struct FLDControlDamageAmpTerm
     int64 LowHPBelowBp = 0;
 };
 
-struct FLDEquipmentPassiveFamily
-{
-    FString Family;
-    FString EquipmentId;
-    // Ascending EquippedItems indices holding this family; the family still applies once.
-    TArray<int32> EquippedIndices;
-    // 112 §7: an upgraded holder takes precedence, so the family applies its upgraded terms once.
-    bool bUpgraded = false;
-};
-
 // A learned passive rank whose effects are combat triggers (thorns, cooldown refunds, crits, keyword stacks, shields)
 // rather than attribute terms; Combat reads the rank's effects through ALDCombatDirector::CollectPassiveEffects.
 struct FLDLearnedTriggerTerm
@@ -167,8 +151,6 @@ struct FLDAttributeProjection
     // Conditional passive terms; Combat applies them from body state, the build projection never adds them.
     TOptional<FLDLowHPBonusTerm> LowHPBonus;
     TOptional<FLDControlDamageAmpTerm> ControlAmp;
-    // One entry per family, sorted by family.
-    TArray<FLDEquipmentPassiveFamily> EquipmentPassives;
     // Learned combat-trigger passives at their learned rank, sorted by ability.
     TArray<FLDLearnedTriggerTerm> LearnedTriggers;
 };

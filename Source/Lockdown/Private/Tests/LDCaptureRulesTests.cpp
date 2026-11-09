@@ -950,7 +950,7 @@ bool FLDCaptureProviderGateTest::RunTest(const FString& Parameters)
     {
         LDMatchProviders::FScopedTestTable Empty({});
         TestEqual(TEXT("Normal start names every missing core provider"),
-            LDMatchProviders::MissingForStart(false), FString(TEXT("Combat, Progression, Shop, Camps")));
+            LDMatchProviders::MissingForStart(false), FString(TEXT("Combat, Progression, Camps")));
     }
     FLDMatchProviderHooks Plain;
     FLDMatchProviderHooks Levels;
@@ -959,20 +959,20 @@ bool FLDCaptureProviderGateTest::RunTest(const FString& Parameters)
     AI.Prepare = [](ALDGameMode&, const FLDMatchStartContext&, FString&) { return true; };
     {
         LDMatchProviders::FScopedTestTable Partial({{ELDMatchProvider::Combat, Plain}, {ELDMatchProvider::Progression, Plain},
-            {ELDMatchProvider::Shop, Plain}, {ELDMatchProvider::Camps, Plain}});
+            {ELDMatchProvider::Camps, Plain}});
         TestEqual(TEXT("Progression must provide committed final levels"),
             LDMatchProviders::MissingForStart(false), FString(TEXT("Progression")));
     }
     {
         LDMatchProviders::FScopedTestTable Wired({{ELDMatchProvider::Combat, Plain}, {ELDMatchProvider::Progression, Levels},
-            {ELDMatchProvider::Shop, Plain}, {ELDMatchProvider::Camps, Plain}});
+            {ELDMatchProvider::Camps, Plain}});
         TestTrue(TEXT("Wired core providers open a human-only start"), LDMatchProviders::MissingForStart(false).IsEmpty());
         TestEqual(TEXT("AI slots require the opponent AI provider"),
             LDMatchProviders::MissingForStart(true), FString(TEXT("OpponentAI")));
     }
     {
         LDMatchProviders::FScopedTestTable WithAI({{ELDMatchProvider::Combat, Plain}, {ELDMatchProvider::Progression, Levels},
-            {ELDMatchProvider::Shop, Plain}, {ELDMatchProvider::Camps, Plain}, {ELDMatchProvider::OpponentAI, AI}});
+            {ELDMatchProvider::Camps, Plain}, {ELDMatchProvider::OpponentAI, AI}});
         TestTrue(TEXT("An AI provider that binds slots satisfies the AI gate"), LDMatchProviders::MissingForStart(true).IsEmpty());
     }
     return true;

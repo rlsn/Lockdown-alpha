@@ -44,7 +44,7 @@ namespace
     const FLinearColor SectionColor(.55f,.86f,.92f);
     const FLinearColor MutedColor(.66f,.74f,.78f);
     const FLinearColor WarningColor(1.f,.78f,.55f);
-    constexpr int32 MainPanelCount=4;
+    constexpr int32 MainPanelCount=3;
 
     int32 MainPanelIndex(ELDUIMainPanel Panel)
     {
@@ -995,7 +995,7 @@ void ULDUIRoot::RegisterMainPanel(ELDUIMainPanel Panel,ULDPanel* Widget)
     const int32 Index=MainPanelIndex(Panel);
     if(Index==INDEX_NONE)
     {
-        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices, Shop and DevTest are registered panels."),int32(Panel));
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_MAIN_PANEL_REGISTRATION_REJECTED %d: only Attributes, Choices and DevTest are registered panels."),int32(Panel));
         return;
     }
     MainPanels[Index]=Widget;

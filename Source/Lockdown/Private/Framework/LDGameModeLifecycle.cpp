@@ -7,7 +7,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Components/CapsuleComponent.h"
 #include "Development/LDDemoContentCatalog.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
 #include "Region/LDMapRegistry.h"
 #include "Character/LDNativeMotionTypes.h"
@@ -81,8 +81,8 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
             return false;
         }
     }
-    // Growth/Shop: ledger, growth, equipment and shop directors for this match; roster setup is the provider Prepare.
-    if (!ALDEconomyDirector::SpawnDomain(*this,Spawn,Error))
+    // Growth: the growth and development directors for this match; roster setup is the provider Prepare.
+    if (!ALDGrowthDirector::SpawnDomain(*this,Spawn,Error))
     {
         RetireMatchDomains();
         return false;
@@ -128,8 +128,8 @@ void ALDGameMode::RetireMatchDomains()
     // and when RetireAuthorityCore ends a match for the next Lobby generation.
     if (Vision) { Vision->Destroy(); Vision=nullptr; }
     if (Combat) { Combat->Destroy(); Combat=nullptr; }
-    // Growth/Shop: the ledger, growth, equipment and shop directors of the retired match.
-    ALDEconomyDirector::RetireDomain(*this);
+    // Growth: the growth and development directors of the retired match.
+    ALDGrowthDirector::RetireDomain(*this);
     CaptureReducer.Reset();
     CaptureCircle={};
     DormZones={};

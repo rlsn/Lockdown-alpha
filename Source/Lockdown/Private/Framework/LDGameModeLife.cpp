@@ -428,11 +428,11 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     // Killer (credit owner), fatal source and assisters are appended after the original fields (docs/DEVELOPMENT.md).
     FString Assisters;
     for (const FGuid& Assister : Fact.Assisters) { Assisters += (Assisters.IsEmpty() ? TEXT("") : TEXT(",")) + LDLog::Id(Assister); }
-    UE_LOG(LogLDMatch, Display, TEXT("LD_DEATH_RECEIPT contender=%s life=%u respawn_at_ms=%lld t=%lld killer=%s cause=%s fatal=%s fatal_body=%s assisters=%s no_reward=%s victim_level=%u bounty=%lld"),
+    UE_LOG(LogLDMatch, Display, TEXT("LD_DEATH_RECEIPT contender=%s life=%u respawn_at_ms=%lld t=%lld killer=%s cause=%s fatal=%s fatal_body=%s assisters=%s no_reward=%s victim_level=%u"),
         *Fact.Key.Victim.EntityId.ToString(), Fact.Key.Victim.Life, RespawnAt, Fact.OccurredAtMs, *LDLog::Id(Fact.CreditOwner),
         *LDLog::EnumName(Died.KillCause), *LDLog::Source(Fact.ReleasedSource), *LDLog::Id(Fact.SourceBodyAtRelease.Victim.EntityId),
         Assisters.IsEmpty() ? TEXT("-") : *Assisters, *LDLog::EnumName(Fact.RewardBasis.NoRewardReason),
-        uint32(Fact.RewardBasis.VictimLevelAtDeath), Fact.RewardBasis.LeaderBountyGoldAtDeath);
+        uint32(Fact.RewardBasis.VictimLevelAtDeath));
     Error.Reset();
     return true;
 }

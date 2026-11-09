@@ -9,7 +9,7 @@ namespace
 {
     const TCHAR* const ArtAnimIds[] = { TEXT("Idle"), TEXT("Run"), TEXT("Attack"), TEXT("Cast"), TEXT("Hit"), TEXT("Death"), TEXT("Spawn") };
     static_assert(UE_ARRAY_COUNT(ArtAnimIds) == LDArt::AnimCount, "Every presentation state needs exactly one stable id.");
-    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("shop"), TEXT("blocker"), TEXT("ground") };
+    const TCHAR* const ArtZoneIds[] = { TEXT("outside"), TEXT("wall_base"), TEXT("capture"), TEXT("blocker"), TEXT("ground") };
     static_assert(UE_ARRAY_COUNT(ArtZoneIds) == int32(ELDArtZone::Count), "Every placement zone needs exactly one stable id.");
     // A flinch reads as a hit only if it ends before the next blow of a fast exchange.
     constexpr float ArtHitMaxSec = .3f;
@@ -211,7 +211,6 @@ bool ULDArtCatalog::Resolve(FLDArtResolved& Out, FString& Error) const
         Placed.Add(Decoration.Prop);
         Out.DecorationProps.Add(Prop);
         Out.DecorationTransforms.Add(Decoration.Transform);
-        if (Decoration.Zone == ELDArtZone::Shop) { Out.ShopModelBounds.Add(Prop->Mesh->GetBoundingBox().TransformBy(Decoration.Transform)); }
     }
     for (const FString& Blocker : HiddenBlockers)
     {

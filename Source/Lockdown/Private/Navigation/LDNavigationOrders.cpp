@@ -1114,29 +1114,6 @@ bool ULDNavigationComponent::AdmitOrder(ALDGameMode& Mode, ALDCharacter& Body, c
         Order.Goal=Order.Destination=Projected;
         Order.Acceptance=float(GoalAcceptanceCm);
     }
-    else if (Request.Kind==ELDSpatialOrderKind::ApproachShop)
-    {
-        const auto* Loaded=DemoContent();
-        const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-        const FLDMapBinding* Shop=Loaded && Registry && Loaded->Get().World.ShopIds.Contains(Request.ShopId.ToString())
-            ? Registry->Resolve(Request.ShopId,Registry->Generation) : nullptr;
-        if (!Shop) { Failure=ELDOrderFailure::ShopUnavailable; return false; }
-        FLDLegalGround From, Approach;
-        FLDCompletePath Path;
-        FCollisionShape Capsule;
-        if (!QueryPlanStart(From,Capsule,WorldFailure,Detail)
-            || !Registry->FindPublicApproach(Registry->Revision(),From,Request.ShopId,Capsule,Approach,Path,WorldFailure,Detail))
-        {
-            Failure=ELDOrderFailure::NoCompletePath;
-            UE_LOG(LogLDNav,Display,TEXT("LD_NAV_REJECT order=%u %s"),Request.Identity.Order,*Detail);
-            return false;
-        }
-        Order.Points=MoveTemp(Path.Points);
-        Order.Surface=Shop->Surface;
-        Order.Goal=Approach.SurfaceCm;
-        Order.ShopCentre=Shop->Position;
-        Order.Acceptance=float(LDPathSteering::WaypointToleranceCm);
-    }
     else if (Request.Kind==ELDSpatialOrderKind::CastPoint)
     {
         double ReachCm=0;
@@ -1227,22 +1204,6 @@ bool ULDNavigationComponent::AdvanceActive(ALDGameMode& Mode, ALDCharacter& Body
     const ELDSpatialOrderKind Kind=ActiveOrder->Request.Kind;
     if (Kind==ELDSpatialOrderKind::MoveGround) { return true; }
     if (Kind==ELDSpatialOrderKind::CastPoint) { return AdvanceCastPoint(Mode,Body,Permit,Error); }
-    if (Kind==ELDSpatialOrderKind::ApproachShop)
-    {
-        const auto* Registry=GetWorld()->GetSubsystem<ULDMapRegistry>();
-        bool bWithin=false;
-        ELDWorldQueryFailure Failure=ELDWorldQueryFailure::MissingWorld;
-        FString Detail;
-        if (Registry && Registry->QueryShopReach(Registry->Revision(),ActiveOrder->Request.ShopId,ALDCombatDirector::FootOf(Body),bWithin,Failure,Detail))
-        {
-            if (bWithin) { EndActive(ELDOrderStatus::Completed,ELDOrderFailure::None,true); }
-            return true;
-        }
-        if (Failure==ELDWorldQueryFailure::NotGrounded || Failure==ELDWorldQueryFailure::Blocked) { return true; }
-        UE_LOG(LogLDNav,Warning,TEXT("LD_NAV_SHOP_REACH_UNAVAILABLE %s"),*Detail);
-        EndActive(ELDOrderStatus::Cancelled,ELDOrderFailure::ShopUnavailable,true);
-        return true;
-    }
     if (!Mode.Vision || !Mode.Combat) { Error=TEXT("Attack orders require the current Vision and Combat owners."); return false; }
     if (ActiveOrder->bPinned)
     {
@@ -1601,12 +1562,6 @@ FVector ULDNavigationComponent::AuthoritySteering(const ALDCharacter& Body)
     else if (Order.Request.Kind==ELDSpatialOrderKind::CastPoint
         && FVector::DistSquared2D(Foot,Order.Destination)<=FMath::Square(Order.RangeCm))
     { return FVector::ZeroVector; }
-    else if (Order.Request.Kind==ELDSpatialOrderKind::ApproachShop && Order.PointIndex>=Order.Points.Num()-1
-        && FVector::DistSquared2D(Foot,Order.Points.Last())<=FMath::Square(LDPathSteering::WaypointToleranceCm))
-    {
-        // The approach endpoint lies on the interaction radius; ease inward until the shop reports reach.
-        return (Order.ShopCentre-Foot).GetSafeNormal2D()*.25;
-    }
     return LDPathSteering::Steering(Order.Points,Order.PointIndex,Body);
 }
 

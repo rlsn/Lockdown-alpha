@@ -87,24 +87,10 @@ FString LDDevPanel::HeldText(const FLearnRow& Row)
     return Row.Kind==TEXT("属性卡")?FString::Printf(TEXT("已有 %d 张"),Row.Held):FString::Printf(TEXT("%d 级"),Row.Held);
 }
 
-TArray<LDDevPanel::FItemRow> LDDevPanel::ItemRows(const FLDDemoContentDefinitions& Content)
+FString LDDevPanel::StatusLine(const FLDProgressionView* Progression)
 {
-    TArray<FItemRow> Rows;
-    for(const FLDDemoEquipmentDefinition& Item:Content.Equipment)
-    {
-        FItemRow& Row=Rows.AddDefaulted_GetRef();
-        Row.Id=FName(*Item.Id);Row.Name=LDHUD::ContentName(&Content,Item.Id);Row.Price=Item.BuyPrice;
-        Row.Traits=Item.HasPassive?TEXT("被动"):TEXT("属性");
-    }
-    return Rows;
-}
-
-FString LDDevPanel::StatusLine(const FLDProgressionView* Progression,const FLDEquipmentView* Equipment)
-{
-    const FString Level=Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · %s %lld · 未用选择机会 %d"),
+    return Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · %s %lld · 未用选择机会 %d"),
         int32(Progression->Level),LDTerms::Experience,Progression->CumulativeXP,int32(Progression->PendingChoiceCount)):FString(TEXT("等级 同步中"));
-    const FString Gold=Equipment&&Equipment->bValid?LDHUD::Gold(Equipment->Gold):FString(LDTerms::Gold)+TEXT(" 同步中");
-    return Level+TEXT(" · ")+Gold;
 }
 
 FString LDDevPanel::StatLabel(const LDDevTest::FStatField& Field)
@@ -119,15 +105,6 @@ FString LDDevPanel::AttributeLine(const FLDCombatOwnerView* Combat,uint8 Attribu
     if(!Row){return DevPanelSyncing;}
     const LDHUD::FAttributeRowView Shown=LDHUD::AttributeRow(*Row);
     return Shown.Breakdown.IsEmpty()?TEXT("当前 ")+Shown.Final:FString::Printf(TEXT("当前 %s（%s）"),*Shown.Final,*Shown.Breakdown);
-}
-
-FString LDDevPanel::SlotLine(const FLDEquipmentView* Equipment,const FLDDemoContentDefinitions* Content,uint8 SlotNumber)
-{
-    const FString Label=FString::Printf(TEXT("装备 %d："),int32(SlotNumber));
-    if(!Equipment||!Equipment->bValid){return Label+DevPanelSyncing;}
-    const FLDEquipmentSlotView* Slot=Equipment->Slots.FindByPredicate([SlotNumber](const FLDEquipmentSlotView& S){return S.SlotIndex+1==SlotNumber;});
-    if(!Slot){return Label+DevPanelSyncing;}
-    return Label+(Slot->bOccupied?LDHUD::ContentName(Content,Slot->DefinitionId.ToString()):FString(TEXT("空")));
 }
 
 FString LDDevPanel::ResultLine(const FLDDevTestResult& Result)
@@ -184,9 +161,6 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             UHorizontalBox* Line=Row();
             const auto XP=MakeBox(LDTerms::Experience,TEXT("DevTestXPAmount"));XPBox=XP.Key;Line->AddChildToHorizontalBox(XP.Value)->SetVerticalAlignment(VAlign_Center);
             AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantExperience),[this](){SendAmount(ELDDevTestOp::GrantExperience,XPBox->GetText().ToString());},TEXT("DevTestXP"));
-            const auto Gold=MakeBox(LDTerms::Gold,TEXT("DevTestGoldAmount"));GoldBox=Gold.Key;
-            Line->AddChildToHorizontalBox(Gold.Value)->SetPadding(FMargin(16,0,0,0));
-            AddButton(Line,LDDevTest::OpLabel(ELDDevTestOp::GrantGold),[this](){SendAmount(ELDDevTestOp::GrantGold,GoldBox->GetText().ToString());},TEXT("DevTestGold"));
         }
         {
             UHorizontalBox* Line=Row();
@@ -218,16 +192,6 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             UHorizontalBox* Line=Row();
             AddButton(Line,TEXT("清除全部测试属性"),[this](){Send(ELDDevTestOp::ClearAttributes);},TEXT("DevTestClearAttr"));
         }
-
-        Heading(FString(TEXT("装备（按目录价格，不用去"))+LDTerms::Shop+TEXT("）"));
-        for(uint8 SlotNumber=1;SlotNumber<=2;++SlotNumber)
-        {
-            UHorizontalBox* Line=Row();
-            SlotLines[SlotNumber-1]=MakeText(DevPanelSyncing,15,DevPanelBright,false);
-            Line->AddChildToHorizontalBox(SlotLines[SlotNumber-1])->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-            AddButton(Line,TEXT("出售"),[this,SlotNumber](){Send(ELDDevTestOp::SellItem,0,NAME_None,SlotNumber);},FName(*FString::Printf(TEXT("DevTestSell%d"),int32(SlotNumber))));
-        }
-        ItemList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(ItemList);
 
         Heading(TEXT("技能与属性卡（作为当前这次三选一的结果）"));
         LearnHint=MakeText(TEXT(""),13,DevPanelDim,true);Body->AddChildToVerticalBox(LearnHint)->SetPadding(FMargin(0,0,0,4));
@@ -272,7 +236,7 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
 {
     // Rows are built once from the catalog this process plays. A hot reload changes numbers only, never the ids, so
     // later presents refresh the texts in place and every stable button name keeps naming one widget.
-    if(bCatalogBuilt||!ItemList||!LearnList){return;}
+    if(bCatalogBuilt||!LearnList){return;}
     bCatalogBuilt=true;
     auto MakeText=[this](const FString& Value,int32 FontSize,const FLinearColor& TextColor)
     {
@@ -283,17 +247,6 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
         ULDCommandButton* Button=LDWidgets::Button(WidgetTree,Label,MoveTemp(Callback),false,FName(*Name));
         ScaleNewText(Cast<UTextBlock>(Button->GetContent()));return Button;
     };
-    ShownItems=LDDevPanel::ItemRows(Content);
-    for(int32 Index=0;Index<ShownItems.Num();++Index)
-    {
-        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();ItemList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
-        UTextBlock* Name=MakeText(TEXT(""),15,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        UTextBlock* Price=MakeText(TEXT(""),13,DevPanelSecondary);Line->AddChildToHorizontalBox(Price)->SetVerticalAlignment(VAlign_Center);
-        const FName Id=ShownItems[Index].Id;
-        Line->AddChildToHorizontalBox(MakeButton(TEXT("购买"),[this,Id](){Send(ELDDevTestOp::BuyItem,0,Id);},FString::Printf(TEXT("DevTestBuy%d"),Index)))
-            ->SetPadding(FMargin(8,0,0,0));
-        ItemNames.Add(Name);ItemPrices.Add(Price);
-    }
     ShownLearn=LDDevPanel::LearnRows(Content,nullptr);
     for(int32 Index=0;Index<ShownLearn.Num();++Index)
     {
@@ -319,28 +272,16 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
     }
 }
 
-void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDEquipmentView* Equipment,const FLDCombatOwnerView* Combat,
-    const FLDDemoContentDefinitions* Content,bool bHost)
+void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Content,bool bHost)
 {
     if(!MainPanel){return;}
     if(Content){BuildCatalog(*Content);}
-    if(Content)
-    {
-        const TArray<LDDevPanel::FItemRow> Items=LDDevPanel::ItemRows(*Content);
-        for(int32 Index=0;Index<Items.Num()&&Index<ShownItems.Num()&&Index<ItemNames.Num();++Index)
-        {
-            if(Items[Index].Id!=ShownItems[Index].Id){continue;}
-            DevPanelSetText(ItemNames[Index],Items[Index].Name);
-            DevPanelSetText(ItemPrices[Index],FString::Printf(TEXT("%s · %s"),*Items[Index].Traits,*LDHUD::Gold(Items[Index].Price)));
-        }
-    }
-    DevPanelSetText(StatusText,LDDevPanel::StatusLine(Progression,Equipment));
+    DevPanelSetText(StatusText,LDDevPanel::StatusLine(Progression));
     const TConstArrayView<LDDevTest::FStatField> Fields=LDDevTest::StatFields();
     for(int32 Index=0;Index<Fields.Num()&&Index<StatLines.Num();++Index)
     {
         DevPanelSetText(StatLines[Index],LDDevPanel::AttributeLine(Combat,Fields[Index].Attribute));
     }
-    for(uint8 SlotNumber=1;SlotNumber<=2;++SlotNumber){DevPanelSetText(SlotLines[SlotNumber-1],LDDevPanel::SlotLine(Equipment,Content,SlotNumber));}
     const bool bBothHeld=LDDevPanel::BothActiveSlotsHeld(Progression);
     const TArray<LDDevPanel::FLearnRow> Now=Content?LDDevPanel::LearnRows(*Content,Progression):TArray<LDDevPanel::FLearnRow>();
     for(int32 Index=0;Index<Now.Num()&&Index<ShownLearn.Num()&&Index<LearnHeld.Num()&&Index<LearnReplace.Num();++Index)

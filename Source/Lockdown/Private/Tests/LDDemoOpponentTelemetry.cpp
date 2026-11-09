@@ -6,8 +6,8 @@
 #include "Containers/Ticker.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Development/LDProgressionRules.h"
-#include "Economy/LDEconomyDirector.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -17,7 +17,6 @@
 #include "Framework/LDPlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
-#include "Inventory/LDInventoryDirector.h"
 #include "Misc/CommandLine.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
@@ -34,7 +33,7 @@ namespace LDDemoOpponentTelemetryDetail
 constexpr uint8 OpponentCount = 3;
 constexpr int64 CurveMs = 1000;
 constexpr int32 MaxMatches = 50;
-constexpr uint32 MatchSchema = 3;
+constexpr uint32 MatchSchema = 4;
 
 const TCHAR* KindName(ELDContenderKind Kind) { return Kind == ELDContenderKind::OpponentAI ? TEXT("OpponentAI") : TEXT("Human"); }
 
@@ -88,10 +87,7 @@ struct FLDTelemetryContender
     FString Name;
     ELDContenderKind Kind = ELDContenderKind::Human;
     int32 Slot = INDEX_NONE;
-    TArray<int64> CurveMs, Level, XP, Gold;
-    // Instances currently held; a new instance is a purchase and a vanished one a sale.
-    TMap<FGuid, FName> Held;
-    TArray<TSharedPtr<FJsonValue>> Purchases, Sales;
+    TArray<int64> CurveMs, Level, XP;
     // 112 §13: the build as last read, its first active and every active it replaced (a Q/W active that vanished).
     uint64 BuildRevision = 0;
     TArray<FLDLearnedSkillView> Skills;
@@ -221,13 +217,11 @@ public:
             Kill->SetArrayField(TEXT("assisters"), Assisters);
             Kills.Add(MakeShared<FJsonValueObject>(Kill));
         }
-        if (Mode.Economy) { TrackRewards(Mode.Economy->DevRecentRewards(), Now - StartedAtMs); }
+        if (Mode.Growth) { TrackRewards(Mode.Growth->DevRecentRewards(), Now - StartedAtMs); }
         const bool bCurve = Now - StartedAtMs >= NextCurveMs;
         if (bCurve) { NextCurveMs = (Now - StartedAtMs) / CurveMs * CurveMs + CurveMs; }
         for (FLDTelemetryContender& Row : Rows)
         {
-            const FLDEquipmentView Equipment = Mode.Inventory ? Mode.Inventory->ReadEquipment(Row.Contender) : FLDEquipmentView();
-            if (Equipment.bValid) { TrackItems(Row, Equipment, Now - StartedAtMs); }
             const FLDProgressionView Progression = Mode.Development ? Mode.Development->ReadProgression(Row.Contender)
                 : FLDProgressionView();
             if (Progression.bValid) { TrackBuild(Row, Progression, Now - StartedAtMs); }
@@ -235,39 +229,7 @@ public:
             Row.CurveMs.Add(Now - StartedAtMs);
             Row.Level.Add(Progression.bValid ? Progression.Level : -1);
             Row.XP.Add(Progression.bValid ? Progression.CumulativeXP : -1);
-            Row.Gold.Add(Equipment.bValid ? Equipment.Gold : -1);
         }
-    }
-
-    void TrackItems(FLDTelemetryContender& Row, const FLDEquipmentView& Equipment, int64 At)
-    {
-        TMap<FGuid, FName> Now;
-        for (const FLDEquipmentSlotView& Slot : Equipment.Slots)
-        {
-            if (!Slot.bOccupied) { continue; }
-            Now.Add(Slot.Instance, Slot.DefinitionId);
-            if (Row.Held.Contains(Slot.Instance)) { continue; }
-            const FLDDemoEquipmentDefinition* Definition = nullptr;
-            FString LookupError;
-            auto Purchase = MakeShared<FJsonObject>();
-            Purchase->SetNumberField(TEXT("t_ms"), double(At));
-            Purchase->SetStringField(TEXT("item"), Slot.DefinitionId.ToString());
-            Purchase->SetNumberField(TEXT("slot"), Slot.SlotIndex);
-            Purchase->SetNumberField(TEXT("price"), Content && Content->FindEquipment(Slot.DefinitionId.ToString(), Definition, LookupError)
-                && Definition ? double(Definition->BuyPrice) : -1.);
-            Purchase->SetNumberField(TEXT("gold_after"), double(Equipment.Gold));
-            Row.Purchases.Add(MakeShared<FJsonValueObject>(Purchase));
-        }
-        for (const TPair<FGuid, FName>& Pair : Row.Held)
-        {
-            if (Now.Contains(Pair.Key)) { continue; }
-            auto Sale = MakeShared<FJsonObject>();
-            Sale->SetNumberField(TEXT("t_ms"), double(At));
-            Sale->SetStringField(TEXT("item"), Pair.Value.ToString());
-            Sale->SetNumberField(TEXT("gold_after"), double(Equipment.Gold));
-            Row.Sales.Add(MakeShared<FJsonValueObject>(Sale));
-        }
-        Row.Held = MoveTemp(Now);
     }
 
     void TrackBuild(FLDTelemetryContender& Row, const FLDProgressionView& Progression, int64 At)
@@ -313,14 +275,12 @@ public:
             Death->SetStringField(TEXT("outcome"), OutcomeName(Reward.Outcome));
             const bool bGranted = Reward.Outcome == ELDRewardOutcome::Granted;
             Death->SetStringField(TEXT("killer"), bGranted ? Id(Reward.Recipient) : FString());
-            Death->SetNumberField(TEXT("killer_gold"), bGranted ? double(Reward.GoldDelta) : 0.);
             Death->SetNumberField(TEXT("killer_xp"), bGranted ? double(Reward.XPDelta) : 0.);
             TArray<TSharedPtr<FJsonValue>> Assists;
             for (const FLDRewardShareReceipt& Share : Reward.Assists)
             {
                 auto Part = MakeShared<FJsonObject>();
                 Part->SetStringField(TEXT("contender"), Id(Share.Recipient));
-                Part->SetNumberField(TEXT("gold"), double(Share.GoldDelta));
                 Part->SetNumberField(TEXT("xp"), double(Share.XPDelta));
                 Assists.Add(MakeShared<FJsonValueObject>(Part));
             }
@@ -402,13 +362,10 @@ public:
             Value->SetNumberField(TEXT("capture_resumes"), Hold ? Hold->Resumes : 0);
             Value->SetNumberField(TEXT("capture_paused"), Hold ? Hold->Paused : 0);
             Value->SetNumberField(TEXT("capture_lost"), Hold ? Hold->Lost : 0);
-            Value->SetArrayField(TEXT("purchases"), Row.Purchases);
-            Value->SetArrayField(TEXT("sales"), Row.Sales);
             auto Curve = MakeShared<FJsonObject>();
             Curve->SetArrayField(TEXT("t_ms"), Numbers(Row.CurveMs));
             Curve->SetArrayField(TEXT("level"), Numbers(Row.Level));
             Curve->SetArrayField(TEXT("xp"), Numbers(Row.XP));
-            Curve->SetArrayField(TEXT("gold"), Numbers(Row.Gold));
             Value->SetObjectField(TEXT("curve"), Curve);
             Contenders.Add(MakeShared<FJsonValueObject>(Value));
         }
@@ -494,17 +451,15 @@ bool FLDDemoOpponentTelemetry::Tick()
         if (View.Phase != ELDMatchPhase::Results) { return true; }
         const FLDResultView& Result = Public->MatchResult;
         if (Result.Generation != View.Generation || Result.ResultId != View.ResultId) { return true; }
-        // The closing step may have changed gold, items or the capture tally after the last sample.
+        // The closing step may have changed the build, the rewards or the capture tally after the last sample.
         Capture = Mode->DevCaptureTally();
         for (FLDTelemetryContender& Row : Rows)
         {
-            const FLDEquipmentView Equipment = Mode->Inventory ? Mode->Inventory->ReadEquipment(Row.Contender) : FLDEquipmentView();
-            if (Equipment.bValid) { TrackItems(Row, Equipment, Result.EndedAtMs - StartedAtMs); }
             const FLDProgressionView Progression = Mode->Development ? Mode->Development->ReadProgression(Row.Contender)
                 : FLDProgressionView();
             if (Progression.bValid) { TrackBuild(Row, Progression, Result.EndedAtMs - StartedAtMs); }
         }
-        if (Mode->Economy) { TrackRewards(Mode->Economy->DevRecentRewards(), Result.EndedAtMs - StartedAtMs); }
+        if (Mode->Growth) { TrackRewards(Mode->Growth->DevRecentRewards(), Result.EndedAtMs - StartedAtMs); }
         if (!WriteMatch(Result)) { return false; }
         ReturnSent = false;
         ReturnedAt = 0;

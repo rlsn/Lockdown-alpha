@@ -148,7 +148,6 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(result.catalog.parameter("STAT.HPRegen.Base"), {"unit": "hp/s", "numerator": 5, "denominator": 4})
         self.assertEqual(result.catalog.parameter("STAT.AttackSpeedPerLevelRatio"), {"unit": "ratio", "bp": 300})
         self.assertEqual(result.catalog.parameter("UNIT.BasicAttackWindupSec"), {"unit": "ms", "ms": 125})
-        self.assertEqual(result.catalog.definition("item_iron_plate")["sell_gold"], 25)
         self.assertEqual(result.catalog.data["progression"]["xp_to_next"],
                          (50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 190))
         self.assertEqual(result.catalog.definition("monster_guardian")["attack_interval_ms"], 1334)
@@ -217,9 +216,6 @@ class DemoContentImport(unittest.TestCase):
         # Only the advanced rank carries its qualitative change.
         self.assertEqual([effect["opcode"] for effect in bolt["ranks"][1]["effects"]], [1, 12, 73])
         self.assertEqual([effect["opcode"] for effect in guard["ranks"][1]["effects"]], [2, 37, 3, 76])
-        battery = self.baseline.catalog.definition("item_arcane_battery")
-        self.assertIsNone(battery["passive"])
-        self.assertNotIn("active", battery)
 
     def test_mutating_each_active_rank_field_changes_projected_value(self):
         baseline_bytes = (self.root / demo.CONTENT_SOURCE).read_bytes()
@@ -251,7 +247,7 @@ class DemoContentImport(unittest.TestCase):
             return value
 
         shuffled = reorder(self.author)
-        for key in ("abilities", "attributes", "equipment", "display"):
+        for key in ("abilities", "attributes", "display"):
             shuffled[key].reverse()
         shuffled["camps"]["monsters"].reverse()
         shuffled["camps"]["placements"].reverse()
@@ -270,9 +266,9 @@ class DemoContentImport(unittest.TestCase):
 
     def test_integer_above_double_precision_is_preserved_exactly(self):
         expected = 9007199254740993
-        self.edit(lambda data: data["parameters"].update({"REWARD.PlayerGold.Base": expected}))
+        self.edit(lambda data: data["parameters"].update({"AIRDROP.RewardXP": expected}))
         result = demo.compile_content(self.root)
-        self.assertEqual(result.catalog.parameter("REWARD.PlayerGold.Base"), expected)
+        self.assertEqual(result.catalog.parameter("AIRDROP.RewardXP"), expected)
         self.assertIn(str(expected).encode("ascii"), result.outputs[demo.CONTENT_OUTPUT])
 
     def test_root_manifest_covers_actual_bytes_and_has_no_self_hash(self):
@@ -351,12 +347,12 @@ class DemoContentImport(unittest.TestCase):
     def test_bad_counts_revisions_ids_and_ranks_never_accept_bool(self):
         mutations = (
             lambda data: data["identity"].update(schema_version=True),
-            lambda data: data["parameters"].update({"SHOP.UpgradeCost": True}),
-            lambda data: data["equipment"][0].update(buy_price=True),
+            lambda data: data["parameters"].update({"AIRDROP.RewardXP": True}),
+            lambda data: data["boss"].update(reward_xp=True),
             lambda data: data["abilities"][0]["ranks"][0].update(rank=True),
             lambda data: data["camps"]["monsters"][0].update(count_per_camp=True),
             lambda data: data["progression"].update(max_level=True),
-            lambda data: data["parameters"].update({"SHOP.UpgradeCost": 1.0}),
+            lambda data: data["parameters"].update({"AIRDROP.RewardXP": 1.0}),
             lambda data: data["abilities"][0].update(draftable=1),
         )
         for mutation in mutations:
@@ -366,10 +362,10 @@ class DemoContentImport(unittest.TestCase):
 
     def test_integer_overflow_and_checked_multiply_refuse(self):
         mutations = (
-            lambda data: data["equipment"][0].update(buy_price=demo.INT64_MAX),
+            lambda data: data["camps"]["monsters"][0].update(reward_xp=demo.INT64_MAX),
             lambda data: data["parameters"].update({"XP.BaseToNext": demo.INT64_MAX}),
-            lambda data: data["parameters"].update({"REWARD.PlayerGold.PerLevel": demo.INT64_MAX}),
-            lambda data: data["parameters"].update({"SHOP.StartingGold": demo.INT64_MAX + 1}),
+            lambda data: data["parameters"].update({"REWARD.PlayerXP.PerLevel": demo.INT64_MAX}),
+            lambda data: data["parameters"].update({"AIRDROP.RewardXP": demo.INT64_MAX + 1}),
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=demo.INT64_MAX),
         )
         for mutation in mutations:
@@ -400,7 +396,6 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["parameters"].update({"CAMP.Low.AggroRadiusCm": {"unit": "cm", "value": 0}}),
             lambda data: data["abilities"][0]["ranks"][0].update(extra=1),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(hidden_legacy_fallback=True),
-            lambda data: data["equipment"][0]["passive"].update(range={"unit": "cm", "value": 120}),
             lambda data: data["character"]["dash"].update(windup={"unit": "s", "value": 0}),
         ):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
@@ -411,8 +406,8 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["abilities"][0].update(id="unknown_ability"),
             lambda data: data["abilities"][0].update(id="snark_bolt"),
-            lambda data: data["equipment"][0].update(id="ItemIronPlate"),
-            lambda data: data["equipment"][0].update(id=data["equipment"][1]["id"]),
+            lambda data: data["attributes"][0].update(id="AttrProtein"),
+            lambda data: data["attributes"][0].update(id=data["attributes"][1]["id"]),
             lambda data: data["abilities"][0]["ranks"][0]["effects"][0].update(op="legacy_damage"),
             lambda data: data["abilities"][0]["ranks"][0]["effects"].append(deepcopy(data["abilities"][0]["ranks"][0]["effects"][0])),
             lambda data: data["abilities"][1]["ranks"][0]["effects"].pop(),
@@ -432,8 +427,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"].update(active_arc_bolt=62),
             lambda data: data["retired_ranges"].update(abilities=[[0, 90]]),
             lambda data: data["retired_ranges"].update(attributes=[[0, 13]]),
-            lambda data: data["retired_ranges"].update(equipment=[[0, 98], [107, 107]]),
-            lambda data: data["retired_ranges"].update(equipment=[0, 98]),
+            lambda data: data["retired_ranges"].update(attributes=[0, 14]),
             lambda data: data["retired_ranges"].update(effect_ops=[[6, 6]]),
             lambda data: data["retired_ranges"].pop("statuses"),
             lambda data: data["effect_ops"].update(dot=42),
@@ -467,15 +461,7 @@ class DemoContentImport(unittest.TestCase):
         for mutation in (
             lambda data: data["abilities"][0].update(target={"mode": "Self"}),
             lambda data: data["abilities"][0].update(cooldown_family="unknown_family"),
-            lambda data: data["equipment"][3]["passive"].update(family="passive_cleave"),
             lambda data: data["abilities"][3]["ranks"][0]["effects"][0].update(stats={"ADFlat": {"unit": "points", "value": 1}}),
-            lambda data: data["equipment"][5].update(active=None),
-            lambda data: data["equipment"][5].update(passive=deepcopy(data["equipment"][0]["passive"])),
-            lambda data: data["equipment"][4].update(passive=None),
-            lambda data: data["equipment"][4]["passive"].update(family="passive_cleave"),
-            lambda data: data["equipment"][4]["passive"]["effects"][0].update(cooldown_ratio={"unit": "ratio", "value": 0}),
-            lambda data: data["equipment"][4]["passive"]["effects"][0].update(
-                cooldown_ratio={"unit": "ratio", "value": 1}, distance_bonus={"unit": "ratio", "value": 0}),
             lambda data: data["character"].pop("dash"),
             lambda data: data["character"]["dash"].update(distance={"unit": "cm", "value": 0}),
             lambda data: data["character"]["dash"].update(duration=deepcopy(data["character"]["dash"]["cooldown"])),
@@ -487,7 +473,6 @@ class DemoContentImport(unittest.TestCase):
     def test_known_but_undeclared_stats_and_penalties_refuse(self):
         for mutation in (
             lambda data: data["attributes"][0].update(stats={"CritChanceBonusRatio": {"unit": "ratio", "value": 0.5}}),
-            lambda data: data["equipment"][0]["stats"].update(APFlat={"unit": "points", "value": 1}),
             lambda data: data["attributes"][0].update(penalties={"MaxHPFlat": {"unit": "hp", "value": 5}}),
             lambda data: data["attributes"][5].pop("penalties"),
             lambda data: data["attributes"][5].update(penalties={"AttackRangeCmFlat": {"unit": "cm", "value": 5}}),
@@ -536,7 +521,6 @@ class DemoContentImport(unittest.TestCase):
             (lambda data: data["parameters"]["CHOICE.AttributeQuality.GoldMultiplier"].update(value=0), "InvalidPolicy"),
             (lambda data: data["parameters"].pop("CHOICE.AttributeQuality.BlueChance"), "MissingField"),
             (lambda data: data["abilities"][0].update(tags=["Mobility"]), "UnknownField|SchemaVariant"),
-            (lambda data: data["equipment"][0].update(tags=["Tank"]), "UnknownField"),
             (lambda data: data["abilities"][0].pop("draftable"), "MissingField|SchemaVariant"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxHPRatioPerSec"].update(value=0), "NumericDomain"),
             (lambda data: data["parameters"]["REGEN.OutOfCombatMaxMPRatioPerSec"].update(value=0.0155), "NumericDomain"),
@@ -554,12 +538,11 @@ class DemoContentImport(unittest.TestCase):
                 else:
                     self.assert_refused(mutation, code)
 
-    def test_build_bounds_zero_gain_arbitrage_and_xp_consistency_refuse(self):
+    def test_build_bounds_zero_gain_and_xp_consistency_refuse(self):
         for mutation in (
             lambda data: data["parameters"]["STAT.MaxHP.Max"].update(value=150),
             lambda data: data["parameters"]["STAT.MaxHP.Min"].update(value=200),
             lambda data: data["attributes"][0]["stats"]["ADFlat"].update(value=0),
-            lambda data: data["parameters"]["SHOP.SellRatio"].update(value=1),
             lambda data: data["progression"]["xp_thresholds"].__setitem__(4, 259),
             lambda data: data["formulas"]["ResistanceScale"].update(value=0),
         ):
@@ -678,7 +661,7 @@ class DemoContentImport(unittest.TestCase):
         geometry = DemoWorld.Geometry(world_fixture())
         rows = {row["id"]: row for row in author["anchors"]}
         target = next(identity for identity, row in rows.items() if row["kind"] == kind)
-        body, camp_clear, shop_reach, dorm_reach = 40, author["geometry"]["camp_clearance_cm"], 600, 400
+        body, camp_clear, dorm_reach = 40, author["geometry"]["camp_clearance_cm"], 400
 
         def at(identity):
             p = rows[identity]["position_cm"]
@@ -699,7 +682,6 @@ class DemoContentImport(unittest.TestCase):
             return all(math.dist(p[:2], c[:2]) > r for c, r in others)
 
         capture = (at("capture"), 300 + zone)
-        shops = [(at(i), shop_reach + zone) for i, r in rows.items() if r["kind"] == "Shop"]
         camps = [(at(i), camp_clear + zone) for i, r in rows.items() if r["kind"] == "Camp"]
         events = [(at(i), (dorm_reach if r["kind"] == "Dorm" else 150) + zone) for i, r in rows.items()
                   if r["kind"] in ("Dorm", "Airdrop") and i != target]
@@ -721,21 +703,21 @@ class DemoContentImport(unittest.TestCase):
                     p = (c["x"] + row["radius_cm"] + body + 20, c["y"], c["z"])
                     q = tuple(Fraction(v) for v in p)
                     if (geometry.legal(q, Fraction(body)) and not geometry.legal(q, Fraction(body + zone))
-                            and apart(p, [capture] + shops + camps + events)):
+                            and apart(p, [capture] + camps + events)):
                         yield p
 
         label = kind.lower()
-        on_capture = first([near(capture[0], capture[1], lambda p: apart(p, shops + camps + events))])
-        by_camp = first(near(c[0], c[1], lambda p: apart(p, [capture] + shops + events)) for c in camps)
+        on_capture = first([near(capture[0], capture[1], lambda p: apart(p, camps + events))])
+        by_camp = first(near(c[0], c[1], lambda p: apart(p, [capture] + events)) for c in camps)
         cases = [
             (lambda data: data.update(anchors=[row for row in data["anchors"] if row["kind"] != kind]),
              f"expected 1..[0-9]+ {kind} anchors, found 0"),
             (move(first(against_tree())), f"{label} disk lacks legal capsule support"),
-            (move(on_capture), f"{label} disk overlaps the capture or shop disk"),
+            (move(on_capture), f"{label} disk overlaps the capture disk"),
             (move(by_camp), f"{label} disk overlaps a camp clearing"),
         ]
         if events:
-            cases.append((move(first(near(c[0], c[1], lambda p: apart(p, [capture] + shops + camps)) for c in events)),
+            cases.append((move(first(near(c[0], c[1], lambda p: apart(p, [capture] + camps)) for c in events)),
                           "disk overlaps another event disk"))
         return cases
 
@@ -750,13 +732,13 @@ class DemoContentImport(unittest.TestCase):
             self.assert_outputs_equal()
 
     def test_dorm_disks_must_be_legal_ground_apart_from_other_zones(self):
-        # D21 (#79): each dorm disk stands on legal ground and keeps apart from the capture circle, the shop disks,
+        # D21 (#79): each dorm disk stands on legal ground and keeps apart from the capture circle,
         # every camp clearing and every other event disk.
         self.check_zone_cases(self.zone_cases("Dorm", 400))
 
     def test_airdrop_points_must_be_legal_ground_apart_from_other_zones(self):
-        # D26 (#79): each airdrop pickup disk stands on legal ground and keeps apart from the capture circle, the
-        # shop disks, every camp clearing and every other event disk.
+        # D26 (#79): each airdrop pickup disk stands on legal ground and keeps apart from the capture circle,
+        # every camp clearing and every other event disk.
         self.check_zone_cases(self.zone_cases("Airdrop", 150))
 
     def test_exact_file_bytes_including_newlines_are_required(self):
@@ -796,7 +778,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertIn("StaleOutput", err.getvalue())
 
     def test_successful_transaction_updates_exact_set_then_is_noop(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         installed = []
         install = sync._install_output
@@ -815,7 +797,7 @@ class DemoContentImport(unittest.TestCase):
             sync.write_outputs(self.root, compilation)
 
     def test_staging_failure_never_overwrites_existing_outputs(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         for failure_at in range(1, 7):
             stage, count = sync._stage, 0
@@ -834,7 +816,7 @@ class DemoContentImport(unittest.TestCase):
             self.assertFalse((self.root / demo.DATA / ".compile.lock").exists())
 
     def test_each_commit_failure_rolls_back_all_installed_files(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         install = sync._install_output
         for failure_at in (1, 2, 3):
@@ -872,7 +854,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertTrue((self.root / demo.WORLD_OUTPUT).is_file())
 
     def test_partial_in_place_write_failure_restores_original_bytes(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
 
         def fail(protected, raw):
@@ -885,7 +867,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertFalse((self.root / demo.DATA / ".compile.lock").exists())
 
     def test_source_changed_before_protection_is_preserved(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         source = self.root / demo.CONTENT_SOURCE
         changed = source.read_bytes() + b"\n"
@@ -896,7 +878,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(source.read_bytes(), changed)
 
     def test_edit_between_snapshot_and_handle_acquisition_is_preserved(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         open_output = sync._open_output
         external = b"external owner edit\n"
@@ -913,7 +895,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual((self.root / demo.MANIFEST_OUTPUT).read_bytes(), self.baseline.outputs[demo.MANIFEST_OUTPUT])
 
     def test_actual_editor_save_between_comparison_and_first_write_is_blocked(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         install = sync._install_output
         candidate = self.root / "editor-candidate.tmp"
@@ -937,7 +919,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_outputs_equal(compilation.outputs)
 
     def test_other_process_cannot_edit_first_output_during_second_write_or_inputs(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         install, count = sync._install_output, 0
         candidate = self.root / "editor-candidate.tmp"
@@ -1006,7 +988,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_outputs_equal(compilation.outputs)
 
     def test_protection_covers_cleanup_and_unlock_until_commit_point(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         unlock = sync._remove_lock
         attempts = []
@@ -1026,7 +1008,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual((self.root / demo.CONTENT_OUTPUT).read_bytes(), b"legitimate edit after the commit point")
 
     def test_rollback_handle_excludes_editor_saves(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         install, restore, count = sync._install_output, sync._restore_output, 0
         candidate = self.root / "editor-rollback.tmp"
@@ -1054,7 +1036,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_outputs_equal()
 
     def test_existing_writer_handle_causes_refusal_before_any_install(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         with (self.root / demo.CONTENT_OUTPUT).open("r+b"):
             with patch.object(sync, "_install_output", side_effect=AssertionError("installed despite a live writer")):
@@ -1093,7 +1075,7 @@ class DemoContentImport(unittest.TestCase):
                     path.write_bytes(path.read_bytes() + b"\n")
                     (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
                 else:
-                    self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+                    self.edit(lambda data: data["boss"].update(reward_xp=31))
                 compilation = demo.compile_content(self.root)
                 open_output, cleanup = sync._open_output, sync._remove_transaction
                 held = {}
@@ -1119,7 +1101,7 @@ class DemoContentImport(unittest.TestCase):
                 self.assertEqual(base64.b64decode(journal["conflicts"][str(demo.CONTENT_OUTPUT)]), external)
 
     def test_backup_cleanup_failure_retains_every_original_and_rolls_back(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
 
         def fail(transaction):
@@ -1132,7 +1114,7 @@ class DemoContentImport(unittest.TestCase):
         self.assertEqual(self.assert_recovery_originals()["phase"], "rolled_back_cleanup_failed")
 
     def test_cleanup_error_after_all_backup_files_deleted_keeps_originals(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         cleanup = sync._remove_transaction
 
@@ -1147,7 +1129,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_recovery_originals()
 
     def test_lock_removal_failure_restores_outputs_even_after_backup_cleanup(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         with patch.object(sync, "_remove_lock", side_effect=OSError("injected lock removal failure")):
             with self.assertRaisesRegex(demo.ContentError, "RecoveryRequired"):
@@ -1157,7 +1139,7 @@ class DemoContentImport(unittest.TestCase):
         self.assert_recovery_originals()
 
     def test_actual_windows_readonly_lock_cleanup_failure_is_recoverable(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         unlock = sync._remove_lock
         lock_path = self.root / demo.DATA / ".compile.lock"
@@ -1176,7 +1158,7 @@ class DemoContentImport(unittest.TestCase):
                 lock_path.chmod(stat.S_IREAD | stat.S_IWRITE)
 
     def test_error_after_unlock_recreates_recovery_journal_before_releasing_outputs(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         unlock = sync._remove_lock
 
@@ -1201,7 +1183,7 @@ class DemoContentImport(unittest.TestCase):
             sync.synchronize(self.root, check=True)
 
     def test_backup_recovery_record_survives_unavailable_primary_lock(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         unlock = sync._remove_lock
 
@@ -1224,7 +1206,7 @@ class DemoContentImport(unittest.TestCase):
             sync.synchronize(self.root, check=True)
 
     def test_handle_cleanup_failure_is_explicitly_committed_and_releases_handles(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         close = sync._ProtectedFile.close
         failed = False
@@ -1279,7 +1261,7 @@ class DemoContentImport(unittest.TestCase):
             protected.close()
 
     def test_cleanup_plus_rollback_failure_blocks_retry_even_when_new_bytes_match(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         with patch.object(sync, "_remove_lock", side_effect=OSError("unlock failure")), \
                 patch.object(sync, "_restore_output", side_effect=OSError("rollback device failure")):
@@ -1291,7 +1273,7 @@ class DemoContentImport(unittest.TestCase):
             sync.write_outputs(self.root, compilation)
 
     def test_unrecoverable_io_preserves_originals_and_blocks_another_generation(self):
-        self.edit(lambda data: data["equipment"][0].update(buy_price=53))
+        self.edit(lambda data: data["boss"].update(reward_xp=31))
         compilation = demo.compile_content(self.root)
         install, count = sync._install_output, 0
 

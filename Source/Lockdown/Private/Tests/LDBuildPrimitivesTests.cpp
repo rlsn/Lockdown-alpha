@@ -433,21 +433,14 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     const FLDObservedStatus* Burning = FFixture::FindStatus(Statuses, ELDDemoStatusId::Burn);
     TestTrue(TEXT("Observers see breach x5 and burn x3"), Exposed && Exposed->Stacks == 5 && Burning && Burning->Stacks == 3
         && Burning->ExpiresAtServerMs == 4000);
-    // #147 decision 9: A's item_megaphone adds its dot ratio to A's own burn damage through the damage bonus pool.
-    FLDEquipmentPassiveFamily Megaphone;
-    Megaphone.Family = TEXT("passive_megaphone");
-    Megaphone.EquipmentId = TEXT("item_megaphone");
-    Megaphone.EquippedIndices = {0};
-    F.Body(A).AttributeProjection.EquipmentPassives.Add(Megaphone);
     F.Now(1500);
     TestTrue(FString::Printf(TEXT("The first tick: %s"), *Error), FAccess::AdvanceBurns(*F.Driver, 1500, Error));
     const TArray<FLDCombatHit>& Ticks = FAccess::PendingHits(*F.Driver);
     TestTrue(TEXT("One magic tick per applier, never a crit or on-hit"), Ticks.Num() == 2 && Ticks[0].SourceEntity == A.Victim.EntityId
         && Ticks[0].BaseP2 == 300 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 300 && Ticks[0].bBurnTick
         && Ticks[0].bPeriodic && Ticks[0].OnHitScaleBp == 0 && Ticks[0].DamageType == ELDDemoDamageType::Magical);
-    TestTrue(TEXT("Only the megaphone holder's burn takes its +25%"), Ticks[0].ExtraAmplifyBp == 12500 && Ticks[1].ExtraAmplifyBp == 10000);
-    TestTrue(TEXT("The ticks land, A's amplified in the pool"), F.Flush(Error) && Body.Resources.HpP2 == 89325 && Body.Burn.NextTickAtMs == 2000);
-    F.Body(A).AttributeProjection.EquipmentPassives.Reset();
+    TestTrue(TEXT("No burn amplification without an affliction passive"), Ticks[0].ExtraAmplifyBp == 10000 && Ticks[1].ExtraAmplifyBp == 10000);
+    TestTrue(TEXT("The ticks land: 3.00 each"), F.Flush(Error) && Body.Resources.HpP2 == 89400 && Body.Burn.NextTickAtMs == 2000);
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
     TestTrue(TEXT("A leaving applier's layers end; the shared breach stays"), Body.Burn.Layers.Num() == 1 && Body.SharedBreach.Stacks == 5);
     Hit.BurnStacks = 6;
@@ -668,7 +661,7 @@ bool FLDBuildEmpowerChargesTest::RunTest(const FString& Parameters)
     if (!F.Init(*this)) { return false; }
     const FLDCombatBodyRef Attacker = F.AddBody(), Camp = F.AddBody(ELDVictimKind::CampMember);
     FLDBodyCombatState& Body = F.Body(Attacker);
-    FLDAttributeBuildValues Empty(1, {}, {}, {});
+    FLDAttributeBuildValues Empty(1, {}, {});
     const FLDAttributeProjectionResult Base = LDAttributeProjection::Project(Empty, *F.Catalog);
     if (!TestTrue(TEXT("A level-1 projection"), Base.IsSuccess())) { return false; }
     Body.BuildProjection = Body.AttributeProjection = Base.Value.GetValue();
@@ -852,7 +845,7 @@ bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
     Hit.GuardMultiplierBp=-1;
     TestFalse(TEXT("Negative mitigation is refused"),LDTactical::EvaluateDamage(Hit,*Catalog).IsSuccess());
 
-    FLDAttributeBuildValues Values(16,{}, {FLDAttributeCardValue(TEXT("attr_fast_hands"),15)}, {});
+    FLDAttributeBuildValues Values(16,{}, {FLDAttributeCardValue(TEXT("attr_fast_hands"),15)});
     Values.OpeningCard=TEXT("opening_athlete");
     const auto Build=LDAttributeProjection::Project(Values,*Catalog);
     if (!TestTrue(TEXT("Sixteen legal choices project"),Build.IsSuccess())) { return false; }

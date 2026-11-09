@@ -10,10 +10,10 @@ class UWorld;
 
 // DEV-only growth fixture for owned-connection scenarios. It exists only in builds with automation tests, acts only on
 // the authority of a process started with -LDDevGrowthFixture and has no RPC: a Host DEV probe calls
-// LDDevGrowthFixture::StageOffer in the Lobby, ALDDevelopmentDirector::DevQueueOffer and ALDEconomyDirector::DevGrantReward
+// LDDevGrowthFixture::StageOffer in the Lobby, ALDDevelopmentDirector::DevQueueOffer and ALDGrowthDirector::DevGrantReward
 // in an open match, directly on the game thread.
 // It never changes how an offer is chosen or a reward is committed, and it is not a play mode.
-// The same switch admits the owner-only DEV test commands (LDDevTestProtocol.h, ALDEconomyDirector::QueueDevTest): the
+// The same switch admits the owner-only DEV test commands (LDDevTestProtocol.h, ALDGrowthDirector::QueueDevTest): the
 // fixture entries above stay Host-only, while a DEV test command reaches the authority through its owning connection's RPC
 // and only ever acts on that connection's own contender.
 enum class ELDDevGrantStatus : uint8

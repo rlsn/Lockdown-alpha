@@ -28,7 +28,7 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs")},
         TEXT("The public airdrop names only its public point and landing"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
-    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs"),TEXT("BountyGold")},
+    ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs")},
         TEXT("The public leader notice names only the leader, a fuzzy circle and the bounty"));
     // D26: the Boss view names only its phase, its appearance time and the last hit; its body is under fog of war.
     ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},

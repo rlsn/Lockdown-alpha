@@ -252,19 +252,19 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
     const FLDDemoContentDefinitions& D = Catalog->Get();
     const FLDDemoBossDefinition& Rules = D.Boss;
 
-    // 1. The approved values (#79 "已批准决定"): 300 流量 + 250 米 through the monster_dean DeathReward, and 吃到大饼 =
+    // 1. The approved values (#79 "已批准决定"; gold removed in #144): 300 流量 through the monster_dean DeathReward, and 吃到大饼 =
     //    AD +25%, AP +25%, move speed +10% for 90 s.
     const FLDDemoMonsterDefinition* Row = D.Monsters.FindByPredicate(
         [&Rules](const FLDDemoMonsterDefinition& M) { return M.Id == Rules.Id; });
     bool bGood = TestTrue(TEXT("The Boss is the monster_dean row of the Boss tier"),
         Rules.Id == TEXT("monster_dean") && Row && Row->Tier == ELDDemoCampTier::Boss);
     LDProgression::FRewardAmounts Amounts;
-    bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP and 250 gold"),
+    bGood &= TestTrue(TEXT("The last hit's DeathReward is the approved 300 XP"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 0, Amounts) == ELDGrowthReason::None
-        && Amounts.XP == 300 && Amounts.Gold == 250);
+        && Amounts.XP == 300);
     bGood &= TestTrue(TEXT("The Boss is not a camp and never takes a camp growth stage"),
         LDProgression::MonsterKillReward(*Catalog, FName(*Rules.Id), 1, Amounts) == ELDGrowthReason::DataInvalid
-        && Amounts.XP == 0 && Amounts.Gold == 0);
+        && Amounts.XP == 0);
     bGood &= TestTrue(TEXT("The approved buff is AD +25%, AP +25% and move speed +10% for 90 s"),
         Rules.ApprovalDurationMs == 90000 && Rules.ApprovalStats.Num() == 3
         && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::ADBonusRatio) == 2500
@@ -272,7 +272,7 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
         && StatOf(Rules.ApprovalStats, ELDDemoBonusStat::MoveSpeedBonusRatio) == 1000);
 
     // 2. The authority grant, in a real DeathsAndRewards boundary.
-    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}, {}), *Catalog);
+    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(FLDAttributeBuildValues(1, {}, {}), *Catalog);
     if (!TestTrue(TEXT("A level-1 contender projects"), Projected.IsSuccess())) { return false; }
     const FLDAttributeProjection& Base = Projected.Value.GetValue();
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)

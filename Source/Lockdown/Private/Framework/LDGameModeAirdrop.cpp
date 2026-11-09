@@ -3,7 +3,7 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthProtocol.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 
 // D26 (#79): the airdrop. The schedule and claim selection are the pure FLDAirdropState / LDAirdrop rules; this file
 // only drives them: the schedule at the RespawnsAndWorld boundary, then the claim in the same step's Transactions phase
@@ -36,7 +36,7 @@ bool ALDGameMode::AdvanceAirdrop(const FLDGameplayWritePermit& Permit, FString& 
 bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None || !Airdrop.IsActive()
-        || !Combat || !Economy || !DemoContent)
+        || !Combat || !Growth || !DemoContent)
     {
         Error = TEXT("The airdrop claim requires the current Transactions permit, an active schedule, Combat and the growth domain.");
         return false;
@@ -52,8 +52,8 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
     const auto& Parameters = DemoContent->Get().Parameters;
     FLDRewardReceipt Receipt;
     ELDGrowthReason Reason = ELDGrowthReason::None;
-    const ELDRewardOutcome Outcome = Economy->CommitEventReward(Claimer, TEXT("airdrop"), Airdrop.Serial,
-        Parameters.AirdropRewardXP, Parameters.AirdropRewardGold, Permit, Receipt, Reason);
+    const ELDRewardOutcome Outcome = Growth->CommitEventReward(Claimer, TEXT("airdrop"), Airdrop.Serial,
+        Parameters.AirdropRewardXP, Permit, Receipt, Reason);
     if (Outcome == ELDRewardOutcome::RetryableNotCommitted)
     {
         // Nothing was installed; the drop stays on the ground for the next boundary's first toucher.
@@ -68,7 +68,7 @@ bool ALDGameMode::ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Er
         return false;
     }
     bPublicMatchDirty = true;
-    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld gold=%lld at_ms=%lld"),
-        Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, Receipt.GoldDelta, NowMs);
+    UE_LOG(LogLDWorld, Display, TEXT("LD_AIRDROP_CLAIM serial=%llu point=%s contender=%s xp=%lld at_ms=%lld"),
+        Airdrop.Serial, *Point->Id.ToString(), *Claimer.ToString(), Receipt.XPDelta, NowMs);
     return true;
 }

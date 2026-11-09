@@ -44,7 +44,7 @@ public:
     bool IsReplacementTarget(uint8 SkillSlot) const;
     // Submits the chosen card (or the chosen replacement); a card click and a slot click both end here.
     void ConfirmChoice();
-    // 112 §6: spends one free reroll on the shown offer (one per offer, never paid with gold).
+    // 112 §6: spends one free reroll on the shown offer (one per offer).
     bool Reroll();
     virtual bool IsPanelOpen() const override {return bOpen;}
     virtual void OpenPanel() override;

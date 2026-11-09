@@ -77,8 +77,8 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     { return FailCaptureView(Error, TEXT("The Boss view does not match its phase or the match clock.")); }
     const FLDLeaderView& Named = View.Leader;
     if (Named.Leader.IsValid() ? (Named.CircleCentreCm.ContainsNaN() || Named.RefreshedAtMs <= View.StartedAtMs
-            || Named.RefreshedAtMs > View.ServerNowMs || Named.BountyGold <= 0)
-        : (Named.RefreshedAtMs != 0 || Named.BountyGold != 0 || !Named.CircleCentreCm.IsZero()))
+            || Named.RefreshedAtMs > View.ServerNowMs)
+        : (Named.RefreshedAtMs != 0 || !Named.CircleCentreCm.IsZero()))
     { return FailCaptureView(Error, TEXT("The leader notice does not match its leader or the match clock.")); }
     switch (View.Phase)
     {

@@ -310,13 +310,14 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertNotIn("TEST ONLY", approval["decision"])
         self.assertIn("camera 2250", approval["decision"])
         for text in ("2026-11-07 movement -25%", "flagpole 180s", "vision/leash 1050", "#147 build v7",
-                     "2026-11-08 #166 level 16/QWE", "#97 camp growth stages, Elite camp tier", "Equipment excluded"):
+                     "2026-11-08 #166 level 16/QWE", "#97 camp growth stages, Elite camp tier",
+                     "2026-11-09 #144 equipment, gold and shops removed"):
             self.assertIn(text, approval["decision"])
-        self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["equipment"]),
-                          len(self.data["camps"]["monsters"])), (34, 12, 13, 3))
+        self.assertEqual((len(self.data["abilities"]), len(self.data["attributes"]), len(self.data["camps"]["monsters"])),
+                         (34, 12, 3))
         self.assertEqual([row["id"] for row in self.data["abilities"]], sorted(RANK_EFFECTS))
-        # #147: mechanic tags are gone from skills and equipment.
-        self.assertFalse(any("tags" in row for row in (*self.data["abilities"], *self.data["equipment"])))
+        # #147: mechanic tags are gone from skills.
+        self.assertFalse(any("tags" in row for row in self.data["abilities"]))
         self.assertEqual(self.data["identity"]["projection_revision"], 3)
         self.assertEqual(self.data["character"]["basic_attack"]["interval_ms"], 1112)
         self.assertEqual(self.data["character"]["basic_attack"]["damage_type"], "Physical")
@@ -346,14 +347,14 @@ class ApprovedDemoData(unittest.TestCase):
             ("UNIT.CollisionRadiusCm", "cm", "40"), ("UNIT.BasicAttackRangeCm", "cm", "220"),
             ("STAT.AttackRange.Min", "cm", "80"), ("STAT.AttackRange.Max", "cm", "1000"),
             ("UNIT.BasicAttackWindupSec", "ms", ".250"), ("VISION.RadiusCm", "cm", "1050"),
-            ("SHOP.InteractRadiusCm", "cm", "600"), ("CAPTURE.RadiusCm", "cm", "300"),
+            ("CAPTURE.RadiusCm", "cm", "300"),
             ("CAPTURE.SpraySec", "ms", "3.5"), ("CAPTURE.GuardSec", "ms", "30"),
             ("MATCH.CountdownSec", "ms", "5"), ("MATCH.DevelopmentSec", "ms", "180"), ("LIFE.RespawnSec", "ms", "15"), ("LIFE.ProtectionSec", "ms", "3"),
             ("REGEN.OutOfCombatDelaySec", "ms", "5"), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", ".015"),
             ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", ".015"),
             ("DORM.RadiusCm", "cm", "400"), ("DORM.OutOfCombatDelaySec", "ms", "3"),
             ("DORM.MaxHPRatioPerSec", "ratio", ".1"), ("DORM.MaxMPRatioPerSec", "ratio", ".1"),
-            ("SHOP.SellRatio", "ratio", ".65"), ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
+            ("CAMP.ResetArrivalRadiusCm", "cm", "100"),
             ("CAMP.ReturnDeadEndSec", "ms", "6"), ("CAMP.GrowthStageSec", "ms", "60"),
             ("CAMP.GrowthHPRatioPerStage", "ratio", ".12"), ("CAMP.GrowthAttackRatioPerStage", "ratio", ".08"),
             ("CAMP.GrowthResistPerStage", "points", "2"), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", ".1"),
@@ -361,8 +362,7 @@ class ApprovedDemoData(unittest.TestCase):
             ("AIRDROP.AnnounceLeadSec", "ms", "15"), ("AIRDROP.PickupRadiusCm", "cm", "150"),
             ("LEADER.RefreshSec", "ms", "10"), ("LEADER.CircleRadiusCm", "cm", "1500"),
             ("LEADER.CircleMaxOffsetCm", "cm", "1000"),
-            ("REWARD.AssistWindowSec", "ms", "15"), ("REWARD.AssistGoldRatio", "ratio", ".5"),
-            ("SHOP.UpgradeStatBonusRatio", "ratio", ".35"),
+            ("REWARD.AssistWindowSec", "ms", "15"),
             ("CHOICE.NewActiveFreeSlotWeight", "ratio", ".75"), ("CHOICE.NewActiveFullSlotWeight", "ratio", ".35"),
             ("CHOICE.FirstSlotUpgradeChance", "ratio", ".70"), ("CHOICE.FreeSlotAttributeChance", "ratio", ".60"),
             ("CHOICE.AttributeQuality.GreenChance", "ratio", ".40"), ("CHOICE.AttributeQuality.GreenMultiplier", "ratio", ".90"),
@@ -381,11 +381,10 @@ class ApprovedDemoData(unittest.TestCase):
         ):
             expected[key] = (unit, value)
         for key, value in (
-            ("SHOP.StartingGold", 320), ("SHOP.UpgradeCost", 240), ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
-            ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20),
-            ("REWARD.PlayerGold.Base", 80), ("REWARD.PlayerGold.PerLevel", 10), ("AI.RetryPolicy.MaxAttempts", 3),
-            ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200), ("AIRDROP.RewardGold", 150),
-            ("LEADER.MinLevel", 3), ("LEADER.BountyGoldPerRefresh", 50), ("LEADER.BountyGoldMax", 250),
+            ("XP.BaseToNext", 80), ("XP.IncreasePerLevel", 20),
+            ("REWARD.PlayerXP.Base", 100), ("REWARD.PlayerXP.PerLevel", 20), ("AI.RetryPolicy.MaxAttempts", 3),
+            ("CAMP.ReturnDeadEndPlans", 3), ("CAMP.GrowthMaxStage", 10), ("AIRDROP.RewardXP", 200),
+            ("LEADER.MinLevel", 3),
             ("COMBAT.BreachMaxStacks", 5), ("COMBAT.BurnMaxStacks", 5),
         ):
             expected[key] = (None, value)
@@ -407,11 +406,8 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(amount(self.data["formulas"]["ResistanceScale"]), 100)
         self.assertEqual(amount(self.data["formulas"]["HasteScale"]), 100)
         self.assertEqual(self.data["policies"]["RootBlocks"], ("Move", "Dash"))
-        self.assertFalse(self.data["policies"]["ShopRequiresLineOfSight"])
         self.assertEqual(self.data["policies"]["CampAggroTrigger"], "ConfirmedCombatHit")
         self.assertEqual(self.data["policies"]["MissingSourceCooldown"], "ContinueServerTime")
-        self.assertEqual(self.data["policies"]["DuplicateEquipmentPassive"], "OncePerFamily")
-        self.assertNotIn("DuplicateEquipmentActive", self.data["policies"])
         self.assertEqual(min(amount(self.catalog.parameter("VISION.RadiusCm")),
                              2 * amount(self.catalog.parameter("UNIT.BasicAttackRangeCm"))), 440)
 
@@ -444,7 +440,7 @@ class ApprovedDemoData(unittest.TestCase):
             "icon_id": "icon_respawn_protection"})
         self.assertEqual(entries[0]["name_text"], "复活保护")
         self.assertEqual(self.catalog.parameter("LIFE.ProtectionSec"), {"unit": "ms", "ms": 3000})
-        for row in (*self.data["abilities"], *self.data["equipment"]):
+        for row in self.data["abilities"]:
             self.assertNotIn("respawn_protection", {effect["op"] for effect in content.all_effects(row)})
 
     def test_display_names_are_the_approved_fog_harbor_names(self):
@@ -463,10 +459,6 @@ class ApprovedDemoData(unittest.TestCase):
             "attr_big_talk": "满嘴跑火车", "attr_morning_rush": "早八冲刺", "attr_hand_out": "伸手党", "attr_wild_frenzy": "彻底疯狂",
             "opening_athlete": "体育生", "opening_grinder": "卷王", "opening_dorm_warden": "宿管大爷",
             "opening_rider": "外卖骑手", "opening_keyboard": "键盘侠", "opening_hexagon": "六边形战士",
-            "item_iron_plate": "防弹秋裤", "item_edge_blade": "折叠椅（摔跤同款）", "item_runic_focus": "键盘",
-            "item_siphon_emblem": "大金链子", "item_phase_anchor": "《润学指南》", "item_arcane_battery": "充电宝",
-            "item_echo_maul": "自拍杆", "item_slingshot": "大号滋水枪", "item_nail_uniform": "扎心铆钉皮衣",
-            "item_megaphone": "大喇叭", "item_dossier": "黑料小本本", "item_privacy_screen": "防窥膜", "item_skateboard": "滑板鞋",
             "monster_scavenger": "已读不回的 HR", "monster_guardian": "追着办卡的私教", "monster_dean": "画饼老板",
             "monster_advisor": "催毕设的导师",
             "root": "定身", "shield": "护盾", "camp_returning": "回位", "respawn_protection": "复活保护",
@@ -650,8 +642,8 @@ class ApprovedDemoData(unittest.TestCase):
                 description_text="造成 [execute.ratio] 伤害。"), "CardTemplate"),
             ("advanced placeholder naming an absent effect", lambda d: display(d, "active_snark_bolt").update(
                 advanced_text="造成 [zone.radius] 伤害。"), "CardTemplate"),
-            ("advanced line on a non-skill", lambda d: display(d, "item_iron_plate").update(
-                advanced_key="item_iron_plate.advanced", advanced_text="升级说明。"), "DisplayReference"),
+            ("advanced line on a non-skill", lambda d: display(d, "attr_protein").update(
+                advanced_key="attr_protein.advanced", advanced_text="升级说明。"), "DisplayReference"),
         ):
             projected = schema.project(author)
             mutate(projected)
@@ -723,55 +715,11 @@ class ApprovedDemoData(unittest.TestCase):
         for identity, cap in (("passive_snack_cast", 5), ("passive_dash_contact_refund", 10)):
             self.assertEqual(amount(self.catalog.definition(identity)["ranks"][1]["effects"][0]["mana_cap"]), cap)
 
-    def test_every_equipment_price_stat_and_effect(self):
-        expected = {
-            "item_iron_plate": (310, 201, {"MaxHPFlat": 180, "ArmorFlat": 15}),
-            "item_edge_blade": (320, 208, {"ADFlat": 20, "AttackSpeedBonusRatio": Fraction(".10")}),
-            "item_runic_focus": (320, 208, {"APFlat": 30, "CooldownHasteFlat": 15}),
-            "item_siphon_emblem": (360, 234, {"ADFlat": 12, "MagicResistFlat": 12}),
-            "item_phase_anchor": (400, 260, {"MoveSpeedBonusRatio": Fraction(".12")}),
-            "item_arcane_battery": (400, 260, {"MaxMPFlat": 120, "MagicResistFlat": 10}),
-            "item_echo_maul": (400, 260, {"ADFlat": 14, "AttackRangeCmFlat": 40}),
-            "item_slingshot": (320, 208, {"AttackRangeCmFlat": 120, "AttackSpeedBonusRatio": Fraction(".12")}),
-            "item_nail_uniform": (380, 247, {"MaxHPFlat": 150, "ArmorFlat": 18}),
-            "item_dossier": (400, 260, {"APFlat": 25, "MaxHPFlat": 120}),
-        }
-        for identity, (price, sell, stats) in expected.items():
-            item = self.catalog.definition(identity)
-            self.assertEqual((item["buy_price"], item["sell_gold"]), (price, sell))
-            self.assertEqual({key: amount(value) for key, value in item["stats"].items()}, stats)
-        # D19/D20: the innate D dash belongs to the character; the spikes only boost it passively.
+    def test_innate_dash(self):
+        # D19/D20: the innate D dash belongs to the character.
         dash = self.data["character"]["dash"]
         self.assertEqual((dash["mana_cost"]["p2"], dash["cooldown"]["ms"], amount(dash["distance"]), dash["duration"]["ms"]),
                          (0, 18000, 300, 200))
-        spikes = self.catalog.definition("item_phase_anchor")
-        self.assertEqual(spikes["passive"]["family"], "passive_stride")
-        boost = spikes["passive"]["effects"][0]
-        self.assertEqual((boost["op"], boost["cooldown_ratio"]["bp"], boost["distance_bonus"]["bp"]), ("dash_boost", 5000, 5000))
-        self.assertEqual((boost["skill_cooldown_ratio"]["bp"], boost["skill_distance_bonus"]["bp"]), (8000, 2500))
-        # #147: no equipment has an active or mechanic tags; the power bank, dossier and slingshot keep only their fixed
-        # stats until a passive is approved.
-        self.assertTrue(all(set(item) == {"id", "buy_price", "stats", "passive", "native_id", "sell_gold", "upgraded_stats"}
-                            for item in self.data["equipment"]))
-        for identity in ("item_arcane_battery", "item_dossier", "item_slingshot"):
-            self.assertIsNone(self.catalog.definition(identity)["passive"])
-        self.assertEqual(self.catalog.definition("item_siphon_emblem")["passive"]["effects"][0]["ratio"]["bp"], 1500)
-        cleave = self.catalog.definition("item_echo_maul")["passive"]["effects"][0]
-        self.assertEqual((cleave["ratio"]["bp"], amount(cleave["radius"])), (3500, 180))
-        # CONTENT_AND_BALANCE 15.8 item passives, approved on 2026-11-04 as playtest input.
-        self.assertEqual(self.catalog.definition("item_iron_plate")["passive"]["effects"][0]["ratio"]["bp"], 1500)
-        third = self.catalog.definition("item_edge_blade")["passive"]["effects"][0]
-        self.assertEqual((third["count"], third["base"]["p2"], third["damage_type"]), (3, 2000, "Physical"))
-        self.assertEqual(self.catalog.definition("item_runic_focus")["passive"]["effects"][0]["mana"]["p2"], 500)
-        prickle = self.catalog.definition("item_nail_uniform")["passive"]
-        self.assertEqual(prickle["family"], "passive_prickle")
-        thorns = prickle["effects"][0]
-        self.assertEqual((thorns["base"]["p2"], thorns["armor_ratio"]["bp"], thorns["max_hp_ratio"]["bp"],
-                          thorns["critical_multiplier"]["bp"], thorns["trigger"]), (2000, 1000, 100, 10000, "Basic"))
-        self.assertNotIn("rear_exempt", thorns)
-        # The four starting items fit the 320 opening gold.
-        self.assertTrue(all(self.catalog.definition(identity)["buy_price"] <= 320
-                            for identity in ("item_iron_plate", "item_edge_blade", "item_slingshot", "item_runic_focus")))
 
     def test_advanced_changes_refuse_on_the_basic_rank(self):
         author, schema, ids = self.approved_projection_inputs()
@@ -851,13 +799,13 @@ class ApprovedDemoData(unittest.TestCase):
         self.assertEqual(self.data["progression"]["reroll_levels"], (5, 11))
         # #147: two skill ranks (初级/高级).
         self.assertEqual(self.data["progression"]["max_skill_rank"], 2)
-        for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, gold, interval in (
-            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 15, 1250),
-            ("monster_guardian", "High", 1, 630, 20, 72, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 60, 1539),
-            ("monster_advisor", "Elite", 1, 1350, 30, 90, ".60", 500, 175, 260, 1050, 4000, 90000, 180, 135, 1667),
+        for identity, tier, count, hp, resist, attack, rate, windup, reach, speed, leash, grace, respawn, xp, interval in (
+            ("monster_scavenger", "Low", 2, 90, 8, 10, ".80", 350, 150, 240, 900, 3000, 25000, 20, 1250),
+            ("monster_guardian", "High", 1, 630, 20, 72, ".65", 500, 175, 260, 1050, 4000, 65000, 80, 1539),
+            ("monster_advisor", "Elite", 1, 1350, 30, 90, ".60", 500, 175, 260, 1050, 4000, 90000, 180, 1667),
         ):
             row = self.catalog.definition(identity)
-            self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"], row["reward_gold"]), (tier, count, xp, gold))
+            self.assertEqual((row["tier"], row["count_per_camp"], row["reward_xp"]), (tier, count, xp))
             for key, expected in (("hp", hp), ("armor", resist), ("magic_resist", resist), ("attack", attack),
                                   ("attack_speed", Fraction(rate)), ("attack_range", reach), ("move_speed", speed),
                                   ("leash_radius", leash), ("perception_radius", leash), ("collision_radius", 40)):
@@ -874,7 +822,7 @@ class ApprovedDemoData(unittest.TestCase):
                               ("move_speed", 225), ("collision_radius", 40), ("aggro_radius", 400)):
             self.assertEqual(amount(boss[key]), expected, key)
         self.assertEqual((boss["attack_interval"]["ms"], boss["attack_windup"]["ms"], boss["attacker_memory"]["ms"],
-                          boss["appear_at"]["ms"], boss["reward_xp"], boss["reward_gold"]), (1500, 500, 5000, 60000, 300, 250))
+                          boss["appear_at"]["ms"], boss["reward_xp"]), (1500, 500, 5000, 60000, 300))
         self.assertEqual(boss["approval"]["duration"]["ms"], 90000)
         self.assertEqual({key: value["bp"] for key, value in boss["approval"]["stats"].items()},
                          {"ADBonusRatio": 2500, "APBonusRatio": 2500, "MoveSpeedBonusRatio": 1000})
@@ -891,7 +839,7 @@ class ApprovedDemoData(unittest.TestCase):
                          [(0, 0, 0), (100, 0, 0), (50, 87, 0), (-50, 87, 0), (-100, 0, 0), (-50, -87, 0), (50, -87, 0)])
         self.assertEqual(content._wire_fraction(placement["spawn_validation_radius_cm"], "envelope"), 200)
         self.assertEqual(self.world.world["parameter_refs"], (
-            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
+            "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
             "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm"))
 
     def test_byte_provenance_and_acyclic_producer_order(self):
@@ -1135,7 +1083,6 @@ class ApprovedDemoRefusals(unittest.TestCase):
         reach = lambda row: max(abs(v[a]) for v in row["polygon_cm"] for a in "xy")
         wall = max((i for i, row in enumerate(rows) if row["shape"] == "polygon"), key=lambda i: reach(rows[i]))
         polygon = next(i for i, row in enumerate(rows) if row["shape"] == "polygon")
-        stall = next(i for i, row in enumerate(rows) if row["id"].endswith("_stall"))
         tree = next(i for i, row in enumerate(rows) if row["shape"] == "cylinder")
         capture = next(row for row in source["anchors"] if row["kind"] == "Capture")["position_cm"]
         for change in (
@@ -1145,7 +1092,6 @@ class ApprovedDemoRefusals(unittest.TestCase):
             lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"].reverse(),
             lambda d: d["geometry"]["blockers"][polygon]["polygon_cm"][0].update(z=1),
             lambda d: d["geometry"]["blockers"][polygon].update(height_cm=0),
-            lambda d: d["geometry"]["blockers"][stall].update(blocks_sight=True),
             lambda d: d["geometry"]["blockers"][tree]["center_cm"].update(z=1),
             lambda d: d["geometry"]["blockers"][tree].update(radius_cm=0),
             lambda d: d["geometry"]["blockers"][tree].update(shape="polygon"),

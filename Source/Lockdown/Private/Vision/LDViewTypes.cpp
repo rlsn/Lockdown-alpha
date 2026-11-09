@@ -42,30 +42,6 @@ bool IsPublicStatusId(uint8 Id)
     }
 }
 
-bool IsPublicEquipmentOrEmpty(uint8 Id)
-{
-    if (Id == 0) { return true; }
-    switch (static_cast<ELDDemoEquipmentId>(Id))
-    {
-    case ELDDemoEquipmentId::ItemIronPlate:
-    case ELDDemoEquipmentId::ItemEdgeBlade:
-    case ELDDemoEquipmentId::ItemRunicFocus:
-    case ELDDemoEquipmentId::ItemSiphonEmblem:
-    case ELDDemoEquipmentId::ItemPhaseAnchor:
-    case ELDDemoEquipmentId::ItemArcaneBattery:
-    case ELDDemoEquipmentId::ItemEchoMaul:
-    case ELDDemoEquipmentId::ItemSlingshot:
-    case ELDDemoEquipmentId::ItemNailUniform:
-    case ELDDemoEquipmentId::ItemMegaphone:
-    case ELDDemoEquipmentId::ItemDossier:
-    case ELDDemoEquipmentId::ItemPrivacyScreen:
-    case ELDDemoEquipmentId::ItemSkateboard:
-        return true;
-    default:
-        return false;
-    }
-}
-
 bool IsPublicCreatureId(uint8 Id)
 {
     switch (static_cast<ELDDemoMonsterId>(Id))
@@ -165,7 +141,6 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
         if (Ar.IsLoading()) { Unit.Statuses.SetNum(Count); }
         for (FLDObservedStatus& Status : Unit.Statuses) { Ar << Status.StatusId << Status.Stacks << Status.ExpiresAtServerMs; }
     }
-    if (Mask & LDObservation::Equipment) { Ar << Unit.Equipment.Slots[0] << Unit.Equipment.Slots[1]; }
     if (Mask & LDObservation::Actives)
     {
         Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
@@ -288,10 +263,6 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         { return FailObservation(Error, TEXT("Observed statuses must be unique public definitions with valid stacks and expiry.")); }
         SeenStatuses |= Bit;
     }
-    if (Contender
-        ? !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[0]) || !IsPublicEquipmentOrEmpty(Unit.Equipment.Slots[1])
-        : Unit.Equipment.Slots[0] != 0 || Unit.Equipment.Slots[1] != 0)
-    { return FailObservation(Error, TEXT("Observed equipment must be two public equipment definitions or empty slots.")); }
     const FLDObservedActivesView& Actives = Unit.Actives;
     bool bActives = true;
     for (int32 Slot = 0; Slot < 3; ++Slot)

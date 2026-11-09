@@ -82,5 +82,4 @@ private:
     uint32 GrowthMatch = 0;
     FGuid SeenOffer;
     uint64 SeenBuildRevision = 0;
-    uint64 SeenInventoryRevision = 0;
 };
