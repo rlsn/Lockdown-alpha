@@ -152,7 +152,7 @@ bool LDCapture::ValidateKillFeed(const FLDKillFeedView& View, FString& Error)
     for (const FLDKillNotice& Notice : View.Notices)
     {
         if (!Notice.Serial || Notice.Serial <= Previous || !Notice.Victim.IsValid() || Notice.OccurredAtMs < 0
-            || uint8(Notice.Cause) > uint8(ELDKillCause::Boss)
+            || uint8(Notice.Cause) > uint8(LastKillCause)
             || (Notice.Cause == ELDKillCause::Contender) != Notice.Killer.IsValid() || Notice.Killer == Notice.Victim
             || (Notice.Cause != ELDKillCause::Contender && !Notice.Assisters.IsEmpty())
             || Notice.Assisters.Num() > CaptureResultRowsMax - 2)
