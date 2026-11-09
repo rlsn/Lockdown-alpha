@@ -2,7 +2,6 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "../Development/LDDemoContentJson.h"
 #include "Combat/LDAttributeProjection.h"
 #include "Development/LDDemoCardText.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -10,91 +9,14 @@
 #include "Internationalization/StringTableCore.h"
 #include "Internationalization/StringTableRegistry.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
 #include "Tests/LDTestApprovedDisplay.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 
 namespace LDCardSelfCheckTests
 {
 namespace
 {
-bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& OutCatalog)
-{
-    FString Root;
-    FString Error;
-    if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty())
-    {
-        Test.AddError(TEXT("Missing -LDDemoContentFixtures=<isolated Artifacts directory>; export approved_base first. No live-data fallback."));
-        return false;
-    }
-    if (!Test.TestTrue(TEXT("Card fixtures are isolated under this project's Artifacts"),
-        FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts")))))
-    {
-        return false;
-    }
-    LDDemoContent::FCheck Check(Error);
-    TArray<uint8> Bytes;
-    LDDemoContent::FValue IndexValue;
-    if (!LDDemoContent::ReadFile(FPaths::Combine(Root, TEXT("index.json")), Bytes, Error)
-        || !LDDemoContent::Parse(Bytes, IndexValue, Check, TEXT("fixture index")))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    LDDemoContent::FFields Index(Check, IndexValue, TEXT("fixture index"));
-    bool bTestOnly = false;
-    const TArray<LDDemoContent::FValue>* Valid = nullptr;
-    const TArray<LDDemoContent::FValue>* Invalid = nullptr;
-    if (!Index.Literal(TEXT("format"), TEXT("demo-native-fixtures-1"))
-        || !Index.Flag(TEXT("test_only"), bTestOnly) || !Check.Require(bTestOnly, Index.Path, TEXT("test-only marker required"))
-        || !LDDemoContent::Array(Index.Take(TEXT("valid")), Valid, Check, Index.Path, 1, 1024)
-        || !LDDemoContent::Array(Index.Take(TEXT("invalid")), Invalid, Check, Index.Path, 0, 1024) || !Index.Done())
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    bool bFound = false;
-    FLDDemoContentDigest Digest;
-    for (const LDDemoContent::FValue& RowValue : *Valid)
-    {
-        LDDemoContent::FFields Row(Check, RowValue, TEXT("fixture case"));
-        FString Name;
-        if (!Row.Identifier(TEXT("name"), Name))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        if (!Name.Equals(TEXT("approved_base"), ESearchCase::CaseSensitive)) { continue; }
-        const TArray<LDDemoContent::FValue>* ChangedPaths = nullptr;
-        FString MutatedQuantity;
-        if (!Check.Require(!bFound, Row.Path, TEXT("duplicate approved_base fixture"))
-            || !Row.Digest(TEXT("catalog_sha256"), Digest)
-            || !LDDemoContent::Array(Row.Take(TEXT("changed_paths")), ChangedPaths, Check, Row.Path, 0, LDDemoContent::MaxFileBytes)
-            || !Row.Text(TEXT("mutated_quantity"), MutatedQuantity, 0) || !Row.Done())
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        bFound = true;
-    }
-    if (!Test.TestTrue(TEXT("approved_base fixture is present"), bFound)) { return false; }
-    FLDDemoContentBundle Bundle;
-    ULDDemoContentCatalog* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    TUniquePtr<FLDDemoPreparedContent> Prepared;
-    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-        || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, OutCatalog, Error))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    return true;
-}
-
 // The game registers the approved display table at startup; when this editor session has not, the test registers the same
 // names for the card faces (OutTable stays None when the existing table is used and nothing must be unregistered).
 bool RegisterDisplayNames(FAutomationTestBase& Test, const FLDDemoContentDefinitions& Content, FName& OutTable)
@@ -205,7 +127,7 @@ bool FLDHUDCardSelfCheckTest::RunTest(const FString& Parameters)
 {
     using namespace LDCardSelfCheckTests;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& Content = Catalog->Get();
     FName Table;
     if (!RegisterDisplayNames(*this, Content, Table)) { return false; }

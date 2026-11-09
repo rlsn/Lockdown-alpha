@@ -307,6 +307,8 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 这些输入都没变时跳过该组，其余必需测试照常全部运行；`-ImportTests Skip` 直接跳过，
 `-ImportTests Run` 显式运行完整导入门禁。没有运行导入组时，runner 只生成 `base`、`approved_base`、
 `exact_integer`、`world_spawn_shift` 四个运行规则所需有效夹具和一个轻量拒绝夹具，不再生成全部 rank 变异和拒绝用例。
+规则测试统一经 `Tests/LDTestApprovedFixture` 读取 `approved_base`：同一进程第一次调用严格校验索引并导入，
+之后共用这份不可变快照，不再每个测试各导入一次；失败不缓存，下一次调用重新报错。
 PR 检查用同一判定，改到这些输入的 PR 一定会跑该组。
 
 ### 合并前与里程碑检查
@@ -395,6 +397,8 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
 当前缺少完整玩法接线时不应打包；旧 cook/staging 依赖仍须随对应内容闭包迁移，
 入口检查不代表最终包已无旧载荷。
 成功输出记录独立的 Demo entry contract、产品版本、源输入与包文件摘要。
+包内不带用不上的引擎附件：`Lockdown.uproject` 关闭默认启用的 `NNEDenoiser`（连带它拉进的 ONNX Runtime、
+DirectML 与降噪模型），脚本删去 UAT 按 Development 配置一律放入、但 D3D12 包从不加载的 Vulkan 校验层。
 `OpenPackaged.ps1` 拒绝没有对应 manifest、包含旧 map set 或可执行文件摘要不符的包。
 打包完成不代表运行、联机或新 Demo 验收已经通过。
 保留的发布构建按 [AGENTS](../AGENTS.md) 的 known-working 规则管理；
@@ -434,7 +438,9 @@ runner 核对每个角色的日志确实解析了每一项。这只是同机模�
   只随 tag `vX` 推送；所以包内版本、清单与 tag 一致，`main` 上的 ini 保持基础版本，已发布的版本以 tag 为准。
 - 增量 `BuildEditor.ps1`、`RunTests.ps1`、`PackageWin64.ps1`，核对清单的版本、提交与干净工作区，
   把 Archive、manifest、`Package.log` 与 `README.txt` 启动说明打成 `Lockdown-vX-win64.zip`，
-  推送 tag `vX` 并发布为 Release `vX`；发布失败时撤回刚推送的 tag，重跑会再次发布。
+  调试符号 `Lockdown.pdb`（约占解压后包体的三分之一）不进主包，按原相对路径单独打成 `Lockdown-vX-win64-symbols.zip`，
+  解压到同一目录即位于 exe 旁；本地 `PackageWin64.ps1` 的输出仍保留它。
+  推送 tag `vX` 并以这两个文件发布为 Release `vX`；发布失败时撤回刚推送的 tag，重跑会再次发布。
   随后只保留最新两个 `vX.Y.Z` Release，更早的删除但保留 tag：tag 保存已发布的提交，也是下一个版本号的依据。
 - 产品版本参与加入房间的校验，试玩时所有玩家需使用同一个 Release。
 该包不跑任何 `RunDemo*Check` 场景，不能代替里程碑验收。

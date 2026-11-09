@@ -11,16 +11,12 @@
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
+#include "Tests/LDTestApprovedFixture.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
 
 // #147 build v7 combat primitives (docs/systems/COMBAT_AND_GROWTH.md, "构筑 v7 战斗原语"). No catalog entry uses them yet;
 // the passive-driven cases add one test-only passive to their own in-memory copy of the approved fixture, never to SourceData.
-
-namespace LDControlRulesTests
-{
-bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out);
-}
 
 struct FLDBuildPrimitivesAccess
 {
@@ -82,7 +78,7 @@ struct FFixture
 
     bool Init(FAutomationTestBase& Test)
     {
-        if (!LDControlRulesTests::ReadApprovedFixture(Test, Catalog)) { return false; }
+        if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
         const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
             .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
         World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
@@ -291,7 +287,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDBuildDamagePoolTest, "Lockdown.Rules.DemoBui
 bool FLDBuildDamagePoolTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const auto Evaluate = [&Catalog](ELDCombatHitClass Class, bool bCritical, int64 PoolBp, int64 AmplifyBp)
     {
         FLDDamageEvaluationInput Input;
@@ -822,7 +818,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedMitigationTest, "Lockdown.Rules.Demo
 bool FLDExpandedMitigationTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this,Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this,Catalog)) { return false; }
     FLDDamageEvaluationInput Hit;
     Hit.Definition.Emplace(10000,0,0,ELDDemoDamageType::Physical);
     Hit.HitClass=ELDCombatHitClass::BasicPrimary;
@@ -1038,7 +1034,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDExpandedCatalogTest, "Lockdown.Rules.DemoSki
 bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this,Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this,Catalog)) { return false; }
     for (const uint8 Level : {uint8(1),uint8(5),uint8(10),uint8(13),uint8(16)})
     {
         for (const auto& Ability : Catalog->Get().Abilities)

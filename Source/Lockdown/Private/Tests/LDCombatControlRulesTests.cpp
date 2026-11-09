@@ -6,91 +6,12 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "../Development/LDDemoContentJson.h"
 #include "Misc/AutomationTest.h"
 #include <limits>
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 
 namespace LDCombatControlTestDetail
 {
-    // Same isolated approved_base fixture as the evaluator and source-rule tests; no live-data fallback.
-    bool ReadApprovedContent(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
-    {
-        using namespace LDDemoContent;
-        FString Root, Error;
-        if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty())
-        {
-            Test.AddError(TEXT("Missing -LDDemoContentFixtures=<isolated Artifacts directory>; export approved_base first."));
-            return false;
-        }
-        if (!Test.TestTrue(TEXT("Control-rule fixtures are isolated under this project's Artifacts"),
-            FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-                FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts")))))
-        {
-            return false;
-        }
-        FCheck Check(Error);
-        TArray<uint8> Bytes;
-        FValue IndexValue;
-        if (!ReadFile(FPaths::Combine(Root, TEXT("index.json")), Bytes, Error)
-            || !Parse(Bytes, IndexValue, Check, TEXT("fixture index")))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        FFields Index(Check, IndexValue, TEXT("fixture index"));
-        bool bTestOnly = false;
-        const TArray<FValue>* Valid = nullptr;
-        const TArray<FValue>* Invalid = nullptr;
-        if (!Index.Literal(TEXT("format"), TEXT("demo-native-fixtures-1"))
-            || !Index.Flag(TEXT("test_only"), bTestOnly) || !Check.Require(bTestOnly, Index.Path, TEXT("test-only marker required"))
-            || !Array(Index.Take(TEXT("valid")), Valid, Check, Index.Path, 1, 1024)
-            || !Array(Index.Take(TEXT("invalid")), Invalid, Check, Index.Path, 0, 1024) || !Index.Done())
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        bool bFound = false;
-        FLDDemoContentDigest Digest;
-        for (const auto& RowValue : *Valid)
-        {
-            FFields Row(Check, RowValue, TEXT("fixture case"));
-            FString Name;
-            if (!Row.Identifier(TEXT("name"), Name))
-            {
-                Test.AddError(Error);
-                return false;
-            }
-            if (Name != TEXT("approved_base")) { continue; }
-            const TArray<FValue>* ChangedPaths = nullptr;
-            FString MutatedQuantity;
-            if (!Check.Require(!bFound, Row.Path, TEXT("duplicate approved_base fixture"))
-                || !Row.Digest(TEXT("catalog_sha256"), Digest)
-                || !Array(Row.Take(TEXT("changed_paths")), ChangedPaths, Check, Row.Path, 0, MaxFileBytes)
-                || !Row.Text(TEXT("mutated_quantity"), MutatedQuantity, 0) || !Row.Done())
-            {
-                Test.AddError(Error);
-                return false;
-            }
-            bFound = true;
-        }
-        if (!Test.TestTrue(TEXT("approved_base fixture is present"), bFound)) { return false; }
-        FLDDemoContentBundle Bundle;
-        auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-        TUniquePtr<FLDDemoPreparedContent> Prepared;
-        if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-            || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-            || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        return true;
-    }
-
     FLDDemoRational Rational(int64 Numerator, int64 Denominator = 1)
     {
         FLDDemoRational Value;
@@ -261,7 +182,7 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatControlTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Content;
-    if (!ReadApprovedContent(*this, Content)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Content)) { return false; }
     FString Error;
     const FLDDemoAbilityDefinition* Unplug = nullptr;
     const FLDDemoAbilityDefinition* BailOut = nullptr;

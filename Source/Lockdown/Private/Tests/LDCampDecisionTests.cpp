@@ -3,53 +3,11 @@
 #include "Misc/AutomationTest.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 #include <limits>
 
 namespace LDCampDecisionTests
 {
-bool ReadApprovedFixture(FAutomationTestBase& Test,TSharedPtr<const FLDDemoContentSnapshot>& Out)
-{
-    FString Root,Error,Text;
-    if(!FParse::Value(FCommandLine::Get(),TEXT("LDDemoContentFixtures="),Root)||Root.IsEmpty()
-        ||!FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(),TEXT("Artifacts"))))
-    {Test.AddError(TEXT("Camp decision tests require isolated LDDemoContentFixtures with approved_base; no live-data fallback."));return false;}
-    TSharedPtr<FJsonObject> Index;
-    if(!FFileHelper::LoadFileToString(Text,*FPaths::Combine(Root,TEXT("index.json")))
-        ||!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text),Index)||!Index)
-    {Test.AddError(TEXT("Unreadable camp content fixture index."));return false;}
-    FString Format;bool TestOnly=false;const TArray<TSharedPtr<FJsonValue>>* Rows=nullptr;
-    if(!Index->TryGetStringField(TEXT("format"),Format)||Format!=TEXT("demo-native-fixtures-1")
-        ||!Index->TryGetBoolField(TEXT("test_only"),TestOnly)||!TestOnly||!Index->TryGetArrayField(TEXT("valid"),Rows))
-    {Test.AddError(TEXT("Invalid camp content fixture index."));return false;}
-    bool Found=false;FLDDemoContentDigest Digest;
-    for(const auto& Value:*Rows)
-    {
-        const TSharedPtr<FJsonObject>* Row=nullptr;FString Name,Hex;
-        if(!Value->TryGetObject(Row)||!(*Row)->TryGetStringField(TEXT("name"),Name))
-        {Test.AddError(TEXT("Invalid fixture case."));return false;}
-        if(Name!=TEXT("approved_base")){continue;}
-        if(Found||!(*Row)->TryGetStringField(TEXT("catalog_sha256"),Hex)||!FLDDemoContentDigest::ParseHex(Hex,Digest,Error))
-        {Test.AddError(TEXT("Duplicate or invalid approved_base fixture."));return false;}
-        Found=true;
-    }
-    if(!Found){Test.AddError(TEXT("Missing approved_base fixture."));return false;}
-    FLDDemoContentBundle Bundle;TUniquePtr<FLDDemoPreparedContent> Prepared;
-    auto* Asset=NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    if(!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root,TEXT("approved_base")),Bundle,Error)
-        ||!ULDDemoContentCatalog::PrepareImport(*Asset,Bundle,Digest,Prepared,Error)
-        ||!Asset->CommitImport(Prepared,Digest,Error)||!Asset->Read(Digest,Out,Error))
-    {Test.AddError(Error);return false;}
-    return true;
-}
-
 double Ratio(const FLDDemoRational& Value){return double(Value.Numerator)/Value.Denominator;}
 
 FLDCombatBodyRef Contender(uint32 Id,uint32 Life=1)
@@ -84,7 +42,7 @@ bool FLDCampDecisionTest::RunTest(const FString& Parameters)
 {
     using namespace LDCampDecisionTests;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if(!ReadApprovedFixture(*this,Catalog)){return false;}
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     FString Error;
     {
         // BeginMatch refuses a roster whose observer could see more than the wire bound: the five other seats of the
@@ -270,7 +228,7 @@ bool FLDCampReturnDeadEndTest::RunTest(const FString& Parameters)
 {
     using namespace LDCampDecisionTests;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if(!ReadApprovedFixture(*this,Catalog)){return false;}
+    if(!LDTestApprovedFixture::Read(*this,Catalog)){return false;}
     const FLDDemoContentParameters& P=Catalog->Get().Parameters;
     if(!TestTrue(TEXT("Approved #28 dead-end limits are positive"),P.CampReturnDeadEndPlans>0&&P.CampReturnDeadEndMs>0)){return false;}
     const int32 Plans=int32(P.CampReturnDeadEndPlans);
