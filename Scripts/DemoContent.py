@@ -39,7 +39,7 @@ ID_PATTERN = re.compile(r"[a-z][a-z0-9_]{0,62}")
 HEX_PATTERN = re.compile(r"[0-9a-f]{64}")
 NATIVE_ENUMS = {
     "character": "ELDDemoCharacterId", "abilities": "ELDDemoAbilityId",
-    "attributes": "ELDDemoAttributeId", "equipment": "ELDDemoEquipmentId",
+    "attributes": "ELDDemoAttributeId",
     "monsters": "ELDDemoMonsterId", "statuses": "ELDDemoStatusId",
     "effect_ops": "ELDDemoEffectOp",
 }
@@ -421,7 +421,6 @@ def validate_native_ids(root, value):
     keys(value, {"schema_version", "retired_ranges", *NATIVE_ENUMS}, IDS_SOURCE)
     integer(value["schema_version"], IDS_SOURCE, SCHEMA_VERSION, SCHEMA_VERSION)
     require(exact_equal(value["retired_ranges"], {"abilities": [[0, 91]], "attributes": [[0, 14]],
-                                                  "equipment": [[0, 98], [107, 107], [113, 114]],
                                                   "statuses": [[7, 8], [11, 11], [15, 19], [21, 24]],
                                                   "effect_ops": [[6, 6], [9, 9], [16, 16], [19, 19], [23, 23], [25, 25],
                                                                  [28, 30], [32, 33], [39, 39], [41, 49], [51, 51],
@@ -478,10 +477,6 @@ def _effect_set(effects, path):
     require(len(set(operations)) == len(operations), "DuplicateEffect", path, "repeated operation")
     require(set(operations) <= EFFECT_OPS, "MissingHandler", path, "unsupported effect operation")
     return frozenset(operations)
-
-
-def _same_handlers(base, upgraded):
-    return [effect["op"] for effect in base] == [effect["op"] for effect in upgraded]
 
 
 def _positive_stats(stats, path):
@@ -652,7 +647,7 @@ def _validate_action(target, ranks, path):
 
 def validate_definitions(data, ids):
     collections = {"character": [data["character"]], "abilities": data["abilities"],
-                   "attributes": data["attributes"], "equipment": data["equipment"],
+                   "attributes": data["attributes"],
                    "monsters": data["camps"]["monsters"] + [data["boss"]]}
     all_ids = set()
     for section, rows in collections.items():
@@ -816,77 +811,9 @@ def validate_definitions(data, ids):
             "RerollLevels", "progression.reroll_levels",
             "reroll levels must be distinct, ascending and reachable by levelling up")
 
-    item_stats = {
-        "item_iron_plate": {"MaxHPFlat", "ArmorFlat"},
-        "item_edge_blade": {"ADFlat", "AttackSpeedBonusRatio"},
-        "item_runic_focus": {"APFlat", "CooldownHasteFlat"},
-        "item_siphon_emblem": {"ADFlat", "MagicResistFlat"},
-        "item_phase_anchor": {"MoveSpeedBonusRatio"},
-        "item_arcane_battery": {"MaxMPFlat", "MagicResistFlat"},
-        "item_echo_maul": {"ADFlat", "AttackRangeCmFlat"},
-        "item_slingshot": {"AttackRangeCmFlat", "AttackSpeedBonusRatio"},
-        "item_nail_uniform": {"MaxHPFlat", "ArmorFlat"},
-        "item_megaphone": {"APFlat", "CooldownHasteFlat"},
-        "item_dossier": {"APFlat", "MaxHPFlat"},
-        "item_privacy_screen": {"MaxHPFlat", "APFlat"},
-        "item_skateboard": {"ADFlat", "MoveSpeedBonusRatio"},
-    }
-    item_passives = {
-        "item_iron_plate": ("passive_crit_guard", {"crit_damage_reduction"}),
-        "item_edge_blade": ("passive_third_strike", {"nth_basic_bonus"}),
-        "item_runic_focus": ("passive_mana_refund", {"mana_on_hit"}),
-        "item_siphon_emblem": ("passive_siphon", {"lifesteal"}),
-        "item_phase_anchor": ("passive_stride", {"dash_boost"}),
-        "item_echo_maul": ("passive_cleave", {"cleave"}),
-        "item_nail_uniform": ("passive_prickle", {"thorns"}),
-        "item_megaphone": ("passive_megaphone", {"affliction_amp"}),
-        "item_privacy_screen": ("passive_privacy_screen", {"shield_break_retort"}),
-        "item_skateboard": ("passive_skateboard", {"hit_haste"}),
-    }
-    passive_families = {}
-    for item in data["equipment"]:
-        identity = item["id"]
-        require(identity in item_stats and set(item["stats"]) == item_stats[identity],
-                "UnknownField", identity, "equipment definition does not declare these stats")
-        _positive_stats(item["stats"], identity)
-        passive = item["passive"]
-        require((passive is not None) == (identity in item_passives), "MissingHandler", identity, "wrong passive presence")
-        if passive is not None:
-            family, effects = item_passives[identity]
-            require(passive["family"] == family and _effect_set(passive["effects"], identity) == effects,
-                    "InvalidReference", identity, "wrong passive family or effects")
-            upgraded_effects = passive["upgraded"]["effects"] if "upgraded" in passive else None
-            require(upgraded_effects is None or _same_handlers(passive["effects"], upgraded_effects), "UpgradeShape", identity,
-                    "the upgraded passive must keep the base handlers in the same order")
-            terms = (passive["effects"], upgraded_effects)
-            previous = passive_families.setdefault(family, terms)
-            require(previous == terms, "PassiveConflict", identity, "same family has different terms")
-            for effect in (*passive["effects"], *(upgraded_effects or ())):
-                if effect["op"] == "dash_boost":
-                    # D20: the innate dash cooldown is multiplied by cooldown_ratio and its distance by 1 + distance_bonus.
-                    require(quantity(effect["cooldown_ratio"]) > 0, "NumericDomain", identity,
-                            "a dash cooldown ratio must keep a positive cooldown")
-                    require(quantity(effect["cooldown_ratio"]) < 1 or quantity(effect["distance_bonus"]) > 0,
-                            "IneffectiveEffect", identity, "dash boost changes neither cooldown nor distance")
-                    continue
-                if effect["op"] == "thorns":
-                    _validate_thorns(effect, identity)
-                    continue
-                if effect["op"] in ("affliction_amp", "shield_break_retort", "hit_haste"):
-                    ratios = ("dot_ratio", "slow_scale") if effect["op"] == "affliction_amp" else ("ratio",)
-                    require(all(quantity(effect[field]) > 0 for field in ratios), "NumericDomain", identity,
-                            "passive ratio must be positive")
-                    continue
-                if effect["op"] in ("nth_basic_bonus", "mana_on_hit"):
-                    continue
-                require(quantity(effect["ratio"]) > 0, "NumericDomain", identity, "passive ratio must be positive")
-                if effect["op"] == "cleave":
-                    require(quantity(effect["radius"]) > 0, "NumericDomain", identity, "cleave radius must be positive")
-
-    for collection in (data["abilities"], data["equipment"]):
-        for row in collection:
-            for effect in all_effects(row):
-                effect["opcode"] = ids["effect_ops"][effect["op"]]
+    for row in data["abilities"]:
+        for effect in all_effects(row):
+            effect["opcode"] = ids["effect_ops"][effect["op"]]
 
     display = rows_by_id(data["display"], "display")
     expected_display = all_ids | set(ids["statuses"])
@@ -947,27 +874,6 @@ def display_text(text, path, allow_digits):
 def all_effects(row):
     for rank in row.get("ranks", []):
         yield from rank["effects"]
-    passive = row.get("passive")
-    if passive is not None:
-        yield from passive["effects"]
-        if "upgraded" in passive:
-            yield from passive["upgraded"]["effects"]
-
-
-def upgraded_stats(stats, ratio_bp, path):
-    """112 §7: an upgraded item's fixed stats are 1 + SHOP.UpgradeStatBonusRatio times the base, floored per field
-    precision (P2 points/resources, R4 ratios, whole centimetres of attack range)."""
-    result = {}
-    for key, value in stats.items():
-        if "p2" in value or "bp" in value:
-            storage = "p2" if "p2" in value else "bp"
-            amount = checked_mul(value[storage], checked_add(10000, ratio_bp, path), path)
-            result[key] = {"unit": value["unit"], storage: amount // 10000}
-        else:
-            scaled = quantity(value) * Fraction(10000 + ratio_bp, 10000)
-            result[key] = {"unit": value["unit"], "numerator": integer(scaled.numerator // scaled.denominator, path),
-                           "denominator": 1}
-    return result
 
 
 def validate_numbers(data):
@@ -993,7 +899,7 @@ def validate_numbers(data):
                 "StatBounds", prefix, "base must be within positive bounds")
     require(p("UNIT.CollisionRadiusCm") > 0 and p("UNIT.BasicAttackRangeCm") >= 2 * p("UNIT.CollisionRadiusCm"),
             "InvalidGeometry", "UNIT", "basic attack cannot require overlapping bodies")
-    for key in ("VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
+    for key in ("VISION.RadiusCm", "CAPTURE.RadiusCm", "CAMP.ResetArrivalRadiusCm",
                 "AIRDROP.PickupRadiusCm"):
         require(p(key) > 0, "InvalidGeometry", key, "radius must be positive")
     for name in ("ResistanceScale", "HasteScale"):
@@ -1022,11 +928,10 @@ def validate_numbers(data):
             "InvalidPolicy", "AI", "camp reserve thresholds are inconsistent")
     require(p("AI.RetryPolicy.InitialBackoffSec") <= p("AI.RetryPolicy.MaxBackoffSec"),
             "InvalidTiming", "AI.RetryPolicy", "backoff interval exceeds its cap")
-    # D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    # D27 (#79): the leader circle always contains the leader and the minimum level exists.
     require(0 < p("LEADER.CircleMaxOffsetCm") <= p("LEADER.CircleRadiusCm")
-            and params["LEADER.MinLevel"] <= data["progression"]["max_level"]
-            and params["LEADER.BountyGoldPerRefresh"] <= params["LEADER.BountyGoldMax"],
-            "InvalidPolicy", "LEADER", "the circle must contain the leader, the level must exist and the cap must be reachable")
+            and params["LEADER.MinLevel"] <= data["progression"]["max_level"],
+            "InvalidPolicy", "LEADER", "the circle must contain the leader and the level must exist")
     # D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
@@ -1040,16 +945,8 @@ def validate_numbers(data):
     require(data["progression"]["xp_thresholds"] == thresholds,
             "XPThresholds", "progression", "thresholds do not match the explicit linear XP parameters")
     data["progression"]["xp_to_next"] = [b - a for a, b in zip(thresholds, thresholds[1:])]
-    for reward in ("REWARD.PlayerXP", "REWARD.PlayerGold"):
-        checked_add(params[reward + ".Base"], checked_mul(level_steps, params[reward + ".PerLevel"], reward), reward)
-
-    for item in data["equipment"]:
-        price = item["buy_price"]
-        numerator = checked_mul(price, params["SHOP.SellRatio"]["bp"], item["id"])
-        item["sell_gold"] = numerator // 10000
-        require(item["sell_gold"] < price, "Arbitrage", item["id"], "buy/sell must lose gold")
-        checked_add(params["SHOP.StartingGold"], price, item["id"])
-        item["upgraded_stats"] = upgraded_stats(item["stats"], params["SHOP.UpgradeStatBonusRatio"]["bp"], item["id"])
+    checked_add(params["REWARD.PlayerXP.Base"], checked_mul(level_steps, params["REWARD.PlayerXP.PerLevel"], "REWARD.PlayerXP"),
+                "REWARD.PlayerXP")
     require(params["CHOICE.NewActiveFreeSlotWeight"]["bp"] > 0
             and params["CHOICE.NewActiveFullSlotWeight"]["bp"] > 0,
             "NumericDomain", "CHOICE", "active draft weights must be positive")
@@ -1060,7 +957,6 @@ def validate_numbers(data):
     require(sum(quality_chances) == 10000 and all(value > 0 for value in quality_multipliers),
             "InvalidPolicy", "CHOICE.AttributeQuality",
             "attribute quality chances must sum to one and multipliers must be positive")
-    checked_add(params["SHOP.StartingGold"], params["SHOP.UpgradeCost"], "SHOP.UpgradeCost")
 
     monsters = rows_by_id(data["camps"]["monsters"], "monsters")
     require({monster["tier"] for monster in monsters.values()} == CAMP_TIERS and len(monsters) == len(CAMP_TIERS),
@@ -1091,7 +987,6 @@ def validate_numbers(data):
             require(quantity(monster[field]) == 0, "UnsupportedMonster", path,
                     f"{field} requires a different monster handler contract")
         checked_mul(monster["count_per_camp"], monster["reward_xp"], path)
-        checked_mul(monster["count_per_camp"], monster["reward_gold"], path)
         monster["attack_interval_ms"] = interval
         monster["perception_radius"] = dict(monster["leash_radius"])
     # D26 (#79): the 画饼老板 Boss is one roaming body: its own block, not a camp tier.
@@ -1136,14 +1031,12 @@ def _validate_build_envelope(data):
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
-    abilities = {id(row) for row in data["abilities"]}
-    for row in (*data["abilities"], *data["equipment"]):
-        skill = id(row) in abilities
+    for row in data["abilities"]:
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
-            if skill and effect["op"] != "mana_on_hit":
+            if effect["op"] != "mana_on_hit":
                 base = grow(base, row["id"])
-            if skill and effect["op"] == "timed_stat_bonus":
+            if effect["op"] == "timed_stat_bonus":
                 for stat in effect.get("stats", {}).values():
                     for storage in ("p2", "bp"):
                         if storage in stat:
@@ -1214,7 +1107,7 @@ def parse_world_contract(raw, world_raw):
 def validate_world_references(data, world, anchors):
     refs = data["world"]
     require(refs["map_id"] == world["map_id"], "InvalidReference", "world.map_id", "different world identity")
-    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Shop": refs["shop_ids"], "Capture": [refs["capture_id"]]}
+    expected = {"Spawn": refs["spawn_ids"], "Camp": refs["camp_ids"], "Capture": [refs["capture_id"]]}
     for kind, identities in expected.items():
         require(len(set(identities)) == len(identities), "DuplicateId", kind, "repeated anchor reference")
         require(set(identities) == {identity for identity, row in anchors.items() if row["kind"] == kind},
@@ -1301,12 +1194,11 @@ def content_contract_bytes(payload_digest, catalog_digest):
 
 def _sort_definitions(data, fields):
     prefixes = {}
-    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "attributes", "opening_cards", "equipment", "display")]
+    arrays = [(f"content.{key}", data[key], "id") for key in ("abilities", "attributes", "opening_cards", "display")]
     arrays.extend((("content.camps.monsters", data["camps"]["monsters"], "id"),
                    ("content.camps.placements", data["camps"]["placements"], "anchor_id"),
                    ("content.world.spawn_ids", data["world"]["spawn_ids"], None),
-                   ("content.world.camp_ids", data["world"]["camp_ids"], None),
-                   ("content.world.shop_ids", data["world"]["shop_ids"], None)))
+                   ("content.world.camp_ids", data["world"]["camp_ids"], None)))
     for path, rows, key in arrays:
         identity_for = (lambda row: row[key]) if key is not None else (lambda row: row)
         order = [identity_for(row) for row in rows]

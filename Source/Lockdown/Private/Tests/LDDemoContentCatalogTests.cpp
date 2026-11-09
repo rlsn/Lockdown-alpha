@@ -244,7 +244,7 @@ bool AssertFields(FAutomationTestBase& Test, const UStruct* Type, const void* Da
     {
         const FString Path(Pair.Key.ToView());
         FString ExpectedText;
-        if (!String(Pair.Value, ExpectedText, Check, Path, 0))
+        if (!String(Pair.Value, ExpectedText, Check, Path, 0, 1024))
         {
             Test.AddError(Error);
             return false;
@@ -462,13 +462,11 @@ bool FLDDemoContentProjectionTest::RunTest(const FString& Parameters)
         }
         const FLDDemoAbilityDefinition* Ability = nullptr;
         const FLDDemoAttributeDefinition* Attribute = nullptr;
-        const FLDDemoEquipmentDefinition* Item = nullptr;
         const FLDDemoMonsterDefinition* Monster = nullptr;
         const FLDDemoDisplayDefinition* Display = nullptr;
         TestTrue(TEXT("Typed lookups consume enabled definitions"),
             Snapshot->FindAbility(TEXT("active_snark_bolt"), Ability, Error)
             && Snapshot->FindAttribute(TEXT("attr_all_nighter"), Attribute, Error)
-            && Snapshot->FindEquipment(TEXT("item_arcane_battery"), Item, Error)
             && Snapshot->FindMonster(TEXT("monster_guardian"), Monster, Error)
             && Snapshot->FindDisplay(TEXT("camp_returning"), Display, Error));
         const auto* OldAbility = Ability;
@@ -623,7 +621,7 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
         !BadWriter.IsError() && !BadReader.IsError() && !BadRestored->Validate(Base.Digest, Error));
     *Stored = Original;
 
-    const FCase* NewCase = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("exact_gold"); });
+    const FCase* NewCase = Fixtures.Valid.FindByPredicate([](const FCase& Case) { return Case.Name == TEXT("exact_integer"); });
     if (!TestNotNull(TEXT("Changed-root fixture exists"), NewCase)) { return false; }
     TSharedPtr<const FLDDemoContentSnapshot> Current = First;
     TestFalse(TEXT("Saved asset is stale against a new externally expected root"), Asset->Read(NewCase->Digest, Current, Error));
@@ -640,8 +638,8 @@ bool FLDDemoContentAssetTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    TestEqual(TEXT("New snapshot preserves above-2^53 integer gold"), Current->Get().Parameters.StartingGold, int64(9007199254740993LL));
-    TestEqual(TEXT("Previous snapshot keeps its original definitions"), First->Get().Parameters.StartingGold, Original.Parameters.StartingGold);
+    TestEqual(TEXT("New snapshot preserves an above-2^53 integer"), Current->Get().Parameters.AirdropRewardXP, int64(9007199254740993LL));
+    TestEqual(TEXT("Previous snapshot keeps its original definitions"), First->Get().Parameters.AirdropRewardXP, Original.Parameters.AirdropRewardXP);
     TestFalse(TEXT("New asset refuses the prior root identity"), Asset->Validate(Base.Digest, Error));
 
     auto* RaceAsset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
@@ -733,7 +731,7 @@ bool FLDDemoWorldProjectionTest::RunTest(const FString& Parameters)
         }
         if (!Case.MutatedQuantity.IsEmpty())
         {
-            // A rank quantity mutation only changes ability/equipment ranks. Its world payload and expected world
+            // A rank quantity mutation only changes ability ranks. Its world payload and expected world
             // projection must match base byte for byte, so importing it again would only repeat base's assertions.
             if (!TestTrue(*FString::Printf(TEXT("%s keeps the base world payload and expected world projection"), *Case.Name),
                 !BaseWorld.IsEmpty() && Bundle.World == BaseWorld && Expected == BaseExpected)) { return false; }
@@ -937,12 +935,12 @@ bool FLDDemoContentDisplayStringTableTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("Every skill row carries an advanced line"), AdvancedLines, Definitions.Abilities.Num());
     TestEqual(TEXT("Every display row contributes exactly a name and a description, a skill row also its advanced line"),
         Entries, Definitions.Display.Num() * 2 + AdvancedLines);
-    // One row per definition (character, abilities, attributes, equipment, monsters) and per native status.
+    // One row per definition (character, abilities, attributes, opening cards, monsters) and per native status.
     // Statuses 1..6, 9, 10 and 12..14 (7, 8 and 11 are retired), the #112 C2 knockback (a breach shows as exposed) and the
     // two #147 statuses (silence, burn).
     const int32 Statuses = 6 + 5 + 1 + 2 + 3;
     TestEqual(TEXT("Every approved content and status identity is displayed"), Definitions.Display.Num(),
-        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num() + Definitions.Equipment.Num()
+        1 + Definitions.Abilities.Num() + Definitions.Attributes.Num() + Definitions.OpeningCards.Num()
         + Definitions.Monsters.Num() + Statuses);
     for (const FLDDemoDisplayDefinition& Row : Definitions.Display)
     {
@@ -1080,11 +1078,6 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         Expect(TEXT("Opening"), Row.Id, [&](const FString& Id)
         { const FLDDemoOpeningCardDefinition* Out = nullptr; return Snapshot->FindOpeningCard(Id, Out, Error) ? Out : nullptr; });
     }
-    for (const FLDDemoEquipmentDefinition& Row : Definitions.Equipment)
-    {
-        Expect(TEXT("Equipment"), Row.Id, [&](const FString& Id)
-        { const FLDDemoEquipmentDefinition* Out = nullptr; return Snapshot->FindEquipment(Id, Out, Error) ? Out : nullptr; });
-    }
     for (const FLDDemoMonsterDefinition& Row : Definitions.Monsters)
     {
         Expect(TEXT("Monster"), Row.Id, [&](const FString& Id)
@@ -1096,9 +1089,9 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
         { const FLDDemoDisplayDefinition* Out = nullptr; return Snapshot->FindDisplay(Id, Out, Error) ? Out : nullptr; });
     }
     TestTrue(TEXT("Every catalog kind contributed identities to the folded lookup check"),
-        !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.Equipment.IsEmpty()
+        !Definitions.Abilities.IsEmpty() && !Definitions.Attributes.IsEmpty() && !Definitions.OpeningCards.IsEmpty()
         && !Definitions.Monsters.IsEmpty() && Identities == Definitions.Abilities.Num() + Definitions.Attributes.Num()
-        + Definitions.OpeningCards.Num() + Definitions.Equipment.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
+        + Definitions.OpeningCards.Num() + Definitions.Monsters.Num() + Definitions.Display.Num());
     for (const TCHAR* Common : {TEXT("Root"), TEXT("Shield")})
     {
         const FLDDemoDisplayDefinition* Out = nullptr;
@@ -1113,9 +1106,9 @@ bool FLDDemoContentCaseFoldedLookupTest::RunTest(const FString& Parameters)
             Snapshot->FindDisplay(Bad, Out, Error));
         TestTrue(FString::Printf(TEXT("Malformed lookup '%s' is explicit"), Bad), Out == nullptr && !Error.IsEmpty());
     }
-    const FLDDemoEquipmentDefinition* Missing = nullptr;
+    const FLDDemoAttributeDefinition* Missing = nullptr;
     TestFalse(TEXT("A well-formed but absent identity stays absent in any casing"),
-        Snapshot->FindEquipment(TEXT("Item_Absent"), Missing, Error));
+        Snapshot->FindAttribute(TEXT("Attr_Absent"), Missing, Error));
     TestTrue(TEXT("The absent identity reports the not-present reason"), Missing == nullptr && Error.Contains(TEXT("not present")));
     return true;
 }
@@ -1129,9 +1122,9 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
     if (!FixtureIndex(*this, Fixtures)) { return false; }
     const auto Find = [&Fixtures](const TCHAR* Name) { return Fixtures.Valid.FindByPredicate([Name](const FCase& Case) { return Case.Name == Name; }); };
     const FCase* Base = Find(TEXT("base"));
-    const FCase* Gold = Find(TEXT("exact_gold"));
+    const FCase* Exact = Find(TEXT("exact_integer"));
     const FCase* World = Find(TEXT("world_spawn_shift"));
-    if (!TestNotNull(TEXT("Base fixture"), Base) || !TestNotNull(TEXT("Content-only fixture"), Gold)
+    if (!TestNotNull(TEXT("Base fixture"), Base) || !TestNotNull(TEXT("Content-only fixture"), Exact)
         || !TestNotNull(TEXT("World fixture"), World)) { return false; }
     // The asset plays the compiled build: imported from the base fixture.
     FString Error;
@@ -1149,18 +1142,18 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
         Asset->ReadDevReloadFiles(BaseRoot, Base->Digest, Base->Digest, Same, Error) && Same
         && Same->Get().Identity.Root == Base->Digest);
     TestTrue(TEXT("A re-synced content payload reloads without a rebuild"),
-        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Gold->Digest, Reloaded, Error));
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Exact->Name), Base->Digest, Exact->Digest, Reloaded, Error));
     if (!TestNotNull(TEXT("Reloaded snapshot"), Reloaded.Get()) || !Same) { return false; }
     TestTrue(TEXT("The reloaded snapshot carries the new number and root; the earlier snapshot keeps its own"),
-        Reloaded->Get().Parameters.StartingGold == int64(9007199254740993LL) && Reloaded->Get().Identity.Root == Gold->Digest
-        && Same->Get().Parameters.StartingGold != Reloaded->Get().Parameters.StartingGold);
+        Reloaded->Get().Parameters.AirdropRewardXP == int64(9007199254740993LL) && Reloaded->Get().Identity.Root == Exact->Digest
+        && Same->Get().Parameters.AirdropRewardXP != Reloaded->Get().Parameters.AirdropRewardXP);
     TestFalse(TEXT("A changed world needs Bootstrap and a rebuild, not a reload"),
         Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, World->Name), Base->Digest, World->Digest, Refused, Error));
     TestTrue(TEXT("The world refusal names what changed"), !Refused && Error.Contains(TEXT("world")));
     TestFalse(TEXT("Files that do not hash to the read manifest root are refused"),
-        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Gold->Name), Base->Digest, Base->Digest, Refused, Error));
+        Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, Exact->Name), Base->Digest, Base->Digest, Refused, Error));
     TestFalse(TEXT("An asset that does not match the compiled root cannot anchor a reload"),
-        Asset->ReadDevReloadFiles(BaseRoot, Gold->Digest, Base->Digest, Refused, Error));
+        Asset->ReadDevReloadFiles(BaseRoot, Exact->Digest, Base->Digest, Refused, Error));
     TestFalse(TEXT("Absent Sync outputs are refused, never replaced by the stored bytes"),
         Asset->ReadDevReloadFiles(FPaths::Combine(Fixtures.Root, TEXT("absent")), Base->Digest, Base->Digest, Refused, Error));
     TestTrue(TEXT("No refused reload produced a snapshot"), !Refused);
@@ -1168,7 +1161,7 @@ bool FLDDemoContentDevReloadTest::RunTest(const FString& Parameters)
     // Only the content payload, its display text and the root may differ from the compiled identity.
     const FLDDemoContentIdentity Compiled = Same->Get().Identity;
     FLDDemoContentIdentity Changed = Compiled;
-    Changed.Root = Gold->Digest;
+    Changed.Root = Exact->Digest;
     Changed.Content.Bytes[0] ^= 1;
     Changed.Display.Bytes[0] ^= 1;
     Changed.ApprovalStatus += TEXT("x");

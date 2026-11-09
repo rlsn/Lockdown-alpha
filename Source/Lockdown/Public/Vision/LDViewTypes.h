@@ -28,8 +28,9 @@ namespace LDObservation
     // One identity tint per seat of the six-contender roster (APP_SPEC 1).
     constexpr uint8 MaxPresentations = 6;
     constexpr int32 MaxMapIdBytes = 63;
-    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Equipment = 32, Actives = 64 };
-    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Equipment | Actives;
+    // Bit 32 (the retired equipment slots, #144) is never reused.
+    enum EField : uint32 { Identity = 1, Level = 2, Health = 4, Mana = 8, Statuses = 16, Actives = 64 };
+    constexpr uint32 ContenderFields = Identity | Level | Health | Mana | Statuses | Actives;
     constexpr uint32 CampFields = Identity | Health | Statuses;
     // Highest public rank of a Q/W/E active: initial or advanced.
     constexpr uint8 MaxActiveRank = 2;  // #147: 初级 and 高级
@@ -59,13 +60,6 @@ struct FLDObservedStatus
     UPROPERTY() uint8 StatusId = 0; // ELDDemoStatusId
     UPROPERTY() uint8 Stacks = 1;
     UPROPERTY() int64 ExpiresAtServerMs = 0; // 0 = untimed
-};
-
-USTRUCT()
-struct FLDObservedEquipmentView
-{
-    GENERATED_BODY()
-    UPROPERTY() uint8 Slots[2] = {0, 0}; // ELDDemoEquipmentId; 0 = empty slot
 };
 
 // The three Q/W/E actives of a visible contender and their ranks. No cooldown, passive, mana cost or other field.
@@ -100,7 +94,6 @@ struct FLDObservedUnitView
     UPROPERTY() FLDObservedResource Health;
     UPROPERTY() FLDObservedResource Mana;
     UPROPERTY() TArray<FLDObservedStatus> Statuses;
-    UPROPERTY() FLDObservedEquipmentView Equipment;
     UPROPERTY() FLDObservedActivesView Actives;
 };
 
@@ -192,7 +185,6 @@ struct FLDObservedPublicFacts
 {
     uint8 Level = 0;
     uint8 CreatureId = 0;
-    FLDObservedEquipmentView Equipment;
     FLDObservedActivesView Actives;
     TArray<FLDObservedStatus> Statuses;
     // Combat's current action cue and the authority ms it started; None and 0 outside every cue window.
@@ -235,7 +227,7 @@ struct FLDOwnerState
     UPROPERTY() double Barrier=0;
     UPROPERTY() bool bActive = false;
     UPROPERTY() uint64 Revision = 0;
-    // Growth/Shop: own gold, equipment, level, offer and shop session as one consistent owner projection.
+    // Growth: own level, XP and offer as one consistent owner projection.
     UPROPERTY() FLDGrowthOwnerView Growth;
 };
 

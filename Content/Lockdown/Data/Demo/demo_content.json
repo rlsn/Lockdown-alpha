@@ -3389,7 +3389,6 @@
       "unit": "cm/s"
     },
     "native_id": 3,
-    "reward_gold": 250,
     "reward_xp": 300
   },
   "camps": {
@@ -3479,7 +3478,6 @@
           "ms": 90000,
           "unit": "ms"
         },
-        "reward_gold": 135,
         "reward_xp": 180,
         "tier": "Elite"
       },
@@ -3568,7 +3566,6 @@
           "ms": 65000,
           "unit": "ms"
         },
-        "reward_gold": 60,
         "reward_xp": 80,
         "tier": "High"
       },
@@ -3657,7 +3654,6 @@
           "ms": 25000,
           "unit": "ms"
         },
-        "reward_gold": 15,
         "reward_xp": 20,
         "tier": "Low"
       }
@@ -4169,7 +4165,7 @@
     },
     {
       "description_key": "character_demo.description",
-      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻，涨粉后开盲盒挑技能或属性，也能去砍一刀小摊买装备。",
+      "description_text": "已成年，一碰就碎但嘴很硬。开局只会普攻，涨粉后开盲盒挑技能或属性。",
       "icon_id": "icon_character_demo",
       "id": "character_demo",
       "name_key": "character_demo.name",
@@ -4220,123 +4216,6 @@
       "id": "exposed",
       "name_key": "exposed.name",
       "name_text": "破防",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_arcane_battery.description",
-      "description_text": "提高法力上限和魔抗。",
-      "icon_id": "icon_item_arcane_battery",
-      "id": "item_arcane_battery",
-      "name_key": "item_arcane_battery.name",
-      "name_text": "充电宝",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_dossier.description",
-      "description_text": "提高法术强度和生命上限。",
-      "icon_id": "icon_item_dossier",
-      "id": "item_dossier",
-      "name_key": "item_dossier.name",
-      "name_text": "黑料小本本",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_echo_maul.description",
-      "description_text": "提高攻击力和攻击距离。被动「一杆清」：普攻命中时顺带扫到目标附近的其他敌人，造成主击一部分的物理伤害。",
-      "icon_id": "icon_item_echo_maul",
-      "id": "item_echo_maul",
-      "name_key": "item_echo_maul.name",
-      "name_text": "自拍杆",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_edge_blade.description",
-      "description_text": "提高攻击力和攻速。被动：每第几下普攻额外造成物理伤害。",
-      "icon_id": "icon_item_edge_blade",
-      "id": "item_edge_blade",
-      "name_key": "item_edge_blade.name",
-      "name_text": "折叠椅（摔跤同款）",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_iron_plate.description",
-      "description_text": "提高生命上限和护甲。被动：受到的暴击伤害降低。",
-      "icon_id": "icon_item_iron_plate",
-      "id": "item_iron_plate",
-      "name_key": "item_iron_plate.name",
-      "name_text": "防弹秋裤",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_megaphone.description",
-      "description_text": "提高法术强度和技能急速；你造成的持续伤害更高，施加的减速更狠。",
-      "icon_id": "icon_item_megaphone",
-      "id": "item_megaphone",
-      "name_key": "item_megaphone.name",
-      "name_text": "大喇叭",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_nail_uniform.description",
-      "description_text": "提高生命上限和护甲。被动「扎心了老铁」：被近处敌人的普攻打中时，让对方受到魔法伤害，随护甲和生命上限提高；同一人短时间内只触发一次。",
-      "icon_id": "icon_item_nail_uniform",
-      "id": "item_nail_uniform",
-      "name_key": "item_nail_uniform.name",
-      "name_text": "扎心铆钉皮衣",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_phase_anchor.description",
-      "description_text": "提高移速。被动「说润就润」：带着时冲刺的冷却缩短、冲刺更远；带冲刺或跳跃的技能也冲得更远、冷却更短。两本同款只算一次。",
-      "icon_id": "icon_item_phase_anchor",
-      "id": "item_phase_anchor",
-      "name_key": "item_phase_anchor.name",
-      "name_text": "《润学指南》",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_privacy_screen.description",
-      "description_text": "提高生命上限和法术强度；护盾被打破时，对打破者造成魔法伤害并使其减速。",
-      "icon_id": "icon_item_privacy_screen",
-      "id": "item_privacy_screen",
-      "name_key": "item_privacy_screen.name",
-      "name_text": "防窥膜",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_runic_focus.description",
-      "description_text": "键盘侠专用：提高法术强度和技能急速。被动：技能命中时回复一点法力，每次施放一次。",
-      "icon_id": "icon_item_runic_focus",
-      "id": "item_runic_focus",
-      "name_key": "item_runic_focus.name",
-      "name_text": "键盘",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_siphon_emblem.description",
-      "description_text": "提高攻击力和魔抗。被动「回本」：普攻（含强化普攻）让对方实际损失的生命，按比例回到自己身上。",
-      "icon_id": "icon_item_siphon_emblem",
-      "id": "item_siphon_emblem",
-      "name_key": "item_siphon_emblem.name",
-      "name_text": "大金链子",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_skateboard.description",
-      "description_text": "提高攻击力和移速；普攻打中人后短时间内移动更快。",
-      "icon_id": "icon_item_skateboard",
-      "id": "item_skateboard",
-      "name_key": "item_skateboard.name",
-      "name_text": "滑板鞋",
-      "namespace": "DemoContent"
-    },
-    {
-      "description_key": "item_slingshot.description",
-      "description_text": "看着吓人，其实滋水：提高攻击距离和攻速。",
-      "icon_id": "icon_item_slingshot",
-      "id": "item_slingshot",
-      "name_key": "item_slingshot.name",
-      "name_text": "大号滋水枪",
       "namespace": "DemoContent"
     },
     {
@@ -4687,721 +4566,6 @@
       "namespace": "DemoContent"
     }
   ],
-  "equipment": [
-    {
-      "buy_price": 400,
-      "id": "item_arcane_battery",
-      "native_id": 104,
-      "passive": null,
-      "sell_gold": 260,
-      "stats": {
-        "MagicResistFlat": {
-          "p2": 1000,
-          "unit": "points"
-        },
-        "MaxMPFlat": {
-          "p2": 12000,
-          "unit": "mp"
-        }
-      },
-      "upgraded_stats": {
-        "MagicResistFlat": {
-          "p2": 1350,
-          "unit": "points"
-        },
-        "MaxMPFlat": {
-          "p2": 16200,
-          "unit": "mp"
-        }
-      }
-    },
-    {
-      "buy_price": 400,
-      "id": "item_dossier",
-      "native_id": 110,
-      "passive": null,
-      "sell_gold": 260,
-      "stats": {
-        "APFlat": {
-          "p2": 2500,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 12000,
-          "unit": "hp"
-        }
-      },
-      "upgraded_stats": {
-        "APFlat": {
-          "p2": 3375,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 16200,
-          "unit": "hp"
-        }
-      }
-    },
-    {
-      "buy_price": 400,
-      "id": "item_echo_maul",
-      "native_id": 105,
-      "passive": {
-        "effects": [
-          {
-            "op": "cleave",
-            "opcode": 10,
-            "radius": {
-              "denominator": 1,
-              "numerator": 180,
-              "unit": "cm"
-            },
-            "ratio": {
-              "bp": 3500,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_cleave",
-        "upgraded": {
-          "effects": [
-            {
-              "op": "cleave",
-              "opcode": 10,
-              "radius": {
-                "denominator": 1,
-                "numerator": 180,
-                "unit": "cm"
-              },
-              "ratio": {
-                "bp": 4900,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 260,
-      "stats": {
-        "ADFlat": {
-          "p2": 1400,
-          "unit": "points"
-        },
-        "AttackRangeCmFlat": {
-          "denominator": 1,
-          "numerator": 40,
-          "unit": "cm"
-        }
-      },
-      "upgraded_stats": {
-        "ADFlat": {
-          "p2": 1890,
-          "unit": "points"
-        },
-        "AttackRangeCmFlat": {
-          "denominator": 1,
-          "numerator": 54,
-          "unit": "cm"
-        }
-      }
-    },
-    {
-      "buy_price": 320,
-      "id": "item_edge_blade",
-      "native_id": 100,
-      "passive": {
-        "effects": [
-          {
-            "base": {
-              "p2": 2000,
-              "unit": "points"
-            },
-            "count": 3,
-            "damage_type": "Physical",
-            "op": "nth_basic_bonus",
-            "opcode": 35
-          }
-        ],
-        "family": "passive_third_strike",
-        "upgraded": {
-          "effects": [
-            {
-              "base": {
-                "p2": 2800,
-                "unit": "points"
-              },
-              "count": 3,
-              "damage_type": "Physical",
-              "op": "nth_basic_bonus",
-              "opcode": 35
-            }
-          ]
-        }
-      },
-      "sell_gold": 208,
-      "stats": {
-        "ADFlat": {
-          "p2": 2000,
-          "unit": "points"
-        },
-        "AttackSpeedBonusRatio": {
-          "bp": 1000,
-          "unit": "ratio"
-        }
-      },
-      "upgraded_stats": {
-        "ADFlat": {
-          "p2": 2700,
-          "unit": "points"
-        },
-        "AttackSpeedBonusRatio": {
-          "bp": 1350,
-          "unit": "ratio"
-        }
-      }
-    },
-    {
-      "buy_price": 310,
-      "id": "item_iron_plate",
-      "native_id": 99,
-      "passive": {
-        "effects": [
-          {
-            "op": "crit_damage_reduction",
-            "opcode": 34,
-            "ratio": {
-              "bp": 1500,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_crit_guard",
-        "upgraded": {
-          "effects": [
-            {
-              "op": "crit_damage_reduction",
-              "opcode": 34,
-              "ratio": {
-                "bp": 2000,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 201,
-      "stats": {
-        "ArmorFlat": {
-          "p2": 1500,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 18000,
-          "unit": "hp"
-        }
-      },
-      "upgraded_stats": {
-        "ArmorFlat": {
-          "p2": 2025,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 24300,
-          "unit": "hp"
-        }
-      }
-    },
-    {
-      "buy_price": 360,
-      "id": "item_megaphone",
-      "native_id": 109,
-      "passive": {
-        "effects": [
-          {
-            "dot_ratio": {
-              "bp": 2500,
-              "unit": "ratio"
-            },
-            "op": "affliction_amp",
-            "opcode": 66,
-            "slow_scale": {
-              "bp": 11000,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_megaphone",
-        "upgraded": {
-          "effects": [
-            {
-              "dot_ratio": {
-                "bp": 3500,
-                "unit": "ratio"
-              },
-              "op": "affliction_amp",
-              "opcode": 66,
-              "slow_scale": {
-                "bp": 11400,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 234,
-      "stats": {
-        "APFlat": {
-          "p2": 2500,
-          "unit": "points"
-        },
-        "CooldownHasteFlat": {
-          "p2": 1000,
-          "unit": "points"
-        }
-      },
-      "upgraded_stats": {
-        "APFlat": {
-          "p2": 3375,
-          "unit": "points"
-        },
-        "CooldownHasteFlat": {
-          "p2": 1350,
-          "unit": "points"
-        }
-      }
-    },
-    {
-      "buy_price": 380,
-      "id": "item_nail_uniform",
-      "native_id": 108,
-      "passive": {
-        "effects": [
-          {
-            "armor_ratio": {
-              "bp": 1000,
-              "unit": "ratio"
-            },
-            "base": {
-              "p2": 2000,
-              "unit": "points"
-            },
-            "critical_multiplier": {
-              "bp": 10000,
-              "unit": "ratio"
-            },
-            "damage_type": "Magical",
-            "interval": {
-              "ms": 500,
-              "unit": "ms"
-            },
-            "max_hp_ratio": {
-              "bp": 100,
-              "unit": "ratio"
-            },
-            "op": "thorns",
-            "opcode": 24,
-            "radius": {
-              "denominator": 1,
-              "numerator": 300,
-              "unit": "cm"
-            },
-            "trigger": "Basic"
-          }
-        ],
-        "family": "passive_prickle",
-        "upgraded": {
-          "effects": [
-            {
-              "armor_ratio": {
-                "bp": 1400,
-                "unit": "ratio"
-              },
-              "base": {
-                "p2": 2800,
-                "unit": "points"
-              },
-              "critical_multiplier": {
-                "bp": 10000,
-                "unit": "ratio"
-              },
-              "damage_type": "Magical",
-              "interval": {
-                "ms": 500,
-                "unit": "ms"
-              },
-              "max_hp_ratio": {
-                "bp": 140,
-                "unit": "ratio"
-              },
-              "op": "thorns",
-              "opcode": 24,
-              "radius": {
-                "denominator": 1,
-                "numerator": 300,
-                "unit": "cm"
-              },
-              "trigger": "Basic"
-            }
-          ]
-        }
-      },
-      "sell_gold": 247,
-      "stats": {
-        "ArmorFlat": {
-          "p2": 1800,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 15000,
-          "unit": "hp"
-        }
-      },
-      "upgraded_stats": {
-        "ArmorFlat": {
-          "p2": 2430,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 20250,
-          "unit": "hp"
-        }
-      }
-    },
-    {
-      "buy_price": 400,
-      "id": "item_phase_anchor",
-      "native_id": 103,
-      "passive": {
-        "effects": [
-          {
-            "cooldown_ratio": {
-              "bp": 5000,
-              "unit": "ratio"
-            },
-            "distance_bonus": {
-              "bp": 5000,
-              "unit": "ratio"
-            },
-            "op": "dash_boost",
-            "opcode": 11,
-            "skill_cooldown_ratio": {
-              "bp": 8000,
-              "unit": "ratio"
-            },
-            "skill_distance_bonus": {
-              "bp": 2500,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_stride",
-        "upgraded": {
-          "effects": [
-            {
-              "cooldown_ratio": {
-                "bp": 4000,
-                "unit": "ratio"
-              },
-              "distance_bonus": {
-                "bp": 7000,
-                "unit": "ratio"
-              },
-              "op": "dash_boost",
-              "opcode": 11,
-              "skill_cooldown_ratio": {
-                "bp": 7200,
-                "unit": "ratio"
-              },
-              "skill_distance_bonus": {
-                "bp": 3500,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 260,
-      "stats": {
-        "MoveSpeedBonusRatio": {
-          "bp": 1200,
-          "unit": "ratio"
-        }
-      },
-      "upgraded_stats": {
-        "MoveSpeedBonusRatio": {
-          "bp": 1620,
-          "unit": "ratio"
-        }
-      }
-    },
-    {
-      "buy_price": 380,
-      "id": "item_privacy_screen",
-      "native_id": 111,
-      "passive": {
-        "effects": [
-          {
-            "internal_cooldown": {
-              "ms": 6000,
-              "unit": "ms"
-            },
-            "op": "shield_break_retort",
-            "opcode": 67,
-            "ratio": {
-              "bp": 4000,
-              "unit": "ratio"
-            },
-            "slow": {
-              "bp": 3000,
-              "unit": "ratio"
-            },
-            "slow_duration": {
-              "ms": 1500,
-              "unit": "ms"
-            }
-          }
-        ],
-        "family": "passive_privacy_screen",
-        "upgraded": {
-          "effects": [
-            {
-              "internal_cooldown": {
-                "ms": 6000,
-                "unit": "ms"
-              },
-              "op": "shield_break_retort",
-              "opcode": 67,
-              "ratio": {
-                "bp": 5600,
-                "unit": "ratio"
-              },
-              "slow": {
-                "bp": 3000,
-                "unit": "ratio"
-              },
-              "slow_duration": {
-                "ms": 1500,
-                "unit": "ms"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 247,
-      "stats": {
-        "APFlat": {
-          "p2": 2000,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 15000,
-          "unit": "hp"
-        }
-      },
-      "upgraded_stats": {
-        "APFlat": {
-          "p2": 2700,
-          "unit": "points"
-        },
-        "MaxHPFlat": {
-          "p2": 20250,
-          "unit": "hp"
-        }
-      }
-    },
-    {
-      "buy_price": 320,
-      "id": "item_runic_focus",
-      "native_id": 101,
-      "passive": {
-        "effects": [
-          {
-            "mana": {
-              "p2": 500,
-              "unit": "mp"
-            },
-            "op": "mana_on_hit",
-            "opcode": 36,
-            "trigger": "AbilityHit"
-          }
-        ],
-        "family": "passive_mana_refund",
-        "upgraded": {
-          "effects": [
-            {
-              "mana": {
-                "p2": 700,
-                "unit": "mp"
-              },
-              "op": "mana_on_hit",
-              "opcode": 36,
-              "trigger": "AbilityHit"
-            }
-          ]
-        }
-      },
-      "sell_gold": 208,
-      "stats": {
-        "APFlat": {
-          "p2": 3000,
-          "unit": "points"
-        },
-        "CooldownHasteFlat": {
-          "p2": 1500,
-          "unit": "points"
-        }
-      },
-      "upgraded_stats": {
-        "APFlat": {
-          "p2": 4050,
-          "unit": "points"
-        },
-        "CooldownHasteFlat": {
-          "p2": 2025,
-          "unit": "points"
-        }
-      }
-    },
-    {
-      "buy_price": 360,
-      "id": "item_siphon_emblem",
-      "native_id": 102,
-      "passive": {
-        "effects": [
-          {
-            "op": "lifesteal",
-            "opcode": 7,
-            "ratio": {
-              "bp": 1500,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_siphon",
-        "upgraded": {
-          "effects": [
-            {
-              "op": "lifesteal",
-              "opcode": 7,
-              "ratio": {
-                "bp": 2100,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 234,
-      "stats": {
-        "ADFlat": {
-          "p2": 1200,
-          "unit": "points"
-        },
-        "MagicResistFlat": {
-          "p2": 1200,
-          "unit": "points"
-        }
-      },
-      "upgraded_stats": {
-        "ADFlat": {
-          "p2": 1620,
-          "unit": "points"
-        },
-        "MagicResistFlat": {
-          "p2": 1620,
-          "unit": "points"
-        }
-      }
-    },
-    {
-      "buy_price": 380,
-      "id": "item_skateboard",
-      "native_id": 112,
-      "passive": {
-        "effects": [
-          {
-            "duration": {
-              "ms": 1200,
-              "unit": "ms"
-            },
-            "op": "hit_haste",
-            "opcode": 68,
-            "ratio": {
-              "bp": 1500,
-              "unit": "ratio"
-            }
-          }
-        ],
-        "family": "passive_skateboard",
-        "upgraded": {
-          "effects": [
-            {
-              "duration": {
-                "ms": 1200,
-                "unit": "ms"
-              },
-              "op": "hit_haste",
-              "opcode": 68,
-              "ratio": {
-                "bp": 2100,
-                "unit": "ratio"
-              }
-            }
-          ]
-        }
-      },
-      "sell_gold": 247,
-      "stats": {
-        "ADFlat": {
-          "p2": 1500,
-          "unit": "points"
-        },
-        "MoveSpeedBonusRatio": {
-          "bp": 1000,
-          "unit": "ratio"
-        }
-      },
-      "upgraded_stats": {
-        "ADFlat": {
-          "p2": 2025,
-          "unit": "points"
-        },
-        "MoveSpeedBonusRatio": {
-          "bp": 1350,
-          "unit": "ratio"
-        }
-      }
-    },
-    {
-      "buy_price": 320,
-      "id": "item_slingshot",
-      "native_id": 106,
-      "passive": null,
-      "sell_gold": 208,
-      "stats": {
-        "AttackRangeCmFlat": {
-          "denominator": 1,
-          "numerator": 120,
-          "unit": "cm"
-        },
-        "AttackSpeedBonusRatio": {
-          "bp": 1200,
-          "unit": "ratio"
-        }
-      },
-      "upgraded_stats": {
-        "AttackRangeCmFlat": {
-          "denominator": 1,
-          "numerator": 162,
-          "unit": "cm"
-        },
-        "AttackSpeedBonusRatio": {
-          "bp": 1620,
-          "unit": "ratio"
-        }
-      }
-    }
-  ],
   "formulas": {
     "AttackIntervalMs": "CeilReciprocalMs",
     "AttackMoveAcquireRadius": "MinVisionTwiceAttackRange",
@@ -5423,13 +4587,12 @@
       "unit": "points"
     },
     "ResourceMaxChange": "FloorFinalRatioRejectAliveUnderflow",
-    "SellGold": "FloorPurchasePriceTimesSellRatio",
     "StatProjection": "AddFlatThenAdditivePercent",
     "XPToNext": "LinearIncrement"
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded. playtest input, not a balance test.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed. playtest input, not a balance test.",
       "status": "approved"
     },
     "handler_revision": 1,
@@ -5604,7 +4767,6 @@
       "numerator": 150,
       "unit": "cm"
     },
-    "AIRDROP.RewardGold": 150,
     "AIRDROP.RewardXP": 200,
     "CAMP.GrowthAttackRatioPerStage": {
       "bp": 800,
@@ -5745,8 +4907,6 @@
       "numerator": 400,
       "unit": "cm"
     },
-    "LEADER.BountyGoldMax": 250,
-    "LEADER.BountyGoldPerRefresh": 50,
     "LEADER.CircleMaxOffsetCm": {
       "denominator": 1,
       "numerator": 1000,
@@ -5790,33 +4950,12 @@
       "bp": 150,
       "unit": "ratio"
     },
-    "REWARD.AssistGoldRatio": {
-      "bp": 5000,
-      "unit": "ratio"
-    },
     "REWARD.AssistWindowSec": {
       "ms": 15000,
       "unit": "ms"
     },
-    "REWARD.PlayerGold.Base": 80,
-    "REWARD.PlayerGold.PerLevel": 10,
     "REWARD.PlayerXP.Base": 100,
     "REWARD.PlayerXP.PerLevel": 20,
-    "SHOP.InteractRadiusCm": {
-      "denominator": 1,
-      "numerator": 600,
-      "unit": "cm"
-    },
-    "SHOP.SellRatio": {
-      "bp": 6500,
-      "unit": "ratio"
-    },
-    "SHOP.StartingGold": 320,
-    "SHOP.UpgradeCost": 240,
-    "SHOP.UpgradeStatBonusRatio": {
-      "bp": 3500,
-      "unit": "ratio"
-    },
     "SKILL.GrowthPerLevel": {
       "bp": 1000,
       "unit": "ratio"
@@ -6057,8 +5196,6 @@
     "CampReturningDamageable": true,
     "CritSampling": "OncePerAttackId",
     "DeadChoiceCommit": "Allowed",
-    "DuplicateEquipment": "Allowed",
-    "DuplicateEquipmentPassive": "OncePerFamily",
     "InvalidAggressionProtection": "BreakOnAggressiveIntent",
     "LifestealBasis": "PrimaryBasicAttackHPLost",
     "LifestealRecursiveTriggers": "Disabled",
@@ -6071,13 +5208,11 @@
       "Dash"
     ],
     "ShieldPolicy": "ReplaceIfNotWeaker",
-    "ShopRequiresLineOfSight": false,
     "SourceLeave": "CancelUnsettledNoRefund",
     "StatStacking": "AddFlatThenAdditivePercent"
   },
   "progression": {
     "active_slots": 3,
-    "equipment_slots": 2,
     "max_choices": 16,
     "max_level": 16,
     "max_skill_rank": 2,
@@ -6165,10 +5300,6 @@
     ],
     "capture_id": "capture",
     "map_id": "demo_world",
-    "shop_ids": [
-      "shop_n",
-      "shop_s"
-    ],
     "spawn_ids": [
       "s00",
       "s01",

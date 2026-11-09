@@ -78,20 +78,13 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     {
         Projection=Record->Projection;
         Facts.Level=Record->Build.Level;
-        for (const auto& Item : Record->Build.Equipment)
-        {
-            const FLDDemoEquipmentDefinition* Definition=nullptr;
-            if (!Content->FindEquipment(Item.DefinitionId.ToString(),Definition,Error)) { return false; }
-            if (Item.Slot>=UE_ARRAY_COUNT(Facts.Equipment.Slots)) { Error=TEXT("Persistent equipment has no item slot."); return false; }
-            Facts.Equipment.Slots[Item.Slot]=Definition->NativeId;
-        }
         if (!PublicActivesOf(Record->Build,*Content,Facts.Actives))
         { Error=TEXT("Persistent Q/W actives have no approved public active definition."); return false; }
     }
     else
     {
         if (Victim.Life!=1) { Error=TEXT("Only the first contender life may start without a persistent Combat record."); return false; }
-        const FLDAttributeBuildValues Initial(1,{},{},{});
+        const FLDAttributeBuildValues Initial(1,{},{});
         const auto Result=LDAttributeProjection::Project(Initial,*Content);
         if (!Result.IsSuccess())
         {

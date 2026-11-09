@@ -36,7 +36,6 @@ namespace LDHUDStyle
     inline const FLinearColor DamageTaken(1.f,.36f,.30f);
     inline const FLinearColor Heal(.45f,.95f,.50f);
     inline const FLinearColor ShieldGain(.45f,.90f,1.f);
-    inline const FLinearColor GoldGain(1.f,.84f,.30f);
     inline const FLinearColor ExperienceGain(.80f,.66f,1.f);
     inline const FLinearColor Celebration(1.f,.86f,.36f);
 

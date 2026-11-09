@@ -193,13 +193,6 @@ void ALDPlayerController::StopCombatAndOrders()
     ServerCancelCombatAction(Request);
 }
 
-bool ALDPlayerController::ReadShopInteraction(FName& OutShopId, uint32& OutLife) const
-{
-    OutShopId=NAME_None;
-    OutLife=0;
-    return Navigation && Navigation->ReadShopInteraction(OutShopId,OutLife);
-}
-
 void ALDPlayerController::PostIntentNotice(const FString& Text)
 {
     if (Text.IsEmpty() || !IsLocalController()) { return; }

@@ -706,7 +706,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         }
         if (Kind.Equals(TEXT("Spawn"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Spawn; }
         else if (Kind.Equals(TEXT("Camp"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Camp; }
-        else if (Kind.Equals(TEXT("Shop"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Shop; }
         else if (Kind.Equals(TEXT("Capture"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Capture; }
         else if (Kind.Equals(TEXT("Dorm"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Dorm; }
         else if (Kind.Equals(TEXT("Airdrop"), ESearchCase::CaseSensitive)) { Anchor.Kind = ELDDemoWorldAnchorKind::Airdrop; }
@@ -746,14 +745,6 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             }
         }
         if (!Row.Done()) { return false; }
-        // A shop anchor stands in its stall; its point still sits at the height of the flat level beneath it.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Shop)
-        {
-            const int32 Level = DiscLevel(Out, XY(Anchor.PositionCm, N), N.Value(0), 0, N);
-            if (!Check.Require(Level != INDEX_NONE && N.EQ(N.Value(Anchor.PositionCm.Z), LevelHeight(Out, Level, N)),
-                Anchor.Id, TEXT("shop anchor is off its level's height"))) { return false; }
-        }
-        if (Anchor.Kind != ELDDemoWorldAnchorKind::Shop)
         {
             const FExact Clearance = Anchor.Kind == ELDDemoWorldAnchorKind::Camp ? N.Value(Out.CampClearanceCm)
                 : Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? N.Value(Content.Parameters.CaptureRadiusCm)
@@ -790,15 +781,11 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
     {
         if (!Reference(Id, ELDDemoWorldAnchorKind::Camp)) { return false; }
     }
-    for (const FString& Id : Content.World.ShopIds)
-    {
-        if (!Reference(Id, ELDDemoWorldAnchorKind::Shop)) { return false; }
-    }
     int32 Named = 0;
     for (const auto& Anchor : Out.Anchors)
     {
         Named += Anchor.Kind == ELDDemoWorldAnchorKind::Spawn || Anchor.Kind == ELDDemoWorldAnchorKind::Camp
-            || Anchor.Kind == ELDDemoWorldAnchorKind::Shop || Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? 1 : 0;
+            || Anchor.Kind == ELDDemoWorldAnchorKind::Capture ? 1 : 0;
     }
     if (!Reference(Content.World.CaptureId, ELDDemoWorldAnchorKind::Capture)
         || !Check.Require(Referenced.Num() == Named, Root.Path, TEXT("unreferenced anchor")))
@@ -806,13 +793,12 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
         return false;
     }
     // D21 dorms and D26 airdrop points are the anchors content does not name; each event disk stays apart from the
-    // circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
+    // circle, every camp clearing and every other event disk, so no two zone rules overlap.
     auto ZoneRadius = [&](ELDDemoWorldAnchorKind Kind) -> TOptional<FExact>
     {
         switch (Kind)
         {
         case ELDDemoWorldAnchorKind::Capture: return N.Value(Content.Parameters.CaptureRadiusCm);
-        case ELDDemoWorldAnchorKind::Shop: return N.Value(Content.Parameters.ShopInteractRadiusCm);
         case ELDDemoWorldAnchorKind::Camp: return N.Value(Out.CampClearanceCm);
         case ELDDemoWorldAnchorKind::Dorm: return N.Value(Content.Parameters.DormRadiusCm);
         case ELDDemoWorldAnchorKind::Airdrop: return N.Value(Content.Parameters.AirdropPickupRadiusCm);
@@ -832,7 +818,7 @@ bool Anchors(FFields& Root, const FLDDemoContentDefinitions& Content, FLDDemoWor
             if (&Other == &Zone || !OtherRadius.IsSet()) { continue; }
             const FExact Reach = N.Add(Own, OtherRadius.GetValue());
             if (!Check.Require(N.LT(N.Mul(Reach, Reach), DistanceSquared(XY(Zone.PositionCm, N), XY(Other.PositionCm, N), N)),
-                Zone.Id, TEXT("event disk overlaps the capture, shop, a camp clearing or another event disk")))
+                Zone.Id, TEXT("event disk overlaps the capture, a camp clearing or another event disk")))
             {
                 return false;
             }
@@ -939,7 +925,6 @@ bool Project(const LDDemoContent::FValue& Value, const FLDDemoContentDefinitions
     const TArray<FValue>* Refs;
     const TCHAR* Expected[] = {
         TEXT("AIRDROP.PickupRadiusCm"), TEXT("CAMP.ResetArrivalRadiusCm"), TEXT("CAPTURE.RadiusCm"), TEXT("DORM.RadiusCm"),
-        TEXT("SHOP.InteractRadiusCm"),
         TEXT("UNIT.BasicAttackRangeCm"), TEXT("UNIT.CollisionRadiusCm"), TEXT("VISION.RadiusCm")};
     constexpr int32 RefCount = UE_ARRAY_COUNT(Expected);
     if (!Array(Root.Take(TEXT("parameter_refs")), Refs, Check, TEXT("world.parameter_refs"), RefCount, RefCount)) { return false; }

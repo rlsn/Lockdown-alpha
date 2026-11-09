@@ -208,7 +208,6 @@ bool FLDDemoCoreTest::RunTest(const FString& Parameters)
     Registered.Resources.Revision=Registered.AttributeRevision=1;
     FLDObservedPublicFacts Committed;
     Committed.Level=1;
-    Committed.Equipment.Slots[0]=Committed.Equipment.Slots[1]=0;
     Registered.PublicFacts=Committed;
     Life.ProtectedUntilMs=100;
     Mode->AuthorityNowMs=99;

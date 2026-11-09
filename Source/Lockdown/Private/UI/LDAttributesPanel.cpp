@@ -82,33 +82,6 @@ FString AttrPanelLearned(const FLDCombatOwnerView* Combat,const FLDProgressionVi
     }
     return AttrPanelLines(Lines);
 }
-// Combat applies each equipment passive family once. An entry is matched to an item id first and then to a passive
-// family; when neither exists the stable id stays visible as a content error instead of a guessed name.
-FString AttrPanelGear(const FLDCombatOwnerView* Combat,const FLDDemoContentDefinitions* Definitions)
-{
-    if(!Combat){return AttrPanelSyncing;}
-    TArray<FString> Lines;
-    TArray<FName> Seen;
-    for(const FName& Passive:Combat->EquipmentPassives)
-    {
-        if(Seen.Contains(Passive)){continue;}
-        Seen.Add(Passive);
-        const FString Id=Passive.ToString();
-        const FLDDemoEquipmentDefinition* Item=nullptr;
-        if(Definitions)
-        {
-            Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Id==Id;});
-            if(!Item){Item=Definitions->Equipment.FindByPredicate([&Id](const FLDDemoEquipmentDefinition& D){return D.HasPassive&&D.Passive.Family==Id;});}
-        }
-        const bool bUpgraded=Combat->UpgradedEquipmentPassives.Contains(Passive);
-        Lines.Add(LDHUD::ContentName(Definitions,Item?Item->Id:Id)+(bUpgraded?TEXT("（已进阶）"):TEXT("")));
-        if(!Item){if(Definitions){Lines.Add(TEXT("  内容目录中找不到该装备被动"));}continue;}
-        const TArray<FLDDemoEffectDefinition>* Effects=LDDemoEquipment::EffectivePassiveEffects(*Item,bUpgraded);
-        if(!Effects){Lines.Add(TEXT("  缺少进阶后的被动定义"));continue;}
-        for(const FLDDemoEffectDefinition& Effect:*Effects){Lines.Add(TEXT("  ")+LDHUD::EffectLine(Effect));}
-    }
-    return AttrPanelLines(Lines);
-}
 FString AttrPanelStatuses(const FLDCombatOwnerView* Combat,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Definitions)
 {
     if(!Combat){return AttrPanelSyncing;}
@@ -174,7 +147,6 @@ TSharedRef<SWidget> ULDAttributesPanel::RebuildWidget()
             return Section;
         };
         LearnedPassiveText=AddSection(TEXT("角色被动"));
-        EquipmentPassiveText=AddSection(TEXT("装备被动"));
         StatusText=AddSection(TEXT("临时状态"));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetClipping(EWidgetClipping::ClipToBounds);Scroll->AddChild(Body);
         auto* HeightBox=WidgetTree->ConstructWidget<USizeBox>();HeightBox->SetMaxDesiredHeight(620);HeightBox->SetContent(Scroll);
@@ -222,6 +194,5 @@ void ULDAttributesPanel::Present(const FLDCombatOwnerView* Combat,const FLDProgr
         AttrPanelShow(RowBreakdowns[RowIndex].Get(),!Shown.Breakdown.IsEmpty());
     }
     AttrPanelText(LearnedPassiveText,AttrPanelLearned(Combat,Progression,Definitions));
-    AttrPanelText(EquipmentPassiveText,AttrPanelGear(Combat,Definitions));
     AttrPanelText(StatusText,AttrPanelStatuses(Combat,bClock,NowMs,Definitions));
 }

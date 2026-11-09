@@ -40,12 +40,12 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
     if (!World.Surfaces[0].MinCm.ToVector(FloorMin, Error) || !World.Surfaces[0].MaxCm.ToVector(FloorMax, Error)) { return false; }
     const auto& Parameters = Content.Get().Parameters;
     const double Body = PlaceValue(Parameters.CollisionRadiusCm), CaptureRadius = PlaceValue(Parameters.CaptureRadiusCm);
-    const double ShopRadius = PlaceValue(Parameters.ShopInteractRadiusCm), SightHeight = PlaceValue(World.SightSampleHeightCm);
+    const double SightHeight = PlaceValue(World.SightSampleHeightCm);
     const double AirdropRadius = PlaceValue(Parameters.AirdropPickupRadiusCm);
     const double CampClearance = PlaceValue(World.CampClearanceCm), SpawnRadius = PlaceValue(World.SpawnValidationRadiusCm);
-    if (!(Body > 0 && CaptureRadius > 0 && ShopRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0 && AirdropRadius > 0))
+    if (!(Body > 0 && CaptureRadius > 0 && SightHeight > 0 && CampClearance > 0 && SpawnRadius > 0 && AirdropRadius > 0))
     {
-        return PlaceFail(Error, TEXT("The approved body, capture, shop, sight, camp and spawn sizes are required to check decorations."));
+        return PlaceFail(Error, TEXT("The approved body, capture, sight, camp and spawn sizes are required to check decorations."));
     }
     double SpawnReach = 0.;
     for (const FLDDemoWorldPoint& Offset : World.SpawnOffsetsCm)
@@ -70,7 +70,6 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         {
         case ELDDemoWorldAnchorKind::Spawn: KeepOut.Radius = SpawnRadius + SpawnReach + Body; break;
         case ELDDemoWorldAnchorKind::Camp: KeepOut.Radius = CampClearance; break;
-        case ELDDemoWorldAnchorKind::Shop: KeepOut.Radius = ShopRadius + Body; break;
         case ELDDemoWorldAnchorKind::Capture: KeepOut.Radius = CaptureRadius + Body; break;
         // D26: the pickup disk stays clear so the crate and every body reaching it read plainly.
         case ELDDemoWorldAnchorKind::Airdrop: KeepOut.Radius = AirdropRadius + Body; break;
@@ -142,27 +141,21 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
             break;
         }
         case ELDArtZone::Capture:
-        case ELDArtZone::Shop:
         {
-            const bool bCapture = Decoration.Zone == ELDArtZone::Capture;
-            const ELDDemoWorldAnchorKind Kind = bCapture ? ELDDemoWorldAnchorKind::Capture : ELDDemoWorldAnchorKind::Shop;
-            // #97: several shops; each landmark sits on the nearest anchor of its kind.
+            // The landmark sits on the nearest capture anchor.
             const FPlaceKeepOut* Anchor = nullptr;
             for (const FPlaceKeepOut& KeepOut : KeepOuts)
             {
-                if (KeepOut.Kind == Kind && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
+                if (KeepOut.Kind == ELDDemoWorldAnchorKind::Capture && (!Anchor || PlaceDistance2D(Box, KeepOut.Centre) < PlaceDistance2D(Box, Anchor->Centre)))
                 {
                     Anchor = &KeepOut;
                 }
             }
-            const double Limit = bCapture ? CaptureLandmarkHalfExtentCm : ShopLandmarkHalfExtentCm;
             // The transform carries the footprint pivot, so the anchor must lie within the landmark itself.
             if (!Anchor || PlaceDistance2D(Box, Anchor->Centre) > LandmarkCentreToleranceCm)
             { return PlaceFail(Error, Label + TEXT(" is not centred on its world anchor.")); }
-            if (FMath::Max(Box.GetExtent().X, Box.GetExtent().Y) > Limit)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is wider than a %.0f cm landmark around its anchor."), *Label, Limit)); }
-            if (!bCapture && Box.Max.Z > OccluderHeightCm)
-            { return PlaceFail(Error, FString::Printf(TEXT("%s is %.0f cm tall; at the shop it would hide bodies above %.0f cm."), *Label, Box.Max.Z, OccluderHeightCm)); }
+            if (FMath::Max(Box.GetExtent().X, Box.GetExtent().Y) > CaptureLandmarkHalfExtentCm)
+            { return PlaceFail(Error, FString::Printf(TEXT("%s is wider than a %.0f cm landmark around its anchor."), *Label, CaptureLandmarkHalfExtentCm)); }
             break;
         }
         case ELDArtZone::Blocker:

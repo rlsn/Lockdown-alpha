@@ -3,7 +3,7 @@
   "title": "Demo author contract; explicit reviewed inputs and no numeric defaults",
   "type": "object",
   "additionalProperties": false,
-  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "attributes", "opening_cards", "equipment", "camps", "boss", "progression", "world", "display"],
+  "required": ["identity", "parameters", "formulas", "policies", "character", "abilities", "attributes", "opening_cards", "camps", "boss", "progression", "world", "display"],
   "properties": {
     "identity": {
       "type": "object", "additionalProperties": false,
@@ -16,7 +16,7 @@
           "type": "object", "additionalProperties": false, "required": ["status", "decision"],
           "properties": {
             "status": {"type": "string", "const": "approved"},
-            "decision": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": ".*\\S.*"}
+            "decision": {"type": "string", "minLength": 1, "maxLength": 1024, "pattern": ".*\\S.*"}
           }
         }
       }
@@ -36,11 +36,10 @@
         "STAT.CritChance.Base", "STAT.CritMultiplier", "STAT.AbilityCritMultiplier", "STAT.CooldownHaste.Base", "STAT.CooldownHaste.Max", "SKILL.GrowthPerLevel", "SKILL.GrowthPerLevelAfter10",
         "UNIT.MoveSpeedCmPerSec", "STAT.MoveSpeed.Min", "STAT.MoveSpeed.Max",
         "UNIT.CollisionRadiusCm", "UNIT.BasicAttackRangeCm", "STAT.AttackRange.Min", "STAT.AttackRange.Max",
-        "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "SHOP.InteractRadiusCm", "CAPTURE.RadiusCm",
+        "UNIT.BasicAttackWindupSec", "VISION.RadiusCm", "CAPTURE.RadiusCm",
         "CAPTURE.SpraySec", "CAPTURE.GuardSec", "MATCH.CountdownSec", "MATCH.DevelopmentSec", "LIFE.RespawnSec", "LIFE.ProtectionSec",
         "REGEN.OutOfCombatDelaySec", "REGEN.OutOfCombatMaxHPRatioPerSec", "REGEN.OutOfCombatMaxMPRatioPerSec",
         "DORM.RadiusCm", "DORM.OutOfCombatDelaySec", "DORM.MaxHPRatioPerSec", "DORM.MaxMPRatioPerSec",
-        "SHOP.StartingGold", "SHOP.SellRatio", "SHOP.UpgradeCost", "SHOP.UpgradeStatBonusRatio",
         "CHOICE.NewActiveFreeSlotWeight", "CHOICE.NewActiveFullSlotWeight", "CHOICE.FirstSlotUpgradeChance", "CHOICE.FreeSlotAttributeChance",
         "CHOICE.AttributeQuality.GreenChance", "CHOICE.AttributeQuality.GreenMultiplier",
         "CHOICE.AttributeQuality.BlueChance", "CHOICE.AttributeQuality.BlueMultiplier",
@@ -51,11 +50,10 @@
         "CAMP.GrowthStageSec", "CAMP.GrowthMaxStage", "CAMP.GrowthHPRatioPerStage", "CAMP.GrowthAttackRatioPerStage",
         "CAMP.GrowthResistPerStage", "CAMP.GrowthRewardXPRatioPerStage",
         "AIRDROP.FirstLandSec", "AIRDROP.IntervalSec", "AIRDROP.AnnounceLeadSec", "AIRDROP.PickupRadiusCm",
-        "AIRDROP.RewardXP", "AIRDROP.RewardGold",
+        "AIRDROP.RewardXP",
         "LEADER.MinLevel", "LEADER.RefreshSec", "LEADER.CircleRadiusCm", "LEADER.CircleMaxOffsetCm",
-        "LEADER.BountyGoldPerRefresh", "LEADER.BountyGoldMax",
         "XP.BaseToNext", "XP.IncreasePerLevel", "REWARD.PlayerXP.Base", "REWARD.PlayerXP.PerLevel",
-        "REWARD.PlayerGold.Base", "REWARD.PlayerGold.PerLevel", "REWARD.AssistWindowSec", "REWARD.AssistGoldRatio",
+        "REWARD.AssistWindowSec",
         "AI.RetreatHPRatio", "AI.ResumeFarmHPRatio", "AI.HighCampEntryHPRatio", "AI.HighCampReserveHPRatio", "AI.LowCampReserveHPRatio",
         "AI.CaptureReactionBudgetSec", "AI.DecisionIntervalSec", "AI.RetryPolicy.MaxAttempts",
         "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec",
@@ -90,15 +88,13 @@
         "UNIT.CollisionRadiusCm": {"$ref": "#/$defs/cm"}, "UNIT.BasicAttackRangeCm": {"$ref": "#/$defs/cm"},
         "STAT.AttackRange.Min": {"$ref": "#/$defs/cm"}, "STAT.AttackRange.Max": {"$ref": "#/$defs/cm"},
         "UNIT.BasicAttackWindupSec": {"$ref": "#/$defs/positive_sec"}, "VISION.RadiusCm": {"$ref": "#/$defs/cm"},
-        "SHOP.InteractRadiusCm": {"$ref": "#/$defs/cm"}, "CAPTURE.RadiusCm": {"$ref": "#/$defs/cm"},
+        "CAPTURE.RadiusCm": {"$ref": "#/$defs/cm"},
         "CAPTURE.SpraySec": {"$ref": "#/$defs/positive_sec"}, "CAPTURE.GuardSec": {"$ref": "#/$defs/positive_sec"},
         "MATCH.CountdownSec": {"$ref": "#/$defs/positive_sec"}, "MATCH.DevelopmentSec": {"$ref": "#/$defs/sec"}, "LIFE.RespawnSec": {"$ref": "#/$defs/positive_sec"}, "LIFE.ProtectionSec": {"$ref": "#/$defs/sec"},
         "REGEN.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"}, "REGEN.OutOfCombatMaxHPRatioPerSec": {"$ref": "#/$defs/probability"},
         "REGEN.OutOfCombatMaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
         "DORM.RadiusCm": {"$ref": "#/$defs/cm"}, "DORM.OutOfCombatDelaySec": {"$ref": "#/$defs/positive_sec"},
         "DORM.MaxHPRatioPerSec": {"$ref": "#/$defs/probability"}, "DORM.MaxMPRatioPerSec": {"$ref": "#/$defs/probability"},
-        "SHOP.StartingGold": {"$ref": "#/$defs/count"}, "SHOP.SellRatio": {"$ref": "#/$defs/probability"},
-        "SHOP.UpgradeCost": {"$ref": "#/$defs/positive_count"}, "SHOP.UpgradeStatBonusRatio": {"$ref": "#/$defs/probability"},
         "CHOICE.NewActiveFreeSlotWeight": {"$ref": "#/$defs/probability"},
         "CHOICE.NewActiveFullSlotWeight": {"$ref": "#/$defs/probability"},
         "CHOICE.FirstSlotUpgradeChance": {"$ref": "#/$defs/probability"},
@@ -118,14 +114,12 @@
         "CAMP.GrowthResistPerStage": {"$ref": "#/$defs/points"}, "CAMP.GrowthRewardXPRatioPerStage": {"$ref": "#/$defs/multiplier"},
         "AIRDROP.FirstLandSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.IntervalSec": {"$ref": "#/$defs/positive_sec"},
         "AIRDROP.AnnounceLeadSec": {"$ref": "#/$defs/positive_sec"}, "AIRDROP.PickupRadiusCm": {"$ref": "#/$defs/cm"},
-        "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"}, "AIRDROP.RewardGold": {"$ref": "#/$defs/positive_count"},
+        "AIRDROP.RewardXP": {"$ref": "#/$defs/positive_count"},
         "LEADER.MinLevel": {"$ref": "#/$defs/positive_count"}, "LEADER.RefreshSec": {"$ref": "#/$defs/positive_sec"},
         "LEADER.CircleRadiusCm": {"$ref": "#/$defs/cm"}, "LEADER.CircleMaxOffsetCm": {"$ref": "#/$defs/cm"},
-        "LEADER.BountyGoldPerRefresh": {"$ref": "#/$defs/positive_count"}, "LEADER.BountyGoldMax": {"$ref": "#/$defs/positive_count"},
         "XP.BaseToNext": {"$ref": "#/$defs/positive_count"}, "XP.IncreasePerLevel": {"$ref": "#/$defs/count"},
         "REWARD.PlayerXP.Base": {"$ref": "#/$defs/count"}, "REWARD.PlayerXP.PerLevel": {"$ref": "#/$defs/count"},
-        "REWARD.PlayerGold.Base": {"$ref": "#/$defs/count"}, "REWARD.PlayerGold.PerLevel": {"$ref": "#/$defs/count"},
-        "REWARD.AssistWindowSec": {"$ref": "#/$defs/positive_sec"}, "REWARD.AssistGoldRatio": {"$ref": "#/$defs/probability"},
+        "REWARD.AssistWindowSec": {"$ref": "#/$defs/positive_sec"},
         "AI.RetreatHPRatio": {"$ref": "#/$defs/probability"}, "AI.ResumeFarmHPRatio": {"$ref": "#/$defs/probability"},
         "AI.HighCampEntryHPRatio": {"$ref": "#/$defs/probability"}, "AI.HighCampReserveHPRatio": {"$ref": "#/$defs/probability"}, "AI.LowCampReserveHPRatio": {"$ref": "#/$defs/probability"},
         "AI.CaptureReactionBudgetSec": {"$ref": "#/$defs/positive_sec"}, "AI.DecisionIntervalSec": {"$ref": "#/$defs/positive_sec"},
@@ -141,7 +135,7 @@
     },
     "formulas": {
       "type": "object", "additionalProperties": false,
-      "required": ["StatProjection", "Resistance", "Crit", "Damage", "AttackSpeed", "MoveSpeed", "AttackRange", "AttackMoveAcquireRadius", "AttackIntervalMs", "AttackWindupMs", "CooldownMs", "Regen", "ResourceMaxChange", "SellGold", "XPToNext", "ResistanceScale", "HasteScale"],
+      "required": ["StatProjection", "Resistance", "Crit", "Damage", "AttackSpeed", "MoveSpeed", "AttackRange", "AttackMoveAcquireRadius", "AttackIntervalMs", "AttackWindupMs", "CooldownMs", "Regen", "ResourceMaxChange", "XPToNext", "ResistanceScale", "HasteScale"],
       "properties": {
         "StatProjection": {"const": "AddFlatThenAdditivePercent"}, "Resistance": {"const": "PointsOverScalePlusPoints"},
         "Crit": {"const": "OncePerPrimaryAttack"}, "Damage": {"const": "FloorP2ThenShieldThenHP"},
@@ -151,22 +145,21 @@
         "AttackWindupMs": {"const": "CeilBaseWindupTimesBaseOverCurrentAS"},
         "CooldownMs": {"const": "CeilBaseTimesScaleOverScalePlusHaste"},
         "Regen": {"const": "CarrySubP2Remainder"}, "ResourceMaxChange": {"const": "FloorFinalRatioRejectAliveUnderflow"},
-        "SellGold": {"const": "FloorPurchasePriceTimesSellRatio"}, "XPToNext": {"const": "LinearIncrement"},
+        "XPToNext": {"const": "LinearIncrement"},
         "ResistanceScale": {"$ref": "#/$defs/points"}, "HasteScale": {"$ref": "#/$defs/points"}
       }
     },
     "policies": {
       "type": "object", "additionalProperties": false,
-      "required": ["StatStacking", "DuplicateEquipment", "DuplicateEquipmentPassive", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShopRequiresLineOfSight", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampManaPolicy"],
+      "required": ["StatStacking", "MissingSourceCooldown", "DeadChoiceCommit", "ResourceMaxChange", "ReleasedEffectSourceLoss", "SourceLeave", "InvalidAggressionProtection", "CritSampling", "LifestealBasis", "LifestealRecursiveTriggers", "BasicSecondaryTriggers", "RegenIntegration", "ShieldPolicy", "RootBlocks", "CampAggroTrigger", "CampGroupRetaliation", "CampReturningDamageable", "CampReturningControllable", "CampResetPolicy", "CampManaPolicy"],
       "properties": {
-        "StatStacking": {"const": "AddFlatThenAdditivePercent"}, "DuplicateEquipment": {"const": "Allowed"},
-        "DuplicateEquipmentPassive": {"const": "OncePerFamily"},
+        "StatStacking": {"const": "AddFlatThenAdditivePercent"},
         "MissingSourceCooldown": {"const": "ContinueServerTime"}, "DeadChoiceCommit": {"const": "Allowed"},
         "ResourceMaxChange": {"const": "PreserveRatio"}, "ReleasedEffectSourceLoss": {"const": "ContinueForRemainingContender"},
         "SourceLeave": {"const": "CancelUnsettledNoRefund"}, "InvalidAggressionProtection": {"const": "BreakOnAggressiveIntent"},
         "CritSampling": {"const": "OncePerAttackId"}, "LifestealBasis": {"const": "PrimaryBasicAttackHPLost"},
         "LifestealRecursiveTriggers": {"const": "Disabled"}, "BasicSecondaryTriggers": {"const": "Disabled"},
-        "RegenIntegration": {"const": "CarrySubP2Remainder"}, "ShopRequiresLineOfSight": {"type": "boolean", "const": false},
+        "RegenIntegration": {"const": "CarrySubP2Remainder"},
         "ShieldPolicy": {"const": "ReplaceIfNotWeaker"},
         "RootBlocks": {"type": "array", "const": ["Move", "Dash"]},
         "CampAggroTrigger": {"const": "ConfirmedCombatHit"}, "CampGroupRetaliation": {"type": "boolean", "const": true},
@@ -203,7 +196,6 @@
         "properties": {"id": {"$ref": "#/$defs/id"}, "stats": {"$ref": "#/$defs/stat_bonus"}}
       }
     },
-    "equipment": {"type": "array", "minItems": 1, "maxItems": 157, "items": {"$ref": "#/$defs/equipment"}},
     "camps": {
       "type": "object", "additionalProperties": false, "required": ["monsters", "placements"],
       "properties": {
@@ -219,13 +211,13 @@
     },
     "boss": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "hp", "armor", "magic_resist", "attack", "attack_interval", "attack_windup", "attack_range", "move_speed", "collision_radius", "aggro_radius", "attacker_memory", "appear_at", "reward_xp", "reward_gold", "approval"],
+      "required": ["id", "hp", "armor", "magic_resist", "attack", "attack_interval", "attack_windup", "attack_range", "move_speed", "collision_radius", "aggro_radius", "attacker_memory", "appear_at", "reward_xp", "approval"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"},
         "attack": {"$ref": "#/$defs/points"}, "attack_interval": {"$ref": "#/$defs/positive_sec"}, "attack_windup": {"$ref": "#/$defs/positive_sec"},
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"},
         "aggro_radius": {"$ref": "#/$defs/cm"}, "attacker_memory": {"$ref": "#/$defs/positive_sec"}, "appear_at": {"$ref": "#/$defs/positive_sec"},
-        "reward_xp": {"$ref": "#/$defs/count"}, "reward_gold": {"$ref": "#/$defs/count"},
+        "reward_xp": {"$ref": "#/$defs/count"},
         "approval": {
           "type": "object", "additionalProperties": false, "required": ["duration", "stats"],
           "properties": {"duration": {"$ref": "#/$defs/positive_sec"}, "stats": {"$ref": "#/$defs/stat_bonus"}}
@@ -234,11 +226,11 @@
     },
     "progression": {
       "type": "object", "additionalProperties": false,
-      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "equipment_slots", "xp_start", "xp_thresholds", "opening_offer", "reroll_levels"],
+      "required": ["max_level", "max_choices", "max_skill_rank", "active_slots", "xp_start", "xp_thresholds", "opening_offer", "reroll_levels"],
       "properties": {
         "max_level": {"type": "integer", "const": 16}, "max_choices": {"type": "integer", "const": 16},
         "max_skill_rank": {"type": "integer", "const": 2}, "active_slots": {"type": "integer", "const": 3},
-        "equipment_slots": {"type": "integer", "const": 2}, "xp_start": {"type": "integer", "const": 0},
+        "xp_start": {"type": "integer", "const": 0},
         "xp_thresholds": {"type": "array", "minItems": 16, "maxItems": 16, "items": {"$ref": "#/$defs/count"}},
         "opening_offer": {
           "type": "object", "additionalProperties": false, "required": ["matched_skill_weight", "other_skill_weight"],
@@ -250,12 +242,11 @@
       }
     },
     "world": {
-      "type": "object", "additionalProperties": false, "required": ["map_id", "spawn_ids", "camp_ids", "shop_ids", "capture_id"],
+      "type": "object", "additionalProperties": false, "required": ["map_id", "spawn_ids", "camp_ids", "capture_id"],
       "properties": {
         "map_id": {"$ref": "#/$defs/id"},
         "spawn_ids": {"type": "array", "minItems": 6, "maxItems": 32, "items": {"$ref": "#/$defs/id"}},
         "camp_ids": {"type": "array", "minItems": 1, "maxItems": 48, "items": {"$ref": "#/$defs/id"}},
-        "shop_ids": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/id"}},
         "capture_id": {"$ref": "#/$defs/id"}
       }
     },
@@ -612,37 +603,16 @@
         }
       ]
     },
-    "equipment": {
-      "type": "object", "additionalProperties": false, "required": ["id", "buy_price", "stats", "passive"],
-      "properties": {
-        "id": {"$ref": "#/$defs/id"}, "buy_price": {"$ref": "#/$defs/positive_count"}, "stats": {"$ref": "#/$defs/stat_bonus"},
-        "passive": {
-          "oneOf": [
-            {"type": "null"},
-            {
-              "type": "object", "additionalProperties": false, "required": ["family", "effects"],
-              "properties": {
-                "family": {"$ref": "#/$defs/id"}, "effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}},
-                "upgraded": {
-                  "type": "object", "additionalProperties": false, "required": ["effects"],
-                  "properties": {"effects": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"$ref": "#/$defs/effect"}}}
-                }
-              }
-            }
-          ]
-        }
-      }
-    },
     "monster": {
       "type": "object", "additionalProperties": false,
-      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "reward_gold", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"],
+      "required": ["id", "tier", "count_per_camp", "hp", "armor", "magic_resist", "attack", "attack_speed", "attack_windup", "attack_range", "move_speed", "collision_radius", "leash_radius", "lose_target_grace", "respawn", "reward_xp", "hp_regen", "max_mp", "mp_regen", "ap", "crit_chance"],
       "properties": {
         "id": {"$ref": "#/$defs/id"}, "tier": {"enum": ["Low", "High", "Elite"]}, "count_per_camp": {"$ref": "#/$defs/positive_count"},
         "hp": {"$ref": "#/$defs/hp"}, "armor": {"$ref": "#/$defs/points"}, "magic_resist": {"$ref": "#/$defs/points"}, "attack": {"$ref": "#/$defs/points"},
         "attack_speed": {"$ref": "#/$defs/attack_rate"}, "attack_windup": {"$ref": "#/$defs/positive_sec"},
         "attack_range": {"$ref": "#/$defs/cm"}, "move_speed": {"$ref": "#/$defs/speed"}, "collision_radius": {"$ref": "#/$defs/cm"}, "leash_radius": {"$ref": "#/$defs/cm"},
         "lose_target_grace": {"$ref": "#/$defs/positive_sec"}, "respawn": {"$ref": "#/$defs/positive_sec"},
-        "reward_xp": {"$ref": "#/$defs/count"}, "reward_gold": {"$ref": "#/$defs/count"},
+        "reward_xp": {"$ref": "#/$defs/count"},
         "hp_regen": {"$ref": "#/$defs/hp_rate"}, "max_mp": {"$ref": "#/$defs/mp"}, "mp_regen": {"$ref": "#/$defs/mp_rate"},
         "ap": {"$ref": "#/$defs/points"}, "crit_chance": {"$ref": "#/$defs/probability"}
       }

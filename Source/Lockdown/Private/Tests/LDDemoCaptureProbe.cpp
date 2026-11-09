@@ -333,7 +333,7 @@ public:
 
     bool Tick();
     bool CheckSecondMatch(ALDPlayerController& PC, ALDGameMode* Mode, const FLDLobbyView& Lobby, const FLDPublicMatchView& View,
-        const FLDProgressionView& Progress, const FLDEquipmentView& Equipment);
+        const FLDProgressionView& Progress);
 };
 
 bool FLDDemoCaptureProbe::Tick()
@@ -601,13 +601,12 @@ bool FLDDemoCaptureProbe::Tick()
         }
         // The first frame on which the owner's own views all describe the new match's living first body.
         const FLDProgressionView* Progress = PC->ReadOwnProgression();
-        const FLDEquipmentView* Equipment = PC->ReadOwnEquipment();
         const FLDCombatOwnerView& Own = PC->CombatView;
         if (View.Phase != ELDMatchPhase::Development || !Cast<ALDCharacter>(PC->GetPawn())
             || PC->OwnerState.Match != SecondGeneration || PC->OwnerState.LifePhase != ELDLifePhase::Alive
-            || !PC->OwnerState.BodyRef.IsValid() || !Progress || !Equipment
+            || !PC->OwnerState.BodyRef.IsValid() || !Progress
             || Own.Generation != SecondGeneration || Own.Life != PC->OwnerState.Life || !Own.bHasBody) { return true; }
-        return CheckSecondMatch(*PC, Mode, Lobby, View, *Progress, *Equipment);
+        return CheckSecondMatch(*PC, Mode, Lobby, View, *Progress);
     }
     default:
         return true;
@@ -615,7 +614,7 @@ bool FLDDemoCaptureProbe::Tick()
 }
 
 bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode* Mode, const FLDLobbyView& Lobby,
-    const FLDPublicMatchView& View, const FLDProgressionView& Progress, const FLDEquipmentView& Equipment)
+    const FLDPublicMatchView& View, const FLDProgressionView& Progress)
 {
     const FLDDemoContentDefinitions& Defs = Content->Get();
     const FLDOwnerState& Self = PC.OwnerState;
@@ -630,18 +629,15 @@ bool FLDDemoCaptureProbe::CheckSecondMatch(ALDPlayerController& PC, ALDGameMode*
         TEXT("R02"), TEXT("The first Alive frame is the new generation's first life in a fresh body"));
     uint8 StartLevel = 0;
     const bool bStartLevel = LDProgression::LevelForXP(Defs.Progression, Defs.Progression.XPStart, StartLevel) == ELDGrowthReason::None;
-    Check(bStartLevel && Progress.Level == StartLevel && Progress.CumulativeXP == Defs.Progression.XPStart
-        && Equipment.Gold == Defs.Parameters.StartingGold,
-        TEXT("R03"), TEXT("Level, XP and gold are the content's opening values (start level, XP.Start, SHOP.StartingGold)"));
-    bool bSlotsEmpty = Equipment.Slots.Num() == Defs.Progression.EquipmentSlots;
-    for (const FLDEquipmentSlotView& Slot : Equipment.Slots) { bSlotsEmpty &= !Slot.bOccupied; }
+    Check(bStartLevel && Progress.Level == StartLevel && Progress.CumulativeXP == Defs.Progression.XPStart,
+        TEXT("R03"), TEXT("Level and XP are the content's opening values (start level, XP.Start)"));
     // Only the innate D dash, which every contender holds, may name a source at a fresh start.
     const bool bNoEntries = !Own.Entries.ContainsByPredicate([](const FLDCombatEntryView& Entry)
     { return Entry.Entry != ELDCombatEntry::Dash && !Entry.DefinitionId.IsNone(); });
     Check(Progress.Skills.IsEmpty() && Progress.AttributeCards.IsEmpty() && Progress.EarnedThrough == 1
         && Progress.ConsumedThrough == 0 && Progress.PendingChoiceCount == 1 && Progress.bHasOffer && Progress.Offer.OpportunityOrdinal == 1
-        && bSlotsEmpty && bNoEntries && Own.EquipmentPassives.IsEmpty() && PC.ReadOwnShop() == nullptr,
-        TEXT("R04"), TEXT("No learned skill, attribute card, equipment or shop session; only this match's unconsumed opening choice"));
+        && bNoEntries,
+        TEXT("R04"), TEXT("No learned skill or attribute card; only this match's unconsumed opening choice"));
     Check(Self.ProtectedUntilMs == 0 && Own.Statuses.IsEmpty() && Own.ShieldP2 == 0 && !Own.bRooted
         && Own.MaxHPP2 > 0 && Own.HPP2 == Own.MaxHPP2,
         TEXT("R05"), TEXT("The initial body has full HP and no shield, root, protection or other status"));

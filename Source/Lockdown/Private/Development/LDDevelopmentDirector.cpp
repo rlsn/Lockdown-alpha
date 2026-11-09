@@ -4,10 +4,9 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevGrowthFixture.h"
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
-#include "Inventory/LDInventoryDirector.h"
 
 namespace
 {
@@ -298,9 +297,9 @@ FLDSubmitResult ALDDevelopmentDirector::QueueChoice(const FGuid& ContenderId, co
         return Result;
     }
     ALDGameMode* GameMode = Mode();
-    if (!GameMode || !GameMode->Economy)
+    if (!GameMode || !GameMode->Growth)
     {
-        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_ADMISSION_FAULT contender=%s: no authority mode or economy director"),
+        UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_ADMISSION_FAULT contender=%s: no authority mode or growth director"),
             *ContenderId.ToString());
         Result.Reason = LDGrowthWire::Raw(ELDGrowthReason::NotAuthority);
         return Result;
@@ -317,7 +316,7 @@ FLDSubmitResult ALDDevelopmentDirector::QueueChoice(const FGuid& ContenderId, co
     FLDPendingReceiptInfo Info;
     Info.OriginalLife = Command.Life;
     Info.OriginalLifePhase = Command.ExpectedLifePhase;
-    const uint64 Arrival = bOpensSequence ? GameMode->Economy->NextArrival() : 0;
+    const uint64 Arrival = bOpensSequence ? GameMode->Growth->NextArrival() : 0;
     ELDGrowthReason Reason = ELDGrowthReason::None;
     const FLDChoiceReceipt* Final = nullptr;
     bool bReserved = false;
@@ -389,7 +388,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     ALDGameMode* GameMode = Mode();
     const ELDCommitReject PermitReject = GameMode
         ? GameMode->ValidateWritePermit(Permit, ELDCommitPhase::Transactions) : ELDCommitReject::NotAuthority;
-    if (PermitReject != ELDCommitReject::None || !GameMode->Combat || !GameMode->Economy || !Content.IsValid()
+    if (PermitReject != ELDCommitReject::None || !GameMode->Combat || !GameMode->Growth || !Content.IsValid()
         || Permit.GetBoundary().Match != Match)
     {
         UE_LOG(LogLDGrowth, Error, TEXT("LD_GROWTH_CHOICE_FAULT contender=%s request=%llu permit=%d: no Transactions permit or domain"),
@@ -399,7 +398,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
     const auto Reject = [&](ELDGrowthReason RejectReason)
     {
         FLDChoiceReceipt RejectReceipt = RejectPending(*Record, Command, RejectReason, &Permit);
-        GameMode->Economy->MarkDirty(ContenderId);
+        GameMode->Growth->MarkDirty(ContenderId);
         return RejectReceipt;
     };
 
@@ -470,7 +469,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         Receipt.NextOfferId = Record->Progression.Offer->OfferId;
         Record->Choices.Finalize(Receipt);
         Record->Unpublished.Add(Receipt);
-        GameMode->Economy->MarkDirty(ContenderId);
+        GameMode->Growth->MarkDirty(ContenderId);
         return Receipt;
     }
     const int32 OptionIndex = Offer.Options.IndexOfByPredicate(
@@ -556,7 +555,7 @@ FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(const FGuid& Conten
         uint32(AppliedOption.AttributeQuality));
     Record->Choices.Finalize(Receipt);
     Record->Unpublished.Add(Receipt);
-    GameMode->Economy->MarkDirty(ContenderId);
+    GameMode->Growth->MarkDirty(ContenderId);
     return Receipt;
 }
 
@@ -567,7 +566,7 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
     ALDGameMode* GameMode = Mode();
     const FLDGrowthBuild& Build = Record.Build;
     const FLDProgressionState& Progression = Record.Progression;
-    if (!GameMode || !GameMode->Combat || !GameMode->Economy || !Content.IsValid() || !Progression.Offer.IsSet())
+    if (!GameMode || !GameMode->Combat || !GameMode->Growth || !Content.IsValid() || !Progression.Offer.IsSet())
     {
         return ELDGrowthReason::AuthorityFault;
     }
@@ -615,16 +614,8 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
         }
     }
 
-    const LDEconomy::FLedger& Ledger = GameMode->Economy->GetLedger();
-    const uint64 InventoryRevision = Ledger.InventoryRevision(ContenderId);
-    if (InventoryRevision == 0)
-    {
-        return ELDGrowthReason::NotContender;
-    }
-    TArray<FLDEquippedItemValue> Equipped;
-    ALDInventoryDirector::EquippedItems(Ledger.State(), ContenderId, Equipped);
     FLDCombatPrepareResult Projection = GameMode->Combat->PrepareBuildChange(MakeCaller(ContenderId),
-        MakeProjectionInput(NewBuild, Equipped, InventoryRevision), Record.CombatInstalled);
+        MakeProjectionInput(NewBuild), Record.CombatInstalled);
     if (!Projection.IsSuccess())
     {
         const ELDGrowthReason CombatReason = DevelopmentCombatReason(Projection.Error);
@@ -644,7 +635,6 @@ ELDGrowthReason ALDDevelopmentDirector::InstallOption(const FGuid& ContenderId, 
     // Build/Progression references must not be read after this point.
     FLDExpectedBuildVersions Installed;
     Installed.BuildRevision = NewBuild.Revision;
-    Installed.InventoryRevision = InventoryRevision;
     GameMode->Combat->ApplyBuildChange(MoveTemp(Projection.Value.GetValue()), Permit);
     Record.Build = MoveTemp(NewBuild);
     Record.Progression = MoveTemp(NewProgression);
@@ -747,39 +737,10 @@ FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareExperience(const FGuid& Co
     return Result;
 }
 
-FLDPrepareGrowthResult ALDDevelopmentDirector::PrepareEquipmentChange(const FGuid& ContenderId) const
-{
-    const FRecord* Record = Records.Find(ContenderId);
-    if (!Record || !Content.IsValid())
-    {
-        return DevelopmentPrepareFailure(ELDGrowthReason::NotContender, TEXT("The equipment owner has no growth record in this match."));
-    }
-    if (Record->Build.Revision == MAX_uint64)
-    {
-        return DevelopmentPrepareFailure(ELDGrowthReason::ArithmeticOverflow, TEXT("The build revision is exhausted."));
-    }
-    FLDPreparedGrowthChange Prepared;
-    Prepared.ContenderId = ContenderId;
-    Prepared.ExpectedBuildRevision = Record->Build.Revision;
-    Prepared.ExpectedProgressionRevision = Record->Progression.Revision;
-    Prepared.OldLevel = Record->Build.Level;
-    Prepared.NewBuild = Record->Build;
-    Prepared.NewProgression = Record->Progression;
-    ++Prepared.NewBuild.Revision;
-    const ELDGrowthReason GuardReason = DevelopmentRefreshOfferGuard(*Content, Prepared.NewBuild, Prepared.NewProgression);
-    if (GuardReason != ELDGrowthReason::None)
-    {
-        return DevelopmentPrepareFailure(GuardReason, TEXT("The persistent offer cannot follow the equipment change."));
-    }
-    FLDPrepareGrowthResult Result;
-    Result.Value.Emplace(MoveTemp(Prepared));
-    return Result;
-}
-
 void ALDDevelopmentDirector::ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit)
 {
     ALDGameMode* GameMode = Mode();
-    checkf(GameMode && GameMode->Economy
+    checkf(GameMode && GameMode->Growth
         && (Permit.GetPhase() == ELDCommitPhase::Transactions || Permit.GetPhase() == ELDCommitPhase::DeathsAndRewards)
         && GameMode->ValidateWritePermit(Permit, Permit.GetPhase()) == ELDCommitReject::None,
         TEXT("Growth apply needs the current Transactions or DeathsAndRewards permit of one uninterrupted commit."));
@@ -797,7 +758,7 @@ void ALDDevelopmentDirector::ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepa
     {
         DrawHead(Prepared.ContenderId, *Record, Prepared.HeadPool);
     }
-    GameMode->Economy->MarkDirty(Prepared.ContenderId);
+    GameMode->Growth->MarkDirty(Prepared.ContenderId);
 }
 
 void ALDDevelopmentDirector::DrawHead(const FGuid& ContenderId, FRecord& Record, const TArray<LDProgression::FLegalOption>& Pool)
@@ -942,8 +903,7 @@ ELDGrowthReason ALDDevelopmentDirector::RerollHead(const FGuid& ContenderId, FRe
     return ELDGrowthReason::None;
 }
 
-FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGrowthBuild& Build,
-    const TArray<FLDEquippedItemValue>& Equipment, uint64 ResultInventoryRevision) const
+FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGrowthBuild& Build) const
 {
     FLDBuildProjectionInput Input;
     Input.Level = Build.Level;
@@ -968,9 +928,7 @@ FLDBuildProjectionInput ALDDevelopmentDirector::MakeProjectionInput(const FLDGro
         Input.AttributeCards.Emplace(Card.Id.ToString().ToLower(), Card.Count, Card.Quality);
     }
     Input.OpeningCard = Build.OpeningCard.IsNone() ? FString() : Build.OpeningCard.ToString().ToLower();
-    Input.Equipment = Equipment;
     Input.ResultBuildRevision = Build.Revision;
-    Input.ResultInventoryRevision = ResultInventoryRevision;
     return Input;
 }
 

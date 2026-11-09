@@ -2,7 +2,6 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "Economy/LDEconomyLedger.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Misc/AutomationTest.h"
 #include "UI/LDHUDModel.h"
@@ -48,73 +47,22 @@ bool FLDDemoAssistContributionsTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// #112 §8 rewards: the killer keeps the full kill gold; 50% of the base gold is split among the assisters; the XP is split
-// among killer and assisters; every share is floored.
+// #112 §8 rewards: the kill XP is split evenly among the killer and the assisters; every share is floored.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAssistRewardSplitTest, "Lockdown.Rules.DemoAssist.RewardSplit",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoAssistRewardSplitTest::RunTest(const FString& Parameters)
 {
     FLDAssistRewardShares Shares;
-    TestTrue(TEXT("Without assisters the killer takes everything"), LDAssist::SplitKillReward(80, 100, 0, 5000, Shares)
-        && Shares.KillerGold == 80 && Shares.KillerXP == 100 && Shares.AssisterGold == 0 && Shares.AssisterXP == 0);
-    TestTrue(TEXT("Two assisters: 80 gold to the killer, 40 split 20/20, 100 XP split 33 each"),
-        LDAssist::SplitKillReward(80, 100, 2, 5000, Shares)
-        && Shares.KillerGold == 80 && Shares.AssisterGold == 20 && Shares.KillerXP == 33 && Shares.AssisterXP == 33);
-    TestTrue(TEXT("Three assisters floor both splits: 45 gold pool -> 15 each, 120 XP -> 30 each"),
-        LDAssist::SplitKillReward(90, 120, 3, 5000, Shares)
-        && Shares.KillerGold == 90 && Shares.AssisterGold == 15 && Shares.KillerXP == 30 && Shares.AssisterXP == 30);
-    TestTrue(TEXT("An odd pool floors the share: 85 gold -> pool 42 -> 10 each among four"),
-        LDAssist::SplitKillReward(85, 7, 4, 5000, Shares) && Shares.AssisterGold == 10 && Shares.KillerXP == 1 && Shares.AssisterXP == 1);
-    TestFalse(TEXT("A negative amount is refused"), LDAssist::SplitKillReward(-1, 10, 1, 5000, Shares));
-    TestFalse(TEXT("A ratio above one is refused"), LDAssist::SplitKillReward(10, 10, 1, 10001, Shares));
-    TestFalse(TEXT("Overflowing gold scaling is refused"), LDAssist::SplitKillReward(MAX_int64, 10, 1, 5000, Shares));
-    return true;
-}
-
-// The composite reward of several recipients: consecutive single-account ledger entries prepared before any is applied.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAssistLedgerChainTest, "Lockdown.Rules.DemoAssist.LedgerChain",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-bool FLDDemoAssistLedgerChainTest::RunTest(const FString& Parameters)
-{
-    LDEconomy::FLedger Ledger;
-    FString Error;
-    if (!TestTrue(TEXT("The ledger opens"), Ledger.Initialize(FGuid(0xA5, 9, 9, 9), {Killer, A1, A2}, 300, Error))) { AddError(Error); return false; }
-    const auto Mint = [&Ledger](const FGuid& Account, int64 Gold, uint32 Key)
-    {
-        LDEconomy::FTransaction T;
-        T.Cause = LDEconomy::ECause::DeathReward;
-        T.BusinessKey = FGuid(0xA5, 7, 7, Key);
-        T.CommitBatch = 1;
-        T.Mint = Gold;
-        T.Gold.Emplace(LDEconomy::FGoldChange{Account, Ledger.Account(Account)->Revision, Gold});
-        return T;
-    };
-    const uint64 Before = Ledger.CommittedSerial();
-    LDEconomy::FPrepareResult First = Ledger.Prepare(Mint(Killer, 80, 1));
-    if (!TestTrue(TEXT("The killer's mint prepares"), First.IsSuccess())) { return false; }
-    LDEconomy::FPrepareResult Second = Ledger.PrepareAfter(First.Value.GetValue(), Mint(A1, 20, 2));
-    if (!TestTrue(TEXT("An assister's mint chains after it"), Second.IsSuccess())) { return false; }
-    LDEconomy::FPrepareResult Third = Ledger.PrepareAfter(Second.Value.GetValue(), Mint(A2, 20, 3));
-    if (!TestTrue(TEXT("A second assister chains after that"), Third.IsSuccess())) { return false; }
-    TestTrue(TEXT("Chained plans take consecutive serials"), Second.Value->Entry().Serial == First.Value->Entry().Serial + 1
-        && Third.Value->Entry().Serial == First.Value->Entry().Serial + 2);
-    TestTrue(TEXT("A business key cannot repeat inside one composite"),
-        Ledger.PrepareAfter(Second.Value.GetValue(), Mint(A2, 20, 2)).Error == LDEconomy::EPrepareError::BusinessKeyConflict);
-    TestTrue(TEXT("Nothing is written before the composite applies"), Ledger.CommittedSerial() == Before && Ledger.Account(A1)->Gold == 300);
-    Ledger.ApplyPrepared(MoveTemp(First.Value.GetValue()));
-    Ledger.ApplyPrepared(MoveTemp(Second.Value.GetValue()));
-    Ledger.ApplyPrepared(MoveTemp(Third.Value.GetValue()));
-    TestTrue(TEXT("Every recipient is paid exactly once"), Ledger.Account(Killer)->Gold == 380 && Ledger.Account(A1)->Gold == 320
-        && Ledger.Account(A2)->Gold == 320 && Ledger.CommittedSerial() == Before + 3);
-    TestTrue(FString::Printf(TEXT("The chained entries replay (%s)"), *Error), Ledger.Reconcile(Error));
-
-    LDEconomy::FPrepareResult Stale = Ledger.Prepare(Mint(A1, 5, 10));
-    LDEconomy::FPrepareResult StaleNext = Ledger.PrepareAfter(Stale.Value.GetValue(), Mint(A2, 5, 11));
-    LDEconomy::FPrepareResult Other = Ledger.Prepare(Mint(Killer, 5, 12));
-    if (!TestTrue(TEXT("Independent plans prepare"), Stale.IsSuccess() && StaleNext.IsSuccess() && Other.IsSuccess())) { return false; }
-    Ledger.ApplyPrepared(MoveTemp(Other.Value.GetValue()));
-    TestTrue(TEXT("A chain whose base was overtaken by another commit is refused"),
-        Ledger.PrepareAfter(StaleNext.Value.GetValue(), Mint(Killer, 5, 13)).Error == LDEconomy::EPrepareError::InvalidTransaction);
+    TestTrue(TEXT("Without assisters the killer takes everything"), LDAssist::SplitKillReward(100, 0, Shares)
+        && Shares.KillerXP == 100 && Shares.AssisterXP == 0);
+    TestTrue(TEXT("Two assisters: 100 XP split 33 each"),
+        LDAssist::SplitKillReward(100, 2, Shares) && Shares.KillerXP == 33 && Shares.AssisterXP == 33);
+    TestTrue(TEXT("Three assisters: 120 XP -> 30 each"),
+        LDAssist::SplitKillReward(120, 3, Shares) && Shares.KillerXP == 30 && Shares.AssisterXP == 30);
+    TestTrue(TEXT("A small amount floors every share: 7 XP among five -> 1 each"),
+        LDAssist::SplitKillReward(7, 4, Shares) && Shares.KillerXP == 1 && Shares.AssisterXP == 1);
+    TestFalse(TEXT("A negative amount is refused"), LDAssist::SplitKillReward(-1, 1, Shares));
+    TestFalse(TEXT("A negative assister count is refused"), LDAssist::SplitKillReward(10, -1, Shares));
     return true;
 }
 

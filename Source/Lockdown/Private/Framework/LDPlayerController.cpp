@@ -53,8 +53,6 @@ void ALDPlayerController::BeginPlay()
 {
     Super::BeginPlay();
     InitializeLocalUI();
-    // Growth/Shop: shop arrival requests the shop session (LDPlayerGrowth.cpp).
-    BindGrowthClient();
 #if WITH_DEV_AUTOMATION_TESTS
     LDDemoTests::StartWorldRoomProbe(*this);
     LDDemoTests::StartCoreProbe(*this);

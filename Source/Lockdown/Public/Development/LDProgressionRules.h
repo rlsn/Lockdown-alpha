@@ -89,7 +89,6 @@ namespace LDProgression
 {
     struct FRewardAmounts
     {
-        int64 Gold = 0;
         int64 XP = 0;
     };
 
@@ -140,11 +139,11 @@ namespace LDProgression
     // earns exactly one more, so EarnedThrough follows the level and never passes MaxLevel (= MaxChoices).
     LOCKDOWN_API ELDGrowthReason PlanExperience(const FLDDemoProgressionDefinition& Progression, int64 CurrentXP,
         uint8 CurrentLevel, uint8 EarnedThrough, int64 Grant, FExperienceChange& Out);
-    // REWARD.PlayerXP/PlayerGold at the frozen victim level.
+    // REWARD.PlayerXP at the frozen victim level.
     LOCKDOWN_API ELDGrowthReason ContenderKillReward(const FLDDemoContentParameters& Parameters, uint8 MaxLevel,
         uint8 VictimLevel, FRewardAmounts& Out);
-    // CAMP.<tier>.RewardXP/RewardGold of the monster definition, once per member life. #97: the XP grows with the
-    // stage that life spawned with (Development/LDCampGrowth.h); gold does not. The Boss only takes stage 0.
+    // CAMP.<tier>.RewardXP of the monster definition, once per member life. #97: the XP grows with the stage that life
+    // spawned with (Development/LDCampGrowth.h). The Boss only takes stage 0.
     LOCKDOWN_API ELDGrowthReason MonsterKillReward(const FLDDemoContentSnapshot& Catalog, FName MonsterId, uint8 Stage,
         FRewardAmounts& Out);
 

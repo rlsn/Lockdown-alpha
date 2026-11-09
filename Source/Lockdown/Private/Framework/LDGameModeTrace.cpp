@@ -7,11 +7,9 @@
 #include "Combat/LDCombatDirector.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
-#include "Economy/LDEconomyDirector.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDPlaytestTrace.h"
-#include "Inventory/LDInventoryDirector.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Engine/NetConnection.h"
 #include "Engine/NetDriver.h"
@@ -41,20 +39,6 @@ namespace LDGameModeTraceDetail
                 uint32(Card.Quality), uint32(Card.Count));
         }
         return FString::Printf(TEXT("skills=%s cards=%s"), Skills.IsEmpty() ? TEXT("-") : *Skills, Cards.IsEmpty() ? TEXT("-") : *Cards);
-    }
-
-    FString EquipmentText(const ALDEconomyDirector* Economy, const FGuid& Contender)
-    {
-        if (!Economy || !Economy->GetLedger().IsInitialized()) { return TEXT("-"); }
-        TArray<FLDEquippedItemValue> Equipped;
-        ALDInventoryDirector::EquippedItems(Economy->GetLedger().State(), Contender, Equipped);
-        FString Text;
-        for (const FLDEquippedItemValue& Item : Equipped)
-        {
-            Text += FString::Printf(TEXT("%s%s%s"), Text.IsEmpty() ? TEXT("") : TEXT(","), *Item.DefinitionId.ToString(),
-                Item.bUpgraded ? TEXT("+") : TEXT(""));
-        }
-        return Text.IsEmpty() ? FString(TEXT("-")) : Text;
     }
 }
 
@@ -128,7 +112,6 @@ void ALDGameMode::LogPlaytestHeartbeat()
         }
         const FLDGrowthBuild* Build = Development ? Development->FindBuild(Id) : nullptr;
         const FLDProgressionState* Progression = Development ? Development->FindProgression(Id) : nullptr;
-        const LDEconomy::FAccount* Account = Economy && Economy->GetLedger().IsInitialized() ? Economy->GetLedger().Account(Id) : nullptr;
         FString Order = TEXT("-");
         FVector OrderPoint;
         bool bOrderPoint = false;
@@ -136,9 +119,9 @@ void ALDGameMode::LogPlaytestHeartbeat()
         {
             Order = Controller->Navigation->DescribeAuthorityOrder(OrderPoint, bOrderPoint);
         }
-        UE_LOG(LogLDTrace, Log, TEXT("LD_HEARTBEAT t=%lld contender=%s phase=%s life=%u pos=%s %s level=%d xp=%lld gold=%lld pending=%d order=%s order_at=%s action=%s statuses=%s protected_until=%lld respawn_at=%lld"),
+        UE_LOG(LogLDTrace, Log, TEXT("LD_HEARTBEAT t=%lld contender=%s phase=%s life=%u pos=%s %s level=%d xp=%lld pending=%d order=%s order_at=%s action=%s statuses=%s protected_until=%lld respawn_at=%lld"),
             AuthorityNowMs, *LDLog::Id(Id), *LDLog::EnumName(Life->Phase), Life->Life, *Position, *Resources,
-            Build ? int32(Build->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1), Account ? Account->Gold : int64(-1),
+            Build ? int32(Build->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1),
             Progression ? int32(Progression->PendingCount()) : -1, *Order, bOrderPoint ? *LDLog::Cm(OrderPoint) : TEXT("-"), *Action,
             Statuses.IsEmpty() ? TEXT("-") : *Statuses, Life->ProtectedUntilMs, Life->Phase == ELDLifePhase::Dead ? Life->RespawnAtMs : int64(0));
     }
@@ -176,13 +159,10 @@ void ALDGameMode::LogPlaytestSummary(const FLDResultView& View) const
     {
         const FLDGrowthBuild* Build = Development ? Development->FindBuild(Row.ContenderId) : nullptr;
         const FLDProgressionState* Progression = Development ? Development->FindProgression(Row.ContenderId) : nullptr;
-        const LDEconomy::FAccount* Account = Economy && Economy->GetLedger().IsInitialized()
-            ? Economy->GetLedger().Account(Row.ContenderId) : nullptr;
-        UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_SUMMARY_ROW generation=%u contender=%s name=%s kind=%s left=%d winner=%d level=%u xp=%lld gold=%lld kills=%llu deaths=%llu assists=%llu choices=%d %s equipment=%s"),
+        UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_SUMMARY_ROW generation=%u contender=%s name=%s kind=%s left=%d winner=%d level=%u xp=%lld kills=%llu deaths=%llu assists=%llu choices=%d %s"),
             View.Generation, *LDLog::Id(Row.ContenderId), *LDLog::Quote(Row.Name), Row.Kind == ELDContenderKind::Human ? TEXT("Human") : TEXT("AI"),
             Row.bLeft ? 1 : 0, Row.ContenderId == View.Winner ? 1 : 0, uint32(Row.FinalLevel), Progression ? Progression->CumulativeXP : int64(-1),
-            Account ? Account->Gold : int64(-1), Row.Kills, Row.Deaths, Row.Assists,
-            Progression ? int32(Progression->ConsumedThrough) : -1, Build ? *BuildText(*Build) : TEXT("skills=- cards=-"),
-            *EquipmentText(Economy, Row.ContenderId));
+            Row.Kills, Row.Deaths, Row.Assists,
+            Progression ? int32(Progression->ConsumedThrough) : -1, Build ? *BuildText(*Build) : TEXT("skills=- cards=-"));
     }
 }

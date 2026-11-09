@@ -47,8 +47,6 @@ public:
     const LDDemoWorld::FTerrain& GetTerrain() const { return Terrain; }
     // Whether a native floor is one of the registered terrain pieces (ground, plateau or ramp).
     bool IsTerrainFloor(const UPrimitiveComponent* Floor) const;
-    // #97: the registered shop whose interaction disk is nearest to FootCm in XY, or NAME_None.
-    FName NearestShop(const FVector& FootCm) const;
     static bool ContentCapsule(const FLDDemoContentSnapshot& Content, FCollisionShape& Out, FString& Error);
     bool QueryGround(const FLDWorldRevision& Expected, const FVector& FootCm, const FCollisionShape& Capsule,
         FName SurfaceHint, FLDLegalGround& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
@@ -63,14 +61,6 @@ public:
 #endif
     bool QueryCompletePath(const FLDWorldRevision& Expected, const FLDLegalGround& From, const FLDLegalGround& To,
         const FCollisionShape& Capsule, FLDCompletePath& Out, ELDWorldQueryFailure& Failure, FString& Error) const;
-    bool FindPublicApproach(const FLDWorldRevision& Expected, const FLDLegalGround& From, FName PublicAnchor,
-        const FCollisionShape& Capsule, FLDLegalGround& OutGround, FLDCompletePath& OutPath,
-        ELDWorldQueryFailure& Failure, FString& Error) const;
-    // Whether FootCm is within interaction reach of the named shop.
-    bool QueryShopReach(const FLDWorldRevision& Expected, FName ShopId, const FVector& FootCm, bool& WithinReach,
-        ELDWorldQueryFailure& Failure, FString& Error) const;
-    FLDShopEligibilityResult QueryShopEligibility(const FLDGameplayWritePermit& Permit,
-        const FLDCombatBodyRef& Buyer, FName ShopId, const FLDWorldRevision& Expected) const;
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);

@@ -126,7 +126,6 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRationalBounds AttackRangeCm;
     UPROPERTY() int64 BasicAttackWindupMs = 0;
     UPROPERTY() FLDDemoRational VisionRadiusCm;
-    UPROPERTY() FLDDemoRational ShopInteractRadiusCm;
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
@@ -144,11 +143,6 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 DormRegenDelayMs = 0;
     UPROPERTY() int64 DormMaxHPRegenBp = 0;
     UPROPERTY() int64 DormMaxMPRegenBp = 0;
-    UPROPERTY() int64 StartingGold = 0;
-    UPROPERTY() int64 SellRatioBp = 0;
-    // 112 §7: one upgrade per contender and match costs UpgradeCost; fixed stats rise by UpgradeStatBonusBp.
-    UPROPERTY() int64 UpgradeCost = 0;
-    UPROPERTY() int64 UpgradeStatBonusBp = 0;
     UPROPERTY() FLDDemoRational CampResetArrivalRadiusCm;
     // #28: a Returning member with this many consecutive refused path plans, or this long without path progress
     // while free to move, resets where it stands instead of retrying forever.
@@ -168,14 +162,11 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
-    UPROPERTY() int64 AirdropRewardGold = 0;
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
     UPROPERTY() FLDDemoRational LeaderCircleRadiusCm;
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
-    UPROPERTY() int64 LeaderBountyGoldPerRefresh = 0;
-    UPROPERTY() int64 LeaderBountyGoldMax = 0;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
     // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
     // BurnAPRatio x the applier's AP per second per stack (snapshotted per stack), every BurnTickMs, up to BurnMaxStacks
@@ -193,12 +184,9 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
     UPROPERTY() int64 PlayerXPPerLevel = 0;
-    UPROPERTY() int64 PlayerGoldBase = 0;
-    UPROPERTY() int64 PlayerGoldPerLevel = 0;
-    // Contender kills only: a contribution within this window before the death earns an assist; the assisters split
-    // this share of the victim's base kill gold (the killer keeps the full kill gold).
+    // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
+    // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
-    UPROPERTY() int64 AssistGoldBp = 0;
     UPROPERTY() FLDDemoAIParameters AI;
     UPROPERTY() FLDDemoChoiceWeights Choice;
 };
@@ -209,7 +197,7 @@ enum class ELDDemoFormula : uint8
     None, AddFlatThenAdditivePercent, PointsOverScalePlusPoints, OncePerPrimaryAttack,
     FloorP2ThenShieldThenHP, BaseTimesAdditiveRatio, BasePlusFlat, CeilReciprocalMs,
     CeilBaseWindupTimesBaseOverCurrentAS, CeilBaseTimesScaleOverScalePlusHaste,
-    CarrySubP2Remainder, FloorFinalRatioRejectAliveUnderflow, FloorPurchasePriceTimesSellRatio,
+    CarrySubP2Remainder, FloorFinalRatioRejectAliveUnderflow,
     LinearIncrement, MinVisionTwiceAttackRange
 };
 
@@ -231,7 +219,6 @@ struct FLDDemoFormulas
     UPROPERTY() ELDDemoFormula CooldownMs = ELDDemoFormula::None;
     UPROPERTY() ELDDemoFormula Regen = ELDDemoFormula::None;
     UPROPERTY() ELDDemoFormula ResourceMaxChange = ELDDemoFormula::None;
-    UPROPERTY() ELDDemoFormula SellGold = ELDDemoFormula::None;
     UPROPERTY() ELDDemoFormula XPToNext = ELDDemoFormula::None;
     UPROPERTY() int64 ResistanceScaleP2 = 0;
     UPROPERTY() int64 HasteScaleP2 = 0;
@@ -240,7 +227,7 @@ struct FLDDemoFormulas
 UENUM()
 enum class ELDDemoPolicy : uint8
 {
-    None, AddFlatThenAdditivePercent, Allowed, OncePerFamily,
+    None, AddFlatThenAdditivePercent, Allowed,
     ContinueServerTime, PreserveRatio, ContinueForRemainingContender, CancelUnsettledNoRefund,
     BreakOnAggressiveIntent, OncePerAttackId, PrimaryBasicAttackHPLost, Disabled,
     CarrySubP2Remainder, ReplaceIfNotWeaker, ConfirmedCombatHit, ReturnThenReset, NotApplicable
@@ -255,8 +242,6 @@ struct FLDDemoPolicies
     GENERATED_BODY()
 
     UPROPERTY() ELDDemoPolicy StatStacking = ELDDemoPolicy::None;
-    UPROPERTY() ELDDemoPolicy DuplicateEquipment = ELDDemoPolicy::None;
-    UPROPERTY() ELDDemoPolicy DuplicateEquipmentPassive = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy MissingSourceCooldown = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy DeadChoiceCommit = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy ResourceMaxChange = ELDDemoPolicy::None;
@@ -268,7 +253,6 @@ struct FLDDemoPolicies
     UPROPERTY() ELDDemoPolicy LifestealRecursiveTriggers = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy BasicSecondaryTriggers = ELDDemoPolicy::None;
     UPROPERTY() ELDDemoPolicy RegenIntegration = ELDDemoPolicy::None;
-    UPROPERTY() bool ShopRequiresLineOfSight = false;
     UPROPERTY() ELDDemoPolicy ShieldPolicy = ELDDemoPolicy::None;
     UPROPERTY() TArray<ELDDemoRootBlock> RootBlocks;
     UPROPERTY() ELDDemoPolicy CampAggroTrigger = ELDDemoPolicy::None;
@@ -480,36 +464,6 @@ struct FLDDemoOpeningCardDefinition
 };
 
 USTRUCT()
-struct FLDDemoEquipmentPassive
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FString Family;
-    UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
-    // 112 §7: the upgraded terms of the same handlers in the same order.
-    UPROPERTY() bool HasUpgraded = false;
-    UPROPERTY() TArray<FLDDemoEffectDefinition> UpgradedEffects;
-};
-
-USTRUCT()
-struct FLDDemoEquipmentDefinition
-{
-    GENERATED_BODY()
-
-    UPROPERTY() FString Id;
-    UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() int64 BuyPrice = 0;
-    UPROPERTY() int64 SellGold = 0;
-    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
-    // Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2, R4, whole cm).
-    UPROPERTY() TArray<FLDDemoStatBonus> UpgradedStats;
-    UPROPERTY() bool HasPassive = false;
-    UPROPERTY() FLDDemoEquipmentPassive Passive;
-
-    ELDDemoEquipmentId GetNativeId() const { return static_cast<ELDDemoEquipmentId>(NativeId); }
-};
-
-USTRUCT()
 struct FLDDemoDashDefinition
 {
     GENERATED_BODY()
@@ -575,7 +529,6 @@ struct FLDDemoMonsterDefinition
     UPROPERTY() int64 LoseTargetGraceMs = 0;
     UPROPERTY() int64 RespawnMs = 0;
     UPROPERTY() int64 RewardXP = 0;
-    UPROPERTY() int64 RewardGold = 0;
     UPROPERTY() FLDDemoRational HPRegenPerSec;
     UPROPERTY() int64 MaxMPP2 = 0;
     UPROPERTY() FLDDemoRational MPRegenPerSec;
@@ -608,7 +561,6 @@ struct FLDDemoProgressionDefinition
     UPROPERTY() int32 MaxChoices = 0;
     UPROPERTY() int32 MaxSkillRank = 0;
     UPROPERTY() int32 ActiveSlots = 0;
-    UPROPERTY() int32 EquipmentSlots = 0;
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
@@ -629,8 +581,6 @@ struct FLDDemoWorldReferences
     UPROPERTY() FString MapId;
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
-    // #97: every shop anchor, ordinal-sorted; a match may have several shops.
-    UPROPERTY() TArray<FString> ShopIds;
     UPROPERTY() FString CaptureId;
 };
 
@@ -688,7 +638,6 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
     UPROPERTY() TArray<FLDDemoAttributeDefinition> Attributes;
     UPROPERTY() TArray<FLDDemoOpeningCardDefinition> OpeningCards;
-    UPROPERTY() TArray<FLDDemoEquipmentDefinition> Equipment;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;
@@ -696,25 +645,3 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;
 };
-
-// 112 §7: the "current effective definition" of an equipped instance. Every reader of equipment stats or passive terms
-// goes through these, so an upgrade changes parameters without a second handler branch.
-namespace LDDemoEquipment
-{
-    // Upgradable only when the item's passive, if any, carries its approved upgraded form; never falls back.
-    inline bool Upgradable(const FLDDemoEquipmentDefinition& Item)
-    {
-        return !Item.HasPassive || Item.Passive.HasUpgraded;
-    }
-    inline const TArray<FLDDemoStatBonus>& EffectiveStats(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
-    {
-        return bUpgraded ? Item.UpgradedStats : Item.Stats;
-    }
-    // Null when the item has no passive, or an upgraded instance lacks its upgraded terms (a refused state).
-    inline const TArray<FLDDemoEffectDefinition>* EffectivePassiveEffects(const FLDDemoEquipmentDefinition& Item, bool bUpgraded)
-    {
-        if (!Item.HasPassive) { return nullptr; }
-        if (!bUpgraded) { return &Item.Passive.Effects; }
-        return Item.Passive.HasUpgraded ? &Item.Passive.UpgradedEffects : nullptr;
-    }
-}

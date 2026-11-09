@@ -32,7 +32,6 @@ private:
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RowFinals;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RowBreakdowns;
     UPROPERTY() TObjectPtr<UTextBlock> LearnedPassiveText;
-    UPROPERTY() TObjectPtr<UTextBlock> EquipmentPassiveText;
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
     bool bOpen=false;
 };

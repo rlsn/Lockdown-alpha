@@ -64,19 +64,6 @@ const FNativeId NativeIds[] =
     DEMO_ID("attributes", "attr_deadline_miracle", ELDDemoAttributeId, AttrDeadlineMiracle),
     DEMO_ID("attributes", "attr_running_defense", ELDDemoAttributeId, AttrRunningDefense),
     DEMO_ID("attributes", "attr_pe_essay", ELDDemoAttributeId, AttrPeEssay),
-    DEMO_ID("equipment", "item_iron_plate", ELDDemoEquipmentId, ItemIronPlate),
-    DEMO_ID("equipment", "item_edge_blade", ELDDemoEquipmentId, ItemEdgeBlade),
-    DEMO_ID("equipment", "item_runic_focus", ELDDemoEquipmentId, ItemRunicFocus),
-    DEMO_ID("equipment", "item_siphon_emblem", ELDDemoEquipmentId, ItemSiphonEmblem),
-    DEMO_ID("equipment", "item_phase_anchor", ELDDemoEquipmentId, ItemPhaseAnchor),
-    DEMO_ID("equipment", "item_arcane_battery", ELDDemoEquipmentId, ItemArcaneBattery),
-    DEMO_ID("equipment", "item_echo_maul", ELDDemoEquipmentId, ItemEchoMaul),
-    DEMO_ID("equipment", "item_slingshot", ELDDemoEquipmentId, ItemSlingshot),
-    DEMO_ID("equipment", "item_nail_uniform", ELDDemoEquipmentId, ItemNailUniform),
-    DEMO_ID("equipment", "item_megaphone", ELDDemoEquipmentId, ItemMegaphone),
-    DEMO_ID("equipment", "item_dossier", ELDDemoEquipmentId, ItemDossier),
-    DEMO_ID("equipment", "item_privacy_screen", ELDDemoEquipmentId, ItemPrivacyScreen),
-    DEMO_ID("equipment", "item_skateboard", ELDDemoEquipmentId, ItemSkateboard),
     DEMO_ID("monsters", "monster_scavenger", ELDDemoMonsterId, MonsterScavenger),
     DEMO_ID("monsters", "monster_guardian", ELDDemoMonsterId, MonsterGuardian),
     DEMO_ID("monsters", "monster_dean", ELDDemoMonsterId, MonsterDean),
@@ -198,13 +185,12 @@ bool NativeMap(const FValue& Value, FCheck& Check)
     struct FRetiredRange { int64 First; int64 Last; };
     static const FRetiredRange RetiredAbilities[] = {{0, 91}};
     static const FRetiredRange RetiredAttributes[] = {{0, 14}};
-    static const FRetiredRange RetiredEquipment[] = {{0, 98}, {107, 107}, {113, 114}};
     static const FRetiredRange RetiredStatuses[] = {{7, 8}, {11, 11}, {15, 19}, {21, 24}};
     static const FRetiredRange RetiredEffectOps[] = {{6, 6}, {9, 9}, {16, 16}, {19, 19}, {23, 23}, {25, 25}, {28, 30}, {32, 33},
         {39, 39}, {41, 49}, {51, 51}, {55, 64}};
     FFields Retired(Check, Root.Take(TEXT("retired_ranges")), TEXT("native_ids.retired_ranges"));
     for (const auto& Pair : {TPair<const TCHAR*, TArrayView<const FRetiredRange>>(TEXT("abilities"), RetiredAbilities),
-        {TEXT("attributes"), RetiredAttributes}, {TEXT("equipment"), RetiredEquipment}, {TEXT("statuses"), RetiredStatuses},
+        {TEXT("attributes"), RetiredAttributes}, {TEXT("statuses"), RetiredStatuses},
         {TEXT("effect_ops"), RetiredEffectOps}})
     {
         const TArray<FValue>* Ranges;
@@ -231,7 +217,7 @@ bool NativeMap(const FValue& Value, FCheck& Check)
         return false;
     }
     for (const TCHAR* Category : {TEXT("character"), TEXT("abilities"), TEXT("attributes"),
-        TEXT("equipment"), TEXT("monsters"), TEXT("statuses"), TEXT("effect_ops")})
+        TEXT("monsters"), TEXT("statuses"), TEXT("effect_ops")})
     {
         FFields Group(Check, Root.Take(Category), Root.Path + TEXT(".") + Category);
         for (const auto& Entry : NativeIds)
@@ -332,10 +318,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
         {TEXT("AIRDROP.IntervalSec"), TEXT("ms"), TEXT("ms"), &P.AirdropIntervalMs, 1, MAX_int64},
         {TEXT("AIRDROP.AnnounceLeadSec"), TEXT("ms"), TEXT("ms"), &P.AirdropAnnounceLeadMs, 1, MAX_int64},
         {TEXT("LEADER.RefreshSec"), TEXT("ms"), TEXT("ms"), &P.LeaderRefreshMs, 1, MAX_int64},
-        {TEXT("SHOP.SellRatio"), TEXT("ratio"), TEXT("bp"), &P.SellRatioBp, 0, 10000},
         {TEXT("REWARD.AssistWindowSec"), TEXT("ms"), TEXT("ms"), &P.AssistWindowMs, 1, MAX_int64},
-        {TEXT("REWARD.AssistGoldRatio"), TEXT("ratio"), TEXT("bp"), &P.AssistGoldBp, 0, 10000},
-        {TEXT("SHOP.UpgradeStatBonusRatio"), TEXT("ratio"), TEXT("bp"), &P.UpgradeStatBonusBp, 0, 10000},
         {TEXT("CHOICE.NewActiveFreeSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveFreeSlotWeightBp, 1, 10000},
         {TEXT("CHOICE.NewActiveFullSlotWeight"), TEXT("ratio"), TEXT("bp"), &P.Choice.NewActiveFullSlotWeightBp, 1, 10000},
         {TEXT("CHOICE.FirstSlotUpgradeChance"), TEXT("ratio"), TEXT("bp"), &P.Choice.FirstSlotUpgradeBp, 0, 10000},
@@ -377,7 +360,7 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     struct FCmField { const TCHAR* Key; FLDDemoRational* Out; };
     for (const auto& Field : {
         FCmField{TEXT("UNIT.CollisionRadiusCm"), &P.CollisionRadiusCm},
-        {TEXT("VISION.RadiusCm"), &P.VisionRadiusCm}, {TEXT("SHOP.InteractRadiusCm"), &P.ShopInteractRadiusCm},
+        {TEXT("VISION.RadiusCm"), &P.VisionRadiusCm},
         {TEXT("CAPTURE.RadiusCm"), &P.CaptureRadiusCm}, {TEXT("CAMP.ResetArrivalRadiusCm"), &P.CampResetArrivalRadiusCm},
         {TEXT("DORM.RadiusCm"), &P.DormRadiusCm}, {TEXT("AIRDROP.PickupRadiusCm"), &P.AirdropPickupRadiusCm},
         {TEXT("LEADER.CircleRadiusCm"), &P.LeaderCircleRadiusCm}, {TEXT("LEADER.CircleMaxOffsetCm"), &P.LeaderCircleMaxOffsetCm}})
@@ -389,16 +372,12 @@ bool Parameters(const FValue& Value, FLDDemoContentParameters& P, FCheck& Check)
     }
     struct FCountField { const TCHAR* Key; int64* Out; int64 Min; };
     for (const auto& Field : {
-        FCountField{TEXT("SHOP.StartingGold"), &P.StartingGold, 0}, {TEXT("SHOP.UpgradeCost"), &P.UpgradeCost, 1},
-        {TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
+        FCountField{TEXT("XP.BaseToNext"), &P.XPBaseToNext, 1}, {TEXT("XP.IncreasePerLevel"), &P.XPIncreasePerLevel, 0},
         {TEXT("REWARD.PlayerXP.Base"), &P.PlayerXPBase, 0}, {TEXT("REWARD.PlayerXP.PerLevel"), &P.PlayerXPPerLevel, 0},
-        {TEXT("REWARD.PlayerGold.Base"), &P.PlayerGoldBase, 0}, {TEXT("REWARD.PlayerGold.PerLevel"), &P.PlayerGoldPerLevel, 0},
         {TEXT("AI.RetryPolicy.MaxAttempts"), &P.AI.RetryMaxAttempts, 1},
         {TEXT("CAMP.ReturnDeadEndPlans"), &P.CampReturnDeadEndPlans, 1},
         {TEXT("CAMP.GrowthMaxStage"), &P.CampGrowthMaxStage, 1},
-        {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("AIRDROP.RewardGold"), &P.AirdropRewardGold, 1},
-        {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1}, {TEXT("LEADER.BountyGoldPerRefresh"), &P.LeaderBountyGoldPerRefresh, 1},
-        {TEXT("LEADER.BountyGoldMax"), &P.LeaderBountyGoldMax, 1},
+        {TEXT("AIRDROP.RewardXP"), &P.AirdropRewardXP, 1}, {TEXT("LEADER.MinLevel"), &P.LeaderMinLevel, 1},
         {TEXT("COMBAT.BreachMaxStacks"), &P.BreachMaxStacks, 1}, {TEXT("COMBAT.BurnMaxStacks"), &P.BurnMaxStacks, 1}})
     {
         if (!F.Int(Field.Key, *Field.Out, Field.Min))
@@ -429,7 +408,7 @@ bool Formulas(const FValue& Value, FLDDemoFormulas& Out, FCheck& Check)
         DEMO_FORMULA(AttackIntervalMs, CeilReciprocalMs), DEMO_FORMULA(AttackWindupMs, CeilBaseWindupTimesBaseOverCurrentAS),
         DEMO_FORMULA(CooldownMs, CeilBaseTimesScaleOverScalePlusHaste), DEMO_FORMULA(Regen, CarrySubP2Remainder),
         DEMO_FORMULA(ResourceMaxChange, FloorFinalRatioRejectAliveUnderflow),
-        DEMO_FORMULA(SellGold, FloorPurchasePriceTimesSellRatio), DEMO_FORMULA(XPToNext, LinearIncrement),
+        DEMO_FORMULA(XPToNext, LinearIncrement),
     };
 #undef DEMO_FORMULA
     for (const auto& Entry : Entries)
@@ -451,8 +430,7 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
 #define DEMO_POLICY(Key, Rule) {TEXT(#Key), TEXT(#Rule), ELDDemoPolicy::Rule, &Out.Key}
     const FEntry Entries[] =
     {
-        DEMO_POLICY(StatStacking, AddFlatThenAdditivePercent), DEMO_POLICY(DuplicateEquipment, Allowed),
-        DEMO_POLICY(DuplicateEquipmentPassive, OncePerFamily),
+        DEMO_POLICY(StatStacking, AddFlatThenAdditivePercent),
         DEMO_POLICY(MissingSourceCooldown, ContinueServerTime), DEMO_POLICY(DeadChoiceCommit, Allowed),
         DEMO_POLICY(ResourceMaxChange, PreserveRatio), DEMO_POLICY(ReleasedEffectSourceLoss, ContinueForRemainingContender),
         DEMO_POLICY(SourceLeave, CancelUnsettledNoRefund), DEMO_POLICY(InvalidAggressionProtection, BreakOnAggressiveIntent),
@@ -471,11 +449,10 @@ bool Policies(const FValue& Value, FLDDemoPolicies& Out, FCheck& Check)
         }
         *Entry.Out = Entry.Expected;
     }
-    if (!F.Flag(TEXT("ShopRequiresLineOfSight"), Out.ShopRequiresLineOfSight)
-        || !F.Flag(TEXT("CampGroupRetaliation"), Out.CampGroupRetaliation)
+    if (!F.Flag(TEXT("CampGroupRetaliation"), Out.CampGroupRetaliation)
         || !F.Flag(TEXT("CampReturningDamageable"), Out.CampReturningDamageable)
         || !F.Flag(TEXT("CampReturningControllable"), Out.CampReturningControllable)
-        || !Check.Require(!Out.ShopRequiresLineOfSight && Out.CampGroupRetaliation
+        || !Check.Require(Out.CampGroupRetaliation
             && Out.CampReturningDamageable && Out.CampReturningControllable, F.Path, TEXT("unsupported boolean policy")))
     {
         return false;
@@ -1499,115 +1476,6 @@ bool OpeningCard(const FValue& Value, FLDDemoOpeningCardDefinition& Out, FCheck&
         && Check.Require(StatMask(Out.Stats) == Contract->Value, Path, TEXT("wrong opening card stats"));
 }
 
-bool SameHandlers(const TArray<FLDDemoEffectDefinition>& Base, const TArray<FLDDemoEffectDefinition>& Upgraded)
-{
-    if (Base.Num() != Upgraded.Num())
-    {
-        return false;
-    }
-    for (int32 I = 0; I < Base.Num(); ++I)
-    {
-        if (Base[I].Opcode != Upgraded[I].Opcode) { return false; }
-    }
-    return true;
-}
-
-bool Equipment(const FValue& Value, FLDDemoEquipmentDefinition& Out, FCheck& Check, const FString& Path)
-{
-    FFields F(Check, Value, Path);
-    if (!NativeIdentity(F, TEXT("equipment"), Out.Id, Out.NativeId)
-        || !F.Int(TEXT("buy_price"), Out.BuyPrice, 1) || !F.Int(TEXT("sell_gold"), Out.SellGold)
-        || !Stats(F.Take(TEXT("stats")), Out.Stats, Check, Path + TEXT(".stats"))
-        || !Stats(F.Take(TEXT("upgraded_stats")), Out.UpgradedStats, Check, Path + TEXT(".upgraded_stats")))
-    {
-        return false;
-    }
-    uint32 ExpectedStats = 0;
-    FOpMask PassiveOps;
-    const TCHAR* PassiveFamily = nullptr;
-    switch (Out.GetNativeId())
-    {
-    case ELDDemoEquipmentId::ItemIronPlate:
-        ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::ArmorFlat);
-        PassiveFamily = TEXT("passive_crit_guard"); PassiveOps = OpBit(ELDDemoEffectOp::CritDamageReduction); break;
-    case ELDDemoEquipmentId::ItemEdgeBlade:
-        ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio);
-        PassiveFamily = TEXT("passive_third_strike"); PassiveOps = OpBit(ELDDemoEffectOp::NthBasicBonus); break;
-    case ELDDemoEquipmentId::ItemRunicFocus:
-        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::CooldownHasteFlat);
-        PassiveFamily = TEXT("passive_mana_refund"); PassiveOps = OpBit(ELDDemoEffectOp::ManaOnHit); break;
-    case ELDDemoEquipmentId::ItemSiphonEmblem:
-        ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::MagicResistFlat);
-        PassiveFamily = TEXT("passive_siphon"); PassiveOps = OpBit(ELDDemoEffectOp::Lifesteal); break;
-    case ELDDemoEquipmentId::ItemPhaseAnchor:
-        ExpectedStats = Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
-        PassiveFamily = TEXT("passive_stride"); PassiveOps = OpBit(ELDDemoEffectOp::DashBoost); break;
-    case ELDDemoEquipmentId::ItemArcaneBattery:
-        ExpectedStats = Bit(ELDDemoBonusStat::MaxMPFlat) | Bit(ELDDemoBonusStat::MagicResistFlat); break;
-    case ELDDemoEquipmentId::ItemEchoMaul:
-        ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::AttackRangeCmFlat);
-        PassiveFamily = TEXT("passive_cleave"); PassiveOps = OpBit(ELDDemoEffectOp::Cleave); break;
-    case ELDDemoEquipmentId::ItemSlingshot:
-        ExpectedStats = Bit(ELDDemoBonusStat::AttackRangeCmFlat) | Bit(ELDDemoBonusStat::AttackSpeedBonusRatio); break;
-    case ELDDemoEquipmentId::ItemNailUniform:
-        ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::ArmorFlat);
-        PassiveFamily = TEXT("passive_prickle"); PassiveOps = OpBit(ELDDemoEffectOp::Thorns); break;
-    case ELDDemoEquipmentId::ItemMegaphone:
-        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::CooldownHasteFlat);
-        PassiveFamily = TEXT("passive_megaphone"); PassiveOps = OpBit(ELDDemoEffectOp::AfflictionAmp); break;
-    case ELDDemoEquipmentId::ItemDossier:
-        ExpectedStats = Bit(ELDDemoBonusStat::APFlat) | Bit(ELDDemoBonusStat::MaxHPFlat); break;
-    case ELDDemoEquipmentId::ItemPrivacyScreen:
-        ExpectedStats = Bit(ELDDemoBonusStat::MaxHPFlat) | Bit(ELDDemoBonusStat::APFlat);
-        PassiveFamily = TEXT("passive_privacy_screen"); PassiveOps = OpBit(ELDDemoEffectOp::ShieldBreakRetort); break;
-    case ELDDemoEquipmentId::ItemSkateboard:
-        ExpectedStats = Bit(ELDDemoBonusStat::ADFlat) | Bit(ELDDemoBonusStat::MoveSpeedBonusRatio);
-        PassiveFamily = TEXT("passive_skateboard"); PassiveOps = OpBit(ELDDemoEffectOp::HitHaste); break;
-    default:
-        return Check.Require(false, Path, TEXT("unimplemented equipment projection"));
-    }
-    if (!Check.Require(StatMask(Out.Stats) == ExpectedStats, Path, TEXT("wrong equipment stats")))
-    {
-        return false;
-    }
-    const FValue Passive = F.Take(TEXT("passive"));
-    if (!Check.Good)
-    {
-        return false;
-    }
-    Out.HasPassive = Passive->Type != EJson::Null;
-    if (!Check.Require(Out.HasPassive == (PassiveFamily != nullptr), Path, TEXT("wrong passive presence")))
-    {
-        return false;
-    }
-    if (Out.HasPassive)
-    {
-        FFields P(Check, Passive, Path + TEXT(".passive"));
-        if (!P.Identifier(TEXT("family"), Out.Passive.Family)
-            || !Check.Require(Out.Passive.Family == PassiveFamily, P.Path, TEXT("wrong passive family"))
-            || !Effects(P.Take(TEXT("effects")), Out.Passive.Effects, PassiveOps, Check, P.Path + TEXT(".effects")))
-        {
-            return false;
-        }
-        if (P.Object.IsValid() && P.Object->HasField(TEXT("upgraded")))
-        {
-            Out.Passive.HasUpgraded = true;
-            FFields U(Check, P.Take(TEXT("upgraded")), P.Path + TEXT(".upgraded"));
-            if (!Effects(U.Take(TEXT("effects")), Out.Passive.UpgradedEffects, PassiveOps, Check, U.Path + TEXT(".effects")) || !U.Done()
-                || !Check.Require(SameHandlers(Out.Passive.Effects, Out.Passive.UpgradedEffects), P.Path,
-                    TEXT("the upgraded passive must keep the base handlers in the same order")))
-            {
-                return false;
-            }
-        }
-        if (!P.Done())
-        {
-            return false;
-        }
-    }
-    return F.Done();
-}
-
 bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, const FString& Path)
 {
     FFields F(Check, Value, Path);
@@ -1636,7 +1504,7 @@ bool Monster(const FValue& Value, FLDDemoMonsterDefinition& Out, FCheck& Check, 
         && F.Fraction(TEXT("perception_radius"), TEXT("cm"), Out.PerceptionRadiusCm, true)
         && F.Fixed(TEXT("lose_target_grace"), TEXT("ms"), TEXT("ms"), Out.LoseTargetGraceMs, 1)
         && F.Fixed(TEXT("respawn"), TEXT("ms"), TEXT("ms"), Out.RespawnMs, 1)
-        && F.Int(TEXT("reward_xp"), Out.RewardXP) && F.Int(TEXT("reward_gold"), Out.RewardGold)
+        && F.Int(TEXT("reward_xp"), Out.RewardXP)
         && F.Fraction(TEXT("hp_regen"), TEXT("hp/s"), Out.HPRegenPerSec)
         && F.Fixed(TEXT("max_mp"), TEXT("mp"), TEXT("p2"), Out.MaxMPP2, 0, 0)
         && F.Fraction(TEXT("mp_regen"), TEXT("mp/s"), Out.MPRegenPerSec)
@@ -1731,7 +1599,6 @@ bool Progression(const FValue& Value, FLDDemoProgressionDefinition& Out, FCheck&
         || !F.SmallInt(TEXT("max_choices"), Out.MaxChoices, 16, 16)
         || !F.SmallInt(TEXT("max_skill_rank"), Out.MaxSkillRank, 2, 2)
         || !F.SmallInt(TEXT("active_slots"), Out.ActiveSlots, 3, 3)
-        || !F.SmallInt(TEXT("equipment_slots"), Out.EquipmentSlots, 2, 2)
         || !F.Int(TEXT("xp_start"), Out.XPStart, 0, 0))
     {
         return false;
@@ -1796,7 +1663,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Approval(Check, Identity.Take(TEXT("approval")), TEXT("content.identity.approval"));
     if (!Approval.Text(TEXT("status"), Out.Identity.ApprovalStatus)
         || !Check.Require(Out.Identity.ApprovalStatus.Equals(TEXT("approved"), ESearchCase::CaseSensitive), Approval.Path, TEXT("approval metadata required"))
-        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision)
+        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision, 1, 1024)
         || !Check.Require(!Out.Identity.ApprovalDecision.TrimStartAndEnd().IsEmpty(), Approval.Path, TEXT("empty decision reference"))
         || !Approval.Done() || !Identity.Done()
         || !Parameters(F.Take(TEXT("parameters")), Out.Parameters, Check)
@@ -1833,7 +1700,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Definitions(F.Take(TEXT("abilities")), Out.Abilities, Check, TEXT("content.abilities"), 1, 34, Ability)
         || !Definitions(F.Take(TEXT("attributes")), Out.Attributes, Check, TEXT("content.attributes"), 3, 14, Attribute)
         || !Definitions(F.Take(TEXT("opening_cards")), Out.OpeningCards, Check, TEXT("content.opening_cards"), 3, 6, OpeningCard)
-        || !Definitions(F.Take(TEXT("equipment")), Out.Equipment, Check, TEXT("content.equipment"), 1, 13, Equipment)
         || !Progression(F.Take(TEXT("progression")), Out.Progression, Check))
     {
         return false;
@@ -1884,7 +1750,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
             || !Boss.Fraction(TEXT("aggro_radius"), TEXT("cm"), Rules.AggroRadiusCm, true)
             || !Boss.Fixed(TEXT("attacker_memory"), TEXT("ms"), TEXT("ms"), Rules.AttackerMemoryMs, 1)
             || !Boss.Fixed(TEXT("appear_at"), TEXT("ms"), TEXT("ms"), Rules.AppearAtMs, 1)
-            || !Boss.Int(TEXT("reward_xp"), Body.RewardXP) || !Boss.Int(TEXT("reward_gold"), Body.RewardGold))
+            || !Boss.Int(TEXT("reward_xp"), Body.RewardXP))
         {
             return false;
         }
@@ -1913,7 +1779,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
         || !Ids(World.Take(TEXT("spawn_ids")), Out.World.SpawnIds, Check, World.Path + TEXT(".spawn_ids"),
             LDDemoWorld::MinSpawns, LDDemoWorld::MaxSpawns)
         || !Ids(World.Take(TEXT("camp_ids")), Out.World.CampIds, Check, World.Path + TEXT(".camp_ids"), 1, LDDemoWorld::MaxCamps)
-        || !Ids(World.Take(TEXT("shop_ids")), Out.World.ShopIds, Check, World.Path + TEXT(".shop_ids"), 1, LDDemoWorld::MaxShops)
         || !World.Identifier(TEXT("capture_id"), Out.World.CaptureId)
         || !World.Done())
     {
@@ -1924,7 +1789,6 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     for (const auto& Row : Out.Abilities) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Attributes) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.OpeningCards) { DisplayIds.Add(Row.Id); }
-    for (const auto& Row : Out.Equipment) { DisplayIds.Add(Row.Id); }
     for (const auto& Row : Out.Monsters) { DisplayIds.Add(Row.Id); }
     for (const auto& Entry : NativeIds)
     {

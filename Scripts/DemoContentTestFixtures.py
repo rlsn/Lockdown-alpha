@@ -35,22 +35,21 @@ def content_fixture():
         ("UNIT.CollisionRadiusCm", "cm", 20), ("UNIT.BasicAttackRangeCm", "cm", 100),
         ("STAT.AttackRange.Min", "cm", 40), ("STAT.AttackRange.Max", "cm", 1000),
         ("UNIT.BasicAttackWindupSec", "s", 0.125), ("VISION.RadiusCm", "cm", 1200),
-        ("SHOP.InteractRadiusCm", "cm", 200), ("CAPTURE.RadiusCm", "cm", 300),
+        ("CAPTURE.RadiusCm", "cm", 300),
         ("CAPTURE.SpraySec", "s", 3), ("CAPTURE.GuardSec", "s", 20),
         ("MATCH.CountdownSec", "s", 3), ("MATCH.DevelopmentSec", "s", 90), ("LIFE.RespawnSec", "s", 22), ("LIFE.ProtectionSec", "s", 2),
         ("REGEN.OutOfCombatDelaySec", "s", 4), ("REGEN.OutOfCombatMaxHPRatioPerSec", "ratio", 0.02),
         ("REGEN.OutOfCombatMaxMPRatioPerSec", "ratio", 0.01),
         ("DORM.RadiusCm", "cm", 300), ("DORM.OutOfCombatDelaySec", "s", 2), ("DORM.MaxHPRatioPerSec", "ratio", 0.08),
         ("DORM.MaxMPRatioPerSec", "ratio", 0.05),
-        ("SHOP.SellRatio", "ratio", 0.5), ("CAMP.ResetArrivalRadiusCm", "cm", 50),
+        ("CAMP.ResetArrivalRadiusCm", "cm", 50),
         ("CAMP.ReturnDeadEndSec", "s", 4), ("CAMP.GrowthStageSec", "s", 30),
         ("CAMP.GrowthHPRatioPerStage", "ratio", 0.1), ("CAMP.GrowthAttackRatioPerStage", "ratio", 0.05),
         ("CAMP.GrowthResistPerStage", "points", 1), ("CAMP.GrowthRewardXPRatioPerStage", "ratio", 0.25),
         ("AIRDROP.FirstLandSec", "s", 30), ("AIRDROP.IntervalSec", "s", 60), ("AIRDROP.AnnounceLeadSec", "s", 10),
         ("AIRDROP.PickupRadiusCm", "cm", 120),
         ("LEADER.RefreshSec", "s", 8), ("LEADER.CircleRadiusCm", "cm", 1200), ("LEADER.CircleMaxOffsetCm", "cm", 800),
-        ("REWARD.AssistWindowSec", "s", 10), ("REWARD.AssistGoldRatio", "ratio", 0.4),
-        ("SHOP.UpgradeStatBonusRatio", "ratio", 0.4),
+        ("REWARD.AssistWindowSec", "s", 10),
         ("CHOICE.NewActiveFreeSlotWeight", "ratio", 0.75), ("CHOICE.NewActiveFullSlotWeight", "ratio", 0.35),
         ("CHOICE.FirstSlotUpgradeChance", "ratio", 0.7), ("CHOICE.FreeSlotAttributeChance", "ratio", 0.6),
         ("CHOICE.AttributeQuality.GreenChance", "ratio", 0.4), ("CHOICE.AttributeQuality.GreenMultiplier", "ratio", 0.9),
@@ -69,11 +68,10 @@ def content_fixture():
     ):
         parameters[key] = q(unit, value)
     parameters.update({
-        "SHOP.StartingGold": 10, "SHOP.UpgradeCost": 30, "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
-        "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2,
-        "REWARD.PlayerGold.Base": 24, "REWARD.PlayerGold.PerLevel": 3, "AI.RetryPolicy.MaxAttempts": 2,
-        "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150, "AIRDROP.RewardGold": 100,
-        "LEADER.MinLevel": 2, "LEADER.BountyGoldPerRefresh": 40, "LEADER.BountyGoldMax": 200,
+        "XP.BaseToNext": 50, "XP.IncreasePerLevel": 10,
+        "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "AI.RetryPolicy.MaxAttempts": 2,
+        "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150,
+        "LEADER.MinLevel": 2,
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
     })
     formulas = {
@@ -83,17 +81,16 @@ def content_fixture():
         "AttackMoveAcquireRadius": "MinVisionTwiceAttackRange",
         "AttackIntervalMs": "CeilReciprocalMs", "AttackWindupMs": "CeilBaseWindupTimesBaseOverCurrentAS",
         "CooldownMs": "CeilBaseTimesScaleOverScalePlusHaste", "Regen": "CarrySubP2Remainder",
-        "ResourceMaxChange": "FloorFinalRatioRejectAliveUnderflow", "SellGold": "FloorPurchasePriceTimesSellRatio",
+        "ResourceMaxChange": "FloorFinalRatioRejectAliveUnderflow",
         "XPToNext": "LinearIncrement", "ResistanceScale": q("points", 100), "HasteScale": q("points", 100),
     }
     policies = {
-        "StatStacking": "AddFlatThenAdditivePercent", "DuplicateEquipment": "Allowed",
-        "DuplicateEquipmentPassive": "OncePerFamily",
+        "StatStacking": "AddFlatThenAdditivePercent",
         "MissingSourceCooldown": "ContinueServerTime", "DeadChoiceCommit": "Allowed", "ResourceMaxChange": "PreserveRatio",
         "ReleasedEffectSourceLoss": "ContinueForRemainingContender", "SourceLeave": "CancelUnsettledNoRefund",
         "InvalidAggressionProtection": "BreakOnAggressiveIntent", "CritSampling": "OncePerAttackId",
         "LifestealBasis": "PrimaryBasicAttackHPLost", "LifestealRecursiveTriggers": "Disabled",
-        "BasicSecondaryTriggers": "Disabled", "RegenIntegration": "CarrySubP2Remainder", "ShopRequiresLineOfSight": False,
+        "BasicSecondaryTriggers": "Disabled", "RegenIntegration": "CarrySubP2Remainder",
         "ShieldPolicy": "ReplaceIfNotWeaker", "RootBlocks": ["Move", "Dash"], "CampAggroTrigger": "ConfirmedCombatHit",
         "CampGroupRetaliation": True, "CampReturningDamageable": True, "CampReturningControllable": True,
         "CampResetPolicy": "ReturnThenReset", "CampManaPolicy": "NotApplicable",
@@ -166,24 +163,6 @@ def content_fixture():
         {"id": "opening_keyboard", "stats": {"AttackRangeCmFlat": q("cm", 20), "AttackSpeedBonusRatio": q("ratio", 0.04),
                                              "MoveSpeedBonusRatio": q("ratio", 0.02)}},
     ]
-    equipment = [
-        {"id": "item_iron_plate", "buy_price": 51, "stats": {"MaxHPFlat": q("hp", 30), "ArmorFlat": q("points", 4)},
-         "passive": {"family": "passive_crit_guard", "effects": [{"op": "crit_damage_reduction", "ratio": q("ratio", 0.1)}]}},
-        {"id": "item_edge_blade", "buy_price": 52, "stats": {"ADFlat": q("points", 4), "AttackSpeedBonusRatio": q("ratio", 0.05)},
-         "passive": {"family": "passive_third_strike", "effects": [{"op": "nth_basic_bonus", "count": 3, "base": q("points", 5), "damage_type": "Physical"}]}},
-        {"id": "item_runic_focus", "buy_price": 53, "stats": {"APFlat": q("points", 6), "CooldownHasteFlat": q("points", 5)},
-         "passive": {"family": "passive_mana_refund", "effects": [{"op": "mana_on_hit", "trigger": "AbilityHit", "mana": q("mp", 2)}]}},
-        {"id": "item_siphon_emblem", "buy_price": 54, "stats": {"ADFlat": q("points", 2), "MagicResistFlat": q("points", 3)},
-         "passive": {"family": "passive_siphon", "effects": [{"op": "lifesteal", "ratio": q("ratio", 0.1)}],
-                     "upgraded": {"effects": [{"op": "lifesteal", "ratio": q("ratio", 0.15)}]}}},
-        {"id": "item_phase_anchor", "buy_price": 55, "stats": {"MoveSpeedBonusRatio": q("ratio", 0.05)},
-         "passive": {"family": "passive_stride", "effects": [{"op": "dash_boost", "cooldown_ratio": q("ratio", 0.5), "distance_bonus": q("ratio", 0.25)}]}},
-        {"id": "item_arcane_battery", "buy_price": 56, "stats": {"MaxMPFlat": q("mp", 20), "MagicResistFlat": q("points", 2)}, "passive": None},
-        {"id": "item_echo_maul", "buy_price": 57, "stats": {"ADFlat": q("points", 3), "AttackRangeCmFlat": q("cm", 10)},
-         "passive": {"family": "passive_cleave", "effects": [{"op": "cleave", "ratio": q("ratio", 0.25), "radius": q("cm", 60)}]}},
-    ]
-    equipment.append({"id": "item_megaphone", "buy_price": 59, "stats": {"APFlat": q("points", 3), "CooldownHasteFlat": q("points", 2)},
-                      "passive": {"family": "passive_megaphone", "effects": [{"op": "affliction_amp", "dot_ratio": q("ratio", 0.25), "slow_scale": q("ratio", 1.1)}]}})
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
         ("monster_scavenger", "Low", 2, 25, 3, 2, 1),
@@ -196,13 +175,13 @@ def content_fixture():
             "attack_speed": q("attacks/s", speed), "attack_windup": q("s", 0.125),
             "attack_range": q("cm", 80), "move_speed": q("cm/s", 250), "collision_radius": q("cm", 20),
             "leash_radius": q("cm", 300), "lose_target_grace": q("s", 1), "respawn": q("s", 10),
-            "reward_xp": {"Low": 8, "High": 20, "Elite": 40}[tier], "reward_gold": {"Low": 4, "High": 10, "Elite": 20}[tier],
+            "reward_xp": {"Low": 8, "High": 20, "Elite": 40}[tier],
             "hp_regen": q("hp/s", 0), "max_mp": q("mp", 0), "mp_regen": q("mp/s", 0),
             "ap": q("points", 0), "crit_chance": q("ratio", 0),
         })
     # The world references follow the approved world source, so a layout change needs no fixture edit.
     world_anchors = demo.parse_json((demo.ROOT / demo.WORLD_SOURCE).read_bytes(), "test world source")["anchors"]
-    named = {kind: sorted(row["id"] for row in world_anchors if row["kind"] == kind) for kind in ("Spawn", "Camp", "Shop")}
+    named = {kind: sorted(row["id"] for row in world_anchors if row["kind"] == kind) for kind in ("Spawn", "Camp")}
     camps = {
         "monsters": monsters,
         # Two member homes hold the Low pair; single-member camps are Elite when their id says so (e01..), else High.
@@ -212,13 +191,13 @@ def content_fixture():
     boss = {"id": "monster_dean", "hp": q("hp", 200), "armor": q("points", 5), "magic_resist": q("points", 5), "attack": q("points", 12),
             "attack_interval": q("s", 1.25), "attack_windup": q("s", 0.25), "attack_range": q("cm", 90), "move_speed": q("cm/s", 200),
             "collision_radius": q("cm", 20), "aggro_radius": q("cm", 150), "attacker_memory": q("s", 2), "appear_at": q("s", 20),
-            "reward_xp": 30, "reward_gold": 25,
+            "reward_xp": 30,
             "approval": {"duration": q("s", 15), "stats": {"ADBonusRatio": q("ratio", 0.1), "APBonusRatio": q("ratio", 0.1),
                                                            "MoveSpeedBonusRatio": q("ratio", 0.05)}}}
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, attributes, opening_cards, equipment, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, attributes, opening_cards, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -238,12 +217,11 @@ def content_fixture():
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "attributes": attributes, "opening_cards": opening_cards, "equipment": equipment, "camps": camps, "boss": boss,
-        "progression": {"max_level": 16, "max_choices": 16, "max_skill_rank": 2, "active_slots": 3, "equipment_slots": 2, "xp_start": 0,
+        "abilities": abilities, "attributes": attributes, "opening_cards": opening_cards, "camps": camps, "boss": boss,
+        "progression": {"max_level": 16, "max_choices": 16, "max_skill_rank": 2, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
                         "opening_offer": {"matched_skill_weight": 3, "other_skill_weight": 2}, "reroll_levels": [5, 11]},
-        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "shop_ids": named["Shop"],
-                  "capture_id": "capture"},
+        "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture"},
         "display": display,
     }
 

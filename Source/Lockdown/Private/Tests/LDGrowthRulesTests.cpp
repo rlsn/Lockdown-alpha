@@ -9,23 +9,18 @@
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDDevTestProtocol.h"
 #include "Development/LDDevelopmentDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Development/LDGrowthProtocol.h"
 #include "Development/LDGrowthRequests.h"
 #include "Development/LDSkillGrowth.h"
-#include "Dom/JsonObject.h"
-#include "Economy/LDEconomyDirector.h"
-#include "Economy/LDEconomyLedger.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDPlayerController.h"
-#include "Inventory/LDVendorDirector.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
 #include "Misc/Parse.h"
 #include "Misc/ScopeExit.h"
-#include "Serialization/JsonSerializer.h"
 #include "UI/LDHUDModel.h"
 #include "UI/LDTerms.h"
 #include "UObject/Class.h"
@@ -76,7 +71,7 @@ bool GrowthTestTermsDiffer(FAutomationTestBase& Test, const TCHAR* Family, const
 bool GrowthTestRunWire(FAutomationTestBase& Test)
 {
     bool bGood = true;
-    for (const TCHAR* IdText : {TEXT("item_echo_maul"), TEXT("shop"), TEXT("anchor_2")})
+    for (const TCHAR* IdText : {TEXT("attr_protein"), TEXT("camp"), TEXT("anchor_2")})
     {
         FLDDefinitionWire Encoded;
         FName Decoded;
@@ -95,10 +90,10 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         FLDDefinitionWire::Encode(FName(*Longest), LongestWire) && LongestWire.Bytes[62] == uint8('a') && LongestWire.Bytes[63] == 0
         && LongestWire.Decode(LongestName) && LongestName.ToString().Equals(Longest, ESearchCase::CaseSensitive));
 
-    // FName identity ignores case and a packaged build returns the first registered casing ("Shop" for "shop");
+    // FName identity ignores case and a packaged build returns the first registered casing ("Camp" for "camp");
     // the editor keeps each casing, so these variants reproduce that here.
     const TPair<const TCHAR*, const TCHAR*> CasedIds[] = {
-        {TEXT("Shop"), TEXT("shop")},
+        {TEXT("Camp"), TEXT("camp")},
         {TEXT("Growthtest_Upper"), TEXT("growthtest_upper")}};
     for (const TPair<const TCHAR*, const TCHAR*>& CasedId : CasedIds)
     {
@@ -111,8 +106,8 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
     }
 
     const TPair<const TCHAR*, FName> BadIds[] = {
-        {TEXT("a leading digit"), FName(TEXT("2nd_item"))},
-        {TEXT("a hyphen"), FName(TEXT("item-echo"))},
+        {TEXT("a leading digit"), FName(TEXT("2nd_card"))},
+        {TEXT("a hyphen"), FName(TEXT("attr-protein"))},
         {TEXT("an empty name"), FName(TEXT(""))},
         {TEXT("NAME_None"), FName(NAME_None)},
         {TEXT("a 64-byte id"), FName(*FString::ChrN(64, TEXT('a')))}};
@@ -126,20 +121,20 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
 
     FLDDefinitionWire Unterminated;
     FMemory::Memset(Unterminated.Bytes, uint8('a'), sizeof(Unterminated.Bytes));
-    FLDDefinitionWire DirtyPadding = GrowthTestRawWire(TEXT("shop"));
+    FLDDefinitionWire DirtyPadding = GrowthTestRawWire(TEXT("camp"));
     DirtyPadding.Bytes[5] = uint8('x');
-    FLDDefinitionWire DirtyTail = GrowthTestRawWire(TEXT("shop"));
+    FLDDefinitionWire DirtyTail = GrowthTestRawWire(TEXT("camp"));
     DirtyTail.Bytes[63] = 1;
     const TPair<const TCHAR*, FLDDefinitionWire> BadWires[] = {
         {TEXT("64 non-zero bytes without a terminator"), Unterminated},
         {TEXT("a non-zero byte right after the terminator"), DirtyPadding},
         {TEXT("a non-zero last padding byte"), DirtyTail},
-        {TEXT("an uppercase byte"), GrowthTestRawWire(TEXT("sHop"))},
-        {TEXT("a leading digit"), GrowthTestRawWire(TEXT("9shop"))},
+        {TEXT("an uppercase byte"), GrowthTestRawWire(TEXT("cAmp"))},
+        {TEXT("a leading digit"), GrowthTestRawWire(TEXT("9camp"))},
         {TEXT("an empty buffer"), FLDDefinitionWire()}};
     for (const TPair<const TCHAR*, FLDDefinitionWire>& BadWire : BadWires)
     {
-        FName Leftover(TEXT("shop"));
+        FName Leftover(TEXT("camp"));
         bGood &= Test.TestFalse(FString::Printf(TEXT("Decode rejects %s"), BadWire.Key), BadWire.Value.Decode(Leftover));
         bGood &= Test.TestTrue(FString::Printf(TEXT("A rejected decode of %s yields NAME_None"), BadWire.Key), Leftover.IsNone());
     }
@@ -191,656 +186,14 @@ bool GrowthTestRunWire(FAutomationTestBase& Test)
         [](FLDChoiceCommand& Mutated) { Mutated.ExpectedOldRank = 1; });
     bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("bReplaceConfirmed"), Choice,
         [](FLDChoiceCommand& Mutated) { Mutated.bReplaceConfirmed = false; });
+    bGood &= GrowthTestTermsDiffer(Test, ChoiceFamily, TEXT("bReroll"), Choice,
+        [](FLDChoiceCommand& Mutated) { Mutated.bReroll = true; });
 
-    FLDShopCommand Shop;
-    Shop.Generation = 3;
-    Shop.Life = 2;
-    Shop.RequestId = 11;
-    Shop.Kind = ELDShopCommandKind::Sell;
-    Shop.SessionId = FGuid(0x5E550000, 1, 2, 3);
-    Shop.QuoteRevision = 4;
-    Shop.CatalogDigest.Bytes[0] = 0xCD;
-    Shop.WorldMapId = GrowthTestRawWire(TEXT("demo_world"));
-    Shop.WorldLayoutRevision = 1;
-    Shop.WorldGeometryRevision = 1;
-    Shop.ExpectedAccountRevision = 6;
-    Shop.ExpectedInventoryRevision = 4;
-    Shop.ExpectedBuildRevision = 3;
-    Shop.DefinitionId = GrowthTestRawWire(TEXT("item_echo_maul"));
-    Shop.BuyPrice = 400;
-    Shop.Instance = FGuid(0x17E40000, 0, 0, 1);
-    Shop.ExpectedItemRevision = 1;
-    Shop.SellPrice = 260;
-    const TCHAR* ShopFamily = TEXT("Shop");
-    bGood &= Test.TestTrue(TEXT("A copied shop command keeps its terms"), Shop.SameTerms(FLDShopCommand(Shop)));
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("Generation"), Shop, [](FLDShopCommand& Mutated) { ++Mutated.Generation; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("Life"), Shop, [](FLDShopCommand& Mutated) { ++Mutated.Life; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("RequestId"), Shop, [](FLDShopCommand& Mutated) { ++Mutated.RequestId; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("Kind"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.Kind = ELDShopCommandKind::Buy; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("SessionId"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.SessionId = FGuid(0x5E550000, 1, 2, 4); });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("QuoteRevision"), Shop, [](FLDShopCommand& Mutated) { ++Mutated.QuoteRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("CatalogDigest"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.CatalogDigest.Bytes[31] = 0x5A; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("WorldMapId"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.WorldMapId = GrowthTestRawWire(TEXT("other_world")); });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("WorldLayoutRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.WorldLayoutRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("WorldGeometryRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.WorldGeometryRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("ExpectedAccountRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.ExpectedAccountRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("ExpectedInventoryRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.ExpectedInventoryRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("ExpectedBuildRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.ExpectedBuildRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("DefinitionId"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.DefinitionId = GrowthTestRawWire(TEXT("item_iron_plate")); });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("BuyPrice"), Shop, [](FLDShopCommand& Mutated) { Mutated.BuyPrice = 399; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("Instance"), Shop,
-        [](FLDShopCommand& Mutated) { Mutated.Instance = FGuid(0x17E40000, 0, 0, 2); });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("ExpectedItemRevision"), Shop,
-        [](FLDShopCommand& Mutated) { ++Mutated.ExpectedItemRevision; });
-    bGood &= GrowthTestTermsDiffer(Test, ShopFamily, TEXT("SellPrice"), Shop, [](FLDShopCommand& Mutated) { Mutated.SellPrice = 259; });
-    return bGood;
-}
-
-// ---- Ledger -----------------------------------------------------------------------------------
-
-LDEconomy::FTransaction GrowthTestTransaction(LDEconomy::ECause Cause, uint32 Key)
-{
-    LDEconomy::FTransaction Transaction;
-    Transaction.Cause = Cause;
-    Transaction.BusinessKey = FGuid(0x6B657900, 0, 0, Key);
-    Transaction.CommitBatch = Key;
-    for (int32 Index = 0; Index < int32(sizeof(Transaction.Terms)); ++Index)
-    {
-        Transaction.Terms[Index] = uint8(Key * 31 + uint32(Index));
-    }
-    return Transaction;
-}
-
-LDEconomy::FTransaction GrowthTestReward(uint32 Key, const FGuid& AccountId, uint64 AccountRevision, int64 Gold)
-{
-    LDEconomy::FTransaction Transaction = GrowthTestTransaction(LDEconomy::ECause::DeathReward, Key);
-    Transaction.Mint = Gold;
-    Transaction.Gold = LDEconomy::FGoldChange{AccountId, AccountRevision, Gold};
-    return Transaction;
-}
-
-LDEconomy::FTransaction GrowthTestBuy(uint32 Key, const FGuid& AccountId, uint64 AccountRevision, uint64 InventoryRevision,
-    FName Definition, uint8 Slot, int64 Price)
-{
-    LDEconomy::FTransaction Transaction = GrowthTestTransaction(LDEconomy::ECause::Buy, Key);
-    Transaction.Burn = Price;
-    Transaction.Gold = LDEconomy::FGoldChange{AccountId, AccountRevision, -Price};
-    Transaction.Create = LDEconomy::FCreateItem{AccountId, InventoryRevision, Definition, Slot};
-    return Transaction;
-}
-
-LDEconomy::FTransaction GrowthTestSell(uint32 Key, const FGuid& AccountId, uint64 AccountRevision, uint64 InventoryRevision,
-    const FGuid& Instance, uint64 ItemRevision, int64 Gold)
-{
-    LDEconomy::FTransaction Transaction = GrowthTestTransaction(LDEconomy::ECause::Sell, Key);
-    Transaction.Mint = Gold;
-    Transaction.Gold = LDEconomy::FGoldChange{AccountId, AccountRevision, Gold};
-    Transaction.Consume = LDEconomy::FConsumeItem{Instance, ItemRevision, AccountId, InventoryRevision};
-    return Transaction;
-}
-
-LDEconomy::FTransaction GrowthTestRetire(uint32 Key, const FGuid& AccountId, uint64 AccountRevision, uint32 Life, uint64 LifeRevision)
-{
-    LDEconomy::FTransaction Transaction = GrowthTestTransaction(LDEconomy::ECause::AccountRetire, Key);
-    Transaction.Retire = LDEconomy::FRetireAccount{AccountId, AccountRevision, LDEconomy::FRetireStamp{Life, LifeRevision}};
-    return Transaction;
-}
-
-bool GrowthTestCommit(FAutomationTestBase& Test, LDEconomy::FLedger& Ledger, const LDEconomy::FTransaction& Transaction,
-    const TCHAR* What, LDEconomy::FJournalEntry* OutEntry = nullptr)
-{
-    LDEconomy::FPrepareResult Result = Ledger.Prepare(Transaction);
-    if (!Test.TestTrue(FString::Printf(TEXT("%s prepares (%s: %s)"), What, LDEconomy::FLedger::ErrorName(Result.Error), *Result.Message),
-        Result.IsSuccess()))
-    {
-        return false;
-    }
-    if (OutEntry)
-    {
-        *OutEntry = Result.Value->Entry();
-    }
-    Ledger.ApplyPrepared(MoveTemp(*Result.Value));
-    return true;
-}
-
-bool GrowthTestUnchanged(FAutomationTestBase& Test, const LDEconomy::FAuditState& Before, const LDEconomy::FLedger& Ledger,
-    const FString& What)
-{
-    FString Difference;
-    const bool bSame = LDEconomy::SameState(Before, Ledger.State(), Difference);
-    return Test.TestTrue(FString::Printf(TEXT("%s leaves the ledger unchanged (%s)"), *What, *Difference), bSame);
-}
-
-bool GrowthTestRefuse(FAutomationTestBase& Test, const LDEconomy::FLedger& Ledger, const LDEconomy::FTransaction& Transaction,
-    LDEconomy::EPrepareError Expected, const TCHAR* What)
-{
-    const LDEconomy::FAuditState Before = Ledger.State();
-    const int32 TailBefore = Ledger.JournalTail().Num();
-    const LDEconomy::FPrepareResult Result = Ledger.Prepare(Transaction);
-    bool bGood = Test.TestEqual(FString::Printf(TEXT("%s is refused"), What), LDEconomy::FLedger::ErrorName(Result.Error),
-        LDEconomy::FLedger::ErrorName(Expected));
-    bGood &= Test.TestFalse(FString::Printf(TEXT("%s yields no plan"), What), Result.Value.IsSet());
-    bGood &= Test.TestFalse(FString::Printf(TEXT("%s explains the refusal"), What), Result.Message.IsEmpty());
-    bGood &= GrowthTestUnchanged(Test, Before, Ledger, What);
-    bGood &= Test.TestEqual(FString::Printf(TEXT("%s adds no journal entry"), What), Ledger.JournalTail().Num(), TailBefore);
-    return bGood;
-}
-
-const TCHAR* GrowthTestCompactName(LDEconomy::ECompactResult Result)
-{
-    switch (Result)
-    {
-    case LDEconomy::ECompactResult::Compacted: return TEXT("Compacted");
-    case LDEconomy::ECompactResult::NothingToCompact: return TEXT("NothingToCompact");
-    case LDEconomy::ECompactResult::Pinned: return TEXT("Pinned");
-    case LDEconomy::ECompactResult::PrepareUnavailable: return TEXT("PrepareUnavailable");
-    case LDEconomy::ECompactResult::CorruptHistory: return TEXT("CorruptHistory");
-    }
-    return TEXT("Unknown");
-}
-
-bool GrowthTestCompact(FAutomationTestBase& Test, LDEconomy::FLedger& Ledger, uint64 ExpectedSerial, LDEconomy::ECompactResult Expected,
-    const TCHAR* What)
-{
-    FString Error;
-    const LDEconomy::ECompactResult Result = Ledger.TryCompactResolvedPrefix(ExpectedSerial, Error);
-    return Test.TestEqual(FString::Printf(TEXT("%s (%s)"), What, *Error), GrowthTestCompactName(Result), GrowthTestCompactName(Expected));
-}
-
-bool GrowthTestExpectAccount(FAutomationTestBase& Test, const LDEconomy::FLedger& Ledger, const FGuid& AccountId, int64 Gold,
-    uint64 Revision, const TCHAR* What)
-{
-    const LDEconomy::FAccount* Account = Ledger.Account(AccountId);
-    if (!Test.TestNotNull(FString::Printf(TEXT("%s: account exists"), What), Account))
-    {
-        return false;
-    }
-    bool bGood = Test.TestEqual(FString::Printf(TEXT("%s: gold"), What), Account->Gold, Gold);
-    bGood &= Test.TestEqual(FString::Printf(TEXT("%s: account revision"), What), Account->Revision, Revision);
-    return bGood;
-}
-
-// Zero is never a live revision, so a missing account surfaces as a refused commit rather than a success.
-uint64 GrowthTestAccountRevision(const LDEconomy::FLedger& Ledger, const FGuid& AccountId)
-{
-    const LDEconomy::FAccount* Account = Ledger.Account(AccountId);
-    return Account ? Account->Revision : 0;
-}
-
-bool GrowthTestReconciles(FAutomationTestBase& Test, const LDEconomy::FLedger& Ledger, const TCHAR* What)
-{
-    FString Error;
-    const bool bReconciled = Ledger.Reconcile(Error);
-    return Test.TestTrue(FString::Printf(TEXT("%s: independent replay reconciles (%s)"), What, *Error), bReconciled);
-}
-
-bool GrowthTestConserves(FAutomationTestBase& Test, const LDEconomy::FLedger& Ledger, const TCHAR* What)
-{
-    const LDEconomy::FAuditState& State = Ledger.State();
-    return Test.TestEqual(FString::Printf(TEXT("%s: total gold equals initial + minted - burned"), What), Ledger.TotalGold(),
-        State.InitialGoldTotal + State.Minted - State.Burned);
-}
-
-bool GrowthTestRunLedger(FAutomationTestBase& Test)
-{
-    // Approved values (CONTENT_AND_BALANCE §5/§6.1): SHOP.StartingGold 320, item_iron_plate 310 / 201, item_siphon_emblem 360,
-    // a level 10 contender kill pays 170 gold and a monster_scavenger 30.
-    const int64 StartingGold = 320;
-    const int64 PlatePrice = 310;
-    const int64 PlateSellGold = 201;
-    const int64 EmblemPrice = 360;
-    const FName Plate(TEXT("item_iron_plate"));
-    const FName Emblem(TEXT("item_siphon_emblem"));
-    const FGuid Match(0x4D415443, 1, 2, 3);
-    const FGuid P1(0x0000A001, 0, 0, 1);
-    const FGuid P2(0x0000A002, 0, 0, 2);
-    const FGuid P3(0x0000A003, 0, 0, 3);
-    bool bGood = true;
-
-    LDEconomy::FLedger Ledger;
-    FString Error;
-    const bool bInitialized = Ledger.Initialize(Match, {P1, P2, P3}, StartingGold, Error);
-    if (!Test.TestTrue(FString::Printf(TEXT("Three roster accounts initialize (%s)"), *Error), bInitialized))
-    {
-        return false;
-    }
-    bGood &= Test.TestEqual(TEXT("Initial gold is 3 x 320"), Ledger.TotalGold(), int64(960));
-    bGood &= Test.TestEqual(TEXT("The initial gold total is recorded for reconciliation"), Ledger.State().InitialGoldTotal, int64(960));
-    for (const FGuid& RosterAccount : {P1, P2, P3})
-    {
-        bGood &= GrowthTestExpectAccount(Test, Ledger, RosterAccount, StartingGold, 1, TEXT("A freshly initialized account"));
-        bGood &= Test.TestEqual(TEXT("A freshly initialized inventory revision"), Ledger.InventoryRevision(RosterAccount), uint64(1));
-    }
-    bGood &= Test.TestEqual(TEXT("Nothing is committed yet"), Ledger.CommittedSerial(), uint64(0));
-    bGood &= Test.TestEqual(TEXT("The first commit will be serial 1"), Ledger.NextCommitSerial(), uint64(1));
-    bGood &= Test.TestEqual(TEXT("An account outside the roster has no inventory"), Ledger.InventoryRevision(FGuid(0x0000A004, 0, 0, 4)),
-        uint64(0));
-    bGood &= GrowthTestReconciles(Test, Ledger, TEXT("The initialized ledger"));
-
-    const LDEconomy::FAuditState Initial = Ledger.State();
-    bGood &= Test.TestFalse(TEXT("A second Initialize cannot refill a running match"),
-        Ledger.Initialize(Match, {P1, P2, P3}, StartingGold, Error));
-    bGood &= GrowthTestUnchanged(Test, Initial, Ledger, TEXT("The refused second Initialize"));
-    {
-        LDEconomy::FLedger Roster;
-        bGood &= Test.TestFalse(TEXT("A duplicate roster account is refused"), Roster.Initialize(Match, {P1, P1}, StartingGold, Error));
-        bGood &= Test.TestFalse(TEXT("An invalid roster account is refused"), Roster.Initialize(Match, {P1, FGuid()}, StartingGold, Error));
-        bGood &= Test.TestFalse(TEXT("An invalid match identity is refused"), Roster.Initialize(FGuid(), {P1}, StartingGold, Error));
-        bGood &= Test.TestFalse(TEXT("Refused initializations leave the ledger unbound"), Roster.IsInitialized());
-    }
-
-    const LDEconomy::FTransaction FirstReward = GrowthTestReward(1, P1, 1, 80);
-    {
-        const LDEconomy::FAuditState BeforeReward = Ledger.State();
-        LDEconomy::FPrepareResult Plan = Ledger.Prepare(FirstReward);
-        if (!Test.TestTrue(FString::Printf(TEXT("The 80 gold death reward prepares (%s)"), *Plan.Message), Plan.IsSuccess()))
-        {
-            return false;
-        }
-        bGood &= GrowthTestUnchanged(Test, BeforeReward, Ledger, TEXT("Preparing the reward"));
-        bGood &= Test.TestEqual(TEXT("The reward plan carries serial 1"), Plan.Value->Entry().Serial, uint64(1));
-        Ledger.ApplyPrepared(MoveTemp(*Plan.Value));
-    }
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 400, 2, TEXT("After the 80 gold death reward"));
-    bGood &= Test.TestEqual(TEXT("The reward is committed as serial 1"), Ledger.CommittedSerial(), uint64(1));
-    bGood &= Test.TestEqual(TEXT("The next commit will be serial 2"), Ledger.NextCommitSerial(), uint64(2));
-    bGood &= Test.TestEqual(TEXT("The reward is classified as minted gold"), Ledger.State().Minted, int64(80));
-    bGood &= Test.TestEqual(TEXT("A reward leaves the inventory revision"), Ledger.InventoryRevision(P1), uint64(1));
-    bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After the reward"));
-
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(50, P2, 1, 1, Emblem, 0, EmblemPrice), LDEconomy::EPrepareError::InsufficientGold,
-        TEXT("Buying the 360 gold siphon emblem with the 320 starting gold"));
-
-    for (uint32 Key = 2; Key <= 6; ++Key)
-    {
-        if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(Key, P1, GrowthTestAccountRevision(Ledger, P1), 170),
-            TEXT("A level 10 kill reward")))
-        {
-            return false;
-        }
-    }
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 1250, 7, TEXT("After five 170 gold rewards"));
-
-    const FGuid FirstPlate = LDEconomy::FLedger::InstanceFor(Match, 1);
-    const FGuid SecondPlate = LDEconomy::FLedger::InstanceFor(Match, 2);
-    LDEconomy::FJournalEntry BuyEntry;
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestBuy(7, P1, 7, 1, Plate, 0, PlatePrice), TEXT("Buying a plate into slot 0"), &BuyEntry))
-    {
-        return false;
-    }
-    bGood &= GrowthTestGuid(Test, TEXT("The purchase issues InstanceFor(Match, 1)"), BuyEntry.CreatedInstance, FirstPlate);
-    bGood &= Test.TestEqual(TEXT("The purchase records issue serial 1"), BuyEntry.CreatedIssueSerial, uint64(1));
-    const LDEconomy::FItem* Bought = Ledger.Item(FirstPlate);
-    if (!Test.TestNotNull(TEXT("The purchased instance is live"), Bought))
-    {
-        return false;
-    }
-    bGood &= Test.TestEqual(TEXT("The purchase fills the requested slot"), int32(Bought->Slot), 0);
-    bGood &= Test.TestEqual(TEXT("The purchased definition"), Bought->Definition, Plate);
-    bGood &= GrowthTestGuid(Test, TEXT("The purchased owner"), Bought->Owner, P1);
-    bGood &= Test.TestEqual(TEXT("A new instance starts at item revision 1"), Bought->Revision, uint64(1));
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 940, 8, TEXT("After buying the first plate"));
-    bGood &= Test.TestEqual(TEXT("The purchase bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(2));
-    bGood &= Test.TestEqual(TEXT("The purchase price is burned"), Ledger.State().Burned, int64(310));
-    bGood &= Test.TestEqual(TEXT("One instance has been issued"), Ledger.IssuedThrough(), uint64(1));
-
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(51, P1, 8, 2, Plate, 0, PlatePrice), LDEconomy::EPrepareError::SlotOccupied,
-        TEXT("Buying into occupied slot 0 while slot 1 is free"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(52, P1, 7, 2, Plate, 1, PlatePrice), LDEconomy::EPrepareError::AccountStale,
-        TEXT("Buying with a stale account revision"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(53, P1, 8, 1, Plate, 1, PlatePrice), LDEconomy::EPrepareError::InventoryStale,
-        TEXT("Buying with a stale inventory revision"));
-
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestBuy(8, P1, 8, 2, Plate, 1, PlatePrice),
-        TEXT("Buying a second identical plate into slot 1")))
-    {
-        return false;
-    }
-    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
-    Ledger.OwnerItems(P1, Owned);
-    bGood &= Test.TestTrue(TEXT("Two identical plates are held in slot order"), Owned.Num() == 2 && Owned[0].Key == FirstPlate
-        && Owned[1].Key == SecondPlate && Owned[0].Value.Slot == 0 && Owned[1].Value.Slot == 1
-        && Owned[0].Value.Definition == Plate && Owned[1].Value.Definition == Plate);
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 630, 9, TEXT("After buying the second plate"));
-    bGood &= Test.TestEqual(TEXT("The second purchase bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(3));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(54, P1, 9, 3, Plate, 0, PlatePrice), LDEconomy::EPrepareError::EquipmentFull,
-        TEXT("A third affordable purchase with both slots used"));
-
-    LDEconomy::FJournalEntry SellEntry;
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestSell(9, P1, 9, 3, FirstPlate, 1, PlateSellGold), TEXT("Selling the slot 0 plate"),
-        &SellEntry))
-    {
-        return false;
-    }
-    bGood &= Test.TestNull(TEXT("The sale consumes exactly the sold instance"), Ledger.Item(FirstPlate));
-    bGood &= Test.TestNotNull(TEXT("The sale keeps the other plate"), Ledger.Item(SecondPlate));
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 831, 10, TEXT("After selling for 201"));
-    bGood &= Test.TestEqual(TEXT("The sale bumps the inventory revision"), Ledger.InventoryRevision(P1), uint64(4));
-    bGood &= Test.TestEqual(TEXT("Sale gold is minted"), Ledger.State().Minted, int64(1131));
-    bGood &= Test.TestFalse(TEXT("A sale issues no instance"), SellEntry.CreatedInstance.IsValid());
-    bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After buying and selling"));
-
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestSell(55, P1, 10, 4, FirstPlate, 1, PlateSellGold),
-        LDEconomy::EPrepareError::UnknownItem, TEXT("Selling the consumed plate again"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestSell(56, P1, 10, 4, SecondPlate, 2, PlateSellGold),
-        LDEconomy::EPrepareError::ItemStale, TEXT("Selling with a stale item revision"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestSell(57, P2, 1, 1, SecondPlate, 1, PlateSellGold), LDEconomy::EPrepareError::NotOwner,
-        TEXT("Selling another contender's plate"));
-
-    bGood &= GrowthTestRefuse(Test, Ledger, FirstReward, LDEconomy::EPrepareError::DuplicateBusinessKey,
-        TEXT("Re-preparing the committed first reward"));
-    LDEconomy::FTransaction Conflicting = FirstReward;
-    Conflicting.Terms[0] = uint8(~Conflicting.Terms[0]);
-    bGood &= GrowthTestRefuse(Test, Ledger, Conflicting, LDEconomy::EPrepareError::BusinessKeyConflict,
-        TEXT("The first reward's business key with different terms"));
-
-    const LDEconomy::EPrepareError InvalidShape = LDEconomy::EPrepareError::InvalidTransaction;
-    LDEconomy::FTransaction Shape = GrowthTestBuy(60, P1, 10, 4, Plate, 0, PlatePrice);
-    Shape.Create.Reset();
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A purchase without a created item"));
-    Shape = GrowthTestReward(61, P1, 10, 80);
-    Shape.Burn = 80;
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A death reward that also burns"));
-    Shape = GrowthTestReward(62, P1, 10, 80);
-    Shape.Mint = 79;
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A death reward whose mint differs from its gold"));
-    Shape = GrowthTestSell(63, P1, 10, 4, SecondPlate, 1, PlateSellGold);
-    Shape.Create = LDEconomy::FCreateItem{P1, 4, Plate, 0};
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A sale that also creates an item"));
-    Shape = GrowthTestBuy(64, P1, 10, 4, Plate, 0, PlatePrice);
-    Shape.Create->Owner = P2;
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A purchase delivered to another account"));
-    Shape = GrowthTestRetire(65, P2, 1, 2, 7);
-    Shape.Gold = LDEconomy::FGoldChange{P2, 1, 10};
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A retirement that also moves gold"));
-    Shape = GrowthTestReward(66, P1, 10, 80);
-    Shape.Cause = LDEconomy::ECause::None;
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A transaction without a cause"));
-    Shape = GrowthTestReward(67, P1, 10, 80);
-    Shape.BusinessKey = FGuid();
-    bGood &= GrowthTestRefuse(Test, Ledger, Shape, InvalidShape, TEXT("A transaction without a business key"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestRetire(68, P2, 1, 0, 0), InvalidShape,
-        TEXT("A retirement without the core leave stamp"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestBuy(69, P1, 10, 4, Plate, 2, PlatePrice), InvalidShape,
-        TEXT("A purchase into slot 2"));
-
-    const int64 MintedBeforeRetire = Ledger.State().Minted;
-    const int64 BurnedBeforeRetire = Ledger.State().Burned;
-    LDEconomy::FJournalEntry RetireEntry;
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestRetire(10, P3, 1, 2, 7), TEXT("Retiring a leaving contender's account"), &RetireEntry))
-    {
-        return false;
-    }
-    const LDEconomy::FAccount* Retired = Ledger.Account(P3);
-    if (!Test.TestNotNull(TEXT("A retired account stays in the ledger"), Retired))
-    {
-        return false;
-    }
-    bGood &= Test.TestTrue(TEXT("Retirement marks the account retired"), Retired->bRetired);
-    bGood &= Test.TestEqual(TEXT("Retirement bumps the account revision"), Retired->Revision, uint64(2));
-    bGood &= Test.TestEqual(TEXT("Retirement is commit serial 10"), RetireEntry.Serial, uint64(10));
-    bGood &= Test.TestEqual(TEXT("RetireSerial is the retirement's own commit serial"), Retired->RetireSerial, RetireEntry.Serial);
-    bGood &= Test.TestTrue(TEXT("Retirement keeps the core leave stamp"), Retired->RetireStamp == LDEconomy::FRetireStamp{2, 7});
-    bGood &= Test.TestEqual(TEXT("Retirement does not change gold"), Retired->Gold, StartingGold);
-    bGood &= Test.TestTrue(TEXT("Retirement neither mints nor burns"),
-        Ledger.State().Minted == MintedBeforeRetire && Ledger.State().Burned == BurnedBeforeRetire);
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestReward(70, P3, 2, 80), LDEconomy::EPrepareError::RetiredAccount,
-        TEXT("A death reward to a retired account"));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestRetire(71, P3, 2, 2, 7), LDEconomy::EPrepareError::AlreadyRetired,
-        TEXT("Retiring an account twice"));
-
-    if (!Test.TestEqual(TEXT("Ten commits precede the journal fill"), Ledger.JournalTail().Num(), 10))
-    {
-        return false;
-    }
-    uint32 FillKey = 100;
-    while (Ledger.JournalTail().Num() < LDEconomy::JournalTailCapacity)
-    {
-        const uint32 Key = FillKey++;
-        if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(Key, P2, GrowthTestAccountRevision(Ledger, P2), 30),
-            TEXT("A journal filler reward")))
-        {
-            return false;
-        }
-    }
-    bGood &= Test.TestEqual(TEXT("The journal tail holds its 64-entry capacity"), Ledger.JournalTail().Num(),
-        LDEconomy::JournalTailCapacity);
-    bGood &= Test.TestEqual(TEXT("The full tail ends at serial 64"), Ledger.CommittedSerial(), uint64(64));
-    bGood &= GrowthTestRefuse(Test, Ledger, GrowthTestReward(FillKey, P2, GrowthTestAccountRevision(Ledger, P2), 30),
-        LDEconomy::EPrepareError::JournalFull, TEXT("A 65th prepare before compaction"));
-
-    bGood &= GrowthTestCompact(Test, Ledger, 63, LDEconomy::ECompactResult::Pinned, TEXT("Compaction with a stale expected serial"));
-    Ledger.Pin();
-    bGood &= GrowthTestCompact(Test, Ledger, 64, LDEconomy::ECompactResult::Pinned,
-        TEXT("Compaction while a composite commit pins the ledger"));
-    Ledger.Unpin();
-    bGood &= Test.TestEqual(TEXT("Refused compactions keep the tail"), Ledger.JournalTail().Num(), LDEconomy::JournalTailCapacity);
-    const LDEconomy::FAuditState BeforeCompaction = Ledger.State();
-    if (!GrowthTestCompact(Test, Ledger, Ledger.CommittedSerial(), LDEconomy::ECompactResult::Compacted,
-        TEXT("Compacting the resolved tail")))
-    {
-        return false;
-    }
-    bGood &= Test.TestEqual(TEXT("Compaction empties the journal tail"), Ledger.JournalTail().Num(), 0);
-    bGood &= Test.TestEqual(TEXT("Compaction keeps the committed serial"), Ledger.CommittedSerial(), uint64(64));
-    bGood &= GrowthTestUnchanged(Test, BeforeCompaction, Ledger, TEXT("Compaction"));
-    FString PrefixDifference;
-    const bool bPrefixIsLive = LDEconomy::SameState(Ledger.AuditPrefix(), Ledger.State(), PrefixDifference);
-    bGood &= Test.TestTrue(FString::Printf(TEXT("The new audit prefix equals the live state (%s)"), *PrefixDifference), bPrefixIsLive);
-    bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After compaction"));
-    bGood &= GrowthTestCompact(Test, Ledger, 64, LDEconomy::ECompactResult::NothingToCompact, TEXT("Compacting an empty tail"));
-    const LDEconomy::FAccount* StillRetired = Ledger.Account(P3);
-    bGood &= Test.TestTrue(TEXT("Compaction keeps the account retired at serial 10 with its gold"),
-        StillRetired && StillRetired->bRetired && StillRetired->RetireSerial == 10 && StillRetired->Gold == StartingGold);
-    bGood &= GrowthTestConserves(Test, Ledger, TEXT("After compaction"));
-    bGood &= Test.TestEqual(TEXT("Total gold after compaction"), Ledger.TotalGold(), int64(3091));
-    bGood &= Test.TestTrue(TEXT("Mint and burn totals survive compaction"), Ledger.State().Minted == 2751 && Ledger.State().Burned == 620);
-
-    for (const uint64 ExpectedSerial : {uint64(65), uint64(66)})
-    {
-        LDEconomy::FJournalEntry Entry;
-        const uint32 Key = FillKey++;
-        if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(Key, P2, GrowthTestAccountRevision(Ledger, P2), 30),
-            TEXT("A reward after compaction"), &Entry))
-        {
-            return false;
-        }
-        bGood &= Test.TestEqual(FString::Printf(TEXT("A post-compaction commit gets serial %llu"), ExpectedSerial), Entry.Serial,
-            ExpectedSerial);
-        bGood &= Test.TestEqual(TEXT("The committed serial follows the new entry"), Ledger.CommittedSerial(), ExpectedSerial);
-    }
-    bGood &= Test.TestEqual(TEXT("Two entries follow the compacted prefix"), Ledger.JournalTail().Num(), 2);
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P2, 2000, 57, TEXT("The filler account at the end"));
-    bGood &= GrowthTestReconciles(Test, Ledger, TEXT("After post-compaction commits"));
-    bGood &= GrowthTestConserves(Test, Ledger, TEXT("The final ledger"));
-    return bGood;
-}
-
-// A compacted prefix followed by every cause; -LDGrowthLedgerEvidence=<file> keeps the export for
-// Scripts\CheckEconomyEvidence.py so the independent replay is checked against real native output.
-bool GrowthTestRunLedgerEvidence(FAutomationTestBase& Test)
-{
-    const FGuid Match(0x11111111, 0x22223333, 0x44445555, 0x66667777);
-    const FGuid P1(0xE1, 0, 0, 1);
-    const FGuid P2(0xE1, 0, 0, 2);
-    const FGuid P3(0xE1, 0, 0, 3);
-    const FName Blade(TEXT("item_edge_blade"));
-    // The same definition under another FName casing, as a packaged build may hold it.
-    const FName BladeCased(TEXT("Item_Edge_Blade"));
-    const int64 StartingGold = 320;
-    LDEconomy::FLedger Ledger;
-    FString Json;
-    FString Error;
-    bool bGood = Test.TestFalse(TEXT("An uninitialized ledger exports no evidence"),
-        LDEconomy::ExportEvidence(Ledger, StartingGold, Json, Error));
-    bGood &= Test.TestTrue(TEXT("The refused export explains itself and returns no text"), !Error.IsEmpty() && Json.IsEmpty());
-    if (!Test.TestTrue(FString::Printf(TEXT("The evidence ledger initializes (%s)"), *Error),
-        Ledger.Initialize(Match, {P1, P2, P3}, StartingGold, Error)))
-    {
-        return false;
-    }
-    // Folded into the audit prefix: P2 buys one item and P3 leaves.
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestBuy(201, P2, 1, 1, Blade, 0, 100), TEXT("The evidence prefix buy"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestRetire(202, P3, 1, 2, 7), TEXT("The evidence prefix retirement"))
-        || !GrowthTestCompact(Test, Ledger, 2, LDEconomy::ECompactResult::Compacted, TEXT("The evidence prefix compaction")))
-    {
-        return false;
-    }
-    const FGuid PrefixItem = LDEconomy::FLedger::InstanceFor(Match, 1);
-    const FGuid FirstBlade = LDEconomy::FLedger::InstanceFor(Match, 2);
-    // The tail covers every cause, two instances of one definition and the sale of a prefix item.
-    if (!GrowthTestCommit(Test, Ledger, GrowthTestReward(203, P1, 1, 80), TEXT("The evidence tail reward"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(204, P1, 2, 1, Blade, 0, 100), TEXT("The evidence tail first buy"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestBuy(205, P1, 3, 2, BladeCased, 1, 100), TEXT("The evidence tail second buy"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestSell(206, P1, 4, 3, FirstBlade, 1, 65), TEXT("The evidence tail sale"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestSell(207, P2, 2, 2, PrefixItem, 1, 65), TEXT("The sale of a prefix item"))
-        || !GrowthTestCommit(Test, Ledger, GrowthTestRetire(208, P2, 3, 1, 3), TEXT("The evidence tail retirement")))
-    {
-        return false;
-    }
-    bGood &= GrowthTestConserves(Test, Ledger, TEXT("The evidence ledger"));
-    if (!Test.TestTrue(FString::Printf(TEXT("The ledger exports its evidence (%s)"), *Error),
-        LDEconomy::ExportEvidence(Ledger, StartingGold, Json, Error)))
-    {
-        return false;
-    }
-    TSharedPtr<FJsonObject> Root;
-    if (!Test.TestTrue(TEXT("The evidence is one JSON object"),
-        FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root) && Root.IsValid()))
-    {
-        return false;
-    }
-    bGood &= Test.TestTrue(TEXT("The evidence names schema 5, its match and the approved starting gold"),
-        Root->GetIntegerField(TEXT("schemaVersion")) == 5
-        && Root->GetStringField(TEXT("match")) == Match.ToString(EGuidFormats::DigitsWithHyphensLower)
-        && Root->GetStringField(TEXT("startingGold")) == TEXT("320"));
-    const TSharedPtr<FJsonObject>* FixtureBlock = nullptr;
-    const TArray<TSharedPtr<FJsonValue>>* FixtureGrants = nullptr;
-    bGood &= Test.TestTrue(TEXT("Without -LDDevGrowthFixture the evidence states the fixture was off and lists no DevFixture mint"),
-        Root->TryGetObjectField(TEXT("devFixture"), FixtureBlock) && !(*FixtureBlock)->GetBoolField(TEXT("enabled"))
-        && (*FixtureBlock)->TryGetArrayField(TEXT("grants"), FixtureGrants) && FixtureGrants->IsEmpty()
-        && (*FixtureBlock)->GetStringField(TEXT("minted")) == TEXT("0"));
-    const TArray<TSharedPtr<FJsonValue>>* Tail = nullptr;
-    const TSharedPtr<FJsonObject>* Prefix = nullptr;
-    const TSharedPtr<FJsonObject>* Current = nullptr;
-    if (!Test.TestTrue(TEXT("The evidence carries the prefix, the tail and the live state"),
-        Root->TryGetArrayField(TEXT("tail"), Tail) && Root->TryGetObjectField(TEXT("prefix"), Prefix)
-        && Root->TryGetObjectField(TEXT("current"), Current) && Tail->Num() == 6))
-    {
-        return false;
-    }
-    TArray<FString> Causes;
-    for (const TSharedPtr<FJsonValue>& Entry : *Tail)
-    {
-        Causes.Add(Entry->AsObject()->GetStringField(TEXT("cause")));
-    }
-    bGood &= Test.TestEqual(TEXT("The tail lists every cause in commit order"), FString::Join(Causes, TEXT(",")),
-        FString(TEXT("DeathReward,Buy,Buy,Sell,Sell,AccountRetire")));
-    bGood &= Test.TestTrue(TEXT("The prefix ends at serial 2 and the live state at serial 8"),
-        (*Prefix)->GetStringField(TEXT("throughSerial")) == TEXT("2") && (*Current)->GetStringField(TEXT("throughSerial")) == TEXT("8"));
-    bGood &= Test.TestEqual(TEXT("The first tail buy records its issued instance"),
-        (*Tail)[1]->AsObject()->GetStringField(TEXT("createdInstance")), FirstBlade.ToString(EGuidFormats::DigitsWithHyphensLower));
-    TArray<FString> Definitions;
-    for (const TSharedPtr<FJsonValue>& Entry : *Tail)
-    {
-        const TSharedPtr<FJsonObject>* Create = nullptr;
-        if (Entry->AsObject()->TryGetObjectField(TEXT("create"), Create))
-        {
-            Definitions.Add((*Create)->GetStringField(TEXT("definition")));
-        }
-    }
-    for (const TSharedPtr<FJsonObject>* State : {Prefix, Current})
-    {
-        const TArray<TSharedPtr<FJsonValue>>* Items = nullptr;
-        if ((*State)->TryGetArrayField(TEXT("items"), Items))
-        {
-            for (const TSharedPtr<FJsonValue>& Item : *Items)
-            {
-                Definitions.Add(Item->AsObject()->GetStringField(TEXT("definition")));
-            }
-        }
-    }
-    bGood &= Test.TestEqual(TEXT("Both creates, the prefix item and the live item export the canonical lowercase id, whatever casing was committed"),
-        FString::Join(Definitions, TEXT(",")), FString(TEXT("item_edge_blade,item_edge_blade,item_edge_blade,item_edge_blade")));
-    FString EvidencePath;
-    if (FParse::Value(FCommandLine::Get(), TEXT("LDGrowthLedgerEvidence="), EvidencePath))
-    {
-        bGood &= Test.TestTrue(FString::Printf(TEXT("The evidence is written to %s"), *EvidencePath),
-            !EvidencePath.IsEmpty() && FFileHelper::SaveStringToFile(Json, *EvidencePath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM));
-    }
-    return bGood;
-}
-
-// DEV growth fixture mints: DeathReward's shape under their own cause, listed for the evidence even after compaction.
-bool GrowthTestRunDevFixtureLedger(FAutomationTestBase& Test)
-{
-    const FGuid Match(0x22222222, 0x33334444, 0x55556666, 0x77778888);
-    const FGuid P1(0xE2, 0, 0, 1);
-    const FGuid P2(0xE2, 0, 0, 2);
-    LDEconomy::FLedger Ledger;
-    FString Error;
-    if (!Test.TestTrue(TEXT("The DevFixture ledger initializes"), Ledger.Initialize(Match, {P1, P2}, 150, Error)))
-    {
-        return false;
-    }
-    LDEconomy::FTransaction Grant = GrowthTestTransaction(LDEconomy::ECause::DevFixture, 301);
-    Grant.Mint = 50;
-    Grant.Gold = LDEconomy::FGoldChange{P1, 1, 50};
-    LDEconomy::FTransaction Burning = Grant;
-    Burning.BusinessKey = FGuid(0x6B657900, 0, 0, 302);
-    Burning.Burn = 50;
-    bool bGood = GrowthTestRefuse(Test, Ledger, Burning, LDEconomy::EPrepareError::InvalidTransaction,
-        TEXT("A DevFixture mint that also burns"));
-    LDEconomy::FTransaction Charging = Grant;
-    Charging.BusinessKey = FGuid(0x6B657900, 0, 0, 303);
-    Charging.Mint = 0;
-    Charging.Burn = 50;
-    Charging.Gold->Delta = -50;
-    bGood &= GrowthTestRefuse(Test, Ledger, Charging, LDEconomy::EPrepareError::InvalidTransaction, TEXT("A DevFixture that charges gold"));
-    LDEconomy::FJournalEntry Entry;
-    if (!GrowthTestCommit(Test, Ledger, Grant, TEXT("A DevFixture mint"), &Entry))
-    {
-        return false;
-    }
-    bGood &= GrowthTestExpectAccount(Test, Ledger, P1, 200, 2, TEXT("The DevFixture recipient"));
-    const TArray<LDEconomy::FDevFixtureMint>& Mints = Ledger.DevFixtureGrants();
-    bGood &= Test.TestTrue(TEXT("The ledger lists the DevFixture mint by serial, account and gold"),
-        Mints.Num() == 1 && Mints[0].Serial == Entry.Serial && Mints[0].Account == P1 && Mints[0].Gold == 50);
-    bGood &= GrowthTestCompact(Test, Ledger, Ledger.CommittedSerial(), LDEconomy::ECompactResult::Compacted,
-        TEXT("Compacting the DevFixture mint"));
-    bGood &= Test.TestTrue(TEXT("Compaction folds the journal entry but keeps the DevFixture listing"),
-        Ledger.JournalTail().IsEmpty() && Ledger.DevFixtureGrants().Num() == 1);
-    FString Json;
-    TSharedPtr<FJsonObject> Root;
-    const TSharedPtr<FJsonObject>* Fixture = nullptr;
-    const TArray<TSharedPtr<FJsonValue>>* Grants = nullptr;
-    if (!Test.TestTrue(FString::Printf(TEXT("The DevFixture ledger exports evidence (%s)"), *Error),
-        LDEconomy::ExportEvidence(Ledger, 150, Json, Error) && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Json), Root)
-        && Root.IsValid() && Root->TryGetObjectField(TEXT("devFixture"), Fixture) && (*Fixture)->TryGetArrayField(TEXT("grants"), Grants)))
-    {
-        return false;
-    }
-    bGood &= Test.TestFalse(TEXT("The rules run has no -LDDevGrowthFixture, so the evidence says the fixture was off"),
-        (*Fixture)->GetBoolField(TEXT("enabled")));
-    TSharedPtr<FJsonObject> Row;
-    if (Grants->Num() == 1)
-    {
-        Row = (*Grants)[0]->AsObject();
-    }
-    bGood &= Test.TestTrue(TEXT("The evidence lists the folded DevFixture mint and its total"),
-        Row.IsValid() && Row->GetStringField(TEXT("serial")) == LexToString(Entry.Serial)
-        && Row->GetStringField(TEXT("account")) == P1.ToString(EGuidFormats::DigitsWithHyphensLower)
-        && Row->GetStringField(TEXT("gold")) == TEXT("50") && (*Fixture)->GetStringField(TEXT("minted")) == TEXT("50"));
+    // #144: Choice is the only request family; the retired shop family number decodes to nothing.
+    bGood &= Test.TestTrue(TEXT("Choice is a known growth family"), LDGrowthWire::IsKnownFamily(ELDGrowthFamily::Choice));
+    bGood &= Test.TestFalse(TEXT("None is no growth family"), LDGrowthWire::IsKnownFamily(ELDGrowthFamily::None));
+    bGood &= Test.TestFalse(TEXT("The retired shop family 2 is refused, not mapped to a neighbour"),
+        LDGrowthWire::IsKnownFamily(static_cast<ELDGrowthFamily>(2)));
     return bGood;
 }
 
@@ -1030,21 +383,12 @@ bool GrowthTestReadFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoCo
     const FLDDemoProgressionDefinition& Curve = OutCatalog->Get().Progression;
     const TArray<int64> ApprovedThresholds = {0, 80, 180, 300, 440, 600, 780, 980, 1200, 1440,
         1700, 1980, 2280, 2600, 2940, 3300};
-    const FLDDemoEquipmentDefinition* IronPlate = nullptr;
-    FString Missing;
     bool bApproved = Test.TestTrue(TEXT("Fixture carries the approved 16-level cumulative XP thresholds"),
         Curve.XPStart == 0 && Curve.XPThresholds == ApprovedThresholds);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel/MaxChoices 16, MaxSkillRank 2, three active and two equipment slots"),
-        Curve.MaxLevel == 16 && Curve.MaxChoices == 16 && Curve.MaxSkillRank == 2 && Curve.ActiveSlots == 3 && Curve.EquipmentSlots == 2);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level and REWARD.PlayerGold 80 + 10/level"),
-        Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20 && Tuning.PlayerGoldBase == 80 && Tuning.PlayerGoldPerLevel == 10);
-    bApproved &= Test.TestTrue(TEXT("Fixture carries SHOP.UpgradeCost 240, SHOP.StartingGold 320 and SHOP.SellRatio .65"),
-        Tuning.UpgradeCost == 240 && Tuning.StartingGold == 320 && Tuning.SellRatioBp == 6500);
-    bApproved &= Test.TestTrue(TEXT("Fixture prices item_iron_plate at 310 / 201 as the ledger test assumes"),
-        OutCatalog->FindEquipment(TEXT("item_iron_plate"), IronPlate, Missing) && IronPlate->BuyPrice == 310 && IronPlate->SellGold == 201);
-    const FLDDemoEquipmentDefinition* SiphonEmblem = nullptr;
-    bApproved &= Test.TestTrue(TEXT("Fixture prices item_siphon_emblem at 360, above the starting gold, as the ledger test assumes"),
-        OutCatalog->FindEquipment(TEXT("item_siphon_emblem"), SiphonEmblem, Missing) && SiphonEmblem->BuyPrice == 360);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries MaxLevel/MaxChoices 16, MaxSkillRank 2 and three active slots"),
+        Curve.MaxLevel == 16 && Curve.MaxChoices == 16 && Curve.MaxSkillRank == 2 && Curve.ActiveSlots == 3);
+    bApproved &= Test.TestTrue(TEXT("Fixture carries REWARD.PlayerXP 100 + 20/level"),
+        Tuning.PlayerXPBase == 100 && Tuning.PlayerXPPerLevel == 20);
     return bApproved;
 }
 
@@ -1250,43 +594,36 @@ bool GrowthTestRunProgression(FAutomationTestBase& Test)
     bGood &= GrowthTestReason(Test, TEXT("A level 1 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 1, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("Level 1 contender kill XP"), Reward.XP, int64(100));
-    bGood &= Test.TestEqual(TEXT("Level 1 contender kill gold"), Reward.Gold, int64(80));
     bGood &= GrowthTestReason(Test, TEXT("A level 10 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 10, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("Level 10 contender kill XP"), Reward.XP, int64(280));
-    bGood &= Test.TestEqual(TEXT("Level 10 contender kill gold"), Reward.Gold, int64(170));
     bGood &= GrowthTestReason(Test, TEXT("A level 16 contender kill"),
         LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, 16, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("Level 16 contender kill XP"), Reward.XP, int64(400));
-    bGood &= Test.TestEqual(TEXT("Level 16 contender kill gold"), Reward.Gold, int64(230));
     for (const uint8 VictimLevel : {uint8(0), uint8(17)})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A level %d contender kill"), VictimLevel),
             LDProgression::ContenderKillReward(Approved.Parameters, MaxLevel, VictimLevel, Reward), ELDGrowthReason::DataInvalid);
         bGood &= Test.TestTrue(FString::Printf(TEXT("A refused level %d kill grants nothing"), VictimLevel),
-            Reward.XP == 0 && Reward.Gold == 0);
+            Reward.XP == 0);
     }
     bGood &= GrowthTestReason(Test, TEXT("A monster_scavenger kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_scavenger")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_scavenger XP"), Reward.XP, int64(20));
-    bGood &= Test.TestEqual(TEXT("monster_scavenger gold"), Reward.Gold, int64(15));
     bGood &= GrowthTestReason(Test, TEXT("A monster_guardian kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_guardian XP"), Reward.XP, int64(80));
-    bGood &= Test.TestEqual(TEXT("monster_guardian gold"), Reward.Gold, int64(60));
     bGood &= GrowthTestReason(Test, TEXT("A monster_advisor kill"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_advisor")), 0, Reward), ELDGrowthReason::None);
     bGood &= Test.TestEqual(TEXT("monster_advisor XP"), Reward.XP, int64(180));
-    bGood &= Test.TestEqual(TEXT("monster_advisor gold"), Reward.Gold, int64(135));
-    // #97 camp growth: +10% of the base XP per stage that life spawned with, floored; gold stays at its base.
-    for (const auto& [Monster, Stage, XP, Gold] : TArray<TTuple<const TCHAR*, uint8, int64, int64>>{
-        {TEXT("monster_scavenger"), 3, 26, 15}, {TEXT("monster_guardian"), 5, 120, 60},
-        {TEXT("monster_advisor"), 10, 360, 135}, {TEXT("monster_scavenger"), 10, 40, 15}})
+    // #97 camp growth: +10% of the base XP per stage that life spawned with, floored.
+    for (const auto& [Monster, Stage, XP] : TArray<TTuple<const TCHAR*, uint8, int64>>{
+        {TEXT("monster_scavenger"), 3, 26}, {TEXT("monster_guardian"), 5, 120},
+        {TEXT("monster_advisor"), 10, 360}, {TEXT("monster_scavenger"), 10, 40}})
     {
         bGood &= GrowthTestReason(Test, FString::Printf(TEXT("A stage %u %s kill"), Stage, Monster),
             LDProgression::MonsterKillReward(*Catalog, FName(Monster), Stage, Reward), ELDGrowthReason::None);
-        bGood &= Test.TestTrue(FString::Printf(TEXT("Stage %u %s pays %lld XP and %lld gold"), Stage, Monster, XP, Gold),
-            Reward.XP == XP && Reward.Gold == Gold);
+        bGood &= Test.TestEqual(FString::Printf(TEXT("Stage %u %s pays %lld XP"), Stage, Monster, XP), Reward.XP, XP);
     }
     bGood &= GrowthTestReason(Test, TEXT("A camp kill past the growth cap"),
         LDProgression::MonsterKillReward(*Catalog, FName(TEXT("monster_guardian")), 11, Reward), ELDGrowthReason::DataInvalid);
@@ -1593,8 +930,8 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
         GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
         ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
         ALDDevelopmentDirector* Development = World->SpawnActor<ALDDevelopmentDirector>();
-        ALDEconomyDirector* Economy = World->SpawnActor<ALDEconomyDirector>();
-        if (!Test.TestNotNull(TEXT("A growth director"), Development) || !Test.TestNotNull(TEXT("An economy director"), Economy))
+        ALDGrowthDirector* Growth = World->SpawnActor<ALDGrowthDirector>();
+        if (!Test.TestNotNull(TEXT("A development director"), Development) || !Test.TestNotNull(TEXT("A growth director"), Growth))
         {
             return false;
         }
@@ -1610,9 +947,9 @@ bool GrowthTestRunDevFixture(FAutomationTestBase& Test)
             !LDDevGrowthFixture::StageOffer(World, Contender, {FName(TEXT("active_snark_bolt")), FName(TEXT("attr_protein")),
                 FName(TEXT("attr_all_nighter"))}, StageError) && StageError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("DevGrantReward is refused without the switch and issues no ticket"),
-            Economy->DevGrantReward(Contender, 80, 50, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
+            Growth->DevGrantReward(Contender, 80, GrantError) == 0 && GrantError.Contains(TEXT("-LDDevGrowthFixture")));
         bGood &= Test.TestTrue(TEXT("No ticket exists to poll after a refused grant"),
-            Economy->DevGrantStatus(1, Detail) == ELDDevGrantStatus::Unknown);
+            Growth->DevGrantStatus(1, Detail) == ELDDevGrantStatus::Unknown);
     }
 
     const FName Snark(TEXT("active_snark_bolt"));
@@ -2054,8 +1391,7 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
 {
     // Any field added to the private growth views must be added here deliberately (and told to UI).
     bool bGood = GrowthTestExactFields(Test, FLDGrowthOwnerView::StaticStruct(),
-        {TEXT("Generation"), TEXT("PublishRevision"), TEXT("Progression"), TEXT("Equipment"), TEXT("Shop"),
-            TEXT("AirdropClaimedSerial")});
+        {TEXT("Generation"), TEXT("PublishRevision"), TEXT("Progression"), TEXT("AirdropClaimedSerial")});
     bGood &= GrowthTestExactFields(Test, FLDProgressionView::StaticStruct(),
         {TEXT("bValid"), TEXT("Generation"), TEXT("Life"), TEXT("LifePhase"), TEXT("bCanChoose"), TEXT("Level"), TEXT("MaxLevel"),
          TEXT("CumulativeXP"), TEXT("LevelThresholdXP"), TEXT("bHasNextThreshold"), TEXT("NextThresholdXP"),
@@ -2069,30 +1405,12 @@ bool GrowthTestRunPrivacy(FAutomationTestBase& Test)
     bGood &= GrowthTestExactFields(Test, FLDLearnedSkillView::StaticStruct(),
         {TEXT("DefinitionId"), TEXT("bActive"), TEXT("Rank"), TEXT("Slot")});
     bGood &= GrowthTestExactFields(Test, FLDAttributeCardView::StaticStruct(), {TEXT("DefinitionId"), TEXT("Count"), TEXT("Quality")});
-    bGood &= GrowthTestExactFields(Test, FLDEquipmentView::StaticStruct(),
-        {TEXT("bValid"), TEXT("Generation"), TEXT("Gold"), TEXT("AccountRevision"), TEXT("InventoryRevision"), TEXT("bUpgradeUsed"),
-         TEXT("Slots")});
-    bGood &= GrowthTestExactFields(Test, FLDEquipmentSlotView::StaticStruct(),
-        {TEXT("SlotIndex"), TEXT("bOccupied"), TEXT("Instance"), TEXT("IssueSerial"), TEXT("DefinitionId"), TEXT("ItemRevision"),
-         TEXT("bUpgraded")});
-    bGood &= GrowthTestExactFields(Test, FLDShopOpenResult::StaticStruct(),
-        {TEXT("Generation"), TEXT("Life"), TEXT("ShopId"), TEXT("OpenStatus"), TEXT("Reason"), TEXT("bHasView"), TEXT("View")});
-    bGood &= GrowthTestExactFields(Test, FLDShopView::StaticStruct(),
-        {TEXT("ShopId"), TEXT("SessionId"), TEXT("Life"), TEXT("QuoteRevision"), TEXT("CatalogDigest"), TEXT("WorldMapId"),
-         TEXT("WorldLayoutRevision"), TEXT("WorldGeometryRevision"), TEXT("Items"), TEXT("Sellable"), TEXT("UpgradePrice"),
-         TEXT("bUpgradeUsed")});
-    bGood &= GrowthTestExactFields(Test, FLDShopItemView::StaticStruct(),
-        {TEXT("DefinitionId"), TEXT("BuyPrice"), TEXT("SellGold")});
-    bGood &= GrowthTestExactFields(Test, FLDShopSellView::StaticStruct(),
-        {TEXT("SlotIndex"), TEXT("Instance"), TEXT("ItemRevision"), TEXT("DefinitionId"), TEXT("SellPrice"), TEXT("bUpgraded"),
-         TEXT("bCanUpgrade")});
     bGood &= Test.TestFalse(TEXT("The owner growth view carries no object, delegate or unordered container"),
         GrowthTestCarriesReference(FLDGrowthOwnerView::StaticStruct()));
 
     const TSet<const UScriptStruct*> GrowthPrivateViews = {FLDGrowthOwnerView::StaticStruct(), FLDProgressionView::StaticStruct(),
         FLDChoiceOfferView::StaticStruct(), FLDChoiceOption::StaticStruct(), FLDLearnedSkillView::StaticStruct(),
-        FLDAttributeCardView::StaticStruct(), FLDEquipmentView::StaticStruct(), FLDEquipmentSlotView::StaticStruct(),
-        FLDShopOpenResult::StaticStruct(), FLDShopView::StaticStruct(), FLDShopItemView::StaticStruct(), FLDShopSellView::StaticStruct()};
+        FLDAttributeCardView::StaticStruct()};
     TSet<const UScriptStruct*> Nested;
     for (TFieldIterator<FProperty> It(FLDGrowthOwnerView::StaticStruct()); It; ++It)
     {
@@ -2364,7 +1682,7 @@ bool GrowthTestRunDraft(FAutomationTestBase& Test)
     return bGood;
 }
 
-// ---- #147 skill growth: G(L) on a learned skill's fixed amounts, never on mana, ratios, durations or equipment ----
+// ---- #147 skill growth: G(L) on a learned skill's fixed amounts, never on mana, ratios or durations ----
 bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -2443,171 +1761,6 @@ bool GrowthTestRunSkillGrowth(FAutomationTestBase& Test)
     bGood &= Test.TestNull(TEXT("An ability outside the snapshot is refused"), Catalog->FindRank(Stranger, 1, 1));
     return bGood;
 }
-
-// ---- 112 §7 equipment upgrade: ledger cause, effective definitions and the attribute projection ----
-bool GrowthTestRunUpgrade(FAutomationTestBase& Test)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!GrowthTestReadFixture(Test, Catalog))
-    {
-        return false;
-    }
-    const FLDDemoContentDefinitions& Content = Catalog->Get();
-    bool bGood = Test.TestTrue(TEXT("The approved upgrade costs 240 and adds 35% to fixed stats"),
-        Content.Parameters.UpgradeCost == 240 && Content.Parameters.UpgradeStatBonusBp == 3500);
-    const FLDDemoEquipmentDefinition* PureStats = nullptr;
-    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
-    {
-        bGood &= Test.TestEqual(Item.Id + TEXT(" has one upgraded value per stat"), Item.UpgradedStats.Num(), Item.Stats.Num());
-        for (int32 Index = 0; Index < Item.Stats.Num() && Index < Item.UpgradedStats.Num(); ++Index)
-        {
-            const FLDDemoStatBonus& Base = Item.Stats[Index];
-            const FLDDemoStatBonus& Up = Item.UpgradedStats[Index];
-            const bool bRange = Base.Stat == ELDDemoBonusStat::AttackRangeCmFlat;
-            const int64 Expected = bRange ? Base.Cm.Numerator * 13500 / (Base.Cm.Denominator * 10000) : Base.Amount * 13500 / 10000;
-            bGood &= Test.TestTrue(FString::Printf(TEXT("%s stat %d is +35%% floored at its precision"), *Item.Id, Index),
-                Up.Stat == Base.Stat && (bRange ? Up.Cm.Numerator == Expected && Up.Cm.Denominator == 1 : Up.Amount == Expected));
-        }
-        bGood &= Test.TestTrue(Item.Id + TEXT(" is upgradable exactly when its passive, if any, has its upgraded form"),
-            LDDemoEquipment::Upgradable(Item) == (!Item.HasPassive || Item.Passive.HasUpgraded));
-        bGood &= Test.TestTrue(Item.Id + TEXT(" serves its base or upgraded terms, never a fallback"),
-            &LDDemoEquipment::EffectiveStats(Item, false) == &Item.Stats && &LDDemoEquipment::EffectiveStats(Item, true) == &Item.UpgradedStats
-            && (Item.HasPassive ? LDDemoEquipment::EffectivePassiveEffects(Item, false) == &Item.Passive.Effects
-                && (LDDemoEquipment::EffectivePassiveEffects(Item, true) != nullptr) == Item.Passive.HasUpgraded
-                : LDDemoEquipment::EffectivePassiveEffects(Item, true) == nullptr));
-        if (!PureStats && !Item.HasPassive) { PureStats = &Item; }
-    }
-
-    // Projection: an upgraded instance projects its upgraded stats; an item without approved upgraded terms refuses.
-    for (const FLDDemoEquipmentDefinition& Item : Content.Equipment)
-    {
-        FLDAttributeBuildValues Plain(1, {}, {}, {Item.Id});
-        FLDAttributeBuildValues Upgraded(1, {}, {}, {Item.Id});
-        Upgraded.EquippedUpgraded = {true};
-        const FLDAttributeProjectionResult Base = LDAttributeProjection::Project(Plain, *Catalog);
-        const FLDAttributeProjectionResult Up = LDAttributeProjection::Project(Upgraded, *Catalog);
-        if (!LDDemoEquipment::Upgradable(Item))
-        {
-            bGood &= Test.TestTrue(Item.Id + TEXT(" flagged upgraded without approved terms is refused"), !Up.IsSuccess()
-                && Up.Error.Code == ELDAttributeProjectionError::Catalog);
-            continue;
-        }
-        if (!Test.TestTrue(Item.Id + TEXT(" projects plain and upgraded"), Base.IsSuccess() && Up.IsSuccess())) { bGood = false; continue; }
-        for (const FLDDemoStatBonus& Stat : Item.UpgradedStats)
-        {
-            const FLDDemoStatBonus* Plain0 = Item.Stats.FindByPredicate([&Stat](const FLDDemoStatBonus& S) { return S.Stat == Stat.Stat; });
-            if (Stat.Stat == ELDDemoBonusStat::ADFlat)
-            {
-                bGood &= Test.TestEqual(Item.Id + TEXT(" upgraded AD"), Up.Value->Final.ADP2 - Base.Value->Final.ADP2, Stat.Amount - Plain0->Amount);
-            }
-            if (Stat.Stat == ELDDemoBonusStat::MaxHPFlat)
-            {
-                bGood &= Test.TestEqual(Item.Id + TEXT(" upgraded max HP"), Up.Value->Final.MaxHPP2 - Base.Value->Final.MaxHPP2,
-                    Stat.Amount - Plain0->Amount);
-            }
-        }
-        if (Item.HasPassive)
-        {
-            // Two copies, the second upgraded: the family applies once and takes the upgraded terms.
-            FLDAttributeBuildValues Pair(1, {}, {}, {Item.Id, Item.Id});
-            Pair.EquippedUpgraded = {false, true};
-            const FLDAttributeProjectionResult Both = LDAttributeProjection::Project(Pair, *Catalog);
-            bGood &= Test.TestTrue(Item.Id + TEXT(": duplicate copies apply the family once, the upgraded copy first"), Both.IsSuccess()
-                && Both.Value->EquipmentPassives.Num() == 1 && Both.Value->EquipmentPassives[0].bUpgraded
-                && Both.Value->EquipmentPassives[0].EquippedIndices.Num() == 2);
-        }
-    }
-    FLDAttributeBuildValues Mismatched(1, {}, {}, {Content.Equipment[0].Id});
-    Mismatched.EquippedUpgraded = {true, false};
-    bGood &= Test.TestFalse(TEXT("Mismatched upgrade flags are refused"), LDAttributeProjection::Project(Mismatched, *Catalog).IsSuccess());
-    if (!Test.TestNotNull(TEXT("The catalog holds an item with fixed stats only"), PureStats)) { return false; }
-
-    // Ledger: Burn + Upgrade, once per account, bound to the instance.
-    const FGuid Match(0x112, 7, 0, 1), P1(0x112, 7, 0, 2), P2(0x112, 7, 0, 3);
-    LDEconomy::FLedger Ledger;
-    FString Error;
-    if (!Test.TestTrue(TEXT("A ledger opens"), Ledger.Initialize(Match, {P1, P2}, 2000, Error))) { return false; }
-    uint64 Batch = 1;
-    const auto Buy = [&](const FGuid& Owner, uint8 Slot, int64 Price)
-    {
-        LDEconomy::FTransaction T;
-        T.Cause = LDEconomy::ECause::Buy;
-        T.BusinessKey = FGuid::NewGuid();
-        T.CommitBatch = ++Batch;
-        T.Burn = Price;
-        T.Gold.Emplace(LDEconomy::FGoldChange{Owner, Ledger.Account(Owner)->Revision, -Price});
-        T.Create.Emplace(LDEconomy::FCreateItem{Owner, Ledger.InventoryRevision(Owner), FName(*PureStats->Id), Slot});
-        LDEconomy::FPrepareResult Prepared = Ledger.Prepare(T);
-        if (!Prepared.IsSuccess()) { return FGuid(); }
-        const FGuid Created = Prepared.Value->Entry().CreatedInstance;
-        Ledger.ApplyPrepared(MoveTemp(Prepared.Value.GetValue()));
-        return Created;
-    };
-    const auto Upgrade = [&](const FGuid& Owner, const FGuid& Instance, int64 Cost, int64 MintInstead = 0)
-    {
-        LDEconomy::FTransaction T;
-        T.Cause = LDEconomy::ECause::Upgrade;
-        T.BusinessKey = FGuid::NewGuid();
-        T.CommitBatch = ++Batch;
-        T.Burn = MintInstead ? 0 : Cost;
-        T.Mint = MintInstead;
-        T.Gold.Emplace(LDEconomy::FGoldChange{Owner, Ledger.Account(Owner)->Revision, -Cost});
-        const LDEconomy::FItem* Item = Ledger.Item(Instance);
-        T.Upgrade.Emplace(LDEconomy::FUpgradeItem{Instance, Item ? Item->Revision : 0, Owner, Ledger.InventoryRevision(Owner)});
-        return Ledger.Prepare(T);
-    };
-    const FGuid First = Buy(P1, 0, PureStats->BuyPrice);
-    const FGuid Second = Buy(P1, 1, PureStats->BuyPrice);
-    const FGuid Other = Buy(P2, 0, PureStats->BuyPrice);
-    if (!Test.TestTrue(TEXT("Three items are bought"), First.IsValid() && Second.IsValid() && Other.IsValid())) { return false; }
-    bGood &= Test.TestTrue(TEXT("An upgrade that mints instead of burning has the wrong shape"),
-        Upgrade(P1, First, 240, 240).Error == LDEconomy::EPrepareError::InvalidTransaction);
-    bGood &= Test.TestTrue(TEXT("Another contender's item cannot be upgraded"), Upgrade(P1, Other, 240).Error == LDEconomy::EPrepareError::NotOwner);
-    const uint64 InventoryBefore = Ledger.InventoryRevision(P1);
-    const int64 GoldBefore = Ledger.Account(P1)->Gold;
-    LDEconomy::FPrepareResult Done = Upgrade(P1, First, 240);
-    if (!Test.TestTrue(TEXT("The first upgrade prepares"), Done.IsSuccess())) { return false; }
-    Ledger.ApplyPrepared(MoveTemp(Done.Value.GetValue()));
-    bGood &= Test.TestTrue(TEXT("The upgrade burns its cost, marks the instance, advances item and inventory revisions and spends the account's upgrade"),
-        Ledger.Account(P1)->Gold == GoldBefore - 240 && Ledger.Item(First)->bUpgraded && Ledger.Item(First)->Revision == 2
-        && Ledger.InventoryRevision(P1) == InventoryBefore + 1 && Ledger.Account(P1)->bUpgradeUsed && !Ledger.Item(Second)->bUpgraded);
-    bGood &= Test.TestTrue(TEXT("A second upgrade of the account is refused"), Upgrade(P1, Second, 240).Error == LDEconomy::EPrepareError::UpgradeUsed);
-    // Selling the upgraded item loses the upgrade at the ordinary sell price; the spent upgrade never returns.
-    LDEconomy::FTransaction Sell;
-    Sell.Cause = LDEconomy::ECause::Sell;
-    Sell.BusinessKey = FGuid::NewGuid();
-    Sell.CommitBatch = ++Batch;
-    Sell.Mint = PureStats->SellGold;
-    Sell.Gold.Emplace(LDEconomy::FGoldChange{P1, Ledger.Account(P1)->Revision, PureStats->SellGold});
-    Sell.Consume.Emplace(LDEconomy::FConsumeItem{First, 1, P1, Ledger.InventoryRevision(P1)});
-    bGood &= Test.TestTrue(TEXT("Selling with the pre-upgrade item revision is stale"),
-        Ledger.Prepare(Sell).Error == LDEconomy::EPrepareError::ItemStale);
-    Sell.Consume->ExpectedItemRevision = 2;
-    LDEconomy::FPrepareResult Sold = Ledger.Prepare(Sell);
-    if (!Test.TestTrue(TEXT("The upgraded item sells at its ordinary price"), Sold.IsSuccess())) { return false; }
-    Ledger.ApplyPrepared(MoveTemp(Sold.Value.GetValue()));
-    bGood &= Test.TestTrue(TEXT("The upgrade left with the item and stays spent"), !Ledger.Item(First) && Ledger.Account(P1)->bUpgradeUsed
-        && Upgrade(P1, Second, 240).Error == LDEconomy::EPrepareError::UpgradeUsed);
-    bGood &= Test.TestTrue(TEXT("Another account still has its own upgrade"), Upgrade(P2, Other, 240).IsSuccess());
-    bGood &= Test.TestTrue(FString::Printf(TEXT("The ledger reconciles (%s)"), *Error), Ledger.Reconcile(Error));
-    FString Evidence;
-    bGood &= Test.TestTrue(TEXT("Evidence exports the upgrade state"), LDEconomy::ExportEvidence(Ledger, 2000, Evidence, Error)
-        && Evidence.Contains(TEXT("upgradeUsed")) && Evidence.Contains(TEXT("\"Upgrade\"")));
-
-    // Wire: the new terms are part of request identity.
-    FLDShopCommand A;
-    A.Kind = ELDShopCommandKind::Upgrade;
-    A.UpgradePrice = 240;
-    FLDShopCommand B = A;
-    B.UpgradePrice = 239;
-    bGood &= Test.TestFalse(TEXT("Upgrade commands differing in price differ in terms"), A.SameTerms(B));
-    FLDChoiceCommand C;
-    FLDChoiceCommand D = C;
-    D.bReroll = true;
-    bGood &= Test.TestFalse(TEXT("A reroll differs in terms from a choice"), C.SameTerms(D));
-    bGood &= Test.TestTrue(TEXT("Upgrade is a known shop kind"), LDGrowthWire::IsKnownShopKind(ELDShopCommandKind::Upgrade));
-    return bGood;
-}
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthWireTest, "Lockdown.Rules.DemoGrowthWire",
@@ -2616,17 +1769,6 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthWireTest, "Lockdown.Rules.DemoGrow
 bool FLDDemoGrowthWireTest::RunTest(const FString& Parameters)
 {
     return GrowthTestRunWire(*this);
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthLedgerTest, "Lockdown.Rules.DemoGrowthLedger",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthLedgerTest::RunTest(const FString& Parameters)
-{
-    const bool bLedger = GrowthTestRunLedger(*this);
-    const bool bEvidence = GrowthTestRunLedgerEvidence(*this);
-    const bool bFixture = GrowthTestRunDevFixtureLedger(*this);
-    return bLedger && bEvidence && bFixture;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthRequestsTest, "Lockdown.Rules.DemoGrowthRequests",
@@ -2671,97 +1813,10 @@ bool FLDDemoGrowthPrivacySchemaTest::RunTest(const FString& Parameters)
     return GrowthTestRunPrivacy(*this);
 }
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAccountRetireAwaitsRewardTest, "Lockdown.Rules.DemoGrowthRetireAwaitsReward",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDAccountRetireAwaitsRewardTest::RunTest(const FString& Parameters)
-{
-    const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
-        .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
-    UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
-    if (!TestNotNull(TEXT("Isolated retirement world"), World)) { return false; }
-    GEngine->CreateNewWorldContext(EWorldType::Game).SetCurrentWorld(World);
-    ON_SCOPE_EXIT { World->DestroyWorld(false); GEngine->DestroyWorldContext(World); };
-    auto* Mode = World->SpawnActor<ALDGameMode>();
-    auto* Public = World->SpawnActor<ALDGameState>();
-    auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
-    if (!Mode || !Public || !Driver || !Economy) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
-    Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
-    Mode->GameState = Public;
-    Mode->MatchContext = {1, FGuid::NewGuid()};
-    Mode->MatchPhase = ELDMatchPhase::Development;
-    Mode->Combat = Driver;
-    Mode->Economy = Economy;
-    Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
-    const FGuid Killer = FGuid::NewGuid();
-    const FGuid Stayer = FGuid::NewGuid();
-    // The killer's fatal hit was locked while he was in the match; he left before its reward was retried.
-    for (const FGuid& Id : {Killer, Stayer})
-    {
-        auto& Life = Mode->Lives.Add(Id);
-        Life.Kind = ELDVictimKind::Contender;
-        Life.Phase = Id == Killer ? ELDLifePhase::Left : ELDLifePhase::Unspawned;
-        Life.Life = 1;
-        Life.Revision = 2;
-    }
-    FString Error;
-    Economy->Match = Mode->MatchContext;
-    Economy->Roster = {Killer, Stayer};
-    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Economy->Roster, 300, Error)))
-    { AddError(Error); return false; }
-    FLDCommittedDeath Owed;
-    Owed.Key = {Mode->MatchContext.LedgerMatch, {ELDVictimKind::CampMember, FGuid::NewGuid(), 1}};
-    Owed.CreditOwner = Killer;
-    Owed.RewardBasis.bCreditOwnerEligibleAtDeath = true;
-    Driver->RetryRewards.Add(Owed);
-    World->Tick(LEVELTICK_TimeOnly, .025f);
-
-    // The reward the retry would mint into the killer's account at the next boundary.
-    const auto RetryMint = [&]()
-    {
-        const LDEconomy::FAccount* Account = Economy->Ledger.Account(Killer);
-        LDEconomy::FTransaction Mint;
-        Mint.Cause = LDEconomy::ECause::DeathReward;
-        Mint.BusinessKey = FGuid::NewGuid();
-        Mint.CommitBatch = Mode->AuthorityStep.StepSerial + 1;
-        Mint.Mint = 20;
-        Mint.Gold.Emplace(LDEconomy::FGoldChange{Killer, Account ? Account->Revision : 0, 20});
-        return Economy->Ledger.Prepare(Mint);
-    };
-    const auto RunTransactions = [&](int64 EndAtMs)
-    {
-        const bool Ran = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, EndAtMs) == ELDCommitReject::None
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
-                [&](const FLDGameplayWritePermit& Permit) { return Economy->RetireLeftAccounts(*Mode, Permit, Error); }, Error)
-            && Mode->FinishAuthorityStep(*Driver, Error);
-        if (!Ran) { AddError(FString::Printf(TEXT("Transactions boundary failed: %s"), *Error)); }
-        return Ran;
-    };
-
-    if (!RunTransactions(10)) { return false; }
-    const LDEconomy::FAccount* Account = Economy->Ledger.Account(Killer);
-    TestTrue(TEXT("A contender who left keeps his account open while a reward owed to him awaits its retry"),
-        Account && !Account->bRetired && !Economy->Retired.Contains(Killer));
-    TestTrue(TEXT("The owed retry can still be paid into that account"), RetryMint().IsSuccess());
-    TestTrue(TEXT("A present contender is never retired"),
-        Economy->Ledger.Account(Stayer) && !Economy->Ledger.Account(Stayer)->bRetired);
-
-    // The next boundary's DeathsAndRewards settled the retry; retirement then proceeds.
-    Driver->RetryRewards.Reset();
-    if (!RunTransactions(20)) { return false; }
-    Account = Economy->Ledger.Account(Killer);
-    TestTrue(TEXT("Once nothing is owed, the account retires through its ledger entry"),
-        Account && Account->bRetired && Economy->Retired.Contains(Killer));
-    TestTrue(TEXT("A retired account receives no later gold"),
-        RetryMint().Error == LDEconomy::EPrepareError::RetiredAccount);
-    return true;
-}
-
 // DEV test commands (#78): shape, the fixture gate, admission through the growth request stream, the Transactions commit
-// of grants through the reward composite (ledger cause DevFixture), stale match/life and Left refusals, replay without a
-// second commit, cooldown reset on the persistent tracks and the pure refill/reset parts.
+// of XP grants through the reward composite, stale match/life and Left refusals, replay without a second commit, cooldown
+// reset on the persistent tracks and the pure refill/reset parts; then the map-event reward identity (D26) and a reward
+// to a contender who left after the locked fact, on the same growth domain.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDevTestCommandsTest, "Lockdown.Rules.DemoDevTestCommands",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -2773,12 +1828,14 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoProgressionDefinition& Progression = Catalog->Get().Progression;
-    if (!TestTrue(TEXT("The catalog has a level-2 threshold above zero"),
-        Progression.XPThresholds.Num() >= 2 && Progression.XPThresholds[1] > 1))
+    if (!TestTrue(TEXT("The catalog has a level-2 threshold that two positive grants can stay below"),
+        Progression.XPThresholds.Num() >= 2 && Progression.XPThresholds[1] > 2))
     {
         return false;
     }
+    // Two DEV grants that together stay one XP below level 2: request 1, then request 2 up to SubLevelXP.
     const int64 SubLevelXP = Progression.XPThresholds[1] - 1;
+    const int64 FirstGrantXP = SubLevelXP / 2;
 
     // ---- Shape ----
     const auto Command = [](uint32 Generation, uint32 Life, uint64 RequestId, ELDDevTestOp Op, int64 Amount)
@@ -2794,11 +1851,18 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     GrowthTestReason(*this, TEXT("A positive XP grant is a valid shape"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantExperience, 5)), ELDGrowthReason::None);
     GrowthTestReason(*this, TEXT("Request id 0 is refused"),
-        LDDevTest::ValidateShape(Command(1, 1, 0, ELDDevTestOp::GrantGold, 5)), ELDGrowthReason::InvalidRequest);
+        LDDevTest::ValidateShape(Command(1, 1, 0, ELDDevTestOp::GrantExperience, 5)), ELDGrowthReason::InvalidRequest);
     GrowthTestReason(*this, TEXT("An unknown op is refused, not mapped to a neighbour"),
         LDDevTest::ValidateShape(Command(1, 1, 1, static_cast<ELDDevTestOp>(99), 0)), ELDGrowthReason::InvalidRequest);
+    // #144 retired GrantGold (2), BuyItem (6) and SellItem (7); their numbers are unknown ops, never reused.
+    for (const uint8 Retired : {uint8(2), uint8(6), uint8(7)})
+    {
+        GrowthTestReason(*this, FString::Printf(TEXT("Retired op %u is refused as unknown"), uint32(Retired)),
+            LDDevTest::ValidateShape(Command(1, 1, 1, static_cast<ELDDevTestOp>(Retired), 5)), ELDGrowthReason::InvalidRequest);
+        TestFalse(FString::Printf(TEXT("Retired op %u is no known op"), uint32(Retired)), LDDevTest::IsKnownOp(static_cast<ELDDevTestOp>(Retired)));
+    }
     GrowthTestReason(*this, TEXT("A zero grant is refused"),
-        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantGold, 0)), ELDGrowthReason::NumericDomain);
+        LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantExperience, 0)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("A negative grant is refused"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::GrantExperience, -3)), ELDGrowthReason::NumericDomain);
     GrowthTestReason(*this, TEXT("A refill with an amount is refused"),
@@ -2806,7 +1870,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     GrowthTestReason(*this, TEXT("A cooldown reset without an amount is a valid shape"),
         LDDevTest::ValidateShape(Command(1, 1, 1, ELDDevTestOp::ResetCooldowns, 0)), ELDGrowthReason::None);
     TestFalse(TEXT("Commands that differ only in amount have different terms"),
-        Command(1, 1, 1, ELDDevTestOp::GrantGold, 5).SameTerms(Command(1, 1, 1, ELDDevTestOp::GrantGold, 6)));
+        Command(1, 1, 1, ELDDevTestOp::GrantExperience, 5).SameTerms(Command(1, 1, 1, ELDDevTestOp::GrantExperience, 6)));
     const auto Attribute = [&Command](uint64 RequestId, ELDDemoBonusStat Stat, int64 Amount, uint32 Generation = 1)
     {
         FLDDevTestCommand Out = Command(Generation, 1, RequestId, ELDDevTestOp::SetAttribute, Amount);
@@ -2883,7 +1947,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     };
     const auto ProjectWith = [&Catalog](TArray<FLDDemoStatBonus> Dev, TArray<FLDAttributeCardValue> Cards = {})
     {
-        FLDAttributeBuildValues Values(1, {}, MoveTemp(Cards), {});
+        FLDAttributeBuildValues Values(1, {}, MoveTemp(Cards));
         Values.DevBonuses = MoveTemp(Dev);
         return LDAttributeProjection::Project(Values, *Catalog);
     };
@@ -2899,7 +1963,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     const FLDAttributeContributions& DevAD = DevValue.Contributions[int32(ELDProjectedAttribute::AD)];
     TestTrue(TEXT("DEV AD +20 points adds exactly 2000 P2 and shows as the Dev row, not as a build source"),
         DevValue.Final.ADP2 == PlainValue.Final.ADP2 + 2000 && DevAD.Dev.Flat.Numerator == 20 && DevAD.Dev.Flat.Denominator == 1
-        && DevAD.Equipment.Flat.Numerator == 0 && DevAD.PermanentChoices.Flat.Numerator == 0);
+        && DevAD.PermanentChoices.Flat.Numerator == 0 && DevAD.Passives.Flat.Numerator == 0);
     const FLDAttributeContributions& DevSpeed = DevValue.Contributions[int32(ELDProjectedAttribute::AttackSpeed)];
     TestTrue(TEXT("A DEV ratio is an additive ratio of the Dev row"),
         DevSpeed.Dev.AdditiveRatio.Numerator * 4 == DevSpeed.Dev.AdditiveRatio.Denominator
@@ -2936,10 +2000,9 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     auto* Mode = World->SpawnActor<ALDGameMode>();
     auto* Public = World->SpawnActor<ALDGameState>();
     auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    auto* Growth = World->SpawnActor<ALDGrowthDirector>();
     auto* Development = World->SpawnActor<ALDDevelopmentDirector>();
-    auto* Vendor = World->SpawnActor<ALDVendorDirector>();
-    if (!Mode || !Public || !Driver || !Economy || !Development || !Vendor) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    if (!Mode || !Public || !Driver || !Growth || !Development) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
     Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
     Mode->GameState = Public;
     // The directors resolve the core through the world's authority game mode, exactly as in a hosted match.
@@ -2947,9 +2010,8 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Mode->MatchContext = {4, FGuid::NewGuid()};
     Mode->MatchPhase = ELDMatchPhase::Development;
     Mode->Combat = Driver;
-    Mode->Economy = Economy;
+    Mode->Growth = Growth;
     Mode->Development = Development;
-    Mode->Vendor = Vendor;
     Mode->DemoContent = Catalog;
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
     const FGuid Tester(0xD7, 0, 0, 0x10);
@@ -2963,13 +2025,10 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Life.Revision = 2;
     }
     FString Error;
-    const int64 StartingGold = Catalog->Get().Parameters.StartingGold;
-    Economy->Match = Mode->MatchContext;
-    Economy->Roster = {Tester, Leaver};
-    Economy->Content = Catalog;
-    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Economy->Roster,
-        StartingGold, Error))) { AddError(Error); return false; }
-    if (!TestTrue(TEXT("Growth opens for the roster"), Development->BeginMatch(Mode->MatchContext, Economy->Roster, Catalog, Error)))
+    Growth->Match = Mode->MatchContext;
+    Growth->Roster = {Tester, Leaver};
+    Growth->Content = Catalog;
+    if (!TestTrue(TEXT("Growth opens for the roster"), Development->BeginMatch(Mode->MatchContext, Growth->Roster, Catalog, Error)))
     { AddError(Error); return false; }
     // The tester's persistent combat record: one learned track still cooling down, another one already ready.
     FLDCombatEntityRecord& CombatRecord = Driver->Records.Add(Tester);
@@ -2985,11 +2044,11 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Spent.IssuedCooldownId = FGuid(0xD7, 0, 1, 2);
     Spent.Kind = ELDCombatSourceKind::Learned;
     Spent.ReadyAtMs = 0;
-    World->Tick(LEVELTICK_TimeOnly, .025f);
+    World->Tick(LEVELTICK_TimeOnly, .1f);
 
-    // One 25 ms tick of native time; every boundary below advances 1 ms inside it.
+    // One 100 ms tick of native time; every boundary below advances 1 ms inside it.
     int64 StepAtMs = 0;
-    const auto RunTransactions = [&]()
+    const auto RunPhase = [&](ELDCommitPhase Phase, TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute)
     {
         StepAtMs += 1;
         Error.Reset();
@@ -3000,14 +2059,17 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
             return false;
         }
         const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
-            && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
-                [&](const FLDGameplayWritePermit& Permit) { return Economy->ProcessTransactions(Permit, Error); }, Error)
+            && Mode->ExecuteAuthorityPhase(*Driver, Phase, Execute, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
-        if (!Ran) { AddError(FString::Printf(TEXT("Transactions boundary failed: %s"), *Error)); }
+        if (!Ran) { AddError(FString::Printf(TEXT("Boundary phase %u failed: %s"), uint32(Phase), *Error)); }
         return Ran;
     };
-    const auto Gold = [&](const FGuid& Id) { const LDEconomy::FAccount* A = Economy->Ledger.Account(Id); return A ? A->Gold : -1; };
-    const auto XP = [&]() { const FLDProgressionState* P = Development->FindProgression(Tester); return P ? P->CumulativeXP : -1; };
+    const auto RunTransactions = [&]()
+    {
+        return RunPhase(ELDCommitPhase::Transactions,
+            [&](const FLDGameplayWritePermit& Permit) { return Growth->ProcessTransactions(Permit, Error); });
+    };
+    const auto XP = [&](const FGuid& Id) { const FLDProgressionState* P = Development->FindProgression(Id); return P ? P->CumulativeXP : -1; };
     const auto Status = [&](const FString& What, const FLDDevTestResult& Result, ELDAdmissionStatus Expected, ELDGrowthReason Reason)
     {
         GrowthTestEnum(*this, What + TEXT(" (status)"), Result.Status, Expected);
@@ -3015,88 +2077,87 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     };
     const auto LastReceipt = [&](const FGuid& Id) -> const FLDDevTestReceipt*
     {
-        const auto* Record = Economy->DevTests.Find(Id);
+        const auto* Record = Growth->DevTests.Find(Id);
         return Record && !Record->Unpublished.IsEmpty() ? &Record->Unpublished.Last() : nullptr;
     };
     const uint32 Gen = Mode->MatchContext.Generation;
 
     // The gate: the rules run carries no -LDDevGrowthFixture switch, so the public entry admits nothing and says why.
     TestFalse(TEXT("The rules run carries no -LDDevGrowthFixture switch"), LDDevGrowthFixture::IsSwitchPresent());
-    const FLDDevTestResult Gated = Economy->QueueDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50), true);
+    const FLDDevTestResult Gated = Growth->QueueDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP), true);
     Status(TEXT("Without the switch a DEV test command is refused"), Gated, ELDAdmissionStatus::AdmissionRejected,
         ELDGrowthReason::NotAuthority);
     TestTrue(TEXT("The refusal names the switch and no stream was opened"),
-        Gated.Detail.Contains(TEXT("-LDDevGrowthFixture")) && !Economy->DevTests.Contains(Tester));
+        Gated.Detail.Contains(TEXT("-LDDevGrowthFixture")) && !Growth->DevTests.Contains(Tester));
 
     // Admission behind the gate.
-    Status(TEXT("A command of another match"), Economy->AdmitDevTest(Tester, Command(Gen + 1, 1, 1, ELDDevTestOp::GrantGold, 50)),
+    Status(TEXT("A command of another match"),
+        Growth->AdmitDevTest(Tester, Command(Gen + 1, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::OldMatch);
-    Status(TEXT("A malformed command"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 0)),
+    Status(TEXT("A malformed command"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, 0)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NumericDomain);
     Status(TEXT("A caller that is not a contender"),
-        Economy->AdmitDevTest(FGuid(0xD7, 0, 0, 0x99), Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50)),
+        Growth->AdmitDevTest(FGuid(0xD7, 0, 0, 0x99), Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotContender);
-    Status(TEXT("A first request that skips id 1"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantGold, 50)),
+    Status(TEXT("A first request that skips id 1"),
+        Growth->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantExperience, FirstGrantXP)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::OutOfOrder);
-    const FLDDevTestCommand GoldGrant = Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50);
-    const FLDDevTestResult Accepted = Economy->AdmitDevTest(Tester, GoldGrant);
+    const FLDDevTestCommand FirstGrant = Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP);
+    const FLDDevTestResult Accepted = Growth->AdmitDevTest(Tester, FirstGrant);
     Status(TEXT("Request 1 is accepted"), Accepted, ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
     TestTrue(TEXT("The accepted request reserves its sequence"), Accepted.bSequenceReserved);
-    Status(TEXT("The same request again"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::AcceptedPending,
+    Status(TEXT("The same request again"), Growth->AdmitDevTest(Tester, FirstGrant), ELDAdmissionStatus::AcceptedPending,
         ELDGrowthReason::None);
-    Status(TEXT("Request 1 with other terms"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 51)),
+    Status(TEXT("Request 1 with other terms"),
+        Growth->AdmitDevTest(Tester, Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP + 1)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::RequestConflict);
-    Status(TEXT("Request 2 while 1 is pending"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("Request 2 while 1 is pending"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantExperience, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::RequestInFlight);
-    TestEqual(TEXT("Nothing is minted before the Transactions phase"), Gold(Tester), StartingGold);
+    TestEqual(TEXT("Nothing is granted before the Transactions phase"), XP(Tester), int64(0));
 
     if (!RunTransactions()) { return false; }
     const FLDDevTestReceipt* Receipt = LastReceipt(Tester);
-    TestTrue(TEXT("The gold grant commits once with an applied receipt"), Receipt && Receipt->Header.RequestId == 1
-        && Receipt->Header.Outcome == ELDReceiptOutcome::Applied && Receipt->Op == ELDDevTestOp::GrantGold);
-    TestEqual(TEXT("The account holds the minted gold"), Gold(Tester), StartingGold + 50);
-    const TArray<LDEconomy::FDevFixtureMint>& Mints = Economy->Ledger.DevFixtureGrants();
-    TestTrue(TEXT("The mint is a DevFixture ledger entry of the tester"),
-        Mints.Num() == 1 && Mints[0].Account == Tester && Mints[0].Gold == 50);
-    TestTrue(FString::Printf(TEXT("The ledger reconciles after the grant (%s)"), *Error), Economy->Ledger.Reconcile(Error));
-    const FLDDevTestResult Replay = Economy->AdmitDevTest(Tester, GoldGrant);
+    TestTrue(TEXT("The XP grant commits once with an applied receipt that names the grant"), Receipt && Receipt->Header.RequestId == 1
+        && Receipt->Header.Outcome == ELDReceiptOutcome::Applied && Receipt->Op == ELDDevTestOp::GrantExperience
+        && Receipt->Detail.Contains(FString::Printf(TEXT("xp +%lld"), FirstGrantXP)));
+    TestEqual(TEXT("Cumulative XP holds the first grant"), XP(Tester), FirstGrantXP);
+    const FLDDevTestResult Replay = Growth->AdmitDevTest(Tester, FirstGrant);
     Status(TEXT("A replay of the committed request"), Replay, ELDAdmissionStatus::Final, ELDGrowthReason::None);
     TestTrue(TEXT("The replay answers with the original receipt"), Replay.bHasReceipt && Replay.Receipt.Header.RequestId == 1
         && Replay.Receipt.Header.Outcome == ELDReceiptOutcome::Applied);
     if (!RunTransactions()) { return false; }
-    TestEqual(TEXT("The replay commits nothing a second time"), Gold(Tester), StartingGold + 50);
+    TestEqual(TEXT("The replay commits nothing a second time"), XP(Tester), FirstGrantXP);
 
     // XP below the next level: cumulative XP only; the level and the build stay.
     Status(TEXT("Request 2: XP below the next level"),
-        Economy->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantExperience, SubLevelXP)),
+        Growth->AdmitDevTest(Tester, Command(Gen, 1, 2, ELDDevTestOp::GrantExperience, SubLevelXP - FirstGrantXP)),
         ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
     if (!RunTransactions()) { return false; }
     Receipt = LastReceipt(Tester);
     TestTrue(TEXT("The XP grant applies"), Receipt && Receipt->Header.RequestId == 2 && Receipt->Header.Outcome == ELDReceiptOutcome::Applied);
-    TestEqual(TEXT("Cumulative XP holds the grant"), XP(), SubLevelXP);
+    TestEqual(TEXT("Cumulative XP holds both grants"), XP(Tester), SubLevelXP);
     TestTrue(TEXT("The level is unchanged below the threshold"),
         Development->FindBuild(Tester) && Development->FindBuild(Tester)->Level == 1);
-    TestEqual(TEXT("An XP grant mints no gold"), Gold(Tester), StartingGold + 50);
 
     // A command of an earlier life never applies.
-    Status(TEXT("Request 3 names life 0"), Economy->AdmitDevTest(Tester, Command(Gen, 0, 3, ELDDevTestOp::GrantGold, 9)),
+    Status(TEXT("Request 3 names life 0"), Growth->AdmitDevTest(Tester, Command(Gen, 0, 3, ELDDevTestOp::GrantExperience, 9)),
         ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
     if (!RunTransactions()) { return false; }
     Receipt = LastReceipt(Tester);
     TestTrue(TEXT("The old-life command is rejected"), Receipt && Receipt->Header.RequestId == 3
         && Receipt->Header.Outcome == ELDReceiptOutcome::Rejected
         && LDGrowthWire::Reason(Receipt->Header.Reason) == ELDGrowthReason::OldLife);
-    TestEqual(TEXT("The rejected command minted nothing"), Gold(Tester), StartingGold + 50);
+    TestEqual(TEXT("The rejected command granted nothing"), XP(Tester), SubLevelXP);
 
     // Refill needs a living body: a contender that is not Alive is refused (the Alive path is the pure DevRefillPool above).
-    Status(TEXT("Request 4: refill while unspawned"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 4, ELDDevTestOp::RefillResources, 0)),
+    Status(TEXT("Request 4: refill while unspawned"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 4, ELDDevTestOp::RefillResources, 0)),
         ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
     if (!RunTransactions()) { return false; }
     Receipt = LastReceipt(Tester);
     TestTrue(TEXT("A refill without a living phase is rejected as Dead"), Receipt && Receipt->Header.RequestId == 4
         && LDGrowthWire::Reason(Receipt->Header.Reason) == ELDGrowthReason::Dead);
     // Cooldown reset on the persistent record, at the commit boundary.
-    Status(TEXT("Request 5: reset cooldowns"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 5, ELDDevTestOp::ResetCooldowns, 0)),
+    Status(TEXT("Request 5: reset cooldowns"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 5, ELDDevTestOp::ResetCooldowns, 0)),
         ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
     if (!RunTransactions()) { return false; }
     Receipt = LastReceipt(Tester);
@@ -3107,15 +2168,15 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         && AfterReset.Tracks[0].IssuedCooldownId == FGuid(0xD7, 0, 1, 1));
     TestEqual(TEXT("A ready track keeps its earlier end"), AfterReset.Tracks[1].ReadyAtMs, int64(0));
 
-    // A contender that left gets nothing.
-    Status(TEXT("The leaver's request 1"), Economy->AdmitDevTest(Leaver, Command(Gen, 1, 1, ELDDevTestOp::GrantGold, 50)),
+    // A contender that left gets nothing from a DEV command.
+    Status(TEXT("The leaver's request 1"), Growth->AdmitDevTest(Leaver, Command(Gen, 1, 1, ELDDevTestOp::GrantExperience, FirstGrantXP)),
         ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
-    const int64 LeaverGold = Gold(Leaver);
+    const int64 LeaverXP = XP(Leaver);
     if (!RunTransactions()) { return false; }
     Receipt = LastReceipt(Leaver);
     TestTrue(TEXT("A command of a contender that left is rejected as LeftMatch"), Receipt
         && LDGrowthWire::Reason(Receipt->Header.Reason) == ELDGrowthReason::LeftMatch);
-    TestEqual(TEXT("The leaver's account received nothing"), Gold(Leaver), LeaverGold);
+    TestEqual(TEXT("The leaver received no XP"), XP(Leaver), LeaverXP);
 
     // ---- Learn: any legal card as the head opportunity's choice, with every choice rule ----
     const auto Learn = [&](uint64 RequestId, const TCHAR* Id, uint8 Slot)
@@ -3129,17 +2190,10 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     GrowthTestReason(*this, TEXT("A learn names slot 0..3"), LDDevTest::ValidateShape(BadSlot), ELDGrowthReason::InvalidRequest);
     FLDDevTestCommand NoDefinition = Command(Gen, 1, 1, ELDDevTestOp::LearnOption, 0);
     GrowthTestReason(*this, TEXT("A learn names a definition"), LDDevTest::ValidateShape(NoDefinition), ELDGrowthReason::InvalidRequest);
-    FLDDevTestCommand SellNamed = Command(Gen, 1, 1, ELDDevTestOp::SellItem, 0);
-    SellNamed.Slot = 1;
-    FLDDefinitionWire::Encode(FName(TEXT("item_edge_blade")), SellNamed.Definition);
-    GrowthTestReason(*this, TEXT("A sell names a slot, not a definition"), LDDevTest::ValidateShape(SellNamed),
-        ELDGrowthReason::InvalidRequest);
-    FLDDevTestCommand SellNoSlot = Command(Gen, 1, 1, ELDDevTestOp::SellItem, 0);
-    GrowthTestReason(*this, TEXT("A sell names slot 1 or 2"), LDDevTest::ValidateShape(SellNoSlot), ELDGrowthReason::InvalidRequest);
 
     const auto Commit = [&](const TCHAR* What, const FLDDevTestCommand& Sent, ELDGrowthReason Expected) -> const FLDDevTestReceipt*
     {
-        Status(What, Economy->AdmitDevTest(Tester, Sent), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
+        Status(What, Growth->AdmitDevTest(Tester, Sent), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
         if (!RunTransactions()) { return nullptr; }
         const FLDDevTestReceipt* Final = LastReceipt(Tester);
         if (TestTrue(FString(What) + TEXT(" finalizes"), Final && Final->Header.RequestId == Sent.RequestId))
@@ -3159,7 +2213,7 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     if (!Commit(TEXT("Request 8: replacing an empty Q"), Learn(8, TEXT("attr_protein"), 1), ELDGrowthReason::ReplacementMismatch))
     { return false; }
 
-    // ---- DEV attribute layer: Combat's installed build, without a growth or inventory revision ----
+    // ---- DEV attribute layer: Combat's installed build, without a growth build revision ----
     const FLDCombatEntityRecord& Fighter = Driver->Records.FindChecked(Tester);
     const FLDExpectedBuildVersions InstalledBefore = Fighter.Installed;
     const uint64 GrowthRevisionBefore = Development->FindBuild(Tester)->Revision;
@@ -3171,9 +2225,8 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Fighter.Build.DevBonuses.Num() == 1 && Fighter.Build.DevBonuses[0].Amount == 2000
         && Fighter.Projection.Final.ADP2 == PlainValue.Final.ADP2 + 2000
         && Fighter.Projection.Contributions[int32(ELDProjectedAttribute::AD)].Dev.Flat.Numerator == 20);
-    TestTrue(TEXT("Neither Combat's installed revisions nor the growth build revision move"),
+    TestTrue(TEXT("Neither Combat's installed build revision nor the growth build revision moves"),
         Fighter.Installed.BuildRevision == InstalledBefore.BuildRevision
-        && Fighter.Installed.InventoryRevision == InstalledBefore.InventoryRevision
         && Development->FindBuild(Tester)->Revision == GrowthRevisionBefore);
     const FLDDevTestReceipt* TooMuch = Commit(TEXT("Request 10: DEV max HP past the catalog maximum"),
         Attribute(10, ELDDemoBonusStat::MaxHPFlat, Bounds.MaxHP.MaxP2, Gen), ELDGrowthReason::NumericDomain);
@@ -3213,67 +2266,19 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         Fighter.Build.DevBonuses.IsEmpty() && Fighter.Build.AttributeCards.Num() == 1
         && Fighter.Projection.Final.ADP2 == CardOnly.Value->Final.ADP2);
 
-    // Trades need a living body; a dead contender is refused before any ledger change.
-    FLDDevTestCommand Buy = Command(Gen, 1, 14, ELDDevTestOp::BuyItem, 0);
-    FLDDefinitionWire::Encode(FName(TEXT("item_edge_blade")), Buy.Definition);
-    const int64 GoldBeforeBuy = Gold(Tester);
-    if (!Commit(TEXT("Request 14: buy while dead"), Buy, ELDGrowthReason::Dead)) { return false; }
-    TestEqual(TEXT("A refused buy spends nothing"), Gold(Tester), GoldBeforeBuy);
-    TArray<TPair<FGuid, LDEconomy::FItem>> Owned;
-    Economy->Ledger.OwnerItems(Tester, Owned);
-    TestEqual(TEXT("A refused buy creates no item"), Owned.Num(), 0);
-
-    // ---- Reset to the match start: DevReset ledger entries, the BeginMatch growth state and an empty Combat build ----
+    // ---- Reset to the match start: the BeginMatch growth state and an empty Combat build, prepared against each other ----
     GrowthTestReason(*this, TEXT("A reset names nothing"),
         LDDevTest::ValidateShape(Command(Gen, 1, 1, ELDDevTestOp::ResetToMatchStart, 5)), ELDGrowthReason::NumericDomain);
-    // The tester holds one item bought through the ordinary ledger shape.
-    {
-        LDEconomy::FTransaction Bought;
-        Bought.Cause = LDEconomy::ECause::Buy;
-        Bought.BusinessKey = FGuid(0xD7, 0, 2, 1);
-        Bought.CommitBatch = 1;
-        LDEconomy::FGoldChange Paid;
-        Paid.Account = Tester;
-        Paid.ExpectedRevision = Economy->Ledger.Account(Tester)->Revision;
-        Paid.Delta = -20;
-        Bought.Gold.Emplace(Paid);
-        Bought.Burn = 20;
-        LDEconomy::FCreateItem Created;
-        Created.Owner = Tester;
-        Created.ExpectedInventoryRevision = Economy->Ledger.InventoryRevision(Tester);
-        Created.Definition = FName(TEXT("item_edge_blade"));
-        Created.Slot = 1;
-        Bought.Create.Emplace(Created);
-        LDEconomy::FPrepareResult Purchase = Economy->Ledger.Prepare(Bought);
-        if (!TestTrue(FString::Printf(TEXT("The fixture purchase prepares (%s)"), *Purchase.Message), Purchase.IsSuccess())) { return false; }
-        Economy->Ledger.ApplyPrepared(MoveTemp(Purchase.Value.GetValue()));
-    }
-    const int64 GoldBeforeReset = Gold(Tester);
+    if (!TestTrue(TEXT("The tester holds XP and a card before the reset"),
+        XP(Tester) == SubLevelXP && Development->FindBuild(Tester)->Cards.Num() == 1))
+    { return false; }
     const uint64 BuildRevisionBeforeReset = Development->FindBuild(Tester)->Revision;
     const uint64 OfferRevisionBeforeReset = Development->FindProgression(Tester)->LastOfferRevision;
-    const FLDDevTestReceipt* ResetReceipt = Commit(TEXT("Request 15: reset to the match start while dead"),
-        Command(Gen, 1, 15, ELDDevTestOp::ResetToMatchStart, 0), ELDGrowthReason::None);
+    const FLDDevTestReceipt* ResetReceipt = Commit(TEXT("Request 14: reset to the match start while dead"),
+        Command(Gen, 1, 14, ELDDevTestOp::ResetToMatchStart, 0), ELDGrowthReason::None);
     if (!ResetReceipt) { return false; }
-    TestTrue(TEXT("The reset receipt explains what changed"), ResetReceipt->Detail.Contains(TEXT("1 items removed")));
-    Owned.Reset();
-    Economy->Ledger.OwnerItems(Tester, Owned);
-    TestTrue(TEXT("The reset holds the starting gold and no item"), Gold(Tester) == StartingGold && Owned.IsEmpty());
-    const TArray<LDEconomy::FDevResetEntry>& ResetEntries = Economy->Ledger.DevResetEntries();
-    TestTrue(TEXT("Two DevReset entries: the item consumed without a refund, then the gold change back to the start"),
-        ResetEntries.Num() == 2 && ResetEntries[0].Account == Tester && ResetEntries[0].Gold == 0 && ResetEntries[0].Instance.IsValid()
-        && ResetEntries[1].Instance == FGuid() && ResetEntries[1].Gold == StartingGold - GoldBeforeReset
-        && ResetEntries[1].Serial == ResetEntries[0].Serial + 1);
-    TestTrue(FString::Printf(TEXT("The ledger reconciles after the reset (%s)"), *Error), Economy->Ledger.Reconcile(Error));
-    FString ResetEvidence;
-    // The boundary may already have folded the entries into the audit prefix; the devFixture listing keeps them all.
-    TSharedPtr<FJsonObject> ResetRoot;
-    const TSharedPtr<FJsonObject>* ResetFixture = nullptr;
-    const TArray<TSharedPtr<FJsonValue>>* ResetRows = nullptr;
-    TestTrue(FString::Printf(TEXT("The evidence lists both reset entries (%s)"), *Error),
-        LDEconomy::ExportEvidence(Economy->Ledger, StartingGold, ResetEvidence, Error)
-        && FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(ResetEvidence), ResetRoot) && ResetRoot.IsValid()
-        && ResetRoot->TryGetObjectField(TEXT("devFixture"), ResetFixture)
-        && (*ResetFixture)->TryGetArrayField(TEXT("resets"), ResetRows) && ResetRows->Num() == 2);
+    TestTrue(TEXT("The reset receipt explains what changed"), ResetReceipt->Detail.Contains(TEXT("->1"))
+        && ResetReceipt->Detail.Contains(TEXT("cooldown tracks dropped")));
     const FLDGrowthBuild* ResetBuild = Development->FindBuild(Tester);
     const FLDProgressionState* ResetProgression = Development->FindProgression(Tester);
     TestTrue(TEXT("Growth is back at level 1 with no XP, skills or cards and a higher build revision"),
@@ -3283,11 +2288,9 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         ResetProgression && ResetProgression->EarnedThrough == 1 && ResetProgression->ConsumedThrough == 0
         && ResetProgression->Records.IsEmpty() && ResetProgression->Offer.IsSet() && ResetProgression->Offer->Ordinal == 1
         && ResetProgression->Offer->Revision > OfferRevisionBeforeReset && ResetProgression->Offer->Options.Num() == 3);
-    TestTrue(TEXT("Combat installed the empty level-1 build at the growth and ledger revisions, without a DEV layer"),
+    TestTrue(TEXT("Combat installed the empty level-1 build at the growth build revision, without a DEV layer"),
         Fighter.Build.Level == 1 && Fighter.Build.AttributeCards.IsEmpty() && Fighter.Build.Actives.IsEmpty()
-        && Fighter.Build.Equipment.IsEmpty() && Fighter.Build.DevBonuses.IsEmpty()
-        && Fighter.Installed.BuildRevision == ResetBuild->Revision
-        && Fighter.Installed.InventoryRevision == Economy->Ledger.InventoryRevision(Tester)
+        && Fighter.Build.DevBonuses.IsEmpty() && Fighter.Installed.BuildRevision == ResetBuild->Revision
         && Fighter.Projection.Final.ADP2 == PlainValue.Final.ADP2);
     TestTrue(TEXT("Every learned cooldown track is dropped"), !Fighter.Tracks.ContainsByPredicate(
         [](const FLDCombatTrack& Track) { return Track.Kind != ELDCombatSourceKind::Innate; }));
@@ -3299,23 +2302,23 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Mixed.AddDefaulted_GetRef().Kind = ELDCombatSourceKind::Learned;
     TestTrue(TEXT("The pure track drop keeps only the innate dash, ready now"), ALDCombatDirector::DevDropTracks(Mixed, 1000) == 2
         && Mixed.Num() == 1 && Mixed[0].Kind == ELDCombatSourceKind::Innate && Mixed[0].ReadyAtMs == 1000);
-    const FLDDevTestReceipt* Relearned = Commit(TEXT("Request 16: the fresh opening opportunity takes a card again"),
-        Learn(16, TEXT("attr_protein"), 0), ELDGrowthReason::None);
+    const FLDDevTestReceipt* Relearned = Commit(TEXT("Request 15: the fresh opening opportunity takes a card again"),
+        Learn(15, TEXT("attr_protein"), 0), ELDGrowthReason::None);
     TestTrue(TEXT("After the reset the card is learned once more"), Relearned && Development->FindBuild(Tester)->Cards.Num() == 1
         && Development->FindProgression(Tester)->ConsumedThrough == 1);
 
     // ---- Match-wide ops: Listen Host connection only ----
     TestTrue(TEXT("Camp refresh and early capture are the match-wide ops"), LDDevTest::IsMatchWide(ELDDevTestOp::RefreshCamps)
-        && LDDevTest::IsMatchWide(ELDDevTestOp::OpenCapture) && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantGold));
+        && LDDevTest::IsMatchWide(ELDDevTestOp::OpenCapture) && !LDDevTest::IsMatchWide(ELDDevTestOp::GrantExperience));
     GrowthTestReason(*this, TEXT("A camp refresh names nothing"),
         LDDevTest::ValidateShape(Command(Gen, 1, 1, ELDDevTestOp::RefreshCamps, 1)), ELDGrowthReason::NumericDomain);
-    Status(TEXT("A camp refresh from an owning client"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::RefreshCamps, 0)),
+    Status(TEXT("A camp refresh from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 16, ELDDevTestOp::RefreshCamps, 0)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
-    Status(TEXT("An early capture from an owning client"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 17, ELDDevTestOp::OpenCapture, 0)),
+    Status(TEXT("An early capture from an owning client"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 16, ELDDevTestOp::OpenCapture, 0)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::NotAuthority);
     const auto HostCommit = [&](const TCHAR* What, const FLDDevTestCommand& Sent, ELDGrowthReason Expected) -> const FLDDevTestReceipt*
     {
-        Status(What, Economy->AdmitDevTest(Tester, Sent, true), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
+        Status(What, Growth->AdmitDevTest(Tester, Sent, true), ELDAdmissionStatus::AcceptedPending, ELDGrowthReason::None);
         if (!RunTransactions()) { return nullptr; }
         const FLDDevTestReceipt* Final = LastReceipt(Tester);
         if (TestTrue(FString(What) + TEXT(" finalizes"), Final && Final->Header.RequestId == Sent.RequestId))
@@ -3325,16 +2328,16 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         }
         return nullptr;
     };
-    const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 17: the Host's camp refresh without a camp director"),
-        Command(Gen, 1, 17, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
+    const FLDDevTestReceipt* NoCamps = HostCommit(TEXT("Request 16: the Host's camp refresh without a camp director"),
+        Command(Gen, 1, 16, ELDDevTestOp::RefreshCamps, 0), ELDGrowthReason::DataNotReady);
     TestTrue(TEXT("The refusal names the missing camps"), NoCamps && NoCamps->Detail.Contains(TEXT("camp director")));
     if (!TestTrue(TEXT("The capture reducer begins far in the future"), Mode->CaptureReducer.Begin(1000000, 500, 500, Error))) { return false; }
     Mode->MatchPhase = ELDMatchPhase::CaptureOpen;
-    if (!HostCommit(TEXT("Request 18: an early capture outside development"), Command(Gen, 1, 18, ELDDevTestOp::OpenCapture, 0),
+    if (!HostCommit(TEXT("Request 17: an early capture outside development"), Command(Gen, 1, 17, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::StaleContext)) { return false; }
     TestEqual(TEXT("A refused early capture keeps the scheduled opening"), Mode->CaptureReducer.GetOpenAtMs(), int64(1000000));
     Mode->MatchPhase = ELDMatchPhase::Development;
-    if (!HostCommit(TEXT("Request 19: the Host's early capture during development"), Command(Gen, 1, 19, ELDDevTestOp::OpenCapture, 0),
+    if (!HostCommit(TEXT("Request 18: the Host's early capture during development"), Command(Gen, 1, 18, ELDDevTestOp::OpenCapture, 0),
         ELDGrowthReason::None)) { return false; }
     TestTrue(TEXT("The circle opens at the commit boundary and the driver stops there"),
         Mode->CaptureReducer.GetOpenAtMs() == StepAtMs && Mode->NextCaptureDueMs() == StepAtMs && !Mode->CaptureReducer.IsOpen());
@@ -3348,18 +2351,126 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
         && Circle.NextDueMs() == 1200 && Circle.CloseBoundary(1200, Proposal, CircleError) && Circle.IsOpen());
     TestFalse(TEXT("An open circle opens nothing early"), Circle.DevOpenAt(1300, CircleError));
 
+    // ---- D26 (#79) map event reward: (Event, Serial) is the business identity, so the match pays each event once ----
+    const FName Event(TEXT("airdrop"));
+    const int64 EventXP = Bounds.AirdropRewardXP;
+    if (!TestTrue(TEXT("The approved airdrop pays positive XP"), EventXP > 0)) { return false; }
+    ELDRewardOutcome EventOutcome = ELDRewardOutcome::None;
+    ELDGrowthReason EventReason = ELDGrowthReason::None;
+    FLDRewardReceipt EventReceipt;
+    const auto ClaimEvent = [&](const FGuid& Recipient, FName Name, uint64 Serial, int64 Amount)
+    {
+        EventOutcome = ELDRewardOutcome::None;
+        EventReason = ELDGrowthReason::None;
+        EventReceipt = FLDRewardReceipt();
+        return RunPhase(ELDCommitPhase::Transactions, [&](const FLDGameplayWritePermit& Permit)
+        {
+            EventOutcome = Growth->CommitEventReward(Recipient, Name, Serial, Amount, Permit, EventReceipt, EventReason);
+            return true;
+        });
+    };
+    const int64 EventXPBefore = XP(Tester);
+    uint8 EventLevel = 0;
+    if (!TestTrue(TEXT("The level after the event XP is defined by the approved curve"),
+        LDProgression::LevelForXP(Progression, EventXPBefore + EventXP, EventLevel) == ELDGrowthReason::None))
+    { return false; }
+    if (!ClaimEvent(Tester, Event, 1, EventXP)) { return false; }
+    TestTrue(TEXT("The first claim of airdrop 1 is granted to its recipient in one reward composite"),
+        EventOutcome == ELDRewardOutcome::Granted && EventReason == ELDGrowthReason::None && EventReceipt.Recipient == Tester
+        && EventReceipt.XPDelta == EventXP && EventReceipt.LevelBefore == 1 && EventReceipt.LevelAfter == EventLevel);
+    TestEqual(TEXT("The event XP reaches the recipient's growth"), XP(Tester), EventXPBefore + EventXP);
+    TestTrue(TEXT("Its level follows the approved curve and Combat installed the grown build"),
+        Development->FindBuild(Tester)->Level == EventLevel
+        && Driver->Records.FindChecked(Tester).Installed.BuildRevision == Development->FindBuild(Tester)->Revision);
+    const uint64 ProgressionRevisionAfterEvent = Development->FindProgression(Tester)->Revision;
+    const uint64 BuildRevisionAfterEvent = Development->FindBuild(Tester)->Revision;
+    if (!ClaimEvent(Tester, Event, 1, EventXP)) { return false; }
+    TestTrue(TEXT("A second claim of the same (Event, Serial) is permanently rejected as DataInvalid"),
+        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::DataInvalid);
+    TestTrue(TEXT("The refused second claim pays nothing and moves no revision"), XP(Tester) == EventXPBefore + EventXP
+        && Development->FindProgression(Tester)->Revision == ProgressionRevisionAfterEvent
+        && Development->FindBuild(Tester)->Revision == BuildRevisionAfterEvent);
+    const int64 LeaverXPBeforeEvent = XP(Leaver);
+    if (!ClaimEvent(Leaver, Event, 1, EventXP)) { return false; }
+    TestTrue(TEXT("The same (Event, Serial) claimed by another contender is refused too: the event pays once, whoever claims it"),
+        EventOutcome == ELDRewardOutcome::PermanentlyRejected && EventReason == ELDGrowthReason::DataInvalid
+        && XP(Leaver) == LeaverXPBeforeEvent);
+    const int64 NextXPBefore = XP(Tester);
+    if (!ClaimEvent(Tester, Event, 2, EventXP)) { return false; }
+    TestTrue(TEXT("A different serial of the same event pays"), EventOutcome == ELDRewardOutcome::Granted
+        && EventReceipt.XPDelta == EventXP && XP(Tester) == NextXPBefore + EventXP);
+    const int64 AfterSecondEvent = XP(Tester);
+    if (!ClaimEvent(Tester, NAME_None, 3, EventXP)) { return false; }
+    TestTrue(TEXT("An event without a name is refused"), EventOutcome == ELDRewardOutcome::PermanentlyRejected);
+    if (!ClaimEvent(Tester, Event, 0, EventXP)) { return false; }
+    TestTrue(TEXT("Event serial 0 is refused"), EventOutcome == ELDRewardOutcome::PermanentlyRejected);
+    if (!ClaimEvent(Tester, Event, 3, 0)) { return false; }
+    TestTrue(TEXT("An event without XP is refused"), EventOutcome == ELDRewardOutcome::PermanentlyRejected);
+    TestEqual(TEXT("Malformed event claims pay nothing"), XP(Tester), AfterSecondEvent);
+    if (!ClaimEvent(Tester, Event, 3, EventXP)) { return false; }
+    TestTrue(TEXT("A malformed claim does not spend its serial"), EventOutcome == ELDRewardOutcome::Granted
+        && XP(Tester) == AfterSecondEvent + EventXP);
+
+    // ---- A camp kill locked while its killer was in the match pays him after he left, without a Combat projection ----
+    if (!TestTrue(TEXT("The catalog has a monster"), !Catalog->Get().Monsters.IsEmpty())) { return false; }
+    const FName MonsterId(*Catalog->Get().Monsters[0].Id);
+    LDProgression::FRewardAmounts MonsterReward;
+    if (!TestTrue(TEXT("The first approved monster pays positive XP at stage 0"),
+        LDProgression::MonsterKillReward(*Catalog, MonsterId, 0, MonsterReward) == ELDGrowthReason::None && MonsterReward.XP > 0))
+    { return false; }
+    // Bring the leaver to one kill short of level 2 when the kill alone would not cross it, so the kill raises the level and
+    // its build would need a projection if the recipient still had a body.
+    const int64 LeaverShortfall = Progression.XPThresholds[1] - MonsterReward.XP - XP(Leaver);
+    if (LeaverShortfall > 0)
+    {
+        if (!ClaimEvent(Leaver, Event, 4, LeaverShortfall)) { return false; }
+        if (!TestTrue(TEXT("An event reward to a contender who left settles without a body"),
+            EventOutcome == ELDRewardOutcome::Granted && XP(Leaver) == LeaverXPBeforeEvent + LeaverShortfall))
+        { return false; }
+    }
+    FLDCommittedDeath Owed;
+    Owed.Key.LedgerMatch = Mode->MatchContext.LedgerMatch;
+    Owed.Key.Victim.Kind = ELDVictimKind::CampMember;
+    Owed.Key.Victim.EntityId = FGuid(0xD7, 0, 3, 1);
+    Owed.Key.Victim.Life = 1;
+    Owed.VictimBody.Victim = Owed.Key.Victim;
+    Owed.VictimBody.BodyIdentity = FGuid(0xD7, 0, 3, 2);
+    Owed.FatalEffectId = FGuid(0xD7, 0, 3, 3);
+    Owed.CreditOwner = Leaver;
+    Owed.RewardBasis.RewardDefinitionId = MonsterId;
+    Owed.RewardBasis.bCreditOwnerEligibleAtDeath = true;
+    Owed.RewardBasis.NoRewardReason = ELDNoRewardReason::None;
+    Owed.OccurredAtMs = StepAtMs + 1;
+    const int64 LeaverXPBeforeKill = XP(Leaver);
+    FLDRewardReceipt Owing;
+    if (!RunPhase(ELDCommitPhase::DeathsAndRewards,
+        [&](const FLDGameplayWritePermit& Permit) { Owing = Growth->CommitDeathReward(Owed, Permit); return true; }))
+    { return false; }
+    TestTrue(TEXT("The locked camp kill is granted to the contender who left"),
+        Owing.Outcome == ELDRewardOutcome::Granted && Owing.Recipient == Leaver && Owing.XPDelta == MonsterReward.XP
+        && XP(Leaver) == LeaverXPBeforeKill + MonsterReward.XP);
+    TestTrue(TEXT("The kill raised his level, and no Combat record was made for a body he no longer has"),
+        Owing.LevelAfter > Owing.LevelBefore && Development->FindBuild(Leaver)->Level == Owing.LevelAfter
+        && !Driver->Records.Contains(Leaver));
+    FLDRewardReceipt Retried;
+    if (!RunPhase(ELDCommitPhase::DeathsAndRewards,
+        [&](const FLDGameplayWritePermit& Permit) { Retried = Growth->CommitDeathReward(Owed, Permit); return true; }))
+    { return false; }
+    TestTrue(TEXT("The retried fact answers with the original receipt and pays nothing again"),
+        Retried.Outcome == ELDRewardOutcome::Granted && Retried.XPDelta == MonsterReward.XP
+        && XP(Leaver) == LeaverXPBeforeKill + MonsterReward.XP);
+
     // A closed match opens no new request, while a replay still answers.
     Mode->MatchPhase = ELDMatchPhase::Results;
-    Status(TEXT("A new request after the match closed"), Economy->AdmitDevTest(Tester, Command(Gen, 1, 20, ELDDevTestOp::GrantGold, 5)),
+    Status(TEXT("A new request after the match closed"), Growth->AdmitDevTest(Tester, Command(Gen, 1, 19, ELDDevTestOp::GrantExperience, 5)),
         ELDAdmissionStatus::AdmissionRejected, ELDGrowthReason::MatchClosed);
-    Status(TEXT("A replay after the match closed"), Economy->AdmitDevTest(Tester, GoldGrant), ELDAdmissionStatus::Final,
+    Status(TEXT("A replay after the match closed"), Growth->AdmitDevTest(Tester, FirstGrant), ELDAdmissionStatus::Final,
         ELDGrowthReason::None);
-    TestTrue(FString::Printf(TEXT("The ledger still reconciles (%s)"), *Error), Economy->Ledger.Reconcile(Error));
     return true;
 }
 
-// #112 §8: one contender death settles the killer's full kill gold and the assisters' split share in one composite commit,
-// every XP part split evenly, exactly once; malformed assister facts are refused; contributions record on the single entry.
+// #112 §8: one contender death settles the killer's and the assisters' XP parts in one composite commit, every part split
+// evenly, exactly once; malformed assister facts are refused; contributions record on the single entry.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoAssistSettlementTest, "Lockdown.Rules.DemoAssist.Settlement",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -3371,8 +2482,7 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDDemoContentParameters& Tuning = Catalog->Get().Parameters;
-    TestTrue(TEXT("The approved assist window is 15 s and the assist gold share is 50%"),
-        Tuning.AssistWindowMs == 15000 && Tuning.AssistGoldBp == 5000);
+    TestEqual(TEXT("The approved assist window is 15 s"), Tuning.AssistWindowMs, int64(15000));
 
     // ---- Public Q/W facts of a build (#112 §10) ----
     const FLDDemoAbilityDefinition* Active = Catalog->Get().Abilities.FindByPredicate(
@@ -3407,16 +2517,16 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     auto* Mode = World->SpawnActor<ALDGameMode>();
     auto* GameState = World->SpawnActor<ALDGameState>();
     auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    auto* Growth = World->SpawnActor<ALDGrowthDirector>();
     auto* Development = World->SpawnActor<ALDDevelopmentDirector>();
-    if (!Mode || !GameState || !Driver || !Economy || !Development) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    if (!Mode || !GameState || !Driver || !Growth || !Development) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
     Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
     Mode->GameState = GameState;
     World->CopyGameState(Mode, GameState);
     Mode->MatchContext = {5, FGuid::NewGuid()};
     Mode->MatchPhase = ELDMatchPhase::Development;
     Mode->Combat = Driver;
-    Mode->Economy = Economy;
+    Mode->Growth = Growth;
     Mode->Development = Development;
     Mode->DemoContent = Catalog;
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
@@ -3432,12 +2542,9 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
         Life.Revision = 2;
     }
     FString Error;
-    const int64 StartingGold = Tuning.StartingGold;
-    Economy->Match = Mode->MatchContext;
-    Economy->Roster = Roster;
-    Economy->Content = Catalog;
-    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Roster, StartingGold, Error)))
-    { AddError(Error); return false; }
+    Growth->Match = Mode->MatchContext;
+    Growth->Roster = Roster;
+    Growth->Content = Catalog;
     if (!TestTrue(TEXT("Growth opens for the roster"), Development->BeginMatch(Mode->MatchContext, Roster, Catalog, Error)))
     { AddError(Error); return false; }
     for (const FGuid& Id : Roster)
@@ -3479,13 +2586,18 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
         }
         const bool Ran = Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::DeathsAndRewards,
-                [&](const FLDGameplayWritePermit& Permit) { Out = Economy->CommitDeathReward(Fact, Permit); return true; }, Error)
+                [&](const FLDGameplayWritePermit& Permit) { Out = Growth->CommitDeathReward(Fact, Permit); return true; }, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
         if (!Ran) { AddError(FString::Printf(TEXT("DeathsAndRewards boundary failed: %s"), *Error)); }
         return Ran;
     };
-    const auto Gold = [&](const FGuid& Id) { const LDEconomy::FAccount* A = Economy->Ledger.Account(Id); return A ? A->Gold : -1; };
     const auto XP = [&](const FGuid& Id) { const FLDProgressionState* P = Development->FindProgression(Id); return P ? P->CumulativeXP : -1; };
+    const auto TotalXP = [&]()
+    {
+        int64 Sum = 0;
+        for (const FGuid& Id : Roster) { Sum += XP(Id); }
+        return Sum;
+    };
     const auto ContenderDeath = [&](uint32 LifeNumber, const TArray<FGuid>& Assisters)
     {
         FLDCommittedDeath Fact;
@@ -3506,38 +2618,28 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     LDProgression::FRewardAmounts Base;
     GrowthTestReason(*this, TEXT("The level-1 contender bounty is approved"),
         LDProgression::ContenderKillReward(Tuning, uint8(Catalog->Get().Progression.MaxLevel), 1, Base), ELDGrowthReason::None);
-    const int64 AssistGold = Base.Gold * Tuning.AssistGoldBp / 10000 / 2;
     const int64 SharedXP = Base.XP / 3;
     if (!TestTrue(TEXT("The split leaves every share below the first level threshold"),
-        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
+        Catalog->Get().Progression.XPThresholds.Num() >= 2 && SharedXP > 0 && SharedXP < Catalog->Get().Progression.XPThresholds[1]))
     { return false; }
 
     const FLDCommittedDeath Assisted = ContenderDeath(1, {A1, A2});
-    const uint64 SerialBefore = Economy->Ledger.CommittedSerial();
     FLDRewardReceipt Receipt;
     if (!Settle(Assisted, Receipt)) { return false; }
     TestTrue(TEXT("The assisted kill is granted once"), Receipt.Outcome == ELDRewardOutcome::Granted && Receipt.Recipient == Killer);
-    TestEqual(TEXT("The killer keeps the full kill gold"), Gold(Killer), StartingGold + Base.Gold);
-    TestTrue(TEXT("Each assister gets half the base kill gold split evenly, floored"),
-        Gold(A1) == StartingGold + AssistGold && Gold(A2) == StartingGold + AssistGold);
     TestTrue(TEXT("Killer and assisters split the XP evenly, floored"),
         XP(Killer) == SharedXP && XP(A1) == SharedXP && XP(A2) == SharedXP && XP(Victim) == 0);
-    TestEqual(TEXT("The victim keeps his gold"), Gold(Victim), StartingGold);
     TestTrue(TEXT("The receipt lists both assisters with their parts in fact order"),
         Receipt.Assists.Num() == 2 && Receipt.Assists[0].Recipient == A1 && Receipt.Assists[1].Recipient == A2
-        && Receipt.Assists[0].GoldDelta == AssistGold && Receipt.Assists[1].XPDelta == SharedXP
-        && Receipt.GoldDelta == Base.Gold && Receipt.XPDelta == SharedXP);
-    TestTrue(TEXT("One composite commit writes three consecutive single-account mints"),
-        Economy->Ledger.CommittedSerial() == SerialBefore + 3);
-    TestTrue(TEXT("The receipt's ledger serials are consecutive"), Receipt.bHasLedgerSerial && Receipt.Assists[0].bHasLedgerSerial
-        && Receipt.Assists[0].LedgerSerial == Receipt.LedgerSerial + 1 && Receipt.Assists[1].LedgerSerial == Receipt.LedgerSerial + 2);
-    TestTrue(FString::Printf(TEXT("The ledger reconciles after the composite (%s)"), *Error), Economy->Ledger.Reconcile(Error));
+        && Receipt.Assists[0].XPDelta == SharedXP && Receipt.Assists[1].XPDelta == SharedXP && Receipt.XPDelta == SharedXP);
+    TestTrue(TEXT("The receipt names the killer's committed progression revision"), Receipt.Revisions.bHasProgression
+        && Receipt.Revisions.ProgressionRevision == Development->FindProgression(Killer)->Revision);
 
     FLDRewardReceipt Replay;
     if (!Settle(Assisted, Replay)) { return false; }
     TestTrue(TEXT("The same death settles only once: a replay returns the original receipt and pays nothing"),
-        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && Gold(A1) == StartingGold + AssistGold
-        && Economy->Ledger.CommittedSerial() == SerialBefore + 3);
+        Replay.Outcome == ELDRewardOutcome::Granted && Replay.Assists.Num() == 2 && XP(Killer) == SharedXP && XP(A1) == SharedXP
+        && XP(A2) == SharedXP);
     FLDRewardReceipt Conflict;
     if (!Settle(ContenderDeath(1, {A1}), Conflict)) { return false; }
     GrowthTestReason(*this, TEXT("Another assister set under the same death key conflicts"), Conflict.Reason, ELDGrowthReason::DeathConflict);
@@ -3545,15 +2647,15 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     const auto Refused = [&](const TCHAR* What, const FLDCommittedDeath& Fact)
     {
         FLDRewardReceipt Out;
-        const uint64 Before = Economy->Ledger.CommittedSerial();
+        const int64 Before = TotalXP();
         if (!Settle(Fact, Out)) { return; }
         TestTrue(What, Out.Outcome == ELDRewardOutcome::PermanentlyRejected && Out.Reason == ELDGrowthReason::DataInvalid
-            && Economy->Ledger.CommittedSerial() == Before);
+            && TotalXP() == Before);
     };
     Refused(TEXT("The killer is never his own assister"), ContenderDeath(2, {A1, Killer}));
     Refused(TEXT("Assisters are sorted and unique"), ContenderDeath(3, {A2, A1}));
     Refused(TEXT("The victim is never an assister"), ContenderDeath(4, {Victim}));
-    Refused(TEXT("An assister must hold an account in this match"), ContenderDeath(5, {FGuid(0xA5, 0, 0, 0x99)}));
+    Refused(TEXT("An assister must be a contender of this match"), ContenderDeath(5, {FGuid(0xA5, 0, 0, 0x99)}));
     FLDCommittedDeath Unowned = ContenderDeath(6, {A1});
     Unowned.CreditOwner.Invalidate();
     Unowned.RewardBasis.bCreditOwnerEligibleAtDeath = false;
@@ -3569,35 +2671,13 @@ bool FLDDemoAssistSettlementTest::RunTest(const FString& Parameters)
     Refused(TEXT("A camp kill only rewards the last hit"), Camp2);
 
     FLDRewardReceipt Plain;
-    const int64 KillerXPBefore = XP(Killer);
+    const int64 XPBeforeUnowned = TotalXP();
     Unowned = ContenderDeath(7, {});
     Unowned.CreditOwner.Invalidate();
     Unowned.RewardBasis.bCreditOwnerEligibleAtDeath = false;
     Unowned.RewardBasis.NoRewardReason = ELDNoRewardReason::NoOwner;
     if (!Settle(Unowned, Plain)) { return false; }
-    TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && XP(Killer) == KillerXPBefore
-        && Gold(A1) == StartingGold + AssistGold);
-
-    // An assister that left keeps his account open while the death crediting him awaits its retry.
-    Driver->RetryRewards.Add(ContenderDeath(8, {A2}));
-    TestTrue(TEXT("An owed assist keeps the assister's account from retiring"), Driver->OwesRewardTo(A2) && Driver->OwesRewardTo(Killer)
-        && !Driver->OwesRewardTo(A1));
-    Driver->RetryRewards.Reset();
-
-    // D27 (#79): the 上热搜 bounty is extra bounty. The killer gets it on top of the kill gold; the assist share is
-    // still half the base kill gold only (APP_SPEC: 不含额外赏金).
-    {
-        FLDCommittedDeath Leader = ContenderDeath(9, {A1});
-        const int64 Bounty = Tuning.LeaderBountyGoldPerRefresh;
-        Leader.RewardBasis.LeaderBountyGoldAtDeath = Bounty;
-        const int64 KillerBefore = Gold(Killer), AssisterBefore = Gold(A1);
-        FLDRewardReceipt LeaderReceipt;
-        if (!Settle(Leader, LeaderReceipt)) { return false; }
-        TestTrue(TEXT("A leader kill with an assister is granted"), Bounty > 0 && LeaderReceipt.Outcome == ELDRewardOutcome::Granted);
-        TestEqual(TEXT("The killer gets the kill gold and the whole leader bounty"), Gold(Killer), KillerBefore + Base.Gold + Bounty);
-        TestEqual(TEXT("The assister's gold leaves the leader bounty out of the assist base"), Gold(A1),
-            AssisterBefore + Base.Gold * Tuning.AssistGoldBp / 10000);
-    }
+    TestTrue(TEXT("A death without a killer pays nobody"), Plain.Outcome == ELDRewardOutcome::NoReward && TotalXP() == XPBeforeUnowned);
     return true;
 }
 
@@ -3620,15 +2700,6 @@ bool FLDDemoGrowthSkillGrowthTest::RunTest(const FString& Parameters)
     return GrowthTestRunSkillGrowth(*this);
 }
 
-// 112 §7: equipment upgrade in the ledger, the effective definitions and the attribute projection.
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthUpgradeTest, "Lockdown.Rules.DemoGrowthUpgrade",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoGrowthUpgradeTest::RunTest(const FString& Parameters)
-{
-    return GrowthTestRunUpgrade(*this);
-}
-
 // 112 §6: the reroll command through admission and the Transactions commit: tokens, one per offer, receipt replay.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoGrowthRerollTest, "Lockdown.Rules.DemoGrowthReroll",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
@@ -3649,19 +2720,17 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
     auto* Mode = World->SpawnActor<ALDGameMode>();
     auto* Public = World->SpawnActor<ALDGameState>();
     auto* Driver = World->SpawnActor<ALDCombatDirector>();
-    auto* Economy = World->SpawnActor<ALDEconomyDirector>();
+    auto* Growth = World->SpawnActor<ALDGrowthDirector>();
     auto* Development = World->SpawnActor<ALDDevelopmentDirector>();
-    auto* Vendor = World->SpawnActor<ALDVendorDirector>();
-    if (!Mode || !Public || !Driver || !Economy || !Development || !Vendor) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
+    if (!Mode || !Public || !Driver || !Growth || !Development) { AddError(TEXT("Fixture actors failed to spawn")); return false; }
     Mode->bDemoWorld = Mode->bEntryAccepted = Mode->bAuthorityInitialized = true;
     Mode->GameState = Public;
     World->CopyGameState(Mode, Public);
     Mode->MatchContext = {6, FGuid::NewGuid()};
     Mode->MatchPhase = ELDMatchPhase::Development;
     Mode->Combat = Driver;
-    Mode->Economy = Economy;
+    Mode->Growth = Growth;
     Mode->Development = Development;
-    Mode->Vendor = Vendor;
     Mode->DemoContent = Catalog;
     Mode->AuthorityStep = {Mode->MatchContext, 1, 0, 0};
     const FGuid Tester(0x112, 6, 0, 1);
@@ -3672,12 +2741,10 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
     Life.Life = 1;
     Life.Revision = 2;
     FString Error;
-    Economy->Match = Mode->MatchContext;
-    Economy->Roster = {Tester};
-    Economy->Content = Catalog;
-    if (!TestTrue(TEXT("The match ledger opens"), Economy->Ledger.Initialize(Mode->MatchContext.LedgerMatch, Economy->Roster,
-        Catalog->Get().Parameters.StartingGold, Error))) { AddError(Error); return false; }
-    if (!TestTrue(TEXT("Growth opens"), Development->BeginMatch(Mode->MatchContext, Economy->Roster, Catalog, Error))) { AddError(Error); return false; }
+    Growth->Match = Mode->MatchContext;
+    Growth->Roster = {Tester};
+    Growth->Content = Catalog;
+    if (!TestTrue(TEXT("Growth opens"), Development->BeginMatch(Mode->MatchContext, Growth->Roster, Catalog, Error))) { AddError(Error); return false; }
     World->Tick(LEVELTICK_TimeOnly, .025f);
     int64 StepAtMs = 0;
     const auto RunTransactions = [&]()
@@ -3687,7 +2754,7 @@ bool FLDDemoGrowthRerollTest::RunTest(const FString& Parameters)
         const bool bRan = Mode->BeginAuthorityStep(*Driver, Mode->MatchContext, StepAtMs) == ELDCommitReject::None
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Motion, [](const auto&) { return true; }, Error)
             && Mode->ExecuteAuthorityPhase(*Driver, ELDCommitPhase::Transactions,
-                [&](const FLDGameplayWritePermit& Permit) { return Economy->ProcessTransactions(Permit, Error); }, Error)
+                [&](const FLDGameplayWritePermit& Permit) { return Growth->ProcessTransactions(Permit, Error); }, Error)
             && Mode->FinishAuthorityStep(*Driver, Error);
         if (!bRan) { AddError(FString::Printf(TEXT("Transactions boundary failed: %s"), *Error)); }
         return bRan;
@@ -3866,7 +2933,7 @@ bool FLDDemoGrowthOpeningCardTest::RunTest(const FString& Parameters)
             && Applied.Skills[0].Id == Hidden && Applied.Skills[0].Rank == 1 && Applied.Skills[0].Slot == 0
             && Detail.OpeningActive == Hidden && Applied.ChoicesInvested() == 1);
         TestFalse(TEXT("A second opening cannot be applied"), LDProgression::OptionStillLegal(*Catalog, Applied, Option));
-        FLDAttributeBuildValues Values(1, {}, {}, {});
+        FLDAttributeBuildValues Values(1, {}, {});
         Values.OpeningCard = Direction.Id;
         const auto Projection = LDAttributeProjection::Project(Values, *Catalog);
         if (!TestTrue(TEXT("All six approved bundles project at level 1"), Projection.IsSuccess()))

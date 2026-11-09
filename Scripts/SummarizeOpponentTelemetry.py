@@ -2,10 +2,10 @@
 
 The Host writes Telemetry.json and one MatchNN.json per match (LDDemoOpponentTelemetry.cpp): the end reason and
 winner, the flagpole opening, the first kill, every kill with its assisters, every contender death with its killer and
-assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level, XP and gold curves,
-purchases, sales, spray attempts, and the growth record of #112 §13 (first active, final skills and top-rank count, rerolls
-earned and used, choices, active replacements with their level, advanced skills of the final build). This aggregates them
-across matches. The numbers describe how
+assist rewards, the spray/repaint/clear counts and the winning guard time, each contender's level and XP curves, spray
+attempts, and the growth record of #112 §13 (first active, final skills and top-rank count, rerolls earned and used,
+choices, active replacements with their level, advanced skills of the final build). This aggregates them across matches.
+The numbers describe how
 these matches went; they are not balance targets and the summary judges nothing.
 """
 
@@ -15,8 +15,8 @@ from pathlib import Path
 import re
 import statistics
 
-MATCH_SCHEMA = 3
-SUMMARY_SCHEMA = 3
+MATCH_SCHEMA = 4
+SUMMARY_SCHEMA = 4
 OPPONENTS = 3
 REASONS = ("GuardSucceeded", "HostEnded", "None")
 KINDS = ("Human", "OpponentAI")
@@ -63,7 +63,7 @@ def check_curve(curve, duration_ms, where):
     require(times, f"{where}: empty curve")
     require(all(b > a for a, b in zip(times, times[1:])), f"{where}: curve times do not increase")
     require(times[0] >= 0 and times[-1] <= duration_ms, f"{where}: curve outside the match")
-    for name in ("level", "xp", "gold"):
+    for name in ("level", "xp"):
         series = field(curve, name, list)
         require(len(series) == len(times), f"{where}: {name} curve length differs from its times")
         require(all(isinstance(v, (int, float)) and float(v).is_integer() for v in series), f"{where}: {name} not integral")
@@ -108,14 +108,13 @@ def check_match(match, index):
         killer = field(death, "killer", str)
         require((outcome == "Granted") == bool(killer), f"{where}: only a granted reward names a killer")
         require(not killer or killer in roster, f"{where}: the killer is not on the roster")
-        for name in ("killer_gold", "killer_xp"):
-            require(field(death, name, int) >= 0, f"{where}: negative {name}")
+        require(field(death, "killer_xp", int) >= 0, f"{where}: negative killer_xp")
         parts = field(death, "assists", list)
         require(not parts or outcome == "Granted", f"{where}: assists without a granted reward")
         for part in parts:
             require(field(part, "contender", str) in roster and part["contender"] not in (killer, death["victim"]),
                     f"{where}: an assister is off the roster, the killer or the victim")
-            require(field(part, "gold", int) >= 0 and field(part, "xp", int) >= 0, f"{where}: negative assist reward")
+            require(field(part, "xp", int) >= 0, f"{where}: negative assist reward")
     ids = set()
     slots = []
     for row in contenders:
@@ -148,10 +147,6 @@ def check_match(match, index):
             require(field(change, "level", int) >= 1, f"{where}: replacement below level one")
             field(change, "replaced", str)
             require(field(change, "replaced_rank", int) >= 1, f"{where}: a replaced active below rank one")
-        for name in ("purchases", "sales"):
-            for trade in field(row, name, list):
-                require(0 <= field(trade, "t_ms", int) <= duration, f"{where}: trade outside the match")
-                field(trade, "item", str)
         check_curve(field(row, "curve", dict), duration, f"{where} {contender}")
     require(sorted(slots) == list(range(OPPONENTS)), f"{where}: the room does not hold AI slots 0 to {OPPONENTS - 1}")
     require(len(contenders) > OPPONENTS, f"{where}: no human in the room")
@@ -224,11 +219,9 @@ def summarize(matches):
             "capture_contests": match["capture_contests"],
             "sprays": match["capture_sprays"], "repaints": match["capture_repaints"],
             "guard_success_ms": match["guard_success_ms"],
-            "ai_purchases": sum(len(row["purchases"]) for row in match_ais),
             "ai_final_levels": [row["final_level"] for row in match_ais],
         })
     longest = max(match["duration_ms"] for match in checked)
-    first_purchases = [min((t["t_ms"] for t in ai["purchases"]), default=-1) for ai in ais]
     deaths = [death for match in checked for death in match["deaths"]]
     granted = [death for death in deaths if death["outcome"] == "Granted"]
     assist_parts = [part for death in granted for part in death["assists"]]
@@ -269,9 +262,7 @@ def summarize(matches):
             "granted": len(granted),
             "assisters_per_kill": stats(len(death["assists"]) for death in granted),
             "kills_with_assist": sum(1 for death in granted if death["assists"]),
-            "killer_gold": stats(death["killer_gold"] for death in granted),
             "killer_xp": stats(death["killer_xp"] for death in granted),
-            "assist_gold": stats(part["gold"] for part in assist_parts),
             "assist_xp": stats(part["xp"] for part in assist_parts),
         },
         # AI growth (#112 §13): reroll use is used / earned; the replacement rate is replaced actives per consumed choice.
@@ -292,12 +283,8 @@ def summarize(matches):
             "kills": stats(ai["kills"] for ai in ais),
             "assists": stats(ai["assists"] for ai in ais),
             "deaths": stats(ai["deaths"] for ai in ais),
-            "purchases": stats(len(ai["purchases"]) for ai in ais),
-            "sales": stats(len(ai["sales"]) for ai in ais),
-            "first_purchase_ms": optional_stats(first_purchases),
         },
         "ai_level_by_minute": by_minute(ais, "level", longest // MINUTE_MS),
-        "ai_gold_by_minute": by_minute(ais, "gold", longest // MINUTE_MS),
         "per_match": per_match,
     }
 
@@ -311,14 +298,14 @@ def describe(summary):
     for row in summary["per_match"]:
         lines.append("Match {match}: {reason}, winner {winner}, {duration}, flagpole {circle}, first kill {kill}, "
                      "attempts {attempts}, contests {contests}, sprays {sprays}, repaints {repaints}, guard {guard}, "
-                     "AI purchases {purchases}, AI levels {levels}".format(
+                     "AI levels {levels}".format(
                          match=row["match"], reason=row["reason"],
                          winner=f"AI slot {row['winner_slot']}" if row["winner_kind"] == "OpponentAI"
                          else (row["winner_kind"] or "none"),
                          duration=seconds(row["duration_ms"]), circle=seconds(row["capture_open_ms"]),
                          kill=seconds(row["first_kill_ms"]), attempts=row["capture_attempts"],
                          contests=row["capture_contests"], sprays=row["sprays"], repaints=row["repaints"],
-                         guard=seconds(row["guard_success_ms"]), purchases=row["ai_purchases"],
+                         guard=seconds(row["guard_success_ms"]),
                          levels="/".join(str(v) for v in row["ai_final_levels"])))
     duration = summary["duration_ms"]
     lines.append(f"{summary['matches']} match(es): AI capture wins {summary['ai_capture_wins']} "

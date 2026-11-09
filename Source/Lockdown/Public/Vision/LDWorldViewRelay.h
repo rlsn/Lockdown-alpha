@@ -38,7 +38,6 @@ struct FLDObservedFrameRead
 struct LOCKDOWN_API FLDObservedCatalog
 {
     uint8 MaxLevel = 0;
-    TSet<uint8> Equipment;
     TSet<uint8> Creatures;
     TSet<uint8> Abilities;
     // Active abilities only: the Q/W slots a visible contender shows.

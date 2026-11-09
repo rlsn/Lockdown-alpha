@@ -8,7 +8,7 @@ struct FLDDemoMonsterDefinition;
 // #97 camp growth (CONTENT_AND_BALANCE §6.2): a camp life takes stage
 // min(CAMP.GrowthMaxStage, floor(time since T=0 / CAMP.GrowthStageSec)) when it spawns and keeps it for that whole life,
 // through return resets, until it dies. Each stage adds a fixed share of the base HP, attack and XP reward
-// (floor in their stored units) and a flat resist bonus. Gold is not scaled. The Boss is not a camp and stays at stage 0.
+// (floor in their stored units) and a flat resist bonus. The Boss is not a camp and stays at stage 0.
 namespace LDCampGrowth
 {
     // Stage of a life spawned SinceMatchStartMs after T=0; the opening countdown (negative) is stage 0.

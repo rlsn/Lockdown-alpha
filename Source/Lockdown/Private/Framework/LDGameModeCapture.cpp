@@ -211,12 +211,12 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
         for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
-        // D27: the shown leader's death spends the notice; its bounty was locked with the death.
+        // D27: the shown leader's death spends the notice.
         if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
         {
             bPublicMatchDirty = true;
-            UE_LOG(LogLDMatch, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s bounty=%lld"), *Id.ToString(),
-                *Event.CreditContender.ToString(), LeaderNotice.LastDownBountyGold);
+            UE_LOG(LogLDMatch, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s"), *Id.ToString(),
+                *Event.CreditContender.ToString());
         }
         FLDKillNotice& Notice = KillNotices.AddDefaulted_GetRef();
         Notice.Serial = ++NextKillSerial;

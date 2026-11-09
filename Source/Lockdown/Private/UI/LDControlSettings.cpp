@@ -199,7 +199,7 @@ const TArray<FLDControlBinding>& ULDControlSettings::Definitions()
     // Actions and default keys: APP_SPEC section 3.1, CONTROLS_AND_TARGETING sections 2 and 3.2. Labels are player-facing copy only.
     static const TArray<FLDControlBinding> Values={
         {TEXT("Select"),TEXT("选择 / 确认目标"),EKeys::LeftMouseButton},
-        {TEXT("Navigate"),FString(TEXT("移动 / 攻击 / 前往"))+LDTerms::Shop,EKeys::RightMouseButton},
+        {TEXT("Navigate"),TEXT("移动 / 攻击"),EKeys::RightMouseButton},
         {TEXT("AttackMove"),TEXT("攻击移动（再左键确认地面）"),EKeys::A},
         {TEXT("Skill1"),TEXT("角色主动 Q"),EKeys::Q},{TEXT("Skill2"),TEXT("角色主动 W"),EKeys::W},
         {TEXT("SkillE"),TEXT("角色主动 E"),EKeys::E},

@@ -51,8 +51,6 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Root.StatusId = uint8(ELDDemoStatusId::Root);
     Root.ExpiresAtServerMs = 12345;
     Unit.Statuses.Add(Root);
-    Unit.Equipment.Slots[0] = uint8(ELDDemoEquipmentId::ItemEdgeBlade);
-    Unit.Equipment.Slots[1] = uint8(ELDDemoEquipmentId::ItemEdgeBlade);
     Unit.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActivePantsDown);
     Unit.Actives.Ranks[0] = 2;
     Unit.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveSnarkBolt);
@@ -115,7 +113,6 @@ FLDObservedCatalog TestCatalog()
 {
     FLDObservedCatalog Catalog;
     Catalog.MaxLevel = 16;
-    for (uint8 Id = uint8(ELDDemoEquipmentId::ItemIronPlate); Id <= uint8(ELDDemoEquipmentId::ItemEchoMaul); ++Id) { Catalog.Equipment.Add(Id); }
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterScavenger));
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterGuardian));
     Catalog.MaxSkillRank = 2;
@@ -344,9 +341,9 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     const FLDObservedUnitView& Contender = Read.Units[0];
     TestTrue(TEXT("Contender whitelist survives exactly"), Contender.ContenderId == Full.Units[0].ContenderId && Contender.Level == 3
         && Contender.Health.CurrentP2 == 45000 && Contender.Health.MaxP2 == 60000 && Contender.Mana.MaxP2 == 30000
-        && Contender.Statuses.Num() == 1 && Contender.Equipment.Slots[0] == Contender.Equipment.Slots[1]);
+        && Contender.Statuses.Num() == 1);
     TestTrue(TEXT("Camp NotApplicable fields stay absent"), Read.Units[1].Level == 0 && Read.Units[1].Mana.MaxP2 == 0
-        && Read.Units[1].Equipment.Slots[0] == 0 && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
+        && Read.Units[1].CreatureId == uint8(ELDDemoMonsterId::MonsterScavenger));
     TestTrue(TEXT("Defined camp mana is a closed pair"), Read.Units[3].Mana.MaxP2 == 5000);
 
     auto Mutated = [&](TFunctionRef<void(FLDWorldView&)> Change)
@@ -368,7 +365,6 @@ bool FLDDemoVisionCodecTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("Contender without level is not complete"), Encodes(Mutated([](FLDWorldView& V)
     { V.Units[0].AuthorizedFieldMask &= ~uint32(LDObservation::Level); })));
     TestFalse(TEXT("Missing level is not a default"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Level = 0; })));
-    TestFalse(TEXT("Unknown equipment refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Equipment.Slots[1] = 98; })));
     TestFalse(TEXT("Unknown status refused"), Encodes(Mutated([](FLDWorldView& V) { V.Units[0].Statuses[0].StatusId = 200; })));
     TestFalse(TEXT("Duplicate status refused"), Encodes(Mutated([](FLDWorldView& V)
     { const FLDObservedStatus Copy = V.Units[0].Statuses[0]; V.Units[0].Statuses.Add(Copy); })));
@@ -537,13 +533,12 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
     };
     Exact(FLDObservedUnitView::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("StateRevision"), TEXT("AuthorizedFieldMask"),
         TEXT("Kind"), TEXT("Presentation"), TEXT("FeetCm"), TEXT("Facing"), TEXT("ActionCue"), TEXT("ActionCueAgeMs"), TEXT("ActionAbility"), TEXT("ContenderId"), TEXT("CreatureId"),
-        TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Equipment"), TEXT("Actives")});
+        TEXT("Level"), TEXT("Health"), TEXT("Mana"), TEXT("Statuses"), TEXT("Actives")});
     // A flight names no caster, effect, source or target: only its handle, ground point, heading and look.
     Exact(FLDObservedProjectileView::StaticStruct(), {TEXT("Handle"), TEXT("PositionCm"), TEXT("Heading"), TEXT("Look"),
         TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
-    Exact(FLDObservedEquipmentView::StaticStruct(), {TEXT("Slots")});
     // #112 §10: the two Q/W actives and their ranks only; no cooldown, passive or mana field.
     Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities"), TEXT("Ranks")});
     Exact(FLDObservedUnitTermination::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("Generation"),
@@ -554,8 +549,6 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("Units"), TEXT("RecentTerminations"), TEXT("Projectiles")});
     Exact(FLDObservedConceal::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Generation"), TEXT("Revision"), TEXT("Removed")});
     Exact(FLDObservedTerminationNotice::StaticStruct(), {TEXT("MatchGeneration"), TEXT("Revision"), TEXT("Termination")});
-    const FProperty* Slots = FLDObservedEquipmentView::StaticStruct()->FindPropertyByName(TEXT("Slots"));
-    TestTrue(TEXT("Exactly two public equipment slots"), Slots && Slots->GetSize() == 2 * int32(sizeof(uint8)));
 
     FLDObserverLedger Ledger;
     FString Error;
@@ -663,12 +656,6 @@ bool FLDDemoVisionOrderingTest::RunTest(const FString& Parameters)
     FLDObservedUnitView TooHigh = ContenderUnit(3);
     TooHigh.Level = 17;
     TestTrue(TEXT("Levels above the approved maximum are rejected"), Full(8, 1, 3, {TooHigh}) == EResult::Rejected);
-    FLDObservedCatalog Narrow = Catalog;
-    Narrow.Equipment.Remove(uint8(ELDDemoEquipmentId::ItemEdgeBlade));
-    FLDWorldView Unknown = ActiveFrame(8, 1, 3);
-    Unknown.Units.Add(ContenderUnit(3));
-    Cleared.Reset();
-    TestTrue(TEXT("Unapproved equipment definitions are rejected"), Receiver.AcceptFull(Unknown, World, Narrow, 30, Cleared, Error) == EResult::Rejected);
 
     FLDObservedFrameReceiver Deaths;
     FLDObservedUnitView E = ContenderUnit(1), F = ContenderUnit(2), G = ContenderUnit(3);

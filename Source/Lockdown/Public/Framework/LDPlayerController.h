@@ -53,37 +53,23 @@ public:
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
-    // ---- Growth/Shop (growth module; implementation in LDPlayerGrowth.cpp) ----
+    // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
     // The caller fills the business fields; Submit fills Generation, Life (and ExpectedLifePhase for a choice) from
     // the accepted OwnerState at call time, assigns the RequestId, records it in flight before the RPC and returns
     // it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the call, so a
     // caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
     uint64 SubmitChoice(const FLDChoiceCommand& Command, ELDGrowthReason& OutLocalReason);
-    uint64 SubmitShopCommand(const FLDShopCommand& Command, ELDGrowthReason& OutLocalReason);
     uint64 PeekGrowthRequestId(ELDGrowthFamily Family) const;
-    // Open intents have no request sequence: true when sent; the terminal result arrives as OnShopOpenResult.
-    bool SubmitShopOpen(const FLDShopOpenCommand& Command, ELDGrowthReason& OutLocalReason);
-    // Owning client: requests ShopId's session for the given (current) life with the registered world revision; false with
-    // the local reason when nothing was sent. The arrival of an ApproachShop order and shop pre-orders both open here.
-    bool RequestShopSession(FName ShopId, uint32 Life, ELDGrowthReason& OutLocalReason);
     void QueryGrowthReceipt(const FLDReceiptQuery& Query);
-    // Own accepted projection only; null while the view is invalid. ReadOwnShop is non-null only for an Opened session.
+    // Own accepted projection only; null while the view is invalid.
     const FLDProgressionView* ReadOwnProgression() const;
-    const FLDEquipmentView* ReadOwnEquipment() const;
-    const FLDShopView* ReadOwnShop() const;
     FLDOnGrowthSubmit OnGrowthSubmit;
     FLDOnChoiceReceipt OnChoiceReceipt;
-    FLDOnShopReceipt OnShopReceipt;
-    FLDOnShopOpenResult OnShopOpenResult;
     UFUNCTION(Server,Reliable) void ServerGrowthChoice(const FLDChoiceCommand& Command);
-    UFUNCTION(Server,Reliable) void ServerShopOpen(const FLDShopOpenCommand& Command);
-    UFUNCTION(Server,Reliable) void ServerShopCommand(const FLDShopCommand& Command);
     UFUNCTION(Server,Reliable) void ServerQueryGrowthReceipt(const FLDReceiptQuery& Query);
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
     UFUNCTION(Client,Reliable) void ClientChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
-    UFUNCTION(Client,Reliable) void ClientShopReceipt(const FLDShopReceiptQueryResult& Result);
-    UFUNCTION(Client,Reliable) void ClientShopOpenResult(const FLDShopOpenResult& Result);
-    // ---- end Growth/Shop ----
+    // ---- end Growth ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
     // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitChoice; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
@@ -124,16 +110,14 @@ public:
     void ActivateCombatEntry(ELDCombatEntry Entry);
     bool ReadArmedCombatEntry(ELDCombatEntry& Out) const;
     // #97 local slot order (dragging a HUD slot onto another swaps them): SkillAtKey[i] is the combat entry the i-th skill
-    // key (Skill1, Skill2, SkillE) and HUD skill slot fire and show; EquipmentAtPosition[i] is the held equipment slot the i-th
-    // HUD equipment slot shows. Local presentation and key routing only, like a key binding: the server still sees
-    // entries Q/W/E and equipment slots 0/1. Each match starts in the default order.
+    // key (Skill1, Skill2, SkillE) and HUD skill slot fire and show. Local presentation and key routing only, like a key
+    // binding: the server still sees entries Q/W/E. Each match starts in the default order.
     ELDCombatEntry SkillAtKey[3] = {ELDCombatEntry::Q, ELDCombatEntry::W, ELDCombatEntry::E};
-    uint8 EquipmentAtPosition[2] = {0, 1};
     uint32 SlotOrderMatch = 0;
     void ResetSlotOrder(uint32 Match)
     {
         SkillAtKey[0] = ELDCombatEntry::Q; SkillAtKey[1] = ELDCombatEntry::W; SkillAtKey[2] = ELDCombatEntry::E;
-        EquipmentAtPosition[0] = 0; EquipmentAtPosition[1] = 1; SlotOrderMatch = Match;
+        SlotOrderMatch = Match;
     }
     bool IsAttackMoveArmed() const { return bAttackMoveArmed; }
     void ArmAttackMove();
@@ -161,8 +145,6 @@ public:
     bool IsAwaitingRespawn() const;
     // Camera input (pan, zoom, recenter, follow): unsuppressed input over a valid life or the dead owner's static camera.
     bool CanCameraCommand() const;
-    // Current shop interaction binding (ApproachShop en route or arrived); see ULDNavigationComponent.
-    bool ReadShopInteraction(FName& OutShopId, uint32& OutLife) const;
     UFUNCTION(Server,Reliable) void ServerSubmitCombatAction(const FLDCombatActionRequest& Request);
     UFUNCTION(Server,Reliable) void ServerCancelCombatAction(const FLDCombatCancelRequest& Request);
     UFUNCTION(Client,Reliable) void ClientCombatReceipt(const FLDCombatActionReceipt& Receipt);
@@ -196,7 +178,7 @@ private:
     TArray<uint32> V05BindingHandles;
     FGuid Inspected;
     uint32 InspectedGeneration=0,InspectedEpoch=0;
-    // ---- Growth/Shop private request cursors (one in-flight request per family) ----
+    // ---- Growth private request cursors (one in-flight request per family) ----
     struct FGrowthRequestCursor
     {
         uint32 Generation=0;
@@ -204,14 +186,10 @@ private:
         uint64 InFlight=0;
     };
     FGrowthRequestCursor ChoiceCursor;
-    FGrowthRequestCursor ShopCursor;
     FGrowthRequestCursor DevTestCursor;
     uint64 BeginGrowthRequest(FGrowthRequestCursor& Cursor, ELDGrowthReason& OutLocalReason);
     void SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint32 Generation, uint64 RequestId, bool bReserved, bool bFinal);
-    // Owning client: Navigation's arrival of the current ApproachShop binding requests that shop's session once.
-    void BindGrowthClient();
-    void HandleShopArrived(FName ShopId, uint32 Life);
-    // ---- end Growth/Shop ----
+    // ---- end Growth ----
     FLDOwnerState LatestOwner;
     void UpdateLocalViewTarget();
     FTransform LastCameraPose;

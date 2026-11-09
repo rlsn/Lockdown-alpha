@@ -8,23 +8,23 @@
 class FLDDemoContentSnapshot;
 
 // Pure opponent strategy over one already-published, authorized read copy (docs/demo/OPPONENT_AI.md §6).
-// It never reads a world, actor, ledger, clock or hidden state: the server adapter fills the frame from the
+// It never reads a world, actor, clock or hidden state: the server adapter fills the frame from the
 // same owner, observation and public projections a human player receives, then submits each intent to its
 // owning domain, which revalidates everything at its own commit point.
 
 enum class ELDOpponentMode : uint8
 {
-    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Shop, Contest, Farm, Explore,
+    Stopped, DeadWaiting, Disengage, DefendOrHold, Choose, Engage, Contest, Farm, Explore,
     // D26: going for a 天降外卖; not a contest of the circle, so a stop-loss exit from it never counts against the capture.
     Airdrop
 };
 
-// Bounded diagnostic cause of a decision; never a coordinate, wallet or private source.
+// Bounded diagnostic cause of a decision; never a coordinate or private source.
 enum class ELDOpponentReason : uint8
 {
     None, Stopped, ProviderUnavailable, DeadWaiting, Recover, PublicCaptureUrgent, HoldCapture, ChooseOffer,
-    EngageTarget, ShopImprovement, NoAffordableImprovement, ContestCapture, FarmCamp, Explore, NoLegalTarget,
-    AwaitReceipt, TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
+    EngageTarget, ContestCapture, FarmCamp, Explore, NoLegalTarget,
+    TargetSuppressed, GuardGraffiti, BesiegeOwner, ContestAirdrop, HuntLeader, AvoidBoss
 };
 
 enum class ELDOpponentSkillSlot : uint8 { Q, W, E, Passive };
@@ -70,7 +70,7 @@ struct FLDOpponentOffer
     TArray<FLDOpponentOption> Options;
 };
 
-// The AI's own authorized projection: owner life, progression, equipment and source readiness.
+// The AI's own authorized projection: owner life, progression and source readiness.
 struct FLDOpponentSelf
 {
     FGuid ContenderId;
@@ -88,17 +88,11 @@ struct FLDOpponentSelf
     int64 MoveBlockedUntilMs = 0;
     bool bChanneling = false;
     bool bCowering = false;
-    int64 Gold = 0;
     uint64 BuildRevision = 0;
     uint8 Level = 1;
-    // Persistent choices already consumed, including the opening pick; equipment is read separately.
+    // Persistent choices already consumed, including the opening pick.
     uint8 ChoicesConsumed = 0;
     TArray<FLDOpponentSkill> Skills;
-    // Equipment slots 0/1 by catalog definition id; an empty string is an empty slot.
-    FString Equipment[2];
-    // 112 §7: upgraded slots and whether the one upgrade of the match is spent.
-    bool EquipmentUpgraded[2] = {false, false};
-    bool bUpgradeUsed = false;
     // 112 §6: free rerolls left.
     uint8 RerollTokens = 0;
     TArray<FLDOpponentSource> Sources;
@@ -156,7 +150,7 @@ struct FLDOpponentUnit
     bool bProtected = false;
 };
 
-enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Shop, Capture, Dorm, Airdrop };
+enum class ELDOpponentPOIKind : uint8 { Spawn, Camp, Capture, Dorm, Airdrop };
 
 // Static public place from the approved world and content; never a live occupancy fact.
 struct FLDOpponentPOI
@@ -170,7 +164,7 @@ struct FLDOpponentPOI
     ELDDemoCampTier Tier = ELDDemoCampTier::Low;
 };
 
-enum class ELDOpponentOrderKind : uint8 { None, MoveGround, AttackUnit, ApproachShop, Action };
+enum class ELDOpponentOrderKind : uint8 { None, MoveGround, AttackUnit, Action };
 enum class ELDOpponentOrderStatus : uint8 { None, Pending, Active, Completed, Failed, Cancelled };
 
 // The AI's own latest spatial order as its order receipts report it.
@@ -195,14 +189,12 @@ struct FLDOpponentDecisionFrame
     FLDOpponentOrder Order;
     // Complete-path length from the current pose to the capture entry, when the world answered.
     TOptional<double> CapturePathCm;
-    // A choice or shop request awaits its final receipt; no second build change is proposed meanwhile.
+    // A choice request awaits its final receipt; no second build change is proposed meanwhile.
     bool bBuildChangeInFlight = false;
-    // The shop domain reported Opened for this life with a quote matching the public catalog.
-    bool bShopOpen = false;
 };
 
 // Walk: the body's own walking, refused for its ground or path from where it stands (#160); fingerprinted by that spot.
-enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Shop, Choice, Walk };
+enum class ELDOpponentFailure : uint8 { Path, Engagement, Activation, Choice, Walk };
 
 struct FLDOpponentRetryKey
 {
@@ -216,7 +208,7 @@ struct FLDOpponentRetryKey
     }
 };
 
-enum class ELDOpponentBodyKind : uint8 { None, Keep, Stop, MoveGround, AttackUnit, ApproachShop, Activate };
+enum class ELDOpponentBodyKind : uint8 { None, Keep, Stop, MoveGround, AttackUnit, Activate };
 
 struct FLDOpponentBodyIntent
 {
@@ -229,11 +221,11 @@ struct FLDOpponentBodyIntent
     FVector Direction = FVector::ZeroVector;
     // GroundPoint activations: the requested zone centre (#147 active_quick_meeting).
     FVector Point = FVector::ZeroVector;
-    // Failure memory of MoveGround, ApproachShop, AttackUnit and Activate; the final receipt settles against it.
+    // Failure memory of MoveGround, AttackUnit and Activate; the final receipt settles against it.
     FLDOpponentRetryKey Key;
 };
 
-enum class ELDOpponentBuildKind : uint8 { None, Choose, Sell, Buy, Upgrade };
+enum class ELDOpponentBuildKind : uint8 { None, Choose };
 
 struct FLDOpponentChoicePick
 {
@@ -246,24 +238,12 @@ struct FLDOpponentChoicePick
     uint8 ReplacedRank = 0;
 };
 
-// Non-binding plan from public prices; the shop's real quote and current state are rechecked to trade.
-struct FLDOpponentEquipmentPlan
-{
-    int32 SellSlot = INDEX_NONE;
-    FString BuyItemId;
-    // 112 §7: upgrade the item in this slot instead of trading (no SellSlot/BuyItemId).
-    int32 UpgradeSlot = INDEX_NONE;
-};
-
 struct FLDOpponentBuildIntent
 {
     ELDOpponentBuildKind Kind = ELDOpponentBuildKind::None;
     FGuid OfferId;
     uint64 OfferRevision = 0;
     FLDOpponentChoicePick Choice;
-    int32 SellSlot = INDEX_NONE;
-    FString BuyItemId;
-    int32 UpgradeSlot = INDEX_NONE;
     FLDOpponentRetryKey Key;
 };
 
@@ -285,7 +265,7 @@ enum class ELDOpponentOutcome : uint8 { Succeeded, Failed, TargetLost };
 class LOCKDOWN_API FLDOpponentRetryLedger
 {
 public:
-    // #97: path, engagement and shop keys for every public place of the larger world.
+    // #97: path and engagement keys for every public place of the larger world.
     static constexpr int32 Capacity = 96;
     bool CanAttempt(const FLDOpponentRetryKey& Key, uint64 Fingerprint, int64 NowMs) const;
     bool IsSuppressed(const FLDOpponentRetryKey& Key, uint64 Fingerprint) const;
@@ -317,7 +297,7 @@ struct FLDOpponentVisit
     int64 VisitedAtMs = 0;
 };
 
-// Strategy-only memory: never a second body, wallet, cooldown or camp table.
+// Strategy-only memory: never a second body, cooldown or camp table.
 struct FLDOpponentPolicyState
 {
     uint32 Generation = 0;
@@ -374,18 +354,6 @@ struct FLDOpponentUsage
     bool bEngage = false;
     bool bSelfProtect = false;
     bool bMobility = false;
-    bool bBasicGrowth = false;
-    bool bSurvival = false;
-};
-
-// Lexicographic structural preference of one equipment pair (§6.4); not a damage weight.
-struct FLDEquipmentPairRank
-{
-    int32 Filled = 0;
-    int32 BasicGrowth = 0;
-    int32 Survival = 0;
-    int32 DistinctPassives = 0;
-    int32 Compare(const FLDEquipmentPairRank& Other) const;
 };
 
 struct FLDCaptureUrgencyInput
@@ -406,13 +374,8 @@ namespace LDOpponentPolicy
     LOCKDOWN_API FLDCampCostEstimate EstimateCampCost(const FLDCampCostInput& Input,
         const FLDDemoMonsterDefinition& Monster, const FLDDemoContentSnapshot& Catalog);
     LOCKDOWN_API FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability);
-    LOCKDOWN_API FLDOpponentUsage EquipmentUsage(const FLDDemoEquipmentDefinition& Item);
     LOCKDOWN_API bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentChoicePick& Out, FString& Error);
-    LOCKDOWN_API bool RankEquipmentPair(const FString& First, const FString& Second,
-        const FLDDemoContentSnapshot& Catalog, FLDEquipmentPairRank& Out, FString& Error);
-    LOCKDOWN_API bool PlanEquipment(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-        TOptional<FLDOpponentEquipmentPlan>& Out, FString& Error);
     // True when the public solo deadline leaves no more than travel, control and reaction budget.
     // An unknown path or zero speed is conservatively urgent; it never divides by zero.
     LOCKDOWN_API bool IsCaptureDefenseUrgent(const FLDCaptureUrgencyInput& Input);
@@ -425,7 +388,7 @@ namespace LDOpponentPolicy
     // lost unit target is suppressed for this visibility interval and released as the current target.
     LOCKDOWN_API void RecordOutcome(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Key,
         ELDOpponentOutcome Outcome, const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
-    // #160: the admission answer to a walk (a ground move, shop approach or attack chase). A refusal for its ground
+    // #160: the admission answer to a walk (a ground move or attack chase). A refusal for its ground
     // or path that names a different goal than the last one counts once against the body's own walking from where it
     // stands; within the retry policy every new walk waits, and once it is spent none is sent until the body has moved
     // or respawned. Any admitted walk clears it.

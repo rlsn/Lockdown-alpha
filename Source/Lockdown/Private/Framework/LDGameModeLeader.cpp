@@ -11,11 +11,6 @@ int64 ALDGameMode::NextLeaderDueMs() const
     return LeaderNotice.IsActive() ? LeaderNotice.NextDueMs(AuthorityNowMs) : MAX_int64;
 }
 
-int64 ALDGameMode::LeaderBountyFor(const FGuid& Victim) const
-{
-    return LeaderNotice.IsActive() ? LeaderNotice.BountyFor(Victim) : 0;
-}
-
 bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error)
 {
     if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !LeaderNotice.IsActive()
@@ -50,9 +45,8 @@ bool ALDGameMode::AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FStr
     if (LeaderNotice.Refresh(NowMs, Candidates)) { bPublicMatchDirty = true; }
     if (LeaderNotice.Leader != Before || LeaderNotice.Leader.IsValid())
     {
-        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s streak=%u bounty=%lld at_ms=%lld"),
-            LeaderNotice.RefreshIndex, *LeaderNotice.Leader.ToString(), LeaderNotice.Streak,
-            LeaderNotice.BountyFor(LeaderNotice.Leader), NowMs);
+        UE_LOG(LogLDWorld, Display, TEXT("LD_LEADER_REFRESH index=%llu leader=%s at_ms=%lld"),
+            LeaderNotice.RefreshIndex, *LeaderNotice.Leader.ToString(), NowMs);
     }
     return true;
 }

@@ -22,7 +22,7 @@ namespace
     bool IsGameplayService(const AActor& Actor)
     {
         static const TSet<FName> Names = {TEXT("LDCombatDirector"),TEXT("LDVisionDirector"),
-            TEXT("LDWorldViewRelay"),TEXT("LDEconomyDirector"),TEXT("LDInventoryDirector")};
+            TEXT("LDWorldViewRelay"),TEXT("LDGrowthDirector"),TEXT("LDDevelopmentDirector")};
         for (const UClass* Class = Actor.GetClass(); Class; Class = Class->GetSuperClass())
         {
             if (Names.Contains(Class->GetFName())) { return true; }

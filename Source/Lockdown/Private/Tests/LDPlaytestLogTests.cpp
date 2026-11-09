@@ -34,9 +34,9 @@ bool FLDPlaytestLogFormatTest::RunTest(const FString& Parameters)
     Source.Kind=ELDCombatSourceKind::Learned;
     Source.DefinitionId=TEXT("active_snark_bolt");
     TestEqual(TEXT("A learned source names its ability"),LDLog::Source(Source),FString(TEXT("learned:active_snark_bolt")));
-    Source.Kind=ELDCombatSourceKind::Gear;
-    Source.DefinitionId=TEXT("item_slingshot");
-    TestEqual(TEXT("A gear source names its item"),LDLog::Source(Source),FString(TEXT("gear:item_slingshot")));
+    Source.Kind=ELDCombatSourceKind::Innate;
+    Source.DefinitionId=TEXT("dash");
+    TestEqual(TEXT("An innate source names its definition"),LDLog::Source(Source),FString(TEXT("innate:dash")));
     TestEqual(TEXT("Reflected enums read by name"),LDLog::EnumName(ELDKillCause::CampHigh),FString(TEXT("CampHigh")));
     return true;
 }

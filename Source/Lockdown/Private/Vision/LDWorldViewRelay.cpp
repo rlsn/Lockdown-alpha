@@ -46,7 +46,6 @@ bool FLDObservedCatalog::Build(const FLDDemoContentSnapshot& Content, FString& E
         return false;
     }
     MaxSkillRank = uint8(Definitions.Progression.MaxSkillRank);
-    for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment) { Equipment.Add(Item.NativeId); }
     for (const FLDDemoMonsterDefinition& Monster : Definitions.Monsters) { Creatures.Add(Monster.NativeId); }
     for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
     {
@@ -63,14 +62,6 @@ bool FLDObservedCatalog::Accepts(const FLDObservedUnitView& Unit, FString& Error
     {
         Error = TEXT("Observed level is outside the approved progression range.");
         return false;
-    }
-    for (const uint8 Slot : Unit.Equipment.Slots)
-    {
-        if (Slot != 0 && !Equipment.Contains(Slot))
-        {
-            Error = TEXT("Observed equipment is not an approved public definition.");
-            return false;
-        }
     }
     if (Unit.ActionAbility != 0 && !Abilities.Contains(Unit.ActionAbility))
     {

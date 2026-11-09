@@ -39,37 +39,6 @@ int32 CatalogIndex(const TArray<TDefinition>& Definitions, const FString& Id)
     { return Definition.Id.Equals(Id, ESearchCase::CaseSensitive); });
 }
 
-bool PositiveStat(const FLDDemoStatBonus& Stat)
-{
-    return Stat.Stat == ELDDemoBonusStat::AttackRangeCmFlat || Stat.Stat == ELDDemoBonusStat::HPRegenFlat
-        || Stat.Stat == ELDDemoBonusStat::MPRegenFlat
-        ? Stat.Cm.Denominator > 0 && Stat.Cm.Numerator > 0
-        : Stat.Amount > 0;
-}
-
-void ClassifyStat(const FLDDemoStatBonus& Stat, FLDOpponentUsage& Usage)
-{
-    if (!PositiveStat(Stat)) { return; }
-    switch (Stat.Stat)
-    {
-    case ELDDemoBonusStat::ADFlat:
-    case ELDDemoBonusStat::ADBonusRatio:
-    case ELDDemoBonusStat::AttackSpeedBonusRatio:
-    case ELDDemoBonusStat::AttackRangeCmFlat:
-    case ELDDemoBonusStat::CritChanceBonusRatio:
-        Usage.bBasicGrowth = true;
-        break;
-    case ELDDemoBonusStat::MaxHPFlat:
-    case ELDDemoBonusStat::ArmorFlat:
-    case ELDDemoBonusStat::MagicResistFlat:
-    case ELDDemoBonusStat::HPRegenFlat:
-        Usage.bSurvival = true;
-        break;
-    default:
-        break;
-    }
-}
-
 void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLDOpponentUsage& Usage)
 {
     switch (Effect.GetOp())
@@ -107,22 +76,9 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Stun:
         Usage.bEngage |= !bSelfTarget;
         break;
-    case ELDDemoEffectOp::Thorns:
-    case ELDDemoEffectOp::CritDamageReduction:
-    case ELDDemoEffectOp::ShieldBreakRetort:
-    case ELDDemoEffectOp::PrimaryGuard:
-    case ELDDemoEffectOp::SpellSustain:
-    case ELDDemoEffectOp::DashContactGuard:
-        Usage.bSurvival = true;
-        break;
     case ELDDemoEffectOp::TriggeredShield:
     case ELDDemoEffectOp::TauntShield:
         Usage.bSelfProtect = true;
-        Usage.bSurvival = true;
-        break;
-    case ELDDemoEffectOp::EmpowerBasic:
-    case ELDDemoEffectOp::NthBasicBonus:
-        Usage.bBasicGrowth = true;
         break;
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
@@ -130,10 +86,6 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DispelDisarm:
     case ELDDemoEffectOp::Cower:
         Usage.bSelfProtect |= bSelfTarget;
-        Usage.bSurvival |= bSelfTarget;
-        break;
-    case ELDDemoEffectOp::Lifesteal:
-        Usage.bSurvival = true;
         break;
     case ELDDemoEffectOp::Dash:
     case ELDDemoEffectOp::DashBoost:
@@ -141,15 +93,7 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::DashContactRefund:
         Usage.bMobility = true;
         break;
-    case ELDDemoEffectOp::Cleave:
-        Usage.bBasicGrowth = true;
-        break;
-    case ELDDemoEffectOp::StatBonus:
-    case ELDDemoEffectOp::TimedStatBonus:
-    case ELDDemoEffectOp::LowHpStatBonus:
-        for (const auto& Stat : Effect.Stats) { ClassifyStat(Stat, Usage); }
-        break;
-    // Cooldown, crit, mana and release riders add no structural usage of their own.
+    // Survival, basic-attack, stat, cooldown, crit, mana and release riders add no structural usage of their own.
     case ELDDemoEffectOp::Zone:
     case ELDDemoEffectOp::CastFrenzy:
     case ELDDemoEffectOp::CooldownRefund:
@@ -268,7 +212,6 @@ struct FContext
     FLDOpponentPolicyState& State;
     const int64 Now;
     const FLDOpponentPOI* Capture = nullptr;
-    const FLDOpponentPOI* Shop = nullptr;
     double CaptureRadiusCm = 0;
     double DormRadiusCm = 0;
     double AirdropRadiusCm = 0;
@@ -290,12 +233,6 @@ struct FContext
         for (const auto& POI : Frame.POIs)
         {
             if (POI.Kind == ELDOpponentPOIKind::Capture && !Capture) { Capture = &POI; }
-            // #97: a match may have several shops; head for the nearest one.
-            if (POI.Kind == ELDOpponentPOIKind::Shop
-                && (!Shop || FVector::DistSquared2D(Self.FootCm, POI.FootCm) < FVector::DistSquared2D(Self.FootCm, Shop->FootCm)))
-            {
-                Shop = &POI;
-            }
         }
         CaptureRadiusCm = ToDouble(Content.Parameters.CaptureRadiusCm);
         DormRadiusCm = ToDouble(Content.Parameters.DormRadiusCm);
@@ -307,7 +244,7 @@ struct FContext
         AttackRangeCm = ToDouble(Self.Attributes.AttackRangeCm);
         VisionRadiusCm = ToDouble(Content.Parameters.VisionRadiusCm);
         if (Content.Formulas.AttackMoveAcquireRadius != ELDDemoFormula::MinVisionTwiceAttackRange
-            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture || !Shop)
+            || !(AttackRangeCm > 0) || !(VisionRadiusCm > 0) || !(CaptureRadiusCm > 0) || !(DormRadiusCm > 0) || !(AirdropRadiusCm > 0) || !(LeaderRadiusCm > 0) || !(BossBandCm > 0) || !Capture)
         {
             return false;
         }
@@ -405,7 +342,7 @@ struct FContext
         const FLDOpponentPOI* Best = nullptr;
         for (const auto& POI : Frame.POIs)
         {
-            if (POI.Kind == ELDOpponentPOIKind::Shop || RecentlyVisited(POI.Id) || !CanAttempt(PathKey(POI.Id))
+            if (RecentlyVisited(POI.Id) || !CanAttempt(PathKey(POI.Id))
                 || FVector::Dist2D(POI.FootCm, Centre) > LeaderRadiusCm) { continue; }
             const double Distance = FVector::Dist2D(POI.FootCm, Centre);
             if (!Best || Distance < FVector::Dist2D(Best->FootCm, Centre)
@@ -434,8 +371,6 @@ struct FContext
     static FLDOpponentRetryKey WalkKey() { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Walk; return Key; }
     bool Suppressed(const FLDOpponentRetryKey& Key) const { return State.Failures.IsSuppressed(Key, Print(Key.Category)); }
     static FLDOpponentRetryKey PathKey(FName POI) { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Path; Key.POI = POI; return Key; }
-    // One shop visit: the approach, the open and every trade of the current plan share this budget.
-    static FLDOpponentRetryKey ShopKey(FName POI) { FLDOpponentRetryKey Key; Key.Category = ELDOpponentFailure::Shop; Key.POI = POI; return Key; }
     static FLDOpponentRetryKey EngagementKey(FName POI, const FGuid& Target)
     {
         FLDOpponentRetryKey Key;
@@ -518,14 +453,14 @@ void Engage(const FContext& C, const FLDOpponentUnit& Unit)
     }
 }
 
-FLDOpponentBodyIntent MoveTo(const FContext& C, const FLDOpponentPOI& POI, ELDOpponentOrderKind Kind = ELDOpponentOrderKind::MoveGround)
+FLDOpponentBodyIntent MoveTo(const FContext& C, const FLDOpponentPOI& POI)
 {
     FLDOpponentBodyIntent Body;
     Body.POI = POI.Id;
-    Body.Key = Kind == ELDOpponentOrderKind::ApproachShop ? FContext::ShopKey(POI.Id) : FContext::PathKey(POI.Id);
+    Body.Key = FContext::PathKey(POI.Id);
     const auto& Order = C.Frame.Order;
-    Body.Kind = Order.IsLive() && Order.Kind == Kind && Order.POI == POI.Id ? EBody::Keep
-        : Kind == ELDOpponentOrderKind::ApproachShop ? EBody::ApproachShop : EBody::MoveGround;
+    Body.Kind = Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == POI.Id ? EBody::Keep
+        : EBody::MoveGround;
     // A body whose walks are refused where it stands keeps what it has instead of trying the next place at once (#160).
     if (Body.Kind != EBody::Keep && !C.CanWalk()) { Body.Kind = Order.IsLive() ? EBody::Keep : EBody::None; }
     return Body;
@@ -831,11 +766,11 @@ const FLDOpponentPOI* PickRetreat(const FContext& C)
     {
         return Away.IsNearlyZero() || FVector::DotProduct((POI.FootCm - C.Self.FootCm).GetSafeNormal2D(), Away) >= 0;
     };
-    // Public ground only: never the circle, the shop building, the abandoned camp, a camp with visible members or
-    // the place this body has just reached.
+    // Public ground only: never the circle, the abandoned camp, a camp with visible members or the place this body has
+    // just reached.
     const auto Usable = [&C](const FLDOpponentPOI& POI)
     {
-        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop || POI.Id == C.State.VisitPOI
+        if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Id == C.State.VisitPOI
             || C.Suppressed(FContext::PathKey(POI.Id)) || ReachedPOI(C, POI.Id)) { return false; }
         for (const auto& Unit : C.Frame.Units)
         {
@@ -947,8 +882,8 @@ TArray<const FLDOpponentUnit*> CampMembers(const FContext& C, const FLDOpponentP
 const FLDOpponentPOI* SelectCamp(const FContext& C)
 {
     const auto& Self = C.Self;
-    // The opening pick is part of the starting build; growth means a level gained or equipment bought.
-    const bool bGrowth = Self.Level > 1 || !Self.Equipment[0].IsEmpty() || !Self.Equipment[1].IsEmpty();
+    // The opening pick is part of the starting build; growth means a level gained.
+    const bool bGrowth = Self.Level > 1;
     const bool bHighEntry = bGrowth && RatioAtLeast(Self.HpP2, Self.MaxHpP2, C.AI.HighCampEntryHPBp);
     FLDCampCostInput Input;
     Input.CurrentHpP2 = Self.HpP2;
@@ -1095,8 +1030,7 @@ bool ExploreBody(const FContext& C, FLDOpponentBodyIntent& Out)
     {
         for (const auto& POI : C.Frame.POIs)
         {
-            if (POI.Kind == ELDOpponentPOIKind::Capture || POI.Kind == ELDOpponentPOIKind::Shop
-                || !C.CanAttempt(FContext::PathKey(POI.Id))) { continue; }
+            if (POI.Kind == ELDOpponentPOIKind::Capture || !C.CanAttempt(FContext::PathKey(POI.Id))) { continue; }
             // Least recently visited public place first, then nearest, then stable id.
             bool bBetter = !Target;
             if (Target)
@@ -1137,17 +1071,6 @@ bool DecideChoice(const FContext& C, FLDOpponentBuildIntent& Out)
     Out.Key = Key;
     return true;
 }
-}
-
-int32 FLDEquipmentPairRank::Compare(const FLDEquipmentPairRank& Other) const
-{
-    const int32 Left[] = {Filled, BasicGrowth, Survival, DistinctPassives};
-    const int32 Right[] = {Other.Filled, Other.BasicGrowth, Other.Survival, Other.DistinctPassives};
-    for (int32 Index = 0; Index < int32(UE_ARRAY_COUNT(Left)); ++Index)
-    {
-        if (Left[Index] != Right[Index]) { return Left[Index] < Right[Index] ? -1 : 1; }
-    }
-    return 0;
 }
 
 const FLDOpponentRetryLedger::FEntry* FLDOpponentRetryLedger::Find(const FLDOpponentRetryKey& Key) const
@@ -1328,18 +1251,6 @@ FLDOpponentUsage AbilityUsage(const FLDDemoAbilityDefinition& Ability)
     return Usage;
 }
 
-FLDOpponentUsage EquipmentUsage(const FLDDemoEquipmentDefinition& Item)
-{
-    using namespace Detail;
-    FLDOpponentUsage Usage;
-    for (const auto& Stat : Item.Stats) { ClassifyStat(Stat, Usage); }
-    if (Item.HasPassive)
-    {
-        for (const auto& Effect : Item.Passive.Effects) { ClassifyEffect(Effect, true, Usage); }
-    }
-    return Usage;
-}
-
 bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog, FLDOpponentChoicePick& Out, FString& Error)
 {
     using namespace Detail;
@@ -1491,92 +1402,6 @@ bool SelectChoice(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Cat
         return true;
     }
     Out = Best->Pick;
-    return true;
-}
-
-bool RankEquipmentPair(const FString& First, const FString& Second, const FLDDemoContentSnapshot& Catalog,
-    FLDEquipmentPairRank& Out, FString& Error)
-{
-    Out = {};
-    FLDOpponentUsage Pair;
-    TArray<FString, TInlineAllocator<2>> Families;
-    for (const FString* Id : {&First, &Second})
-    {
-        if (Id->IsEmpty()) { continue; }
-        const FLDDemoEquipmentDefinition* Item = nullptr;
-        if (!Catalog.FindEquipment(*Id, Item, Error) || !Item) { return false; }
-        const auto Usage = EquipmentUsage(*Item);
-        ++Out.Filled;
-        Pair.bBasicGrowth |= Usage.bBasicGrowth;
-        Pair.bSurvival |= Usage.bSurvival;
-        if (Item->HasPassive) { Families.AddUnique(Item->Passive.Family); }
-    }
-    Out.BasicGrowth = Pair.bBasicGrowth ? 1 : 0;
-    Out.Survival = Pair.bSurvival ? 1 : 0;
-    Out.DistinctPassives = Families.Num();
-    return true;
-}
-
-bool PlanEquipment(const FLDOpponentSelf& Self, const FLDDemoContentSnapshot& Catalog,
-    TOptional<FLDOpponentEquipmentPlan>& Out, FString& Error)
-{
-    using namespace Detail;
-    Out.Reset();
-    if (Self.Gold < 0)
-    {
-        Error = TEXT("Own gold projection is negative.");
-        return false;
-    }
-    FLDEquipmentPairRank Best;
-    if (!RankEquipmentPair(Self.Equipment[0], Self.Equipment[1], Catalog, Best, Error)) { return false; }
-    int64 SellGold[2] = {0, 0};
-    for (int32 Slot = 0; Slot < 2; ++Slot)
-    {
-        const FLDDemoEquipmentDefinition* Item = nullptr;
-        if (!Self.Equipment[Slot].IsEmpty() && Catalog.FindEquipment(Self.Equipment[Slot], Item, Error) && Item)
-        {
-            SellGold[Slot] = Item->SellGold;
-        }
-    }
-    const int32 Empty = Self.Equipment[0].IsEmpty() ? 0 : Self.Equipment[1].IsEmpty() ? 1 : INDEX_NONE;
-    for (const auto& Item : Catalog.Get().Equipment)
-    {
-        for (int32 Slot = 0; Slot < 2; ++Slot)
-        {
-            // An empty slot is always filled first; a full pair may only trade one item.
-            if (Empty != INDEX_NONE && Slot != Empty) { continue; }
-            const int64 Budget = Empty != INDEX_NONE ? Self.Gold : SaturatingAdd(Self.Gold, SellGold[Slot]);
-            if (Item.BuyPrice > Budget) { continue; }
-            FLDEquipmentPairRank Rank;
-            if (!RankEquipmentPair(Self.Equipment[1 - Slot], Item.Id, Catalog, Rank, Error)) { return false; }
-            if (Rank.Compare(Best) > 0)
-            {
-                Best = Rank;
-                FLDOpponentEquipmentPlan Plan;
-                Plan.SellSlot = Empty != INDEX_NONE ? INDEX_NONE : Slot;
-                Plan.BuyItemId = Item.Id;
-                Out = Plan;
-            }
-        }
-    }
-    // 112 §7: with no better trade, spend the one upgrade on the first held item that can take it.
-    if (!Out.IsSet() && !Self.bUpgradeUsed && Self.Gold >= Catalog.Get().Parameters.UpgradeCost)
-    {
-        for (int32 Slot = 0; Slot < 2; ++Slot)
-        {
-            const FLDDemoEquipmentDefinition* Item = nullptr;
-            if (Self.Equipment[Slot].IsEmpty() || Self.EquipmentUpgraded[Slot]
-                || !Catalog.FindEquipment(Self.Equipment[Slot], Item, Error) || !Item || !LDDemoEquipment::Upgradable(*Item))
-            {
-                continue;
-            }
-            FLDOpponentEquipmentPlan Plan;
-            Plan.UpgradeSlot = Slot;
-            Out = Plan;
-            break;
-        }
-        Error.Reset();
-    }
     return true;
 }
 
@@ -1801,18 +1626,11 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             return Finish(EMode::Engage, EReason::EngageTarget);
         }
     }
-    TOptional<FLDOpponentEquipmentPlan> Plan;
-    FString Error;
-    if (!PlanEquipment(Self, Catalog, Plan, Error))
-    {
-        Body(Halt(C));
-        return Finish(EMode::Stopped, EReason::ProviderUnavailable);
-    }
     if (State.bRecovering)
     {
-        // §6.1 P2 above P6: an escape under way finishes its walk before any shopping, also once the pursuer has
-        // dropped out of sight. Otherwise every glimpse at the edge of sight flips the body between the shop and
-        // the escape, and it never reaches either (#79).
+        // §6.1 P2: an escape under way finishes its walk, also once the pursuer has dropped out of sight. Otherwise
+        // every glimpse at the edge of sight flips the body between its errand and the escape, and it never reaches
+        // either (#79).
         const auto& Order = Frame.Order;
         const FLDOpponentPOI* Retreat = State.RetreatPOI.IsNone() ? nullptr : C.FindPOI(State.RetreatPOI);
         if (Retreat && Order.IsLive() && Order.Kind == ELDOpponentOrderKind::MoveGround && Order.POI == Retreat->Id)
@@ -1820,39 +1638,15 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
             Body(MoveTo(C, *Retreat));
             return Finish(EMode::Disengage, EReason::Recover);
         }
-        // D21: inside a dorm the fast recovery comes before shopping; a visible threat above still sends it away.
+        // D21: inside a dorm the fast recovery comes first; a visible threat above still sends it away.
         if (C.DormAt())
         {
             Body(Halt(C));
             return Finish(EMode::Disengage, EReason::Recover);
         }
-    }
-    const FLDOpponentRetryKey ShopKey = FContext::ShopKey(C.Shop->Id);
-    if (Plan.IsSet() && C.CanAttempt(ShopKey) && C.CanAttempt(FContext::PathKey(C.Shop->Id)))
-    {
-        EndVisit(State);
-        if (Frame.bShopOpen)
-        {
-            Body(FLDOpponentBodyIntent());
-            if (Out.Build.Kind == ELDOpponentBuildKind::None && !Frame.bBuildChangeInFlight)
-            {
-                Out.Build.Kind = Plan->UpgradeSlot != INDEX_NONE ? ELDOpponentBuildKind::Upgrade
-                    : Plan->SellSlot != INDEX_NONE ? ELDOpponentBuildKind::Sell : ELDOpponentBuildKind::Buy;
-                Out.Build.SellSlot = Plan->SellSlot;
-                Out.Build.BuyItemId = Plan->BuyItemId;
-                Out.Build.UpgradeSlot = Plan->UpgradeSlot;
-                Out.Build.Key = ShopKey;
-            }
-            return Finish(EMode::Shop, Frame.bBuildChangeInFlight ? EReason::AwaitReceipt : EReason::ShopImprovement);
-        }
-        Body(MoveTo(C, *C.Shop, ELDOpponentOrderKind::ApproachShop));
-        return Finish(EMode::Shop, EReason::ShopImprovement);
-    }
-    if (State.bRecovering)
-    {
-        // D21: with nothing to buy, walk to the nearest dorm for its fast recovery; it is not a safe zone, so defence,
-        // threats and shopping above still come first. While a rival sprays alone or guards its graffiti the body stays
-        // within its defence reach instead: walking off to a corner would flip the public urgency on and off at every step.
+        // D21: otherwise walk to the nearest dorm for its fast recovery; it is not a safe zone, so defence and threats
+        // above still come first. While a rival sprays alone or guards its graffiti the body stays within its defence
+        // reach instead: walking off to a corner would flip the public urgency on and off at every step.
         // Without a reachable dorm, wait on genuine regeneration.
         const bool bRivalHolds = C.bCaptureOpen && ((Frame.Public.Circle == ELDOpponentCircle::Solo && !bHoldingSolo) || bRivalGraffiti);
         if (const FLDOpponentPOI* Dorm = bRivalHolds ? nullptr : C.NearestDorm())
@@ -1880,7 +1674,7 @@ FLDOpponentDecision Decide(const FLDOpponentDecisionFrame& Frame, const FLDDemoC
         Body(Intent);
         return Finish(EMode::Contest, EReason::ContestCapture);
     }
-    // D27 (#79): a strong, healthy body hunts a named leader for the bounty: below the circle and the airdrop, above
+    // D27 (#79): a strong, healthy body hunts a named leader: below the circle and the airdrop, above
     // farming, and never out of a camp fight it began. Once the leader is in sight the engage branch takes over.
     if (const FLDOpponentPOI* Hunt = State.VisitEngagedAtMs == 0 ? C.LeaderHuntTarget() : nullptr)
     {

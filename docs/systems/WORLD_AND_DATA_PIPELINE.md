@@ -44,9 +44,9 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 | 边界 | 当前编译器行为 |
 | --- | --- |
 | 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
-| 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/金币/XP 为 int64 |
-| 完整定义 | 角色参数、三份完整技能 rank/effects、属性奖励、两装备能力定义、价格/售价、XP 阈值、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
-| 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、金币或其他玩法状态 |
+| 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/XP 为 int64 |
+| 完整定义 | 角色参数、完整技能 rank/effects、属性奖励、XP 阈值、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
+| 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、XP 或其他玩法状态 |
 | 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
 | 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
 
@@ -57,7 +57,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 
 世界字节入口的完整检查见 `DemoWorld`：当前互换版本为 schema/projection 2，
 包含 map_id、作者/schema 的真实字节摘要、批准记录、真实 surfaces/blockers 多边形及
-十 Spawn、五 Camp、一 Shop、一 Capture、两 Dorm、三 Airdrop、四 BossWaypoint 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
+十 Spawn、五 Camp、一 Capture、两 Dorm、三 Airdrop、四 BossWaypoint 锚点、八个成员 home、七个局部落地偏移和五个入口连接；
 坐标是有符号约分整数对，营地另有成员 home。检查支持面/坐标形状、ID、数量和内容引用，
 **不证明胶囊净空、路径可达、碰撞或原生地图资产正确**，这些仍由世界生成器/Builder 负责。
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
@@ -114,15 +114,15 @@ python -B -m unittest discover -s .\Scripts -p "TestDemoContentImport.py"
 不能用生成前置检查代替游戏准入。
 Validate 检查合并后的默认地图/GameMode/GameInstance、Blueprint/CDO、唯一 MapAnchor、
 与内容引用一一对应的唯一出生 ID、全部 typed 字段、精确凸多边形碰撞、导航 agent，以及逐元素的功能检查
-（墙/围栏/摊位/树按声明阻挡移动与视线、坡道可走、悬崖不可走、锚点站位合法）；不检查当前布局的地点间连通或路线长度。
+（墙/围栏/树按声明阻挡移动与视线、坡道可走、悬崖不可走、锚点站位合法）；不检查当前布局的地点间连通或路线长度。
 它不把资产存在当作导航、战斗或真实联机验收。
 
 `LDDemoWorldBuilder` 已复用原生 mesh/nav/保存能力，生成唯一平地、高台与坡道、全部真实阻挡、
 每个出生锚点一个出生标记与一个原生导航区域。#97 起锚点数量随作者世界变化，范围在 `LDMapGeometry.h`
-（`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxShops`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
+（`MaxAnchors`、`MinSpawns`/`MaxSpawns`、`MaxCamps`、`MaxDorms`、`MaxAirdrops`，Boss 巡逻点固定 4 个），
 阻挡上限 `MaxBlockers` = 2048（与身体同粗的树成片时需要一千多个圆柱）；`DemoWorld.py` 的 `ANCHOR_COUNTS`/`MAX_BLOCKERS`
 与两份 schema 保持同一范围。同尺寸的树共用一个树干 mesh（`SM_Demo_trunk_r<半径>_h<高度>`，放在各自圆心），
-墙、围栏、摊位与地形仍各有自己的精确凸 mesh。
+墙、围栏与地形仍各有自己的精确凸 mesh。
 
 `ULDMapRegistry::Rebuild` 缓存每块地形的原生物理包围盒、批准胶囊、step height 和静态查询的 ignored actors；
 `QueryGround` 先做保守 AABB 预筛，仍由原有 sweep、静态 overlap 和候选 floor 的窄相位给出结果与拒绝文本。
@@ -139,7 +139,7 @@ Demo 的查询相关静态碰撞来自保存的世界，局中不生成、移除
 所以高处仍能隔着悬崖看见低处。Validate 按同一规则重算挡块并逐个核对位置与通道，
 再在每段悬崖上方把胶囊抬过高侧横扫，确认被挡块拦下。所有生成几何 `CanCharacterStepUpOn = No`：
 身体不能迈上任何东西，只能走上可走的坡面；`MaxStepHeight` 只是下坡顶时贴地跟随的距离，
-`bMaintainHorizontalGroundVelocity` 让坡上水平速度与平地相同。内容的 `world.shop_ids` 列出全部商店，每个商店锚点站在自己的低台面内。旋转墙不是 AABB 近似，商店台面阻走但不阻视线。
+`bMaintainHorizontalGroundVelocity` 让坡上水平速度与平地相同。旋转墙不是 AABB 近似。
 同一次生成还用代码重建三份只用引擎能力的表现材质，并布置场景光照：
 `M_DemoField` 按地面顶面的 0..1 纹理坐标画出两色草坪条纹（条纹间约 1 米柔和过渡，叠加几米尺度的低频明暗）、
 外圈红色跑道与白色内线，`M_DemoWall` 是奶白墙面加离地 45cm 的红色墙裙；
@@ -202,8 +202,8 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 保存投影比较递归检查字符串的精确内容，不依赖默认不区分大小写的 FString 反射相等性。
 
 `LDDemoContentDefinitions.h` 的成员区分 P2、R4 basis points、毫秒及约分有理数；
-参数、公式/政策枚举、角色、两档（初级/高级）完整效果与卡面模板、属性、装备、经验、营地和显示定义均有原生成员。
-`Snapshot.Get()` 和 `FindAbility/FindAttribute/FindEquipment/FindMonster/FindDisplay`
+参数、公式/政策枚举、角色、两档（初级/高级）完整效果与卡面模板、属性、经验、营地和显示定义均有原生成员。
+`Snapshot.Get()` 和 `FindAbility/FindAttribute/FindMonster/FindDisplay`
 提供只读消费；查找失败给出错误，不返回伪造的默认定义。世界几何仅用于检查已编译的
 边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。
 
@@ -227,7 +227,7 @@ ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、�
 `ExportDemoNativeFixtures.py --cache Artifacts\DemoContentFixtureCache --profile <runtime|full>`：
 按导出所读全部输入的哈希取缓存目录，逐个文件核对哈希后复用，输入或文件有任何变化就导出到新的临时目录，与导出实际写出的文件清单一致后再发布；
 `--output <全新 Artifacts 子目录>` 仍可一次性导出。
-普通规则使用 `runtime`，只写 `base`、`approved_base`、`exact_gold`、`world_spawn_shift`
+普通规则使用 `runtime`，只写 `base`、`approved_base`、`exact_integer`、`world_spawn_shift`
 和一个用于保持拒绝索引形状的轻量用例；
 只有 5 个数据导入测试使用 `full` 的完整有效变异与拒绝矩阵。
 只导入现有测试夹具及唯一 compiler，绝不写 live SourceData/Content；原生测试只读夹具，
@@ -258,7 +258,7 @@ typed 投影、稳定地址、原生地面、完整路径及接近点查询。
 角色的 Demo 分支消费同一 capsule/基础移动速度，不从旧 PrototypeTuning 补 Demo 参数。
 CMC 写许可与实际子段见[架构与网络](ARCHITECTURE_AND_NETWORKING.md)，拥有身体的移动由 `RunDemoCoreCheck.ps1` 验证。
 `RunDemoWorldRoomCheck.ps1` 只覆盖三个实际真人 Lobby 进程的保存世界加载、统一根/名单、
-本地拥有连接和原生 shop 路径；其零 Pawn 断言确认 Lobby 阶段不生成玩法身体，
+本地拥有连接；其零 Pawn 断言确认 Lobby 阶段不生成玩法身体，
 不代替身体移动、AI 或完整多人对局场景。
 
 `LDGroundQueries` 的静态地面与平面可达性能力仍由核心维护，不是观察权限、完整路径或
@@ -306,7 +306,7 @@ Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者�
 不要按 `ECC_MAX` 逐通道循环，它超出 64 项响应数组，打包版会读到垃圾值。
 `LDArt::CheckPlacements`（`LDArtPlacement.h` 常量）按已批准世界逐个核对区域：
 `outside` 不压场地地面，只作外围背景（树、建筑外墙、看台、路灯），永远不在镜头与场地之间；
-`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地、商店与旗杆；
+`wall_base` 是墙根的矮小装饰（长椅、花坛、花箱、垃圾桶），在外墙内侧 300 cm 内、低于视线采样高度，并避开出生点、营地与旗杆；
 `ground` 是场地上的矮地被（草、花、三叶草、蘑菇、石子），守 `wall_base` 除贴墙外的全部规则；生成时另离每个阻挡至少 60 cm，只落在身体能走到的导航面上；
 `blocker`（#97，碰撞跟随美术）是一个世界阻挡的外观：清单写 `blocker` 阻挡 id，道具站在阻挡底面、高度等于阻挡高度，
 转向后的模型包围矩形就是阻挡多边形（误差 `BlockerFitToleranceCm` 2 cm）；墙与围栏的多边形按选定模型、以阻挡高度定缩放后的脚印写入世界数据。
@@ -314,8 +314,8 @@ Toon Shooter 的 GLB 下载不带许可文本，其 `License.txt` 记录作者�
 `dressing.hidden_blockers` 是完全在场地外、改由 `outside` 装饰绘制的阻挡（四面外墙由集装箱排绘制）；`dressing.airdrop_prop` 是天降外卖落地后的箱子。
 被美术绘制的阻挡（`FLDArtResolved::HiddenBlockers`）在 `ULDArtWorldSubsystem` 生成装饰后隐藏生成的方块网格，碰撞与视线响应不变（`LD_ART_DECORATIONS_READY` 报告数目）。
 它整块站在同一平层上（#97 地图四周是高台，装饰的可选 `z` 写所在层高度，例如二层高台 100），世界在墙内侧留出无树走道；
-`capture`/`shop` 是覆盖其锚点的细小地标（旗杆、每个商店一个砍一刀小摊的摊位，各自对准最近的商店锚点），摊位高度不超过 150 cm，
-以免在固定俯视镜头下挡住角色。除 #97 绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
+`capture` 是覆盖其锚点的细小地标（旗杆）。
+除 #97 绘制世界阻挡的美术（树、废车、集装箱）外，只有旗杆会遮挡身体：
 清单中标 `fadeable` 的道具使用 `M_ArtSurfaceFade`（Masked，按 `1 − LDFadeStrength·max(LDFade, 每实例自定义浮点 0)` 逐像素抖动，
 材质里强度默认 0.9），由独立组件承载并带组件标签 `LDFadeable`；运行时 relay 经 MID 把 `LDFadeStrength` 设为 1、遮挡时设置 `LDFade`（0 不透明、1 完全消失），见[视野与 UI](VISION_AND_UI.md)。
 没有找到 CC0 的篮球架，未加入。
@@ -391,7 +391,7 @@ DEV 构建中 `DevTally()`（`FLDCaptureDevTally`，经 `ALDGameMode::DevCapture
 
 ## 保存与复位边界
 
-世界不提供持久检查点、自动保存或恢复入口。物品身份、消耗与原子提交由当前库存/账本维护，
+世界不提供持久检查点、自动保存或恢复入口。成长与奖励的原子提交由成长域维护，
 不通过旧世界文件或已退役的物件服务重建和补发。
 新局和新身体的隔离仍走 GameMode 的 Match/Life 与各领域拒旧协议，见
 [架构与网络](ARCHITECTURE_AND_NETWORKING.md#请求代次与回执)；

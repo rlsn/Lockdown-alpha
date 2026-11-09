@@ -132,16 +132,18 @@ bool TickRoom(const TSharedRef<FRoomProbe>& Probe)
         TSharedPtr<const FLDDemoContentSnapshot> Catalog;
         FCollisionShape Capsule;
         const auto* Start = Registry->Resolve(TEXT("s00"), Registry->Generation);
-        FLDLegalGround Origin, Approach;
+        FLDLegalGround Origin, Flag;
         FLDCompletePath Path;
         ELDWorldQueryFailure Failure;
         const bool NavigationReady = LDDemoEntry::LoadRuntimeContent(Catalog, Error)
             && ULDMapRegistry::ContentCapsule(*Catalog, Capsule, Error) && Start
             && Registry->QueryGround(Registry->Revision(), Start->Position, Capsule, Start->Surface, Origin, Failure, Error)
-            && !Catalog->Get().World.ShopIds.IsEmpty()
-            && Registry->FindPublicApproach(Registry->Revision(), Origin, FName(*Catalog->Get().World.ShopIds[0]), Capsule, Approach, Path, Failure, Error);
-        Check(NavigationReady, TEXT("This connection resolves real ground and a complete shop-range approach"));
-        if (NavigationReady) { Report->SetNumberField(TEXT("shop_path_cm"), Path.LengthCm); }
+            && Registry->Resolve(FName(*Catalog->Get().World.CaptureId), Registry->Generation)
+            && Registry->QueryGround(Registry->Revision(), Registry->Resolve(FName(*Catalog->Get().World.CaptureId), Registry->Generation)->Position,
+                Capsule, Registry->Resolve(FName(*Catalog->Get().World.CaptureId), Registry->Generation)->Surface, Flag, Failure, Error)
+            && Registry->QueryCompletePath(Registry->Revision(), Origin, Flag, Capsule, Path, Failure, Error);
+        Check(NavigationReady, TEXT("This connection resolves real ground and a complete path to the flagpole"));
+        if (NavigationReady) { Report->SetNumberField(TEXT("capture_path_cm"), Path.LengthCm); }
     }
     Report->SetBoolField(TEXT("passed"), Passed);
     Report->SetStringField(TEXT("role"), Probe->Role);

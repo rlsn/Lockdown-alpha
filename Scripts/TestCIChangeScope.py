@@ -14,7 +14,7 @@ class NativeModulesTest(unittest.TestCase):
         for name in ('ExportDemoNativeFixtures', 'CheckRuleReport', 'DemoContent', 'DemoWorld', 'CatalogTools',
                      'SyncDemoContentData', 'SyncDemoWorldData', 'DemoContentTestFixtures', 'CIChangeScope'):
             self.assertIn(name, modules)
-        for name in ('CheckEconomyEvidence', 'MeasureDemoArt', 'TestRuleReport'):
+        for name in ('SummarizePlaytestLog', 'MeasureDemoArt', 'TestRuleReport'):
             self.assertNotIn(name, modules)
 
     def test_follows_imports_and_rejects_missing_script(self):
@@ -42,7 +42,7 @@ class ClassifyTest(unittest.TestCase):
 
     def test_python_only(self):
         scope, forced = CIChangeScope.classify(
-            ['Scripts/CheckEconomyEvidence.py', 'Scripts/TestEconomyEvidence.py', 'docs/DEVELOPMENT.md',
+            ['Scripts/SummarizePlaytestLog.py', 'Scripts/TestSummarizePlaytestLog.py', 'docs/DEVELOPMENT.md',
              'README.md', '.github/workflows/pr-check.yml'], self.native)
         self.assertEqual((scope, forced), ('python', []))
 
@@ -111,7 +111,7 @@ class ImportInputsTest(unittest.TestCase):
             self.assertEqual(len(CIChangeScope.import_inputs(['docs/x.md', path], self.native, importer)), 1, path)
         self.assertEqual(CIChangeScope.import_inputs(
             ['Source/Lockdown/Private/AI/LDOpponentPolicy.cpp', 'Scripts/RunDemoOpponentCheck.ps1',
-             'Scripts/CheckEconomyEvidence.py', 'Content/Lockdown/Generated/Maps/L_Demo.umap', 'docs/DEVELOPMENT.md'],
+             'Scripts/SummarizePlaytestLog.py', 'Content/Lockdown/Generated/Maps/L_Demo.umap', 'docs/DEVELOPMENT.md'],
             self.native, importer), [])
 
     def test_deleted_or_renamed_importer_source_runs_the_group(self):

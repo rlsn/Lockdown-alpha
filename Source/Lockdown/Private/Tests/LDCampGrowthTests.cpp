@@ -32,7 +32,6 @@ FLDDemoMonsterDefinition MakeMonster()
     M.AttackWindupMs = 500;
     M.RespawnMs = 65000;
     M.RewardXP = 21;
-    M.RewardGold = 60;
     return M;
 }
 }
@@ -70,7 +69,7 @@ bool FLDCampGrowthTest::RunTest(const FString& Parameters)
     bGood &= TestEqual(TEXT("Stage 3 magic resist is +6 points"), Grown.MagicResistP2, int64(2100));
     bGood &= TestTrue(TEXT("Growth leaves timing, respawn and rewards alone"), Grown.AttackIntervalMs == Base.AttackIntervalMs
         && Grown.AttackWindupMs == Base.AttackWindupMs && Grown.RespawnMs == Base.RespawnMs && Grown.RewardXP == Base.RewardXP
-        && Grown.RewardGold == Base.RewardGold && Grown.Id == Base.Id && Grown.Tier == Base.Tier);
+        && Grown.Id == Base.Id && Grown.Tier == Base.Tier);
     bGood &= TestTrue(TEXT("The cap stage scales"), LDCampGrowth::ScaleBody(P, Base, 10, Grown, Error));
     bGood &= TestEqual(TEXT("The cap stage HP is +120%"), Grown.HPP2, int64(19802));
 

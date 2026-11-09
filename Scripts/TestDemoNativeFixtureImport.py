@@ -180,17 +180,17 @@ class DemoNativeFixturesTest(unittest.TestCase):
         expected = lambda name: json.loads((self.root / name / "native_expected.json").read_bytes())
         self.assertEqual(expected("int64_max_ms")["Parameters.RespawnMs"], str(demo.INT64_MAX))
         self.assertEqual(expected("above_double_integer")["Parameters.RespawnMs"], "9007199254740993")
-        self.assertEqual(expected("exact_gold")["Parameters.StartingGold"], "9007199254740993")
+        self.assertEqual(expected("exact_integer")["Parameters.AirdropRewardXP"], "9007199254740993")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Numerator"], "1")
         self.assertEqual(expected("exact_rational")["Parameters.MPRegen.PerLevel.Denominator"], "1000000000000000000")
         world = json.loads((self.root / "signed_world_boundary" / demo.WORLD_OUTPUT).read_bytes())
         self.assertEqual(world["geometry"]["surfaces"][0]["min_cm"]["x"]["numerator"], demo.INT64_MIN)
         self.assertNotIn("signed_world_boundary", {case["name"] for case in self.index["valid"]})
         self.assertIn("signed_world_boundary", {case["name"] for case in self.index["invalid"]})
-        self.assertEqual(expected("base")["Formulas.AttackMoveAcquireRadius"], "14")
+        self.assertEqual(expected("base")["Formulas.AttackMoveAcquireRadius"], "13")
         decision = expected("unicode_scalar_boundary")["Identity.ApprovalDecision"]
-        self.assertEqual(len(decision), 512)
-        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 513)
+        self.assertEqual(len(decision), 1024)
+        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 1025)
 
     def test_export_cannot_overwrite_or_create_live_inputs(self):
         baseline = (self.root / "base" / demo.CONTENT_OUTPUT).read_bytes()
@@ -210,7 +210,7 @@ class DemoNativeFixtureParallelismTest(unittest.TestCase):
             root = Path(temp) / "runtime"
             index = native.export(root, profile="runtime")
             self.assertEqual([case["name"] for case in index["valid"]],
-                             ["base", "approved_base", "exact_gold", "world_spawn_shift"])
+                             ["base", "approved_base", "exact_integer", "world_spawn_shift"])
             self.assertEqual([case["name"] for case in index["invalid"]], ["unknown_root_field"])
             self.assertEqual(native._file_hashes(root),
                              {path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()

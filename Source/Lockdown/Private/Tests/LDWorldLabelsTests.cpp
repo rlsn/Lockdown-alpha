@@ -17,7 +17,7 @@ namespace
 // A private table id keeps the fixture away from the real DemoContent display table and the HUD rules fixture. Its names
 // are the approved catalog's (#111), so expectations read them through WorldLabelName instead of repeating them.
 const FName WorldLabelFixtureTable(TEXT("LDWorldLabelsDisplayFixture"));
-const TCHAR* const WorldLabelFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_scavenger"),TEXT("monster_guardian"),TEXT("item_iron_plate")};
+const TCHAR* const WorldLabelFixtureIds[]={TEXT("root"),TEXT("shield"),TEXT("respawn_protection"),TEXT("camp_returning"),TEXT("monster_scavenger"),TEXT("monster_guardian")};
 TMap<FString,FString> WorldLabelFixtureNames;
 FString WorldLabelName(const TCHAR* Id)
 {
@@ -31,7 +31,6 @@ FLDDemoContentDefinitions WorldLabelFixtureContent()
     {FLDDemoDisplayDefinition Display;Display.Id=Id;Display.Namespace=WorldLabelFixtureTable.ToString();Display.NameKey=FString(Id)+TEXT(".name");Display.DescriptionKey=FString(Id)+TEXT(".description");Content.Display.Add(Display);}
     FLDDemoMonsterDefinition Scavenger;Scavenger.Id=TEXT("monster_scavenger");Scavenger.NativeId=uint8(ELDDemoMonsterId::MonsterScavenger);Content.Monsters.Add(Scavenger);
     FLDDemoMonsterDefinition Guardian;Guardian.Id=TEXT("monster_guardian");Guardian.NativeId=uint8(ELDDemoMonsterId::MonsterGuardian);Content.Monsters.Add(Guardian);
-    FLDDemoEquipmentDefinition Item;Item.Id=TEXT("item_iron_plate");Item.NativeId=uint8(ELDDemoEquipmentId::ItemIronPlate);Content.Equipment.Add(Item);
     return Content;
 }
 bool WorldLabelRegisterFixtureTable(FAutomationTestBase& Test)
@@ -61,7 +60,6 @@ FLDObservedUnitView WorldLabelRival()
     FLDObservedUnitView Unit;Unit.Handle=FGuid::NewGuid();Unit.ObservationEpoch=3;Unit.StateRevision=1;Unit.Kind=ELDObservedUnitKind::Contender;
     Unit.AuthorizedFieldMask=LDObservation::ContenderFields;Unit.Presentation=2;Unit.ContenderId=FGuid::NewGuid();Unit.Level=7;
     Unit.Health.CurrentP2=45001;Unit.Health.MaxP2=60000;Unit.Mana.CurrentP2=12099;Unit.Mana.MaxP2=20000;
-    Unit.Equipment.Slots[0]=uint8(ELDDemoEquipmentId::ItemIronPlate);
     return Unit;
 }
 FLDObservedUnitView WorldLabelCampMember(ELDDemoMonsterId Creature)
@@ -165,17 +163,15 @@ bool FLDWorldLabelsWhitelistTest::RunTest(const FString& Parameters)
     const LDWorldLabels::FLabel Label=LDWorldLabels::Build(Rival,TEXT("玩家甲"),&Content,10.);
     const FString Shown=Label.Name+TEXT("\n")+Label.Status;
     TestEqualSensitive(TEXT("A label's text is the name and the public statuses only"),Shown,TEXT("玩家甲\n")+WorldLabelName(TEXT("root"))+TEXT(" 2.5s"));
-    const FString Item=WorldLabelName(TEXT("item_iron_plate"));
-    for(const TCHAR* Private:{TEXT("等级"),LDTerms::Health,LDTerms::Mana,TEXT("装备"),TEXT("空槽"),*Item,TEXT("451"),TEXT("600"),TEXT("120"),TEXT("200"),LDTerms::Gold,LDTerms::Experience,TEXT("冷却"),TEXT("技能")})
+    for(const TCHAR* Private:{TEXT("等级"),LDTerms::Health,LDTerms::Mana,TEXT("空槽"),TEXT("451"),TEXT("600"),TEXT("120"),TEXT("200"),LDTerms::Experience,TEXT("冷却"),TEXT("技能")})
     {TestFalse(FString::Printf(TEXT("A world label shows no non-whitelisted field: %s"),Private),Shown.Contains(Private,ESearchCase::CaseSensitive));}
     TestTrue(TEXT("Beside its text a label carries only the level, the health fraction and shield presence"),
         Label.Level==7&&Label.bHealth&&Label.HealthFraction==float(45001./60000.)&&!Label.bShield);
-    // Everything outside the label's subset changes: mana, equipment, pose, observation identity and a stray creature id
+    // Everything outside the label's subset changes: mana, pose, observation identity and a stray creature id
     // on a contender. None of it may reach the label.
     FLDObservedUnitView Changed=Rival;
     Changed.Handle=FGuid::NewGuid();Changed.ObservationEpoch=9;Changed.StateRevision=77;
     Changed.Mana.CurrentP2=0;Changed.Mana.MaxP2=1;
-    Changed.Equipment.Slots[0]=0;Changed.Equipment.Slots[1]=uint8(ELDDemoEquipmentId::ItemIronPlate);
     Changed.FeetCm=FVector(1234,-567,89);Changed.Facing=4321;Changed.CreatureId=uint8(ELDDemoMonsterId::MonsterGuardian);
     TestTrue(TEXT("Fields outside the label never change it"),WorldLabelSame(LDWorldLabels::Build(Changed,TEXT("玩家甲"),&Content,10.),Label)&&Label.CreatureId==0);
     // Level and health are in the subset: each changes exactly its own label field and nothing else.

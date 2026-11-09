@@ -2034,51 +2034,13 @@
         }
       },
       "surface_id": "demo_ground"
-    },
-    {
-      "id": "shop_n",
-      "kind": "Shop",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": 769
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": 2475
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
-    },
-    {
-      "id": "shop_s",
-      "kind": "Shop",
-      "position_cm": {
-        "x": {
-          "denominator": 1,
-          "numerator": -525
-        },
-        "y": {
-          "denominator": 1,
-          "numerator": -2536
-        },
-        "z": {
-          "denominator": 1,
-          "numerator": 0
-        }
-      },
-      "surface_id": "demo_ground"
     }
   ],
   "approval": {
     "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CB 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps; 11-08 ramps, Elite camps. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "06d8ebac5b620694c51e0fa50b68b2c3dcd49dfa3bd90b9b9b9032764e479cab",
+  "author_schema_sha256": "fd62982e1d63c59cf987bc955b4fa4f95d294512f0cdc326730a0fe1bbde58dd",
   "geometry": {
     "blockers": [
       {
@@ -2347,144 +2309,6 @@
             "y": {
               "denominator": 1,
               "numerator": 33
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        ],
-        "shape": "polygon",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": false,
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 80
-        },
-        "id": "shop_n_stall",
-        "polygon_cm": [
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 805
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 2552
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 692
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 2511
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 733
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 2398
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": 846
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": 2439
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          }
-        ],
-        "shape": "polygon",
-        "surface_id": "demo_ground"
-      },
-      {
-        "blocks_movement": true,
-        "blocks_sight": false,
-        "height_cm": {
-          "denominator": 1,
-          "numerator": 80
-        },
-        "id": "shop_s_stall",
-        "polygon_cm": [
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -554
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -2456
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -605
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -2565
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -496
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -2616
-            },
-            "z": {
-              "denominator": 1,
-              "numerator": 0
-            }
-          },
-          {
-            "x": {
-              "denominator": 1,
-              "numerator": -445
-            },
-            "y": {
-              "denominator": 1,
-              "numerator": -2507
             },
             "z": {
               "denominator": 1,
@@ -34953,7 +34777,6 @@
     "CAMP.ResetArrivalRadiusCm",
     "CAPTURE.RadiusCm",
     "DORM.RadiusCm",
-    "SHOP.InteractRadiusCm",
     "UNIT.BasicAttackRangeCm",
     "UNIT.CollisionRadiusCm",
     "VISION.RadiusCm"
@@ -35066,5 +34889,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "770ae42243386ac90d9a1e8e8a21aef8d8759916bcab37e1a1b2e989a1f0c81e"
+  "source_sha256": "37c59bcd6bc2375af68add816389debce23f021d7a0c99bb0d1d522d94912d9a"
 }

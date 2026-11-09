@@ -25,8 +25,7 @@ FGuid LDLeaderNotice::PickLeader(uint8 MinLevel, TConstArrayView<FCandidate> Can
 bool FLDLeaderRules::IsValid() const
 {
     return StartedAtMs >= 0 && RefreshMs > 0 && MinLevel >= 1 && FMath::IsFinite(CircleRadiusCm) && CircleRadiusCm > 0
-        && FMath::IsFinite(CircleMaxOffsetCm) && CircleMaxOffsetCm > 0 && CircleMaxOffsetCm <= CircleRadiusCm
-        && BountyGoldPerRefresh > 0 && BountyGoldMax >= BountyGoldPerRefresh;
+        && FMath::IsFinite(CircleMaxOffsetCm) && CircleMaxOffsetCm > 0 && CircleMaxOffsetCm <= CircleRadiusCm;
 }
 
 bool FLDLeaderState::IsRefreshDue(int64 NowMs) const
@@ -46,12 +45,10 @@ bool FLDLeaderState::Refresh(int64 NowMs, TConstArrayView<LDLeaderNotice::FCandi
     if (!Body || !Body->bAlive || Body->FootCm.ContainsNaN())
     {
         Leader.Invalidate();
-        Streak = 0;
         CircleCentreCm = FVector::ZeroVector;
         RefreshedAtMs = 0;
         return Before.Leader.IsValid();
     }
-    Streak = Leader == Picked && Streak < MAX_uint32 ? Streak + 1 : 1;
     Leader = Picked;
     // Uniform in the offset disk; the stream depends only on the match and the refresh index.
     FRandomStream Stream(int32(Rules.Seed ^ uint32(RefreshIndex * 2654435761ull)));
@@ -67,18 +64,10 @@ bool FLDLeaderState::LeaderDied(const FGuid& Contender, int64 NowMs)
     if (!Leader.IsValid() || Contender != Leader) { return false; }
     LastDownLeader = Leader;
     LastDownAtMs = NowMs;
-    LastDownBountyGold = BountyFor(Leader);
     Leader.Invalidate();
-    Streak = 0;
     CircleCentreCm = FVector::ZeroVector;
     RefreshedAtMs = 0;
     return true;
-}
-
-int64 FLDLeaderState::BountyFor(const FGuid& Victim) const
-{
-    if (!Leader.IsValid() || Victim != Leader || !Streak) { return 0; }
-    return FMath::Min<int64>(Rules.BountyGoldMax, Rules.BountyGoldPerRefresh * int64(FMath::Min<uint32>(Streak, 1u << 20)));
 }
 
 int64 FLDLeaderState::NextDueMs(int64 NowMs) const
@@ -96,7 +85,6 @@ FLDLeaderView FLDLeaderState::View() const
     Out.Leader = Leader;
     Out.CircleCentreCm = CircleCentreCm;
     Out.RefreshedAtMs = RefreshedAtMs;
-    Out.BountyGold = BountyFor(Leader);
     return Out;
 }
 
@@ -112,8 +100,6 @@ bool LDLeaderNotice::Resolve(const FLDDemoContentSnapshot& Content, int64 Starte
     R.MinLevel = P.LeaderMinLevel >= 1 && P.LeaderMinLevel <= MAX_uint8 ? uint8(P.LeaderMinLevel) : 0;
     R.CircleRadiusCm = Cm(P.LeaderCircleRadiusCm);
     R.CircleMaxOffsetCm = Cm(P.LeaderCircleMaxOffsetCm);
-    R.BountyGoldPerRefresh = P.LeaderBountyGoldPerRefresh;
-    R.BountyGoldMax = P.LeaderBountyGoldMax;
     R.Seed = LedgerMatch.A ^ LedgerMatch.B ^ LedgerMatch.C ^ LedgerMatch.D;
     if (!LedgerMatch.IsValid() || !R.IsValid())
     {

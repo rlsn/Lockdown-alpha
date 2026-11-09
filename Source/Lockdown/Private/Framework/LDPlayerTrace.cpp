@@ -75,7 +75,6 @@ FString FLDPlaytestTrace::OwnState(const ALDPlayerController& PC)
         }
     }
     const FLDProgressionView* Progression = PC.ReadOwnProgression();
-    const FLDEquipmentView* Equipment = PC.ReadOwnEquipment();
     FString Order = TEXT("-");
     if (const ULDNavigationComponent* Navigation = PC.Navigation)
     {
@@ -83,10 +82,10 @@ FString FLDPlaytestTrace::OwnState(const ALDPlayerController& PC)
         Order = Receipt.ReceiptSerial == 0 ? FString(TEXT("none"))
             : FString::Printf(TEXT("%s#%u:%s"), *LDLog::EnumName(Receipt.Kind), Receipt.Identity.Order, *LDLog::EnumName(Receipt.Status));
     }
-    return FString::Printf(TEXT("t=%lld match=%u life=%u phase=%s pos=%s %s level=%d xp=%lld gold=%lld pending=%d order=%s action=%s statuses=%s"),
+    return FString::Printf(TEXT("t=%lld match=%u life=%u phase=%s pos=%s %s level=%d xp=%lld pending=%d order=%s action=%s statuses=%s"),
         NowMs, Own.Match, Own.Life, *LDLog::EnumName(Own.LifePhase), Body ? *LDLog::Cm(Body->GetActorLocation()) : TEXT("-"), *Resources,
         Progression ? int32(Progression->Level) : -1, Progression ? Progression->CumulativeXP : int64(-1),
-        Equipment ? Equipment->Gold : int64(-1), Progression ? int32(Progression->PendingChoiceCount) : -1, *Order, *Action,
+        Progression ? int32(Progression->PendingChoiceCount) : -1, *Order, *Action,
         Statuses.IsEmpty() ? TEXT("-") : *Statuses);
 }
 
@@ -282,10 +281,8 @@ void FLDPlaytestTrace::LogFeedback(const ALDPlayerController& PC, const TArray<L
                 *LDLog::P2(Combat.HPP2), *LDLog::P2(Combat.MaxHPP2), *LDLog::P2(Combat.ShieldP2));
             break;
         }
-        case EKind::Gold:
         case EKind::Experience:
-            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_REWARD t=%lld kind=%s amount=%lld"), NowMs,
-                Event.Kind == EKind::Gold ? TEXT("gold") : TEXT("xp"), Event.Amount);
+            UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_REWARD t=%lld kind=xp amount=%lld"), NowMs, Event.Amount);
             break;
         case EKind::LevelUp:
             UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_LEVEL t=%lld level=%d choices_earned=%lld"), NowMs, Event.Level, Event.Amount);
@@ -379,7 +376,7 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
     {
         GrowthMatch = Own.Match;
         SeenOffer.Invalidate();
-        SeenBuildRevision = SeenInventoryRevision = 0;
+        SeenBuildRevision = 0;
     }
     int64 NowMs = -1;
     PC.ReadDemoAuthorityTimeMs(NowMs);
@@ -417,19 +414,6 @@ void FLDPlaytestTrace::LogGrowth(const ALDPlayerController& PC)
                 Progression->CumulativeXP, uint32(Progression->PendingChoiceCount), Skills.IsEmpty() ? TEXT("-") : *Skills,
                 Cards.IsEmpty() ? TEXT("-") : *Cards);
         }
-    }
-    const FLDEquipmentView* Equipment = PC.ReadOwnEquipment();
-    if (Equipment && Equipment->bValid && Equipment->Generation == Own.Match && Equipment->InventoryRevision != SeenInventoryRevision)
-    {
-        SeenInventoryRevision = Equipment->InventoryRevision;
-        FString Items;
-        for (const FLDEquipmentSlotView& Slot : Equipment->Slots)
-        {
-            if (!Slot.bOccupied) { continue; }
-            Items += FString::Printf(TEXT("%s%u:%s%s"), Items.IsEmpty() ? TEXT("") : TEXT(","), uint32(Slot.SlotIndex) + 1,
-                *Slot.DefinitionId.ToString(), Slot.bUpgraded ? TEXT("+") : TEXT(""));
-        }
-        UE_LOG(LogLDGrowth, Log, TEXT("LD_SELF_ITEMS t=%lld gold=%lld items=%s"), NowMs, Equipment->Gold, Items.IsEmpty() ? TEXT("-") : *Items);
     }
 }
 

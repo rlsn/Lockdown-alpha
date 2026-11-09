@@ -43,17 +43,3 @@ struct FLDCompletePath
     double LengthCm = 0;
 };
 
-struct FLDShopEligibilityResult
-{
-    bool Succeeded=false;
-    bool WithinReach=false;
-    ELDCommitReject CommitFailure=ELDCommitReject::AuthorityFault;
-    ELDWorldQueryFailure WorldFailure=ELDWorldQueryFailure::MissingWorld;
-    FLDCombatBodyRef Buyer;
-    FName ShopId;
-    FLDWorldRevision World;
-    FVector FootCm=FVector::ZeroVector;
-    FName SurfaceId;
-    double SampledAtServerSeconds=0;
-    FString Error;
-};

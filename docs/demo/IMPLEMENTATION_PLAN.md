@@ -9,7 +9,7 @@
 批准是首次试玩输入，不是平衡测试结果。技能、被动与属性卡目录以 2026-11-07 的 #147 v7 为现有条目，并由 2026-11-08 的 #166
 扩展为 16 级、16 次选择、Q/W/E 三主动槽、分段技能成长、升级报价与属性品质
 （[内容报告 §4](CONTENT_AND_BALANCE.md#4-技能状态和属性目录)）。新增6主动、6被动（含实际路径冲撞三件套）、
-4属性家族已由用户批准（“全部开始implement”），定义统一维护在内容报告；装备系统另行重做，不属于 #166。
+4属性家族已由用户批准（“全部开始implement”），定义统一维护在内容报告；装备与金钱系统已按 #144 删除。
 下一阶段的工作见[就绪评估](READINESS.md#剩余工作)。
 
 ## 实施原则
@@ -34,13 +34,13 @@
 | [会话与生命周期](SESSION_MATCH_LIFECYCLE.md) | M1、M2、M5 | 核心类型/时钟/许可/驱动边界；房间、喷漆与守护、死亡/复活、结果、新局及故障退出 |
 | [操作与目标](CONTROLS_AND_TARGETING.md) | M3 | 全部输入、点击分派、持续攻击/攻击移动、目标模式、可见性重查、取消、UI 捕获、镜头与操作手感 |
 | [战斗与属性](COMBAT_AND_ATTRIBUTES.md) | M4 | 动作/来源/P2 写入、typed 字段消费、Prepare/Apply 投影、致死集合与 CampReset |
-| [成长/装备/经济](PROGRESSION_EQUIPMENT_ECONOMY.md) | M6、M7、M8 | 死亡奖励、开局与升级三选一、替换、两装备与冷却债、账本复算、查询结果 |
+| [成长与奖励](PROGRESSION_AND_REWARDS.md) | M6、M7 | 死亡奖励、开局与升级三选一、替换、来源冷却债、查询结果 |
 | [世界/营地/视野](WORLD_CAMPS_AND_VISION.md) | M9G、M9C、M10 | 单层坐标与模型、合法路径、十锚点、营地、单一稀疏观测与隐私 |
 | [对手 AI](OPPONENT_AI.md) | M12 | 受限快照、无连接 adapter、P0–P9 核心循环、同一命令/回执；参数来自内容表 |
 | [UI与设置](UI_AND_SETTINGS.md) | M11 | 单一输入层、全界面合法投影、设置保存与固定无边框窗口 |
 | [内容与数值](CONTENT_AND_BALANCE.md) | 各域内容输入 | 首版目录、公式/参数与依据、typed 生成和消费映射 |
 | [共享契约](SHARED_CONTRACTS.md) | 跨域接缝 | 所有权、身份、单位/取整、来源冷却、命令/事件/读模型和全生命周期的跨文件唯一解释 |
-| [就绪评估](READINESS.md) | 全部 Spec | 决定落地状态、§11 完成标准覆盖、未运行与未实现项 |
+| [就绪评估](READINESS.md) | 全部 Spec | 决定落地状态、§10 完成标准覆盖、未运行与未实现项 |
 
 ## 实施切片
 
@@ -53,15 +53,15 @@
 | I1 单一入口与身份骨架 | 菜单/房间、名单/权限、Match 映射、服务接线与新局协议 | 已实现；`DemoLobbyAuthority`、`DemoMatchIdentity`、`RunDemoWorldRoomCheck.ps1`、`RunDemoSessionFaultCheck.ps1` |
 | I2 世界几何、观察与地面移动 | 唯一地图地点、十点落地、遮挡/观察查询、CharacterMovement 与地面订单 | 已实现；`DemoWorld.*`、`DemoVision.*`、`RunDemoCoreCheck.ps1`、`RunDemoVisionCheck.ps1` |
 | I3 统一战斗、目标与身体生命 | 目标订单、属性投影、普攻与群攻/增程、追击/攻击移动/施法、控制、致死、复活保护 | 已实现；`DemoCombat*`、`DemoAttributeProjection.*`、`DemoControlFeel.*`、`RunDemoCombatCheck.ps1` |
-| I4 奖励、成长与两装备 | 奖励复合提交、经验与开局/升级三选一、替换、两装备买卖、来源冷却与界面 | 已实现；`DemoGrowth*`、`CheckEconomyEvidence.py`、`RunDemoGrowthCheck.ps1` |
+| I4 奖励与成长 | 奖励复合提交、经验与开局/升级三选一、替换、来源冷却与界面 | 已实现；`DemoGrowth*`、`RunDemoGrowthCheck.ps1` |
 | I5 喷漆、守护与终局 | 有效集合、争夺暂停、硬控打断、涂鸦与守护、同刻重查、公共状态、先锁写闸再清理/发布 | 已实现；`DemoCapture.*`、`RunDemoCaptureCheck.ps1` |
 | I6 营地完整成长循环 | 五组两档营地、战斗/回位/清空刷新、每成员生命奖励 | 已实现；`DemoCamp.*`、`CampDecision`、`RunDemoCampCheck.ps1` |
-| I7 能完成循环的对手 AI | 自主打野、选择、购买、战斗/恢复、喷漆/守护/围攻、死亡复活；同一接口等待/拒绝/重试 | 已实现；`DemoOpponentPolicy.*`、`RunDemoOpponentCheck.ps1`（3 真人 + 3 AI） |
+| I7 能完成循环的对手 AI | 自主打野、选择、战斗/恢复、喷漆/守护/围攻、死亡复活；同一接口等待/拒绝/重试 | 已实现；`DemoOpponentPolicy.*`、`RunDemoOpponentCheck.ps1`（3 真人 + 3 AI） |
 | I8 全界面、删除闭包与完整交付 | 完整界面/设置、旧运行链删除复核、正常对局、多人回 Lobby/新局、打包 | 已实现；`HUD*`、`WorldFeedback.*`、`Minimap.*`、`LocalSettings*`、`Audio*`、`Art*`；打包版场景见就绪评估 |
 
 旧系统清理随各切片完成，玩家交易与世界检查点已退出接口。以后的删除仍须满足具体闭包适用的
 C3 资产/反射和 C4 有效配置/插件条件，不能沿用另一个闭包的检查结果盲删。
-任何改动都不另造第二套经济、技能结算、位置积分或胜利状态。
+任何改动都不另造第二套奖励、技能结算、位置积分或胜利状态。
 
 ## 验证层次
 
@@ -70,8 +70,8 @@ C3 资产/反射和 C4 有效配置/插件条件，不能沿用另一个闭包�
 | 文档 | 相对链接、源码/脚本符号核对、`git diff --check` | 无失效链接；参数单点；状态描述与代码一致 |
 | 内容/生成 | `SyncDemoContentData.py --check`、`SyncDemoWorldData.py --check`、`Test*Import.py` | 首版目录/参数可生成；非法值与不合法引用被拒；载荷/contract 一致；测试夹具不成为正式运行输入 |
 | 原生与资产 | `BuildEditor.ps1`、`BuildGame.ps1`、`BootstrapAssets.ps1 -Mode Validate` | 无反射/链接/Cook 悬空依赖；唯一入口、地图、音效与美术目录可加载 |
-| 规则 | `RunTests.ps1`（必需集合见 `CheckRuleReport.py`） | 属性/成长/装备/胜利/视野/界面/设置/操作的纯规则与原生规则；身份、取消与事务不变量 |
-| 拥有连接场景 | `RunDemo*Check.ps1`，发布验收加 `-PackageRoot` 在打包版上运行 | 真实拥有客户端的订单、战斗、成长与买卖、营地、喷漆守护与终局、视野、AI 满员对局与网络异常 |
+| 规则 | `RunTests.ps1`（必需集合见 `CheckRuleReport.py`） | 属性/成长/胜利/视野/界面/设置/操作的纯规则与原生规则；身份、取消与事务不变量 |
+| 拥有连接场景 | `RunDemo*Check.ps1`，发布验收加 `-PackageRoot` 在打包版上运行 | 真实拥有客户端的订单、战斗、成长与选择、营地、喷漆守护与终局、视野、AI 满员对局与网络异常 |
 | 交付 | `VerifyCleanCheckout.ps1`、`PackageWin64.ps1`、`OpenPackaged.ps1` | 本地 LFS 缓存检出可构建（不证明远端下载）；发布包实际运行通过后才认定可用 |
 
 所有联机证据都在同一台机器的回环连接上取得；局域网与正确配置的公网直连需要另外记录。

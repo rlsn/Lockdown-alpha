@@ -47,7 +47,7 @@ ProductMismatch、ContentMismatch、InvalidName）；`PreLogin` 的这些检查�
 `PostLogin` 拒绝时客户端已载入房间，原因经 `ClientWasKicked` 送达后返回前端。拒绝或网络、旅行失败使客户端离开房间世界时，
 第一个原因保留到前端，随后同一世界的断线不再覆盖它；正在离开的房间世界也不再建立房间界面，以免界面把该原因记为已显示。
 前端不创建参赛记录，Lobby 中的身体阶段为 Unspawned。正常开局由 `LDMatchProviders` 门禁：
-Combat、Progression（含最终等级读取）、Shop、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
+Combat、Progression（含最终等级读取）、Camps 均已注册，且有 AI 名额时 OpponentAI 已注册，
 Demo 世界注册表已加载，才允许 Host 开始；缺失项逐个写进 Lobby 的 StartBlocker 与 Start 回执。
 提供者以各自翻译单元中的静态 `FRegistrar` 登记钩子（Prepare/MatchClosed/MatchReset/LifeCommitted/
 ReadFinalLevel），GameMode 不包含提供者头文件；注册本身不等于玩法已正确接通。
@@ -65,7 +65,7 @@ Ready 是设置布尔值，不是服务器 Toggle。准备变化只推进公共�
 成员/AI 数量改变才推进结构版本并清除所有真人 Ready。
 `FLDSessionRequestWindow` 只保存当前在途请求、最近终态及处理水位：
 同键同条款重放，改条款拒绝，过窗拒旧，同域重入不能开始第二次写入。
-这是会话窗口，不代替经济账本、战斗或导航各自的去重机制。
+这是会话窗口，不代替成长、战斗或导航各自的去重机制。
 
 Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹配服务，也不会自动解决 NAT。
 必须分别验证独立拥有客户端和可见的 Listen Host；拥有 Host 进程的人本来就能访问权威状态，
@@ -94,8 +94,9 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   按开局锁定名单列出全部参赛者（含离局者）的名称、击杀、死亡与最终等级，以及胜者、原因和用时；
   `KillFeed` 是最近 8 条参赛者死亡的公共环形缓冲（击杀者仅限参赛者，营地按档位），不带技能、构筑或位置；
   它的 `Scores` 按名单顺序列出每名参赛者至今的击杀/死亡/助攻（按住 Tab 的排行榜），只随死亡变化，所以与通知一起按最后序号拒旧。
-  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 13：观察 schema 7 公开 Q/W/E 三个主动槽与扩展的技能表现，
-  每个单位最多 14 个公开状态；双方须使用同一构建。12 是观察 schema 6 使用有界无损覆盖游程编码时的版本；
+  联机协议版本（`LDDemoEntry::WireProtocol`）当前为 14：#144 删除装备、金钱与商店（观察单位不再带装备槽，
+  成长本人视图与回执不再带账户、装备与商店字段）；双方须使用同一构建。13 是观察 schema 7 公开 Q/W/E 三个主动槽与扩展的技能表现、
+  每个单位最多 14 个公开状态时的版本；12 是观察 schema 6 使用有界无损覆盖游程编码时的版本；
   11 是 #153 新增开局方向选项、本人已选方向与选择后的技能揭晓回执时的版本；
   隐藏分配不在复制结构中。10 是 #147 第 2 层删除旧目录专用状态（狂暴、伏击就绪、重伤、格挡、易伤）后，
   每个单位的公开状态上限（`LDObservation::MaxStatuses`）降为全部公开状态同时存在的 11 个；
@@ -109,14 +110,14 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
 ## 请求、代次与回执
 
 所有权由拥有连接决定，不能相信客户端传入的另一名玩家标识。
-命令携带其所需的 match、life、sequence/order、build/inventory/object revision，
+命令携带其所需的 match、life、sequence/order、build/object revision，
 目标使用当前获准的观察句柄或公开地点 ID，不使用隐藏 Actor 指针。
 
 先验证代次、身份、目标和资源，再提交一次结果。重复的已接受请求返回原回执，
 不能重复发钱、创建物品或施放效果。旧 life 的投射物、输入、菜单报价和移动确认不能作用于新身体。
 UI 的 Pending 不代表已经提交，客户端不能自行生成成功回执。
 
-`ULDNavigationComponent` 的取消 epoch 与库存/商店的 request 回执
+`ULDNavigationComponent` 的取消 epoch 与成长的 request 回执
 是不同领域的版本，不要用一个全局“最新版本号”替代全部语义。
 
 ## 生命周期与失败
@@ -127,15 +128,15 @@ Host 离开关闭房间并通知其余连接，不把 Host 移交给第一个剩
 （撤销 Combat 身体、取消本生命订单与未释放动作、销毁 Pawn，等级/构筑/来源冷却保留），
 到 `RespawnAtMs` 时从全部出生锚点等概率抽样一次、局部预留，再原子提交新 Life、满 HP/MP 与保护截止。
 `SpawnBlocked` 时保持 Dead，后续边界以同一选中锚点重试，不重抽“更安全”的点。
-成长、商店、营地与终局按各自提供者接入。
+成长、营地与终局按各自提供者接入。
 `IsGameplayWriteOpen` 只是当前 Match/阶段的快速检查，不是正式提交 permit；它在 Countdown/Development/CaptureOpen 为真。
 
 开局倒计时（#153）：`StartDemoMatch` 完成初次出生后进入 `Countdown`，不直接进入 Development。
 `InitializeCaptureMatch` 把 `MatchStartedAtMs`（本局 T=0）设为权威时间起点加 `MATCH.CountdownSec`，
 发育期截止、外卖、上热搜与画饼老板的时间表都从这个 T=0 计算，`PublicMatch.StartedAtMs` 与结算的 `StartedAtMs` 也是它。
 倒计时内写闸保持打开：权威时钟照常推进，移动、开局三选一、离局与观测照常提交（2026-11-07 用户决定倒计时内允许移动和选技能、不允许攻击和购买）；
-`ALDGameMode::IsOpeningCountdown` 加上 `LDOrderRules::CountdownAdmitsOrder/CountdownAdmitsAction` 决定拒绝范围：导航的攻击移动、攻击单位与施法订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，地面移动与走向小摊照常受理；
-Combat 的普攻与 Q/W 回 `ELDCombatReject::NotStarted`，冲刺 D 属于移动照常受理；商店买卖与进阶在提交时回 `ELDGrowthReason::MatchNotStarted`；
+`ALDGameMode::IsOpeningCountdown` 加上 `LDOrderRules::CountdownAdmitsOrder/CountdownAdmitsAction` 决定拒绝范围：导航的攻击移动、攻击单位与施法订单（含 Shift 队列步骤）回 `ELDOrderFailure::NotStarted`，地面移动照常受理；
+Combat 的普攻与 Q/W 回 `ELDCombatReject::NotStarted`，冲刺 D 属于移动照常受理；
 这些拒绝都记入各自的回执窗口，T=0 后重放仍得到同一拒绝。营地在倒计时内不处理意图，对手 AI 的决策在非 Development/CaptureOpen 阶段停止。
 `NextCountdownDueMs` 让 T=0 成为精确的步边界；到达 T=0 的这一步仍属于倒计时，`ExecuteCapturePhase` 在它闭合后切到 Development，
 第一个可行动的步从 T=0 开始。
@@ -227,7 +228,7 @@ Motion 阶段每个已接纳原生批次经 `PublishCaptureMotion` 由 `LDCaptur
 | --- | --- |
 | `LogLDMatch` | 入口、房间、开局头与名单、生命与死亡、喷漆守护、结果与对局汇总、标记 |
 | `LogLDCombat` | 战斗驱动、Host 命中行、本人战斗输入与回执、客户端本人受伤/状态/所见施法 |
-| `LogLDGrowth` | 奖励、升级、三选一、商店、账本、DEV 成长夹具，客户端本人成长 |
+| `LogLDGrowth` | 奖励、升级、三选一、DEV 成长夹具，客户端本人成长 |
 | `LogLDNav` / `LogLDAI` / `LogLDWorld` | 订单与移动 / 对手 AI / 营地、Boss、空投、地图注册与视野中继 |
 | `LogLDNet` | 10 秒帧耗时与连接汇总、卡顿行 |
 | `LogLDUI` / `LogLDContent` / `LogLDTest` | 界面与本地设置 / 内容、美术与音效目录 / DEV 场景探针 |
@@ -238,20 +239,19 @@ Host（Listen Host 的权威代码）在试玩期可以记录完整权威信息�
 | 标签 | 写入位置 | 字段要点 |
 | --- | --- | --- |
 | `LD_MATCH_HEADER` / `LD_MATCH_ROSTER` | `LDGameModeTrace.cpp`，开局时 | 产品版本、wire、源码提交（打包版读包旁 `PackageManifest.json`，编辑器读 git HEAD）、内容摘要、网络地址；每名参赛者的槽位、名字、真人/AI、房主、角色、地址 |
-| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、金币、待选、当前订单与目标点、正在前摇的动作、公开状态 |
-| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能或装备、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
-| `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级、悬赏 |
-| `LD_REWARD` / `LD_LEVEL_UP` | `LDEconomyDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（击杀/助攻/地图事件/DEV）、金币与经验及其结余、等级变化、获得的三选一次数 |
+| `LD_HEARTBEAT` | `LDGameModeTrace.cpp`，权威时间每秒一次（`LDLog::FPeriodicGate`） | 每名参赛者的生命阶段、脚点、生命/法力/护盾、等级、经验、待选、当前订单与目标点、正在前摇的动作、公开状态 |
+| `LD_HIT` | `LDCombatEffects.cpp` `ApplyHit`，每次已提交命中 | 来源/受害者及营地类型、来源技能、命中类别、伤害类型、伤害、护盾吸收、实际掉血、扣血前后与生命上限、护盾前后、增幅（`amp_bp`，加成池与倍率合计）与抗性（已计破防）、暴击/保护/周期（区域脉冲与灼烧）/反伤/附加伤害、控制（`root`/`stun`/`disarm`/`taunt`/`knockback`/`slow`/`silence`）、吸血（来源实际回复的生命，已计生命上限）、是否致死，末尾为加成池 `pool_bp` |
+| `LD_DEATH_RECEIPT` / `LD_CAMP_DEATH` | `LDGameModeLife.cpp` | 原字段后追加凶手（CreditOwner）、击杀类别、致命来源、来源身体、助攻者、无奖励原因、等级 |
+| `LD_REWARD` / `LD_LEVEL_UP` | `LDGrowthDirector.cpp` 复合奖励安装后 | 每份奖励的领取人、原因（`cause=death`/`map_event`/`dev_fixture`，`role=killer`/`assist`/`recipient`）、经验及其结余、等级变化、获得的三选一次数 |
 | `LD_OFFER` / `LD_CHOICE` | `LDDevelopmentDirector.cpp` | 每次出卡（含重抽）的三张卡；确认的卡、等级、替换 |
-| `LD_SHOP_TRADE` / `LD_SHOP_REJECTED` | `LDVendorDirector.cpp` | 买、卖、进阶成功的物品、槽位、金币变化与结余；拒绝原因 |
 | `LD_PLAYER_MARK source=host_view` | `ALDGameMode::LogPlaytestMark` | 任一玩家按标记键时，每名参赛者每秒最多一条。标记带发送时的局次，只在该局仍是当前局且处于开局倒计时、发育期或旗杆开放时记录；上一局迟到的或在大厅、结算时到达的标记写 `LD_PLAYER_MARK_REJECTED`（局次、当前局次、阶段），同样限频 |
-| `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、金币、K/D/A、技能及等级、属性卡、装备 |
+| `LD_MATCH_SUMMARY` / `_ROW` | `LDGameModeTrace.cpp`，结果锁定时 | 结束原因、胜者；每人等级、经验、K/D/A、技能及等级、属性卡 |
 | `LD_NET role=host` | `LDPlaytestTrace`，每 10 秒 | 每个客户端连接的 RTT、抖动、收发丢包、未收包时长、本窗口服务器发出的移动校正（`ULDCharacterMovementComponent::ServerCorrectionCount`） |
 
 远端客户端只记录该玩家本来就能看到的信息（`FLDPlaytestTrace`，读法与 [视野与 UI](VISION_AND_UI.md#ui-只读模型) 的允许来源一致）：
 `LD_SELF_MATCH`/`LD_SELF_ROSTER`（本人身份与公开名单）、`LD_SELF_STATE`（每秒一行本人投影）、`LD_SELF_LIFE`、
 `LD_SELF_HP`/`LD_SELF_STATUS`（本人受伤、护盾吸收、治疗与状态，由与 HUD 飘字同一 `LDWorldFeedback::FTracker` 得出）、
-`LD_SELF_REWARD`/`LD_SELF_LEVEL`/`LD_SELF_OFFER`/`LD_SELF_BUILD`/`LD_SELF_ITEMS`（本人成长投影）、
+`LD_SELF_REWARD`/`LD_SELF_LEVEL`/`LD_SELF_OFFER`/`LD_SELF_BUILD`（本人成长投影）、
 `LD_SELF_KILLFEED`/`LD_SELF_DEATH`/`LD_SELF_KILL`/`LD_SELF_RESULT`（公开击杀通知与结果）、`LD_SELF_SEEN_CAST`（当前授权帧内可见单位的施法）、
 `LD_SELF_ORDER` 与已有的 `LD_COMBAT_INPUT`（本人发出的订单与战斗输入，按住右键的重复订单最多每 0.25 秒一行）
 和 `LD_PLAYER_MARK source=self`。客户端日志不含隐藏单位的位置、他人的经济或伤害公式拆解；本人视角各行都在该局的
@@ -280,6 +280,6 @@ Demo 新接缝使用 `Lockdown.Rules.DemoCore`、`Lockdown.Rules.DemoCombatEvalu
 `RunDemoCaptureCheck.ps1` 在普通开局门禁打开后经正常大厅开局，验证真实拥有连接上的喷漆、争夺暂停与续计、
 喷上涂鸦、主人离区使守护暂停、他人独自改漆使守护保持冻结且改漆失败后守护仍暂停、主人独自回区后续计、冻结期间主人走出使守护清零而涂鸦保留、
 主人独自在区内站满守护时长以 `GuardSucceeded` 守护成功的
-唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP/金币、
+唯一结果与同世界新局，并由 Host 正常开出第二局：各角色只读本人视图核对首个存活帧的开局等级/XP、
 空构筑、无状态与保护、冷却全就绪，Host 再核对五营全新满血、旗杆与涂鸦复位与旧代请求以 StaleMatch 拒绝；
 它同样不代替 3+3、AI 或网络异常验收。

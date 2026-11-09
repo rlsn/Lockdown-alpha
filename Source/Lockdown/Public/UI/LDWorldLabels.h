@@ -33,8 +33,8 @@ namespace LDWorldLabels
         float HealthFraction=0.f;  // current over maximum, clamped to 0..1
         bool bShield=false;    // the unit has the public shield status; its amount is not part of the label
     };
-    // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never mana, equipment,
-    // skills, cooldowns or gold. A remaining time counts from the frame's own authority sample and rounds up to a
+    // SC-07 subset for a label: name, level, HP fraction, shield presence and public statuses; never mana, skills or
+    // cooldowns. A remaining time counts from the frame's own authority sample and rounds up to a
     // tenth, the same text as the target card.
     LOCKDOWN_API FLabel Build(const FLDObservedUnitView& Unit,const FString& RosterName,const FLDDemoContentDefinitions* Content,double SampledAtServerSec);
 

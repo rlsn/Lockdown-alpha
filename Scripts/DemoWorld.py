@@ -17,19 +17,19 @@ SOURCE = content.WORLD_SOURCE
 SCHEMA_SOURCE = content.WORLD_SCHEMA_SOURCE
 OUTPUT_PATHS = (content.WORLD_OUTPUT, content.WORLD_CONTRACT)
 PARAMETER_REFS = (
-    "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm", "SHOP.InteractRadiusCm",
+    "AIRDROP.PickupRadiusCm", "CAMP.ResetArrivalRadiusCm", "CAPTURE.RadiusCm", "DORM.RadiusCm",
     "UNIT.BasicAttackRangeCm", "UNIT.CollisionRadiusCm", "VISION.RadiusCm",
 )
 # D21 (#79): a Dorm is a public recovery disk of DORM.RadiusCm; D26 (#79): an Airdrop is a public drop point whose
 # pickup disk is AIRDROP.PickupRadiusCm. Neither adds collision, navigation or sight blocking.
 # D26 (#79): a BossWaypoint is one of the four public points the 画饼老板 Boss patrols in id order; a point only.
-ANCHOR_KINDS = ("Spawn", "Camp", "Shop", "Capture", "Dorm", "Airdrop", "BossWaypoint")
+ANCHOR_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop", "BossWaypoint")
 # #97: anchor counts follow the authored world within these bounds. At least one spawn per match seat; one capture;
 # the Boss patrols exactly four waypoints.
 MAX_ANCHORS = 128
 # #97: forests of body-sized trunks need well over a thousand blockers.
 MAX_BLOCKERS = 2048
-ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Shop": (1, 8), "Capture": (1, 1), "Dorm": (1, 8),
+ANCHOR_COUNTS = {"Spawn": (6, 32), "Camp": (1, 48), "Capture": (1, 1), "Dorm": (1, 8),
                  "Airdrop": (1, 16), "BossWaypoint": (4, 4)}
 # A blocker is a convex polygon prism (walls, stalls) or an upright cylinder (trees); each carries its own height and
 # movement/sight classification.
@@ -732,17 +732,10 @@ def validate_bindings(world, data):
     radius = p("UNIT.CollisionRadiusCm")
     geometry = Geometry(world)
     capture = point(anchors[data["world"]["capture_id"]]["position_cm"], "capture")
-    shops = {identity: point(anchors[identity]["position_cm"], identity) for identity in data["world"]["shop_ids"]}
-    capture_radius, shop_radius = p("CAPTURE.RadiusCm"), p("SHOP.InteractRadiusCm")
+    capture_radius = p("CAPTURE.RadiusCm")
     require(geometry.legal(capture, radius + capture_radius), "InvalidGeometry", "capture", "capture disk lacks legal capsule support")
-    for identity, shop in shops.items():
-        require(squared_distance(capture, shop) > bounded((capture_radius + shop_radius) ** 2),
-                "InvalidGeometry", identity, "shop eligibility and capture disks overlap")
-        for other, elsewhere in shops.items():
-            require(other == identity or squared_distance(shop, elsewhere) > bounded((2 * shop_radius) ** 2),
-                    "InvalidGeometry", identity, "two shops' eligibility disks overlap")
     # D21 dorms and D26 airdrop points: every point of the disk is legal standing ground, and the disk stays apart
-    # from the circle, the shop, every camp clearing and every other event disk, so no two zone rules overlap.
+    # from the circle, every camp clearing and every other event disk, so no two zone rules overlap.
     camp_clearance = content._wire_fraction(world["geometry"]["camp_clearance_cm"], "camp clearance")
     # D26 Boss waypoints are canonical boss_patrol_1..4 on legal standing ground for one capsule; the path between
     # them is the runtime's legal navigation.
@@ -758,9 +751,8 @@ def validate_bindings(world, data):
     for identity, label, centre, zone in zones:
         require(zone > 0 and geometry.legal(centre, radius + zone), "InvalidGeometry", identity,
                 f"{label} disk lacks legal capsule support")
-        for other, other_radius in ((capture, capture_radius), *((shop, shop_radius) for shop in shops.values())):
-            require(squared_distance(centre, other) > bounded((zone + other_radius) ** 2),
-                    "InvalidGeometry", identity, f"{label} disk overlaps the capture or shop disk")
+        require(squared_distance(centre, capture) > bounded((zone + capture_radius) ** 2),
+                "InvalidGeometry", identity, f"{label} disk overlaps the capture disk")
         for camp_id, camp_row in anchors.items():
             if camp_row["kind"] == "Camp":
                 require(squared_distance(centre, point(camp_row["position_cm"], camp_id))
@@ -770,14 +762,6 @@ def validate_bindings(world, data):
             if other_id != identity:
                 require(squared_distance(centre, other_centre) > bounded((zone + other_zone) ** 2),
                         "InvalidGeometry", identity, f"{label} disk overlaps another event disk")
-    # Each shop anchor stands in its own low counter: a polygon blocker that stops movement but not sight.
-    counters = set()
-    for identity, shop in shops.items():
-        stalls = [stall for stall, row in geometry.rows.items()
-                  if not row["blocks_sight"] and stall in geometry.polygons and inside(shop, geometry.polygons[stall])]
-        require(len(stalls) == 1 and stalls[0] not in counters, "InvalidGeometry", identity,
-                "shop anchor must stand in exactly one low non-sight-blocking stall of its own")
-        counters.add(stalls[0])
     offsets = [point(value, "spawn offset") for value in world["placement"]["spawn_offsets_cm"]]
     for i, offset in enumerate(offsets):
         for other in offsets[:i]:
@@ -790,8 +774,6 @@ def validate_bindings(world, data):
     candidates, home_clearance = {}, {}
     for identity, row in anchors.items():
         location = point(row["position_cm"], identity)
-        if row["kind"] == "Shop":
-            continue
         require(geometry.legal(location, radius), "InvalidGeometry", identity, "anchor has no legal static capsule position")
         if row["kind"] == "Spawn":
             for index, offset in enumerate(offsets):

@@ -187,10 +187,8 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     const FLDDemoAbilityDefinition* Unplug = nullptr;
     const FLDDemoAbilityDefinition* BailOut = nullptr;
     const FLDDemoAbilityDefinition* ThickFace = nullptr;
-    const FLDDemoEquipmentDefinition* Uniform = nullptr;
     if (!Content->FindAbility(TEXT("active_unplug"), Unplug, Error)
-        || !Content->FindAbility(TEXT("active_bail_out"), BailOut, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error)
-        || !Content->FindEquipment(TEXT("item_nail_uniform"), Uniform, Error))
+        || !Content->FindAbility(TEXT("active_bail_out"), BailOut, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error))
     {
         AddError(Error);
         return false;
@@ -209,11 +207,10 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
             && (Empower->BaseP2 > 0 || Empower->ADRatioBp > 0));
     }
     const FLDDemoEffectDefinition* FaceThorns = FindOp(ThickFace->Ranks.Last().Effects, ELDDemoEffectOp::Thorns);
-    const FLDDemoEffectDefinition* UniformThorns = Uniform->HasPassive ? FindOp(Uniform->Passive.Effects, ELDDemoEffectOp::Thorns) : nullptr;
-    if (!TestTrue(TEXT("Both reflections import as typed thorns"), FaceThorns && UniformThorns)) { return false; }
+    if (!TestTrue(TEXT("The reflection imports as typed thorns"), FaceThorns != nullptr)) { return false; }
 
     // A learned trigger passive projects as a rank-exact combat trigger, never an attribute term.
-    const FLDAttributeBuildValues Build(3, {FLDLearnedPassiveValue(TEXT("passive_thick_face"), 2)}, {}, {TEXT("item_nail_uniform")});
+    const FLDAttributeBuildValues Build(3, {FLDLearnedPassiveValue(TEXT("passive_thick_face"), 2)}, {});
     const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(Build, *Content);
     if (!TestTrue(TEXT("The thorns build projects"), Projected.IsSuccess()))
     {
@@ -223,8 +220,6 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     const FLDAttributeProjection& Projection = Projected.Value.GetValue();
     TestTrue(TEXT("The learned trigger keeps its rank"), Projection.LearnedTriggers.Num() == 1
         && Projection.LearnedTriggers[0].AbilityId == TEXT("passive_thick_face") && Projection.LearnedTriggers[0].Rank == 2);
-    TestTrue(TEXT("The uniform's reflection is one equipment family"), Projection.EquipmentPassives.ContainsByPredicate(
-        [](const FLDEquipmentPassiveFamily& Family) { return Family.Family == TEXT("passive_prickle"); }));
 
     // Functional display: every new effect, target and status has explicit player text.
     for (const FLDDemoAbilityDefinition* Ability : {Unplug, BailOut, ThickFace})
@@ -235,7 +230,6 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
                 LDHUD::EffectLine(Effect).StartsWith(TEXT("未知")));
         }
     }
-    TestFalse(TEXT("The uniform reflection has a display line"), LDHUD::EffectLine(*UniformThorns).StartsWith(TEXT("未知")));
     FLDDemoTargetDefinition Point;
     Point.Mode = ELDDemoTargetMode::GroundPoint;
     Point.RangeCm = Rational(400);

@@ -74,7 +74,7 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
     const bool bNewLife=!bBody||BodyLife!=Combat->Life;
     if(!bNewLife&&Combat->Revision<=BodyRevision){return;}
     const FLDCombatStatusView* Shield=WorldFeedbackShieldStatus(*Combat);
-    // A changed maximum rescales the points proportionally (level, equipment): never a hit or a heal.
+    // A changed maximum rescales the points proportionally (level, build): never a hit or a heal.
     if(!bNewLife&&Combat->MaxHPP2==MaxHPP2&&Sample.LifePhase==ELDLifePhase::Alive)
     {
         const int64 DeltaHP=Combat->HPP2-HPP2,DeltaShield=Combat->ShieldP2-ShieldP2;
@@ -92,18 +92,14 @@ void LDWorldFeedback::FTracker::ObserveBody(const FSample& Sample,TArray<FEvent>
 void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEvent>& Out)
 {
     // A missing, invalid or foreign view drops its baseline, so the next valid view of this match only primes again.
-    const FLDEquipmentView* Equipment=Sample.Equipment;
-    const bool bPurse=Equipment&&Equipment->bValid&&Equipment->Generation==Sample.Match;
     const FLDProgressionView* Progression=Sample.Progression;
     const bool bProgress=Progression&&Progression->bValid&&Progression->Generation==Sample.Match;
     if(bProgress&&bGrowth)
     {
-        // Every approved reward grants XP (also past the last level) while buying and selling change gold alone, so an
-        // XP gain identifies a reward: its gold floats with it, and only when gold grew. Each growth publication is
-        // its own sample, so separate last hits stay separate rewards.
+        // Every approved reward grants XP (also past the last level). Each growth publication is its own sample, so
+        // separate last hits stay separate rewards.
         if(Progression->CumulativeXP>XP)
         {
-            if(bPurse&&bGold&&Equipment->Gold>Gold){FEvent& GoldEvent=Out.AddDefaulted_GetRef();GoldEvent.Kind=EKind::Gold;GoldEvent.Amount=Equipment->Gold-Gold;}
             FEvent& XPEvent=Out.AddDefaulted_GetRef();XPEvent.Kind=EKind::Experience;XPEvent.Amount=Progression->CumulativeXP-XP;
         }
         // Several levels at once are one level-up naming the level reached and every three-choice earned with it.
@@ -113,7 +109,6 @@ void LDWorldFeedback::FTracker::ObserveGrowth(const FSample& Sample,TArray<FEven
             LevelEvent.Amount=FMath::Max(0,int32(Progression->EarnedThrough)-int32(Earned));LevelEvent.bChoiceEarned=LevelEvent.Amount>0;
         }
     }
-    bGold=bPurse;Gold=bPurse?Equipment->Gold:0;
     bGrowth=bProgress;
     if(bProgress){Level=Progression->Level;Earned=Progression->EarnedThrough;XP=Progression->CumulativeXP;}
 }
@@ -198,7 +193,6 @@ FString LDWorldFeedback::Text(const FEvent& Event)
     case EKind::Heal: case EKind::UnitHeal: return FString::Printf(TEXT("+%lld"),Event.Amount);
     case EKind::ShieldGain: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Shield);
     case EKind::ShieldAbsorbed: return FString::Printf(TEXT("-%lld %s"),Event.Amount,LDTerms::Shield);
-    case EKind::Gold: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Gold);
     case EKind::Experience: return FString::Printf(TEXT("+%lld %s"),Event.Amount,LDTerms::Experience);
     case EKind::LevelUp: return LDTerms::LevelUp(Event.Level);
     case EKind::Kill: return LDTerms::KillFloat(Event.Name.IsEmpty()?FString(LDTerms::UnknownVictim):Event.Name);
@@ -287,13 +281,12 @@ FWorldFeedbackLook WorldFeedbackLookOf(LDWorldFeedback::EKind Kind)
     case LDWorldFeedback::EKind::Heal: case LDWorldFeedback::EKind::UnitHeal: return {LDHUDStyle::Heal,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldGain: return {LDHUDStyle::ShieldGain,LDHUDStyle::TypeLabel};
     case LDWorldFeedback::EKind::ShieldAbsorbed: return {LDHUDStyle::Shield,LDHUDStyle::TypeLabel};
-    case LDWorldFeedback::EKind::Gold: return {LDHUDStyle::GoldGain,LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::Experience: return {LDHUDStyle::ExperienceGain,LDHUDStyle::TypeBody};
     case LDWorldFeedback::EKind::UnitCast: return {FLinearColor(.85f,.55f,1.f),LDHUDStyle::TypeTitle};
     default: return {LDHUDStyle::Celebration,LDHUDStyle::TypeBanner};
     }
 }
-bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Gold||Kind==LDWorldFeedback::EKind::Experience;}
+bool WorldFeedbackIsReward(LDWorldFeedback::EKind Kind){return Kind==LDWorldFeedback::EKind::Experience;}
 bool WorldFeedbackSameAnchor(const LDWorldFeedback::FEvent& First,const LDWorldFeedback::FEvent& Second)
 {return First.bOwn==Second.bOwn&&(First.bOwn||(First.Handle==Second.Handle&&First.Epoch==Second.Epoch));}
 float WorldFeedbackEaseOut(float Progress)
@@ -402,7 +395,7 @@ void LDWorldFeedback::MakeSample(const ALDPlayerController& PC,const ALDGameStat
     Out=FSample();
     Out.Match=Own.Match;Out.Life=Own.Life;Out.LifePhase=Own.LifePhase;Out.Self=Own.ContenderId;
     Out.OwnCombat=Own.Life!=0&&Combat.bHasBody&&Combat.Generation==Own.Match&&Combat.Life==Own.Life?&Combat:nullptr;
-    Out.Progression=PC.ReadOwnProgression();Out.Equipment=PC.ReadOwnEquipment();
+    Out.Progression=PC.ReadOwnProgression();
     Out.KillFeed=&Public.KillFeed;Out.PublicGeneration=Public.PublicMatch.Generation;
     Out.bClock=PC.ReadDemoAuthorityTimeMs(Out.NowMs);
     Out.Frame=Read.Frame&&Read.Status==ELDObservedViewStatus::Current&&Read.Frame->MatchGeneration==Own.Match&&Read.Frame->ObserverLife==Own.Life?Read.Frame:nullptr;

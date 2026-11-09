@@ -1,7 +1,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Core/LDLog.h"
 
-#include "Economy/LDEconomyDirector.h"
+#include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
 #include "Framework/LDGameMode.h"
 #include "Development/LDDemoContentCatalog.h"
@@ -45,7 +45,7 @@ void ALDPlayerController::ServerDevTestCommand_Implementation(const FLDDevTestCo
 #if WITH_DEV_AUTOMATION_TESTS
     ALDGameMode* Mode = GetWorld() ? GetWorld()->GetAuthGameMode<ALDGameMode>() : nullptr;
     const FGuid Contender = Mode ? Mode->ContenderId(this) : FGuid();
-    if (!Mode || !Mode->Economy || !Contender.IsValid())
+    if (!Mode || !Mode->Growth || !Contender.IsValid())
     {
         ClientDevTestResult(LDDevTest::Refused(Command, ELDGrowthReason::DataNotReady,
             TEXT("The authority has no growth domain or this connection is not a contender of the current match.")));
@@ -53,7 +53,7 @@ void ALDPlayerController::ServerDevTestCommand_Implementation(const FLDDevTestCo
     }
     // The command always acts on this connection's own contender; no field of it names another one. On the server only the
     // Listen Host's own controller is local, which admits the match-wide ops.
-    ClientDevTestResult(Mode->Economy->QueueDevTest(Contender, Command, IsLocalController()));
+    ClientDevTestResult(Mode->Growth->QueueDevTest(Contender, Command, IsLocalController()));
 #else
     ClientDevTestResult(LDDevTest::Refused(Command, ELDGrowthReason::NotAuthority,
         TEXT("DEV test commands are compiled out of this build.")));
@@ -173,19 +173,6 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestXP(
             }
         }));
 
-FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestGold(
-    TEXT("ld.Dev.Gold"),
-    TEXT("DEV test session: mint <amount> gold into your own account (ledger cause DevFixture)."),
-    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
-        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
-        {
-            int64 Amount = 0;
-            if (DevTestParseAmount(Args, Amount, Ar, TEXT("ld.Dev.Gold <positive amount>")))
-            {
-                DevTestSend(World, ELDDevTestOp::GrantGold, Amount, Ar);
-            }
-        }));
-
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
     TEXT("ld.Dev.List"),
     TEXT("DEV test session: list every skill, attribute card and item id of the approved runtime catalog."),
@@ -198,7 +185,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
                 return;
             }
             const FLDDemoContentDefinitions& Definitions = Catalog->Get();
-            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W|E], buy with ld.Dev.Buy <id>"),
+            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W|E]"),
                 Definitions.Progression.MaxSkillRank);
             for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
             {
@@ -208,11 +195,6 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
             for (const FLDDemoAttributeDefinition& Attribute : Definitions.Attributes)
             {
                 Ar.Logf(TEXT("  card    %s %s"), *Attribute.Id, *DevTestDisplayName(Definitions, Attribute.Id));
-            }
-            for (const FLDDemoEquipmentDefinition& Item : Definitions.Equipment)
-            {
-                Ar.Logf(TEXT("  item    %s %s buy %lld sell %lld%s"), *Item.Id, *DevTestDisplayName(Definitions, Item.Id),
-                    Item.BuyPrice, Item.SellGold, Item.HasPassive ? TEXT(" (passive)") : TEXT(""));
             }
         }));
 
@@ -230,35 +212,6 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestLearn(
                 return;
             }
             DevTestSend(World, ELDDevTestOp::LearnOption, 0, Ar, FName(*Args[0].TrimStartAndEnd()), Slot);
-        }));
-
-FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestBuy(
-    TEXT("ld.Dev.Buy"),
-    TEXT("DEV test session: buy <item id> at its catalog price into your free equipment slot, without visiting the shop."),
-    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
-        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
-        {
-            if (Args.Num() != 1)
-            {
-                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Buy <item id>"));
-                return;
-            }
-            DevTestSend(World, ELDDevTestOp::BuyItem, 0, Ar, FName(*Args[0].TrimStartAndEnd()));
-        }));
-
-FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestSell(
-    TEXT("ld.Dev.Sell"),
-    TEXT("DEV test session: sell the item in equipment slot <1|2> at its catalog price, without visiting the shop."),
-    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
-        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
-        {
-            const FString SlotText = Args.Num() == 1 ? Args[0].TrimStartAndEnd() : FString();
-            if (SlotText != TEXT("1") && SlotText != TEXT("2"))
-            {
-                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Sell <1|2>"));
-                return;
-            }
-            DevTestSend(World, ELDDevTestOp::SellItem, 0, Ar, NAME_None, SlotText == TEXT("1") ? 1 : 2);
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestAttr(
@@ -308,8 +261,8 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestClearAttr(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestReset(
     TEXT("ld.Dev.Reset"),
-    TEXT("DEV test session: put yourself back to the match start: level 1, no XP, skills, cards, items or DEV attributes, "
-        "the starting gold, a fresh opening offer and every cooldown ready."),
+    TEXT("DEV test session: put yourself back to the match start: level 1, no XP, skills, cards or DEV attributes, "
+        "a fresh opening offer and every cooldown ready."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {

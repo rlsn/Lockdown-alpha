@@ -15,7 +15,6 @@
 #include "Framework/LDPlayerController.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
-#include "Inventory/LDInventoryDirector.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "UnrealClient.h"
@@ -29,7 +28,7 @@
 #include "UI/LDHUD.h"
 #include "UI/LDChoicesPanel.h"
 
-// Three humans ready a full room with three opponent AI and then stay out of play, so every growth step, trade,
+// Three humans ready a full room with three opponent AI and then stay out of play, so every growth step,
 // fight and the capture win below come from the AI's own requests through the shared domain entries.
 enum class ELDOpponentProbeStage : uint8 { Join, Lobby, Starting, Match, Results, Done };
 // Only a check the match actually exercised can pass. One the match gave no occasion for, such as respawning when no AI
@@ -111,9 +110,6 @@ struct FLDOpponentProbeTrack
     // under the approved regeneration. A stuck AI shows neither.
     int64 DevXP = 0;
     int64 DevRecoverOrDeadMs = 0;
-    int64 MaxGold = 0;
-    int32 MaxItems = 0;
-    FString Gear;
     TArray<TPair<int64, uint32>> Requests;
     uint32 MaxWindowRequests = 0;
     FLDOpponentRequestTally Tally;
@@ -285,24 +281,6 @@ void FLDDemoOpponentProbe::ReadGrowth(ALDGameMode& Mode, FLDOpponentProbeTrack& 
             Track.MaxLevel = FMath::Max<int64>(Track.MaxLevel, Progression.Level);
             Track.MaxXP = FMath::Max<int64>(Track.MaxXP, Progression.CumulativeXP);
             Track.MaxConsumed = FMath::Max<int64>(Track.MaxConsumed, Progression.ConsumedThrough);
-        }
-    }
-    if (Mode.Inventory)
-    {
-        const FLDEquipmentView Equipment = Mode.Inventory->ReadEquipment(Track.Contender);
-        if (Equipment.bValid)
-        {
-            int32 Items = 0;
-            FString Gear;
-            for (const FLDEquipmentSlotView& Slot : Equipment.Slots)
-            {
-                if (!Slot.bOccupied) { continue; }
-                ++Items;
-                Gear += (Gear.IsEmpty() ? TEXT("") : TEXT(",")) + Slot.DefinitionId.ToString();
-            }
-            Track.MaxGold = FMath::Max<int64>(Track.MaxGold, Equipment.Gold);
-            Track.MaxItems = FMath::Max(Track.MaxItems, Items);
-            Track.Gear = Gear;
         }
     }
 }
@@ -507,7 +485,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
 {
     using namespace LDDemoOpponentProbeDetail;
     Check(RosterKept && ReadsKept && Tracks.Num() == OpponentCount, TEXT("No AI is added, replaced or lost during the match"));
-    bool Moved = true, WinnerGrew = false, Bought = false, EveryBought = true, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
+    bool Moved = true, WinnerGrew = false, RespawnsOnTime = true, Acted = true, Bounded = true, QuietWhileDead = true;
     bool OpeningPicks = true, DevGrowth = true;
     uint32 Respawns = 0, RespawnsChecked = 0, DeathsSeen = 0, DashesLanded = 0, DormEntries = 0, AirdropClaims = 0, LeaderHunts = 0, BossAvoids = 0;
     uint32 PausedHolds = 0, PausedHoldsKept = 0, PausedHoldsBroken = 0, Challenges = 0, ChallengesKept = 0, ChallengesBroken = 0;
@@ -533,10 +511,6 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Moved &= Track.TravelCm >= MinTravelCm;
         // An AI that loses an even opening fight may spend the match recovering; the winner shows the full growth loop.
         if (Track.Contender == Result.Winner) { WinnerGrew = Track.MaxLevel >= 2 && Track.MaxConsumed >= 1; }
-        Bought |= Track.MaxItems > 0;
-        // The approved starting gold already affords the cheapest item, but one match is not enough evidence to gate every
-        // AI on it yet (#117): it is reported, not required.
-        EveryBought &= Track.MaxItems > 0;
         DashesLanded += T.DashesLanded;
         DormEntries += T.DormEntries;
         AirdropClaims += T.AirdropClaims;
@@ -575,9 +549,6 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("opening_countdown_pick_ms"), double(OpeningAt ? *OpeningAt : -1));
         Value->SetNumberField(TEXT("dev_xp"), double(Track.DevXP));
         Value->SetNumberField(TEXT("dev_recover_or_dead_ms"), double(Track.DevRecoverOrDeadMs));
-        Value->SetNumberField(TEXT("gold_max"), double(Track.MaxGold));
-        Value->SetNumberField(TEXT("items_max"), Track.MaxItems);
-        Value->SetStringField(TEXT("gear"), Track.Gear);
         Value->SetNumberField(TEXT("kills"), Row ? double(Row->Kills) : -1.);
         Value->SetNumberField(TEXT("deaths"), Track.Deaths);
         Value->SetNumberField(TEXT("respawns"), Track.Respawns);
@@ -595,9 +566,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         Value->SetNumberField(TEXT("airdrop_claims"), T.AirdropClaims);
         Value->SetNumberField(TEXT("leader_hunts"), T.LeaderHunts);
         Value->SetNumberField(TEXT("boss_avoids"), T.BossAvoids);
-        Value->SetNumberField(TEXT("shop_opens"), T.ShopOpens);
         Value->SetNumberField(TEXT("choice_requests"), T.Choices);
-        Value->SetNumberField(TEXT("trades"), T.Trades);
         Value->SetNumberField(TEXT("builds_refused"), T.BuildsRefused);
         Value->SetNumberField(TEXT("max_body_requests_30s"), Track.MaxWindowRequests);
         Value->SetNumberField(TEXT("paused_holds"), T.PausedHolds);
@@ -614,13 +583,10 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
     Summary->SetArrayField(TEXT("opponents"), Rows);
     Check(Moved, TEXT("Every AI moved through the map on its own orders"));
     Check(WinnerGrew, TEXT("The winning AI levelled up and confirmed its growth choices"));
-    Check(Bought, TEXT("At least one AI bought equipment through the shop"));
-    // Reported until multi-match runs show they hold (#117): every AI shopping, and a landed D19 dash.
-    Record(EveryBought ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
-        TEXT("Every AI bought equipment through the shop"));
+    // Reported until multi-match runs show it holds (#117): a landed D19 dash.
     Record(DashesLanded > 0 ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
         TEXT("D19: at least one AI landed an innate dash"));
-    // D21: an AI walks to a dorm only while recovering with nothing to buy, which a match may never produce.
+    // D21: an AI walks to a dorm only while recovering away from threats and the circle, which a match may never produce.
     Record(DormEntries ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::NotExercised,
         TEXT("D21: an AI stepped into a dorm"));
     // D26: drops land at fixed public times inside the run and healthy AIs walk to them; a match where a human always
@@ -652,7 +618,7 @@ void FLDDemoOpponentProbe::CloseHost(ALDGameMode& Mode, int64 EndedAtMs, const F
         TEXT("D12: an AI holding paused progress stays to fight in the circle, leaving only at its stop-loss line"));
     Record(!Challenges ? ELDOpponentProbeCheck::NotExercised
         : !ChallengesBroken && ChallengesKept ? ELDOpponentProbeCheck::Passed : ELDOpponentProbeCheck::Failed,
-        TEXT("D12: an AI inside a contest against a rival's paused progress keeps fighting there instead of leaving to farm or shop"));
+        TEXT("D12: an AI inside a contest against a rival's paused progress keeps fighting there instead of leaving to farm"));
     Check(!Mode.IsGameplayWriteOpen(Mode.GetMatchContext()) && Mode.ReadPublicMatch().ResultId == Result.ResultId,
         TEXT("The authority gate is closed by the same result it published"));
 }

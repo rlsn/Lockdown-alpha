@@ -17,14 +17,13 @@ class ULDMinimap;
 class ULDPanel;
 class ULDAttributesPanel;
 class ULDChoicesPanel;
-class ULDShopPanel;
 class ULDDevTestPanel;
 struct FLDDevTestResult;
 class FLDDemoContentSnapshot;
 struct FLDDemoContentDefinitions;
 
-// One Q/W/D entry or equipment slot: a world button that sends the same activation as its hotkey (an equipment slot sends
-// nothing). It is enabled only while an intent can be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
+// One Q/W/E/D entry: a world button that sends the same activation as its hotkey. It is enabled only while an intent can
+// be submitted; execution limits colour it but never replace the server's decision. The face shows only the key,
 // the icon, the rank and the mana cost; the state is the frame and icon colour, and the tooltip keeps the words.
 USTRUCT()
 struct FLDHUDActionSlot
@@ -41,11 +40,8 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UTextBlock> Rank;
     UPROPERTY() TObjectPtr<UBorder> CostChip;
     UPROPERTY() TObjectPtr<UTextBlock> Cost;
-    // Equipment slots: the held instance this slot shows (invalid otherwise) and the yellow "S" disc of a pre-sold item.
-    FGuid ItemInstance;
-    // A skill is bound or an item is held: only such a slot can be dragged onto another (#97).
+    // A skill is bound: only such a slot can be dragged onto another (#97).
     bool bHasSource=false;
-    UPROPERTY() TObjectPtr<USizeBox> PresellMark;
     // Over the icon: the cooldown mask shrinking with the remainder, its remaining time and the ready flash.
     UPROPERTY() TObjectPtr<UProgressBar> Cooldown;
     UPROPERTY() TObjectPtr<UTextBlock> Countdown;
@@ -69,21 +65,20 @@ public:
     void RefreshReadModel();
     bool PointerOverUI() const;
     UPROPERTY() TObjectPtr<ULDMinimap> Minimap;
-    // The three normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time.
+    // The two normal main panels (UI 3.1). The HUD owns and hit-tests them; ULDUIRoot opens one at a time.
     UPROPERTY() TObjectPtr<ULDAttributesPanel> AttributesPanel;
     UPROPERTY() TObjectPtr<ULDChoicesPanel> ChoicesPanel;
-    UPROPERTY() TObjectPtr<ULDShopPanel> ShopPanel;
     // DEV test session only (#78): the 测试 panel; its entry button and the 测试模式 marker show only in such a room.
     UPROPERTY() TObjectPtr<ULDDevTestPanel> DevTestPanel;
 protected:
     virtual void NativeTick(const FGeometry& Geometry,float DeltaSeconds) override;
     virtual TSharedRef<SWidget> RebuildWidget() override;
     virtual FReply NativeOnMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
-    // Opens the item menu on a right click on an own equipment slot and closes it on any press outside it.
+    // Sees a left press on a filled Q/W/E slot before its button, so the press may become a drag (UpdateDrag).
     virtual FReply NativeOnPreviewMouseButtonDown(const FGeometry& Geometry,const FPointerEvent& Event) override;
     virtual FReply NativeOnMouseWheel(const FGeometry& Geometry,const FPointerEvent& Event) override;
-    // #97 drag to swap: a left press on a filled Q/W or equipment slot that moves a few units drags a ghost of it; letting go
-    // over the other slot of the same group swaps the two in the controller's local slot order.
+    // #97 drag to swap: a left press on a filled Q/W/E slot that moves a few units drags a ghost of it; letting go over
+    // another Q/W/E slot swaps the two in the controller's local slot order.
     int32 DragFrom=INDEX_NONE;
     FVector2D DragStart=FVector2D::ZeroVector;
     bool bDragging=false;
@@ -109,7 +104,6 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> TargetManaBar;
     UPROPERTY() TObjectPtr<UTextBlock> TargetMana;
     UPROPERTY() TObjectPtr<UTextBlock> TargetStatuses;
-    UPROPERTY() TObjectPtr<UTextBlock> TargetEquipment;
     // The visible contender's Q/W tiles: key and name, then rank with the Lv3 mark.
     UPROPERTY() TObjectPtr<UWidget> TargetActivesRow;
     UPROPERTY() TArray<TObjectPtr<UBorder>> TargetActiveTiles;
@@ -144,8 +138,6 @@ private:
     // #153: the centre-screen opening countdown ("5" .. "1", then "开淫！"); click-through.
     UPROPERTY() TObjectPtr<UTextBlock> OpeningCountdownText;
     UPROPERTY() TObjectPtr<UBorder> MapColumn;
-    // Bottom offset applied to the shop and blind-box panels, which dock right above the shop entry.
-    float AppliedPanelDock=-1;
     UPROPERTY() TObjectPtr<USizeBox> MapFrame;
     // The elapsed match time (LDHUD::MatchTimer), centred right above the minimap frame; click-through.
     UPROPERTY() TObjectPtr<UTextBlock> MatchTimerText;
@@ -179,37 +171,14 @@ private:
     UPROPERTY() TObjectPtr<UTextBlock> ManaRegenText;
     UPROPERTY() TObjectPtr<UProgressBar> LevelBar;
     FString LevelTip;
-    // Bottom-right shop entry: own gold and pre-orders; it opens the shop panel anywhere (buying still needs the shop).
-    UPROPERTY() TObjectPtr<UBorder> ShopEntry;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ShopButton;
-    UPROPERTY() TObjectPtr<UTextBlock> ShopButtonText;
-    // The shop entry is lit (the blind-box button's gold) while the own body stands in the shop's range; -1 before the
-    // first refresh.
-    int8 AppliedShopLit=-1;
-    // The shop entry's shared button faces, restored when it is no longer lit.
-    FButtonStyle ShopSharedStyle;
     // The toast's own canvas slot, kept right above the band.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ToastSlot;
-    // Throttles the automatic session request for pre-orders (local presentation time of the last request).
-    double PreorderOpenAt=-1;
-    uint32 PreorderOpenLife=0;
     UPROPERTY() TArray<FLDHUDActionSlot> ActionSlots;
-    // The hovered slot's full description, popped up above it like the shop and blind-box descriptions; it takes no input.
+    // The hovered slot's full description, popped up above it like the blind-box descriptions; it takes no input.
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> ActionDetailSlot;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailName;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailSummary;
     UPROPERTY() TObjectPtr<UTextBlock> ActionDetailBody;
-    // The right-click menu of an own equipment slot, above it: one command that marks the held item for selling or
-    // unmarks it (ULDShopPanel::TogglePresell). It belongs to one held instance and closes when that item leaves the slot.
-    UPROPERTY() TObjectPtr<UBorder> ItemMenu;
-    UPROPERTY() TObjectPtr<UCanvasPanelSlot> ItemMenuSlot;
-    UPROPERTY() TObjectPtr<ULDCommandButton> ItemMenuButton;
-    int32 ItemMenuIndex=INDEX_NONE;
-    FGuid ItemMenuInstance;
-    void OpenItemMenu(int32 SlotIndex);
-    void PlaceItemMenu();
-    void CloseItemMenu();
-    void ChooseItemMenu();
     UPROPERTY() TMap<FName,TObjectPtr<ULDCommandButton>> Commands;
     // Blind-box button right above the band's left block (#97), with the three-choice panel it opens in the same row:
     // disabled without a pending choice; it pulses for a few seconds after the count rises, then stays steady.
@@ -236,11 +205,6 @@ private:
     void ShowToast(const FString& Text);
     uint32 SeenCombatReceipt=0;
     uint64 ToldProtectionLifeRevision=0;
-    // The latest Opened result of the player's current shop interaction. A remote client usually receives it before the
-    // owner projection that carries the session, so it is shown until the next growth publication arrives.
-    FLDShopOpenResult OpenedShop;
-    uint64 OpenedShopPublish=0;
-    bool bOpenedShop=false;
     // The match generation whose opening three-choice was offered its one automatic panel opening (D10).
     uint32 AutoChoicesMatch=0;
     uint32 AutoChoicesPending=0;
@@ -249,8 +213,6 @@ private:
     LDWorldFeedback::FTracker OwnHitWatch;
     void HandleGrowthSubmit(const FLDSubmitResult& Result);
     void HandleChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
-    void HandleShopReceipt(const FLDShopReceiptQueryResult& Result);
-    void HandleShopOpen(const FLDShopOpenResult& Result);
     void RefreshScoreboard(const class ALDGameState& Public,const FLDOwnerState& Own);
     // Authority time at which the current life was first seen alive; the death banner takes its cause only from notices
     // at or after it, so a previous death never stands in while this one's notice is still on its way.

@@ -46,13 +46,6 @@ namespace LDOrderRules
     LOCKDOWN_API bool ShouldRepeatHeldMove(double NowSeconds, double LastSentSeconds, const FVector& LastGroundCm,
         const FVector& GroundCm);
 
-    // Where a right click on the stall model walks to: the point nearest FromCm on the stall's planar footprint grown by
-    // the body radius, so the body stands right beside the model, never inside it (the decoration has no collision). Planar; Z is FromCm's. Returns false when FromCm already
-    // touches that grown footprint (the body stays where it is) or the footprint is empty.
-    LOCKDOWN_API bool ShopFrontPoint(const FBox2D& FootprintCm, const FVector& FromCm, double BodyRadiusCm, FVector& OutCm);
-    // Candidate goals from Front back toward From every StepCm (Front first, From last): the first reachable one is the
-    // nearest walkable point beside the stall.
-    LOCKDOWN_API TArray<FVector> ShopStopCandidates(const FVector& FrontCm, const FVector& FromCm, double StepCm);
 
     // Shift queue (2026-11-06 user decision): Shift + right click / A-click / Q W 1 2 D appends a step behind the current
     // order instead of replacing it. At most MaxQueuedSteps steps wait; a further Shift command is refused (QueueFull).

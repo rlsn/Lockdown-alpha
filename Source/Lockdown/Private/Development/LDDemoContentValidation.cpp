@@ -9,50 +9,6 @@ namespace
 {
 // Every attribute clamps to its catalog bounds in the projection (#112 §4), so no source combination is refused; what
 // remains to check is that every damage or shield term stays inside int64 at the extreme attributes.
-// 112 §7: Stats times 1 + UpgradeStatBonusBp, floored per field precision (P2/R4 storage, whole centimetres of range).
-bool UpgradedStatsMatch(const FLDDemoEquipmentDefinition& Item, int64 BonusBp, FNumbers& N)
-{
-    if (Item.UpgradedStats.Num() != Item.Stats.Num())
-    {
-        return false;
-    }
-    for (int32 I = 0; I < Item.Stats.Num(); ++I)
-    {
-        const FLDDemoStatBonus& Base = Item.Stats[I];
-        const FLDDemoStatBonus& Up = Item.UpgradedStats[I];
-        if (Base.Stat != Up.Stat)
-        {
-            return false;
-        }
-        if (Base.Stat == ELDDemoBonusStat::AttackRangeCmFlat)
-        {
-            int64 Scaled, Whole;
-            if (Base.Cm.Denominator <= 0 || !N.Mul64(Base.Cm.Numerator, 10000 + BonusBp, Scaled, Item.Id)
-                || !N.Mul64(Base.Cm.Denominator, 10000, Whole, Item.Id))
-            {
-                return false;
-            }
-            const int64 Expected = Scaled >= 0 ? Scaled / Whole : -((-Scaled + Whole - 1) / Whole);
-            if (Up.Amount != 0 || Up.Cm.Denominator != 1 || Up.Cm.Numerator != Expected)
-            {
-                return false;
-            }
-            continue;
-        }
-        int64 Scaled;
-        if (!N.Mul64(Base.Amount, 10000 + BonusBp, Scaled, Item.Id))
-        {
-            return false;
-        }
-        const int64 Expected = Scaled >= 0 ? Scaled / 10000 : -((-Scaled + 9999) / 10000);
-        if (Up.Amount != Expected || Up.Cm.Numerator != 0 || Up.Cm.Denominator != 1)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
 bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Check)
 {
     const auto& P = D.Parameters;
@@ -126,17 +82,6 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     {
         return false;
     }
-    for (const auto& Item : D.Equipment)
-    {
-        for (const auto& Effect : Item.Passive.Effects)
-        {
-            if (!CheckEffect(Effect, Item.Id)) { return false; }
-        }
-        for (const auto& Effect : Item.Passive.UpgradedEffects)
-        {
-            if (!CheckEffect(Effect, Item.Id)) { return false; }
-        }
-    }
     return Check.Good;
 }
 
@@ -205,15 +150,14 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    // D27 (#79): the leader circle always contains the leader, the minimum level exists, and the cap is reachable.
+    // D27 (#79): the leader circle always contains the leader and the minimum level exists.
     {
         const auto& Radius = P.LeaderCircleRadiusCm;
         const auto& Offset = P.LeaderCircleMaxOffsetCm;
         const bool bContained = Radius.Denominator > 0 && Offset.Denominator > 0 && Offset.Numerator > 0
             && double(Offset.Numerator) / double(Offset.Denominator) <= double(Radius.Numerator) / double(Radius.Denominator);
-        if (!Check.Require(bContained && P.LeaderMinLevel >= 1 && P.LeaderMinLevel <= D.Progression.MaxLevel
-            && P.LeaderBountyGoldPerRefresh > 0 && P.LeaderBountyGoldPerRefresh <= P.LeaderBountyGoldMax, TEXT("LEADER"),
-            TEXT("the circle must contain the leader, the level must exist and the cap must be reachable")))
+        if (!Check.Require(bContained && P.LeaderMinLevel >= 1 && P.LeaderMinLevel <= D.Progression.MaxLevel, TEXT("LEADER"),
+            TEXT("the circle must contain the leader and the level must exist")))
         {
             return false;
         }
@@ -250,8 +194,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     for (const auto& Card : D.OpeningCards)
     {
         const bool bShared = D.Abilities.ContainsByPredicate([&Card](const FLDDemoAbilityDefinition& Row) { return Row.Id == Card.Id; })
-            || D.Attributes.ContainsByPredicate([&Card](const FLDDemoAttributeDefinition& Row) { return Row.Id == Card.Id; })
-            || D.Equipment.ContainsByPredicate([&Card](const FLDDemoEquipmentDefinition& Row) { return Row.Id == Card.Id; });
+            || D.Attributes.ContainsByPredicate([&Card](const FLDDemoAttributeDefinition& Row) { return Row.Id == Card.Id; });
         if (!Check.Require(!bShared && Card.Stats.Num() == 3, TEXT("opening_cards"),
             TEXT("an opening card needs its own ID and exactly three stats")))
         {
@@ -291,24 +234,9 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     }
     int64 Growth, Reward;
     if (!N.Mul64(D.Progression.MaxLevel - 1, P.PlayerXPPerLevel, Growth, TEXT("player XP reward"))
-        || !N.Add64(P.PlayerXPBase, Growth, Reward, TEXT("player XP reward"))
-        || !N.Mul64(D.Progression.MaxLevel - 1, P.PlayerGoldPerLevel, Growth, TEXT("player gold reward"))
-        || !N.Add64(P.PlayerGoldBase, Growth, Reward, TEXT("player gold reward")))
+        || !N.Add64(P.PlayerXPBase, Growth, Reward, TEXT("player XP reward")))
     {
         return false;
-    }
-    for (const auto& Item : D.Equipment)
-    {
-        int64 SaleNumerator, PurchaseEnvelope;
-        if (!N.Mul64(Item.BuyPrice, P.SellRatioBp, SaleNumerator, Item.Id)
-            || !N.Add64(P.StartingGold, Item.BuyPrice, PurchaseEnvelope, Item.Id)
-            || !Check.Require(Item.SellGold == SaleNumerator / 10000 && Item.SellGold < Item.BuyPrice,
-                Item.Id, TEXT("derived sell gold differs or permits arbitrage"))
-            || !Check.Require(UpgradedStatsMatch(Item, P.UpgradeStatBonusBp, N), Item.Id,
-                TEXT("derived upgraded stats differ from the floored stat bonus")))
-        {
-            return false;
-        }
     }
     // #97: one row per camp tier (Low, High, Elite) in any order, then the Boss row appended by the importer.
     TSet<ELDDemoCampTier> CampTiers;
@@ -377,8 +305,7 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             || !Check.Require(Monster.PerceptionRadiusCm.Numerator == Monster.LeashRadiusCm.Numerator
                 && Monster.PerceptionRadiusCm.Denominator == Monster.LeashRadiusCm.Denominator,
                 Monster.Id, TEXT("derived perception radius differs from leash"))
-            || !N.Mul64(Monster.CountPerCamp, Monster.RewardXP, RewardTotal, Monster.Id)
-            || !N.Mul64(Monster.CountPerCamp, Monster.RewardGold, RewardTotal, Monster.Id))
+            || !N.Mul64(Monster.CountPerCamp, Monster.RewardXP, RewardTotal, Monster.Id))
         {
             return false;
         }

@@ -10,7 +10,7 @@ struct FLDCombatEntityRecord;
 struct FLDDemoPolicies;
 class FLDDemoContentSnapshot;
 
-// The executable terms of the innate D dash (D19) for one set of held equipment passives (D20).
+// The executable terms of the innate D dash (D19) for one set of learned trigger passives.
 struct FLDInnateDashTerms
 {
     FLDDemoRational DistanceCm;
@@ -78,11 +78,11 @@ namespace LDCombatSourceRules
         uint64 HighWater, bool bQueuedStep);
     // Persistent source and cooldown identity of the innate dash on every contender record.
     LOCKDOWN_API const FName& InnateDashId();
-    // D19/D20: approved CHARACTER dash terms; each held passive family with a DashBoost effect applies once,
-    // multiplying the cooldown by CooldownRatioBp (ceil to whole ms) and the distance by (1 + DistanceBonusBp).
-    // The duration is unchanged, so a boosted dash covers its longer distance in the same time. A learned trigger
-    // passive whose rank holds DashBoost (passive_special_forces advanced) applies the same way.
-    LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
+    // D19/D20: approved CHARACTER dash terms; each learned trigger passive whose rank holds DashBoost
+    // (passive_special_forces advanced) applies once, multiplying the cooldown by CooldownRatioBp (ceil to whole ms) and
+    // the distance by (1 + DistanceBonusBp). The duration is unchanged, so a boosted dash covers its longer distance in
+    // the same time.
+    LOCKDOWN_API bool InnateDashTerms(const FLDDemoContentSnapshot& Content,
         const TArray<FLDLearnedTriggerTerm>& Learned, FLDInnateDashTerms& Out, FString& Error);
     // ControlBlocked for the entry's own action, Busy (admission only), Cooldown, InsufficientMana, then ControlBlocked
     // for a moving active under a Root or displacement block; None when usable.
@@ -104,10 +104,11 @@ namespace LDCombatSourceRules
     LOCKDOWN_API int64 ReduceReadyAt(int64 ReadyAtMs, int64 NowMs, int64 AmountMs);
 
     // Whether a rank displaces its caster (a dash): such a release is a dash for the root matrix and takes the
-    // item_phase_anchor skill boost.
+    // passive skill dash boost.
     LOCKDOWN_API bool DisplacesCaster(const FLDDemoRankDefinition& Rank);
-    // item_phase_anchor: the boost of every character active with a dash, fixed at its release. Each held
-    // family with DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
-    LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDEquipmentPassiveFamily>& Passives,
+    // The boost of every character active with a dash, fixed at its release. Each learned trigger passive whose rank
+    // holds DashBoost skill terms applies once: cooldown x SkillCooldownRatioBp, distance x (1 + SkillDistanceBonusBp).
+    // No approved passive carries skill terms yet (#145), so this is the identity until one does.
+    LOCKDOWN_API bool SkillDisplacementBoost(const FLDDemoContentSnapshot& Content, const TArray<FLDLearnedTriggerTerm>& Learned,
         int64& OutCooldownRatioBp, int64& OutDistanceBonusBp, FString& Error);
 }

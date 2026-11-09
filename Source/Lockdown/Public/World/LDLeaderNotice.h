@@ -10,10 +10,8 @@ class FLDDemoContentSnapshot;
 // still in the match, the unique highest level of at least LEADER.MinLevel, ties broken by kills, otherwise nobody. A
 // leader who is dead at the refresh is not shown. The public view shows a LEADER.CircleRadiusCm circle whose centre is
 // the leader's foot moved by a uniform random offset of at most LEADER.CircleMaxOffsetCm (never more than the radius,
-// so the leader is always inside). Each refresh that names the same contender again adds LEADER.BountyGoldPerRefresh to
-// the bounty, up to LEADER.BountyGoldMax; the first refresh already carries one step. Whoever kills the shown leader
-// gets the bounty on top of the normal kill reward, locked at the fatal moment; the death ends the notice and the next
-// refresh starts a new streak.
+// so the leader is always inside). The shown leader's death ends the notice until the next refresh names someone; a kill
+// of the leader pays only the normal kill reward (#144 removed the gold bounty).
 namespace LDLeaderNotice
 {
     struct FCandidate
@@ -36,8 +34,6 @@ struct LOCKDOWN_API FLDLeaderRules
     uint8 MinLevel = 0;
     double CircleRadiusCm = 0;
     double CircleMaxOffsetCm = 0;
-    int64 BountyGoldPerRefresh = 0;
-    int64 BountyGoldMax = 0;
     uint32 Seed = 0;
     bool IsValid() const;
 };
@@ -48,22 +44,19 @@ struct LOCKDOWN_API FLDLeaderState
     // The refresh index (1-based) last applied; zero before the first.
     uint64 RefreshIndex = 0;
     FGuid Leader;
-    uint32 Streak = 0;
     FVector CircleCentreCm = FVector::ZeroVector;
     int64 RefreshedAtMs = 0;
-    // The last shown leader's death: who, when and the bounty it paid on top of the kill reward (evidence and logs).
+    // The last shown leader's death: who and when (evidence and logs).
     FGuid LastDownLeader;
     int64 LastDownAtMs = 0;
-    int64 LastDownBountyGold = 0;
 
     bool IsActive() const { return Rules.IsValid(); }
     // The refresh boundary NowMs falls on or after; true when a new refresh is due at NowMs.
     bool IsRefreshDue(int64 NowMs) const;
     // Applies the refresh at NowMs. True when the public view changed.
     bool Refresh(int64 NowMs, TConstArrayView<LDLeaderNotice::FCandidate> Candidates);
-    // The shown leader died: the notice ends and its streak is spent. True when the view changed.
+    // The shown leader died: the notice ends until the next refresh. True when the view changed.
     bool LeaderDied(const FGuid& Contender, int64 NowMs);
-    int64 BountyFor(const FGuid& Victim) const;
     int64 NextDueMs(int64 NowMs) const;
     FLDLeaderView View() const;
 };

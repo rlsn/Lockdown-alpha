@@ -82,9 +82,9 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
 `FLDMoveIdentity` 包含 `Match`、`Life`、`Order`、`Epoch`；
 拥有连接隐含在组件的 Controller 中，不接受客户端指定另一个所有者。
 
-1. `NavigateGround`、`AttackUnit`、`AttackMove`、`ApproachShop` 各建立新 order，发送一份
-   `FLDSpatialOrderRequest`（Kind 为 MoveGround/AttackUnit/AttackMove/ApproachShop，带脚点与注册
-   SurfaceHint、观察句柄+Epoch 或商店 ID）。右键按“可见单位 → 公共商店 → 地面”的顺序只取一类。
+1. `NavigateGround`、`AttackUnit`、`AttackMove` 各建立新 order，发送一份
+   `FLDSpatialOrderRequest`（Kind 为 MoveGround/AttackUnit/AttackMove，带脚点与注册
+   SurfaceHint 或观察句柄+Epoch）。右键按“可见单位 → 地面”的顺序只取一类。
 2. `ServerSubmitOrder` 与对手 AI 的服务器入口 `SubmitOrder(FLDOrderCaller, Request)` 共用同一订单簿：
    先用核心当前 BodyRef/拥有 Controller 核对身份、顺序与形状，再进入单一待处理槽；
    进攻订单在获准 Actions 阶段先经生命域解除保护，再验路径/目标，失败不替换已在执行的订单。
@@ -101,7 +101,7 @@ native record sequence 与最终圈事件/提供者序列分开。`CompleteNativ
    Combat 的 MatchReset 经 `ResetMatch` 结束旧局订单并整体丢弃订单簿与内容缓存。
    回执序号是拥有连接的单调序，两端都不随局复位，客户端另按 Match/Life 过滤。
 7. 订单的发送、进行中与到达只写入组件自己的 `Status`；HUD 唯一的提示条只经 `PostIntentNotice`
-   收到真正的失败（无法到达、路线受阻、被拒、心跳耗尽、砍一刀小摊不可用等）与“复活保护没了”，
+   收到真正的失败（无法到达、路线受阻、被拒、心跳耗尽等）与“复活保护没了”，
    玩家自己的新订单替换旧单或按 S 停止不算失败；同一失败再次发生时会再次提示。
 8. 指针与操作手感（拥有客户端本地表现，`ALDPointerFeedback`，不复制、无碰撞、不影响寻路）：
    - 自己的地面订单在发出当帧于落点显示收缩的绿色虚线环；本地路线检查（与预测同一 `PlanRoute`）已失败时
@@ -165,8 +165,6 @@ AttackUnit 接近并持续普攻；AttackMove 按 D03 在合法可见候选中�
 路线投影仍保留脚点的 XY 和该处作者地形高度，不移到胶囊的偏心接触点。
 原生 correction 不是可以跳过命令验证的理由。环境碰撞更新与路径重算的关系见
 [世界与数据管线](WORLD_AND_DATA_PIPELINE.md)。
-`FindPublicApproach` 仅为已注册商店/旗杆喷漆区求合法范围内的完整路径，范围取同一内容定义；
-不走入被阻挡的商店中心，不增加商店 LOS 条件，也不授予成交或喷漆资格。
 所有路线规划的起点由共享的 `LDPathSteering::PlanStart` 给出（参赛者经 `QueryPlanStart`/`PlanRoute`，营地成员同样复用）：
 先确认身体在注册支持面上的合法地面，若身体因贴墙、贴身或转角切内侧停在 Recast 保守收缩的边缘外，
 只把平面起点移到一个胶囊半径内最近的 navmesh 点，该点须在同一支持面上重新通过 `QueryGround`；
@@ -200,7 +198,7 @@ Navigation 只在生命/阶段一半失效时停单。打开菜单或设置、�
 暂停菜单不暂停共享世界；死亡、离开和终局清除适用的移动/指向/交互状态。
 
 `ULDUIRoot` 是唯一的本地界面层来源：`TopInputLayer()` 报告文本编辑、子确认或主面板；
-同一时刻只开一个主面板（`ToggleMainPanel`：菜单、设置，以及经 `RegisterMainPanel` 登记的属性/三选一/砍一刀小摊），
+同一时刻只开一个主面板（`ToggleMainPanel`：菜单、设置，以及经 `RegisterMainPanel` 登记的属性/三选一，DEV 房间另有测试），
 未登记的面板明确提示尚未接入。Esc 经 `V05Back` 每次只处理一层：
 `CloseTopModal`（结束文本编辑或关闭子确认）→ `CancelArmedCombat`（取消战斗准备态）→ `CloseTopPanel`（关闭主面板）→ 打开菜单。
 关闭面板不停止已接受订单、不提交或回滚领域请求。
@@ -242,10 +240,10 @@ Pawn 复制暂时缺失（包括本地仍显示 Alive）时保留最后渲染的
 小地图的坐标转换使用当前地图定义与本地 `MinimapOrientation`：跟随镜头（默认，地图上方即屏幕上方）、跟随角色朝向、固定正北（世界 −Y 朝上）。
 三种都是真实俯视的旋转加统一缩放，绘制、镜头框和拖图/右键移动共用 `LDMinimap::MakeView/ToFrame/ToWorld`，不镜像。
 点击静态地图不授予对隐藏单位的锁定或远程交互能力，
-远处镜头也不会把身体的攻击/商店距离一起移动。
+远处镜头也不会把身体的攻击距离一起移动。
 小地图左键拖动只移动镜头，死亡等待期间也可用；右键移动仍要求 `CanWorldCommand`。
 
-本地按键、文字缩放与镜头偏好通过 `LDControlSettings` 保存，不能和对局金币、技能冷却等混为一份状态。
+本地按键、文字缩放与镜头偏好通过 `LDControlSettings` 保存，不能和对局经验、技能冷却等混为一份状态。
 保存失败需反馈，配置迁移不能默默给多个动作绑定同一个按键。
 
 ## 本地设置与显示

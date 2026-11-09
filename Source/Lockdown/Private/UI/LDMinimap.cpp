@@ -35,11 +35,11 @@ struct FLDMinimapStatic
     // Wall blocks walking and sight, LowWall only walking, SightScreen only sight. #97: Level1/Level2 plateaus and the
     // ramps between levels lie under every other area.
     enum class EArea : uint8 { Wall, LowWall, SightScreen, CaptureZone, DormZone, Level1, Level2, Ramp };
-    enum class ESite : uint8 { Shop, Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp };
+    enum class ESite : uint8 { Capture, LowCamp, HighCamp, Dorm, BossWaypoint, EliteCamp };
     // D27: the approved leader circle radius, read with the static map.
     double LeaderRadiusCm=0;
     struct FArea { EArea Style=EArea::Wall; TArray<FVector2D> Cm; };
-    struct FSite { ESite Kind=ESite::Shop; FVector2D Cm=FVector2D::ZeroVector; };
+    struct FSite { ESite Kind=ESite::Capture; FVector2D Cm=FVector2D::ZeroVector; };
     struct FRun { FVector2f Position=FVector2f::ZeroVector; FVector2f Extent=FVector2f::ZeroVector; FLinearColor Color=FLinearColor::White; };
     struct FOutline { TArray<FVector2f> Points; FLinearColor Color=FLinearColor::White; float Thickness=1.f; bool bDashed=false; };
     TSharedPtr<const FLDDemoContentSnapshot> Content;
@@ -205,8 +205,7 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         FLDMinimapStatic::FSite Site;if(!ToCm(Anchor.Id,Anchor.PositionCm,Site.Cm)){return false;}
         Content+=Site.Cm;
         if(Anchor.Kind==ELDDemoWorldAnchorKind::Spawn){continue;}
-        if(Anchor.Kind==ELDDemoWorldAnchorKind::Shop){Site.Kind=FLDMinimapStatic::ESite::Shop;}
-        else if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
+        if(Anchor.Kind==ELDDemoWorldAnchorKind::Capture)
         {
             if(!FMath::IsFinite(RadiusCm)||RadiusCm<=0){Error=TEXT("CAPTURE.RadiusCm is not a positive approved length.");return false;}
             Site.Kind=FLDMinimapStatic::ESite::Capture;FLDMinimapStatic::FArea Zone;Zone.Style=FLDMinimapStatic::EArea::CaptureZone;
@@ -498,13 +497,12 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
         {
             FSlateDrawElement::MakeBox(E,Base+3,Plane.ToPaintGeometry(Cache.RasterBrush.ImageSize,FSlateLayoutTransform(FVector2f(-2.f))),
                 &Cache.RasterBrush,ESlateDrawEffect::PreMultipliedAlpha|ESlateDrawEffect::NoGamma);
-            // Shop: stall square with an awning band. Capture: flag on the zone centre. Camps: small diamond or large bordered one.
+            // Capture: flag on the zone centre. Camps: small diamond or large bordered one.
             for(const FLDMinimapStatic::FSite& Site:Cache.Sites)
             {
                 const FVector2f At=Spot(FVector(Site.Cm.X,Site.Cm.Y,0.));
                 switch(Site.Kind)
                 {
-                case FLDMinimapStatic::ESite::Shop:Box(5,At-FVector2f(5.f,5.f),FVector2f(10.f,10.f),Ink);Box(6,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.98f,.72f,.22f));Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,2.5f),FLinearColor(.42f,.15f,.06f));break;
                 case FLDMinimapStatic::ESite::Capture:Box(5,At+FVector2f(-.75f,-9.f),FVector2f(1.5f,9.5f),FLinearColor(.94f,.94f,.90f));Box(6,At+FVector2f(.75f,-9.f),FVector2f(6.f,4.f),FLinearColor(.92f,.20f,.16f));break;
                 case FLDMinimapStatic::ESite::LowCamp:Diamond(5,At,6.5f,Ink);Diamond(6,At,4.5f,FLinearColor(.96f,.66f,.30f));break;
                 case FLDMinimapStatic::ESite::HighCamp:Diamond(5,At,12.f,FLinearColor(1.f,.93f,.76f));Diamond(6,At,9.f,FLinearColor(.80f,.22f,.17f));Diamond(7,At,3.5f,Ink);break;

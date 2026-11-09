@@ -60,9 +60,9 @@ struct FLDPendingGrowthIntent
 {
     enum class EKind : uint8
     {
-        Choice, ShopOpen, ShopCommand,
+        Choice,
 #if WITH_DEV_AUTOMATION_TESTS
-        // DEV test command of ALDEconomyDirector (LDDevTestProtocol.h).
+        // DEV test command of ALDGrowthDirector (LDDevTestProtocol.h).
         DevTest,
 #endif
     };
@@ -91,23 +91,20 @@ public:
     FLDSubmitResult QueueChoice(const FGuid& ContenderId, const FLDChoiceCommand& Command);
     FLDChoiceReceiptQueryResult QueryChoiceReceipt(const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
 
-    // ---- Transactions phase (dispatched by ALDEconomyDirector::ProcessTransactions) ----
+    // ---- Transactions phase (dispatched by ALDGrowthDirector::ProcessTransactions) ----
     void CollectPending(TArray<FLDPendingGrowthIntent>& Out) const;
     // Commits or rejects this contender's pending choice and finalizes its request sequence.
     // An AuthorityFault reason in the receipt means the boundary must fault.
     FLDChoiceReceipt CommitPendingChoice(const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
 
-    // ---- Composite-commit parts for rewards and shop transactions ----
+    // ---- Composite-commit parts for rewards ----
     // Cumulative XP, level and one opportunity per level crossed (after the opening one); BuildRevision advances only with the level.
     FLDPrepareGrowthResult PrepareExperience(const FGuid& ContenderId, int64 GrantXP) const;
-    // Equipment changes advance BuildRevision once; the offer keeps its cards and only refreshes its guard.
-    FLDPrepareGrowthResult PrepareEquipmentChange(const FGuid& ContenderId) const;
     // No-fail: installs the prepared build/progression, refreshes the offer guard and draws the queue head.
     void ApplyPreparedGrowth(FLDPreparedGrowthChange&& Prepared, const FLDGameplayWritePermit& Permit);
 
     // Complete post-change projection input for Combat (PEE §4.2 / Combat PrepareBuildChange).
-    FLDBuildProjectionInput MakeProjectionInput(const FLDGrowthBuild& Build,
-        const TArray<FLDEquippedItemValue>& Equipment, uint64 ResultInventoryRevision) const;
+    FLDBuildProjectionInput MakeProjectionInput(const FLDGrowthBuild& Build) const;
     FLDCombatCaller MakeCaller(const FGuid& ContenderId) const;
     bool ReadCombatInstalled(const FGuid& ContenderId, FLDExpectedBuildVersions& Out) const;
     const FLDGrowthBuild* FindBuild(const FGuid& ContenderId) const;

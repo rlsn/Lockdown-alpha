@@ -180,30 +180,6 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Basic attacks, refusals, cancels and receipts of another match or life stay silent"),Out.IsEmpty());
     FLDCombatActionReceipt Dash=Cast;Dash.DirectSequence=15;Dash.Entry=ELDCombatEntry::Dash;Tracker.ObserveCombatReceipt(Dash,4,1,Out);
     TestTrue(TEXT("The innate dash sounds as a cast"),AudioIs(Out,{ELDAudioCue::SelfCast}));
-
-    Out.Reset();
-    FLDSubmitResult Buy;Buy.Generation=4;Buy.Family=ELDGrowthFamily::Shop;Buy.RequestId=1;Buy.Status=ELDAdmissionStatus::Final;
-    Buy.bHasShopReceipt=true;Buy.ShopReceipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Tracker.ObserveShopSubmit(Buy,4,Out);TestTrue(TEXT("An applied trade sounds"),AudioIs(Out,{ELDAudioCue::PurchaseSucceeded}));
-    Out.Reset();
-    FLDShopReceiptQueryResult Query;Query.Query.Generation=4;Query.Query.Family=ELDGrowthFamily::Shop;Query.Query.RequestId=1;
-    Query.Lookup=ELDReceiptLookup::Final;Query.bHasReceipt=true;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Applied;
-    Tracker.ObserveShopReceipt(Query,4,Out);TestTrue(TEXT("The same request's later receipt stays silent"),Out.IsEmpty());
-    FLDSubmitResult Refusal=Buy;Refusal.RequestId=2;Refusal.Status=ELDAdmissionStatus::AdmissionRejected;Refusal.bSequenceReserved=false;Refusal.bHasShopReceipt=false;
-    Tracker.ObserveShopSubmit(Refusal,4,Out);TestTrue(TEXT("An unreserved refusal sounds rejected"),AudioIs(Out,{ELDAudioCue::TradeRejected}));
-    Out.Reset();
-    FLDSubmitResult Reused=Buy;Reused.RequestId=2;Tracker.ObserveShopSubmit(Reused,4,Out);
-    TestTrue(TEXT("The reused id of a refused request still sounds its final result"),AudioIs(Out,{ELDAudioCue::PurchaseSucceeded}));
-    Out.Reset();
-    FLDSubmitResult Reserved=Refusal;Reserved.RequestId=3;Reserved.bSequenceReserved=true;Tracker.ObserveShopSubmit(Reserved,4,Out);
-    TestTrue(TEXT("A reserved refusal waits for its final receipt"),Out.IsEmpty());
-    Query.Query.RequestId=3;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Rejected;Tracker.ObserveShopReceipt(Query,4,Out);
-    TestTrue(TEXT("The final rejected receipt sounds"),AudioIs(Out,{ELDAudioCue::TradeRejected}));
-    Out.Reset();
-    Query.Query.RequestId=1;Query.Receipt.Header.Outcome=ELDReceiptOutcome::Applied;Tracker.ObserveShopReceipt(Query,4,Out);
-    FLDSubmitResult Foreign=Buy;Foreign.RequestId=9;Foreign.Generation=3;Tracker.ObserveShopSubmit(Foreign,4,Out);
-    FLDSubmitResult Choice=Buy;Choice.RequestId=10;Choice.Family=ELDGrowthFamily::Choice;Tracker.ObserveShopSubmit(Choice,4,Out);
-    TestTrue(TEXT("Late, foreign-match and choice results stay silent"),Out.IsEmpty());
     return true;
 }
 
@@ -295,21 +271,25 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 {
     TestEqual(TEXT("Existing cue numbering stays stable"),uint8(ELDAudioCue::SelfShieldHit),uint8(16));
     TestEqual(TEXT("The basic swing cue is appended"),uint8(ELDAudioCue::SelfAttack),uint8(17));
-    for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
+    TestEqual(TEXT("The level-up cue keeps its number past the retired shop trade cues"),uint8(ELDAudioCue::LevelUp),uint8(12));
+    TestTrue(TEXT("Retired cue numbers are not playable"),!LDAudio::IsPlayableCue(ELDAudioCue(10))&&!LDAudio::IsPlayableCue(ELDAudioCue(11)));
+    for(int32 Index=0;Index<LDAudio::CueCount;++Index)
     {
+        const ELDAudioCue Cue=LDAudio::PlayableCue(Index);
         ELDAudioCue Parsed=ELDAudioCue::None;
-        TestTrue(TEXT("Every cue id round-trips"),LDAudio::ParseCueId(LDAudio::CueId(ELDAudioCue(Index)),Parsed)&&Parsed==ELDAudioCue(Index));
+        TestTrue(TEXT("Every cue id round-trips"),LDAudio::IsPlayableCue(Cue)&&LDAudio::ParseCueId(LDAudio::CueId(Cue),Parsed)&&Parsed==Cue);
     }
+    TestTrue(TEXT("The playable cues end before Count"),LDAudio::PlayableCue(LDAudio::CueCount)==ELDAudioCue::None&&LDAudio::PlayableCue(-1)==ELDAudioCue::None);
     ELDAudioCue Parsed=ELDAudioCue::None;
     TestFalse(TEXT("Cue ids are case-sensitive and None is not a cue"),LDAudio::ParseCueId(TEXT("killnotice"),Parsed)||LDAudio::ParseCueId(TEXT("None"),Parsed));
     auto* Master=NewObject<USoundClass>();auto* Mix=NewObject<USoundMix>();auto* Catalog=NewObject<ULDAudioCatalog>();
     auto Fill=[&]()
     {
         Catalog->MasterClass=Master;Catalog->UserMix=Mix;Catalog->Cues.Reset();
-        for(int32 Index=1;Index<int32(ELDAudioCue::Count);++Index)
+        for(int32 Index=0;Index<LDAudio::CueCount;++Index)
         {
             auto* Wave=NewObject<USoundWave>();Wave->SoundClassObject=Master;Wave->Duration=.5f;
-            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=ELDAudioCue(Index);Entry.Sound=Wave;
+            FLDAudioCueEntry& Entry=Catalog->Cues.AddDefaulted_GetRef();Entry.Cue=LDAudio::PlayableCue(Index);Entry.Sound=Wave;
         }
     };
     TArray<USoundWave*> Sounds;FString Error;
@@ -318,6 +298,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
         &&Sounds[int32(ELDAudioCue::Count)-1]==Catalog->Cues.Last().Sound&&!Sounds[0]);
     Catalog->Cues.Pop();TestFalse(TEXT("A missing cue is an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues.Swap(0,1);TestFalse(TEXT("Entries out of cue order are an error"),Catalog->Resolve(Sounds,Error));
+    Fill();Catalog->Cues[9].Cue=ELDAudioCue(10);TestFalse(TEXT("A retired cue number is an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues[3].Sound=nullptr;TestFalse(TEXT("A cue without sound is an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues[0].Sound->SoundClassObject=NewObject<USoundClass>();TestFalse(TEXT("A sound outside the master class is an error"),Catalog->Resolve(Sounds,Error));
     Fill();Catalog->Cues[1].Sound->bLooping=true;TestFalse(TEXT("A looping cue is an error"),Catalog->Resolve(Sounds,Error));
