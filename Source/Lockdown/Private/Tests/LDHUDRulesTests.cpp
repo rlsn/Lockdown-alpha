@@ -1,6 +1,7 @@
 #include "UI/LDHUDModel.h"
 #include "Development/LDDemoCardText.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIIcons.h"
 #include "UI/LDDevTestPanel.h"
 #include "Development/LDDevTestProtocol.h"
 #include "Development/LDGrowthProtocol.h"
@@ -16,6 +17,9 @@
 #include "Misc/AutomationTest.h"
 #include "Misc/ScopeExit.h"
 #include "Tests/LDTestApprovedDisplay.h"
+#include "Tests/LDTestApprovedFixture.h"
+#include "Development/LDDemoContentCatalog.h"
+#include "Engine/Texture2D.h"
 #include <limits>
 #if WITH_DEV_AUTOMATION_TESTS
 namespace
@@ -34,7 +38,7 @@ FLDDemoContentDefinitions HudFixtureContent()
 {
     FLDDemoContentDefinitions Content;
     for(const TCHAR* Id:HudFixtureIds)
-    {FLDDemoDisplayDefinition Display;Display.Id=Id;Display.Namespace=HudFixtureTable.ToString();Display.NameKey=FString(Id)+TEXT(".name");Display.DescriptionKey=FString(Id)+TEXT(".description");Content.Display.Add(Display);}
+    {FLDDemoDisplayDefinition Display;Display.Id=Id;Display.Namespace=HudFixtureTable.ToString();Display.NameKey=FString(Id)+TEXT(".name");Display.DescriptionKey=FString(Id)+TEXT(".description");Display.IconId=FString(TEXT("icon_"))+Id;Content.Display.Add(Display);}
     FLDDemoMonsterDefinition Monster;Monster.Id=TEXT("monster_guardian");Monster.NativeId=uint8(ELDDemoMonsterId::MonsterGuardian);Content.Monsters.Add(Monster);
     return Content;
 }
@@ -458,18 +462,22 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("The card face is the sentence with this level's numbers and the advanced line"),
         Card.SentencePlain==TEXT("命中造成 100 魔法伤害。")&&Card.AdvancedPlain==TEXT("高级：穿透。"));
     TestTrue(TEXT("The details show the target form and the cost"),Card.Lines.Num()==2&&Card.Lines[0]==TEXT("方向弹道 · 射程 650cm")&&Card.Lines[1]==LDHUD::CostLine(Rank));
-    TestTrue(TEXT("The compact card line is short and leaves the kind and the replacement to the UI"),Card.Summary==TEXT("新")&&Card.Detail==TEXT("新主动 · 初级"));
-    TestTrue(TEXT("An active card draws the active placeholder icon with the name's first character"),
-        Card.Icon==LDHUD::EChoiceIcon::Active&&Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
+    TestTrue(TEXT("The compact card line names the card type and the rank step and leaves the replacement to the UI"),
+        Card.Type==TEXT("主动")&&Card.Summary==TEXT("主动 · 新")&&Card.Detail==TEXT("新主动 · 初级"));
+    TestTrue(TEXT("An active card draws its display icon, with the name's first character only as the missing-icon stand-in"),
+        Card.Glyph==Card.Name.Left(1)&&Card.IconId==TEXT("icon_hud_rules_fixture_bolt"));
     FLDChoiceOption Upgrade=Learn;Upgrade.Kind=ELDChoiceOptionKind::UpgradeActive;Upgrade.FromRank=1;Upgrade.ToRank=2;
     const LDHUD::FChoiceCardView Up=LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats);
     TestTrue(TEXT("An upgrade states both ranks, shows A → B and never needs a replacement"),!Up.bNeedsReplacement&&Up.RankText==TEXT("初级 → 高级")
-        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。")&&Up.Summary==TEXT("初→高"));
+        &&Up.SentencePlain==TEXT("命中造成 100 → 150 魔法伤害。")&&Up.Summary==TEXT("主动 · 初→高"));
     FLDChoiceOption Passive=Learn;Passive.Kind=ELDChoiceOptionKind::LearnPassive;
     FLDChoiceOption Attribute=Learn;Attribute.Kind=ELDChoiceOptionKind::Attribute;Attribute.AttributeQuality=ELDAttributeQuality::Blue;
-    TestTrue(TEXT("Passive and attribute cards draw their own placeholder families"),LDHUD::ChoiceCard(Passive,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Passive
-        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Icon==LDHUD::EChoiceIcon::Attribute
-        &&LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats).Summary==TEXT("蓝色 · 已选 0 次"));
+    const LDHUD::FChoiceCardView PassiveCard=LDHUD::ChoiceCard(Passive,Progression,&Content,Stats);
+    const LDHUD::FChoiceCardView AttributeCard=LDHUD::ChoiceCard(Attribute,Progression,&Content,Stats);
+    TestTrue(TEXT("Passive and attribute cards name their type on the face"),PassiveCard.Type==TEXT("被动")&&PassiveCard.Summary==TEXT("被动 · 新")
+        &&AttributeCard.Type==TEXT("属性")&&AttributeCard.Summary==TEXT("属性 · 已选 0 次"));
+    TestTrue(TEXT("An attribute card's face leaves its quality to the name colour; the detail still names it"),
+        AttributeCard.AttributeQuality==ELDAttributeQuality::Blue&&!AttributeCard.Summary.Contains(TEXT("蓝色"))&&AttributeCard.Detail==TEXT("属性卡 · 蓝色 · 已选 0 次"));
     TestEqualSensitive(TEXT("The card carries the display table's IconId"),LDHUD::ChoiceCard(Upgrade,Progression,&Content,Stats).IconId,FString(TEXT("icon_hud_rules_fixture_bolt")));
     FLDCombatAttributeRowView Crit;Crit.Attribute=uint8(ELDProjectedAttribute::CritChance);Crit.Final.Numerator=1;Crit.Final.Denominator=5;Crit.Base.Denominator=1;
     Crit.Level.Denominator=1;Crit.Choices.Denominator=1;Crit.Passives.Denominator=1;
@@ -480,6 +488,14 @@ bool FLDHUDContentParametersTest::RunTest(const FString& Parameters)
     FLDCombatEntryView Entry;Entry.DefinitionId=NAME_None;Entry.Unavailable=ELDCombatReject::SourceUnavailable;
     const LDHUD::FActionInput Empty=LDHUD::ActionInput(Entry,LDHUD::EActionSlot::Q,&Content);
     TestTrue(TEXT("An empty combat entry is an explicit empty source with the server reason kept for display"),Empty.bProjected&&!Empty.bHasSource&&Empty.ServerBlock==TEXT("没有可用来源"));
+    TestTrue(TEXT("An empty slot has no icon"),Empty.IconId.IsEmpty()&&LDHUD::Action(Empty,LDHUD::FActionContext()).IconId.IsEmpty());
+    FLDCombatEntryView BoltEntry;BoltEntry.DefinitionId=TEXT("hud_rules_fixture_bolt");
+    const LDHUD::FActionInput BoltInput=LDHUD::ActionInput(BoltEntry,LDHUD::EActionSlot::Q,&Content);
+    TestTrue(TEXT("A bound slot draws its definition's display icon"),BoltInput.IconId==TEXT("icon_hud_rules_fixture_bolt")
+        &&LDHUD::Action(BoltInput,LDHUD::FActionContext()).IconId==TEXT("icon_hud_rules_fixture_bolt"));
+    FLDCombatEntryView DashEntry;DashEntry.DefinitionId=TEXT("dash");
+    TestEqualSensitive(TEXT("The dash has its own icon without a display row"),LDHUD::ActionInput(DashEntry,LDHUD::EActionSlot::Dash,&Content).IconId,
+        FString(LDUIIcons::Dash));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDSelfIconsTest,"Lockdown.Rules.HUDSelfIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
@@ -547,7 +563,8 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
         &&Icons.Items[0].ExpiresAtMs==11201&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==12000&&!Icons.bSyncing);
     TestTrue(TEXT("The root square is negative and the shield square positive"),!Icons.Items[0].bPositive&&Icons.Items[1].bPositive
         &&LDHUD::SelfIconDetail(Icons.Items[1],LDHUD::FCardStats(),nullptr).Summary==TEXT("临时状态 · 正面"));
-    TestEqualSensitive(TEXT("The placeholder icon is the name's first character"),Icons.Items[0].Glyph,LDHUD::IconGlyph(HudName(TEXT("root"))));
+    TestEqualSensitive(TEXT("The missing-icon stand-in is the name's first character"),Icons.Items[0].Glyph,LDHUD::IconGlyph(HudName(TEXT("root"))));
+    TestTrue(TEXT("Status squares draw their status's display icon"),Icons.Items[0].IconId==TEXT("icon_root")&&Icons.Items[1].IconId==TEXT("icon_shield"));
     TestEqualSensitive(TEXT("Without the matching authority clock no remainder is shown"),Tips(LDHUD::SelfIcons(&Progression,&Combat,false,0,&Content)),
         HudName(TEXT("root"))+TEXT(" | ")+HudName(TEXT("shield"))+TEXT(" 81"));
     const LDHUD::FSelfIconsView Missing=LDHUD::SelfIcons(nullptr,nullptr,true,0,&Content);
@@ -560,6 +577,7 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
     TestEqualSensitive(TEXT("Learned passives keep their rank; actives stay off the grid"),
         Tips(Icons),HudName(TEXT("passive_iced_americano"))+TEXT("（")+LDHUD::SkillRankName(2)+TEXT("）"));
     TestTrue(TEXT("Passives carry no remaining time"),Icons.Items.Num()==1&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Passive&&Icons.Items[0].ExpiresAtMs==0);
+    TestEqualSensitive(TEXT("A learned passive draws its display icon"),Icons.Items[0].IconId,FString(TEXT("icon_passive_iced_americano")));
     // D21 recoveries are temporary squares ahead of the passives while they heal, with no remaining-time ring.
     Combat.bOutOfCombatRegenActive=true;Combat.bDormRegenActive=true;
     Icons=LDHUD::SelfIcons(&Progression,&Combat,true,10000,&Content);
@@ -568,6 +586,8 @@ bool FLDHUDCombatOwnerViewTest::RunTest(const FString& Parameters)
         +LDHUD::SkillRankName(2)+TEXT("）"));
     TestTrue(TEXT("Recoveries are untimed temporary squares"),Icons.Items.Num()==3&&Icons.Items[0].Kind==LDHUD::ESelfIconKind::Temporary
         &&Icons.Items[0].ExpiresAtMs==0&&Icons.Items[1].Kind==LDHUD::ESelfIconKind::Temporary&&Icons.Items[1].ExpiresAtMs==0);
+    TestTrue(TEXT("Recoveries draw their own icons without a display row"),
+        Icons.Items[0].IconId==LDUIIcons::OutOfCombatRegen&&Icons.Items[1].IconId==LDUIIcons::DormRegen);
     TestTrue(TEXT("Recoveries and passives are all positive"),Icons.Items.FilterByPredicate([](const LDHUD::FSelfIconView& Icon){return Icon.bPositive;}).Num()==3);
     Content.Parameters.OutOfCombatRegenDelayMs=5000;Content.Parameters.OutOfCombatMaxHPRegenBp=150;Content.Parameters.OutOfCombatMaxMPRegenBp=150;
     Content.Parameters.DormRegenDelayMs=3000;Content.Parameters.DormMaxHPRegenBp=1000;Content.Parameters.DormMaxMPRegenBp=1000;
@@ -984,6 +1004,36 @@ bool FLDHUDDevTestPanelTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A refused receipt names the op and its reason"),LDDevPanel::ResultLine(Result).StartsWith(FString(TEXT("加"))+LDTerms::Experience+TEXT(" 被拒绝（")));
     Result.Status=ELDAdmissionStatus::AcceptedPending;Result.bHasReceipt=false;
     TestTrue(TEXT("An admitted command waits for its commit"),LDDevPanel::ResultLine(Result).StartsWith(TEXT("已受理")));
+    return true;
+}
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDIconsTest,"Lockdown.Rules.HUDIcons",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+bool FLDHUDIconsTest::RunTest(const FString& Parameters)
+{
+    // #85: every icon the HUD and the choice cards draw is an imported texture: each skill, attribute card, opening direction
+    // and status of the approved catalog (only the character and the creatures have no icon square), plus the dash and the
+    // two recoveries, which have no display row.
+    TestTrue(TEXT("Icon packages live in the cooked UI icon folder"),LDUIIcons::PackageFor(TEXT("icon_root"))==TEXT("/Game/Lockdown/Art/UI/Icons/T_icon_root"));
+    TestTrue(TEXT("A malformed icon id maps to no package"),LDUIIcons::PackageFor(TEXT("root")).IsEmpty()&&LDUIIcons::PackageFor(TEXT("icon_../x")).IsEmpty()
+        &&LDUIIcons::PackageFor(TEXT("icon_Root")).IsEmpty());
+    TSharedPtr<const FLDDemoContentSnapshot> Snapshot;
+    if(!LDTestApprovedFixture::Read(*this,Snapshot)){return false;}
+    const FLDDemoContentDefinitions& Content=Snapshot->Get();
+    TSet<FString> NoSquare{Content.Character.Id};
+    for(const FLDDemoMonsterDefinition& Monster:Content.Monsters){NoSquare.Add(Monster.Id);}
+    TArray<FString> Needed{LDUIIcons::Dash,LDUIIcons::OutOfCombatRegen,LDUIIcons::DormRegen};
+    for(const FLDDemoDisplayDefinition& Display:Content.Display){if(!NoSquare.Contains(Display.Id)){Needed.Add(Display.IconId);}}
+    TestTrue(TEXT("The catalog lists skills, attribute cards, openings and statuses"),Needed.Num()>3+Content.Abilities.Num()+Content.Attributes.Num());
+    for(const FString& IconId:Needed)
+    {
+        const UTexture2D* Texture=LDUIIcons::Find(IconId);
+        TestTrue(FString::Printf(TEXT("%s is an imported icon texture"),*IconId),Texture!=nullptr);
+    }
+    // A missing one is a visible, logged content error rather than a blank square.
+    // A fresh id per run: each id is reported once per process.
+    const FString Unknown=TEXT("icon_hud_rules_fixture_missing_")+FGuid::NewGuid().ToString(EGuidFormats::Digits).ToLower();
+    AddExpectedMessage(TEXT("LD_UI_ICON_MISSING '")+Unknown+TEXT("'"),ELogVerbosity::Error,EAutomationExpectedMessageFlags::Contains,1,false);
+    TestNull(TEXT("An id without an imported texture finds nothing"),LDUIIcons::Find(Unknown));
+    TestNull(TEXT("A second lookup still finds nothing and logs no more"),LDUIIcons::Find(Unknown));
     return true;
 }
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDHUDTermsGlossaryTest,"Lockdown.Rules.HUDTermsGlossary",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)

@@ -10,6 +10,8 @@
 /SourceData/Art/**/*.png filter=lfs diff=lfs merge=lfs -text
 # UI: full-screen background images supplied by the project owner.
 /SourceData/UI/*.png filter=lfs diff=lfs merge=lfs -text
+# UI: skill, passive, attribute, opening and status icons generated for this project (#85).
+/SourceData/UI/Icons/*.png filter=lfs diff=lfs merge=lfs -text
 
 # Human-readable documentation uses one portable text format.
 *.md text eol=lf

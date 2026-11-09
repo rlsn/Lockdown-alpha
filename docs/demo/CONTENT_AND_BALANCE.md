@@ -1207,15 +1207,16 @@ Nav连续普攻仅增加请求中的AttackCycle，仍复用Combat节拍与同一
 
 显示元数据统一为 `DISPLAY.<contentId>.NameKey/DescriptionKey/IconId`；
 本地化namespace为 `DemoContent`，键分别为 `<contentId>.name`、`<contentId>.description`，
-占位图标语义ID为 `icon_<contentId>`。这些规则适用于角色、角色技能、属性卡
+图标语义ID为 `icon_<contentId>`。这些规则适用于角色、角色技能、属性卡
 和怪物；具体中文名称用本报告目录中的名字。角色技能另有高级行 `<contentId>.advanced`（`advanced_key/advanced_text`，§4.4）。
 基础头像另用 `DISPLAY.character_demo.PortraitIconId=portrait_character_demo`。
 显示名与说明作为显示行的 `name_text`/`description_text` 进入 SourceData，经同一 Sync/check 生成载荷并计入根摘要；
 运行时由已验证内容注册 `DemoContent` 字符串表，缺失条目是内容错误。技能主句与高级行用 `[效果.字段]` 占位，
 数字由 typed 字段按当前等级与属性算出后填入，不写死；其他说明不含数字，
 等级、费用、冷却、射程与期限等数值由 typed 字段显示。
-导入器（`LDDemoContentImport`）校验这些键与图标语义 ID 的规范形式；仓库当前没有对应图标资产，不宣称图标已生成。
-占位图形可用自有箭头、护盾、锁链等简单轮廓与文字，不能复制外部游戏素材，也不能只靠颜色分辨。
+导入器（`LDDemoContentImport`）校验这些键与图标语义 ID 的规范形式。技能、属性卡、开局方向与状态的图标是本项目生成的雾港图标集
+（`SourceData\UI\ui_icons.json` 列出 `SourceData\UI\Icons` 的 64 px PNG 与来源，#85），角色与野怪暂无图标；
+图标不画品质、等级、键位或正负面，这些由 UI 表达，不能复制外部游戏素材，也不能只靠颜色分辨。
 
 状态显示名为：`root`「定身」、`shield`「护盾」、`camp_returning`「回位」；
 现有显示键、状态身份、控制与保护语义不变。

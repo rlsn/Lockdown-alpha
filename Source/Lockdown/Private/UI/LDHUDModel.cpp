@@ -1,6 +1,7 @@
 #include "UI/LDHUDModel.h"
 #include "Core/LDLog.h"
 #include "UI/LDTerms.h"
+#include "UI/LDUIIcons.h"
 #include "Character/LDHumanoidVisualComponent.h"
 #include "Development/LDDemoContentDefinitions.h"
 #include "Development/LDDemoContentIds.h"
@@ -95,6 +96,12 @@ FString LDHUD::SkillRankName(int32 Rank)
 FString LDHUD::ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId)
 {
     FString Name;ContentText(Content,ContentId,false,Name);return Name;
+}
+FString LDHUD::ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId)
+{
+    const FLDDemoDisplayDefinition* Display=Content&&!ContentId.IsEmpty()
+        ?Content->Display.FindByPredicate([&ContentId](const FLDDemoDisplayDefinition& D){return D.Id==ContentId;}):nullptr;
+    return Display?Display->IconId:FString();
 }
 FString LDHUD::StatusName(const FLDDemoContentDefinitions* Content,uint8 StatusId)
 {
@@ -570,6 +577,7 @@ LDHUD::FActionView LDHUD::Action(const FActionInput& Input,const FActionContext&
     View.Countdown=CooldownText(View.CooldownRemainingMs);
     if(bActive&&Input.ManaCostP2>0){View.Cost=FString::Printf(TEXT("%lld"),HudWholePoints(Input.ManaCostP2,false));}
     if(Input.bHasSource&&!Input.Name.IsEmpty()){View.Glyph=Input.Name.Left(1);}
+    if(Input.bHasSource){View.IconId=Input.IconId;}
     if(bLearned&&Input.bHasSource&&Input.Rank>0){View.Rank=FString::FromInt(Input.Rank);}
     return View;
 }
@@ -1036,13 +1044,13 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
     Card.Glyph=Card.Name.IsEmpty()?FString(TEXT("?")):Card.Name.Left(1);
     switch(Option.Kind)
     {
-    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动");Card.Icon=EChoiceIcon::Active;break;
-    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动升级");Card.Icon=EChoiceIcon::Active;break;
-    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动");Card.Icon=EChoiceIcon::Passive;break;
-    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动升级");Card.Icon=EChoiceIcon::Passive;break;
-    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性卡");Card.Icon=EChoiceIcon::Attribute;break;
-    case ELDChoiceOptionKind::Opening: Card.Kind=LDTerms::OpeningCardKind;Card.Icon=EChoiceIcon::Attribute;break;
-    default: Card.Kind=TEXT("未知选项");break;
+    case ELDChoiceOptionKind::LearnActive: Card.Kind=TEXT("新主动");Card.Type=TEXT("主动");break;
+    case ELDChoiceOptionKind::UpgradeActive: Card.Kind=TEXT("主动升级");Card.Type=TEXT("主动");break;
+    case ELDChoiceOptionKind::LearnPassive: Card.Kind=TEXT("新被动");Card.Type=TEXT("被动");break;
+    case ELDChoiceOptionKind::UpgradePassive: Card.Kind=TEXT("被动升级");Card.Type=TEXT("被动");break;
+    case ELDChoiceOptionKind::Attribute: Card.Kind=TEXT("属性卡");Card.Type=TEXT("属性");break;
+    case ELDChoiceOptionKind::Opening: Card.Kind=LDTerms::OpeningCardKind;Card.Type=TEXT("开局");break;
+    default: Card.Kind=TEXT("未知选项");Card.Type=Card.Kind;break;
     }
     // #153: the card face names the direction and its three stats; the active it teaches stays hidden until chosen.
     if(Option.Kind==ELDChoiceOptionKind::Opening)
@@ -1065,7 +1073,8 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         int32 Owned=0;for(const FLDAttributeCardView& Entry:Progression.AttributeCards){if(Entry.DefinitionId==Option.DefinitionId){Owned+=Entry.Count;}}
         Card.AttributeQuality=Option.AttributeQuality;
         Card.RankText=FString::Printf(TEXT("%s · 已选 %d 次"),*AttributeQualityName(Option.AttributeQuality),Owned);
-        Card.Summary=Card.RankText;Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
+        // #85: the face drops the quality's name; the name is drawn in the quality's colour and the detail keeps the word.
+        Card.Summary=FString::Printf(TEXT("%s · 已选 %d 次"),*Card.Type,Owned);Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
         if(const FLDDemoAttributeDefinition* Definition=Content?Content->Attributes.FindByPredicate([&Id](const FLDDemoAttributeDefinition& D){return D.Id==Id;}):nullptr)
         {
             TArray<FString> Parts;
@@ -1106,7 +1115,7 @@ LDHUD::FChoiceCardView LDHUD::ChoiceCard(const FLDChoiceOption& Option,const FLD
         const int32 ActiveSlots=Content&&Content->Progression.ActiveSlots>0?Content->Progression.ActiveSlots:3;
         Card.bNeedsReplacement=Filled>=ActiveSlots;
     }
-    Card.Summary=Option.FromRank>0?SkillRankName(Option.FromRank).Left(1)+TEXT("→")+SkillRankName(Option.ToRank).Left(1):FString(TEXT("新"));
+    Card.Summary=Card.Type+TEXT(" · ")+(Option.FromRank>0?SkillRankName(Option.FromRank).Left(1)+TEXT("→")+SkillRankName(Option.ToRank).Left(1):FString(TEXT("新")));
     Card.Detail=Card.Kind+TEXT(" · ")+Card.RankText;
     return Card;
 }
@@ -1220,6 +1229,7 @@ LDHUD::FActionInput LDHUD::ActionInput(const FLDCombatEntryView& Entry,EActionSl
     Input.bHasSource=!Entry.DefinitionId.IsNone();
     // The innate dash is no content definition with display text; its slot names the action itself.
     if(Input.bHasSource){Input.Name=Slot==EActionSlot::Dash?FString(LDTerms::Dash):ContentName(Content,Entry.DefinitionId.ToString());}
+    if(Input.bHasSource){Input.IconId=Slot==EActionSlot::Dash?FString(LDUIIcons::Dash):ContentIconId(Content,Entry.DefinitionId.ToString());}
     Input.RangeCm=Entry.RangeCm;
     Input.DefinitionId=Entry.DefinitionId;
     Input.Rank=Entry.Rank;Input.ManaCostP2=Entry.ManaCostP2;
@@ -1274,7 +1284,7 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             Icon.Kind=Status.ControlBlocks!=0?ESelfIconKind::Control:ESelfIconKind::Temporary;
             Icon.bPositive=StatusIsPositive(Status.StatusId);
             Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Source=ESelfIconSource::Status;
-            if(const TCHAR* Id=HudStatusContentId(Status.StatusId)){Icon.ContentId=Id;}
+            if(const TCHAR* Id=HudStatusContentId(Status.StatusId)){Icon.ContentId=Id;Icon.IconId=ContentIconId(Content,Icon.ContentId);}
             Icon.Key=FName(*FString::Printf(TEXT("Status.%d"),int32(Status.StatusId)));
             Icon.ExpiresAtMs=FMath::Max<int64>(0,Status.ExpiresAtMs);Icon.Stacks=Status.Stacks;
             if(Status.Stacks>1){Icon.Tip+=FString::Printf(TEXT(" ×%d"),int32(Status.Stacks));}
@@ -1283,14 +1293,14 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             (Icon.Kind==ESelfIconKind::Control?Control:Temporary).Add(MoveTemp(Icon));
         }
         // D21 recoveries are conditional states: shown while they heal, without a remaining-time ring.
-        auto AddRecovery=[&Temporary](ESelfIconSource Source,const FString& Name,const TCHAR* Key)
+        auto AddRecovery=[&Temporary](ESelfIconSource Source,const FString& Name,const TCHAR* Key,const TCHAR* IconId)
         {
-            FSelfIconView Icon;Icon.Kind=ESelfIconKind::Temporary;Icon.Source=Source;
+            FSelfIconView Icon;Icon.Kind=ESelfIconKind::Temporary;Icon.Source=Source;Icon.IconId=IconId;
             Icon.Glyph=IconGlyph(Name);Icon.Tip=Name;Icon.Key=FName(Key);
             Temporary.Add(MoveTemp(Icon));
         };
-        if(Combat->bOutOfCombatRegenActive){AddRecovery(ESelfIconSource::OutOfCombatRegen,LDTerms::OutOfCombatRegen,TEXT("Recovery.OutOfCombat"));}
-        if(Combat->bDormRegenActive){AddRecovery(ESelfIconSource::DormRegen,LDTerms::DormRegenActive(),TEXT("Recovery.Dorm"));}
+        if(Combat->bOutOfCombatRegenActive){AddRecovery(ESelfIconSource::OutOfCombatRegen,LDTerms::OutOfCombatRegen,TEXT("Recovery.OutOfCombat"),LDUIIcons::OutOfCombatRegen);}
+        if(Combat->bDormRegenActive){AddRecovery(ESelfIconSource::DormRegen,LDTerms::DormRegenActive(),TEXT("Recovery.Dorm"),LDUIIcons::DormRegen);}
     }
     if(Progression)
     {
@@ -1300,6 +1310,7 @@ LDHUD::FSelfIconsView LDHUD::SelfIcons(const FLDProgressionView* Progression,con
             FSelfIconView Icon;const FString Name=ContentName(Content,Skill.DefinitionId.ToString());
             Icon.Glyph=IconGlyph(Name);Icon.Tip=Name+TEXT("（")+SkillRankName(Skill.Rank)+TEXT("）");
             Icon.Source=ESelfIconSource::Learned;Icon.ContentId=Skill.DefinitionId.ToString();Icon.Rank=Skill.Rank;
+            Icon.IconId=ContentIconId(Content,Icon.ContentId);
             Icon.Key=FName(*(TEXT("Learned.")+Skill.DefinitionId.ToString()));
             Passives.Add(MoveTemp(Icon));
         }
