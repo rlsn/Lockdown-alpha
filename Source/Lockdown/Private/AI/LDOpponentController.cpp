@@ -6,6 +6,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDDevelopmentDirector.h"
 #include "Engine/World.h"
+#include "Evaluation/LDEvaluationPolicy.h"
 #include "Framework/LDDemoEntry.h"
 #include "Framework/LDGameMode.h"
 #include "Navigation/LDNavigationComponent.h"
@@ -148,6 +149,15 @@ bool ALDOpponentController::BindRegisteredSelf(const FLDAIContenderBinding& InBi
     Binding = InBinding;
     Content = MoveTemp(Snapshot);
     POIs = MoveTemp(Places);
+#if WITH_DEV_AUTOMATION_TESTS
+    Evaluation = LDEvaluationProfiles::Find(Binding.GetContender());
+    if (Evaluation)
+    {
+        Evaluation->bBound = true;
+        UE_LOG(LogLDAI, Display, TEXT("LD_EVAL_PROFILE contender=%s rival=%s site=%s choices=%d"), *Binding.GetContender().ToString(),
+            *Evaluation->Profile.Opponent.ToString(), *Evaluation->Profile.Site.ToString(), Evaluation->Profile.Choices.Num());
+    }
+#endif
     UE_LOG(LogLDAI, Log, TEXT("LD_AI_OPENING_PLAN contender=%s after_ms=%lld card=%u seed=%d"), *Binding.GetContender().ToString(),
         OpeningPickAfterMs, uint32(OpeningPickIndex), OpeningSeed);
     return true;
@@ -299,7 +309,13 @@ void ALDOpponentController::Tick(float DeltaSeconds)
     }
     SettleBuild(*Mode, Frame.Self, NowMs, Problem);
     ComposeFrame(Frame);
+#if WITH_DEV_AUTOMATION_TESTS
+    const FLDOpponentDecision Decision = Evaluation
+        ? LDEvaluationPolicy::Decide(Frame, *Content, Evaluation->Profile, Policy, Evaluation->State)
+        : LDOpponentPolicy::Decide(Frame, *Content, Policy);
+#else
     const FLDOpponentDecision Decision = LDOpponentPolicy::Decide(Frame, *Content, Policy);
+#endif
     NoteContest(Frame, Decision);
     DispatchBody(*Mode, Reads, Frame, Decision.Body, NowMs, Problem);
     DispatchBuild(*Mode, Reads, Frame, Decision.Build, NowMs, Problem);

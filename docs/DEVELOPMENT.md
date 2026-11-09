@@ -80,6 +80,7 @@ Validate 从保存的地图重新加载并完成 mesh/physics 初始化，再核
 | 奖励、选择、去重、原子事务 | [成长事务](systems/GROWTH_TRANSACTIONS.md) |
 | 战争迷雾、观测句柄、HUD 与隐私 | [视野与 UI](systems/VISION_AND_UI.md) |
 | 地形、碰撞、动态对象、SourceData、资产 | [世界与数据管线](systems/WORLD_AND_DATA_PIPELINE.md) |
+| 构筑评估（DEV 实验编排、原生重放、合法成长与反事实报告） | [构筑评估 Harness](systems/BUILD_EVALUATION.md) |
 
 这些手册保留当前有效的实现知识。含有兼容名称的组件或运行数据不自动成为 Demo 需求，
 未核对代码的旧设计提案也不作为当前架构事实。
@@ -277,6 +278,7 @@ AI 决策与订单簿记默认只计数，`--mark-all` 全部列出）、性能�
 | 成长 / 奖励 | `RunTests.ps1` 中的 `DemoGrowth*`、`DemoDevTestCommands`、`DemoAssist*` 规则（含地图事件奖励按事件与序号去重）；`RunDemoGrowthCheck.ps1` 为 DEV 拥有连接的击杀奖励/选择场景，Host 带 DEV 成长夹具预置拥有客户端的 Offer，先在第一局开局倒计时内核对拥有客户端的攻击移动（含 Shift 排队）被拒、地面移动可行（`Countdown`），覆盖 Q/W 满槽替换与重学沿用原冷却截止、死亡等待中确认选择不复活不治疗，Listen Host 作为击杀者（击杀拥有客户端与低档营地野怪）在本人视图、HUD 与渲染的“+X 经验”飘字中看到精确奖励，并结束本局后开第二局核对新局隔离（上一局的选择请求以 OldMatch 拒绝、回执查询为 InvalidContext；不含 AI/喷漆守护） |
 | 网络异常 / 拥有连接 | `RunDemoSessionFaultCheck.ps1`（可加 `-PackageRoot` 对打包版运行）分七段：Leave 中一名客户端经局内菜单离开，其余两人继续，Host 结束后结果表记其离局且无击杀/死亡；HostLoss 结束 Host 进程，客户端回到主菜单并显示“会话中断”，不出现结果表；Join 对关闭端口和无法解析的地址显示“连接失败：原因”，仍停在前端且可再次加入；Refuse 用真实加入按钮依次遇到版本不兼容（DEV 参数让该客户端声明另一产品版本）、三真人满员和对局已开始，各自显示中文原因与原因码，始终未进入房间；Race 中一次加入已通过 PreLogin，Host 在它载入房间时开局，最终准入检查拒绝它，客户端显示“对局已开始”而不是会话中断；HostLeave 中 Host 经局内菜单离开，房间在 Host 换图前向成员发出关闭，客户端回到主菜单并显示“房主已离开”，不显示会话中断或结果表，Host 自己的主菜单也不显示失败；HostQuit 中 Host 进程在客户端仍连接时正常退出（与直接关窗口相同，引擎走 PreExit 拆除世界而不是换图），Host 须以 0 退出且日志无 `LD_DEMO_AUTHORITY_FAULT`，客户端回到主菜单并显示“会话中断”，不出现结果表。全部在同机回环上运行，不代表跨机器局域网或公网直连 |
 | 全新检出 | `VerifyCleanCheckout.ps1`；它验证本地 LFS 缓存检出，不证明远程分发 |
+| 构筑评估 Harness | `Lockdown.Rules.BuildEvaluation`（种子与生产默认、评估画像、原生输入、对决时限）与 `python -B -m unittest discover -s .\Scripts -p "TestBuildEvaluation*.py"`；改到原生驱动、种子挂点或 Adapter 判读时，用 `RunBuildEvaluation.ps1 -Manifest <示例清单>` 跑一次真实小规模运行，并用 `-ReplayRun <运行目录> -Case <id>` 核对重放一致。它是 DEV 实验工具，结果只描述所覆盖的构筑、固定策略、场景与预算，不是验收或平衡结论，见[构筑评估 Harness](systems/BUILD_EVALUATION.md) |
 
 ### 开发循环与验证节奏
 

@@ -6,6 +6,7 @@
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Framework/LDGameMode.h"
 
 namespace
@@ -187,6 +188,10 @@ bool ALDDevelopmentDirector::BeginMatch(const FLDMatchContext& InMatch, const TA
     Match = InMatch;
     Content = MoveTemp(InContent);
     MatchSecret = FGuid::NewGuid();
+#if WITH_DEV_AUTOMATION_TESTS
+    // Build evaluation (-LDBuildEvaluation only): an armed Case replays every offer of this match.
+    if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { MatchSecret = Seeds->MatchSecret; }
+#endif
     Records = MoveTemp(NewRecords);
 #if WITH_DEV_AUTOMATION_TESTS
     // Presets staged in the Lobby serve this match's first heads, the opening offer included; nothing older survives.

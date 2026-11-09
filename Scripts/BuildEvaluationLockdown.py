@@ -1,0 +1,828 @@
+"""Lockdown v0.10 Demo adapter of the build evaluation core (docs/systems/BUILD_EVALUATION.md).
+
+It describes what the current runtime can evaluate, from the catalog the native game loads (demo_content.json, whose
+manifest digest is the native catalog root), and turns the native Host driver's evidence into Case statuses, metrics and
+facts. It reads the authority LD_* lines the Host log contract already defines; it never evaluates damage, draws offers or
+decides an outcome itself. A definition that is not in the runtime catalog has no native handler and is unsupported.
+"""
+
+import hashlib
+import json
+import math
+import re
+from functools import lru_cache
+from pathlib import Path
+
+ADAPTER_ID = "lockdown-demo"
+ADAPTER_VERSION = 4
+# LDBuildEvaluation::MaxCases of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused before any run.
+NATIVE_MAX_CASES = 500
+NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
+NATIVE_RESULT_SCHEMA = "lockdown.build_evaluation.native_result"
+NATIVE_RUN_SCHEMA = "lockdown.build_evaluation.native_run"
+NATIVE_SCHEMA_VERSION = 1
+SEED_DERIVATION = 1
+ROLES = ("subject", "opponent")
+PUBLIC_PLACE_KINDS = ("Spawn", "Camp", "Capture", "Dorm", "Airdrop")
+CATALOG_EVIDENCE = "in the runtime catalog the native importer accepted (it refuses any definition without a handler)"
+CANONICAL_TAGS = ("LD_OFFER", "LD_CHOICE", "LD_REWARD", "LD_LEVEL_UP", "LD_HIT", "LD_DEATH_RECEIPT")
+FIELD = re.compile(r'(\w+)=("(?:[^"\\]|\\.)*"|\S*)')
+GUID = re.compile(r"\b[0-9A-F]{32}\b")
+OPTION = re.compile(r"^([A-Za-z]+):([A-Za-z0-9_.-]+):(\d+)>(\d+):q(\d+)$")
+P2 = re.compile(r"^-?\d+\.\d{2}$")
+SLOTS = ("Q", "W", "E")
+
+METRICS = {
+    "duel_score": {"unit": "score", "kind": "score", "direction": "higher_better",
+                   "description": "+1 the subject killed the opponent, -1 the subject died first, 0 undecided at the duel timeout"},
+    "damage_dealt_hp": {"unit": "hp", "kind": "continuous", "direction": "higher_better",
+                        "description": "HP the opponent lost to the subject's committed hits up to the outcome (shield absorption excluded)"},
+    "damage_taken_hp": {"unit": "hp", "kind": "continuous", "direction": "lower_better",
+                        "description": "HP the subject lost to the opponent's committed hits up to the outcome"},
+    "subject_hp_end_bp": {"unit": "basis points", "kind": "continuous", "direction": "higher_better",
+                          "description": "the subject's HP share when the Case ended (0 when dead)"},
+    "decision_time_ms": {"unit": "ms", "kind": "time_to_event", "direction": "descriptive",
+                         "description": "authority time from T=0 to the first duelist death, censored at the duel timeout"},
+}
+
+
+# ---------------------------------------------------------------- capabilities
+
+def _content_paths(project_root):
+    data = Path(project_root) / "Content" / "Lockdown" / "Data" / "Demo"
+    return data / "manifest.json", data / "demo_content.json", data / "world.json"
+
+
+def product_version(project_root):
+    section = None
+    for line in (Path(project_root) / "Config" / "DefaultGame.ini").read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line.startswith("[") and line.endswith("]"):
+            section = line[1:-1]
+        elif section == "/Script/EngineSettings.GeneralProjectSettings" and line.startswith("ProjectVersion="):
+            return line.split("=", 1)[1].strip()
+    return "unknown"
+
+
+def cumulative_xp(progression):
+    out = [0]
+    for step in progression["xp_to_next"]:
+        out.append(out[-1] + step)
+    return out
+
+
+def level_for(progression, xp):
+    return sum(1 for threshold in cumulative_xp(progression) if threshold <= xp)
+
+
+def describe(project_root):
+    manifest_path, content_path, world_path = _content_paths(project_root)
+    content = json.loads(content_path.read_text(encoding="utf-8"))
+    world = json.loads(world_path.read_text(encoding="utf-8"))
+    mechanics = {}
+    for ability in content["abilities"]:
+        mechanics[ability["id"]] = {"status": "Supported", "kind": ability["kind"], "draftable": bool(ability.get("draftable")),
+                                    "evidence": CATALOG_EVIDENCE}
+    for attribute in content["attributes"]:
+        mechanics[attribute["id"]] = {"status": "Supported", "kind": "attribute", "evidence": CATALOG_EVIDENCE}
+    for card in content["opening_cards"]:
+        mechanics[card["id"]] = {"status": "Supported", "kind": "opening", "evidence": CATALOG_EVIDENCE}
+    places = sorted(anchor["id"] for anchor in world["anchors"] if anchor["kind"] in PUBLIC_PLACE_KINDS)
+    progression = content["progression"]
+    boss_appear_ms = int(content["boss"]["appear_at"]["ms"])
+    return {
+        "schema": "build_evaluation.capabilities", "schema_version": 1,
+        "adapter": {"id": ADAPTER_ID, "version": ADAPTER_VERSION},
+        "content": {"id": "lockdown-demo-content", "version": product_version(project_root),
+                    "digest": hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                    "abilities": sum(1 for row in content["abilities"]), "attributes": len(content["attributes"]),
+                    "opening_cards": len(content["opening_cards"])},
+        "mechanics": mechanics,
+        "decisions": {
+            "ai_select": {"description": "the production AI choice (LDOpponentPolicy::SelectChoice), rerolls included"},
+            "option_index": {"description": "the option at index 0..2 of the actual head offer"},
+            "definition": {"description": "the actual head offer's option of one definition; refused when not offered"},
+            "preset_offer": {"description": "a three-card head offer prepared by DevQueueOffer from ordinal 2",
+                             "sample_classes": ["diagnostic"]},
+        },
+        "scenarios": {
+            "duel_site": {
+                "evidence_level": "NativeSpatial",
+                "sample_classes": ["legal_search", "diagnostic"],
+                "sides": 2,
+                "metrics": list(METRICS),
+                "parameters": {"site": places, "duel_timeout_ms": [1000, boss_appear_ms],
+                               "supply_xp": [0, cumulative_xp(progression)[-1]], "max_choices": progression["max_choices"],
+                               "xp_to_next": progression["xp_to_next"], "reroll_levels": progression["reroll_levels"]},
+                "description": ("A Listen Host of L_Demo runs one ordinary match per Case: the Host only orchestrates; two AI "
+                                "contenders grow along their plans from a T=0 XP supply, walk to a public place and fight each "
+                                "other with the production engagement until a death or the duel timeout."),
+            }
+        },
+        "metrics": METRICS,
+        "limits": {"max_cases_per_run": NATIVE_MAX_CASES},
+        "random_streams": {
+            "seeded": ["growth offers (MatchSecret)", "critical rolls", "spawn anchors and AI opening plans",
+                       "airdrop points", "AI contender and session identities"],
+            "unseeded": ["leader notice circle (ledger identity)", "camp member and effect identities (not ordering inputs)"],
+        },
+    }
+
+
+# ---------------------------------------------------------------- plans
+
+def _rule(rule, where):
+    if rule == "ai_select":
+        return {"rule": "ai_select"}
+    if not isinstance(rule, dict) or rule.get("rule") not in ("ai_select", "option_index", "definition"):
+        raise ValueError(f"{where}: ai_select, or an object with rule option_index or definition")
+    unknown = set(rule) - {"rule", "index", "definition", "replace"}
+    if unknown:
+        raise ValueError(f"{where}: unknown fields {sorted(unknown)}")
+    if rule["rule"] == "ai_select":
+        if set(rule) != {"rule"}:
+            raise ValueError(f"{where}: ai_select takes nothing else")
+        return {"rule": "ai_select"}
+    if rule["rule"] == "option_index":
+        index = rule.get("index")
+        if isinstance(index, bool) or not isinstance(index, int) or index not in (0, 1, 2) or "definition" in rule:
+            raise ValueError(f"{where}: option_index takes integer index 0..2")
+    if rule["rule"] == "definition" and (not isinstance(rule.get("definition"), str) or "index" in rule):
+        raise ValueError(f"{where}: definition takes a definition id")
+    if "replace" in rule and rule["replace"] not in SLOTS:
+        raise ValueError(f"{where}: replace is Q, W or E")
+    return dict(rule)
+
+
+def _side_plan(plan, role):
+    side = plan.get(role)
+    if not isinstance(side, dict) or set(side) - {"choices", "presets"} or "choices" not in side:
+        raise ValueError(f"plan.{role}: an object with choices (and optional presets)")
+    if not isinstance(side["choices"], list):
+        raise ValueError(f"plan.{role}.choices: a list")
+    choices = [_rule(rule, f"plan.{role}.choices[{index}]") for index, rule in enumerate(side["choices"])]
+    presets = side.get("presets", [])
+    if not isinstance(presets, list) or any(not isinstance(row, list) or len(row) != 3
+                                            or any(not isinstance(card, str) for card in row) or len(set(row)) != 3
+                                            for row in presets):
+        raise ValueError(f"plan.{role}.presets: lists of three distinct definition ids")
+    return choices, presets
+
+
+def requirements(scenario, plan, caps):
+    if set(plan) - set(ROLES):
+        raise ValueError(f"plan: only {ROLES}")
+    progression_limit = caps["scenarios"]["duel_site"]["parameters"]["max_choices"]
+    supply = scenario["parameters"]["supply_xp"]
+    mechanics, decisions, problems = set(), set(), []
+    for role in ROLES:
+        choices, presets = _side_plan(plan, role)
+        opportunities = _opportunities(caps, supply[role])
+        if len(choices) != opportunities:
+            problems.append(f"IllegalDecision: plan.{role} has {len(choices)} rules but its supply of {supply[role]} XP "
+                            f"gives {opportunities} opportunities (the opening one included)")
+        if len(choices) > progression_limit:
+            problems.append(f"IllegalDecision: plan.{role} plans more than {progression_limit} choices")
+        for ordinal, rule in enumerate(choices, 1):
+            decisions.add(rule["rule"])
+            if rule["rule"] != "definition":
+                continue
+            mechanics.add(rule["definition"])
+            row = caps["mechanics"].get(rule["definition"], {})
+            kind = row.get("kind")
+            if kind and (ordinal == 1) != (kind == "opening"):
+                problems.append(f"IllegalDecision: plan.{role} ordinal {ordinal} can never offer {kind} {rule['definition']}"
+                                " (the opening choice offers opening cards only, later ones never do)")
+            if row.get("draftable") is False:
+                problems.append(f"IllegalDecision: {rule['definition']} is not draftable and is never offered")
+        if presets:
+            decisions.add("preset_offer")
+            if len(presets) > max(0, opportunities - 1):
+                problems.append(f"IllegalDecision: plan.{role} prepares {len(presets)} offers for {max(0, opportunities - 1)} later opportunities")
+        for row in presets:
+            for card in row:
+                mechanics.add(card)
+                if caps["mechanics"].get(card, {}).get("kind") == "opening":
+                    problems.append(f"IllegalDecision: plan.{role} presets name opening card {card}; presets start at ordinal 2")
+    return {"mechanics": sorted(mechanics), "decisions": sorted(decisions), "problems": problems}
+
+
+def _opportunities(caps, supply_xp):
+    """Opportunities a supply gives: the opening one plus one per level reached (the catalog's XP table)."""
+    return level_for({"xp_to_next": caps["scenarios"]["duel_site"]["parameters"]["xp_to_next"]}, supply_xp)
+
+
+def scenario_problems(scenario, caps):
+    if scenario["kind"] != "duel_site":
+        return []
+    params = scenario["parameters"]
+    spec = caps["scenarios"]["duel_site"]["parameters"]
+    problems = []
+    unknown = set(params) - {"site", "duel_timeout_ms", "supply_xp"}
+    if unknown:
+        problems.append(f"IllegalScenario: unknown duel_site parameters {sorted(unknown)}")
+    if params.get("site") not in spec["site"]:
+        problems.append(f"IllegalScenario: site {params.get('site')} is not a public place of this world")
+    timeout = params.get("duel_timeout_ms")
+    low, high = spec["duel_timeout_ms"]
+    if isinstance(timeout, bool) or not isinstance(timeout, int) or not low <= timeout <= high:
+        problems.append(f"IllegalScenario: duel_timeout_ms must be {low}..{high} (the Boss appears after that and is not a duelist)")
+    supply = params.get("supply_xp")
+    low, high = spec["supply_xp"]
+    if not isinstance(supply, dict) or set(supply) != set(ROLES) or any(
+            isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high for value in supply.values()):
+        problems.append(f"IllegalScenario: supply_xp names subject and opponent, each {low}..{high} XP")
+    return problems
+
+
+def native_input(run_id, manifest, caps, cases):
+    plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
+    params = manifest["scenario"]["parameters"]
+    out = []
+    for case in cases:
+        plan = plans[case["arm"]]
+        subject_slot = case["side"]
+        contenders = []
+        for role, slot in (("subject", subject_slot), ("opponent", 1 - subject_slot)):
+            choices, presets = _side_plan(plan, role)
+            contenders.append({"role": role, "slot": slot, "supply_xp": params["supply_xp"][role], "choices": choices,
+                               "presets": presets})
+        out.append({"case_id": case["case_id"], "seed": case["seed"], "site": params["site"],
+                    "duel_timeout_ms": params["duel_timeout_ms"], "wall_timeout_s": manifest["budget"]["case_wall_timeout_s"],
+                    "contenders": contenders})
+    return {"schema": NATIVE_INPUT_SCHEMA, "schema_version": NATIVE_SCHEMA_VERSION, "run_id": run_id,
+            "content_root": caps["content"]["digest"], "cases": out}
+
+
+# ---------------------------------------------------------------- evidence
+
+def parse_line(line):
+    head, _, rest = line.partition(" ")
+    fields = {}
+    for key, value in FIELD.findall(rest):
+        if value.startswith('"'):
+            value = value[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+        fields.setdefault(key, value)
+    return head, fields
+
+
+def parse_trace(text):
+    return [(tag, fields, line) for tag, fields, line in
+            ((*parse_line(line), line) for line in text.splitlines() if line.startswith("LD_"))]
+
+
+def _hundredths(value):
+    """An LDLog::P2 decimal as exact hundredths."""
+    negative = value.startswith("-")
+    whole, _, fraction = value.lstrip("-").partition(".")
+    amount = int(whole) * 100 + int((fraction + "00")[:2])
+    return -amount if negative else amount
+
+
+def _int(fields, key):
+    return int(fields[key])
+
+
+def _roles(result):
+    return {row["contender"]: row["role"] for row in result["contenders"]}
+
+
+@lru_cache(maxsize=8)
+def _recorded_reroll_levels(project_root, digest):
+    """Older capability records lack reroll levels; recover them only from the same content root."""
+    manifest_path, content_path, _ = _content_paths(project_root)
+    manifest_bytes, content_bytes = manifest_path.read_bytes(), content_path.read_bytes()
+    if hashlib.sha256(manifest_bytes).hexdigest() != digest:
+        raise ValueError("the recorded catalog is unavailable for reroll validation")
+    if hashlib.sha256(content_bytes).hexdigest() != json.loads(manifest_bytes)["content"]["sha256"]:
+        raise ValueError("the catalog payload does not match the recorded content root")
+    return tuple(json.loads(content_bytes)["progression"]["reroll_levels"])
+
+
+def _reroll_levels(manifest, caps):
+    params = caps["scenarios"]["duel_site"]["parameters"]
+    if "reroll_levels" in params:
+        return params["reroll_levels"]
+    project_root = manifest.get("resolved", {}).get("project_root")
+    if not project_root:
+        raise ValueError("the recorded capability table does not include reroll levels")
+    try:
+        return _recorded_reroll_levels(project_root, caps["content"]["digest"])
+    except (OSError, KeyError, json.JSONDecodeError) as error:
+        raise ValueError(f"the recorded reroll rules cannot be read: {error}") from error
+
+
+def selection_problems(events, ids, plan, contenders, reroll_levels, t_out):
+    """Validate both sides' initial offer, optional reroll and committed selection at every planned ordinal."""
+    problems = []
+    roles = {contender: role for role, contender in ids.items()}
+    choices = {role: _side_plan(plan, role)[0] for role in ROLES}
+    selections = {role: {ordinal: {"initial": None, "reroll": None, "choice": None}
+                         for ordinal in range(1, len(choices[role]) + 1)} for role in ROLES}
+    for tag, fields, _ in events:
+        role = roles.get(fields.get("contender"))
+        if not role or tag not in ("LD_OFFER", "LD_CHOICE"):
+            continue
+        raw_ordinal = fields.get("ordinal", "")
+        if not raw_ordinal.isdigit() or int(raw_ordinal) < 1:
+            problems.append(f"TraceIncomplete: {role} has a {tag} without a valid ordinal")
+            continue
+        ordinal = int(raw_ordinal)
+        if ordinal not in selections[role]:
+            if tag == "LD_CHOICE":
+                problems.append(f"TraceIncomplete: {role} committed unplanned ordinal {ordinal}")
+            continue
+        item = selections[role][ordinal]
+        if (not fields.get("t", "").isdigit() or int(fields["t"]) > t_out
+                or not fields.get("level", "").isdigit() or int(fields["level"]) < 1):
+            problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a missing or post-outcome time or invalid level")
+            continue
+        if tag == "LD_OFFER":
+            rerolled = fields.get("rerolled")
+            key = "initial" if rerolled == "0" else "reroll" if rerolled == "1" else None
+            options = [OPTION.fullmatch(option) for option in fields.get("cards", "").split(",")]
+            if not key or len(options) != 3 or any(option is None for option in options):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a malformed offer")
+                continue
+            if key == "reroll" and (ordinal == 1 or choices[role][ordinal - 1]["rule"] != "ai_select"):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has an unplanned reroll")
+            parsed = [{"kind": option[1], "card": option[2], "rank": int(option[4]), "quality": int(option[5])}
+                      for option in options]
+            if len({option["card"] for option in parsed}) != 3:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has duplicate offered definitions")
+            if item[key] is not None or item["choice"] is not None or (key == "reroll" and item["initial"] is None):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has duplicate or out-of-order offer evidence")
+            else:
+                item[key] = parsed
+                item[f"{key}_time"] = int(fields["t"])
+                item[f"{key}_level"] = int(fields["level"])
+        else:
+            if (not fields.get("replaced") or not fields.get("pending", "").isdigit()
+                    or not fields.get("revealed")):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has incomplete choice metadata")
+            if item["initial"] is None or item["choice"] is not None:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has a duplicate choice or no initial offer")
+            else:
+                item["choice"] = fields
+    for role in ROLES:
+        observed_rerolls = 0
+        for ordinal, item in selections[role].items():
+            initial, reroll, chosen = item["initial"], item["reroll"], item["choice"]
+            if initial is None or chosen is None:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} lacks an initial offer or committed choice")
+                continue
+            observed_rerolls += int(reroll is not None)
+            final_key = "reroll" if reroll is not None else "initial"
+            final = item[final_key]
+            if (item[final_key + "_time"] > int(chosen["t"])
+                    or item[final_key + "_level"] > int(chosen["level"])
+                    or int(chosen["level"]) > contenders[role]["level"]
+                    or (reroll is not None and (item["initial_time"] > item["reroll_time"]
+                                                or item["initial_level"] > item["reroll_level"]))):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} has inconsistent offer or choice times or levels")
+            matches = [option for option in final if option["card"] == chosen.get("card")]
+            if len(matches) != 1 or chosen.get("kind") != (matches[0]["kind"] if matches else None):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice is not in its final offer")
+                continue
+            selected = matches[0]
+            if chosen.get("quality") != str(selected["quality"]) or chosen.get("rank") != str(selected["rank"]):
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} choice disagrees with the offered rank or quality")
+            if ordinal == 1 and chosen.get("revealed", "-") in ("", "-"):
+                problems.append(f"TraceIncomplete: {role} opening choice lacks its revealed active")
+            rule = choices[role][ordinal - 1]
+            if rule["rule"] == "option_index" and final[rule["index"]]["card"] != selected["card"]:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned option index")
+            if rule["rule"] == "definition" and rule["definition"] != selected["card"]:
+                problems.append(f"TraceIncomplete: {role} ordinal {ordinal} did not commit the planned definition")
+        row = contenders[role]
+        earned = sum(level <= row["level"] for level in reroll_levels)
+        if earned - row["rerolls_left"] != observed_rerolls:
+            problems.append(f"TraceIncomplete: {role} reroll records do not match its remaining tokens")
+        opening = selections[role].get(1, {}).get("choice") or {}
+        if opening.get("card") != row["opening_card"]:
+            problems.append(f"TraceIncomplete: {role} opening choice disagrees with its terminal build")
+    return problems
+
+
+def case_evidence(case, manifest, caps, result, trace_text):
+    out = {"status": "Invalid", "reason": "", "metrics": {}, "facts": {}, "violations": []}
+    if result.get("schema") != NATIVE_RESULT_SCHEMA or result.get("schema_version") != NATIVE_SCHEMA_VERSION:
+        out["reason"] = "the native result has another schema"
+        return out
+    if result.get("case_id") != case["case_id"] or result.get("seed") != case["seed"]:
+        out["reason"] = "the native result belongs to another Case or seed"
+        return out
+    if result.get("status") != "Completed":
+        out.update(status=result.get("status", "Faulted"), reason=result.get("reason", ""))
+        return out
+    content_root = result.get("content_root")
+    if not isinstance(content_root, str) or content_root.lower() != caps["content"]["digest"]:
+        out["reason"] = "the native result belongs to another content root"
+        return out
+    rows = result.get("contenders")
+    required = {"role", "slot", "contender", "progression_valid", "profile_bound", "choices", "planned_choices",
+                "supply_xp", "supply_status", "presets_queued", "presets_requested", "level", "rerolls_left", "opening_card",
+                "skills", "cards", "has_body", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2"}
+    integer_fields = ("slot", "level", "rerolls_left", "choices", "planned_choices", "supply_xp",
+                      "presets_queued", "presets_requested", "hp_p2", "max_hp_p2", "mp_p2", "max_mp_p2")
+    if (not isinstance(rows, list) or len(rows) != len(ROLES) or
+            any(not isinstance(row, dict) or not required <= row.keys() for row in rows) or
+            any(row["role"] not in ROLES for row in rows) or
+            {row["role"] for row in rows} != set(ROLES) or
+            any(not isinstance(row["contender"], str) or not GUID.fullmatch(row["contender"]) for row in rows) or
+            len({row["contender"] for row in rows}) != len(ROLES) or
+            any(isinstance(row[key], bool) or not isinstance(row[key], int) or row[key] < 0
+                for row in rows for key in integer_fields) or
+            any(not isinstance(row[key], bool) for row in rows for key in ("progression_valid", "profile_bound", "has_body")) or
+            any(not isinstance(row["opening_card"], str) or not isinstance(row["supply_status"], str) for row in rows) or
+            any(not isinstance(row["skills"], list) or not isinstance(row["cards"], list) for row in rows) or
+            any(not isinstance(skill, dict) or not {"id", "rank", "slot"} <= skill.keys()
+                or not isinstance(skill["id"], str) or not isinstance(skill["slot"], str)
+                or isinstance(skill["rank"], bool) or not isinstance(skill["rank"], int)
+                for row in rows for skill in row["skills"]) or
+            any(not isinstance(card, dict) or not {"id", "count"} <= card.keys()
+                or not isinstance(card["id"], str) or isinstance(card["count"], bool) or not isinstance(card["count"], int)
+                for row in rows for card in row["cards"])):
+        out["reason"] = "TraceIncomplete: native contender identities or terminal progression are missing"
+        return out
+    if (not isinstance(result.get("outcome"), dict) or not {"kind", "victim", "killer", "t_ms"} <= result["outcome"].keys() or
+            any(isinstance(result.get(key), bool) or not isinstance(result.get(key), int)
+                for key in ("started_at_ms", "ended_at_ms")) or
+            any(not isinstance(result["outcome"][key], str) for key in ("kind", "victim", "killer")) or
+            isinstance(result["outcome"]["t_ms"], bool) or not isinstance(result["outcome"]["t_ms"], int) or
+            result["started_at_ms"] < 0 or result["ended_at_ms"] < result["started_at_ms"]):
+        out["reason"] = "TraceIncomplete: native outcome or authority times are missing"
+        return out
+    if "side" in case and any(row["slot"] != (case["side"] if row["role"] == "subject" else 1 - case["side"]) for row in rows):
+        out["reason"] = "TraceIncomplete: the native contender slots do not match the planned side"
+        return out
+    if not trace_text.strip() or not parse_trace(trace_text):
+        out["reason"] = "TraceIncomplete: the native trace is missing or empty"
+        return out
+    roles = _roles(result)
+    ids = {role: contender for contender, role in roles.items()}
+    events = parse_trace(trace_text)
+    for tag, fields, _ in events:
+        if tag in ("LD_HIT", "LD_REWARD", "LD_DEATH_RECEIPT") and not fields.get("t", "").isdigit():
+            out["reason"] = f"TraceIncomplete: {tag} has no valid authority time"
+            return out
+        if tag == "LD_HIT" and any(not fields.get(key) for key in ("src", "victim")):
+            out["reason"] = "TraceIncomplete: LD_HIT has no source or victim"
+            return out
+        if tag == "LD_REWARD" and fields.get("contender") in ids.values() and not fields.get("xp", "").isdigit():
+            out["reason"] = "TraceIncomplete: LD_REWARD has no valid XP"
+            return out
+    out["facts"] = facts(case, manifest, result, events, ids)
+    params = manifest["scenario"]["parameters"]
+    t0 = int(result["started_at_ms"])
+    outcome = result["outcome"]
+    duelists = set(ids.values())
+    reasons = []
+    if result.get("trace_lines") != len(trace_text.splitlines()):
+        reasons.append("TraceIncomplete: the captured trace line count does not match the result")
+    begins = [fields for tag, fields, _ in events if tag == "LD_EVAL_CASE_BEGIN"]
+    starts = [fields for tag, fields, _ in events if tag == "LD_MATCH_STARTED"]
+    if (len(begins) != 1 or begins[0].get("case") != case["case_id"] or begins[0].get("seed") != case["seed"]
+            or any(begins[0].get(role) != ids[role] for role in ROLES)
+            or len(starts) != 1 or starts[0].get("started_at_ms") != str(t0)):
+        reasons.append("TraceIncomplete: the Case identity or match-start record is missing or inconsistent")
+    if outcome["kind"] == "kill":
+        victim = ids.get(outcome["victim"])
+        deaths = [fields for tag, fields, _ in events if tag == "LD_DEATH_RECEIPT" and fields.get("contender") == victim]
+        lethal = [fields for tag, fields, _ in events if tag == "LD_HIT" and fields.get("victim") == victim and fields.get("lethal") == "1"]
+        if not deaths or not lethal:
+            reasons.append("TraceIncomplete: the death has no lethal LD_HIT or LD_DEATH_RECEIPT")
+            t_out = int(result["ended_at_ms"])
+        else:
+            t_out = _int(deaths[0], "t")
+            if outcome["t_ms"] != t_out - t0 or not t0 <= t_out <= min(result["ended_at_ms"], t0 + int(params["duel_timeout_ms"])):
+                reasons.append("TraceIncomplete: kill time disagrees with the receipt or is after the duel horizon")
+        if outcome["killer"] not in ROLES or outcome["killer"] == outcome["victim"]:
+            reasons.append(f"ExternalKill: the {outcome['victim']} was killed by {outcome['killer'] or 'no contender'}")
+    elif outcome["kind"] == "timeout":
+        t_out = t0 + int(params["duel_timeout_ms"])
+        if result["ended_at_ms"] < t_out:
+            reasons.append("TraceIncomplete: the Case ended before the duel horizon")
+    else:
+        reasons.append(f"TraceIncomplete: outcome {outcome['kind']}")
+        t_out = int(result["ended_at_ms"])
+    for row in result["contenders"]:
+        if not row["progression_valid"] or not row["profile_bound"]:
+            reasons.append(f"Setup: the {row['role']} had no seeded identity or evaluation profile")
+        if row["choices"] != row["planned_choices"]:
+            reasons.append(f"PlanNotReached: the {row['role']} consumed {row['choices']} of {row['planned_choices']} planned choices")
+        if row["supply_xp"] > 0 and row["supply_status"] != "Granted":
+            reasons.append(f"SupplyMissing: the {row['role']} supply is {row['supply_status']}")
+        if row["supply_xp"] != params["supply_xp"][row["role"]]:
+            reasons.append(f"SupplyMismatch: the {row['role']} native supply differs from the plan")
+        if row["presets_queued"] != row["presets_requested"]:
+            reasons.append(f"PresetNotApplied: the {row['role']} queued {row['presets_queued']} of {row['presets_requested']} presets")
+        planned = _side_plan(next(arm["plan"] for arm in manifest["design"]["arms"] if arm["id"] == case["arm"]), row["role"])[0]
+        if row["planned_choices"] != len(planned):
+            reasons.append(f"PlanNotReached: the {row['role']} result does not match the planned choice count")
+    supplied = {role: 0 for role in ROLES}
+    for tag, fields, _ in events:
+        t = int(fields["t"]) if fields.get("t", "").lstrip("-").isdigit() else None
+        if tag == "LD_REWARD" and fields.get("contender") in duelists:
+            role = roles[fields["contender"]]
+            if fields.get("cause") == "dev_fixture":
+                supplied[role] += int(fields["xp"])
+            elif t is None or t < t_out or (t == t_out and not _is_outcome_kill_reward(fields, outcome, ids, t_out)):
+                reasons.append(f"UncontrolledXP: the {role} gained {fields.get('xp')} XP from {fields.get('cause')} "
+                               f"at or before the outcome")
+        if tag == "LD_HIT" and t is not None and t <= t_out:
+            source_in, victim_in = fields.get("src") in duelists, fields.get("victim") in duelists
+            if source_in != victim_in:
+                reasons.append(f"ExternalInteraction: a hit between a duelist and {fields.get('src_monster') if not source_in else fields.get('victim_monster')}"
+                               f" at t={t}")
+            out["violations"] += hit_violations(fields)
+    for role in ROLES:
+        if supplied[role] != params["supply_xp"][role]:
+            reasons.append(f"SupplyMismatch: the {role} received {supplied[role]} dev_fixture XP, planned {params['supply_xp'][role]}")
+    plans = {arm["id"]: arm["plan"] for arm in manifest["design"]["arms"]}
+    try:
+        reroll_levels = _reroll_levels(manifest, caps)
+        reasons += selection_problems(events, ids, plans[case["arm"]], {row["role"]: row for row in rows}, reroll_levels, t_out)
+    except ValueError as error:
+        reasons.append(f"TraceIncomplete: {error}")
+    for role in ROLES:
+        _, presets = _side_plan(plans[case["arm"]], role)
+        offered = out["facts"]["offers"][role]
+        for position, preset in enumerate(presets):
+            if offered.get(str(position + 2)) != preset:
+                reasons.append(f"PresetNotApplied: the {role} offer at ordinal {position + 2} is {offered.get(str(position + 2))}, prepared {preset}")
+    if out["violations"]:
+        reasons.append("EvidenceViolation: a committed hit contradicts its recorded damage")
+    if reasons:
+        out.update(status="Invalid", reason="; ".join(dict.fromkeys(reasons)))
+        return out
+    subject, opponent = ids["subject"], ids["opponent"]
+    dealt = taken = 0
+    for tag, fields, _ in events:
+        if tag != "LD_HIT" or int(fields["t"]) > t_out:
+            continue
+        if fields["src"] == subject and fields["victim"] == opponent:
+            dealt += _hundredths(fields["hp_lost"])
+        elif fields["src"] == opponent and fields["victim"] == subject:
+            taken += _hundredths(fields["hp_lost"])
+    me = next(row for row in result["contenders"] if row["role"] == "subject")
+    score = 0 if outcome["kind"] == "timeout" else (1 if outcome["victim"] == "opponent" else -1)
+    out.update(status="Completed", reason="", metrics={
+        "duel_score": {"value": score, "censored": outcome["kind"] == "timeout"},
+        "damage_dealt_hp": {"value": dealt / 100, "censored": False},
+        "damage_taken_hp": {"value": taken / 100, "censored": False},
+        "subject_hp_end_bp": {"value": (me["hp_p2"] * 10000 // me["max_hp_p2"]) if me["has_body"] and me["max_hp_p2"] else 0,
+                              "censored": False},
+        "decision_time_ms": {"value": t_out - t0, "censored": outcome["kind"] == "timeout"},
+    })
+    return out
+
+
+def _is_outcome_kill_reward(fields, outcome, ids, t_out):
+    """The killer's own reward for the deciding kill, committed at the outcome boundary."""
+    return (outcome["kind"] == "kill" and outcome["killer"] in ids and outcome["victim"] in ids
+            and fields.get("t") == str(t_out) and fields.get("cause") == "death" and fields.get("role") == "killer"
+            and fields.get("contender") == ids[outcome["killer"]] and fields.get("victim") == ids[outcome["victim"]])
+
+
+def hit_violations(fields):
+    """Evidence-contract checks of one LD_HIT: the HP it removed is what the line says it removed."""
+    before, _, after = fields.get("hp", "").partition("->")
+    try:
+        lost, dealt, absorbed = (_hundredths(fields[key]) for key in ("hp_lost", "dmg", "absorbed"))
+        drop = _hundredths(before) - _hundredths(after)
+    except (KeyError, ValueError):
+        return [f"LD_HIT without parsable damage fields at t={fields.get('t')}"]
+    out = []
+    if lost != drop:
+        out.append(f"LD_HIT t={fields.get('t')} hp_lost {lost / 100} != hp {before}->{after}")
+    if lost + absorbed > dealt:
+        out.append(f"LD_HIT t={fields.get('t')} hp_lost + absorbed exceeds dmg")
+    if (fields.get("lethal") == "1") != (_hundredths(after) == 0):
+        out.append(f"LD_HIT t={fields.get('t')} lethal flag disagrees with the remaining HP")
+    return out
+
+
+def branch_ordinal(design):
+    """The first ordinal where the normalized subject rules differ across the design's arms."""
+    choices = [_side_plan(arm["plan"], "subject")[0] for arm in design["arms"]]
+    for index in range(max((len(rules) for rules in choices), default=0)):
+        rules = [row[index] if index < len(row) else None for row in choices]
+        if any(rule != rules[0] for rule in rules[1:]):
+            return index + 1
+    return None
+
+
+def facts(case, manifest, result, events, ids):
+    offers = {role: {} for role in ROLES}
+    rerolled = {role: {} for role in ROLES}
+    chosen = {role: {} for role in ROLES}
+    offer_details = {role: {} for role in ROLES}
+    choice_details = {role: {} for role in ROLES}
+    roles = {contender: role for role, contender in ids.items()}
+    spawn = {}
+    for tag, fields, _ in events:
+        role = roles.get(fields.get("contender"))
+        if tag == "LD_HEARTBEAT" and role and role not in spawn:
+            spawn[role] = fields.get("pos")
+        if not role:
+            continue
+        if tag == "LD_OFFER" and fields.get("ordinal", "").isdigit():
+            cards = [card.split(":")[1] for card in fields.get("cards", "").split(",") if card.count(":") >= 2]
+            target = rerolled if fields.get("rerolled") == "1" else offers
+            target[role].setdefault(fields["ordinal"], cards)
+            kind = "reroll" if fields.get("rerolled") == "1" else "offer"
+            offer_details[role].setdefault(fields["ordinal"], {}).setdefault(
+                kind, {"t": fields.get("t"), "level": fields.get("level"), "cards": fields.get("cards", "").split(",")})
+        elif tag == "LD_CHOICE" and fields.get("ordinal", "").isdigit() and fields.get("card"):
+            # An opening card reveals the active it taught only once chosen (#153); the label names both.
+            revealed = fields.get("revealed", "-")
+            chosen[role][fields["ordinal"]] = fields.get("card") + (f"→{revealed}" if revealed not in ("", "-") else "")
+            choice_details[role][fields["ordinal"]] = {
+                key: fields.get(key) for key in ("t", "kind", "card", "rank", "replaced", "level", "pending", "revealed", "quality")}
+    point = branch_ordinal(manifest["design"])
+    label = chosen["subject"].get(str(point), "") if point else ""
+    prefix = None
+    if point:
+        subject_offers = offer_details["subject"]
+        history = [{"ordinal": ordinal, "offer": subject_offers.get(str(ordinal), {}).get("offer"),
+                    "reroll": subject_offers.get(str(ordinal), {}).get("reroll"),
+                    "choice": choice_details["subject"].get(str(ordinal))}
+                   for ordinal in range(1, point)]
+        prefix = json.dumps({"history": history,
+                             "branch": {"ordinal": point, "offer": subject_offers.get(str(point), {}).get("offer")}},
+                            sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    fingerprint = hashlib.sha256(json.dumps([offers["subject"].get("1"), offers["opponent"].get("1"), spawn],
+                                            sort_keys=True).encode("utf-8")).hexdigest()[:16]
+    first_hit = next(({"role": roles[fields["src"]], "t_ms": int(fields["t"]) - int(result.get("started_at_ms", 0))}
+                      for tag, fields, _ in events if tag == "LD_HIT" and fields.get("src") in roles
+                      and fields.get("victim") in roles and fields.get("hp_lost", "0.00") != "0.00"), None)
+    builds = {row["role"]: {"level": row["level"], "opening_card": row["opening_card"],
+                            "skills": [f"{skill['id']}@{skill['rank']}{'/' + skill['slot'] if skill['slot'] else ''}" for skill in row["skills"]],
+                            "cards": [f"{card['id']}*{card['count']}" for card in row["cards"]]} for row in result["contenders"]}
+    return {"offers": offers, "rerolled_offers": rerolled, "choices": chosen, "builds": builds, "label": label,
+            "prefix": prefix, "random_fingerprint": fingerprint, "first_hit": first_hit, "spawn": spawn,
+            "outcome": result.get("outcome")}
+
+
+def canonical_events(trace_text, result):
+    """Discrete authority events up to the Case's end with identities as roles; spatial heartbeat samples apart."""
+    names = {contender: role for contender, role in _roles(result).items()}
+    others = {}
+
+    def role_of(match):
+        value = match.group(0)
+        if value in names:
+            return names[value]
+        others.setdefault(value, f"other{len(others) + 1}")
+        return others[value]
+
+    end = int(result.get("ended_at_ms", -1))
+    events, spatial = [], {}
+    for tag, fields, line in parse_trace(trace_text):
+        t = int(fields["t"]) if fields.get("t", "").lstrip("-").isdigit() else None
+        if t is not None and end >= 0 and t > end:
+            continue
+        if tag in CANONICAL_TAGS:
+            events.append(GUID.sub(role_of, line))
+        elif tag == "LD_HEARTBEAT" and fields.get("pos", "-") != "-":
+            key = f"{GUID.sub(role_of, fields['contender'])}@{t}"
+            spatial[key] = tuple(float(part) for part in fields["pos"].split(","))
+    return events, spatial
+
+
+def replay_evidence(case, manifest, caps, native_run, runner, result, trace_text):
+    """Canonical identity, terminal build/resources and heartbeat resources for a valid replay comparison."""
+    problems = identity_problems(native_run, caps)
+    run_id = manifest["resolved"]["run_id"]
+    if native_run.get("run_id") != run_id or result.get("run_id") != run_id:
+        problems.append("the native run or result does not match the planned run identity")
+    if not native_run.get("passed"):
+        problems.append("the native run did not finish successfully")
+    if result.get("status") != "Completed" or result.get("case_id") != case["case_id"] or result.get("seed") != case["seed"]:
+        problems.append("the native result is not the completed planned Case and seed")
+    run_fields = ("content_root", "product_version", "engine_version", "source_commit", "source_dirty",
+                  "fixed_delta_seconds", "seed_derivation")
+    identity = {key: native_run.get(key) for key in run_fields}
+    if any(identity[key] in (None, "", "-") for key in run_fields) or identity["source_commit"] == "unknown":
+        problems.append("the native run is missing build, engine, content or timing identity")
+    if isinstance(identity["content_root"], str):
+        identity["content_root"] = identity["content_root"].lower()
+    if (isinstance(identity["fixed_delta_seconds"], bool) or not isinstance(identity["fixed_delta_seconds"], (int, float))
+            or not math.isfinite(identity["fixed_delta_seconds"]) or identity["fixed_delta_seconds"] <= 0):
+        problems.append("the native fixed time step is missing or invalid")
+    binary = runner.get("binary_digests")
+    after = runner.get("binary_digests_after")
+    keys = ("editor_sha256", "module_sha256")
+    if (not isinstance(binary, dict) or not isinstance(after, dict)
+            or any(not isinstance(binary.get(key), str) or not re.fullmatch(r"[0-9a-f]{64}", binary[key]) for key in keys)
+            or binary != after):
+        problems.append("the editor or game-module binary identity is missing or changed during the run")
+    if runner.get("timed_out") or runner.get("exit_code") != 0:
+        problems.append("the runner did not exit successfully")
+    identity["binary_digests"] = binary
+    terminal_fields = ("status", "case_id", "seed", "content_root", "started_at_ms", "ended_at_ms", "outcome")
+    contender_fields = ("role", "slot", "contender", "progression_valid", "level", "xp", "choices", "planned_choices",
+                        "rerolls_left", "opening_card", "skills", "cards", "has_body", "hp_p2", "max_hp_p2",
+                        "mp_p2", "max_mp_p2", "profile_bound", "profile_phase", "profile_failure", "supply_xp",
+                        "supply_status", "presets_requested", "presets_queued")
+    terminal = {key: result.get(key) for key in terminal_fields}
+    rows = result.get("contenders")
+    if any(key not in result for key in terminal_fields) or not isinstance(rows, list) or len(rows) != len(ROLES):
+        problems.append("the terminal Case identity, outcome or contenders are incomplete")
+        rows = []
+    terminal["contenders"] = {}
+    roles = {}
+    for row in rows:
+        if not isinstance(row, dict) or any(key not in row for key in contender_fields) or row.get("role") not in ROLES:
+            problems.append("a terminal contender build or resource field is missing")
+            continue
+        role = row["role"]
+        if role in terminal["contenders"] or not isinstance(row["contender"], str):
+            problems.append("the terminal contender identities are ambiguous")
+            continue
+        terminal["contenders"][role] = {key: row[key] for key in contender_fields}
+        roles[row["contender"]] = role
+    if set(terminal["contenders"]) != set(ROLES) or len(roles) != len(ROLES):
+        problems.append("the terminal state does not identify both duelists")
+    resources, positions, seen = [], set(), set()
+    end = result.get("ended_at_ms", -1)
+    for tag, fields, _ in parse_trace(trace_text):
+        if tag != "LD_HEARTBEAT":
+            continue
+        role = roles.get(fields.get("contender"))
+        if not fields.get("t", "").isdigit():
+            problems.append("a heartbeat lacks an authority time")
+            continue
+        t = int(fields["t"])
+        if isinstance(end, int) and t > end:
+            continue
+        if not fields.get("contender"):
+            problems.append(f"a heartbeat at {t} lacks an identity")
+            continue
+        position = fields.get("pos", "-")
+        if position != "-":
+            try:
+                coordinates = tuple(float(part) for part in position.split(","))
+            except ValueError:
+                coordinates = ()
+            if len(coordinates) != 3 or not all(math.isfinite(value) for value in coordinates):
+                problems.append(f"a heartbeat at {t} has a malformed position")
+            elif role:
+                positions.add(role)
+        if not role:
+            continue
+        required = ("phase", "life", "pos", "hp", "mp", "shield")
+        if any(key not in fields for key in required):
+            problems.append(f"the {role} heartbeat at {t} lacks resource or position evidence")
+            continue
+        if (role, t) in seen:
+            problems.append(f"the {role} heartbeat at {t} is duplicated")
+            continue
+        seen.add((role, t))
+        for key in ("hp", "mp"):
+            pieces = fields[key].split("/")
+            if fields[key] != "-" and (len(pieces) != 2 or any(not P2.fullmatch(piece) for piece in pieces)):
+                problems.append(f"the {role} heartbeat at {t} has malformed {key}")
+        if fields["shield"] != "-" and not P2.fullmatch(fields["shield"]):
+            problems.append(f"the {role} heartbeat at {t} has malformed shield")
+        resources.append({"role": role, "t_ms": t, **{key: fields[key] for key in ("phase", "life", "hp", "mp", "shield")}})
+    if {role for role, _ in seen} != set(ROLES) or positions != set(ROLES):
+        problems.append("both duelists need heartbeat resource and position evidence")
+    return {"identity": identity, "terminal": terminal, "resources": resources, "problems": problems}
+
+
+def identity_problems(native_run, caps):
+    problems = []
+    if native_run.get("schema") != NATIVE_RUN_SCHEMA or native_run.get("schema_version") != NATIVE_SCHEMA_VERSION:
+        problems.append("the native run record has another schema")
+    root = native_run.get("content_root")
+    if not isinstance(root, str) or root.lower() != caps["content"]["digest"]:
+        problems.append(f"the native run loaded catalog {native_run.get('content_root')}, planned {caps['content']['digest']}")
+    if not native_run.get("fixed_time_step"):
+        problems.append("the native run did not use a fixed time step; its Cases are not replayable")
+    if native_run.get("seed_derivation") != SEED_DERIVATION:
+        problems.append(f"the native seed derivation {native_run.get('seed_derivation')} is not {SEED_DERIVATION}")
+    return problems
+
+
+def limitations(manifest, caps):
+    out = [
+        f"内容为当前运行目录 {caps['content']['version']}（{caps['content']['abilities']} 个技能定义、{caps['content']['attributes']} 张属性卡、"
+        f"{caps['content']['opening_cards']} 张开局卡）；目录外的机制一律 UnsupportedMechanic，不代表 v0.11 候选卡已被评估。",
+        "对决双方使用同一个固定的 DEV 评估画像：按计划选卡、走到公开地点、只攻击指定对手、不撤退；交战微操是生产 AI 的 Engage。"
+        "结果反映固定策略下的机制差异，不代表玩家适应或六类策略画像。",
+        "成长由 T=0 的经验供给推动（cause=dev_fixture，经正常奖励复合事务），是计划假设，不证明真实对局中能在同样时间拿到这些经验。",
+        "两名 AI 在真实 L_Demo 中移动、寻路与交战（NativeSpatial）；房主是唯一真人，只编排、不参战、不计分；没有拥有连接、网络或渲染证据。",
+        "营地、Boss、空投与房主的介入被判为 Invalid 并单列，不计入结果；对决时限不超过 Boss 出现时间。",
+        "duel_score 为 0 表示到时未分胜负（删失），不是输；\"谁先被击倒\" 不是旗杆整局胜利。",
+    ]
+    if manifest["sample_class"] == "diagnostic":
+        out.append("本实验用 DevQueueOffer 预置候选：样本是条件实验（diagnostic），不能估计自然抽到率或全局卡牌健康。")
+    if manifest["sample_class"] == "legal_search":
+        out.append("候选由原生抽卡按 Case 种子真实抽出，选择按计划规则；搜索频率不是自然出现率。")
+    return out
+
+
+def replay_hint(run_dir, case_id):
+    return f"重放：`.\\Scripts\\RunBuildEvaluation.ps1 -ReplayRun \"{run_dir}\" -Case {case_id}`"

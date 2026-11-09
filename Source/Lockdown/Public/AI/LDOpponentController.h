@@ -12,6 +12,9 @@
 
 class ALDGameMode;
 class FLDDemoContentSnapshot;
+#if WITH_DEV_AUTOMATION_TESTS
+struct FLDEvaluationRun;
+#endif
 
 // Requests one adapter sent in its match, counted where each leaves the adapter. Evidence that waits, refusals
 // and retries stay bounded; never a policy input.
@@ -170,6 +173,11 @@ private:
     int64 OpeningPickAfterMs = 0;
     uint8 OpeningPickIndex = 0;
     FLDOpponentRequestTally Tally;
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV build evaluation (-LDBuildEvaluation only): the profile the Host probe staged for this contender, taken at bind.
+    // It replaces only the decision; frames, requests, receipts and failure memory stay this adapter's.
+    TSharedPtr<FLDEvaluationRun> Evaluation;
+#endif
     FLDMatchContext RetiringMatch;
     ELDOpponentMode ReportedMode = ELDOpponentMode::Stopped;
     ELDOpponentReason ReportedReason = ELDOpponentReason::None;
