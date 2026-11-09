@@ -394,4 +394,16 @@ namespace LDOpponentPolicy
     // or respawned. Any admitted walk clears it.
     LOCKDOWN_API void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKey& Goal, bool bRefusedForGround,
         const FLDOpponentSelf& Self, int64 NowMs, const FLDDemoAIParameters& AI);
+#if WITH_DEV_AUTOMATION_TESTS
+    // DEV build evaluation (docs/systems/BUILD_EVALUATION.md): the production engagement of one visible unit exactly as
+    // Decide engages it (activation order §6.3, dash chase, then the basic attack, with the same failure memory). A fixed
+    // evaluation strategy chooses only whom to engage; how to fight stays this policy's. None when the frame cannot
+    // initialize the policy context.
+    LOCKDOWN_API FLDOpponentBodyIntent EngageUnit(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        FLDOpponentPolicyState& State, const FLDOpponentUnit& Target);
+    // The production walk to one public place (keeps a live walk there and honours refused-walk memory). None when the
+    // place is unknown or the context cannot initialize.
+    LOCKDOWN_API FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        FLDOpponentPolicyState& State, FName POI);
+#endif
 }

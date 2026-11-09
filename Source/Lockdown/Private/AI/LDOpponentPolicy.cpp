@@ -1738,4 +1738,25 @@ void RecordWalkAdmission(FLDOpponentPolicyState& State, const FLDOpponentRetryKe
     State.bHasRefusedWalk = true;
     if (bOtherGoal) { State.Failures.RecordFailure(Walk, Fingerprint(ELDOpponentFailure::Walk, Self), NowMs, AI); }
 }
+
+#if WITH_DEV_AUTOMATION_TESTS
+FLDOpponentBodyIntent EngageUnit(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    FLDOpponentPolicyState& State, const FLDOpponentUnit& Target)
+{
+    using namespace Detail;
+    FContext C(Frame, Catalog, State);
+    if (!C.Initialize()) { return {}; }
+    return EngageBody(C, Target);
+}
+
+FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    FLDOpponentPolicyState& State, FName POI)
+{
+    using namespace Detail;
+    FContext C(Frame, Catalog, State);
+    const FLDOpponentPOI* Place = C.FindPOI(POI);
+    if (!Place || !C.Initialize()) { return {}; }
+    return MoveTo(C, *Place);
+}
+#endif
 }

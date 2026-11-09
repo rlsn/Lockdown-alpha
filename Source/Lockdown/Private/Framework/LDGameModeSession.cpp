@@ -2,6 +2,7 @@
 #include "Core/LDLog.h"
 #include "Framework/LDDemoEntry.h"
 #include "Development/LDDevGrowthFixture.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Framework/LDPlayerController.h"
 #include "UI/LDControlSettings.h"
 #include "Engine/World.h"
@@ -101,7 +102,12 @@ bool ALDGameMode::AdmitRoomMember(ALDPlayerController* Controller, FString& Reas
     if (!AdvanceRoster(Reason)) { return false; }
     if (!LobbyHost.IsValid()) { LobbyHost = Controller; }
     FLDContenderRecord Record;
+#if WITH_DEV_AUTOMATION_TESTS
+    // A fresh GUID unless the process runs a build evaluation (-LDBuildEvaluation), where identities replay.
+    Record.Session = LDEvaluationSeeds::NextSessionId();
+#else
     Record.Session = FGuid::NewGuid();
+#endif
     Record.Name = Name;
     Record.State.Match = MatchContext.Generation;
     Record.State.Life = 0;

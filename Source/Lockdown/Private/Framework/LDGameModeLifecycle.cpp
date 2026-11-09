@@ -9,6 +9,7 @@
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDGrowthDirector.h"
 #include "Engine/World.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Region/LDMapRegistry.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "World/LDSpawnPlacement.h"
@@ -60,6 +61,10 @@ bool ALDGameMode::InitializeAuthorityCore(FString& Error)
         Error = TEXT("The sole Combat driver could not be created.");
         return false;
     }
+#if WITH_DEV_AUTOMATION_TESTS
+    // Build evaluation (-LDBuildEvaluation only): an armed Case replays its critical rolls.
+    if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { Combat->CritRandom.Initialize(Seeds->CritSeed); }
+#endif
     LastWorldClockSample = AuthorityOriginWorldSeconds;
     AuthorityNowSeconds = 0;
     AuthorityNowMs = 0;

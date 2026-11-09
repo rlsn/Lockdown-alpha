@@ -4,6 +4,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Navigation/LDNavigationComponent.h"
 #include "Region/LDMapRegistry.h"
 #include "Vision/LDVisionDirector.h"
@@ -33,6 +34,19 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
     // Playtest log: everything the start commits from here (the opening three-choice offers, the AI registrations)
     // belongs to this generation; the header and roster follow once the roster is locked.
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTING generation=%u ai=%d"), MatchContext.Generation, LobbyAISlots.Num());
+#if WITH_DEV_AUTOMATION_TESTS
+    // Build evaluation (-LDBuildEvaluation only): an armed Case replays its AI identities and the server stream that
+    // draws spawn anchors and AI opening plans. Without an armed Case nothing changes.
+    if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed())
+    {
+        for (int32 Slot = 0; Slot < LobbyAISlots.Num() && Slot < FLDEvaluationSeeds::MaxAISlots; ++Slot)
+        {
+            LobbyAISlots[Slot] = Seeds->AIContenders[Slot];
+        }
+        SpawnRandom.Initialize(Seeds->SpawnSeed);
+        UE_LOG(LogLDTest, Display, TEXT("LD_EVAL_MATCH_SEEDED generation=%u root=%llu"), MatchContext.Generation, Seeds->Root);
+    }
+#endif
     LockedAISlots = LobbyAISlots;
     MatchPhase = ELDMatchPhase::Starting;
     FString Error;

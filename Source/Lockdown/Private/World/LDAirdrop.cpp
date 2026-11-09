@@ -1,5 +1,6 @@
 #include "World/LDAirdrop.h"
 #include "Development/LDDemoContentCatalog.h"
+#include "Evaluation/LDEvaluationSeeds.h"
 #include "Region/LDMapGeometry.h"
 #include "Region/LDMapRegistry.h"
 
@@ -196,6 +197,10 @@ bool LDAirdrop::Resolve(const ULDMapRegistry& Registry, const FLDDemoContentSnap
     const FGuid Random = FGuid::NewGuid();
     S.Seed = LDAirdrop::Mix((uint64(Random.A) << 32 | Random.B) ^ LDAirdrop::Mix(uint64(Random.C) << 32 | Random.D));
     S.Seed = S.Seed ? S.Seed : 1;
+#if WITH_DEV_AUTOMATION_TESTS
+    // Build evaluation (-LDBuildEvaluation only): an armed Case replays its drop points.
+    if (const FLDEvaluationSeeds* Seeds = LDEvaluationSeeds::Armed()) { S.Seed = Seeds->AirdropSeed; }
+#endif
     if (P.AirdropRewardXP <= 0 || !S.IsValid())
     {
         Error = TEXT("The approved airdrop parameters or compiled airdrop points are invalid.");
