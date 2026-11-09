@@ -385,7 +385,7 @@ UWidget* ULDUIRoot::AddBackground(UCanvasPanel& Canvas,const TCHAR* AssetPath)
     UTexture2D* Texture=LoadObject<UTexture2D>(nullptr,AssetPath);
     if(!Texture)
     {
-        UE_LOG(LogLDUI,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportBackgrounds."),AssetPath);
+        UE_LOG(LogLDUI,Error,TEXT("LD_UI_BACKGROUND_MISSING %s is not imported; run ImportDemoArt.ps1 -Mode ImportUI."),AssetPath);
         return nullptr;
     }
     auto* Picture=WidgetTree->ConstructWidget<UImage>();

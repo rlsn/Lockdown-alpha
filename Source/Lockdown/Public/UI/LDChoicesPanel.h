@@ -7,6 +7,7 @@
 class UTextBlock;
 class URichTextBlock;
 class UBorder;
+class UImage;
 class USizeBox;
 class UCanvasPanel;
 class UCanvasPanelSlot;
@@ -78,6 +79,8 @@ private:
     struct FCardWidgets
     {
         TObjectPtr<ULDCommandButton> Button;
+        // The card's icon (LDUIIcons); without its texture, a plain square with the name's first character instead.
+        TObjectPtr<UImage> Picture;
         TObjectPtr<USizeBox> IconSize;
         TObjectPtr<UBorder> IconShape;
         TObjectPtr<UTextBlock> Glyph,Name,Summary;

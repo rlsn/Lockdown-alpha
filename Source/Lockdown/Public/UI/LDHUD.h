@@ -10,6 +10,7 @@ class UBorder;
 class UHorizontalBox;
 class UCanvasPanelSlot;
 class UTextBlock;
+class UImage;
 class UProgressBar;
 class USizeBox;
 class ULDCommandButton;
@@ -32,8 +33,10 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<USizeBox> Box;
     UPROPERTY() TObjectPtr<ULDCommandButton> Button;
     UPROPERTY() TObjectPtr<UBorder> Frame;
-    // Placeholder icon until real art lands (#93): a rounded square in the entry kind's colour with the name's first glyph.
+    // The bound entry's icon (LDUIIcons) on a rounded square in the entry kind's colour; without the texture the square
+    // shows the name's first character instead.
     UPROPERTY() TObjectPtr<UBorder> Icon;
+    UPROPERTY() TObjectPtr<UImage> Picture;
     UPROPERTY() TObjectPtr<UTextBlock> Glyph;
     UPROPERTY() TObjectPtr<UTextBlock> Key;
     UPROPERTY() TObjectPtr<UBorder> RankChip;
@@ -48,6 +51,8 @@ struct FLDHUDActionSlot
     UPROPERTY() TObjectPtr<UBorder> Flash;
     // Local presentation only (real time): the applied look, the ready flash and the last rejected press of this slot.
     int32 AppliedLook=-1;
+    FString AppliedIcon;
+    int32 AppliedTint=-1;
     float AppliedOpacity=1.f;
     float AppliedPop=1.f;
     bool bCooling=false;
@@ -84,6 +89,7 @@ protected:
     bool bDragging=false;
     UPROPERTY() TObjectPtr<UBorder> DragGhost;
     UPROPERTY() TObjectPtr<UTextBlock> DragGhostGlyph;
+    UPROPERTY() TObjectPtr<UImage> DragGhostPicture;
     UPROPERTY() TObjectPtr<UCanvasPanelSlot> DragGhostSlot;
     void UpdateDrag();
     virtual int32 NativePaint(const FPaintArgs& Args,const FGeometry& Geometry,const FSlateRect& Culling,FSlateWindowElementList& Elements,int32 Layer,const FWidgetStyle& Style,bool Enabled) const override;
@@ -154,6 +160,8 @@ private:
     UPROPERTY() TArray<TObjectPtr<UHorizontalBox>> SelfIconRowBoxes;
     UPROPERTY() TArray<TObjectPtr<UBorder>> SelfIconCells;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconGlyphs;
+    UPROPERTY() TArray<TObjectPtr<UImage>> SelfIconPictures;
+    TArray<FString> SelfIconApplied;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SelfIconStacks;
     UPROPERTY() TObjectPtr<UTextBlock> SelfIconMore;
     UPROPERTY() TObjectPtr<UTextBlock> SelfIconSyncing;

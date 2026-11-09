@@ -73,6 +73,8 @@ namespace LDHUD
     // so the content error stays visible instead of a guessed name.
     LOCKDOWN_API bool ContentText(const FLDDemoContentDefinitions* Content,const FString& ContentId,bool bDescription,FString& Out);
     LOCKDOWN_API FString ContentName(const FLDDemoContentDefinitions* Content,const FString& ContentId);
+    // The display row's IconId of a content entry (#85); empty without a display row.
+    LOCKDOWN_API FString ContentIconId(const FLDDemoContentDefinitions* Content,const FString& ContentId);
     // #153: an offer of opening direction cards (opportunity 1); it is never rerolled.
     LOCKDOWN_API bool IsOpeningOffer(const FLDChoiceOfferView& Offer);
     // #147 two skill ranks: 初级 (1) and 高级 (2); anything else is named by its number.
@@ -217,6 +219,7 @@ namespace LDHUD
         bool bHasSource=false;    // an active is bound
         FString Name;             // display name of the bound definition
         FName DefinitionId;       // the bound definition, for the hover description
+        FString IconId;           // the bound definition's icon (LDUIIcons); the dash's own icon for D
         uint8 Rank=0;             // learned rank
         int64 ManaCostP2=0;
         int64 ReadyAtMs=0;        // this source's own track end on the authority clock
@@ -254,7 +257,8 @@ namespace LDHUD
         float CooldownFraction=0.f;
         FString Countdown;        // CooldownText of the remainder; empty when not cooling
         FString Cost;             // the active's mana cost rounded like the shown mana, number only, e.g. "30"; empty without one
-        FString Glyph;            // the placeholder icon's character (the name's first); empty without a source
+        FString IconId;           // the icon texture id (LDUIIcons); empty without a source
+        FString Glyph;            // shown only when IconId has no texture: the name's first character; empty without a source
         FString Rank;             // the learned rank of Q/W/E, number only; empty for the dash and empty slots
     };
     LOCKDOWN_API FActionView Action(const FActionInput& Input,const FActionContext& Context);
@@ -304,16 +308,16 @@ namespace LDHUD
     LOCKDOWN_API FString TargetLine(const FLDDemoTargetDefinition& Target);
     // The mana cost and cooldown line of an active rank.
     LOCKDOWN_API FString CostLine(const FLDDemoRankDefinition& Rank);
-    // Placeholder icon family of a card until real art lands (#93): each family has its own shape and colour, and the card's
-    // kind line names it, so no card relies on colour alone.
-    enum class EChoiceIcon : uint8 {Unknown,Active,Passive,Attribute};
     struct FChoiceCardView
     {
         FString Kind;
         FString Name;
         FString RankText;
-        // The compact card's short second line (#97): "新" for a new skill, "初→高" for an upgrade, the pick count for an
-        // attribute; the icon shape names the kind and the HUD shows a needed replacement. Detail is "<kind> · <rank>".
+        // The card type on the face (#85, the icons no longer differ by shape): "主动", "被动", "属性" or "开局".
+        FString Type;
+        // The compact card's short second line (#97): the type, then "新" for a new skill, "初→高" for an upgrade or the pick
+        // count of an attribute ("属性 · 已选 N 次"; its quality is the name's colour, #85); the HUD shows a needed replacement.
+        // Detail is "<kind> · <rank>", and an attribute card's rank there still names its quality in words.
         FString Summary;
         FString Detail;
         // #147 card face: the one-sentence rule with this level's numbers ("A → B" on an upgrade) and the "高级：" line, as
@@ -326,9 +330,9 @@ namespace LDHUD
         TArray<FString> Keywords;
         // Details below the face: targeting and the active's mana and cooldown.
         TArray<FString> Lines;
-        // Display-table icon reference (empty when the definition has no display row); the placeholder draws Icon + Glyph.
+        // Display-table icon reference (empty when the definition has no display row), drawn through LDUIIcons; Glyph (the
+        // name's first character) shows only when that texture is missing.
         FString IconId;
-        EChoiceIcon Icon=EChoiceIcon::Unknown;
         FString Glyph;
         ELDAttributeQuality AttributeQuality=ELDAttributeQuality::None;
         bool bNeedsReplacement=false;
@@ -351,7 +355,7 @@ namespace LDHUD
     // Owner combat entry -> action input; Unavailable stays a display-only server reason.
     LOCKDOWN_API FActionInput ActionInput(const FLDCombatEntryView& Entry,EActionSlot Slot,const FLDDemoContentDefinitions* Content);
     // One square of the own status grid under the 属性 button: a temporary status, an active recovery (脱战回复中, 躺平角回血中)
-    // or a learned passive. Glyph is the placeholder icon (the first character of the name); Tip is the name with its stacks, shield
+    // or a learned passive. IconId is its icon (LDUIIcons) and Glyph the name's first character, shown only without that texture; Tip is the name with its stacks, shield
     // and remainder (statuses) or rank name (learned passives). The hover popup is built from it by SelfIconDetail.
     // bPositive is the square's tone: green when it helps its bearer, red when it hurts (StatusIsPositive); recoveries
     // and passives are always positive.
@@ -362,6 +366,7 @@ namespace LDHUD
         ESelfIconKind Kind=ESelfIconKind::Passive;
         ESelfIconSource Source=ESelfIconSource::Status;
         bool bPositive=true;
+        FString IconId;
         FString Glyph;
         FString Tip;
         // The content entry the popup describes: the status or the learned passive.
@@ -399,7 +404,7 @@ namespace LDHUD
     // Whether a status helps its bearer (护盾, 增益, 强化普攻, 复活保护, 回位) rather than hurts it (every control, 减速,
     // 破防, 灼烧). A fixed property of the native status identity; an unknown id reads as negative.
     LOCKDOWN_API bool StatusIsPositive(uint8 StatusId);
-    // The placeholder icon of a name: its first character, Latin letters upper-cased; "?" for an empty name.
+    // The missing-icon stand-in of a name: its first character, Latin letters upper-cased; "?" for an empty name.
     LOCKDOWN_API FString IconGlyph(const FString& Name);
     // Remaining-time rings of the timed own statuses. The view carries only the end instant, so the remaining time when
     // an end instant is first seen is the full ring, and a later end (a refresh) restarts it. Presentation only: a

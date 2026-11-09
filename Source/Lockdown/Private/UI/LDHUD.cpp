@@ -11,6 +11,7 @@
 #include "UI/LDControlSettings.h"
 #include "UI/LDControlsPanel.h"
 #include "UI/LDUIRoot.h"
+#include "UI/LDUIIcons.h"
 #include "Framework/LDPlayerController.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDDemoEntry.h"
@@ -34,6 +35,7 @@
 #include "Components/CanvasPanelSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/Overlay.h"
 #include "Components/OverlaySlot.h"
 #include "Components/ProgressBar.h"
@@ -156,8 +158,8 @@ FHudLookStyle HudLookStyle(LDHUD::EActionLook Look)
     default: return {LDHUDStyle::SlotBlocked,FLinearColor(.10f,.13f,.16f),1.f};
     }
 }
-// Placeholder icon colours, shared with the blind-box icons: actives orange, the innate dash slate and an empty slot dark
-// grey.
+// Icon square colours: actives orange, the innate dash slate and an empty slot dark grey; the square shows round the
+// picture's corners and carries the first character when a texture is missing.
 enum class EHudIconKind : uint8 { Active, Dash, Empty };
 FLinearColor HudIconBase(EHudIconKind Kind)
 {
@@ -179,6 +181,28 @@ FLinearColor HudIconColor(EHudIconKind Kind,LDHUD::EActionLook Look)
     case LDHUD::EActionLook::Controlled: return Base.Desaturate(.6f)*.6f;
     case LDHUD::EActionLook::Blocked: return Base.Desaturate(1.f)*.45f;
     default: return Base;
+    }
+}
+// The same state on the icon picture: missing mana tints it blue, control and blocks grey it out.
+enum class EHudIconTint : uint8 { Normal, NoMana, Controlled, Blocked };
+EHudIconTint HudIconTintOf(LDHUD::EActionLook Look)
+{
+    switch(Look)
+    {
+    case LDHUD::EActionLook::NoMana: return EHudIconTint::NoMana;
+    case LDHUD::EActionLook::Controlled: return EHudIconTint::Controlled;
+    case LDHUD::EActionLook::Blocked: case LDHUD::EActionLook::Empty: return EHudIconTint::Blocked;
+    default: return EHudIconTint::Normal;
+    }
+}
+FLinearColor HudIconTint(EHudIconTint Tint)
+{
+    switch(Tint)
+    {
+    case EHudIconTint::NoMana: return FLinearColor(.45f,.6f,1.f);
+    case EHudIconTint::Controlled: return FLinearColor(.55f,.55f,.55f);
+    case EHudIconTint::Blocked: return FLinearColor(.4f,.4f,.4f);
+    default: return FLinearColor::White;
     }
 }
 // Camp tiers are named after their approved creature, never a guessed or hidden attacker.
@@ -411,8 +435,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
         auto* ColumnSlot=SelfHead->AddChildToHorizontalBox(PanelColumn);ColumnSlot->SetVerticalAlignment(VAlign_Center);ColumnSlot->SetPadding(FMargin(8,0,0,0));
         // The life line only when it says more than "alive"; it wraps inside the fixed column.
         LifeText=Text(TEXT(""),14);SelfBox->AddChildToVerticalBox(LifeText)->SetPadding(FMargin(0,8,0,0));
-        // The own status grid: temporary statuses first (control before the rest), then passives, one placeholder square
-        // each (the name's first character; hover names it in full). A full grid ends in "…": the attribute panel lists all.
+        // The own status grid: temporary statuses first (control before the rest), then passives, one icon square each
+        // (the name's first character while a texture is missing; hover names it in full). A full grid ends in "…": the
+        // attribute panel lists all.
         {
             SelfIconSyncing=Text(TEXT("状态同步中"),14);SelfIconSyncing->SetColorAndOpacity(LDHUDStyle::TextSecondary);
             SelfIconSyncing->SetVisibility(ESlateVisibility::Collapsed);SelfBox->AddChildToVerticalBox(SelfIconSyncing)->SetPadding(FMargin(0,6,0,0));
@@ -423,7 +448,9 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                 {
                     UTextBlock* Glyph=OneLine(TEXT(""),18,0);HudFace(Glyph,true,1);Glyph->SetJustification(ETextJustify::Center);
                     UTextBlock* Stacks=OneLine(TEXT(""),11,0);HudFace(Stacks,true,1);
+                    UImage* Picture=WidgetTree->ConstructWidget<UImage>();Picture->SetVisibility(ESlateVisibility::Collapsed);
                     auto* Face=WidgetTree->ConstructWidget<UOverlay>();
+                    auto* PictureSlot=Face->AddChildToOverlay(Picture);PictureSlot->SetHorizontalAlignment(HAlign_Fill);PictureSlot->SetVerticalAlignment(VAlign_Fill);
                     auto* GlyphSlot=Face->AddChildToOverlay(Glyph);GlyphSlot->SetHorizontalAlignment(HAlign_Center);GlyphSlot->SetVerticalAlignment(VAlign_Center);
                     auto* StackSlot=Face->AddChildToOverlay(Stacks);StackSlot->SetHorizontalAlignment(HAlign_Right);StackSlot->SetVerticalAlignment(VAlign_Bottom);
                     auto* Cell=WidgetTree->ConstructWidget<UBorder>();Cell->SetBrush(HudRound(5.f,LDHUDStyle::Rim,1.f));
@@ -432,6 +459,7 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
                     auto* CellBox=WidgetTree->ConstructWidget<USizeBox>();CellBox->SetWidthOverride(HudSelfIconSize);CellBox->SetHeightOverride(HudSelfIconSize);CellBox->SetContent(Cell);
                     RowBox->AddChildToHorizontalBox(CellBox)->SetPadding(FMargin(Col?HudSelfIconGap:0.f,0,0,0));
                     SelfIconCells.Add(Cell);SelfIconGlyphs.Add(Glyph);SelfIconStacks.Add(Stacks);SelfIconTones.Add(-1);SelfIconRing.Add(-1.f);
+                    SelfIconPictures.Add(Picture);SelfIconApplied.AddDefaulted();
                 }
                 SelfIconRowBoxes.Add(RowBox);SelfBox->AddChildToVerticalBox(RowBox)->SetPadding(FMargin(0,Row?HudSelfIconGap:6.f,0,0));
             }
@@ -458,7 +486,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             auto FillLayer=[](UOverlaySlot* Layer){Layer->SetHorizontalAlignment(HAlign_Fill);Layer->SetVerticalAlignment(VAlign_Fill);};
             Entry.Glyph=OneLine(TEXT(""),30,0);HudFace(Entry.Glyph,true,2);Entry.Glyph->SetJustification(ETextJustify::Center);
             Entry.Icon=WidgetTree->ConstructWidget<UBorder>();Entry.Icon->SetBrush(HudRound(6.f,FLinearColor(1,1,1,.18f),1.f));
-            Entry.Icon->SetHorizontalAlignment(HAlign_Center);Entry.Icon->SetVerticalAlignment(VAlign_Center);Entry.Icon->SetContent(Entry.Glyph);
+            Entry.Icon->SetHorizontalAlignment(HAlign_Fill);Entry.Icon->SetVerticalAlignment(VAlign_Fill);Entry.Icon->SetPadding(FMargin(0));
+            {
+                auto* IconFace=WidgetTree->ConstructWidget<UOverlay>();
+                Entry.Picture=WidgetTree->ConstructWidget<UImage>();Entry.Picture->SetVisibility(ESlateVisibility::Collapsed);
+                FillLayer(IconFace->AddChildToOverlay(Entry.Picture));
+                auto* GlyphLayer=IconFace->AddChildToOverlay(Entry.Glyph);GlyphLayer->SetHorizontalAlignment(HAlign_Center);GlyphLayer->SetVerticalAlignment(VAlign_Center);
+                Entry.Icon->SetContent(IconFace);
+            }
             FillLayer(Face->AddChildToOverlay(Entry.Icon));
             Entry.Cooldown=WidgetTree->ConstructWidget<UProgressBar>();
             FProgressBarStyle MaskStyle;MaskStyle.SetBackgroundImage(FSlateNoResource()).SetFillImage(FSlateRoundedBoxBrush(FLinearColor::White,6.f)).SetMarqueeImage(FSlateNoResource());
@@ -575,7 +610,14 @@ TSharedRef<SWidget> ULDHUD::RebuildWidget()
             // The dragged slot's ghost follows the pointer; it takes no input.
             DragGhostGlyph=OneLine(TEXT(""),26,0);HudFace(DragGhostGlyph,true,2);DragGhostGlyph->SetJustification(ETextJustify::Center);
             DragGhost=WidgetTree->ConstructWidget<UBorder>();DragGhost->SetBrush(HudRound(6.f,LDHUDStyle::TextAccent,2.f));
-            DragGhost->SetHorizontalAlignment(HAlign_Center);DragGhost->SetVerticalAlignment(VAlign_Center);DragGhost->SetContent(DragGhostGlyph);
+            DragGhost->SetHorizontalAlignment(HAlign_Fill);DragGhost->SetVerticalAlignment(VAlign_Fill);
+            {
+                auto* GhostFace=WidgetTree->ConstructWidget<UOverlay>();
+                DragGhostPicture=WidgetTree->ConstructWidget<UImage>();DragGhostPicture->SetVisibility(ESlateVisibility::Collapsed);
+                auto* PictureLayer=GhostFace->AddChildToOverlay(DragGhostPicture);PictureLayer->SetHorizontalAlignment(HAlign_Fill);PictureLayer->SetVerticalAlignment(VAlign_Fill);
+                auto* GlyphLayer=GhostFace->AddChildToOverlay(DragGhostGlyph);GlyphLayer->SetHorizontalAlignment(HAlign_Center);GlyphLayer->SetVerticalAlignment(VAlign_Center);
+                DragGhost->SetContent(GhostFace);
+            }
             auto* GhostBox=WidgetTree->ConstructWidget<USizeBox>();GhostBox->SetWidthOverride(HudSlotWidth*HudBandScale);GhostBox->SetHeightOverride(HudSlotHeight*HudBandScale);
             GhostBox->SetContent(DragGhost);GhostBox->SetRenderOpacity(.8f);GhostBox->SetVisibility(ESlateVisibility::Collapsed);
             DragGhostSlot=Canvas->AddChildToCanvas(GhostBox);DragGhostSlot->SetAutoSize(true);DragGhostSlot->SetAlignment(FVector2D(.5f,.5f));DragGhostSlot->SetZOrder(30);
@@ -669,6 +711,10 @@ void ULDHUD::UpdateDrag()
         const FLDHUDActionSlot& From=ActionSlots[DragFrom];
         if(DragGhost){DragGhost->SetBrushColor(From.Icon->GetBrushColor());}
         HudSetText(DragGhostGlyph,From.Glyph->GetText().ToString());
+        const bool bPicture=From.Picture->GetVisibility()!=ESlateVisibility::Collapsed;
+        if(bPicture){DragGhostPicture->SetBrush(From.Picture->GetBrush());}
+        HudSetShown(DragGhostPicture,bPicture,ESlateVisibility::HitTestInvisible);
+        HudSetShown(DragGhostGlyph,!bPicture,ESlateVisibility::HitTestInvisible);
         if(Ghost){Ghost->SetVisibility(ESlateVisibility::HitTestInvisible);}
     }
     if(bDragging&&Ghost)
@@ -907,6 +953,11 @@ void ULDHUD::RefreshReadModel()
             HudSetShown(SelfIconCells[Index],Icon!=nullptr,ESlateVisibility::Visible);
             SelfIconRing[Index]=-1.f;
             if(!Icon){continue;}
+            if(SelfIconApplied[Index]!=Icon->IconId)
+            {
+                SelfIconApplied[Index]=Icon->IconId;
+                HudSetShown(SelfIconGlyphs[Index],!LDUIIcons::Apply(SelfIconPictures[Index],Icon->IconId,4.f),ESlateVisibility::HitTestInvisible);
+            }
             HudSetText(SelfIconGlyphs[Index],Icon->Glyph);
             HudSetText(SelfIconStacks[Index],Icon->Stacks>1?FString::FromInt(Icon->Stacks):FString());
             if(SelfIconTones[Index]!=int32(Icon->bPositive))
@@ -1076,6 +1127,15 @@ void ULDHUD::RefreshReadModel()
             HudSetColor(Entry.Glyph,Look==LDHUD::EActionLook::Blocked||Look==LDHUD::EActionLook::Empty?LDHUDStyle::TextSecondary:LDHUDStyle::TextPrimary);
         }
         HudSetText(Entry.Key,View.Key);HudSetText(Entry.Glyph,View.Glyph);
+        {
+            const int32 Tint=int32(HudIconTintOf(Look));
+            if(Entry.AppliedIcon!=View.IconId||Entry.AppliedTint!=Tint)
+            {
+                Entry.AppliedIcon=View.IconId;Entry.AppliedTint=Tint;
+                const bool bPicture=LDUIIcons::Apply(Entry.Picture,View.IconId,6.f,HudIconTint(EHudIconTint(Tint)));
+                HudSetShown(Entry.Glyph,!bPicture,ESlateVisibility::HitTestInvisible);
+            }
+        }
         HudSetText(Entry.Rank,View.Rank);HudSetShown(Entry.RankChip,!View.Rank.IsEmpty(),ESlateVisibility::HitTestInvisible);
         HudSetText(Entry.Cost,View.Cost);HudSetShown(Entry.CostChip,!View.Cost.IsEmpty(),ESlateVisibility::HitTestInvisible);
         Entry.Cooldown->SetPercent(View.CooldownFraction);HudSetShown(Entry.Cooldown,bCooling,ESlateVisibility::HitTestInvisible);
