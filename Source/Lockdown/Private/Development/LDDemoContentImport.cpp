@@ -1663,7 +1663,7 @@ bool Content(const FValue& Value, FLDDemoContentDefinitions& Out, FCheck& Check)
     FFields Approval(Check, Identity.Take(TEXT("approval")), TEXT("content.identity.approval"));
     if (!Approval.Text(TEXT("status"), Out.Identity.ApprovalStatus)
         || !Check.Require(Out.Identity.ApprovalStatus.Equals(TEXT("approved"), ESearchCase::CaseSensitive), Approval.Path, TEXT("approval metadata required"))
-        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision)
+        || !Approval.Text(TEXT("decision"), Out.Identity.ApprovalDecision, 1, 1024)
         || !Check.Require(!Out.Identity.ApprovalDecision.TrimStartAndEnd().IsEmpty(), Approval.Path, TEXT("empty decision reference"))
         || !Approval.Done() || !Identity.Done()
         || !Parameters(F.Take(TEXT("parameters")), Out.Parameters, Check)

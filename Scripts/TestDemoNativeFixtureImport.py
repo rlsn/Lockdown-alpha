@@ -189,8 +189,8 @@ class DemoNativeFixturesTest(unittest.TestCase):
         self.assertIn("signed_world_boundary", {case["name"] for case in self.index["invalid"]})
         self.assertEqual(expected("base")["Formulas.AttackMoveAcquireRadius"], "13")
         decision = expected("unicode_scalar_boundary")["Identity.ApprovalDecision"]
-        self.assertEqual(len(decision), 512)
-        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 513)
+        self.assertEqual(len(decision), 1024)
+        self.assertEqual(len(decision.encode("utf-16-le")) // 2, 1025)
 
     def test_export_cannot_overwrite_or_create_live_inputs(self):
         baseline = (self.root / "base" / demo.CONTENT_OUTPUT).read_bytes()

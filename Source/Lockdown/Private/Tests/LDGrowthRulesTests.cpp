@@ -2044,9 +2044,9 @@ bool FLDDemoDevTestCommandsTest::RunTest(const FString& Parameters)
     Spent.IssuedCooldownId = FGuid(0xD7, 0, 1, 2);
     Spent.Kind = ELDCombatSourceKind::Learned;
     Spent.ReadyAtMs = 0;
-    World->Tick(LEVELTICK_TimeOnly, .025f);
+    World->Tick(LEVELTICK_TimeOnly, .1f);
 
-    // One 25 ms tick of native time; every boundary below advances 1 ms inside it.
+    // One 100 ms tick of native time; every boundary below advances 1 ms inside it.
     int64 StepAtMs = 0;
     const auto RunPhase = [&](ELDCommitPhase Phase, TFunctionRef<bool(const FLDGameplayWritePermit&)> Execute)
     {

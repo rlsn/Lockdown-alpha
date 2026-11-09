@@ -244,7 +244,7 @@ bool AssertFields(FAutomationTestBase& Test, const UStruct* Type, const void* Da
     {
         const FString Path(Pair.Key.ToView());
         FString ExpectedText;
-        if (!String(Pair.Value, ExpectedText, Check, Path, 0))
+        if (!String(Pair.Value, ExpectedText, Check, Path, 0, 1024))
         {
             Test.AddError(Error);
             return false;

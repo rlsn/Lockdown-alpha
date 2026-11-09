@@ -669,7 +669,7 @@ def _export_cases(output, index, base, rank_mutations, valid, written):
     unicode_author = fixtures.content_fixture()
     unicode_author["identity"]["approval"]["decision"] = "TEST ONLY \u6d4b\u8bd5 \U0001f9ea"
     valid("unicode_metadata", unicode_author)
-    unicode_author["identity"]["approval"]["decision"] = "TEST " + "a" * 506 + "\U0001f9ea"
+    unicode_author["identity"]["approval"]["decision"] = "TEST " + "a" * 1018 + "\U0001f9ea"
     valid("unicode_scalar_boundary", unicode_author)
 
     if rank_mutations:
