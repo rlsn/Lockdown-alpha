@@ -17,6 +17,10 @@ Invoke-LDTool -Tool (Join-Path $engine 'Engine/Build/BatchFiles/RunUAT.bat') -To
 $executables = @(Get-ChildItem -LiteralPath $archive -Recurse -Filter 'Lockdown.exe' -File)
 if ($executables.Count -eq 0) { throw "UAT returned success but no Lockdown.exe was archived: $archive" }
 $package=Resolve-LDPackage $archive
+# UAT stages the Vulkan validation layers into every Development/Debug Win64 package whatever the RHI (#189). Windows
+# cooks only D3D shader formats, so the package never loads them.
+$vulkanLayers=Join-Path $package.Root 'Engine/Binaries/ThirdParty/Vulkan'
+if (Test-Path -LiteralPath $vulkanLayers) { Remove-Item -LiteralPath $vulkanLayers -Recurse -Force }
 $root=Get-LDProjectRoot
 $payload=@(Get-ChildItem -LiteralPath $package.Root -Recurse -File | Where-Object {$_.Extension -in '.exe','.pak','.utoc','.ucas' -or $_.Name -eq 'AssetRegistry.bin'} | ForEach-Object {[pscustomobject]@{path=[IO.Path]::GetRelativePath($package.Root,$_.FullName);bytes=$_.Length;sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})
 $sources=@(Get-ChildItem -LiteralPath (Join-Path $root 'Source'),(Join-Path $root 'Config'),(Join-Path $root 'SourceData') -Recurse -File | Where-Object {$_.FullName -notlike '*\Config\Local\*'} | ForEach-Object {[pscustomobject]@{path=[IO.Path]::GetRelativePath($root,$_.FullName);sha256=(Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash}})

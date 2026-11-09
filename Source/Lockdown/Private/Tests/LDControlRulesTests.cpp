@@ -19,80 +19,12 @@
 #include "Misc/ScopeExit.h"
 
 #if WITH_DEV_AUTOMATION_TESTS
-#include "Dom/JsonObject.h"
-#include "Serialization/JsonSerializer.h"
-#include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
+#include "Tests/LDTestApprovedFixture.h"
 #include "UObject/Package.h"
 
 // Taunt rules (CONTENT_AND_BALANCE 15.5, issue #83).
 namespace LDControlRulesTests
 {
-bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
-{
-    FString Root, Error, Text;
-    if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty()
-        || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
-    {
-        Test.AddError(TEXT("Control rule tests require isolated LDDemoContentFixtures with approved_base; no live-data fallback."));
-        return false;
-    }
-    TSharedPtr<FJsonObject> Index;
-    if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(Root, TEXT("index.json")))
-        || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Index) || !Index)
-    {
-        Test.AddError(TEXT("Unreadable content fixture index."));
-        return false;
-    }
-    FString Format;
-    bool bTestOnly = false;
-    const TArray<TSharedPtr<FJsonValue>>* Rows = nullptr;
-    if (!Index->TryGetStringField(TEXT("format"), Format) || Format != TEXT("demo-native-fixtures-1")
-        || !Index->TryGetBoolField(TEXT("test_only"), bTestOnly) || !bTestOnly || !Index->TryGetArrayField(TEXT("valid"), Rows))
-    {
-        Test.AddError(TEXT("Invalid content fixture index."));
-        return false;
-    }
-    bool bFound = false;
-    FLDDemoContentDigest Digest;
-    for (const auto& Value : *Rows)
-    {
-        const TSharedPtr<FJsonObject>* Row = nullptr;
-        FString Name, Hex;
-        if (!Value->TryGetObject(Row) || !(*Row)->TryGetStringField(TEXT("name"), Name))
-        {
-            Test.AddError(TEXT("Invalid fixture case."));
-            return false;
-        }
-        if (Name != TEXT("approved_base")) { continue; }
-        if (bFound || !(*Row)->TryGetStringField(TEXT("catalog_sha256"), Hex) || !FLDDemoContentDigest::ParseHex(Hex, Digest, Error))
-        {
-            Test.AddError(TEXT("Duplicate or invalid approved_base fixture."));
-            return false;
-        }
-        bFound = true;
-    }
-    if (!bFound)
-    {
-        Test.AddError(TEXT("Missing approved_base fixture."));
-        return false;
-    }
-    FLDDemoContentBundle Bundle;
-    TUniquePtr<FLDDemoPreparedContent> Prepared;
-    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-        || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    return true;
-}
-
 FLDCombatBodyRef Contender(uint32 Id, uint32 Life = 1)
 { return {{ELDVictimKind::Contender, FGuid(Id, 0, 0, 0), Life}, FGuid(Id, Life, 0, 0)}; }
 
@@ -239,7 +171,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCaptureCombatInterruptTest, "Lockdown.Rules.
 bool FLDCaptureCombatInterruptTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
         .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);
@@ -406,7 +338,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDPlaytestLogHitVampTest, "Lockdown.Rules.Play
 bool FLDPlaytestLogHitVampTest::RunTest(const FString& Parameters)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!LDControlRulesTests::ReadApprovedFixture(*this, Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const auto Values = UWorld::InitializationValues().AllowAudioPlayback(false).CreatePhysicsScene(false)
         .CreateNavigation(false).CreateAISystem(false).ShouldSimulatePhysics(false).CreateFXSystem(false);
     UWorld* World = UWorld::CreateWorld(EWorldType::Game, false, NAME_None, nullptr, true, ERHIFeatureLevel::Num, &Values);

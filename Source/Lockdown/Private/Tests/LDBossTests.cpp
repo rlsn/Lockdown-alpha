@@ -5,19 +5,13 @@
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Development/LDProgressionRules.h"
-#include "Dom/JsonObject.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Framework/LDCaptureTypes.h"
 #include "Framework/LDGameMode.h"
 #include "Misc/ScopeExit.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/CommandLine.h"
-#include "Misc/FileHelper.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
-#include "Serialization/JsonSerializer.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 #include "UObject/UnrealType.h"
 #include <limits>
 
@@ -184,52 +178,6 @@ bool FLDBossRulesTest::RunTest(const FString& Parameters)
 // approved ratios and expires after the approved duration.
 namespace LDBossRewardTests
 {
-bool ReadApprovedFixture(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
-{
-    FString Root, Error, Text;
-    if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty()
-        || !FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts"))))
-    {
-        Test.AddError(TEXT("The Boss reward test requires isolated LDDemoContentFixtures with approved_base; no live-data fallback."));
-        return false;
-    }
-    TSharedPtr<FJsonObject> Index;
-    const TArray<TSharedPtr<FJsonValue>>* Rows = nullptr;
-    if (!FFileHelper::LoadFileToString(Text, *FPaths::Combine(Root, TEXT("index.json")))
-        || !FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Index) || !Index
-        || !Index->TryGetArrayField(TEXT("valid"), Rows))
-    {
-        Test.AddError(TEXT("Unreadable content fixture index."));
-        return false;
-    }
-    FLDDemoContentDigest Digest;
-    bool bFound = false;
-    for (const TSharedPtr<FJsonValue>& Value : *Rows)
-    {
-        const TSharedPtr<FJsonObject>* Row = nullptr;
-        FString Name, Hex;
-        if (!Value->TryGetObject(Row) || !(*Row)->TryGetStringField(TEXT("name"), Name) || Name != TEXT("approved_base")) { continue; }
-        if (bFound || !(*Row)->TryGetStringField(TEXT("catalog_sha256"), Hex) || !FLDDemoContentDigest::ParseHex(Hex, Digest, Error))
-        {
-            Test.AddError(TEXT("Duplicate or invalid approved_base fixture."));
-            return false;
-        }
-        bFound = true;
-    }
-    FLDDemoContentBundle Bundle;
-    TUniquePtr<FLDDemoPreparedContent> Prepared;
-    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    if (!bFound || !FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-        || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-    {
-        Test.AddError(bFound ? Error : FString(TEXT("Missing approved_base fixture.")));
-        return false;
-    }
-    return true;
-}
-
 bool RatioIs(const FLDDemoRational& Value, int64 Numerator, int64 Denominator)
 {
     return Value.Denominator > 0 && Value.Numerator * Denominator == Numerator * Value.Denominator;
@@ -248,7 +196,7 @@ bool FLDBossRewardTest::RunTest(const FString& Parameters)
 {
     using namespace LDBossRewardTests;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
+    if (!LDTestApprovedFixture::Read(*this, Catalog)) { return false; }
     const FLDDemoContentDefinitions& D = Catalog->Get();
     const FLDDemoBossDefinition& Rules = D.Boss;
 
