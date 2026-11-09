@@ -2,101 +2,19 @@
 
 #if WITH_DEV_AUTOMATION_TESTS
 
-#include "../Development/LDDemoContentJson.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDTacticalRules.h"
 #include "Development/LDDemoContentCatalog.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "Misc/AutomationTest.h"
-#include "Misc/CommandLine.h"
-#include "Misc/Parse.h"
-#include "Misc/Paths.h"
 #include "Misc/ScopeExit.h"
-#include "UObject/Package.h"
+#include "Tests/LDTestApprovedFixture.h"
 #include "World/LDDormZones.h"
 
 namespace LDCombatRecoveryTestDetail
 {
 constexpr int64 MicroPerP2 = 1000000;
-
-// Reads the producer-exported approved_base only; there is no live-data fallback.
-bool ReadRecoveryCatalog(FAutomationTestBase& Test, TSharedPtr<const FLDDemoContentSnapshot>& Out)
-{
-    using namespace LDDemoContent;
-    FString Root, Error;
-    if (!FParse::Value(FCommandLine::Get(), TEXT("LDDemoContentFixtures="), Root) || Root.IsEmpty())
-    {
-        Test.AddError(TEXT("Missing -LDDemoContentFixtures=<isolated Artifacts directory>; export approved_base first. No live-data fallback."));
-        return false;
-    }
-    if (!Test.TestTrue(TEXT("Recovery fixtures are isolated under this project's Artifacts"),
-        FPaths::IsUnderDirectory(FPaths::ConvertRelativePathToFull(Root),
-            FPaths::ConvertRelativePathToFull(FPaths::ProjectDir(), TEXT("Artifacts")))))
-    {
-        return false;
-    }
-    FCheck Check(Error);
-    TArray<uint8> Bytes;
-    FValue IndexValue;
-    if (!ReadFile(FPaths::Combine(Root, TEXT("index.json")), Bytes, Error)
-        || !Parse(Bytes, IndexValue, Check, TEXT("fixture index")))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    FFields Index(Check, IndexValue, TEXT("fixture index"));
-    bool bTestOnly = false;
-    const TArray<FValue>* Valid = nullptr;
-    const TArray<FValue>* Invalid = nullptr;
-    if (!Index.Literal(TEXT("format"), TEXT("demo-native-fixtures-1"))
-        || !Index.Flag(TEXT("test_only"), bTestOnly) || !Check.Require(bTestOnly, Index.Path, TEXT("test-only marker required"))
-        || !Array(Index.Take(TEXT("valid")), Valid, Check, Index.Path, 1, 1024)
-        || !Array(Index.Take(TEXT("invalid")), Invalid, Check, Index.Path, 0, 1024) || !Index.Done())
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    bool bFound = false;
-    FLDDemoContentDigest Digest;
-    for (const auto& RowValue : *Valid)
-    {
-        FFields Row(Check, RowValue, TEXT("fixture case"));
-        FString Name;
-        if (!Row.Identifier(TEXT("name"), Name))
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        if (Name != TEXT("approved_base")) { continue; }
-        const TArray<FValue>* ChangedPaths = nullptr;
-        FString MutatedQuantity;
-        if (!Check.Require(!bFound, Row.Path, TEXT("duplicate approved_base fixture"))
-            || !Row.Digest(TEXT("catalog_sha256"), Digest)
-            || !Array(Row.Take(TEXT("changed_paths")), ChangedPaths, Check, Row.Path, 0, MaxFileBytes)
-            || !Row.Text(TEXT("mutated_quantity"), MutatedQuantity, 0) || !Row.Done())
-        {
-            Test.AddError(Error);
-            return false;
-        }
-        bFound = true;
-    }
-    if (!Test.TestTrue(TEXT("approved_base is explicit; synthetic base is not an approved balance fixture"), bFound))
-    {
-        return false;
-    }
-    FLDDemoContentBundle Bundle;
-    auto* Asset = NewObject<ULDDemoContentCatalog>(GetTransientPackage());
-    TUniquePtr<FLDDemoPreparedContent> Prepared;
-    if (!FLDDemoContentBundle::ReadImportFiles(FPaths::Combine(Root, TEXT("approved_base")), Bundle, Error)
-        || !ULDDemoContentCatalog::PrepareImport(*Asset, Bundle, Digest, Prepared, Error)
-        || !Asset->CommitImport(Prepared, Digest, Error) || !Asset->Read(Digest, Out, Error))
-    {
-        Test.AddError(Error);
-        return false;
-    }
-    return true;
-}
 
 FLDBodyCombatState Body(ELDVictimKind Kind, int64 MaxHpP2, int64 MaxMpP2, int64 AtMs)
 {
@@ -126,7 +44,7 @@ bool FLDCombatRecoveryTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatRecoveryTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadRecoveryCatalog(*this, Catalog))
+    if (!LDTestApprovedFixture::Read(*this, Catalog))
     {
         return false;
     }
@@ -251,7 +169,7 @@ bool FLDCombatDormRecoveryTest::RunTest(const FString& Parameters)
 {
     using namespace LDCombatRecoveryTestDetail;
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadRecoveryCatalog(*this, Catalog))
+    if (!LDTestApprovedFixture::Read(*this, Catalog))
     {
         return false;
     }
