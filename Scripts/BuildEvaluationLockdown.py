@@ -14,7 +14,7 @@ from functools import lru_cache
 from pathlib import Path
 
 ADAPTER_ID = "lockdown-demo"
-ADAPTER_VERSION = 3
+ADAPTER_VERSION = 4
 # LDBuildEvaluation::MaxCases of the native driver (LDBuildEvaluationProbe.h); a larger plan is refused before any run.
 NATIVE_MAX_CASES = 500
 NATIVE_INPUT_SCHEMA = "lockdown.build_evaluation.native_input"
@@ -527,8 +527,9 @@ def case_evidence(case, manifest, caps, result, trace_text):
             role = roles[fields["contender"]]
             if fields.get("cause") == "dev_fixture":
                 supplied[role] += int(fields["xp"])
-            elif t is not None and t < t_out:
-                reasons.append(f"UncontrolledXP: the {role} gained {fields.get('xp')} XP from {fields.get('cause')} before the outcome")
+            elif t is None or t < t_out or (t == t_out and not _is_outcome_kill_reward(fields, outcome, ids, t_out)):
+                reasons.append(f"UncontrolledXP: the {role} gained {fields.get('xp')} XP from {fields.get('cause')} "
+                               f"at or before the outcome")
         if tag == "LD_HIT" and t is not None and t <= t_out:
             source_in, victim_in = fields.get("src") in duelists, fields.get("victim") in duelists
             if source_in != victim_in:
@@ -575,6 +576,13 @@ def case_evidence(case, manifest, caps, result, trace_text):
         "decision_time_ms": {"value": t_out - t0, "censored": outcome["kind"] == "timeout"},
     })
     return out
+
+
+def _is_outcome_kill_reward(fields, outcome, ids, t_out):
+    """The killer's own reward for the deciding kill, committed at the outcome boundary."""
+    return (outcome["kind"] == "kill" and outcome["killer"] in ids and outcome["victim"] in ids
+            and fields.get("t") == str(t_out) and fields.get("cause") == "death" and fields.get("role") == "killer"
+            and fields.get("contender") == ids[outcome["killer"]] and fields.get("victim") == ids[outcome["victim"]])
 
 
 def hit_violations(fields):

@@ -282,8 +282,15 @@ def admit_arm(caps, scenario_caps, manifest, arm, adapter):
     return reasons
 
 
+def require_fresh_run_dir(run_dir):
+    """A run directory holds one run's evidence; reusing it would mix old results or overwrite a recording."""
+    if run_dir.exists() and (not run_dir.is_dir() or any(run_dir.iterdir())):
+        raise PlanError(f"the run directory {run_dir} already exists and is not empty; choose a new directory")
+
+
 def plan(manifest_path, run_dir, project_root):
     run_dir = Path(run_dir)
+    require_fresh_run_dir(run_dir)
     manifest = validate_manifest(read_json(manifest_path))
     adapter = load_adapter(manifest["adapter"]["module"])
     if manifest["adapter"]["id"] != adapter.ADAPTER_ID:
@@ -897,6 +904,7 @@ def replay_plan(source_dir, case_id, run_dir):
     caps = adapter.describe(Path(manifest["resolved"]["project_root"]))
     if digest_json(caps) != digest_json(caps_then):
         raise PlanError("the adapter's capabilities changed since the source run; a replay compares like with like only")
+    require_fresh_run_dir(run_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     frozen = dict(manifest)
     frozen["resolved"] = dict(manifest["resolved"], run_id=run_dir.name, replay_of={"run": str(source_dir), "case": case_id},

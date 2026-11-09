@@ -31,7 +31,8 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 ```
 
 运行要求编辑器构建（`BuildEditor.ps1`）；一次运行只启动一个无画面 Listen Host（`-nullrhi`、固定步长 `-UseFixedTimeStep -FPS=60`，
-可用 `-FixedFps` 改），顺序执行全部 Case，不并发、不做定时运行、不外发报告。输出在忽略的
+可用 `-FixedFps` 改），顺序执行全部 Case，不并发、不做定时运行、不外发报告。计划与重放只写入不存在或空的运行目录，
+非空目录在写任何文件前被拒绝，旧证据不会混入新计划，重放也不能覆盖源记录。输出在忽略的
 `Artifacts\BuildEvaluation\<时间戳>-<实验 id>\`：
 
 | 文件 | 内容 |
@@ -93,7 +94,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 `RuleViolation` 来自：运行身份与计划不符（内容摘要、固定步长、种子派生版本、运行前后程序摘要）、证据合同被违反（如 `LD_HIT` 的
 `hp_lost` 与扣血前后不符）、同一决策块分支的前缀不一致、换种子随机结果不变、运行日志出现错误或权威故障、重放分歧。
 
-## Lockdown Adapter v3（v0.10 Demo）
+## Lockdown Adapter v4（v0.10 Demo）
 
 能力表来自运行目录 `Content\Lockdown\Data\Demo`：内容摘要是 `manifest.json` 的 SHA-256（即原生目录根），
 每个技能、属性卡与开局卡都是 `Supported`（原生导入器拒绝没有处理器的定义），技能另记 `draftable`。
@@ -116,7 +117,7 @@ Adapter 可在能力表 `limits.max_cases_per_run` 声明一次原生运行接�
 不可抽取的技能、预置开局卡或预置数超过机会数、预置只允许 `diagnostic` 样本。
 
 判读时以下情况为 `Invalid` 并说明原因：营地/Boss/Host 等非对决者与对决者之间在结果前有命中（`ExternalInteraction`）、
-结果前获得供给以外的经验（`UncontrolledXP`）、供给数额不符（`SupplyMismatch`/`SupplyMissing`）、计划选择未完成
+结果时刻及之前获得供给以外的经验（`UncontrolledXP`；只豁免击杀者因这次决定性击杀在结果时刻获得的奖励）、供给数额不符（`SupplyMismatch`/`SupplyMissing`）、计划选择未完成
 （`PlanNotReached`）、预置候选不是实际抽到的 Offer（`PresetNotApplied`）、死亡缺致死命中或死亡回执（`TraceIncomplete`）、
 击杀者不是另一名对决者（`ExternalKill`）、画像未被采用或种子身份未进入名单（`Setup`）。
 双方每个计划序号都必须有初始 `LD_OFFER`、可核对的重抽记录和最终 `LD_CHOICE`；验证候选、所选卡与计划规则、
@@ -171,7 +172,7 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 比较终态的构筑、HP/MP 等字段和双方心跳资源，以及到 Case 结束为止的
 `LD_OFFER/CHOICE/REWARD/LEVEL_UP/HIT/DEATH_RECEIPT`（身份换成角色名）；位置按 `-SpatialToleranceCm`（默认 0）比较。
 报告保留首个分歧。空轨迹、缺失必要证据、运行失败或身份不符都不能标为 `Replayed`。
-旧运行可用 `--rejudge` 重新判读，但旧版能力表与 v3 不同，不能当作 v3 原生重放的同版本证据。
+旧运行可用 `--rejudge` 重新判读，但旧版能力表与 v4 不同，不能当作 v4 原生重放的同版本证据。
 程序摘要只覆盖编辑器可执行文件和项目模块，不证明其他引擎 DLL 或插件的逐字节一致；`source_dirty=unknown`
 也不证明工作区无修改。跨平台、换构建或未记录摘要的旧运行不承诺一致。
 

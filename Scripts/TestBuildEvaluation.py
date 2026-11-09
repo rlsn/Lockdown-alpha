@@ -564,6 +564,30 @@ class ReplayTest(CoreCase):
         with self.assertRaises(core.PlanError):
             core.replay_plan(run_dir, "no-such-case", self.root / "none")
 
+    def test_planning_and_replay_refuse_a_non_empty_run_directory(self):
+        run_dir, _, _ = self.plan(manifest(splits=(0, 1)))
+        self.native(run_dir, lambda case: (1, 1000, False))
+        snapshot = {path: path.read_bytes() for path in run_dir.rglob("*") if path.is_file()}
+        changed = manifest(splits=(0, 1), scenario={"kind": "toy", "parameters": {"ok": True, "other": 1}})
+        path = self.root / "changed.json"
+        path.write_text(json.dumps(changed), encoding="utf-8")
+        with self.assertRaisesRegex(core.PlanError, "not empty"):
+            core.plan(path, run_dir, self.root)
+        with self.assertRaisesRegex(core.PlanError, "not empty"):
+            core.replay_plan(run_dir, "c000a-t", run_dir)
+        other = self.root / "occupied"
+        other.mkdir()
+        (other / "stale.json").write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(core.PlanError, "not empty"):
+            core.replay_plan(run_dir, "c000a-t", other)
+        self.assertEqual(snapshot, {path: path.read_bytes() for path in run_dir.rglob("*") if path.is_file()},
+                         "a refused plan or replay writes nothing")
+        self.assertEqual(sorted(path.name for path in other.iterdir()), ["stale.json"])
+        empty = self.root / "empty"
+        empty.mkdir()
+        core.plan(path, empty, self.root)
+        self.assertTrue((empty / "manifest.json").exists(), "an existing empty directory is still usable")
+
     def test_replay_rejects_missing_evidence_and_terminal_or_identity_differences(self):
         run_dir, _, _ = self.plan(manifest(splits=(0, 1)))
         self.native(run_dir, lambda case: (1, 1000, False))

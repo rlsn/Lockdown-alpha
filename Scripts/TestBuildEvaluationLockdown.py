@@ -230,6 +230,27 @@ class EvidenceTest(AdapterCase):
         self.assertEqual(out["metrics"]["duel_score"], {"value": 0, "censored": True})
         self.assertEqual(out["metrics"]["decision_time_ms"], {"value": 45000, "censored": True})
 
+    def test_non_supply_rewards_at_the_outcome_boundary_are_uncontrolled(self):
+        timeout = result(kind="timeout", ended_at_ms=50000)
+        timeout["contenders"][1] = contender("opponent", 1, O, hp=10000, opening_card="opening_rider")
+        boundary = f"LD_REWARD t=50000 contender={S} cause=map_event role=recipient xp=40 xp_after=220 level=3->3 "
+        out = self.evidence(timeout, trace(boundary, drop=("lethal", "death", "death_reward")))
+        self.assertEqual(out["status"], "Invalid")
+        self.assertIn("UncontrolledXP", out["reason"])
+        after = boundary.replace("t=50000", "t=50001")
+        self.assertEqual(self.evidence(timeout, trace(after, drop=("lethal", "death", "death_reward")))["status"], "Completed")
+        self.assertEqual(self.evidence()["status"], "Completed", "the deciding kill's own reward is exempt")
+        killer_reward = (f"LD_REWARD t=20000 contender={S} cause=death role=killer xp=140 xp_after=320 level=3->4 "
+                         f"victim={O} victim_life=1 victim_kind=contender")
+        for original, replacement in (("cause=death", "cause=map_event"), (f"victim={O}", f"victim={CAMP}"),
+                                      ("role=killer", "role=assist"), (f"contender={S}", f"contender={O}")):
+            with self.subTest(replacement=replacement):
+                out = self.evidence(text=trace().replace(killer_reward, killer_reward.replace(original, replacement, 1)))
+                self.assertEqual(out["status"], "Invalid")
+                self.assertIn("UncontrolledXP", out["reason"])
+        extra = f"LD_REWARD t=20000 contender={O} cause=map_event role=recipient xp=40 xp_after=220 level=3->3 "
+        self.assertIn("UncontrolledXP", self.evidence(text=trace(extra))["reason"])
+
     def test_contamination_and_missing_evidence_invalidate_the_case(self):
         cases = {
             "ExternalInteraction": trace(hit(12000, CAMP, S, "30.00", "0.00", "30.00", "580.00", "550.00", "monster_scavenger")),
