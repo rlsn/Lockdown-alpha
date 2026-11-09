@@ -192,6 +192,8 @@ private:
     // ---- end Growth ----
     FLDOwnerState LatestOwner;
     void UpdateLocalViewTarget();
+    // Local music (#94): the track for the frontend, or for the room-public phase and authority clock, handed to the audio output.
+    void UpdateMusic();
     FTransform LastCameraPose;
     float LastCameraFOV=0.f;
     bool bHasCameraPose=false;

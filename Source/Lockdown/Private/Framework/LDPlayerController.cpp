@@ -1,5 +1,7 @@
 #include "Framework/LDPlayerController.h"
 #include "Core/LDLog.h"
+#include "Audio/LDAudioSubsystem.h"
+#include "Audio/LDMusicSelection.h"
 #include "Framework/LDGameMode.h"
 #include "Framework/LDGameInstance.h"
 #include "Framework/LDDemoEntry.h"
@@ -217,8 +219,22 @@ void ALDPlayerController::PlayerTick(float Delta)
     Super::PlayerTick(Delta);
     InitializeLocalUI();
     UpdateV05Inputs(Delta);
+    UpdateMusic();
     if (!GetLocalPlayer() || IsFrontend()) { return; }
     Trace().Tick(*this);
+}
+
+void ALDPlayerController::UpdateMusic()
+{
+    if (!GetLocalPlayer()) { return; }
+    UGameInstance* Instance = GetGameInstance();
+    auto* AudioOutput = Instance ? Instance->GetSubsystem<ULDAudioSubsystem>() : nullptr;
+    if (!AudioOutput) { return; }
+    FLDMusicInput Input;
+    Input.bFrontend = IsFrontend();
+    if (const auto* Public = GetWorld()->GetGameState<ALDGameState>()) { Input.Public = &Public->PublicMatch; }
+    Input.bClock = ReadDemoAuthorityTimeMs(Input.NowMs);
+    AudioOutput->SetMusic(LDAudio::SelectMusic(Input));
 }
 
 #if WITH_DEV_AUTOMATION_TESTS

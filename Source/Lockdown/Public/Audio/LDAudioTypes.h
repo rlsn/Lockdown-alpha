@@ -31,8 +31,32 @@ enum class ELDAudioCue : uint8
     Count UMETA(Hidden)
 };
 
+// Background music tracks (#94). Like cues they are local 2D presentation, chosen only from the room-public match phase
+// and the shared authority clock. Numbers are stable technical identities, as for cues.
+UENUM()
+enum class ELDMusicTrack : uint8
+{
+    None,
+    // The main menu and the room lobby share one loop that keeps playing across the travel between them.
+    Menu,
+    // The development phase, played once from T=0; the track spans the phase until the flagpole opens.
+    Farm,
+    // From the flagpole opening until the match ends, looping.
+    Escalation,
+    Count UMETA(Hidden)
+};
+
 namespace LDAudio
 {
+    inline constexpr int32 MusicTrackCount = int32(ELDMusicTrack::Count) - 1;
+    // Seconds an outgoing track takes to fade out when the next one starts or the music stops.
+    inline constexpr float MusicFadeOutSec = 1.5f;
+    // Stable technical id (the enum name), e.g. "Menu"; also the manifest and asset-name key. "None" for None.
+    LOCKDOWN_API FString MusicTrackId(ELDMusicTrack Track);
+    LOCKDOWN_API bool ParseMusicTrackId(const FString& Id, ELDMusicTrack& Out);
+    // Menu and Escalation loop; Farm plays once.
+    LOCKDOWN_API bool MusicTrackLoops(ELDMusicTrack Track);
+
     // Retired numbers below Count, which are not cues.
     inline constexpr int32 RetiredCueCount = 2;
     // Playable cues: every number between None and Count except the retired ones.

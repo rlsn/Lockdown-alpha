@@ -196,8 +196,8 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 ## 音效与音量
 
 `ULDAudioSubsystem`（GameInstance 子系统）在启动时一次性加载 `/Game/Lockdown/Audio/DA_DemoAudio`
-（`ULDAudioCatalog`），按 `ELDAudioCue` 解析全部音效。目录缺失、条目缺失或乱序、声音未归入
-`SC_DemoMaster`、循环或没有时长都记录 `LD_AUDIO_CATALOG_INVALID` 错误，不静默降级；
+（`ULDAudioCatalog`），按 `ELDAudioCue` 解析全部音效、按 `ELDMusicTrack` 解析全部背景音乐。目录缺失、条目缺失或乱序、声音未归入
+`SC_DemoMaster`（音乐未归入 `SC_DemoMusic`）、音效循环、音乐循环标志与曲目不符或没有时长都记录 `LD_AUDIO_CATALOG_INVALID` 错误，不静默降级；
 没有音频设备（如 `-nosound` 自动化）只记录一次 Display 级 `LD_AUDIO_DEVICE_UNAVAILABLE`；
 目录解析失败后，首次请求播放还会记录一次 Warning 级 `LD_AUDIO_CUE_UNAVAILABLE`。
 所有音效都以非空间化 2D UI 声音（`PlaySound2D`）播放，不带世界位置，不能借声音暴露隐藏坐标。
@@ -221,10 +221,36 @@ Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 主音量是本地设置 `MasterVolume`（无量纲 0..1，默认 1 即不衰减），
 经 `SMix_DemoUser` 对 `SC_DemoMaster` 的类覆盖生效，每个新世界重新应用，不修改共享资产或 CDO。
 覆盖实际交给音频设备时（首次推送和每次音量变化）记录 Display 级 `LD_AUDIO_MIX_APPLIED device=<id> volume=<v>`。
-新增的任何 Demo 声音都必须归入 `SC_DemoMaster`，否则目录校验失败、音量也控制不到它。
+新增的任何 Demo 音效都必须归入 `SC_DemoMaster`、音乐归入 `SC_DemoMusic`，否则目录校验失败、音量也控制不到它。
 
-素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
-逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`；
+### 背景音乐
+
+背景音乐（[#94](https://github.com/rlsn/Lockdown-alpha/issues/94)）有三首，枚举 `ELDMusicTrack` 的编号是稳定技术身份：
+
+| 曲目 | 何时播放 | 播放方式 |
+| --- | --- | --- |
+| `Menu` | 主菜单，以及房间的 Lobby、Starting、Countdown、Resetting | 循环；主菜单与大厅共用，进出大厅不重启 |
+| `Farm` | 发育期（Development） | 从 T=0 起只播一次。曲长约 181 s，对齐 `MATCH.DevelopmentSec` 的 180 s 旗杆开放；中途开始时从 T=0 起已过的秒数接着播，超过曲长则不播 |
+| `Escalation` | 旗杆开放（CaptureOpen）到本局结束 | 从头循环 |
+| 无 | Results、Closing、Faulted | 淡出，让胜负短曲单独响；回到 Lobby 时 `Menu` 重新开始 |
+
+`ALDPlayerController::UpdateMusic` 每帧把“本地世界是否为前端”、房间公开的 `PublicMatch` 与共享权威时钟交给纯函数
+`LDAudio::SelectMusic`（`Audio/LDMusicSelection.*`），再由 `ULDAudioSubsystem::SetMusic` 播放。它不读本人或他人的私有状态、单位或 Actor。
+房间状态尚未到达（没有 GameState 或 generation 为 0），或发育期没有时钟、没有 T=0 时，请求为“未决定”，保持当前曲目，
+所以主菜单到大厅的旅行不会打断 `Menu`。请求的曲目与当前相同则什么都不做；换曲时新曲立即开始，
+旧曲在 `LDAudio::MusicFadeOutSec`（1.5 s）内淡出。音乐组件跨关卡保留（`CreateSound2D` 的 persist），子系统关闭时停止。
+每次换曲记录 Display 级 `LD_AUDIO_MUSIC from=<id> to=<id> start=<秒>`，一次性曲目超过曲长时附 `past-end`。
+
+音乐走 `SC_DemoMusic`，它是 `SC_DemoMaster` 唯一的子类。`SMix_DemoUser` 上有两条类覆盖：主类（含子类）乘主音量，
+音乐类再乘本地设置 `MusicVolume`（无量纲 0..1，默认 0.6，用户决定），所以音乐的实际音量是主音量 × 音乐音量；
+`LD_AUDIO_MIX_APPLIED` 同时记录 `volume=` 与 `music=`。
+
+三首曲目是项目所有者为本项目提供的原创作品（2026-11-09 交付），不是第三方素材包，因此不走 CC0 包与许可原文的检查；
+清单 `music` 段逐首记录 `track`、`source`、`sha256`、`loop`、用途与来源说明（`provenance`）。源文件是
+`SourceData\Audio\Music\*.mp3`（Git LFS），以源电平导入（SoundWave `Volume` = 1），不参与音效的响度归一，导入时字节不变。
+
+音效素材全部来自 Kenney（kenney.nl）的 CC0 1.0 音效包，只提交实际选用的 `.ogg`（Git LFS）。
+逐文件的包名、下载地址、下载日期、许可、用途与 SHA-256 记录在 `SourceData\Audio\audio_cues.json`（schema 2，音乐见上节）；
 一条音效可以复用另一条的源文件（各自导入独立的 `SW_<Cue>`），例如护盾吸收复用受击的 `impactGeneric_light_000.ogg`；
 本人普攻出手使用独立的 `SW_SelfAttack`，只表示释放，不作为命中确认。
 释放事实只保留最后一次动作；同一采样间隔内被后续技能释放覆盖的普攻不能补放，不从其他单位血量推断。
@@ -239,8 +265,8 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
 该脚本需要 `numpy`、`scipy`、`soundfile`，导入与校验都不运行它；
 很短的本人反馈音（受击、施法、点击、交易）受峰值上限约束，按同一测量仍比中位数低约 5–9 LU。
 `Scripts\ImportDemoAudio.ps1 -Mode Import` 由该清单重建 `Content\Lockdown\Audio` 下的资产；
-`-Mode Validate`（Bootstrap Validate 也会执行）拒绝清单外的文件、许可原文不是 CC0 的包、
-源文件哈希变化，以及不是由当前源字节导入、或播放音量与清单不符的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
+`-Mode Validate`（Bootstrap Validate 也会执行）拒绝清单外的文件、许可原文不是 CC0 的包、没有来源说明或循环标志与曲目不符的音乐、
+源文件哈希变化、`SC_DemoMusic` 不是 `SC_DemoMaster` 的唯一子类，以及不是由当前源字节导入、或播放音量与清单不符的资产。资产经 `DirectoriesToAlwaysCook` 进入包。
 
 ## 检查入口
 
@@ -276,8 +302,10 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   6 条上限与 5 s 离开、外卖被抢行在本人领取序号到达后改写、老板击败者署名、同一主人被冻结的守护归零只播一次
   （暂停、冻结与恢复本身不播），以及新一局从空列表开始。
 - `AudioCuePublic`、`AudioCueOwn`、`AudioCueBasicAttack`、`AudioCatalog`、`AudioCatalogAsset`（`LDAudioRulesTests`）覆盖公开与本人事件到音效的映射、
-  首样本基线与去重、别局/别命/迟到回执不响、目录完整性，以及实际 `DA_DemoAudio` 资产可解析；
-  它们不证明实际听感或打包后的设备输出。
+  首样本基线与去重、别局/别命/迟到回执不响、目录完整性（含音乐类的父子关系与每首的循环标志），以及实际 `DA_DemoAudio` 资产可解析、
+  `Farm` 曲长不短于且不超过发育期 2 s；`AudioMusicSelection` 覆盖各阶段到曲目的映射、未决定的情形与 `Farm` 的起点；
+  `LocalSettingsMusicVolume` 覆盖音乐音量的默认 60%、保存回读、拒绝与 schema 19 迁移。
+  它们不证明实际听感、换曲淡出或打包后的设备输出。
 - `ViewPrivacySchema`（`LDViewTests`）覆盖公共 GameState（只有 `DemoLobby`、`DemoClock`）以及 Lobby、DemoClock 的结构。
 - `RunDemoVisionCheck.ps1`（`Tests\LDDemoVisionProbe`）：参赛且渲染的 Listen Host 与两个拥有客户端经正常大厅开局，
   三具身体走到从公共旗杆附近有界选择、互不占点且相互可见的合法目标（保持 150 cm 到达阈值；三目标验证原生地面，每人实际路线与绕行点验证原生完整路径）。仅 Vision 在原有作者营地家位置/Boss waypoint 排除区外，追加同 surface、按 id 循环连接四个公开 Boss waypoint 的原生完整路径走廊；膨胀半径为 AggroRadius＋本人身体半径＋150 cm 到达盘＋12 cm waypoint 接触余量，目标与路线均避让，不读实时 Boss 状态，Growth 保持原行为。路线候选以 5 ms 预算逐帧推进准备，原生单次查询不可中断，结果分别记录 tick 工作耗时、最慢查询与路线墙钟时间；12×3 目标/路线选择另由 callback seam 确定性规则覆盖，不宣称规则或单次场景证明所有出生点的原生导航。到达后检查拓扑、客户端受限注册表、Host 只经自身投影呈现他人（含生成当帧隐藏）、

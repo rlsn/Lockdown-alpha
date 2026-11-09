@@ -102,5 +102,5 @@ $env:LD_UE_ROOT = '<UE 5.8.4 安装目录>'
 人和 AI 阅读 `docs`；生成器读取 `SourceData`；游戏读取 `Content` 载荷和原生资产。
 修改数据走对应的 Sync 或导入入口，不手改生成的载荷、合同头文件或二进制资产。
 
-音效与 3D 美术均为 CC0 素材，来源、许可与文件哈希记录在
+音效与 3D 美术均为 CC0 素材，背景音乐是项目所有者提供的原创曲目；来源、许可与文件哈希记录在
 `SourceData\Audio\audio_cues.json` 与 `SourceData\Art\art_assets.json`，每个素材包的许可原文与源文件放在同一目录。

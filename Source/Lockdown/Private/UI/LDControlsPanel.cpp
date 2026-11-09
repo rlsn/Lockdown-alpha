@@ -322,19 +322,31 @@ TSharedRef<SWidget> ULDControlsPanel::RebuildWidget()
         // Audio
         {
             UScrollBox* Scroll=nullptr;UVerticalBox* Content=NewPage(Scroll);
-            VolumeSlider=Tree->ConstructWidget<USlider>(USlider::StaticClass(),TEXT("MasterVolume"));
-            VolumeSlider->SetMinValue(0);VolumeSlider->SetMaxValue(1);VolumeSlider->SetStepSize(.05f);VolumeSlider->IsFocusable=true;
-            VolumeSlider->SetSliderBarColor(FLinearColor(.28f,.38f,.44f));VolumeSlider->SetSliderHandleColor(LDHUDStyle::TextAccent);
-            FSliderStyle SliderStyle=VolumeSlider->GetWidgetStyle();SliderStyle.BarThickness=4;VolumeSlider->SetWidgetStyle(SliderStyle);
+            // One 0–100% slider with its percentage beside it; master and music share the layout.
+            auto VolumeRow=[Tree](FName Name,USlider*& OutSlider,UTextBlock*& OutValue)
+            {
+                OutSlider=Tree->ConstructWidget<USlider>(USlider::StaticClass(),Name);
+                OutSlider->SetMinValue(0);OutSlider->SetMaxValue(1);OutSlider->SetStepSize(.05f);OutSlider->IsFocusable=true;
+                OutSlider->SetSliderBarColor(FLinearColor(.28f,.38f,.44f));OutSlider->SetSliderHandleColor(LDHUDStyle::TextAccent);
+                FSliderStyle SliderStyle=OutSlider->GetWidgetStyle();SliderStyle.BarThickness=4;OutSlider->SetWidgetStyle(SliderStyle);
+                auto* Row=Tree->ConstructWidget<UHorizontalBox>();
+                auto* SliderBox=Tree->ConstructWidget<USizeBox>();SliderBox->SetWidthOverride(320);SliderBox->SetHeightOverride(32);SliderBox->SetContent(OutSlider);
+                Row->AddChildToHorizontalBox(SliderBox)->SetVerticalAlignment(VAlign_Center);
+                OutValue=Text(Tree,TEXT(""),ValueSize,LDHUDStyle::TextPrimary);OutValue->SetAutoWrapText(false);
+                auto* ValueSlot=Row->AddChildToHorizontalBox(OutValue);ValueSlot->SetPadding(FMargin(16,0,0,0));ValueSlot->SetVerticalAlignment(VAlign_Center);
+                return Row;
+            };
+            USlider* Master=nullptr;UTextBlock* MasterText=nullptr;USlider* Music=nullptr;UTextBlock* MusicText=nullptr;
+            auto* Volume=VolumeRow(TEXT("MasterVolume"),Master,MasterText);
+            VolumeSlider=Master;VolumeValue=MasterText;
             VolumeSlider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMasterVolumeChanged);
             VolumeSlider->OnMouseCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureBegin);VolumeSlider->OnMouseCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeMouseCaptureEnd);
             VolumeSlider->OnControllerCaptureBegin.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureBegin);VolumeSlider->OnControllerCaptureEnd.AddDynamic(this,&ULDControlsPanel::HandleVolumeControllerCaptureEnd);
-            auto* Volume=Tree->ConstructWidget<UHorizontalBox>();
-            auto* SliderBox=Tree->ConstructWidget<USizeBox>();SliderBox->SetWidthOverride(320);SliderBox->SetHeightOverride(32);SliderBox->SetContent(VolumeSlider);
-            Volume->AddChildToHorizontalBox(SliderBox)->SetVerticalAlignment(VAlign_Center);
-            VolumeValue=Text(Tree,TEXT(""),ValueSize,LDHUDStyle::TextPrimary);VolumeValue->SetAutoWrapText(false);
-            auto* ValueSlot=Volume->AddChildToHorizontalBox(VolumeValue);ValueSlot->SetPadding(FMargin(16,0,0,0));ValueSlot->SetVerticalAlignment(VAlign_Center);
             AddRow(Tree,Content,TEXT("主音量"),TEXT("游戏全部声音的音量；松开滑条或用方向键调节后试听一次。"),Volume);
+            auto* MusicRow=VolumeRow(TEXT("MusicVolume"),Music,MusicText);
+            MusicSlider=Music;MusicValue=MusicText;
+            MusicSlider->OnValueChanged.AddDynamic(this,&ULDControlsPanel::HandleMusicVolumeChanged);
+            AddRow(Tree,Content,TEXT("音乐音量"),TEXT("背景音乐的音量，在主音量之上再调节；调节时直接听正在播放的音乐。"),MusicRow);
             AddPage(Scroll);
         }
         // Controls: quick cast, then one row per registered action with its key in the right column.
@@ -485,7 +497,7 @@ void ULDControlsPanel::Populate()
     ApplyTextScale(Applied.TextScale);
     PopulatePreferences();
     PopulateBindings();
-    bSyncingVolume=true;VolumeSlider->SetValue(Applied.MasterVolume);bSyncingVolume=false;
+    bSyncingVolume=true;VolumeSlider->SetValue(Applied.MasterVolume);MusicSlider->SetValue(Applied.MusicVolume);bSyncingVolume=false;
     PopulateFooter();
 }
 
@@ -499,6 +511,7 @@ void ULDControlsPanel::PopulatePreferences()
     SetSwitch(WidgetTree,TEXT("ToggleNetworkDiagnostics"),Applied.bShowNetworkDiagnostics);
     SetSwitch(WidgetTree,TEXT("ToggleFPS"),Applied.bShowFPS);
     VolumeValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MasterVolume))));
+    MusicValue->SetText(FText::FromString(FString::Printf(TEXT("%d%%"),FMath::RoundToInt(100*Applied.MusicVolume))));
     ZoomValue->SetText(FText::FromString(FString::Printf(TEXT("%.0f 厘米"),Applied.Zoom)));
     Find(WidgetTree,TEXT("UseRecommendedCameraZoom"))->SetIsEnabled(Applied.Zoom!=LDCamera::DefaultArmLength);
     SetNote(FollowNote,FString::Printf(TEXT("进入对局时镜头跟随自己的角色；对局中按 %s 随时切换。"),*Applied.Label(TEXT("Follow"))),LDHUDStyle::TextSecondary);
@@ -580,6 +593,17 @@ void ULDControlsPanel::HandleMasterVolumeChanged(float Value)
     bVolumeSavePending=true;
     if(!bVolumeMouseCapture&&!bVolumeControllerCapture){PreviewMasterVolume();}
 }
+void ULDControlsPanel::HandleMusicVolumeChanged(float Value)
+{
+    auto* Instance=SettingsInstance.Get();auto* PC=Cast<ALDPlayerController>(GetOwningPlayer());
+    if(bSyncingVolume||!Instance||!PC||!PC->Controls){return;}
+    // Same whole-percent rule and debounced save as the master volume.
+    const float Linear=FMath::RoundToFloat(Value*100)/100;
+    if(Linear==PC->Controls->MusicVolume){return;}
+    const auto Result=Instance->SetAppliedMusicVolume(Linear);
+    SetFeedback(Result.Message,Result.Status==ELDLocalSettingsSaveStatus::Invalid);PopulatePreferences();PopulateFooter();
+    if(Result.Status!=ELDLocalSettingsSaveStatus::Invalid){bVolumeSavePending=true;}
+}
 void ULDControlsPanel::HandleVolumeMouseCaptureBegin(){bVolumeMouseCapture=true;}
 void ULDControlsPanel::HandleVolumeMouseCaptureEnd(){EndVolumeCapture(bVolumeMouseCapture);}
 void ULDControlsPanel::HandleVolumeControllerCaptureBegin(){bVolumeControllerCapture=true;}
@@ -629,7 +653,7 @@ void ULDControlsPanel::AskReset()
         break;
     }
     case ECategory::Audio:
-        Scope=FString::Printf(TEXT("主音量 %d%%。"),FMath::RoundToInt(100*Defaults->MasterVolume));break;
+        Scope=FString::Printf(TEXT("主音量 %d%%、音乐音量 %d%%。"),FMath::RoundToInt(100*Defaults->MasterVolume),FMath::RoundToInt(100*Defaults->MusicVolume));break;
     case ECategory::Controls:
         Scope=FString::Printf(TEXT("全部按键恢复为默认键，快速施法 %s，施法后自动攻击 %s。"),OnOff(Defaults->bQuickCast),OnOff(Defaults->bAutoAttackAfterCast));break;
     case ECategory::Camera:

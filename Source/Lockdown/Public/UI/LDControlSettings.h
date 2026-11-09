@@ -114,7 +114,7 @@ UENUM() enum class ELDMinimapOrientation : uint8 { Camera=0, Facing=1, North=2 }
 // ResetLocalDefaults. Display values belong to UGameUserSettings and are restored through the display apply instead.
 enum class ELDPreferenceGroup : uint8
 {
-    Audio,      // MasterVolume
+    Audio,      // MasterVolume, MusicVolume
     Controls,   // Bindings, bQuickCast, bAutoAttackAfterCast
     Camera,     // Zoom, bEdgePan, bStartFollowing, CameraPanCmPerSec
     Interface   // TextScale, MinimapOrientation, bShowNetworkDiagnostics, bShowFPS
@@ -124,7 +124,7 @@ class LOCKDOWN_API ULDControlSettings : public USaveGame
 {
     GENERATED_BODY()
 public:
-    static constexpr int32 CurrentSchema = 19;
+    static constexpr int32 CurrentSchema = 20;
     static constexpr int32 MaxPlayerNameChars = 16;
     // Camera-only pan speed domain in cm/s, defined by the UI settings module (CONTROLS_AND_TARGETING 8).
     static constexpr float MinCameraPanCmPerSec = 900;
@@ -139,6 +139,8 @@ public:
     UPROPERTY(SaveGame) FString PlayerName;
     // Linear 0..1 gain of the whole Demo sound output; 1, the default, applies no attenuation.
     UPROPERTY(SaveGame) float MasterVolume=1;
+    // Linear 0..1 gain of the background music on top of the master volume. The 0.6 default is the user's decision (#94).
+    UPROPERTY(SaveGame) float MusicVolume=.6f;
     // Keyboard and edge pan speed of the camera only; it never changes world distances, vision or body speed.
     // The 1800 default is the coordinator's decision, not a balance-tested value.
     UPROPERTY(SaveGame) float CameraPanCmPerSec=1800;
@@ -163,6 +165,7 @@ public:
     bool SetAppliedZoom(float Value, FString& Error);
     void UseRecommendedCameraZoom() { Zoom = LDCamera::DefaultArmLength; }
     bool SetAppliedMasterVolume(float Value, FString& Error);
+    bool SetAppliedMusicVolume(float Value, FString& Error);
     bool SetAppliedCameraPanSpeed(float Value, FString& Error);
     float GetCameraPanCmPerSec() const { return CameraPanCmPerSec; }
     bool SetAppliedMinimapOrientation(ELDMinimapOrientation Value, FString& Error);
@@ -188,7 +191,7 @@ public:
     bool ValidatePreferences(FString& Error) const;
     void ResetBindings();
     // Restores every preference group (keys, quick cast, auto attack after cast, camera including the pan speed, text, minimap orientation,
-    // diagnostics and master volume); the player name is never cleared by a defaults reset. Display values belong to
+    // diagnostics, master and music volume); the player name is never cleared by a defaults reset. Display values belong to
     // UGameUserSettings; the settings panel restores them through the display apply.
     void ResetLocalDefaults();
     // Restores one group only; every other preference and the player name keep their values.

@@ -24,7 +24,7 @@ int32 ULDDemoAudioImportCommandlet::Main(const FString& Params)
         UE_LOG(LogLDEditor, Error, TEXT("LD_DEMO_AUDIO_REJECTED Saved audio assets do not validate: %s"), *Error);
         return 1;
     }
-    UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_AUDIO_SUCCESS %s: CC0 sources, catalog, master class and user mix validated."),
+    UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_AUDIO_SUCCESS %s: CC0 cue sources, owner-supplied music, catalog, master and music classes and user mix validated."),
         bValidate ? TEXT("Validate") : TEXT("Import"));
     return 0;
 }
