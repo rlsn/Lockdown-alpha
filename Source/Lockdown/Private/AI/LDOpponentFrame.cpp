@@ -225,6 +225,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
         if (!Owned.bInstalled) { continue; }
         Component.TargetKind = Owned.Target.Kind;
         Component.TargetId = Owned.Target.Definition.IsNone() ? FString() : CanonicalId(Owned.Target.Definition);
+        Component.BoundActive = Owned.Target.BoundActive.IsNone() ? FString() : CanonicalId(Owned.Target.BoundActive);
         Component.Element = Owned.Target.Element;
         Component.BoundComponent = Owned.Target.BoundComponent.IsNone() ? FString() : CanonicalId(Owned.Target.BoundComponent);
         FLDInstalledComponentValue& Value = Installed.AddDefaulted_GetRef();
@@ -271,6 +272,7 @@ bool ReadOwnBuild(const FLDProgressionView& Progression, const FLDDemoContentSna
     Out.Level = Progression.Level;
     Out.UnspentPoints = Progression.UnspentPoints;
     Out.OffersConsumed = Progression.ActiveOpportunitiesConsumed;
+    Out.QueuedOpportunities = Progression.QueuedActiveOpportunities;
     Out.BuildSafeAtMs = Progression.BuildSafeAtMs;
     Error.Reset();
     return true;
