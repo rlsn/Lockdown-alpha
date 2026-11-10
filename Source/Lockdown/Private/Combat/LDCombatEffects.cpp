@@ -195,6 +195,9 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         Evaluation.PrimaryGuardP2=PrimaryGuard->Effect.BaseP2;
         Evaluation.PrimaryGuardCapBp=PrimaryGuard->Effect.RatioBp;
     }
+    // #198 S16: the target's live stance cuts hostile damage (never its own).
+    const bool bBraced=LDCombatElements::BraceActive(Body->Brace,NowMs) && Hit.SourceEntity!=Body->Victim.EntityId;
+    if (bBraced) { Evaluation.BraceCutBp=Body->Brace.RatioBp; }
     const FLDDamageEvaluationResult Evaluated=LDTactical::EvaluateDamage(Evaluation,*Content);
     if (!Evaluated.IsSuccess())
     {
@@ -249,7 +252,7 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     // Vamp of this hit: on-hit lifesteal (B04, already at its on-hit coefficient) on the HP actually lost, merged
     // empowered packages included, never the shield's share.
     int64 VampBp=0;
-    if (Source && !Hit.bReflect && !Hit.bBurnTick && Damage.HPLostP2>0 && Hit.OnHitScaleBp>0 && Hit.bLifesteal)
+    if (Source && !Hit.bReflect && !Hit.bBurnTick && !Hit.bStatusSettle && Damage.HPLostP2>0 && Hit.OnHitScaleBp>0 && Hit.bLifesteal)
     {
         // D22: every source adds up, at most COMBAT.LifestealCap.
         VampBp=LDCombatKeywords::CapLifestealBp(Hit.LifestealRatioBp,Keywords);
@@ -269,6 +272,11 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
     Body->Resources.HpP2=Damage.RemainingHPP2;
     Body->Resources.ShieldP2=Damage.RemainingShieldP2;
     ++Body->Resources.Revision;
+    if (bBraced && Damage.BraceCutP2>0)
+    {
+        Body->Brace.RecordedP2=LDCombatElements::BraceRecordP2(Body->Brace.RecordedP2,Damage.BraceCutP2,Body->Brace.CapP2);
+        MarkViewChanged(Body->Victim.EntityId);
+    }
     const bool bShieldBroken=LDCombatMechanics::ShieldBroken(ShieldBeforeP2,Damage.RemainingShieldP2,Damage.ShieldAbsorbedP2);
     const int64 ShieldGrantedP2=Body->ShieldGrantedP2;
     // A barrier emptied by this hit ends by the same timed-status rule as an expired one.
@@ -333,9 +341,25 @@ bool ALDCombatDirector::ApplyHit(const FLDCombatHit& InHit, FString& Error)
         }
         if (Hit.SlowDurationMs>0 && Hit.SlowBp>0 && !Control(ELDControlKind::Slow,Hit.SlowDurationMs,Hit.SlowBp,bApplied))
         { return false; }
+        // #198 S21: the cut of the target's new heals and shields.
+        if (Hit.GrievousBp>0 && Hit.GrievousMs>0)
+        {
+            int64 Until=0;
+            if (!LDMatchLifecycle::AddDurationMs(NowMs,Hit.GrievousMs,Until,Error)) { return false; }
+            if (LDCombatElements::ApplyGrievous(Body->Grievous,Hit.GrievousBp,Until,NowMs))
+            {
+                bControlled=true;
+                ++Body->StateRevision;
+                RecordAssistContribution(*Body,Hit.CreditOwner,NowMs);
+            }
+        }
     }
     // #147: the shared breach and burn this hit (its payload, its component fire or its source's basic triggers) adds.
     if (bControllable && !ApplyKeywordStacks(*Body,Hit,Source,NowMs,Error)) { return false; }
+    // #198: an electrified target that took positive damage discharges (before this hit's own elements), then the hit's
+    // element batch applies.
+    if (bControllable && Damage.DamageP2>0 && !TryDischarge(*Body,FootOf(*Actor),NowMs,Error)) { return false; }
+    if (bControllable && !ApplyElements(*Body,Hit,Source,NowMs,Error)) { return false; }
     // A hit that harmed, controlled or slowed the body is its visible Hit cue (LDCombatCues).
     if (Damage.DamageP2>0 || bControlled)
     {

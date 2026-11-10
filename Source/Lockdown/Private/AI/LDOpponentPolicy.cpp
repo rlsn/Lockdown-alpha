@@ -60,6 +60,12 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::GroundImpact:
     case ELDDemoEffectOp::ContactTrap:
     case ELDDemoEffectOp::DashContact:
+    // #198 elements and the element actives' riders on enemies.
+    case ELDDemoEffectOp::Wet:
+    case ELDDemoEffectOp::Electrify:
+    case ELDDemoEffectOp::ChainBounce:
+    case ELDDemoEffectOp::ZoneWet:
+    case ELDDemoEffectOp::Grievous:
         Usage.bEngage |= !bSelfTarget;
         break;
     case ELDDemoEffectOp::ControlDamageAmp:
@@ -76,6 +82,8 @@ void ClassifyEffect(const FLDDemoEffectDefinition& Effect, bool bSelfTarget, FLD
     case ELDDemoEffectOp::Shield:
     case ELDDemoEffectOp::DispelRoot:
     case ELDDemoEffectOp::DispelSlow:
+    // #198 S16: a damage cut that answers when it ends.
+    case ELDDemoEffectOp::Brace:
         Usage.bSelfProtect |= bSelfTarget;
         break;
     case ELDDemoEffectOp::Dash:
@@ -134,7 +142,8 @@ void ReadEffects(const TArray<FLDDemoEffectDefinition>& Effects, FSourceShape& O
             Out.bTaunt = true;
             Out.TauntRadiusCm = FMath::Max(Out.TauntRadiusCm, ToDouble(Effect.RadiusCm));
             break;
-        case ELDDemoEffectOp::Shield: Out.bShield = true; break;
+        case ELDDemoEffectOp::Shield:
+        case ELDDemoEffectOp::Brace: Out.bShield = true; break;
         case ELDDemoEffectOp::DispelRoot: Out.bDispelRoot = true; break;
         case ELDDemoEffectOp::Dash:
             Out.bDash = true;
@@ -575,7 +584,8 @@ TOptional<FLDOpponentBodyIntent> PickActivation(const FContext& C, const FActiva
                         Body.Epoch = Need.Target->Epoch;
                         Key.Target = Need.Target->Handle;
                     }
-                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone)
+                    else if (Shape.Mode == ELDDemoTargetMode::DirectionProjectile || Shape.Mode == ELDDemoTargetMode::DirectionCone
+                        || Shape.Mode == ELDDemoTargetMode::DirectionLine)
                     {
                         const FVector Direction = (Need.Target->FootCm - C.Self.FootCm).GetSafeNormal2D();
                         bUse = !Direction.IsNearlyZero();
@@ -1231,7 +1241,8 @@ int32 TargetModePreference(ELDDemoTargetMode Mode)
     {
     case ELDDemoTargetMode::Unit: return 0;
     case ELDDemoTargetMode::GroundPoint: return 1;
-    case ELDDemoTargetMode::DirectionCone: return 2;
+    case ELDDemoTargetMode::DirectionCone:
+    case ELDDemoTargetMode::DirectionLine: return 2;
     case ELDDemoTargetMode::DirectionProjectile: return 3;
     case ELDDemoTargetMode::Self: return 4;
     case ELDDemoTargetMode::DirectionDash: return 5;

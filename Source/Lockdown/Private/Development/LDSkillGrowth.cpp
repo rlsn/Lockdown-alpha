@@ -31,6 +31,11 @@ bool LDSkillGrowth::GrowEffect(const FLDDemoEffectDefinition& Authored, int64 Fa
     {
         return false;
     }
+    // #198 S16: the record cap is a fixed amount (100G) like the answer's base.
+    if (Authored.GetOp() == ELDDemoEffectOp::Brace && !GrowP2(Authored.LimitP2, Factor, Out.LimitP2))
+    {
+        return false;
+    }
     if (Authored.GetOp() == ELDDemoEffectOp::TimedStatBonus)
     {
         for (FLDDemoStatBonus& Stat : Out.Stats)

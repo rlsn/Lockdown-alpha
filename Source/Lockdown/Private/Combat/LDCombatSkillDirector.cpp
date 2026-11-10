@@ -145,7 +145,7 @@ bool ALDCombatDirector::StartSkillDelivery(FLDBodyCombatState& Body, const FLDDe
         { Error=TEXT("A contact skill has no matching released dash."); return false; }
         Payload.bDashContactHit=true;
         Body.DashContact->NativeHit=Payload;
-        Body.DashContact->NativeHitsRemaining=Contact->Count;
+        Body.DashContact->NativeHitsRemaining=Contact->bEveryContact ? MAX_int32 : Contact->Count;
         bHandled=true;
     }
     return true;

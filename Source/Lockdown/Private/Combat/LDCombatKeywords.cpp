@@ -62,66 +62,119 @@ namespace LDCombatKeywords
         return Base + AP / 10000 * Ratio + AP % 10000 * Ratio / 10000;
     }
 
+    int64 BurnLayerTickP2(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms)
+    {
+        const int64 PerSecond = BurnLayerPerSecondP2(Layer.Level, Layer.SourceAPP2, Terms);
+        const int64 TickMs = FMath::Max<int64>(Terms.BurnTickMs, 0);
+        return PerSecond / 1000 * TickMs + PerSecond % 1000 * TickMs / 1000;
+    }
+
+    int32 BurnLayerTicksLeft(const FLDCombatBurnLayer& Layer, const FLDKeywordTerms& Terms)
+    {
+        if (Terms.BurnTickMs <= 0 || Layer.NextTickAtMs <= 0 || Layer.NextTickAtMs > Layer.ExpiresAtMs) { return 0; }
+        return int32(FMath::Min<int64>((Layer.ExpiresAtMs - Layer.NextTickAtMs) / Terms.BurnTickMs + 1, MAX_int32));
+    }
+
     bool BurnActive(const FLDCombatBurn& Burn, int64 AtMs)
     {
-        return !Burn.Layers.IsEmpty() && AtMs <= Burn.ExpiresAtMs && Burn.NextTickAtMs <= Burn.ExpiresAtMs;
+        return Burn.Layers.ContainsByPredicate([AtMs](const FLDCombatBurnLayer& Layer)
+        { return AtMs <= Layer.ExpiresAtMs && Layer.NextTickAtMs <= Layer.ExpiresAtMs; });
+    }
+
+    int64 BurnExpiresAtMs(const FLDCombatBurn& Burn)
+    {
+        int64 Latest = 0;
+        for (const FLDCombatBurnLayer& Layer : Burn.Layers) { Latest = FMath::Max(Latest, Layer.ExpiresAtMs); }
+        return Latest;
+    }
+
+    int64 NextBurnTickAtMs(const FLDCombatBurn& Burn)
+    {
+        int64 Earliest = MAX_int64;
+        for (const FLDCombatBurnLayer& Layer : Burn.Layers) { Earliest = FMath::Min(Earliest, Layer.NextTickAtMs); }
+        return Earliest;
     }
 
     bool ApplyBurn(FLDCombatBurn& Burn, const FLDCombatBurnLayer& Layer, int32 Count, int64 AtMs, const FLDKeywordTerms& Terms)
     {
         if (Count <= 0 || Layer.SourceAPP2 < 0 || Layer.Level < 1 || Terms.BurnMaxStacks <= 0 || Terms.BurnTickMs <= 0 || Terms.BurnMs < Terms.BurnTickMs
-            || AtMs > MAX_int64 - Terms.BurnMs)
+            || AtMs < 0 || AtMs > MAX_int64 - Terms.BurnMs)
         {
             return false;
         }
-        if (!BurnActive(Burn, AtMs))
-        {
-            Burn = FLDCombatBurn();
-            Burn.NextTickAtMs = AtMs + Terms.BurnTickMs;
-        }
+        ExpireBurn(Burn, AtMs);
+        FLDCombatBurnLayer Fresh = Layer;
+        Fresh.ExpiresAtMs = AtMs + Terms.BurnMs;
+        Fresh.NextTickAtMs = AtMs + Terms.BurnTickMs;
         for (int32 Index = 0; Index < FMath::Min(Count, Terms.BurnMaxStacks); ++Index)
         {
-            if (Burn.Layers.Num() >= Terms.BurnMaxStacks) { Burn.Layers.RemoveAt(0); }
-            Burn.Layers.Add(Layer);
+            if (Burn.Layers.Num() >= Terms.BurnMaxStacks)
+            {
+                int32 First = 0;
+                for (int32 Other = 1; Other < Burn.Layers.Num(); ++Other)
+                {
+                    if (Burn.Layers[Other].ExpiresAtMs < Burn.Layers[First].ExpiresAtMs) { First = Other; }
+                }
+                Burn.Layers.RemoveAt(First);
+            }
+            Burn.Layers.Add(Fresh);
         }
-        Burn.ExpiresAtMs = AtMs + Terms.BurnMs;
         return true;
     }
 
-    void BurnTickShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out)
+    namespace
+    {
+        FLDBurnTickShare& ShareOf(TArray<FLDBurnTickShare>& Out, const FLDCombatBurnLayer& Layer)
+        {
+            if (FLDBurnTickShare* Share = Out.FindByPredicate([&Layer](const FLDBurnTickShare& Row)
+                { return Row.SourceEntity == Layer.SourceEntity && Row.SourceBody == Layer.SourceBody && Row.Source == Layer.Source; }))
+            {
+                return *Share;
+            }
+            FLDBurnTickShare& Share = Out.AddDefaulted_GetRef();
+            Share.SourceEntity = Layer.SourceEntity;
+            Share.SourceBody = Layer.SourceBody;
+            Share.CreditOwner = Layer.CreditOwner;
+            Share.Source = Layer.Source;
+            return Share;
+        }
+    }
+
+    bool PopBurnTick(FLDCombatBurn& Burn, int64 AtMs, const FLDKeywordTerms& Terms, int64& OutTickAtMs, TArray<FLDBurnTickShare>& Out)
+    {
+        Out.Reset();
+        OutTickAtMs = NextBurnTickAtMs(Burn);
+        if (Terms.BurnTickMs <= 0 || OutTickAtMs == MAX_int64 || OutTickAtMs > AtMs) { return false; }
+        for (FLDCombatBurnLayer& Layer : Burn.Layers)
+        {
+            if (Layer.NextTickAtMs != OutTickAtMs) { continue; }
+            if (Layer.NextTickAtMs <= Layer.ExpiresAtMs) { ShareOf(Out, Layer).DamageP2 += BurnLayerTickP2(Layer, Terms); }
+            Layer.NextTickAtMs = Layer.NextTickAtMs > MAX_int64 - Terms.BurnTickMs ? MAX_int64 : Layer.NextTickAtMs + Terms.BurnTickMs;
+        }
+        Burn.Layers.RemoveAll([](const FLDCombatBurnLayer& Layer) { return Layer.NextTickAtMs > Layer.ExpiresAtMs; });
+        return true;
+    }
+
+    void BurnRemainingShares(const FLDCombatBurn& Burn, const FLDKeywordTerms& Terms, TArray<FLDBurnTickShare>& Out)
     {
         Out.Reset();
         for (const FLDCombatBurnLayer& Layer : Burn.Layers)
         {
-            const int64 PerSecond = BurnLayerPerSecondP2(Layer.Level, Layer.SourceAPP2, Terms);
-            const int64 Tick = PerSecond / 1000 * Terms.BurnTickMs + PerSecond % 1000 * Terms.BurnTickMs / 1000;
-            FLDBurnTickShare* Share = Out.FindByPredicate([&Layer](const FLDBurnTickShare& Row)
-            { return Row.SourceEntity == Layer.SourceEntity && Row.SourceBody == Layer.SourceBody && Row.Source == Layer.Source; });
-            if (!Share)
-            {
-                Share = &Out.AddDefaulted_GetRef();
-                Share->SourceEntity = Layer.SourceEntity;
-                Share->SourceBody = Layer.SourceBody;
-                Share->CreditOwner = Layer.CreditOwner;
-                Share->Source = Layer.Source;
-            }
-            Share->DamageP2 += Tick;
+            const int32 Ticks = BurnLayerTicksLeft(Layer, Terms);
+            if (Ticks > 0) { ShareOf(Out, Layer).DamageP2 += BurnLayerTickP2(Layer, Terms) * Ticks; }
         }
+        Out.RemoveAll([](const FLDBurnTickShare& Share) { return Share.DamageP2 <= 0; });
     }
 
     bool ExpireBurn(FLDCombatBurn& Burn, int64 AtMs)
     {
-        if (Burn.Layers.IsEmpty() && Burn.ExpiresAtMs == 0) { return false; }
-        if (BurnActive(Burn, AtMs)) { return false; }
-        Burn = FLDCombatBurn();
-        return true;
+        return Burn.Layers.RemoveAll([AtMs](const FLDCombatBurnLayer& Layer)
+        { return Layer.NextTickAtMs > Layer.ExpiresAtMs || Layer.ExpiresAtMs < AtMs; }) > 0;
     }
 
     int32 RemoveBurnSource(FLDCombatBurn& Burn, const FGuid& Source)
     {
-        const int32 Removed = Burn.Layers.RemoveAll([&Source](const FLDCombatBurnLayer& Layer) { return Layer.SourceEntity == Source; });
-        if (Removed > 0 && Burn.Layers.IsEmpty()) { Burn = FLDCombatBurn(); }
-        return Removed;
+        return Burn.Layers.RemoveAll([&Source](const FLDCombatBurnLayer& Layer) { return Layer.SourceEntity == Source; });
     }
 
     bool SegmentEntry(const FVector& From, const FVector& To, const FVector& Centre, double Reach, double& OutFraction)

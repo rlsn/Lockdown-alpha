@@ -61,7 +61,12 @@
         "AI.RetryPolicy.InitialBackoffSec", "AI.RetryPolicy.MaxBackoffSec", "AI.ExploreRevisitIntervalSec", "AI.EngagementBudgetSec",
         "COMBAT.BreachPerStack", "COMBAT.BreachMaxStacks", "COMBAT.BreachSec",
         "COMBAT.BurnPerSec", "COMBAT.BurnAPRatioPerSec", "COMBAT.BurnTickSec", "COMBAT.BurnSec", "COMBAT.BurnMaxStacks",
-        "COMBAT.LifestealCap"
+        "COMBAT.LifestealCap",
+        "COMBAT.WetSec", "COMBAT.WetSlow", "COMBAT.ElectrifiedSec", "COMBAT.DischargeRadiusCm", "COMBAT.DischargeIntervalSec",
+        "COMBAT.ReactionBase", "COMBAT.ReactionPerLevel", "COMBAT.ReactionAPRatio",
+        "COMBAT.FogRadiusCm", "COMBAT.FogSec", "COMBAT.FogIntervalSec",
+        "COMBAT.ConductRadiusCm", "COMBAT.ConductSlow", "COMBAT.ConductSlowSec",
+        "COMBAT.OverloadRadiusCm", "COMBAT.OverloadBreachStacks"
       ],
       "properties": {
         "STAT.MaxHP.Base": {"$ref": "#/$defs/hp"}, "STAT.MaxHP.PerLevel": {"$ref": "#/$defs/hp"},
@@ -138,7 +143,17 @@
         "COMBAT.BurnPerSec": {"$ref": "#/$defs/points"}, "COMBAT.BurnAPRatioPerSec": {"$ref": "#/$defs/probability"},
         "COMBAT.BurnTickSec": {"$ref": "#/$defs/positive_sec"}, "COMBAT.BurnSec": {"$ref": "#/$defs/positive_sec"},
         "COMBAT.BurnMaxStacks": {"$ref": "#/$defs/positive_count"},
-        "COMBAT.LifestealCap": {"$ref": "#/$defs/probability"}
+        "COMBAT.LifestealCap": {"$ref": "#/$defs/probability"},
+        "COMBAT.WetSec": {"$ref": "#/$defs/positive_sec"}, "COMBAT.WetSlow": {"$ref": "#/$defs/probability"},
+        "COMBAT.ElectrifiedSec": {"$ref": "#/$defs/positive_sec"}, "COMBAT.DischargeRadiusCm": {"$ref": "#/$defs/cm"},
+        "COMBAT.DischargeIntervalSec": {"$ref": "#/$defs/positive_sec"},
+        "COMBAT.ReactionBase": {"$ref": "#/$defs/points"}, "COMBAT.ReactionPerLevel": {"$ref": "#/$defs/points"},
+        "COMBAT.ReactionAPRatio": {"$ref": "#/$defs/multiplier"},
+        "COMBAT.FogRadiusCm": {"$ref": "#/$defs/cm"}, "COMBAT.FogSec": {"$ref": "#/$defs/positive_sec"},
+        "COMBAT.FogIntervalSec": {"$ref": "#/$defs/positive_sec"},
+        "COMBAT.ConductRadiusCm": {"$ref": "#/$defs/cm"}, "COMBAT.ConductSlow": {"$ref": "#/$defs/probability"},
+        "COMBAT.ConductSlowSec": {"$ref": "#/$defs/positive_sec"},
+        "COMBAT.OverloadRadiusCm": {"$ref": "#/$defs/cm"}, "COMBAT.OverloadBreachStacks": {"type": "integer", "minimum": 1, "maximum": 10}
       }
     },
     "formulas": {
@@ -478,8 +493,8 @@
           "properties": {"op": {"const": "contact_trap"}, "radius": {"$ref": "#/$defs/cm"}, "trigger_radius": {"$ref": "#/$defs/cm"}, "delay": {"$ref": "#/$defs/positive_sec"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         },
         {
-          "type": "object", "additionalProperties": false, "required": ["op", "count"],
-          "properties": {"op": {"const": "dash_contact"}, "count": {"const": 1}}
+          "type": "object", "additionalProperties": false, "required": ["op", "targets"],
+          "properties": {"op": {"const": "dash_contact"}, "targets": {"enum": ["First", "Every"]}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ratio"],
@@ -492,6 +507,25 @@
         {
           "type": "object", "additionalProperties": false, "required": ["op", "cooldown", "interval"],
           "properties": {"op": {"const": "dash_contact_refund"}, "cooldown": {"$ref": "#/$defs/positive_sec"}, "interval": {"$ref": "#/$defs/positive_sec"}, "mana_ratio": {"$ref": "#/$defs/probability"}, "mana_cap": {"$ref": "#/$defs/mp"}}
+        },
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "wet"}}},
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "electrify"}}},
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "count", "radius", "ratio", "interval"],
+          "properties": {"op": {"const": "chain_bounce"}, "count": {"type": "integer", "minimum": 1, "maximum": 5}, "radius": {"$ref": "#/$defs/cm"}, "ratio": {"$ref": "#/$defs/probability"}, "interval": {"$ref": "#/$defs/positive_sec"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "duration", "ratio", "limit", "radius", "base", "record_ratio"],
+          "properties": {"op": {"const": "brace"}, "duration": {"$ref": "#/$defs/positive_sec"}, "ratio": {"$ref": "#/$defs/probability"}, "limit": {"$ref": "#/$defs/points"}, "radius": {"$ref": "#/$defs/cm"}, "base": {"$ref": "#/$defs/points"}, "record_ratio": {"$ref": "#/$defs/multiplier"}}
+        },
+        {"type": "object", "additionalProperties": false, "required": ["op"], "properties": {"op": {"const": "zone_wet"}}},
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "ratio"],
+          "properties": {"op": {"const": "zone_haste"}, "ratio": {"$ref": "#/$defs/probability"}}
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["op", "ratio", "duration"],
+          "properties": {"op": {"const": "grievous"}, "ratio": {"$ref": "#/$defs/probability"}, "duration": {"$ref": "#/$defs/positive_sec"}}
         },
         {
           "type": "object", "additionalProperties": false, "required": ["op", "base", "ad_ratio", "ap_ratio", "damage_type", "count", "duration"],
@@ -522,7 +556,8 @@
         },
         {"type": "object", "additionalProperties": false, "required": ["mode"], "properties": {"mode": {"const": "DirectionDash"}}},
         {"type": "object", "additionalProperties": false, "required": ["mode", "range"], "properties": {"mode": {"const": "GroundPoint"}, "range": {"$ref": "#/$defs/cm"}}},
-        {"type": "object", "additionalProperties": false, "required": ["mode", "range", "angle"], "properties": {"mode": {"const": "DirectionCone"}, "range": {"$ref": "#/$defs/cm"}, "angle": {"$ref": "#/$defs/angle"}}}
+        {"type": "object", "additionalProperties": false, "required": ["mode", "range", "angle"], "properties": {"mode": {"const": "DirectionCone"}, "range": {"$ref": "#/$defs/cm"}, "angle": {"$ref": "#/$defs/angle"}}},
+        {"type": "object", "additionalProperties": false, "required": ["mode", "range", "half_width"], "properties": {"mode": {"const": "DirectionLine"}, "range": {"$ref": "#/$defs/cm"}, "half_width": {"$ref": "#/$defs/cm"}}}
       ]
     },
     "ability": {

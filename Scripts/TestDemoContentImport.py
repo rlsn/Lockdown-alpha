@@ -433,7 +433,7 @@ class DemoContentImport(unittest.TestCase):
             lambda data: data["abilities"][0].update(id="snark_bolt"),
             lambda data: data["stats"][0].update(id="StatPhysique"),
             lambda data: data["stats"][0].update(id=data["stats"][1]["id"]),
-            # #198: retired passives, cower and attribute cards and the reserved-but-unprojected sock shot stay refused.
+            # #198: retired passives, cower and attribute cards stay refused, and an active keeps its own contract.
             lambda data: data["abilities"][0].update(id="passive_lucky_star"),
             lambda data: data["abilities"][0].update(id="active_cower"),
             lambda data: data["abilities"][0].update(id="active_sock_shot", cooldown_family="cd_sock_shot"),
@@ -514,6 +514,77 @@ class DemoContentImport(unittest.TestCase):
             (self.root / demo.CONTENT_SOURCE).write_bytes(encode(self.author))
             with self.subTest(mutation=mutation):
                 self.assert_refused(mutation)
+
+    def test_element_actions_and_reaction_parameters_refuse_invalid_shapes(self):
+        # #198 session A: synthetic DirectionLine/brace/contact-dash/wet-zone actives join the fixture, then each
+        # invalid shape refuses with its own code.
+        q = lambda unit, value: {"unit": unit, "value": value}
+        damage = {"op": "damage", "base": q("points", 5), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.5),
+                  "max_hp_ratio": q("ratio", 0), "damage_type": "Magical"}
+        added = [
+            {"id": "active_hose_down", "opening": False, "cooldown_family": "cd_hose_down", "windup": q("s", 0.25),
+             "target": {"mode": "DirectionLine", "range": q("cm", 300), "half_width": q("cm", 40)},
+             "mana_cost": q("mp", 5), "cooldown": q("s", 6),
+             "effects": [deepcopy(damage), {"op": "knockback", "distance": q("cm", 100), "duration": q("s", 0.125)}, {"op": "wet"}]},
+            {"id": "active_charged_ram", "opening": False, "cooldown_family": "cd_charged_ram", "windup": q("s", 0),
+             "target": {"mode": "DirectionDash"}, "mana_cost": q("mp", 5), "cooldown": q("s", 8),
+             "effects": [{"op": "dash", "distance": q("cm", 200), "duration": q("s", 0.25)},
+                         {"op": "shield", "base": q("hp", 10), "ap_ratio": q("ratio", 0), "duration": q("s", 1)},
+                         {"op": "dash_contact", "targets": "Every"}, deepcopy(damage), {"op": "electrify"}]},
+            {"id": "active_brace", "opening": False, "cooldown_family": "cd_brace", "windup": q("s", 0),
+             "target": {"mode": "Self"}, "mana_cost": q("mp", 5), "cooldown": q("s", 9),
+             "effects": [{"op": "brace", "duration": q("s", 2), "ratio": q("ratio", 0.25), "limit": q("points", 40),
+                          "radius": q("cm", 150), "base": q("points", 10), "record_ratio": q("ratio", 0.5)}]},
+            {"id": "active_dirty_puddle", "opening": False, "cooldown_family": "cd_dirty_puddle", "windup": q("s", 0.25),
+             "target": {"mode": "GroundPoint", "range": q("cm", 400)}, "mana_cost": q("mp", 5), "cooldown": q("s", 9),
+             "effects": [{"op": "zone", "radius": q("cm", 150), "duration": q("s", 2), "interval": q("s", 1),
+                          "delay": q("s", 0), "count": 2},
+                         {"op": "zone_damage", "base": q("points", 3), "ad_ratio": q("ratio", 0), "ap_ratio": q("ratio", 0.1),
+                          "damage_type": "Magical"},
+                         {"op": "zone_wet"}, {"op": "zone_haste", "ratio": q("ratio", 0.1)}]},
+        ]
+        author = deepcopy(self.author)
+        author["abilities"].extend(added)
+        author["display"].extend({"id": row["id"], "namespace": "DemoContent", "name_key": row["id"] + ".name",
+                                  "name_text": "测试名称 " + row["id"], "description_key": row["id"] + ".description",
+                                  "description_text": "TEST ONLY 合成说明 " + row["id"], "icon_id": "icon_" + row["id"]}
+                                 for row in added)
+        (self.root / demo.CONTENT_SOURCE).write_bytes(encode(author))
+        demo.compile_author(self.root)
+
+        def ability(data, identity):
+            return next(row for row in data["abilities"] if row["id"] == identity)
+
+        def first(data, identity, op):
+            return next(effect for effect in ability(data, identity)["effects"] if effect["op"] == op)
+
+        for mutation, code in (
+            (lambda d: ability(d, "active_dirty_puddle")["effects"].append({"op": "wet"}), "TargetEffectMismatch"),
+            (lambda d: ability(d, "active_dirty_puddle")["effects"].pop(2), "MissingHandler"),
+            (lambda d: first(d, "active_dirty_puddle", "zone_haste")["ratio"].update(value=1), "NumericDomain"),
+            (lambda d: first(d, "active_brace", "brace")["ratio"].update(value=1), "NumericDomain"),
+            (lambda d: first(d, "active_brace", "brace")["limit"].update(value=0), "IneffectiveEffect"),
+            (lambda d: first(d, "active_brace", "brace")["radius"].update(value=0), "InvalidGeometry"),
+            (lambda d: ability(d, "active_brace")["effects"].append({"op": "wet"}), "TargetEffectMismatch"),
+            (lambda d: ability(d, "active_hose_down")["target"].pop("half_width"), "SchemaVariant"),
+            (lambda d: ability(d, "active_hose_down")["target"]["half_width"].update(value=0), "NumericDomain"),
+            (lambda d: ability(d, "active_hose_down")["effects"].append({"op": "root", "duration": q("s", 1)}),
+             "TargetEffectMismatch"),
+            (lambda d: first(d, "active_charged_ram", "dash_contact").update(targets="All"), "SchemaVariant"),
+            (lambda d: first(d, "active_charged_ram", "dash_contact").update(count=1), "SchemaVariant"),
+            (lambda d: first(d, "active_charged_ram", "dash_contact").pop("targets"), "SchemaVariant"),
+            (lambda d: ability(d, "active_charged_ram")["effects"].pop(2), "TargetEffectMismatch"),
+            (lambda d: d["parameters"]["COMBAT.FogIntervalSec"].update(value=3), "InvalidTiming"),
+            (lambda d: d["parameters"]["COMBAT.ConductSlow"].update(value=1), "NumericDomain"),
+            (lambda d: d["parameters"]["COMBAT.WetSlow"].update(value=0), "NumericDomain"),
+            (lambda d: d["parameters"]["COMBAT.DischargeRadiusCm"].update(value=0), "InvalidGeometry"),
+            (lambda d: d["parameters"].update({"COMBAT.OverloadBreachStacks": 5}), "NumericDomain"),
+            (lambda d: d["parameters"].update({"COMBAT.OverloadBreachStacks": 11}), "NumericOverflow"),
+            (lambda d: d["parameters"].pop("COMBAT.ReactionBase"), "MissingField"),
+        ):
+            (self.root / demo.CONTENT_SOURCE).write_bytes(encode(author))
+            with self.subTest(mutation=mutation):
+                self.assert_refused(mutation, code)
 
     def test_each_stat_declares_exactly_its_positive_per_point_bonuses(self):
         for mutation in (
