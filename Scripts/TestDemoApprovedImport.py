@@ -146,7 +146,8 @@ STAT_POINTS = {
 # #198 B base components B01-B18: (display name, opening "always" / actives / None, effects in author units at G=1).
 DIRECT_DAMAGE_OPENING = ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned", "active_unplug",
                          "active_snark_bolt", "active_seethe", "active_quick_meeting", "active_apology_slide",
-                         "active_calculus_drop", "active_open_mic"]
+                         "active_calculus_drop", "active_open_mic", "active_hose_down", "active_zap",
+                         "active_charged_ram", "active_dirty_puddle", "active_sock_shot"]
 COMPONENT_FRAMES = {
     "component_fist_fire": ("拳头冒火", "always", [("burn", {"basic_stacks": 1})]),
     "component_tab_ledger": ("揍一下记一笔", "always", [
@@ -160,12 +161,13 @@ COMPONENT_FRAMES = {
     "component_third_punch": ("第三拳滚蛋", "always", [("nth_basic_bonus", {"count": 3, "distance": 120, "duration": r(".12")})]),
     "component_kick_down": ("逮住就往狠了打", ["active_elbow", "active_pants_down", "active_crotch_grab", "active_account_banned",
                                        "active_unplug", "active_snark_bolt", "active_quick_meeting", "active_apology_slide",
-                                       "active_open_mic"], [("control_damage_amp", {"ratio": r(".12")})]),
+                                       "active_open_mic", "active_hose_down", "active_dirty_puddle"], [("control_damage_amp", {"ratio": r(".12")})]),
     "component_breach_fist": ("越揍越不经打", None, [("breach", {"basic_stacks": 1})]),
     "component_hard_skin": ("挨揍起硬皮", "always", [
         ("triggered_shield", {"base": 45, "duration": 3, "interval": 10, "max_hp_ratio": r(".035"), "trigger": "Damaged"})]),
     "component_fist_water": ("拳头甩脏水", "always", [("basic_element", {"element": "water"})]),
-    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting"], [("basic_element", {"element": "electric"})]),
+    "component_fist_shock": ("拳头漏电", ["active_seethe", "active_quick_meeting", "active_hose_down", "active_dirty_puddle"],
+                     [("basic_element", {"element": "electric"})]),
     "component_dash_punch": ("蹿过去抡一拳", "always", [
         ("empower_basic", {"ad_ratio": r(".25"), "ap_ratio": 0, "base": 25, "charges": 1, "damage_type": "Physical", "duration": 3,
                            "trigger": "DashComplete"})]),
