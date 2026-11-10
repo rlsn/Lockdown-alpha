@@ -59,6 +59,12 @@ def content_fixture():
         ("COMBAT.BreachPerStack", "points", 2), ("COMBAT.BreachSec", "s", 3),
         ("COMBAT.BurnPerSec", "points", 4), ("COMBAT.BurnAPRatioPerSec", "ratio", 0.05),
         ("COMBAT.BurnTickSec", "s", 0.25), ("COMBAT.BurnSec", "s", 2), ("COMBAT.LifestealCap", "ratio", 0.4),
+        ("COMBAT.WetSec", "s", 3), ("COMBAT.WetSlow", "ratio", 0.1), ("COMBAT.ElectrifiedSec", "s", 3.5),
+        ("COMBAT.DischargeRadiusCm", "cm", 300), ("COMBAT.DischargeIntervalSec", "s", 0.75),
+        ("COMBAT.ReactionBase", "points", 10), ("COMBAT.ReactionPerLevel", "points", 0.5), ("COMBAT.ReactionAPRatio", "ratio", 0.125),
+        ("COMBAT.FogRadiusCm", "cm", 200), ("COMBAT.FogSec", "s", 2), ("COMBAT.FogIntervalSec", "s", 0.5),
+        ("COMBAT.ConductRadiusCm", "cm", 400), ("COMBAT.ConductSlow", "ratio", 0.25), ("COMBAT.ConductSlowSec", "s", 1.25),
+        ("COMBAT.OverloadRadiusCm", "cm", 150),
     ):
         parameters[key] = q(unit, value)
     parameters.update({
@@ -66,7 +72,7 @@ def content_fixture():
         "REWARD.PlayerXP.Base": 12, "REWARD.PlayerXP.PerLevel": 2, "AI.RetryPolicy.MaxAttempts": 2,
         "CAMP.ReturnDeadEndPlans": 2, "CAMP.GrowthMaxStage": 4, "AIRDROP.RewardXP": 150,
         "LEADER.MinLevel": 2,
-        "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
+        "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3, "COMBAT.OverloadBreachStacks": 3,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
     })
     formulas = {

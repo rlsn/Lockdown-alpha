@@ -1,5 +1,6 @@
 #include "Combat/LDCombatDirector.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatElements.h"
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDTacticalRules.h"
@@ -50,6 +51,16 @@ struct FLDBuildPrimitivesAccess
         const FLDDemoTargetDefinition& Target, const FLDCombatAction& Action, FLDCombatHit& Hit, int64 Now, bool& Handled, FString& Error)
     { return Driver.StartSkillDelivery(Body, Values, Target, Action, Hit, Now, Handled, Error); }
     static TArray<FLDCombatGroundEffect>& Ground(ALDCombatDirector& Driver) { return Driver.GroundEffects; }
+    // #198 elements.
+    static TArray<FLDCombatFog>& Fogs(ALDCombatDirector& Driver) { return Driver.Fogs; }
+    static TArray<FLDCombatReactionFact>& Reactions(ALDCombatDirector& Driver) { return Driver.ReactionFacts; }
+    static bool AdvanceElements(ALDCombatDirector& Driver, int64 NowMs, FString& Error) { return Driver.AdvanceElements(NowMs, Error); }
+    static bool ReleaseBrace(ALDCombatDirector& Driver, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, int64 NowMs,
+        FString& Error)
+    { return Driver.ReleaseBrace(Body, Effect, FLDCombatSourceRef(), FGuid::NewGuid(), 1, NowMs, Error); }
+    static bool GrantShield(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2, int64 NowMs, FString& Error)
+    { return Driver.GrantShieldTo(Body, AmountP2, 3000, FGuid::NewGuid(), Body.Victim.EntityId, NowMs, Error); }
+    static bool Heal(ALDCombatDirector& Driver, FLDBodyCombatState& Body, int64 AmountP2) { return Driver.HealBody(Body, AmountP2); }
 };
 
 namespace LDBuildPrimitivesTests
@@ -208,25 +219,36 @@ bool FLDBuildKeywordRulesTest::RunTest(const FString& Parameters)
     TestEqual(TEXT("A stack takes its flat off the resistance"), BreachedResistanceP2(2000, Breach, 8000, T), int64(1700));
     TestEqual(TEXT("and never drives a resistance below zero"), BreachedResistanceP2(200, Breach, 8000, T), int64(0));
 
-    // D11 burn: shared layers and timer; each layer keeps its applier and snapshot; the oldest gives way at the cap.
+    // #198 fire: every layer keeps its applier, snapshot and own three-second timer; same-instant ticks of one applier merge.
     const FGuid A = FGuid::NewGuid(), B = FGuid::NewGuid();
     TestEqual(TEXT("A level-1 layer burns 3 + 3% AP per second"), BurnLayerPerSecondP2(1, 5000, T), int64(300 + 150));
     FLDCombatBurn Burn;
     TestTrue(TEXT("Two layers of A"), ApplyBurn(Burn, Layer(A, 0), 2, 1000, T) && Burn.Layers.Num() == 2
-        && Burn.NextTickAtMs == 1500 && Burn.ExpiresAtMs == 4000);
-    TestTrue(TEXT("A layer of B joins and restarts the shared timer, keeping the tick cadence"),
-        ApplyBurn(Burn, Layer(B, 10000), 1, 1200, T) && Burn.Layers.Num() == 3 && Burn.NextTickAtMs == 1500 && Burn.ExpiresAtMs == 4200);
+        && Burn.Layers[0].NextTickAtMs == 1500 && Burn.Layers[0].ExpiresAtMs == 4000);
+    TestTrue(TEXT("A layer of B joins on its own timer; A's layers keep theirs"),
+        ApplyBurn(Burn, Layer(B, 10000), 1, 1200, T) && Burn.Layers.Num() == 3 && Burn.Layers[2].NextTickAtMs == 1700
+        && Burn.Layers[2].ExpiresAtMs == 4200 && Burn.Layers[0].ExpiresAtMs == 4000 && BurnExpiresAtMs(Burn) == 4200);
     TArray<FLDBurnTickShare> Shares;
-    BurnTickShares(Burn, T, Shares);
-    TestTrue(TEXT("One tick credits each applier its own layers"), Shares.Num() == 2 && Shares[0].SourceEntity == A
-        && Shares[0].DamageP2 == 300 && Shares[1].SourceEntity == B && Shares[1].DamageP2 == 300);
-    TestTrue(TEXT("At the cap each new layer replaces the oldest"), ApplyBurn(Burn, Layer(B, 10000), 4, 1300, T)
-        && Burn.Layers.Num() == 5 && !Burn.Layers.ContainsByPredicate([&A](const FLDCombatBurnLayer& Row) { return Row.SourceEntity == A; }));
-    TestEqual(TEXT("A leaving applier takes its layers"), RemoveBurnSource(Burn, B), 5);
-    TestTrue(TEXT("and an empty burn ends"), Burn.Layers.IsEmpty() && Burn.ExpiresAtMs == 0);
-    TestTrue(TEXT("A new burn"), ApplyBurn(Burn, Layer(A, 0), 1, 0, T));
-    TestTrue(TEXT("lasts through its deadline (its last tick falls on it)"), BurnActive(Burn, 3000) && !ExpireBurn(Burn, 3000));
-    TestTrue(TEXT("and ends after it"), !BurnActive(Burn, 3001) && ExpireBurn(Burn, 3001) && Burn.Layers.IsEmpty());
+    int64 TickAt = 0;
+    TestTrue(TEXT("The earliest tick merges A's two layers into one share"), PopBurnTick(Burn, 1500, T, TickAt, Shares)
+        && TickAt == 1500 && Shares.Num() == 1 && Shares[0].SourceEntity == A && Shares[0].DamageP2 == 300);
+    TestTrue(TEXT("B ticks on its own instant"), !PopBurnTick(Burn, 1600, T, TickAt, Shares)
+        && PopBurnTick(Burn, 1700, T, TickAt, Shares) && Shares.Num() == 1 && Shares[0].SourceEntity == B && Shares[0].DamageP2 == 300);
+    BurnRemainingShares(Burn, T, Shares);
+    TestTrue(TEXT("An early settle pays every tick still owed, per applier"), Shares.Num() == 2 && Shares[0].SourceEntity == A
+        && Shares[0].DamageP2 == 1500 && Shares[1].SourceEntity == B && Shares[1].DamageP2 == 1500);
+    TestTrue(TEXT("At the cap each new layer replaces the one that ends first"), ApplyBurn(Burn, Layer(B, 10000), 3, 1300, T)
+        && Burn.Layers.Num() == 5
+        && Burn.Layers.FilterByPredicate([&A](const FLDCombatBurnLayer& Row) { return Row.SourceEntity == A; }).Num() == 1);
+    TestEqual(TEXT("A leaving applier takes its layers"), RemoveBurnSource(Burn, B), 4);
+    FLDCombatBurn Fresh;
+    TestTrue(TEXT("A new burn"), ApplyBurn(Fresh, Layer(A, 0), 1, 0, T));
+    int32 Ticks = 0;
+    while (PopBurnTick(Fresh, 3000, T, TickAt, Shares)) { ++Ticks; }
+    TestTrue(TEXT("ticks six times, the last on its deadline, and then ends"), Ticks == 6 && TickAt == 3000 && Fresh.Layers.IsEmpty());
+    TestTrue(TEXT("A layer lasts through its deadline"), ApplyBurn(Fresh, Layer(A, 0), 1, 0, T) && BurnActive(Fresh, 3000)
+        && !ExpireBurn(Fresh, 3000));
+    TestTrue(TEXT("and ends after it"), !BurnActive(Fresh, 3001) && ExpireBurn(Fresh, 3001) && Fresh.Layers.IsEmpty());
 
     // D22 lifesteal cap.
     TestEqual(TEXT("Lifesteal adds up to the 35% cap"), CapLifestealBp(6000, T), int64(3500));
@@ -386,12 +408,13 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     // Burn: layers keep their applier; one tick credits each applier its own damage.
     Hit = FFixture::Hit(A, Target, 0);
     Hit.BurnStacks = 2;
-    Hit.BurnAPP2 = 0;
-    TestTrue(TEXT("Two burn layers of A"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 2 && Body.Burn.NextTickAtMs == 1500);
+    Hit.ElementAPP2 = 0;
+    TestTrue(TEXT("Two burn layers of A"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 2
+        && LDCombatKeywords::NextBurnTickAtMs(Body.Burn) == 1500);
     Hit = FFixture::Hit(B, Target, 0);
     Hit.BurnStacks = 1;
-    Hit.BurnAPP2 = 10000;
-    TestTrue(TEXT("One of B"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 3 && Body.Burn.ExpiresAtMs == 4000);
+    Hit.ElementAPP2 = 10000;
+    TestTrue(TEXT("One of B"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 3 && LDCombatKeywords::BurnExpiresAtMs(Body.Burn) == 4000);
     TArray<FLDObservedStatus> Statuses;
     FAccess::KeywordStatuses(*F.Driver, Body, 1000, Statuses);
     const FLDObservedStatus* Exposed = FFixture::FindStatus(Statuses, ELDDemoStatusId::Exposed);
@@ -404,13 +427,14 @@ bool FLDBuildSharedBreachBurnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("One magic tick per applier, never a crit or on-hit"), Ticks.Num() == 2 && Ticks[0].SourceEntity == A.Victim.EntityId
         && Ticks[0].BaseP2 == 300 && Ticks[1].SourceEntity == B.Victim.EntityId && Ticks[1].BaseP2 == 300 && Ticks[0].bBurnTick
         && Ticks[0].bPeriodic && Ticks[0].OnHitScaleBp == 0 && Ticks[0].DamageType == ELDDemoDamageType::Magical);
-    TestTrue(TEXT("The ticks land: 3.00 each"), F.Flush(Error) && Body.Resources.HpP2 == 89400 && Body.Burn.NextTickAtMs == 2000);
+    TestTrue(TEXT("The ticks land: 3.00 each"), F.Flush(Error) && Body.Resources.HpP2 == 89400
+        && LDCombatKeywords::NextBurnTickAtMs(Body.Burn) == 2000);
     FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
     TestTrue(TEXT("A leaving applier's layers end; the shared breach stays"), Body.Burn.Layers.Num() == 1 && Body.SharedBreach.Stacks == 5);
     Hit.BurnStacks = 6;
     F.Now(1500);
-    TestTrue(TEXT("At five layers each new one replaces the oldest"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 5);
-    TestEqual(TEXT("The new layers restarted the shared timer"), Body.Burn.ExpiresAtMs, int64(4500));
+    TestTrue(TEXT("At five layers each new one replaces the one ending first"), F.Apply(Hit, Error) && Body.Burn.Layers.Num() == 5);
+    TestEqual(TEXT("Every new layer runs its own three seconds"), LDCombatKeywords::BurnExpiresAtMs(Body.Burn), int64(4500));
     F.Now(4500);
     FAccess::ExpireStatuses(*F.Driver, 4500);
     TestTrue(TEXT("The burn ticks every half second through its last instant"), FAccess::AdvanceBurns(*F.Driver, 4500, Error)
@@ -569,7 +593,7 @@ bool FLDBuildSafeWindowTest::RunTest(const FString& Parameters)
     // Burn ticks are hostile damage of their applier.
     FLDCombatHit Burning = FFixture::Hit(Bystander, Victim, 0);
     Burning.BurnStacks = 1;
-    Burning.BurnAPP2 = 0;
+    Burning.ElementAPP2 = 0;
     TestTrue(TEXT("A burn layer without damage lands"), F.Apply(Burning, Error));
     TestEqual(TEXT("A layer alone is no damage yet"), F.LastUnsafe(Bystander), int64(2600));
     F.Now(3200);
@@ -942,6 +966,162 @@ bool FLDExpandedCatalogTest::RunTest(const FString& Parameters)
                 *Ability.Id,uint32(Level)),bBounded);
         }
     }
+    return true;
+}
+
+// #198 elements (docs/systems/COMBAT_AND_GROWTH.md "水火电与反应"): the reaction table, R, the S16 record and the S21 cut.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementRulesTest, "Lockdown.Rules.DemoElements.Rules",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoElementRulesTest::RunTest(const FString& Parameters)
+{
+    using namespace LDCombatElements;
+    using E = ELDCombatElement;
+    using R = ELDCombatReaction;
+    TestTrue(TEXT("Fire and water fog either way"), ReactionOf(E::Fire, E::Water) == R::Fog && ReactionOf(E::Water, E::Fire) == R::Fog);
+    TestTrue(TEXT("Water and electric conduct"), ReactionOf(E::Water, E::Electric) == R::Conduct && ReactionOf(E::Electric, E::Water) == R::Conduct);
+    TestTrue(TEXT("Fire and electric overload"), ReactionOf(E::Fire, E::Electric) == R::Overload && ReactionOf(E::Electric, E::Fire) == R::Overload);
+    TestTrue(TEXT("The same element or none never reacts"), ReactionOf(E::Water, E::Water) == R::None && ReactionOf(E::None, E::Fire) == R::None);
+    FLDElementTerms Terms;
+    Terms.ReactionBaseP2 = 2000;
+    Terms.ReactionPerLevelP2 = 100;
+    Terms.ReactionAPRatioBp = 2000;
+    TestEqual(TEXT("R at level 1 without AP is 20"), ReactionDamageP2(1, 0, Terms), int64(2000));
+    TestEqual(TEXT("R = 20 + (L-1) + 0.2 AP, never scaled by G"), ReactionDamageP2(6, 5000, Terms), int64(2000 + 500 + 1000));
+    TestEqual(TEXT("The S16 record grows by the cut"), BraceRecordP2(2000, 1500, 10000), int64(3500));
+    TestEqual(TEXT("and stops at its cap"), BraceRecordP2(9000, 5000, 10000), int64(10000));
+    FLDCombatBrace Brace;
+    Brace.BaseP2 = 5000;
+    Brace.RecordRatioBp = 6000;
+    Brace.RecordedP2 = 10000;
+    TestEqual(TEXT("The answer is 50 + 60% of the record"), BraceAnswerP2(Brace), int64(11000));
+    FLDCombatGrievous Grievous;
+    TestTrue(TEXT("A grievous lands"), ApplyGrievous(Grievous, 3500, 4000, 1000));
+    TestEqual(TEXT("It cuts a new heal or shield by 35%"), AfterGrievousP2(10000, Grievous, 2000), int64(6500));
+    TestEqual(TEXT("and nothing after it ends"), AfterGrievousP2(10000, Grievous, 4000), int64(10000));
+    FLDCombatHit Hit;
+    Hit.HitClass = ELDCombatHitClass::Ability;
+    Hit.bDirectAbilityDamage = true;
+    TestTrue(TEXT("An active's own damage is skill-direct"), CategoryOf(Hit) == ELDCombatHitCategory::SkillDirect);
+    Hit.bStatusSettle = true;
+    TestTrue(TEXT("Reaction, discharge and settle damage is status damage"), CategoryOf(Hit) == ELDCombatHitCategory::StatusSettle);
+    return true;
+}
+
+// #198: one element slot per target; wet refreshes; a new fire on wet fogs (R plus the fire's whole budget at once); a new
+// water on fire settles the held layers to their own applier. One fog per owner.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementFogTest, "Lockdown.Rules.DemoElements.FogAndSlot",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoElementFogTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef A = F.AddBody(), B = F.AddBody(), Target = F.AddBody(), Second = F.AddBody();
+    FLDBodyCombatState& Body = F.Body(Target);
+    FString Error;
+    FLDCombatHit Wet = FFixture::Hit(A, Target, 0);
+    Wet.bApplyWet = true;
+    if (!TestTrue(FString::Printf(TEXT("A wet hit: %s"), *Error), F.Apply(Wet, Error))) { return false; }
+    TestTrue(TEXT("The target is wet for four seconds with its slow"), Body.ElementMark.Kind == ELDCombatElement::Water
+        && Body.ElementMark.ExpiresAtMs == 5000 && Body.Slows.Num() == 1 && Body.Slows[0].RatioBp == 1500);
+    TArray<FLDObservedStatus> Statuses;
+    FAccess::KeywordStatuses(*F.Driver, Body, 1000, Statuses);
+    TestNotNull(TEXT("Observers see wet"), FFixture::FindStatus(Statuses, ELDDemoStatusId::Wet));
+    F.Now(1500);
+    TestTrue(TEXT("Wet again refreshes it and keeps one slow"), F.Apply(Wet, Error) && Body.ElementMark.ExpiresAtMs == 5500
+        && Body.Slows.Num() == 1);
+    FLDCombatHit Fire = FFixture::Hit(B, Target, 0);
+    Fire.BurnStacks = 1;
+    TestTrue(FString::Printf(TEXT("A fire hit on wet: %s"), *Error), F.Apply(Fire, Error));
+    const TArray<FLDCombatHit>& Pending = FAccess::PendingHits(*F.Driver);
+    TestTrue(TEXT("Fog consumes both elements and the wet slow"), Body.ElementMark.Kind == ELDCombatElement::None
+        && Body.Slows.IsEmpty() && Body.Burn.Layers.IsEmpty());
+    TestTrue(TEXT("The new fire's whole budget (six ticks of 1.50) settles at once as B's fire, then R = 20 from B"),
+        Pending.Num() == 2 && Pending[0].bBurnTick && Pending[0].BaseP2 == 900 && Pending[0].SourceEntity == B.Victim.EntityId
+        && Pending[1].bStatusSettle && !Pending[1].bBurnTick && Pending[1].BaseP2 == 2000 && Pending[1].SourceEntity == B.Victim.EntityId
+        && Pending[1].Target == Target);
+    TestTrue(TEXT("B owns one fog and the reaction is reported with B as trigger"), FAccess::Fogs(*F.Driver).Num() == 1
+        && FAccess::Fogs(*F.Driver)[0].Owner.SourceEntity == B.Victim.EntityId && FAccess::Reactions(*F.Driver).Num() == 1
+        && FAccess::Reactions(*F.Driver)[0].Kind == ELDCombatReaction::Fog
+        && FAccess::Reactions(*F.Driver)[0].TriggerEntity == B.Victim.EntityId);
+    TestTrue(TEXT("The settles land"), F.Flush(Error) && Body.Resources.HpP2 == 100000 - 2900);
+
+    FLDBodyCombatState& Other = F.Body(Second);
+    FLDCombatHit TwoLayers = FFixture::Hit(A, Second, 0);
+    TwoLayers.BurnStacks = 2;
+    TestTrue(TEXT("Two fire layers of A"), F.Apply(TwoLayers, Error) && Other.Burn.Layers.Num() == 2);
+    F.Now(2000);
+    FLDCombatHit Water = FFixture::Hit(B, Second, 0);
+    Water.bApplyWet = true;
+    TestTrue(FString::Printf(TEXT("Water on fire: %s"), *Error), F.Apply(Water, Error));
+    TestTrue(TEXT("A's held layers settle their remaining six ticks each to A; B's R follows; nothing stays"),
+        Pending.Num() == 2 && Pending[0].SourceEntity == A.Victim.EntityId && Pending[0].BaseP2 == 1800 && Pending[0].bBurnTick
+        && Pending[1].SourceEntity == B.Victim.EntityId && Pending[1].BaseP2 == 2000
+        && Other.Burn.Layers.IsEmpty() && Other.ElementMark.Kind == ELDCombatElement::None);
+    TestEqual(TEXT("B's newer fog replaced its first one"), FAccess::Fogs(*F.Driver).Num(), 1);
+    TestTrue(TEXT("The settles land"), F.Flush(Error));
+
+    FLDCombatHit Zap = FFixture::Hit(A, Target, 0);
+    Zap.bApplyElectric = true;
+    TestTrue(TEXT("Electric on an element-free target marks it"), F.Apply(Zap, Error)
+        && Body.ElementMark.Kind == ELDCombatElement::Electric && Body.ElementMark.ExpiresAtMs == 6000);
+    FAccess::CancelEntityEffects(*F.Driver, A.Victim.EntityId);
+    TestTrue(TEXT("A leaving applier's mark ends with it"), Body.ElementMark.Kind == ELDCombatElement::None);
+    return true;
+}
+
+// #198 S16 顶着揍 (AI spec §9.1): 20% of hostile damage after resistance is cut and recorded up to the cap; its own damage is
+// not; a dying stance ends without its answer. S21: a grievous cuts new shields and heals by 35%.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoElementBraceTest, "Lockdown.Rules.DemoElements.BraceAndGrievous",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoElementBraceTest::RunTest(const FString& Parameters)
+{
+    using namespace LDBuildPrimitivesTests;
+    FFixture F;
+    if (!F.Init(*this)) { return false; }
+    const FLDCombatBodyRef A = F.AddBody(), Target = F.AddBody(ELDVictimKind::Contender, 10000000);
+    FLDBodyCombatState& Body = F.Body(Target);
+    FString Error;
+    FLDDemoEffectDefinition Brace;
+    Brace.Opcode = uint8(ELDDemoEffectOp::Brace);
+    Brace.DurationMs = 3000;
+    Brace.RatioBp = 2000;
+    Brace.LimitP2 = 10000;
+    Brace.RadiusCm.Numerator = 300;
+    Brace.BaseP2 = 5000;
+    Brace.SecondaryRatioBp = 6000;
+    if (!TestTrue(FString::Printf(TEXT("The stance starts: %s"), *Error), FAccess::ReleaseBrace(*F.Driver, Body, Brace, 1000, Error)))
+    { return false; }
+    TArray<FLDObservedStatus> Statuses;
+    FAccess::KeywordStatuses(*F.Driver, Body, 1000, Statuses);
+    const FLDObservedStatus* Shown = FFixture::FindStatus(Statuses, ELDDemoStatusId::Braced);
+    TestTrue(TEXT("Observers see the stance and its end"), Shown && Shown->ExpiresAtServerMs == 4000);
+    TestTrue(TEXT("A hostile 100 lands as 80 and records the 20 cut"), F.Apply(FFixture::Hit(A, Target, 10000), Error)
+        && Body.Resources.HpP2 == 10000000 - 8000 && Body.Brace.RecordedP2 == 2000);
+    TestTrue(TEXT("Its own damage is neither cut nor recorded"), F.Apply(FFixture::Hit(Target, Target, 10000), Error)
+        && Body.Resources.HpP2 == 10000000 - 18000 && Body.Brace.RecordedP2 == 2000);
+    TestTrue(TEXT("The record stops at its cap"), F.Apply(FFixture::Hit(A, Target, 500000), Error) && Body.Brace.RecordedP2 == 10000);
+    TestEqual(TEXT("Its answer would be 50 + 60% of the record"), LDCombatElements::BraceAnswerP2(Body.Brace), int64(11000));
+    F.Now(4500);
+    Body.bPendingDeath = true;
+    TestTrue(TEXT("A dying stance ends without its answer"), FAccess::AdvanceElements(*F.Driver, 4500, Error)
+        && !Body.Brace.EffectId.IsValid() && FAccess::PendingHits(*F.Driver).IsEmpty());
+    Body.bPendingDeath = false;
+
+    FLDCombatHit Sock = FFixture::Hit(A, Target, 0);
+    Sock.GrievousBp = 3500;
+    Sock.GrievousMs = 3000;
+    TestTrue(TEXT("The sock lands its cut"), F.Apply(Sock, Error) && Body.Grievous.RatioBp == 3500 && Body.Grievous.ExpiresAtMs == 7500);
+    Statuses.Reset();
+    FAccess::KeywordStatuses(*F.Driver, Body, 4500, Statuses);
+    TestNotNull(TEXT("Observers see it"), FFixture::FindStatus(Statuses, ELDDemoStatusId::Soured));
+    TestTrue(TEXT("A new 100 shield arrives as 65"), FAccess::GrantShield(*F.Driver, Body, 10000, 4500, Error)
+        && Body.Resources.ShieldP2 == 6500);
+    const int64 Before = Body.Resources.HpP2;
+    TestTrue(TEXT("A 100 heal arrives as 65"), FAccess::Heal(*F.Driver, Body, 10000) && Body.Resources.HpP2 == Before + 6500);
     return true;
 }
 

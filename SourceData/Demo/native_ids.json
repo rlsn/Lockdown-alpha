@@ -24,7 +24,12 @@
     "active_calculus_drop": 115,
     "active_sock_shot": 116,
     "active_flyer_trap": 117,
-    "active_apology_slide": 118
+    "active_apology_slide": 118,
+    "active_hose_down": 126,
+    "active_zap": 127,
+    "active_charged_ram": 128,
+    "active_brace": 129,
+    "active_dirty_puddle": 130
   },
   "stats": {
     "stat_physique": 27,
@@ -54,7 +59,11 @@
     "knockback": 20,
     "silence": 25,
     "burn": 26,
-    "attack_slowed": 27
+    "attack_slowed": 27,
+    "wet": 30,
+    "electrified": 31,
+    "braced": 32,
+    "soured": 33
   },
   "effect_ops": {
     "damage": 1,
@@ -95,6 +104,13 @@
     "dash_contact": 82,
     "primary_guard": 86,
     "dash_contact_damage": 87,
-    "dash_contact_refund": 88
+    "dash_contact_refund": 88,
+    "wet": 90,
+    "electrify": 91,
+    "chain_bounce": 92,
+    "brace": 93,
+    "zone_wet": 94,
+    "zone_haste": 95,
+    "grievous": 96
   }
 }

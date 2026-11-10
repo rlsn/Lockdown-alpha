@@ -722,6 +722,7 @@ bool ALDCombatDirector::ProcessDirect(FLDCombatEntityRecord& Record, const FLDCo
         break;
     case ELDDemoTargetMode::DirectionProjectile:
     case ELDDemoTargetMode::DirectionCone:
+    case ELDDemoTargetMode::DirectionLine:
     case ELDDemoTargetMode::DirectionDash:
         if (Request.Target.Kind!=ELDCombatTargetKind::Direction || !LDCA::ValidDirection(Request.Target.Direction))
         { return Refuse(ELDCombatReject::InvalidDirection); }
@@ -998,9 +999,9 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     Reject=LDCombatSourceRules::ActiveGate(Gate,Content->Get().Policies);
     if (Reject!=ELDCombatReject::None) { return true; }
     FLDCombatBodyRef UnitTarget;
+    FVector TargetFoot=FVector::ZeroVector;
     if (TargetDef.Mode==ELDDemoTargetMode::Unit)
     {
-        FVector TargetFoot;
         if (!ResolveUnitTarget(*Record,Actor,Action.Target,UnitTarget,TargetFoot,Reject) || UnitTarget!=Action.TargetBody)
         { Reject=ELDCombatReject::TargetUnavailable; return true; }
         const FVector Foot=FootOf(Actor);
@@ -1054,8 +1055,16 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const FLDDemoEffectDefinition* SilenceEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Silence);
     const FLDDemoEffectDefinition* BreachEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Breach);
     const FLDDemoEffectDefinition* BurnEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Burn);
+    // #198 elements and their riders on the same hits.
+    const FLDDemoEffectDefinition* WetEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Wet);
+    const FLDDemoEffectDefinition* ElectrifyEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Electrify);
+    const FLDDemoEffectDefinition* GrievousEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Grievous);
+    const FLDDemoEffectDefinition* ChainEffect=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChainBounce);
     const bool bHostile=DamageEffect || RootEffect || SlowEffect || DisarmEffect || StunEffect
-        || SilenceEffect || BreachEffect || BurnEffect || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
+        || SilenceEffect || BreachEffect || BurnEffect || WetEffect || ElectrifyEffect || GrievousEffect
+        || LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::Knockback);
+    if (ChainEffect && TargetDef.Mode!=ELDDemoTargetMode::Unit)
+    { Error=TEXT("A chain needs a unit target to start from."); return false; }
     const bool bAreaMode=TargetDef.Mode==ELDDemoTargetMode::Self || TargetDef.Mode==ELDDemoTargetMode::DirectionDash;
     if (bHostile && bAreaMode && !AreaEffect && !LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::DashContact))
     {
@@ -1177,7 +1186,14 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::Silence:
         case ELDDemoEffectOp::Breach:
         case ELDDemoEffectOp::Burn:
-            // Carried by the hit payload below.
+        case ELDDemoEffectOp::Wet:
+        case ELDDemoEffectOp::Electrify:
+        case ELDDemoEffectOp::Grievous:
+        case ELDDemoEffectOp::ChainBounce:
+            // Carried by the hit payload (and the S10 chain) below.
+            break;
+        case ELDDemoEffectOp::Brace:
+            if (!ReleaseBrace(Body,Effect,Source,EffectId,Action.Token,Now,Error)) { return false; }
             break;
         case ELDDemoEffectOp::Root:
         case ELDDemoEffectOp::Slow:
@@ -1190,6 +1206,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         case ELDDemoEffectOp::ZoneSlow:
         case ELDDemoEffectOp::ZoneDamage:
         case ELDDemoEffectOp::ZoneBurn:
+        case ELDDemoEffectOp::ZoneWet:
+        case ELDDemoEffectOp::ZoneHaste:
         case ELDDemoEffectOp::ChannelCone:
         case ELDDemoEffectOp::GroundImpact:
         case ELDDemoEffectOp::ContactTrap:
@@ -1231,13 +1249,12 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
         Template.SilenceDurationMs=SilenceEffect ? SilenceEffect->DurationMs : 0;
         Template.BreachStacks=BreachEffect ? BreachEffect->Count : 0;
         Template.BurnStacks=BurnEffect ? BurnEffect->Count : 0;
-        if (BurnEffect)
-        {
-            FLDCombatBurnLayer Layer;
-            if (!BurnLayerOf(Body,Source,Layer,Error)) { return false; }
-            Template.BurnLevel=Layer.Level;
-            Template.BurnAPP2=Layer.SourceAPP2;
-        }
+        // #198 elements of every hit of this release, with the caster's snapshot now; S21's cut of new heals and shields.
+        Template.bApplyWet=WetEffect!=nullptr;
+        Template.bApplyElectric=ElectrifyEffect!=nullptr;
+        if (!StampElementSnapshot(Body,Template,Error)) { return false; }
+        Template.GrievousBp=GrievousEffect ? GrievousEffect->RatioBp : 0;
+        Template.GrievousMs=GrievousEffect ? GrievousEffect->DurationMs : 0;
         // Abilities trigger no on-hit effects.
         if (!StampSourceTerms(Body,Template,Error) || !SnapshotOnHit(Body,0,Template,Error)) { return false; }
         FillMechanicsTemplate(*ValuesDef,ReleaseFoot,Template);
@@ -1279,7 +1296,27 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
             Projectile.Payload=Template;
             Projectiles.Add(Projectile);
         }
-        else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::Unit) { Deliver(UnitTarget); }
+        else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::Unit)
+        {
+            Deliver(UnitTarget);
+            if (ChainEffect && !StartChain(Template,UnitTarget,TargetFoot,*ChainEffect,Now,Error)) { return false; }
+        }
+        else if (!bHandled && TargetDef.Mode==ELDDemoTargetMode::DirectionLine)
+        {
+            // #198 S09: every legal body in the band, pushed along the line (away from a point behind its own foot).
+            TArray<TPair<FLDCombatBodyRef,FVector>> Line;
+            if (!CollectLineTargets(ReleaseFoot,Action.Direction,LDCA::ToDouble(TargetDef.RangeCm),
+                LDCA::ToDouble(TargetDef.LineHalfWidthCm),Body,Line,Error)) { return false; }
+            const FVector Along=FVector(Action.Direction.X,Action.Direction.Y,0).GetSafeNormal();
+            for (const TPair<FLDCombatBodyRef,FVector>& Struck : Line)
+            {
+                FLDCombatHit Hit=Template;
+                Hit.HitId=FGuid::NewGuid();
+                Hit.Target=Struck.Key;
+                if (Hit.KnockbackCm>0) { Hit.bKnockbackFromAnchor=true; Hit.KnockbackAnchorCm=Struck.Value-Along*100.; }
+                PendingHits.Add(MoveTemp(Hit));
+            }
+        }
         else if (!bHandled)
         {
             for (const FLDCombatBodyRef& Target : AreaTargets) { Deliver(Target); }

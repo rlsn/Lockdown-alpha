@@ -78,9 +78,9 @@
           "opcode": 8
         },
         {
-          "count": 1,
           "op": "dash_contact",
-          "opcode": 82
+          "opcode": 82,
+          "targets": "First"
         },
         {
           "ad_ratio": {
@@ -190,6 +190,58 @@
     },
     {
       "cooldown": {
+        "ms": 16000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_brace",
+      "effects": [
+        {
+          "base": {
+            "p2": 5000,
+            "unit": "points"
+          },
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "limit": {
+            "p2": 10000,
+            "unit": "points"
+          },
+          "op": "brace",
+          "opcode": 93,
+          "radius": {
+            "denominator": 1,
+            "numerator": 300,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          },
+          "record_ratio": {
+            "bp": 6000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "active_brace",
+      "mana_cost": {
+        "p2": 5500,
+        "unit": "mp"
+      },
+      "native_id": 129,
+      "opening": false,
+      "target": {
+        "mode": "Self"
+      },
+      "windup": {
+        "ms": 100,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
         "ms": 12000,
         "unit": "ms"
       },
@@ -261,6 +313,92 @@
     },
     {
       "cooldown": {
+        "ms": 13000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_charged_ram",
+      "effects": [
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 450,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 300,
+            "unit": "ms"
+          },
+          "op": "dash",
+          "opcode": 8
+        },
+        {
+          "ap_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 6000,
+            "unit": "hp"
+          },
+          "duration": {
+            "ms": 2000,
+            "unit": "ms"
+          },
+          "max_hp_ratio": {
+            "bp": 400,
+            "unit": "ratio"
+          },
+          "op": "shield",
+          "opcode": 2
+        },
+        {
+          "op": "dash_contact",
+          "opcode": 82,
+          "targets": "Every"
+        },
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 3500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 3500,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "op": "electrify",
+          "opcode": 91
+        }
+      ],
+      "id": "active_charged_ram",
+      "mana_cost": {
+        "p2": 5500,
+        "unit": "mp"
+      },
+      "native_id": 128,
+      "opening": true,
+      "target": {
+        "mode": "DirectionDash"
+      },
+      "windup": {
+        "ms": 100,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
         "ms": 14000,
         "unit": "ms"
       },
@@ -313,6 +451,85 @@
       },
       "windup": {
         "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
+        "ms": 14000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_dirty_puddle",
+      "effects": [
+        {
+          "count": 4,
+          "delay": {
+            "ms": 0,
+            "unit": "ms"
+          },
+          "duration": {
+            "ms": 4000,
+            "unit": "ms"
+          },
+          "interval": {
+            "ms": 1000,
+            "unit": "ms"
+          },
+          "op": "zone",
+          "opcode": 50,
+          "radius": {
+            "denominator": 1,
+            "numerator": 220,
+            "unit": "cm"
+          }
+        },
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 1500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 1800,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "op": "zone_damage",
+          "opcode": 54
+        },
+        {
+          "op": "zone_wet",
+          "opcode": 94
+        },
+        {
+          "op": "zone_haste",
+          "opcode": 95,
+          "ratio": {
+            "bp": 1500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "active_dirty_puddle",
+      "mana_cost": {
+        "p2": 6000,
+        "unit": "mp"
+      },
+      "native_id": 130,
+      "opening": true,
+      "target": {
+        "mode": "GroundPoint",
+        "range": {
+          "denominator": 1,
+          "numerator": 600,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 250,
         "unit": "ms"
       }
     },
@@ -458,6 +675,77 @@
       },
       "windup": {
         "ms": 150,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
+        "ms": 11000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_hose_down",
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 5500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 5500,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "distance": {
+            "denominator": 1,
+            "numerator": 180,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 150,
+            "unit": "ms"
+          },
+          "op": "knockback",
+          "opcode": 40
+        },
+        {
+          "op": "wet",
+          "opcode": 90
+        }
+      ],
+      "id": "active_hose_down",
+      "mana_cost": {
+        "p2": 5000,
+        "unit": "mp"
+      },
+      "native_id": 126,
+      "opening": true,
+      "target": {
+        "half_width": {
+          "denominator": 1,
+          "numerator": 80,
+          "unit": "cm"
+        },
+        "mode": "DirectionLine",
+        "range": {
+          "denominator": 1,
+          "numerator": 550,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 300,
         "unit": "ms"
       }
     },
@@ -863,6 +1151,89 @@
     },
     {
       "cooldown": {
+        "ms": 12000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_sock_shot",
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 6500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 7000,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "attack_slow",
+          "opcode": 80,
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          }
+        },
+        {
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "grievous",
+          "opcode": 96,
+          "ratio": {
+            "bp": 3500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "active_sock_shot",
+      "mana_cost": {
+        "p2": 5000,
+        "unit": "mp"
+      },
+      "native_id": 116,
+      "opening": true,
+      "target": {
+        "mode": "DirectionProjectile",
+        "projectile_radius": {
+          "denominator": 1,
+          "numerator": 40,
+          "unit": "cm"
+        },
+        "projectile_speed": {
+          "denominator": 1,
+          "numerator": 1300,
+          "unit": "cm/s"
+        },
+        "range": {
+          "denominator": 1,
+          "numerator": 650,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 150,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
         "ms": 15000,
         "unit": "ms"
       },
@@ -1020,6 +1391,77 @@
       },
       "windup": {
         "ms": 200,
+        "unit": "ms"
+      }
+    },
+    {
+      "cooldown": {
+        "ms": 11000,
+        "unit": "ms"
+      },
+      "cooldown_family": "cd_zap",
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 5500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 6000,
+            "unit": "points"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "op": "damage",
+          "opcode": 1
+        },
+        {
+          "op": "electrify",
+          "opcode": 91
+        },
+        {
+          "count": 2,
+          "interval": {
+            "ms": 150,
+            "unit": "ms"
+          },
+          "op": "chain_bounce",
+          "opcode": 92,
+          "radius": {
+            "denominator": 1,
+            "numerator": 350,
+            "unit": "cm"
+          },
+          "ratio": {
+            "bp": 7000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "active_zap",
+      "mana_cost": {
+        "p2": 5500,
+        "unit": "mp"
+      },
+      "native_id": 127,
+      "opening": true,
+      "target": {
+        "mode": "Unit",
+        "range": {
+          "denominator": 1,
+          "numerator": 650,
+          "unit": "cm"
+        }
+      },
+      "windup": {
+        "ms": 250,
         "unit": "ms"
       }
     }
@@ -1568,6 +2010,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_brace.description",
+      "description_text": "[brace.duration] 秒内受到的伤害减少 [brace.ratio]%，仍能移动、普攻和施法；记录减掉的伤害（最多 [brace.limit]），结束时对身边 [brace.radius] 厘米反震 [brace.amount] 加记录量 [brace.secondary_ratio]% 的魔法伤害。",
+      "icon_id": "icon_active_brace",
+      "id": "active_brace",
+      "name_key": "active_brace.name",
+      "name_text": "顶着揍",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_calculus_drop.description",
       "description_text": "板砖 [ground_impact.delay] 秒后砸下，中心 [damage.amount] 魔法伤害，外圈 [ground_impact.ratio]%。",
       "icon_id": "icon_active_calculus_drop",
@@ -1577,12 +2028,30 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_charged_ram.description",
+      "description_text": "冲撞 [dash.distance] 厘米，出发得 [shield.amount] 护盾，持续 [shield.duration] 秒；撞到的每个敌人受 [damage.amount] 魔法伤害并感电。",
+      "icon_id": "icon_active_charged_ram",
+      "id": "active_charged_ram",
+      "name_key": "active_charged_ram.name",
+      "name_text": "带电撞你",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_crotch_grab.description",
       "description_text": "眩晕目标 [stun.duration] 秒，造成 [damage.amount] 物理伤害。",
       "icon_id": "icon_active_crotch_grab",
       "id": "active_crotch_grab",
       "name_key": "active_crotch_grab.name",
       "name_text": "掏蛋子",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_dirty_puddle.description",
+      "description_text": "泼一滩脏水，保留 [zone.duration] 秒，每秒一跳：[zone_damage.amount] 魔法伤害并潮湿；自己在水里移速 +[zone_haste.ratio]%。",
+      "icon_id": "icon_active_dirty_puddle",
+      "id": "active_dirty_puddle",
+      "name_key": "active_dirty_puddle.name",
+      "name_text": "满地泼脏水",
       "namespace": "DemoContent"
     },
     {
@@ -1601,6 +2070,15 @@
       "id": "active_flyer_trap",
       "name_key": "active_flyer_trap.name",
       "name_text": "踩一脚试试",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "active_hose_down.description",
+      "description_text": "朝前滋一道水，沿途敌人受 [damage.amount] 魔法伤害，被冲开 [knockback.distance] 厘米并潮湿。",
+      "icon_id": "icon_active_hose_down",
+      "id": "active_hose_down",
+      "name_key": "active_hose_down.name",
+      "name_text": "滋你一脸",
       "namespace": "DemoContent"
     },
     {
@@ -1658,6 +2136,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_sock_shot.description",
+      "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，新获得的治疗和护盾降低 [grievous.ratio]%，持续 [grievous.duration] 秒。",
+      "icon_id": "icon_active_sock_shot",
+      "id": "active_sock_shot",
+      "name_key": "active_sock_shot.name",
+      "name_text": "馊水糊脸",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "active_stare_down.description",
       "description_text": "嘲讽身边对手 [taunt.duration] 秒，自己护甲和魔抗 +[timed_stat_bonus.ArmorFlat]，持续 [timed_stat_bonus.duration] 秒。",
       "icon_id": "icon_active_stare_down",
@@ -1685,6 +2172,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "active_zap.description",
+      "description_text": "电一个敌人，造成 [damage.amount] 魔法伤害并感电；再弹 [chain_bounce.count] 个附近不同敌人，每跳保留上一跳 [chain_bounce.ratio]% 伤害。",
+      "icon_id": "icon_active_zap",
+      "id": "active_zap",
+      "name_key": "active_zap.name",
+      "name_text": "电你个哆嗦",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "attack_slowed.description",
       "description_text": "挥拳暂时变慢，不是缴械，仍可攻击和施法。",
       "icon_id": "icon_attack_slowed",
@@ -1694,8 +2190,17 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "braced.description",
+      "description_text": "受到的伤害减少，结束时反震。",
+      "icon_id": "icon_braced",
+      "id": "braced",
+      "name_key": "braced.name",
+      "name_text": "顶着揍中",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "burn.description",
-      "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。",
+      "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；每层各烧各的，到时间各自熄灭。",
       "icon_id": "icon_burn",
       "id": "burn",
       "name_key": "burn.name",
@@ -1728,6 +2233,15 @@
       "id": "disarm",
       "name_key": "disarm.name",
       "name_text": "缴械",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "electrified.description",
+      "description_text": "再受伤害时向附近另一个敌人放电；遇水导电，遇火过载。",
+      "icon_id": "icon_electrified",
+      "id": "electrified",
+      "name_key": "electrified.name",
+      "name_text": "感电",
       "namespace": "DemoContent"
     },
     {
@@ -1839,6 +2353,15 @@
       "namespace": "DemoContent"
     },
     {
+      "description_key": "soured.description",
+      "description_text": "新获得的治疗和护盾降低。",
+      "icon_id": "icon_soured",
+      "id": "soured",
+      "name_key": "soured.name",
+      "name_text": "馊臭",
+      "namespace": "DemoContent"
+    },
+    {
       "description_key": "stat_agility.description",
       "description_text": "每点攻速 +[per_point.AttackSpeedBonusRatio]%、移速 +[per_point.MoveSpeedBonusRatio]%。",
       "icon_id": "icon_stat_agility",
@@ -1908,6 +2431,15 @@
       "id": "taunt",
       "name_key": "taunt.name",
       "name_text": "嘲讽",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "wet.description",
+      "description_text": "移速降低；遇火起雾，遇电导电。",
+      "icon_id": "icon_wet",
+      "id": "wet",
+      "name_key": "wet.name",
+      "name_text": "潮湿",
       "namespace": "DemoContent"
     }
   ],
@@ -2078,8 +2610,73 @@
       "ms": 500,
       "unit": "ms"
     },
+    "COMBAT.ConductRadiusCm": {
+      "denominator": 1,
+      "numerator": 450,
+      "unit": "cm"
+    },
+    "COMBAT.ConductSlow": {
+      "bp": 3000,
+      "unit": "ratio"
+    },
+    "COMBAT.ConductSlowSec": {
+      "ms": 1500,
+      "unit": "ms"
+    },
+    "COMBAT.DischargeIntervalSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "COMBAT.DischargeRadiusCm": {
+      "denominator": 1,
+      "numerator": 350,
+      "unit": "cm"
+    },
+    "COMBAT.ElectrifiedSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.FogIntervalSec": {
+      "ms": 1000,
+      "unit": "ms"
+    },
+    "COMBAT.FogRadiusCm": {
+      "denominator": 1,
+      "numerator": 250,
+      "unit": "cm"
+    },
+    "COMBAT.FogSec": {
+      "ms": 3000,
+      "unit": "ms"
+    },
     "COMBAT.LifestealCap": {
       "bp": 3500,
+      "unit": "ratio"
+    },
+    "COMBAT.OverloadBreachStacks": 2,
+    "COMBAT.OverloadRadiusCm": {
+      "denominator": 1,
+      "numerator": 200,
+      "unit": "cm"
+    },
+    "COMBAT.ReactionAPRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "COMBAT.ReactionBase": {
+      "p2": 2000,
+      "unit": "points"
+    },
+    "COMBAT.ReactionPerLevel": {
+      "p2": 100,
+      "unit": "points"
+    },
+    "COMBAT.WetSec": {
+      "ms": 4000,
+      "unit": "ms"
+    },
+    "COMBAT.WetSlow": {
+      "bp": 1500,
       "unit": "ratio"
     },
     "DORM.MaxHPRatioPerSec": {

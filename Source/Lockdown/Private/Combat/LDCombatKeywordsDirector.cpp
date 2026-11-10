@@ -35,20 +35,6 @@ int32 ALDCombatDirector::GrowthLevelOf(const FLDBodyCombatState& Body) const
     return Record ? FMath::Max<int32>(Record->Build.Level,1) : 1;
 }
 
-bool ALDCombatDirector::BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out,
-    FString& Error) const
-{
-    Out=FLDCombatBurnLayer();
-    Out.SourceEntity=Source.Victim.EntityId;
-    Out.SourceBody={Source.Victim,Source.Identity};
-    Out.CreditOwner=Source.Victim.Kind==ELDVictimKind::Contender ? Source.Victim.EntityId : FGuid();
-    Out.Source=Ref;
-    Out.Level=GrowthLevelOf(Source);
-    Out.SourceAPP2=Source.AttributeProjection.Final.APP2;
-    Error.Reset();
-    return true;
-}
-
 bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source,
     int64 NowMs, FString& Error)
 {
@@ -61,42 +47,18 @@ bool ALDCombatDirector::ApplyKeywordStacks(FLDBodyCombatState& Target, const FLD
         bChanged=true;
         RecordAssistContribution(Target,Credit,NowMs);
     };
-    const auto Burn=[&](int32 Stacks, const FLDCombatBurnLayer& Layer)
-    {
-        if (Stacks<=0 || !LDCombatKeywords::ApplyBurn(Target.Burn,Layer,Stacks,NowMs,Terms)) { return; }
-        bChanged=true;
-        RecordAssistContribution(Target,Layer.CreditOwner,NowMs);
-    };
-    // The hit's own stacks (an active's payload or a zone pulse), its burn snapshotted at release.
+    // The hit's own stacks (an active's payload, a zone pulse or an overload). Fire is an element (ApplyElements).
     Breach(Hit.BreachStacks,Hit.CreditOwner);
-    if (Hit.BurnStacks>0)
-    {
-        FLDCombatBurnLayer Layer;
-        Layer.SourceEntity=Hit.SourceEntity;
-        Layer.SourceBody=Hit.SourceBody;
-        Layer.CreditOwner=Hit.CreditOwner;
-        Layer.Source=Hit.Source;
-        Layer.Level=Hit.BurnLevel;
-        Layer.SourceAPP2=Hit.BurnAPP2;
-        Burn(Hit.BurnStacks,Layer);
-    }
-    // The living source's held triggers: basic_stacks on a primary basic hit, stacks on a learned Q/W hit. Ticks, pulses,
-    // reflections, added damage and shield-triggered answers are neither.
+    // The living source's held breach triggers: basic_stacks on a primary basic hit, stacks on a learned Q/W/E hit. Ticks,
+    // pulses, settles, reflections, added damage and shield-triggered answers are neither.
     const bool bBasic=Hit.HitClass==ELDCombatHitClass::BasicPrimary;
     const bool bSkill=Hit.HitClass==ELDCombatHitClass::Ability && Hit.Source.Kind==ELDCombatSourceKind::Learned && Hit.Token!=0;
     if (Source && !Source->bPendingDeath && (bBasic || bSkill) && !Hit.bReflect && !Hit.bAddedDamage && !Hit.bPeriodic
-        && !Hit.bFromShieldTrigger && !Hit.bSuppressSkillTriggers)
+        && !Hit.bStatusSettle && !Hit.bFromShieldTrigger && !Hit.bSuppressSkillTriggers)
     {
         TArray<FLDPassiveEffectRef> Passives;
         if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Breach,Passives,Error)) { return false; }
         for (const FLDPassiveEffectRef& Ref : Passives) { Breach(bBasic ? Ref.Effect->BasicCount : Ref.Effect->Count,Hit.CreditOwner); }
-        if (!CollectPassiveEffects(Source->AttributeProjection,ELDDemoEffectOp::Burn,Passives,Error)) { return false; }
-        for (const FLDPassiveEffectRef& Ref : Passives)
-        {
-            FLDCombatBurnLayer Layer;
-            if (!BurnLayerOf(*Source,Ref.Source,Layer,Error)) { return false; }
-            Burn(bBasic ? Ref.Effect->BasicCount : Ref.Effect->Count,Layer);
-        }
     }
     if (bChanged)
     {
@@ -116,10 +78,10 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
         FLDBodyCombatState& Body=Pair.Value;
         if (!Pair.Key.IsValid() || Body.bPendingDeath || Body.Burn.Layers.IsEmpty()) { continue; }
         bool bChanged=false;
-        while (Body.Burn.NextTickAtMs>0 && Body.Burn.NextTickAtMs<=NowMs && Body.Burn.NextTickAtMs<=Body.Burn.ExpiresAtMs
-            && !Body.Burn.Layers.IsEmpty())
+        // #198: every layer ticks on its own timer; layers ticking at the same instant for one applier and source merge.
+        int64 TickAtMs=0;
+        while (LDCombatKeywords::PopBurnTick(Body.Burn,NowMs,Terms,TickAtMs,Shares))
         {
-            LDCombatKeywords::BurnTickShares(Body.Burn,Terms,Shares);
             for (const FLDBurnTickShare& Share : Shares)
             {
                 if (Share.DamageP2<=0) { continue; }
@@ -147,12 +109,8 @@ bool ALDCombatDirector::AdvanceBurns(int64 NowMs, FString& Error)
                     }
                 }
             }
-            if (Body.Burn.NextTickAtMs>MAX_int64-Terms.BurnTickMs) { Error=TEXT("A burn tick left the authority clock."); return false; }
-            Body.Burn.NextTickAtMs+=Terms.BurnTickMs;
             bChanged=true;
         }
-        // The last tick falls on the shared deadline; then the burn ends.
-        if (Body.Burn.NextTickAtMs>Body.Burn.ExpiresAtMs) { Body.Burn=FLDCombatBurn(); }
         if (bChanged)
         {
             ++Body.StateRevision;
@@ -250,5 +208,7 @@ void ALDCombatDirector::AppendKeywordStatuses(const FLDBodyCombatState& Body, in
     if (const int32 Stacks=LDCombatKeywords::BreachStacks(Body.SharedBreach,NowMs); Stacks>0)
     { Out.Add({uint8(ELDDemoStatusId::Exposed),uint8(FMath::Clamp(Stacks,1,255)),Body.SharedBreach.ExpiresAtMs}); }
     if (LDCombatKeywords::BurnActive(Body.Burn,NowMs))
-    { Out.Add({uint8(ELDDemoStatusId::Burn),uint8(FMath::Clamp(Body.Burn.Layers.Num(),1,255)),Body.Burn.ExpiresAtMs}); }
+    { Out.Add({uint8(ELDDemoStatusId::Burn),uint8(FMath::Clamp(Body.Burn.Layers.Num(),1,255)),LDCombatKeywords::BurnExpiresAtMs(Body.Burn)}); }
+    // #198: wet, electrified, the S16 stance and the S21 cut.
+    AppendElementStatuses(Body,NowMs,Out);
 }

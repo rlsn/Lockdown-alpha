@@ -122,7 +122,23 @@
     "COMBAT.BurnTickSec": {"unit": "s", "value": 0.5},
     "COMBAT.BurnSec": {"unit": "s", "value": 3},
     "COMBAT.BurnMaxStacks": 5,
-    "COMBAT.LifestealCap": {"unit": "ratio", "value": 0.35}
+    "COMBAT.LifestealCap": {"unit": "ratio", "value": 0.35},
+    "COMBAT.WetSec": {"unit": "s", "value": 4},
+    "COMBAT.WetSlow": {"unit": "ratio", "value": 0.15},
+    "COMBAT.ElectrifiedSec": {"unit": "s", "value": 4},
+    "COMBAT.DischargeRadiusCm": {"unit": "cm", "value": 350},
+    "COMBAT.DischargeIntervalSec": {"unit": "s", "value": 1},
+    "COMBAT.ReactionBase": {"unit": "points", "value": 20},
+    "COMBAT.ReactionPerLevel": {"unit": "points", "value": 1},
+    "COMBAT.ReactionAPRatio": {"unit": "ratio", "value": 0.2},
+    "COMBAT.FogRadiusCm": {"unit": "cm", "value": 250},
+    "COMBAT.FogSec": {"unit": "s", "value": 3},
+    "COMBAT.FogIntervalSec": {"unit": "s", "value": 1},
+    "COMBAT.ConductRadiusCm": {"unit": "cm", "value": 450},
+    "COMBAT.ConductSlow": {"unit": "ratio", "value": 0.3},
+    "COMBAT.ConductSlowSec": {"unit": "s", "value": 1.5},
+    "COMBAT.OverloadRadiusCm": {"unit": "cm", "value": 200},
+    "COMBAT.OverloadBreachStacks": 2
   },
   "formulas": {
     "StatProjection": "AddFlatThenAdditivePercent",
@@ -228,7 +244,7 @@
       "id": "active_apology_slide", "opening": true, "cooldown_family": "cd_apology_slide",
       "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.15},
       "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 11},
-      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.3}}, {"op": "dash_contact", "count": 1}, {"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.5}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}]
+      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 400}, "duration": {"unit": "s", "value": 0.3}}, {"op": "dash_contact", "targets": "First"}, {"op": "damage", "base": {"unit": "points", "value": 65}, "ad_ratio": {"unit": "ratio", "value": 0.5}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Physical"}, {"op": "slow", "ratio": {"unit": "ratio", "value": 0.25}, "duration": {"unit": "s", "value": 1.5}}]
     },
     {
       "id": "active_not_mad", "opening": false, "cooldown_family": "cd_not_mad",
@@ -265,6 +281,42 @@
       "target": {"mode": "DirectionCone", "range": {"unit": "cm", "value": 450}, "angle": {"unit": "degrees", "value": 70}}, "windup": {"unit": "s", "value": 0.2},
       "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 10},
       "effects": [{"op": "channel_cone", "interval": {"unit": "s", "value": 0.3}, "count": 3, "slow": {"unit": "ratio", "value": 0.3}, "slow_duration": {"unit": "s", "value": 1.2}}, {"op": "damage", "base": {"unit": "points", "value": 40}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.3}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}]
+    },
+    {
+      "id": "active_hose_down", "opening": true, "cooldown_family": "cd_hose_down",
+      "target": {"mode": "DirectionLine", "range": {"unit": "cm", "value": 550}, "half_width": {"unit": "cm", "value": 80}}, "windup": {"unit": "s", "value": 0.3},
+      "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 11},
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 55}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.55}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "knockback", "distance": {"unit": "cm", "value": 180}, "duration": {"unit": "s", "value": 0.15}}, {"op": "wet"}]
+    },
+    {
+      "id": "active_zap", "opening": true, "cooldown_family": "cd_zap",
+      "target": {"mode": "Unit", "range": {"unit": "cm", "value": 650}}, "windup": {"unit": "s", "value": 0.25},
+      "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 11},
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 60}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.55}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}, {"op": "chain_bounce", "count": 2, "radius": {"unit": "cm", "value": 350}, "ratio": {"unit": "ratio", "value": 0.7}, "interval": {"unit": "s", "value": 0.15}}]
+    },
+    {
+      "id": "active_charged_ram", "opening": true, "cooldown_family": "cd_charged_ram",
+      "target": {"mode": "DirectionDash"}, "windup": {"unit": "s", "value": 0.1},
+      "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 13},
+      "effects": [{"op": "dash", "distance": {"unit": "cm", "value": 450}, "duration": {"unit": "s", "value": 0.3}}, {"op": "shield", "base": {"unit": "hp", "value": 60}, "ap_ratio": {"unit": "ratio", "value": 0}, "duration": {"unit": "s", "value": 2}, "max_hp_ratio": {"unit": "ratio", "value": 0.04}}, {"op": "dash_contact", "targets": "Every"}, {"op": "damage", "base": {"unit": "points", "value": 35}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.35}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "electrify"}]
+    },
+    {
+      "id": "active_brace", "opening": false, "cooldown_family": "cd_brace",
+      "target": {"mode": "Self"}, "windup": {"unit": "s", "value": 0.1},
+      "mana_cost": {"unit": "mp", "value": 55}, "cooldown": {"unit": "s", "value": 16},
+      "effects": [{"op": "brace", "duration": {"unit": "s", "value": 3}, "ratio": {"unit": "ratio", "value": 0.2}, "limit": {"unit": "points", "value": 100}, "radius": {"unit": "cm", "value": 300}, "base": {"unit": "points", "value": 50}, "record_ratio": {"unit": "ratio", "value": 0.6}}]
+    },
+    {
+      "id": "active_dirty_puddle", "opening": true, "cooldown_family": "cd_dirty_puddle",
+      "target": {"mode": "GroundPoint", "range": {"unit": "cm", "value": 600}}, "windup": {"unit": "s", "value": 0.25},
+      "mana_cost": {"unit": "mp", "value": 60}, "cooldown": {"unit": "s", "value": 14},
+      "effects": [{"op": "zone", "radius": {"unit": "cm", "value": 220}, "duration": {"unit": "s", "value": 4}, "interval": {"unit": "s", "value": 1}, "delay": {"unit": "s", "value": 0}, "count": 4}, {"op": "zone_damage", "base": {"unit": "points", "value": 18}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.15}, "damage_type": "Magical"}, {"op": "zone_wet"}, {"op": "zone_haste", "ratio": {"unit": "ratio", "value": 0.15}}]
+    },
+    {
+      "id": "active_sock_shot", "opening": true, "cooldown_family": "cd_sock_shot",
+      "target": {"mode": "DirectionProjectile", "range": {"unit": "cm", "value": 650}, "projectile_radius": {"unit": "cm", "value": 40}, "projectile_speed": {"unit": "cm/s", "value": 1300}}, "windup": {"unit": "s", "value": 0.15},
+      "mana_cost": {"unit": "mp", "value": 50}, "cooldown": {"unit": "s", "value": 12},
+      "effects": [{"op": "damage", "base": {"unit": "points", "value": 70}, "ad_ratio": {"unit": "ratio", "value": 0}, "ap_ratio": {"unit": "ratio", "value": 0.65}, "max_hp_ratio": {"unit": "ratio", "value": 0}, "damage_type": "Magical"}, {"op": "attack_slow", "ratio": {"unit": "ratio", "value": 0.2}, "duration": {"unit": "s", "value": 3}}, {"op": "grievous", "ratio": {"unit": "ratio", "value": 0.35}, "duration": {"unit": "s", "value": 3}}]
     }
   ],
   "stats": [
@@ -375,6 +427,12 @@
     {"id": "active_calculus_drop", "namespace": "DemoContent", "name_key": "active_calculus_drop.name", "name_text": "板砖糊脸", "description_key": "active_calculus_drop.description", "description_text": "板砖 [ground_impact.delay] 秒后砸下，中心 [damage.amount] 魔法伤害，外圈 [ground_impact.ratio]%。", "icon_id": "icon_active_calculus_drop"},
     {"id": "active_flyer_trap", "namespace": "DemoContent", "name_key": "active_flyer_trap.name", "name_text": "踩一脚试试", "description_key": "active_flyer_trap.description", "description_text": "放一张陷阱，保留 [contact_trap.duration] 秒；敌人踩近就炸，造成 [damage.amount] 魔法伤害并减速 [slow.ratio]%。限一张。", "icon_id": "icon_active_flyer_trap"},
     {"id": "active_open_mic", "namespace": "DemoContent", "name_key": "active_open_mic.name", "name_text": "扯嗓子喷你", "description_key": "active_open_mic.description", "description_text": "朝前喷 [channel_cone.count] 波，各造成 [damage.amount] 魔法伤害；末波减速 [channel_cone.secondary_ratio]%，[channel_cone.secondary_duration] 秒。可移动，换招中断。", "icon_id": "icon_active_open_mic"},
+    {"id": "active_hose_down", "namespace": "DemoContent", "name_key": "active_hose_down.name", "name_text": "滋你一脸", "description_key": "active_hose_down.description", "description_text": "朝前滋一道水，沿途敌人受 [damage.amount] 魔法伤害，被冲开 [knockback.distance] 厘米并潮湿。", "icon_id": "icon_active_hose_down"},
+    {"id": "active_zap", "namespace": "DemoContent", "name_key": "active_zap.name", "name_text": "电你个哆嗦", "description_key": "active_zap.description", "description_text": "电一个敌人，造成 [damage.amount] 魔法伤害并感电；再弹 [chain_bounce.count] 个附近不同敌人，每跳保留上一跳 [chain_bounce.ratio]% 伤害。", "icon_id": "icon_active_zap"},
+    {"id": "active_charged_ram", "namespace": "DemoContent", "name_key": "active_charged_ram.name", "name_text": "带电撞你", "description_key": "active_charged_ram.description", "description_text": "冲撞 [dash.distance] 厘米，出发得 [shield.amount] 护盾，持续 [shield.duration] 秒；撞到的每个敌人受 [damage.amount] 魔法伤害并感电。", "icon_id": "icon_active_charged_ram"},
+    {"id": "active_brace", "namespace": "DemoContent", "name_key": "active_brace.name", "name_text": "顶着揍", "description_key": "active_brace.description", "description_text": "[brace.duration] 秒内受到的伤害减少 [brace.ratio]%，仍能移动、普攻和施法；记录减掉的伤害（最多 [brace.limit]），结束时对身边 [brace.radius] 厘米反震 [brace.amount] 加记录量 [brace.secondary_ratio]% 的魔法伤害。", "icon_id": "icon_active_brace"},
+    {"id": "active_dirty_puddle", "namespace": "DemoContent", "name_key": "active_dirty_puddle.name", "name_text": "满地泼脏水", "description_key": "active_dirty_puddle.description", "description_text": "泼一滩脏水，保留 [zone.duration] 秒，每秒一跳：[zone_damage.amount] 魔法伤害并潮湿；自己在水里移速 +[zone_haste.ratio]%。", "icon_id": "icon_active_dirty_puddle"},
+    {"id": "active_sock_shot", "namespace": "DemoContent", "name_key": "active_sock_shot.name", "name_text": "馊水糊脸", "description_key": "active_sock_shot.description", "description_text": "甩出馊袜子，首个敌人受 [damage.amount] 魔法伤害，攻速降低 [attack_slow.ratio]%，新获得的治疗和护盾降低 [grievous.ratio]%，持续 [grievous.duration] 秒。", "icon_id": "icon_active_sock_shot"},
     {"id": "stat_physique", "namespace": "DemoContent", "name_key": "stat_physique.name", "name_text": "体格", "description_key": "stat_physique.description", "description_text": "每点最大生命 +[per_point.MaxHPFlat]、生命回复 +[per_point.HPRegenFlat]/秒。", "icon_id": "icon_stat_physique"},
     {"id": "stat_thick_skin", "namespace": "DemoContent", "name_key": "stat_thick_skin.name", "name_text": "脸皮", "description_key": "stat_thick_skin.description", "description_text": "每点护甲和魔抗各 +[per_point.ArmorFlat]。", "icon_id": "icon_stat_thick_skin"},
     {"id": "stat_strength", "namespace": "DemoContent", "name_key": "stat_strength.name", "name_text": "力道", "description_key": "stat_strength.description", "description_text": "每点攻击力 +[per_point.ADFlat]、暴击率 +[per_point.CritChanceBonusRatio]%。", "icon_id": "icon_stat_strength"},
@@ -383,7 +441,11 @@
     {"id": "attack_slowed", "namespace": "DemoContent", "name_key": "attack_slowed.name", "name_text": "攻速降低", "description_key": "attack_slowed.description", "description_text": "挥拳暂时变慢，不是缴械，仍可攻击和施法。", "icon_id": "icon_attack_slowed"},
     {"id": "knockback", "namespace": "DemoContent", "name_key": "knockback.name", "name_text": "击退", "description_key": "knockback.description", "description_text": "被一股力推出去：飞出去的这一小会儿不能移动、冲刺、普攻和放技能。", "icon_id": "icon_knockback"},
     {"id": "silence", "namespace": "DemoContent", "name_key": "silence.name", "name_text": "沉默", "description_key": "silence.description", "description_text": "号被封了：不能放技能，但仍可以移动、冲刺和普攻；正在准备的技能会被打断。", "icon_id": "icon_silence"},
-    {"id": "burn", "namespace": "DemoContent", "name_key": "burn.name", "name_text": "灼烧", "description_key": "burn.description", "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；新叠一层会刷新时间。", "icon_id": "icon_burn"},
+    {"id": "burn", "namespace": "DemoContent", "name_key": "burn.name", "name_text": "灼烧", "description_key": "burn.description", "description_text": "身上着火了：持续受到魔法伤害，层数越多烧得越疼；每层各烧各的，到时间各自熄灭。", "icon_id": "icon_burn"},
+    {"id": "wet", "namespace": "DemoContent", "name_key": "wet.name", "name_text": "潮湿", "description_key": "wet.description", "description_text": "移速降低；遇火起雾，遇电导电。", "icon_id": "icon_wet"},
+    {"id": "electrified", "namespace": "DemoContent", "name_key": "electrified.name", "name_text": "感电", "description_key": "electrified.description", "description_text": "再受伤害时向附近另一个敌人放电；遇水导电，遇火过载。", "icon_id": "icon_electrified"},
+    {"id": "braced", "namespace": "DemoContent", "name_key": "braced.name", "name_text": "顶着揍中", "description_key": "braced.description", "description_text": "受到的伤害减少，结束时反震。", "icon_id": "icon_braced"},
+    {"id": "soured", "namespace": "DemoContent", "name_key": "soured.name", "name_text": "馊臭", "description_key": "soured.description", "description_text": "新获得的治疗和护盾降低。", "icon_id": "icon_soured"},
     {"id": "monster_scavenger", "namespace": "DemoContent", "name_key": "monster_scavenger.name", "name_text": "已读不回的 HR", "description_key": "monster_scavenger.description", "description_text": "两只一组的小野怪：不主动理你，你一打她俩一起回你；追得太远就回位。", "icon_id": "icon_monster_scavenger"},
     {"id": "monster_guardian", "namespace": "DemoContent", "name_key": "monster_guardian.name", "name_text": "追着办卡的私教", "description_key": "monster_guardian.description", "description_text": "更耐打、出手更重的大野怪，一拳一个办卡：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_guardian"},
     {"id": "monster_advisor", "namespace": "DemoContent", "name_key": "monster_advisor.name", "name_text": "催毕设的导师", "description_key": "monster_advisor.description", "description_text": "守在外圈高台的最强野怪，血厚手重：不会主动出手，被打后反击；追得太远就回位。", "icon_id": "icon_monster_advisor"},

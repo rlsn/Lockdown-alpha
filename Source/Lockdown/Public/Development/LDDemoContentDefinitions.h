@@ -147,8 +147,8 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
     // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
-    // BurnAPRatio x the applier's AP per second per stack (snapshotted per stack), every BurnTickMs, up to BurnMaxStacks
-    // for BurnMs refreshed whole. Every lifesteal source of one hit adds up to at most LifestealCapBp.
+    // BurnAPRatio x the applier's AP per second per layer (snapshotted per layer), every BurnTickMs from the layer's own
+    // application for BurnMs, up to BurnMaxStacks layers (#198). Every lifesteal source of one hit adds up to at most LifestealCapBp.
     UPROPERTY() int64 BreachPerStackP2 = 0;
     UPROPERTY() int64 BreachMaxStacks = 0;
     UPROPERTY() int64 BreachMs = 0;
@@ -158,6 +158,29 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
     UPROPERTY() int64 LifestealCapBp = 0;
+    // #198 elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs
+    // from their own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp; electrified lasts
+    // ElectrifiedMs and, on later positive damage, discharges R to the nearest other enemy within DischargeRadiusCm at
+    // most once per DischargeIntervalMs per target. R = ReactionBase + ReactionPerLevel x (L - 1) + ReactionAPRatio x AP
+    // of the element's applier. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet every FogIntervalMs to
+    // element-free enemies; conduct (water + electric): R within ConductRadiusCm to wet enemies, ConductSlowBp for
+    // ConductSlowMs; overload (fire + electric): R within OverloadRadiusCm and OverloadBreachStacks of breach.
+    UPROPERTY() int64 WetMs = 0;
+    UPROPERTY() int64 WetSlowBp = 0;
+    UPROPERTY() int64 ElectrifiedMs = 0;
+    UPROPERTY() FLDDemoRational DischargeRadiusCm;
+    UPROPERTY() int64 DischargeIntervalMs = 0;
+    UPROPERTY() int64 ReactionBaseP2 = 0;
+    UPROPERTY() int64 ReactionPerLevelP2 = 0;
+    UPROPERTY() int64 ReactionAPRatioBp = 0;
+    UPROPERTY() FLDDemoRational FogRadiusCm;
+    UPROPERTY() int64 FogMs = 0;
+    UPROPERTY() int64 FogIntervalMs = 0;
+    UPROPERTY() FLDDemoRational ConductRadiusCm;
+    UPROPERTY() int64 ConductSlowBp = 0;
+    UPROPERTY() int64 ConductSlowMs = 0;
+    UPROPERTY() FLDDemoRational OverloadRadiusCm;
+    UPROPERTY() int64 OverloadBreachStacks = 0;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
@@ -248,8 +271,9 @@ struct FLDDemoPolicies
     UPROPERTY() ELDDemoPolicy CampManaPolicy = ELDDemoPolicy::None;
 };
 
+// #198: DirectionLine (S09) is a straight band of RangeCm x 2 LineHalfWidthCm in the requested direction; appended last.
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone, DirectionLine };
 
 // When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
 // (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
@@ -309,6 +333,8 @@ struct FLDDemoTargetDefinition
     // AttackRangeBonusCapCm; 0 = none.
     UPROPERTY() int64 AttackRangeRatioBp = 0;
     UPROPERTY() FLDDemoRational AttackRangeBonusCapCm;
+    // DirectionLine only: half the band width.
+    UPROPERTY() FLDDemoRational LineHalfWidthCm;
 };
 
 USTRUCT()
@@ -352,8 +378,10 @@ struct FLDDemoEffectDefinition
     // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
-    // dash_contact_refund caps actual mana grants; this cap never grows with level.
+    // dash_contact_refund caps actual mana grants; this cap never grows with level. brace: the record cap (grows with G).
     UPROPERTY() int64 LimitP2 = 0;
+    // dash_contact: every body the dash actually touches takes the native hit once (otherwise only the first Count).
+    UPROPERTY() bool bEveryContact = false;
     // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
     // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
     // zone_burn Count+IntervalMs; knockback DistanceCm+DurationMs; channel_cone SecondaryRatioBp+SecondaryDurationMs (a
@@ -361,6 +389,10 @@ struct FLDDemoEffectDefinition
     // triggered_shield Damaged IntervalMs, SecondaryRatioBp+RadiusCm (burst on break); thorns SecondaryRatioBp+
     // SecondaryDurationMs (move-only slow); control_damage_amp SecondaryRatioBp (low-HP targets count too); lifesteal
     // SecondaryRatioBp+MultiplierBp (multiplier against low-HP targets); low_hp_stat_bonus SecondaryRatioBp (basic lifesteal).
+    // #198 session A: wet/electrify/zone_wet no fields (terms from the COMBAT element parameters); chain_bounce Count
+    // (extra targets) RadiusCm RatioBp (kept share per bounce) IntervalMs; brace DurationMs RatioBp (damage cut) LimitP2
+    // (record cap) RadiusCm BaseP2 (answer base) SecondaryRatioBp (record share); zone_haste RatioBp (owner move speed
+    // inside); grievous RatioBp (cut of new heals and shields) DurationMs.
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };

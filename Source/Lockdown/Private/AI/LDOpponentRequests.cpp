@@ -144,6 +144,7 @@ bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 
         break;
     case ELDDemoTargetMode::DirectionProjectile:
     case ELDDemoTargetMode::DirectionCone:
+    case ELDDemoTargetMode::DirectionLine:
     case ELDDemoTargetMode::DirectionDash:
     {
         const FVector Planar = FVector(Intent.Direction.X, Intent.Direction.Y, 0).GetSafeNormal();

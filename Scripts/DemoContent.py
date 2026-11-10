@@ -59,11 +59,17 @@ EFFECT_OPS = frozenset(("damage", "shield", "dispel_root", "root", "stat_bonus",
                        "cooldown_refund", "triggered_shield", "nth_basic_bonus", "mana_on_hit", "dispel_slow",
                        "knockback", "zone", "zone_slow", "zone_damage", "shield_break_retort",
                        "silence", "breach", "burn", "zone_burn", "channel_cone", "ground_impact", "attack_slow",
-                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund"))
+                       "contact_trap", "dash_contact", "primary_guard", "dash_contact_damage", "dash_contact_refund",
+                       # #198 session A: elements (wet/electrify), S10 bounce, S16 brace, S20 zone terms, S21 anti-heal.
+                       "wet", "electrify", "chain_bounce", "brace", "zone_wet", "zone_haste", "grievous"))
 # Effects delivered to each hit target; on Self/DirectionDash they need self_area to name their targets.
 HOSTILE_OPS = frozenset(("damage", "root", "slow"))
+# Elements an active attaches to the bodies it hits (#198 CONTENT_AND_BALANCE §4.4).
+ELEMENT_OPS = frozenset(("wet", "electrify"))
 # Effects a self area delivers to the bodies it names.
-AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn"))
+AREA_HIT_OPS = frozenset((*HOSTILE_OPS, "stun", "knockback", "silence", "breach", "burn", *ELEMENT_OPS))
+# The payloads that give a zone a reason to exist; zone_haste only buffs its owner while inside one.
+ZONE_PAYLOAD_OPS = frozenset(("zone_slow", "zone_damage", "zone_burn", "zone_wet"))
 # Temporary and conditional bonuses never change resource maxima, so no current-resource conversion is needed.
 # Every bonus stat name; a card placeholder may read one stat of its effect.
 STAT_FIELDS = frozenset(("ADFlat", "APFlat", "MaxHPFlat", "MaxMPFlat", "ArmorFlat", "MagicResistFlat", "CooldownHasteFlat",
@@ -533,18 +539,31 @@ def _validate_new_effect(effect, path):
         require(quantity(effect["base"]) > 0, "IneffectiveEffect", path, "cap must be positive")
     if effect["op"] == "dash_contact_refund" and "mana_cap" in effect:
         require(quantity(effect["mana_cap"]) > 0, "IneffectiveEffect", path, "mana cap must be positive")
+    # #198 session A (CONTENT_AND_BALANCE §4.2).
+    if effect["op"] in ("chain_bounce", "brace", "zone_haste", "grievous"):
+        require(0 < quantity(effect["ratio"]) < 1, "NumericDomain", path,
+                f"{effect['op']} ratio must be strictly between zero and one")
+    if effect["op"] in ("chain_bounce", "brace"):
+        require(quantity(effect["radius"]) > 0, "InvalidGeometry", path, f"{effect['op']} radius must be positive")
+    if effect["op"] == "brace":
+        require(quantity(effect["limit"]) > 0 and quantity(effect["record_ratio"]) > 0, "IneffectiveEffect", path,
+                "a brace records a positive amount and releases a positive share of it")
 
 
 def _validate_action(target, effects, path):
     mode = target["mode"]
     allowed = {
         "Self": frozenset(("shield", "dispel_root", "dispel_slow", "timed_stat_bonus", "self_area", "taunt", "stun",
-                           "knockback", *HOSTILE_OPS, "silence", "breach", "burn", "empower_basic")),
-        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback")),
-        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow")),
+                           "knockback", *HOSTILE_OPS, "silence", "breach", "burn", "empower_basic", *ELEMENT_OPS,
+                           "brace")),
+        "Unit": frozenset(("damage", "root", "slow", "disarm", "stun", "silence", "breach", "burn", "knockback",
+                           *ELEMENT_OPS, "chain_bounce", "grievous")),
+        "DirectionProjectile": frozenset(("damage", "slow", "silence", "breach", "burn", "attack_slow", *ELEMENT_OPS,
+                                          "grievous")),
+        "DirectionLine": frozenset(("damage", "knockback", "slow", "burn", *ELEMENT_OPS)),
         "DirectionDash": frozenset(("dash", "self_area", "empower_basic", "zone", "zone_damage",
-                                    *HOSTILE_OPS, "breach", "burn", "dash_contact")),
-        "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn",
+                                    *HOSTILE_OPS, "breach", "burn", "dash_contact", "shield", *ELEMENT_OPS)),
+        "GroundPoint": frozenset(("zone", "zone_slow", "zone_damage", "zone_burn", "zone_wet", "zone_haste",
                                   "ground_impact", "contact_trap", "damage", "root", "slow")),
         "DirectionCone": frozenset(("channel_cone", "damage")),
     }[mode]
@@ -555,6 +574,11 @@ def _validate_action(target, effects, path):
                 "hit effects of a self or dash action need exactly one self_area to name their targets")
     if mode == "DirectionProjectile":
         require("damage" in ops, "TargetEffectMismatch", path, "a projectile carries damage")
+    require(mode != "DirectionDash" or not ops & ELEMENT_OPS or "dash_contact" in ops, "TargetEffectMismatch", path,
+            "a dash attaches its element to the bodies it actually touches")
+    require("brace" not in ops or ops == {"brace"}, "TargetEffectMismatch", path,
+            "a brace is the whole action: it delivers nothing else")
+    require("chain_bounce" not in ops or "damage" in ops, "MissingHandler", path, "a chain bounce carries damage")
     require(mode != "GroundPoint" or len(ops & {"zone", "ground_impact", "contact_trap"}) == 1,
             "MissingHandler", path, "a ground point needs exactly one delivery handler")
     require(mode != "DirectionCone" or {"channel_cone", "damage"} <= ops,
@@ -564,9 +588,9 @@ def _validate_action(target, effects, path):
     require(not ops.intersection({"ground_impact", "contact_trap"}) or "damage" in ops,
             "MissingHandler", path, "a delayed impact or trap needs damage")
     require(mode != "DirectionDash" or "dash" in ops, "MissingHandler", path, "a direction dash needs its dash")
-    require(not (ops & {"zone_slow", "zone_damage", "zone_burn"}) or "zone" in ops,
+    require(not (ops & (ZONE_PAYLOAD_OPS | {"zone_haste"})) or "zone" in ops,
             "MissingHandler", path, "zone payloads need their zone")
-    require("zone" not in ops or bool(ops & {"zone_slow", "zone_damage", "zone_burn"}),
+    require("zone" not in ops or bool(ops & ZONE_PAYLOAD_OPS),
             "IneffectiveEffect", path, "a zone needs a payload")
     for effect in effects:
         _validate_new_effect(effect, path)
@@ -598,13 +622,15 @@ def _validate_action(target, effects, path):
             _positive_stats(effect["stats"], path)
         if effect["op"] == "taunt":
             require(quantity(effect["radius"]) > 0, "NumericDomain", path, "taunt radius must be positive")
-    if mode in ("Unit", "DirectionProjectile", "GroundPoint", "DirectionCone"):
+    if mode in ("Unit", "DirectionProjectile", "GroundPoint", "DirectionCone", "DirectionLine"):
         require(quantity(target["range"]) > 0, "NumericDomain", path, "cast range must be positive")
     if mode == "DirectionProjectile":
         require(quantity(target["projectile_radius"]) > 0, "NumericDomain", path, "projectile radius must be positive")
+    if mode == "DirectionLine":
+        require(quantity(target["half_width"]) > 0, "NumericDomain", path, "line half width must be positive")
 
 
-# #198 PR1 actives (CONTENT_AND_BALANCE): one value set each; (target mode, handlers).
+# #198 actives (CONTENT_AND_BALANCE §4.2): one value set each; (target mode, handlers).
 ACTIVE_CONTRACTS = {
     "active_elbow": ("Unit", {"damage", "knockback"}),
     "active_pants_down": ("Unit", {"damage", "root"}),
@@ -622,6 +648,12 @@ ACTIVE_CONTRACTS = {
     "active_calculus_drop": ("GroundPoint", {"ground_impact", "damage"}),
     "active_flyer_trap": ("GroundPoint", {"contact_trap", "damage", "slow"}),
     "active_open_mic": ("DirectionCone", {"channel_cone", "damage"}),
+    "active_hose_down": ("DirectionLine", {"damage", "knockback", "wet"}),
+    "active_zap": ("Unit", {"damage", "electrify", "chain_bounce"}),
+    "active_charged_ram": ("DirectionDash", {"dash", "shield", "dash_contact", "damage", "electrify"}),
+    "active_brace": ("Self", {"brace"}),
+    "active_dirty_puddle": ("GroundPoint", {"zone", "zone_damage", "zone_wet", "zone_haste"}),
+    "active_sock_shot": ("DirectionProjectile", {"damage", "attack_slow", "grievous"}),
 }
 TIMED_STATS = {"active_stare_down": {"ArmorFlat", "MagicResistFlat"}}
 # #198: the five point-bought stats and the bonuses one point of each adds (flat and additive percent terms).
@@ -806,6 +838,15 @@ def validate_numbers(data):
     require(p("AIRDROP.AnnounceLeadSec") <= p("AIRDROP.FirstLandSec")
             and p("AIRDROP.AnnounceLeadSec") < p("AIRDROP.IntervalSec"),
             "InvalidTiming", "AIRDROP", "the announcement lead must fit before the first landing and inside one interval")
+    # #198 elements and reactions (CONTENT_AND_BALANCE §4.4).
+    for key in ("COMBAT.DischargeRadiusCm", "COMBAT.FogRadiusCm", "COMBAT.ConductRadiusCm", "COMBAT.OverloadRadiusCm"):
+        require(p(key) > 0, "InvalidGeometry", key, "reaction radius must be positive")
+    for key in ("COMBAT.WetSlow", "COMBAT.ConductSlow"):
+        require(0 < p(key) < 1, "NumericDomain", key, "a slow must be strictly between zero and one")
+    require(p("COMBAT.FogIntervalSec") <= p("COMBAT.FogSec"), "InvalidTiming", "COMBAT.FogIntervalSec",
+            "fog pulses must fall inside the fog")
+    require(params["COMBAT.OverloadBreachStacks"] <= params["COMBAT.BreachMaxStacks"], "NumericDomain",
+            "COMBAT.OverloadBreachStacks", "overload cannot apply more breach stacks than the breach cap")
 
     thresholds = [0]
     for level in range(1, data["progression"]["max_level"]):
@@ -894,6 +935,12 @@ def _validate_build_envelope(data):
     grow = lambda amount, path: checked_mul(amount, factor, path) // 10000
     checked_add(grow(params["COMBAT.BurnPerSec"]["p2"], "COMBAT.BurnPerSec"),
                 checked_mul(max_ap, params["COMBAT.BurnAPRatioPerSec"]["bp"], "COMBAT.BurnAPRatioPerSec") // 10000, "COMBAT.BurnPerSec")
+    # #198 reaction R = Base + (L - 1) x PerLevel + APRatio x AP; it never grows with G.
+    reaction = checked_add(params["COMBAT.ReactionBase"]["p2"],
+                           checked_mul(top_level - 1, params["COMBAT.ReactionPerLevel"]["p2"], "COMBAT.ReactionPerLevel"),
+                           "COMBAT.ReactionBase")
+    checked_add(reaction, checked_mul(max_ap, params["COMBAT.ReactionAPRatio"]["bp"], "COMBAT.ReactionAPRatio") // 10000,
+                "COMBAT.ReactionAPRatio")
     for row in data["abilities"]:
         for effect in all_effects(row):
             base = effect["base"]["p2"] if "base" in effect else 0
@@ -911,6 +958,11 @@ def _validate_build_envelope(data):
                     numerator = checked_add(numerator, checked_mul(max_ad, effect["ad_ratio"]["bp"], row["id"]), row["id"])
                 if effect["op"] == "damage":
                     checked_add(numerator, checked_mul(max_hp, effect["max_hp_ratio"]["bp"], row["id"]), row["id"])
+            if effect["op"] == "brace":
+                # The release is the grown base plus its share of the grown record cap.
+                limit = grow(effect["limit"]["p2"], row["id"])
+                checked_add(checked_mul(base, 10000, row["id"]),
+                            checked_mul(limit, effect["record_ratio"]["bp"], row["id"]), row["id"])
 
 
 def _wire_fraction(value, path):

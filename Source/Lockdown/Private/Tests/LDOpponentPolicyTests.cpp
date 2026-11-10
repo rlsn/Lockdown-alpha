@@ -1686,6 +1686,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
     for (const auto& Case : {
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_open_mic"),ELDDemoTargetMode::DirectionCone),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_sock_shot"),ELDDemoTargetMode::DirectionProjectile),
+        TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_hose_down"),ELDDemoTargetMode::DirectionLine),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_calculus_drop"),ELDDemoTargetMode::GroundPoint),
         TPair<const TCHAR*,ELDDemoTargetMode>(TEXT("active_flyer_trap"),ELDDemoTargetMode::GroundPoint)})
     {
@@ -1696,6 +1697,7 @@ bool RunV7Activations(FAutomationTestBase& Test)
         bGood &= Test.TestTrue(FString::Printf(TEXT("%s uses its approved target form"),Case.Key),
             IsCast(Cast,Case.Value)
             && (Case.Value!=ELDDemoTargetMode::DirectionCone && Case.Value!=ELDDemoTargetMode::DirectionProjectile
+                && Case.Value!=ELDDemoTargetMode::DirectionLine
                 || Cast.Body.Direction.Equals(Frame.Units[0].FootCm.GetSafeNormal2D(),1.e-4))
             && (Case.Value!=ELDDemoTargetMode::GroundPoint || Cast.Body.Point.Equals(Frame.Units[0].FootCm,1.e-3)));
     }

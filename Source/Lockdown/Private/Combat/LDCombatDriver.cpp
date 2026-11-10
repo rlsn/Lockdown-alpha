@@ -45,7 +45,7 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         // #147: silences, the shared breach and the burn's ticks end or fall on exact boundaries.
         for (const auto& Silence : Body.Silences) { Consider(Silence.ExpiresAtMs); }
         if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
-        if (!Body.Burn.Layers.IsEmpty()) { Consider(Body.Burn.NextTickAtMs); }
+        if (!Body.Burn.Layers.IsEmpty()) { Consider(LDCombatKeywords::NextBurnTickAtMs(Body.Burn)); }
         if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
@@ -289,8 +289,10 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
-    // Zones and burns due now join this boundary's hits and projectiles.
-    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !AdvanceProjectiles(Error))
+    // Zones, burns and element records due now join this boundary's hits and projectiles.
+    ReactionFacts.Reset();
+    if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceElements(Now,Error) || !AdvanceBurns(Now,Error)
+        || !AdvanceProjectiles(Error))
     { return false; }
     for (int32 Index=0; Index<PendingHits.Num(); ++Index)
     {

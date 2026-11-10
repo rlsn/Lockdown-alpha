@@ -8,6 +8,7 @@
 #include "Combat/LDCombatControlRules.h"
 #include "Combat/LDCombatMechanics.h"
 #include "Combat/LDCombatKeywords.h"
+#include "Combat/LDCombatElements.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 #include "Vision/LDViewTypes.h"
 #include "LDCombatDirector.generated.h"
@@ -151,6 +152,12 @@ struct FLDBodyCombatState
     int64 SlowResistanceUntilMs=0, SlowResistanceBp=0;
     int64 ContactRefundReadyAtMs=0;
     TSharedPtr<FLDCombatDashContact> DashContact;
+    // #198 elements (LDCombatElements): the water or electric mark (fire is Burn), the electric discharge rest of this
+    // target, the S16 stance and the S21 cut of new heals and shields.
+    FLDCombatElementMark ElementMark;
+    int64 DischargeReadyAtMs=0;
+    FLDCombatBrace Brace;
+    FLDCombatGrievous Grievous;
 };
 
 // Persistent cooldown identity; the entry slot is only its current binding.
@@ -241,9 +248,17 @@ struct FLDCombatHit
     // #147 build v7 keyword payload (docs/systems/COMBAT_AND_GROWTH.md).
     int64 SilenceDurationMs=0;
     int32 BreachStacks=0;            // shared breach stacks this hit applies
-    int32 BurnStacks=0;              // burn layers this hit applies, at the applier level and AP snapshotted at release
-    int32 BurnLevel=1;
-    int64 BurnAPP2=0;
+    int32 BurnStacks=0;              // fire layers this hit applies (LDCombatElements batch: fire, water, electric)
+    // #198 elements: wet and electric this hit applies; ElementLevel/ElementAPP2 are the applier snapshot every element of
+    // the hit reads (fire damage, reaction damage, discharges). StampElementSnapshot fills them.
+    bool bApplyWet=false;
+    bool bApplyElectric=false;
+    int32 ElementLevel=1;
+    int64 ElementAPP2=0;
+    // Status or settle damage (early fire settle, discharge, reaction): never a skill hit for readers (AI spec §8).
+    bool bStatusSettle=false;
+    // S21: new heals and shields of the target are cut by GrievousBp for GrievousMs.
+    int64 GrievousBp=0, GrievousMs=0;
     bool bBurnTick=false;            // a burn tick: no crit, no on-hit, never a Q/W hit for passives
     int64 ControlAmpBelowBp=0;       // the source's control amplification also counts a target below this HP share
     int64 LifestealLowHPBp=0;        // extra on-hit lifesteal against a target below LifestealLowHPBelowBp
@@ -347,9 +362,27 @@ struct FLDCombatZone
     // #147 zone_burn: BurnStacks layers (at the owner's level and AP snapshotted at release) on every enemy inside,
     // every BurnIntervalMs from the zone's start while it lasts.
     int32 BurnStacks=0;
-    int32 BurnLevel=1;
-    int64 BurnIntervalMs=0, NextBurnAtMs=0, BurnAPP2=0;
+    int64 BurnIntervalMs=0, NextBurnAtMs=0;
+    // #198: the owner's element snapshot (level, AP) at release; zone_wet makes every pulse apply wet; zone_haste gives
+    // the owner HasteBp move speed while its foot stands inside.
+    int32 ElementLevel=1;
+    int64 ElementAPP2=0;
+    bool bWet=false;
+    int64 HasteBp=0;
     TSharedPtr<FLDCombatCastLedger> CastLedger;
+};
+
+// #198 S10: after the first hit, every IntervalMs the nearest not yet struck legal enemy within RadiusCm of the last
+// struck body takes the payload at RatioBp of the previous bounce's share, until Remaining runs out or nobody is near.
+struct FLDCombatChain
+{
+    FLDCombatHit Payload;
+    TArray<FGuid> Struck;
+    FLDCombatBodyRef Last;
+    FVector LastFootCm=FVector::ZeroVector;
+    int32 Remaining=0;
+    int64 NextAtMs=0, IntervalMs=0, RatioBp=0, ScaleBp=10000;
+    double RadiusCm=0;
 };
 
 UCLASS()
@@ -638,9 +671,10 @@ private:
         int64 NowMs, FString& Error);
 
     // ---- #112 C2 mechanics (LDCombatMechanicsDirector.cpp).
-    // A one-time heal of Body (lifesteal); regeneration never passes here. True when HP changed.
+    // A one-time heal of Body (lifesteal); regeneration never passes here. A live S21 grievous cuts it first. True when HP changed.
     bool HealBody(FLDBodyCombatState& Body, int64 AmountP2);
-    // The single shield entry: applied ReplaceIfNotWeaker; a granted shield records its amount (ShieldGrantedP2).
+    // The single shield entry: a live S21 grievous cuts the amount, then it applies ReplaceIfNotWeaker; a granted shield
+    // records its amount (ShieldGrantedP2).
     bool GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, int64 DurationMs, const FGuid& EffectId,
         const FGuid& SourceEntity, int64 NowMs, FString& Error);
     // A shield emptied by Hit: item_privacy_screen's retort to the breaker.
@@ -667,12 +701,10 @@ private:
     bool KeywordTerms(FLDKeywordTerms& Out, FString& Error) const;
     // The level a body's G(L) reads: a contender's build level; camp bodies use level 1.
     int32 GrowthLevelOf(const FLDBodyCombatState& Body) const;
-    // A burn layer of Source with Source's level and AP now snapshotted in it.
-    bool BurnLayerOf(const FLDBodyCombatState& Source, const FLDCombatSourceRef& Ref, FLDCombatBurnLayer& Out, FString& Error) const;
-    // Shared breach and burn of one committed hit on Target: the hit's own stacks and its living source's held
-    // breach/burn triggers (basic_stacks on a primary basic, stacks on a learned Q/W hit). Assists are recorded per application.
+    // Shared breach of one committed hit on Target: the hit's own stacks and its living source's held breach triggers
+    // (basic_stacks on a primary basic, stacks on a learned Q/W/E hit). Fire is an element (ApplyElements).
     bool ApplyKeywordStacks(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
-    // Burn ticks due by now: one damage hit per applier and tick; lapsed burns end.
+    // Burn ticks due by now: every layer on its own timer, one damage hit per applier, source and tick instant.
     bool AdvanceBurns(int64 NowMs, FString& Error);
     // The damage-triggered shield of Body after it took positive damage (rest only after a granted shield).
     bool OnDamaged(FLDBodyCombatState& Body, int64 NowMs, FString& Error);
@@ -681,6 +713,38 @@ private:
         const FLDCombatBodyRef& BreakerBody, int64 NowMs, FString& Error);
     // Statuses of the keyword records (silence, breach x stacks, burn x stacks) for every observer.
     void AppendKeywordStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
+    // ---- #198 elements, reactions and the element actives (LDCombatElementsDirector.cpp).
+    bool ElementTerms(FLDElementTerms& Out, FString& Error) const;
+    // The applier snapshot of a hit's elements (fire damage, reaction damage, discharges): Source's level and AP now.
+    bool StampElementSnapshot(const FLDBodyCombatState& Source, FLDCombatHit& InOut, FString& Error) const;
+    ELDCombatElement ElementOfBody(const FLDBodyCombatState& Body, int64 NowMs) const;
+    // The element batch of one committed hit on a controllable Target: fire (the hit's layers and its living source's held
+    // burn triggers), then water, then electric, each applying, refreshing or reacting with the element held.
+    bool ApplyElements(FLDBodyCombatState& Target, const FLDCombatHit& Hit, FLDBodyCombatState* Source, int64 NowMs, FString& Error);
+    // One element on Target: installs or refreshes it, or reacts with a different one held (both consumed).
+    bool ApplyElement(FLDBodyCombatState& Target, ELDCombatElement Kind, const FLDElementApplier& Applier, int32 FireStacks,
+        const FGuid& HitId, int64 NowMs, FString& Error);
+    // Ends Body's water or electric mark now, with the wet slow it holds.
+    void ClearMark(FLDBodyCombatState& Body);
+    // An electrified Target that just took positive damage discharges R to the nearest other enemy of its applier.
+    bool TryDischarge(FLDBodyCombatState& Target, const FVector& TargetFoot, int64 NowMs, FString& Error);
+    // Fog pulses, chain bounces, S16 ends and lapsed marks due by now.
+    bool AdvanceElements(int64 NowMs, FString& Error);
+    int64 NextElementsDueMs(int64 NowMs) const;
+    // The single report of a completed reaction (AI spec §8); later connectors read ReactionFacts of this Effects step.
+    void OnReactionCompleted(const FLDCombatReactionFact& Fact);
+    // S16: Body's new stance (a newer one replaces the old record without its answer).
+    bool ReleaseBrace(FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect, const FLDCombatSourceRef& Source,
+        const FGuid& EffectId, uint64 Token, int64 NowMs, FString& Error);
+    // S10: the bounces after the first struck body.
+    bool StartChain(const FLDCombatHit& Payload, const FLDCombatBodyRef& First, const FVector& FirstFoot,
+        const FLDDemoEffectDefinition& Bounce, int64 NowMs, FString& Error);
+    // S09: every legal body whose foot lies in the band LengthCm x 2 HalfWidthCm from Origin along Direction with clear
+    // sight from Origin, with its foot.
+    bool CollectLineTargets(const FVector& Origin, const FVector& Direction, double LengthCm, double HalfWidthCm,
+        const FLDBodyCombatState& Caster, TArray<TPair<FLDCombatBodyRef,FVector>>& Out, FString& Error) const;
+    // Wet, electrified, braced and soured cues for every observer.
+    void AppendElementStatuses(const FLDBodyCombatState& Body, int64 NowMs, TArray<FLDObservedStatus>& Out) const;
     // The release-time zone of a #112 active (EFFECT zone).
     bool ReleaseMechanics(FLDBodyCombatState& Body, const FLDCombatSourceRef& Source, const FLDDemoAbilityValues& Values,
         const FVector& OriginFoot, const FVector& TargetPoint, const FGuid& EffectId,
@@ -727,6 +791,10 @@ private:
     TArray<FLDCombatContactMotion> ContactMotion;
     TArray<FLDCombatChannel> Channels;
     TArray<FLDCombatGroundEffect> GroundEffects;
+    // #198 elements: fogs (one per owner), S10 chains and the reactions completed in the current Effects step.
+    TArray<FLDCombatFog> Fogs;
+    TArray<FLDCombatChain> Chains;
+    TArray<FLDCombatReactionFact> ReactionFacts;
     TArray<FLDCommittedDeath> PendingDeaths;
     // Committed positive contacts against camp members, delivered to the camp owner within the same Effects.
     TArray<FLDCombatHostileContact> PendingContacts;
