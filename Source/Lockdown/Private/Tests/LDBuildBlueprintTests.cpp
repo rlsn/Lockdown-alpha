@@ -2,6 +2,7 @@
 #include "Development/LDBuildBlueprint.h"
 #include "Development/LDBuildBlueprintStore.h"
 #include "Development/LDDemoContentDefinitions.h"
+#include "Framework/LDDemoEntry.h"
 #include "HAL/FileManager.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
@@ -34,7 +35,7 @@ LDBuildBlueprint::FHeader BlueprintHeader(const FGuid& Match, const FDateTime& A
 {
     LDBuildBlueprint::FHeader Header;
     Header.ProductVersion=TEXT("0.10.0");
-    Header.WireProtocol=15;
+    Header.WireProtocol=int32(LDDemoEntry::WireProtocol);
     Header.CatalogRoot=FString::ChrN(64,TEXT('a'));
     Header.CatalogSchemaVersion=3;
     Header.HandlerRevision=2;
