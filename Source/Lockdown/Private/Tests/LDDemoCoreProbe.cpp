@@ -172,10 +172,16 @@ public:
             FirstLife.SpawnSequence=1;
             FirstLife.SpawnForLife=1;
             const FLDSpawnRequestKey FirstRequest{Mode.GetMatchContext(),FirstId,1,1};
+            // #198: the first life opens R0 in its private rest space, at the fixed anchor of its roster slot.
+            const FName FirstRestAnchor=Mode.RestAnchorFor(FirstId);
+            if (!Check(!FirstRestAnchor.IsNone(),TEXT("The first contender has a private rest anchor by roster slot"))) { return false; }
             TSharedPtr<const FLDSpawnSelection> FirstSelection;
             FCollisionShape Capsule;
+            const int32 SelectSeed=Mode.SpawnRandom.GetCurrentSeed();
             if (!ULDMapRegistry::ContentCapsule(*Content,Capsule,Error)
-                || !Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,FirstSelection,Error)) { return false; }
+                || !Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,FirstSelection,Error)) { return false; }
+            if (!Check(FirstSelection->AnchorId()==FirstRestAnchor && Mode.SpawnRandom.GetCurrentSeed()==SelectSeed,
+                TEXT("The fixed rest anchor is selected without a random draw"))) { return false; }
             const auto* FirstAnchor=Registry.Resolve(FirstSelection->AnchorId(),Registry.Generation);
             const auto* SpawnGeometry=Registry.GetGeometry();
             if (!FirstAnchor || !SpawnGeometry) { Error=TEXT("Spawn fixture anchor is missing."); return false; }
@@ -239,7 +245,7 @@ public:
             Occupants.Reset();
             TSharedPtr<const FLDSpawnSelection> RetrySelection;
             TSharedPtr<const FLDSpawnReservation> Retry;
-            if (!Check(Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,RetrySelection,Error)
+            if (!Check(Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,RetrySelection,Error)
                 && RetrySelection==FirstSelection && Mode.SpawnRandom.GetCurrentSeed()==BlockedSeed
                 && Registry.ReserveSpawnPlacement(RetrySelection,Capsule,Permit,Retry,Error)
                 && Retry->OffsetIndex()==0 && FirstLife.Life==0,
@@ -249,11 +255,14 @@ public:
             FString DuplicateError;
             if (!Check(!Mode.SpawnInitialContenders(Permit,DuplicateError) && !DuplicateError.IsEmpty(),
                 TEXT("Repeated roster spawn cannot grant another life or resource reset"))) { return false; }
+            int32 RestContenders=0;
             for (const auto& Pair : Mode.Lives)
             {
                 const auto& Life=Pair.Value;
-                // Camp members spawn at their camps, not at the contender anchors.
-                if (Life.Kind!=ELDVictimKind::Contender) { continue; }
+                // Camp members spawn at their camps, not at the contender anchors; each owner's rest training dummy is a
+                // contender-kind target that is checked against its owner below, not a roster body.
+                if (Life.Kind!=ELDVictimKind::Contender || Mode.IsTrainingDummy(Pair.Key)) { continue; }
+                ++RestContenders;
                 const auto* Anchor=Registry.Resolve(Life.SpawnAnchor,Registry.Generation);
                 const auto* Body=Life.Actor.Get();
                 FVector Offset;
@@ -261,6 +270,8 @@ public:
                     && SpawnGeometry->SpawnOffsetsCm[Life.SpawnOffset].ToVector(Offset,Error)
                     && Body && FVector::DistSquared2D(Body->GetActorLocation(),Anchor->Position+Offset)<.000001,
                     TEXT("Actual initial body uses one of the seven exact offsets at its fixed selected anchor"))) { return false; }
+                if (!Check(Life.SpawnAnchor==Mode.RestAnchorFor(Pair.Key),
+                    TEXT("Each initial body stands at the private rest anchor of its roster slot"))) { return false; }
                 const int32 Seed=Mode.SpawnRandom.GetCurrentSeed();
                 FLDSpawnRequestKey Request{Mode.GetMatchContext(),Pair.Key,1,Life.SpawnSequence};
                 TSharedPtr<const FLDSpawnSelection> Replay;
@@ -274,6 +285,10 @@ public:
                     && !Conflict.IsValid() && !ConflictError.IsEmpty() && Mode.SpawnRandom.GetCurrentSeed()==Seed,
                     TEXT("Same spawn request with changed terms cannot redraw a safer anchor"))) { return false; }
             }
+            bool DummiesPerOwner=Mode.TrainingDummies.Num()==RestContenders && Mode.TrainingDummyIds.Num()==RestContenders;
+            for (const auto& Pair : Mode.TrainingDummies) { DummiesPerOwner&=Mode.IsInRestSpace(Pair.Key); }
+            if (!Check(RestContenders==3 && DummiesPerOwner,
+                TEXT("Each of the three roster bodies stands in its rest space with exactly one training dummy"))) { return false; }
             return true;
         },Error);
         if (!Check(Registered,TEXT("Three real controllers receive one committed body each"))) { return false; }
@@ -289,7 +304,7 @@ public:
         Report->SetBoolField(TEXT("passed"),Passed);
         Report->SetBoolField(TEXT("fixture_only"),true);
         Report->SetBoolField(TEXT("full_ct06"),false);
-        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial random spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
+        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial rest-anchor spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
