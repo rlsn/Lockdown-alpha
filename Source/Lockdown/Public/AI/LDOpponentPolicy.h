@@ -629,5 +629,9 @@ namespace LDOpponentPolicy
     // place is unknown or the context cannot initialize.
     LOCKDOWN_API FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
         FLDOpponentPolicyState& State, FName POI);
+    // #198: the production walk to the rest service NPC a build command needs (the same route Decide takes before a service
+    // command). None when no such service is published or the context cannot initialize.
+    LOCKDOWN_API FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+        FLDOpponentPolicyState& State, ELDRestService Service);
 #endif
 }

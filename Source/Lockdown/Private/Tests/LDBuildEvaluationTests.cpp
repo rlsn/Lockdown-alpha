@@ -512,10 +512,22 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     Replace.Build[0].Slot = 0;
     auto RestPending = Rest;
     RestPending.Self.Blueprints = {TEXT("active_seethe")};
+    for (uint8 Index = 1; Index <= 3; ++Index)
+    {
+        FLDOpponentPOI Service = Place(*FString::Printf(TEXT("rest_service_%d"), Index), ELDOpponentPOIKind::RestService, 6000 + 800 * Index, 700);
+        Service.RestService = static_cast<ELDRestService>(Index);
+        RestPending.RestServicePOIs.Add(Service);
+    }
     Fresh = {};
     FreshPolicy = {};
     Decision = LDEvaluationPolicy::Decide(RestPending, C, Replace, FreshPolicy, Fresh);
-    bGood &= Test.TestTrue(TEXT("A replacement of the occupied slot in the rest window"), Decision.Build.Kind == EBuild::ReplaceActive
+    bGood &= Test.TestTrue(TEXT("Away from the trainer, a planned replacement walks there and sends nothing"),
+        Decision.Build.Kind == EBuild::None && Decision.Body.Kind == ELDOpponentBodyKind::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_3") && Decision.Reason == ELDOpponentReason::RestService
+        && Fresh.Phase == ELDEvaluationPhase::Building && !Fresh.bOpeningReady);
+    RestPending.Self.NearbyRestService = ELDRestService::Trainer;
+    Decision = LDEvaluationPolicy::Decide(RestPending, C, Replace, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("A replacement of the occupied slot beside the trainer"), Decision.Build.Kind == EBuild::ReplaceActive
         && Decision.Build.Blueprint == TEXT("active_seethe") && Decision.Build.Slot == 0);
     FLDEvaluationProfile Occupied = Learn;
     Occupied.Build[0].Slot = 0;
@@ -523,12 +535,49 @@ bool RunWorkshopPlan(FAutomationTestBase& Test)
     FLDEvaluationProfile Respec = Plan;
     Respec.Build = {Step(EKind::Respec, EWindow::OpeningRest)};
     auto Allocated = Rest;
+    Allocated.RestServicePOIs = RestPending.RestServicePOIs;
+    Allocated.Self.NearbyRestService = ELDRestService::Trainer;
     Allocated.Self.StatPoints[2].Points = 3;
     Fresh = {};
     FreshPolicy = {};
     Decision = LDEvaluationPolicy::Decide(Allocated, C, Respec, FreshPolicy, Fresh);
     bGood &= Test.TestTrue(TEXT("A respec in the rest window"), Decision.Build.Kind == EBuild::Respec);
     bGood &= Fails(TEXT("A respec with nothing allocated"), Rest, Respec, FLDEvaluationProfileState(), TEXT("no allocated point"));
+    // Allocate -> respec -> allocate: the plain allocations go anywhere; only the respec walks to the trainer first.
+    FLDEvaluationBuildStep One = Step(EKind::AllocatePoints, EWindow::OpeningRest);
+    One.Points = {{TEXT("stat_strength"), 3}};
+    FLDEvaluationBuildStep Again = Step(EKind::AllocatePoints, EWindow::OpeningRest);
+    Again.Points = {{TEXT("stat_physique"), 3}};
+    FLDEvaluationProfile Cycle = Plan;
+    Cycle.Build = {One, Step(EKind::Respec, EWindow::OpeningRest), Again};
+    auto Away = Rest;
+    Away.RestServicePOIs = RestPending.RestServicePOIs;
+    Away.Self.bOpeningBasePending = false;
+    Fresh = {};
+    FreshPolicy = {};
+    Decision = LDEvaluationPolicy::Decide(Away, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the first allocation goes out away from any NPC"),
+        Decision.Build.Kind == EBuild::AllocatePoints && Decision.Body.Kind == ELDOpponentBodyKind::None);
+    auto Spent3 = Away;
+    Spent3.Self.BuildRevision = 2;
+    Spent3.Self.UnspentPoints = 0;
+    Spent3.Self.StatPoints[2].Points = 3;
+    Decision = LDEvaluationPolicy::Decide(Spent3, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the respec walks to the trainer without sending"), Fresh.StepsCommitted == 1
+        && Decision.Build.Kind == EBuild::None && Decision.Body.Kind == ELDOpponentBodyKind::MoveGround
+        && Decision.Body.POI == TEXT("rest_service_3") && Fresh.Phase == ELDEvaluationPhase::Building);
+    auto AtTrainer = Spent3;
+    AtTrainer.Self.NearbyRestService = ELDRestService::Trainer;
+    Decision = LDEvaluationPolicy::Decide(AtTrainer, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: beside the trainer the respec goes out"), Decision.Build.Kind == EBuild::Respec);
+    auto Refunded = AtTrainer;
+    Refunded.Self.BuildRevision = 3;
+    Refunded.Self.UnspentPoints = 3;
+    Refunded.Self.StatPoints[2].Points = 0;
+    Refunded.Self.NearbyRestService = ELDRestService::None;
+    Decision = LDEvaluationPolicy::Decide(Refunded, C, Cycle, FreshPolicy, Fresh);
+    bGood &= Test.TestTrue(TEXT("Cycle: the second allocation goes out wherever the body stands"), Fresh.StepsCommitted == 2
+        && Decision.Build.Kind == EBuild::AllocatePoints && Decision.Build.PointCounts == TArray<uint8>({3, 0, 0, 0, 0}));
     return bGood;
 }
 

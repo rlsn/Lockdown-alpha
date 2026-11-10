@@ -2832,5 +2832,17 @@ FLDOpponentBodyIntent WalkTo(const FLDOpponentDecisionFrame& Frame, const FLDDem
     if (!Place || !C.Initialize()) { return {}; }
     return MoveTo(C, *Place);
 }
+
+FLDOpponentBodyIntent WalkToRestService(const FLDOpponentDecisionFrame& Frame, const FLDDemoContentSnapshot& Catalog,
+    FLDOpponentPolicyState& State, ELDRestService Service)
+{
+    using namespace Detail;
+    const FLDOpponentPOI* Place = Frame.RestServicePOIs.FindByPredicate([Service](const FLDOpponentPOI& POI)
+        { return POI.Kind == ELDOpponentPOIKind::RestService && POI.RestService == Service; });
+    if (Service == ELDRestService::None || !Place || Place->Id.IsNone() || Place->SurfaceId.IsNone()) { return {}; }
+    FContext C(Frame, Catalog, State);
+    if (!C.Initialize()) { return {}; }
+    return MoveTo(C, *Place);
+}
 #endif
 }

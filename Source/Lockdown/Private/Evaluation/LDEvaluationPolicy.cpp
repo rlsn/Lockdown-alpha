@@ -502,6 +502,17 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
             return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::Stopped);
         }
     }
+    // #198: a service command goes only from beside its NPC; the body walks there first and the step waits, unsent.
+    ELDRestService Route = ELDRestService::None;
+    if (Out.Build.Kind != ELDOpponentBuildKind::None)
+    {
+        const ELDRestService Required = LDOpponentPolicy::RestServiceForBuild(Out.Build.Kind);
+        if (Required != ELDRestService::None && Self.NearbyRestService != Required)
+        {
+            Route = Required;
+            Out.Build = FLDOpponentBuildIntent();
+        }
+    }
     const bool bBuilds = Out.Build.Kind != ELDOpponentBuildKind::None;
     int32 OpeningSteps = 0;
     for (const FLDEvaluationBuildStep& Step : Profile.Build)
@@ -510,8 +521,25 @@ FLDOpponentDecision LDEvaluationPolicy::Decide(const FLDOpponentDecisionFrame& F
     }
     State.bOpeningReady = bRest && Frame.Public.Timeline.RestIndex == 0
         && Frame.Public.Timeline.Step == ELDRestStep::Build && Self.OffersConsumed >= 1
-        && !Frame.bBuildChangeInFlight && !bBuilds && State.StepsCommitted >= OpeningSteps
+        && !Frame.bBuildChangeInFlight && !bBuilds && Route == ELDRestService::None && State.StepsCommitted >= OpeningSteps
         && (!Profile.Build.IsEmpty() || (!Self.bOpeningBasePending && Self.UnspentPoints == 0));
+    if (Route != ELDRestService::None)
+    {
+        Out.Body = LDOpponentPolicy::WalkToRestService(Frame, Catalog, Policy, Route);
+        if (Out.Body.Kind == EBody::None)
+        {
+            State.Phase = ELDEvaluationPhase::Failed;
+            State.Failure = FString::Printf(TEXT("step %d: the rest service NPC it needs cannot be reached"), State.StepsCommitted + 1);
+            return Finish(ELDOpponentMode::Stopped, ELDOpponentReason::ProviderUnavailable);
+        }
+        if (Self.bChanneling || (Frame.Order.IsLive() && Frame.Order.Kind == ELDOpponentOrderKind::Action))
+        {
+            Out.Body = FLDOpponentBodyIntent();
+            Out.Body.Kind = EBody::Keep;
+        }
+        State.Phase = ELDEvaluationPhase::Building;
+        return Finish(ELDOpponentMode::Choose, ELDOpponentReason::RestService);
+    }
     // The body waits in a rest, while dead, and until every planned choice is consumed, every planned build step is
     // committed and the build steps an unplanned profile's production rule decides are settled.
     const bool bSettling = State.Phase == ELDEvaluationPhase::Waiting || State.Phase == ELDEvaluationPhase::Building;

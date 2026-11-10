@@ -122,7 +122,10 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     FString& Error)
 {
     bApplied=false;
-    if (App.DurationMs<=0 || Victim.bPendingDeath || IsIsolated(App.SourceEntity,Victim)) { return true; }
+    const bool bIsolated = App.bSpectatorThrow
+        ? Victim.IsolationGroup == ALDGameMode::RestIsolationGroup() && !Victim.bTrainingDummy
+        : IsIsolated(App.SourceEntity,Victim);
+    if (App.DurationMs<=0 || Victim.bPendingDeath || bIsolated) { return true; }
     // Hard controls take the diminished duration; the chain advances only when the control actually lands.
     FLDHardControlChain Chain=Victim.HardControl;
     const bool bHard=LDCombatControl::IsHardControl(App.Kind);

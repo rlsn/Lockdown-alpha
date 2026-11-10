@@ -233,6 +233,22 @@ bool FLDRestPhaseTest::RunTest(const FString& Parameters)
         FString Error;
         bGood &= TestTrue(TEXT("Direct control paths also reject a rest player without advancing control state"),
             Driver->CommitControl(SB, Control, 0, bApplied, Error) && !bApplied && SB.Stuns.IsEmpty());
+        FLDControlApplication Throw;
+        Throw.Kind = ELDControlKind::Slow;
+        Throw.EffectId = FGuid::NewGuid();
+        Throw.DurationMs = 1000;
+        Throw.RatioBp = 3000;
+        Throw.bSpectatorThrow = true;
+        bGood &= TestTrue(TEXT("A spectator throw never slows a rest player"),
+            Driver->CommitControl(SB, Throw, 0, bApplied, Error) && !bApplied);
+        FLDBodyCombatState Arena = State(ELDVictimKind::Contender, FGuid(0x198C, 1, 0, 5), FGuid(0x198C, 2, 0, 1));
+        Arena.PKSide = 1;
+        FLDControlApplication Unowned = Throw;
+        Unowned.bSpectatorThrow = false;
+        bGood &= TestTrue(TEXT("An unowned control without the throw flag stays isolated from an arena body"),
+            Driver->CommitControl(Arena, Unowned, 0, bApplied, Error) && !bApplied);
+        bGood &= TestTrue(TEXT("A spectator throw slows a PK arena body"),
+            Driver->CommitControl(Arena, Throw, 0, bApplied, Error) && bApplied);
     }
     bGood &= TestTrue(TEXT("The field is out of reach of a rest group and back"), Driver->IsIsolated(A, SM) && Driver->IsIsolated(Camp, SA));
     SM.bSuspended = true;
