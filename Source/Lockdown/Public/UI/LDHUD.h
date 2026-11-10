@@ -119,6 +119,7 @@ private:
     UPROPERTY() TObjectPtr<UProgressBar> CircleProgress;
     UPROPERTY() TObjectPtr<UTextBlock> NextStepText;
     UPROPERTY() TObjectPtr<UTextBlock> AirdropText;
+    UPROPERTY() TObjectPtr<UTextBlock> CharmText;
     UPROPERTY() TObjectPtr<UTextBlock> LeaderText;
     UPROPERTY() TObjectPtr<UTextBlock> BossText;
     // Top-left event feed (LDHUD::FEventFeed): one row per shown line, newest at the bottom.

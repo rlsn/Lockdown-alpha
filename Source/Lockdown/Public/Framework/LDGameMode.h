@@ -9,6 +9,7 @@
 #include "World/LDCaptureCircle.h"
 #include "World/LDCaptureMarker.h"
 #include "World/LDAirdrop.h"
+#include "World/LDCharms.h"
 #include "World/LDDormZones.h"
 #include "World/LDLeaderNotice.h"
 #include "World/LDDormMarker.h"
@@ -159,6 +160,17 @@ public:
     bool ClaimAirdrop(const FLDGameplayWritePermit& Permit, FString& Error);
     // Driver step planning: the next airdrop announcement or landing boundary, MAX_int64 when none.
     int64 NextAirdropDueMs() const;
+    // #198 field charms (World/LDCharms.h, Framework/LDGameModeCharms.cpp), keyed to field progress T.
+    const FLDCharmState& GetCharms() const { return Charms; }
+    // RespawnsAndWorld, after AdvanceAirdrop and only while a field segment runs: expires charms and places due waves.
+    // False only on an authority fault.
+    bool AdvanceCharms(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Transactions: each lying charm goes to one eligible contender inside its disk and applies its effect through Combat.
+    bool ClaimCharms(const FLDGameplayWritePermit& Permit, FString& Error);
+    // RespawnsAndWorld at a field-to-rest boundary: every unclaimed charm leaves without any reward.
+    bool EndCharmsForRest(const FLDGameplayWritePermit& Permit, FString& Error);
+    // Driver step planning: the authority instant of the next charm wave or expiry in the running field, MAX_int64 when none.
+    int64 NextCharmDueMs() const;
     // D27 (#79) 上热搜: RespawnsAndWorld names the leader at each refresh boundary. False only on an authority fault.
     bool AdvanceLeaderNotice(const FLDGameplayWritePermit& Permit, FString& Error);
     int64 NextLeaderDueMs() const;
@@ -387,6 +399,8 @@ private:
     FLDCaptureCircle CaptureCircle;
     FLDDormZones DormZones;
     FLDAirdropState Airdrop;
+    // #198 field charms of this match; inactive outside a running match.
+    FLDCharmState Charms;
     FLDLeaderState LeaderNotice;
     TMap<FGuid, FLDCaptureTrack> CaptureTracks;
     TOptional<FLDCaptureProposal> PendingCapture;
@@ -416,6 +430,9 @@ private:
     bool IsCloseAwaitingSettlement() const { return PendingCapture.IsSet() && !bAuthorityStepOpen; }
     bool TryCloseMatch(ELDMatchEndReason Reason, const FGuid& Winner, int64 EndedAtMs, FString& Error);
     void PublishMatchOutcome();
+    // #198 §10 (Framework/LDGameModeBlueprint.cpp): once the result is published, each present human contender's own
+    // build blueprint (or the explicit reason it has none) goes to that contender's owning connection only.
+    void PublishBuildBlueprints();
     void PublishPublicMatch();
     void QueueLeaveFact(const FGuid& ContenderId);
     FLDContenderRecord* FindContender(const FGuid& ContenderId);

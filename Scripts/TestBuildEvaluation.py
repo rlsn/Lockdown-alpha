@@ -11,6 +11,7 @@ import tempfile
 import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import BuildEvaluation as core  # noqa: E402
@@ -30,7 +31,7 @@ def fake_adapter(name="FakeEvalAdapter"):
                               "card_x": {"status": "Disabled", "reason": "not wired"}},
                 "decisions": {"pick": {}, "prepare": {"sample_classes": ["diagnostic"]}},
                 "scenarios": {"toy": {"evidence_level": "NativeControlled", "sample_classes": ["legal_search", "diagnostic"],
-                                      "sides": 2, "metrics": ["score", "time"]}},
+                                      "sides": 2, "budget_classes": ["standard"], "metrics": ["score", "time"]}},
                 "metrics": {"score": {"unit": "pt", "kind": "score", "direction": "higher_better"},
                             "time": {"unit": "ms", "kind": "time_to_event", "direction": "descriptive"}},
                 "random_streams": {"seeded": ["all"], "unseeded": []}}
@@ -93,14 +94,15 @@ def fake_adapter(name="FakeEvalAdapter"):
 
 def manifest(design="paired_arms", arms=None, splits=(1, 3), sides=1, threshold=None, sample="legal_search", **overrides):
     arms = arms or [{"id": "ref", "plan": {"cards": ["card_a"]}}, {"id": "t", "plan": {"cards": ["card_b"]}}]
-    out = {"schema": core.MANIFEST_SCHEMA, "schema_version": 1,
+    out = {"schema": core.MANIFEST_SCHEMA, "schema_version": core.MANIFEST_SCHEMA_VERSION,
            "experiment": {"id": "exp-1", "hypothesis": "t beats ref"},
            "adapter": {"module": "FakeEvalAdapter", "id": "fake-game"},
            "scenario": {"kind": "toy", "parameters": {}}, "sample_class": sample, "assumptions": ["toy supply"],
            "design": {"kind": design, "arms": arms},
            "blocks": {"root_seed": "42", "splits": {"search": splits[0], "confirm": splits[1]}, "sides": sides},
            "metrics": {"primary": "score", "secondary": ["time"], "material_difference": threshold},
-           "budget": {"max_cases": 100, "case_wall_timeout_s": 60, "run_wall_timeout_s": 600}}
+           "budget": {"class": "standard", "max_cases": 60, "case_wall_timeout_s": 60, "run_wall_timeout_s": 600,
+                      "max_case_events": 200000, "max_run_disk_bytes": 2 * core.GiB, "max_root_disk_bytes": 6 * core.GiB}}
     if design == "paired_arms":
         out["design"]["reference"] = "ref"
     out.update(overrides)
@@ -181,6 +183,35 @@ class ManifestTest(CoreCase):
         for word in (r"Lockdown", r"lockdown", r"\bLD_", r"opening", r"attr_", r"passive_", r"active_", r"Q/W/E", r"flagpole",
                      r"Unreal", r"BuildEvaluationLockdown"):
             self.assertIsNone(re.search(word, source), f"the core must not know '{word}'")
+
+    def test_budget_fields_are_required_and_capped_by_the_approved_class(self):
+        for field in ("class", "max_case_events", "max_run_disk_bytes", "max_root_disk_bytes"):
+            with self.subTest(missing=field):
+                bad = manifest()
+                del bad["budget"][field]
+                self.refused(bad, field)
+        bad = manifest()
+        bad["budget"]["class"] = "nightly"
+        self.refused(bad, "budget.class")
+        self.refused(manifest(schema_version=1), f"{core.MANIFEST_SCHEMA}/{core.MANIFEST_SCHEMA_VERSION}")
+        over = {"standard": {"max_cases": 61, "case_wall_timeout_s": 181, "run_wall_timeout_s": 5401},
+                "full_match": {"max_cases": 9, "case_wall_timeout_s": 1801, "run_wall_timeout_s": 7201}}
+        shared = {"max_case_events": 200001, "max_run_disk_bytes": 2 * core.GiB + 1, "max_root_disk_bytes": 6 * core.GiB + 1}
+        for budget_class, fields in over.items():
+            for field, value in dict(fields, **shared).items():
+                with self.subTest(budget_class=budget_class, field=field):
+                    bad = manifest()
+                    bad["budget"].update({"class": budget_class, "max_cases": 8}, **{field: value})
+                    with self.assertRaisesRegex(core.PlanError, f"budget.{field}: .*approved {budget_class} class"):
+                        core.validate_manifest(bad)
+        ceiling = manifest()
+        ceiling["budget"].update({"class": "full_match", "max_cases": 8, "case_wall_timeout_s": 1800, "run_wall_timeout_s": 7200})
+        core.validate_manifest(ceiling)
+        ceiling["budget"].update({"class": "standard", "max_cases": 60, "case_wall_timeout_s": 180, "run_wall_timeout_s": 5400})
+        core.validate_manifest(ceiling)
+        bad = manifest()
+        bad["budget"].update(max_run_disk_bytes=2048, max_root_disk_bytes=1024)
+        self.refused(bad, "cannot exceed max_root_disk_bytes")
 
 
 class PlanTest(CoreCase):
@@ -267,6 +298,104 @@ class PlanTest(CoreCase):
         with self.assertRaises(core.PlanError) as caught:
             self.plan(manifest())
         self.assertIn("exceed the 5 one native run accepts", str(caught.exception))
+
+    def test_a_budget_class_the_scenario_does_not_declare_is_unsupported(self):
+        value = manifest()
+        value["budget"].update({"class": "full_match", "max_cases": 8, "case_wall_timeout_s": 1800})
+        _, _, cases = self.plan(value)
+        self.assertTrue(all(case["status"] == "Unsupported" and "UnsupportedBudgetClass: full_match in toy" in case["reason"]
+                            for case in cases))
+
+
+class BudgetGateTest(CoreCase):
+    """Disk sizes come through the core.disk_usage seam; a manifest can only ask for the approved ceilings or less."""
+
+    def usage(self, sizes):
+        def measure(path):
+            path = Path(path).resolve()
+            return next((size for where, size in sizes.items() if path == Path(where).resolve()), 0)
+        return mock.patch.object(core, "disk_usage", measure)
+
+    def test_disk_usage_counts_every_file_below_the_path(self):
+        (self.root / "a" / "b").mkdir(parents=True)
+        (self.root / "a" / "one.bin").write_bytes(b"x" * 10)
+        (self.root / "a" / "b" / "two.bin").write_bytes(b"y" * 32)
+        self.assertEqual(core.disk_usage(self.root / "a"), 42)
+        self.assertEqual(core.disk_usage(self.root / "missing"), 0)
+
+    def test_a_full_evidence_root_starts_nothing_and_keeps_old_evidence(self):
+        old = self.root / "old-run" / "native.log"
+        old.parent.mkdir()
+        old.write_bytes(b"evidence")
+        with self.usage({self.root: 6 * core.GiB}), self.assertRaisesRegex(core.PlanError, "DiskBudget: .*never deleted"):
+            self.plan(manifest())
+        self.assertFalse((self.root / "run").exists())
+        self.assertEqual(old.read_bytes(), b"evidence")
+        with self.usage({self.root: 6 * core.GiB - 1}):
+            run_dir, _, _ = self.plan(manifest())
+        self.assertEqual(core.read_json(run_dir / "coverage.json")["budget"]["root_bytes_at_plan"], 6 * core.GiB - 1)
+
+    def test_the_disk_gate_reports_the_first_limit_reached(self):
+        run_dir, _, _ = self.plan(manifest())
+        budget = core.read_json(run_dir / "manifest.json")["budget"]
+        with self.usage({run_dir: 2 * core.GiB, self.root: 6 * core.GiB}):
+            self.assertIn("max_run_disk_bytes", core.disk_gate(run_dir, budget)["exceeded"])
+            self.assertEqual(core.main(["gate", "--run-dir", str(run_dir)]), 4)
+        with self.usage({run_dir: 1, self.root: 6 * core.GiB}):
+            self.assertIn("max_root_disk_bytes", core.disk_gate(run_dir, budget)["exceeded"])
+        with self.usage({run_dir: 2 * core.GiB - 1, self.root: 6 * core.GiB - 1}):
+            self.assertIsNone(core.disk_gate(run_dir, budget)["exceeded"])
+            self.assertEqual(core.main(["gate", "--run-dir", str(run_dir)]), 0)
+
+    def test_a_budget_stop_marks_every_unfinished_case_budget_exceeded(self):
+        run_dir, _, _ = self.plan(manifest())
+        self.native(run_dir, lambda case: (1, 1000, False), missing=("c001a-ref", "c001a-t", "c002a-ref", "c002a-t"))
+        runner = core.read_json(run_dir / "runner.json")
+        core.write_json(run_dir / "runner.json", dict(runner, budget_stop={
+            "gate": "DiskBudget", "case": "c001a-ref", "detail": "the run directory reached max_run_disk_bytes"}))
+        _, findings = core.analyze(run_dir)
+        cases = {case["case_id"]: case for case in core.read_cases(run_dir)}
+        self.assertEqual(cases["c001a-ref"]["reason"], "DiskBudget: the run directory reached max_run_disk_bytes")
+        self.assertTrue(cases["c002a-t"]["reason"].startswith("DiskBudget: the run was stopped before this Case finished"))
+        self.assertEqual({cases[key]["status"] for key in ("c001a-ref", "c001a-t", "c002a-ref", "c002a-t")}, {"BudgetExceeded"})
+        self.assertEqual(cases["c000a-t"]["status"], "Completed")
+        coverage = core.read_json(run_dir / "coverage.json")
+        self.assertEqual(coverage["budget"]["stop"]["gate"], "DiskBudget")
+        self.assertEqual(coverage["by_status"]["BudgetExceeded"], 4)
+        self.assertTrue(any(item["title"].startswith("预算门禁 DiskBudget") for item in findings["findings"]))
+        self.assertIn("中止：DiskBudget", (run_dir / "report.md").read_text(encoding="utf-8"))
+        core.write_json(run_dir / "runner.json", dict(runner, budget_stop={"gate": "Quota", "detail": "x"}))
+        with self.assertRaisesRegex(core.PlanError, "budget_stop is malformed"):
+            core.analyze(run_dir, rejudge=True)
+
+    def test_a_trace_over_the_event_budget_is_never_a_result(self):
+        value = manifest(splits=(0, 3))
+        value["budget"]["max_case_events"] = 3
+        run_dir, _, _ = self.plan(value)
+        long_trace = "E1\nE2\nE3\nRES a 42 10\nPOS a 0 0\n"
+        self.native(run_dir, lambda case: (1 if case["arm"] == "t" else 0, 1000, False),
+                    traces={"c001a-t": long_trace, **{case["case_id"]: "E1\nRES a 42 10\nPOS a 0 0\n"
+                                                      for case in core.read_cases(run_dir) if case["case_id"] != "c001a-t"}})
+        for rejudge in (False, False, True):
+            metrics, _ = core.analyze(run_dir, rejudge=rejudge)
+            case = next(case for case in core.read_cases(run_dir) if case["case_id"] == "c001a-t")
+            self.assertEqual(case["status"], "BudgetExceeded")
+            self.assertTrue(case["reason"].startswith("EventBudget: the trace holds 5 authoritative events"))
+            self.assertEqual(case["facts"]["event_budget"], {"events": 5, "limit": 3, "first_over_limit": "RES a 42 10"})
+            self.assertEqual(case["facts"]["native_status"], "Completed")
+            self.assertEqual(metrics["splits"]["confirm"]["metrics"]["score"]["contrasts"][0]["excluded_blocks"], ["c001"])
+        self.assertEqual((run_dir / "native" / "traces" / "c001a-t.log").read_text(encoding="utf-8"), long_trace)
+        self.assertEqual(core.read_json(run_dir / "coverage.json")["budget"]["event_budget_cases"], ["c001a-t"])
+
+    def test_a_run_planned_before_the_budget_gates_is_refused(self):
+        run_dir, _, _ = self.plan(manifest())
+        self.native(run_dir, lambda case: (1, 1000, False))
+        frozen = core.read_json(run_dir / "manifest.json")
+        core.write_json(run_dir / "manifest.json", dict(frozen, schema_version=1))
+        with self.assertRaisesRegex(core.PlanError, "no disk or event budget"):
+            core.analyze(run_dir)
+        with self.assertRaisesRegex(core.PlanError, "no disk or event budget"):
+            core.replay_plan(run_dir, "c000a-t", self.root / "replay")
 
 
 class AnalyzeTest(CoreCase):

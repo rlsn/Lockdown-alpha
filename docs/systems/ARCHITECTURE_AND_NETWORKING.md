@@ -105,6 +105,9 @@ Host 同时运行权威世界和自己的客户端表现。IP 直连不依赖匹
   7 是去掉装备主动入口（`ELDCombatEntry` 只剩 Q/W/D）与公开施法的装备来源时的版本。
   三者都经各自 OnRep 的形状/代次/版本检查，旧代次或重复发布不能覆盖已接受值。
 - 世界观察只使用 Demo 的单一稀疏协议；旧 B91/B92 控制器与独立观测/服务格式不作兼容入口。
+- 局末构筑蓝图（#198 §10）不进 GameState：结果发布后由 Host 只经各真人自己的 `ULDBuildBlueprintComponent`
+  （`ALDPlayerController` 默认子对象）发出 Offer，拥有者按顺序拉取分块并在本机 `Saved/Blueprints` 写文件；
+  见[视野与 UI](VISION_AND_UI.md#构筑蓝图文件与查看)。
 
 详细可见性机制见 [视野与 UI](VISION_AND_UI.md)。
 

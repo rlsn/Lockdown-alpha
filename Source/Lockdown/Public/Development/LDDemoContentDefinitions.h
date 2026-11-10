@@ -140,6 +140,20 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
+    // #198 field charms: CharmWaveCount waves at field progress T = CharmFirstWave + n * CharmWaveInterval, each of
+    // CharmPerWave distinct kinds on distinct airdrop points, lasting CharmLifetimeMs of field progress. Heal restores
+    // CharmHealMaxHPBp of max HP, mana CharmManaMaxMPBp of max MP; move speed adds CharmMoveSpeedBp to the additive
+    // move-speed ratio for CharmMoveSpeedMs (a later pickup refreshes it). See World/LDCharms.h.
+    UPROPERTY() int64 CharmFirstWaveMs = 0;
+    UPROPERTY() int64 CharmWaveIntervalMs = 0;
+    UPROPERTY() int64 CharmWaveCount = 0;
+    UPROPERTY() int64 CharmPerWave = 0;
+    UPROPERTY() int64 CharmLifetimeMs = 0;
+    UPROPERTY() FLDDemoRational CharmPickupRadiusCm;
+    UPROPERTY() int64 CharmHealMaxHPBp = 0;
+    UPROPERTY() int64 CharmManaMaxMPBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedMs = 0;
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;

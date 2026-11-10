@@ -2052,6 +2052,41 @@
       "ms": 3500,
       "unit": "ms"
     },
+    "CHARM.FirstWaveSec": {
+      "ms": 30000,
+      "unit": "ms"
+    },
+    "CHARM.HealMaxHPRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "CHARM.LifetimeSec": {
+      "ms": 45000,
+      "unit": "ms"
+    },
+    "CHARM.ManaMaxMPRatio": {
+      "bp": 2500,
+      "unit": "ratio"
+    },
+    "CHARM.MoveSpeedRatio": {
+      "bp": 2000,
+      "unit": "ratio"
+    },
+    "CHARM.MoveSpeedSec": {
+      "ms": 6000,
+      "unit": "ms"
+    },
+    "CHARM.PerWave": 2,
+    "CHARM.PickupRadiusCm": {
+      "denominator": 1,
+      "numerator": 100,
+      "unit": "cm"
+    },
+    "CHARM.WaveCount": 7,
+    "CHARM.WaveIntervalSec": {
+      "ms": 90000,
+      "unit": "ms"
+    },
     "COMBAT.BreachMaxStacks": 5,
     "COMBAT.BreachPerStack": {
       "p2": 300,

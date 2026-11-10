@@ -1,6 +1,6 @@
 {
   "schema": "build_evaluation.manifest",
-  "schema_version": 1,
+  "schema_version": 2,
   "experiment": {
     "id": "e3-first-levelup-branches",
     "hypothesis": "同一前缀下，首个升级三选一（序号 2）的三个合法选项会改变固定策略中心点对决的结果。"
@@ -128,8 +128,12 @@
     "material_difference": null
   },
   "budget": {
+    "class": "standard",
     "max_cases": 36,
     "case_wall_timeout_s": 180,
-    "run_wall_timeout_s": 2400
+    "run_wall_timeout_s": 2400,
+    "max_case_events": 200000,
+    "max_run_disk_bytes": 2147483648,
+    "max_root_disk_bytes": 6442450944
   }
 }

@@ -82,6 +82,7 @@ bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
     if (Pool.HpP2==Before) { return false; }
     ++Pool.Revision;
     MarkViewChanged(Body.Victim.EntityId);
+    LedgerHealed(Body,Pool.HpP2-Before);
     return true;
 }
 
@@ -98,6 +99,7 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
     ++Body.Resources.Revision;
     ++Body.StateRevision;
     MarkViewChanged(Body.Victim.EntityId);
+    LedgerShieldGranted(Body,AmountP2);
     return true;
 }
 

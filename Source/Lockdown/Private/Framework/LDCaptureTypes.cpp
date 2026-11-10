@@ -67,6 +67,17 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
         || Drop.PositionCm.ContainsNaN() || (bDrop ? Drop.LandAtMs <= View.StartedAtMs : Drop.LandAtMs != 0)
         || ((Drop.Phase == ELDAirdropPhase::Landed || Drop.Phase == ELDAirdropPhase::Claimed) && View.ServerNowMs < Drop.LandAtMs))
     { return FailCaptureView(Error, TEXT("The airdrop does not match its phase or the match clock.")); }
+    // #198: lying charms are in strictly increasing serial order, of a known kind, on distinct named points.
+    for (int32 Index = 0; Index < View.Charms.Num(); ++Index)
+    {
+        const FLDCharmView& Charm = View.Charms[Index];
+        if (Charm.Serial == 0 || (Index > 0 && Charm.Serial <= View.Charms[Index - 1].Serial)
+            || Charm.Kind == ELDCharmKind::None || uint8(Charm.Kind) > uint8(ELDCharmKind::MoveSpeed) || Charm.PointId.IsNone()
+            || Charm.PositionCm.ContainsNaN() || Charm.ExpireAtFieldMs <= 0
+            || View.Charms.ContainsByPredicate([&Charm](const FLDCharmView& Other)
+                { return Other.Serial != Charm.Serial && Other.PointId == Charm.PointId; }))
+        { return FailCaptureView(Error, TEXT("A lying charm has no serial order, kind or point of its own.")); }
+    }
     const FLDBossView& Boss = View.Boss;
     if (Boss.Phase == ELDBossPhase::None ? (Boss.AppearAtMs != 0 || Boss.KilledBy.IsValid() || Boss.DownAtMs != 0)
         : (Boss.AppearAtMs <= View.StartedAtMs
@@ -85,7 +96,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     case ELDMatchPhase::Countdown:
         // #153: the frozen opening before T=0; nothing that counts from T=0 has happened yet.
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid() || View.ServerNowMs > View.StartedAtMs
-            || Owned || bDrop || Named.Leader.IsValid())
+            || Owned || bDrop || Named.Leader.IsValid() || !View.Charms.IsEmpty())
         { return FailCaptureView(Error, TEXT("The opening countdown publishes only its T=0 and the closed circle.")); }
         break;
     case ELDMatchPhase::Development:
@@ -102,7 +113,7 @@ bool LDCapture::ValidatePublicMatchView(const FLDPublicMatchView& View, FString&
     default:
         if (View.CircleState != ELDCircleState::NotOpen || View.ResultId.IsValid()
             || View.ServerNowMs || View.StartedAtMs || View.OpenAtMs || View.CaptureEpoch || Owned || bDrop
-            || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None)
+            || Named.Leader.IsValid() || Boss.Phase != ELDBossPhase::None || !View.Charms.IsEmpty())
         { return FailCaptureView(Error, TEXT("Rooms outside an active match publish no spray state.")); }
         break;
     }

@@ -179,6 +179,33 @@ paint 再次检查当前帧状态及 Match/Life，死亡、过期或他局帧立
 选中另一角色并不改变技能按钮的所有者；禁用按钮只是反馈，不能代替服务器检查。
 Widgets 不得遍历所有 Pawn/PlayerState 来补全 Tooltip 或小地图。
 
+## 构筑蓝图文件与查看
+
+局末构筑蓝图（#198 §10）是本人的只读记录，只保存配方，不授予能力、不恢复遗忘的技能，也不写任何运行状态；
+台账与归属规则见[战斗与成长](COMBAT_AND_GROWTH.md#局末构筑蓝图198-10)。
+
+- **只给本人**：结果发布时 Host 为每名在场真人组好记录，经 `ALDPlayerController::BuildBlueprints`（`ULDBuildBlueprintComponent`）
+  先发 `ClientBlueprintOffer`（总字节或明确的失败原因），客户端按顺序用 `ServerBlueprintChunk` 拉取 16 KiB 分块，服务器只回应当前结果
+  的下一个偏移，重放、跳块或旧结果都被拒绝；Listen Host 本人直接交付字节。传输中断或校验失败的部分记录不保存、不显示为蓝图。
+  AI 不生成记录；房主断线或故障结束的对局没有锁定结果，因此也没有蓝图。
+- **格式**：UTF-8 JSON（规范键序、整数数字），`schema=lockdown.build-blueprint`、`schema_version=1`，扩展名 `.ldbuild.json`。
+  顶层为 `origin`（`auto`/`export`）、`complete`、`product_version`、`recorded_at_utc`（本机收到时的 UTC，保留按它排序）、
+  `rules`（协议版本、目录根摘要与 schema/handler/projection 修订）、`match`（公开 ResultId、模式、结束原因、胜负、毫秒时刻）、
+  `player`（最终等级与 K/D/A）、`final_build`（最后版本的结构与修订）和 `versions`（每个版本的修订、时间段、等级、`dev_layer`、
+  结构与 `facts`）。结构的 `components` 与每个事实都带 `collected`；未采集时值为 `null`。不含参赛者 ID、账号、地址、原始 trace、
+  未来种子或别人的构筑。
+- **保存与保留**（`LDBuildBlueprintStore`）：拥有者在本机 `FPaths::ProjectSavedDir()/Blueprints/match-<ResultId>.ldbuild.json` 写入，
+  先写同目录临时文件并回读，再移动到位并回读；成功后才清理：只处理该目录内、文件名就是自身 Match ID、通过严格校验且 `origin=auto`
+  的记录，按 `recorded_at_utc` 删最旧的，直到最多 50 份、总计不超过 100 MiB（常量在 `LDBuildBlueprint`）。导出、导入目录、
+  其他文件与无效文件都不动；删除失败会明确提示。完整记录超过 2 MiB 时不截断，自动保存失败并说明原因，本局记录仍可在蓝图页只读查看
+  （传输上限 8 MiB）。写入失败时旧蓝图保留。
+- **页面**（`ULDBlueprintPanel`，结果页与大厅的“构筑蓝图”按钮）：显示来源、保存状态（`Saved/Blueprints/...` 相对路径或失败原因）、
+  目录不一致/产品版本不同/失效安装/不完整等提示、结果与规则摘要、最终构筑，以及每个版本的结构、时间段与事实（未采集单列）。
+  “导出文件”把本局记录以 `origin=export` 写到 `Blueprints/Exports/build-<id>-<时间>.ldbuild.json`（不覆盖已有文件，不会被清理）；
+  “打开所在文件夹”建好 `Exports`、`Imports` 后用系统文件管理器打开 `Blueprints`；“导入查看”列出 `Blueprints`、`Exports`、`Imports`
+  里的文件，选中后先查大小（≤2 MiB），再做严格 UTF-8、JSON、schema/版本、字段类型、未知字段与版本衔接校验，失败时显示具体原因
+  （未知版本明确说明无法读取），通过的只读展示。分享由玩家自行发送文件；不建账号、不上传、不发 Discord 或网页链接。
+
 ## UI 交互与错误
 
 输入捕获、焦点、Esc、菜单与镜头的共同约束见 [移动与输入](MOVEMENT_INPUT_AND_CAMERA.md)。
@@ -298,6 +325,10 @@ BS.1770 K 加权、400 ms 窗口的最大瞬时响度统一到全部音效的中
   动作格的冷却/法力不足/受控/空槽/准备态分类、法力消耗/等级数字与图标首字、本命之后的死因取值，以及击杀通知里本人写作“你”。
 - `HUDScoreboard`（`LDHUDRulesTests`）覆盖按住 Tab 的排行榜：击杀多在前、相同时死亡少在前、再相同保持名单顺序，本人/AI/已离开的名字标注，
   别的代次或没有对局时为空。`DemoCapture` 规则测试另拒绝无效 ID、重复参赛者或超过 6 行的 `KillFeed.Scores`。
+- `Lockdown.Rules.BuildBlueprint.{Serialize,Validate,Prune}`（`LDBuildBlueprintTests`）覆盖构筑蓝图的规范序列化与往返（未采集为 `null`、
+  组件未采集、不含参赛者身份）、读取拒绝（超 2 MiB、非 UTF-8 与超长编码、非 JSON、错误 schema、未知版本、缺字段、非法槽位、
+  未采集填 0、未知 origin 与未知字段）、目录与失效安装提示，以及只清理本 schema 的自动记录（按时间最旧、50 份与总字节上限，
+  导出、未知版本、损坏与他人文件不动）和超过 2 MiB 时不截断、不写入、旧蓝图保留。
 - `HUDEventFeed`（`LDHUDRulesTests`）覆盖左下（小地图上方）事件播报：中途进入不补播、每个公开变化只播一次且最新在下、本人行高亮、
   6 条上限与 5 s 离开、外卖被抢行在本人领取序号到达后改写、老板击败者署名、同一主人被冻结的守护归零只播一次
   （暂停、冻结与恢复本身不播），以及新一局从空列表开始。

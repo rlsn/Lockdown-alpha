@@ -913,6 +913,7 @@ bool ALDCombatDirector::LandBasic(ALDCharacter& Actor, FLDBodyCombatState& Body,
     // One critical sample per AttackId, at the successful release only.
     Hit.bCritical=Final.CritChanceBp>0 && CritRandom.RandRange(0,9999)<Final.CritChanceBp;
     PendingHits.Add(Hit);
+    LedgerEffectReleased(Body,Hit.EffectId,ELDBlueprintFact::BasicAttacks);
     if (bWasEmpowered)
     {
         ++Body.StateRevision;
@@ -1082,6 +1083,8 @@ bool ALDCombatDirector::ReleaseAbility(ALDCharacter& Actor, FLDBodyCombatState& 
     const auto& Final=Body.AttributeProjection.Final;
     const FGuid EffectId=FGuid::NewGuid();
     Track->LastEffectId=EffectId;
+    // The innate dash is no build ability: its hits still belong to the version, but it is not counted as a cast.
+    LedgerEffectReleased(Body,EffectId,bInnate ? ELDBlueprintFact::Count : ELDBlueprintFact::AbilityCasts);
     auto CastLedger=MakeShared<FLDCombatCastLedger>();
     CastLedger->bUniqueSkillHits=LDCA::FindEffect(*ValuesDef,ELDDemoEffectOp::ChannelCone)!=nullptr;
     const FLDCombatBodyRef SelfRef{Body.Victim,Body.Identity};

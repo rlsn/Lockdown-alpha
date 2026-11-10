@@ -49,6 +49,8 @@ public:
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
+    // #198 §10 owner-only end-of-match build blueprint channel and its read-only viewer (LDBuildBlueprintComponent.h).
+    UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDBuildBlueprintComponent> BuildBlueprints;
     UPROPERTY(ReplicatedUsing=OnRep_OwnerState) FLDOwnerState OwnerState;
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);

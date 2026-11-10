@@ -31,24 +31,26 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 ```
 
 运行要求编辑器构建（`BuildEditor.ps1`）；一次运行只启动一个无画面 Listen Host（`-nullrhi`、固定步长 `-UseFixedTimeStep -FPS=60`，
-可用 `-FixedFps` 改），顺序执行全部 Case，不并发、不做定时运行、不外发报告。计划与重放只写入不存在或空的运行目录，
+可用 `-FixedFps` 改），顺序执行全部 Case，不并发、不做定时运行、不外发报告。每次运行都是获准后手动触发的一次实验，
+受下文[预算与停止条件](#预算与停止条件)约束。计划与重放只写入不存在或空的运行目录，
 非空目录在写任何文件前被拒绝，旧证据不会混入新计划，重放也不能覆盖源记录。输出在忽略的
-`Artifacts\BuildEvaluation\<时间戳>-<实验 id>\`：
+`Artifacts\BuildEvaluation\<时间戳>-<实验 id>\`（`Artifacts\BuildEvaluation` 即证据根）：
 
 | 文件 | 内容 |
 | --- | --- |
 | `manifest.json` | 冻结的清单与解析结果（核心版本、Adapter、内容摘要、能力表摘要、证据级别、Case 数） |
 | `capabilities.json` | 本次使用的能力表 |
-| `coverage.json` | 每个 arm 的准入结论与各执行状态计数 |
+| `coverage.json` | 每个 arm 的准入结论与各执行状态计数；`budget` 记预算上限、计划/分析时的磁盘用量、门禁中止原因与超出事件预算的 Case |
 | `cases.jsonl` | 每个 Case 的块、种子、arm、状态、原因、指标、事实 |
 | `native_input.json` | Adapter 写给原生驱动的输入（只含可运行 Case） |
 | `native\native_run.json`、`native\results\<case>.json`、`native\traces\<case>.log` | 原生运行身份、每个 Case 的结果、该局的权威 `LD_*` 日志行 |
 | `metrics.json`、`findings.json`、`report.md` | 统计、发现与报告；重放运行另有 `replay.json` |
-| `Host.log`、`runner.json` | Host 完整日志；退出码、超时、日志错误，以及运行前后编辑器可执行文件和游戏模块的 SHA-256 |
+| `Host.log`、`runner.json` | Host 完整日志；退出码、超时、日志错误、运行前后编辑器可执行文件和游戏模块的 SHA-256，`budget_stop`（首个触发的门禁、当时的 Case、原因）与 `disk`（原生运行结束时本批与证据根的字节数） |
 
 ## 实验清单
 
-清单 schema `build_evaluation.manifest` v1，未知字段一律拒绝，预算等字段没有默认值。
+清单 schema `build_evaluation.manifest` v2，未知字段一律拒绝，预算等字段没有默认值。v1 清单与 v1 计划的运行目录没有磁盘和事件预算，
+计划、分析、重放与比对都拒绝它们，不当作受门禁保护。
 
 | 字段 | 含义 |
 | --- | --- |
@@ -60,10 +62,41 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 | `design.arms[].plan` | Adapter 定义的方案，对核心不透明 |
 | `blocks` | `root_seed`（十进制 uint64 字符串）、`splits.search/confirm` 块数、`sides`（2 表示每块再交换双方位置跑一次） |
 | `metrics` | `primary`、`secondary`，以及 `material_difference`：已批准的实质差异阈值，未批准时必须写 `null` |
-| `budget` | `max_cases`、`case_wall_timeout_s`、`run_wall_timeout_s`；可运行 Case 超过上限时整个计划被拒绝，不启动任何进程 |
+| `budget` | `class`、`max_cases`、`case_wall_timeout_s`、`run_wall_timeout_s`、`max_case_events`、`max_run_disk_bytes`、`max_root_disk_bytes`，全部必填；见下节 |
 
 块种子 = SHA-256(`build-evaluation/v1|root|split|index`) 的前 8 字节；同一块的所有 arm 与两侧共用世界种子，
 搜索与确认集种子不相交（计划时核对）。Case id 为 `<s|c><块号><a|b>-<arm>`。
+
+## 预算与停止条件
+
+上限来自 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198) §11 的批准方案（核心 `BUDGET_CLASSES`、`BUDGET_CEILINGS`）。
+它是获准后手动触发的一次实验上限，不授权每日调度或不限次数批跑。清单可以填更小的值，超过所选类别上限的值在计划时拒绝，
+不启动任何进程。
+
+| 字段 | `standard`（普通批） | `full_match`（整局场景） |
+| --- | --- | --- |
+| `max_cases`（可运行 Case） | ≤ 60 | ≤ 8 |
+| `case_wall_timeout_s` | ≤ 180 | ≤ 1800 |
+| `run_wall_timeout_s`（入口另加固定 300 s 启动） | ≤ 5400 | ≤ 7200 |
+| `max_case_events`（单 Case 权威评估事件） | ≤ 200000 | ≤ 200000 |
+| `max_run_disk_bytes`（本批运行目录） | ≤ 2 GiB（2147483648） | ≤ 2 GiB |
+| `max_root_disk_bytes`（证据根，不小于本批上限） | ≤ 6 GiB（6442450944） | ≤ 6 GiB |
+
+场景在能力表 `budget_classes` 中声明自己接受哪些类别；未声明的类别使全部 Case 为 `UnsupportedBudgetClass`。
+Lockdown 的 `duel_site` 只接受 `standard`，目前没有整局场景，`full_match` 只是已批准的上限，没有可运行的场景。
+
+| 门禁 | 位置与行为 |
+| --- | --- |
+| 证据根磁盘 | 计划与重放计划前测量证据根（运行目录的父目录）全部文件字节数；已达 `max_root_disk_bytes` 时拒绝，不创建运行目录，不删除旧证据腾空间 |
+| 本批与证据根磁盘 | 入口在 Host 运行期间每 10 s 调 `BuildEvaluation.py gate`；运行目录达到 `max_run_disk_bytes` 或证据根达到 `max_root_disk_bytes`（或测量失败）即停止 Host，`budget_stop.gate=DiskBudget`。Host 退出后再测一次，最后一段写入超限同样记下 |
+| 单 Case 事件 | 入口在运行期间增量读取 `Host.log`，按 `LD_EVAL_CASE_BEGIN`/`END` 之间权威分类（`LogLDCombat/Growth/Match/AI/Trace/Test`）的 `LD_*` 行计数，超过 `max_case_events` 即停止 Host，`budget_stop` 记 `EventBudget`、该 Case 与首条超限行。分析时再按 `native\traces\<case>.log` 的非空行精确计数：超过上限的 Case 判 `BudgetExceeded`（`EventBudget`），事实里保留计数、首条超限事件与原生状态，轨迹原样保留，不进入统计 |
+| 整次墙钟 | 入口在 `run_wall_timeout_s` + 300 s 后停止 Host，`budget_stop.gate=RunWall`（`timed_out` 同时为真） |
+| 单 Case 墙钟 | 原生探针按 `wall_timeout_s`（即 `case_wall_timeout_s`）把该 Case 结束为 `BudgetExceeded` |
+
+只记首个触发的门禁。门禁停止后，正在运行的 Case 与之后所有没有结果的 Case 判 `BudgetExceeded`（原因以门禁名开头），
+已写出结果的 Case 照常判读；`findings` 另记一条 `InsufficientEvidence`，报告的“预算门禁”一节写明中止原因、
+运行结束与分析时的磁盘用量和超出事件预算的 Case；入口以失败结束并保留全部证据。
+运行中的事件计数读的是 Host 日志：原生探针仍把整局轨迹放在内存里、Case 结束时才写文件，探针本身没有事件上限。
 
 ## 状态、证据与结论
 
@@ -74,7 +107,7 @@ python -B .\Scripts\BuildEvaluation.py analyze --run-dir <运行目录> --rejudg
 | 结论 | `RuleViolation`、`BalanceConcern`、`NoCounterexampleInCoveredSet`、`InsufficientEvidence`、`NoTarget` |
 
 只有 `Completed` 进入统计分母；其余状态在报告与 `coverage.json` 中逐条列出原因。超时是删失，不是输；
-预算耗尽、原生故障、缺结果都不是胜负。
+预算耗尽（Case 墙钟、整次墙钟、磁盘、事件）、原生故障、缺结果都不是胜负。
 
 统计的独立单位是**种子**，不是执行侧：同一世界种子的两侧先平均，再计算 arm 均值、成对差、
 Student t 的 95% 区间与平均差非零的种子数及其 95% Wilson 区间。某指标所需 arm 的任一侧缺失或无效时，
@@ -184,7 +217,7 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 | `Lockdown.Rules.BuildEvaluation.Policy` | 三种选择规则、缺卡与替换未指定的拒绝、倒计时选择、计划完成前不动、只攻击指定对手、不撤退、走向与到达、失败后停止 |
 | `Lockdown.Rules.BuildEvaluation.Input` | 原生输入的严格解析与各类拒绝 |
 | `Lockdown.Rules.BuildEvaluation.Horizon` | 非帧对齐时限之前、恰在时限和之后的击杀边界 |
-| `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |
+| `TestBuildEvaluation.py` | 核心清单拒绝、准入与设计不完整、预算（必填字段、两类上限、场景未声明的类别、证据根已满时拒绝计划且不删旧证据、`gate` 的本批/证据根上限、门禁中止后未完成 Case 为 `BudgetExceeded`、超出事件预算的轨迹不进统计、v1 运行被拒绝）、种子分割、配对/决策/交互统计、删失、分母、阈值判定、身份失配、重放比对、依赖方向 |
 | `TestBuildEvaluationLockdown.py` | 能力表即运行目录、计划期非法方案、未入目录的候选卡不支持、预置只限 diagnostic、原生输入与换边、合成轨迹的指标与各 `Invalid` 原因、证据合同、重放事件、运行身份 |
 
 ## 首版范围与后续
@@ -192,5 +225,5 @@ Adapter 只汇总这些已提交事实，不自行计算伤害或抽卡。
 首版覆盖本地方案 E0–E3：内容/能力准入与证据合同、可重放的原生 Case、合法成长路径与受控交战、等预算分支与 2×2 交互及最小复现。
 示例清单在 `Scripts\BuildEvaluationManifests`。尚未覆盖：v0.11 机制（需批准并原生实现后由 Adapter 声明）、
 六类策略画像与按画像调参（E5，接入点是评估画像这一处 Decide 替换）、拥有连接/渲染证据的反制与可读性、
-多人或旗杆整局胜率、增量与定期评估（E6，调度与预算需另行批准）。
-平衡目标与实质差异阈值、每批计算预算都由用户决定，未批准时不填默认值。
+多人或旗杆整局胜率、增量与定期评估（E6，调度另需批准）。
+平衡目标与实质差异阈值由用户决定，未批准时不填默认值；每批计算预算按 #198 §11 的批准上限执行。

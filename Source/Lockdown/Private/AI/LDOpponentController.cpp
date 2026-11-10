@@ -372,6 +372,8 @@ bool ALDOpponentController::BuildFrame(ALDGameMode& Mode, int64 NowMs, FReads& R
         Frame.Public.AirdropPOI = Public.Airdrop.PointId;
         Frame.Public.bAirdropLanded = Public.Airdrop.Phase == ELDAirdropPhase::Landed;
     }
+    // #198: the lying charms, exactly as every participant's public view lists them.
+    for (const FLDCharmView& Charm : Public.Charms) { Frame.Public.Charms.Emplace(Charm.PointId, Charm.Kind); }
     FLDOpponentSelf& Me = Frame.Self;
     Me.ContenderId = Own.ContenderId;
     Me.Phase = Own.LifePhase;
