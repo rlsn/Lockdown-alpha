@@ -12,7 +12,7 @@ struct FLDEvaluationSeeds
 {
     static constexpr int32 MaxAISlots = 3;
     uint64 Root = 0;
-    // Growth draws (LDProgression::OfferSeed / RerollSeed material).
+    // Growth draws (LDProgression::OfferSeed material).
     FGuid MatchSecret;
     // The core's server stream: spawn anchors and the AI opening plans, in draw order.
     int32 SpawnSeed = 0;

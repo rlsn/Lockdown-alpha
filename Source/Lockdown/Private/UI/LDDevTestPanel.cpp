@@ -39,58 +39,48 @@ const TCHAR* DevPanelUnit(const LDDevTest::FStatField& Field)
 }
 }
 
-TArray<LDDevPanel::FLearnRow> LDDevPanel::LearnRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression)
+TArray<LDDevPanel::FActiveRow> LDDevPanel::ActiveRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression)
 {
-    TArray<FLearnRow> Rows;
+    TArray<FActiveRow> Rows;
+    const bool bProjected=Progression&&Progression->bValid;
     for(const FLDDemoAbilityDefinition& Ability:Content.Abilities)
     {
-        FLearnRow& Row=Rows.AddDefaulted_GetRef();
+        FActiveRow& Row=Rows.AddDefaulted_GetRef();
         Row.Id=FName(*Ability.Id);Row.Name=LDHUD::ContentName(&Content,Ability.Id);
-        Row.bActiveSkill=Ability.Kind==ELDDemoAbilityKind::Active;Row.Kind=Row.bActiveSkill?TEXT("主动技能"):TEXT("被动技能");
-        if(Progression&&Progression->bValid)
-        {
-            for(const FLDLearnedSkillView& Skill:Progression->Skills)
-            {
-                if(Skill.DefinitionId.ToString().Equals(Ability.Id,ESearchCase::IgnoreCase)){Row.Held=Skill.Rank;}
-            }
-        }
-    }
-    for(const FLDDemoAttributeDefinition& Attribute:Content.Attributes)
-    {
-        FLearnRow& Row=Rows.AddDefaulted_GetRef();
-        Row.Id=FName(*Attribute.Id);Row.Name=LDHUD::ContentName(&Content,Attribute.Id);Row.Kind=TEXT("属性卡");
-        if(Progression&&Progression->bValid)
-        {
-            for(const FLDAttributeCardView& Card:Progression->AttributeCards)
-            {
-                if(Card.DefinitionId.ToString().Equals(Attribute.Id,ESearchCase::IgnoreCase)){Row.Held+=Card.Count;}
-            }
-        }
+        if(!bProjected){continue;}
+        if(const FLDActiveSlotView* Learned=Progression->Actives.FindByPredicate([&Row](const FLDActiveSlotView& A){return A.DefinitionId==Row.Id;}))
+        {Row.Held=EActiveHeld::Learned;Row.Slot=Learned->Slot;}
+        else if(Progression->PendingBlueprints.Contains(Row.Id)){Row.Held=EActiveHeld::Blueprint;}
     }
     return Rows;
 }
 
-bool LDDevPanel::BothActiveSlotsHeld(const FLDProgressionView* Progression)
+bool LDDevPanel::AllActiveSlotsHeld(const FLDProgressionView* Progression)
 {
     if(!Progression||!Progression->bValid){return false;}
     bool bSlots[3]={false,false,false};
-    for(const FLDLearnedSkillView& Skill:Progression->Skills)
+    for(const FLDActiveSlotView& Active:Progression->Actives)
     {
-        if(Skill.bActive&&Skill.Slot<3){bSlots[Skill.Slot]=true;}
+        if(Active.Slot<3){bSlots[Active.Slot]=true;}
     }
     return bSlots[0]&&bSlots[1]&&bSlots[2];
 }
 
-FString LDDevPanel::HeldText(const FLearnRow& Row)
+FString LDDevPanel::HeldText(const FActiveRow& Row)
 {
-    if(Row.Held<=0){return TEXT("未拥有");}
-    return Row.Kind==TEXT("属性卡")?FString::Printf(TEXT("已有 %d 张"),Row.Held):FString::Printf(TEXT("%d 级"),Row.Held);
+    switch(Row.Held)
+    {
+    case EActiveHeld::Learned: return FString(TEXT("已学 "))+LDHUD::SlotKey(Row.Slot);
+    case EActiveHeld::Blueprint: return LDTerms::Blueprint;
+    default: return TEXT("未拥有");
+    }
 }
 
 FString LDDevPanel::StatusLine(const FLDProgressionView* Progression)
 {
-    return Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · %s %lld · 未用选择机会 %d"),
-        int32(Progression->Level),LDTerms::Experience,Progression->CumulativeXP,int32(Progression->PendingChoiceCount)):FString(TEXT("等级 同步中"));
+    return Progression&&Progression->bValid?FString::Printf(TEXT("等级 %d · %s %lld · %s · 待选技能 %d 次"),
+        int32(Progression->Level),LDTerms::Experience,Progression->CumulativeXP,*LDTerms::UnspentPoints(Progression->UnspentPoints),
+        int32(Progression->QueuedActiveOpportunities)):FString(TEXT("等级 同步中"));
 }
 
 FString LDDevPanel::StatLabel(const LDDevTest::FStatField& Field)
@@ -193,9 +183,11 @@ TSharedRef<SWidget> ULDDevTestPanel::RebuildWidget()
             AddButton(Line,TEXT("清除全部测试属性"),[this](){Send(ELDDevTestOp::ClearAttributes);},TEXT("DevTestClearAttr"));
         }
 
-        Heading(TEXT("技能与属性卡（作为当前这次三选一的结果）"));
+        Heading(TEXT("主动技能（不需要机会、图纸或安全窗）"));
         LearnHint=MakeText(TEXT(""),13,DevPanelDim,true);Body->AddChildToVerticalBox(LearnHint)->SetPadding(FMargin(0,0,0,4));
         LearnList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(LearnList);
+        Heading(TEXT("五维加点（用自己的未分配点数，不需要安全窗）"));
+        PointList=WidgetTree->ConstructWidget<UVerticalBox>();Body->AddChildToVerticalBox(PointList);
 
         auto* Host=WidgetTree->ConstructWidget<UVerticalBox>();
         Host->AddChildToVerticalBox(MakeText(TEXT("整局（只限房主）"),16,DevPanelHeading,false))->SetPadding(FMargin(0,10,0,4));
@@ -247,28 +239,46 @@ void ULDDevTestPanel::BuildCatalog(const FLDDemoContentDefinitions& Content)
         ULDCommandButton* Button=LDWidgets::Button(WidgetTree,Label,MoveTemp(Callback),false,FName(*Name));
         ScaleNewText(Cast<UTextBlock>(Button->GetContent()));return Button;
     };
-    ShownLearn=LDDevPanel::LearnRows(Content,nullptr);
-    for(int32 Index=0;Index<ShownLearn.Num();++Index)
+    ShownActives=LDDevPanel::ActiveRows(Content,nullptr);
+    for(int32 Index=0;Index<ShownActives.Num();++Index)
     {
         auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();LearnList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
         UTextBlock* Name=MakeText(TEXT(""),15,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-        Line->AddChildToHorizontalBox(MakeText(ShownLearn[Index].Kind,13,DevPanelSecondary))->SetVerticalAlignment(VAlign_Center);
         UTextBlock* Held=MakeText(TEXT(""),13,DevPanelDim);
         UHorizontalBoxSlot* HeldSlot=Line->AddChildToHorizontalBox(Held);HeldSlot->SetPadding(FMargin(10,0,0,0));HeldSlot->SetVerticalAlignment(VAlign_Center);
-        const FName Id=ShownLearn[Index].Id;
-        Line->AddChildToHorizontalBox(MakeButton(TEXT("学习"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id);},FString::Printf(TEXT("DevTestLearn%d"),Index)))
-            ->SetPadding(FMargin(8,0,0,0));
-        // Replacing is a confirmed choice of its own; it is offered only while Q/W/E are all held.
+        const FName Id=ShownActives[Index].Id;
+        ULDCommandButton* Grant=MakeButton(LDDevTest::OpLabel(ELDDevTestOp::GrantBlueprint),[this,Id](){Send(ELDDevTestOp::GrantBlueprint,0,Id);},
+            FString::Printf(TEXT("DevTestBlueprint%d"),Index));
+        Line->AddChildToHorizontalBox(Grant)->SetPadding(FMargin(8,0,0,0));
+        // Slot 0: the lowest empty Q/W/E slot.
+        ULDCommandButton* Learn=MakeButton(TEXT("学习"),[this,Id](){Send(ELDDevTestOp::LearnActive,0,Id,0);},FString::Printf(TEXT("DevTestLearn%d"),Index));
+        Line->AddChildToHorizontalBox(Learn)->SetPadding(FMargin(6,0,0,0));
+        // Replacing names the slot whose active is forgotten; it is offered only while Q/W/E are all held.
         auto* Replace=WidgetTree->ConstructWidget<UHorizontalBox>();
-        Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 Q"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,1);},FString::Printf(TEXT("DevTestLearnQ%d"),Index)))
-            ->SetPadding(FMargin(6,0,0,0));
-        Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 W"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,2);},FString::Printf(TEXT("DevTestLearnW%d"),Index)))
-            ->SetPadding(FMargin(6,0,0,0));
-        Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 E"),[this,Id](){Send(ELDDevTestOp::LearnOption,0,Id,3);},FString::Printf(TEXT("DevTestLearnE%d"),Index)))
-            ->SetPadding(FMargin(6,0,0,0));
+        for(uint8 SlotIndex=0;SlotIndex<3;++SlotIndex)
+        {
+            const FString Key=LDHUD::SlotKey(SlotIndex);
+            Replace->AddChildToHorizontalBox(MakeButton(TEXT("替换 ")+Key,[this,Id,SlotIndex](){Send(ELDDevTestOp::LearnActive,0,Id,uint8(SlotIndex+1));},
+                FString::Printf(TEXT("DevTestLearn%s%d"),*Key,Index)))->SetPadding(FMargin(6,0,0,0));
+        }
         Replace->SetVisibility(ESlateVisibility::Collapsed);
         Line->AddChildToHorizontalBox(Replace);
-        LearnNames.Add(Name);LearnHeld.Add(Held);LearnReplace.Add(Replace);
+        LearnNames.Add(Name);LearnHeld.Add(Held);LearnGrant.Add(Grant);LearnNow.Add(Learn);LearnReplace.Add(Replace);
+    }
+    for(const FLDDemoStatDefinition* StatRow:Content.StatsInDesignOrder())
+    {
+        const FLDDemoStatDefinition& Stat=*StatRow;
+        const FName Id(*Stat.Id);
+        ShownStats.Add(Id);
+        auto* Line=WidgetTree->ConstructWidget<UHorizontalBox>();PointList->AddChildToVerticalBox(Line)->SetPadding(FMargin(0,0,0,3));
+        UTextBlock* Name=MakeText(TEXT(""),15,DevPanelBright);Line->AddChildToHorizontalBox(Name)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        UTextBlock* Held=MakeText(TEXT(""),13,DevPanelDim);
+        UHorizontalBoxSlot* HeldSlot=Line->AddChildToHorizontalBox(Held);HeldSlot->SetPadding(FMargin(10,0,0,0));HeldSlot->SetVerticalAlignment(VAlign_Center);
+        Line->AddChildToHorizontalBox(MakeButton(TEXT("+1"),[this,Id](){Send(ELDDevTestOp::AllocatePoints,1,Id);},TEXT("DevTestPoint_")+Stat.Id))
+            ->SetPadding(FMargin(8,0,0,0));
+        Line->AddChildToHorizontalBox(MakeButton(TEXT("全部"),[this,Id](){Send(ELDDevTestOp::AllocatePoints,ShownUnspent,Id);},TEXT("DevTestPointsAll_")+Stat.Id))
+            ->SetPadding(FMargin(6,0,0,0));
+        PointNames.Add(Name);PointHeld.Add(Held);
     }
 }
 
@@ -282,18 +292,28 @@ void ULDDevTestPanel::Present(const FLDProgressionView* Progression,const FLDCom
     {
         DevPanelSetText(StatLines[Index],LDDevPanel::AttributeLine(Combat,Fields[Index].Attribute));
     }
-    const bool bBothHeld=LDDevPanel::BothActiveSlotsHeld(Progression);
-    const TArray<LDDevPanel::FLearnRow> Now=Content?LDDevPanel::LearnRows(*Content,Progression):TArray<LDDevPanel::FLearnRow>();
-    for(int32 Index=0;Index<Now.Num()&&Index<ShownLearn.Num()&&Index<LearnHeld.Num()&&Index<LearnReplace.Num();++Index)
+    const bool bProjected=Progression&&Progression->bValid;
+    const bool bAllHeld=LDDevPanel::AllActiveSlotsHeld(Progression);
+    const TArray<LDDevPanel::FActiveRow> Now=Content?LDDevPanel::ActiveRows(*Content,Progression):TArray<LDDevPanel::FActiveRow>();
+    for(int32 Index=0;Index<Now.Num()&&Index<ShownActives.Num()&&Index<LearnHeld.Num();++Index)
     {
-        if(Now[Index].Id!=ShownLearn[Index].Id){continue;}
-        DevPanelSetText(LearnNames[Index],Now[Index].Name);
-        DevPanelSetText(LearnHeld[Index],Progression&&Progression->bValid?LDDevPanel::HeldText(Now[Index]):FString(DevPanelSyncing));
-        DevPanelShow(LearnReplace[Index],bBothHeld&&Now[Index].bActiveSkill&&Now[Index].Held==0,ESlateVisibility::SelfHitTestInvisible);
+        if(Now[Index].Id!=ShownActives[Index].Id){continue;}
+        const LDDevPanel::FActiveRow& Row=Now[Index];
+        DevPanelSetText(LearnNames[Index],Row.Name);
+        DevPanelSetText(LearnHeld[Index],bProjected?LDDevPanel::HeldText(Row):FString(DevPanelSyncing));
+        const bool bLearned=Row.Held==LDDevPanel::EActiveHeld::Learned;
+        DevPanelShow(LearnGrant[Index],bProjected&&Row.Held==LDDevPanel::EActiveHeld::None,ESlateVisibility::Visible);
+        DevPanelShow(LearnNow[Index],bProjected&&!bLearned&&!bAllHeld,ESlateVisibility::Visible);
+        DevPanelShow(LearnReplace[Index],bProjected&&!bLearned&&bAllHeld,ESlateVisibility::SelfHitTestInvisible);
     }
-    const bool bChoice=Progression&&Progression->bValid&&Progression->PendingChoiceCount>0;
-    DevPanelSetText(LearnHint,bChoice?FString(TEXT("学习受真实规则约束：等级上限、Q/W/E 三槽与选择数上限；Q/W/E 都满时用“替换”。"))
-        :FString::Printf(TEXT("现在没有未用的选择机会：先加%s升级，再学习。"),LDTerms::Experience));
+    ShownUnspent=bProjected?FMath::Max<int64>(0,Progression->UnspentPoints):0;
+    for(int32 Index=0;Index<ShownStats.Num()&&Index<PointHeld.Num()&&Content;++Index)
+    {
+        DevPanelSetText(PointNames[Index],LDHUD::ContentName(Content,ShownStats[Index].ToString()));
+        DevPanelSetText(PointHeld[Index],bProjected?FString::Printf(TEXT("%d 点"),LDHUD::StatPointsOf(*Progression,ShownStats[Index])):FString(DevPanelSyncing));
+    }
+    DevPanelSetText(LearnHint,FString::Printf(TEXT("学习受真实规则约束：Q/W/E 三槽；Q/W/E 都满时用“替换”，被替换的技能遗忘。%s"),
+        bProjected?*LDTerms::UnspentPoints(ShownUnspent):TEXT("")));
     DevPanelShow(HostSection,bHost,ESlateVisibility::SelfHitTestInvisible);
 }
 

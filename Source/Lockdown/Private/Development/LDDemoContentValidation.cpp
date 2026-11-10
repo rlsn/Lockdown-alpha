@@ -1,6 +1,8 @@
 #include "LDDemoContentJson.h"
 
 #include "LDDemoContentMath.h"
+#include "Framework/LDMatchTimeline.h"
+#include "World/LDCharms.h"
 #include "../Region/LDMapGeometryJson.h"
 
 namespace LDDemoContent
@@ -14,16 +16,9 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     const auto& P = D.Parameters;
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
-        if (Effect.GetOp() == ELDDemoEffectOp::Thorns)
-        {
-            int64 Base, Armor, Health, Sum, Total, Critical;
-            return N.Mul64(Effect.BaseP2, 10000, Base, Path) && N.Mul64(P.Armor.MaxP2, Effect.ArmorRatioBp, Armor, Path)
-                && N.Mul64(P.MaxHP.MaxP2, Effect.MaxHPRatioBp, Health, Path)
-                && N.Add64(Base, Armor, Sum, Path) && N.Add64(Sum, Health, Total, Path)
-                && N.Mul64(Total, Effect.CriticalMultiplierBp, Critical, Path);
-        }
         const ELDDemoEffectOp Op = Effect.GetOp();
-        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage
+            || Op == ELDDemoEffectOp::DashContactDamage || Op == ELDDemoEffectOp::Ledger;
         if (!bDamage && Op != ELDDemoEffectOp::Shield)
         {
             return true;
@@ -57,23 +52,32 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         Out = Product / 10000;
         return true;
     };
+    const auto CheckGrown = [&Grow, &CheckEffect](const FLDDemoEffectDefinition& Effect, const FString& Path)
+    {
+        FLDDemoEffectDefinition Grown = Effect;
+        if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
+        if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
+        {
+            for (FLDDemoStatBonus& Stat : Grown.Stats)
+            {
+                if (!Grow(Stat.Amount, Stat.Amount, Path)) { return false; }
+            }
+        }
+        return CheckEffect(Grown, Path);
+    };
     for (const auto& Ability : D.Abilities)
     {
-        for (const auto& Rank : Ability.Ranks)
+        for (const auto& Effect : Ability.Values.Effects)
         {
-            for (const auto& Effect : Rank.Effects)
-            {
-                FLDDemoEffectDefinition Grown = Effect;
-                if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
-                if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
-                {
-                    for (FLDDemoStatBonus& Stat : Grown.Stats)
-                    {
-                        if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
-                    }
-                }
-                if (!CheckEffect(Grown, Ability.Id)) { return false; }
-            }
+            if (!CheckGrown(Effect, Ability.Id)) { return false; }
+        }
+    }
+    // #198 B: a component's fixed amounts grow with its holder's level like an active's.
+    for (const auto& Component : D.Components)
+    {
+        for (const auto& Effect : Component.Effects)
+        {
+            if (!CheckGrown(Effect, Component.Id)) { return false; }
         }
     }
     int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
@@ -162,10 +166,56 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    // D26 (#79): every drop is announced after the match starts, and one announcement ends before the next begins.
-    if (!Check.Require(P.AirdropAnnounceLeadMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropFirstLandMs
-        && P.AirdropAnnounceLeadMs < P.AirdropIntervalMs, TEXT("AIRDROP"),
-        TEXT("the announcement lead must fit before the first landing and inside one interval")))
+    // #198 outer §5: the drops land at strictly increasing field progress instants, each announced after T=0 and gone
+    // unclaimed before the next announcement; the last one is gone before the final field, which has no build reward
+    // target. Camp markers reveal inside their segment.
+    {
+        const int64 TimedFieldMs = P.FieldSegmentMs > 0 && P.FieldSegmentMs <= MAX_int64 / FLDTimelineParameters::TimedSegments
+            ? P.FieldSegmentMs * FLDTimelineParameters::TimedSegments : 0;
+        bool bDrops = TimedFieldMs > 0 && !P.AirdropLandMs.IsEmpty() && P.AirdropLandMs.Num() <= 6 && P.AirdropAnnounceLeadMs > 0
+            && P.AirdropExpireMs > 0 && P.AirdropAnnounceLeadMs <= P.AirdropLandMs[0];
+        for (int32 Index = 0; bDrops && Index < P.AirdropLandMs.Num(); ++Index)
+        {
+            const int64 Land = P.AirdropLandMs[Index];
+            const int64 Gone = Land <= TimedFieldMs - P.AirdropExpireMs ? Land + P.AirdropExpireMs : MAX_int64;
+            const int64 Next = Index + 1 < P.AirdropLandMs.Num() ? P.AirdropLandMs[Index + 1] - P.AirdropAnnounceLeadMs : TimedFieldMs;
+            bDrops = Land > 0 && Gone <= Next;
+        }
+        if (!Check.Require(bDrops, TEXT("AIRDROP"),
+                TEXT("drops must be announced after T=0, leave before the next announcement and before the final field"))
+            || !Check.Require(P.CampMarkRevealMs > 0 && P.CampMarkRevealMs < P.FieldSegmentMs, TEXT("CAMPMARK.RevealSec"),
+                TEXT("a camp marker must be revealed inside its field segment"))
+            || !Check.Require(D.Boss.AppearAtMs > 0 && D.Boss.AppearAtMs < D.Boss.LeaveAtMs && D.Boss.LeaveAtMs <= TimedFieldMs,
+                TEXT("boss"), TEXT("the Boss must appear before it leaves, and leave before the final field")))
+        {
+            return false;
+        }
+    }
+    // #198 charms: distinct kinds per wave, each living inside one wave interval, every effect positive.
+    if (!Check.Require(P.CharmPerWave >= 1 && P.CharmPerWave <= LDCharms::KindCount && P.CharmWaveCount >= 1
+        && P.CharmLifetimeMs > 0 && P.CharmLifetimeMs <= P.CharmWaveIntervalMs && P.CharmFirstWaveMs > 0
+        && P.CharmPickupRadiusCm.Denominator > 0 && P.CharmPickupRadiusCm.Numerator > 0
+        && P.CharmHealMaxHPBp > 0 && P.CharmManaMaxMPBp > 0 && P.CharmMoveSpeedBp > 0 && P.CharmMoveSpeedMs > 0, TEXT("CHARM"),
+        TEXT("a wave draws distinct kinds, lives inside one interval and every effect is positive")))
+    {
+        return false;
+    }
+    // #198: PK sign-up is the last part of every rest build window (R0 and R1-R3), not an extra wait.
+    if (!Check.Require(P.RestSignupMs > 0 && P.RestSignupMs <= P.RestBuildMs && P.RestSignupMs <= P.RestOpeningBuildMs,
+        TEXT("REST.SignupSec"), TEXT("PK sign-up must fit inside every rest build window")))
+    {
+        return false;
+    }
+    // #198 PK ring: the shrink steps are ordered and end before the PK cap, and every ring lies strictly inside the last.
+    if (!Check.Require(P.PKRingShrinkStartMs > 0 && P.PKRingShrinkStartMs < P.PKRingMidMs && P.PKRingMidMs < P.PKRingFinalMs
+            && P.PKRingFinalMs < P.RestPKMaxMs && P.PKRingPreviewMs > 0 && P.PKRingTickMs > 0,
+            TEXT("PK.RingFinalSec"), TEXT("ring shrink steps must be ordered and finish before the PK cap"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.PKRingFinalRadiusCm))
+            && N.LT(N.Value(P.PKRingFinalRadiusCm), N.Value(P.PKRingMidRadiusCm))
+            && N.LT(N.Value(P.PKRingMidRadiusCm), N.Value(P.PKArenaRadiusCm)),
+            TEXT("PK.RingFinalRadiusCm"), TEXT("ring radii must shrink strictly inside the arena"))
+        || !Check.Require(N.LT(N.Value(0), N.Value(P.ThrowRadiusCm)) && N.LT(N.Value(0), N.Value(P.ThrowRangeCm)),
+            TEXT("THROW"), TEXT("throw radius and range must be positive")))
     {
         return false;
     }
@@ -178,44 +228,41 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
             return false;
         }
     }
-    const FLDDemoProgressionDefinition& Opening = D.Progression;
-    int32 Actives = 0;
+    // #198: the opening opportunity draws three distinct actives from the opening pool.
+    int32 OpeningActives = 0;
     for (const auto& Ability : D.Abilities)
     {
-        Actives += Ability.Draftable && Ability.Kind == ELDDemoAbilityKind::Active ? 1 : 0;
+        OpeningActives += Ability.Opening ? 1 : 0;
     }
-    // #153: three distinct opening cards, each hiding a distinct new draftable active.
-    if (!Check.Require(Opening.OpeningMatchedSkillWeight >= 1 && Opening.OpeningOtherSkillWeight >= 1 && Actives >= 3
-        && D.OpeningCards.Num() >= 3, TEXT("progression.opening_offer"),
-        TEXT("opening offer cannot draw three distinct opening cards with three distinct hidden draftable actives")))
+    if (!Check.Require(OpeningActives >= 3, TEXT("abilities"),
+        TEXT("the opening opportunity needs three distinct actives in the opening pool")))
     {
         return false;
     }
-    for (const auto& Card : D.OpeningCards)
+    // #198 points: the opening grant and one grant per level-up to the cap stay inside int64.
+    int64 LevelPoints = 0, TotalPoints = 0;
+    if (!N.Mul64(D.Progression.MaxLevel - 1, P.PointsPerLevel, LevelPoints, TEXT("GROWTH.PointsPerLevel"))
+        || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.OpeningPoints")))
     {
-        const bool bShared = D.Abilities.ContainsByPredicate([&Card](const FLDDemoAbilityDefinition& Row) { return Row.Id == Card.Id; })
-            || D.Attributes.ContainsByPredicate([&Card](const FLDDemoAttributeDefinition& Row) { return Row.Id == Card.Id; });
-        if (!Check.Require(!bShared && Card.Stats.Num() == 3, TEXT("opening_cards"),
-            TEXT("an opening card needs its own ID and exactly three stats")))
-        {
-            return false;
-        }
+        return false;
     }
-    const auto& Choice = P.Choice;
-    const int64 QualityChance = Choice.AttributeGreenChanceBp + Choice.AttributeBlueChanceBp
-        + Choice.AttributePurpleChanceBp + Choice.AttributeGoldChanceBp;
-    if (!Check.Require(Choice.NewActiveFreeSlotWeightBp > 0 && Choice.NewActiveFreeSlotWeightBp <= 10000
-        && Choice.NewActiveFullSlotWeightBp > 0 && Choice.NewActiveFullSlotWeightBp <= 10000
-        && Choice.FirstSlotUpgradeBp >= 0 && Choice.FirstSlotUpgradeBp <= 10000
-        && Choice.FreeSlotAttributeBp >= 0 && Choice.FreeSlotAttributeBp <= 10000
-        && QualityChance == 10000
-        && Choice.AttributeGreenMultiplierBp > 0 && Choice.AttributeBlueMultiplierBp > 0
-        && Choice.AttributePurpleMultiplierBp > 0 && Choice.AttributeGoldMultiplierBp > 0, TEXT("CHOICE"),
-        TEXT("choice weights, chances and quality multipliers are outside their approved domains")))
+    // #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
+    int64 PerLevel = 0;
+    if (!N.Add64(P.PointsPerLevel, P.EmptyComponentPoolPoints, PerLevel, TEXT("GROWTH.EmptyComponentPoolPoints"))
+        || !N.Mul64(D.Progression.MaxLevel - 1, PerLevel, LevelPoints, TEXT("GROWTH.EmptyComponentPoolPoints"))
+        || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.EmptyComponentPoolPoints")))
     {
         return false;
     }
     int64 TotalXP = 0;
+    // #198 G: a dismantle surrenders that many distinct common components, so the common pool must hold more than that.
+    const int32 CommonComponents = D.Components.FilterByPredicate(
+        [](const FLDDemoComponentDefinition& Row) { return Row.Pool == ELDDemoComponentPool::Common; }).Num();
+    if (!Check.Require(P.DismantleInputCount >= 1 && P.DismantleInputCount < CommonComponents && P.FillGapPoints >= 1,
+            TEXT("GROWTH.DismantleInputCount"), TEXT("a dismantle needs fewer distinct common components than the pool holds")))
+    {
+        return false;
+    }
     if (!Check.Require(D.Progression.XPThresholds[0] == 0, TEXT("progression"), TEXT("level one starts at zero XP")))
     {
         return false;
@@ -272,23 +319,16 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
         }
     }
     // D26 (#79): the Boss body is contender-sized, reaches past both radii, sees farther than it hits, winds up inside its
-    // interval, stays inside the move speed clamp, and its approval buff is positive temporary ratios only.
+    // interval and stays inside the move speed clamp. It carries no kill buff (#198 outer §5 removed the approval buff).
     {
         const FLDDemoMonsterDefinition& Body = D.Monsters[3];
-        bool bApproval = !D.Boss.ApprovalStats.IsEmpty() && D.Boss.ApprovalDurationMs > 0;
-        for (const FLDDemoStatBonus& Bonus : D.Boss.ApprovalStats)
-        {
-            bApproval &= Bonus.Amount > 0 && (Bonus.Stat == ELDDemoBonusStat::ADBonusRatio || Bonus.Stat == ELDDemoBonusStat::APBonusRatio
-                || Bonus.Stat == ELDDemoBonusStat::MoveSpeedBonusRatio || Bonus.Stat == ELDDemoBonusStat::AttackSpeedBonusRatio);
-        }
         if (!Check.Require(N.EQ(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm))
                 && N.LE(N.Add(N.Value(Body.CollisionRadiusCm), N.Value(P.CollisionRadiusCm)), N.Value(Body.AttackRangeCm))
                 && N.LT(N.Value(Body.AttackRangeCm), N.Value(D.Boss.AggroRadiusCm)), TEXT("boss"), TEXT("invalid Boss collision/range/aggro geometry"))
             || !Check.Require(Body.AttackWindupMs < Body.AttackIntervalMs && D.Boss.AppearAtMs > 0 && D.Boss.AttackerMemoryMs > 0,
                 TEXT("boss"), TEXT("invalid Boss timing"))
             || !Check.Require(N.LE(N.Value(P.MoveSpeedCmPerSec.Min), N.Value(Body.MoveSpeedCmPerSec))
-                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp"))
-            || !Check.Require(bApproval, TEXT("boss.approval"), TEXT("the approval buff needs positive temporary ratio stats and a duration")))
+                && N.LE(N.Value(Body.MoveSpeedCmPerSec), N.Value(P.MoveSpeedCmPerSec.Max)), TEXT("boss"), TEXT("Boss move speed outside the clamp")))
         {
             return false;
         }

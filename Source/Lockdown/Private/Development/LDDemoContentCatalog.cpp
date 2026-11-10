@@ -1,12 +1,29 @@
 #include "Development/LDDemoContentCatalog.h"
 
 #include "LDDemoContentJson.h"
+#include "Algo/StableSort.h"
 #include "Development/LDSkillGrowth.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/PlatformFileManager.h"
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 #include "UObject/UnrealType.h"
+
+TArray<const FLDDemoStatDefinition*> FLDDemoContentDefinitions::StatsInDesignOrder() const
+{
+    TArray<const FLDDemoStatDefinition*> Out;
+    Out.Reserve(Stats.Num());
+    for (const FLDDemoStatDefinition& Stat : Stats) { Out.Add(&Stat); }
+    Algo::StableSortBy(Out, [](const FLDDemoStatDefinition* Stat) { return Stat->NativeId; });
+    return Out;
+}
+
+int32 FLDDemoContentDefinitions::StatDesignIndex(const FString& StatId) const
+{
+    // Catalog ids are lowercase; an FName-printed id may come back in another casing.
+    return StatsInDesignOrder().IndexOfByPredicate([&StatId](const FLDDemoStatDefinition* Stat)
+        { return Stat->Id.Equals(StatId, ESearchCase::IgnoreCase); });
+}
 
 namespace
 {
@@ -143,45 +160,36 @@ bool LDDemoContent::ExactStoredStruct(const UStruct* Type, const void* A, const 
 FLDDemoContentSnapshot::FLDDemoContentSnapshot(FLDDemoContentDefinitions&& In) : Definitions(MoveTemp(In))
 {
     const int32 MaxLevel = FMath::Clamp(Definitions.Progression.MaxLevel, 0, int32(MAX_uint8));
-    GrownRanks.SetNum(Definitions.Abilities.Num());
+    GrownValues.SetNum(Definitions.Abilities.Num());
     for (int32 Index = 0; Index < Definitions.Abilities.Num(); ++Index)
     {
-        const TArray<FLDDemoRankDefinition>& Authored = Definitions.Abilities[Index].Ranks;
-        TArray<FLDDemoRankDefinition>& Grown = GrownRanks[Index];
-        Grown.Reserve(Authored.Num() * MaxLevel);
-        for (const FLDDemoRankDefinition& Rank : Authored)
+        const FLDDemoAbilityValues& Authored = Definitions.Abilities[Index].Values;
+        TArray<TOptional<FLDDemoAbilityValues>>& Grown = GrownValues[Index];
+        Grown.SetNum(MaxLevel);
+        for (int32 Level = 1; Level <= MaxLevel; ++Level)
         {
-            for (int32 Level = 1; Level <= MaxLevel; ++Level)
+            // Content validation proves every grown amount fits; a level that does not stays unset so FindValues refuses
+            // it instead of guessing.
+            FLDDemoAbilityValues Row;
+            if (LDSkillGrowth::GrowValues(Authored, Definitions.Parameters.SkillGrowthPerLevelBp,
+                Definitions.Parameters.SkillGrowthPerLevelAfter10Bp, uint8(Level), Row))
             {
-                FLDDemoRankDefinition& Row = Grown.AddDefaulted_GetRef();
-                // Content validation proves every grown amount fits; a row that does not is left without a rank so
-                // FindRank refuses it instead of guessing.
-                if (!LDSkillGrowth::GrowRank(Rank, Definitions.Parameters.SkillGrowthPerLevelBp,
-                    Definitions.Parameters.SkillGrowthPerLevelAfter10Bp, uint8(Level), Row))
-                {
-                    Row = FLDDemoRankDefinition();
-                }
+                Grown[Level - 1] = MoveTemp(Row);
             }
         }
     }
 }
 
-const FLDDemoRankDefinition* FLDDemoContentSnapshot::FindRank(const FLDDemoAbilityDefinition& Ability, uint8 Rank, uint8 Level) const
+const FLDDemoAbilityValues* FLDDemoContentSnapshot::FindValues(const FLDDemoAbilityDefinition& Ability, uint8 Level) const
 {
     // Membership by address first: Ability may belong to another snapshot or be a free-standing object.
     const int32 Index = Definitions.Abilities.IndexOfByPredicate([&Ability](const FLDDemoAbilityDefinition& Row) { return &Row == &Ability; });
-    const int32 MaxLevel = Definitions.Progression.MaxLevel;
-    if (Index == INDEX_NONE || Level < 1 || int32(Level) > MaxLevel)
+    if (Index == INDEX_NONE || Level < 1 || int32(Level) > GrownValues[Index].Num())
     {
         return nullptr;
     }
-    const int32 RankIndex = Ability.Ranks.IndexOfByPredicate([Rank](const FLDDemoRankDefinition& Row) { return Row.Rank == int32(Rank); });
-    if (RankIndex == INDEX_NONE)
-    {
-        return nullptr;
-    }
-    const FLDDemoRankDefinition& Row = GrownRanks[Index][RankIndex * MaxLevel + Level - 1];
-    return Row.Rank == int32(Rank) ? &Row : nullptr;
+    const TOptional<FLDDemoAbilityValues>& Row = GrownValues[Index][Level - 1];
+    return Row.IsSet() ? &Row.GetValue() : nullptr;
 }
 
 bool FLDDemoContentSnapshot::FindAbility(const FString& Id, const FLDDemoAbilityDefinition*& Out, FString& Error) const
@@ -189,14 +197,14 @@ bool FLDDemoContentSnapshot::FindAbility(const FString& Id, const FLDDemoAbility
     return Find(Definitions.Abilities, Id, Out, Error);
 }
 
-bool FLDDemoContentSnapshot::FindAttribute(const FString& Id, const FLDDemoAttributeDefinition*& Out, FString& Error) const
+bool FLDDemoContentSnapshot::FindStat(const FString& Id, const FLDDemoStatDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.Attributes, Id, Out, Error);
+    return Find(Definitions.Stats, Id, Out, Error);
 }
 
-bool FLDDemoContentSnapshot::FindOpeningCard(const FString& Id, const FLDDemoOpeningCardDefinition*& Out, FString& Error) const
+bool FLDDemoContentSnapshot::FindComponent(const FString& Id, const FLDDemoComponentDefinition*& Out, FString& Error) const
 {
-    return Find(Definitions.OpeningCards, Id, Out, Error);
+    return Find(Definitions.Components, Id, Out, Error);
 }
 
 bool FLDDemoContentSnapshot::FindMonster(const FString& Id, const FLDDemoMonsterDefinition*& Out, FString& Error) const

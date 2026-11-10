@@ -175,7 +175,7 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestXP(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
     TEXT("ld.Dev.List"),
-    TEXT("DEV test session: list every skill, attribute card and item id of the approved runtime catalog."),
+    TEXT("DEV test session: list every active skill and stat id of the approved runtime catalog."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {
@@ -185,22 +185,22 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestList(
                 return;
             }
             const FLDDemoContentDefinitions& Definitions = Catalog->Get();
-            Ar.Logf(TEXT("LD_DEV_TEST_LIST max skill rank %d; learn with ld.Dev.Learn <id> [Q|W|E]"),
-                Definitions.Progression.MaxSkillRank);
+            Ar.Log(TEXT("LD_DEV_TEST_LIST learn with ld.Dev.Learn <active> [Q|W|E], blueprint with ld.Dev.Blueprint <active>, "
+                "allocate with ld.Dev.Points <stat> <amount>"));
             for (const FLDDemoAbilityDefinition& Ability : Definitions.Abilities)
             {
-                Ar.Logf(TEXT("  %s %s %s"), Ability.Kind == ELDDemoAbilityKind::Active ? TEXT("active ") : TEXT("passive"),
-                    *Ability.Id, *DevTestDisplayName(Definitions, Ability.Id));
+                Ar.Logf(TEXT("  active %s %s%s"), *Ability.Id, *DevTestDisplayName(Definitions, Ability.Id),
+                    Ability.Opening ? TEXT(" (opening)") : TEXT(""));
             }
-            for (const FLDDemoAttributeDefinition& Attribute : Definitions.Attributes)
+            for (const FLDDemoStatDefinition* Stat : Definitions.StatsInDesignOrder())
             {
-                Ar.Logf(TEXT("  card    %s %s"), *Attribute.Id, *DevTestDisplayName(Definitions, Attribute.Id));
+                Ar.Logf(TEXT("  stat   %s %s"), *Stat->Id, *DevTestDisplayName(Definitions, Stat->Id));
             }
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestLearn(
     TEXT("ld.Dev.Learn"),
-    TEXT("DEV test session: take <id> (skill or attribute card) as your current choice; [Q|W|E] confirms replacing that active."),
+    TEXT("DEV test session: learn the active <id> now, in the lowest empty slot or replacing the active in [Q|W|E]."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {
@@ -208,10 +208,39 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestLearn(
             const uint8 Slot = SlotText == TEXT("Q") ? 1 : SlotText == TEXT("W") ? 2 : SlotText == TEXT("E") ? 3 : 0;
             if (Args.IsEmpty() || Args.Num() > 2 || (Args.Num() == 2 && Slot == 0))
             {
-                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Learn <skill or card id> [Q|W|E]"));
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Learn <active id> [Q|W|E]"));
                 return;
             }
-            DevTestSend(World, ELDDevTestOp::LearnOption, 0, Ar, FName(*Args[0].TrimStartAndEnd()), Slot);
+            DevTestSend(World, ELDDevTestOp::LearnActive, 0, Ar, FName(*Args[0].TrimStartAndEnd()), Slot);
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestBlueprint(
+    TEXT("ld.Dev.Blueprint"),
+    TEXT("DEV test session: add the active <id> to your pending blueprints without an opportunity."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            if (Args.Num() != 1)
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Blueprint <active id>"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::GrantBlueprint, 0, Ar, FName(*Args[0].TrimStartAndEnd()));
+        }));
+
+FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestPoints(
+    TEXT("ld.Dev.Points"),
+    TEXT("DEV test session: allocate <amount> of your unspent points to the stat <id>, without the build safe window."),
+    FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
+        [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
+        {
+            int64 Amount = 0;
+            if (Args.Num() != 2 || !LDDevTest::ParseAmount(Args[1], Amount))
+            {
+                Ar.Log(TEXT("LD_DEV_TEST_REFUSED usage: ld.Dev.Points <stat id> <positive amount>"));
+                return;
+            }
+            DevTestSend(World, ELDDevTestOp::AllocatePoints, Amount, Ar, FName(*Args[0].TrimStartAndEnd()));
         }));
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestAttr(
@@ -261,8 +290,8 @@ FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestClearAttr(
 
 FAutoConsoleCommandWithWorldArgsAndOutputDevice GLDDevTestReset(
     TEXT("ld.Dev.Reset"),
-    TEXT("DEV test session: put yourself back to the match start: level 1, no XP, skills, cards or DEV attributes, "
-        "a fresh opening offer and every cooldown ready."),
+    TEXT("DEV test session: put yourself back to the match start: level 1, no XP, actives, blueprints, allocated points or "
+        "DEV attributes, a fresh opening offer and every cooldown ready."),
     FConsoleCommandWithWorldArgsAndOutputDeviceDelegate::CreateLambda(
         [](const TArray<FString>& Args, UWorld* World, FOutputDevice& Ar)
         {

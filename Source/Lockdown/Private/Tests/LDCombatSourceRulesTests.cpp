@@ -55,7 +55,6 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     FLDBuildProjectionInput Active;
     FLDLearnedActiveValue Skill;
     Skill.AbilityId = Bolt;
-    Skill.Rank = 1;
     Skill.Entry = ELDCombatEntry::W;
     Active.Actives.Add(Skill);
     TestTrue(TEXT("A learned definition returns to its single track and end time in any slot"),
@@ -74,8 +73,8 @@ bool FLDCombatSourceTracksTest::RunTest(const FString& Parameters)
     return true;
 }
 
-// D19: the innate dash terms come from the approved character; a learned dash-boost passive scales its cooldown; the shared
-// gate refuses a cooling, unaffordable or rooted dash; build changes never plan or rebind the innate track.
+// D19: the innate dash terms come from the approved character; the shared gate refuses a cooling, unaffordable or rooted
+// dash; build changes never plan or rebind the innate track.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatInnateDashTest, "Lockdown.Rules.DemoCombatSources.InnateDash",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
@@ -86,43 +85,24 @@ bool FLDCombatInnateDashTest::RunTest(const FString& Parameters)
     if (!LDTestApprovedFixture::Read(*this, Content)) { return false; }
     const FLDDemoDashDefinition& Dash = Content->Get().Character.Dash;
     if (!TestTrue(TEXT("The approved character projects one executable dash"),
-        Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Rank.Effects.Num() == 1
-        && Dash.Rank.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Rank.CooldownMs > Dash.Rank.Effects[0].DurationMs))
+        Dash.Target.Mode == ELDDemoTargetMode::DirectionDash && Dash.WindupMs == 0 && Dash.Values.Effects.Num() == 1
+        && Dash.Values.Effects[0].GetOp() == ELDDemoEffectOp::Dash && Dash.Values.CooldownMs > Dash.Values.Effects[0].DurationMs))
     { return false; }
-    const FLDDemoEffectDefinition& Move = Dash.Rank.Effects[0];
+    const FLDDemoEffectDefinition& Move = Dash.Values.Effects[0];
     FString Error;
     FLDInnateDashTerms Base;
-    TestTrue(TEXT("Bare terms are the approved character dash"),
-        LDCombatSourceRules::InnateDashTerms(*Content, {}, Base, Error) && !Base.bBoosted
-        && Base.CooldownMs == Dash.Rank.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Rank.ManaCostP2
+    TestTrue(TEXT("The terms are the approved character dash"),
+        LDCombatSourceRules::InnateDashTerms(*Content, Base, Error)
+        && Base.CooldownMs == Dash.Values.CooldownMs && Base.DurationMs == Move.DurationMs && Base.ManaCostP2 == Dash.Values.ManaCostP2
         && Base.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Base.DistanceCm.Denominator);
-    // #147: passive_special_forces advanced ("dash (D) cooldown -30%") boosts the dash; its basic rank does not.
-    FLDInnateDashTerms Learned, LearnedBasic;
-    const int64 LearnedScaled = Dash.Rank.CooldownMs * 7000;
-    TestTrue(TEXT("Advanced special forces: dash cooldown x0.70, distance unchanged"),
-        LDCombatSourceRules::InnateDashTerms(*Content, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 2, 5}}, Learned, Error)
-        && Learned.bBoosted && Learned.CooldownMs == LearnedScaled / 10000 + (LearnedScaled % 10000 != 0 ? 1 : 0)
-        && Learned.DistanceCm.Numerator * Move.DistanceCm.Denominator == Move.DistanceCm.Numerator * Learned.DistanceCm.Denominator);
     AddInfo(Error);
-    TestTrue(TEXT("Basic special forces leaves the dash unchanged"),
-        LDCombatSourceRules::InnateDashTerms(*Content, {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 1, 5}}, LearnedBasic, Error)
-        && !LearnedBasic.bBoosted && LearnedBasic.CooldownMs == Base.CooldownMs);
-    // #112 §5: a learned passive's skill dash terms would lengthen and quicken every character active that displaces its
-    // caster; no approved passive carries skill terms yet (#145), so the boost is the identity.
     const FLDDemoAbilityDefinition* LungeSkill = nullptr;
     const FLDDemoAbilityDefinition* BoltSkill = nullptr;
     if (TestTrue(TEXT("Bail out and the bolt are approved"), Content->FindAbility(TEXT("active_bail_out"), LungeSkill, Error) && LungeSkill
-        && !LungeSkill->Ranks.IsEmpty() && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill && !BoltSkill->Ranks.IsEmpty()))
+        && Content->FindAbility(Bolt.ToString(), BoltSkill, Error) && BoltSkill))
     {
-        const FLDDemoEffectDefinition* Lunge = LungeSkill->Ranks[0].Effects.FindByPredicate(
-            [](const FLDDemoEffectDefinition& Effect) { return Effect.GetOp() == ELDDemoEffectOp::Dash; });
-        TestTrue(TEXT("Bail out displaces its caster; a bolt does not"), Lunge
-            && LDCombatSourceRules::DisplacesCaster(LungeSkill->Ranks[0]) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Ranks[0]));
-        int64 CooldownRatioBp = 0, DistanceBonusBp = 0;
-        TestTrue(TEXT("Advanced special forces leaves a displacing skill's terms unchanged"),
-            Lunge && LDCombatSourceRules::SkillDisplacementBoost(*Content,
-                {FLDLearnedTriggerTerm{TEXT("passive_special_forces"), 2, 5}}, CooldownRatioBp, DistanceBonusBp, Error)
-            && CooldownRatioBp == 10000 && DistanceBonusBp == 0);
+        TestTrue(TEXT("Bail out displaces its caster; a bolt does not"),
+            LDCombatSourceRules::DisplacesCaster(LungeSkill->Values) && !LDCombatSourceRules::DisplacesCaster(BoltSkill->Values));
     }
 
     const FLDDemoPolicies& Policies = Content->Get().Policies;

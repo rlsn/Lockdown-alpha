@@ -2,6 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "Framework/LDMatchLifecycleTypes.h"
+#include "Framework/LDMatchTimeline.h"
+#include "PK/LDPKTypes.h"
 #include "Character/LDNativeMotionTypes.h"
 #include "LDCaptureTypes.generated.h"
 
@@ -20,15 +22,17 @@ UENUM()
 // CampElite (#97) is appended so existing values keep their numbers.
 enum class ELDKillCause : uint8 { Contender, CampLow, CampHigh, Unowned, Boss, CampElite };
 
-// D26 (#79): the public phase of the current airdrop.
+// D26 (#79): the public phase of the current airdrop. #198 outer §5: Expired (appended) = it lay unclaimed for
+// AIRDROP.ExpireSec of field progress after landing and is gone.
 UENUM()
-enum class ELDAirdropPhase : uint8 { None, Announced, Landed, Claimed };
+enum class ELDAirdropPhase : uint8 { None, Announced, Landed, Claimed, Expired };
 UENUM()
 // D26 (#79) 画饼老板 Boss: None outside a match, Pending until it appears, Alive while it patrols, Down once killed.
-enum class ELDBossPhase : uint8 { None, Pending, Alive, Down };
+// #198 outer §5: Left (appended) = it was still alive (or never could appear) at BOSS leave_at and left the field.
+enum class ELDBossPhase : uint8 { None, Pending, Alive, Down, Left };
 
 // D26 (#79): the current airdrop, public to every connection: point, landing instant and claimer. None before the
-// first announcement. The next announcement replaces it.
+// first announcement. The next announcement replaces it. LandAtMs and ExpireAtMs are field progress T.
 USTRUCT()
 struct FLDAirdropView
 {
@@ -38,7 +42,31 @@ struct FLDAirdropView
     UPROPERTY() FName PointId;
     UPROPERTY() FVector PositionCm = FVector::ZeroVector;
     UPROPERTY() int64 LandAtMs = 0;
+    // #198 outer §5: the T at which an unclaimed landed drop leaves.
+    UPROPERTY() int64 ExpireAtMs = 0;
     // Claimed says only that the drop is gone: neither who took it nor when (App Spec §5.3).
+};
+
+// #198 outer §5 camp markers. Wire values are stable.
+UENUM()
+enum class ELDFieldMarkerKind : uint8 { None = 0, High = 1, Elite = 2 };
+UENUM()
+enum class ELDFieldMarkerPhase : uint8 { None = 0, Revealed = 1, Claimed = 2, Expired = 3 };
+
+// #198 outer §5: one camp marker of a timed field segment (Segment 1..3), public to every connection. The first contender
+// who clears the marked camp while it is Revealed takes it (High: an active blueprint; Elite: a known two-choice of common
+// materials); Claimed never says who. Expired: the segment ended first. RevealAtMs and EndAtMs are field progress T.
+USTRUCT()
+struct FLDFieldMarkerView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint8 Segment = 0;
+    UPROPERTY() ELDFieldMarkerKind Kind = ELDFieldMarkerKind::None;
+    UPROPERTY() FName CampId;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() ELDFieldMarkerPhase Phase = ELDFieldMarkerPhase::None;
+    UPROPERTY() int64 RevealAtMs = 0;
+    UPROPERTY() int64 EndAtMs = 0;
 };
 
 // D27 (#79) 上热搜: the current leader notice, public to every connection: who and a fuzzy circle that contains the
@@ -52,14 +80,33 @@ struct FLDLeaderView
     UPROPERTY() int64 RefreshedAtMs = 0;
 };
 
-// D26 (#79) 画饼老板 Boss, public to every connection: when it appears and who landed the last hit. Its body is seen only
-// through the ordinary fog of war, never through this view.
+// #198 field charms: heal (max HP share), mana (max MP share) and a timed move-speed bonus. Wire values are stable.
+UENUM()
+enum class ELDCharmKind : uint8 { None = 0, Heal = 1, Mana = 2, MoveSpeed = 3 };
+
+// #198: one charm lying on a public airdrop point, public to every connection like the airdrop. Serial is its 1-based
+// number in this match; ExpireAtFieldMs is the field progress T at which it leaves unclaimed. A claim only removes it:
+// the public view never names who took it.
+USTRUCT()
+struct FLDCharmView
+{
+    GENERATED_BODY()
+    UPROPERTY() uint64 Serial = 0;
+    UPROPERTY() ELDCharmKind Kind = ELDCharmKind::None;
+    UPROPERTY() FName PointId;
+    UPROPERTY() FVector PositionCm = FVector::ZeroVector;
+    UPROPERTY() int64 ExpireAtFieldMs = 0;
+};
+
+// D26 (#79) 画饼老板 Boss, public to every connection: when it appears, when it leaves if still alive, and who landed the
+// last hit. Its body is seen only through the ordinary fog of war, never through this view. Times are field progress T.
 USTRUCT()
 struct FLDBossView
 {
     GENERATED_BODY()
     UPROPERTY() ELDBossPhase Phase = ELDBossPhase::None;
     UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() int64 LeaveAtMs = 0;
     UPROPERTY() FGuid KilledBy;
     UPROPERTY() int64 DownAtMs = 0;
 };
@@ -97,8 +144,16 @@ struct FLDPublicMatchView
     UPROPERTY() int64 GuardKeptMs = 0;
     UPROPERTY() FGuid ResultId;
     UPROPERTY() FLDAirdropView Airdrop;
+    // #198: the charms lying in the field now, in serial order.
+    UPROPERTY() TArray<FLDCharmView> Charms;
     UPROPERTY() FLDLeaderView Leader;
     UPROPERTY() FLDBossView Boss;
+    // #198 outer §5: the camp markers of the current (or, until the next reveal, the last) timed field segment.
+    UPROPERTY() TArray<FLDFieldMarkerView> Markers;
+    // #198: the outer timeline (rest steps, field segment and T).
+    UPROPERTY() FLDTimelineView Timeline;
+    // #198 session D: the current rest's PK (Serial 0: none); public like the sign-ups.
+    UPROPERTY() FLDPKView PK;
 };
 
 USTRUCT()
@@ -180,7 +235,9 @@ struct LOCKDOWN_API FLDCaptureEventTime
     static bool FromSeconds(double RawSeconds, FLDCaptureEventTime& Out, FString& Error);
 };
 
-enum class ELDCaptureEligibilityChange : uint8 { Joined, Respawned, ProtectionEnded, Died, Left };
+// PhaseRetired (#198): a living field life ended by a field -> rest boundary; it leaves the spray roster like a death
+// but counts no kill or death.
+enum class ELDCaptureEligibilityChange : uint8 { Joined, Respawned, ProtectionEnded, Died, Left, PhaseRetired };
 
 // Life-provider handoff into the capture reducer. Joined/Respawned carry the committed body's
 // native support; Respawned atomically carries its half-open protection end.

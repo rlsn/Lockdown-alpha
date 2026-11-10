@@ -23,15 +23,25 @@ bool FLDViewSchemaTest::RunTest(const FString& Parameters)
     ExpectStruct(FLDPublicMatchView::StaticStruct(),{TEXT("Generation"),TEXT("PublicRevision"),TEXT("Phase"),TEXT("ServerNowMs"),
         TEXT("StartedAtMs"),TEXT("OpenAtMs"),TEXT("CircleState"),TEXT("Occupier"),TEXT("CaptureEpoch"),TEXT("SoloSinceMs"),
         TEXT("DueAtMs"),TEXT("PausedProgressMs"),TEXT("GraffitiOwner"),TEXT("GraffitiPresentation"),TEXT("GuardDueAtMs"),TEXT("GuardKeptMs"),
-        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Leader"),TEXT("Boss")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
-    // D26: the current 天降外卖 names only its public point and landing instant; never its claimer or claim time (§6.3).
-    ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs")},
-        TEXT("The public airdrop names only its public point and landing"));
+        TEXT("ResultId"),TEXT("Airdrop"),TEXT("Charms"),TEXT("Leader"),TEXT("Boss"),TEXT("Markers"),TEXT("Timeline"),TEXT("PK")},TEXT("The public flagpole names only the spray holder, the graffiti owner and their progress"));
+    // #198 session D: the public PK names entrants, sides, bets, the arena, pending throws and the settled awards only.
+    ExpectStruct(FLDPKView::StaticStruct(),{TEXT("Generation"),TEXT("Serial"),TEXT("RestIndex"),TEXT("Format"),TEXT("SideCount"),
+        TEXT("Entrants"),TEXT("Bettors"),TEXT("Bets"),TEXT("ArenaCentreCm"),TEXT("ThrowAnchorCm"),TEXT("FightStartedAtMs"),TEXT("Outcome"),
+        TEXT("WinnerSide"),TEXT("DecidedAtMs"),TEXT("Throws"),TEXT("Awards")},TEXT("The public PK carries no HP, build or hidden state"));
+    // #198: a lying charm names only its kind, public point and expiry; never who took it.
+    ExpectStruct(FLDCharmView::StaticStruct(),{TEXT("Serial"),TEXT("Kind"),TEXT("PointId"),TEXT("PositionCm"),TEXT("ExpireAtFieldMs")},
+        TEXT("The public charm names only its kind, point and expiry"));
+    // D26: the current 天降外卖 names only its public point, landing and expiry instants; never its claimer or claim time (§6.3).
+    ExpectStruct(FLDAirdropView::StaticStruct(),{TEXT("Serial"),TEXT("Phase"),TEXT("PointId"),TEXT("PositionCm"),TEXT("LandAtMs"),
+        TEXT("ExpireAtMs")},TEXT("The public airdrop names only its public point, landing and expiry"));
+    // #198 outer §5: a camp marker names its segment, kind, camp, phase and instants; never who took it.
+    ExpectStruct(FLDFieldMarkerView::StaticStruct(),{TEXT("Segment"),TEXT("Kind"),TEXT("CampId"),TEXT("PositionCm"),TEXT("Phase"),
+        TEXT("RevealAtMs"),TEXT("EndAtMs")},TEXT("The public camp marker never names its claimer"));
     // D27: the leader notice is deliberately public, but only as a fuzzy circle; never the leader's exact position.
     ExpectStruct(FLDLeaderView::StaticStruct(),{TEXT("Leader"),TEXT("CircleCentreCm"),TEXT("RefreshedAtMs")},
         TEXT("The public leader notice names only the leader, a fuzzy circle and the bounty"));
-    // D26: the Boss view names only its phase, its appearance time and the last hit; its body is under fog of war.
-    ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},
+    // D26: the Boss view names only its phase, its appearance and leave times and the last hit; its body is under fog of war.
+    ExpectStruct(FLDBossView::StaticStruct(),{TEXT("Phase"),TEXT("AppearAtMs"),TEXT("LeaveAtMs"),TEXT("KilledBy"),TEXT("DownAtMs")},
         TEXT("The public Boss view never carries the Boss's position or health"));
     ExpectStruct(FLDResultView::StaticStruct(),{TEXT("Generation"),TEXT("ResultId"),TEXT("ResultSerial"),TEXT("Reason"),
         TEXT("Winner"),TEXT("StartedAtMs"),TEXT("EndedAtMs"),TEXT("DurationMs"),TEXT("Rows")},TEXT("The frozen result has no ledger or hidden state"));

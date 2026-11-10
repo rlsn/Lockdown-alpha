@@ -2,7 +2,7 @@
   "schema_version": 3,
   "projection_revision": 3,
   "map_id": "demo_world",
-  "layout_revision": 7,
+  "layout_revision": 9,
   "geometry_revision": 7,
   "approval": {
     "status": "approved",
@@ -5138,6 +5138,45 @@
     {
       "id": "l22", "kind": "Camp", "surface_id": "demo_ground", "position_cm": {"x": -3253, "y": -2263, "z": 0},
       "members": [{"id": "l22_0", "position_cm": {"x": -3196, "y": -2320, "z": 0}}, {"id": "l22_1", "position_cm": {"x": -3310, "y": -2206, "z": 0}}]
+    },
+    {
+      "id": "pk_signup_0", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": -2233, "y": 4241, "z": 100}
+    },
+    {
+      "id": "pk_signup_1", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 1975, "y": 4275, "z": 100}
+    },
+    {
+      "id": "pk_signup_2", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": -4270, "y": 3060, "z": 100}
+    },
+    {
+      "id": "pk_signup_3", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 2397, "y": -4267, "z": 100}
+    },
+    {
+      "id": "pk_signup_4", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": -1999, "y": -4222, "z": 100}
+    },
+    {
+      "id": "pk_signup_5", "kind": "PKSignup", "surface_id": "demo_ground", "position_cm": {"x": 4450, "y": -3000, "z": 100}
+    },
+    {
+      "id": "pk_spawn_0", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 959, "y": 427, "z": 0}
+    },
+    {
+      "id": "pk_spawn_1", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 110, "y": 1044, "z": 0}
+    },
+    {
+      "id": "pk_spawn_2", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -849, "y": 617, "z": 0}
+    },
+    {
+      "id": "pk_spawn_3", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -959, "y": -427, "z": 0}
+    },
+    {
+      "id": "pk_spawn_4", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": -110, "y": -1044, "z": 0}
+    },
+    {
+      "id": "pk_spawn_5", "kind": "PKSpawn", "surface_id": "demo_ground", "position_cm": {"x": 849, "y": -617, "z": 0}
+    },
+    {
+      "id": "pk_throw", "kind": "PKThrow", "surface_id": "demo_ground", "position_cm": {"x": 416, "y": 1956, "z": 0}
     },
     {
       "id": "s00", "kind": "Spawn", "surface_id": "demo_ground", "position_cm": {"x": -2413, "y": 4481, "z": 100}

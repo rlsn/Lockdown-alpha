@@ -84,6 +84,8 @@ public:
     ELDSightResult Trace(const FVector& SourceFootCm, const FVector& TargetFootCm) const;
     FVector2D CellCentre(int32 Index) const;
     void Coverage(const FVector& SourceFootCm, TArray<uint8>& OutBits) const;
+    // #198 session D: marks every coverage cell whose centre lies within the disk (a spectator's arena permission).
+    void AddDisk(const FVector& CentreCm, double DiskRadiusCm, TArray<uint8>& InOutBits) const;
 private:
     bool SegmentBlocked(const FVector2D& From, const FVector2D& To, int32 ObserverTier, int32 TargetTier) const;
     // #97: forests hold hundreds of trunks, so blockers are bucketed in a coarse grid; a segment tests only the
@@ -126,12 +128,26 @@ private:
     TArray<uint8> Bits;
 };
 
+// How one observer may see one skill-effect projection: the permissions its source's group gives bodies (#198 R15).
+// Hidden: another isolation group (another rest space, the PK for a non-spectator, the frozen world). Sight: a sight line
+// from the observer's foot. SharedSight: from the foot or a living PK teammate's (the PK's shared team sight). Granted: no
+// sight line needed (a spectator watching the whole arena).
+enum class ELDObservedFlightAccess : uint8 { Hidden, Sight, SharedSight, Granted };
+
 namespace LDObservation
 {
-    // Flights in sight of SourceFootCm under the same rule as units, nearest first, at most MaxProjectiles.
-    // A flight beyond the registered ground is simply out of sight; a non-finite flight or a changed world is a fault.
+    // R15: the access one observer has to one skill effect from the isolation groups (the effect's source acts in
+    // SourceGroup, or is a suspended world body when !bSourceActs; the observer's own group when bObserverGroup), the
+    // running arena's group (invalid without one) and the observer's PK role.
+    LOCKDOWN_API ELDObservedFlightAccess ClassifyFlight(bool bSourceActs, const FGuid& SourceGroup, bool bObserverGroup,
+        const FGuid& ObserverGroup, const FGuid& ArenaGroup, bool bSpectating, bool bPKObserver);
+    // Flights the observer may see under Access, nearest to SourceFootCm first, at most MaxProjectiles. SharedFeetCm are the
+    // living PK teammates' feet. A flight beyond the registered ground is simply out of sight; a non-finite flight or a
+    // changed world is a fault.
     LOCKDOWN_API bool SelectVisibleProjectiles(const FLDSightGeometry& Sight, const FVector& SourceFootCm,
-        const TArray<FLDObservedProjectileFact>& Facts, TArray<const FLDObservedProjectileFact*>& Out, FString& Error);
+        const TArray<FVector>& SharedFeetCm, const TArray<FLDObservedProjectileFact>& Facts,
+        TFunctionRef<ELDObservedFlightAccess(const FLDObservedProjectileFact&)> Access,
+        TArray<const FLDObservedProjectileFact*>& Out, FString& Error);
 }
 
 // Per-observer authorization bookkeeping. It owns opaque handles, epochs, revisions, ObservedDeath
@@ -229,6 +245,8 @@ public:
     static constexpr int64 SamplePeriodMs = 50;
     static constexpr int64 PublishPeriodMs = 100;
 private:
+    // Combat rule tests give an isolated world the registered sight of the approved geometry.
+    friend struct FLDBuildPrimitivesAccess;
     struct FObserver
     {
         FGuid ContenderId;

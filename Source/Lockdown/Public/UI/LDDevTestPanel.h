@@ -15,22 +15,22 @@ struct FLDProgressionView;
 // Nothing here decides a result; every action is one DEV test command the authority admits or refuses.
 namespace LDDevPanel
 {
-    // One catalog entry the panel can take as the current choice: a skill (active or passive) or an attribute card.
-    struct FLearnRow
+    // What the own build holds of one catalog active (#198).
+    enum class EActiveHeld : uint8 { None, Blueprint, Learned };
+    struct FActiveRow
     {
         FName Id;
         FString Name;
-        FString Kind;
-        bool bActiveSkill=false;
-        // The learned rank of a skill (0 = not learned) or how many of a card are held.
-        int32 Held=0;
+        EActiveHeld Held=EActiveHeld::None;
+        // Learned: its slot, 0 = Q, 1 = W, 2 = E.
+        uint8 Slot=0;
     };
-    // Catalog order: skills, then attribute cards.
-    LOCKDOWN_API TArray<FLearnRow> LearnRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression);
-    // Q/W/E all hold an active, so a new active needs a confirmed replacement; the server checks it again.
-    LOCKDOWN_API bool BothActiveSlotsHeld(const FLDProgressionView* Progression);
-    LOCKDOWN_API FString HeldText(const FLearnRow& Row);
-    // Level, XP and unused choice opportunities; an unprojected view reads as syncing, never as 0.
+    // Every active of the catalog in catalog order, with what the own progression holds of it.
+    LOCKDOWN_API TArray<FActiveRow> ActiveRows(const FLDDemoContentDefinitions& Content,const FLDProgressionView* Progression);
+    // Q/W/E all hold an active, so a DEV learn names the slot whose active it forgets; the server checks it again.
+    LOCKDOWN_API bool AllActiveSlotsHeld(const FLDProgressionView* Progression);
+    LOCKDOWN_API FString HeldText(const FActiveRow& Row);
+    // Level, XP, unspent points and queued active opportunities; an unprojected view reads as syncing, never as 0.
     LOCKDOWN_API FString StatusLine(const FLDProgressionView* Progression);
     // The stat's name in player terms with its entry unit.
     LOCKDOWN_API FString StatLabel(const LDDevTest::FStatField& Field);
@@ -77,9 +77,16 @@ private:
     UPROPERTY() TObjectPtr<UVerticalBox> LearnList;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> LearnNames;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> LearnHeld;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LearnGrant;
+    UPROPERTY() TArray<TObjectPtr<UWidget>> LearnNow;
     UPROPERTY() TArray<TObjectPtr<UWidget>> LearnReplace;
+    UPROPERTY() TObjectPtr<UVerticalBox> PointList;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PointNames;
+    UPROPERTY() TArray<TObjectPtr<UTextBlock>> PointHeld;
     UPROPERTY() TObjectPtr<UWidget> HostSection;
-    TArray<LDDevPanel::FLearnRow> ShownLearn;
+    TArray<LDDevPanel::FActiveRow> ShownActives;
+    TArray<FName> ShownStats;
+    int64 ShownUnspent=0;
     bool bCatalogBuilt=false;
     FString Feedback;
     bool bOpen=false;

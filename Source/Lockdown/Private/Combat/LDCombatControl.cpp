@@ -73,9 +73,8 @@ bool ALDCombatDirector::RefreshTaunts(FString& Error)
 }
 
 bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState& Body, const FLDDemoEffectDefinition& Effect,
-    const FGuid& EffectId, FString& Error, int32* OutTaunted)
+    const FGuid& EffectId, const FLDCombatSourceRef& Source, FString& Error)
 {
-    if (OutTaunted) { *OutTaunted=0; }
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A taunt requires the current core."); return false; }
     const int64 Now=Mode->GetAuthorityNowMs();
@@ -108,10 +107,10 @@ bool ALDCombatDirector::ApplyTauntEffect(ALDCharacter& Actor, FLDBodyCombatState
         App.SourceBody={Body.Victim,Body.Identity};
         App.CreditOwner=Body.Victim.EntityId;
         App.DurationMs=Effect.DurationMs;
+        App.Source=Source;
         bool bApplied=false;
         if (!CommitControl(Victim,App,Now,bApplied,Error)) { return false; }
         if (!bApplied) { continue; }
-        if (OutTaunted) { ++*OutTaunted; }
         UE_LOG(LogLDCombat,Display,TEXT("LD_COMBAT_TAUNT victim=%s source=%s until=%lld"),
             *Victim.Victim.EntityId.ToString(),*Body.Victim.EntityId.ToString(),Victim.Taunt.IsSet() ? Victim.Taunt->ExpiresAtMs : 0);
     }
@@ -198,10 +197,12 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
         return false;
     }
     if (!bApplied) { return true; }
-    if ((App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Silence
+    if (App.Kind==ELDControlKind::Stun || App.Kind==ELDControlKind::Silence
         || App.Kind==ELDControlKind::Taunt || App.Kind==ELDControlKind::Knockback)
-        && !CancelSkillPosture(Victim,false,NowMs,Error)) { return false; }
+    { CancelChannel(Victim); }
     if (bHard) { Victim.HardControl=Chain; }
+    // #198 build safe window: a hard control or a knockback received is a combat action of its victim; a slow is not.
+    if (bHard || App.Kind==ELDControlKind::Knockback) { MarkBuildUnsafe(Victim.Victim.EntityId,NowMs); }
     ++Victim.StateRevision;
     MarkViewChanged(Victim.Victim.EntityId);
     // Root, stun, taunt, knockback and (#147 D10) silence reset the victim's spray progress at the moment they land;
@@ -211,7 +212,8 @@ bool ALDCombatDirector::CommitControl(FLDBodyCombatState& Victim, const FLDContr
     { return false; }
     // Every committed control or slow is its owner's assist contribution on this life.
     RecordAssistContribution(Victim,App.CreditOwner,NowMs);
-    return true;
+    // #198 F C05/C07 read every hard control that actually landed.
+    return !bHard || OnHardControl(Victim,App,NowMs,Error);
 }
 
 bool ALDCombatDirector::IsImpaired(const FLDBodyCombatState& Body, int64 NowMs) const
@@ -264,8 +266,10 @@ bool ALDCombatDirector::InterruptSpray(const FLDBodyCombatState& Target, FString
 {
     auto* Mode=Core();
     if (!Mode) { Error=TEXT("A spray interruption requires the current core."); return false; }
-    // Rule fixtures without a spray zone, and camp bodies, carry no spray progress.
-    if (Target.Victim.Kind!=ELDVictimKind::Contender || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
+    // Rule fixtures without a spray zone, camp bodies and rest-space bodies (#198: a rest life or a training dummy)
+    // carry no spray progress.
+    if (Target.Victim.Kind!=ELDVictimKind::Contender || Target.IsolationGroup.IsValid()
+        || !Mode->CaptureReducer.IsActive() || !Mode->CaptureCircle.IsValid()) { return true; }
     if (!Mode->ActiveWritePermit)
     {
         Error=TEXT("A spray interruption must be committed inside a gameplay permit.");

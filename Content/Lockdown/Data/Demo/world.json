@@ -1808,6 +1808,253 @@
       "surface_id": "demo_ground"
     },
     {
+      "id": "pk_signup_0",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -2233
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4241
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_1",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 1975
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 4275
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_2",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -4270
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 3060
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_3",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 2397
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4267
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_4",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -1999
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -4222
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_signup_5",
+      "kind": "PKSignup",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 4450
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -3000
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 100
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_0",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 959
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 427
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_1",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 110
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1044
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_2",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -849
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 617
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_3",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -959
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -427
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_4",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": -110
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -1044
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_spawn_5",
+      "kind": "PKSpawn",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 849
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": -617
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
+      "id": "pk_throw",
+      "kind": "PKThrow",
+      "position_cm": {
+        "x": {
+          "denominator": 1,
+          "numerator": 416
+        },
+        "y": {
+          "denominator": 1,
+          "numerator": 1956
+        },
+        "z": {
+          "denominator": 1,
+          "numerator": 0
+        }
+      },
+      "surface_id": "demo_ground"
+    },
+    {
       "id": "s00",
       "kind": "Spawn",
       "position_cm": {
@@ -2040,7 +2287,7 @@
     "decision": "User approvals: 2026-11-02 D01 first content and balance, D03 attack-move rules. 2026-11-04 #82 core values (D17-D24), dash toward the pointer, build expansion (CB 15.4, 15.7-15.9); #79 dorm, camp-return, airdrop, Boss and leader values. 2026-11-05 #112 build and spray-guard rework (D33); #79 Boss windup and patrol. 2026-11-06 #97 world layout for playtest, camp clearance 3 m; 2026-11-07 walls and fences fitted to their art; rim camps; 11-08 ramps, Elite camps. A playtest baseline, not a balance check.",
     "status": "approved"
   },
-  "author_schema_sha256": "fd62982e1d63c59cf987bc955b4fa4f95d294512f0cdc326730a0fe1bbde58dd",
+  "author_schema_sha256": "7f1a110e6e430ea2127f0df540c388104061c7c80ead65a16fe4ad182086dfa8",
   "geometry": {
     "blockers": [
       {
@@ -34770,7 +35017,7 @@
     ]
   },
   "geometry_revision": 7,
-  "layout_revision": 7,
+  "layout_revision": 9,
   "map_id": "demo_world",
   "parameter_refs": [
     "AIRDROP.PickupRadiusCm",
@@ -34889,5 +35136,5 @@
   },
   "projection_revision": 3,
   "schema_version": 3,
-  "source_sha256": "37c59bcd6bc2375af68add816389debce23f021d7a0c99bb0d1d522d94912d9a"
+  "source_sha256": "e103329bdff05839c1cfdfb565fc40005dabf9378804f7a183c68e109c38962b"
 }

@@ -77,26 +77,6 @@ struct FLDDemoAIParameters
     UPROPERTY() int64 EngagementBudgetMs = 0;
 };
 
-// #166 level-up offer and attribute quality parameters, in basis points (10000 = 1.0).
-USTRUCT()
-struct FLDDemoChoiceWeights
-{
-    GENERATED_BODY()
-
-    UPROPERTY() int64 NewActiveFreeSlotWeightBp = 0;
-    UPROPERTY() int64 NewActiveFullSlotWeightBp = 0;
-    UPROPERTY() int64 FirstSlotUpgradeBp = 0;
-    UPROPERTY() int64 FreeSlotAttributeBp = 0;
-    UPROPERTY() int64 AttributeGreenChanceBp = 0;
-    UPROPERTY() int64 AttributeGreenMultiplierBp = 0;
-    UPROPERTY() int64 AttributeBlueChanceBp = 0;
-    UPROPERTY() int64 AttributeBlueMultiplierBp = 0;
-    UPROPERTY() int64 AttributePurpleChanceBp = 0;
-    UPROPERTY() int64 AttributePurpleMultiplierBp = 0;
-    UPROPERTY() int64 AttributeGoldChanceBp = 0;
-    UPROPERTY() int64 AttributeGoldMultiplierBp = 0;
-};
-
 USTRUCT()
 struct FLDDemoContentParameters
 {
@@ -114,10 +94,8 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 AttackSpeedPerLevelBp = 0;
     UPROPERTY() int64 CritChanceBaseBp = 0;
     UPROPERTY() int64 CritMultiplierBp = 0;
-    // STAT.AbilityCritMultiplier: damage multiplier of an ability critical (passive_lucky_star Lv2).
-    UPROPERTY() int64 AbilityCritMultiplierBp = 0;
     UPROPERTY() int64 CooldownHasteBaseP2 = 0;
-    // #166: levels 2..10 use SkillGrowthPerLevelBp, levels 11..16 use SkillGrowthPerLevelAfter10Bp.
+    // #166/#198: G(L) = 1 + SkillGrowthPerLevelBp x min(L-1, 9) + SkillGrowthPerLevelAfter10Bp x max(L-10, 0).
     UPROPERTY() int64 SkillGrowthPerLevelBp = 0;
     UPROPERTY() int64 SkillGrowthPerLevelAfter10Bp = 0;
     UPROPERTY() int64 CooldownHasteMaxP2 = 0;
@@ -129,10 +107,62 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational CaptureRadiusCm;
     UPROPERTY() int64 CaptureSprayMs = 0;
     UPROPERTY() int64 CaptureGuardMs = 0;
-    // #153: the opening countdown between the initial spawn and the match's T=0; every match timer counts from T=0.
-    UPROPERTY() int64 CountdownMs = 0;
-    UPROPERTY() int64 DevelopmentMs = 0;
-    UPROPERTY() int64 RespawnMs = 0;
+    // #198: each of the three field segments; the field progress T only advances in the field.
+    UPROPERTY() int64 FieldSegmentMs = 0;
+    // #198 rest phases: R0 and R1-R3 build windows whose last RestSignupMs double as PK sign-up, then draw, betting,
+    // PK ready lock, PK cap, settlement, payout and the return-to-field countdown.
+    UPROPERTY() int64 RestOpeningBuildMs = 0;
+    UPROPERTY() int64 RestBuildMs = 0;
+    UPROPERTY() int64 RestSignupMs = 0;
+    UPROPERTY() int64 RestDrawMs = 0;
+    UPROPERTY() int64 RestBettingMs = 0;
+    UPROPERTY() int64 RestPKReadyMs = 0;
+    UPROPERTY() int64 RestPKMaxMs = 0;
+    UPROPERTY() int64 RestSettlementMs = 0;
+    UPROPERTY() int64 RestPayoutMs = 0;
+    UPROPERTY() int64 RestReturnMs = 0;
+    // #198 approved outer parameters §1: a PK start or field return whose bodies cannot all stand waits at most this long
+    // after its boundary (then the PK is NoContest and an unready field return is an explicit fault).
+    UPROPERTY() int64 RestEntryReadyTimeoutMs = 0;
+    // #198: an occupied pre-rest foot point is replaced by a free spot on the same reachable surface within this radius.
+    UPROPERTY() FLDDemoRational RestReturnSearchRadiusCm;
+    // #198 PK ring centred on the capture anchor: PKArenaRadiusCm until PKRingShrinkStartMs, linear to PKRingMidRadiusCm
+    // at PKRingMidMs, linear to PKRingFinalRadiusCm at PKRingFinalMs, then held until RestPKMaxMs. The next ring is
+    // shown PKRingPreviewMs ahead. Ring damage is the start-of-PK max HP times the early/mid/final share per second of
+    // real outside time ([0, Mid), [Mid, Final), [Final, Max)), settled every PKRingTickMs.
+    UPROPERTY() FLDDemoRational PKArenaRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingMidRadiusCm;
+    UPROPERTY() FLDDemoRational PKRingFinalRadiusCm;
+    UPROPERTY() int64 PKRingShrinkStartMs = 0;
+    UPROPERTY() int64 PKRingMidMs = 0;
+    UPROPERTY() int64 PKRingFinalMs = 0;
+    UPROPERTY() int64 PKRingPreviewMs = 0;
+    UPROPERTY() int64 PKRingTickMs = 0;
+    UPROPERTY() int64 PKRingEarlyDamageBp = 0;
+    UPROPERTY() int64 PKRingMidDamageBp = 0;
+    UPROPERTY() int64 PKRingFinalDamageBp = 0;
+    // #198 PK format and points: 4 or 6 entrants play free-for-all with this share, otherwise equal random teams;
+    // every entrant earns PKParticipationPoints, winners share ceil(N/2) points capped at PKWinnerPointsMax, and the
+    // betting pool is min(PKBettingPoolMaxPoints, eligible spectators).
+    UPROPERTY() int64 PKTeamFormatBp = 0;
+    UPROPERTY() int64 PKParticipationPoints = 0;
+    UPROPERTY() int64 PKWinnerPointsMax = 0;
+    UPROPERTY() int64 PKBettingPoolMaxPoints = 0;
+    // #198 spectator throw from the fixed off-arena throw anchor: ThrowCooldownMs from a successful throw,
+    // ThrowTelegraphMs warning, ThrowRadiusCm impact within ThrowRangeCm, ThrowSlowBp slow for ThrowSlowMs and
+    // Exposed for ThrowExposeMs.
+    UPROPERTY() int64 ThrowCooldownMs = 0;
+    UPROPERTY() int64 ThrowTelegraphMs = 0;
+    UPROPERTY() FLDDemoRational ThrowRadiusCm;
+    UPROPERTY() FLDDemoRational ThrowRangeCm;
+    UPROPERTY() int64 ThrowSlowBp = 0;
+    UPROPERTY() int64 ThrowSlowMs = 0;
+    UPROPERTY() int64 ThrowExposeMs = 0;
+    // #198: field respawn wait fixed by T at death: [0, 1), [1, 2), [2, 3) field segments, then the final field.
+    UPROPERTY() int64 RespawnField1Ms = 0;
+    UPROPERTY() int64 RespawnField2Ms = 0;
+    UPROPERTY() int64 RespawnField3Ms = 0;
+    UPROPERTY() int64 RespawnFinalMs = 0;
     UPROPERTY() int64 ProtectionMs = 0;
     // D21: every contender's recovery, a per-second share of its current maxima once this long without combat.
     UPROPERTY() int64 OutOfCombatRegenDelayMs = 0;
@@ -156,12 +186,30 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 CampGrowthAttackPerStageBp = 0;
     UPROPERTY() int64 CampGrowthResistPerStageP2 = 0;
     UPROPERTY() int64 CampGrowthRewardXPPerStageBp = 0;
-    // D26 (#79) airdrop: landings at FirstLand + n * Interval from the match start, each public AnnounceLead earlier.
-    UPROPERTY() int64 AirdropFirstLandMs = 0;
-    UPROPERTY() int64 AirdropIntervalMs = 0;
+    // D26 (#79) / #198 outer §5 airdrop: the drops land at the explicit field progress instants AirdropLandMs (strictly
+    // increasing), each public AnnounceLead earlier, and leave unclaimed AirdropExpireMs after landing.
+    UPROPERTY() TArray<int64> AirdropLandMs;
+    UPROPERTY() int64 AirdropExpireMs = 0;
     UPROPERTY() int64 AirdropAnnounceLeadMs = 0;
     UPROPERTY() FLDDemoRational AirdropPickupRadiusCm;
     UPROPERTY() int64 AirdropRewardXP = 0;
+    // #198 outer §5 camp markers: in each timed field segment a High and an Elite camp are marked CampMarkRevealMs of
+    // field progress after the segment starts (World/LDFieldMarkers.h).
+    UPROPERTY() int64 CampMarkRevealMs = 0;
+    // #198 field charms: CharmWaveCount waves at field progress T = CharmFirstWave + n * CharmWaveInterval, each of
+    // CharmPerWave distinct kinds on distinct airdrop points, lasting CharmLifetimeMs of field progress. Heal restores
+    // CharmHealMaxHPBp of max HP, mana CharmManaMaxMPBp of max MP; move speed adds CharmMoveSpeedBp to the additive
+    // move-speed ratio for CharmMoveSpeedMs (a later pickup refreshes it). See World/LDCharms.h.
+    UPROPERTY() int64 CharmFirstWaveMs = 0;
+    UPROPERTY() int64 CharmWaveIntervalMs = 0;
+    UPROPERTY() int64 CharmWaveCount = 0;
+    UPROPERTY() int64 CharmPerWave = 0;
+    UPROPERTY() int64 CharmLifetimeMs = 0;
+    UPROPERTY() FLDDemoRational CharmPickupRadiusCm;
+    UPROPERTY() int64 CharmHealMaxHPBp = 0;
+    UPROPERTY() int64 CharmManaMaxMPBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedBp = 0;
+    UPROPERTY() int64 CharmMoveSpeedMs = 0;
     // D27 (#79) 上热搜: the leader is named every LeaderRefreshMs; see World/LDLeaderNotice.h.
     UPROPERTY() int64 LeaderMinLevel = 0;
     UPROPERTY() int64 LeaderRefreshMs = 0;
@@ -169,8 +217,8 @@ struct FLDDemoContentParameters
     UPROPERTY() FLDDemoRational LeaderCircleMaxOffsetCm;
     // #147 build v7 keywords (one shared record per target): breach takes BreachPerStack off armor and magic resist
     // per stack, up to BreachMaxStacks, for BreachMs refreshed whole by every new stack; burn deals BurnPerSec plus
-    // BurnAPRatio x the applier's AP per second per stack (snapshotted per stack), every BurnTickMs, up to BurnMaxStacks
-    // for BurnMs refreshed whole. Every lifesteal source of one hit adds up to at most LifestealCapBp.
+    // BurnAPRatio x the applier's AP per second per layer (snapshotted per layer), every BurnTickMs from the layer's own
+    // application for BurnMs, up to BurnMaxStacks layers (#198). Every lifesteal source of one hit adds up to at most LifestealCapBp.
     UPROPERTY() int64 BreachPerStackP2 = 0;
     UPROPERTY() int64 BreachMaxStacks = 0;
     UPROPERTY() int64 BreachMs = 0;
@@ -180,6 +228,29 @@ struct FLDDemoContentParameters
     UPROPERTY() int64 BurnMs = 0;
     UPROPERTY() int64 BurnMaxStacks = 0;
     UPROPERTY() int64 LifestealCapBp = 0;
+    // #198 elements (CONTENT_AND_BALANCE §4.4, LDCombatElements): one element per target. Burn layers each last BurnMs
+    // from their own application and tick every BurnTickMs. Wet lasts WetMs and slows by WetSlowBp; electrified lasts
+    // ElectrifiedMs and, on later positive damage, discharges R to the nearest other enemy within DischargeRadiusCm at
+    // most once per DischargeIntervalMs per target. R = ReactionBase + ReactionPerLevel x (L - 1) + ReactionAPRatio x AP
+    // of the element's applier. Fog (fire + water): a FogRadiusCm zone for FogMs giving wet every FogIntervalMs to
+    // element-free enemies; conduct (water + electric): R within ConductRadiusCm to wet enemies, ConductSlowBp for
+    // ConductSlowMs; overload (fire + electric): R within OverloadRadiusCm and OverloadBreachStacks of breach.
+    UPROPERTY() int64 WetMs = 0;
+    UPROPERTY() int64 WetSlowBp = 0;
+    UPROPERTY() int64 ElectrifiedMs = 0;
+    UPROPERTY() FLDDemoRational DischargeRadiusCm;
+    UPROPERTY() int64 DischargeIntervalMs = 0;
+    UPROPERTY() int64 ReactionBaseP2 = 0;
+    UPROPERTY() int64 ReactionPerLevelP2 = 0;
+    UPROPERTY() int64 ReactionAPRatioBp = 0;
+    UPROPERTY() FLDDemoRational FogRadiusCm;
+    UPROPERTY() int64 FogMs = 0;
+    UPROPERTY() int64 FogIntervalMs = 0;
+    UPROPERTY() FLDDemoRational ConductRadiusCm;
+    UPROPERTY() int64 ConductSlowBp = 0;
+    UPROPERTY() int64 ConductSlowMs = 0;
+    UPROPERTY() FLDDemoRational OverloadRadiusCm;
+    UPROPERTY() int64 OverloadBreachStacks = 0;
     UPROPERTY() int64 XPBaseToNext = 0;
     UPROPERTY() int64 XPIncreasePerLevel = 0;
     UPROPERTY() int64 PlayerXPBase = 0;
@@ -187,8 +258,24 @@ struct FLDDemoContentParameters
     // Contender kills only: a contribution within this window before the death earns an assist; the killer and the
     // assisters split the kill XP.
     UPROPERTY() int64 AssistWindowMs = 0;
+    // #198 points: OpeningPoints at BeginMatch, PointsPerLevel for every level crossed up to the cap, then MaxLevelPoints
+    // for every full MaxLevelPointsXP past the top threshold. A build change commits only BuildSafeWindowMs after the
+    // contender's last combat action (GROWTH.BuildSafeWindowSec).
+    UPROPERTY() int64 OpeningPoints = 0;
+    UPROPERTY() int64 PointsPerLevel = 0;
+    UPROPERTY() int64 MaxLevelPointsXP = 0;
+    UPROPERTY() int64 MaxLevelPoints = 0;
+    // #198: points a rest NPC charges for one active-only three-choice.
+    UPROPERTY() int64 NpcActivePoints = 0;
+    UPROPERTY() int64 BuildSafeWindowMs = 0;
+    // #198 B: a normal level-up whose component roll finds the whole common pool owned grants these points instead
+    // (GROWTH.EmptyComponentPoolPoints).
+    UPROPERTY() int64 EmptyComponentPoolPoints = 0;
+    // #198 G (spec §4.5): the rest FillGap price (GROWTH.FillGapPoints) and the dismantle input count
+    // (GROWTH.DismantleInputCount distinct owned common components for one random common component).
+    UPROPERTY() int64 FillGapPoints = 0;
+    UPROPERTY() int64 DismantleInputCount = 0;
     UPROPERTY() FLDDemoAIParameters AI;
-    UPROPERTY() FLDDemoChoiceWeights Choice;
 };
 
 UENUM()
@@ -263,39 +350,40 @@ struct FLDDemoPolicies
     UPROPERTY() ELDDemoPolicy CampManaPolicy = ELDDemoPolicy::None;
 };
 
+// #198: DirectionLine (S09) is a straight band of RangeCm x 2 LineHalfWidthCm in the requested direction; appended last.
 UENUM()
-enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone };
+enum class ELDDemoTargetMode : uint8 { Self, Unit, DirectionProjectile, DirectionDash, GroundPoint, DirectionCone, DirectionLine };
 
 // When a triggered effect fires: cooldown_refund on a landed primary basic (BasicHit), mana_on_hit on an ability hit
 // (AbilityHit), triggered_shield when the holder took positive damage (Damaged).
+// #198 B: DashComplete arms an empower_basic of a component when a voluntary dash (D or an active dash) completes with
+// a positive displacement (B12).
 UENUM()
-enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged };
+enum class ELDDemoEffectTrigger : uint8 { None, BasicHit, AbilityHit, Damaged, DashComplete };
+
+// #198 water/fire/electric. Fire is burn stacks; water (wet) and electric (shocked) are owned by the element state of
+// #198 A. A component effect or binding names one of them.
+UENUM()
+enum class ELDDemoElement : uint8 { None = 0, Fire = 1, Water = 2, Electric = 3 };
+
+// #198 workshop material kinds (基础构件 / 改装件 / 连接件).
+UENUM()
+enum class ELDDemoComponentKind : uint8 { Base = 0, Mod = 1, Connector = 2 };
+
+// Which supply may hand a component out: Common (normal level-ups) or Scarce (boss/airdrop sources only).
+UENUM()
+enum class ELDDemoComponentPool : uint8 { Common = 0, Scarce = 1 };
+
+// The install parameters a component takes besides its target: none, or one learned damaging active plus one element (B18).
+UENUM()
+enum class ELDDemoComponentBinding : uint8 { None = 0, ActiveElement = 1 };
 
 // Which cooldown tracks a cooldown_refund shortens: all learned actives (Q/W/E).
 UENUM()
 enum class ELDDemoCooldownEntries : uint8 { None, Actives };
 
-// ability_crit: a share of the owner's crit chance for the listed abilities.
-UENUM()
-enum class ELDDemoCritMode : uint8 { None, Chance };
-
 UENUM()
 enum class ELDDemoDamageType : uint8 { Physical, Magical };
-
-UENUM()
-enum class ELDDemoAbilityKind : uint8 { Active, Passive };
-
-UENUM()
-enum class ELDAttributeQuality : uint8 { None = 0, Green = 1, Blue = 2, Purple = 3, Gold = 4 };
-
-namespace LDDemoAttributeQuality
-{
-    inline bool IsValid(ELDAttributeQuality Quality)
-    {
-        return Quality == ELDAttributeQuality::Green || Quality == ELDAttributeQuality::Blue
-            || Quality == ELDAttributeQuality::Purple || Quality == ELDAttributeQuality::Gold;
-    }
-}
 
 UENUM()
 // Boss is the D26 画饼老板's monster row: one roaming body, never placed in a camp. Elite (#97) is the third camp tier,
@@ -343,6 +431,8 @@ struct FLDDemoTargetDefinition
     // AttackRangeBonusCapCm; 0 = none.
     UPROPERTY() int64 AttackRangeRatioBp = 0;
     UPROPERTY() FLDDemoRational AttackRangeBonusCapCm;
+    // DirectionLine only: half the band width.
+    UPROPERTY() FLDDemoRational LineHalfWidthCm;
 };
 
 USTRUCT()
@@ -365,10 +455,6 @@ struct FLDDemoEffectDefinition
     UPROPERTY() int64 RatioBp = 0;
     UPROPERTY() FLDDemoRational DistanceCm;
     UPROPERTY() FLDDemoRational RadiusCm;
-    // DashBoost (D20): the innate dash cooldown is multiplied by CooldownRatioBp/10000 and its distance by
-    // (10000+DistanceBonusBp)/10000.
-    UPROPERTY() int64 CooldownRatioBp = 0;
-    UPROPERTY() int64 DistanceBonusBp = 0;
     UPROPERTY() TArray<FLDDemoStatBonus> Stats;
     // Thorns: armor scaling of the reflection, per-attacker repeat window and critical-hit multiplier; it answers
     // primary basic hits from any side.
@@ -378,7 +464,6 @@ struct FLDDemoEffectDefinition
     // Generic trigger/entry selectors of triggered effects (cooldown_refund, triggered_shield, mana_on_hit).
     UPROPERTY() ELDDemoEffectTrigger Trigger = ELDDemoEffectTrigger::None;
     UPROPERTY() ELDDemoCooldownEntries Entries = ELDDemoCooldownEntries::None;
-    UPROPERTY() ELDDemoCritMode CritMode = ELDDemoCritMode::None;
     // cooldown_refund: the remaining-cooldown reduction.
     UPROPERTY() int64 AmountMs = 0;
     // lifesteal: multiplier against a low-HP target.
@@ -388,40 +473,58 @@ struct FLDDemoEffectDefinition
     // #147 breach/burn: Count is the stacks one hit of an active applies, or a passive applies per Q/W hit;
     // BasicCount the stacks a passive applies per primary basic hit.
     UPROPERTY() int32 BasicCount = 0;
-    // dash_boost: cooldown ratio and distance bonus of every learned dash active at release.
-    UPROPERTY() int64 SkillCooldownRatioBp = 0;
-    UPROPERTY() int64 SkillDistanceBonusBp = 0;
-    // ability_crit (Chance): the abilities that may crit with the share of the owner's crit chance.
-    UPROPERTY() TArray<FString> AbilityIds;
-    // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow or linger).
+    // #112 handlers (LDCombatMechanics): a second ratio and duration (an attached slow).
     UPROPERTY() int64 SecondaryRatioBp = 0;
     UPROPERTY() int64 SecondaryDurationMs = 0;
-    // #166: spell_sustain/dash_contact_refund cap actual mana grants; this cap never grows with level.
+    // dash_contact_refund caps actual mana grants; this cap never grows with level. brace: the record cap (grows with G).
     UPROPERTY() int64 LimitP2 = 0;
-    UPROPERTY() bool bCleanseSlow = false;
-    // #147 v7 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
-    // execute RatioBp (pool bonus) + SecondaryRatioBp (target HP below); echo DelayMs+RatioBp (damage share);
-    // taunt_shield BaseP2+MaxHPRatioBp+DurationMs per taunted contender; zone_burn Count+IntervalMs;
-    // root SecondaryDurationMs (stun instead when the target is slowed); knockback RadiusCm+SecondaryDurationMs (wall
-    // travel threshold and stun); empower_basic Count (charges), Stats (while charged), SecondaryRatioBp+RadiusCm (cleave);
+    // dash_contact: every body the dash actually touches takes the native hit once (otherwise only the first Count).
+    UPROPERTY() bool bEveryContact = false;
+    // #198 B basic_element: the element a primary basic applies (Water/Electric/Fire); None for every other operation.
+    UPROPERTY() ELDDemoElement Element = ELDDemoElement::None;
+    // #198 F workshop terms: a cone angle (spread_unit, compress_cone) and a mana-cost multiplier (cooldown_cost).
+    UPROPERTY() FLDDemoRational AngleDegrees;
+    UPROPERTY() int64 CostRatioBp = 0;
+    // #198 F workshop field use (content.json key -> field): damage_ratio MultiplierBp (a damage multiplier of the target's
+    // package), ratio RatioBp (a geometry/time multiplier or a share), cooldown_ratio SecondaryRatioBp, cost_ratio CostRatioBp,
+    // angle AngleDegrees, range_cap and radius RadiusCm, distance DistanceCm, stun_duration/root_duration SecondaryDurationMs,
+    // cap_ratio MultiplierBp (C01's max-HP cap), mana BaseP2 + mana_cap LimitP2 (C07), base BaseP2 (a damage/shield base,
+    // or the grown cap of C08's store and C11's heal), delay DelayMs, interval IntervalMs, duration DurationMs, count Count.
+    // #147/#198 field use (docs/systems/COMBAT_AND_GROWTH.md): silence DurationMs; breach/burn Count+BasicCount;
+    // zone Count pulses at DelayMs + k x IntervalMs inside DurationMs; zone_slow RatioBp every IntervalMs for DurationMs;
+    // zone_burn Count+IntervalMs; knockback DistanceCm+DurationMs; channel_cone SecondaryRatioBp+SecondaryDurationMs (a
+    // slow on the last wave only); empower_basic Count (charges), Stats (while charged);
     // triggered_shield Damaged IntervalMs, SecondaryRatioBp+RadiusCm (burst on break); thorns SecondaryRatioBp+
     // SecondaryDurationMs (move-only slow); control_damage_amp SecondaryRatioBp (low-HP targets count too); lifesteal
     // SecondaryRatioBp+MultiplierBp (multiplier against low-HP targets); low_hp_stat_bonus SecondaryRatioBp (basic lifesteal).
+    // #198 session A: wet/electrify/zone_wet no fields (terms from the COMBAT element parameters); chain_bounce Count
+    // (extra targets) RadiusCm RatioBp (kept share per bounce) IntervalMs; brace DurationMs RatioBp (damage cut) LimitP2
+    // (record cap) RadiusCm BaseP2 (answer base) SecondaryRatioBp (record share); zone_haste RatioBp (owner move speed
+    // inside); grievous RatioBp (cut of new heals and shields) DurationMs.
+    // #198 B component forms (a component's effects; actives never carry them): burn/breach BasicCount only (stacks per
+    // primary basic hit); thorns IntervalMs 0 = no per-attacker repeat window; nth_basic_bonus Count (every Count-th landed
+    // primary basic) + DistanceCm + DurationMs (a knockback of the primary target away from the holder, no damage);
+    // empower_basic Trigger DashComplete + DurationMs + Count (charges per armed package); ledger BaseP2+ADRatioBp+APRatioBp+
+    // DamageType per entry, Count entries cash out, DurationMs without a new entry clears the unlocked entries;
+    // basic_element Element; basic_damage_scale RatioBp (0 < ratio < 1, the primary basic's own package only);
+    // idle_ready_amp DelayMs (ready and idle) + RatioBp (next native direct damage bonus); active_element no fields (the
+    // install binds the active and element, FLDDemoComponentDefinition::Binding).
 
     ELDDemoEffectOp GetOp() const { return static_cast<ELDDemoEffectOp>(Opcode); }
 };
 
+// #198: the one value set of an active (no ranks); its fixed amounts grow with the owner's level (LDSkillGrowth).
 USTRUCT()
-struct FLDDemoRankDefinition
+struct FLDDemoAbilityValues
 {
     GENERATED_BODY()
 
-    UPROPERTY() int32 Rank = 0;
     UPROPERTY() int64 ManaCostP2 = 0;
     UPROPERTY() int64 CooldownMs = 0;
     UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
 };
 
+// #198: every ability is a single-level active learned into Q/W/E.
 USTRUCT()
 struct FLDDemoAbilityDefinition
 {
@@ -429,38 +532,74 @@ struct FLDDemoAbilityDefinition
 
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() ELDDemoAbilityKind Kind = ELDDemoAbilityKind::Active;
-    // False keeps the skill out of every three-card offer (opening and level-up); it stays learnable otherwise.
-    UPROPERTY() bool Draftable = false;
+    // True puts the active in the opening opportunity's pool; every active may be drawn by a later opportunity.
+    UPROPERTY() bool Opening = false;
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
-    UPROPERTY() TArray<FLDDemoRankDefinition> Ranks;
+    UPROPERTY() FLDDemoAbilityValues Values;
 
     ELDDemoAbilityId GetNativeId() const { return static_cast<ELDDemoAbilityId>(NativeId); }
 };
 
+// #198: one of the five point-bought stats; each allocated point adds PerPoint (flat and additive percent terms).
 USTRUCT()
-struct FLDDemoAttributeDefinition
+struct FLDDemoStatDefinition
 {
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
     UPROPERTY() uint8 NativeId = 0;
-    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
-    // Explicit deductions of a wild card (#112 §4): positive magnitudes the projection subtracts; empty for every other card.
-    UPROPERTY() TArray<FLDDemoStatBonus> Penalties;
+    UPROPERTY() TArray<FLDDemoStatBonus> PerPoint;
+
+    ELDDemoStatId GetNativeId() const { return static_cast<ELDDemoStatId>(NativeId); }
 };
 
-// #153 opening direction card (v7 §2.2): three permanent stats; the choice also teaches one hidden draftable active.
-// Identified by its id only (no native number): it is never replicated as anything but a definition id.
+// #198 B: one workshop material definition (component catalog row). A base component is a complete automatic ability
+// whose effects Combat reads while it is installed (ALDCombatDirector::CollectPassiveEffects); mods and connectors (#198 F)
+// install onto a target.
 USTRUCT()
-struct FLDDemoOpeningCardDefinition
+struct FLDDemoComponentDefinition
 {
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
-    UPROPERTY() TArray<FLDDemoStatBonus> Stats;
+    UPROPERTY() uint8 NativeId = 0;
+    UPROPERTY() ELDDemoComponentKind Kind = ELDDemoComponentKind::Base;
+    UPROPERTY() ELDDemoComponentPool Pool = ELDDemoComponentPool::Common;
+    // Opening base pick (spec §4.3): bOpeningAlways bases are always offered; otherwise the base is offered only when the
+    // opening active is one of OpeningActives (empty and not always = never an opening option).
+    UPROPERTY() bool bOpeningAlways = false;
+    UPROPERTY() TArray<FString> OpeningActives;
+    // ActiveElement: the install binds one learned active of BindActives and one element of BindElements.
+    UPROPERTY() ELDDemoComponentBinding Binding = ELDDemoComponentBinding::None;
+    UPROPERTY() TArray<FString> BindActives;
+    UPROPERTY() TArray<ELDDemoElement> BindElements;
+    // #198 F install targets of a mod or connector (a base component has none): learned actives (TargetActives), installed
+    // components (TargetComponents), the innate D (bTargetDash) or the holder itself (bTargetSelf). ExtraBases (C12): the
+    // installed base component the install binds as its second parameter.
+    UPROPERTY() TArray<FString> TargetActives;
+    UPROPERTY() TArray<FString> TargetComponents;
+    UPROPERTY() bool bTargetDash = false;
+    UPROPERTY() bool bTargetSelf = false;
+    UPROPERTY() TArray<FString> ExtraBases;
+    // Fixed amounts grow with the holder's level (LDSkillGrowth) like an active's.
+    UPROPERTY() TArray<FLDDemoEffectDefinition> Effects;
+
+    ELDDemoComponentId GetNativeId() const { return static_cast<ELDDemoComponentId>(NativeId); }
+};
+
+// #198 B: the normal level-up component roll of one level band: category percentages (base + mod + connector = 100).
+USTRUCT()
+struct FLDDemoComponentCategoryWeights
+{
+    GENERATED_BODY()
+
+    UPROPERTY() int32 MinLevel = 0;
+    UPROPERTY() int32 MaxLevel = 0;
+    UPROPERTY() int32 BasePercent = 0;
+    UPROPERTY() int32 ModPercent = 0;
+    UPROPERTY() int32 ConnectorPercent = 0;
 };
 
 USTRUCT()
@@ -471,7 +610,7 @@ struct FLDDemoDashDefinition
     UPROPERTY() FLDDemoTargetDefinition Target;
     UPROPERTY() int64 WindupMs = 0;
     UPROPERTY() FString CooldownFamily;
-    UPROPERTY() FLDDemoRankDefinition Rank;
+    UPROPERTY() FLDDemoAbilityValues Values;
 };
 
 USTRUCT()
@@ -486,7 +625,7 @@ struct FLDDemoCharacterDefinition
     UPROPERTY() int64 BasicADRatioBp = 0;
     UPROPERTY() int64 BasicIntervalMs = 0;
     // D19 innate D dash of every contender, projected into the active shape Combat executes: DirectionDash target,
-    // no windup, one rank with the approved mana cost, cooldown and a single Dash effect.
+    // no windup, one value set with the approved mana cost, cooldown and a single Dash effect.
     UPROPERTY() FLDDemoDashDefinition Dash;
 };
 
@@ -498,11 +637,11 @@ struct FLDDemoBossDefinition
     GENERATED_BODY()
 
     UPROPERTY() FString Id;
+    // #198 outer §5: field progress T of its single appearance and of its departure if it is still alive then.
     UPROPERTY() int64 AppearAtMs = 0;
+    UPROPERTY() int64 LeaveAtMs = 0;
     UPROPERTY() FLDDemoRational AggroRadiusCm;
     UPROPERTY() int64 AttackerMemoryMs = 0;
-    UPROPERTY() int64 ApprovalDurationMs = 0;
-    UPROPERTY() TArray<FLDDemoStatBonus> ApprovalStats;
 };
 
 USTRUCT()
@@ -558,19 +697,14 @@ struct FLDDemoProgressionDefinition
     GENERATED_BODY()
 
     UPROPERTY() int32 MaxLevel = 0;
-    UPROPERTY() int32 MaxChoices = 0;
-    UPROPERTY() int32 MaxSkillRank = 0;
     UPROPERTY() int32 ActiveSlots = 0;
     UPROPERTY() int64 XPStart = 0;
     UPROPERTY() TArray<int64> XPThresholds;
     UPROPERTY() TArray<int64> XPToNext;
-    // #153 (D6): the opening offer draws three distinct opening cards uniformly, each hiding one distinct new draftable
-    // active drawn with weight OpeningMatchedSkillWeight when the active grows with one of the card's stats, otherwise
-    // OpeningOtherSkillWeight.
-    UPROPERTY() int32 OpeningMatchedSkillWeight = 0;
-    UPROPERTY() int32 OpeningOtherSkillWeight = 0;
-    // Reaching each of these levels earns one free reroll token.
-    UPROPERTY() TArray<int32> RerollLevels;
+    // #198: reaching each of these levels enqueues one more active opportunity (after the opening one), distinct and ascending.
+    UPROPERTY() TArray<int32> ActiveOfferLevels;
+    // #198 B: one band per level range covering every level 2..MaxLevel exactly once, ascending.
+    UPROPERTY() TArray<FLDDemoComponentCategoryWeights> ComponentCategoryWeights;
 };
 
 USTRUCT()
@@ -582,6 +716,10 @@ struct FLDDemoWorldReferences
     UPROPERTY() TArray<FString> SpawnIds;
     UPROPERTY() TArray<FString> CampIds;
     UPROPERTY() FString CaptureId;
+    // #198 PK on the original map: the six ring spawns pk_spawn_0..5 in index order and the fixed off-arena
+    // spectator throw anchor; both resolve through ULDMapRegistry::Resolve like the other anchors.
+    UPROPERTY() TArray<FString> PKSpawnIds;
+    UPROPERTY() FString PKThrowId;
 };
 
 USTRUCT()
@@ -594,11 +732,8 @@ struct FLDDemoDisplayDefinition
     UPROPERTY() FString NameKey;
     UPROPERTY() FString NameText;
     UPROPERTY() FString DescriptionKey;
+    // Active and stat descriptions are card templates (LDDemoCardText).
     UPROPERTY() FString DescriptionText;
-    // #147 skills only: the advanced rank's one-line change ("高级：" is added by the card), empty elsewhere. Skill
-    // descriptions and advanced lines are card templates (LDDemoCardText).
-    UPROPERTY() FString AdvancedKey;
-    UPROPERTY() FString AdvancedText;
     UPROPERTY() FString IconId;
     UPROPERTY() FString PortraitIconId;
 };
@@ -636,12 +771,20 @@ struct LOCKDOWN_API FLDDemoContentDefinitions
     UPROPERTY() FLDDemoPolicies Policies;
     UPROPERTY() FLDDemoCharacterDefinition Character;
     UPROPERTY() TArray<FLDDemoAbilityDefinition> Abilities;
-    UPROPERTY() TArray<FLDDemoAttributeDefinition> Attributes;
-    UPROPERTY() TArray<FLDDemoOpeningCardDefinition> OpeningCards;
+    UPROPERTY() TArray<FLDDemoStatDefinition> Stats;
+    // #198 B: the workshop material catalog (base B01–B18 now; mods/connectors by #198 F), in native id order.
+    UPROPERTY() TArray<FLDDemoComponentDefinition> Components;
     UPROPERTY() TArray<FLDDemoMonsterDefinition> Monsters;
     UPROPERTY() TArray<FLDDemoCampPlacement> Camps;
     UPROPERTY() FLDDemoBossDefinition Boss;
     UPROPERTY() FLDDemoProgressionDefinition Progression;
     UPROPERTY() FLDDemoWorldReferences World;
     UPROPERTY() TArray<FLDDemoDisplayDefinition> Display;
+
+    // #198: the point-bought stats in their design order 体格, 脸皮, 力道, 脑力, 身手 (ascending native id). Stats itself is
+    // id-sorted like every catalog list; every per-stat array (build points, AllocatePoints counts, received points, owner
+    // view rows, UI rows, AI ties) is indexed in this order.
+    TArray<const FLDDemoStatDefinition*> StatsInDesignOrder() const;
+    // Index of StatId in StatsInDesignOrder, or INDEX_NONE.
+    int32 StatDesignIndex(const FString& StatId) const;
 };

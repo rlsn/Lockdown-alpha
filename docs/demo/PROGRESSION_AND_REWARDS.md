@@ -19,25 +19,30 @@
 ## 1. 结论与确认规则
 
 **一份参赛者成长、一条 Combat 来源链。**
-XP、等级与机会由 Development 持有；装备、金币与商店已按 [#144](https://github.com/rlsn/Lockdown-alpha/issues/144) 删除。
-死亡奖励和选择各自在同一权威批次内复合提交：
+XP、等级、属性点、主动机会与待学图纸由 Development 持有；装备、金币与商店已按 [#144](https://github.com/rlsn/Lockdown-alpha/issues/144) 删除。
+成长规则按 [#198](https://github.com/rlsn/Lockdown-alpha/issues/198)（2026-11-10 批准）改为五维属性点与单级主动，产品规则见 App Spec §4.2–§4.4；
+本域已接入其第一部分、第二部分（B：材料实例、开局与升级的基础构件 B01–B18 及其安装）与休息服务（NPC、洗点、替换、遗忘，见[成长事务](../systems/GROWTH_TRANSACTIONS.md)）；
+休息时刻见[会话与生命周期 §3.4](SESSION_MATCH_LIFECYCLE.md#34-休息野外进度与阶段边界198)，改装件/连接件与 PK 由 #198 后续部分接入。
+死亡奖励和成长命令各自在同一权威批次内复合提交：
 先准备成长与 Combat 投影，全部成功才一起应用，不先改 OwnerState 再补写。
 
 | 已确认的产品约束 | 本域必须落实的结果 |
 | --- | --- |
-| 所有人初始近战、单体普攻；群攻和攻击距离可经属性、技能或被动成长获得 | 初始构筑不授主动；获准的攻击距离、普攻群攻修正进入同一 Combat 投影，不是只有面板数值。 |
-| 1 至 16 级，开局一次、每升级一次三选一，最多十六次 | 开局机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、已获机会同一提交；连升排队，满级仍能处理已有机会。 |
-| 三张不同且合法的卡；技能两档（初级、高级） | 未学技能仅提供初级学习，已学初级仅提供高级，高级排除；属性卡不可冒充三个相同选项。 |
-| Q/W/E 三角色主动，满槽需确认替换 | 未确定替换不消费；遗忘旧技能及等级，不退款、不保留备用库；新主动从初级开始。被动无独立槽上限。 |
+| 所有人初始近战、单体普攻；普攻可成长（距离、元素、强化、反应范围等），不要求群攻（2026-11-10 用户决定） | 初始构筑不授主动；获准的攻击距离、元素与强化进入同一 Combat 投影，不是只有面板数值。当前运行目录只有强化普攻主动。 |
+| 1 至 16 级；开局 3 属性点与一次开局主动三选一，每次升级 3 点，3、6 级各额外一次主动三选一；16 级后按 XP 继续给点 | 开局点数与机会只在新 Match 授予一次，复活不再授予；累计 XP、等级、点数与主动机会同一提交；连升排队，满级后继续累计 XP 并按阈值给点。 |
+| 开局主动选定后自选一个当前可用基础构件；每次正常升级（2–16 级）给一件普通构件，先按等级档位抽类别再在未持有定义中等概率取，空类别按剩余权重归一化，普通池耗尽改给 3 点（App Spec、AI 规范 §4.1–§4.3） | 开局基础构件整局一次，候选为常驻起手加开局主动解锁的，排除已持有；升级材料与 XP 同一提交、按本局私有种子抽取，满级后的 XP 不给材料；死亡与重连不重发、不洗首次安装历史。 |
+| 首次启用基础构件与学习同表；搬动、卸下和重装旧件只在休息（AI 规范 §5） | 卸下与重装只在休息配装窗口（`LDProgression::IsRestWindow`），其余时候为 `RestOnly`。 |
+| 主动候选互不重复，排除已学与待学图纸；技能只有一级 | 开局取开局池，3/6 级取全部主动；只有 1–2 个合格时如实显示，为零时机会排队；没有重抽。 |
+| Q/W/E 三角色主动；选中即成待学图纸，可学习且有空槽时同次学到 | 学习与野外加点需要构筑安全窗；满槽在野外不能替换（替换与遗忘只在休息的配装与派奖期间），新主动保留为图纸；遗忘不退款、不保留备用库。 |
 | 失去来源期间继续计时，重持有沿用原结束时间 | 遗忘、换槽、死亡不缩短已开始的 `ReadyAtMs`；重学承接原记录的截止时刻。 |
 | 已释放独立效果不因普通死亡或遗忘而取消 | 继续原定期限；依赖持续持有/施法的光环、被动、引导按维持条件失效。正式离局取消未结束独立效果，但不追溯改写既成死亡事实。 |
 | 野怪的 XP 归最后一击实际所有者；参赛者击杀另有助攻（#112） | 合法击杀一次结清：参赛者受害者的 XP 由击杀者与助攻者平分（App Spec §4.1）；阵亡但仍在本局的来源可以收奖或得助攻。无主、自杀、回位、离开不产生额外收益。 |
-| 死亡不丢等级、XP、构筑或待选；新局清局内状态 | 持久状态不放在 Pawn / Widget；死亡取消身体期请求，不重发初始资源。 |
-| 死亡等待可以确认选择，只更新保留构筑 | 不提前复活、不治疗尸体；当前 Life 和生/死确认阶段重新校验。 |
+| 死亡不丢等级、XP、属性点、构筑、图纸或待选；新局清局内状态 | 持久状态不放在 Pawn / Widget；死亡取消身体期请求，不重发初始资源。 |
+| 死亡等待可以加点，并把主动选择存为图纸，只更新保留构筑 | 不学到槽、不提前复活、不治疗尸体；当前 Life 和生/死确认阶段重新校验。 |
 | 最大 HP/MP 改变时保持原生命/法力百分比 | 活体只按一次最终属性投影同比换算；不采用保持原绝对当前值的规则，精度由内容/Combat 单点定义。 |
 
 以上失源继续计时已获用户确认，不保留共享冷却或冻结计时备选。
-内容与数值以 2026-11-02 批准的首轮方案（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
+内容与数值以 2026-11-02 批准的首轮方案与 2026-11-10 批准的 #198 目录（[内容与数值](CONTENT_AND_BALANCE.md)）为准；
 资源同比换算的精度与边界只由内容/Combat 的唯一公式定义。批准输入与规则测试都不代表真实联机或平衡已通过。
 
 ## 2. 现有实现与已退出的旧链
@@ -54,6 +59,8 @@ XP、等级与机会由 Development 持有；装备、金币与商店已按 [#14
 V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 OwnerState 金币再补账的旧背包链与书店 Vendor；
 #144 删除的金币账本、两装备槽、装备目录与进阶、商店会话与买卖（§11）；旧营地 Actor 的分步奖励（N03 在核心 DeathKey 上统一提交）。
 对应旧专测已退役，由 `Lockdown.Rules.DemoGrowth*`、Combat 来源/属性规则与 `RunDemoGrowthCheck.ps1` 拥有连接场景承接。
+#198 第一部分同样真实删除了混合三选一（学习、升级、被动、属性卡与开局方向卡选项）、两档技能、属性卡与品质、重抽、
+全部被动目录与抱头装怂，不保留兼容壳或备用模式。
 
 **提交后半段不分配。** 成长与 Combat 的 Prepare 在副本上构造完整后态，Apply 只移动；
 请求与奖励回执窗口均为 64 条有界拒旧（§4）。
@@ -65,33 +72,28 @@ V07/V08 装备、获取与战术目录及 B81–B84 合同；先 `Adopt`、改 O
 
 | 唯一写入者 / 类型 | 真相与限制 | 只读消费者 |
 | --- | --- | --- |
-| `ALDDevelopmentDirector` 修改参赛记录中的 `FLDGrowthBuild` | Level；当前已学技能及 rank；Q/W/E；永久属性贡献；BuildRevision。奖励/选择可改其获准字段。不得接客户端完整 Build。 | Combat 准备投影、自身 UI、该参赛 AI。 |
-| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、已获/已消费机会边界、当前一个 `FLDChoiceOfferState`、最多十条选择记录 `FLDChoiceRecord`；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号派生（`LDProgression::OfferSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
-| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；被动来源及需保留的触发状态。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W/E、D、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
+| `ALDDevelopmentDirector` 修改参赛记录中的 `FLDGrowthBuild` | Level；五维各自的已分配点数；Q/W/E 已学主动；待学图纸（不含已学定义）；材料实例（每定义至多一件，含来源、安装、首次历史与绑定）；BuildRevision。奖励与成长命令只改其获准字段。不得接客户端完整 Build。 | Combat 准备投影（只含已安装组件）、自身 UI、该参赛 AI。 |
+| 同一参赛记录的 `FLDProgressionState` | `int64 CumulativeXP`、ProgressionRevision、主动机会队列（已获/已消费）、当前至多一组主动候选（最多 3 个定义）及每次机会的处理记录、材料池耗尽改给点数的升级次数；随机材料由本局私有 `MatchSecret` 按参赛者与机会序号或等级派生（`LDProgression::OfferSeed`、`ComponentSeed`）。Level 只在 Build 存一次。 | `FLDProgressionView`；不复制给其他参赛者。 |
+| Combat 写参赛持久 `FLDCombatEntityRecord` | 已安装构筑投影与 `Installed{BuildRevision}`；`Tracks`（`FLDCombatTrack`：`IssuedCooldownId`、来源定义、ReadyAtMs）与 `SourceRevision`；构筑安全窗的最近不安全时刻（跨生命保留）。成长只经 `PrepareBuildChange` 提交完整构筑输入。 | Q/W/E、D、属性面板、AI 自身读模型（`FLDCombatOwnerView`）。 |
 | `FLDOwnerState` / 各 View | 上述真相的一次一致投影，携带 Match/Life 和发布修订；不得反向写成长或 Combat。 | 拥有连接；GameState 不持有全体私有构筑。 |
 
-机会队列采用最多十六项的有界表示：`EarnedThrough`、`ConsumedThrough` 表示连续机会序号，
-待处理区间是二者之间尚未消费的序号，队首是 `ConsumedThrough + 1`。
-开局机会与每次升级各占一个序号；`FLDChoiceRecord{Ordinal, OfferId, OptionId, RequestId}` 最多十份整局保留，不能因回执窗口淘汰而丢失
-“这个 Offer 已消费”的证明。1 号是开局机会：成长 `BeginMatch`（Progression 提供者 Prepare、发育期开放前）
-为每名参赛者（真人与 AI）授予它，并在同一 `BeginMatch` 内用 `DrawHead` 生成并保留其首张 Offer；复活从不再授予，新 Match 整体重建。达到 k 级授予 k 号机会，
-`EarnedThrough` 必须等于当前等级（最多 `MaxChoices = MaxLevel = 16`）；
-二者在同一奖励 patch 中推进，`ConsumedThrough` 只能随有效选择推进。
-PendingChoiceCount 从队列计算，UI 不保存另一可写次数。
+主动机会是一条有序队列：1 号是开局机会，由成长 `BeginMatch`（Progression 提供者 Prepare、开局休息 R0 之前）为每名参赛者（真人与 AI）授予，
+同时给开局点数；达到 `progression.active_offer_levels` 的每个等级各加一个机会，与该次奖励的等级变化同一提交。复活从不再授予，新 Match 整体重建。
+队首有合格主动时生成并保留一组候选，其余机会排队；没有合格主动时机会保留、不生成候选，构筑变化后重新判定。
+待处理机会数从队列计算，UI 不保存另一可写次数；每次机会的处理记录整局保留，不能因回执窗口淘汰而丢失“这组候选已处理”的证明。
 
-服务器 Offer 为 `FLDChoiceOfferState{OfferId, Ordinal, Options, GeneratedBuildRevision, GuardBuildRevision, Revision}`，
-三个不可变 `FLDChoiceOption{OptionId, Kind, DefinitionId, FromRank, ToRank}`；效果由服务器按
-`DefinitionId` 与 `ToRank` 解析，属性复合卡的全部分量属于同一个定义。
-本人读取的 `FLDChoiceOfferView` 另带 OfferRevision/GuardBuildRevision，CatalogDigest 由 `FLDProgressionView` 携带。
-Offer/Option ID 由服务器在相应机会生成时一次建立；OptionId 不等于显示顺序、
-翻译名或客户端提交的属性值。
+属性点不单独存储：已得点数由等级与累计 XP 按[内容与数值 §4.1](CONTENT_AND_BALANCE.md#41-五维属性与成长参数)的公式派生，
+已用点数是五维点数之和，未分配点数是二者之差；出现负值是权威故障，不能截断成零。
+
+候选由服务器在对应机会生成时一次建立，只包含定义身份；效果由服务器按当前目录解析。
+候选身份不等于显示顺序或翻译名，客户端只能引用服务器给出的候选与选项身份。
 
 | 操作 | 必须推进的修订 / 不得推进的内容 |
 | --- | --- |
-| XP 增加但未升级 | ProgressionRevision。不得因读 XP 重建 Build。 |
-| 奖励升级 | ProgressionRevision、BuildRevision；已有 Offer 只更新保护版本，不换卡。 |
-| 选择成功 | ProgressionRevision、BuildRevision、选择记录；Combat 随新构筑安装推进自己的来源修订。 |
-| 主动释放/被动触发 | Combat 的 readiness / 动作修订；不是库存结构修改，不能使所有选择因每次普攻持续过期。 |
+| XP 增加但未升级 | ProgressionRevision（满级后跨过给点阈值也只推进它，点数由 XP 派生）。不得因读 XP 重建 Build。 |
+| 奖励升级 | ProgressionRevision、BuildRevision；可能新增主动机会；已有候选不换组。 |
+| 成长命令成功（选择、学习、加点） | ProgressionRevision、BuildRevision 与处理记录；学到主动或加点时 Combat 随新构筑安装推进自己的来源修订。 |
+| 主动释放/效果触发 | Combat 的 readiness / 动作修订；不是构筑结构修改，不能使成长命令因每次普攻持续过期。 |
 | 秒表流逝、查询、关窗、回执重放 | 不改变构筑、机会或来源绑定版本；UI 从绝对截止推显示。 |
 
 ### 3.1 固定标量类型与编码
@@ -103,13 +105,13 @@ Offer/Option ID 由服务器在相应机会生成时一次建立；OptionId 不�
 | Generation / Life | `uint32`，沿核心编码 | 仅核心推进，零值不接受为有效比赛/已建立生命；到上限明确失败，不回绕。LedgerMatch仍是FGuid。 |
 | ContenderId / LedgerMatch / OfferId / OptionId / IssuedCooldownId | `FGuid`，UE内置四个uint32的16字节编码 | 有效ID非零；可选项单独带存在标志，不拿零GUID当成功默认。Offer/Option由服务器一次建立；CD每技能定义一份。新Match无旧执行权。 |
 | RequestId / CommitBatch | `uint64` | 请求每Family从1开始，只在新Match重置；死亡不重置。CommitBatch 是提交所在权威边界的 `BatchSerial`。0不表示一笔成功业务。 |
-| Build / Progression / Offer revisions | `uint64`，包括所有Expected/Guard引用 | 匹配初始化或对象建立完成后基准为1，只由相应唯一写入者checked递增；当前倒计时不逐帧增修订。不能截断后比较。 |
-| Level / Rank / OpportunityOrdinal / SlotIndex | `uint8` | Level=1..16、已学Rank=1..2、机会=1..16、技能槽=0/1/2；队列计数可为0。未学/空槽用可选存在位，不伪造Rank0技能记录。 |
+| Build / Progression / Offer revisions | `uint64`，包括所有Expected/Guard引用 | 匹配初始化或对象建立完成后基准为1，只由相应唯一写入者checked递增；计时显示不逐帧增修订。不能截断后比较。 |
+| Level / OpportunityOrdinal / SlotIndex / 每项加点数 | `uint8` | Level=1..16、机会序号从 1 起、技能槽=0/1/2；队列计数可为0。空槽用可选存在位，不伪造空技能记录。技能没有等级字段。 |
 | XP / P2 Current与Max | `int64` | XP非负；资源域依内容/Combat；任何乘加/存储越界在prepare拒绝。 |
 | ReadyAtMs / AtMs / 运行时毫秒期限 | `int64` | 当前Match绝对时间；ReadyAtMs=0仅表示未开始CD的初始就绪，无负期限。原始事件秒为核心`double OccurredAtSeconds`，不得用毫秒桶代替先后。 |
 | `FLDDemoContentDigest` | `uint8 Bytes[32]`，SHA-256，wire固定32原始字节 | 不传FString/变长hex；日志/展示是64个小写十六进制字符，边界验证后转换。本局固定，不因开面板换摘要。 |
 | 本域技能 DefinitionId | 服务端`FName`；wire 为 `FLDDefinitionWire`（与Combat同一编码）：固定64字节UTF-8缓冲，最多63字节内容，NUL终止且余字节零填充 | 当前批准ID为`[a-z][a-z0-9_]*`ASCII子集；先验证UTF-8、终止/填充、长度、规范与catalog再构造FName。未知/非法拒绝，不截断。效果参数由服务器解析。 |
-| Kind / Family / Outcome / Reason / bool | 领域Kind/Family/Outcome为`uint8`枚举，Reason为`uint16`，bool wire仅0/1 | 唯一领域头文件声明明确支持值；decoder逐值白名单，不用历史最大枚举包住废弃值。可选值编码为存在位+存在时的值。Family仅Choice，不能伪造Reward RPC。 |
+| Kind / Family / Outcome / Reason / bool | 领域Kind/Family/Outcome为`uint8`枚举，Reason为`uint16`，bool wire仅0/1 | 唯一领域头文件声明明确支持值；decoder逐值白名单，不用历史最大枚举包住废弃值。可选值编码为存在位+存在时的值。成长命令只有一个命令族，不能伪造Reward RPC。 |
 
 Permit 和 ELDLifePhase 直接引用其拥有域正式类型，
 不在本域另声明同名身份。`ExpectedLifePhase`只接受核心Alive/Dead；其余状态明确拒绝。
@@ -155,10 +157,10 @@ Permit 和 ELDLifePhase 直接引用其拥有域正式类型，
 
 `Session → Motion → Actions → Effects → DeathsAndRewards → RespawnsAndWorld → Transactions → Capture → Close → Publish`
 
-奖励只在 `DeathsAndRewards`；选择只在 `Transactions`。
-同刻死亡、新生命、离局已按前置阶段生效后再重验选择。
+奖励只在 `DeathsAndRewards`；成长命令（主动选择、学习、加点）只在 `Transactions`。
+同刻死亡、新生命、离局与构筑安全窗变化已按前置阶段生效后再重验成长命令。
 同批奖励可以使随后旧 BuildRevision 的操作被拒；不能偷偷替调用者改成新版本。
-本批合法选择在 Capture 前提交，正常胜利关闭后仅保留结果，不追回已提交的选择。
+本批合法成长命令在 Capture 前提交，正常胜利关闭后仅保留结果，不追回已提交的命令。
 新成长不能反向重算此前 Effects 的伤害。
 
 ```cpp
@@ -182,7 +184,7 @@ FLDExpectedBuildVersions) -> FLDCombatPrepareResult` 和
 | 步骤 | 必须执行的操作 | 不得发生 |
 | --- | --- | --- |
 | 查重/资格 | 对照核心原始死亡或领域请求条款；核验 Match、成员、原因、定义和现有结果。 | 为重试换 DeathKey/事务 Cause；把失败当合法零奖。 |
-| Validate | 纯算 XP、累计阈值、等级/机会、最终 Build、被动/来源；检查全部预期版本、整数和修订溢出。 | 先写 XP 再发现来源/效果非法。 |
+| Validate | 纯算 XP、累计阈值、等级/点数/机会、最终 Build、来源；检查全部预期版本、整数和修订溢出。 | 先写 XP 再发现来源/效果非法。 |
 | Stage | 准备成长字段 patch、Combat 投影/绑定、机会/候选工作区、最终回执和发布 outbox。所有容器与嵌套 payload 复制/容量在此完成。 | 提前发行 IssuedCooldownId、Changed/SyncOwner。 |
 | 最终重查 | 同一服务器线程重查 Permit、全部 prepared 依赖版本。进入不可重入、无等待的连续提交段。 | 保存 Permit 到 Pending/Offer/下批，跨 callback 使用旧许可，允许外部修改 GateRevision。 |
 | No-fail Apply | 仅移动已准备数据/交换存储、有界赋值；同时应用成长、Combat、来源失效、机会和终态回执；只替换本域字段，不覆盖新 readiness。 | 分配、加载、RPC/Delegate/OnRep、可失败 Actor 操作或第二次业务校验后部分返回。 |
@@ -220,18 +222,18 @@ Combat 持有已提交死亡事实（`ALDCombatDirector` 的待结算与重试�
 离局的身体/效果立即清理，但本局参赛记录不能先删除到无法结算。
 关闭新命令权限与偿付既成事实是两件事；这不是离局后新发奖资格或断线重连能力。
 
-奖励只在 DeathsAndRewards、选择只在 Transactions 内提交；不得在 Publish 中再施法/发奖。
+奖励只在 DeathsAndRewards、成长命令只在 Transactions 内提交；不得在 Publish 中再施法/发奖。
 
 ### 4.4 去重和有限留存
 
-- Choice 使用本局参赛者范围的单调 `uint64 RequestId`（`TLDGrowthRequestStream`）。
+- 成长命令使用本局参赛者范围的单调 `uint64 RequestId`（`TLDGrowthRequestStream`）。
   每条流只允许一个未决变更，另一新序号返回 `RequestInFlight`；未来序号缺口明确 `OutOfOrder`，不缓存无限乱序请求。
   受理即固定规范化 payload；最终成功和拒绝都消费该请求序号。
 - 同 ID 同 payload 返回相同 Pending 或最终回执；同 ID 异 payload 为 `RequestConflict`。
   双击 Pending 按钮复用原请求，不新造第二次提交；再次提交需前次终态和当前版本。
 - 每条流保留 **64 份最终回执窗口**（`WindowCapacity`）作为工程限额，另保存 FinalizedThrough 水位。
   超窗返回 `ReceiptExpired` 与合法当前状态，不重执行、不猜测历史成功。
-  窗口不是选择结果历史：最多十条 `FLDChoiceRecord` 保留整局。
+  窗口不是成长结果历史：每次主动机会的处理记录整局保留。
 - 死亡回执使用 DeathKey 与原始事实指纹。`ALDGrowthDirector` 按 `(Victim.Kind, Victim.EntityId)` 保存
   `ResolvedLifeThrough` 与最近 64 份奖励回执；同 Key 同指纹重放原回执，异指纹为 `DeathConflict`，
   旧 Life 无回包时为 `StaleDeath`，不能当第一次死亡。
@@ -273,89 +275,61 @@ ResolvedLifeThrough 时仅重放/拒旧。无奖死亡可独立封结果，无�
 | 营地回位到家 Reset | 仅仍存活成员满血蓝、清临时状态和冷却就绪；不复活死者、不创建新Death/Life、不发奖。回位途中真实致死仍按原生命一次结算，不是参赛者洗CD入口。 |
 
 经验使用内容的累计阈值 `XP.Threshold[L]`；目标等级是合法范围内已达到阈值的最高等级。
-前后等级差逐一授予机会，每个序号只一次，不能把连升压成一张卡或一次性预生成全部卡。
+前后等级差逐级给点；跨过 `progression.active_offer_levels` 的等级各授予一次主动机会，每个序号只一次，不一次性预生成全部候选。
 `FORMULA.XPToNext` 从同一阈值表派生，不维护另一份会漂移的升级成本。
 
-满十六级后继续累计 `int64` XP，但不再升级/授机会（`LevelForXP` 不超过 MaxLevel）；UI 显示 `MAX`，
-不读取不存在的十七级阈值。不把旧有限奖励预算改名沿用。
+满十六级后继续累计 `int64` XP，但不再升级或授予主动机会（`LevelForXP` 不超过 MaxLevel）；超出 16 级阈值的 XP
+每满 `GROWTH.MaxLevelPointsXP` 派生 `GROWTH.MaxLevelPoints` 点。UI 显示 `MAX`，不读取不存在的十七级阈值。不把旧有限奖励预算改名沿用。
 XP 与阈值运算的任何越界必须在整奖准备阶段拒绝，
 不得只发部分奖励、截掉溢出再返回 Granted。
 
-## 6. 三选一：可实施状态机与合法池
+## 6. 主动机会、学习与加点
 
-### 6.1 生成、展示、确认和恢复
+产品规则见 App Spec §4.2–§4.3，参数见[内容与数值 §4.1、§4.3](CONTENT_AND_BALANCE.md#43-主动机会学习与加点)。
+
+### 6.1 主动候选：生成、展示、选择与恢复
 
 | 权威状态 / 本地动作 | 转移与持久内容 | 机会是否消费 |
 | --- | --- | --- |
-| `NoOpportunity` | 奖励提交推进已获机会；没有未决 Offer 时准备队首。 | 否 |
-| `HeadReady` | 当前构筑已生效后，以局内固定目录、队首私有随机材料生成三个不同合法 Option，保存一次。 | 否 |
-| `Offered` | HUD 提示待选数；真人的开局 Offer 在本局首次到达本人、且没有其他主面板或输入捕获时由 HUD 自动打开一次面板（不代选；若玩家已在用自己的面板则放弃这次自动打开；几秒内未操作或本人受击时收起回待选提示），其余由玩家主动开面板，不强夺战斗输入。不打开、关闭、重开、死亡均读同组。 | 否 |
-| 本地卡片/替换草稿 | 预览卡片与 Q/W/E；返回、Esc、取消替换只清草稿，不改服务器 Offer。 | 否 |
-| `RequestPending` | 最终点击提交一个 Option 及必要替换确认；显示等待，不能本地先改 rank 或减机会。关闭面板不声称撤回已受理意图。 | 否 |
-| `Committed` | 同一复合提交应用效果、遗忘/装槽、来源失效、最终属性、机会消费和结果；之后才生成下一队首。 | 恰一次 |
-| 拒绝 / 版本恢复 | 返回原因和同一个 Offer 的当前保护版本；重新明确确认，不换卡、不替换其他目标。 | 否 |
-| `Rerolled` | 玩家用一次免费重抽（`FLDChoiceCommand.bReroll`）替换当前 Offer：同一机会序号、新 OfferId、`bRerolled`，`RerollSeed` 决定的新随机材料，尽量避开上一组三张；消费一个重抽令牌，不消费机会、不改构筑。 | 否 |
+| `NoOpportunity` | 奖励提交推进已获机会；没有当前候选时准备队首。 | 否 |
+| `Queued` | 队首没有合格主动（全部已学或已在图纸中）：不生成候选，机会保留，构筑变化后重新判定；不阻挡加点。 | 否 |
+| `Offered` | 以局内固定目录、队首私有随机材料生成至多 3 个不同的合格主动并保存一次。HUD 提示待选数；真人的开局候选在本局首次到达本人、且没有其他主面板或输入捕获时由 HUD 自动打开一次面板（不代选；若玩家已在用自己的面板则放弃这次自动打开；几秒内未操作或本人受击时收起回待选提示），其余由玩家主动开面板，不强夺战斗输入。不打开、关闭、重开、死亡均读同组。 | 否 |
+| 本地草稿 | 预览卡片、首选空槽与加点增减；返回、Esc 只清草稿，不改服务器状态。 | 否 |
+| `RequestPending` | 提交一次选择（可带“能学就学”与首选空槽）；显示等待，不能本地先改 Q/W/E、图纸或点数。关闭面板不声称撤回已受理意图。 | 否 |
+| `Committed` | 同一复合提交：选中项成为待学图纸；能学时同时学到空槽并安装 Combat 投影；消费机会；之后才生成下一队首。回执写明学到的槽，或存为图纸及原因。 | 恰一次 |
+| 拒绝 / 版本恢复 | 返回原因和同一组候选的当前版本；重新明确确认，不换组。 | 否 |
 | `Frozen / InvalidMatch` | 终局只读冻结，离开失去提交资格；新局所有旧身份无执行权。 | 否 |
 
-开局队首在 `BeginMatch` 中随 1 号机会生成；队列为空时奖励授予的队首在 `ApplyPreparedGrowth` 中立即生成，不等“首次打开页面”才抽；
-后续队首只在前一次选择已经应用后生成。开局机会未用又连升十五次（共十六次待选）也最多同时一份 Offer，
-余下机会保留队列，不预抽十六组再修补非法升级。
+开局队首在 `BeginMatch` 中随 1 号机会生成；奖励授予的机会在奖励应用后按队列生成，不等“首次打开页面”才抽；
+后续队首只在前一次选择已经应用后生成。连升多级时最多同时一组候选，余下机会保留在队列，不预抽多组再修补。
 
-准备阶段对 prospective Build 枚举下一队首的合法池（`HeadPool`，不足三项即 `DataInvalid` 拒绝整次准备），**不提前生成、
-公开或消费下一组随机结果**。实际抽样在本次状态应用后、整体 Publish 前完成；
-这是固定目录、预验合法池上的无失败纯操作；随机种子由 `OfferSeed(MatchSecret, Contender, Ordinal)` 决定，
-同一序号重试不换 seed。抽样规则见 §6.3，`DrawFeasible` 证明当前合法池在任何种子下都能凑齐三张卡。
-目录损坏不以重抽/属性替换修补：保留机会与原内容，以 `DataInvalid` 明确拒绝，必需奖励按 §4.3 走故障路径。
+抽样在本次状态应用后、整体 Publish 前完成；它是固定目录与已验证合格池上的无失败纯操作，
+随机种子由 `OfferSeed(MatchSecret, Contender, Ordinal)` 决定，同一序号重试不换 seed。
+开局机会取 `opening: true` 的主动，3、6 级机会取全部主动；都排除已学与待学图纸，等概率不放回，没有权重和重抽。
+合格池只有 1–2 个时候选如实只含这些。目录损坏不以替换修补：保留机会与原内容，以 `DataInvalid` 明确拒绝，
+必需奖励按 §4.3 走故障路径。
 
-### 6.2 满槽替换与版本保护
+两个请求竞争同一组候选时，仅一个可提交；另一个返回该组已处理，绝不把其选项套到下一组。
+HP、MP 或冷却自然流逝不换组。
 
-空槽学习采用 Q 后 W 的确定空槽顺序，UI 明示目标槽。满槽的新主动仍是一张合法卡，
-“替换 Q”与“替换 W”是后续参数，不是两张不同候选。
-最终确认必须绑定 Slot、旧技能稳定 ID、旧 rank、ExpectedBuildRevision 和 OfferRevision。
-只选中新卡但尚未确定替换不消费；确认成功后旧技能/等级真实删除，新技能从 rank 1（初级）开始（D13），
-不返还选择次数。旧技能冷却记录不等于备用技能库：被遗忘的技能再次获得仍从初级开始，仅继承未结束截止。
+### 6.2 学习、满槽与构筑安全窗
 
-Offer 将**不可变内容**与**可更新保护版本**分开。
-又一次升级推进 BuildRevision 时，重验相同三张卡，更新 GuardBuildRevision/OfferRevision；
-原 OptionId、效果引用及承诺 rank 不变。旧确认返回 `OfferGuardStale`，
-不能把一次 stale 处理成重抽，也不能要求玩家永远提供生成时的旧 BuildRevision。
-HP、MP 或冷却自然流逝不重抽、不单独推进 OfferRevision。
+- **能学就学**：选择时此刻可以学习（休息的配装与派奖期间，或野外存活且处在构筑安全窗内）且有空槽，就学到首选空槽
+  （未指定时按 Q、W、E 顺序第一个空槽）；否则存为图纸，回执写明原因（未脱战、阵亡、没有空槽）。决定与选择同一提交，不会只成一半。
+- **学习图纸**：把一份待学图纸学到指定的空槽，时机同上；没有该图纸、槽已占用、不在安全窗内或阵亡时明确拒绝，图纸保留。
+- **没有野外替换**：满槽时新主动只能保留为图纸。满槽替换与遗忘只在休息的配装与派奖期间（[成长事务](../systems/GROWTH_TRANSACTIONS.md)）；旧主动上的挂件在同一次提交里退回库存，
+  不自动改绑，玩家可在同一休息窗口自行搬到合法对象；
+  遗忘不退款、不保留备用技能库，再用需要新的真实来源。
+- 学习时 Combat 回绑该定义原有的冷却记录（§7.1）。
+- **构筑安全窗**由 Combat 维护：每名参赛者跨生命保留最近一次不安全时刻，触发条件见 App Spec §4.2；
+  本人视图与 AI 读取由它推出的安全时刻，学习与加点提交时服务器重查，不信任客户端。
 
-当前候选池无等级门槛，技能只有选择入口可学/升/忘，
-因此其他构筑变化不应使固定卡语义失效；
-若新目录引入这种失效，内容验证须拒绝该目录，不能以运行时悄悄换卡维护流程。
-两个请求竞争同一 Offer 时，仅一个可提交；另一个返回原 Offer 已处理，
-绝不把其 OptionId 套到下一组。
+### 6.3 加点
 
-### 6.3 抽卡规则与重抽
-
-升级抽卡不按标签、流派或已有构筑加权，唯一的权重见下。技能有 `draftable`：为 false 的技能不出现在任何 Offer（开局与升级），
-仍留在 `LegalPool`（DEV 学习与夹具预置可用）。
-
-| 机会 | 组成（`LDProgression::DrawOffer`） |
-| --- | --- |
-| 1 号（开局） | #153：从 `OpeningCards` 等概率抽三个不同方向，各配一个不同的隐藏初级主动。`ActiveGrowthStats` 从主动实际效果读取成长属性，与方向交集对应 `OpeningMatchedSkillWeight`，否则 `OpeningOtherSkillWeight`，数值见内容 §4.7.1。 |
-| 2–16 号 | 三个固定卡位：第一张 70% 升级/30% 属性；第二张新技能；第三张 60% 属性/40% 新技能。新主动有空槽权重 0.75、Q/W/E 满槽权重 0.35；整组最多一个新主动，同一属性家族最多一次。 |
-
-新技能权重（`LDProgression::NewSkillWeight`，基点）：新被动为 10000；未学主动在有空槽时为 7500，
-Q/W/E 满槽时为 3500。一组抽到一张新主动后，剩余新主动退出本组。权重只看槽位状态，不看构筑其他内容。
-第一张与第三张的概率判定总会消耗一次随机数，所以类别补位不改变其后的随机流。所有抽取逐张不放回，
-同一技能不会同时以学习与升级出现；属性卡先抽家族再抽品质。
-
-重抽：`progression.reroll_levels`（5、11）每达到一个等级获得 1 次，`RerollTokensEarned(Level) − RerollsUsed` 为剩余次数，可留存。
-`bReroll` 命令走选择请求流（同一请求窗口、回执与去重、Match/Life/生命阶段/OfferRevision/BuildRevision 保护），在 Transactions 阶段提交：
-开局方向卡 `OpeningNoReroll`（即使后来获得令牌），没有次数 `NoReroll`，本组已重抽 `OfferAlreadyRerolled`；成功时以 `RerollSeed(MatchSecret, Contender, Ordinal)` 按同样规则重抽，
-上一组的技能定义与属性家族在每个卡位都优先排除（池中没有别的卡时才允许重复），
-回执带 `bRerolled`、`NextOfferId` 与剩余次数。重抽不消费机会、不改构筑修订。
-
-内容验证与 `DrawFeasible` 共同保证：开局方向与可进卡池主动各不少于三个（不足时整次准备以 `DataInvalid` 拒绝，不用别的类别补位）；
-升级组按最坏情况（类别补位、Q/W/E 满槽时最多 1 张新主动）计算，属性家族数量足以补齐三张。
-覆盖证明不代替选择持久性、来源历史、真实效果、网络或平衡验证。
-
-开局主动分配仅在 `FLDChoiceOfferState::HiddenActives` 中，不进入 `FLDChoiceOption` 或本人/对手视图，不在生成日志中记录。
-选定时 `ApplyOption` 同时记录 `Build.OpeningCard` 并学会初级主动、装 Q；原子投影按永久选择属性来源处理，
-通过主动的初级投入计一次选择，不另计属性包。`FLDChoiceReceipt::OpeningActiveId` 只在成功后揭晓。
-延迟选择、死亡或关闭页面都保留原 Offer；后续升级机会按正常卡位逐组生成。
+- 一次命令给出五维各自加的点数，合计至少 1、不超过未分配点数；整次生效或整次拒绝，不部分应用草稿。
+- 合法时机：休息的配装与派奖期间（不需要构筑安全窗）；野外存活且在构筑安全窗内；野外死亡等待中。构筑锁定的休息步骤以 `BuildLocked` 拒绝，结算后等其他阶段以阶段关闭拒绝。
+- 加点永久；洗点只在休息的配装与派奖期间退已分配点（NPC 花费的点数不退）。
+- 加点改变最终属性投影：存活时按 §10 同比换算生命/法力；死亡中只改持久 Build，复活按新上限满血蓝。
 
 ## 7. 来源冷却与攻击形态
 
@@ -372,16 +346,14 @@ Q/W/E 满槽时为 3500。一组抽到一张新主动后，剩余新主动退出
 客户端不能挑 ID、传 ReadyAt、借目标槽位决定回绑。最终准备重验来源绑定修订与当前 readiness；
 失败不留下新 ID、绑定或机会消耗。
 
-换槽、遗忘、死亡均不缩短截止。重学技能从初级开始但继承原期限；到期后自然可用不算洗 CD。
-升阶、冷却属性变化不重写已开始的期限，下次合法释放才按当时批准参数计算。
+换槽、遗忘、死亡均不缩短截止。重学技能继承原期限；到期后自然可用不算洗 CD。
+角色升级、冷却属性变化不重写已开始的期限，下次合法释放才按当时批准参数计算。
 
-### 7.2 被动与攻击形态投影
+### 7.2 属性点与攻击形态投影
 
-被动按内容稳定被动定义键建立一次执行记录；来源移除才移除持续贡献。
-若被动有未结束触发期限，按同一 Combat 来源合同保留必要债务。
-
-`CHOICE.attr_hand_out.AttackRangeCmFlat` 经同一最终投影到普攻几何和命中。
-横扫副命中不吸血/不递归是当前首轮内容语义，不扩大成全部技能的默认触发政策。
+五维点数按每点收益作为永久来源进入同一最终属性投影（同类 flat 与加法比例相加，不逐点相乘）。
+当前运行目录没有被动或射程来源，普攻也不要求群攻；#198 构件接入后的持续来源按同一 Combat 来源合同投影，
+来源移除才移除持续贡献，未结束的触发期限按同一来源合同保留必要债务。
 已成功释放的独立效果使用 Combat 释放快照并继续原定期限，普通死亡或遗忘技能
 均不取消，不再要求当前仍持有原技能；目标 Life、终局和正式离局取消仍检查。
 维持型光环、被动和引导则按持续持有/施法条件解绑失效，不能与独立快照混用。
@@ -395,77 +367,57 @@ Q/W/E 满槽时为 3500。一组抽到一张新主动后，剩余新主动退出
 解析，AI 从其服务器分配参赛记录解析；网络包不能指定另一账号，AI 不伪 RPC 或直接写成长。
 
 ```cpp
-FLDProgressionView ALDDevelopmentDirector::ReadProgression(const FGuid& ContenderId) const;
-FLDSubmitResult ALDDevelopmentDirector::QueueChoice(
-    const FGuid& ContenderId, const FLDChoiceCommand& Command);
-FLDChoiceReceiptQueryResult ALDDevelopmentDirector::QueryChoiceReceipt(
-    const FGuid& ContenderId, const FLDReceiptQuery& Query) const;
-FLDChoiceReceipt ALDDevelopmentDirector::CommitPendingChoice(
-    const FGuid& ContenderId, const FLDGameplayWritePermit& Permit);
-
 FLDRewardReceipt ALDGrowthDirector::CommitDeathReward(
     const FLDCommittedDeath& Death, const FLDGameplayWritePermit& Permit);
 bool ALDGrowthDirector::ProcessTransactions(const FLDGameplayWritePermit& Permit, FString& Error);
 bool ALDGrowthDirector::PublishGrowth(const FLDAuthorityBoundary& Boundary, FString& Error);
 ```
 
-`Queue*` 只规范化、核验受理条件、固定条款并进入本批队列，返回
-`AcceptedPending / Final / AdmissionRejected`；不是立即成长的函数。
-`CommitPendingChoice` 只由 `ProcessTransactions` 在 Transactions 阶段按服务器受理顺序分派，
-处理的是受理时冻结的条款，不直接暴露成 RPC。写闸已关后新请求以 `MatchClosed` 拒绝受理，已有请求号仍可重放。
+成长只有一个窄命令，分三种类别：**主动选择**（候选身份与版本、选项、是否能学就学、可选首选空槽）、
+**学习图纸**（图纸定义与目标空槽）、**加点**（五维各自的点数）。每条命令都带共同信封：Generation、当前参赛记录 Life、
+ExpectedLifePhase（Alive/Dead）、递增 RequestId、ExpectedBuildRevision 与 CatalogDigest；
+不收任意 Build、技能等级、属性数值或奖励金额。类型、签名与编码只由[成长事务](../systems/GROWTH_TRANSACTIONS.md)维护。
+
+受理与提交分两步。受理只规范化、核验受理条件、固定条款并进入本批队列，返回
+`AcceptedPending / Final / AdmissionRejected`，不是立即成长的函数。`ProcessTransactions` 在 Transactions 阶段
+按服务器受理顺序提交受理时冻结的条款，成长与 Combat 投影经 §4.2 的 Prepare/Apply 在同一许可内一起应用。
+写闸已关后新请求以 `MatchClosed` 拒绝受理，已有请求号仍可重放。
 `PublishGrowth` 在 Close 之后执行，没有许可，也不写玩法状态。
-Query 返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，不存在“查不到就再执行”。
-`FLDReceiptQuery` 必须携带 `Generation / Family / RequestId`，查找键是
-当前已验证 Match、服务器解析的 ContenderId、命令族和请求号。
-先拒绝旧 Generation 再查询，不能由当前 Controller 替旧查询补新局上下文。
-回执带原 Generation、Family、RequestId 和 OriginalLife；同局旧生命只读结果可查询，
-但不可作为当前生命写入。新局 RequestId 重新从1开始也不会与旧局延迟查询串结果。
-每个Query函数只接受自身对应Family，不匹配返回InvalidContext，不能返回另一族业务Receipt。
 
-| 正式结果类型 | 必须包含的字段与语义 |
+| 结果 | 必须包含的内容与语义 |
 | --- | --- |
-| `FLDSubmitResult` | Generation:uint32、Family、RequestId:uint64、上述AdmissionStatus、Reason、SequenceReserved:bool、可选FinalReceipt。AdmissionRejected不保留未来序号；AcceptedPending已固定条款但未成功；Final重放既有终态。 |
-| `FLDChoiceReceipt` 的共同头（`FLDGrowthReceiptHeader`） | Generation:uint32、Family、RequestId:uint64、OriginalLife:uint32、OriginalLifePhase、Outcome（Applied/Rejected）、Reason:uint16、可选CommitBatch:uint64（提交或拒绝所在权威边界的 BatchSerial）、结果版本集合。只读重放标志属于传输外壳，不改原业务结果。 |
-| 结果版本集合（`FLDResultRevisions`） | Progression/Build/Offer revisions均uint64，按存在位标明本次适用字段；Applied给提交后的版本，Rejected的当前guard只作同步提示、不宣称曾提交。Combat 来源修订不在此集合中。 |
-| `FLDChoiceReceipt` 载荷 | 原OfferId/OptionId、OpportunityOrdinal:uint8、消费后ConsumedThrough:uint8、Kind/DefinitionId/NewRank、替换时的 ReplacedSlot/ReplacedSkillId/ReplacedRank、可选下一OfferId；Rejected不伪造消费或下一卡。 |
-| `FLDRewardReceipt`（仅服务器内部） | DeathKey、冻结事实指纹（SHA-256原始32字节）、§4四态/Reason、Recipient、XPDelta:int64、LevelBefore/After:uint8、新授机会区间 `OpportunityFirst..OpportunityLast`（First>Last 表示无）和结果版本。Granted/NoReward是终态；暂失败无提交号，不伪造版本增长。 |
-| `FLDChoiceReceiptQueryResult` | 原FLDReceiptQuery（Generation:uint32、Family、RequestId:uint64）、LookupStatus、可选FLDPendingReceiptInfo、可选FLDChoiceReceipt；不是业务终态Receipt本身。 |
-| `FLDPendingReceiptInfo` | 已受理请求的OriginalLife:uint32、OriginalLifePhase；没有业务Outcome/CommitBatch或成功载荷，不需要伪造原生命。 |
+| 受理结果 | Generation、命令族、RequestId、受理状态、原因、是否保留了序号、可选的既有终态回执。AdmissionRejected 不保留未来序号；AcceptedPending 已固定条款但未成功；Final 重放既有终态。 |
+| 成长回执的共同头 | Generation、命令族、RequestId、原 Life 与生命阶段、结果（Applied/Rejected）、原因、提交或拒绝所在的权威批次、结果版本集合（Progression/Build/候选版本，按存在位标明）。只读重放标志属于传输外壳，不改原业务结果。 |
+| 成长回执载荷 | 命令类别与定义；主动选择写明学到的槽，或存为图纸及原因（未脱战、阵亡、没有空槽）；学习写明槽；加点写明各项点数与之后的未分配点数；可选的下一组候选。Rejected 不伪造消费、学习、加点或下一组。 |
+| 奖励回执（仅服务器内部） | DeathKey、冻结事实指纹（SHA-256 原始 32 字节）、§4 四态与原因、收款人、XP 增量、等级前后、新授主动机会区间与结果版本。Granted/NoReward 是终态；暂失败无提交号，不伪造版本增长。 |
+| 查询结果 | 原查询键（Generation、命令族、RequestId）与查找状态；Pending 时只带原生命与阶段，Final 时只带匹配原查询键的业务回执，其余状态二者都不带，不伪造终态。 |
 
-枚举由同一个本域协议声明供Controller/AI/UI/Combat引用，不各写一套数字表；
-本表固定宽度，§8.2固定拒绝语义，真正实现的显式枚举编号纳入同一wire schema和拒绝测试。
-新局清理请求执行域，查询依旧必须带原Generation；绝不由空参数或当前OwnerState补全身份。
-查询包装结果的形状固定：LookupStatus=Pending时仅PendingInfo存在，Final时仅匹配原查询键的
-业务Receipt存在；NotFound/ReceiptExpired/InvalidContext时二者均不存在，只回原查询键/状态。
-这些结果不伪造OriginalLife、Applied/Rejected或选择载荷，业务终态回执保持不可变。
+查询返回 `Pending / Final / NotFound / ReceiptExpired / InvalidContext`，不存在“查不到就再执行”。
+查找键是当前已验证 Match、服务器解析的参赛者、命令族和请求号；先拒绝旧 Generation 再查询，
+不能由当前 Controller 替旧查询补新局上下文。同局旧生命只读结果可查询，但不可作为当前生命写入；
+新局 RequestId 重新从 1 开始也不会与旧局延迟查询串结果。查询只接受自身对应的命令族。
 
-| 命令 / 类型 | 必要输入与上限 | 提交、拒绝与回执 |
-| --- | --- | --- |
-| `FLDChoiceCommand` | Generation、当前参赛记录 Life、ExpectedLifePhase（Alive/Dead）、递增 RequestId；OfferId/OfferRevision、OptionId、ExpectedBuildRevision、CatalogDigest；满槽时 Slot 0/1、ExpectedOldSkillId/Rank、明确 ReplaceConfirmed。 | Transactions 阶段查当前成员/生命状态、队首及原卡/版本；成功回旧 Offer 的唯一结果及新状态修订。最多一个 Option，不收任意 Build、rank/属性数组或奖励金额。 |
-| `FLDReceiptQuery` | 显式 Generation、Family、RequestId；拥有者由连接/AI适配解析，不接受别人的任意历史查询。 | 先拒旧局再查，只读；回原查询键与LookupStatus，OriginalLife仅来自实际存在的PendingInfo或Final业务Receipt。本局历史与终局已有结果可查，不覆盖当前身体/新局。 |
-| 角色施法 | 按 Combat 正式请求及当前来源版本。 | 不走本表 Choice 许可；Q/W/E 与 D 为真实来源，失败不耗资源。 |
-
-ID/枚举由当前批准 catalog 支持集解码；不是接受到历史最大枚举为止。
-固定摘要长度、单命令单对象、合法槽/rank范围、非零身份、整数范围均在反序列化/受理入口验证。
-
-选择的 Life 使用参赛记录当前生命代次；死亡界面无需伪造活 Pawn。
+命令的 Life 使用参赛记录当前生命代次；死亡界面无需伪造活 Pawn。
 ExpectedLifePhase 只表达该次明确确认所见的生/死状态，不是新增生命计数：
-死前 Alive 确认在死亡后即使 Life 尚未递增也拒绝；
-死时重新确认允许受理，复活换 Life 后旧死亡确认仍拒旧。
-生命阶段拒绝保留原卡，只刷新资格，不重抽。
-使用核心 `ELDLifePhase` 的 Alive/Dead；Unspawned/Left 不可确认，
-复活保护是 Alive 下的资格/期限，不另造本域生命计数。
+死前 Alive 确认在死亡后即使 Life 尚未递增也拒绝；死时重新确认允许受理，复活换 Life 后旧死亡确认仍拒旧。
+生命阶段拒绝保留原候选、图纸与点数，只刷新资格，不换组。
+使用核心 `ELDLifePhase` 的 Alive/Dead；Unspawned/Left 不可确认，复活保护是 Alive 下的资格/期限，不另造本域生命计数。
+
+ID/枚举由当前批准 catalog 支持集解码，不是接受到历史最大枚举为止。
+固定摘要长度、单命令单对象、合法槽、点数范围、非零身份与整数范围均在反序列化/受理入口验证。
+角色施法不走成长命令；Q/W/E 与 D 是 Combat 的真实来源，失败不耗资源。
 
 ### 8.2 错误与 UI / AI 恢复
 
 | 错误族 | UI / AI 的合法恢复 |
 | --- | --- |
 | `OldMatch / OldLife / LifePhaseChanged / LeftMatch / MatchClosed / NotContender` | 清旧身体意图；读取当前获准状态或停止本局策略，不重试旧执行权。 |
-| `OfferGuardStale / BuildStale / CatalogMismatch` | 读取当前状态；Offer 保留同 ID/内容，重新明确确认。不得自动修改替换目标或把后续卡当原卡。 |
-| `NoOffer / UnknownOffer / InvalidOption / OfferAlreadyCommitted / ReplacementRequired / ReplacementMismatch / ReplacementNotAllowed` | 给出原结果或实际 Q/W/E，保留尚未消费机会；不自动代选/重抽。 |
+| 版本或目录过期（如 `BuildStale / CatalogMismatch`） | 读取当前状态；候选保留同 ID/内容，重新明确确认。不得自动修改目标槽或把后续候选当原候选。 |
+| 时机不合法：未脱战（构筑安全窗）、阵亡时学习、休息中构筑锁定、阶段关闭 | 显示原因与安全倒计时，等合法时机后由玩家或 AI 重新提交；不自动排队重放。 |
+| 对象不合法：没有当前候选、未知候选或选项、该组已处理、没有该图纸、没有空槽或槽已占用、点数不足或为零 | 给出原结果或实际 Q/W/E、图纸与点数，保留尚未消费的机会；不自动代选或换组。 |
 | `InvalidRequest / RequestConflict / OutOfOrder / RequestInFlight / ReceiptExpired` | 不重执行；核对原请求/序列、查询或同步当前状态，不能以超时猜成功。 |
-| `NumericUnderflow / NumericDomain` | Combat 最终资源投影未提交；整次选择拒绝，源/机会/Current不变，等合法资源状态或修复数据后新请求，不能向上补1或靠构筑变化杀死。必需奖励中的不可恢复数值错误走 §4 故障。 |
-| `DataInvalid / ArithmeticOverflow / PrepareUnavailable / CapacityExceeded / NotAuthority / AuthorityFault` | 明确未提交和是否可恢复；按 §4 限制恢复，不能返回默认数据、长期 spinner 或静默丢选择。 |
+| `NumericUnderflow / NumericDomain` | Combat 最终资源投影未提交；整次命令拒绝，源/机会/点数/Current不变，等合法资源状态或修复数据后新请求，不能向上补1或靠构筑变化杀死。必需奖励中的不可恢复数值错误走 §4 故障。 |
+| `DataInvalid / ArithmeticOverflow / PrepareUnavailable / CapacityExceeded / NotAuthority / AuthorityFault` | 明确未提交和是否可恢复；按 §4 限制恢复，不能返回默认数据、长期 spinner 或静默丢命令。 |
 
 全部原因值只在 `ELDGrowthReason`（`LDGrowthProtocol.h`）声明一次；奖励专用的
 `NoRewardNoOwner / NoRewardSelf / NoRewardOwnerLeft / DeathConflict / StaleDeath` 只出现在服务器内部奖励回执。
@@ -475,9 +427,10 @@ ExpectedLifePhase 只表达该次明确确认所见的生/死状态，不是新�
 
 ### 8.3 私有读模型与回包顺序
 
-`FLDProgressionView` 提供当前生命/选择资格、Level/MaxLevel/CumulativeXP、当前级与下一级阈值、
-ProgressionRevision/BuildRevision、EarnedThrough/ConsumedThrough/PendingChoiceCount、当前一组固定 Offer、已学技能与属性卡计数及 CatalogDigest。
-技能冷却只由 Combat 的本人 `FLDCombatOwnerView` 发布。
+`FLDProgressionView` 提供当前生命与成长资格、Level/MaxLevel/CumulativeXP、当前级与下一级阈值、
+ProgressionRevision/BuildRevision、未分配点数与五维点数、Q/W/E 已学主动、待学图纸、排队的主动机会数、
+当前一组候选、构筑安全时刻（发布时取自 Combat）及 CatalogDigest。
+技能冷却只由 Combat 的本人 `FLDCombatOwnerView` 发布，它同样带构筑安全时刻。
 
 View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FLDGrowthOwnerView`），
 附 Generation/Life/发布修订及各子域结果修订。
@@ -486,10 +439,10 @@ View 最终组成同一次 `FLDOwnerState` 发布（`FLDOwnerState.Growth`，`FL
 重放的旧生命成功回执只能作为历史结果查询，不改当前生命资源/来源。
 等待期间关闭面板不撤销已受理事实，重开查询真实结果；请求失败不保留假成功图标。
 
-自身被动列表可展开/滚动，不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
+自身构件列表（#198 接入后）可展开/滚动，不新增玩法槽上限。Q/W/E 和 D 从真实输入映射显示按键，
 选中别人不改变按钮所有者。
 UI 手势由输入域捕获，不穿透发世界命令；打开、选择都不暂停/授无敌。
-GameState、全场击杀通知不获取本域私有成长/Offer/来源 ID。
+GameState、全场击杀通知不获取本域私有成长/候选/来源 ID。
 
 用户允许的名称/等级/HP/MP/状态由各自合法投影提供；不顺带暴露其他属性。
 AI 读取自身这些 View 和合法感知/公共圈，不扫描全体 GameMode 表。
@@ -504,8 +457,8 @@ K/D 由核心按唯一 DeathKey 归约，不从奖励回执再计一次，也不
 
 | 对象/动作 | 取消或关窗 | 死亡/复活 | 普通离局 | 终局 | 新局 |
 | --- | --- | --- | --- | --- | --- |
-| XP/等级/永久属性/技能 | 不变 | 全部保留，不再初始化；复活投影同构筑 | 不转移给替补或新加入者 | 冻结 | 按批准初始输入重建 |
-| 队列/固定 Offer | 只清本地草稿，Pending 查真实结果 | 原卡/机会保留，复活不再授开局机会；可用当前Dead阶段确认，只更新持久Build；旧阶段拒绝 | 不再提交 | 冻结，不继续选 | 清队列/Offer/结果域，重新授予开局机会及其首张 Offer |
+| XP/等级/属性点/技能/图纸 | 不变 | 全部保留，不再初始化；复活投影同构筑 | 不转移给替补或新加入者 | 冻结 | 按批准初始输入重建 |
+| 主动机会/候选 | 只清本地草稿，Pending 查真实结果 | 候选与机会保留，复活不再授开局点数或机会；Dead 阶段可选择存为图纸、可加点，不学到槽，只更新持久Build；旧阶段拒绝 | 不再提交 | 冻结，不继续选 | 清队列/候选/结果域，重新授予开局点数、开局机会及其候选 |
 | 来源/IssuedCooldownId/ReadyAtMs | 不因图标/草稿清除；遗忘不取消独立已释放效果 | 时间继续；独立效果续原期限，新身体重绑保留来源 | 禁止新命令并取消尚未结束独立效果，不追溯改写既成事实 | 不再释放，展示只读 | 旧 ID/期限全部失效 |
 | 致死到奖励 | 不是 UI 可取消意图 | 死者可收合法存续效果奖励 | 按实际致死时资格，后来离局不撤销；离局先则不再产生效果击杀 | 无新提交；必需未决不越过正常闸 | 旧 DeathKey 拒绝 |
 | 已提交回执 | 可查，不重新 apply | 历史结果不写新身体 | 仅服务器获准诊断 | 可只读查既有本局结果 | 不写新局；旧投影拒绝 |
@@ -518,10 +471,9 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 
 数值只引用 [内容与数值](CONTENT_AND_BALANCE.md)，以下是消费者合同而非独立数值表。
 结构上限来自 Spec；实际奖励、秒数、距离、概率、增量与公式常量不在本报告填默认值。
-`SourceData\Demo\content.json` 中对应位置：`progression`（`max_level`、`max_choices`、`xp_start`、`xp_thresholds` 等）、
-参数 `XP.BaseToNext/IncreasePerLevel`、`REWARD.PlayerXP.Base/PerLevel`、
-`CHOICE.*` 抽卡参数、`progression.opening_offer/reroll_levels/max_skill_rank`，
-`abilities[].draftable`、`attributes`，
+`SourceData\Demo\content.json` 中对应位置：`progression`（`max_level`、`active_slots`、`xp_start`、`xp_thresholds`、`active_offer_levels`）、
+参数 `XP.BaseToNext/IncreasePerLevel`、`REWARD.PlayerXP.Base/PerLevel`、`GROWTH.*`、`SKILL.GrowthPerLevel*`，
+`abilities[].opening`、`stats`，
 营地怪物 `reward_xp`。
 
 | 正式键 | 类型、单位和转换责任 | 本域消费者 / 必须验证 |
@@ -529,11 +481,12 @@ Host 离开由会话域结束，不执行普通离局后继续游戏路径；
 | `XP.Start / XP.MaxLevel / XP.Threshold[L]`、`FORMULA.XPToNext` | 累计 XP 的有界整数；严格递增阈值，等级合法；运行 int64，算术检查后再存储。 | PrepareExperience；逐级跨阈值、十六级 MAX、无十七阈值。 |
 | `REWARD.PlayerXP` | 受害者致死等级为自变量的整数奖励；只用不可变快照。 | CommitDeathReward；重复/互杀/阵亡来源、整奖越界。 |
 | `CAMP.Low/High.RewardXP` | 每成员每 Life 的整数；不兼有一笔清营奖。 | 同一 DeathFact；世界只提供映射/定义，不另发资源。 |
-| `CHOICE.NewActiveFullSlotWeight / FreeSlotAttributeChance`、`progression.opening_offer / reroll_levels / max_skill_rank`、`CHOICE.<id>` | 满槽新主动权重为基点（0 < 权重 ≤ 1）；自由位属性概率为基点概率；重抽等级严格递增且可达；属性增量按内容量纲；复合项全量预检。 | §6.3 抽卡与重抽、十六次界限（含开局一次）、无放回、`DemoGrowthDraft/Reroll/OpeningPool`。 |
-| `ABILITY.<id>.Rank[r]`、`SKILL.GrowthPerLevel` | 初级/高级两档的正式效果、目标、法力/时间/距离、伤害与触发规则；固定数值按拥有者当前等级乘 G(L)（`FLDDemoContentSnapshot::FindRank`）。 | Build/Combat；rank 演进、重新学习、等级成长、未选 handler 删除依据。 |
-| `CHOICE.attr_hand_out.AttackRangeCmFlat` | 普攻距离厘米增量；不外推技能/区域距离。 | 投影、输入接近/Combat 真实射程。 |
+| `GROWTH.OpeningPoints / PointsPerLevel / MaxLevelPointsXP / MaxLevelPoints`、`progression.active_offer_levels`、`abilities[].opening` | 点数为非负整数；满级给点的 XP 段为正整数；额外机会等级严格递增且在 2..16 内；开局池为主动子集。 | 点数派生与未分配点数非负、开局与 3/6 级机会、满级后按 XP 给点、无放回抽样与排除。 |
+| `GROWTH.BuildSafeWindowSec` | 正秒数，按生命周期的唯一转换得整毫秒。 | Combat 维护安全时刻；学习与加点提交时重查。 |
+| `stats[].per_point` | 每点收益按属性量纲；与其他来源同类相加后统一投影。 | Combat 最终投影；加点后真实属性变化。 |
+| `ABILITY.<id>`、`SKILL.GrowthPerLevel / GrowthPerLevelAfter10` | 单级技能的正式效果、目标、法力/时间/距离、伤害与触发规则；固定数值按拥有者当前等级乘 G(L)。 | Build/Combat；学习、重新学习、等级成长、未选 handler 删除依据。 |
 | `POLICY.MissingSourceCooldown=ContinueServerTime` | 已确认语义；ReadyAtMs 是本局绝对毫秒，不是可被 UI 重置的剩余时长。 | 失源/重学/死亡。 |
-| `POLICY.DeadChoiceCommit`、`POLICY.ResourceMaxChange`、`FORMULA.ResourceMaxChange` | 死时确认和保持资源百分比已确认；精度/取整/边界由内容公式单点维护，不是运行时多模式开关。 | 选择准入、活体一次最终同比换算、循环无取整获益、死亡不治疗。 |
+| `POLICY.DeadChoiceCommit`、`POLICY.ResourceMaxChange`、`FORMULA.ResourceMaxChange` | 死时处理成长和保持资源百分比已确认；精度/取整/边界由内容公式单点维护，不是运行时多模式开关。 | 成长命令准入、活体一次最终同比换算、循环无取整获益、死亡不治疗。 |
 
 秒到毫秒使用生命周期的唯一转换合同，作者秒值必须能按批准精度准确表示；
 不在每个 Widget 分别四舍五入。Ready 判定由服务器当前时刻与截止比较，
@@ -557,8 +510,8 @@ XP、构筑、来源与显示格式化不能相互代算。
 
 | 项目 | 用户已确认的行为 | 不可越过的边界 |
 | --- | --- | --- |
-| 死亡等待中的确认 | `POLICY.DeadChoiceCommit=Allowed`：允许查看、选卡和明确替换，利用等待整理构筑。 | 只改变持久成长，不伪造活 Pawn，不立即治疗/施法/复活。当前 Life+ExpectedLifePhase 重新确认，旧生命/旧阶段拒绝。 |
-| 最大 HP/MP 改变当前值 | 用户原文“保持原来的生命／法力百分比”；引用 `POLICY.ResourceMaxChange` 与 `FORMULA.ResourceMaxChange`。 | 升级、属性卡变化均按旧当前值/旧上限和最终新上限一次换算，不逐来源反复移除/添加；不是保持旧绝对当前值。 |
+| 死亡等待中的成长 | `POLICY.DeadChoiceCommit=Allowed`：允许查看、加点，并把主动选择存为待学图纸，利用等待整理构筑。 | 只改变持久成长，不学到槽，不伪造活 Pawn，不立即治疗/施法/复活。当前 Life+ExpectedLifePhase 重新确认，旧生命/旧阶段拒绝。 |
+| 最大 HP/MP 改变当前值 | 用户原文“保持原来的生命／法力百分比”；引用 `POLICY.ResourceMaxChange` 与 `FORMULA.ResourceMaxChange`。 | 升级、加点与学习均按旧当前值/旧上限和最终新上限一次换算，不逐来源反复移除/添加；不是保持旧绝对当前值。 |
 
 同比换算由 Combat 的 PrepareBuildChange 准备、ApplyBuildChange 一次应用；
 成长不另写 HP/MP 算法，UI/AI 不反向代算。死亡时选择只改持久 Build，
@@ -592,10 +545,10 @@ XP、构筑、来源与显示格式化不能相互代算。
 | --- | --- | --- |
 | D03、D35（#144） | — | 金币账本 `LDEconomyLedger` 及其证据导出与账户退休，BankTransaction、预算/endowment、quality/transient/parents 与事后 `Record/GoldChanged/Snapshot` 写链；`LDVendorDirector`（商店会话/报价/买卖）、`LDInventoryDirector`（两槽装备与观测投影）、装备目录与进阶 |
 | N03 新增 | `ALDGrowthDirector::CommitDeathReward`，Combat 在 DeathsAndRewards 按 DeathKey 调用 | `AwardExperience/RecordEconomyGold`、营地 Contact/Reward/PvPKill、LastOwner 兜底与任意授予入口 |
-| N04 新增 | `Development\LDDevelopmentDirector.*`、`LDProgressionRules.*`：持久机会/Offer、窄 Choice、Q/W/E 替换 | R09 `LDCharacterBuild` 与 `ULDCharacterCatalog`、职业六维/点数/开局技能、整份草稿与站点 hold |
+| N04 新增 | `Development\LDDevelopmentDirector.*`、`LDProgressionRules.*`：属性点、持久主动机会与候选、窄成长命令（选择、学习、加点） | R09 `LDCharacterBuild` 与 `ULDCharacterCatalog`、职业六维/点数/开局技能、整份草稿与站点 hold |
 | D15/D16 | — | 书店 Vendor 与 `LDVendorTypes`、背包/重量/Quick/十一绑定/掉落整理、`LDInventoryTypes`/`ALDItem`、`LDGearRules`、`LDLoadoutRequest`、V07/V08 获取/装备/战术目录 |
 | R07/R09 来源 | Combat 唯一持有来源冷却轨道与回绑（`PrepareBuildChange/ApplyBuildChange`） | `LDV08Loadout`/`LDV08Modifiers`、ItemFamilies 共享主动 CD、施法伪库存修订 |
-| D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的 Choices 面板 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
+| D16/N07 RPC 与投影 | `Framework\LDPlayerGrowth.cpp`、`FLDOwnerState.Growth`；HUD 的成长面板 | 旧背包请求 RPC、`LDPlayerBank/Commerce/Production/Development/Vendor.cpp`、OwnerState 的 Build/Inventory/Gold/Xp |
 ### 11.1 数据、adapter、生成与资产退出
 
 旧链已按原子闭包退出：R09 构筑与 `ULDCharacterCatalog`、V08 Loadout/修正器、V07/V08 装备/获取/战术目录
@@ -614,8 +567,8 @@ XP、构筑、来源与显示格式化不能相互代算。
 
 | 当前入口 | 保留/改造与删除 |
 | --- | --- |
-| `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、请求窗口、等级/候选/替换与本人视图白名单；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。过期回执、满容量、越界和生死竞争仍须 §12 A24/A25 的场景。 |
-| 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局三选一、击杀奖励与选择经各自连接完成；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
+| `Lockdown.Rules.DemoGrowth*`（[LDGrowthRulesTests.cpp](../../Source/Lockdown/Private/Tests/LDGrowthRulesTests.cpp)） | 线编码、精确条款、原子拒绝、overflow、请求窗口、等级/点数/主动候选/学习与加点准入与本人视图白名单（按 #198 第一部分改写，当前结果见就绪评估）；旧 Economy/Inventory/V08/Loadout/Character/Preparation/Skill 专测已退役。过期回执、满容量、越界和生死竞争仍须 §12 A24/A25 的场景。 |
+| 拥有连接场景（[RunDemoGrowthCheck.ps1](../../Scripts/RunDemoGrowthCheck.ps1)，`LDDemoGrowthProbe`） | 参与对局的 Listen Host 与一个真实拥有客户端：开局主动选择、开局加点、交战后安全窗拒绝与 4 秒后学习、击杀奖励经各自连接完成（按 #198 第一部分改写，当前结果见就绪评估）；纯规则和直接调用不代表真实联机结果，不为旧场景保留服务壳。 |
 | [RunTests.ps1](../../Scripts/RunTests.ps1)、[CheckRuleReport.py](../../Scripts/CheckRuleReport.py) | 随提供者迁移维护明确的实际必需用例集合及源码注册一致性，保留 failed/notRun/inProcess/缺报告失败。 |
 | D29–D34 本域专测/手册 | 必要来源不变量已迁入上列规则与 Combat 来源/属性规则，旧生产者与专测已删除；系统手册只描述真实接口，不保存废弃方案。 |
 
@@ -638,26 +591,28 @@ Listen Host 的奖励验收读取实际 HUD 的头像等级和经验条（比例
 
 | 用例 | 前置、动作与精确断言 |
 | --- | --- |
-| A01 从零发育 | 正常菜单开局，仅近战单体普攻；真实击杀低档野怪得到一次 XP，完成首次选择，无调试授予/传送。 |
-| A02 最后一击/归属 | 两来源命中同一目标，分别测主动、被动/持续和普攻副命中；只有真实致死所有者收全部奖励。无主不能回落上次攻击者。 |
+| A01 从零发育 | 正常菜单开局，仅近战单体普攻；真实击杀低档野怪得到一次 XP，完成首次升级与加点，无调试授予/传送。 |
+| A02 最后一击/归属 | 两来源命中同一目标，分别测主动、持续效果（灼烧、区域）和普攻；只有真实致死所有者收全部奖励。无主不能回落上次攻击者。 |
 | A03 死者/互杀/离开 | 同Effects集合双死先锁完整致死等级/资格再奖；后续因果集合用当时新等级。先致死后离局/重试仍沿原资格，离局先则效果取消；同ceil桶真实先后不混，清理不产击杀。 |
 | A04 DeathKey 去重 | 重放相同事实，继而改变 Source/Effect/DeathSerial/BodyIdentity；最多一次结果，改条款报冲突不改收款人；合法 NoReward 也不能改源重领。 |
 | A05 营地生命周期 | 每成员每Life一次；回位途中可真实致死并按旧Life结一次，到家仅存活者Reset满资源/清临时/CD就绪，不复活死者、不增Life/发奖；刷新不二次奖励，旧Life不命中新生体。 |
-| A06 奖励边界 | 每级阈值前/恰到/越过、一次多级至16、延迟十六次（开局一次加十五次升级）；开局机会与逐级机会准确、无第十七次；满16后XP继续累计但不升级/不授机会。 |
-| A07 整奖失败 | 分别注入成长、Combat、Offer工作区、回执/outbox准备失败及整数越界；所有XP/等级/机会/RNG/修订不变，无半奖或 NoReward fallback。 |
+| A06 奖励边界 | 每级阈值前/恰到/越过、一次多级至16；开局点数与开局机会、逐级点数、3/6 级主动机会准确，连升跨过 3、6 级时机会逐一排队；满16后XP继续累计，不升级、不授机会，每满 `GROWTH.MaxLevelPointsXP` 派生点数。 |
+| A07 整奖失败 | 分别注入成长、Combat、候选工作区、回执/outbox准备失败及整数越界；所有XP/等级/点数/机会/RNG/修订不变，无半奖或 NoReward fallback。 |
 | A08 重试/故障 | 必需奖励暂失败时只在下一边界重试一次；仍失败经 `FaultAuthority` 明确故障关闭且无正常胜者；必需奖励未决时 Capture 完成与 Host 结束都不越过它：同刻完成先经结算边界重试再锁定，Host 结束返回 `RequestInFlight`（`Lockdown.Rules.DemoCore.RewardSettlementBeforeClose`）。 |
 | A09 Permit | 错 Match/Batch/Phase/GateRevision、跨 callback/下一批旧许可在第一次 mutation 前拒绝；子 Apply 不会半途正常失败。 |
-| A10 持久三卡 | 连升/关闭重开/死亡/重复查询不改 OfferId/OptionId/内容/RNG；只有本次选择应用后才生成下一组；不打开窗口也已固定队首。 |
-| A11 合法池 | 对当前目录的技能与属性卡池真实可达生成状态验证；满 Q/W/E、满rank、所有替换分支、属性复选、复合增量全可兑现且三卡互异。 |
-| A12 替换遗忘 | Q为高级旧技能、W和E占用；只点新卡/取消不消费，明确替换后旧rank遗忘、新主动为初级，再学从初级开始但旧截止保留；旧确认不能替另一技能。 |
-| A13 选择竞争 | 两请求同Offer、选择与升级竞争；最多一次消费；stale返回同卡及新保护，不用旧整Build覆盖新CD。 |
-| A14 生死选择 | 死前Alive确认不能借同Life在Dead应用，死时新确认允许且不需要活Pawn、不治疗尸体，复活旧确认拒绝，机会不丢。 |
+| A10 持久候选 | 连升/关闭重开/死亡/重复查询不改候选身份/内容/RNG；只有本次选择应用后才生成下一组；不打开窗口也已固定队首；没有合格主动时机会排队、不生成空组。 |
+| A11 候选池 | 开局取开局池、3/6 级取全部主动，都排除已学与待学图纸、互不重复；合格只有 1–2 个时如实只给这些。 |
+| A12 学习与满槽 | 能学就学时学到首选或第一个空槽，否则存为图纸并给出原因；学习图纸只能到空槽；满槽时拒绝学习且图纸保留；重学沿用原冷却截止（休息中的替换与遗忘由 `Lockdown.Rules.DemoRest.Services.ReplaceForget` 覆盖；挂件同次回收由 `Lockdown.Rules.DemoRest.Services.ForgetReclaim` 覆盖）。 |
+| A13 命令竞争 | 两请求同一组候选、选择与升级竞争、加点与升级竞争；最多一次消费；版本过期返回同一组候选，不用旧整Build覆盖新CD。 |
+| A14 生死成长 | 死前Alive确认不能借同Life在Dead应用；死时可加点并把选择存为图纸，不学到槽、不需要活Pawn、不治疗尸体；复活旧确认拒绝，机会、图纸与点数不丢。 |
+| A15 构筑安全窗 | 普攻起手、进攻技能释放、造成与受到敌方正伤害（含灼烧与区域跳伤）、被施加各种硬控与击退各自刷新；单独减速、菜单、视野与回复不刷新；满 4 秒后学习与加点被受理；死亡不重置；休息的配装与派奖期间不需要安全窗。 |
+| A16 加点原子性 | 合计为零或超过未分配点数整次拒绝；成功时五维点数与最终属性投影同一提交；点数不能为负。 |
 | A21 CD生命周期 | 换槽/升级/遗忘重学/死亡保持截止；已释放独立效果仍续原期限且不再查原持有，维持型按条件取消，正式离局取消独立效果。 |
-| A22 当前血蓝 | 升级/属性卡/原子替换后保持原资源百分比，仅按最终投影一次；覆盖往返、精度、零上限/最小正值及真实伤害夹在两次变更之间，不能量化套利或治疗尸体；正常复活满新上限。 |
-| A23 射程 | attr_hand_out在服务端真实改变普攻范围；不扩大未指定技能距离。 |
+| A22 当前血蓝 | 升级/加点/学习后保持原资源百分比，仅按最终投影一次；覆盖往返、精度、零上限/最小正值及真实伤害夹在两次变更之间，不能量化套利或治疗尸体；正常复活满新上限。 |
+| A23 射程 | 射程来源（当前目录没有；#198 构件接入后）在服务端真实改变普攻范围；不扩大未指定技能距离。 |
 | A24 回包/过窗 | 同ID同条款重放、异条款拒绝、64窗外拒旧+同步；先快照后回执/先回执后快照均不回滚当前状态；双击Pending不创建第二业务。 |
 | A24b 查询 | 旧请求/死亡拒旧；旧局同号query=InvalidContext；各LookupStatus的包装结果不伪造终态Receipt。 |
-| A25 终局/新局/隐私 | 关闸后无新奖励/选择/来源，只读旧回执；新局清局内域/旧ID。结果只含批准名称/K/D/FinalLevel/赢家/原因/用时，无私有修订/技能/XP/Offer/CD。 |
+| A25 终局/新局/隐私 | 关闸后无新奖励/成长命令/来源，只读旧回执；新局清局内域/旧ID。结果只含批准名称/K/D/FinalLevel/赢家/原因/用时，无私有修订/技能/点数/XP/候选/CD。 |
 | A26 删除与生成闭包 | 批准定义→schema/adapter/loader/handler/UI/资产/测试一致；旧RPC/服务/载荷/专测无存活消费者，保留稳定ID有依据；UHT/build/Bootstrap/Cook/包清单无悬空引用。 |
 
 网络、成长和胜负至少使用**正常参赛且可见的 Listen Host + 真实拥有客户端**，

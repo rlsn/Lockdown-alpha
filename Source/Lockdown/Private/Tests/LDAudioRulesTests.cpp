@@ -145,13 +145,13 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     Combat.Revision=17;Combat.Cues.bReleasedBasic=true;Combat.Cues.ReleasedStartedAtMs=200;Combat.Cues.ReleasedAtMs=500;Frame.LocalSeconds=11.5;
     TestTrue(TEXT("An older release time never sounds"),AudioSample(Tracker,Frame).IsEmpty());
 
-    Growth.Level=2;Growth.EarnedThrough=1;
+    Growth.Level=2;Growth.ActiveOpportunitiesEarned=1;
     TestTrue(TEXT("A level up sounds once"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
     TestTrue(TEXT("The same level stays silent"),AudioSample(Tracker,Frame).IsEmpty());
-    Growth.EarnedThrough=2;
-    TestTrue(TEXT("A newly earned three-choice sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
-    Growth.ConsumedThrough=1;Growth.PendingChoiceCount=1;
-    TestTrue(TEXT("Picking a card and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
+    Growth.ActiveOpportunitiesEarned=2;
+    TestTrue(TEXT("A newly earned active opportunity sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::LevelUp}));
+    Growth.ActiveOpportunitiesConsumed=1;Growth.QueuedActiveOpportunities=1;
+    TestTrue(TEXT("Picking an active and showing the queued offer stays silent"),AudioSample(Tracker,Frame).IsEmpty());
 
     Frame.OwnLifePhase=ELDLifePhase::Dead;Combat.Revision=5;Combat.HPP2=0;Frame.LocalSeconds=6;
     TestTrue(TEXT("Death sounds once without a hit"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfDeath}));
@@ -164,7 +164,7 @@ bool FLDAudioCueOwnTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A release in the old life's view stays silent"),AudioSample(Tracker,Frame).IsEmpty());
     Combat.Life=2;Combat.Revision=2;Combat.Cues.ReleasedStartedAtMs=10700;Combat.Cues.ReleasedAtMs=11000;Combat.AsOfMs=11000;
     TestTrue(TEXT("The new life's own basic attack sounds"),AudioIs(AudioSample(Tracker,Frame),{ELDAudioCue::SelfAttack}));
-    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.EarnedThrough=0;
+    Frame.OwnMatch=4;Frame.OwnLife=1;Combat.Generation=4;Combat.Life=1;Growth.Generation=4;Growth.Level=1;Growth.ActiveOpportunitiesEarned=0;
     TestTrue(TEXT("A new match never sounds a respawn or level"),AudioSample(Tracker,Frame).IsEmpty());
 
     TArray<ELDAudioCue> Out;
@@ -343,7 +343,7 @@ bool FLDAudioCatalogTest::RunTest(const FString& Parameters)
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDAudioMusicSelectionTest,"Lockdown.Rules.AudioMusicSelection",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FLDAudioMusicSelectionTest::RunTest(const FString& Parameters)
 {
-    FLDPublicMatchView Public;Public.Generation=7;Public.StartedAtMs=100000;Public.OpenAtMs=280000;
+    FLDPublicMatchView Public;Public.Generation=7;Public.StartedAtMs=50000;Public.OpenAtMs=280000;Public.Timeline.FieldStartedAtMs=100000;
     auto Select=[&](ELDMatchPhase Phase,bool bClock=true,int64 NowMs=100000)
     {
         Public.Phase=Phase;FLDMusicInput Input;Input.Public=&Public;Input.bClock=bClock;Input.NowMs=NowMs;
@@ -358,15 +358,15 @@ bool FLDAudioMusicSelectionTest::RunTest(const FString& Parameters)
     TestFalse(TEXT("No room state yet keeps whatever plays"),LDAudio::SelectMusic(FLDMusicInput()).bDecided);
     FLDPublicMatchView Unsynced;FLDMusicInput Pending;Pending.Public=&Unsynced;
     TestFalse(TEXT("A generation-0 view keeps whatever plays (the menu carries on into the lobby)"),LDAudio::SelectMusic(Pending).bDecided);
-    for(const ELDMatchPhase Phase:{ELDMatchPhase::Lobby,ELDMatchPhase::Starting,ELDMatchPhase::Countdown,ELDMatchPhase::Resetting})
+    for(const ELDMatchPhase Phase:{ELDMatchPhase::Lobby,ELDMatchPhase::Starting,ELDMatchPhase::Rest,ELDMatchPhase::Resetting})
     {TestTrue(FString::Printf(TEXT("Phase %d shares the menu loop with the main menu"),int32(Phase)),Is(Select(Phase),ELDMusicTrack::Menu));}
-    TestTrue(TEXT("The development phase starts the farm track at T=0"),Is(Select(ELDMatchPhase::Development,true,100000),ELDMusicTrack::Farm,0.f));
-    TestTrue(TEXT("A late start joins the farm track at the time since T=0"),Is(Select(ELDMatchPhase::Development,true,172500),ELDMusicTrack::Farm,72.5f));
-    TestTrue(TEXT("A clock behind T=0 starts the farm track at its beginning"),Is(Select(ELDMatchPhase::Development,true,99000),ELDMusicTrack::Farm,0.f));
+    TestTrue(TEXT("A field segment starts the farm track at its start"),Is(Select(ELDMatchPhase::Development,true,100000),ELDMusicTrack::Farm,0.f));
+    TestTrue(TEXT("A late start joins the farm track at the time since the segment started"),Is(Select(ELDMatchPhase::Development,true,172500),ELDMusicTrack::Farm,72.5f));
+    TestTrue(TEXT("A clock behind the segment start starts the farm track at its beginning"),Is(Select(ELDMatchPhase::Development,true,99000),ELDMusicTrack::Farm,0.f));
     TestFalse(TEXT("Without the authority clock the farm offset is unknown, so nothing changes"),Select(ELDMatchPhase::Development,false).bDecided);
-    Public.StartedAtMs=0;
-    TestFalse(TEXT("Without T=0 the farm offset is unknown, so nothing changes"),Select(ELDMatchPhase::Development).bDecided);
-    Public.StartedAtMs=100000;
+    Public.Timeline.FieldStartedAtMs=0;
+    TestFalse(TEXT("Without a segment start the farm offset is unknown, so nothing changes"),Select(ELDMatchPhase::Development).bDecided);
+    Public.Timeline.FieldStartedAtMs=100000;
     TestTrue(TEXT("The flagpole opening switches to the escalation loop from its start"),Is(Select(ELDMatchPhase::CaptureOpen,true,400000),ELDMusicTrack::Escalation));
     TestTrue(TEXT("The escalation loop does not need the clock"),Is(Select(ELDMatchPhase::CaptureOpen,false),ELDMusicTrack::Escalation));
     for(const ELDMatchPhase Phase:{ELDMatchPhase::Results,ELDMatchPhase::Closing,ELDMatchPhase::Faulted})
@@ -387,14 +387,15 @@ bool FLDAudioCatalogAssetTest::RunTest(const FString& Parameters)
         &&Catalog->MasterClass->GetPathName()==ULDAudioCatalog::MasterClassPath&&Catalog->UserMix->GetPathName()==ULDAudioCatalog::UserMixPath
         &&Catalog->MusicClass->GetPathName()==ULDAudioCatalog::MusicClassPath);
     if(!bResolved){return false;}
-    // The farm track spans the development phase (#94: "farm is exactly 3 mins to fit the first 3 mins of the game until the
-    // flag opens"); a changed phase length needs a matching track rather than music that stops early or runs into the opening.
+    // The farm track spans one field segment (#94: "farm is exactly 3 mins to fit the first 3 mins of the game until the flag
+    // opens"; #198 made that the 180 s field segment); a changed segment length needs a matching track rather than music that
+    // stops early or runs into the next rest.
     TSharedPtr<const FLDDemoContentSnapshot> Content;
     if(!LDTestApprovedFixture::Read(*this,Content)){return false;}
-    const float DevelopmentSec=float(Content->Get().Parameters.DevelopmentMs)/1000.f;
+    const float SegmentSec=float(Content->Get().Parameters.FieldSegmentMs)/1000.f;
     const float FarmSec=Music[int32(ELDMusicTrack::Farm)]->Duration;
-    TestTrue(FString::Printf(TEXT("The farm track (%.2f s) lasts the development phase (%.0f s) within 2 s"),FarmSec,DevelopmentSec),
-        FarmSec>=DevelopmentSec&&FarmSec<=DevelopmentSec+2.f);
+    TestTrue(FString::Printf(TEXT("The farm track (%.2f s) lasts a field segment (%.0f s) within 2 s"),FarmSec,SegmentSec),
+        FarmSec>=SegmentSec&&FarmSec<=SegmentSec+2.f);
     return true;
 }
 #endif

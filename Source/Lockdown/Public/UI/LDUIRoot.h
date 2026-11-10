@@ -58,7 +58,7 @@ public:
     ELDUIMainPanel ActiveMainPanel() const;
     // One main panel at a time: closes the others first and toggles the active one closed.
     void ToggleMainPanel(ELDUIMainPanel Panel);
-    // Opens a registered panel without toggling (such as the opening three-choice's automatic open).
+    // Opens a registered panel without toggling (such as the growth panel's automatic open for a new offer or new points).
     // False when it is not registered, the root confirmation is up, or another panel keeps itself open.
     bool ShowMainPanel(ELDUIMainPanel Panel);
     // HUD-created Attributes/Choices/DevTest panels, held weakly; nullptr unregisters.

@@ -20,4 +20,9 @@ namespace LDCombatMechanics
     // Periodic schedule: the Count pulse instants StartMs + DelayMs + k x IntervalMs (0 <= k < Count). NextPulseAtMs gives
     // the first such instant at or after FromMs, or 0 when none is left (or the schedule is invalid).
     LOCKDOWN_API int64 NextPulseAtMs(int64 StartMs, int64 DelayMs, int64 IntervalMs, int32 Count, int64 FromMs);
+
+    // #198 C01 (spec §13.3): fixed windows (Anchor + (k-1)I, Anchor + kI] for k >= 1 from its first install. The end of the
+    // window a fact at AtMs belongs to (a fact on a boundary closes that window). False for an invalid interval, a fact
+    // before the anchor or an end past the clock domain.
+    LOCKDOWN_API bool FixedWindowEndMs(int64 AnchorMs, int64 IntervalMs, int64 AtMs, int64& OutEndMs);
 }

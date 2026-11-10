@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Combat/LDCombatEvaluationTypes.h"
+#include "Combat/LDCombatTypes.h"
 
 struct FLDDemoPolicies;
 struct FLDDemoEffectDefinition;
@@ -27,6 +28,8 @@ struct FLDControlApplication
     int64 DurationMs = 0;
     // Slow: move-speed ratio.
     int64 RatioBp = 0;
+    // #198 F: the exit that applies it (an active, a component such as C02/C06), for C05/C07 bindings.
+    FLDCombatSourceRef Source;
 };
 
 // Hard-control diminishing returns of one body (#112 cross-session contract 6): a hard control landing while a previous one is active
@@ -38,24 +41,31 @@ struct FLDHardControlChain
     int64 WindowEndMs = 0;
 };
 
-// The next basic attacks' added hit, armed by one release and consumed by the basics that land (Charges of them, #147).
+// One pending empowered-basic package (spec §10.2): S11, S17 and B12 (C09 later) are separate sources, each holding at
+// most one package; the same source re-arming replaces its unused value and expiry, different sources coexist. A landed
+// primary basic takes one charge of every live package and adds them into its one primary hit before the critical roll.
 struct FLDCombatEmpower
 {
     FGuid EffectId;
-    FName SourceDefinitionId;
-    int64 BaseP2 = 0;
-    int64 ADRatioBp = 0;
-    int64 APRatioBp = 0;
-    ELDDemoDamageType DamageType = ELDDemoDamageType::Physical;
+    // Learned (S11/S17, snapshotted at release) or Component (B12, snapshotted at the dash's completion).
+    FLDCombatSourceRef Source;
+    // The physical package in P2 (base + AD/AP shares), fixed when armed.
+    int64 AmountP2 = 0;
     int64 ExpiresAtMs = 0;
-    // #147: the landed basics this release empowers, and the cleave they carry (ratio and radius).
+    // #147: the landed basics this package empowers.
     int32 Charges = 1;
-    int64 CleaveRatioBp = 0;
-    double CleaveRadiusCm = 0;
-    // Applied after the last empowered hit's damage (#166 one-key triple combo).
-    int32 FinalBreachStacks = 0;
     // The timed bonus (keyed by EffectId) held while charges remain; ended with the last charge.
     bool bChargeBonus = false;
+};
+
+// #198 B12: a voluntary dash (the innate D or an active's dash) in flight. It completes naturally at EndMs; a knockback,
+// death or a new dash drops it first (a cancelled dash never arms DashComplete effects).
+struct FLDCombatVoluntaryDash
+{
+    FGuid EffectId;
+    FLDCombatSourceRef Source;
+    FVector StartFootCm = FVector::ZeroVector;
+    int64 EndMs = 0;
 };
 
 // The last reflection one thorns source of a body dealt to one attacker.
@@ -95,12 +105,25 @@ namespace LDCombatControl
     LOCKDOWN_API bool ExpireDisarmsAndStuns(TArray<FLDCombatRoot>& Disarms, TArray<FLDCombatRoot>& Stuns, int64 AtMs,
         TArray<FLDCombatRoot>* Silences = nullptr);
 
-    // Takes one charge of the armed empowerment when it is still active at AtMs (the record ends with its last
-    // charge); an expired one is dropped and nothing is taken. The returned copy's Charges is what remains.
-    LOCKDOWN_API TOptional<FLDCombatEmpower> ConsumeEmpower(TOptional<FLDCombatEmpower>& Armed, int64 AtMs);
+    // Arms Package: it replaces the pending package of the same source (its unused charges and expiry) and joins the
+    // packages of other sources.
+    LOCKDOWN_API void ArmEmpower(TArray<FLDCombatEmpower>& Armed, const FLDCombatEmpower& Package);
+    // A landed primary basic at AtMs: drops lapsed packages untaken, takes one charge of every live one (a package ends with
+    // its last charge) and returns the taken copies, each with its remaining Charges; OutSumP2 is their summed amount.
+    // False only when the sum leaves int64 (nothing is taken then).
+    LOCKDOWN_API bool ConsumeEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs, TArray<FLDCombatEmpower>& OutTaken,
+        int64& OutSumP2);
+    // Drops lapsed packages (half-open at ExpiresAtMs); true when any ended.
+    LOCKDOWN_API bool ExpireEmpowers(TArray<FLDCombatEmpower>& Armed, int64 AtMs);
 
-    // Whether this contact may trigger the thorns effect: positive damage, not itself a reflection, a primary basic
-    // hit within reach, and at least IntervalMs after this source's last reflection to the same attacker.
+    // B12: whether Dash, due at AtMs (>= EndMs), completed with a real displacement (its foot moved more than
+    // DashDisplacementEpsilonCm from where it started); a dash not yet due never completes.
+    LOCKDOWN_API bool DashCompleted(const FLDCombatVoluntaryDash& Dash, int64 AtMs, const FVector& FootCm);
+    constexpr double DashDisplacementEpsilonCm = 0.01;
+
+    // Whether this contact may trigger the thorns effect: positive damage (shield absorption included), not itself a
+    // reflection, a primary basic hit within reach, and, for a source with IntervalMs > 0, at least IntervalMs after this
+    // source's last reflection to the same attacker (B03 has no interval).
     LOCKDOWN_API bool ThornsTriggers(const FLDDemoEffectDefinition& Thorns, const FLDThornsContact& Contact,
         const TArray<FLDThornsMark>& Marks, const FString& SourceKey, const FGuid& Attacker, int64 AtMs);
     // Reflection base in P2: (Base + Armor x ArmorRatio + MaxHP x MaxHPRatio), multiplied by CriticalMultiplier when the

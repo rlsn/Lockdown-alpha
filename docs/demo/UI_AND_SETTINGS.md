@@ -15,7 +15,7 @@
 沿现有 **native UMG/Slate、Controller、动态 Enhanced Input、owner 投影和唯一观测 Relay**
 收敛一条界面流程，不引入第二套 UI 框架、成长状态、冷却表或视野系统。
 一个 Root 管导航与输入层；HUD、属性/选择、设置和小地图各消费窄只读投影。
-菜单、名单、本人 HUD、三选一、公开击杀、完整结果及设置均已按本文接线。
+菜单、名单、本人 HUD、成长面板（开盲盒）、公开击杀、完整结果及设置均已按本文接线。
 
 雾港换皮（[#111](https://github.com/rlsn/Lockdown-alpha/issues/111)）与规则术语改回通用词（[#148](https://github.com/rlsn/Lockdown-alpha/issues/148)）后的玩家可见中文术语与固定文案只引用 [App Spec §1.2](../APP_SPEC.md#12-玩家显示术语)，
 角色/技能/状态名称只引用内容报告当前目录；下文 HP/MP、状态与拒绝码等技术标识不改。
@@ -28,10 +28,10 @@
 | 单一流程 | Start / Settings / Exit → Host 或 IP Join → Lobby / Ready / Host Start → 对局 → 唯一结果 → 同房间 Lobby / 新局或离开。最多三真人含 Host、零至三独立 AI，不自动补位。 |
 | 战斗入口 | 开局近战单体普攻；属性、技能与被动可以改变普攻范围。Q/W/E 仅角色主动；没有装备或背包。 |
 | 冷却 | 遗忘期间技能冷却继续计时，重新持有继承原结束时刻，UI 换图标/槽位不刷新冷却。 |
-| 死亡选择 | 死亡等待可确认原三选一及替换；校验当前 Life 和 `ExpectedLifePhase`。只更新持久构筑，不复活、不治疗尸体，阶段竞争拒绝也不丢 Offer。 |
+| 死亡选择 | 死亡等待可从当前主动候选选择（存为图纸，不能学到槽）并加点；校验当前 Life 和 `ExpectedLifePhase`。只更新持久构筑，不复活、不治疗尸体，阶段竞争拒绝也不丢 Offer。 |
 | 保护与进攻 | 当前身份、请求新鲜性、消息形状及终局闸检查后，**发出进攻意图即解除保护**，之后目标、距离、蓝量或冷却失败也不恢复保护。纯本地 Armed、取消、移动、Stop 不解除。 |
 | 资源上限 | 上限变化保持 HP/MP 原百分比，由 Combat 按 `FORMULA.ResourceMaxChange` 做一次最终投影；UI 不再次换算或额外回血，死亡不因此复活。 |
-| 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态，以及 Q/W/E 三块技能小卡（键位、技能名、等级，满级加“★满级”并用强调色描边，#112 §10）；不显示其被动列表、冷却、最终属性；施法那一刻在施法者身旁飘出该次技能的显示名，不含等级与冷却。观察 DTO 不携带私有修订或能力来源。 |
+| 可见检查 | 可见对手显示名称、等级、血量/蓝量、获准状态，以及 Q/W/E 三块技能小卡（键位与技能名，空槽写“空槽”，#112 §10；技能只有一级，#198）；不显示其属性点、图纸、冷却、最终属性；施法那一刻在施法者身旁飘出该次技能的显示名，不含等级与冷却。观察 DTO 不携带私有修订或能力来源。 |
 | 失视野与死亡镜头 | 失视野撤销目标并停止该追击订单，不转 LastSeen 移动、不保留单位标记。死亡可自由拖动镜头看静态地图与公共信息，无额外活体视野，不能跟随/观察隐藏玩家。 |
 | 结果 | 终局显示所有参赛者名称、击杀、死亡、最终等级，标出唯一赢家，另有原因/本局用时；统计不判胜。对局中按住 Tab 另有局内排行榜（§3.2）。Host 主动结束可无赢家。 |
 | 死亡与离局效果 | 留在局内的死亡取消未释放动作，已释放独立效果继续；正式离局/断线立即移除身体及未结束独立效果。关 UI 无权回滚已释放效果。 |
@@ -44,9 +44,9 @@
 | 组件 | 职责 |
 | --- | --- |
 | `ULDUIRoot`（`UI/LDUIRoot.*`） | 前端（主菜单/Start/连接/失败）、Lobby、局内菜单与确认、唯一主面板登记（`RegisterMainPanel/ShowMainPanel/ToggleMainPanel/CloseTopPanel`）、世界层（头顶标签与画面回馈）和文字缩放 |
-| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态与下一步提示、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列、底部带（本人身份与属性入口、资源、Q/W/E 与 D、待选提示）、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠属性/三选一面板并处理开局三选一自动打开 |
-| `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`NextStep`、`ChoiceCard`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
-| `ULDAttributesPanel`、`ULDChoicesPanel` | 属性 P、成长三选一（含满 Q/W/E 替换子确认）；命令经 `SubmitChoice` 带所见版本提交 |
+| `ULDHUD`（`UI/LDHUD.*`） | 局内 HUD：旗杆喷漆/守护状态与下一步提示、左下小地图上方的事件播报（`LDHUD::FEventFeed`）、死亡/保护、目标卡、左下角小地图列、底部带（本人身份与属性入口、资源、Q/W/E 与 D、待选提示）、结果；`NativePaint` 画射程圈、射程圈与方向预览；停靠属性/成长面板并处理成长面板的自动打开与收起 |
+| `LDHUD::*`（`UI/LDHUDModel.*`） | 纯格式化读模型：`ActionInput/Action -> FActionView`、`ObservedCard/ObservedUnit`、`Circle`、`TimelineBanner`、`RestReturnCountdown`、`TrainingResetText`、`NextStep`、`ActiveCard`、`StatRow`、`BuildGate`、`GrowthPending`、`FChoicesFold`、`AbilityName`、`ContentText` 等；只读本人投影、公共状态与当前观察帧 |
+| `ULDAttributesPanel`、`ULDChoicesPanel` | 属性 P；成长面板（当前主动候选、待学图纸、五维加点；休息中另有 NPC、洗点、替换与遗忘，#198）；命令经 `SubmitBuild` 带所见版本提交 |
 | `ULDMinimap`（`UI/LDMinimap.*`） | 地面、阻挡、地点、当前覆盖与可见单位；三种朝向共用 `MakeView/ToFrame/ToWorld`；拖图/右键移动 |
 | `ULDWorldLabels`、`ULDWorldFeedback` | 可见单位头顶条与本人头顶条；浮动数字、施法名、奖励、击败与升级回馈 |
 | `ULDControlSettings`、`ULDControlsPanel` | 本地设置（schema 20）的加载/保存/迁移与设置页（画面、音频、操作、镜头、界面五个分类页签，§3.3、§8） |
@@ -69,7 +69,7 @@ flowchart LR
     Connecting --> Failure["明确失败，返回编辑"]
     Failure --> Start
     Lobby --> Playing["对局 HUD"]
-    Playing --> Death["死亡等待；可选卡 / 自由静态镜头"]
+    Playing --> Death["死亡等待；可选技能、加点 / 自由静态镜头"]
     Death --> Playing
     Playing --> Result["权威唯一结果"]
     Death --> Result
@@ -86,12 +86,13 @@ DEV 测试会话另有第三个登记主面板“测试”（`ELDUIMainPanel::De
 文本输入期间世界输入照常被捕获。
 Choices 例外地停靠在开盲盒按钮右侧的同一行（§3.2 待选提示）；它与其他主面板同一时刻只显示其一，面板只占自身矩形的点击，打开时仍可正常移动、普攻和施法，
 对局不暂停，720p/1080p 下都不遮挡画面中央的本人及其周围约 5 m，也不压住底部 HUD 带。
-它仍会盖住一部分世界，所以平时收起，由“开盲盒+N”按钮开关（再点一次或按 Back 收起，面板没有“关闭”按钮）；
-这个按钮是除开局自动打开外的唯一入口，没有待选时置灰且不可点。没有可选的机会（待选 0 次且无在途请求）时面板自行关闭，
-最后一次结果改以提示条告知：
-开局自动打开后若玩家 6 s 内没有悬停/聚焦或点选卡片则自动收起；本人受击（生命下降或护盾被打穿）时，
-没有正在查看或已点选的卡片、替换子确认或在途请求的面板也自动收起；受击收起后玩家再次手动打开则尊重玩家，该次打开不再因受击收起。
-收起只隐藏面板，机会、Offer 与已提交请求保持原状。
+它仍会盖住一部分世界，所以平时收起，由“开盲盒”按钮开关（再点一次或按 Back 收起，面板没有“关闭”按钮）；
+这个按钮是除自动打开外的唯一入口，没有待办成长时置灰且不可点。没有待办成长（无排队的主动机会、无未分配点数、
+没有能学到空槽的图纸、没有暂存的加点）且无在途请求时面板自行关闭，最后一次结果改以提示条告知。
+只有本局的开局候选（第 1 次主动机会）在首次显示时让面板自动打开一次（APP_SPEC §4.2）；之后的候选与新增点数只点亮按钮的待办计数并轻微脉动，不打开面板，免得在交战中挡住画面。自动打开
+但不盖住玩家已打开的主面板或被占用的输入；自动打开后若玩家 6 s 内没有查看卡片（悬停、聚焦或预览）、暂存加点或提交请求则自动收起；
+本人受击（生命下降或护盾被打穿）时，没有正在查看的卡片、暂存的加点或在途请求的面板也自动收起；受击收起后玩家再次手动打开则尊重玩家，该次打开不再因受击收起。
+收起只隐藏面板，机会、候选、图纸、暂存的加点与已提交请求保持原状。
 同一时刻只开一个主面板，允许其一个子确认；切换先结束未提交本地编辑，
 不回滚已提交业务。HUD、死亡提示、旗杆状态/事件播报为独立覆盖，不把它们当可 Esc 删除的页面。
 终局替代 gameplay UI；没有世界背包、队伍、任务/存档/图鉴或多角色选择。
@@ -105,23 +106,28 @@ Choices 例外地停靠在开盲盒按钮右侧的同一行（§3.2 待选提示
 | Connecting | 当前端点、连接状态、取消；输入框仍可回看 | 同 attempt 禁双击新建；取消使该 attempt 失效。迟到成功清理对应旧连接，迟到失败不能把新世界退出。 |
 | 失败 | 名称/端口/地址格式、不可达/超时、RoomFull、MatchAlreadyStarted、产品/协议/内容不兼容、旅行/加载失败分别解释 | 保留本人编辑内容，允许修改后显式重试；不自动重连、不回落旧 profile、不显示空成功 Lobby。 |
 | Lobby | 全屏房间背景图 `T_LobbyBackground`（同样铺满裁切，只在 Lobby 阶段显示，盖住身后的 Demo 世界）；所有已连接真人与实际 AI 的名称、真人/AI、Host、准备；Host 调整 AI 数、全部真人 Ready 后 Start；本人 Ready、离开 | 所有人包括 Host 使用 Ready；AI 无真人准备按钮。结构改变按 RosterRevision 清 Ready；Ready 本身只改 PublicRevision。Start 等权威结果，不能本地切地图。 |
-| 自身 HUD | 底部带左块：头像（含等级角标）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、被动、临时状态；中块（位于屏幕中央、本人正下方）：上排 Q/W/E、D 冲刺（单独一组，显示冷却与定身受控），其下 HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）；
+| 自身 HUD | 底部带左块：头像（含等级角标）、名称、“属性 [P]”按钮（DEV 测试房间另有“测试”）、临时状态方格；中块（位于屏幕中央、本人正下方）：上排 Q/W/E、D 冲刺（单独一组，显示冷却与定身受控），其下 HP/MaxHP、MP/MaxMP、流量细条（悬停显示“等级 · 流量”数字）；
 整条底部带按 1080p 参考尺寸的 75% 绘制（#97，用户原话：“hp/mp/skill/item HUD and the panel to the left is too large, shrink them to about 75%”；
 “put hp/mp/exp bar below the skills/items in HUD”）；Q/W/E 三格之间可以拖放互换（用户原话：“support drag and drop skill and item to exchange slots”），
-只改本机的显示与热键路由（技能热键跟着技能走），像改键一样不发给服务器，每局开始恢复默认顺序；底部带没有右块，停止只用 S 键；左下角小地图上方只在视野异常时显示一行（#97 起不再常驻镜头状态行，用户原话：“remove the tutorial line above minimap”）；HUD 没有单独的设置按钮，设置从 Back 菜单进入；待选次数见待选提示；本人头顶另有名字、等级角标与生命/护盾/法力条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX，仍显示待选次数。选中别人不改变自身热键所有者。平常的“存活”、“被动：无”与正常视野计数不占行，异常（保护、同步中、过期、寄了）才显示。 |
-| 动作栏冷却与限制 | 冷却中整格遮罩按剩余比例自上而下收起，中央显示剩余秒数（10 s 以上取整秒，以下保留一位并向上取整，未到不显示 0）；冷却结束且确实可用时闪一下；格面只有热键字母、技能图标（真图标到位前为按类别着色的圆角方块加名称首字）、等级数字（Q/W/E）与法力消耗数字，不写名称与状态文字：就绪、准备态、冷却、法力不足（图标转蓝）、受控、不可用、空槽由外圈与图标颜色区分，悬停格子时在其正上方弹出与开盲盒卡同一画法的说明层（固定宽 300u，不挡点击）：名称（Q/W/E 带等级）、“类别 [热键] · 状态”、描述、目标方式与当前等级的效果行及法力与冷却；本人回执失败时被按下的格子外圈变红约 2 s，原因（如“目标不可用”）只在提示条上 | 限制只改变颜色，显式激活仍发送由服务器裁决。准备态与攻击移动不再显示“准备中：左键确认目标…”说明行，由格子外圈与世界里的射程/目标预览表示（2026-11-06 用户决定）。 |
-| 下一步提示 | 旗杆状态下方一行强调色文字，只给最有用的一步：有待选先开盲盒 → 旗杆开放时“下一步：旗杆开放了，冲！去中心喷漆”（本人独自喷漆时改为“稳住：你正在旗杆上喷漆”；旗杆上是本人涂鸦时为“守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）”；旗杆上是别人涂鸦时为“下一步：去围攻 X，或者去旗杆改漆”）→ 1 级时提示“去打附近的野怪涨流量（右键攻击）”；都不适用时不显示 | 只在发育期/开放期、同代次投影上计算；不新增按键。 |
-| 待选提示 | 底部带左块正上方、与底部带左缘对齐常驻“开盲盒+N”按钮，三选一面板在同一行、紧挨按钮右侧（#97，用户原话：“move the blind-box button to the left above the left panel and choice lists the same row with the button”；此前一版放在 Q/W 正上方），有待选次数时为金色可点，点击开关三选一（开盲盒）；N 为 0 时置灰且不可点；次数增加后轻微脉动约 6 s | 协调决定的方案 A：不新增按键，P 仍是属性页；只占提示自身矩形的点击。 |
+只改本机的显示与热键路由（技能热键跟着技能走），像改键一样不发给服务器，每局开始恢复默认顺序；底部带没有右块，停止只用 S 键；左下角小地图上方只在视野异常时显示一行（#97 起不再常驻镜头状态行，用户原话：“remove the tutorial line above minimap”）；HUD 没有单独的设置按钮，设置从 Back 菜单进入；待选次数见待选提示；本人头顶另有名字、等级角标与生命/护盾/法力条（不画技能就绪点，技能状态只看底部动作栏） | Unknown/同步中不填 0；满级显示 MAX，仍显示待选次数。选中别人不改变自身热键所有者。平常的“存活”与正常视野计数不占行，异常（保护、同步中、过期、寄了）才显示。 |
+| 动作栏冷却与限制 | 冷却中整格遮罩按剩余比例自上而下收起，中央显示剩余秒数（10 s 以上取整秒，以下保留一位并向上取整，未到不显示 0）；冷却结束且确实可用时闪一下；格面只有热键字母、技能图标（真图标到位前为按类别着色的圆角方块加名称首字）与法力消耗数字，不写名称与状态文字：就绪、准备态、冷却、法力不足（图标转蓝）、受控、不可用、空槽由外圈与图标颜色区分，悬停格子时在其正上方弹出与成长面板卡片同一画法的说明层（固定宽 300u，不挡点击）：名称、“类别 [热键] · 状态”、按本人当前等级与属性填数的规则句、目标方式及法力与冷却（D 冲刺写冲刺距离）；本人回执失败时被按下的格子外圈变红约 2 s，原因（如“目标不可用”）只在提示条上 | 限制只改变颜色，显式激活仍发送由服务器裁决。准备态与攻击移动不再显示“准备中：左键确认目标…”说明行，由格子外圈与世界里的射程/目标预览表示（2026-11-06 用户决定）。 |
+| 下一步提示 | 旗杆状态下方一行强调色文字，只给最有用的一步：先处理成长——有主动候选时“下一步：点开盲盒选一个技能（还有 N 次选技能）”，否则有未分配点数时“下一步：点开盲盒加点（未分配点数 N）”，否则有图纸且 Q/W/E 未满时“下一步：点开盲盒把图纸学到空槽” → 旗杆开放时“下一步：旗杆开放了，冲！去中心喷漆”（本人独自喷漆时改为“稳住：你正在旗杆上喷漆”；旗杆上是本人涂鸦时为“守住：旗杆上是你的涂鸦，别寄（寄了涂鸦就没了）”；旗杆上是别人涂鸦时为“下一步：去围攻 X，或者去旗杆改漆”）→ 1 级时提示“去打附近的野怪涨流量（右键攻击）”；都不适用时不显示 | 只在休息/发育期/开放期与同代次投影上计算，休息中只在配装与派奖步骤给成长这一步（#198）；不新增按键。 |
+| 时间线横幅（#198） | 旗杆行上方：休息中“休息 R{n} · <步骤> · 剩 X 秒”，配装步骤下一行写 PK 报名窗口（“PK 报名 X 秒后开放”/“PK 报名中 · 剩 X 秒”）、已报名人数与“你已报名/你没报名”，锁定后写“PK 跳过（报名不足 2 人）”或“PK N 人参赛”，锁定步骤另加“配装已锁定”；配装步骤的细节行同时写“报名圈在你休息位旁，截止时站在圈里才参赛”，休息位旁画出只有本人看得见的报名圈（开放前暗、开放中亮、已报名时金色），没有报名按钮（站圈报名，用户选择 A）；休息中横幅下方常驻“重置训练”按钮（本人与只有本人看得见的训练假人回满、冷却就绪），结果显示在旁边；目标卡与头顶标签把这个假人写作“训练假人”；野外“野外 n/3 · 下次休息 m:ss”，最终野外“最终野外 · 旗杆开放”。返回步骤在屏幕中央大字整秒倒数，每段野外开始时显示“开淫！” | 只读公开时间线与同局权威时刻；剩余时间向上取整、不提前显示 0；野外剩余按野外进度 T（休息与 PK 期间冻结）。报名由服务器按已提交脚点是否在报名圈内判定，客户端不发报名请求。 |
+| PK 面板与观战（#198 D） | 休息按钮下方，从公布赛制到派奖：标题“第 n 场 PK · 单挑/混战/2v2/3v3 · N 人”；每方一行选手名（开打后出局“（出局）”、离开本局“（离场）”、押注人数、“你在这方”/“你押了这方”）；PK 准备与 PK 中的整秒倒数和安全圈半径（含下一圈）；押注步骤给有竞猜资格的观众每方一个“押 X、Y”按钮，本人当前押注高亮，可改到步骤结束；PK 中给这些观众“投掷”按钮：按下后进入瞄准，左键点竞技场地面投出、右键或 Esc 取消，冷却时显示“投掷冷却 X 秒”；结算与派奖显示胜方/平局/本场无效与每人奖励行（参与/胜者/竞猜），本人一行高亮；押注与投掷的结果显示在面板里并进提示条。世界里画出当前安全圈、提前显示的下一圈和每次投掷的落点预警圈。观众与出局者在 PK 准备和 PK 中镜头对准竞技场中心（最远缩放），出局者只读 | 只读公开 `PublicMatch.PK`、时间线、房间名单与同局权威时刻；安全圈半径用本机已批准内容参数按同一纯规则计算，不复制成第二套状态。押注与投掷只发本人意图，由服务器裁决；每个拒绝都写明原因，不读作成功。瞄准期间那次点击不会变成移动、攻击或查看；面板被菜单遮住时取消瞄准。镜头只换中心，场内单位与视野由服务器授权。 |
+| 待选提示 | 底部带左块正上方、与底部带左缘对齐常驻“开盲盒”按钮，成长面板在同一行、紧挨按钮右侧（#97，用户原话：“move the blind-box button to the left above the left panel and choice lists the same row with the button”；此前一版放在 Q/W 正上方）。按钮文字带待办：排队的主动机会写“+N”，未分配点数写“ · M点”，两者都没有而有能学到空槽的图纸时写“ · 图纸 K”（如“开盲盒+1 · 3点”）；有待办时为金色可点，点击开关成长面板；没有待办时置灰且不可点，休息的配装窗口里例外，显示“开盲盒 · 休息服务”并可点（#198）；主动机会或未分配点数增加后轻微脉动约 6 s | 协调决定的方案 A：不新增按键，P 仍是属性页；只占提示自身矩形的点击。 |
+| 休息服务（#198） | 开盲盒面板在休息中多一节“休息服务”：“NPC：花 N 点抽 3 个主动”（N 为内容参数 `NpcActivePoints`）、“洗点”（只退已分配的属性点）、每个已学槽“遗忘 Q/W/E：名称”，图纸行在已占用槽上多“替换 Q/W/E”；替换与遗忘先出确认行，写明会被遗忘的技能（不退还），确认才发送；“补缺（N 点）”（N 为 `FillGapPoints`）展开从未启用、完全没有兼容入口的改装件/连接件（`LDProgression::GapTargets`），选中目标再列能补上入口的未持有普通基础构件（`GapFillers`），选定后出确认行“花 N 点：为 X 补 Y”；“拆解（K 换 1）”（K 为 `DismantleInputCount`）展开全部已持有的普通构件（已启用的标明交出后装在它上面的构件退回背包），选满 K 件出确认行，写明会删除的构件与因此退回背包的安装；回执写明付出点数、返还点数、替换或遗忘了谁、补到或换到的构件、拆掉与退回背包的构件 | 只在休息的配装与派奖步骤可用，其余步骤置灰并写原因（如“配装已锁定”）；未分配点数不足、仍有待选技能、没有已分配点数、没有缺口、普通构件不足 K 件或已无可换的普通构件时本地置灰并写原因，服务器仍裁决每条命令（拆解结果在支付时由服务器随机固定）。确认行不捕获输入，Back 或关闭面板撤销，槽位、图纸或构件变化时自动撤销。 |
+| 精英营地二选一与野外奖励（#198 G） | 有待选的精英营地奖励时，开盲盒面板按先后每组一行“精英营地奖励：二选一”（只剩一个已知材料时如实写“只剩这一个”，只出一张卡），卡片同开局基础构件卡；点卡即拿该构件（已持有的卡置灰写“已持有”）；所有选项都已持有时出“都已持有，改领 N 点”（N 为 `EmptyComponentPoolPoints`）。待选二选一计入开盲盒按钮的构件数并点亮按钮，但不自动打开面板。天降外卖、画饼老板、高档/精英营地标记的奖励到账时提示条各提示一次，如“天降外卖：+200 流量，获得图纸「X」”“画饼老板：获得稀缺构件「Y」”“精英营地标记：普通构件二选一已就绪，打开开盲盒选择”“高档营地标记：图纸池已空，奖励保留，之后有能给的技能时补发” | 二选一与选主动同一准入（野外或休息、存活或阵亡；锁定步骤置灰）。提示只读本人成长视图的 `FieldRewards`，每局第一份视图只建基线，重连不补报旧奖励。 |
 | 射程与目标预览 | 平时本人脚下一圈淡白普攻射程（随射程成长变化）；武装单位技能或攻击移动时射程圈变强调色，指针下有可见单位时射程圈按脚点距离在射程内变绿、否则变红（单位身上不画框）；方向技能画朝光标、长度为射程的指示线 | 只是预览，命中由服务器裁决；目标只取当前授权帧中与点击相同的选取。 |
 | 道具淡化 | 带 `LDFadeable` 标签的道具（目前只有旗杆）挡在镜头与本人或当前呈现的可见单位之间、或穿过站在其中/紧贴它的身体时淡化到完全消失，淡化期间不投影；只影响显示 | 只按已授权呈现的单位判断，不因隐藏单位而淡化。 |
-| 画面回馈 | 可见施法者施法那一刻在其身旁飘出技能名（如“扒裤子！”，不含等级/冷却，用户批准的 CB-P10 例外）；可见单位受到伤害/治疗、本人受伤/治疗/护盾变化的浮动数字；本人获得奖励时角色旁的“+N 流量”；本人淫了对手时的“淫了 某某！”；升级时“涨粉了！LvN”横幅与本人脚下光环、光柱 | 只来自本人投影、公开击杀通知与当前观察帧的白名单；首样本、换局、换命只重设基线，不补发；他人数字等该样本的延迟画面呈现后再出现。 |
+| 画面回馈 | 可见施法者施法那一刻在其身旁飘出技能名（如“扒裤子！”，不含等级/冷却，用户批准的 CB-P10 例外）；可见单位受到伤害/治疗、本人受伤/治疗/护盾变化的浮动数字；本人获得奖励时角色旁的“+N 流量”；本人淫了对手时的“淫了 某某！”；升级时“涨粉了！LvN”横幅（第二行写这次得到的属性点与选技能机会，如“获得 3 属性点 · 一次选技能机会”）与本人脚下光环、光柱 | 只来自本人投影、公开击杀通知与当前观察帧的白名单；首样本、换局、换命只重设基线，不补发；他人数字等该样本的延迟画面呈现后再出现。 |
 | 可见目标卡 | 名称/等级、适用的精确血蓝、获准状态；选中单位只以脚下不转动的浅色密点线圈标出，不画 HUD 方框 | 只在当前观察授权有效时存在；失视野、stale、换 epoch 清全部，不留灰色历史卡/点。NPC 不适用字段与玩家空槽区分。 |
-| 旗杆喷漆与守护 | `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)`：发育期/剩余开放时间；开放后旗杆无主且无人时“旗杆空着，没人敢上？”；独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺时有暂停的喷漆者显示“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（精确到 0.1 s），无持有者时“旗杆底下打成一锅粥 · 谁也没存下进度”；有涂鸦时追加（或单独显示）“旗杆上是 X 的涂鸦 · 再守 <秒>s”，主人以外有人在喷漆区内（Solo 或 Contested）时为“旗杆上是 X 的涂鸦 · 有人进圈，守护冻结（再守 <秒>s）”，喷漆区内没人（Empty，主人不在圈内）时为“旗杆上是 X 的涂鸦 · 守擂者不在圈内，守护暂停（再守 <秒>s）”（2026-11-07 用户决定），两部分以“ · ”连接。进度条：独自喷漆显示喷漆进度，争夺显示暂存的喷漆进度，其余显示守护进度 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放、喷上涂鸦或胜利。 |
-| 事件播报 | 屏幕左下、紧贴小地图列上方的列表，最新一条在最下（贴着小地图）、旧的向上推，每条显示 5 s（最后 0.5 s 淡出），同时最多 6 条，再多时最旧的一条提前离开；目标卡固定在播报预留区下方。播报内容：击杀（去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者，“X 把 Y 淫了（助攻：A、B）”，可理解死因）、旗杆开放、天降外卖落地与被抢（本人抢到时“你抢到了天降外卖！”，其他人只知道被抢走）、画饼老板出现与被击败（击败者）、新的上热搜对象、旗杆上新喷上的涂鸦、同一主人被冻结的守护归零（“守擂者离圈，守护清零”）；本人相关的行写“你”并高亮 | 只读公开对局视图、公开击杀通知、公开名单与本人的外卖领取序号；开局或中途进入的第一帧只记录现状，不补播已发生的事；已过 6 s 的击杀通知不补播。普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、技能等级或伤害日志。旗杆下方的外卖/老板常驻行只保留倒计时、落地与巡逻，被抢与被击败只进播报。 |
+| 旗杆喷漆与守护 | `LDHUD::Circle(Public, SprayerName, OwnerName, bClock, NowMs, SprayMs, GuardMs)`：发育期“猥琐发育中，别浪 · 旗杆在最后一次休息（R3）后开放”（#198：开放时刻在最终野外开始时才排定，此前不打印倒计时）；开放后旗杆无主且无人时“旗杆空着，没人敢上？”；独自喷漆“X 正在旗杆上喷漆 · 剩 <秒>s”；争夺时有暂停的喷漆者显示“旗杆底下打成一锅粥 · X 的喷漆进度先存着 <已存>/<所需> s”（精确到 0.1 s），无持有者时“旗杆底下打成一锅粥 · 谁也没存下进度”；有涂鸦时追加（或单独显示）“旗杆上是 X 的涂鸦 · 再守 <秒>s”，主人以外有人在喷漆区内（Solo 或 Contested）时为“旗杆上是 X 的涂鸦 · 有人进圈，守护冻结（再守 <秒>s）”，喷漆区内没人（Empty，主人不在圈内）时为“旗杆上是 X 的涂鸦 · 守擂者不在圈内，守护暂停（再守 <秒>s）”（2026-11-07 用户决定），两部分以“ · ”连接。进度条：独自喷漆显示喷漆进度，争夺显示暂存的喷漆进度，其余显示守护进度 | 公开状态不授予观察句柄/坐标；到零等待权威状态，不自动宣布开放、喷上涂鸦或胜利。 |
+| 事件播报 | 屏幕左下、紧贴小地图列上方的列表，最新一条在最下（贴着小地图）、旧的向上推，每条显示 5 s（最后 0.5 s 淡出），同时最多 6 条，再多时最旧的一条提前离开；目标卡固定在播报预留区下方。播报内容：击杀（去重事件中的击杀者或明确无参赛者击杀者、被击杀参赛者、助攻者，“X 把 Y 淫了（助攻：A、B）”，可理解死因）、旗杆开放、天降外卖落地与被抢（本人抢到时“你抢到了天降外卖！经验和一份构筑奖励到手”，其他人只知道被抢走）与无人领取消失、画饼老板出现、被击败（击败者）与无人打倒退场、营地标记公开（高档/精英各一行）、被领走（本人领到时改写为“你领到了…”）与失效、新的上热搜对象、旗杆上新喷上的涂鸦、同一主人被冻结的守护归零（“守擂者离圈，守护清零”）；本人相关的行写“你”并高亮 | 只读公开对局视图、公开击杀通知、公开名单与本人的外卖领取序号和野外奖励记录；开局或中途进入的第一帧只记录现状，不补播已发生的事；已过 6 s 的击杀通知不补播。普通打野不全场广播；不由 Actor 消失生成击杀，不附隐藏坐标、构筑或伤害日志。旗杆下方的外卖/老板/营地标记常驻行只保留倒计时（外卖落地后到消失、老板巡逻到离场、标记到段末）、落地与巡逻，被抢、被击败、退场与标记被领走只进播报。 |
 | 排行榜 Tab | 按住“排行榜”键（默认 Tab，可改绑）时屏幕中央显示本局每名参赛者的名字与击杀/死亡/助攻，击杀多的在前、相同时死亡少的在前，再相同按名单顺序；本人行写“（你）”并高亮，AI 写“（AI）”，已不在房间名单里的写“（已离开）”；松开即收起，不接收点击 | 只读 `KillFeed.Scores`（服务器按名单顺序发布、仅随死亡变化）与房间名单；别的对局代次的数据不显示，没有数据时显示“统计同步中…”而不是零表。文字编辑或子确认占用输入时不显示。 |
-| 属性 P | 本人所有 Spec 属性；基础、等级成长、永久选择、被动/临时贡献及最终值；相关单位/公式说明 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
-| Choices | 同一持久 Offer 的三张不同合法卡、待选次数；卡片等高紧凑，只显示图标、名称（属性卡名称按品质着色）和最短的第二行（类型加档位：“主动 · 新”、“被动 · 初→高”、“属性 · 已选 N 次”），悬停或聚焦时在该卡正上方弹出详情：“类别 · 档位”、按当前等级填数的规则主句（关键词加粗，升级卡变化的数显示“A → B”）、“高级：”行、主动的目标与法力/冷却行及每个加粗关键词的解释；“免费重抽 · 剩 N 次”按钮（无令牌或本组已重抽时不可用）；满槽新主动卡的详情写明需替换且新技能从初级开始；点卡片即提交该卡（没有单独的确认按钮），满槽新主动卡点击后进入替换子确认；开局 Offer 为真人自动打开一次（玩家已开自己的面板或输入被占用时不打开），6 s 内未查看或点选卡片则自动收起为待选提示；本人受击时未在操作的面板自动收起；可暂时关闭 | 不自动选择、计时逼选、自动重抽或消费机会；只有玩家点卡才提交，悬停/聚焦只看详情；在途请求期间再点卡不提交第二次。重抽只在玩家点按钮后提交，结果以权威回执与新 Offer 为准。stale 刷新同卡的保护版本后由玩家再次点卡；死亡可用当前阶段提交。 |
-| 主动替换 | 点满 Q/W/E 时的学新主动卡后，HUD 上有技能的 Q/W/E 三格外圈变红，提示条显示“选择要替换的技能”，所选卡的详情写替换后新技能从初级开始；点一个红圈格即遗忘该槽并提交，没有再次确认；也可改点另一张卡（#97，用户原话：“click new skill->old skills in slots glows red on edge indicating replacement->toast prompts something like "choose skill to replace"->click one old skill and replacement is done with no confirmation, or choose another new skill”） | 不默认替换第一个槽；Back 取消，无消耗。等待选槽期间世界指令与技能热键不暂停。旧技能/等级/BuildRevision 变化撤销确认，不悄悄替换另一个技能。 |
+| 属性 P | 本人所有 Spec 属性：最终值，以及基础、等级、属性点、百分比、临时（DEV 测试房间另有测试层）各项来源；相关单位/公式说明；“属性点”分区列五维各自已分配的点数与每点收益及未分配点数；“临时状态”分区 | 原生投影一次计算，UI 只格式化。普通 owner HP 更新不重置滚动/焦点，也不取消无关 Armed。 |
+| Choices（成长面板） | 三段，各段没有内容时收起。选技能段：标题“选一个技能”，有排队机会时加“ · 还有 N 次选技能”；当前候选的一到三张卡横排，卡面是图标、名称、“目标形式 · 法力/冷却”、按本人当前等级与属性填数的规则句（关键词加粗）和一行动作说明：能学时“学这个 → Q”（最低的空槽），不能学时“学这个（先存为图纸：未脱战 N 秒 / Q/W/E 已满 / 阵亡中）”，现在不能选时写原因；悬停、聚焦或预览某卡时在其正上方弹出详情（名称、目标 · 费用、规则句及每个加粗关键词的解释，不接收点击）；机会还在而没有合格主动时只写“暂时没有能抽的新技能，机会先留着”。图纸段与加点段见下两行。底部只在有结果或拒绝原因时显示一行：“已学到 Q：名称”、“已存为图纸：名称（原因）”、“已加 N 点，还剩 M 点”或“没有生效：原因”。自动打开与收起见 §3.1；可暂时关闭 | 不自动选择、学习或加点，不计时逼选，没有重抽；只有玩家点卡（“学这个”：带 `bLearnIfPossible` 的 ActiveChoice，由服务器决定学到空槽还是存为图纸）、点“学到 Q/W/E”或点“确认加点”才提交，悬停/聚焦只看详情；在途请求期间卡片、学到与确认按钮不可用，再点也不提交第二次。回执与新投影到达前不改本地显示；stale 时按新投影重画，由玩家再次操作；死亡可用当前阶段选技能（存为图纸）与加点。 |
+| 待学图纸 | 段标题“图纸（选中的技能，学到空槽才能用）”；每份图纸一行：名称、“目标形式 · 法力/冷却”（悬停整行看规则句），每个空的 Q/W/E 一个“学到 Q/W/E”按钮；不能学时按钮置灰并在行尾写原因（“未脱战 N 秒”、“阵亡中”），Q/W/E 都满时没有学到按钮，只写“休息时才能替换” | 只学到空槽，不能替换或遗忘已学主动（满槽替换只在休息时进行，#198 后续部分）。时机与学习相同：开局倒计时内，或存活且在构筑安全窗内。 |
+| 加点 | 段标题“未分配点数 N”（已扣去本地暂存）；五维各一行：名称、每点收益、已分配点数（有暂存时写“K 点 +S”）与 −/+；一个“确认加点”按钮，不能加点时在旁边写原因 | −/+ 只改本地暂存，暂存总数不超过未分配点数；“确认加点”一次发送 AllocatePoints（按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数），回执生效后清空暂存。已分配的点不能撤回（洗点只在休息时）。时机：开局倒计时内、死亡等待中，或存活且在构筑安全窗内。 |
 | 死亡/保护 | 死因（取本人这一命被确认存活之后的公开击杀通知，未到前不显示）、“你寄了 · 回出租屋 emo <秒>”复活等待、一行小字“等级和构筑都还在，别慌”与待选入口；复活保护图标/期限与“一出手就没了，失手也没了” | 死亡可开属性/Choices/Settings、自由静态镜头；不得战斗。复活由 Life 决定，接回本人新身体，按已保存偏好恢复镜头。 |
 | 局内 Settings | 画面、音频、操作、镜头、界面五个分类页签；各页恢复本页默认，画面页应用/撤销；继续、离开在局内菜单；Host 另有结束本局 | 常驻“对局不会暂停”。离开说明不能重连；Host 离开说明整个房间结束。结束本局与离开房间是不同确认。 |
 | Result | 全员名称/Kills/Deaths/Assists/FinalLevel（列名：淫了几个 · 寄了几次 · 助攻 · 最终等级），赢家标记、原因、用时；Host 回 Lobby；每人可离开 | 按冻结 roster 顺序，不按击杀产生排名/第二胜者。HostEnd 无赢家。Host 失联且未收合法结果只显示会话中断，不编造全零表。 |
@@ -153,7 +159,7 @@ Lobby
 ```
 
 ```text
-对局 HUD（世界中央保持可见；小地图固定左下、事件播报在其正上方，目标卡左上，开盲盒面板在中块 Q/W/E 上方；统一圆角面板与扁平按钮）
+对局 HUD（世界中央保持可见；小地图固定左下、事件播报在其正上方，目标卡左上，开盲盒按钮与成长面板在底部带左块上方同一行；统一圆角面板与扁平按钮）
 ┌────────────────────────────────────────────────────────────────┐
 │ [当前可见目标卡]           [旗杆 / 喷漆者 / 涂鸦主人 / 进度]         │
 │                                                                │
@@ -163,31 +169,32 @@ Lobby
 │                                                                │
 │ [事件播报，最新在下，5 s]                                       │
 │        [提示条（屏幕居中，固定换行宽度，半透明底，叠在中央块上方）]│
-│              [开盲盒+N] [开盲盒三卡一排]                          │
+│              [开盲盒+N · M点] [成长面板]                         │
 │ [视野异常]   [头像+等级][名称][属性 P] [Q][W][E] [D]              │
-│ [小地图]     [状态/被动]   [生命·护盾] [法力] [流量细条]          │
+│ [小地图]     [状态]        [生命·护盾] [法力] [流量细条]          │
 │ （左下角）                                                      │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ```text
-Choices（#97 起三卡横排，与开盲盒按钮同一行、在其右侧，按 80% 绘制；下图只示内容）
-┌──────────────────────────────────────────────┐
-│ [卡 A] [卡 B] [卡 C] [↻ 免费重抽 / 剩 N 次]   │
-│ <结果或拒绝原因（有才显示）>                  │
-└──────────────────────────────────────────────┘
-点卡即提交，没有“确认本次选择”按钮。悬停或聚焦某卡时，该卡正上方弹出详情
-（名称、类别·档位、按当前等级填数的主句与“高级：”行、目标与法力/冷却行、关键词解释；不接收点击）。图标按 IconId 显示雾港图标集（#85），
-各类卡图标同形，不再用形状区分类别；纹理缺失时显示名称首字并记录 `LD_UI_ICON_MISSING`。
-卡面第二行只写最短的一项（#97，用户原话：“shorten the description line on the card, its overflowing the card, don't say “需替换"etc. let the UI do the job. level upgrade just "1->2"”）：
-新技能“新”、升级“初→高”（两档技能，#147）、属性“已选 N 次”，前面写卡的类型“主动 · ”“被动 · ”“属性 · ”（开局方向卡写“开局”）；
-属性卡卡面不写品质名，品质只用名称颜色（绿/蓝/紫/金）表示，详情的“属性卡 · 品质 · 已选 N 次”仍写出品质名（#85，用户原话：“the placeholders used to have shapes to distinguish card types (active/passive/attribute), now just put these types onto card face. remove color text for attributes ranks from card face and just put corresponding colors onto attribute names instead.”）。
-需替换由 HUD 的红圈表示，“类别 · 等级”只在详情里写。
+Choices 成长面板（与开盲盒按钮同一行、在其右侧，按 80% 绘制；没有内容的段收起；下图只示内容）
+┌──────────────────────────────────────────────────────────┐
+│ 选一个技能 · 还有 N 次选技能                               │
+│ [卡 A]  [卡 B]  [卡 C]                                     │
+│ 图纸（选中的技能，学到空槽才能用）                         │
+│ <名称 / 目标 · 费用>          [学到 Q] [学到 W]  <原因>    │
+│ 未分配点数 N                                               │
+│ <属性名> <每点收益>            <K 点 +S>   [−] [+]  ×5     │
+│ [确认加点] <不能加点的原因>                                │
+│ <结果或拒绝原因（有才显示）>                               │
+└──────────────────────────────────────────────────────────┘
+卡面：图标、名称、“目标形式 · 法力/冷却”、按当前等级与属性填数的规则句（#147，用户 2026-11-07：整句写在卡上、关键词加粗）
+和一行动作说明（“学这个 → Q”或“学这个（先存为图纸：原因）”）。点卡即提交“学这个”，没有单独的确认按钮。
+悬停或聚焦某卡时，该卡正上方弹出详情（名称、目标 · 费用、规则句与关键词解释；不接收点击）。
+图标按 IconId 显示雾港图标集（#85）；纹理缺失时显示名称首字并记录 `LD_UI_ICON_MISSING`。
 开盲盒面板按 80% 绘制（用户原话：“shrink the choice list and shop panel size to 80%”）。
-开盲盒面板不写常驻说明（#97，用户原话：“remove the line "开盲盒待选N次" and put refresh choices as a fourth card. remove the bottom line unnecessary explanation too.”）：
-没有标题行，待选次数只在开盲盒按钮上，免费重抽是第四张同形卡；底部只在有结果或拒绝原因时显示一行，提交中、受理中不显示。
-满 Q/W/E 时点学新主动卡：HUD 的 Q/W/E 格外圈变红、提示条“选择要替换的技能”，所选卡的详情写替换后的等级规则；
-点红圈格即遗忘该槽并提交，改点另一张卡重新开始，Back 取消。
+底部只在有结果或拒绝原因时显示一行，提交中、受理中不显示。
+Q/W/E 已满时选中的主动存为图纸，图纸行写“休息时才能替换”；当前没有替换或遗忘入口。
 ```
 
 ```text
@@ -238,7 +245,7 @@ Result
 └──────────────────────────────────────────────────────────────┘
 ```
 
-死亡横幅放在旗杆提示下方，复活倒计时与小字“等级和构筑都还在，别慌”分开；死亡时开盲盒面板标注“寄了也能开，只更新构筑”；不弹遮满地图的死亡模态。
+死亡横幅放在旗杆提示下方，复活倒计时与小字“等级和构筑都还在，别慌”分开；死亡时开盲盒面板照常可开：选技能会存为图纸（卡上写“先存为图纸：阵亡中”），可以加点，图纸的学到按钮置灰并写“阵亡中”；不弹遮满地图的死亡模态。
 关键状态用文字+形状/图标+颜色，焦点有可见轮廓，不仅靠红绿或声音。长名称省略时能看完整文本，
 但 tooltip 仍受同一授权和失效边界约束。角色被动与临时状态分区，列表可展开/滚动，
 **UI 行数不是被动数量上限**。
@@ -300,8 +307,8 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | `ULDUIRoot::CloseTopPanel() -> bool`、`ShowMainPanel/ToggleMainPanel(ELDUIMainPanel)`；面板的 `ULDPanel::HasChildConfirmation/CloseChildConfirmation` | `ELDUIMainPanel` 仅本地导航枚举；唯一主面板/子确认/焦点状态，Controller 消费输入层。进入子确认先撤冲突 Armed 并保持释放抑制，Back 不越过模态，不反向创造第二栈。`ShowMainPanel` 用于权威事件打开，不顶掉玩家已开的菜单或设置。 |
 | `ULDUIRoot::TickFrontend/TickWorld` | 从已接受的投影更新前端与局内层；离局/换代只清本地呈现，不写领域数据。 |
 | `ULDHUD::RefreshReadModel()`、`LDHUD::Action(...) -> FActionView`、`LDHUD::AttributeRow(const FLDCombatAttributeRowView&) -> FAttributeRowView` | 纯本人/公共格式化；Action 消费 Combat 的本人 `CombatView` 条目与同步权威时刻，输出意图可提交性和执行限制，不查询敌 Actor 或重算派生公式。 |
-| `ULDChoicesPanel::Present(...) / ChooseCard(int32) / PreviewChoice(int32) / ChooseReplacement(uint8) / ConfirmChoice() / Reroll()` | `ChooseCard` 是点卡（直接提交或进入替换子确认），`PreviewChoice` 只显示详情弹层，`ChooseReplacement` 是点 Q/W/E 槽（直接提交替换）；行/卡 index 只选择屏幕中的不可变内容；最后发送稳定 OptionId、明确旧技能/槽及版本，不把数组位置当业务身份。 |
-| `ALDPlayerController::SubmitChoice(const FLDChoiceCommand&)` | 经本人拥有连接转发 `ServerChoice`；服务端调用所属域 Queue 方法。query receipt 同样沿原领域键，不建通用万能 RPC。 |
+| `ULDChoicesPanel::Present(...) / ChooseOffer(int32) / PreviewOffer(int32) / LearnBlueprint(int32,uint8) / StagePoint(int32,int32) / ConfirmPoints()` | `ChooseOffer` 是点卡（“学这个”），`PreviewOffer` 只显示详情弹层，`LearnBlueprint` 是图纸行的“学到 Q/W/E”，`StagePoint` 只改本地暂存，`ConfirmPoints` 发送暂存的加点；卡/行 index 只选择屏幕中的不可变内容；最后发送稳定 OfferId/Revision、定义 ID、槽位或按五维设计顺序（体格、脸皮、力道、脑力、身手）的点数及 `ExpectedBuildRevision`/CatalogDigest，不把数组位置当业务身份。 |
+| `ALDPlayerController::SubmitBuild(const FLDBuildCommand&, ELDGrowthReason&)`、`QueryGrowthReceipt(const FLDReceiptQuery&)` | 经本人拥有连接转发 `ServerGrowthBuild`/`ServerQueryGrowthReceipt`；服务端调用 `ALDDevelopmentDirector::QueueBuild`/`QueryBuildReceipt`。query receipt 同样沿原领域键，不建通用万能 RPC。 |
 | `ALDWorldViewRelay::ReadObservedFrame() const` | 返回世界域唯一只读 `FLDWorldView` 与本地 `ViewStatus`，不接受 ObserverId；目标卡/Minimap/世界输入共享它。 |
 
 服务端 `SyncOwner` 才能按真实 caller 调
@@ -322,10 +329,10 @@ PanUp/Down/Left/Right, Recenter, Follow, Zoom, Back`。
 | 最终 `FLDResultView` / GameMode 一次锁定 | `Generation, ResultId, ResultSerial, Reason, OptionalWinner, StartedAtMs, EndedAtMs, DurationMs, Rows`；每个 `FLDResultRow` 为 `ContenderId,Name,uint64 Kills,uint64 Deaths,uint8 FinalLevel,uint64 Assists` | 只在终局公开统计，LedgerMatch 不发公共 DTO；按锁定 roster 顺序保留离局者，离开不算死亡。K/D/A 从同一 DeathKey 恰一次派生，Growth 仅供 FinalLevel；用时不能由 OpenAtMs 猜，缺合法结果不填零。 |
 | 参赛者死亡公共事件 / Combat 致死事实经生命周期域裁剪 | Generation、事件 ID/序号、公开 killer/victim、已批准死因类别 | 可以明确无参赛者击杀者；仅死亡对象为参赛者时进全场通知。无隐藏位置、私有伤害/来源、实时地图 ping；事件去重不由 UI 生成奖励或最终统计。 |
 | 本人生命 / Life → `FLDOwnerState` | `ContenderId, BodyRef/Life, LifeState, LifeRevision, RespawnAtMs, ProtectedUntilMs` | 比较 match/life/生命阶段，不靠 Pawn 地址；死亡持续时间和保护只显示，不触发复活或解除。 |
-| 本人 Combat 资源/属性 | `Resources{HP,MaxHP,MP,MaxMP,Shield}` 为 int64 P2；`FLDAttributeBreakdown{AttributeId,Unit,Base,LevelGrowth,PermanentChoice,PassiveContribution,TemporaryContribution,PercentContribution,Final,FormulaId,ClampApplied}` | 本人精确数值和来源分解；P2 为百分之一点，不把编码值直接当点数。UI 不执行第二次百分比/上限投影。 |
-| 本人 `FLDCombatBindingView` / Combat 与来源绑定投影 | Q/W/E 与 D；`InputSlot, SourceRef, Rank, IssuedCooldownId, ReadyAtMs, AvailabilityFlags, SourceBindingRevision`；`NextAttackAtMs, CurrentActionId/Phase/ActionRevision` | 每个来源读自己的冷却轨。移除来源清图标/Armed，不清服务器冷却债。 |
+| 本人 Combat 资源/属性 | `Resources{HP,MaxHP,MP,MaxMP,Shield}` 为 int64 P2；属性行 `FLDCombatAttributeRowView{Attribute,Base,Level,Choices,PercentBonus,Dev,DevPercent,Temporary,TemporaryPercent,Final,bClamped}`（`Choices` 是五维属性点的固定项）；构筑安全窗 `BuildSafeAtMs`（绝对权威毫秒，不晚于当前即安全） | 本人精确数值和来源分解；P2 为百分之一点，不把编码值直接当点数。UI 不执行第二次百分比/上限投影；安全窗只用于显示“未脱战 N 秒”，学习与加点仍由服务器提交时重判。 |
+| 本人 `FLDCombatBindingView` / Combat 与来源绑定投影 | Q/W/E 与 D；`InputSlot, SourceRef, IssuedCooldownId, ReadyAtMs, AvailabilityFlags, SourceBindingRevision`；`NextAttackAtMs, CurrentActionId/Phase/ActionRevision` | 每个来源读自己的冷却轨。移除来源清图标/Armed，不清服务器冷却债。 |
 | 本人状态 / Combat | `StatusFamily, ExpiresAtMs, ControlBlocks, IsPassive, OwnSourceCount/OwnSourceRefs, AppliedEffectReason` | `ControlBlocks` 明确 Move/Basic/Cast/Displacement，按内容实际限制显示，不从状态名称猜规则。敌方施加状态不附隐藏 caster 私有构筑/坐标。 |
-| `FLDProgressionView` / Development → owner | 当前 Life/选择阶段保护、`Level, CumulativeXP, BuildRevision, PendingChoiceCount`；单一 `OfferId/OfferRevision` 及恰三项 `OptionId/Definition/确切内容/Rank` | 关窗/死亡引起 BuildRevision 变化不改三卡身份正文；只更新确认保护。等级十显示 MAX，不制造十一级阈值。 |
+| `FLDProgressionView` / Development → owner | 当前 Life/LifePhase、`Level, MaxLevel, CumulativeXP, LevelThresholdXP, NextThresholdXP, ProgressionRevision, BuildRevision, UnspentPoints, StatPoints, Actives, PendingBlueprints, QueuedActiveOpportunities`；单一 `ActiveOffer{OfferId, OpportunityOrdinal, OfferRevision, Options}`（一到三个不同主动 ID）；`BuildSafeAtMs` 副本与 CatalogDigest | 关窗/死亡引起 BuildRevision 变化不改当前候选；只更新确认保护。满级（`XP.MaxLevel`）显示 MAX，不制造更高等级阈值；之后的流量只继续给属性点。 |
 | 静态世界 / 世界定义 | MapId/WorldRevision 的坐标变换、地形、固定营地档位/旗杆位置 | 不持续公布隐藏营地存量、刷新时间、隐藏身体状态；地图平移不增视野。 |
 | 本地设置 / `ULDControlSettings` 与 `UGameUserSettings` | §8 的白名单；控制标签只读同一注册表 | 不复制网络，不保存 match/life/成长/候选/CD/结果。 |
 
@@ -348,12 +355,12 @@ Envelope 为 `Schema/MatchGeneration/ObserverLife/Generation/Revision`、
 | `PublicIdentity` | ContenderId → 公共 roster 名称，或 CreatureDefinitionId → 公共目录名称；不能据此反查 authority Actor。 |
 | `Level` | 参赛者 1..16；无等级模型为显式 NotApplicable，不补 1/0。 |
 | `Resources.Health/Mana` | 各自 `Applicability, int64 CurrentP2, MaxP2`，直接沿 Combat 编码，显示精确血蓝与条；无蓝量模型不画假的 0/0 蓝条。 |
-| 有界 `Statuses` | 仅公开临时 StatusDefinitionId/cue、适用堆叠/计时毫秒；无内部 CD、施加者私有来源、技能等级或完整 Control 账本。永久学习被动不能借“状态”列泄露。 |
-| `FLDObservedActivesView` | Q/W/E 三槽的主动定义与等级；非空槽的定义不得重复，不公开冷却或被动。 |
+| 有界 `Statuses` | 仅公开临时 StatusDefinitionId/cue、适用堆叠/计时毫秒；无内部 CD、施加者私有来源或完整 Control 账本。永久构筑不能借“状态”列泄露。 |
+| `FLDObservedActivesView` | Q/W/E 三槽的主动定义（`Abilities[3]`，0 为空槽；技能只有一级，#198）；非空槽的定义不得重复，不公开冷却、法力或其他字段。 |
 
 可见时上述适用字段完整；丢字段不能从本人/对手完整 OwnerState 补，未知目录是显式协议/内容错误。
 生产者在序列化前重查观察 epoch，不能只靠客户端最后一刻隐藏本已越权下发的状态。
-当前可见时只公开对手 Q/W/E 主动的定义和等级；始终禁止对手被动列表、冷却、最终属性、XP、候选及本人专用 source refs。Cast 提示另可携带该次技能显示名。
+当前可见时只公开对手 Q/W/E 主动的定义；始终禁止对手属性点、图纸、冷却、最终属性、XP、候选及本人专用 source refs。Cast 提示另可携带该次技能显示名。
 野怪的反击、回位/受控提示及到家后的血蓝，只显示当前获准的动作/状态/资源投影；
 不因看似到家就由 UI 补满血蓝、复活同组死者、生成奖励或添加技能 CD/隐藏刷新计时。
 
@@ -392,17 +399,17 @@ Host 原生非本人身体及附件**从创建起默认不向本机曝光**，�
 | Host/Join/Cancel / GameInstance 会话入口 | 本人名称、有效端点与 ConnectionAttemptSerial/WorldContext；创建和准入归会话域 | 即刻进入 Connecting；取消只处理对应 attempt。新的连接不继承旧 callback；网络失败不能假装房间成功。 |
 | `ServerSetReady / SetAICount / StartMatch` | `SessionCommandKey{Generation,RequestSequence}`；`ExpectedRosterRevision`，Ready/Count；caller 从拥有连接解析，Host 权限由 GameMode 验证 | 单连接会话命令单在途。`FLDSessionReceipt` 的 Pending/Committed/Rejected、拒绝码、CurrentPhase/RosterRevision 驱动页面；不能通过改按钮制造 Host 权限。 |
 | `EndMatch / ReturnToLobby / LeaveRoom` | 当前 SessionKey；回 Lobby 带 `ExpectedResultReceipt`，只能由真正 Host 在适用阶段执行；旅行和新 Generation 归会话域 | HostEnd 无胜者且可回 Lobby；Host Leave 结束房间。确认弹窗区分后果，不用本地 OpenLevel 假装带房间返回。 |
-| `ALDDevelopmentDirector::QueueChoice(ContenderId,FLDChoiceCommand)` | Generation、当前 Life+ExpectedLifePhase、递增 RequestId、OfferId/Revision、OptionId、ExpectedBuildRevision；满 Q/W/E 加 ReplacementSlot/ExpectedOldSkillId/Rank/明确确认 | 一次原子兑现、遗忘/装槽与机会消费；只有终态和新投影确认后展示完成。旧阶段/修订刷新同卡后新确认，不能改旧请求条款或自动换卡。 |
+| `ALDDevelopmentDirector::QueueBuild(ContenderId,FLDBuildCommand)` | Generation、当前 Life+ExpectedLifePhase、递增 RequestId、ExpectedBuildRevision、CatalogDigest 与 `Kind`：ActiveChoice 带 OfferId/OfferRevision、Option 与 `bLearnIfPossible`（UI 总是请求，Slot 为 AnySlot）；LearnBlueprint 带图纸与指定空槽；AllocatePoints 带按五维设计顺序（体格、脸皮、力道、脑力、身手）每项一个点数（合计至少 1） | 选择（学到最低空槽或存为图纸）与机会消费、学图纸、加点各自整次原子提交；只有终态和新投影确认后展示完成，回执写明学到哪个槽或存为图纸的原因（NotSafe/Dead/NoEmptySlot）。旧阶段/修订按新投影重画后由玩家重新操作，不能改旧请求条款或自动换卡。 |
 | Combat `SubmitAction(Caller,FLDCombatActionRequest)` | `RequestKey{Generation,Contender,Life,DirectSequence:uint64}`，Contender 必须匹配服务器从 caller 解析的本人；规范化 ActivationSlot/SourceRef、相关 source/build/catalog 版本及目标模式；单位只用当前 handle+epoch，地面/方向/自身分别校验 | Queued 不等于 Accepted/Released；release 前复验成功才原子提交 MP/CD/effect。 |
 | Stop / `CancelAction` / `CancelArmed` | 已发送订单按 `FLDMoveIdentity{Match,Life,Order,Epoch}` 取消；本地 Armed 仅清预览 | 不回滚已释放效果、不退款、不清来源 CD；迟到 ACK 不复活旧订单，普通 panel 关闭不隐式 Stop。 |
-| `QueryChoiceReceipt / QueryActionReceipt` | Choice 使用 `QueryChoiceReceipt(ContenderId,const FLDReceiptQuery&)`，返回 `FLDChoiceReceiptQueryResult`；query 显式 `Generation:uint32, Family, RequestId:uint64`，先拒旧局再查。Combat 使用原 RequestKey | Choice 的 Pending/Final/NotFound/ReceiptExpired/InvalidContext 按成长域原名区分，Combat查询用其自己的结果类型；不创建操作或占用序号，timeout/查无记录不准换新ID重选，拒旧仍由业务域维护。 |
+| `QueryBuildReceipt / QueryActionReceipt` | 成长使用 `QueryBuildReceipt(ContenderId,const FLDReceiptQuery&)`，返回 `FLDBuildReceiptQueryResult`；query 显式 `Generation:uint32, Family, RequestId:uint64`，先拒旧局再查。Combat 使用原 RequestKey | Build 的 Pending/Final/NotFound/ReceiptExpired/InvalidContext 按成长域原名区分，Combat查询用其自己的结果类型；不创建操作或占用序号，timeout/查无记录不准换新ID重选，拒旧仍由业务域维护。 |
 
 客户端先记录不可变条款和本地 panel 显示代次再发请求；回包先验 match/life/主体、请求/条款、
 本域修订及相应生命阶段，再处理 toast、清 pending 或跳页。不能只让 OwnerState 拒旧，
 随后仍用旧 `ClientIntentResult(Reason)` 清新 pending/重开旧面板。
 面板关掉后当前域可接收合法新投影，但旧回执不得把面板自动弹回或第二次播成功。
 
-Choice 的 Queue 结果区分 `AcceptedPending / Final / AdmissionRejected` 与 `SequenceReserved`：
+Build 的 Queue 结果区分 `AcceptedPending / Final / AdmissionRejected` 与 `SequenceReserved`：
 未受理不占序号；已受理后最终拒绝仍占序号；Pending 不改数据。
 查询结果明确携 `Generation/Family/RequestId` 与 LookupStatus；Pending 只含 `FLDPendingReceiptInfo`
 中已受理请求真实的 OriginalLife/OriginalLifePhase，没有业务 Outcome/CommitOrdinal/成功载荷；
@@ -410,7 +417,7 @@ Final 才含业务 Receipt，NotFound/ReceiptExpired/InvalidContext 不填伪造
 已生成的业务 Receipt 携原 `OriginalLife/OriginalLifePhase`，允许查询同局历史结果，
 但不能驱动当前身体/当前确认，只能答复原请求；不能把“旧 life 不可执行”误做“同局不可查询”。
 ReceiptExpired 表示已无可重放回执，不表示操作未发生；NotFound 也不是允许 UI 自动重执行的成功证明。
-Offer/Option/IssuedCooldownId 均为 FGuid，领域修订 uint64；
+OfferId/IssuedCooldownId 均为 FGuid，领域修订 uint64；
 CatalogDigest 使用统一 32-byte SHA-256，日志为 64 位小写 hex，UI 不另算子摘要。
 DefinitionId 的编码与 64-byte 缓冲沿成长/Combat 同一合同，不能截断成另一个有效目录 ID。
 
@@ -436,10 +443,11 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | --- | --- | --- |
 | Pending / Busy / Queued | 同手势立即显示在途，只限制本域重复提交；可离开面板，仍保留原请求查询能力 | 不用所有服务 Pending 聚合锁死技能；不先消机会、开真实 CD 或播命中。 |
 | StaleRoster / Build / Binding / World / Catalog | 指出“内容已更新，请重新确认”，取当前合法投影；保留原 Offer，不按新条款暗中执行旧点击 | 不能把 invalid/未知内容解释为空技能或有效 0 值。 |
-| OldMatch / OldLife / 阶段不匹配 | 取消相应旧 UI 资格并显示当前状态；死亡选卡取当前 Life+ExpectedLifePhase 再确认 | 不能因为候选跨死亡保留就接受旧 Alive 请求；不能清掉服务器仍保留的机会。 |
+| OldMatch / OldLife / 阶段不匹配 | 取消相应旧 UI 资格并显示当前状态；死亡时的成长请求取当前 Life+ExpectedLifePhase 再提交 | 不能因为候选跨死亡保留就接受旧 Alive 请求；不能清掉服务器仍保留的机会。 |
 | TargetUnavailable / InvalidGround / Direction / OutOfRange / Blocked | 来源按钮附近显示精简原因；TargetUnavailable 不细分隐藏对象是否存在/死亡 | 不沿隐藏位置追踪、不靠服务器错误反查目标；不把路径失败当到达。 |
 | NoSource / CD / InsufficientMana / ControlBlocked | 明确空槽、冷却、低蓝、控制类别；执行限制和意图派发分开 | 不把“保护中”一律禁进攻，不根据本地预测阻断全部无效意图。 |
 | `Rejected + ProtectionRemoved` | 同时显示“施法失败：法力不足”等执行结果和“复活保护没了”；按 LifeRevision 等待/接受相应 owner 变化 | **Rejected 不等于全部状态未变**。目标/资源失败不扣未提交 MP/CD，但真实保护变化不回滚。 |
+| NotSafe / Dead / NoEmptySlot / SlotOccupied / NotEnoughPoints / PhaseClosed（成长） | 学到与确认加点按钮置灰并写原因：“未脱战 N 秒”（按 `BuildSafeAtMs` 向上取到 0.1 秒）、“阵亡中”、“Q/W/E 已满”、“休息时才能替换”；选技能照常可做，存为图纸并在回执里写明原因 | 不在回执前改本地构筑；不把存为图纸说成已学到，不替玩家等安全窗后自动学习或加点。 |
 | NumericUnderflow / NumericDomain（成长） | 明确数值域非法、本次业务零提交；保留原候选并按域结果恢复可操作状态 | 不把下溢/非法结果钳成 0 后显示 Applied，不部分消费机会。 |
 | RequestConflict / ReceiptExpired / ServiceUnavailable / AuthorityFault | 明确拒绝、合法重读/查询或返回菜单；内部细节留服务器日志 | 不吞异常、不无限等待按钮；回执缓存清理不能重新执行旧请求。 |
 | MatchClosed / LeftMatch / HostLost | 关闭 gameplay 输入/会话，切合法结果或菜单中断原因 | 不把 HostLost 当赢、不伪造终局表、不把普通离开算击杀。 |
@@ -456,7 +464,7 @@ IssuedCooldownId 为 FGuid；观察 wire 修订仍沿世界的独立 codec。
 | 开/关普通主面板 | 清冲突预览，结束其本地焦点；关子确认不向下穿透 | 已接受订单/心跳、HP/MP/CD/Offer 继续；无暂停或免疫 | 已提交请求不因关窗回滚；合法结果更新本人投影但不重开旧页面。 |
 | Esc / S | Esc 一层取消；S 在未被键盘捕获时 Stop 当前可中断订单 | 不动持久构筑/候选/冷却，不撤已释放独立效果 | 新 order/epoch 拒迟到 ACK；同一个按下/释放不能发两次。 |
 | 失焦 / 映射重建 | 失焦一次 Stop 并停旧心跳；两者都撤相应 capture/latch/Armed、等待释放 | 比赛/冷却继续，本地设置按实际应用结果保留 | 回焦/新映射不重播旧按键，不发积攒的攻击。 |
-| 本人死亡仍留局 | 清身体相关目标/拖拽/Armed；未释放动作取消 | 等级/经验/技能/原 Offer/CD 保留；已释放独立效果仍由 Combat 结算；可死时选卡/看属性/静态拖图 | 旧 Alive 阶段选择拒绝但不丢卡；UI 不清域冷却、不治疗/复活。 |
+| 本人死亡仍留局 | 清身体相关目标/拖拽/Armed；未释放动作取消 | 等级/经验/技能/图纸/点数/原 Offer/CD 保留；已释放独立效果仍由 Combat 结算；可死时选技能（存为图纸）/加点/看属性/静态拖图 | 旧 Alive 阶段选择拒绝但不丢卡；UI 不清域冷却、不治疗/复活。 |
 | 复活新 Life | 清旧身体回包/观察/相机目标，接本人新身体 | 同局持久数据、原 CD 截止保留；服务器满血蓝与清临时控制/保护投影 | 旧请求不能操作新身体；选择重读当前 Life/阶段，不能把旧确认自动重发。 |
 | 对手 conceal / stale / epoch 改变 | §5.3 全部敏感呈现、锁定和该追击订单清除 | 只剩静态地图与明确公共旗杆状态/事件 | 不留 LastSeen，不把 public identity 重新解析成隐藏 Actor。 |
 | 终局 | 先权威关写闸，UI 收合法 Result 后关闭主面板/确认、清实时观察和战斗输入 | 一份冻结结果；仍可设置、合法回执查询、Host 回 Lobby、离开 | 边界前已提交业务保留真实结果，之后未提交拒绝；toast 不重复、旧回包不恢复玩法，关闭设置不应用未应用的显示草稿。 |
@@ -530,8 +538,8 @@ SaveGame 采用持久字段正向清单：网络身份、owner cache、XP/Offer/
 | `XP.Start, XP.Threshold[L], XP.MaxLevel` | 有界累计整数；阈值到 L，不是每级增量 | XP 条/等级/满级 MAX。只有显示进度，不自行升级或发机会。 |
 | `STAT.MaxHP/MaxMP/AD/AP/Armor/MagicResist/AttackSpeed/HPRegen/MPRegen/CritChance/CooldownHaste/AttackRangeCm/MoveSpeedCmPerSec` | 点、点/s、次/s、cm、cm/s、概率/倍率等沿 Unit/FormulaId；资源 P2 格式化不影响结算 | 本人属性/资源、合法瞄准范围。禁止以基础 `UNIT.BasicAttackRangeCm` 替代当前派生射程。 |
 | `FORMULA.ResourceMaxChange` 及属性 FormulaId | 运算/取整由 Combat，UI 只展示新 Final/资源 | 不重复缩放 HP/MP、不额外回血。 |
-| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/Rank[r].ManaCost/CooldownSec` | 来源/等级/目标模式与成本依目录；实时 CD 读 IssuedCooldownId/ReadyAtMs | Q/W/E、预览、说明。 |
-| `CHOICE.<id>` | 目录的确切效果/本次 rank/属性选项 | 三卡、被动说明；不另填伤害或触发规则。 |
+| `ABILITY.<id>.TargetMode/RangeCm/WindupSec/CooldownFamily/ManaCost/CooldownSec`、`SKILL.GrowthPerLevel/GrowthPerLevelAfter10` | 每个主动一组值，目标模式与成本依目录；卡面数字按拥有者当前等级 G(L) 与属性填入；实时 CD 读 IssuedCooldownId/ReadyAtMs | Q/W/E、预览、说明、成长面板卡片。 |
+| `stats`、`GROWTH.OpeningPoints/PointsPerLevel/MaxLevelPointsXP/MaxLevelPoints/BuildSafeWindowSec`、`progression.active_offer_levels` | 五维每点收益（目录文本填数）；点数供给与安全窗由成长/Combat 判定，UI 只显示投影里的未分配点数与 `BuildSafeAtMs` | 加点行、属性面板、“未脱战 N 秒”；不另算点数、不另设安全窗计时。 |
 | `VISION.RadiusCm` | 脚点 XY 厘米，观测为最终授权 | 本人范围表示；镜头移动不改变该范围。 |
 | `DISPLAY.<contentId>.NameKey/DescriptionKey/IconId`、`DISPLAY.character_demo.PortraitIconId` | namespace `DemoContent`，`<id>.name/.description`、`icon_<id>`；头像 `portrait_character_demo`，不假称贴图已生成 | 技能/状态/卡/头像。 |
 | 操作域本地设置键 | §8 的倍率/厘米/cm/s/viewport 比例 | 相机/文字/标签；不在内容目录另设一套玩法值。 |
@@ -565,23 +573,23 @@ UI 闭包的删除（架构 D01–D32）已在集成分支完成；退役范围�
 | --- | --- | --- |
 | 菜单/连接/准入 | Start/Settings/Exit 可用；正常 Host+两个 owning client、零/三 AI；单人同规则 | 双击/取消后新 attempt、旧成功/失败、错端口/地址/版本/内容、第四真人、late join 分别反馈；没有幽灵连接/旧失败退出新世界。 |
 | Lobby | 全真人包括 Host 准备，Host Start；AI 数不补位 | Ready 更新不清他人 Ready；成员/AI 结构变化清准备；非 Host 伪造开始服务器拒绝，不只按钮不可见。 |
-| 手势与捕获 | 文本/重绑/面板/模态/拖拽/Armed/小地图逐层响应；已开 Choices，在面板外 Armed 后进入子确认再按 Esc | 在 UI 按下世界释放及反向、关闭时仍按键、Enter+OnClicked 同帧，只一个消费者/提交；进入子确认撤 Armed，Esc 只关子层不再关主层/发 RPC/Stop/消费 Offer；hover 普通面板不吞 S，滚轮不同时 scroll+zoom。 |
+| 手势与捕获 | 文本/重绑/面板/模态/拖拽/Armed/小地图逐层响应；在面板外 Armed 后进入子确认再按 Esc | 在 UI 按下世界释放及反向、关闭时仍按键、Enter+OnClicked 同帧，只一个消费者/提交；进入子确认撤 Armed，Esc 只关子层不再关主层/发 RPC/Stop/消费 Offer；hover 普通面板不吞 S，滚轮不同时 scroll+zoom。 |
 | 面板与失焦 | 已接受导航中打开属性/Choices/Settings，世界继续 | 开普通面板不 Stop/停心跳，不暂停/免疫；失焦一次 Stop，回焦不重播；映射重建无累积 action/旧键命令。 |
 | 来源/保护 | Q/W/E 与 D；A/普攻/确认/自施放发送意图 | MP/CD/目标/距离失败、EmptySource/过期绑定仍按规范意图解除保护，Rejected 携 ProtectionRemoved+LifeRevision；不付未提交 MP/CD、不替换旧合法订单。Armed/Move/Stop不解；旧代次/畸形/重放不解新生命。 |
-| 冷却债 | 遗忘再学、换槽、升级、死亡 | UI 重建不改 deadline；原截止前不得洗成 ready，到零不自动执行。 |
-| 被动/属性 | 完整属性分解/单位 | 超过单屏行数仍生效可读；来源效果不能按 UI 行重复计算；MaxHP/MP 变更只由一次 Combat 投影保比例，死者不回血/复活。 |
-| Offer/替换 | 连升逐组、三不同合法卡、最多十六机会（含开局一次）/十六级/技能两档；死时可选 | 关窗/重复/死亡不重抽；旧 LifePhase/BuildRevision 拒绝不丢卡。满 Q/W/E 无默认遗忘，旧技能/等级改变撤销确认；取消无消耗。 |
+| 冷却债 | 本地换槽、升级、死亡 | UI 重建不改 deadline；原截止前不得洗成 ready，到零不自动执行。 |
+| 属性与加点 | 完整属性分解/单位；五维点数与每点收益 | 超过单屏行数仍生效可读；来源效果不能按 UI 行重复计算；MaxHP/MP 变更只由一次 Combat 投影保比例，死者不回血/复活。 |
+| Offer/图纸/加点 | 开局一次与 3、6 级各一次主动机会，逐组处理；每组一到三张不同合法卡；技能只有一级；死时可选（存为图纸）与加点；安全窗内学图纸 | 关窗/重复/死亡不换组，没有重抽；旧 LifePhase/BuildRevision 拒绝不丢卡。未脱战/死亡/满槽时选择存为图纸并写明原因；学到已占用槽被拒，没有替换或遗忘入口；加点整次生效或整次拒绝，回执前不改本地显示。 |
 | 回执与重放 | 同键同 payload 只回原结果，合法查询不再提交 | 异 payload 冲突；过窗拒旧；新 snapshot 先到/旧 receipt 后到不回盖；关窗/重生/新局不清新 pending、重弹旧面板或重复 toast。Host 同栈回包不被随后写 pending 覆盖。 |
-| 查询结果形状/数值失败 | Choice 返回真实 PendingInfo 或 Final 业务 Receipt；同局可查历史、当前身体不受旧 Receipt 影响 | NotFound/ReceiptExpired/InvalidContext 无伪造 OriginalLife/Applied；PendingInfo 无业务成功/CommitOrdinal；不自动重执行，旧 Generation 先拒。NumericUnderflow/NumericDomain 零业务提交，不消费机会或制造成功默认值。 |
+| 查询结果形状/数值失败 | Build 查询返回真实 PendingInfo 或 Final 业务 Receipt；同局可查历史、当前身体不受旧 Receipt 影响 | NotFound/ReceiptExpired/InvalidContext 无伪造 OriginalLife/Applied；PendingInfo 无业务成功/CommitOrdinal；不自动重执行，旧 Generation 先拒。NumericUnderflow/NumericDomain 零业务提交，不消费机会或制造成功默认值。 |
 | 可见目标 | A 可见 B 时名称/等级/精确血蓝/状态实时授权更新；NPC 不适用字段正确 | 技能/CD/最终属性/XP/私有版本从不入对手 DTO；隐藏后变化不再更新任何缓存/附件；停原追击无 LastSeen移动。 |
 | 观察传输 | 同帧/epoch 合法增量表现与可靠 conceal | 旧 full 不能撤 conceal，旧 conceal 不擦新重现；普通 revision 不错误撤锁；wrong schema/world/observer life、超容量/非法数值明确拒绝。未知定义不造默认有效对象。 |
 | 正常 Host | 不带诊断特免，非本人出生当帧/首采样前、隐藏/重现、相机切换 | 本体/代理不双画；附件/阴影/灯光/声音/提示无旁路；关后处理/低画质不显示隐藏单位。观察只读表本身也无未授权字段。 |
-| 死亡/离局 | 死亡自由静态平移/缩放/旗杆状态、选卡；已释放独立效果继续 | 无新 Footprint/隐藏跟随/游戏移动；离局立即去身体/未结束效果，旧 FX 不重生。离局不增加死亡/击杀、不使他人自动胜。 |
+| 死亡/离局 | 死亡自由静态平移/缩放/旗杆状态、选技能与加点；已释放独立效果继续 | 无新 Footprint/隐藏跟随/游戏移动；离局立即去身体/未结束效果，旧 FX 不重生。离局不增加死亡/击杀、不使他人自动胜。 |
 | 终局/新局 | 守护成功唯一结果（标题“守护成功 · X 的涂鸦守住了，恭喜成为今晚的淫人王！”），全员 Name/K/D/FinalLevel+winner/reason/duration；HostEnd无winner，回Lobby新局 | 统计不判胜，正常局不发布全员表；终局后无新选择/战斗提交，旧包只读重放；新局无旧 Offer/CD/结果闪回，合法缺数据先同步而非填旧值。 |
 | 本地保存 | 隔离存储下应用、重新启动、旅行前最后一次 zoom、恢复默认 | Missing/损坏/不支持schema/非法键/NaN/越界/写失败各自反馈；无真实槽 fallback；没有局内数据入 SaveGame；失败不宣称持久成功。 |
 | 显示/画质 | `-windowed` 启动的前端编辑 VSync 草稿、撤销、再编辑后切到别页返回、再返回；再应用 VSync | 设置页没有窗口模式/分辨率；撤销后无可应用内容；返回时确认卡出现在画面页；第二次返回放弃草稿并关闭；应用后立即生效并从磁盘回读；窗口始终保持无边框（自动化覆盖除外）。 |
 | 中断/保存 | 终局、HostLost、旅行/Widget 销毁、正常退出；期间另有已明确应用的 zoom/follow | flush 排除草稿，保留最后合法镜头值。异常硬退出后从最后已验证配置启动；写失败不宣称成功。 |
-| 声音/布局 | 实际渲染有声包，Master静音恢复；小/大窗口、DPI、长名/长卡/多被动 | 全部关键按钮/原因可读有焦点，不仅靠颜色；未应用草稿普通返回可选择应用/放弃/继续编辑。nullrhi/nosound/offscreen均不能替代相应证据。 |
+| 声音/布局 | 实际渲染有声包，Master静音恢复；小/大窗口、DPI、长名/长卡/多图纸 | 全部关键按钮/原因可读有焦点，不仅靠颜色；未应用草稿普通返回可选择应用/放弃/继续编辑。nullrhi/nosound/offscreen均不能替代相应证据。 |
 | 删除/资产 | 当前 Editor/Game/UHT、Blueprint、Bootstrap Validate、唯一包加载 | 旧 UI/RPC/IA/IMC/profile/探针无存活消费，生成不会复活它们；缺 WBP/必要材质/定义明确失败，不用兼容 UI 或旧值兜底。 |
 
 联机场景入口是 `RunDemoVisionCheck.ps1`（受限拥有连接与正常 Host 的视野边界）与

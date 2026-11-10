@@ -52,11 +52,8 @@ FLDObservedUnitView ContenderUnit(uint32 Epoch = 1)
     Root.ExpiresAtServerMs = 12345;
     Unit.Statuses.Add(Root);
     Unit.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActivePantsDown);
-    Unit.Actives.Ranks[0] = 2;
     Unit.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveSnarkBolt);
-    Unit.Actives.Ranks[1] = 1;
     Unit.Actives.Abilities[2] = uint8(ELDDemoAbilityId::ActiveNotMad);
-    Unit.Actives.Ranks[2] = 1;
     return Unit;
 }
 
@@ -115,14 +112,11 @@ FLDObservedCatalog TestCatalog()
     Catalog.MaxLevel = 16;
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterScavenger));
     Catalog.Creatures.Add(uint8(ELDDemoMonsterId::MonsterGuardian));
-    Catalog.MaxSkillRank = 2;
     for (const ELDDemoAbilityId Id : {
         ELDDemoAbilityId::ActivePantsDown, ELDDemoAbilityId::ActiveSnarkBolt, ELDDemoAbilityId::ActiveNotMad})
     {
         Catalog.Abilities.Add(uint8(Id));
-        Catalog.ActiveAbilities.Add(uint8(Id));
     }
-    Catalog.Abilities.Add(uint8(ELDDemoAbilityId::PassiveThickFace));
     return Catalog;
 }
 
@@ -539,8 +533,8 @@ bool FLDDemoVisionPrivacyTest::RunTest(const FString& Parameters)
         TEXT("RadiusCm"), TEXT("InnerRadiusCm"), TEXT("AngleDegrees")});
     Exact(FLDObservedResource::StaticStruct(), {TEXT("CurrentP2"), TEXT("MaxP2")});
     Exact(FLDObservedStatus::StaticStruct(), {TEXT("StatusId"), TEXT("Stacks"), TEXT("ExpiresAtServerMs")});
-    // #112 §10: the two Q/W actives and their ranks only; no cooldown, passive or mana field.
-    Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities"), TEXT("Ranks")});
+    // #112 §10, #198: the Q/W/E active ids only; no rank, cooldown or mana field.
+    Exact(FLDObservedActivesView::StaticStruct(), {TEXT("Abilities")});
     Exact(FLDObservedUnitTermination::StaticStruct(), {TEXT("Handle"), TEXT("ObservationEpoch"), TEXT("Generation"),
         TEXT("TerminationSequence"), TEXT("OccurredAtServerMs"), TEXT("Kind")});
     Exact(FLDObservedFootprint::StaticStruct(), {TEXT("SourceStatus"), TEXT("SourceFeetCm"), TEXT("RadiusCm"), TEXT("CurrentBits")});
@@ -1275,14 +1269,15 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-900, 0, 2)), Fact(FVector(300, 0, 2)), Fact(FVector(-600, 2000, 2)),
         Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2))};
     TArray<const FLDObservedProjectileFact*> Visible;
+    const auto BySight = [](const FLDObservedProjectileFact&) { return ELDObservedFlightAccess::Sight; };
     TestTrue(TEXT("Only flights in sight are selected, nearest first (wall, range and ground edge exclude the rest)"),
-        LDObservation::SelectVisibleProjectiles(Sight, West, Facts, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
+        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, BySight, Visible, Error) && Visible.Num() == 2 && Visible[0] == &Facts[3] && Visible[1] == &Facts[0]);
     TArray<FLDObservedProjectileFact> Many;
     for (int32 Index = 0; Index < LDObservation::MaxProjectiles + 4; ++Index) { Many.Add(Fact(FVector(-600 + Index * 10, 100, 2))); }
-    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, Many, Visible, Error)
+    TestTrue(TEXT("Selection keeps the nearest bounded set"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Many, BySight, Visible, Error)
         && Visible.Num() == LDObservation::MaxProjectiles && Visible[0] == &Many[0] && Visible.Last() == &Many[LDObservation::MaxProjectiles - 1]);
     const TArray<FLDObservedProjectileFact> Broken = {Fact(FVector(std::numeric_limits<double>::quiet_NaN(), 0, 2))};
-    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, Broken, Visible, Error));
+    TestFalse(TEXT("A non-finite flight is a fault, not a hidden one"), LDObservation::SelectVisibleProjectiles(Sight, West, {}, Broken, BySight, Visible, Error));
 
     // Observer-local handles: fresh per visibility interval, never the flight key, dropped with the observer generation.
     FLDObserverLedger Ledger;
@@ -1331,6 +1326,60 @@ bool FLDDemoVisionProjectileTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("A receive timeout drops every flight"), Receiver.Tick(20.0 + FLDObservedFrameReceiver::StaleAfterSeconds + .01, Cleared)
         && Receiver.Read().Frame && Receiver.Read().Frame->Projectiles.IsEmpty());
     return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionEffectAccessTest, "Lockdown.Rules.DemoVision.EffectAccess",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FLDDemoVisionEffectAccessTest::RunTest(const FString& Parameters)
+{
+    // #198 R15: a skill effect carries its source's body permissions: hidden across isolation groups and from the frozen
+    // world, granted over the whole arena to a spectator, seen through a living teammate's sight by a PK life.
+    const FGuid Field, RestA = FGuid::NewGuid(), RestB = FGuid::NewGuid(), Arena = FGuid::NewGuid();
+    using EAccess = ELDObservedFlightAccess;
+    bool bGood = TestTrue(TEXT("Field effects keep the plain sight rule in the field"),
+        LDObservation::ClassifyFlight(true, Field, true, Field, FGuid(), false, false) == EAccess::Sight);
+    bGood &= TestTrue(TEXT("A frozen world body's effect is hidden"),
+        LDObservation::ClassifyFlight(false, Field, true, Field, FGuid(), false, false) == EAccess::Hidden);
+    bGood &= TestTrue(TEXT("Another rest space's training effect is hidden, the own one follows sight"),
+        LDObservation::ClassifyFlight(true, RestB, true, RestA, FGuid(), false, false) == EAccess::Hidden
+        && LDObservation::ClassifyFlight(true, RestA, true, RestA, FGuid(), false, false) == EAccess::Sight);
+    bGood &= TestTrue(TEXT("A spectator sees every arena effect without a sight line"),
+        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, true, false) == EAccess::Granted);
+    bGood &= TestTrue(TEXT("A spectator still sees no other rest space's effect"),
+        LDObservation::ClassifyFlight(true, RestB, true, RestA, Arena, true, false) == EAccess::Hidden);
+    bGood &= TestTrue(TEXT("A PK life sees arena effects through its team's sight"),
+        LDObservation::ClassifyFlight(true, Arena, true, Arena, Arena, false, true) == EAccess::SharedSight);
+    bGood &= TestTrue(TEXT("A non-spectator outside the arena (a waiting entrant's rest group) does not see the arena"),
+        LDObservation::ClassifyFlight(true, Arena, true, RestA, Arena, false, false) == EAccess::Hidden);
+
+    FString Error;
+    FLDSightGeometry Sight;
+    if (!TestTrue(TEXT("Sight builds"), Sight.Build(TestGeometry(), DemoRevision(), Whole(1400), Error))) { return false; }
+    const FVector West(-600, 0, 2), Mate(-650, 2000, 2);
+    auto Fact = [](const FVector& Position)
+    {
+        FLDObservedProjectileFact Out;
+        Out.Key = FGuid::NewGuid();
+        Out.SourceEntity = FGuid::NewGuid();
+        Out.PositionCm = Position;
+        Out.Heading = FVector2D(1, 0);
+        return Out;
+    };
+    // [0] in sight but of another group; [1] out of range but granted; [2] beside the teammate only; [3] beside the teammate,
+    // but plain sight; [4] plainly in sight.
+    const TArray<FLDObservedProjectileFact> Facts = {Fact(FVector(-650, 50, 2)), Fact(FVector(9000, 0, 2)), Fact(FVector(-600, 2050, 2)),
+        Fact(FVector(-600, 1950, 2)), Fact(FVector(-900, 0, 2))};
+    const TMap<FGuid, EAccess> Rules = {{Facts[0].SourceEntity, EAccess::Hidden}, {Facts[1].SourceEntity, EAccess::Granted},
+        {Facts[2].SourceEntity, EAccess::SharedSight}, {Facts[3].SourceEntity, EAccess::Sight}, {Facts[4].SourceEntity, EAccess::Sight}};
+    const auto Access = [&Rules](const FLDObservedProjectileFact& One) { return Rules.FindChecked(One.SourceEntity); };
+    TArray<const FLDObservedProjectileFact*> Visible;
+    bGood &= TestTrue(TEXT("Selection follows each effect's access, nearest first"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, {Mate}, Facts, Access, Visible, Error) && Visible.Num() == 3
+        && Visible[0] == &Facts[4] && Visible[1] == &Facts[2] && Visible[2] == &Facts[1]);
+    bGood &= TestTrue(TEXT("Without a teammate the shared-sight effect stays unseen"),
+        LDObservation::SelectVisibleProjectiles(Sight, West, {}, Facts, Access, Visible, Error) && Visible.Num() == 2
+        && !Visible.Contains(&Facts[2]));
+    return bGood;
 }
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionPresentationTest, "Lockdown.Rules.DemoVision.Presentation",
@@ -1431,8 +1480,8 @@ bool FLDDemoVisionFlightTrailTest::RunTest(const FString& Parameters)
     }
     return true;
 }
-// A visible contender shows its Q/W/E actives, ranks and the advanced mark through the same authorized frame; the camp
-// carries none; malformed or unapproved actives are refused; the card shows no cooldown.
+// A visible contender shows its Q/W/E actives through the same authorized frame; the camp carries none; malformed or
+// unapproved actives are refused; the card shows no cooldown.
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoVisionOpponentActivesTest, "Lockdown.Rules.DemoVision.OpponentActives",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
@@ -1445,10 +1494,10 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     FLDWorldView Read;
     if (!TestTrue(TEXT("A frame with Q/W/E actives round-trips"), Wire(Frame, Read) && Read.Units.Num() == 2)) { return false; }
     const FLDObservedActivesView& Got = Read.Units[0].Actives;
-    TestTrue(TEXT("All three slots keep their ability and rank"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown) && Got.Ranks[0] == 2
-        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Ranks[1] == 1
-        && Got.Abilities[2] == uint8(ELDDemoAbilityId::ActiveNotMad) && Got.Ranks[2] == 1);
-    TestTrue(TEXT("The camp member carries no actives"), Read.Units[1].Actives.Abilities[0] == 0 && Read.Units[1].Actives.Ranks[1] == 0);
+    TestTrue(TEXT("All three slots keep their ability"), Got.Abilities[0] == uint8(ELDDemoAbilityId::ActivePantsDown)
+        && Got.Abilities[1] == uint8(ELDDemoAbilityId::ActiveSnarkBolt) && Got.Abilities[2] == uint8(ELDDemoAbilityId::ActiveNotMad));
+    TestTrue(TEXT("The camp member carries no actives"), Read.Units[1].Actives.Abilities[0] == 0 && Read.Units[1].Actives.Abilities[1] == 0
+        && Read.Units[1].Actives.Abilities[2] == 0);
     auto Refused = [&](const TCHAR* What, TFunctionRef<void(FLDObservedUnitView&, FLDObservedUnitView&)> Change)
     {
         FLDWorldView Candidate = ActiveFrame(7, 3, 43);
@@ -1457,12 +1506,9 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
         Change(Candidate.Units[0], Candidate.Units[1]);
         TestFalse(What, Encodes(Candidate));
     };
-    Refused(TEXT("A rank without an ability is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = 0; });
-    Refused(TEXT("An ability without a rank is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Ranks[0] = 0; });
-    Refused(TEXT("A rank above 2 is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Ranks[0] = 3; });
-    Refused(TEXT("The same ability in both slots is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = C.Actives.Abilities[0]; });
+    Refused(TEXT("The same ability in two slots is refused"), [](FLDObservedUnitView& C, FLDObservedUnitView&) { C.Actives.Abilities[1] = C.Actives.Abilities[0]; });
     Refused(TEXT("A camp member with actives is refused"), [](FLDObservedUnitView&, FLDObservedUnitView& M)
-    { M.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActiveSnarkBolt); M.Actives.Ranks[0] = 1; });
+    { M.Actives.Abilities[0] = uint8(ELDDemoAbilityId::ActiveSnarkBolt); });
     Refused(TEXT("A contender without the actives field is not complete"), [](FLDObservedUnitView& C, FLDObservedUnitView&)
     { C.AuthorizedFieldMask &= ~uint32(LDObservation::Actives); });
     FLDObservedUnitView Empty = ContenderUnit();
@@ -1471,22 +1517,17 @@ bool FLDDemoVisionOpponentActivesTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Three empty slots are a valid contender"), LDObservation::ValidateUnit(Empty, Error));
 
     const FLDObservedCatalog Catalog = TestCatalog();
-    TestTrue(TEXT("Approved actives at approved ranks are accepted"), Catalog.Accepts(ContenderUnit(), Error));
-    FLDObservedUnitView Passive = ContenderUnit();
-    Passive.Actives.Abilities[1] = uint8(ELDDemoAbilityId::PassiveThickFace);
-    TestFalse(TEXT("A passive in a Q/W/E slot is refused"), Catalog.Accepts(Passive, Error));
-    FLDObservedCatalog Narrow = Catalog;
-    Narrow.MaxSkillRank = 1;
-    TestFalse(TEXT("A rank above the approved maximum is refused"), Narrow.Accepts(ContenderUnit(), Error));
+    TestTrue(TEXT("Approved actives are accepted"), Catalog.Accepts(ContenderUnit(), Error));
+    FLDObservedUnitView Unapproved = ContenderUnit();
+    Unapproved.Actives.Abilities[1] = uint8(ELDDemoAbilityId::ActiveStareDown);
+    TestFalse(TEXT("An active outside the approved catalog is refused"), Catalog.Accepts(Unapproved, Error));
 
     const LDHUD::FObservedCard Card = LDHUD::ObservedCard(ContenderUnit(), TEXT("对手"), nullptr, 0.);
     TestTrue(TEXT("The target card shows all Q/W/E tiles"), Card.bActives && Card.Actives[0].Key == TEXT("Q")
         && Card.Actives[1].Key == TEXT("W") && Card.Actives[2].Key == TEXT("E")
         && !Card.Actives[0].bEmpty && !Card.Actives[1].bEmpty && !Card.Actives[2].bEmpty);
-    TestTrue(TEXT("The advanced rank is marked, the basic rank is not"), Card.Actives[0].bMaxRank && Card.Actives[0].Rank == TEXT("高级")
-        && !Card.Actives[1].bMaxRank && Card.Actives[1].Rank == TEXT("初级"));
     const FString Text = LDHUD::ObservedUnit(ContenderUnit(), TEXT("对手"), nullptr, 0.);
-    TestTrue(TEXT("The card text names the ranks and never a cooldown"), Text.Contains(TEXT("高级")) && !Text.Contains(TEXT("冷却")));
+    TestTrue(TEXT("The card text never names a cooldown"), !Text.Contains(TEXT("冷却")));
     const LDHUD::FObservedCard CampCard = LDHUD::ObservedCard(CampUnit(), FString(), nullptr, 0.);
     TestFalse(TEXT("A camp member's card has no Q/W/E tiles"), CampCard.bActives);
     return true;

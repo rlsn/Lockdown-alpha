@@ -230,9 +230,9 @@ FLDOrderReceipt ULDNavigationComponent::SubmitSpatial(const FLDOrderCaller& Call
     }
     if (Request.Identity.Order<=Book.Received.Order || Request.Identity.Epoch<Book.Received.Epoch)
     { return Reply(Request,ELDOrderStatus::Rejected,ELDOrderFailure::StaleOrder,false); }
-    // #153: before T=0 only movement is admitted (LDOrderRules::CountdownAdmitsOrder); an attack or cast order is refused.
-    // The identity is spent and its refusal kept, so a replay after T=0 answers the same refusal instead of starting late.
-    if (AuthorityMode()->IsOpeningCountdown(Caller.Match) && !LDOrderRules::CountdownAdmitsOrder(Request))
+    // #198: the rest return countdown locks every order. The identity is spent and its refusal kept, so a replay in the
+    // field answers the same refusal instead of starting late.
+    if (AuthorityMode()->IsInputLocked(Caller.Match,Caller.Body.Victim.EntityId))
     {
         Book.Received=Request.Identity;
         AddRecord(Request,false);
@@ -316,9 +316,7 @@ FLDCombatActionReceipt ULDNavigationComponent::QueueAction(const FLDOrderCaller&
     if (!Request.DirectSequence || !LDCombatPreInput::IsDirectEntry(Request.Entry) || (AimCm && AimCm->ContainsNaN()))
     { return Refuse(ELDCombatReject::InvalidRequest); }
     auto* Mode=AuthorityMode();
-    if (Mode->IsOpeningCountdown(Caller.Match)
-        && (!LDOrderRules::CountdownAdmitsAction(Request.Entry) || Mode->Combat->IsAggressiveEntry(Caller.Body,Request.Entry)))
-    { return Refuse(ELDCombatReject::NotStarted); }
+    if (Mode->IsInputLocked(Caller.Match,Caller.Body.Victim.EntityId)) { return Refuse(ELDCombatReject::NotStarted); }
     auto* PC=Controller();
     FLDCombatCaller CombatCaller;
     FString Error;
@@ -1486,7 +1484,8 @@ bool ULDNavigationComponent::CastReady(ALDGameMode& Mode, const FLDCombatActionR
     const ELDDemoTargetMode TargetMode=ELDDemoTargetMode(Entry.TargetMode);
     const bool bModeFits=bUnit ? TargetMode==ELDDemoTargetMode::Unit
         : (TargetMode==ELDDemoTargetMode::GroundPoint && Cast.Target.Kind==ELDCombatTargetKind::Point)
-            || ((TargetMode==ELDDemoTargetMode::DirectionProjectile || TargetMode==ELDDemoTargetMode::DirectionCone)
+            || ((TargetMode==ELDDemoTargetMode::DirectionProjectile || TargetMode==ELDDemoTargetMode::DirectionCone
+                    || TargetMode==ELDDemoTargetMode::DirectionLine)
                 && Cast.Target.Kind==ELDCombatTargetKind::Direction);
     ELDCombatReject Refused=LDOrderRules::SkillRequestReady(Entry.Unavailable) ? ELDCombatReject::None : Entry.Unavailable;
     if (Refused==ELDCombatReject::None && (Entry.DefinitionId.IsNone() || Entry.RangeCm<=0 || !bModeFits))

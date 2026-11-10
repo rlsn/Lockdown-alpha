@@ -54,7 +54,7 @@ struct FLDCampMemberState
     FLDCampBrain Brain;
     uint64 ReturnEpoch = 0;
     uint64 ResetThroughEpoch = 0;
-    // Hostile contacts at or before this authority time predate the current spawn or reset.
+    // Hostile contacts at or before this authority time predate the current spawn, reset or rest return.
     double AggroFloorSeconds = 0;
     TArray<FLDCombatBodyRef> HostileSources;
     uint64 LastDirectSequence = 0;
@@ -136,6 +136,9 @@ public:
     bool ReadResetKey(const FLDCombatBodyRef& Member, FLDCampResetKey& Out, FString& Error) const;
     bool CompleteReset(const FLDCampResetKey& Key, double AtSeconds, FString& Error);
     bool NextDirectSequence(const FLDCombatBodyRef& Member, uint64& Out, FString& Error);
+    // #198 rest return: clear lost-target timing and hostile sources, rejecting contacts at or before NowSeconds.
+    // Preserve the behavior phase, life and return/reset epochs; HP and refresh deadlines are untouched.
+    void ForgetTargetsForRest(double NowSeconds);
 
     // Camp-owned public facts for a currently registered living member: creature identity and the
     // camp_returning cue (one stack, untimed). Existing combat facts are kept; conflicts are rejected.

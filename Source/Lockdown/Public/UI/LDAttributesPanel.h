@@ -17,7 +17,7 @@ class LOCKDOWN_API ULDAttributesPanel : public ULDPanel
     GENERATED_BODY()
 public:
     // Called on every HUD refresh. Combat is the owner projection only when it belongs to the current match and life
-    // (nullptr otherwise); Progression supplies learned passives (nullptr when not projected).
+    // (nullptr otherwise); Progression supplies the allocated stat points (nullptr when not projected).
     void Present(const FLDCombatOwnerView* Combat,const FLDProgressionView* Progression,bool bClock,int64 NowMs,const FLDDemoContentDefinitions* Definitions);
     virtual bool IsPanelOpen() const override;
     virtual void OpenPanel() override;
@@ -31,7 +31,7 @@ private:
     // Indexed by ELDProjectedAttribute, never by the position of a published row.
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RowFinals;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> RowBreakdowns;
-    UPROPERTY() TObjectPtr<UTextBlock> LearnedPassiveText;
+    UPROPERTY() TObjectPtr<UTextBlock> StatPointsText;
     UPROPERTY() TObjectPtr<UTextBlock> StatusText;
     bool bOpen=false;
 };

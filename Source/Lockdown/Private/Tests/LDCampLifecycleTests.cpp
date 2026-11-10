@@ -334,6 +334,17 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
         return false;
     }
     const FLDCombatBodyRef G = State.FindCamp(1)->Members[0].Body;
+    auto RestPreservesCycle = [&](double NowSeconds)
+    {
+        const FLDCampMemberState Before = *State.FindLiving(G);
+        State.ForgetTargetsForRest(NowSeconds);
+        const FLDCampMemberState* After = State.FindLiving(G);
+        return After && After->Body == Before.Body && After->Life == Before.Life
+            && After->Brain.Phase == Before.Brain.Phase && !After->Brain.LostTargetSinceSeconds.IsSet()
+            && After->HostileSources.IsEmpty() && After->ReturnEpoch == Before.ReturnEpoch
+            && After->ResetThroughEpoch == Before.ResetThroughEpoch
+            && After->AggroFloorSeconds == FMath::Max(Before.AggroFloorSeconds, NowSeconds);
+    };
     bool bBegan = false;
     FLDCampResetKey Key;
     TestFalse(TEXT("Idle cannot jump to Engaged by decision"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Engaged), bBegan, Error));
@@ -342,17 +353,36 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
     FLDCampDecision Lost = Brain(ELDCampBrainPhase::Engaged);
     Lost.NextBrain.LostTargetSinceSeconds = 2.5;
     TestTrue(TEXT("Engaged may record loss time"), State.ApplyDecision(G, Lost, bBegan, Error) && !bBegan);
+    TestTrue(TEXT("Rest preserves Engaged and its life/epochs while clearing loss time and hostile sources"), RestPreservesCycle(3));
+    TestEqual(TEXT("A pre-rest contact cannot restore an Engaged member's targets"),
+        State.ApplyContact({G, Contender(1), 2.5}, Error), ELDCampContactResult::StaleEvent);
+    TestEqual(TEXT("A contact at the rest floor cannot restore targets"),
+        State.ApplyContact({G, Contender(1), 3}, Error), ELDCampContactResult::StaleEvent);
+    TestTrue(TEXT("Stale contacts leave the resumed member engaged without targets"),
+        State.FindLiving(G)->Brain.Phase == ELDCampBrainPhase::Engaged && State.FindLiving(G)->HostileSources.IsEmpty()
+        && !State.FindLiving(G)->Brain.LostTargetSinceSeconds.IsSet());
+    TestEqual(TEXT("A fresh contact can be reacquired after rest"),
+        State.ApplyContact({G, Contender(1), 3.25}, Error), ELDCampContactResult::Retaliating);
+    Lost.NextBrain.LostTargetSinceSeconds = 3.5;
+    TestTrue(TEXT("Resumed Engaged may begin a fresh loss grace"), State.ApplyDecision(G, Lost, bBegan, Error) && !bBegan
+        && State.FindLiving(G)->Brain.LostTargetSinceSeconds.IsSet()
+        && State.FindLiving(G)->Brain.LostTargetSinceSeconds.GetValue() == 3.5);
     TestFalse(TEXT("Engaged cannot drop to Idle without a reset"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Idle), bBegan, Error));
     FLDCampDecision BadReturn = Brain(ELDCampBrainPhase::Returning);
     BadReturn.NextBrain.LostTargetSinceSeconds = 2.5;
     TestFalse(TEXT("Returning carries no loss history"), State.ApplyDecision(G, BadReturn, bBegan, Error));
     TestTrue(TEXT("Leash or grace begins return epoch one"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Returning), bBegan, Error)
         && bBegan && State.FindLiving(G)->ReturnEpoch == 1);
-    TestTrue(TEXT("Continued return keeps the epoch"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Returning), bBegan, Error)
-        && !bBegan && State.FindLiving(G)->ReturnEpoch == 1);
-    TestFalse(TEXT("Returning cannot turn back to Engaged"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Engaged), bBegan, Error));
     TestTrue(TEXT("Reset key binds match, full life and epoch"), State.ReadResetKey(G, Key, Error)
         && Key.LedgerMatch == Match.LedgerMatch && Key.Victim == G.Victim && Key.ReturnEpoch == 1);
+    TestTrue(TEXT("Rest preserves Returning and its life/epochs while clearing hostile sources"), RestPreservesCycle(3.75));
+    FLDCampResetKey ResumedKey;
+    TestTrue(TEXT("Rest retains the current return's reset key"), State.ReadResetKey(G, ResumedKey, Error) && ResumedKey == Key);
+    TestTrue(TEXT("Resumed return keeps the epoch"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Returning), bBegan, Error)
+        && !bBegan && State.FindLiving(G)->ReturnEpoch == 1);
+    TestEqual(TEXT("Returning still ignores fresh contacts after rest"),
+        State.ApplyContact({G, Contender(2), 3.875}, Error), ELDCampContactResult::StaleEvent);
+    TestFalse(TEXT("Returning cannot turn back to Engaged"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Engaged), bBegan, Error));
     FLDCampResetKey Wrong = Key;
     Wrong.ReturnEpoch = 2;
     TestFalse(TEXT("Future epoch cannot reset"), State.CompleteReset(Wrong, 4, Error));
@@ -365,7 +395,16 @@ bool FLDCampResetTest::RunTest(const FString& Parameters)
     TestTrue(TEXT("Reset returns to idle without a new life or body"), Member && Member->Brain.Phase == ELDCampBrainPhase::Idle
         && Member->Life == 1 && Member->Body == G && Member->ResetThroughEpoch == 1 && Member->HostileSources.IsEmpty());
     TestFalse(TEXT("A replayed reset key cannot apply twice"), State.CompleteReset(Key, 5, Error));
-    State.ApplyContact({G, Contender(2), 6}, Error);
+    TestTrue(TEXT("Rest preserves Idle and its completed return/reset epochs"), RestPreservesCycle(5));
+    TestTrue(TEXT("Forgetting targets never lowers the hostile-event floor"), RestPreservesCycle(4.5));
+    TestEqual(TEXT("A pre-rest contact cannot wake the idle member"),
+        State.ApplyContact({G, Contender(2), 4.5}, Error), ELDCampContactResult::StaleEvent);
+    TestEqual(TEXT("A contact at the rest floor cannot wake the idle member"),
+        State.ApplyContact({G, Contender(2), 5}, Error), ELDCampContactResult::StaleEvent);
+    TestTrue(TEXT("Stale contacts leave the idle member without hostile sources"),
+        State.FindLiving(G)->Brain.Phase == ELDCampBrainPhase::Idle && State.FindLiving(G)->HostileSources.IsEmpty());
+    TestEqual(TEXT("A later contact wakes the idle member normally"),
+        State.ApplyContact({G, Contender(2), 6}, Error), ELDCampContactResult::Retaliating);
     TestTrue(TEXT("Next encounter returns with a new epoch"), State.ApplyDecision(G, Brain(ELDCampBrainPhase::Returning), bBegan, Error)
         && bBegan && State.FindLiving(G)->ReturnEpoch == 2);
     TestFalse(TEXT("An old key cannot reset the new return"), State.CompleteReset(Key, 7, Error));

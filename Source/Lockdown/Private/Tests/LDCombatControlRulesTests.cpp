@@ -98,20 +98,25 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDCombatEmpowerTest, "Lockdown.Rules.DemoContr
 
 bool FLDCombatEmpowerTest::RunTest(const FString& Parameters)
 {
-    TOptional<FLDCombatEmpower> Armed;
-    TestFalse(TEXT("Nothing armed, nothing taken"), LDCombatControl::ConsumeEmpower(Armed, 100).IsSet());
+    TArray<FLDCombatEmpower> Armed;
+    TArray<FLDCombatEmpower> Taken;
+    int64 SumP2 = -1;
+    TestTrue(TEXT("Nothing armed, nothing taken"), LDCombatControl::ConsumeEmpowers(Armed, 100, Taken, SumP2) && Taken.IsEmpty() && SumP2 == 0);
     FLDCombatEmpower Value;
     Value.EffectId = FGuid::NewGuid();
-    Value.BaseP2 = 5000;
-    Value.ADRatioBp = 4000;
+    Value.Source.Kind = ELDCombatSourceKind::Learned;
+    Value.Source.DefinitionId = TEXT("active_apology_slide");
+    Value.AmountP2 = 5000;
     Value.ExpiresAtMs = 3100;
-    Armed = Value;
-    const TOptional<FLDCombatEmpower> First = LDCombatControl::ConsumeEmpower(Armed, 3099);
-    TestTrue(TEXT("The first landed basic takes the armed bonus"), First.IsSet() && First->EffectId == Value.EffectId && First->BaseP2 == 5000);
-    TestFalse(TEXT("It is consumed exactly once"), Armed.IsSet() || LDCombatControl::ConsumeEmpower(Armed, 3099).IsSet());
-    Armed = Value;
-    TestFalse(TEXT("At its deadline it has expired and gives nothing"), LDCombatControl::ConsumeEmpower(Armed, 3100).IsSet());
-    TestFalse(TEXT("An expired bonus is dropped, not kept for later"), Armed.IsSet());
+    LDCombatControl::ArmEmpower(Armed, Value);
+    TestTrue(TEXT("The first landed basic takes the armed bonus"), LDCombatControl::ConsumeEmpowers(Armed, 3099, Taken, SumP2)
+        && Taken.Num() == 1 && Taken[0].EffectId == Value.EffectId && SumP2 == 5000);
+    TestTrue(TEXT("It is consumed exactly once"), Armed.IsEmpty() && LDCombatControl::ConsumeEmpowers(Armed, 3099, Taken, SumP2)
+        && Taken.IsEmpty());
+    LDCombatControl::ArmEmpower(Armed, Value);
+    TestTrue(TEXT("At its deadline it has expired and gives nothing"), LDCombatControl::ConsumeEmpowers(Armed, 3100, Taken, SumP2)
+        && Taken.IsEmpty() && SumP2 == 0);
+    TestTrue(TEXT("An expired bonus is dropped, not kept for later"), Armed.IsEmpty());
     return true;
 }
 
@@ -124,7 +129,7 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     const FLDDemoEffectDefinition Both = Thorns();
     const FLDDemoEffectDefinition BasicOnly = Thorns();
     const FGuid Attacker = FGuid::NewGuid(), Other = FGuid::NewGuid();
-    const FString Key(TEXT("passive_thick_face"));
+    const FString Key(TEXT("thorns_source_a"));
     TArray<FLDThornsMark> Marks;
     FLDThornsContact Basic;
     Basic.HitClass = ELDCombatHitClass::BasicPrimary;
@@ -134,9 +139,7 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     FLDThornsContact Ability = Basic;
     Ability.HitClass = ELDCombatHitClass::Ability;
     TestFalse(TEXT("An ability hit never triggers a reflection"), LDCombatControl::ThornsTriggers(BasicOnly, Ability, Marks, Key, Attacker, 1000));
-    FLDThornsContact Secondary = Basic;
-    Secondary.HitClass = ELDCombatHitClass::BasicSecondary;
-    TestFalse(TEXT("A cleave secondary never triggers"), LDCombatControl::ThornsTriggers(Both, Secondary, Marks, Key, Attacker, 1000));
+
     FLDThornsContact Reflected = Basic;
     Reflected.bReflected = true;
     TestFalse(TEXT("A reflection never triggers another reflection"), LDCombatControl::ThornsTriggers(Both, Reflected, Marks, Key, Attacker, 1000));
@@ -152,7 +155,7 @@ bool FLDCombatThornsTest::RunTest(const FString& Parameters)
     LDCombatControl::MarkThorns(Marks, Key, Attacker, 1000, Both.IntervalMs);
     TestFalse(TEXT("The same attacker is answered at most once per window"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1499));
     TestTrue(TEXT("Another attacker has its own window"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Other, 1499));
-    TestTrue(TEXT("Another source has its own window"), LDCombatControl::ThornsTriggers(BasicOnly, Basic, Marks, TEXT("passive_prickle"), Attacker, 1499));
+    TestTrue(TEXT("Another source has its own window"), LDCombatControl::ThornsTriggers(BasicOnly, Basic, Marks, TEXT("thorns_source_b"), Attacker, 1499));
     TestTrue(TEXT("The window is half-open"), LDCombatControl::ThornsTriggers(Both, Basic, Marks, Key, Attacker, 1500));
     LDCombatControl::MarkThorns(Marks, Key, Other, 1700, Both.IntervalMs);
     TestTrue(TEXT("Expired marks are forgotten"), Marks.Num() == 1 && Marks[0].Attacker == Other);
@@ -186,45 +189,23 @@ bool FLDCombatExpansionContentTest::RunTest(const FString& Parameters)
     FString Error;
     const FLDDemoAbilityDefinition* Unplug = nullptr;
     const FLDDemoAbilityDefinition* BailOut = nullptr;
-    const FLDDemoAbilityDefinition* ThickFace = nullptr;
-    if (!Content->FindAbility(TEXT("active_unplug"), Unplug, Error)
-        || !Content->FindAbility(TEXT("active_bail_out"), BailOut, Error) || !Content->FindAbility(TEXT("passive_thick_face"), ThickFace, Error))
+    if (!Content->FindAbility(TEXT("active_unplug"), Unplug, Error) || !Content->FindAbility(TEXT("active_bail_out"), BailOut, Error))
     {
         AddError(Error);
         return false;
     }
-    for (const FLDDemoRankDefinition& Rank : Unplug->Ranks)
-    {
-        const FLDDemoEffectDefinition* Disarm = FindOp(Rank.Effects, ELDDemoEffectOp::Disarm);
-        TestTrue(TEXT("Every unplug rank damages and disarms a unit"), Unplug->Target.Mode == ELDDemoTargetMode::Unit
-            && FindOp(Rank.Effects, ELDDemoEffectOp::Damage) && Disarm && Disarm->DurationMs > 0);
-    }
-    for (const FLDDemoRankDefinition& Rank : BailOut->Ranks)
-    {
-        const FLDDemoEffectDefinition* Empower = FindOp(Rank.Effects, ELDDemoEffectOp::EmpowerBasic);
-        TestTrue(TEXT("Every bail-out rank dashes and arms one empowered basic"), BailOut->Target.Mode == ELDDemoTargetMode::DirectionDash
-            && FindOp(Rank.Effects, ELDDemoEffectOp::Dash) && Empower && Empower->DurationMs > 0
-            && (Empower->BaseP2 > 0 || Empower->ADRatioBp > 0));
-    }
-    const FLDDemoEffectDefinition* FaceThorns = FindOp(ThickFace->Ranks.Last().Effects, ELDDemoEffectOp::Thorns);
-    if (!TestTrue(TEXT("The reflection imports as typed thorns"), FaceThorns != nullptr)) { return false; }
-
-    // A learned trigger passive projects as a rank-exact combat trigger, never an attribute term.
-    const FLDAttributeBuildValues Build(3, {FLDLearnedPassiveValue(TEXT("passive_thick_face"), 2)}, {});
-    const FLDAttributeProjectionResult Projected = LDAttributeProjection::Project(Build, *Content);
-    if (!TestTrue(TEXT("The thorns build projects"), Projected.IsSuccess()))
-    {
-        AddError(Projected.Error.Field + TEXT(": ") + Projected.Error.Message);
-        return false;
-    }
-    const FLDAttributeProjection& Projection = Projected.Value.GetValue();
-    TestTrue(TEXT("The learned trigger keeps its rank"), Projection.LearnedTriggers.Num() == 1
-        && Projection.LearnedTriggers[0].AbilityId == TEXT("passive_thick_face") && Projection.LearnedTriggers[0].Rank == 2);
+    const FLDDemoEffectDefinition* Disarm = FindOp(Unplug->Values.Effects, ELDDemoEffectOp::Disarm);
+    TestTrue(TEXT("The unplug damages and disarms a unit"), Unplug->Target.Mode == ELDDemoTargetMode::Unit
+        && FindOp(Unplug->Values.Effects, ELDDemoEffectOp::Damage) && Disarm && Disarm->DurationMs > 0);
+    const FLDDemoEffectDefinition* Empower = FindOp(BailOut->Values.Effects, ELDDemoEffectOp::EmpowerBasic);
+    TestTrue(TEXT("The bail-out dashes and arms one empowered basic"), BailOut->Target.Mode == ELDDemoTargetMode::DirectionDash
+        && FindOp(BailOut->Values.Effects, ELDDemoEffectOp::Dash) && Empower && Empower->DurationMs > 0
+        && (Empower->BaseP2 > 0 || Empower->ADRatioBp > 0));
 
     // Functional display: every new effect, target and status has explicit player text.
-    for (const FLDDemoAbilityDefinition* Ability : {Unplug, BailOut, ThickFace})
+    for (const FLDDemoAbilityDefinition* Ability : {Unplug, BailOut})
     {
-        for (const FLDDemoEffectDefinition& Effect : Ability->Ranks[0].Effects)
+        for (const FLDDemoEffectDefinition& Effect : Ability->Values.Effects)
         {
             TestFalse(FString::Printf(TEXT("%s effect %u has a display line"), *Ability->Id, Effect.Opcode),
                 LDHUD::EffectLine(Effect).StartsWith(TEXT("未知")));

@@ -57,8 +57,11 @@ FLinearColor WorldStatusInk(uint8 StatusId)
     case ELDDemoStatusId::Silence: return FLinearColor(.62f,.48f,1.f);
     case ELDDemoStatusId::Burn: return FLinearColor(1.f,.36f,.12f);
     case ELDDemoStatusId::AttackSlowed: return FLinearColor(.65f,.4f,.9f);
-    case ELDDemoStatusId::Cowering: return FLinearColor(.95f,.8f,.3f);
-    case ELDDemoStatusId::ContactGuard: return FLinearColor(.3f,.9f,.8f);
+    // #198: wet water blue, electrified spark yellow-white, the S16 stance steel, the S21 cut sour green.
+    case ELDDemoStatusId::Wet: return FLinearColor(.3f,.6f,1.f);
+    case ELDDemoStatusId::Electrified: return FLinearColor(.85f,.95f,.3f);
+    case ELDDemoStatusId::Braced: return FLinearColor(.7f,.8f,.95f);
+    case ELDDemoStatusId::Soured: return FLinearColor(.55f,.8f,.25f);
     default: return WorldLabelStatusInk;
     }
 }
@@ -258,7 +261,8 @@ int32 ULDWorldLabels::NativePaint(const FPaintArgs& A,const FGeometry& G,const F
             if(!Relay->ReadPresentedLocation(Unit.Handle,Unit.ObservationEpoch,Centre)){continue;}
             const bool bContender=Unit.Kind==ELDObservedUnitKind::Contender;
             FPending Entry;
-            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::RosterName(Public->DemoLobby,Unit.ContenderId):FString(),Content,Frame->SampledAtServerSec);
+            Entry.Label=LDWorldLabels::Build(Unit,bContender?LDHUD::ObservedContenderName(Public->DemoLobby,Unit.ContenderId,
+                Public->PublicMatch.Phase==ELDMatchPhase::Rest):FString(),Content,Frame->SampledAtServerSec);
             const LDWorldLabels::FLabel& Label=Entry.Label;
             FVector2D Screen;
             if((Label.Name.IsEmpty()&&Label.Status.IsEmpty()&&!Label.bHealth)||!PC->ProjectWorldLocationToScreen(Centre+FVector(0,0,WorldLabelHeadroomCm(Label)),Screen)){continue;}

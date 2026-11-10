@@ -61,7 +61,11 @@ bool LDArt::CheckPlacements(const ULDArtCatalog& Catalog, const FLDDemoWorldGeom
         // D21: a dorm is only a judgment disk at the wall base; collision-free low furniture there neither blocks a body
         // nor hides one, and the dorm's own ring marks it.
         // D26: a Boss waypoint is a patrol target only; props keep the path open through the navmesh like anywhere else.
-        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint) { continue; }
+        // #198 session D: a PK spawn or the throw anchor is a placement target only; collision-free decorations never block
+        // the body the registry places there.
+        if (Anchor.Kind == ELDDemoWorldAnchorKind::Dorm || Anchor.Kind == ELDDemoWorldAnchorKind::BossWaypoint
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSpawn || Anchor.Kind == ELDDemoWorldAnchorKind::PKThrow
+            || Anchor.Kind == ELDDemoWorldAnchorKind::PKSignup) { continue; }
         FPlaceKeepOut& KeepOut = KeepOuts.AddDefaulted_GetRef();
         KeepOut.Id = Anchor.Id;
         KeepOut.Kind = Anchor.Kind;

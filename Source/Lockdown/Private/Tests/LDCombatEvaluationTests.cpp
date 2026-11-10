@@ -135,33 +135,24 @@ bool FLDDemoDamageEvaluationTest::RunTest(const FString& Parameters)
         AddError(Error);
         return false;
     }
-    if (!TestEqual(TEXT("Approved snark bolt has two ranks"), Snark->Ranks.Num(), 2)) { return false; }
-    // Authored (level-1) ranks: 90 / 135 + 1.0 AP, Magical, against 18 magic resistance.
-    const int64 ExpectedDamage[] = {9322, 13135};
-    for (int32 I = 0; I < Snark->Ranks.Num(); ++I)
-    {
-        const auto* Effect = Snark->Ranks[I].Effects.FindByPredicate(
-            [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
-        if (!TestNotNull(TEXT("Rank has an actual compiled damage effect"), Effect)) { return false; }
-        Input = PrimaryInput(*Catalog);
-        Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType);
-        Input.HitClass = ELDCombatHitClass::Ability;
-        Input.SourceAPP2 = int64(2000);
-        // A Physical hit meets armor, a Magical one magic resistance (the same base points).
-        Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
-            ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
-        if (!CheckDamage(*this, FString::Printf(TEXT("Compiled snark bolt rank %d with 70 AD and 20 AP"), I + 1), Input, *Catalog,
-            {ExpectedDamage[I], 0, ExpectedDamage[I], 0, 62000 - ExpectedDamage[I], 0})) { return false; }
-        if (I == 0)
-        {
-            Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
-            if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
-                {7627, 0, 7627, 0, 54373, 0})) { return false; }
-            Input.TargetResistanceP2 = int64(20000);
-            if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
-                {3000, 0, 3000, 0, 59000, 0})) { return false; }
-        }
-    }
+    // #198 S06: the one authored (level-1) value set: 90 + 0.8 AP, Magical, against 18 magic resistance.
+    const auto* Effect = Snark->Values.Effects.FindByPredicate(
+        [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
+    if (!TestNotNull(TEXT("The snark bolt has an actual compiled damage effect"), Effect)) { return false; }
+    Input = PrimaryInput(*Catalog);
+    Input.Definition.Emplace(Effect->BaseP2, Effect->ADRatioBp, Effect->APRatioBp, Effect->DamageType);
+    Input.HitClass = ELDCombatHitClass::Ability;
+    Input.SourceAPP2 = int64(2000);
+    // A Physical hit meets armor, a Magical one magic resistance (the same base points).
+    Input.TargetResistanceP2 = Effect->DamageType == ELDDemoDamageType::Physical
+        ? Catalog->Get().Parameters.Armor.BaseP2 : Catalog->Get().Parameters.MagicResist.BaseP2;
+    if (!CheckDamage(*this, TEXT("Compiled snark bolt with 70 AD and 20 AP"), Input, *Catalog, {8983, 0, 8983, 0, 53017, 0})) { return false; }
+    Input.SourceAPP2 = Catalog->Get().Parameters.AP.BaseP2;
+    if (!CheckDamage(*this, TEXT("90 damage against 18 resistance points, not a ratio"), Input, *Catalog,
+        {7627, 0, 7627, 0, 54373, 0})) { return false; }
+    Input.TargetResistanceP2 = int64(20000);
+    if (!CheckDamage(*this, TEXT("Resistance uses the same points formula"), Input, *Catalog,
+        {3000, 0, 3000, 0, 59000, 0})) { return false; }
     return true;
 }
 
@@ -198,10 +189,8 @@ bool FLDDemoDamageDomainTest::RunTest(const FString& Parameters)
     Input = PrimaryInput(*Catalog);
     Input.Definition.Emplace(0, 10000, 0, static_cast<ELDDemoDamageType>(255));
     CheckFailure(*this, TEXT("Unknown damage type"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Definition);
-    for (ELDCombatHitClass HitClass : {ELDCombatHitClass::BasicPrimary, ELDCombatHitClass::BasicSecondary})
     {
         Input = PrimaryInput(*Catalog);
-        Input.HitClass = HitClass;
         Input.Definition.Emplace(0, 10000, 1, ELDDemoDamageType::Physical);
         Input.SourceAPP2 = int64(0);
         CheckFailure(*this, TEXT("Even zero current AP cannot authorize an AP basic coefficient"),
@@ -210,11 +199,12 @@ bool FLDDemoDamageDomainTest::RunTest(const FString& Parameters)
         CheckFailure(*this, TEXT("Basic hits cannot become magical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Definition);
     }
     {
+        // #198: ability crits are retired; only a primary basic crits.
         Input = PrimaryInput(*Catalog);
-        Input.HitClass = ELDCombatHitClass::BasicSecondary;
+        Input.HitClass = ELDCombatHitClass::Ability;
+        Input.Definition.Emplace(10000, 0, 0, ELDDemoDamageType::Physical);
         Input.bCritical = true;
-        CheckFailure(*this, TEXT("A sweep cannot borrow a critical result"),
-            LDTactical::EvaluateDamage(Input, *Catalog), EError::Domain);
+        CheckFailure(*this, TEXT("An ability hit cannot be critical"), LDTactical::EvaluateDamage(Input, *Catalog), EError::Domain);
     }
     struct FRequiredP2 { const TCHAR* Name; TOptional<int64> FLDDamageEvaluationInput::* Member; };
     for (const auto& Field : {
@@ -471,8 +461,8 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     {
         return false;
     }
-    Input.AmplifyBp = 10000 + 1600;
-    if (!CheckDamage(*this, TEXT("A 16% control mark multiplies the pre-resistance amount once"), Input, *Catalog,
+    Input.DamageBonusBp = 1600;
+    if (!CheckDamage(*this, TEXT("A 16% control amplification multiplies the pre-resistance amount once"), Input, *Catalog,
         {Amplified, 0, Amplified, 0, HP - Amplified, 0}))
     {
         return false;
@@ -481,21 +471,20 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.bTargetProtected = true;
     CheckDamage(*this, TEXT("Protection still zeroes an amplified hit"), Input, *Catalog, {0, 0, 0, 0, HP, 0});
     Input.bTargetProtected = false;
-    Input.AmplifyBp = -1;
+    Input.DamageBonusBp = -1;
     CheckFailure(*this, TEXT("Negative amplification is refused"), LDTactical::EvaluateDamage(Input, *Catalog), ELDCombatEvaluationError::Domain);
 
-    // active_seethe (#147): base + 0.7 AP + 3% of the caster's max HP, the max-HP term beside AD/AP before one floor.
+    // active_seethe (#198 S07): base + 0.55 AP + 2% of the caster's max HP, the max-HP term beside AD/AP before one floor.
     FString Error;
     const FLDDemoAbilityDefinition* Seethe = nullptr;
     if (!Catalog->FindAbility(TEXT("active_seethe"), Seethe, Error)) { AddError(Error); return false; }
     const int64 MaxHP = Content.Parameters.MaxHP.BaseP2;
     const int64 AP = 2000;
-    for (int32 I = 0; I < Seethe->Ranks.Num(); ++I)
     {
-        const auto* Effect = Seethe->Ranks[I].Effects.FindByPredicate(
+        const auto* Effect = Seethe->Values.Effects.FindByPredicate(
             [](const auto& Value) { return Value.GetOp() == ELDDemoEffectOp::Damage; });
-        if (!TestNotNull(TEXT("The seethe rank has a damage effect"), Effect)) { return false; }
-        TestEqual(TEXT("The seethe scales with 3% of the caster's max HP"), Effect->MaxHPRatioBp, int64(300));
+        if (!TestNotNull(TEXT("The seethe has a damage effect"), Effect)) { return false; }
+        TestEqual(TEXT("The seethe scales with 2% of the caster's max HP"), Effect->MaxHPRatioBp, int64(200));
         Input = PrimaryInput(*Catalog);
         Input.HitClass = ELDCombatHitClass::Ability;
         Input.SourceAPP2 = AP;
@@ -505,7 +494,7 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
         Input.SourceMaxHPP2 = MaxHP;
         const int64 Raw = Effect->BaseP2 * 10000 + AD * Effect->ADRatioBp + AP * Effect->APRatioBp + MaxHP * Effect->MaxHPRatioBp;
         const int64 Seethed = Raw * Scale / ((Scale + Resist) * 10000);
-        if (!CheckDamage(*this, FString::Printf(TEXT("Seethe rank %d adds 3%% of the caster's max HP"), I + 1), Input, *Catalog,
+        if (!CheckDamage(*this, TEXT("The seethe adds 2% of the caster's max HP"), Input, *Catalog,
             {Seethed, 0, Seethed, 0, HP - Seethed, 0}))
         {
             return false;
@@ -516,36 +505,6 @@ bool FLDDemoDamageControlAmplifyTest::RunTest(const FString& Parameters)
     Input.SourceMaxHPP2 = MaxHP;
     CheckFailure(*this, TEXT("A basic hit cannot scale with max HP"), LDTactical::EvaluateDamage(Input, *Catalog),
         ELDCombatEvaluationError::Definition);
-    return true;
-}
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoDamageAbilityCritTest, "Lockdown.Rules.DemoCombatEvaluation.AbilityCrit",
-    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FLDDemoDamageAbilityCritTest::RunTest(const FString& Parameters)
-{
-    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
-    if (!ReadApprovedFixture(*this, Catalog)) { return false; }
-    const auto& Content = Catalog->Get();
-    TestTrue(TEXT("The ability critical multiplier is its own catalog parameter"), Content.Parameters.AbilityCritMultiplierBp >= 10000);
-    FLDDamageEvaluationInput Input = PrimaryInput(*Catalog);
-    Input.HitClass = ELDCombatHitClass::Ability;
-    Input.Definition.Emplace(10000, 0, 0, ELDDemoDamageType::Physical);
-    const int64 Resist = Input.TargetResistanceP2.GetValue(), Scale = Content.Formulas.ResistanceScaleP2, HP = Input.TargetHPP2.GetValue();
-    const int64 Plain = int64(10000) * Scale / (Scale + Resist);
-    if (!CheckDamage(*this, TEXT("A plain ability hit"), Input, *Catalog, {Plain, 0, Plain, 0, HP - Plain, 0})) { return false; }
-    Input.bCritical = true;
-    const int64 Crit = int64(10000) * Content.Parameters.AbilityCritMultiplierBp * Scale / ((Scale + Resist) * 10000);
-    if (!CheckDamage(*this, TEXT("An ability critical uses STAT.AbilityCritMultiplier, not the basic multiplier"), Input, *Catalog,
-        {Crit, 0, Crit, 0, HP - Crit, 0}))
-    {
-        return false;
-    }
-    // A critical reduction (the crit_damage_reduction op) rides the pre-resistance amplification once.
-    Input.AmplifyBp = 8500;
-    const int64 Guarded = int64(10000) * Content.Parameters.AbilityCritMultiplierBp * 8500 * Scale / ((Scale + Resist) * 10000 * 10000);
-    CheckDamage(*this, TEXT("A critical reduction multiplies the critical amount before resistance"), Input, *Catalog,
-        {Guarded, 0, Guarded, 0, HP - Guarded, 0});
     return true;
 }
 

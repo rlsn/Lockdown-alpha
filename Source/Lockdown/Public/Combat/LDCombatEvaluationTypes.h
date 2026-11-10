@@ -4,7 +4,8 @@
 #include "Development/LDDemoContentDefinitions.h"
 #include "Framework/LDMatchLifecycleTypes.h"
 
-enum class ELDCombatHitClass : uint8 { None, BasicPrimary, BasicSecondary, Ability };
+// #198: cleave (the only basic secondary) is retired, so a basic hit is always the primary one.
+enum class ELDCombatHitClass : uint8 { None, BasicPrimary, Ability };
 enum class ELDCombatEvaluationError : uint8 { None, Definition, Numeric, Domain, Overflow };
 
 struct FLDCombatEvaluationFailure
@@ -44,16 +45,23 @@ struct FLDDamageEvaluationInput
     TOptional<int64> TargetHPP2;
     TOptional<int64> TargetShieldP2;
     TOptional<bool> bTargetProtected;
-    // #147 D21 damage bonus pool: every "damage +X%" of this hit (control/low-HP amplification, execute, the affliction
-    // amplification of burn) summed into one factor (1 + pool) applied once to the raw amount before resistance. An ability critical adds STAT.AbilityCritMultiplier - 1 to this pool here; a basic critical
-    // multiplies by STAT.CritMultiplier before it.
+    // #147 D21 damage bonus pool: every "damage +X%" of this hit (the control/low-HP amplification) summed into one factor
+    // (1 + pool) applied once to the raw amount before resistance; a basic critical multiplies by STAT.CritMultiplier
+    // before it. Only a primary basic crits.
     int64 DamageBonusBp = 0;
-    // Remaining multiplier of the raw amount outside the pool (the target's critical damage reduction); 10000 = none.
-    int64 AmplifyBp = 10000;
+    // Delivery share of the raw amount (a ground impact's outer ring); 10000 = all of it.
     int64 DeliveryScaleBp = 10000;
-    int64 GuardMultiplierBp = 10000;
+    // #198 F workshop package multiplier of the raw amount (M01/M03/M05/M08 below 1, M02/M07 above), applied with the
+    // delivery share; 1..100000.
+    int64 PackageScaleBp = 10000;
+    // #198 F M12: this share of the mitigated damage (after resistance and the guard, before the shield) is deferred:
+    // reported as DeferredP2 and kept out of the shield/HP split. 0..9999.
+    int64 DeferRatioBp = 0;
+    // primary_guard: a flat cut of a primary basic after resistance, at most PrimaryGuardCapBp of it.
     int64 PrimaryGuardP2 = 0;
     int64 PrimaryGuardCapBp = 0;
+    // #198 S16: the target's stance cuts this share of the hit after resistance and delivery scaling, before the guard.
+    int64 BraceCutBp = 0;
 };
 
 struct FLDDamageEvaluation
@@ -65,6 +73,13 @@ struct FLDDamageEvaluation
     int64 OverkillP2 = 0;
     int64 RemainingHPP2 = 0;
     int64 RemainingShieldP2 = 0;
+    // The amount BraceCutBp actually took off (floored P2; zero for a protected target).
+    int64 BraceCutP2 = 0;
+    // The amount the primary guard actually took off a primary basic (the floored damage before it minus the floored damage
+    // after it; zero for a protected target).
+    int64 GuardCutP2 = 0;
+    // #198 F M12: the deferred part of DamageP2's mitigated amount (DamageP2 is what this hit applies now).
+    int64 DeferredP2 = 0;
 };
 
 struct FLDDamageEvaluationResult

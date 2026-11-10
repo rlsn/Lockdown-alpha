@@ -19,12 +19,13 @@ def contender(kind, slot, ident, level_curve, final_level, winner=False, attempt
             "final_level": final_level, "kills": 1, "deaths": 2, "capture_attempts": attempts, "capture_resumes": 1,
             "capture_paused": 1, "capture_lost": 0, "assists": 1, "capture_sprays": 1, "capture_interrupted": 0,
             "first_active_ms": 2000 if kind == "OpponentAI" else -1,
-            "skills": [{"id": "active_bail_out", "rank": 2, "active": True}, {"id": "passive_stoke", "rank": 1, "active": False}]
-            if kind == "OpponentAI" else [],
-            "max_rank_skills": 1 if kind == "OpponentAI" else 0, "rerolls_earned": 2 if kind == "OpponentAI" else 0,
-            "rerolls_used": 1 if kind == "OpponentAI" else 0, "choices": 4 if kind == "OpponentAI" else 1,
-            "replacements": [{"t_ms": 50000, "level": 5, "replaced": "active_snark_bolt", "replaced_rank": 2,
-                              "new": "active_bail_out", "new_rank": 1}] if slot == 0 else [],
+            "actives": [{"id": "active_bail_out", "slot": 0}, {"id": "active_seethe", "slot": 1}] if kind == "OpponentAI" else [],
+            "blueprints": ["active_unplug"] if slot == 0 else [],
+            "stat_points": [{"id": "stat_physique", "points": 6 if kind == "OpponentAI" else 0},
+                            {"id": "stat_thick_skin", "points": 3 if kind == "OpponentAI" else 0}],
+            "unspent_points": 0 if kind == "OpponentAI" else 3, "choices": 3 if kind == "OpponentAI" else 1,
+            "learns": [{"t_ms": 2000, "level": 1, "id": "active_bail_out", "slot": 0},
+                       {"t_ms": 50000, "level": 3, "id": "active_seethe", "slot": 1}] if kind == "OpponentAI" else [],
             "curve": {"t_ms": times, "level": level_curve, "xp": [0] * len(times)}}
 
 
@@ -35,7 +36,7 @@ def match(index, duration_ms=125000, winner_slot=1, first_kill=30000):
     for slot in range(3):
         level = [1 + (i * 1000) // 60000 for i in range(samples)]
         rows.append(contender("OpponentAI", slot, ai_id(slot), level, level[-1], ai_id(slot) == winner, attempts=2))
-    return {"schema": 4, "match": index, "generation": index, "result_id": f"{index:032x}",
+    return {"schema": 5, "match": index, "generation": index, "result_id": f"{index:032x}",
             "content_root": "ab" * 32, "dev_content_reload": False,
             "reason": "GuardSucceeded" if winner else "HostEnded", "winner": winner, "duration_ms": duration_ms,
             "capture_open_ms": 60000, "first_kill_ms": first_kill, "first_death_ms": 20000, "kill_feed_gaps": 0,
@@ -81,11 +82,15 @@ class SummaryTest(unittest.TestCase):
         self.assertNotIn("killer_gold", summary["deaths"])
         self.assertNotIn("ai_gold_by_minute", summary)
         self.assertEqual(summary["growth"]["first_active_ms"]["median"], 2000)
-        self.assertEqual(summary["growth"]["max_rank_skills"], {"1": 6})
-        self.assertEqual(summary["growth"]["reroll_use_rate"], 0.5)
-        self.assertEqual(summary["growth"]["replacements"], 2)
-        self.assertEqual(summary["growth"]["replacement_rate"], round(2 / 24, 3))
-        self.assertEqual(summary["growth"]["replacement_level"]["mean"], 5)
+        self.assertEqual(summary["growth"]["choices"], 18)
+        self.assertEqual(summary["growth"]["learns"], 12)
+        self.assertEqual(summary["growth"]["learn_level"]["max"], 3)
+        self.assertEqual(summary["growth"]["final_actives"]["mean"], 2)
+        self.assertEqual(summary["growth"]["final_blueprints"]["max"], 1)
+        self.assertEqual(summary["growth"]["unspent_points"]["max"], 0)
+        self.assertEqual(summary["growth"]["stat_points"], {"stat_physique": 36, "stat_thick_skin": 18})
+        for retired in ("max_rank_skills", "rerolls_earned", "replacements"):
+            self.assertNotIn(retired, summary["growth"])
         self.assertEqual(summary["ai"]["assists"]["count"], 6)
 
     def test_host_ended_match_has_no_winner_slot(self):
@@ -98,16 +103,20 @@ class SummaryTest(unittest.TestCase):
     def test_rejects_inconsistent_matches(self):
         cases = []
         bad = match(1); bad["match"] = 2; cases.append(bad)
-        bad = match(1); bad["schema"] = 3; cases.append(bad)
+        bad = match(1); bad["schema"] = 4; cases.append(bad)
         bad = match(1); bad["guard_success_ms"] = -1; cases.append(bad)
         bad = match(1, winner_slot=-1); bad["guard_success_ms"] = 100; cases.append(bad)
         bad = match(1); bad["kills"][0]["assisters"] = [ai_id(0)]; cases.append(bad)
         bad = match(1); bad["deaths"][0]["outcome"] = "NoReward"; cases.append(bad)
         bad = match(1); bad["deaths"][0]["assists"][0]["contender"] = HUMAN; cases.append(bad)
-        bad = match(1); bad["contenders"][1]["rerolls_used"] = 3; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["unspent_points"] = -1; cases.append(bad)
         bad = match(1); bad["contenders"][1]["first_active_ms"] = -1; cases.append(bad)
-        bad = match(1); bad["contenders"][1]["max_rank_skills"] = 3; cases.append(bad)
-        bad = match(1); del bad["contenders"][1]["replacements"]; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["actives"][1]["slot"] = 0; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["actives"][1]["slot"] = 3; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["blueprints"] = ["active_bail_out"]; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["stat_points"][0]["points"] = -2; cases.append(bad)
+        bad = match(1); bad["contenders"][1]["learns"][0]["level"] = 0; cases.append(bad)
+        bad = match(1); del bad["contenders"][1]["learns"]; cases.append(bad)
         bad = match(1); bad["contenders"][1]["curve"]["xp"].pop(); cases.append(bad)
         bad = match(1); bad["contenders"][1]["curve"]["t_ms"][3] = 0; cases.append(bad)
         bad = match(1); bad["contenders"][1]["winner"] = True; cases.append(bad)

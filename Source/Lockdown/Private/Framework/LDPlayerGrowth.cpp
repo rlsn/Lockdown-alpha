@@ -66,7 +66,7 @@ void ALDPlayerController::SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint
 
 uint64 ALDPlayerController::PeekGrowthRequestId(ELDGrowthFamily Family) const
 {
-    const FGrowthRequestCursor& Cursor = ChoiceCursor;
+    const FGrowthRequestCursor& Cursor = BuildCursor;
     if (!LDGrowthWire::IsKnownFamily(Family) || OwnerState.Match == 0)
     {
         return 0;
@@ -78,19 +78,19 @@ uint64 ALDPlayerController::PeekGrowthRequestId(ELDGrowthFamily Family) const
     return Cursor.InFlight == 0 && Cursor.Next != MAX_uint64 ? Cursor.Next : 0;
 }
 
-uint64 ALDPlayerController::SubmitChoice(const FLDChoiceCommand& Command, ELDGrowthReason& OutLocalReason)
+uint64 ALDPlayerController::SubmitBuild(const FLDBuildCommand& Command, ELDGrowthReason& OutLocalReason)
 {
-    const uint64 RequestId = BeginGrowthRequest(ChoiceCursor, OutLocalReason);
+    const uint64 RequestId = BeginGrowthRequest(BuildCursor, OutLocalReason);
     if (RequestId == 0)
     {
         return 0;
     }
-    FLDChoiceCommand Sent = Command;
+    FLDBuildCommand Sent = Command;
     Sent.Generation = OwnerState.Match;
     Sent.Life = OwnerState.Life;
     Sent.ExpectedLifePhase = OwnerState.LifePhase;
     Sent.RequestId = RequestId;
-    ServerGrowthChoice(Sent);
+    ServerGrowthBuild(Sent);
     return RequestId;
 }
 
@@ -105,44 +105,44 @@ const FLDProgressionView* ALDPlayerController::ReadOwnProgression() const
     return View.bValid && View.Generation == OwnerState.Match ? &View : nullptr;
 }
 
-void ALDPlayerController::ServerGrowthChoice_Implementation(const FLDChoiceCommand& Command)
+void ALDPlayerController::ServerGrowthBuild_Implementation(const FLDBuildCommand& Command)
 {
     ALDGameMode* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>();
     const FGuid Contender = Mode ? Mode->ContenderId(this) : FGuid();
     if (!Mode || !Mode->Development || !Contender.IsValid())
     {
-        ClientGrowthSubmit(GrowthServerUnavailable(Command.Generation, ELDGrowthFamily::Choice, Command.RequestId));
+        ClientGrowthSubmit(GrowthServerUnavailable(Command.Generation, ELDGrowthFamily::Build, Command.RequestId));
         return;
     }
-    ClientGrowthSubmit(Mode->Development->QueueChoice(Contender, Command));
+    ClientGrowthSubmit(Mode->Development->QueueBuild(Contender, Command));
 }
 
 void ALDPlayerController::ServerQueryGrowthReceipt_Implementation(const FLDReceiptQuery& Query)
 {
     ALDGameMode* Mode = GetWorld()->GetAuthGameMode<ALDGameMode>();
     const FGuid Contender = Mode ? Mode->ContenderId(this) : FGuid();
-    FLDChoiceReceiptQueryResult Result;
+    FLDBuildReceiptQueryResult Result;
     Result.Query = Query;
     Result.Lookup = ELDReceiptLookup::InvalidContext;
-    ClientChoiceReceipt(Query.Family == ELDGrowthFamily::Choice && Mode && Mode->Development && Contender.IsValid()
-        ? Mode->Development->QueryChoiceReceipt(Contender, Query) : Result);
+    ClientBuildReceipt(Query.Family == ELDGrowthFamily::Build && Mode && Mode->Development && Contender.IsValid()
+        ? Mode->Development->QueryBuildReceipt(Contender, Query) : Result);
 }
 
 void ALDPlayerController::ClientGrowthSubmit_Implementation(const FLDSubmitResult& Result)
 {
     if (LDGrowthWire::IsKnownFamily(Result.Family))
     {
-        SettleGrowthRequest(ChoiceCursor, Result.Generation,
+        SettleGrowthRequest(BuildCursor, Result.Generation,
             Result.RequestId, Result.bSequenceReserved, Result.Status == ELDAdmissionStatus::Final);
     }
     OnGrowthSubmit.Broadcast(Result);
 }
 
-void ALDPlayerController::ClientChoiceReceipt_Implementation(const FLDChoiceReceiptQueryResult& Result)
+void ALDPlayerController::ClientBuildReceipt_Implementation(const FLDBuildReceiptQueryResult& Result)
 {
     if (Result.Lookup == ELDReceiptLookup::Final || Result.Lookup == ELDReceiptLookup::ReceiptExpired)
     {
-        SettleGrowthRequest(ChoiceCursor, Result.Query.Generation, Result.Query.RequestId, true, true);
+        SettleGrowthRequest(BuildCursor, Result.Query.Generation, Result.Query.RequestId, true, true);
     }
-    OnChoiceReceipt.Broadcast(Result);
+    OnBuildReceipt.Broadcast(Result);
 }

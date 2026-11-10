@@ -1,6 +1,7 @@
 #include "Framework/LDGameMode.h"
 #include "Core/LDLog.h"
 #include "World/LDCampDirector.h"
+#include "PK/LDPKDirector.h"
 #include "Framework/LDPlayerController.h"
 #include "Character/LDCharacter.h"
 #include "Combat/LDCombatDirector.h"
@@ -15,11 +16,6 @@
 int64 ALDGameMode::NextCaptureDueMs() const
 {
     return IsGameplayWriteOpen(MatchContext) ? CaptureReducer.NextDueMs() : MAX_int64;
-}
-
-int64 ALDGameMode::NextCountdownDueMs() const
-{
-    return IsOpeningCountdown(MatchContext) ? MatchStartedAtMs : MAX_int64;
 }
 
 bool ALDGameMode::CaptureCompletesInsideStep()
@@ -41,15 +37,15 @@ bool ALDGameMode::InitializeCaptureMatch(FString& Error)
     }
     if (!LDCaptureCircle::Resolve(*Registry, *DemoContent, CaptureCircle, Error)) { return false; }
     const auto& Parameters = DemoContent->Get().Parameters;
-    int64 OpenAtMs = 0;
-    // #153: T=0 is the end of the opening countdown; the development phase and every other match timer start there.
-    if (Parameters.CountdownMs <= 0 || Parameters.DevelopmentMs <= 0
-        || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, Parameters.CountdownMs, MatchStartedAtMs, Error)
-        || !LDMatchLifecycle::AddDurationMs(MatchStartedAtMs, Parameters.DevelopmentMs, OpenAtMs, Error)
-        || !CaptureReducer.Begin(OpenAtMs, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
+    // #198: the match starts with the opening rest R0; the flagpole opens only when the final field begins, an instant
+    // the timeline schedules (FLDCaptureReducer::ScheduleOpen), so the reducer starts unscheduled.
+    MatchStartedAtMs = AuthorityNowMs;
+    if (!InitializeTimeline(Error)
+        || !CaptureReducer.Begin(MAX_int64, Parameters.CaptureSprayMs, Parameters.CaptureGuardMs, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("The approved countdown, development, spray or guard duration is invalid."); }
+        if (Error.IsEmpty()) { Error = TEXT("The approved timeline, spray or guard duration is invalid."); }
         MatchStartedAtMs = 0;
+        Timeline.Reset();
         CaptureCircle = {};
         return false;
     }
@@ -133,11 +129,17 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     {
     case ELDCaptureEligibilityChange::Joined:
         Kind = ELDCaptureEventKind::Joined;
-        PhaseAllowed = Phase == ELDCommitPhase::RespawnsAndWorld && MatchPhase == ELDMatchPhase::Starting;
+        // #198: a contender's first field life starts when the opening rest R0 returns to the field.
+        PhaseAllowed = Phase == ELDCommitPhase::RespawnsAndWorld && MatchPhase == ELDMatchPhase::Rest;
         break;
     case ELDCaptureEligibilityChange::Respawned:
         Kind = ELDCaptureEventKind::Respawned;
         PhaseAllowed = Phase == ELDCommitPhase::RespawnsAndWorld;
+        break;
+    case ELDCaptureEligibilityChange::PhaseRetired:
+        // #198: a field life retired by a field -> rest boundary leaves the spray roster like a death, without a kill.
+        Kind = ELDCaptureEventKind::Died;
+        PhaseAllowed = Phase == ELDCommitPhase::RespawnsAndWorld && MatchPhase == ELDMatchPhase::Rest;
         break;
     case ELDCaptureEligibilityChange::ProtectionEnded:
         Kind = ELDCaptureEventKind::ProtectionEnded;
@@ -174,7 +176,11 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
     const FLDDeathKey DeathKey{MatchContext.LedgerMatch, Event.Body.Victim};
     FLDContenderRecord* Killer = nullptr;
     TArray<FLDContenderRecord*> Assisters;
-    if (Kind == ELDCaptureEventKind::Died)
+    const bool bKill = Kind == ELDCaptureEventKind::Died && Event.Change == ELDCaptureEligibilityChange::Died;
+    if (Kind == ELDCaptureEventKind::Died && !bKill
+        && (Event.DeathKey.IsValid() || Event.CreditContender.IsValid() || !Event.Assisters.IsEmpty()))
+    { return ELDCommitReject::InvalidRequest; }
+    if (bKill)
     {
         Killer = Event.CreditContender.IsValid() ? FindContender(Event.CreditContender) : nullptr;
         if (!(Event.DeathKey == DeathKey) || CountedDeaths.Contains(DeathKey)
@@ -205,14 +211,14 @@ ELDCommitReject ALDGameMode::PublishCaptureEligibility(const FLDGameplayWritePer
         FLDCaptureTrack& Track = CaptureTracks.FindOrAdd(Id);
         Track = {Event.Body, Fact.bInside, AuthorityStep.StepSerial, 0};
     }
-    else if (Kind == ELDCaptureEventKind::Died)
+    else if (bKill)
     {
         CountedDeaths.Add(DeathKey);
         ++FindContender(Id)->Deaths;
         if (Killer) { ++Killer->Kills; }
         for (FLDContenderRecord* Assister : Assisters) { ++Assister->Assists; }
         // D27: the shown leader's death spends the notice.
-        if (LeaderNotice.LeaderDied(Id, AuthorityNowMs))
+        if (LeaderNotice.LeaderDied(Id, GetFieldNowMs()))
         {
             bPublicMatchDirty = true;
             UE_LOG(LogLDMatch, Display, TEXT("LD_LEADER_DOWN leader=%s killer=%s"), *Id.ToString(),
@@ -286,10 +292,11 @@ void ALDGameMode::QueueLeaveFact(const FGuid& ContenderId)
 #if WITH_DEV_AUTOMATION_TESTS
 bool ALDGameMode::DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& bOutsideDevelopment, FString& Detail)
 {
-    bOutsideDevelopment = MatchPhase != ELDMatchPhase::Development;
+    // #198: the flagpole only exists in the final field, so the DEV shortcut skips the remaining timed segments and rests.
+    bOutsideDevelopment = MatchPhase != ELDMatchPhase::Development || Timeline.GetStage() != ELDMatchStage::Field;
     if (bOutsideDevelopment)
     {
-        Detail = TEXT("The capture circle opens early only during the development phase.");
+        Detail = TEXT("The capture circle opens early only during a timed field segment.");
         return false;
     }
     if (ValidateWritePermit(Permit, ELDCommitPhase::Transactions) != ELDCommitReject::None)
@@ -297,11 +304,17 @@ bool ALDGameMode::DevOpenCaptureNow(const FLDGameplayWritePermit& Permit, bool& 
         Detail = TEXT("An early capture opening needs the current Transactions permit.");
         return false;
     }
-    const int64 ScheduledMs = CaptureReducer.GetOpenAtMs();
     const int64 AtMs = Permit.GetBoundary().AtMs;
-    if (!CaptureReducer.DevOpenAt(AtMs, Detail)) { return false; }
+    if (!CaptureReducer.ScheduleOpen(AtMs, Detail)) { return false; }
+    TArray<FLDTimelineEvent> Events;
+    if (!Timeline.DevSkipToFinalField(AtMs, Events, Detail))
+    {
+        FaultAuthority(TEXT("The DEV final-field skip failed after the flagpole was scheduled: ") + Detail);
+        return false;
+    }
+    ++TimelineRevision;
     bPublicMatchDirty = true;
-    Detail = FString::Printf(TEXT("the capture circle opens at %lld ms instead of %lld ms"), AtMs, ScheduledMs);
+    Detail = FString::Printf(TEXT("the timeline skips to the final field and the capture circle opens at %lld ms"), AtMs);
     return true;
 }
 #endif
@@ -332,16 +345,6 @@ bool ALDGameMode::ExecuteCapturePhase(const FLDGameplayWritePermit& Permit, FStr
         ? CaptureReducer.CloseThroughCompletion(Permit.GetBoundary().AtMs, Proposal, Error)
         : CaptureReducer.CloseBoundary(Permit.GetBoundary().AtMs, Proposal, Error);
     if (!Closed) { return false; }
-    // #153: the step that reaches T=0 still belongs to the countdown (its actions and trades were refused); the
-    // match enters development once that boundary closes, so the first playable step starts exactly at T=0.
-    if (MatchPhase == ELDMatchPhase::Countdown && Permit.GetBoundary().AtMs >= MatchStartedAtMs)
-    {
-        MatchPhase = ELDMatchPhase::Development;
-        bPublicMatchDirty = true;
-        bLobbyDirty = true;
-        UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_COUNTDOWN_END generation=%u at_ms=%lld started_at_ms=%lld open_at_ms=%lld"),
-            MatchContext.Generation, Permit.GetBoundary().AtMs, MatchStartedAtMs, CaptureReducer.GetOpenAtMs());
-    }
     if (CaptureReducer.IsOpen() && MatchPhase == ELDMatchPhase::Development)
     {
         MatchPhase = ELDMatchPhase::CaptureOpen;
@@ -539,6 +542,7 @@ void ALDGameMode::PublishMatchOutcome()
             Published = true;
         }
         bLobbyDirty = true;
+        PublishBuildBlueprints();
     }
     if (bPublicMatchDirty)
     {
@@ -559,11 +563,17 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.Generation = MatchContext.Generation;
     View.PublicRevision = PublicMatchRevision;
     View.Phase = MatchPhase;
-    const bool Active = MatchPhase == ELDMatchPhase::Countdown || MatchPhase == ELDMatchPhase::Development
+    const bool Active = MatchPhase == ELDMatchPhase::Rest || MatchPhase == ELDMatchPhase::Development
         || MatchPhase == ELDMatchPhase::CaptureOpen || MatchPhase == ELDMatchPhase::Results;
     if (!Active || !CaptureReducer.IsActive()) { return View; }
     View.ServerNowMs = bResultLocked ? ResultView.EndedAtMs : AuthorityNowMs;
     View.StartedAtMs = MatchStartedAtMs;
+    View.Timeline = Timeline.MakeView(MatchContext.Generation, TimelineRevision);
+    View.Timeline.Signups = RestSignups.Array();
+    View.Timeline.Signups.Sort();
+    // #198 session D: the current rest's PK; empty without the provider or outside a PK.
+    if (PKDirector) { View.PK = PKDirector->GetView(); }
+    View.PK.Generation = MatchContext.Generation;
     View.OpenAtMs = CaptureReducer.GetOpenAtMs();
     View.CircleState = CaptureReducer.GetState();
     View.CaptureEpoch = CaptureReducer.GetEpoch();
@@ -589,8 +599,10 @@ FLDPublicMatchView ALDGameMode::ReadPublicMatch() const
     View.GuardKeptMs = CaptureReducer.GetGuardKeptMs();
     if (bResultLocked) { View.ResultId = ResultView.ResultId; }
     View.Airdrop = Airdrop.View();
+    Charms.View(View.Charms);
     View.Leader = LeaderNotice.View();
     View.Boss = Camps ? Camps->BossView() : FLDBossView();
+    FieldMarkers.View(View.Markers);
     return View;
 }
 

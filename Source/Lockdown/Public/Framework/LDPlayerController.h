@@ -6,6 +6,7 @@
 #include "Combat/LDCombatTypes.h"
 #include "Framework/LDCombatReceiptLog.h"
 #include "Development/LDDevTestProtocol.h"
+#include "PK/LDPKTypes.h"
 #include "Templates/PimplPtr.h"
 #include "LDPlayerController.generated.h"
 
@@ -49,29 +50,54 @@ public:
     UPROPERTY() TObjectPtr<class ULDHUD> HUDUI;
     UPROPERTY() TObjectPtr<ULDUIRoot> RootUI;
     UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDNavigationComponent> Navigation;
+    // #198 §10 owner-only end-of-match build blueprint channel and its read-only viewer (LDBuildBlueprintComponent.h).
+    UPROPERTY(VisibleAnywhere) TObjectPtr<class ULDBuildBlueprintComponent> BuildBlueprints;
     UPROPERTY(ReplicatedUsing=OnRep_OwnerState) FLDOwnerState OwnerState;
     UFUNCTION() void OnRep_OwnerState();
     UFUNCTION(Client,Reliable) void ClientLifeReceipt(const FLDOwnerState& State);
     UFUNCTION(Client,Reliable) void ClientIntentResult(uint32 Request,const FString& Reason);
     // ---- Growth (growth module; implementation in LDPlayerGrowth.cpp) ----
-    // The caller fills the business fields; Submit fills Generation, Life (and ExpectedLifePhase for a choice) from
-    // the accepted OwnerState at call time, assigns the RequestId, records it in flight before the RPC and returns
-    // it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the call, so a
-    // caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
-    uint64 SubmitChoice(const FLDChoiceCommand& Command, ELDGrowthReason& OutLocalReason);
+    // #198 build commands (active choice, learn blueprint, allocate points). The caller fills Kind and its business
+    // fields (ExpectedBuildRevision and CatalogDigest from ReadOwnProgression); Submit fills Generation, Life and
+    // ExpectedLifePhase from the accepted OwnerState at call time, assigns the RequestId, records it in flight before the
+    // RPC and returns it, or returns 0 with a local reason without sending anything. A Listen Host answers inside the
+    // call, so a caller that must key its pending entry first reads PeekGrowthRequestId(Family) before submitting.
+    uint64 SubmitBuild(const FLDBuildCommand& Command, ELDGrowthReason& OutLocalReason);
     uint64 PeekGrowthRequestId(ELDGrowthFamily Family) const;
     void QueryGrowthReceipt(const FLDReceiptQuery& Query);
     // Own accepted projection only; null while the view is invalid.
     const FLDProgressionView* ReadOwnProgression() const;
     FLDOnGrowthSubmit OnGrowthSubmit;
-    FLDOnChoiceReceipt OnChoiceReceipt;
-    UFUNCTION(Server,Reliable) void ServerGrowthChoice(const FLDChoiceCommand& Command);
+    FLDOnBuildReceipt OnBuildReceipt;
+    UFUNCTION(Server,Reliable) void ServerGrowthBuild(const FLDBuildCommand& Command);
     UFUNCTION(Server,Reliable) void ServerQueryGrowthReceipt(const FLDReceiptQuery& Query);
     UFUNCTION(Client,Reliable) void ClientGrowthSubmit(const FLDSubmitResult& Result);
-    UFUNCTION(Client,Reliable) void ClientChoiceReceipt(const FLDChoiceReceiptQueryResult& Result);
+    UFUNCTION(Client,Reliable) void ClientBuildReceipt(const FLDBuildReceiptQueryResult& Result);
     // ---- end Growth ----
+    // ---- #198 rest training (Framework/LDPlayerRest.cpp); the PK sign-up is standing in the own sign-up disk ----
+    // Resets the own training in the rest space (owner and dummy refilled, cooldowns ready); OnTrainingReset answers.
+    void SubmitTrainingReset();
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnTrainingReset, ELDTrainingResetResult);
+    FLDOnTrainingReset OnTrainingReset;
+    UFUNCTION(Server,Reliable) void ServerTrainingReset(uint32 Generation);
+    UFUNCTION(Client,Reliable) void ClientTrainingReset(ELDTrainingResetResult Result);
+    // ---- #198 PK spectators (PK/LDPlayerPK.cpp): an eligible spectator bets on one side of the current PK (Side
+    // 1..SideCount, changeable until the betting step ends) and throws at a ground point of the arena while the PK runs.
+    // Results arrive as OnPKBet / OnPKThrow (a Listen Host inside the call); the authority decides in ALDPKDirector.
+    void SubmitPKBet(uint8 Side);
+    void SubmitPKThrow(const FVector& TargetCm);
+    DECLARE_MULTICAST_DELEGATE_OneParam(FLDOnPKBet, ELDPKBetResult);
+    FLDOnPKBet OnPKBet;
+    // ReadyAtMs: authority ms from which this spectator may throw again (on Thrown and CoolingDown; 0 otherwise).
+    DECLARE_MULTICAST_DELEGATE_TwoParams(FLDOnPKThrow, ELDPKThrowResult, int64);
+    FLDOnPKThrow OnPKThrow;
+    UFUNCTION(Server,Reliable) void ServerPKBet(uint32 Generation,uint32 Serial,uint8 Side);
+    UFUNCTION(Client,Reliable) void ClientPKBet(ELDPKBetResult Result);
+    UFUNCTION(Server,Reliable) void ServerPKThrow(uint32 Generation,uint32 Serial,FVector_NetQuantize TargetCm);
+    UFUNCTION(Client,Reliable) void ClientPKThrow(ELDPKThrowResult Result,int64 ReadyAtMs);
+    // ---- end rest ----
     // ---- DEV test commands (#78; LDDevTestProtocol.h, implementation and console commands in LDPlayerDevTest.cpp) ----
-    // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitChoice; one command in flight.
+    // Fills Generation, Life and the RequestId from the accepted OwnerState like SubmitBuild; one command in flight.
     // Returns the RequestId, or 0 with a local reason without sending. The authority admits the command only in a DEV
     // test session (automation-test build, Host started with -LDDevGrowthFixture); every result arrives as OnDevTestResult.
     uint64 SubmitDevTest(ELDDevTestOp Op, int64 Amount, ELDGrowthReason& OutLocalReason, FName Definition = NAME_None,
@@ -185,7 +211,7 @@ private:
         uint64 Next=1;
         uint64 InFlight=0;
     };
-    FGrowthRequestCursor ChoiceCursor;
+    FGrowthRequestCursor BuildCursor;
     FGrowthRequestCursor DevTestCursor;
     uint64 BeginGrowthRequest(FGrowthRequestCursor& Cursor, ELDGrowthReason& OutLocalReason);
     void SettleGrowthRequest(FGrowthRequestCursor& Cursor, uint32 Generation, uint64 RequestId, bool bReserved, bool bFinal);

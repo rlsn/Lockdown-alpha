@@ -11,8 +11,9 @@
 //
 // Admission reuses the growth request stream (TLDGrowthRequestStream: monotonic RequestId, one pending request,
 // 64-receipt replay window). The pending command commits in the Transactions phase in server arrival order together
-// with choices; XP goes through the reward composite like a reward without a death. Retired op numbers (2 GrantGold,
-// 6 BuyItem, 7 SellItem, removed with equipment and gold in #144) are never reused.
+// with build commands; XP goes through the reward composite like a reward without a death. Retired op numbers (2 GrantGold,
+// 6 BuyItem, 7 SellItem, removed with equipment and gold in #144; 5 LearnOption, removed with the three-card offer in #198)
+// are never reused.
 
 UENUM()
 enum class ELDDevTestOp : uint8
@@ -24,16 +25,14 @@ enum class ELDDevTestOp : uint8
     RefillResources = 3,
     // Amount == 0: every cooldown track of the caller (Q/W/E and the dash, bound or debt) ready at the commit boundary.
     ResetCooldowns = 4,
-    // Definition = a skill or attribute card id: consumed as the head opportunity's choice, as if it had been offered.
-    // It must be a legal option of the current build; Slot 1/2/3 confirms replacing the active in Q/W/E, 0 replaces nothing.
-    LearnOption = 5,
     // Stat = an ELDDemoBonusStat other than ADBonusRatio, Amount >= 0 in that stat's unit (P2 points, basis points,
     // whole cm for range): the caller's DEV attribute term for that stat; 0 removes it. Alive, Dead or Unspawned.
     SetAttribute = 8,
-    // Amount == 0, Stat 0: removes every DEV attribute term; base, growth, choices and passives stay.
+    // Amount == 0, Stat 0: removes every DEV attribute term; base, growth and allocated points stay.
     ClearAttributes = 9,
-    // Nothing named: the caller back to the match start. Level 1, zero XP, no skills, cards or DEV attribute terms, the
-    // opening opportunity with a fresh opening offer, every cooldown ready and a living body full. Alive or Dead.
+    // Nothing named: the caller back to the match start. Level 1, zero XP, no actives, blueprints, allocated points or DEV
+    // attribute terms, the opening opportunity with a fresh opening offer, every cooldown ready, the build safe window
+    // passed and a living body full. Alive or Dead.
     ResetToMatchStart = 10,
     // Match-wide, Listen Host connection only, nothing named: every cleared camp waiting for its refresh respawns at the
     // next boundary through the ordinary whole-group refresh; living camps are untouched.
@@ -41,6 +40,13 @@ enum class ELDDevTestOp : uint8
     // Match-wide, Listen Host connection only, nothing named, Development only: the capture circle opens at this
     // boundary instead of after the full development time; the hold and every capture rule stay.
     OpenCapture = 12,
+    // #198, Definition = an active id the caller neither holds nor keeps: a pending blueprint without an opportunity.
+    GrantBlueprint = 13,
+    // #198, Definition = an active id the caller has not learned, Slot 1..3 = Q/W/E (the active there is forgotten) or 0 =
+    // the lowest empty slot: learned now, without an opportunity, a blueprint or the build safe window. Alive or Dead.
+    LearnActive = 14,
+    // #198, Definition = a stat id, Amount > 0: that many unspent points allocated to it, without the build safe window.
+    AllocatePoints = 15,
 };
 
 USTRUCT()
@@ -119,7 +125,8 @@ namespace LDDevTest
     // The player-facing name of the op in the test-mode notices and panel.
     LOCKDOWN_API const TCHAR* OpLabel(ELDDevTestOp Op);
     // Request shape only: a known op, a non-zero request id and the op's domain: grants an amount > 0 and nothing else;
-    // LearnOption a definition and slot 0..3; SetAttribute a permanent build stat and an amount >= 0; refill, reset and clear nothing.
+    // GrantBlueprint a definition; LearnActive a definition and slot 0..3; AllocatePoints a definition and an amount > 0;
+    // SetAttribute a permanent build stat and an amount >= 0; refill, reset and clear nothing.
     // Context (match, life, permit) is checked by admission and the commit.
     LOCKDOWN_API ELDGrowthReason ValidateShape(const FLDDevTestCommand& Command);
     // Admission answer for a command refused before it reached a request stream.

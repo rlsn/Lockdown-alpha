@@ -8,6 +8,7 @@
 #include "Development/LDDevelopmentDirector.h"
 #include "Development/LDDevGrowthFixture.h"
 #include "Development/LDGrowthDirector.h"
+#include "Development/LDProgressionRules.h"
 #include "Dom/JsonObject.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -83,6 +84,18 @@ bool ReadArray(const FJsonObject& Object, const TCHAR* Key, const FString& Where
     return true;
 }
 
+bool ReadObject(const FJsonObject& Object, const TCHAR* Key, const FString& Where, TSharedPtr<FJsonObject>& Out, FString& Error)
+{
+    const TSharedPtr<FJsonValue> Value = Object.Values.FindRef(Key);
+    if (!Value.IsValid() || Value->Type != EJson::Object || !Value->AsObject().IsValid())
+    {
+        Error = FString::Printf(TEXT("%s.%s: an object is required"), *Where, Key);
+        return false;
+    }
+    Out = Value->AsObject();
+    return true;
+}
+
 bool IsIdentifier(const FString& Text, int32 MaxLength)
 {
     if (Text.IsEmpty() || Text.Len() > MaxLength) { return false; }
@@ -104,15 +117,15 @@ bool ParseSeed(const FString& Text, uint64& Out)
 bool ParseChoice(const FJsonObject& Object, const FString& Where, FLDEvaluationChoice& Out, FString& Error)
 {
     FString Rule;
-    if (!OnlyKeys(Object, {TEXT("rule"), TEXT("index"), TEXT("definition"), TEXT("replace")}, Where, Error)
+    if (!OnlyKeys(Object, {TEXT("rule"), TEXT("index"), TEXT("definition")}, Where, Error)
         || !ReadString(Object, TEXT("rule"), Where, Rule, Error)) { return false; }
     Out = {};
     if (Rule == TEXT("ai_select"))
     {
         Out.Rule = ELDEvaluationChoiceRule::AISelect;
-        if (Object.Values.Contains(TEXT("index")) || Object.Values.Contains(TEXT("definition")) || Object.Values.Contains(TEXT("replace")))
+        if (Object.Values.Contains(TEXT("index")) || Object.Values.Contains(TEXT("definition")))
         {
-            Error = Where + TEXT(": ai_select takes no index, definition or replacement");
+            Error = Where + TEXT(": ai_select takes no index or definition");
             return false;
         }
         return true;
@@ -137,14 +150,176 @@ bool ParseChoice(const FJsonObject& Object, const FString& Where, FLDEvaluationC
         Error = FString::Printf(TEXT("%s.rule: unknown rule '%s'"), *Where, *Rule);
         return false;
     }
-    if (Object.Values.Contains(TEXT("replace")))
+    return true;
+}
+
+// The approved definition id subset of the build wire ([a-z][a-z0-9_]*, at most 63 bytes).
+bool IsDefinitionId(const FString& Text)
+{
+    if (Text.IsEmpty() || Text.Len() > 63 || !(Text[0] >= TEXT('a') && Text[0] <= TEXT('z'))) { return false; }
+    for (const TCHAR C : Text)
+    {
+        if (!((C >= TEXT('a') && C <= TEXT('z')) || (C >= TEXT('0') && C <= TEXT('9')) || C == TEXT('_'))) { return false; }
+    }
+    return true;
+}
+
+bool ReadDefinition(const FJsonObject& Object, const TCHAR* Key, const FString& Where, FString& Out, FString& Error)
+{
+    if (!ReadString(Object, Key, Where, Out, Error)) { return false; }
+    if (!IsDefinitionId(Out))
+    {
+        Error = FString::Printf(TEXT("%s.%s: not a definition id"), *Where, Key);
+        return false;
+    }
+    return true;
+}
+
+// A planned build step (BuildEvaluationLockdown.py writes it): step, at and only the fields its command takes. Growth
+// judges ownership, targets and bindings at commit; this refuses shapes no command could carry and the rest-only commands
+// (spec §5) on the field.
+bool ParseStep(const FJsonObject& Object, const FString& Where, FLDEvaluationBuildStep& Out, FString& Error)
+{
+    using EKind = ELDEvaluationStepKind;
+    Out = {};
+    FString Step, At;
+    if (!ReadString(Object, TEXT("step"), Where, Step, Error) || !ReadString(Object, TEXT("at"), Where, At, Error)) { return false; }
+    if (At == TEXT("opening_rest")) { Out.Window = ELDEvaluationStepWindow::OpeningRest; }
+    else if (At == TEXT("field")) { Out.Window = ELDEvaluationStepWindow::Field; }
+    else
+    {
+        Error = FString::Printf(TEXT("%s.at: opening_rest or field, not '%s'"), *Where, *At);
+        return false;
+    }
+    bool bShape = false;
+    if (Step == TEXT("opening_base"))
+    {
+        Out.Kind = EKind::OpeningBase;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at"), TEXT("component"), TEXT("bind")}, Where, Error);
+    }
+    else if (Step == TEXT("install"))
+    {
+        Out.Kind = EKind::InstallComponent;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at"), TEXT("component"), TEXT("bind"), TEXT("target"), TEXT("base")}, Where, Error);
+    }
+    else if (Step == TEXT("uninstall"))
+    {
+        Out.Kind = EKind::UninstallComponent;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at"), TEXT("component")}, Where, Error);
+    }
+    else if (Step == TEXT("allocate_points"))
+    {
+        Out.Kind = EKind::AllocatePoints;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at"), TEXT("points")}, Where, Error);
+    }
+    else if (Step == TEXT("learn") || Step == TEXT("replace"))
+    {
+        Out.Kind = Step == TEXT("learn") ? EKind::LearnBlueprint : EKind::ReplaceActive;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at"), TEXT("blueprint"), TEXT("slot")}, Where, Error);
+    }
+    else if (Step == TEXT("respec"))
+    {
+        Out.Kind = EKind::Respec;
+        bShape = OnlyKeys(Object, {TEXT("step"), TEXT("at")}, Where, Error);
+    }
+    else
+    {
+        Error = FString::Printf(TEXT("%s.step: unknown step '%s'"), *Where, *Step);
+        return false;
+    }
+    if (!bShape) { return false; }
+    if ((Out.Kind == EKind::UninstallComponent || Out.Kind == EKind::ReplaceActive || Out.Kind == EKind::Respec)
+        && Out.Window != ELDEvaluationStepWindow::OpeningRest)
+    {
+        Error = FString::Printf(TEXT("%s.at: %s is a rest-window command (spec §5); the field never admits it"), *Where, *Step);
+        return false;
+    }
+    if (Out.Kind == EKind::OpeningBase || Out.Kind == EKind::InstallComponent || Out.Kind == EKind::UninstallComponent)
+    {
+        if (!ReadDefinition(Object, TEXT("component"), Where, Out.Component, Error)) { return false; }
+    }
+    if (Object.Values.Contains(TEXT("bind")))
+    {
+        TSharedPtr<FJsonObject> Bind;
+        FString Element;
+        const FString At2 = Where + TEXT(".bind");
+        if (!ReadObject(Object, TEXT("bind"), Where, Bind, Error) || !OnlyKeys(*Bind, {TEXT("active"), TEXT("element")}, At2, Error)
+            || !ReadDefinition(*Bind, TEXT("active"), At2, Out.BoundActive, Error)
+            || !ReadString(*Bind, TEXT("element"), At2, Element, Error))
+        {
+            return false;
+        }
+        Out.Element = Element == TEXT("fire") ? ELDDemoElement::Fire : Element == TEXT("water") ? ELDDemoElement::Water
+            : Element == TEXT("electric") ? ELDDemoElement::Electric : ELDDemoElement::None;
+        if (Out.Element == ELDDemoElement::None)
+        {
+            Error = FString::Printf(TEXT("%s.element: fire, water or electric, not '%s'"), *At2, *Element);
+            return false;
+        }
+    }
+    if (Object.Values.Contains(TEXT("target")))
+    {
+        TSharedPtr<FJsonObject> Target;
+        FString Kind;
+        const FString At2 = Where + TEXT(".target");
+        if (!ReadObject(Object, TEXT("target"), Where, Target, Error) || !OnlyKeys(*Target, {TEXT("kind"), TEXT("id")}, At2, Error)
+            || !ReadString(*Target, TEXT("kind"), At2, Kind, Error))
+        {
+            return false;
+        }
+        const bool bNamed = Kind == TEXT("active") || Kind == TEXT("component");
+        if (Kind == TEXT("active")) { Out.TargetKind = ELDComponentTargetKind::Active; }
+        else if (Kind == TEXT("component")) { Out.TargetKind = ELDComponentTargetKind::Component; }
+        else if (Kind == TEXT("dash")) { Out.TargetKind = ELDComponentTargetKind::Dash; }
+        else if (Kind != TEXT("self"))
+        {
+            Error = FString::Printf(TEXT("%s.kind: active, component, dash or self, not '%s'"), *At2, *Kind);
+            return false;
+        }
+        if (bNamed && !ReadDefinition(*Target, TEXT("id"), At2, Out.TargetId, Error)) { return false; }
+        if (!bNamed && Target->Values.Contains(TEXT("id")))
+        {
+            Error = FString::Printf(TEXT("%s.id: a %s target names no definition"), *At2, *Kind);
+            return false;
+        }
+    }
+    if (Object.Values.Contains(TEXT("base")) && !ReadDefinition(Object, TEXT("base"), Where, Out.BoundComponent, Error)) { return false; }
+    if (Out.Kind == EKind::LearnBlueprint || Out.Kind == EKind::ReplaceActive)
     {
         FString Slot;
-        if (!ReadString(Object, TEXT("replace"), Where, Slot, Error)) { return false; }
-        if (Slot == TEXT("Q")) { Out.Replace = ELDOpponentSkillSlot::Q; }
-        else if (Slot == TEXT("W")) { Out.Replace = ELDOpponentSkillSlot::W; }
-        else if (Slot == TEXT("E")) { Out.Replace = ELDOpponentSkillSlot::E; }
-        else { Error = Where + TEXT(".replace: Q, W or E"); return false; }
+        if (!ReadDefinition(Object, TEXT("blueprint"), Where, Out.Blueprint, Error) || !ReadString(Object, TEXT("slot"), Where, Slot, Error))
+        {
+            return false;
+        }
+        Out.Slot = Slot == TEXT("Q") ? 0 : Slot == TEXT("W") ? 1 : Slot == TEXT("E") ? 2 : 3;
+        if (Out.Slot > 2)
+        {
+            Error = FString::Printf(TEXT("%s.slot: Q, W or E, not '%s'"), *Where, *Slot);
+            return false;
+        }
+    }
+    if (Out.Kind == EKind::AllocatePoints)
+    {
+        TSharedPtr<FJsonObject> Points;
+        if (!ReadObject(Object, TEXT("points"), Where, Points, Error)) { return false; }
+        if (Points->Values.IsEmpty())
+        {
+            Error = Where + TEXT(".points: at least one stat");
+            return false;
+        }
+        for (const auto& Pair : Points->Values)
+        {
+            int64 Count = 0;
+            const FString StatId(Pair.Key.ToView());
+            if (!IsDefinitionId(StatId))
+            {
+                Error = FString::Printf(TEXT("%s.points: '%s' is not a stat id"), *Where, *StatId);
+                return false;
+            }
+            if (!ReadInteger(*Points, *StatId, Where + TEXT(".points"), 1, MAX_uint8, Count, Error)) { return false; }
+            Out.Points.Add({StatId, int32(Count)});
+        }
+        Out.Points.Sort([](const FLDOpponentStatPoints& A, const FLDOpponentStatPoints& B) { return A.StatId < B.StatId; });
     }
     return true;
 }
@@ -155,12 +330,14 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     int64 Slot = 0, Supply = 0;
     const TArray<TSharedPtr<FJsonValue>>* Choices = nullptr;
     const TArray<TSharedPtr<FJsonValue>>* Presets = nullptr;
-    if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("presets")}, Where, Error)
+    const TArray<TSharedPtr<FJsonValue>>* Build = nullptr;
+    if (!OnlyKeys(Object, {TEXT("role"), TEXT("slot"), TEXT("supply_xp"), TEXT("choices"), TEXT("presets"), TEXT("build")}, Where, Error)
         || !ReadString(Object, TEXT("role"), Where, Out.Role, Error)
         || !ReadInteger(Object, TEXT("slot"), Where, 0, DuelAISlots - 1, Slot, Error)
         || !ReadInteger(Object, TEXT("supply_xp"), Where, 0, 1000000, Supply, Error)
         || !ReadArray(Object, TEXT("choices"), Where, Choices, Error)
-        || !ReadArray(Object, TEXT("presets"), Where, Presets, Error))
+        || !ReadArray(Object, TEXT("presets"), Where, Presets, Error)
+        || !ReadArray(Object, TEXT("build"), Where, Build, Error))
     {
         return false;
     }
@@ -196,9 +373,9 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
     {
         const FString At = FString::Printf(TEXT("%s.presets[%d]"), *Where, Index);
         const TArray<TSharedPtr<FJsonValue>>* Cards = nullptr;
-        if (!(*Presets)[Index].IsValid() || !(*Presets)[Index]->TryGetArray(Cards) || !Cards || Cards->Num() != 3)
+        if (!(*Presets)[Index].IsValid() || !(*Presets)[Index]->TryGetArray(Cards) || !Cards || Cards->IsEmpty() || Cards->Num() > 3)
         {
-            Error = At + TEXT(": exactly three definition ids are required");
+            Error = At + TEXT(": one to three active ids are required");
             return false;
         }
         TArray<FName>& Row = Out.Presets.AddDefaulted_GetRef();
@@ -207,11 +384,36 @@ bool ParseContender(const FJsonObject& Object, const FString& Where, FLDEvalCont
             FString Id;
             if (!Card.IsValid() || !Card->TryGetString(Id) || !IsIdentifier(Id, 96) || Row.Contains(FName(*Id)))
             {
-                Error = At + TEXT(": three distinct definition ids are required");
+                Error = At + TEXT(": distinct active ids are required");
                 return false;
             }
             Row.Add(FName(*Id));
         }
+    }
+    if (Build->Num() > MaxBuildSteps)
+    {
+        Error = FString::Printf(TEXT("%s.build: at most %d steps"), *Where, MaxBuildSteps);
+        return false;
+    }
+    bool bField = false;
+    for (int32 Index = 0; Index < Build->Num(); ++Index)
+    {
+        const FString At = FString::Printf(TEXT("%s.build[%d]"), *Where, Index);
+        const TSharedPtr<FJsonObject>* Row = nullptr;
+        if (!(*Build)[Index].IsValid() || !(*Build)[Index]->TryGetObject(Row) || !Row || !Row->IsValid())
+        {
+            Error = At + TEXT(": an object is required");
+            return false;
+        }
+        FLDEvaluationBuildStep& Step = Out.Build.AddDefaulted_GetRef();
+        if (!ParseStep(**Row, At, Step, Error)) { return false; }
+        // Steps run in order, and the opening rest comes before the field.
+        if (bField && Step.Window == ELDEvaluationStepWindow::OpeningRest)
+        {
+            Error = At + TEXT(".at: an opening_rest step after a field step");
+            return false;
+        }
+        bField |= Step.Window == ELDEvaluationStepWindow::Field;
     }
     return true;
 }
@@ -529,6 +731,13 @@ public:
             Profile.Opponent = Sides[1 - Index].Contender;
             Profile.Site = Row.Site;
             Profile.Choices = Row.Contenders[Index].Choices;
+            Profile.Build = Row.Contenders[Index].Build;
+            if (LDProgression::LevelForXP(Content->Get().Progression, Row.Contenders[Index].SupplyXP, Profile.SupplyLevel)
+                != ELDGrowthReason::None)
+            {
+                return FailRun(FString::Printf(TEXT("The %s supply of %lld XP has no catalog level."), *Row.Contenders[Index].Role,
+                    Row.Contenders[Index].SupplyXP));
+            }
             if (!LDEvaluationProfiles::Stage(Sides[Index].Contender, Profile, Error)) { return FailRun(Error); }
             Sides[Index].Run = LDEvaluationProfiles::Find(Sides[Index].Contender);
         }
@@ -589,31 +798,30 @@ public:
             Value->SetBoolField(TEXT("progression_valid"), View.bValid);
             Value->SetNumberField(TEXT("level"), View.Level);
             Value->SetNumberField(TEXT("xp"), double(View.CumulativeXP));
-            Value->SetNumberField(TEXT("choices"), View.ConsumedThrough);
+            Value->SetNumberField(TEXT("choices"), View.ActiveOpportunitiesConsumed);
             Value->SetNumberField(TEXT("planned_choices"), Row.Contenders[Index].Choices.Num());
-            Value->SetNumberField(TEXT("rerolls_left"), View.RerollTokens);
-            Value->SetStringField(TEXT("opening_card"), View.OpeningCard.IsNone() ? FString() : View.OpeningCard.ToString());
-            TArray<TSharedPtr<FJsonValue>> Skills;
-            for (const FLDLearnedSkillView& Skill : View.Skills)
+            Value->SetNumberField(TEXT("unspent_points"), double(View.UnspentPoints));
+            TArray<TSharedPtr<FJsonValue>> StatPoints;
+            for (const FLDStatPointsView& Stat : View.StatPoints)
+            {
+                auto Points = MakeShared<FJsonObject>();
+                Points->SetStringField(TEXT("id"), Stat.StatId.ToString());
+                Points->SetNumberField(TEXT("points"), Stat.Points);
+                StatPoints.Add(MakeShared<FJsonValueObject>(Points));
+            }
+            Value->SetArrayField(TEXT("stat_points"), StatPoints);
+            TArray<TSharedPtr<FJsonValue>> Actives;
+            for (const FLDActiveSlotView& Active : View.Actives)
             {
                 auto Learned = MakeShared<FJsonObject>();
-                Learned->SetStringField(TEXT("id"), Skill.DefinitionId.ToString());
-                Learned->SetNumberField(TEXT("rank"), Skill.Rank);
-                Learned->SetBoolField(TEXT("active"), Skill.bActive);
-                Learned->SetStringField(TEXT("slot"), !Skill.bActive ? TEXT("") : Skill.Slot == 0 ? TEXT("Q") : Skill.Slot == 1 ? TEXT("W") : TEXT("E"));
-                Skills.Add(MakeShared<FJsonValueObject>(Learned));
+                Learned->SetStringField(TEXT("id"), Active.DefinitionId.ToString());
+                Learned->SetStringField(TEXT("slot"), Active.Slot == 0 ? TEXT("Q") : Active.Slot == 1 ? TEXT("W") : TEXT("E"));
+                Actives.Add(MakeShared<FJsonValueObject>(Learned));
             }
-            Value->SetArrayField(TEXT("skills"), Skills);
-            TArray<TSharedPtr<FJsonValue>> Cards;
-            for (const FLDAttributeCardView& Card : View.AttributeCards)
-            {
-                auto Held = MakeShared<FJsonObject>();
-                Held->SetStringField(TEXT("id"), Card.DefinitionId.ToString());
-                Held->SetNumberField(TEXT("count"), Card.Count);
-                Held->SetNumberField(TEXT("quality"), uint8(Card.Quality));
-                Cards.Add(MakeShared<FJsonValueObject>(Held));
-            }
-            Value->SetArrayField(TEXT("cards"), Cards);
+            Value->SetArrayField(TEXT("actives"), Actives);
+            TArray<TSharedPtr<FJsonValue>> Blueprints;
+            for (const FName& Blueprint : View.PendingBlueprints) { Blueprints.Add(MakeShared<FJsonValueString>(Blueprint.ToString())); }
+            Value->SetArrayField(TEXT("blueprints"), Blueprints);
             const ALDOpponentController* Adapter = FindAdapter(World, Mode, Side.Contender);
             const bool bBody = Adapter && Adapter->CombatView.bHasBody;
             Value->SetBoolField(TEXT("has_body"), bBody);
@@ -631,6 +839,27 @@ public:
             Value->SetStringField(TEXT("supply_status"), Row.Contenders[Index].SupplyXP > 0 ? GrantName(Grant) : FString(TEXT("None")));
             Value->SetNumberField(TEXT("presets_requested"), Row.Contenders[Index].Presets.Num());
             Value->SetNumberField(TEXT("presets_queued"), Side.PresetsQueued);
+            Value->SetNumberField(TEXT("planned_steps"), Row.Contenders[Index].Build.Num());
+            Value->SetNumberField(TEXT("steps_committed"), Side.Run ? Side.Run->State.StepsCommitted : 0);
+            // #198 workshop: the terminal components with their history and install target, as growth holds them.
+            TArray<TSharedPtr<FJsonValue>> Components;
+            for (const FLDComponentInstanceView& Owned : View.Components)
+            {
+                auto Component = MakeShared<FJsonObject>();
+                Component->SetStringField(TEXT("id"), Owned.DefinitionId.ToString());
+                Component->SetBoolField(TEXT("installed"), Owned.bInstalled);
+                Component->SetBoolField(TEXT("ever_installed"), Owned.bEverInstalled);
+                Component->SetStringField(TEXT("source"), LDLog::EnumName(Owned.Source));
+                Component->SetNumberField(TEXT("source_level"), Owned.SourceLevel);
+                Component->SetStringField(TEXT("target_kind"), LDLog::EnumName(Owned.Target.Kind));
+                Component->SetStringField(TEXT("target_id"), Owned.Target.Definition.IsNone() ? FString() : Owned.Target.Definition.ToString());
+                Component->SetStringField(TEXT("element"), LDLog::EnumName(Owned.Target.Element));
+                Component->SetStringField(TEXT("bound_active"), Owned.Target.BoundActive.IsNone() ? FString() : Owned.Target.BoundActive.ToString());
+                Component->SetStringField(TEXT("bound_component"),
+                    Owned.Target.BoundComponent.IsNone() ? FString() : Owned.Target.BoundComponent.ToString());
+                Components.Add(MakeShared<FJsonValueObject>(Component));
+            }
+            Value->SetArrayField(TEXT("components"), Components);
             Contenders.Add(MakeShared<FJsonValueObject>(Value));
         }
         Result->SetArrayField(TEXT("contenders"), Contenders);
@@ -657,7 +886,7 @@ public:
             Capture->End();
             return FailRun(TEXT("The Case start aborted: ") + PC.IntentFeedback);
         }
-        if (View.Generation != MatchGeneration || (View.Phase != ELDMatchPhase::Countdown && View.Phase != ELDMatchPhase::Development))
+        if (View.Generation != MatchGeneration || (View.Phase != ELDMatchPhase::Rest && View.Phase != ELDMatchPhase::Development))
         {
             if (FPlatformTime::Seconds() - CaseStartedAt > Case().WallTimeoutSeconds)
             {
@@ -716,12 +945,12 @@ public:
             }
         }
         if (View.Generation != MatchGeneration
-            || (View.Phase != ELDMatchPhase::Countdown && View.Phase != ELDMatchPhase::Development && View.Phase != ELDMatchPhase::CaptureOpen))
+            || (View.Phase != ELDMatchPhase::Rest && View.Phase != ELDMatchPhase::Development && View.Phase != ELDMatchPhase::CaptureOpen))
         {
             EndCase(Mode, World, TEXT("Faulted"), FString::Printf(TEXT("the match left play (phase %u)"), uint8(View.Phase)));
             return true;
         }
-        if (View.Phase == ELDMatchPhase::Countdown) { return true; }
+        if (View.Phase == ELDMatchPhase::Rest) { return true; }
         if (StartedAtMs < 0) { StartedAtMs = View.StartedAtMs; }
         if (!bSupplySent)
         {

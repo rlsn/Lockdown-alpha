@@ -34,8 +34,11 @@ bool IsPublicStatusId(uint8 Id)
     case ELDDemoStatusId::Silence:
     case ELDDemoStatusId::Burn:
     case ELDDemoStatusId::AttackSlowed:
-    case ELDDemoStatusId::Cowering:
-    case ELDDemoStatusId::ContactGuard:
+    // #198 elements, the S16 stance and the S21 cut.
+    case ELDDemoStatusId::Wet:
+    case ELDDemoStatusId::Electrified:
+    case ELDDemoStatusId::Braced:
+    case ELDDemoStatusId::Soured:
         return true;
     default:
         return false;
@@ -143,9 +146,7 @@ bool SerializeObservedUnit(FArchive& Ar, UPackageMap* Map, FLDObservedUnitView& 
     }
     if (Mask & LDObservation::Actives)
     {
-        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Ranks[0]
-            << Unit.Actives.Abilities[1] << Unit.Actives.Ranks[1]
-            << Unit.Actives.Abilities[2] << Unit.Actives.Ranks[2];
+        Ar << Unit.Actives.Abilities[0] << Unit.Actives.Abilities[1] << Unit.Actives.Abilities[2];
     }
     return !Ar.IsError();
 }
@@ -249,10 +250,10 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
     if ((Mask & Mana) ? !IsObservedResourcePair(Unit.Mana, false) : !IsEmptyObservedResource(Unit.Mana))
     { return FailObservation(Error, TEXT("Observed mana is either an invalid P2 pair or present without authorization.")); }
     if (Unit.Statuses.Num() > MaxStatuses) { return FailObservation(Error, TEXT("Too many observed statuses.")); }
-    uint32 SeenStatuses = 0;
+    uint64 SeenStatuses = 0;
     for (const FLDObservedStatus& Status : Unit.Statuses)
     {
-        const uint32 Bit = Status.StatusId < 32 ? 1u << Status.StatusId : 0u;
+        const uint64 Bit = Status.StatusId < 64 ? uint64(1) << Status.StatusId : 0u;
         if (!IsPublicStatusId(Status.StatusId) || Status.Stacks == 0 || Status.ExpiresAtServerMs < 0 || (SeenStatuses & Bit) != 0
             // camp_returning is a camp-only marker with neither stacks nor expiry (SC-07).
             || (Status.StatusId == uint8(ELDDemoStatusId::CampReturning)
@@ -264,18 +265,13 @@ bool LDObservation::ValidateUnit(const FLDObservedUnitView& Unit, FString& Error
         SeenStatuses |= Bit;
     }
     const FLDObservedActivesView& Actives = Unit.Actives;
-    bool bActives = true;
-    for (int32 Slot = 0; Slot < 3; ++Slot)
-    {
-        bActives &= Contender
-            ? (Actives.Abilities[Slot] == 0) == (Actives.Ranks[Slot] == 0) && Actives.Ranks[Slot] <= MaxActiveRank
-            : Actives.Abilities[Slot] == 0 && Actives.Ranks[Slot] == 0;
-    }
+    const bool bActives = Contender
+        || (Actives.Abilities[0] == 0 && Actives.Abilities[1] == 0 && Actives.Abilities[2] == 0);
     const bool bDuplicate = (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[1])
         || (Actives.Abilities[0] != 0 && Actives.Abilities[0] == Actives.Abilities[2])
         || (Actives.Abilities[1] != 0 && Actives.Abilities[1] == Actives.Abilities[2]);
     if (!bActives || bDuplicate)
-    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct ranked abilities or empty slots, contenders only.")); }
+    { return FailObservation(Error, TEXT("Observed Q/W/E actives must be three distinct abilities or empty slots, contenders only.")); }
     Error.Reset();
     return true;
 }

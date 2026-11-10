@@ -32,7 +32,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 `Scripts\DemoContent.py` 与 `Scripts\SyncDemoContentData.py` 提供独立于旧目录的严格作者校验、
 定点投影和根身份生成。`SourceData\Demo\content.schema.json`、`native_ids.json` 以及
 `Public\Development\LDDemoContentIds.h` 只定义格式与编号保留，不批准候选技能或任何数值。
-`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91、属性卡 0–14、物品 0–98 等）；新编号必须同时匹配作者映射与原生声明。
+`native_ids.json` 的 `retired_ranges` 列出不得复用的旧编号（技能 0–91 与 #198 退役的被动 104–113、120–125 和 119，属性卡 0–26，状态 28–29，以及退役的效果操作）；新编号必须同时匹配作者映射与原生声明。
 
 生产输入必须是经审查的 `SourceData\Demo\content.json`，其中
 `identity.approval.status` 为 `approved`，`decision` 引用实际审批决定。
@@ -45,7 +45,7 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 | --- | --- |
 | 读取与 schema | UTF-8；小数从原文直接读为 Decimal，拒绝重复键、未知字段/操作/ID、错误单位/等级/引用、bool 整数、非有限值和不可表示精度 |
 | 数值投影 | P2 → `{unit, p2}` 百分之一点；R4 → `{unit, bp}`；秒 → `{unit: "ms", ms}`；距离/速率 → `{unit, numerator, denominator}` 的约分 int64 有理数；计数/XP 为 int64 |
-| 完整定义 | 角色参数、完整技能 rank/effects、属性奖励、XP 阈值、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
+| 完整定义 | 角色参数、单级主动的完整数值/effects 与开局池标记、五维属性每点加成、成长点数参数、XP 阈值与主动机会等级、两档营地、AI 参数和显示引用均进入闭合树；没有透传的 ActiveJson 或丢弃坏字段 |
 | 纯提供者 | `compile_content(root)` 返回不可变 Catalog、三份输出字节、输入快照和 32-byte 根摘要；`build_outputs(root)` 返回输出映射；Catalog 不拥有 Match、时钟、HP、XP 或其他玩法状态 |
 | 世界前置 | 必须读取真实 `Content\Lockdown\Data\Demo\world.json` 及 `Private\World\LDDemoWorldContract.h`，核对实际字节，不接受调用方单独给出的 digest 或空世界占位 |
 | 输出 | 同时生成 `Content\Lockdown\Data\Demo\demo_content.json`、`manifest.json` 与 `Private\Development\LDDemoContentContract.h`；不生成世界文件或世界契约 |
@@ -63,6 +63,22 @@ schema8/schema9、V07/V08/V09、Bxx 命名是当前技术边界，不是产品�
 世界作者校验有代码拥有的完整字段/类型/cm 单位约束；可编辑 schema 不能扩充原生支持集后
 丢弃新字段，也不能将米伪装成厘米。内容根生成重新调用同一世界 producer 比较全部真实产物，
 不能仅手写 world 和匹配摘要让正式链通过。
+
+#198 新增两类锚点（批准见 issue #198 评论 6752601175 §2）：`PKSpawn` 固定为 `pk_spawn_0..5`，
+`PKThrow` 固定为 `pk_throw`，内容 `world.pk_spawn_ids`/`world.pk_throw_id` 按序引用，
+原生为 `FLDDemoWorldReferences::PKSpawnIds`（索引序）与 `PKThrowId`，用 `ULDMapRegistry::Resolve` 取位置/支持面。
+`DemoWorld.py` 与 `LDMapGeometry.cpp` 同样检查：六个 PK 出生点与 capture 同层、距其1000–1400cm、两两≥1000cm、
+按 id 逆时针每步60°±1°；投掷锚点同层且距 capture 在 (1800, 2200] cm（4000cm 射程覆盖1800cm初始场）；
+全部为单胶囊合法站位且不在营地清空圈内。`SelectSpawnAnchor` 接受 PK 出生点（与出生点同一胶囊/落地/占位规则），
+`DrawSpawnAnchor` 只抽 `Spawn`；AI 公开地点与小地图不把 PK 锚点当野外地点，美术摆放只为其留出一具身体的净空。
+场地内的可走路径不由 Python 证明。
+
+#198 站圈报名（用户选择原话：“A：复用现有“站进圆圈”半径 150 cm（空投拾取同值，不新增数值）”）新增 `PKSignup` 锚点
+`pk_signup_0..5`（布局修订 9）：第 n 个是名单槽位 n 的报名圈，属于该槽位的休息锚点（内容出生点序号 `n*N/6`，即 s00、s02、…、s10）。
+`DemoWorld.py` 与 `LDMapGeometry.cpp`（`PKSignupDistanceCm`）检查：恰好六个、规范 id、与配对休息锚点同层且水平距离恰为 300 cm、
+`AIRDROP.PickupRadiusCm` 圆盘是合法站立地面、休息锚点的出生偏移都不落在圆盘内、从休息锚点到圆心的直线走在合法地面上、不与营地清空圈重叠。
+原生以 `LDDemoWorld::PKSignupId(槽位)` 经 `ULDMapRegistry::Resolve` 取位置（不进内容引用）；AI 公开地点、小地图与美术摆放跳过这些锚点，
+只有 `ALDGameMode::SignupDiskFor`、AI 的 `Frame.SignupPOI` 与本人可见的 `ALDSignupMarker` 使用它们。
 
 世界生成头依次包含 `#pragma once`、`LD_DEMO_WORLD_SCHEMA_VERSION`、
 `LD_DEMO_WORLD_PROJECTION_REVISION` 和
@@ -187,13 +203,13 @@ SourceData 不应整目录加入运行时打包，运行程序不需要 docs 才
 | `FLDDemoContentBundle::ReadImportFiles` | 从指定工程根读取 content、manifest、world、两份生成 contract、内容 schema、native_ids、原生 ID 头及世界作者/schema，共十份原始字节；缺失/空文件/超过 8 MiB 拒绝，输出参数不变 |
 | `PrepareImport` / `PrepareImportFromFiles` | 传入目标资产及独立可信的当前根摘要，例如实际生成 contract 的 `LD_DEMO_CATALOG_SHA256`；不能先计算待导入 manifest 的摘要再把它当作生产准入依据。全部校验成功才产生绑定目标及导入代次的不透明 `FLDDemoPreparedContent` |
 | `CommitImport` | Game thread 上核对目标、导入代次、当前可信根及文件快照后消费一次 token，一次安装完整字节与 typed definitions；失败导入不先清空原资产。保存包仍由编辑器/Bootstrap 所有者负责 |
-| `ValidatePrepared` | 对照当前 freshly prepared 定义，比较全部保存字节及全部反射属性；包括每个 rank/effect、可选能力的存在性和数组，不只比较 checksum |
+| `ValidatePrepared` | 对照当前 freshly prepared 定义，比较全部保存字节及全部反射属性；包括每个主动数值/effect、可选能力的存在性和数组，不只比较 checksum |
 | `Validate(ExpectedRoot)` / `Read(ExpectedRoot)` | 重新严格解析保存字节并比较完整投影。只有相符时才返回 `TSharedPtr<const FLDDemoContentSnapshot>`；旧快照保持不可变，旧资产不因以前导入成功而获得新根的有效性 |
 | `ReadRuntimeFiles` / `Load` | 当前 runtime data 目录必须同时存在并匹配 manifest/content/world；`Load` 使用固定资产根和 `Content\Lockdown\Data\Demo`。不在运行时读 SourceData/源码、不采用旧目录或存储字节代替缺失的当前载荷 |
 | `ReadDevReloadFiles` / `LoadDevReload` / `SameDevReloadBase`（DEV） | 只用于调参热重载（`LDDemoEntry::IsDevContentReload`，`-LDDevContentReload`，未 cook 构建）。资产须先通过编译根的 `Validate`；再以 `ReadImportFiles` 读工程根下全部 Sync 输入（这是唯一在运行时读 SourceData/源码的路径），以磁盘 `manifest.json` 的哈希为根完整 `Project`。只有内容载荷、显示文本、根与审批字段可以与资产不同；世界字节与源文件、schema、原生 ID、contract 与各版本号任一不同即拒绝并说明需重新构建 |
 
 根摘要是完整规范 manifest **文件字节**的 SHA-256，manifest 内没有自哈希。
-原生加载核对内容 schema1/handler1/projection3、世界 schema2/projection2、每个子文件摘要、显示子树摘要、
+原生加载核对内容 schema2/handler2/projection4、世界 schema3/projection3、每个子文件摘要、显示子树摘要、
 native ID 映射与编译枚举、world contract 的原始字节摘要及其 payload/revision。
 作者 schema/原生头的摘要是由可信根固定的来源字节身份；实际可接受字段/类型/操作由
 原生投影代码再次关闭校验，不在游戏中执行作者 JSON Schema 或源码。
@@ -202,12 +218,12 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 保存投影比较递归检查字符串的精确内容，不依赖默认不区分大小写的 FString 反射相等性。
 
 `LDDemoContentDefinitions.h` 的成员区分 P2、R4 basis points、毫秒及约分有理数；
-参数、公式/政策枚举、角色、两档（初级/高级）完整效果与卡面模板、属性、经验、营地和显示定义均有原生成员。
-`Snapshot.Get()` 和 `FindAbility/FindAttribute/FindMonster/FindDisplay`
+参数、公式/政策枚举、角色、单级主动（一组数值）的完整效果与卡面模板、五维属性、经验、营地和显示定义均有原生成员。
+`Snapshot.Get()`、`FindAbility/FindStat/FindMonster/FindDisplay` 与按等级成长的 `FindValues`
 提供只读消费；查找失败给出错误，不返回伪造的默认定义。世界几何仅用于检查已编译的
 边界、锚点、成员和引用；该目录不创建另一套地图 Actor/导航/营地状态。
 
-显示行另含玩家可见的 `name_text`/`description_text`（projection 3）。编译器 `display_text` 与原生
+显示行另含玩家可见的 `name_text`/`description_text`（projection 4；主动说明以 `[op.field]`、五维说明以 `[per_point.<Stat>]` 读取 typed 数值）。编译器 `display_text` 与原生
 `ValidateDisplayText` 使用同一约束：两项必填，名称至多 32、说明至多 160 个 Unicode 标量；拒绝控制、
 不可见、双向及四字节字符、花括号和首尾空格；说明不得含数字，数值只由 typed 字段显示；名称在全部显示行中唯一。
 `LDDemoContentText::Build` 从已验证定义生成 namespace `DemoContent` 的字符串表，键为
@@ -218,7 +234,7 @@ native ID 映射与编译枚举、world contract 的原始字节摘要及其 pay
 UE 5.8 的 `StoreNumbersAsStrings` 保留 `EJson::Number` 及其数字词法。
 导入先拒绝重复键、坏 UTF-8/Unicode、非整数词法、超 int64 和非规范编码，
 再从词法读取整数；不经 `double` 取回大整数。每个字段再验证单位、范围、
-ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、感知半径与构筑上界。
+ID/opcode/引用和多余字段，复算 XP、出售额、攻击间隔、感知半径与构筑上界。
 导入期有理数运算使用带位宽预检的 UE `TBigInt` 暂存；不是另一套游戏伤害计算。
 共享 `FNumbers` 按符号和正幅值比较，避开锁定 UE 负数关系运算的错误/递归，不修改共享引擎。
 几何负坐标、正负分数和 int64 边界由原生专用规则覆盖。
@@ -236,7 +252,7 @@ ID/opcode/rank/引用和多余字段，复算 XP、出售额、攻击间隔、�
 `Lockdown.Rules.DemoContent.TypedProjection`、`.StrictRefusal`、`.AtomicAssetRoundTrip`。
 `DemoWorld.TypedProjection` 在同一次运行中直接取用 `DemoContent.TypedProjection` 对同一夹具字节导入出的内容快照，
 单独运行时自行导入。
-缺少夹具会失败而非跳过。覆盖全部反射字段的独立断言、每个 rank 数量字段变异、
+缺少夹具会失败而非跳过。覆盖全部反射字段的独立断言、每个主动数值字段变异、
 完整保存投影逐字段损坏拒绝、内存 DataAsset 序列化、失败保留与当前文件/根拒旧。
 这些证明导入和定义一致性，不证明真实 `.uasset` 保存/Cook、图标资源解析、地图生成、
 战斗公式执行或完整多人对局。正常入口在可信编译摘要下调用 runtime `Load`，

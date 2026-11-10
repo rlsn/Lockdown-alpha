@@ -387,10 +387,17 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
         return false;
     }
     int64 RespawnAt = 0;
-    if (Life->Revision == MAX_uint64
-        || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, DemoContent->Get().Parameters.RespawnMs, RespawnAt, Error))
+    // #198: a rest life (private rest space) has no field eligibility; it stands up again at once at its rest anchor.
+    // A field death's wait is fixed by the field progress T of the death (8/10/12/15 s by segment).
+    // #198 session D: a PK death is an elimination, never a field death: the contender stands up again in its private
+    // rest space at once and watches the rest of the PK (no capture eligibility, K/D or respawn wait).
+    const bool bPKLife = PKLives.Contains(Fact.Key.Victim.EntityId);
+    const bool bRestLife = RestLives.Contains(Fact.Key.Victim.EntityId) || bPKLife;
+    const int64 WaitMs = bRestLife ? 0 : RespawnWaitAtFieldMs(Timeline.FieldMsAt(Fact.OccurredAtMs));
+    if (Life->Revision == MAX_uint64 || (!bRestLife && WaitMs <= 0)
+        || !LDMatchLifecycle::AddDurationMs(AuthorityNowMs, WaitMs, RespawnAt, Error))
     {
-        if (Error.IsEmpty()) { Error = TEXT("Life revision exhausted at death."); }
+        if (Error.IsEmpty()) { Error = TEXT("Life revision exhausted or no approved respawn wait at death."); }
         return false;
     }
     FLDCaptureEligibilityEvent Died;
@@ -403,7 +410,7 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
         return false;
     }
     if (Died.KillCause == ELDKillCause::Contender) { Died.Assisters = Fact.Assisters; }
-    if (!PublishEligibility(Permit, Died, Error))
+    if (!bRestLife && !PublishEligibility(Permit, Died, Error))
     {
         return false;
     }
@@ -416,6 +423,8 @@ bool ALDGameMode::EndContenderLife(const FLDCommittedDeath& Fact, const FLDGamep
     ++Life->Revision;
     Life->ProtectedUntilMs = 0;
     Life->RespawnAtMs = RespawnAt;
+    if (bRestLife) { PendingPhasePlacement.Add(Fact.Key.Victim.EntityId); }
+    PKLives.Remove(Fact.Key.Victim.EntityId);
     Life->Body = {};
     if (auto* Body = Life->Actor.Get())
     {
@@ -462,6 +471,29 @@ bool ALDGameMode::EndCampMemberLife(const FLDCommittedDeath& Fact, const FLDGame
     return true;
 }
 
+bool ALDGameMode::RetireCampBody(const FLDCombatBodyRef& Body, const FLDGameplayWritePermit& Permit, FString& Error)
+{
+    auto* Life = Lives.Find(Body.Victim.EntityId);
+    if (ValidateWritePermit(Permit, ELDCommitPhase::RespawnsAndWorld) != ELDCommitReject::None || !Combat
+        || Body.Victim.Kind != ELDVictimKind::CampMember || !Life || Life->Kind != ELDVictimKind::CampMember
+        || Life->Phase != ELDLifePhase::Alive || Life->Body != Body || Life->Revision == MAX_uint64)
+    {
+        Error = TEXT("A camp body leaves the field only as exactly its current living member.");
+        return false;
+    }
+    // #198 outer §5 (the Boss leaving): its own unsettled effects end with the life; there is no death, kill credit or
+    // reward. The camp owner destroys its actor after this.
+    Combat->RetireBodyForPhase(Body);
+    Life->Phase = ELDLifePhase::Dead;
+    Life->RetiredThroughLife = Life->Life;
+    ++Life->Revision;
+    Life->Body = {};
+    Life->Actor.Reset();
+    UE_LOG(LogLDMatch, Log, TEXT("LD_CAMP_BODY_RETIRED member=%s life=%u"), *LDLog::Id(Body.Victim.EntityId), Body.Victim.Life);
+    Error.Reset();
+    return true;
+}
+
 void ALDGameMode::BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& Ref, ALDCharacter& Body)
 {
     auto* Movement = Body.GetCharacterMovement();
@@ -478,7 +510,7 @@ void ALDGameMode::BeginLifeMotion(FLDLifeRecord& Life, const FLDCombatBodyRef& R
 }
 
 bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife, const FLDGameplayWritePermit& Permit,
-    FLDPlacedBody& Out, FString& Error)
+    FLDPlacedBody& Out, FString& Error, const FLDPlacementTarget& Target)
 {
     Out = {};
     auto* Registry = GetWorld()->GetSubsystem<ULDMapRegistry>();
@@ -515,10 +547,35 @@ bool ALDGameMode::PlaceContenderBody(const FGuid& Contender, uint32 ProposedLife
     Out.Contender = Contender;
     Out.Life = ProposedLife;
     Out.Controller = Controller;
-    if (!Registry->DrawSpawnAnchor(Request, SpawnRandom, Permit, Selection, Error)
-        || !Registry->ReserveSpawnPlacement(Selection, Capsule, Permit, Out.Reservation, Error))
+    bool bPlaced = false;
+    if (Target.Kind == FLDPlacementTarget::EKind::Near)
     {
-        return false;
+        // #198 return to the field: the old foot or a free spot within the approved radius, else a normal spawn.
+        bool bBlocked = false;
+        if (Registry->ReserveSpawnNear(Request, Target.FootCm, Target.Surface, Target.RadiusCm, Capsule, Permit,
+            Out.Reservation, bBlocked, Error))
+        {
+            bPlaced = true;
+        }
+        else if (!bBlocked)
+        {
+            return false;
+        }
+        else if (!Timeline.IsEntryHeld())
+        {
+            // A held return retries every step; its first attempt (and LD_REST_RETURN_HELD) already tells why.
+            UE_LOG(LogLDMatch, Display, TEXT("LD_REST_RETURN_FALLBACK contender=%s life=%u %s"), *Contender.ToString(), ProposedLife, *Error);
+        }
+    }
+    if (!bPlaced)
+    {
+        const bool bSelected = Target.Kind == FLDPlacementTarget::EKind::Anchor
+            ? Registry->SelectSpawnAnchor(Request, Target.Anchor, Permit, Selection, Error)
+            : Registry->DrawSpawnAnchor(Request, SpawnRandom, Permit, Selection, Error);
+        if (!bSelected || !Registry->ReserveSpawnPlacement(Selection, Capsule, Permit, Out.Reservation, Error))
+        {
+            return false;
+        }
     }
     const FTransform Transform(FRotator::ZeroRotator, Out.Reservation->BodyOrigin());
     auto* Body = GetWorld()->SpawnActorDeferred<ALDCharacter>(ALDCharacter::StaticClass(), Transform,
@@ -677,7 +734,16 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
         auto& Entry = Prepared.Emplace_GetRef();
-        if (!PlaceContenderBody(Id, 1, Permit, Entry.Placed, Error)) { return false; }
+        // #198: the match opens with the rest R0, so every first life stands in its private rest space.
+        FLDPlacementTarget RestTarget;
+        RestTarget.Kind = FLDPlacementTarget::EKind::Anchor;
+        RestTarget.Anchor = RestAnchorFor(Id);
+        if (RestTarget.Anchor.IsNone())
+        {
+            Error = TEXT("A starting contender has no private rest anchor.");
+            return false;
+        }
+        if (!PlaceContenderBody(Id, 1, Permit, Entry.Placed, Error, RestTarget)) { return false; }
         const FLDVictimKey Victim{ELDVictimKind::Contender, Id, 1};
         if (!Combat->PrepareContenderBody(*Entry.Placed.Body.Get(), Victim, Permit, Entry.CombatState, Error)) { return false; }
     }
@@ -713,22 +779,20 @@ bool ALDGameMode::SpawnInitialContenders(const FLDGameplayWritePermit& Permit, F
             return false;
         }
     }
-    // Every contender joins the capture set at t=0 with its committed foot and native support.
+    // The capture roster is joined when R0 returns to the field (CommitFieldReturn); rest lives have no eligibility.
     for (const auto& Entry : Prepared)
     {
-        const auto& Life = Lives.FindChecked(Entry.Placed.Contender);
-        FLDCaptureEligibilityEvent Joined;
-        Joined.Body = Life.Body;
-        Joined.Change = ELDCaptureEligibilityChange::Joined;
-        Joined.InitialFootCm = Life.MotionLastFoot;
-        Joined.InitialSupport.Grounded = Life.MotionGrounded;
-        Joined.InitialSupport.Floor = Life.MotionFloor;
-        if (!FLDCaptureEventTime::FromMs(AuthorityNowMs, Joined.Time, Error) || !PublishEligibility(Permit, Joined, Error))
+        // Copies of the committed life: the training dummy's own record is added to Lives below, which may move every record.
+        const FLDLifeRecord& Life = Lives.FindChecked(Entry.Placed.Contender);
+        const FLDCombatBodyRef Body = Life.Body;
+        const uint64 Revision = Life.Revision;
+        RestLives.Add(Entry.Placed.Contender);
+        if (!Combat->SetRestIsolation(Body, true, Permit, Error) || !SpawnTrainingDummy(Entry.Placed.Contender, Permit, Error))
         {
             FaultAuthority(Error);
             return false;
         }
-        NotifyLife(Life.Body, ELDLifeChange::Joined, Life.Revision, AuthorityNowMs);
+        NotifyLife(Body, ELDLifeChange::Joined, Revision, AuthorityNowMs);
     }
     // The camps populate the world after every contender stands; a refusal aborts this start explicitly.
     if (!Camps)
@@ -751,11 +815,20 @@ bool ALDGameMode::RespawnDueContenders(const FLDGameplayWritePermit& Permit, FSt
         return false;
     }
     TArray<FGuid> Due;
+    // #198: field respawn waits run only while a field segment runs; in a rest (and while a held entry waits for its
+    // bodies) every contender is placed by the rest module.
+    if (!IsFieldRunning())
+    {
+        Error.Reset();
+        return true;
+    }
     for (const auto& Pair : Lives)
     {
         const auto& Life = Pair.Value;
         if (Life.Kind == ELDVictimKind::Contender && Life.Phase == ELDLifePhase::Dead
-            && Life.RespawnAtMs <= AuthorityNowMs && IsMemberPresent(Pair.Key))
+            && Life.RespawnAtMs <= AuthorityNowMs && IsMemberPresent(Pair.Key)
+            // #198: rest lives and lives waiting for a phase placement are placed by the rest module.
+            && !RestLives.Contains(Pair.Key) && !PendingPhasePlacement.Contains(Pair.Key))
         {
             Due.Add(Pair.Key);
         }

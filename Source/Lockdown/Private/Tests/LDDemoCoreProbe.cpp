@@ -35,6 +35,7 @@ public:
     TWeakObjectPtr<ALDPlayerController> Controller;
     FString Output, Role, Error, CatalogDigest;
     double Deadline=0, StageAt=0, ArrivalReceivedAt=0;
+    int64 FieldStartedAtMs=0;
     int32 Stage=0;
     bool Written=false, Passed=true, StopSampled=false, IdleVerified=false, DisconnectVerified=false;
     FLDCombatBodyRef OriginalBody;
@@ -172,10 +173,16 @@ public:
             FirstLife.SpawnSequence=1;
             FirstLife.SpawnForLife=1;
             const FLDSpawnRequestKey FirstRequest{Mode.GetMatchContext(),FirstId,1,1};
+            // #198: the first life opens R0 in its private rest space, at the fixed anchor of its roster slot.
+            const FName FirstRestAnchor=Mode.RestAnchorFor(FirstId);
+            if (!Check(!FirstRestAnchor.IsNone(),TEXT("The first contender has a private rest anchor by roster slot"))) { return false; }
             TSharedPtr<const FLDSpawnSelection> FirstSelection;
             FCollisionShape Capsule;
+            const int32 SelectSeed=Mode.SpawnRandom.GetCurrentSeed();
             if (!ULDMapRegistry::ContentCapsule(*Content,Capsule,Error)
-                || !Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,FirstSelection,Error)) { return false; }
+                || !Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,FirstSelection,Error)) { return false; }
+            if (!Check(FirstSelection->AnchorId()==FirstRestAnchor && Mode.SpawnRandom.GetCurrentSeed()==SelectSeed,
+                TEXT("The fixed rest anchor is selected without a random draw"))) { return false; }
             const auto* FirstAnchor=Registry.Resolve(FirstSelection->AnchorId(),Registry.Generation);
             const auto* SpawnGeometry=Registry.GetGeometry();
             if (!FirstAnchor || !SpawnGeometry) { Error=TEXT("Spawn fixture anchor is missing."); return false; }
@@ -239,21 +246,25 @@ public:
             Occupants.Reset();
             TSharedPtr<const FLDSpawnSelection> RetrySelection;
             TSharedPtr<const FLDSpawnReservation> Retry;
-            if (!Check(Registry.DrawSpawnAnchor(FirstRequest,Mode.SpawnRandom,Permit,RetrySelection,Error)
+            if (!Check(Registry.SelectSpawnAnchor(FirstRequest,FirstRestAnchor,Permit,RetrySelection,Error)
                 && RetrySelection==FirstSelection && Mode.SpawnRandom.GetCurrentSeed()==BlockedSeed
                 && Registry.ReserveSpawnPlacement(RetrySelection,Capsule,Permit,Retry,Error)
                 && Retry->OffsetIndex()==0 && FirstLife.Life==0,
                 TEXT("Unblocked retry reuses the original anchor and starts at its centre"))) { return false; }
             if (!Registry.ReleaseSpawnReservation(Retry,Error)) { return false; }
-            if (!Mode.SpawnInitialContenders(Permit,Error)) { return false; }
+            // The real start: every first life stands in its private rest space and the world enters the R0 rest.
+            if (!Mode.SpawnInitialContenders(Permit,Error) || !Mode.EnterRestWorld(Permit,Error)) { return false; }
             FString DuplicateError;
             if (!Check(!Mode.SpawnInitialContenders(Permit,DuplicateError) && !DuplicateError.IsEmpty(),
                 TEXT("Repeated roster spawn cannot grant another life or resource reset"))) { return false; }
+            int32 RestContenders=0;
             for (const auto& Pair : Mode.Lives)
             {
                 const auto& Life=Pair.Value;
-                // Camp members spawn at their camps, not at the contender anchors.
-                if (Life.Kind!=ELDVictimKind::Contender) { continue; }
+                // Camp members spawn at their camps, not at the contender anchors; each owner's rest training dummy is a
+                // contender-kind target that is checked against its owner below, not a roster body.
+                if (Life.Kind!=ELDVictimKind::Contender || Mode.IsTrainingDummy(Pair.Key)) { continue; }
+                ++RestContenders;
                 const auto* Anchor=Registry.Resolve(Life.SpawnAnchor,Registry.Generation);
                 const auto* Body=Life.Actor.Get();
                 FVector Offset;
@@ -261,6 +272,9 @@ public:
                     && SpawnGeometry->SpawnOffsetsCm[Life.SpawnOffset].ToVector(Offset,Error)
                     && Body && FVector::DistSquared2D(Body->GetActorLocation(),Anchor->Position+Offset)<.000001,
                     TEXT("Actual initial body uses one of the seven exact offsets at its fixed selected anchor"))) { return false; }
+                if (!Check(Life.SpawnAnchor==Mode.RestAnchorFor(Pair.Key),
+                    TEXT("Each initial body stands at the private rest anchor of its roster slot"))) { return false; }
+                if (!Check(Life.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"))) { return false; }
                 const int32 Seed=Mode.SpawnRandom.GetCurrentSeed();
                 FLDSpawnRequestKey Request{Mode.GetMatchContext(),Pair.Key,1,Life.SpawnSequence};
                 TSharedPtr<const FLDSpawnSelection> Replay;
@@ -274,10 +288,18 @@ public:
                     && !Conflict.IsValid() && !ConflictError.IsEmpty() && Mode.SpawnRandom.GetCurrentSeed()==Seed,
                     TEXT("Same spawn request with changed terms cannot redraw a safer anchor"))) { return false; }
             }
+            bool DummiesPerOwner=Mode.TrainingDummies.Num()==RestContenders && Mode.TrainingDummyIds.Num()==RestContenders;
+            for (const auto& Pair : Mode.TrainingDummies) { DummiesPerOwner&=Mode.IsInRestSpace(Pair.Key); }
+            if (!Check(RestContenders==3 && DummiesPerOwner,
+                TEXT("Each of the three roster bodies stands in its rest space with exactly one training dummy"))) { return false; }
             return true;
         },Error);
         if (!Check(Registered,TEXT("Three real controllers receive one committed body each"))) { return false; }
-        Mode.MatchPhase=ELDMatchPhase::Development;
+        // Like a normal start, the match opens in the rest R0; the movement audit runs on the first field life after it.
+        Mode.MatchPhase=ELDMatchPhase::Rest;
+        ++Mode.TimelineRevision;
+        Mode.bPublicMatchDirty=true;
+        Mode.bLobbyDirty=true;
         Mode.PublishLobby();
         Check(WorldSeconds==Mode.GetWorld()->GetTimeSeconds(),TEXT("Core initialization does not rewrite UWorld time"));
         return Passed;
@@ -289,7 +311,7 @@ public:
         Report->SetBoolField(TEXT("passed"),Passed);
         Report->SetBoolField(TEXT("fixture_only"),true);
         Report->SetBoolField(TEXT("full_ct06"),false);
-        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial random spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
+        Report->SetStringField(TEXT("scope"),TEXT("DEV-only three-owned-body initial rest-anchor spawn/reservation, core/ground/CMC and native-prefix audit fixture. Not a playable match, death/respawn, final motion Fence, vision, combat effects or 3+3 AI acceptance."));
         Report->SetStringField(TEXT("role"),Role);
         Report->SetStringField(TEXT("catalog_sha256"),CatalogDigest);
         Report->SetStringField(TEXT("detail"),Error);
@@ -376,7 +398,7 @@ public:
                         if (Pair.Value.Phase==ELDLifePhase::Left)
                         {
                             ++Left;
-                            Retired&=Pair.Value.RetiredThroughLife==1 && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
+                            Retired&=Pair.Value.RetiredThroughLife==2 && !Pair.Value.Body.IsValid() && !Pair.Value.Actor.IsValid();
                         }
                         else if (Pair.Value.Phase==ELDLifePhase::Alive) { ++Alive; }
                     }
@@ -440,18 +462,23 @@ public:
         if (Stage==1)
         {
             int64 DisplayNowMs=0;
+            // #198: life 1 is the R0 rest body; the scenario walks the first field life, placed when R0 returns.
+            const FLDTimelineView& Line=Public->PublicMatch.Timeline;
             if (!Body || !Movement || !PC->OwnerState.BodyRef.IsValid() || !PC->OwnerState.bActive
                 || Public->PublicMatch.Generation!=PC->OwnerState.Match || Public->PublicMatch.Phase!=ELDMatchPhase::Development
-                || !Movement->CurrentFloor.IsWalkableFloor()
+                || PC->OwnerState.Life<2 || !Movement->CurrentFloor.IsWalkableFloor()
                 || !PC->CanWorldCommand() || !PC->ReadDemoAuthorityTimeMs(DisplayNowMs)) { return true; }
             Check(DisplayNowMs==Public->DemoClock.NowMs && Public->DemoClock.Generation==PC->OwnerState.Match,
                 TEXT("Owner display time reads the matching completed Core clock without local extrapolation"));
-            Check(Body->GetController()==PC && PC->OwnerState.Life==1 && PC->OwnerState.LifeRevision==1,
-                TEXT("Possession, body identity and logical first life agree"));
+            Check(Body->GetController()==PC && PC->OwnerState.Life==2 && PC->OwnerState.LifeRevision==3,
+                TEXT("Possession, body identity and the first field life after the R0 rest life agree"));
             Check(PC->OwnerState.Hp*100==Content->Get().Parameters.MaxHP.BaseP2
                 && PC->OwnerState.Mp*100==Content->Get().Parameters.MaxMP.BaseP2,
                 TEXT("Approved P2 resources are projected from the sole Combat body record"));
-            Check(PC->OwnerState.ProtectedUntilMs==0,TEXT("Common initial-body path does not invent respawn protection"));
+            FieldStartedAtMs=Line.FieldStartedAtMs;
+            Check(Line.Stage==ELDMatchStage::Field && Line.FieldSegment==0 && FieldStartedAtMs>0
+                && PC->OwnerState.ProtectedUntilMs<=FieldStartedAtMs+Content->Get().Parameters.ProtectionMs,
+                TEXT("The first field life carries at most the shared R0 return protection"));
             Check(PC->CanWorldCommand(),TEXT("Owning connection can submit an ordinary ground intent"));
             Check(Nav->PredictedIdentity().Match==PC->OwnerState.Match && Nav->PredictedIdentity().Life==PC->OwnerState.Life,
                 TEXT("Idle saved moves retain the current match and life for native acknowledgements"));
@@ -608,7 +635,7 @@ public:
             Check(Arrived.Status==ELDOrderStatus::Completed && Arrived.AcceptanceCm>0
                 && FVector::Dist2D(Body->GetNavAgentLocation(),ArrivalGoal)<=Arrived.AcceptanceCm+ClientErrorCm
                 && Movement->CurrentFloor.IsWalkableFloor(),TEXT("The accepted complete route reaches its real grounded endpoint"));
-            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==1,
+            Check(PC->OwnerState.BodyRef==OriginalBody && PC->OwnerState.Life==2,
                 TEXT("Navigation and corrections do not allocate a new body or life"));
             if (!Mark(Role+TEXT("Arrived.json"))) { return Finish(); }
             Stage=10;
@@ -624,8 +651,9 @@ public:
                     if (Pair.Value.Kind!=ELDVictimKind::Contender) { continue; }
                     const auto* Current=Pair.Value.Actor.Get();
                     const auto* Move=Current?Cast<ULDCharacterMovementComponent>(Current->GetCharacterMovement()):nullptr;
+                    // The field body exists from the R0 return (field 1 start); it integrates exactly that interval once.
                     Check(Move && !Move->IsComponentTickEnabled() && Move->AuthorityIntegrationCount>0
-                        && FMath::Abs(Move->AuthorityIntegratedSeconds-Mode->GetAuthorityNowSeconds())<.0001,
+                        && FMath::Abs(Move->AuthorityIntegratedSeconds-(Mode->GetAuthorityNowSeconds()-FieldStartedAtMs/1000.))<.0001,
                         TEXT("Each body integrates the match interval once, never native tick plus driver"));
                     if (Current && !Current->IsLocallyControlled())
                     {

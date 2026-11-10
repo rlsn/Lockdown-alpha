@@ -64,14 +64,34 @@ public:
     bool BeginSpawnMatch(const FLDMatchContext& Match, FString& Error);
     bool DrawSpawnAnchor(const FLDSpawnRequestKey& Request, FRandomStream& Random,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
+    // #198 private rest space: the same request bookkeeping as DrawSpawnAnchor, but the contender's fixed rest anchor
+    // (one of the approved spawn anchors, or for a #198 PK entrant one of the PK ring spawns) instead of a uniform draw;
+    // DrawSpawnAnchor never draws a PK spawn. ReserveSpawnPlacement then picks its free offset.
+    bool SelectSpawnAnchor(const FLDSpawnRequestKey& Request, FName Anchor,
+        const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnSelection>& Out, FString& Error);
+    // #198 return to the field: reserves a free placement for the next life at FootCm, else within RadiusCm on ground
+    // reachable from that foot. bBlocked (no state recorded) when none is free; the caller then draws a normal spawn.
+    bool ReserveSpawnNear(const FLDSpawnRequestKey& Request, const FVector& FootCm, FName SurfaceHint, double RadiusCm,
+        const FCollisionShape& Capsule, const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out,
+        bool& bBlocked, FString& Error);
     bool ReserveSpawnPlacement(const TSharedPtr<const FLDSpawnSelection>& Selection, const FCollisionShape& Capsule,
         const FLDGameplayWritePermit& Permit, TSharedPtr<const FLDSpawnReservation>& Out, FString& Error);
     bool ValidateSpawnReservation(const TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, const AActor* PreparedBody, FString& Error) const;
     bool ReleaseSpawnReservation(TSharedPtr<const FLDSpawnReservation>& Reservation, FString& Error);
+    // #198: drops the contender's latest released, unfinalized request (a blocked phase entry): it never replays, and the
+    // same life is placed under a newer sequence (another anchor or a fresh joint attempt). Nothing recorded under this
+    // identity is not an error. RespawnsAndWorld permit.
+    bool WithdrawSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit, FString& Error);
     bool FinalizeSpawnPlacement(TSharedPtr<const FLDSpawnReservation>& Reservation,
         const FLDGameplayWritePermit& Permit, FString& Error);
 private:
+    // Combat rule tests give an isolated world the registered revision of the approved geometry.
+    friend struct FLDBuildPrimitivesAccess;
+    // Shared admission of a spawn request: Replay is set when the same request was already selected.
+    bool AdmitSpawnRequest(const FLDSpawnRequestKey& Request, const FLDGameplayWritePermit& Permit,
+        TSharedPtr<const FLDSpawnSelection>& Replay, FString& Error);
+    TSharedPtr<const FLDSpawnSelection> RecordSpawnSelection(const FLDSpawnRequestKey& Request, FName Anchor);
     struct FSpawnState;
     TSharedPtr<FSpawnState> SpawnState;
     struct FGroundState;

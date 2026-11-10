@@ -36,7 +36,7 @@ $fixtureSwitch = '-LDDevGrowthFixture'
 # The Host's rendered captures of its own body and the observed skill moments, kept for presentation review and never
 # pixel-compared. The first (the duel site) also absorbs the stall of the process's first read-back.
 $screenshots = @('HostSees-DuelSite.png','HostSees-MoveMarker.png','HostSees-OwnHit.png','HostSees-Hover.png',
-    'HostSees-AttackMarker.png','HostSees-Root.png','HostSees-Shield.png','HostSees-SockFlight.png','HostSees-OwnStrike.png')
+    'HostSees-AttackMarker.png','HostSees-Root.png','HostSees-Shield.png','HostSees-ChalkFlight.png','HostSees-OwnStrike.png')
 
 function Start-CombatRole {
     param([string]$Role,[string]$Url)
@@ -87,8 +87,9 @@ try {
         $reports[$role] = $report
     }
     $hostReport = $reports['Host']
-    if ($reports['Client1'].generation -ne $hostReport.generation -or $reports['Client1'].life -ne 2) {
-        throw "Roles observed different matches or Client1 did not finish on its second life: $output"
+    # #198: life 1 is the R0 rest body, life 2 the first field life the Host kills; Client1 finishes on life 3.
+    if ($reports['Client1'].generation -ne $hostReport.generation -or $reports['Client1'].life -ne 3) {
+        throw "Roles observed different matches or Client1 did not finish on its respawned field life (life 3): $output"
     }
     if ($hostReport.growth_fixture -ne $true -or $reports['Client1'].growth_fixture -ne $false) {
         throw "Only the Host may run with the DEV growth fixture: $output"
@@ -134,11 +135,11 @@ try {
         "foot in the navmesh margin routes and the same clicked ground projects onto the navmesh (#80), Settings held " +
         "over an accepted walk past its lease (order and heartbeat continue, nothing replays), remote attack-move " +
         "and S, right-click kill with kill-feed credit, a minimap pan of the static death camera, respawn at spawn anchor " +
-        "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then skills learned by ordinary " +
-        "choices of DEV-fixture-preset offers: active_pants_down root observed, advanced active_not_mad shield and dispel, " +
-        "Client1's active_sock_shot hitting and attack-slowing the Host ($($hostReport.projectile_samples) flight samples), Host and Client1 " +
-        "cast follow-up and refused-cast tracking, an attr_hand_out basic " +
-        "hit at $($hostReport.reach_hit_cm) cm.$impairment " +
+        "$($hostReport.respawn_anchor) with exact protection, protection spent by an empty Q; then actives learned by ordinary " +
+        "build commands on DEV-fixture-preset offers: active_pants_down root observed, active_not_mad shield and dispel, " +
+        "Client1's active_snark_bolt hitting and slowing the Host ($($hostReport.projectile_samples) flight samples), Host and Client1 " +
+        "cast follow-up and refused-cast tracking, a basic hit after a chase " +
+        "at $($hostReport.reach_hit_cm) cm.$impairment " +
         "DEV growth fixture: Host only ($fixtureSwitch). Rendered Host captures for presentation review (not pixel-compared): " +
         "$captures. Not camps, AI, capture or full-match acceptance. Evidence: $output")
 }

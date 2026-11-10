@@ -31,7 +31,7 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
 {
     // The caller verified Lobby, Host, current roster, readiness and the provider gate.
     Reject = ELDSessionReject::None;
-    // Playtest log: everything the start commits from here (the opening three-choice offers, the AI registrations)
+    // Playtest log: everything the start commits from here (the opening active offers, the AI registrations)
     // belongs to this generation; the header and roster follow once the roster is locked.
     UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTING generation=%u ai=%d"), MatchContext.Generation, LobbyAISlots.Num());
 #if WITH_DEV_AUTOMATION_TESTS
@@ -98,26 +98,28 @@ bool ALDGameMode::StartDemoMatch(ELDSessionReject& Reject, FString& Detail)
         }
     }
     if (!ExecuteAuthorityPhase(*Combat, ELDCommitPhase::RespawnsAndWorld,
-        [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error); }, Error))
+        [&](const FLDGameplayWritePermit& Permit) { return SpawnInitialContenders(Permit, Error) && EnterRestWorld(Permit, Error); }, Error))
     {
         return Abort(ELDSessionReject::SpawnBlocked);
     }
     for (const FGuid& Id : RosterOrder)
     {
-        if (IsMemberPresent(Id) && !CaptureTracks.Contains(Id))
+        if (IsMemberPresent(Id) && !RestLives.Contains(Id))
         {
-            Error = TEXT("A spawned contender has no committed capture join; the life provider is not wired.");
+            Error = TEXT("A spawned contender has no private rest life; the life provider is not wired.");
             return Abort(ELDSessionReject::MissingDemoDefinition);
         }
     }
-    // #153: everyone is spawned; the opening countdown (moves and choices only, no attack or trade) runs to T=0 (MatchStartedAtMs), when development begins.
-    MatchPhase = ELDMatchPhase::Countdown;
+    // #198: everyone stands in the private rest space of the opening rest R0 (build, training, NPC, sign-up); the world is
+    // frozen until R0 returns to the field.
+    MatchPhase = ELDMatchPhase::Rest;
+    ++TimelineRevision;
     bPublicMatchDirty = true;
     bKillFeedDirty = true;
     bLobbyDirty = true;
     PublishMatchOutcome();
-    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d open_at_ms=%lld countdown_ms=%lld started_at_ms=%lld"),
-        MatchContext.Generation, RosterOrder.Num(), CaptureReducer.GetOpenAtMs(), MatchStartedAtMs - AuthorityNowMs, MatchStartedAtMs);
+    UE_LOG(LogLDMatch, Display, TEXT("LD_MATCH_STARTED generation=%u contenders=%d started_at_ms=%lld rest_ends_at_ms=%lld"),
+        MatchContext.Generation, RosterOrder.Num(), MatchStartedAtMs, Timeline.GetStepEndsAtMs());
     HeartbeatGate.Reset();
     LastMarkAt.Reset();
     LogPlaytestRoster();
@@ -223,6 +225,21 @@ bool ALDGameMode::RetireMatch(bool bAbortedStart, FString& Error)
     bResultLocked = false;
     bResultPublished = false;
     MatchStartedAtMs = 0;
+    Timeline.Reset();
+    RestSignups.Reset();
+    LockedEntrants.Reset();
+    RestReturns.Reset();
+    RestLives.Reset();
+    PKLives.Reset();
+    PendingPhasePlacement.Reset();
+    PendingPKEntry.Reset();
+    bFieldReturnStarted = false;
+    ReleasePhasePrepared(PreparedFieldReturn);
+    // Dummy bodies were destroyed with every life actor above; their life records go with the match.
+    for (const FGuid& Dummy : TrainingDummyIds) { Lives.Remove(Dummy); }
+    TrainingDummies.Reset();
+    TrainingDummyIds.Reset();
+    PendingTrainingResets.Reset();
     MatchContext = Next;
     MatchPhase = ELDMatchPhase::Lobby;
     if (!AdvanceRoster(Error)) { return false; }
@@ -309,11 +326,9 @@ FLDAISelfReadResult ALDGameMode::ReadAISelf(const FLDAIContenderBinding& Binding
     return Result;
 }
 
-bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, uint8& Index, int32& Seed,
-    FString& Error)
+bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, int64& AfterMs, int32& Seed, FString& Error)
 {
     AfterMs = 0;
-    Index = 0;
     Seed = 0;
     const FLDContenderRecord* Contender = Binding.IsValid() ? FindContender(Binding.GetContender()) : nullptr;
     if (!HasAuthority() || !bAuthorityInitialized || MatchPhase != ELDMatchPhase::Starting || Binding.GetMatch() != MatchContext || !Contender
@@ -324,7 +339,6 @@ bool ALDGameMode::DrawOpponentOpeningPlan(const FLDAIContenderBinding& Binding, 
     }
     Seed = SpawnRandom.GetCurrentSeed();
     AfterMs = SpawnRandom.RandRange(1000, 4000);
-    Index = uint8(SpawnRandom.RandRange(0, 2));
     Error.Reset();
     return true;
 }

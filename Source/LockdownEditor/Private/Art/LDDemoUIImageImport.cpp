@@ -191,6 +191,24 @@ namespace
         return FPackageName::DoesPackageExist(Spec.Package)
             ? LoadObject<UTexture2D>(nullptr, *(Spec.Package + TEXT(".") + FPackageName::GetShortName(Spec.Package))) : nullptr;
     }
+
+    // Saved icon texture packages that ui_icons.json no longer lists (an icon retired from the manifest).
+    TArray<FString> UIStaleIconFiles(const TArray<FUIImageSpec>& Specs)
+    {
+        const FString Extension = FPackageName::GetAssetPackageExtension();
+        const FString Directory = FPaths::GetPath(FPackageName::LongPackageNameToFilename(FString(LDUIIcons::Folder) / TEXT("T_icon"), Extension));
+        TSet<FString> Listed;
+        for (const FUIImageSpec& Spec : Specs) { if (Spec.bIcon) { Listed.Add(FPackageName::GetShortName(Spec.Package)); } }
+        TArray<FString> Found;
+        IFileManager::Get().FindFiles(Found, *(Directory / (TEXT("*") + Extension)), true, false);
+        TArray<FString> Out;
+        for (const FString& File : Found)
+        {
+            if (!Listed.Contains(FPaths::GetBaseFilename(File))) { Out.Add(Directory / File); }
+        }
+        Out.Sort();
+        return Out;
+    }
 }
 
 bool LDDemoUIImageImport::Import(FString& Error)
@@ -220,6 +238,14 @@ bool LDDemoUIImageImport::Import(FString& Error)
         if (!UPackage::SavePackage(Package, Texture, *File, Args)) { return UIFail(Error, TEXT("UI texture could not be saved: ") + File); }
         UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_UI_IMAGE_IMPORTED %s <- SourceData/UI/%s"), *Spec.Package, *Spec.Path);
     }
+    for (const FString& Stale : UIStaleIconFiles(Specs))
+    {
+        if (!IFileManager::Get().Delete(*Stale, true, true))
+        {
+            return UIFail(Error, TEXT("A UI icon texture no longer listed in ui_icons.json could not be deleted: ") + Stale);
+        }
+        UE_LOG(LogLDEditor, Display, TEXT("LD_DEMO_UI_IMAGE_DELETED %s (not listed in ui_icons.json)"), *Stale);
+    }
     Error.Reset();
     return true;
 }
@@ -247,6 +273,11 @@ bool LDDemoUIImageImport::Validate(FString& Error)
             return UIFail(Error, Spec.Package + TEXT(" was not imported from the current bytes of SourceData/UI/") + Spec.Path
                 + TEXT("; run ImportDemoArt.ps1 -Mode ImportUI."));
         }
+    }
+    const TArray<FString> Stale = UIStaleIconFiles(Specs);
+    if (!Stale.IsEmpty())
+    {
+        return UIFail(Error, Stale[0] + TEXT(" is a UI icon texture ui_icons.json no longer lists; run ImportDemoArt.ps1 -Mode ImportUI."));
     }
     Error.Reset();
     return true;

@@ -233,6 +233,9 @@ bool MinimapResolveStatic(FLDMinimapStatic& Cache,const FLDDemoWorldGeometry& Ge
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::Airdrop){continue;}
         // D26 (#79): a public Boss patrol point, a small gold ring.
         else if(Anchor.Kind==ELDDemoWorldAnchorKind::BossWaypoint){Site.Kind=FLDMinimapStatic::ESite::BossWaypoint;}
+        // #198: PK ring spawns, the spectator throw anchor and the rest-space sign-up disks are not field sites.
+        else if(Anchor.Kind==ELDDemoWorldAnchorKind::PKSpawn||Anchor.Kind==ELDDemoWorldAnchorKind::PKThrow
+            ||Anchor.Kind==ELDDemoWorldAnchorKind::PKSignup){continue;}
         else{Error=Anchor.Id+TEXT(": unsupported anchor kind.");return false;}
         Cache.Sites.Add(Site);
     }
@@ -533,6 +536,23 @@ int32 ULDMinimap::NativePaint(const FPaintArgs& A,const FGeometry& G,const FSlat
                 Box(5,At-FVector2f(7.f,7.f),FVector2f(14.f,14.f),Ink);Box(6,At-FVector2f(6.f,6.f),FVector2f(12.f,12.f),Orange);
                 if(Drop.Phase==ELDAirdropPhase::Landed){Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),FLinearColor(.55f,.36f,.16f));Box(7,At-FVector2f(4.f,.75f),FVector2f(8.f,1.5f),Ink);}
                 else{Box(7,At-FVector2f(4.f,4.f),FVector2f(8.f,8.f),Ink);}
+            }
+            // #198: lying charms, a disc in the kind's colour (heal green, mana blue, move speed gold) on an ink disc.
+            if(Public->PublicMatch.Generation==Own.Match)
+            {
+                for(const FLDCharmView& Charm:Public->PublicMatch.Charms)
+                {
+                    const FVector2f At=Spot(Charm.PositionCm);
+                    Disc(5,At,7.5f,Ink);Disc(6,At,5.5f,LDHUD::CharmColor(Charm.Kind));Disc(7,At,2.f,FLinearColor(.97f,.97f,.94f));
+                }
+                // #198 outer §5: an open camp marker, a marker-violet ring around its camp diamond.
+                for(const FLDFieldMarkerView& Marker:Public->PublicMatch.Markers)
+                {
+                    if(Marker.Phase!=ELDFieldMarkerPhase::Revealed){continue;}
+                    const FVector2f At=Spot(Marker.PositionCm);TArray<FVector2f> Ring;
+                    for(int32 Step=0;Step<=24;++Step){const float Angle=float(UE_DOUBLE_TWO_PI*Step/24.);Ring.Add(At+FVector2f(FMath::Cos(Angle),FMath::Sin(Angle))*18.f);}
+                    Lines(7,Ring,LDHUD::MarkerColor(),2.5f);
+                }
             }
         }
         if(Frame)

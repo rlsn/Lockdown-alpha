@@ -49,6 +49,13 @@ void ALDCombatDirector::AppendObservedStatuses(const ALDCharacter& Actor, int64 
     AppendMechanicsStatuses(*Body,NowMs,Out);
     // #147: silence, breach x stacks (status exposed) and burn x stacks.
     AppendKeywordStatuses(*Body,NowMs,Out);
+    // #198 session D: a spectator throw's Exposed shares the existing Exposed cue (one entry, latest deadline).
+    if (Body->ExposedUntilMs>NowMs)
+    {
+        FLDObservedStatus* Existing=Out.FindByPredicate([](const FLDObservedStatus& S) { return S.StatusId==uint8(ELDDemoStatusId::Exposed); });
+        if (Existing) { Existing->ExpiresAtServerMs=FMath::Max(Existing->ExpiresAtServerMs,Body->ExposedUntilMs); }
+        else { Out.Add({uint8(ELDDemoStatusId::Exposed),1,Body->ExposedUntilMs}); }
+    }
 }
 
 bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimKey& Victim,
@@ -84,7 +91,7 @@ bool ALDCombatDirector::PrepareContenderBody(ALDCharacter& Body,const FLDVictimK
     else
     {
         if (Victim.Life!=1) { Error=TEXT("Only the first contender life may start without a persistent Combat record."); return false; }
-        const FLDAttributeBuildValues Initial(1,{},{});
+        const FLDAttributeBuildValues Initial(1,{});
         const auto Result=LDAttributeProjection::Project(Initial,*Content);
         if (!Result.IsSuccess())
         {
@@ -270,11 +277,13 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
     Projectiles.RemoveAll([&Entity](const FLDCombatProjectile& Projectile) { return Projectile.SourceEntity==Entity; });
     PendingHits.RemoveAll([&Entity](const FLDCombatHit& Hit) { return Hit.SourceEntity==Entity; });
     Zones.RemoveAll([&Entity](const FLDCombatZone& Zone) { return Zone.SourceEntity==Entity; });
-    DashSweeps.RemoveAll([&Entity](const FLDCombatDashSweep& Sweep) { return Sweep.Body.Victim.EntityId==Entity; });
-    Echoes.RemoveAll([&Entity](const FLDCombatEcho& Echo) { return Echo.Body.Victim.EntityId==Entity; });
-    WallChecks.RemoveAll([&Entity](const FLDCombatWallCheck& Check) { return Check.SourceEntity==Entity; });
     Channels.RemoveAll([&Entity](const auto& Channel) { return Channel.Payload.SourceEntity==Entity; });
     GroundEffects.RemoveAll([&Entity](const auto& Ground) { return Ground.Payload.SourceEntity==Entity; });
+    // #198 F M02: a leaving owner's locked batches never settle.
+    LockedLedgers.RemoveAll([&Entity](const FLDCombatLockedLedger& Locked) { return Locked.Owner.Victim.EntityId==Entity; });
+    // #198: its fogs and chains end; marks it applied end below.
+    Fogs.RemoveAll([&Entity](const FLDCombatFog& Fog) { return Fog.Owner.SourceEntity==Entity; });
+    Chains.RemoveAll([&Entity](const FLDCombatChain& Chain) { return Chain.Payload.SourceEntity==Entity; });
     ContactMotion.RemoveAll([&Entity](const auto& Frame) { return Frame.Batch->Body.Victim.EntityId==Entity; });
     for (auto& Pair : Bodies)
     {
@@ -292,6 +301,13 @@ void ALDCombatDirector::CancelEntityEffects(const FGuid& Entity)
             Body.Taunt.Reset();
             ++Removed;
         }
+        if (Body.ElementMark.Kind!=ELDCombatElement::None && Body.ElementMark.Applier.SourceEntity==Entity)
+        {
+            Body.ElementMark=FLDCombatElementMark();
+            ++Removed;
+        }
+        // B02: a leaving owner's unsettled ledger entries end with it.
+        Body.Ledgers.RemoveAll([&Entity](const FLDCombatLedger& Ledger) { return Ledger.Owner==Entity; });
         if (Removed>0)
         {
             ++Body.StateRevision;
