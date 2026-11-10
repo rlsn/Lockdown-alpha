@@ -86,7 +86,7 @@ FLDActiveOfferState RestTestOffer(uint8 Ordinal, TArray<FName> Options)
 int64 RestTestUnspent(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, int64 XP)
 {
     int64 Unspent = -1;
-    return LDProgression::UnspentPoints(Content, Build, XP, Unspent) == ELDGrowthReason::None ? Unspent : -1;
+    return LDProgression::UnspentPoints(Content, Build, XP, 0, Unspent) == ELDGrowthReason::None ? Unspent : -1;
 }
 
 const TCHAR* RestTestKindName(ELDBuildCommandKind Kind)
@@ -314,23 +314,23 @@ bool RestTestRunRespec(FAutomationTestBase& Test)
     const int64 Before = RestTestUnspent(Content, Built, XP);
     bool bGood = Test.TestEqual(TEXT("Before the respec, earned minus allocated minus paid is unspent"), Before, 9 - 6 - Cost);
     bGood &= RestTestReason(Test, TEXT("A respec in the rest window"),
-        LDProgression::ApplyRespec(Content, Built, XP, Rest, Out, Refunded), ELDGrowthReason::None);
+        LDProgression::ApplyRespec(Content, Built, XP, 0, Rest, Out, Refunded), ELDGrowthReason::None);
     bGood &= Test.TestTrue(TEXT("Only the allocated points return; the permanent spend stays"),
         Refunded == 6 && Out.StatPoints == TArray<int32>({0, 0, 0, 0, 0}) && Out.PermanentSpentPoints == Cost
         && RestTestUnspent(Content, Out, XP) == 9 - Cost && Out.Actives.Num() == 1 && Out.Level == 3 && Out.Revision == Built.Revision);
     const FLDGrowthBuild Respecced = Out;
     bGood &= RestTestReason(Test, TEXT("A respec with nothing allocated"),
-        LDProgression::ApplyRespec(Content, Respecced, XP, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
+        LDProgression::ApplyRespec(Content, Respecced, XP, 0, Rest, Out, Refunded), ELDGrowthReason::NothingToRespec);
     bGood &= Test.TestTrue(TEXT("A refused respec refunds nothing"), Refunded == 0 && Out.PermanentSpentPoints == Cost);
     bGood &= RestTestReason(Test, TEXT("A respec on the field"),
-        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true), Out, Refunded),
+        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::Live, ELDLifePhase::Alive, true), Out, Refunded),
         ELDGrowthReason::NotRestWindow);
     bGood &= Test.TestTrue(TEXT("A respec refused on the field changes nothing"), Refunded == 0 && Out.StatPoints == Built.StatPoints);
     bGood &= RestTestReason(Test, TEXT("A respec while builds are locked"),
-        LDProgression::ApplyRespec(Content, Built, XP, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true), Out,
+        LDProgression::ApplyRespec(Content, Built, XP, 0, RestTestContext(ERestTestStage::RestLocked, ELDLifePhase::Alive, true), Out,
             Refunded), ELDGrowthReason::BuildLocked);
     bGood &= RestTestReason(Test, TEXT("A respec of a build that paid more than it earned"),
-        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, Rest, Out, Refunded),
+        LDProgression::ApplyRespec(Content, RestTestBuild(Content, 1, {}, {}, {1, 0, 0, 0, 0}, 3), 0, 0, Rest, Out, Refunded),
         ELDGrowthReason::AuthorityFault);
     bGood &= RestTestReason(Test, TEXT("A negative permanent spend is a broken record"),
         LDProgression::ValidateBuild(Content, RestTestBuild(Content, 1, {}, {}, {}, -1)), ELDGrowthReason::DataInvalid);

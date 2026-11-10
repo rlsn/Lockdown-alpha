@@ -1539,6 +1539,472 @@
     "id": "character_demo",
     "native_id": 1
   },
+  "components": [
+    {
+      "effects": [
+        {
+          "basic_stacks": 1,
+          "op": "burn",
+          "opcode": 71
+        }
+      ],
+      "id": "component_fist_fire",
+      "kind": "base",
+      "native_id": 1,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 800,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 1000,
+            "unit": "points"
+          },
+          "count": 5,
+          "damage_type": "Magical",
+          "duration": {
+            "ms": 6000,
+            "unit": "ms"
+          },
+          "op": "ledger",
+          "opcode": 100
+        }
+      ],
+      "id": "component_tab_ledger",
+      "kind": "base",
+      "native_id": 2,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "armor_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 1000,
+            "unit": "points"
+          },
+          "critical_multiplier": {
+            "bp": 10000,
+            "unit": "ratio"
+          },
+          "damage_type": "Magical",
+          "max_hp_ratio": {
+            "bp": 100,
+            "unit": "ratio"
+          },
+          "op": "thorns",
+          "opcode": 24,
+          "radius": {
+            "denominator": 1,
+            "numerator": 600,
+            "unit": "cm"
+          },
+          "trigger": "Basic"
+        }
+      ],
+      "id": "component_spiky_hide",
+      "kind": "base",
+      "native_id": 3,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "op": "lifesteal",
+          "opcode": 7,
+          "ratio": {
+            "bp": 1200,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_punch_heal",
+      "kind": "base",
+      "native_id": 4,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 3000,
+            "unit": "points"
+          },
+          "damage_type": "Physical",
+          "op": "dash_contact_damage",
+          "opcode": 87
+        }
+      ],
+      "id": "component_dash_bump",
+      "kind": "base",
+      "native_id": 5,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "count": 3,
+          "distance": {
+            "denominator": 1,
+            "numerator": 120,
+            "unit": "cm"
+          },
+          "duration": {
+            "ms": 120,
+            "unit": "ms"
+          },
+          "op": "nth_basic_bonus",
+          "opcode": 35
+        }
+      ],
+      "id": "component_third_punch",
+      "kind": "base",
+      "native_id": 6,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "op": "control_damage_amp",
+          "opcode": 17,
+          "ratio": {
+            "bp": 1200,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_kick_down",
+      "kind": "base",
+      "native_id": 7,
+      "opening": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_open_mic"
+        ]
+      },
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "basic_stacks": 1,
+          "op": "breach",
+          "opcode": 70
+        }
+      ],
+      "id": "component_breach_fist",
+      "kind": "base",
+      "native_id": 8,
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "base": {
+            "p2": 4500,
+            "unit": "hp"
+          },
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "interval": {
+            "ms": 10000,
+            "unit": "ms"
+          },
+          "max_hp_ratio": {
+            "bp": 350,
+            "unit": "ratio"
+          },
+          "op": "triggered_shield",
+          "opcode": 31,
+          "trigger": "Damaged"
+        }
+      ],
+      "id": "component_hard_skin",
+      "kind": "base",
+      "native_id": 9,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "element": "water",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "id": "component_fist_water",
+      "kind": "base",
+      "native_id": 10,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "element": "electric",
+          "op": "basic_element",
+          "opcode": 101
+        }
+      ],
+      "id": "component_fist_shock",
+      "kind": "base",
+      "native_id": 11,
+      "opening": {
+        "actives": [
+          "active_seethe",
+          "active_quick_meeting"
+        ]
+      },
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "ad_ratio": {
+            "bp": 2500,
+            "unit": "ratio"
+          },
+          "ap_ratio": {
+            "bp": 0,
+            "unit": "ratio"
+          },
+          "base": {
+            "p2": 2500,
+            "unit": "points"
+          },
+          "charges": 1,
+          "damage_type": "Physical",
+          "duration": {
+            "ms": 3000,
+            "unit": "ms"
+          },
+          "op": "empower_basic",
+          "opcode": 22,
+          "trigger": "DashComplete"
+        }
+      ],
+      "id": "component_dash_punch",
+      "kind": "base",
+      "native_id": 12,
+      "opening": "always",
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "op": "stat_bonus",
+          "opcode": 5,
+          "stats": {
+            "CooldownHasteFlat": {
+              "p2": 1500,
+              "unit": "points"
+            },
+            "MPRegenFlat": {
+              "denominator": 1,
+              "numerator": 1,
+              "unit": "mp/s"
+            }
+          }
+        }
+      ],
+      "id": "component_catch_breath",
+      "kind": "base",
+      "native_id": 13,
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "op": "stat_bonus",
+          "opcode": 5,
+          "stats": {
+            "AttackRangeCmFlat": {
+              "denominator": 1,
+              "numerator": 120,
+              "unit": "cm"
+            }
+          }
+        },
+        {
+          "op": "basic_damage_scale",
+          "opcode": 102,
+          "ratio": {
+            "bp": 9000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_long_arm",
+      "kind": "base",
+      "native_id": 14,
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "op": "low_hp_stat_bonus",
+          "opcode": 15,
+          "stats": {
+            "AttackSpeedBonusRatio": {
+              "bp": 2500,
+              "unit": "ratio"
+            },
+            "MoveSpeedBonusRatio": {
+              "bp": 1000,
+              "unit": "ratio"
+            }
+          },
+          "threshold": {
+            "bp": 4000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_seeing_red",
+      "kind": "base",
+      "native_id": 15,
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "base": {
+            "p2": 800,
+            "unit": "points"
+          },
+          "op": "primary_guard",
+          "opcode": 86,
+          "ratio": {
+            "bp": 1500,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_thick_hide",
+      "kind": "base",
+      "native_id": 16,
+      "pool": "common"
+    },
+    {
+      "effects": [
+        {
+          "delay": {
+            "ms": 2000,
+            "unit": "ms"
+          },
+          "op": "idle_ready_amp",
+          "opcode": 103,
+          "ratio": {
+            "bp": 2000,
+            "unit": "ratio"
+          }
+        }
+      ],
+      "id": "component_held_shot",
+      "kind": "base",
+      "native_id": 17,
+      "opening": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_open_mic"
+        ]
+      },
+      "pool": "common"
+    },
+    {
+      "binding": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_flyer_trap",
+          "active_open_mic"
+        ],
+        "elements": [
+          "fire",
+          "water",
+          "electric"
+        ],
+        "kind": "active_element"
+      },
+      "effects": [
+        {
+          "op": "active_element",
+          "opcode": 104
+        }
+      ],
+      "id": "component_dirty_trick",
+      "kind": "base",
+      "native_id": 18,
+      "opening": {
+        "actives": [
+          "active_elbow",
+          "active_pants_down",
+          "active_crotch_grab",
+          "active_account_banned",
+          "active_unplug",
+          "active_snark_bolt",
+          "active_seethe",
+          "active_quick_meeting",
+          "active_apology_slide",
+          "active_calculus_drop",
+          "active_open_mic"
+        ]
+      },
+      "pool": "common"
+    }
+  ],
   "display": [
     {
       "description_key": "active_account_banned.description",
@@ -1720,6 +2186,168 @@
       "name_text": "脆皮大学生",
       "namespace": "DemoContent",
       "portrait_icon_id": "portrait_character_demo"
+    },
+    {
+      "description_key": "component_breach_fist.description",
+      "description_text": "本体普攻命中时施加 [breach.basic_count] 层破防。",
+      "icon_id": "icon_component_breach_fist",
+      "id": "component_breach_fist",
+      "name_key": "component_breach_fist.name",
+      "name_text": "越揍越不经打",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_catch_breath.description",
+      "description_text": "技能急速 +[stat_bonus.CooldownHasteFlat]，法力回复 +[stat_bonus.MPRegenFlat]/秒。",
+      "icon_id": "icon_component_catch_breath",
+      "id": "component_catch_breath",
+      "name_key": "component_catch_breath.name",
+      "name_text": "喘口气接着干",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_dash_bump.description",
+      "description_text": "冲刺或主动冲刺真的撞到敌人时，追加 [dash_contact_damage.amount] 物理伤害；每次冲刺对每个敌人一次。",
+      "icon_id": "icon_component_dash_bump",
+      "id": "component_dash_bump",
+      "name_key": "component_dash_bump.name",
+      "name_text": "撞你个趔趄",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_dash_punch.description",
+      "description_text": "冲刺完成后 [empower_basic.duration] 秒内，下一次本体普攻多造成 [empower_basic.amount] 物理伤害。",
+      "icon_id": "icon_component_dash_punch",
+      "id": "component_dash_punch",
+      "name_key": "component_dash_punch.name",
+      "name_text": "蹿过去抡一拳",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_dirty_trick.description",
+      "description_text": "绑定一个伤害主动和一种元素：它每次直接命中额外施加一层灼烧，或让目标潮湿、感电。",
+      "icon_id": "icon_component_dirty_trick",
+      "id": "component_dirty_trick",
+      "name_key": "component_dirty_trick.name",
+      "name_text": "招里掺点脏的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_fist_fire.description",
+      "description_text": "本体普攻命中时施加 [burn.basic_count] 层灼烧。",
+      "icon_id": "icon_component_fist_fire",
+      "id": "component_fist_fire",
+      "name_key": "component_fist_fire.name",
+      "name_text": "拳头冒火",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_fist_shock.description",
+      "description_text": "本体普攻命中时让目标感电。",
+      "icon_id": "icon_component_fist_shock",
+      "id": "component_fist_shock",
+      "name_key": "component_fist_shock.name",
+      "name_text": "拳头漏电",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_fist_water.description",
+      "description_text": "本体普攻命中时让目标潮湿。",
+      "icon_id": "icon_component_fist_water",
+      "id": "component_fist_water",
+      "name_key": "component_fist_water.name",
+      "name_text": "拳头甩脏水",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_hard_skin.description",
+      "description_text": "受到敌人伤害后获得 [triggered_shield.amount] 护盾，持续 [triggered_shield.duration] 秒；成功起盾后 [triggered_shield.interval] 秒内不再起盾。",
+      "icon_id": "icon_component_hard_skin",
+      "id": "component_hard_skin",
+      "name_key": "component_hard_skin.name",
+      "name_text": "挨揍起硬皮",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_held_shot.description",
+      "description_text": "主动技能就绪后闲置满 [idle_ready_amp.delay] 秒，下次放它的直接伤害提高 [idle_ready_amp.ratio]%。",
+      "icon_id": "icon_component_held_shot",
+      "id": "component_held_shot",
+      "name_key": "component_held_shot.name",
+      "name_text": "憋着一发狠的",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_kick_down.description",
+      "description_text": "对出手前已被减速、控制或击退的目标，伤害提高 [control_damage_amp.ratio]%。",
+      "icon_id": "icon_component_kick_down",
+      "id": "component_kick_down",
+      "name_key": "component_kick_down.name",
+      "name_text": "逮住就往狠了打",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_long_arm.description",
+      "description_text": "普攻距离 +[stat_bonus.AttackRangeCmFlat] 厘米，但本体普攻主击伤害只剩 [basic_damage_scale.ratio]%。",
+      "icon_id": "icon_component_long_arm",
+      "id": "component_long_arm",
+      "name_key": "component_long_arm.name",
+      "name_text": "伸长胳膊抽你",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_punch_heal.description",
+      "description_text": "本体普攻造成的生命伤害，其中 [lifesteal.ratio]% 用来治疗自己。",
+      "icon_id": "icon_component_punch_heal",
+      "id": "component_punch_heal",
+      "name_key": "component_punch_heal.name",
+      "name_text": "揍人续命",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_seeing_red.description",
+      "description_text": "生命低于 [low_hp_stat_bonus.ratio]% 时，攻速 +[low_hp_stat_bonus.AttackSpeedBonusRatio]%、移速 +[low_hp_stat_bonus.MoveSpeedBonusRatio]%。",
+      "icon_id": "icon_component_seeing_red",
+      "id": "component_seeing_red",
+      "name_key": "component_seeing_red.name",
+      "name_text": "打急眼了",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_spiky_hide.description",
+      "description_text": "挨了敌人的普攻后，向 [thorns.radius] 厘米内的出手者反击 [thorns.amount] 魔法伤害。",
+      "icon_id": "icon_component_spiky_hide",
+      "id": "component_spiky_hide",
+      "name_key": "component_spiky_hide.name",
+      "name_text": "打我也硌手",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_tab_ledger.description",
+      "description_text": "普攻或技能伤害每命中一次记一笔；攒满 [ledger.count] 笔自动兑现，每笔造成 [ledger.amount] 魔法伤害。[ledger.duration] 秒没有新账就清空。",
+      "icon_id": "icon_component_tab_ledger",
+      "id": "component_tab_ledger",
+      "name_key": "component_tab_ledger.name",
+      "name_text": "揍一下记一笔",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_thick_hide.description",
+      "description_text": "受到的普攻主击伤害减少 [primary_guard.amount]，每次最多减掉这一击的 [primary_guard.ratio]%。",
+      "icon_id": "icon_component_thick_hide",
+      "id": "component_thick_hide",
+      "name_key": "component_thick_hide.name",
+      "name_text": "脸皮磨厚点",
+      "namespace": "DemoContent"
+    },
+    {
+      "description_key": "component_third_punch.description",
+      "description_text": "每第 [nth_basic_bonus.count] 次本体普攻命中，把目标推开 [nth_basic_bonus.distance] 厘米。",
+      "icon_id": "icon_component_third_punch",
+      "id": "component_third_punch",
+      "name_key": "component_third_punch.name",
+      "name_text": "第三拳滚蛋",
+      "namespace": "DemoContent"
     },
     {
       "description_key": "disarm.description",
@@ -1937,11 +2565,11 @@
   },
   "identity": {
     "approval": {
-      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据. playtest input, not a balance test.",
+      "decision": "Approvals: 2026-11-02 D01-D03; 2026-11-04 #82 D17-D24 and pointer dash; #79 dorm/camp return/airdrop/Boss/leader; 2026-11-05 #112 spray-guard D33, Boss patrol, camera 2250; 2026-11-07 movement -25%, flagpole 180s, guard 30s, airdrop 80s, loot -50%, vision/leash 1050, #147 build v7, #153 openings; 2026-11-08 #166 level 16/QWE, segmented growth, draft/quality and existing skill/attribute tuning; #97 camp growth stages, Elite camp tier, T2/T3 1.5x Boss 3x Equipment excluded; 2026-11-09 #144 equipment, gold and shops removed; 2026-11-10 #198 v0.11 workshop growth (stats/points/single-level actives) approved: 全部按当前规范批准，进入运行数据; #198 B base components B01-B18, level-up component category weights and empty-pool points from the same approval. playtest input, not a balance test.",
       "status": "approved"
     },
-    "handler_revision": 2,
-    "projection_revision": 4,
+    "handler_revision": 3,
+    "projection_revision": 5,
     "schema_version": 2
   },
   "parameters": {
@@ -2103,6 +2731,7 @@
       "ms": 4000,
       "unit": "ms"
     },
+    "GROWTH.EmptyComponentPoolPoints": 3,
     "GROWTH.MaxLevelPoints": 3,
     "GROWTH.MaxLevelPointsXP": 400,
     "GROWTH.NpcActivePoints": 3,
@@ -2467,6 +3096,35 @@
       6
     ],
     "active_slots": 3,
+    "component_category_weights": [
+      {
+        "base": 55,
+        "connector": 20,
+        "levels": [
+          2,
+          6
+        ],
+        "mod": 25
+      },
+      {
+        "base": 40,
+        "connector": 30,
+        "levels": [
+          7,
+          11
+        ],
+        "mod": 30
+      },
+      {
+        "base": 25,
+        "connector": 40,
+        "levels": [
+          12,
+          16
+        ],
+        "mod": 35
+      }
+    ],
     "max_level": 16,
     "xp_start": 0,
     "xp_thresholds": [

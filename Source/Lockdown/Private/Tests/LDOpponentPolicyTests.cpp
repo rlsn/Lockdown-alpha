@@ -289,28 +289,28 @@ bool RunChoiceOrder(FAutomationTestBase& Test)
     FLDOpponentPolicyState State;
     FLDOpponentBuildIntent Intent;
     bGood &= Test.TestFalse(TEXT("Alive inside combat: neither learn nor allocate"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     Frame.Self.Phase = ELDLifePhase::Dead;
     bGood &= Test.TestTrue(TEXT("Dead: points are allocated, the blueprint waits"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::AllocatePoints
         && ById(C, Intent.PointCounts).FindRef(Agility) == 0 && ById(C, Intent.PointCounts).FindRef(Brains) == 0
         && Algo::Accumulate(Intent.PointCounts, 0) == 2);
     Frame.Self.Phase = ELDLifePhase::Alive;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
     bGood &= Test.TestTrue(TEXT("Safe: the blueprint is learned first"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint
         && Intent.Blueprint == TEXT("active_elbow") && Intent.Slot == 0);
     Frame.Public.Phase = ELDMatchPhase::Rest;
     Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
     Frame.Public.Timeline.Step = ELDRestStep::Build;
     Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 4000;
     bGood &= Test.TestTrue(TEXT("The rest build window is always safe"),
-        LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::LearnBlueprint);
     Frame.bBuildChangeInFlight = true;
-    bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+    bGood &= Test.TestFalse(TEXT("One build request at a time"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     Frame.bBuildChangeInFlight = false;
     Frame.Public.Phase = ELDMatchPhase::Results;
-    bGood &= Test.TestFalse(TEXT("Closed phase: nothing"), LDOpponentPolicy::DecideLearnOrAllocate(Frame, C, State, Intent));
+    bGood &= Test.TestFalse(TEXT("Closed phase: nothing"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
     return bGood;
 }
 
@@ -2419,6 +2419,175 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentRequestsTest, "Lockdown.Rules.De
 bool FLDDemoOpponentRequestsTest::RunTest(const FString& Parameters)
 {
     return LDOpponentPolicyTests::RunRequests(*this);
+}
+
+namespace LDOpponentComponentTests
+{
+namespace
+{
+const FLDDemoComponentDefinition* Component(FAutomationTestBase& Test, const FLDDemoContentSnapshot& Catalog, const TCHAR* Id)
+{
+    const FLDDemoComponentDefinition* Out = nullptr;
+    FString Error;
+    if (!Catalog.FindComponent(Id, Out, Error) || !Out) { Test.AddError(FString::Printf(TEXT("%s: %s"), Id, *Error)); return nullptr; }
+    return Out;
+}
+
+FLDOpponentComponent Owned(const TCHAR* Id, bool bInstalled, bool bEverInstalled)
+{
+    FLDOpponentComponent Out;
+    Out.DefinitionId = Id;
+    Out.bInstalled = bInstalled;
+    Out.bEverInstalled = bEverInstalled || bInstalled;
+    return Out;
+}
+
+bool RunPickAndEnable(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentSnapshot& C = *Catalog;
+    const FLDDemoComponentDefinition* Fire = Component(Test, C, TEXT("component_fist_fire"));
+    const FLDDemoComponentDefinition* Water = Component(Test, C, TEXT("component_fist_water"));
+    const FLDDemoComponentDefinition* Shock = Component(Test, C, TEXT("component_fist_shock"));
+    const FLDDemoComponentDefinition* Trick = Component(Test, C, TEXT("component_dirty_trick"));
+    if (!Fire || !Water || !Shock || !Trick || !Test.TestTrue(TEXT("B18 binds a listed active"), !Trick->BindActives.IsEmpty())) { return false; }
+    // A learned active B18 can bind, and one it cannot (any catalog active its binding does not list).
+    const FString Bindable = Trick->BindActives[0];
+    const FLDDemoAbilityDefinition* Unbindable = C.Get().Abilities.FindByPredicate([Trick](const FLDDemoAbilityDefinition& Ability)
+        { return !Trick->BindActives.Contains(Ability.Id); });
+
+    FLDOpponentSelf Self;
+    FString Bound;
+    ELDDemoElement Element = ELDDemoElement::Electric;
+    bool bGood = Test.TestTrue(TEXT("A plain base component is usable without a binding"),
+        LDOpponentPolicy::ComponentUsable(Self, *Fire, Bound, Element) && Bound.IsEmpty() && Element == ELDDemoElement::None);
+    bGood &= Test.TestFalse(TEXT("Water and electric are skipped (ElementUnsupported)"),
+        LDOpponentPolicy::ComponentUsable(Self, *Water, Bound, Element) || LDOpponentPolicy::ComponentUsable(Self, *Shock, Bound, Element));
+    bGood &= Test.TestFalse(TEXT("B18 without a bindable learned active is skipped (InvalidTarget)"),
+        LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element));
+    if (Unbindable) { Self.Actives.Add({Unbindable->Id, 0}); }
+    Self.Actives.Add({Bindable, 1});
+    bGood &= Test.TestTrue(TEXT("B18 binds the first bindable learned active (Q/W/E order) with fire"),
+        LDOpponentPolicy::ComponentUsable(Self, *Trick, Bound, Element) && Bound == Bindable && Element == ELDDemoElement::Fire);
+
+    // Opening base: the first option in catalog order the AI can enable now.
+    Self.bOpeningBasePending = true;
+    Self.OpeningBaseOptions = {TEXT("component_fist_water"), TEXT("component_fist_shock"), TEXT("component_dash_punch")};
+    FString Picked;
+    FString Error;
+    bGood &= Test.TestTrue(TEXT("Closed elements are passed over for the next option: ") + Error,
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_dash_punch") && Bound.IsEmpty());
+    Self.OpeningBaseOptions = {TEXT("component_fist_fire"), TEXT("component_dash_punch")};
+    bGood &= Test.TestTrue(TEXT("The first usable option in catalog order wins"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_fist_fire"));
+    Self.OpeningBaseOptions = {TEXT("component_fist_water")};
+    bGood &= Test.TestFalse(TEXT("No usable option picks nothing, never a refused one"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
+    Self.OpeningBaseOptions = {TEXT("component_unknown")};
+    bGood &= Test.TestFalse(TEXT("An unknown option is refused, never defaulted"),
+        LDOpponentPolicy::SelectOpeningBase(Self, C, Picked, Bound, Element, Error));
+    Self.bOpeningBasePending = false;
+    Self.OpeningBaseOptions.Reset();
+
+    // Enabling: every owned, never-installed component in catalog order; installed, moved and closed ones are skipped.
+    Self.Components = {Owned(TEXT("component_dirty_trick"), false, false), Owned(TEXT("component_dash_bump"), false, true),
+        Owned(TEXT("component_fist_water"), false, false), Owned(TEXT("component_hard_skin"), false, false),
+        Owned(TEXT("component_tab_ledger"), true, true)};
+    bGood &= Test.TestTrue(TEXT("The first fresh usable component in catalog order: ") + Error,
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_hard_skin"));
+    Self.Components[3].bInstalled = Self.Components[3].bEverInstalled = true;
+    bGood &= Test.TestTrue(TEXT("Then B18 with its binding"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error) && Picked == TEXT("component_dirty_trick")
+        && Bound == Bindable && Element == ELDDemoElement::Fire);
+    Self.Actives.RemoveAll([&Bindable](const FLDOpponentActive& Active) { return Active.DefinitionId == Bindable; });
+    bGood &= Test.TestFalse(TEXT("Nothing usable is left without a bindable active"),
+        LDOpponentPolicy::SelectComponentInstall(Self, C, Picked, Bound, Element, Error));
+    Self.Actives.Add({Bindable, 1});
+
+    // The decision: the opening pick in the opening rest, installs only inside the safe window, one request at a time.
+    FLDOpponentDecisionFrame Frame;
+    Frame.Generation = 1;
+    Frame.Public.Phase = ELDMatchPhase::Rest;
+    Frame.Public.Timeline.Stage = ELDMatchStage::Rest;
+    Frame.Public.Timeline.Step = ELDRestStep::Build;
+    Frame.Public.NowMs = 10000;
+    Frame.Self = Self;
+    Frame.Self.ContenderId = FGuid(0xC0, 0, 0, 1);
+    Frame.Self.Phase = ELDLifePhase::Alive;
+    Frame.Self.Life = 1;
+    Frame.Self.Components = {Owned(TEXT("component_hard_skin"), false, false)};
+    Frame.Self.bOpeningBasePending = true;
+    Frame.Self.OpeningBaseOptions = {TEXT("component_fist_fire"), TEXT("component_dash_punch")};
+    FLDOpponentPolicyState State;
+    FLDOpponentBuildIntent Intent;
+    bGood &= Test.TestTrue(TEXT("The opening pick comes before any install"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::OpeningBase
+        && Intent.Component == TEXT("component_fist_fire") && Intent.Key.POI == FName(TEXT("component_fist_fire")));
+    Frame.Self.bOpeningBasePending = false;
+    Frame.Self.OpeningBaseOptions.Reset();
+    Frame.Public.Phase = ELDMatchPhase::Development;
+    Frame.Public.Timeline = FLDTimelineView();
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs + 1;
+    bGood &= Test.TestFalse(TEXT("No install inside combat"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+    Frame.Self.BuildSafeAtMs = Frame.Public.NowMs;
+    bGood &= Test.TestTrue(TEXT("Out of combat the fresh component is enabled"),
+        LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent) && Intent.Kind == ELDOpponentBuildKind::InstallComponent
+        && Intent.Component == TEXT("component_hard_skin"));
+    Frame.bBuildChangeInFlight = true;
+    bGood &= Test.TestFalse(TEXT("Nothing while a build request is in flight"), LDOpponentPolicy::DecideFollowUpBuild(Frame, C, State, Intent));
+
+    // Commands: built from the own latest view, binding only to a learned active.
+    FLDProgressionView View;
+    View.bValid = true;
+    View.Generation = 1;
+    View.Life = 1;
+    View.LifePhase = ELDLifePhase::Alive;
+    View.BuildRevision = 4;
+    View.bOpeningBasePending = true;
+    View.OpeningBaseOptions = {FName(TEXT("component_fist_fire"))};
+    FLDActiveSlotView& Learned = View.Actives.AddDefaulted_GetRef();
+    Learned.DefinitionId = FName(*Bindable);
+    Learned.Slot = 1;
+    FLDComponentInstanceView& Held = View.Components.AddDefaulted_GetRef();
+    Held.DefinitionId = TEXT("component_dirty_trick");
+    Held.Source = ELDComponentSource::LevelUp;
+    Held.SourceLevel = 2;
+    FLDOpponentBuildIntent Pick;
+    Pick.Kind = ELDOpponentBuildKind::OpeningBase;
+    Pick.Component = TEXT("component_fist_fire");
+    FLDBuildCommand Command;
+    FName Decoded;
+    bGood &= Test.TestTrue(TEXT("An opening pick always asks to enable it now: ") + Error,
+        LDOpponentRequests::BuildCommand(Pick, View, 7, Command, Error) && Command.Kind == ELDBuildCommandKind::OpeningBase
+        && Command.bInstallIfPossible && Command.TargetKind == ELDComponentTargetKind::None && Command.Element == ELDDemoElement::None
+        && Command.Component.Decode(Decoded) && Decoded == FName(TEXT("component_fist_fire")) && Command.ExpectedBuildRevision == 4);
+    Pick.Component = TEXT("component_dash_punch");
+    bGood &= Test.TestFalse(TEXT("An option no longer offered is not sent"), LDOpponentRequests::BuildCommand(Pick, View, 8, Command, Error));
+    FLDOpponentBuildIntent Enable;
+    Enable.Kind = ELDOpponentBuildKind::InstallComponent;
+    Enable.Component = TEXT("component_dirty_trick");
+    Enable.BoundActive = Bindable;
+    Enable.Element = ELDDemoElement::Fire;
+    bGood &= Test.TestTrue(TEXT("An install carries its binding: ") + Error,
+        LDOpponentRequests::BuildCommand(Enable, View, 9, Command, Error) && Command.Kind == ELDBuildCommandKind::InstallComponent
+        && !Command.bInstallIfPossible && Command.Element == ELDDemoElement::Fire && Command.BoundActive.Decode(Decoded) && Decoded == FName(*Bindable));
+    Enable.BoundActive = TEXT("active_not_learned_anywhere");
+    bGood &= Test.TestFalse(TEXT("A binding to an active not learned is not sent"), LDOpponentRequests::BuildCommand(Enable, View, 10, Command, Error));
+    Held.bInstalled = Held.bEverInstalled = true;
+    Enable.BoundActive = Bindable;
+    bGood &= Test.TestFalse(TEXT("An installed component is not installed again"), LDOpponentRequests::BuildCommand(Enable, View, 11, Command, Error));
+    return bGood;
+}
+}
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoOpponentComponentsTest, "Lockdown.Rules.DemoOpponentPolicy.Components",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoOpponentComponentsTest::RunTest(const FString& Parameters)
+{
+    return LDOpponentComponentTests::RunPickAndEnable(*this);
 }
 
 #endif

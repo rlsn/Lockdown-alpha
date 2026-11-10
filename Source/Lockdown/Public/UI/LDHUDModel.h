@@ -393,26 +393,80 @@ namespace LDHUD
         FString ForgetBlocked;
         // The stage is a rest (open or locked): the panel shows the rest services, enabled or with their reasons.
         bool bInRest=false;
+        // #198 B: the first-time install of a never-installed component and the re-install of a once-installed one, as
+        // growth gates them (LDProgression::InstallGate). The opening base pick itself follows bCanChoose.
+        bool bCanInstall=false;
+        FString InstallBlocked;
+        bool bCanReinstall=false;
+        FString ReinstallBlocked;
     };
     LOCKDOWN_API FBuildGateView BuildGate(LDProgression::EMatchStage Stage,ELDLifePhase LifePhase,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // The player-facing why of a refused or stored build step (NotSafe with the remaining seconds when known).
     LOCKDOWN_API FString BuildBlockedText(ELDGrowthReason Reason,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
     // The result line of an applied build receipt: 已学到 Q：名称, 已存为图纸：名称（原因）, the points added and left, or a
-    // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active).
+    // rest service's result (the NPC points paid, the respec refund, the replaced or forgotten active), or the component taken,
+    // enabled (已启用构件：名称), stored with the reason or removed.
     LOCKDOWN_API FString BuildReceiptText(const FLDBuildReceipt& Receipt,const FLDDemoContentDefinitions* Content,
         int64 BuildSafeAtMs,bool bClock,int64 NowMs);
-    // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points and blueprints
-    // while a Q/W/E slot is empty. The 开盲盒 button is lit and counts them while any is pending; empty otherwise.
+    // #198 B: an element a component carries or binds is open now, or ElementUnsupported (water and electric wait for the
+    // #198 A element state), exactly as the growth domain refuses it.
+    LOCKDOWN_API ELDGrowthReason ElementGate(ELDDemoElement Element);
+    // ElementUnsupported when any effect of the component carries a closed element (B10 water, B11 electric); None otherwise.
+    LOCKDOWN_API ELDGrowthReason ComponentElementGate(const FLDDemoComponentDefinition& Component);
+    // 火 / 水 / 电.
+    LOCKDOWN_API FString ElementName(ELDDemoElement Element);
+    // The learned actives an ActiveElement component may bind (its BindActives), in Q/W/E order.
+    LOCKDOWN_API TArray<FName> BindableActives(const FLDDemoComponentDefinition& Component,const FLDProgressionView& Progression);
+    // A component's card: icon, name and its display sentence with the owner's level grown numbers (like an active's).
+    struct FComponentCardView
+    {
+        FName DefinitionId;
+        FString Name;
+        FString IconId;
+        FString Glyph;
+        FString Sentence;
+        FString SentencePlain;
+        TArray<FString> Keywords;
+        // Enabling it asks for a learned active and an element first (B18).
+        bool bBinding=false;
+        // False when the catalog has no such component or display row.
+        bool bKnown=false;
+    };
+    LOCKDOWN_API FComponentCardView ComponentCard(FName DefinitionId,const FLDDemoContentDefinitions* Content,const FCardStats& Stats);
+    // Why an owned, not installed component cannot be enabled whatever the moment: a missing definition (DataNotReady), not
+    // a base (InvalidTarget until mods and connectors get their targets), a closed element (ElementUnsupported) or a binding
+    // without any bindable learned active (InvalidTarget). None when only the build gate decides (FBuildGateView: the first
+    // install, or the rest-only re-install of a once-installed one).
+    LOCKDOWN_API ELDGrowthReason ComponentEnableReason(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content);
+    // One owned component row of the growth panel: 已启用, or a 启用 button enabled when the server would admit it now and
+    // otherwise disabled with the reason (未脱战 N 秒, 阵亡中, 休息时才能重新安装, 该元素尚未开放...).
+    struct FComponentRowView
+    {
+        FName DefinitionId;
+        bool bInstalled=false;
+        bool bCanEnable=false;
+        FString Blocked;
+        bool bBinding=false;
+    };
+    LOCKDOWN_API FComponentRowView ComponentRow(const FLDComponentInstanceView& Instance,const FLDProgressionView& Progression,
+        const FLDDemoContentDefinitions* Content,const FBuildGateView& Gate,int64 BuildSafeAtMs,bool bClock,int64 NowMs);
+    // What waits in the growth panel for the own view of Match: queued active opportunities, unspent points, blueprints
+    // while a Q/W/E slot is empty, the opening base pick and owned never-installed components (#198 B; with Content, those
+    // ComponentEnableReason does not rule out). The 开盲盒 button is lit and counts them while any is pending; empty
+    // otherwise.
     struct FGrowthPending
     {
         int32 Offers=0;
         int64 Points=0;
         int32 Blueprints=0;
-        bool Any() const {return Offers>0||Points>0||Blueprints>0;}
-        // "开盲盒+1 · 3点", "开盲盒 · 图纸 1" or "开盲盒".
+        bool bOpeningBase=false;
+        int32 Components=0;
+        bool Any() const {return Offers>0||Points>0||Blueprints>0||bOpeningBase||Components>0;}
+        // "开盲盒+1 · 3点", "开盲盒 · 图纸 1", "开盲盒 · 构件 1" or "开盲盒".
         FString Prompt() const;
     };
-    LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match);
+    LOCKDOWN_API FGrowthPending GrowthPending(const FLDProgressionView* Progression,uint32 Match,const FLDDemoContentDefinitions* Content);
     // The 开盲盒 button's caption: the pending counts, or "开盲盒 · 休息服务" when nothing is pending but the rest services
     // are open (the button then stays enabled so the NPC, respec and forget remain reachable).
     LOCKDOWN_API FString GrowthPrompt(const FGrowthPending& Pending,bool bRestServices);
@@ -526,17 +580,19 @@ namespace LDHUD
         double OpenedAt=0;
     };
     // D10/APP_SPEC §4.2: the growth panel opens by itself once per match, when the opening active offer (opportunity 1) is
-    // first seen in a valid view of the current match. Later offers and new points never open it (they only light the
-    // 开盲盒 button's count), so it does not cover a fight. The caller still never opens it over the player's own panel or
-    // captured input. Local presentation only.
+    // first seen in a valid view of the current match, and (#198 B) once when the opening base pick first opens. Later
+    // offers, new points and new components never open it (they only light the 开盲盒 button's count), so it does not
+    // cover a fight. The caller still never opens it over the player's own panel or captured input. Local presentation only.
     class LOCKDOWN_API FGrowthAutoOpen
     {
     public:
-        // True once per match: for the first view that shows the opening offer.
+        // True once per match for the first view that shows the opening offer, and once for the first showing the opening
+        // base pick.
         bool Observe(const FLDProgressionView& View,uint32 Match);
     private:
         uint32 SeenMatch=0;
         bool bOpeningShown=false;
+        bool bOpeningBaseShown=false;
     };
 
     // The top-left event feed: room-public events as short lines, oldest first, so the newest sits at the bottom. Each line

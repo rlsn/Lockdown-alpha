@@ -51,25 +51,14 @@ ALDCharacter* ALDCombatDirector::ActorOf(const FLDBodyCombatState& Body) const
     return nullptr;
 }
 
-const FLDDemoEffectDefinition* ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
-    FLDCombatSourceRef* OutSource) const
+bool ALDCombatDirector::FindTrigger(const FLDAttributeProjection& Projection, ELDDemoEffectOp Op,
+    TOptional<FLDPassiveEffectRef>& Out, FString& Error) const
 {
+    Out.Reset();
     TArray<FLDPassiveEffectRef> Held;
-    FString Error;
-    if (!CollectPassiveEffects(Projection,Op,Held,Error) || Held.IsEmpty()) { return nullptr; }
-    if (OutSource) { *OutSource=Held[0].Source; }
-    return Held[0].Effect;
-}
-
-TOptional<FLDLowHPBonusTerm> ALDCombatDirector::HeldLowHPBonus(const FLDAttributeProjection& Projection) const
-{
-    const FLDDemoEffectDefinition* Effect=FindTrigger(Projection,ELDDemoEffectOp::LowHpStatBonus);
-    if (!Effect) { return {}; }
-    FLDLowHPBonusTerm Term;
-    Term.ThresholdBp=Effect->RatioBp;
-    Term.Stats=Effect->Stats;
-    Term.BasicLifestealBp=Effect->SecondaryRatioBp;
-    return Term;
+    if (!CollectPassiveEffects(Projection,Op,Held,Error)) { return false; }
+    if (!Held.IsEmpty()) { Out=MoveTemp(Held[0]); }
+    return true;
 }
 
 bool ALDCombatDirector::HealBody(FLDBodyCombatState& Body, int64 AmountP2)
@@ -103,16 +92,17 @@ bool ALDCombatDirector::GrantShieldTo(FLDBodyCombatState& Body, int64 AmountP2, 
 
 bool ALDCombatDirector::OnShieldBroken(FLDBodyCombatState& Holder, const FLDCombatHit& Hit, int64 GrantedP2, int64 NowMs, FString& Error)
 {
-    FLDCombatSourceRef Ref;
-    const FLDDemoEffectDefinition* Retort=FindTrigger(Holder.AttributeProjection,ELDDemoEffectOp::ShieldBreakRetort,&Ref);
+    TOptional<FLDPassiveEffectRef> Held;
+    if (!FindTrigger(Holder.AttributeProjection,ELDDemoEffectOp::ShieldBreakRetort,Held,Error)) { return false; }
     const FLDBodyCombatState* Breaker=FindBody(Hit.SourceBody);
-    if (!Retort || !Breaker || Breaker==&Holder || Breaker->bPendingDeath || Holder.bPendingDeath || NowMs<Holder.RetortReadyAtMs) { return true; }
-    if (!LDMatchLifecycle::AddDurationMs(NowMs,Retort->IntervalMs,Holder.RetortReadyAtMs,Error)) { return false; }
-    FLDCombatHit Answer=LDCombatMechanicsDetail::MakeHit(Holder,Ref,Hit.SourceBody,FGuid());
-    Answer.BaseP2=LDCombatMechanicsDetail::Scale(GrantedP2,Retort->RatioBp);
+    if (!Held.IsSet() || !Breaker || Breaker==&Holder || Breaker->bPendingDeath || Holder.bPendingDeath || NowMs<Holder.RetortReadyAtMs) { return true; }
+    const FLDDemoEffectDefinition& Retort=Held->Effect;
+    if (!LDMatchLifecycle::AddDurationMs(NowMs,Retort.IntervalMs,Holder.RetortReadyAtMs,Error)) { return false; }
+    FLDCombatHit Answer=LDCombatMechanicsDetail::MakeHit(Holder,Held->Source,Hit.SourceBody,FGuid());
+    Answer.BaseP2=LDCombatMechanicsDetail::Scale(GrantedP2,Retort.RatioBp);
     Answer.DamageType=ELDDemoDamageType::Magical;
-    Answer.SlowBp=Retort->SecondaryRatioBp;
-    Answer.SlowDurationMs=Retort->SecondaryDurationMs;
+    Answer.SlowBp=Retort.SecondaryRatioBp;
+    Answer.SlowDurationMs=Retort.SecondaryDurationMs;
     Answer.bFromShieldTrigger=true;
     PendingHits.Add(Answer);
     return true;
@@ -142,6 +132,8 @@ bool ALDCombatDirector::ApplyKnockback(ALDCharacter& Target, FLDBodyCombatState&
     if (!CommitControl(Body,App,NowMs,bApplied,Error)) { return false; }
     if (!bApplied) { return true; }
     Body.DashContact.Reset();
+    // B12: a knocked-back dash is cancelled, never completed.
+    Body.VoluntaryDash.Reset();
     // The same native root motion as a dash: integrated by the authority steps along the ground, stopped by blocking
     // geometry at the last legal position, never a teleport.
     if (!Movement->StartDemoDash(Direction,Hit.KnockbackCm,double(Hit.KnockbackMs)/1000.,Error))
@@ -155,8 +147,6 @@ bool ALDCombatDirector::ExpireMechanics(FLDBodyCombatState& Body, int64 NowMs)
 {
     bool Changed=Body.Knockbacks.RemoveAll([NowMs](const FLDCombatRoot& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
     Changed|=Body.AttackSlows.RemoveAll([NowMs](const FLDCombatSlow& Row) { return Row.ExpiresAtMs<=NowMs; })>0;
-    if (Body.SlowResistanceUntilMs>0 && Body.SlowResistanceUntilMs<=NowMs)
-    { Body.SlowResistanceUntilMs=Body.SlowResistanceBp=0; Changed=true; }
     if (Body.DashContact && Body.DashContact->EndMs<=NowMs) { Body.DashContact.Reset(); }
     return Changed;
 }
@@ -171,7 +161,6 @@ int64 ALDCombatDirector::NextMechanicsDueMs(int64 NowMs) const
         if (Body.bPendingDeath) { continue; }
         for (const auto& Row : Body.Knockbacks) { Consider(Row.ExpiresAtMs); }
         for (const auto& Row : Body.AttackSlows) { Consider(Row.ExpiresAtMs); }
-        Consider(Body.SlowResistanceUntilMs);
         if (Body.DashContact) { Consider(Body.DashContact->EndMs); }
     }
     for (const FLDCombatZone& Zone : Zones)
@@ -226,7 +215,9 @@ bool ALDCombatDirector::AdvanceMechanics(int64 NowMs, FString& Error)
                     Hit.APRatioBp=Zone.APRatioBp;
                     Hit.DamageType=Zone.DamageType;
                     Hit.bPeriodic=true;
-                    Hit.bDirectAbilityDamage=Zone.Count==1;
+                    // A native pulse is the active's direct damage (spec §8): B17's lock rides on it and B18 reads it.
+                    Hit.bDirectAbilityDamage=true;
+                    Hit.IdleReadyAmpBp=Zone.IdleReadyAmpBp;
                 }
             }
         }

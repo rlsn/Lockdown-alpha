@@ -233,6 +233,54 @@ bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView
         Out.PointCounts = Intent.PointCounts;
         break;
     }
+    case ELDOpponentBuildKind::OpeningBase:
+    case ELDOpponentBuildKind::InstallComponent:
+    {
+        const FName Component(*Intent.Component);
+        if (Intent.Kind == ELDOpponentBuildKind::OpeningBase)
+        {
+            if (!Progression.bOpeningBasePending || !Progression.OpeningBaseOptions.Contains(Component))
+            {
+                return Fail(Error, TEXT("The component is no longer an option of the open opening base pick."));
+            }
+            Out.Kind = ELDBuildCommandKind::OpeningBase;
+            // Like a player's pick: enable it now when allowed, otherwise it is kept in the inventory.
+            Out.bInstallIfPossible = true;
+        }
+        else
+        {
+            const FLDComponentInstanceView* Owned = Progression.Components.FindByPredicate(
+                [&Component](const FLDComponentInstanceView& View) { return View.DefinitionId == Component; });
+            if (!Owned || Owned->bInstalled || Owned->bEverInstalled)
+            {
+                return Fail(Error, TEXT("The component is no longer owned and waiting for its first install."));
+            }
+            Out.Kind = ELDBuildCommandKind::InstallComponent;
+        }
+        Out.TargetKind = ELDComponentTargetKind::None;
+        if (!FLDDefinitionWire::Encode(Component, Out.Component))
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("The component id cannot travel."));
+        }
+        if (!Intent.BoundActive.IsEmpty())
+        {
+            const FName Bound(*Intent.BoundActive);
+            if (!Progression.Actives.ContainsByPredicate([&Bound](const FLDActiveSlotView& Active) { return Active.DefinitionId == Bound; })
+                || Intent.Element == ELDDemoElement::None || !FLDDefinitionWire::Encode(Bound, Out.BoundActive))
+            {
+                Out = FLDBuildCommand();
+                return Fail(Error, TEXT("The bound active is no longer learned or the binding has no element."));
+            }
+            Out.Element = Intent.Element;
+        }
+        else if (Intent.Element != ELDDemoElement::None)
+        {
+            Out = FLDBuildCommand();
+            return Fail(Error, TEXT("An element without a bound active is no binding."));
+        }
+        break;
+    }
     default:
         return Fail(Error, TEXT("The build intent has an unknown kind."));
     }

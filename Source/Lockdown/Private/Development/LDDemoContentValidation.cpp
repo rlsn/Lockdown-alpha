@@ -15,7 +15,8 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
     const auto CheckEffect = [&N, &P](const FLDDemoEffectDefinition& Effect, const FString& Path)
     {
         const ELDDemoEffectOp Op = Effect.GetOp();
-        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage;
+        const bool bDamage = Op == ELDDemoEffectOp::Damage || Op == ELDDemoEffectOp::EmpowerBasic || Op == ELDDemoEffectOp::ZoneDamage
+            || Op == ELDDemoEffectOp::DashContactDamage || Op == ELDDemoEffectOp::Ledger;
         if (!bDamage && Op != ELDDemoEffectOp::Shield)
         {
             return true;
@@ -49,20 +50,32 @@ bool BuildEnvelope(const FLDDemoContentDefinitions& D, FNumbers& N, FCheck& Chec
         Out = Product / 10000;
         return true;
     };
+    const auto CheckGrown = [&Grow, &CheckEffect](const FLDDemoEffectDefinition& Effect, const FString& Path)
+    {
+        FLDDemoEffectDefinition Grown = Effect;
+        if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Path)) { return false; }
+        if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
+        {
+            for (FLDDemoStatBonus& Stat : Grown.Stats)
+            {
+                if (!Grow(Stat.Amount, Stat.Amount, Path)) { return false; }
+            }
+        }
+        return CheckEffect(Grown, Path);
+    };
     for (const auto& Ability : D.Abilities)
     {
         for (const auto& Effect : Ability.Values.Effects)
         {
-            FLDDemoEffectDefinition Grown = Effect;
-            if (Effect.GetOp() != ELDDemoEffectOp::ManaOnHit && !Grow(Effect.BaseP2, Grown.BaseP2, Ability.Id)) { return false; }
-            if (Effect.GetOp() == ELDDemoEffectOp::TimedStatBonus)
-            {
-                for (FLDDemoStatBonus& Stat : Grown.Stats)
-                {
-                    if (!Grow(Stat.Amount, Stat.Amount, Ability.Id)) { return false; }
-                }
-            }
-            if (!CheckEffect(Grown, Ability.Id)) { return false; }
+            if (!CheckGrown(Effect, Ability.Id)) { return false; }
+        }
+    }
+    // #198 B: a component's fixed amounts grow with its holder's level like an active's.
+    for (const auto& Component : D.Components)
+    {
+        for (const auto& Effect : Component.Effects)
+        {
+            if (!CheckGrown(Effect, Component.Id)) { return false; }
         }
     }
     int64 BurnBase = 0, BurnAP = 0, BurnTotal = 0;
@@ -188,6 +201,14 @@ bool ValidateNumbers(const FLDDemoContentDefinitions& D, FCheck& Check)
     int64 LevelPoints = 0, TotalPoints = 0;
     if (!N.Mul64(D.Progression.MaxLevel - 1, P.PointsPerLevel, LevelPoints, TEXT("GROWTH.PointsPerLevel"))
         || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.OpeningPoints")))
+    {
+        return false;
+    }
+    // #198 B: a level-up whose component roll finds the common pool empty adds GROWTH.EmptyComponentPoolPoints on top.
+    int64 PerLevel = 0;
+    if (!N.Add64(P.PointsPerLevel, P.EmptyComponentPoolPoints, PerLevel, TEXT("GROWTH.EmptyComponentPoolPoints"))
+        || !N.Mul64(D.Progression.MaxLevel - 1, PerLevel, LevelPoints, TEXT("GROWTH.EmptyComponentPoolPoints"))
+        || !N.Add64(P.OpeningPoints, LevelPoints, TotalPoints, TEXT("GROWTH.EmptyComponentPoolPoints")))
     {
         return false;
     }

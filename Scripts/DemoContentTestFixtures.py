@@ -75,6 +75,7 @@ def content_fixture():
         "COMBAT.BreachMaxStacks": 4, "COMBAT.BurnMaxStacks": 3,
         "GROWTH.OpeningPoints": 2, "GROWTH.PointsPerLevel": 4, "GROWTH.MaxLevelPointsXP": 250, "GROWTH.MaxLevelPoints": 1,
         "GROWTH.NpcActivePoints": 5,
+        "GROWTH.EmptyComponentPoolPoints": 2,
     })
     formulas = {
         "StatProjection": "AddFlatThenAdditivePercent", "Resistance": "PointsOverScalePlusPoints",
@@ -134,6 +135,20 @@ def content_fixture():
         {"id": "stat_brains", "per_point": {"APFlat": q("points", 4), "CooldownHasteFlat": q("points", 2), "MPRegenFlat": q("mp/s", 0.25)}},
         {"id": "stat_agility", "per_point": {"AttackSpeedBonusRatio": q("ratio", 0.02), "MoveSpeedBonusRatio": q("ratio", 0.01)}},
     ]
+    # Synthetic #198 B components in native ID order: an always-opening burn, a conditional opening, a dash-armed empowered
+    # basic and the active/element binding.
+    components = [
+        {"id": "component_fist_fire", "kind": "base", "pool": "common", "opening": "always",
+         "effects": [{"op": "burn", "basic_stacks": 2}]},
+        {"id": "component_kick_down", "kind": "base", "pool": "common", "opening": {"actives": ["active_pants_down"]},
+         "effects": [{"op": "control_damage_amp", "ratio": q("ratio", 0.1)}]},
+        {"id": "component_dash_punch", "kind": "base", "pool": "common",
+         "effects": [{"op": "empower_basic", "trigger": "DashComplete", "base": q("points", 6), "ad_ratio": q("ratio", 0.125),
+                      "ap_ratio": q("ratio", 0), "damage_type": "Physical", "duration": q("s", 1.5), "charges": 1}]},
+        {"id": "component_dirty_trick", "kind": "base", "pool": "common", "opening": {"actives": ["active_snark_bolt"]},
+         "binding": {"kind": "active_element", "actives": ["active_snark_bolt", "active_pants_down"], "elements": ["fire", "water"]},
+         "effects": [{"op": "active_element"}]},
+    ]
     monsters = []
     for identity, tier, count, hp, attack, armor, speed in (
         ("monster_scavenger", "Low", 2, 25, 3, 2, 1),
@@ -168,7 +183,7 @@ def content_fixture():
     # Every native status needs one display row; read them so new statuses need no fixture edit.
     statuses = list(demo.parse_json((demo.ROOT / demo.IDS_SOURCE).read_bytes(), "test native ids")["statuses"])
     identities = ["character_demo", *statuses]
-    identities.extend(row["id"] for rows in (abilities, stats, monsters, [boss]) for row in rows)
+    identities.extend(row["id"] for rows in (abilities, stats, components, monsters, [boss]) for row in rows)
     display = [{"id": identity, "namespace": "DemoContent", "name_key": identity + ".name",
                 "name_text": "测试名称 " + identity, "description_key": identity + ".description",
                 "description_text": "TEST ONLY 合成说明 " + "".join(c for c in identity if not c.isdigit()),
@@ -177,16 +192,19 @@ def content_fixture():
     # Card templates: an active reads [op.field] of its effects, a stat [per_point.<Stat>] of one point.
     next(row for row in display if row["id"] == "active_snark_bolt")["description_text"] += " [damage.amount] [slow.ratio] [slow.duration]"
     next(row for row in display if row["id"] == "stat_brains")["description_text"] += " [per_point.APFlat] [per_point.MPRegenFlat]"
+    next(row for row in display if row["id"] == "component_fist_fire")["description_text"] += " [burn.basic_count]"
     return {
-        "identity": {"schema_version": 2, "handler_revision": 2, "projection_revision": 4,
+        "identity": {"schema_version": 2, "handler_revision": 3, "projection_revision": 5,
                      "approval": {"status": "approved", "decision": "TEST ONLY: synthetic fixture, not product approval"}},
         "parameters": parameters, "formulas": formulas, "policies": policies,
         "character": {"id": "character_demo", "basic_attack": {"target_mode": "Unit", "damage_type": "Physical", "ad_ratio": q("ratio", 1)},
                       "dash": {"mana_cost": q("mp", 0), "cooldown": q("s", 10), "distance": q("cm", 120), "duration": q("s", 0.125)}},
-        "abilities": abilities, "stats": stats, "camps": camps, "boss": boss,
+        "abilities": abilities, "stats": stats, "components": components, "camps": camps, "boss": boss,
         "progression": {"max_level": 16, "active_slots": 3, "xp_start": 0,
                         "xp_thresholds": [0, 50, 110, 180, 260, 350, 450, 560, 680, 810, 950, 1100, 1260, 1430, 1610, 1800],
-                        "active_offer_levels": [4, 9]},
+                        "active_offer_levels": [4, 9],
+                        "component_category_weights": [{"levels": [2, 8], "base": 60, "mod": 20, "connector": 20},
+                                                       {"levels": [9, 16], "base": 30, "mod": 30, "connector": 40}]},
         "world": {"map_id": "demo_world", "spawn_ids": named["Spawn"], "camp_ids": named["Camp"], "capture_id": "capture"},
         "display": display,
     }

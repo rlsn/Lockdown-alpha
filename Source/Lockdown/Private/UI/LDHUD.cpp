@@ -1087,16 +1087,17 @@ void ULDHUD::RefreshReadModel()
         }
     }
     if(ULDCommandButton* Dev=Commands.FindRef(TEXT("DevTest"))){HudSetShown(Dev,Lobby.DevTestSession,ESlateVisibility::Visible);}
-    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match);
+    const LDHUD::FGrowthPending Pending=LDHUD::GrowthPending(Progression,O.Match,Content);
     // #198: in a rest build window the rest services (NPC, respec, replace, forget) keep the panel reachable without pending growth.
     const bool bRestServices=bOwnMatch&&LDProgression::StageForPublic(Public.Phase,Public.Timeline)==LDProgression::EMatchStage::Rest;
     const bool bPromptLit=Pending.Any()||bRestServices;
     if(ULDCommandButton* Sheet=Commands.FindRef(TEXT("Attributes"))){HudSetText(CastChecked<UTextBlock>(Sheet->GetContent()),TEXT("属性 [")+PC->BindingLabel(TEXT("Attributes"))+TEXT("]"));}
     // The 开盲盒 button stays above the left block: greyed out and disabled while nothing is pending and no rest service is
-    // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities or points
-    // rise it pulses at ~1 Hz for a few seconds.
-    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints){PromptPulseAt=UiNow;}
-    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;
+    // open (an open panel with nothing left closes itself), lit with the counts otherwise; after the opportunities, points or
+    // pending components rise it pulses at ~1 Hz for a few seconds.
+    const int32 PendingComponents=Pending.Components+(Pending.bOpeningBase?1:0);
+    if(Pending.Offers>PromptOffers||Pending.Points>PromptPoints||PendingComponents>PromptComponents){PromptPulseAt=UiNow;}
+    PromptOffers=Pending.Offers;PromptPoints=Pending.Points;PromptComponents=PendingComponents;
     HudSetText(PromptText,LDHUD::GrowthPrompt(Pending,bRestServices));
     HudSetColor(PromptText,bPromptLit?HudPromptInk:HudPromptIdleInk);
     if(PromptButton->GetIsEnabled()!=bPromptLit){PromptButton->SetIsEnabled(bPromptLit);}

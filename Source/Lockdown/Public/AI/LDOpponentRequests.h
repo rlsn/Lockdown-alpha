@@ -38,7 +38,9 @@ namespace LDOpponentRequests
     LOCKDOWN_API bool BuildAction(const FLDOpponentBodyIntent& Intent, uint32 Generation, uint32 Life,
         uint64 DirectSequence, uint64 ExpectedSourceRevision, FLDCombatActionRequest& Out, FString& Error);
     // #198: an active choice of the still-current offer (always asking to learn it now), a learn of a still-pending blueprint
-    // into a still-empty slot, or an allocation that fits the own stats and unspent points; built from the own latest view.
+    // into a still-empty slot, an allocation that fits the own stats and unspent points, an opening base pick of a still-open
+    // option (always asking to enable it now) or the first install of a still-owned component, with a binding only to a
+    // learned active; built from the own latest view.
     LOCKDOWN_API bool BuildCommand(const FLDOpponentBuildIntent& Intent, const FLDProgressionView& Progression,
         uint64 RequestId, FLDBuildCommand& Out, FString& Error);
 

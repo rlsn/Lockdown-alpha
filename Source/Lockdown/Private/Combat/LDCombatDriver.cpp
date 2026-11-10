@@ -46,7 +46,8 @@ int64 ALDCombatDirector::NextDueMs(int64 NowMs) const
         for (const auto& Silence : Body.Silences) { Consider(Silence.ExpiresAtMs); }
         if (Body.SharedBreach.Stacks>0) { Consider(Body.SharedBreach.ExpiresAtMs); }
         if (!Body.Burn.Layers.IsEmpty()) { Consider(Body.Burn.NextTickAtMs); }
-        if (Body.Empower.IsSet()) { Consider(Body.Empower->ExpiresAtMs); }
+        for (const auto& Package : Body.Empowers) { Consider(Package.ExpiresAtMs); }
+        if (Body.VoluntaryDash.IsSet()) { Consider(Body.VoluntaryDash->EndMs); }
         if (Body.Shield.IsSet()) { Consider(Body.Shield->ExpiresAtMs); }
         if (Body.Taunt.IsSet()) { Consider(Body.Taunt->ExpiresAtMs); }
         Consider(Body.DashUntilMs);
@@ -302,6 +303,8 @@ bool ALDCombatDirector::RunEffects(const FLDGameplayWritePermit& Permit, FString
     const int64 Now=Mode->GetAuthorityNowMs();
     // Half-open statuses end before this boundary's hits; regeneration already settled in Actions.
     ExpireStatuses(Now);
+    // B12: voluntary dashes that completed by now (motion already ran to this boundary) arm their empowered packages.
+    if (!ResolveDashCompletions(Now,Error)) { return false; }
     // Zones and burns due now join this boundary's hits and projectiles.
     if (!AdvanceSkillContent(Now,Error) || !AdvanceMechanics(Now,Error) || !AdvanceBurns(Now,Error) || !AdvanceProjectiles(Error))
     { return false; }
