@@ -200,6 +200,7 @@ REQUIRED_TESTS = frozenset(
         "Lockdown.Rules.DemoFieldReward.Draw",
         "Lockdown.Rules.DemoFieldReward.Services",
         "Lockdown.Rules.DemoFieldReward.Choice",
+        "Lockdown.Rules.DemoFieldReward.ReactionGap",
         "Lockdown.Rules.DemoRest.Timeline",
         "Lockdown.Rules.DemoRest.PhasePolicy",
         "Lockdown.Rules.DemoPK.FormatDraw",

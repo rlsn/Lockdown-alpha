@@ -384,10 +384,12 @@ namespace LDProgression
 
     // Spec §4.5 gap targets in catalog order: owned mods/connectors never installed, not yet filled, with no compatible
     // entry among the owned components, learned actives and pending blueprints (the innate D and the holder itself always
-    // are one). A reaction connector (reaction_empower) has an entry only with at least two distinct held entries.
+    // are one). A reaction connector (reaction_empower, C09) has an entry only once those entries apply two distinct element
+    // kinds (native burn/wet/electrify, B01/B10/B11 and B18's bound element).
     LOCKDOWN_API void GapTargets(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, TArray<FName>& Out);
     // The unowned common base components that would give Target its missing entry (its component targets and extra bases),
-    // in catalog order. NotAGap / GapAlreadyFilled when Target is no gap target (Out empty).
+    // in catalog order; for C09 only those adding an element kind not yet applied (an unbound B18 adds any it may bind).
+    // NotAGap / GapAlreadyFilled when Target is no gap target (Out empty).
     LOCKDOWN_API ELDGrowthReason GapFillers(const FLDDemoContentDefinitions& Content, const FLDGrowthBuild& Build, FName Target,
         TArray<FName>& Out);
     // FillGap: GROWTH.FillGapPoints moved to PermanentSpentPoints, Filler owned (Source FillGap, inventory) and Target marked

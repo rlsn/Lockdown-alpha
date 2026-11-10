@@ -252,6 +252,43 @@ bool FieldTestRunServices(FAutomationTestBase& Test)
     return bGood;
 }
 
+bool FieldTestRunReactionGap(FAutomationTestBase& Test)
+{
+    TSharedPtr<const FLDDemoContentSnapshot> Catalog;
+    if (!LDTestApprovedFixture::Read(Test, Catalog)) { return false; }
+    const FLDDemoContentDefinitions& Content = Catalog->Get();
+    const FName BlastChase(TEXT("component_blast_chase"));
+    const FName FistFire(TEXT("component_fist_fire")), FistWater(TEXT("component_fist_water")), FistShock(TEXT("component_fist_shock"));
+    const FName DirtyTrick(TEXT("component_dirty_trick"));
+    // seethe burns and quick_meeting burns in its zone (fire + fire); hose_down wets (water).
+    const FName Seethe(TEXT("active_seethe")), QuickMeeting(TEXT("active_quick_meeting")), HoseDown(TEXT("active_hose_down"));
+    FLDGrowthBuild FireFire = LDProgression::StartBuild(Content);
+    FireFire.Level = 6;
+    FireFire.Actives.Add({Seethe, 0});
+    FireFire.PendingBlueprints.Add(QuickMeeting);
+    FieldTestOwn(FireFire, BlastChase);
+    FieldTestOwn(FireFire, FistFire);
+    TArray<FName> Gaps, Fillers;
+    LDProgression::GapTargets(Content, FireFire, Gaps);
+    bool bGood = Test.TestTrue(TEXT("C09 with three fire entries (seethe, quick_meeting blueprint, B01) is still a gap: fire cannot react with fire"),
+        Gaps.Contains(BlastChase));
+    bGood &= FieldTestReason(Test, TEXT("C09 fire+fire fillers"), LDProgression::GapFillers(Content, FireFire, BlastChase, Fillers),
+        ELDGrowthReason::None);
+    bGood &= Test.TestTrue(TEXT("Its fillers are the bases adding a missing kind (B10 water, B11 electric, unbound B18), never fire"),
+        Fillers.Contains(FistWater) && Fillers.Contains(FistShock) && Fillers.Contains(DirtyTrick) && !Fillers.Contains(FistFire));
+
+    FLDGrowthBuild FireWater = LDProgression::StartBuild(Content);
+    FireWater.Level = 6;
+    FireWater.Actives.Add({Seethe, 0});
+    FireWater.Actives.Add({HoseDown, 1});
+    FieldTestOwn(FireWater, BlastChase);
+    LDProgression::GapTargets(Content, FireWater, Gaps);
+    bGood &= Test.TestFalse(TEXT("C09 with fire (seethe) and water (hose_down) can react: not a gap"), Gaps.Contains(BlastChase));
+    bGood &= FieldTestReason(Test, TEXT("C09 fire+water is refused as a gap"), LDProgression::GapFillers(Content, FireWater, BlastChase,
+        Fillers), ELDGrowthReason::NotAGap);
+    return bGood;
+}
+
 bool FieldTestRunChoice(FAutomationTestBase& Test)
 {
     TSharedPtr<const FLDDemoContentSnapshot> Catalog;
@@ -325,6 +362,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoFieldRewardServicesTest, "Lockdown.Rules
 bool FLDDemoFieldRewardServicesTest::RunTest(const FString& Parameters)
 {
     return FieldTestRunServices(*this);
+}
+
+// #198 G2 §4.5: C09 counts distinct element kinds among its held entries; fire+fire is a gap, fire+water is not.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FLDDemoFieldRewardReactionGapTest, "Lockdown.Rules.DemoFieldReward.ReactionGap",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FLDDemoFieldRewardReactionGapTest::RunTest(const FString& Parameters)
+{
+    return FieldTestRunReactionGap(*this);
 }
 
 // #198 G: resolving an elite component choice, its refusals and its points fallback; the wire numbers of the new kinds.
